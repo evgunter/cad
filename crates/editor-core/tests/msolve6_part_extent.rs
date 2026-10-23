@@ -14,14 +14,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::Formula;
 
 use std::sync::Arc;
 
 use editor_core::mate::SurfaceKind;
-use editor_core::pose::PoseRole;
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate, MateFault,
+    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Mate, MateFault,
     MateRef, Node, NodeErrorKind, NodeResult, PartFault, ProfileDoc, ReachRefusal, RecipeNodeId,
     ResolveFault, content_pin, product,
 };
@@ -488,7 +486,7 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
 /// *Breaks if* any of these edits is refused for a fact of the parts.
 #[test]
 fn a6_no_edit_asks_the_store() {
-    let (doc, [a, b], seat_refs, opts, _log, body) = seated("msolve6-a6-preserving");
+    let (doc, [a, b], seat_refs, _opts, _log, body) = seated("msolve6-a6-preserving");
     let tol = Tol::witness();
     let part_ref = match doc.node(a) {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,

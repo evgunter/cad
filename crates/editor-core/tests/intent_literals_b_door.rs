@@ -11,7 +11,7 @@
 use crate::blocks::block;
 use crate::corpus;
 use crate::fixture::resolver::PartStore;
-use crate::fixture::{ang, len, scl};
+use crate::fixture::{len, scl};
 use editor_core::{
     AuthoredNode, CapEnd, ContactClass, CountMismatch, Dimension, DocEdit, DocRef, DocumentId,
     EditError, Formula, Frame, FreeVar, LoopProgram, Node, PatternKind, ProfileDoc, ProfileProgram,

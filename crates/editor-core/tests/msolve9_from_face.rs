@@ -27,14 +27,14 @@ use std::sync::Arc;
 use editor_core::mate::SurfaceKind;
 use editor_core::pose::{PoseDef, PoseReadFault};
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, EvalOptions,
+    CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, EvalOptions,
     Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind,
     NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
-    RecipeNodeId, RoleSeg, SlotId, StableName, TargetAxis, VarDef, VarKind, all_faces,
+    RecipeNodeId, RoleSeg, SlotId, StableName, VarDef, VarKind, all_faces,
     face_carrier_kind, face_frame, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, gate, insert, len, on_frame, run, solve, square, step};
+use fixture::{gate, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -321,9 +321,7 @@ fn a1_the_mate_follows_the_edited_face() {
     // Nothing stored twice: the target is the face's plane, flipped —
     // a read of the face, with no number of where it was.
     let mate = fixture::constraint(&s.doc, s.mate);
-    let to = mate.to else {
-        panic!("the seat's target is a pose of the post");
-    };
+    let to = mate.to;
     let flipped = match s.doc.var(to).map(editor_core::Var::def) {
         Some(VarDef::Pose(PoseDef::Flip { pose })) => pose.read,
         other => panic!("the target is the cap's plane, flipped: {other:?}"),

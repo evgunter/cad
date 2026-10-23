@@ -13,7 +13,7 @@ use std::sync::Arc;
 use crate::fixture::split_world as split;
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, Uncarried,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError,
     content_pin, evaluate, inline, load, save,
 };
 use fixture::resolver::PartStore;

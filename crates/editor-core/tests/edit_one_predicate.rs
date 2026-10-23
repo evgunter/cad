@@ -331,9 +331,7 @@ fn saved_mate(label: &str) -> (String, MateRef, [editor_core::VarId; 2]) {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
     let written = fixture::constraint(&doc, id);
-    let to = written.to else {
-        panic!("the mate's target is a pose of the pinned copy");
-    };
+    let to = written.to;
     let face = |pose| match fixture::face_reads(&doc, pose).as_slice() {
         [one] => *one,
         other => panic!("a plane pose reads one face, got {other:?}"),
@@ -408,9 +406,7 @@ fn a_face_to_face_mate_round_trips() {
     let (text, mate, reads) = saved_mate("onepred-matehead-ok");
     let loaded = load(&text, Tol::witness()).expect("a face-to-face mate loads");
     let kept = fixture::constraint(&loaded.doc, mate);
-    let to = kept.to else {
-        panic!("the mate survives the round trip, its target a pose");
-    };
+    let to = kept.to;
     assert_eq!(
         [
             fixture::face_reads(&loaded.doc, kept.on),

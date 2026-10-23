@@ -11,7 +11,7 @@
 use crate::fixture::{flip, head, len, plane};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, Mate, Operand,
+    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, Operand,
     ProfileDoc, RecipeNodeId, RoleSeg, StableName, apply, load, save,
 };
 use geom_core::Tol;

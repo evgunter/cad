@@ -17,10 +17,9 @@ use crate::p2_gauges::{
     BASE_HEIGHT, BASE_WIDTH, Parts, TOP_HEIGHT, block, body_of, parts, pinned, seat,
 };
 
-use editor_core::pose::PoseRole;
 use editor_core::{
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, Operand, ParamBox, ProfileDoc, RecipeNodeId, VarName, evaluate,
+    FreeVar, ParamBox, ProfileDoc, RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::with_resolver;
 use fixture::{ang, head, insert, len, run, solve, step};
@@ -78,12 +77,6 @@ impl M {
             *o += (0..3).map(|k| self.r[i][k] * x[k]).sum::<f64>();
         }
         out
-    }
-    fn frame(&self) -> Frame {
-        Frame {
-            columns: [0, 1, 2].map(|j| [self.r[0][j], self.r[1][j], self.r[2][j]]),
-            translation: self.t,
-        }
     }
     fn of(f: &Frame) -> M {
         M {

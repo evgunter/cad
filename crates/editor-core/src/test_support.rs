@@ -423,15 +423,28 @@ pub fn placed_against(
     at: &crate::Frame,
     tol: geom_core::Tol,
 ) -> crate::Placed {
+    placed_against_in(doc, &crate::EvalOptions::default(), target, body, at, tol)
+}
+
+/// [`placed_against`] under `opts` — which reaches the parts an
+/// instance copies.
+///
+/// # Panics
+///
+/// As [`against`]'s.
+#[must_use]
+pub fn placed_against_in(
+    doc: &ProfileDoc,
+    opts: &crate::EvalOptions,
+    target: &crate::Operand,
+    body: &crate::Operand,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> crate::Placed {
     use crate::pose::{PoseDef, PoseRole, RoleRead};
     use crate::{Coord, TargetAxis};
-    let ev: crate::Evaluation<f64> = crate::evaluate(
-        &doc,
-        None,
-        &crate::CancelToken::new(),
-        &crate::EvalOptions::default(),
-        tol,
-    );
+    let ev: crate::Evaluation<f64> =
+        crate::evaluate(doc, None, &crate::CancelToken::new(), opts, tol);
     // The first planar face by id on the body's own xy, as the sign of
     // its outward normal's z there.
     let own_plane = |shape: &crate::Operand| {

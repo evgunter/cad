@@ -533,9 +533,7 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
             ContactClass::Rest,
         ),
     );
-    let target = fixture::constraint(&doc, mate).to else {
-        panic!("the mate's target is a pose")
-    };
+    let target = fixture::constraint(&doc, mate).to;
     let [side] = fixture::face_reads(&doc, target)[..] else {
         panic!("the mate's target reads one face")
     };

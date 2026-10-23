@@ -15,7 +15,7 @@ use crate::fixture::{
     self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step,
 };
 use editor_core::eval::bound_pose;
-use editor_core::pose::{PoseDef, PoseRole};
+use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula,
     Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,

@@ -39,7 +39,7 @@ use std::sync::Arc;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, Mate, MateRef, NameRef, Node, NodeResult, Operand,
+    EvalOptions, Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand,
     ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices, evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
@@ -617,40 +617,22 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let l = lifted("msolve14-c-lift");
     out.push(("standoff", l.doc, l.opts));
 
-    // A parametric world mate — the world's frame slid and turned, two
-    // of its moves reading parameters — and a seat on the pinned slab,
+    // A parametric slab — values on the world's axes, two of them
+    // reading parameters — and a seat on the pinned slab,
     // and a seat on that: a chain of bundles back to the world.
     let p = parts("msolve14-c-pin");
     let doc = ProfileDoc::empty(DocumentId::derive("msolve14-c-pin"), Tol::witness());
     let doc = declare(doc, lift(), 2.0, Dimension::Length);
     let doc = declare(doc, turn(), 0.25, Dimension::Angle);
     let (doc, slab) = insert(doc, fixture::mated_instance(p.slab));
-    let world = WorldRead::Frame
-        .slide(WorldRead::through(PoseRole::X), len(5.0))
-        .spin(WorldRead::through(PoseRole::X), ang(0.3))
-        .slide(
-            WorldRead::through(PoseRole::Z),
-            named(lift(), Dimension::Length),
-        )
-        .spin(
-            WorldRead::through(PoseRole::Z),
-            named(turn(), Dimension::Angle),
-        );
-    let (doc, _) = fixture::constrain_at(
-        doc,
-        slab,
-        Mate {
-            on: frame(
-                slab,
-                p.slab_body,
-                &p.slab_names,
-                p.slab_edge(slab, 0),
-                CapEnd::End,
-            ),
-            to: Target::World(world),
-            class: ContactClass::Rest,
-        },
-    );
+    let values = vec![
+        (Coord::Spin(TargetAxis::X), ang(0.3)),
+        (Coord::Spin(TargetAxis::Z), named(turn(), Dimension::Angle)),
+        (Coord::Slide(TargetAxis::X), len(5.0)),
+        (Coord::Slide(TargetAxis::Y), len(0.0)),
+        (Coord::Slide(TargetAxis::Z), named(lift(), Dimension::Length)),
+    ];
+    let doc = fixture::written(doc, slab, editor_core::Placed::unmated(values));
     let (doc, top) = insert(doc, fixture::mated_instance(p.bolt));
     let (doc, _) = seat(
         doc,

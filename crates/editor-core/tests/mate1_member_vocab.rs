@@ -36,7 +36,7 @@ pub(crate) fn axis_with(
     body: RecipeNodeId,
     origin: [f64; 3],
     dir: [f64; 3],
-    o: &editor_core::EvalOptions,
+    _o: &editor_core::EvalOptions,
 ) -> editor_core::pose::RoleRead<editor_core::Operand> {
     let n = geom_core::Vec3::new(dir[0], dir[1], dir[2]);
     let seed = if n.x.abs() <= n.y.abs().max(n.z.abs()) {

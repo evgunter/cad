@@ -22,11 +22,9 @@ use std::sync::Arc;
 use crate::fixture;
 use crate::wire::doctored;
 
-use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
-    Formula, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateRef, MeasurePrimitive, Node,
-    Operand, PartResolver, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace,
+    Formula, Frame, FreeValue, FreeVar, Maintenance, MateFault, MateRef, MeasurePrimitive, Node, PartResolver, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace,
     SitedRef, StableName, TargetAxis, ValuePayload, VarId, VarName, apply,
     apply_replayed, evaluate, load, product, save,
 };
@@ -995,9 +993,7 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     store.insert(out.part.clone(), Tol::witness());
     let store_opts = with_resolver(store.clone());
     let crossed = fixture::constraint(&out.remainder, mate);
-    let target = crossed.to else {
-        panic!("the crossed seat reads a pose: {crossed:?}");
-    };
+    let target = crossed.to;
     let [side] = fixture::face_reads(&out.remainder, target)[..] else {
         panic!("the crossed target reads one face: {crossed:?}");
     };
@@ -1020,9 +1016,7 @@ fn a_face_target_crosses_split_and_inline_with_its_head() {
     )
     .expect("and inlines back with its head");
     let host = fixture::constraint(&back.doc, mate);
-    let target = host.to else {
-        panic!("the host seat reads a pose: {host:?}");
-    };
+    let target = host.to;
     let [side] = fixture::face_reads(&back.doc, target)[..] else {
         panic!("the host target reads one face: {host:?}");
     };

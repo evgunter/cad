@@ -20,7 +20,7 @@
 
 use crate::fixture::{self, ang, len};
 use editor_core::mate::coset::{Coset, Subgroup, intersect};
-use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
     BodyRead, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate, MateFault, Node,
     NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis,

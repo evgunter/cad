@@ -5316,7 +5316,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
     use editor_core::{
-        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, TargetAxis, VarKind,
+        DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, VarKind,
     };
     let n = |id| RecipeNodeId::new(0, tagged(id));
     let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
@@ -5349,42 +5349,10 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "WorldRead",
-            M::WorldRead {
-                mate: r(9),
-                fault: editor_core::WorldReadFault::Role {
-                    role: editor_core::pose::PoseRole::Normal,
-                    found: VarKind::Frame,
-                },
-            },
-        ),
-        (
-            "ValueNamesNoMate",
-            M::ValueNamesNoMate {
-                value: r(9),
-                mate: c(8),
-            },
-        ),
-        (
-            "NotAFreedom",
-            M::NotAFreedom {
-                value: r(9),
-                coord: Coord::Slide(TargetAxis::Z),
-                kind: VarKind::Plane,
-            },
-        ),
-        (
             "NoChart",
             M::NoChart {
                 value: r(9),
-                why: NoChartWhy::PointRotation,
-            },
-        ),
-        (
-            "NoChart/TwoBodies",
-            M::NoChart {
-                value: r(9),
-                why: NoChartWhy::TwoBodies,
+                why: NoChartWhy::SlideTurnsABall,
             },
         ),
         (

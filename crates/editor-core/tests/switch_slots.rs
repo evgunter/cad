@@ -544,30 +544,26 @@ fn value(n: u64, value: editor_core::Value<Formula>) -> editor_core::Constraint<
     }
 }
 
-/// A mate of the cap plane of `body`'s copy with the world's `xy`
-/// plane as `world` moves it.
-fn to_world(
-    body: RecipeNodeId,
-    world: editor_core::WorldRead<Formula>,
-) -> editor_core::Mate<Formula> {
-    editor_core::Mate {
-        on: fixture::plane(fixture::head(fixture::fname(
-            body,
-            RoleSeg::Cap(CapEnd::Start),
-        ))),
-        to: editor_core::Target::World(world),
-        class: ContactClass::Rest,
-    }
+/// A `Spin(Z)` value turning by `turn` of a turn.
+fn spin_z(n: u64, turn: f64) -> editor_core::Constraint<Formula> {
+    value(
+        n,
+        editor_core::Value {
+            coord: editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+            by: ang(turn),
+        },
+    )
 }
 
-/// The world's `xy` plane.
-fn world_xy() -> editor_core::WorldRead<Formula> {
-    editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy)
-}
-
-/// The world's `z` axis.
-fn world_z() -> editor_core::WorldRead<Formula> {
-    editor_core::WorldRead::through(editor_core::pose::PoseRole::Z)
+/// A `Slide(Z)` value sliding by `by`.
+fn slide_z(n: u64, by: f64) -> editor_core::Constraint<Formula> {
+    value(
+        n,
+        editor_core::Value {
+            coord: editor_core::Coord::Slide(editor_core::TargetAxis::Z),
+            by: len(by),
+        },
+    )
 }
 
 /// One value per node SHAPE — every kind of the roster above, and
@@ -655,27 +651,18 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
         },
-        // A world mate reading the world's plane as it stands: its read
-        // holds no scalar, so no slot.
+        // The identity bundle: no constraint, so no slot.
         Node::Place {
             shapes: vec![nid(1).into()],
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
-            constraints: vec![constraint(1, to_world(nid(1), world_xy()))],
+            constraints: Vec::new(),
         },
-        // A world mate reading the world's plane slid and spun: a slide
-        // slot and a spin slot, in the read's pre-order.
+        // A bundle of values on the world's axes: a slide slot and a
+        // spin slot, each under its own constraint's id.
         Node::Place {
             shapes: vec![nid(1).into()],
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
-            constraints: vec![constraint(
-                1,
-                to_world(
-                    nid(1),
-                    world_xy()
-                        .slide(world_z(), len(2.0))
-                        .spin(world_z(), ang(0.25)),
-                ),
-            )],
+            constraints: vec![slide_z(1, 2.0), spin_z(2, 0.25)],
         },
         // The world: no slot at all.
         Node::World,
@@ -723,27 +710,15 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                 crossings: Vec::new(),
             },
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
-            constraints: vec![constraint(
-                1,
-                to_world(nid(1), world_xy().slide(world_z(), len(1.0))),
-            )],
+            constraints: vec![slide_z(1, 1.0)],
         },
-        // A placement whose bundle is a world mate, a mate onto a face
-        // and a value on that mate: each constraint's slots carry its
-        // own id.
+        // A placement whose bundle is a mate onto a face and values
+        // charted on its target: each constraint's slots carry its own
+        // id.
         Node::Place {
             shapes: vec![nid(2).into()],
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![
-                constraint(
-                    1,
-                    to_world(
-                        nid(2),
-                        world_xy()
-                            .slide(world_z(), len(2.0))
-                            .spin(world_z(), ang(0.25)),
-                    ),
-                ),
                 constraint(
                     2,
                     fixture::mate(
@@ -758,20 +733,8 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                         ContactClass::Rest,
                     ),
                 ),
-                value(
-                    3,
-                    editor_core::Value {
-                        coord: editor_core::Coord::Spin(editor_core::TargetAxis::Z),
-                        by: ang(0.5),
-                    },
-                ),
-                value(
-                    4,
-                    editor_core::Value {
-                        coord: editor_core::Coord::Slide(editor_core::TargetAxis::Z),
-                        by: len(0.5),
-                    },
-                ),
+                spin_z(3, 0.5),
+                slide_z(4, 0.5),
             ],
         },
         Node::Measure {

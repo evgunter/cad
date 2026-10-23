@@ -12,10 +12,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, ang, insert, len};
-use editor_core::pose::{PoseDef, PoseRole};
+use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, Coord, EvalOptions, Formula, LoftSection, Mate, Node, NodeResult, Operand,
-    ProfileDoc, RecipeNodeId, StationMove, TargetAxis, TubeWindow, ValuePayload,
+    ProfileDoc, RecipeNodeId, StationMove, TubeWindow, ValuePayload,
 };
 use geom_core::Tol;
 

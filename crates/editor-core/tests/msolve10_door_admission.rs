@@ -187,23 +187,6 @@ fn value_at(at: u32, coord: Coord, by: Formula) -> editor_core::Constraint<Formu
     )
 }
 
-/// `edit` through the door: the document and the constraint it minted, or the fault the door refused with.
-#[allow(clippy::result_large_err)]
-fn through_door(
-    doc: &ProfileDoc,
-    placement: RecipeNodeId,
-    edit: &DocEdit<editor_core::ProfileProgram>,
-) -> Result<(ProfileDoc, MateRef), MateFault> {
-    match doc.apply(edit, Tol::witness()) {
-        Ok(applied) => {
-            let id = applied.record.minted_constraints[0];
-            Ok((applied.doc, MateRef::new(placement, id)))
-        }
-        Err(EditError::MateRefused { fault, .. }) => Err(*fault),
-        Err(other) => panic!("the door refused otherwise: {other:?}"),
-    }
-}
-
 // ---- A1: the door's refusal, naming the placement ----
 
 /// **A mate of two kinds refuses at insert with the admission's own

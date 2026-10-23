@@ -15,10 +15,9 @@ use std::sync::Arc;
 use crate::fixture;
 use crate::p2_gauges::{body_of, pinned, seat, seat_on, set_pin};
 
-use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
-    FreeValue, FreeVar, Node, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, StableName, VarName, evaluate,
+    FreeValue, FreeVar, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, StableName, VarName, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, run, solve, step};

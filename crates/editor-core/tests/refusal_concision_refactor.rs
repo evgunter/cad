@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CapEnd, ConstraintId, DocumentId, EditError, EntityKind, InlineError, PersistError,
+    CapEnd, DocumentId, EditError, EntityKind, InlineError, PersistError,
     RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SplitError, SpokenName, SpokenNode,
     StableName, StepId, Uncarried, VarName,
 };
