@@ -2,12 +2,11 @@
 id: assemble-is-an-operator-and-the-product-is-a-slot
 kind: unit
 title: D′3: Assemble (⊔) is the fourth operator, with the census at its door; one product slot; a placement copies one source body; an instance reads its part's product; picks, so RoleSeg::Placed/InPart and CopyKey retire
-status: parked
+status: open
 opened: 2026-10-22
 priority: P0
 cost: H
 parent: a-placement-pins-by-written-values-without-a-mate
-blocked_on: [a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space]
 ---
 
 
