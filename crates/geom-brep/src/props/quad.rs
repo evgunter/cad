@@ -7611,10 +7611,7 @@ mod tests {
     fn n_gon_run(chords: &[TrimChord]) -> LaneRun {
         let (ku, kvv, control, w) = flat_chart(1.0);
         trimmed_patch_face_rounds::<f64>(
-            &ku,
-            &kvv,
-            &control,
-            &w,
+            &patch(&ku, &kvv, &control, &w),
             chords,
             Band::linear(Tol::witness()).unwrap(),
             RoundWindow::SCHEDULE,
@@ -8551,10 +8548,7 @@ mod tests {
     fn a_never_accepted_face_stops_at_its_cumulative_wall() {
         let (ku, kv, net, w) = one_span_quarter_cylinder();
         let run = nurbs_patch_face_rounds::<f64>(
-            &ku,
-            &kv,
-            &net,
-            &w,
+            &patch(&ku, &kv, &net, &w),
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,

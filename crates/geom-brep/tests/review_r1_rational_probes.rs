@@ -1170,10 +1170,7 @@ fn a_conic_torus_costlier_per_round_stops_at_the_wall_holding_its_closed_form() 
     let (flux, area) = quarter_torus_closed(rr, r);
     let (kv, net, w) = conic_quarter_torus(rr, r, 9);
     let run = nurbs_patch_face::<f64>(
-        &kv,
-        &kv,
-        &net,
-        &w,
+        &patch_net(&kv, &kv, &net, &w),
         (0.0, 1.0, 0.0, 1.0),
         2.0 * core::f64::consts::FRAC_PI_2 * (rr + r) + 2.0 * core::f64::consts::FRAC_PI_2 * r,
         0.0,
