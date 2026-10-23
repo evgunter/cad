@@ -1922,18 +1922,17 @@ let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(
 assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
 // One `DefineVar` moves BOTH holes; the tab's own branch never
-// re-runs. Its placement does: it is placed against the plate's
-// geometry, so it reads the plate.
+// re-runs, its placement included: it reads the plate's space, not
+// the plate's geometry.
 let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
     fresh: Vec::new(),
 }, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
-assert_eq!(ev2.recomputed, 4); // the profile, the plate, the tab's
-                               // placement, the union
-assert_eq!(ev2.reused, 2);     // the tab's profile and extrude, by
-                               // content key
+assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
+assert_eq!(ev2.reused, 3);     // the tab's profile, extrude and
+                               // placement, by content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
 
 // The holes were authored by NAME and are stored by IDENTITY: the

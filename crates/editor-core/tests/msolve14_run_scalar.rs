@@ -919,10 +919,25 @@ fn run_at<T: editor_core::EvalScalar>(
 /// feeds each node's space as its `Space` variable where it fed the
 /// retired `Space` enum. Re-blessed at all three ε; the solved poses
 /// were not compared against the tree before separately.
+///
+/// And for D′2 (a value charts on the target space, all three rows):
+/// every bundle is spelled in the new vocabulary and the content key's
+/// `VERSION` moved, so the ids moved; and a seat's values are charted
+/// on its target space's axes swung onto the mated normal rather than
+/// on the target body's frame. Compared id-free against main
+/// (`be9b907694`) at 1e-9, every solved pose, fault and vertex is
+/// main's but three copies, each a seat on a target body standing off
+/// its space's identity: `pinned-chain`'s two bolts (the slab stands at
+/// `Rz(turn)·Rx(0.3)`), whose slides now read `(1, 1)` and `(0, 0)`
+/// from the world's origin along the world's axes swung onto the slab's
+/// normal (measured: `0.9999999999999996`, `0.9999999999999991`; and
+/// `-9.5e-17`, `-5.0e-16`); and `chain`'s third bolt, seated at `0`s on
+/// the second bolt's head, which now stands over the world's origin,
+/// `(0, 0, 4)`, where it stood over that bolt at `(4, 1, 4)`.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xa3d9_38c4_27d4_530a),
-    (1e-6, 0x6357_4036_51cd_85b1),
-    (1e-12, 0x5e63_7bdc_dd33_f293),
+    (1e-9, 0x9144_5cf5_16c8_eaa1),
+    (1e-6, 0xd467_38cd_8b9f_62da),
+    (1e-12, 0x44f1_215e_86ee_1ecd),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, spaces, faults and

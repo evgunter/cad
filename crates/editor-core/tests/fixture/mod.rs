@@ -1034,9 +1034,7 @@ pub fn value_slot(
         .unwrap_or_else(|| panic!("{placement} holds a value on {coord:?}"));
     match coord {
         editor_core::Coord::Slide(_) => editor_core::SlotId::ValueSlide { constraint: c.id },
-        editor_core::Coord::Spin(editor_core::TargetAxis::Z) | editor_core::Coord::Spin(_) => {
-            editor_core::SlotId::ValueSpin { constraint: c.id }
-        }
+        editor_core::Coord::Spin(_) => editor_core::SlotId::ValueSpin { constraint: c.id },
     }
 }
 

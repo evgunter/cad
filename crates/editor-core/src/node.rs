@@ -1311,7 +1311,7 @@ impl SitedRef {
 /// use editor_core::pose::PoseDef;
 /// use editor_core::{
 ///     ContactClass, EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
-///     StableName, Target,
+///     StableName,
 /// };
 /// let face = FaceName::new(StableName {
 ///     kind: EntityKind::Face,
