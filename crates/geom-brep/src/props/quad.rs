@@ -123,15 +123,18 @@
 //! sentence above about [`bspline_green_integral`] having no at-rest
 //! consumer is a statement about THAT function, not about the form:
 //! the trimmed lane integrates `−∮ G_f du` on the image's chord
-//! polygon with its own exact rule and its own pads.
+//! polygon with its own rules — the exact Newton–Cotes rule inside its
+//! window, the composite midpoint rule with a certified remainder past
+//! it — and its own pads.
 //!
 //! # Honesty pads (both directions accounted)
 //!
 //! The list below is the cylinder lane's two. The trimmed lane adds
-//! three of its own, each documented at its site: the LUNE between an
-//! arc and its chord, the VERTEX connectors from a bracket's midpoint
-//! to the point it stands for, and the `v`-knot crossing SLIVER — plus
-//! the closure gap and the refinement's `λ` rounding.
+//! its own, each documented at its site: the LUNE between an arc and
+//! its chord, the VERTEX connectors from a bracket's midpoint to the
+//! point it stands for, the exact rule's `v`-knot crossing SLIVER, the
+//! composite rule's REMAINDER and its crossing-bracket COLUMN bound —
+//! plus the closure gap and the refinement's `λ` rounding.
 //!
 //! - **Map residual**: each pcurve tracks its carrier within its
 //!   certificate envelope `e` (metres through the map). The cylinder
@@ -268,7 +271,11 @@ const fn w_trimmed(p_u: usize, p_v: usize) -> usize {
 /// taken to that table's scale by the factor 1.5, a little above the
 /// readings' median ratio `1/0.70`, at 1 104 weight a millisecond. A
 /// bidegree the table does not list takes `64·(p_u + 1)·(p_v + 1)²`,
-/// which is above every listed one.
+/// never below the dearest listed weight:
+/// the formula is above every listed weight at that weight's own
+/// bidegree, so it is meant to dominate a measured reading the table
+/// lacks, and the floor keeps an unlisted bidegree from costing less
+/// than a listed one it outranks.
 ///
 /// | `(p_u, p_v)` | ms / piece | weight |
 /// |---|---|---|
@@ -296,7 +303,10 @@ const fn w_trimmed_composite(p_u: usize, p_v: usize) -> usize {
         (2, 4) => 3_900,
         (3, 4) => 5_610,
         (4, 4) => 6_980,
-        _ => 64 * (p_u + 1) * (p_v + 1) * (p_v + 1),
+        _ => {
+            let formula = 64 * (p_u + 1) * (p_v + 1) * (p_v + 1);
+            if formula > 6_980 { formula } else { 6_980 }
+        }
     }
 }
 
@@ -4850,7 +4860,7 @@ enum OuterRule<'g> {
     /// Closed Newton–Cotes weights of that order: exact on a piece.
     Exact(Vec<Interval>),
     /// The composite midpoint rule with its certified remainder.
-    Composite(Curvature<'g>),
+    Composite(Box<Curvature<'g>>),
 }
 
 impl OuterRule<'_> {
@@ -5006,8 +5016,14 @@ fn chord_polygon_flux(
     let mut total = Interval::zero();
     let mut sliver = 0.0f64;
     let mut removable = 0.0f64;
-    // The composite rule's first-order column bounds; see the
-    // unguardable-terms note in `trimmed_patch_face_rounds`.
+    // The composite rule's first-order column bounds. **No row can go
+    // red on this term**: a piece falls to it only inside a crossing's
+    // `u` bracket or below the resolution that locates its span, and the
+    // bracket is about one ulp wide, because the chord's `f64` ends make
+    // `Δv` exact and only the division rounds — so the pad is `~h·ulp`
+    // and dropping it moves no enclosure past its own rounding. It is
+    // the composite twin of the exact rule's SLIVER, unguarded for the
+    // same reason.
     let mut column_pad = 0.0f64;
     for c in cells {
         let Some(chord) = Chord::of(c) else {
@@ -5339,9 +5355,9 @@ fn polygon_winding(cells: &[TrimCell]) -> f64 {
 /// and chord (`A(B_k)·sup|f|` on the piece box, under the
 /// `props_trim_piece_monotone` row), and the chord polygon by Green's
 /// `G_f`: its inner `v` rule exact, its outer `u` rule exact while
-/// `p_u + p_v ≤ 4` ([`chord_polygon_flux`]) and the composite midpoint
-/// rule with its certified remainder past that
-/// ([`chord_polygon_flux_composite`]), the round's lever cutting an iso
+/// `p_u + p_v ≤ 4` and the composite midpoint rule with its certified
+/// remainder past that (both [`chord_polygon_flux`]'s, by
+/// [`OuterRule`]), the round's lever cutting an iso
 /// chord into as many pieces as a `General` image has blocks. Both arms
 /// are one engine: the cells, lunes, pads, area and stop are shared,
 /// and the composite arm's remainders join the lunes as the width a
@@ -5419,7 +5435,11 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         .and_then(newton_cotes_weights)
     {
         Some(wu) => OuterRule::Exact(wu),
-        None => OuterRule::Composite(Curvature::of(suu.as_ref(), suv.as_ref(), svv.as_ref())),
+        None => OuterRule::Composite(Box::new(Curvature::of(
+            suu.as_ref(),
+            suv.as_ref(),
+            svv.as_ref(),
+        ))),
     };
     let (tb_u, tb_v) = trim_box(chords);
     let (s_hull, h_su, h_sv) = match certified_box(tb_u, tb_v) {
@@ -5468,8 +5488,9 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
         .mag();
     // A round's cells are its iso chords and, per `General` image, the
     // round's blocks: the schedule's count, before a monotone bisection
-    // adds any, and before the knot and crossing cuts split a chord
-    // further (the composite rule's pieces as the exact rule's cells).
+    // adds any. `cost` does not count the pieces a chord's knot and
+    // crossing cuts add, in either rule (the exact rule's cells have
+    // always been counted so).
     let cost = |round: usize| {
         let pieces = TRIM_INIT_PIECES << round;
         let per_edge = |c: &TrimChord| {
@@ -5584,21 +5605,24 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             &per_cell,
             &wv,
         );
-        // **Two of the terms below are not independently guarded, and
-        // saying so is cheaper than implying they are.** Dropping the
-        // GAP term reds no row: inside the closure check's admitted
-        // region (`|Δ| ≤ the two brackets' slacks`) the VERTEX pad
-        // already bounds a displacement of the same size, so on every
-        // fixture one covers the other. They are kept apart because
-        // they bound different things in general — the vertex pad pays
-        // for a connector from a bracket's midpoint to a point inside
-        // THAT bracket, the gap for a disagreement between two
-        // different brackets' midpoints — and neither subsumes the
-        // other for arbitrary slacks. Halving the SLIVER constant also
-        // reds nothing: the `v`-crossing bracket is thin at `f64`
-        // (measured `1.49e-30` on Q7's chart), so the term is
-        // structurally right and numerically invisible until the
-        // interval lane instantiates the door.
+        // **Two of the terms below and one inside `chord_polygon_flux`
+        // are not independently guarded, and saying so is cheaper than
+        // implying they are.** The GAP term is guarded where its lever
+        // is the column's (Q17: a chart whose integrand vanishes on the
+        // trim box); where it is not, inside the closure check's
+        // admitted region (`|Δ| ≤ the two brackets' slacks`) the VERTEX
+        // pad bounds a displacement of the same size, so one covers the
+        // other. They are kept apart because they bound different
+        // things in general — the vertex pad pays for a connector from
+        // a bracket's midpoint to a point inside THAT bracket, the gap
+        // for a disagreement between two different brackets' midpoints
+        // — and neither subsumes the other for arbitrary slacks.
+        // Halving the SLIVER constant reds nothing: the `v`-crossing
+        // bracket is thin at `f64` (measured `1.49e-30` on Q7's chart),
+        // so the term is structurally right and numerically invisible
+        // until the interval lane instantiates the door. The composite
+        // rule's crossing-bracket COLUMN bound is unguarded for the same
+        // reason (its site says so).
         //
         // §1(iii)'s constant, written whole: the mismatch sliver is
         // `½·w²·|ℓ′|` on EACH side of the definite cut and the
@@ -5815,7 +5839,7 @@ mod tests {
     fn the_work_wall_buys_each_lane_its_measured_rounds() {
         type Cost<'a> = &'a dyn Fn(usize) -> usize;
         let square = |w: usize| move |r: usize| w * (QUAD2_INIT_PIECES << r).pow(2);
-        let rows: [(&str, Cost<'_>, usize); 7] = [
+        let rows: [(&str, Cost<'_>, usize); 10] = [
             ("rational composite", &square(W_RATIONAL_COMPOSITE), 7),
             ("integral composite", &square(W_INTEGRAL_COMPOSITE), 6),
             (
@@ -5842,6 +5866,21 @@ mod tests {
                 "trimmed biquadratic chart, 1 image and 2 iso chords",
                 &|r| w_trimmed(2, 2) * ((TRIM_INIT_PIECES << r) + 2),
                 7,
+            ),
+            (
+                "trimmed bicubic composite, 1 image and 3 iso chords",
+                &|r| w_trimmed_composite(3, 3) * 4 * (TRIM_INIT_PIECES << r),
+                6,
+            ),
+            (
+                "trimmed (3, 2) composite, 3 iso chords",
+                &|r| w_trimmed_composite(3, 2) * 3 * (TRIM_INIT_PIECES << r),
+                8,
+            ),
+            (
+                "trimmed (5, 2) composite at the fallback's floor, 3 iso chords",
+                &|r| w_trimmed_composite(5, 2) * 3 * (TRIM_INIT_PIECES << r),
+                5,
             ),
         ];
         for (lane, cost, want) in rows {
@@ -8904,7 +8943,7 @@ mod tests {
     }
 
     /// **Q14 — the composite arm holds a closed form at every round,
-    /// and narrows at second order.**
+    /// and narrows at third order.**
     ///
     /// The degree-`(3, 2)` chart [`cubic_by_quadratic`] is past the
     /// exact outer rule's window. Its diagonal chord is the one the rule
@@ -8979,7 +9018,6 @@ mod tests {
     /// Newton–Cotes.
     mod reference {
         use super::RVec3;
-        use crate::props::bracket::mid;
 
         /// `N_{i,p}(t)` and its derivative, by the recursion with
         /// `0/0 = 0` and half-open degree-0 supports.
@@ -9163,7 +9201,6 @@ mod tests {
                     }
                 }
             }
-            let _ = mid;
             total
         }
     }
@@ -9177,23 +9214,44 @@ mod tests {
     }
 
     /// A chart of bidegree `(pu, pv)` with interior knots at `¼, ½, ¾` in
-    /// `u` and `⅛, ⅜, ½, ⅞` in `v`, its net a curved dyadic height over
-    /// the Greville grid: genuinely piecewise, a different polynomial on
-    /// each cell.
+    /// `u` and `⅛, ⅜, ½, ⅞` in `v`: the polynomial surface
+    /// `(u + ½u², v, 24uv + ½)`, its net read off its blossoms, plus a
+    /// height of `¼·((3i + 5j + ij) mod 7 − 2)/8` per control point, so
+    /// a different polynomial on each cell. The polynomial part is what
+    /// makes `S_uu×S_uv` and `f_uu` below the chord large against the
+    /// remainder's own width, so every term of `φ''` shows in the
+    /// enclosure by round 3.
     fn piecewise_chart(pu: usize, pv: usize) -> reference::Chart {
         let ku = clamped(pu, &[0.25, 0.5, 0.75]);
         let kv = clamped(pv, &[0.125, 0.375, 0.5, 0.875]);
         let (nu, nv) = (ku.len() - pu - 1, kv.len() - pv - 1);
+        // The blossom of `t` and of `t²` at a control point's knots.
         #[allow(clippy::cast_precision_loss)]
-        let greville =
+        let linear =
             |k: &[f64], p: usize, i: usize| k[i + 1..=i + p].iter().sum::<f64>() / p as f64;
+        let square = |k: &[f64], p: usize, i: usize| {
+            let args = &k[i + 1..=i + p];
+            let mut pairs = 0.0;
+            for (n, a) in args.iter().enumerate() {
+                for b in &args[n + 1..] {
+                    pairs += a * b;
+                }
+            }
+            #[allow(clippy::cast_precision_loss)]
+            let count = (p * (p - 1) / 2) as f64;
+            pairs / count
+        };
         let mut control = Vec::new();
         for i in 0..nu {
             for j in 0..nv {
-                #[allow(clippy::cast_precision_loss)]
+                let (gu, gv) = (linear(&ku, pu, i), linear(&kv, pv, j));
                 let z =
-                    f64::from(u32::try_from((3 * i + 5 * j + i * j) % 7).unwrap()) * 0.125 - 0.25;
-                control.push([greville(&ku, pu, i), greville(&kv, pv, j), 0.5 + z]);
+                    (f64::from(u32::try_from((3 * i + 5 * j + i * j) % 7).unwrap()) - 2.0) * 0.125;
+                control.push([
+                    gu + 0.5 * square(&ku, pu, i),
+                    gv,
+                    24.0 * gu * gv + 0.5 + 0.25 * z,
+                ]);
             }
         }
         reference::Chart {
