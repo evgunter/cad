@@ -225,9 +225,12 @@ fn same_volume(label: &str, source: &Result<(f64, f64), String>, image: &Body<f6
             w > 0.0 && (w - v).abs() <= v_pad + w_pad + 1e-9 * v,
             "{label}: volume {w} ± {w_pad} against the source's {v} ± {v_pad}"
         ),
-        (Err(v), Err(w)) => println!(
-            "{label}: no volume compared — the source's measurement refuses ({v}) and so does \
-             the image's ({w})"
+        (Err(v), Err(w)) => test_utils::vacuity::stood_down(
+            label,
+            &format!(
+                "no volume compared — the source's measurement refuses ({v}) and so does the \
+                 image's ({w})"
+            ),
         ),
         (v, w) => panic!("{label}: the source measures {v:?} and the image {w:?}"),
     }
