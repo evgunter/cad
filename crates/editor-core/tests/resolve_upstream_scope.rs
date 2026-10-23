@@ -169,11 +169,11 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     );
     // The first bar's walls (`block`'s profile runs counter-clockwise
     // from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 3 is x = x0).
-    let Some(Node::Place { shapes, .. }) = doc.node(tr1.placement) else {
+    let Some(Node::Place { source, .. }) = doc.node(tr1.placement) else {
         panic!("slot() places the bar");
     };
     let bar1 = &doc
-        .operation_of(shapes[0].read)
+        .operation_of(source.read)
         .expect("the placement reads a live bar");
     let wall = |segment| {
         StableName {
@@ -183,7 +183,6 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
                 crate::fixture::piece(&doc, *bar1, 0, segment).into(),
             )],
         }
-        .in_copy(tr1.placement)
     };
     let Some(Node::Subtract {
         tool: tool_read, ..

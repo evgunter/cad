@@ -163,9 +163,9 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
     }));
     let (doc, upper) = mint(
         &doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(editor_core::BodyRead::plain(
             editor_core::Operand::from(plates[1]),
-        )]),
+        )),
     );
     let bottom = editor_core::Operand::select(
         plates[1],

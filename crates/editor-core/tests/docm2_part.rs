@@ -104,13 +104,7 @@ fn lift(r: &mut Recorder, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
 
 /// `name`, as the placement `p` names its copy of the entity.
 fn placed(p: RecipeNodeId, name: &StableName) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: p,
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(name.clone()),
-        }],
-    }
+    name.clone()
 }
 
 /// The `Body` value of a node — a Part's, a placement's one copy — as
@@ -118,7 +112,6 @@ fn placed(p: RecipeNodeId, name: &StableName) -> StableName {
 fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<Body<f64>> {
     match &ev.value(id).expect("a value").payload {
         ValuePayload::Body(b) => b,
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("node {} is a {}, not a body", id.0, other.kind_name()),
     }
 }
@@ -527,9 +520,9 @@ fn a4_every_refusal_is_typed() {
     });
     // The empty side offers no geometry to place by: its reader is a
     // placement with no mate yet.
-    let above = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+    let above = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(
         port(split, SplitHalf::Above),
-    )]));
+    )));
     let below = lift(&mut r, port(split, SplitHalf::Below), 0.0);
     let ev = eval(&r.doc);
     assert!(

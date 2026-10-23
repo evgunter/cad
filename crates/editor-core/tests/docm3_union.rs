@@ -595,10 +595,7 @@ fn two_placements_of_one_prototype_are_two_members() {
     let prototype = |faces: Vec<StableName>| -> Vec<StableName> {
         faces
             .into_iter()
-            .map(|n| match n.path.as_slice() {
-                [RoleSeg::Placed { of }] => (**of).clone(),
-                _ => panic!("a placed copy's face is named under its placement: {n:?}"),
-            })
+            .map(|n| n.clone())
             .collect()
     };
     assert_eq!(
@@ -626,10 +623,7 @@ fn two_placements_of_one_prototype_are_two_members() {
     let inner: std::collections::BTreeSet<StableName> = faces
         .iter()
         .filter_map(|n| match n.path.first() {
-            Some(RoleSeg::From { of, .. }) => match of.path.as_slice() {
-                [RoleSeg::Placed { of }] => Some((**of).clone()),
-                _ => None,
-            },
+            Some(RoleSeg::From { of, .. }) => Some((**of).clone()),
             _ => None,
         })
         .collect();
@@ -688,8 +682,8 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         .collect();
     let rim_blend = match in_world.as_slice() {
         [placement] => match doc.node(*placement) {
-            Some(Node::Place { shapes, .. }) if shapes.len() == 1 => doc
-                .operation_of(shapes[0].read)
+            Some(Node::Place { source, .. }) => doc
+                .operation_of(source.read)
                 .expect("the placement reads the die"),
             other => panic!("a placement, got {other:?}"),
         },

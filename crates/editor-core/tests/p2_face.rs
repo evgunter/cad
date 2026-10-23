@@ -369,7 +369,6 @@ fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
     let (host, k) = insert(host, fixture::mated_instance(p.top));
     let through = FaceName::new(p.top_upper_cap(sub_aside))
         .expect("a face")
-        .in_part(i)
         .into_name();
     let (host, _) = face_mate(host, k, head(p.top_cap(k)), head(through));
     let poses = solve(&host, &with_sub, Tol::witness());
@@ -424,7 +423,7 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     let (doc, m) = seat_at(
         doc,
         mover,
-        head(in_part(mover, p.base_body, CapEnd::Start)),
+        head_at(mover, in_part(mover, p.base_body, CapEnd::Start)),
         head(copy_cap),
         [4.0, 0.0],
     );
@@ -523,8 +522,8 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
         .placements()
         .into_iter()
         .filter(|&at| {
-            matches!(base.node(at), Some(Node::Place { shapes, .. })
-                if shapes.iter().any(|s| base.operation_of(s.read) == Some(body)))
+            matches!(base.node(at), Some(Node::Place { source, .. })
+                if (base.operation_of(source.read) == Some(body)))
         })
         .collect();
     let base = old_copies
@@ -585,7 +584,7 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
     let (doc, m) = face_mate(
         doc,
         top,
-        head(in_part(top, top_body, CapEnd::Start)),
+        head_at(top, in_part(top, top_body, CapEnd::Start)),
         head(old_head.clone()),
     );
     assert!(
@@ -670,8 +669,8 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
     let (doc, m) = face_mate(
         doc,
         top,
-        head(in_part(top, top_body, CapEnd::Start)),
-        head(in_part(low, low_body, CapEnd::End)),
+        head_at(top, in_part(top, top_body, CapEnd::Start)),
+        head_at(low, in_part(low, low_body, CapEnd::End)),
     );
     let on_low = origin_of(&doc, &o, top);
     assert!(
@@ -687,8 +686,7 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
                 constraint: m.id,
                 side: MateSide::To,
             }),
-            value: editor_core::SlotValue::Read(fixture::flip(fixture::plane(head(in_part(
-                high,
+            value: editor_core::SlotValue::Read(fixture::flip(fixture::plane(head_at(high, in_part(high,
                 high_body,
                 CapEnd::End,
             ))))),

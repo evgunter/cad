@@ -63,17 +63,11 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// has caps, but node 99 does not exist in it at all.
 fn dangling(instance: RecipeNodeId) -> StableName {
     StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
-            .into(),
-        }],
-    }
+            
 }
 
 /// A rest of `b`'s face on `a`'s, declaring `class`, standing `b`

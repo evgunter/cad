@@ -486,7 +486,7 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
                     of: editor_core::NameRef::new(if member == of {
                         own
                     } else {
-                        own.in_copy(member)
+                        own
                     }),
                 }],
             }
@@ -795,7 +795,7 @@ fn bar_wall(segment: u32) -> StableName {
         node: u,
         path: vec![RoleSeg::From {
             read: crate::fixture::out(&doc, tr.placement),
-            of: editor_core::NameRef::new(wall(&doc, bar, segment).in_copy(tr.placement)),
+            of: editor_core::NameRef::new(wall(&doc, bar, segment)),
         }],
     }
 }
@@ -926,7 +926,7 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
             node: u,
             path: vec![RoleSeg::From {
                 read: crate::fixture::out(&doc, tr.placement),
-                of: editor_core::NameRef::new(wall(&doc, bar, 1).in_copy(tr.placement)),
+                of: editor_core::NameRef::new(wall(&doc, bar, 1)),
             }],
         };
         for (n, d) in rows {

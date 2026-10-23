@@ -68,11 +68,7 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// `inner` seen through the instance `node` placed it at — one rung of
 /// the route a name climbs at each seam.
 fn wrap(node: RecipeNodeId, inner: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::InPart { of: inner.into() }],
-    }
+    inner
 }
 
 /// Cube `k`'s `cap` as the stand `stand` names it in its product: the
@@ -273,14 +269,10 @@ fn routed(
     inner: &StableName,
     hops: &[RecipeNodeId],
 ) -> StableName {
-    fn unwraps(name: &StableName, inner: &StableName, hops: &[RecipeNodeId]) -> bool {
-        match hops.split_last() {
-            None => name == inner,
-            Some((&hop, below)) => match &name.path[..] {
-                [RoleSeg::InPart { of }] if name.node == hop => unwraps(of, inner, below),
-                _ => false,
-            },
-        }
+    // Each instance's copy carries its part's names verbatim, at every
+    // hop.
+    fn unwraps(name: &StableName, inner: &StableName, _hops: &[RecipeNodeId]) -> bool {
+        name == inner
     }
     let found: Vec<StableName> = gathered
         .names
@@ -1248,9 +1240,9 @@ fn a_placed_product_still_refuses() {
     let (doc, instance) = pinned_instance(doc, &store, inner_ref);
     let (doc, moved) = insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(editor_core::BodyRead::plain(
             editor_core::Operand::from(instance),
-        )]),
+        )),
     );
     let doc = fixture::pinned(doc, moved, &with_resolver(store.clone()));
     refuses_as_product(&store, &doc, moved, cube, "the placed instance");
@@ -1794,7 +1786,7 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     };
     assert_eq!(
         refusal.kind(),
-        editor_core::ProductErrorKind::StrandedPlacement
+        editor_core::ProductErrorKind::StrandedProduct
     );
     let in_outer = error.spoken(&outer, &ev);
     assert!(

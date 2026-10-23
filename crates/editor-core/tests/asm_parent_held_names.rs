@@ -89,16 +89,10 @@ fn part_wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, k: u32) -> Stable
     fixture::fname(ext, fixture::wall(doc, ext, k))
 }
 
-/// The same wall as the parent names it: `InPart { of }` at the
-/// instantiate node, `of` the part's copy of it under its world
-/// `placement` (A10).
-fn held(instance: RecipeNodeId, placement: RecipeNodeId, of: &StableName) -> StableName {
-    fixture::fname(
-        instance,
-        RoleSeg::InPart {
-            of: of.in_copy(placement).into(),
-        },
-    )
+/// The same wall as the parent names it: the part's own name, which
+/// its placement's copy and the instance's carry verbatim.
+fn held(_instance: RecipeNodeId, _placement: RecipeNodeId, of: &StableName) -> StableName {
+    of.clone()
 }
 
 /// The corners of the face a parent-held name denotes, sorted.

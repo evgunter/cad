@@ -545,9 +545,9 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
     // A copy of each half, loose: a reader of the half's value.
     let still = |half: SplitHalf| {
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(editor_core::BodyRead::plain(
             editor_core::Operand::output(split, half.port()),
-        )])
+        ))
     };
     let above = r.insert(still(SplitHalf::Above));
     let below = r.insert(still(SplitHalf::Below));
@@ -569,9 +569,9 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     };
     let read = match ev.value(below).map(|v| &v.payload) {
         Some(ValuePayload::Body(body)) => body,
-        Some(ValuePayload::Copies(copies)) => {
-            let [read] = &copies.bodies[..] else {
-                panic!("one copy of the half: {}", copies.bodies.len());
+        Some(ValuePayload::Instances(copies)) => {
+            let [read] = &copies[..] else {
+                panic!("one copy of the half: {}", copies.len());
             };
             read
         }

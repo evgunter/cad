@@ -3583,9 +3583,10 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             vec![held(4, "Place")],
         ),
         (
-            EditError::CopyReadOffBodySeat {
+            EditError::PickPath {
                 node: held(5, "Fillet"),
                 slot: editor_core::SlotId::Radius,
+                at: Some(0),
             },
             vec![held(5, "Fillet")],
         ),

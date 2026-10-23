@@ -740,6 +740,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             | Self::SetAppearanceMeta { .. }
             | Self::ClearAppearanceMeta { .. }
             | Self::SetLabel { .. }
+            | Self::SetProduct { .. }
             | Self::UpdateReference { .. } => false,
         }
     }
@@ -1769,6 +1770,19 @@ pub fn selection_into<P>(
             names: names.to_vec(),
         },
     );
+    let id = doc.mint.declare_anonymous(&def);
+    doc.vars.insert(id, Var::written(def));
+    id
+}
+
+/// **A pick minted into `doc` as given**, outside any edit: the piece
+/// `of` names of the copy `placement` reads, with no door around it.
+#[cfg(any(test, feature = "test-support"))]
+pub fn pick_into<P>(doc: &mut Doc<P>, placement: VarId, of: &[VarId]) -> VarId {
+    let def = WrittenDef::Pick(crate::var::Pick {
+        placement,
+        of: of.to_vec(),
+    });
     let id = doc.mint.declare_anonymous(&def);
     doc.vars.insert(id, Var::written(def));
     id
@@ -8501,7 +8515,7 @@ mod tests {
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
         let writing: [DocEdit<ProfileProgram>; 3] = [
             DocEdit::place(
-                vec![crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3))],
+                crate::BodyRead::plain(crate::node::RecipeNodeId::new(0, 3)),
                 crate::Operand::Var(crate::VarId::WORLD),
                 vec![crate::mate::Constraint::of_mate(
                     crate::node::ConstraintId::placeholder(1),

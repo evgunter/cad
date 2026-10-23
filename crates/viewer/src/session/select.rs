@@ -97,8 +97,8 @@ impl EdgeSelection {
 
 /// **The names an operation moved one placement deeper**: each world
 /// copy `copy` it re-pointed to a new placement `place` of the body the
-/// copy drew, so what the copy spelled as `n.in_copy(copy)` it now
-/// spells as `n.in_copy(place).in_copy(copy)`.
+/// copy drew, so what the copy spelled as `n` it now
+/// spells as `n`.
 ///
 /// The one door every holder of a picked name — the selection, the
 /// add-profile form's held face, an open tool's picks — re-seats its
@@ -133,7 +133,7 @@ impl Renamed {
         self.deeper
             .iter()
             .find(|(at, _)| *at == copy)
-            .map(|&(_, place)| own.in_copy(place).in_copy(copy))
+            .map(|&(_, place)| own)
     }
 
     /// [`Self::name`] written over `name` in place.

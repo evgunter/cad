@@ -185,22 +185,20 @@ fn in_world_of(part: &ProfileDoc, name: StableName) -> StableName {
         .placements()
         .into_iter()
         .filter(|&at| {
-            matches!(part.node(at), Some(Node::Place { shapes, .. })
-                if shapes.iter().any(|s| part.operation_of(s.read) == Some(name.node)))
+            matches!(part.node(at), Some(Node::Place { source, .. })
+                if (part.operation_of(source.read) == Some(name.node)))
         })
         .collect();
     let [copy] = copies[..] else {
         panic!("one placement places {:?}, not {copies:?}", name.node);
     };
-    name.in_copy(copy)
+    name
 }
 
-/// `name` wrapped at `instance`, as a host spells a face of its part.
-fn wrap(instance: RecipeNodeId, name: StableName) -> StableName {
-    editor_core::FaceName::new(name)
-        .expect("a face")
-        .in_part(instance)
-        .into_name()
+/// `name` as a host spells a face of its part through `instance`: the
+/// part's own name, which the instance's copy carries verbatim.
+fn wrap(_instance: RecipeNodeId, name: StableName) -> StableName {
+    name
 }
 
 /// The document `instance` in `doc` references.
@@ -534,13 +532,6 @@ fn i1_inline_at_a_pose_places_the_parts_world_under_the_instances_bundle() {
             .expect("the copies evaluate")
             .payload
         {
-            editor_core::ValuePayload::Copies(c) => c
-                .bodies
-                .iter()
-                .map(|b| min_corner(b))
-                .fold([f64::INFINITY; 3], |m, c| {
-                    [m[0].min(c[0]), m[1].min(c[1]), m[2].min(c[2])]
-                }),
             other => panic!(
                 "{what}: the new placement holds copies: {}",
                 other.kind_name()
@@ -583,7 +574,7 @@ fn i2_a_host_constraint_reading_the_instance_crosses_onto_the_spliced_copy() {
     let carried = only_constraint(&out.doc, top);
     assert_eq!(
         read_name(&out.doc, target_of(&carried)),
-        p.base_cap(out.node_map[&first]).in_copy(out.placement),
+        p.base_cap(out.node_map[&first]),
         "the constraint reads the spliced base's copy in the host's world"
     );
     let after = min_corner(&body_of(&run(&out.doc, &o), top));

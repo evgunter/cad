@@ -160,9 +160,9 @@ pub fn floor(
     let (doc, inner) = insert(
         doc,
         Node::place(
-            vec![editor_core::BodyRead::plain(editor_core::Operand::output(
+            editor_core::BodyRead::plain(editor_core::Operand::output(
                 slab, 0,
-            ))],
+            )),
             editor_core::Operand::Var(space),
             sunk.bundle(),
         ),
@@ -171,16 +171,14 @@ pub fn floor(
     let (doc, outer) = insert(
         doc,
         Node::place(
-            vec![editor_core::BodyRead::plain(editor_core::Operand::output(
+            editor_core::BodyRead::plain(editor_core::Operand::output(
                 inner, 0,
-            ))],
+            )),
             editor_core::Operand::Var(VarId::WORLD),
             moved.bundle(),
         ),
     );
-    let top = fname(slab, RoleSeg::Cap(editor_core::CapEnd::End))
-        .in_copy(inner)
-        .in_copy(outer);
+    let top = fname(slab, RoleSeg::Cap(editor_core::CapEnd::End));
     let plane = plane(editor_core::Operand::select(
         editor_core::Operand::output(outer, 0),
         vec![top],
@@ -328,8 +326,8 @@ pub fn placed_by(doc: &ProfileDoc, mate: &editor_core::Mate<Formula>) -> RecipeN
             .placements()
             .into_iter()
             .filter(|&p| {
-                matches!(doc.node(p), Some(Node::Place { shapes, .. })
-                    if shapes.iter().any(|s| doc.operation_of(s.read) == read))
+                matches!(doc.node(p), Some(Node::Place { source, .. })
+                    if doc.operation_of(source.read) == read)
             })
             .collect();
         if let [one] = copying.as_slice() {
@@ -513,24 +511,24 @@ pub fn mated(
     (doc, minted[0])
 }
 
-/// **A placement node copying `shapes` into the space `constraints`'
+/// **A placement node copying `source` into the space `constraints`'
 /// mates read** ([`mates_space`]; the world for a bundle with no mate),
 /// its bundle written whole.
 pub fn place_node(
     doc: &ProfileDoc,
-    shapes: Vec<editor_core::BodyRead<Formula>>,
+    source: impl Into<editor_core::BodyRead<Formula>>,
     constraints: Vec<editor_core::Constraint<Formula>>,
 ) -> AuthoredNode {
     let target = mates_space(doc, &constraints).unwrap_or(VarId::WORLD);
-    Node::place(shapes, editor_core::Operand::Var(target), constraints)
+    Node::place(source, editor_core::Operand::Var(target), constraints)
 }
 
-/// **A placement node copying `shapes`, standing in the world**: the
+/// **A placement node copying `source`, standing in the world**: the
 /// identity bundle ([`editor_core::stand`]), which a row then writes
 /// over ([`write_bundle`]).
-pub fn stood(shapes: Vec<editor_core::BodyRead<Formula>>) -> AuthoredNode {
+pub fn stood(source: impl Into<editor_core::BodyRead<Formula>>) -> AuthoredNode {
     Node::place(
-        shapes,
+        source,
         editor_core::Operand::Var(VarId::WORLD),
         editor_core::stand().bundle(),
     )
@@ -551,7 +549,7 @@ pub fn stood_in(
     insert(
         doc,
         Node::place(
-            vec![editor_core::BodyRead::plain(read)],
+            editor_core::BodyRead::plain(read),
             editor_core::Operand::Var(target),
             editor_core::stand().bundle(),
         ),
@@ -614,12 +612,10 @@ pub fn pin(
 }
 
 /// **`placement`'s copy as its constraints read it**: a `Place` through
-/// its first shape, an instance through its own copies.
+/// its source, an instance through its own copy.
 fn copy_read(doc: &ProfileDoc, placement: RecipeNodeId) -> editor_core::Operand {
     match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => {
-            editor_core::Operand::Var(shapes.first().expect("a placement copies a shape").read)
-        }
+        Some(Node::Place { source, .. }) => editor_core::Operand::Var(source.read),
         Some(Node::InstantiatePart { .. }) => editor_core::Operand::Var(
             doc.output(placement, 0)
                 .expect("an instance defines its copies"),
@@ -1237,21 +1233,22 @@ pub fn assertion_value(doc: &ProfileDoc, assertion: RecipeNodeId) -> editor_core
 }
 
 /// **One copy of `body` in the world** (A10), at the identity: the
-/// document's product is the copies its placements define.
+/// document's product is the world's copies, which this writes again
+/// ([`editor_core::test_support::with_world_product`]).
 pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let read = body_read(&doc, body.into());
-    insert(doc, stood(vec![editor_core::BodyRead::plain(read)]))
+    let (doc, placement) = insert(doc, stood(editor_core::BodyRead::plain(read)));
+    (
+        editor_core::test_support::with_world_product(doc),
+        placement,
+    )
 }
 
-/// **A read of the copy of `body` an instance delivers** — `instance`'s
-/// copies, keyed by the copy's identity in its part
-/// ([`resolver::copy_key`]): what a seat reading one body of an instance
-/// reads.
-pub fn copy(instance: RecipeNodeId, body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
-    editor_core::BodyRead::keyed(
-        editor_core::Operand::Node(instance),
-        resolver::copy_key(body),
-    )
+/// **A read of the copy of `body` an instance delivers**: the instance's
+/// copy, its part's product, which [`resolver::PartStore::insert_part`]
+/// makes the copy of `body` alone.
+pub fn copy(instance: RecipeNodeId, _body: RecipeNodeId) -> editor_core::BodyRead<Formula> {
+    editor_core::BodyRead::plain(editor_core::Operand::Node(instance))
 }
 
 /// **The body read a placement of `body` names**: a revolve named
@@ -1283,11 +1280,10 @@ pub fn with_placements(
 ) -> std::collections::BTreeSet<RecipeNodeId> {
     let mut out = cut.clone();
     for placement in doc.placements() {
-        if let Some(Node::Place { shapes, .. }) = doc.node(placement)
-            && shapes.iter().any(|shape| {
-                doc.operation_of(shape.read)
-                    .is_some_and(|at| cut.contains(&at))
-            })
+        if let Some(Node::Place { source, .. }) = doc.node(placement)
+            && doc
+                .operation_of(source.read)
+                .is_some_and(|at| cut.contains(&at))
         {
             out.insert(placement);
         }
@@ -1793,9 +1789,9 @@ impl Recorder {
                 vec![fname(cube, RoleSeg::Cap(CapEnd::Start))],
             ))
         };
-        let copy = self.insert(stood(vec![editor_core::BodyRead::plain(
+        let copy = self.insert(stood(editor_core::BodyRead::plain(
             editor_core::Operand::from(cube),
-        )]));
+        )));
         self.constrain(
             copy,
             editor_core::Mate {
@@ -1832,14 +1828,9 @@ impl Recorder {
                 (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
             })
             .expect("the cube has a vertex at the origin");
-        // The copy's vertex is the cube's, qualified by the copy.
-        let copied = StableName {
-            kind: vertex.kind,
-            node: copy,
-            path: vec![RoleSeg::Placed {
-                of: editor_core::NameRef::new(vertex.clone()),
-            }],
-        };
+        // The copy's vertex is the cube's: a copy names its entities
+        // as its source does.
+        let copied = vertex.clone();
         self.insert(Node::Measure {
             primitive: editor_core::MeasurePrimitive::Distance {
                 a: editor_core::SitedRef::new(cube, vertex).into(),
@@ -1892,7 +1883,7 @@ impl Recorder {
     ) -> RecipeNodeId {
         let node = place_node(
             &self.doc,
-            vec![editor_core::BodyRead::plain(read)],
+            editor_core::BodyRead::plain(read),
             placed.bundle(),
         );
         self.insert(node)
@@ -2082,7 +2073,7 @@ pub fn in_world_by(
     };
     let node = place_node(
         &doc,
-        vec![editor_core::BodyRead::plain(read)],
+        editor_core::BodyRead::plain(read),
         placed.bundle(),
     );
     insert(doc, node)
@@ -3127,8 +3118,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::CrossingVertex { edge: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
-        | RoleSeg::InPart { of: x }
-        | RoleSeg::Placed { of: x }
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }

@@ -62,13 +62,7 @@ fn block_at(
 
 /// `of` as the copy at `placement` names it.
 fn placed(placement: RecipeNodeId, of: StableName) -> StableName {
-    StableName {
-        kind: of.kind,
-        node: placement,
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(of),
-        }],
-    }
+    of
 }
 
 fn boolean_value(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> &BooleanValue<f64> {

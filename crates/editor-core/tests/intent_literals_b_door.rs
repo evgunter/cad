@@ -347,7 +347,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             }],
         },
         Node::Place {
-            shapes: vec![b.into()],
+            source: b.into(),
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![
                 editor_core::Constraint {

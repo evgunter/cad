@@ -510,6 +510,7 @@ test_utils::f6_variants! {
         Mirror,
         Subtract,
         Union,
+        Assemble,
         Intersect,
         Place,
         World,
@@ -658,14 +659,14 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         // The identity bundle: no constraint, so no slot.
         Node::Place {
-            shapes: vec![nid(1).into()],
+            source: nid(1).into(),
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: Vec::new(),
         },
         // A bundle of values on the world's axes: a slide slot and a
         // spin slot, each under its own constraint's id.
         Node::Place {
-            shapes: vec![nid(1).into()],
+            source: nid(1).into(),
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![slide_z(1, 2.0), spin_z(2, 0.25)],
         },
@@ -721,7 +722,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         // charted on its target: each constraint's slots carry its own
         // id.
         Node::Place {
-            shapes: vec![nid(2).into()],
+            source: nid(2).into(),
             target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![
                 constraint(

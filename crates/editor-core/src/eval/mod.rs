@@ -901,6 +901,7 @@ impl NodeValue<f64> {
             verdicts: Arc::new(verdicts),
             escalations: Arc::new(vec![]),
             motion: None,
+            pieces: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),

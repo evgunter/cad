@@ -160,8 +160,8 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
-            Some(Node::Place { shapes, .. }) => shapes.iter().any(|shape| {
-                doc.operation_of(shape.read)
+            Some(Node::Place { source, .. }) => ({
+                doc.operation_of(source.read)
                     .and_then(|picked| doc.node(picked))
                     .is_some_and(|picked| {
                         matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
@@ -431,7 +431,6 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
     match &ev.value(id).expect("node evaluated to a value").payload {
         ValuePayload::Body(b) => b,
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("expected a single body, got {}", other.kind_name()),
     }
 }
@@ -630,7 +629,10 @@ pub const SUB_KINDS: [&str; 9] = [
 /// The sub-kind tally names a node contributes (possibly none).
 pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str> {
     match node {
-        Node::Union { .. } | Node::Intersect { .. } | Node::Subtract { .. } => Vec::new(),
+        Node::Union { .. }
+        | Node::Intersect { .. }
+        | Node::Assemble { .. }
+        | Node::Subtract { .. } => Vec::new(),
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
             PatternKind::Circular { .. } => "Pattern::Circular",
@@ -705,6 +707,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Split { .. } => "Split",
         Node::Mirror { .. } => "Mirror",
         Node::Union { .. } => "Union",
+        Node::Assemble { .. } => "Assemble",
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
@@ -727,6 +730,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::InsertNode { .. } => "InsertNode",
         DocEdit::DeleteNode { .. } => "DeleteNode",
         DocEdit::SetMembers { .. } => "SetMembers",
+        DocEdit::SetProduct { .. } => "SetProduct",
         DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",

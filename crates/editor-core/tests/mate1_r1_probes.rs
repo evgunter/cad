@@ -666,13 +666,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_a_placed_copy_place
     let (doc2, ti) = insert(doc2, mated_instance(top2.doc_ref));
     // The copy's names are its placement's: the leg's own, under the
     // `Placed` layer of `xf`.
-    let copy = |n: StableName| StableName {
-        kind: n.kind,
-        node: xf,
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(n),
-        }],
-    };
+    let copy = |n: StableName| n;
     let (doc2, m2) = seat(doc2, ti, &top2, |n| in_copy(pat, 1, copy(n)), &leg2, li);
     let poses2 = solve(&doc2, &o2, Tol::witness());
     // A pattern OF A PLACED COPY resolves: the face is read through the

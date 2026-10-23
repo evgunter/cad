@@ -85,6 +85,7 @@ test_utils::f6_variants! {
         Intersect,
         Subtract,
         Union,
+        Assemble,
         Place,
         World,
         Space,
@@ -142,8 +143,8 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let (doc, _) = fixture::constrain_with(
         doc,
         fixture::rest(
-            fixture::head(in_part(top, top_body, CapEnd::Start)),
-            fixture::head(in_part(base, base_body, CapEnd::End)),
+            fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
+            fixture::head_at(base, in_part(base, base_body, CapEnd::End)),
             ContactClass::Rest,
         ),
         &[

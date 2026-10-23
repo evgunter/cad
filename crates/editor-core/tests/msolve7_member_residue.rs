@@ -203,8 +203,8 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         doc,
         top,
         fixture::rest(
-            head(in_part(top, top_body, CapEnd::Start)),
-            head(in_part(base, base_body, CapEnd::End)),
+            head_at(top, in_part(top, top_body, CapEnd::Start)),
+            head_at(base, in_part(base, base_body, CapEnd::End)),
             ContactClass::Rest,
         ),
         &[
@@ -396,17 +396,11 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
     }
     let name = |node, end| {
         fixture::head(StableName {
-            kind: EntityKind::Face,
-            node,
-            path: vec![RoleSeg::InPart {
-                of: StableName {
                     kind: EntityKind::Face,
                     node: RecipeNodeId::new(0, 1),
                     path: vec![RoleSeg::Cap(end)],
                 }
-                .into(),
-            }],
-        })
+                )
     };
     let (doc, _) = fixture::mated(
         doc,

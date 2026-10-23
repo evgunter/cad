@@ -207,7 +207,7 @@ fn place(doc: ProfileDoc, o: &EvalOptions, body: RecipeNodeId) -> ProfileDoc {
     let read = fixture::body_read(&doc, body.into());
     let (doc, placement) = insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+        crate::fixture::stood(editor_core::BodyRead::plain(read)),
     );
     fixture::pinned(doc, placement, o)
 }
@@ -224,7 +224,7 @@ fn copy_name(doc: &ProfileDoc, ev: &Evaluation<f64>, name: &StableName) -> Stabl
     let copies: Vec<StableName> = names
         .iter()
         .map(|(n, _)| n.clone())
-        .filter(|n| n.copy_of().is_some_and(|(_, of)| of == name))
+        .filter(|n| n == name)
         .collect();
     match copies.as_slice() {
         [copy] => copy.clone(),
@@ -235,13 +235,7 @@ fn copy_name(doc: &ProfileDoc, ev: &Evaluation<f64>, name: &StableName) -> Stabl
 
 /// `name`, as the placement `p` names its copy of the entity.
 fn placed(p: RecipeNodeId, name: StableName) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: p,
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name),
-        }],
-    }
+    name
 }
 
 /// **A name read at `at`**: under `at`'s own layer where `at` is a
@@ -1211,16 +1205,16 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         crate::fixture::side_head(&out.remainder, *on),
         crate::fixture::side_head(&out.remainder, *to),
     );
-    let Some(Node::Place { shapes, .. }) = out.remainder.node(b.at) else {
+    let Some(Node::Place { source, .. }) = out.remainder.node(b.at) else {
         panic!("the `to` operand still names a placement");
     };
-    let [RoleSeg::Placed { of }] = b.name.path.as_slice() else {
-        panic!("the `to` face wears the placement's layer: {:?}", b.name);
-    };
-    assert_eq!(
-        out.remainder.operation_of(shapes[0].read),
-        Some(of.name().node),
-        "over the very instance the name it wraps is headed at"
+    assert!(
+        out.remainder
+            .operation_of(source.read)
+            .and_then(|at| out.remainder.node(at))
+            .is_some_and(|node| matches!(node, Node::InstantiatePart { .. })),
+        "the placement copies the instance, whose names the `to` face carries: {:?}",
+        b.name
     );
     assert_eq!(
         a.at, a.name.node,

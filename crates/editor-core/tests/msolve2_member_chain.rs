@@ -73,18 +73,8 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 /// under the placement the part's world copies the body by, inside the
 /// instance's `InPart` wrapper.
 fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: StableName) -> StableName {
-    let placed = StableName {
-        kind: name.kind,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name),
-        }],
-    };
-    StableName {
-        kind: placed.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart { of: placed.into() }],
-    }
+    let placed = name;
+    placed
 }
 
 /// The part's own names for what a seat reads: two lateral edges, at
@@ -113,7 +103,7 @@ fn world(
         let read = fixture::body_read(&doc, body.into());
         let (doc, placement) = insert(
             doc,
-            crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+            crate::fixture::stood(editor_core::BodyRead::plain(read)),
         );
         fixture::pinned(doc, placement, opts)
     };
@@ -144,7 +134,7 @@ fn world_name(
     let copies: Vec<StableName> = names
         .iter()
         .map(|(n, _)| n.clone())
-        .filter(|n| n.copy_of().is_some_and(|(_, of)| of == name))
+        .filter(|n| n == name)
         .collect();
     let [copy] = copies.as_slice() else {
         panic!("{name:?} has one world copy, not {copies:?}");

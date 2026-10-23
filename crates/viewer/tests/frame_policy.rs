@@ -2316,7 +2316,7 @@ fn a_twin_copys_face_is_a_disagreement() {
     );
     // The same face of the body, on the left copy.
     let (_, own) = hit.name.copy_of().expect("a copy's name is wrapped");
-    let twin = own.in_copy(left);
+    let twin = own;
     let [other] = index.ids_of(&twin) else {
         panic!("the left copy draws the twin face once");
     };

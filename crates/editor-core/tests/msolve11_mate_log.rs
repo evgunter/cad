@@ -57,18 +57,8 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
 /// under the placement the part's world copies the body by, inside the
 /// instance's `InPart` wrapper.
 fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: StableName) -> StableName {
-    let placed = StableName {
-        kind: name.kind,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name),
-        }],
-    };
-    StableName {
-        kind: placed.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart { of: placed.into() }],
-    }
+    let placed = name;
+    placed
 }
 
 /// **`face`'s plane slid `h` along its own outward normal and

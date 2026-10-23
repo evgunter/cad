@@ -206,7 +206,7 @@ pub(crate) fn place_copies(
         );
         fixture::insert_pinned(
             doc,
-            crate::fixture::stood(vec![editor_core::BodyRead::plain(copy)]),
+            crate::fixture::stood(editor_core::BodyRead::plain(copy)),
             o,
         )
         .0
@@ -228,8 +228,8 @@ fn copy_placement(doc: &ProfileDoc, pattern: RecipeNodeId, i: u32) -> RecipeNode
     doc.placements()
         .into_iter()
         .find(|&p| {
-            matches!(doc.node(p), Some(Node::Place { shapes, .. })
-                if shapes.iter().any(|s| doc.operation_of(s.read) == Some(part)))
+            matches!(doc.node(p), Some(Node::Place { source, .. })
+                if doc.operation_of(source.read) == Some(part))
         })
         .expect("the copy is placed")
 }
@@ -315,17 +315,11 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
     );
     // The part's product spells the copy's face under the cut
     // placement of that copy (`Placed`), in the part's ids.
-    let held = StableName {
-        kind: editor_core::EntityKind::Face,
-        node: across.node_map[&copy_placement(&doc, pattern, COPY)],
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(in_copy(
+    let held = in_copy(
                 across.node_map[&pattern],
                 COPY,
                 in_part(across.node_map[&leg], leg_body, CapEnd::End),
-            )),
-        }],
-    };
+            );
     assert_eq!(
         inner.clone().into_name(),
         held,
@@ -555,7 +549,7 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         doc,
         top,
         fixture::rest(
-            fixture::head(in_part(top, top_body, CapEnd::Start)),
+            fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
             stranded,
             ContactClass::Rest,
         ),

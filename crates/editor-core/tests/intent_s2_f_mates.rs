@@ -124,8 +124,8 @@ fn a_measure_couples_as_reads_do() {
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            editor_core::SitedRef::at_mint(in_part(a, body, CapEnd::End)),
-            editor_core::SitedRef::at_mint(in_part(b, body, CapEnd::Start)),
+            editor_core::SitedRef::new(a, in_part(a, body, CapEnd::End)),
+            editor_core::SitedRef::new(b, in_part(b, body, CapEnd::Start)),
         ],
     );
     assert_eq!(
@@ -221,7 +221,7 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
             ]),
         },
     );
-    let (doc, placed) = insert(doc, crate::fixture::stood(vec![fused.into()]));
+    let (doc, placed) = insert(doc, crate::fixture::stood(fused));
     let doc = fixture::pinned(doc, placed, &with_resolver(store.clone()));
     let ev = run(&doc, &with_resolver(store.clone()));
     fixture::assert_mints_nothing(&doc, &ev, mate);
@@ -276,7 +276,7 @@ fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
     let (doc, mate) = seated(doc, seat(body, (b, b), (a, a)));
     // `again` stands where `b` stands, by the identity bundle; values
     // move a second copy of it one up, where the seat puts it.
-    let (doc, again) = insert(doc, crate::fixture::stood(vec![b.into()]));
+    let (doc, again) = insert(doc, crate::fixture::stood(b));
     let moved = fixture::pin(
         doc.clone(),
         again,
@@ -324,7 +324,7 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
         &editor_core::Frame::translation([5.0, 0.0, 0.0]),
         &opts,
     );
-    let (doc, p) = insert(doc, crate::fixture::stood(vec![b.into()]));
+    let (doc, p) = insert(doc, crate::fixture::stood(b));
     // The seat and a zero on each freedom it leaves, written whole.
     let (doc, mate) = fixture::constrain_at(doc, p, seat(body, (b, b), (a, a)));
     let ev = run(&doc, &opts);
@@ -361,9 +361,9 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
     for cell in &mut other.cells {
         if let NamedCell::Entity { input, name } = cell
             && doc.operation_of(*input) == Some(p)
-            && let [RoleSeg::Placed { of }] = name.path.as_slice()
         {
-            *name = (**of).clone();
+            // A copy names its faces as its source does.
+            *name = name.clone();
             *input = own;
         }
     }
@@ -382,17 +382,11 @@ fn a_mates_on_side_is_read_in_its_own_placements_copy_alone() {
 /// table does not carry: the selection's ladder refuses it.
 fn ghost_side(doc: ProfileDoc, mate: MateRef, instance: RecipeNodeId) -> ProfileDoc {
     let ghost = editor_core::StableName {
-        kind: editor_core::EntityKind::Face,
-        node: instance,
-        path: vec![editor_core::RoleSeg::InPart {
-            of: editor_core::StableName {
                 kind: editor_core::EntityKind::Face,
                 node: RecipeNodeId::new(0, test_utils::refusal::tagged(77)),
                 path: vec![editor_core::RoleSeg::Cap(CapEnd::Start)],
             }
-            .into(),
-        }],
-    };
+            ;
     step(
         doc,
         DocEdit::SetParam {
@@ -524,7 +518,7 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
     let (doc, mate) = fixture::constrain(
         doc,
         fixture::rest(
-            fixture::head(in_part(top, top_body, CapEnd::Start)),
+            fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
             fixture::head(fixture::in_copy(
                 pattern,
                 2,
@@ -584,7 +578,7 @@ fn a_selection_crossing_a_posed_placement_refuses() {
     let (doc, [x, t, px]) = lifted_cube_measured("f-posed");
     // Re-place `x` posed, in place of its world placement at the identity.
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: px });
-    let (doc, posed) = insert(doc, crate::fixture::stood(vec![x.into()]));
+    let (doc, posed) = insert(doc, crate::fixture::stood(x));
     let doc = fixture::pin(
         doc,
         posed,

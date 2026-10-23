@@ -87,7 +87,7 @@ pub(crate) fn against_with(
     );
     let (doc, placement) = insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+        crate::fixture::stood(editor_core::BodyRead::plain(read)),
     );
     // The mate and its values written whole, into the target's space.
     let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());

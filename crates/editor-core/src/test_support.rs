@@ -124,6 +124,10 @@ pub fn stored_reading(
                 let body = given(doc, slot, body, read);
                 crate::edit::selection_into(&mut doc.borrow_mut(), slot, body, names)
             }
+            crate::Operand::Pick { placement, of } => {
+                let placement = given(doc, slot, placement, read);
+                crate::edit::pick_into(&mut doc.borrow_mut(), placement, of)
+            }
             crate::Operand::Pose(def) => {
                 let lowered = def
                     .try_map(
@@ -247,7 +251,7 @@ fn place_of(
 ) -> (ProfileDoc, RecipeNodeId) {
     let applied = crate::apply(
         &doc,
-        &DocEdit::place(vec![crate::BodyRead::plain(body)], target, placed.bundle()),
+        &DocEdit::place(crate::BodyRead::plain(body), target, placed.bundle()),
         tol,
     )
     .expect("a placement inserts");
@@ -1131,7 +1135,10 @@ pub fn beside_past_the_bundle_rule(
         <crate::program::ProfileProgram as crate::ProfilePayload>::Authored,
         Formula,
     > = Node::Place {
-        shapes: Vec::new(),
+        source: crate::BodyRead::plain(crate::Operand::Var(
+            out.output(placement, 0)
+                .unwrap_or_else(|| panic!("{placement:?} defines its copy")),
+        )),
         target: crate::Operand::Var(crate::VarId::WORLD),
         constraints: vec![crate::Constraint::of_mate(
             crate::node::ConstraintId::placeholder(1),
@@ -1278,4 +1285,82 @@ mod tests {
             ],
         );
     }
+}
+
+/// **The product a document whose world placements were its product
+/// had** (D10 `[operations]`): the slot set to its one world copy, or
+/// to a `⊔` of its world copies in document order, written through the
+/// doors. A `⊔` this wrote before is replaced, so a fixture that places
+/// one more body calls it again. A document with no world placement is
+/// left with an empty product.
+///
+/// # Panics
+///
+/// If a door refuses an edit it writes.
+#[must_use]
+#[allow(clippy::expect_used)]
+pub fn with_world_product(doc: ProfileDoc) -> ProfileDoc {
+    let tol = geom_core::Tol::witness();
+    let apply = |doc: &ProfileDoc, edit: crate::DocEdit<ProfileProgram>| -> ProfileDoc {
+        crate::apply(doc, &edit, tol)
+            .unwrap_or_else(|e| panic!("the product's edit applies: {e}"))
+            .doc
+    };
+    let mut doc = doc;
+    // A `⊔` the slot reads, read by nothing else, is this helper's own.
+    let held = doc
+        .product()
+        .and_then(|var| doc.operation_of(var))
+        .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
+        .filter(|&at| {
+            let var = doc.output(at, 0);
+            !doc.ids().into_iter().any(|id| {
+                doc.node(id).is_some_and(|node| {
+                    node.operand_rows()
+                        .into_iter()
+                        .any(|(_, read)| Some(read) == var)
+                })
+            })
+        });
+    doc = apply(&doc, crate::DocEdit::SetProduct { product: None });
+    if let Some(at) = held {
+        doc = apply(&doc, crate::DocEdit::DeleteNode { id: at });
+    }
+    let copies: Vec<crate::VarId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| doc.node_space(p) == Some(crate::VarId::WORLD))
+        .filter_map(|p| doc.output(p, 0))
+        .filter(|&copy| doc.var(copy).is_some_and(|v| v.kind() == crate::VarKind::Body))
+        .collect();
+    let product = match copies.as_slice() {
+        [] => return doc,
+        [one] => crate::Operand::Var(*one),
+        several => {
+            let outcome = crate::apply(
+                &doc,
+                &crate::DocEdit::InsertNode {
+                    node: Box::new(Node::Assemble {
+                        members: crate::Bodies::Spelled(
+                            several
+                                .iter()
+                                .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
+                                .collect(),
+                        ),
+                    }),
+                    fresh: Vec::new(),
+                },
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("the world's copies assemble: {e}"));
+            doc = outcome.doc;
+            crate::Operand::Node(outcome.record.minted.expect("an insert mints its node"))
+        }
+    };
+    apply(
+        &doc,
+        crate::DocEdit::SetProduct {
+            product: Some(product),
+        },
+    )
 }

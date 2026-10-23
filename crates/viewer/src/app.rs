@@ -4826,7 +4826,7 @@ mod properties_pane_tests {
             insert(
                 &mut doc,
                 Node::place(
-                    vec![BodyRead::plain(Operand::from(union))],
+                    BodyRead::plain(Operand::from(union)),
                     world(),
                     stand(),
                 ),
@@ -5477,8 +5477,7 @@ mod properties_pane_tests {
                 kind: pncad::prelude::EntityKind::Face,
                 node: extrude(),
                 path: vec![pncad::prelude::RoleSeg::Cap(end)],
-            }
-            .in_copy(placement()),
+            }),
             node: placement(),
             body: 0,
         }

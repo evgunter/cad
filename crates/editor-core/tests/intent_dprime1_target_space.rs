@@ -202,7 +202,7 @@ fn a_copy_in_a_new_space_placed_into_the_world_is_in_the_product() {
     let (doc, inner) = step(
         doc,
         DocEdit::place(
-            vec![a.into()],
+            a,
             Operand::Var(space),
             editor_core::stand().bundle(),
         ),
@@ -321,13 +321,7 @@ fn a_bundle_names_its_mate_in_any_order_and_a_rewrite_keeps_its_ids() {
     let (doc, under) = fixture::place(doc, a);
     let (doc, target) = fixture::place(doc, b);
     // The target's top, read in its world copy.
-    let top = editor_core::StableName {
-        kind: editor_core::EntityKind::Face,
-        node: target,
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(fixture::fname(b, RoleSeg::Cap(CapEnd::End))),
-        }],
-    };
+    let top = fixture::fname(b, RoleSeg::Cap(CapEnd::End));
     let mate = fixture::mate(
         fixture::plane(fixture::head(fixture::fname(
             a,
@@ -428,7 +422,7 @@ fn deleting_a_space_strands_the_placements_into_it() {
     let (doc, inner) = step(
         doc,
         DocEdit::place(
-            vec![a.into()],
+            a,
             Operand::Var(space),
             editor_core::stand().bundle(),
         ),

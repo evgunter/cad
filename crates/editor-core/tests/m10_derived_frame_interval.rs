@@ -166,9 +166,9 @@ fn cap_plane(site: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> editor_core
 /// **`body` seated on `to`**: a copy of it whose start cap rests on the
 /// plane `to`, at rest in that plane. Returns the placement.
 fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> RecipeNodeId {
-    let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+    let placement = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(
         editor_core::Operand::from(body),
-    )]));
+    )));
     r.constrain(
         placement,
         editor_core::Mate {

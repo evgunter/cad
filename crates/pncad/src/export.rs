@@ -111,9 +111,9 @@ impl core::error::Error for ExportError {}
 /// Serializes the single body `node` denotes in `evaluation` as a STEP
 /// (AP214 Part 21) exchange file and returns it as a string.
 ///
-/// Accepts a `Body` value, a non-empty `Boolean`, or an instance's
-/// copies read as its part product's one body; every other shape of
-/// result is a typed [`ExportError`], never a guess.
+/// Accepts a `Body` value or a non-empty `Boolean`, an instance's copy
+/// and a `⊔` among them; every other shape of result is a typed
+/// [`ExportError`], never a guess.
 ///
 /// # Errors
 ///
@@ -133,8 +133,6 @@ pub fn step_for_node(
         ValuePayload::Boolean(BooleanValue::Empty) => {
             return Err(ExportError::EmptyBoolean { node });
         }
-        // An instance's copies, read as the one body its part product is.
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => {
             return Err(ExportError::NotABody {
                 node,
@@ -145,9 +143,9 @@ pub fn step_for_node(
     step_string(body, options, tol).map_err(ExportError::Step)
 }
 
-/// Serializes the WHOLE DOCUMENT's product — the world: every copy a
-/// placement defines, in the placements' document order — as a STEP
-/// (AP214 Part 21) exchange file.
+/// Serializes the WHOLE DOCUMENT's product — the body its product slot
+/// reads, a `⊔`'s pieces each its own solids — as a STEP (AP214 Part 21)
+/// exchange file.
 ///
 /// This is the door that accepts what [`step_for_node`] refuses: a
 /// pattern's instances, a split's two halves, several disjoint tips.
@@ -160,8 +158,8 @@ pub fn step_for_node(
 /// # Errors
 ///
 /// [`ExportError::Product`] carrying the gather's own typed refusal
-/// (an empty world naming the unplaced bodies, a placement whose body
-/// is gone, a failed placement, a kernel graft or validity refusal), or
+/// (an empty slot, a product whose body is gone, a failed operand, a
+/// kernel graft or validity refusal), or
 /// [`ExportError::Step`] carrying the writer's.
 pub fn export_document_step(
     evaluation: &Evaluation<f64>,

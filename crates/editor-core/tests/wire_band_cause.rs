@@ -174,7 +174,9 @@ fn child_band_row() {
 fn bare_placement() -> (ProfileDoc, RecipeNodeId) {
     insert(
         ProfileDoc::empty_derived("wire_band_cause", Tol::witness()),
-        crate::fixture::stood(Vec::new()),
+        crate::fixture::stood(editor_core::BodyRead::plain(editor_core::Operand::Var(
+            editor_core::VarId::WORLD,
+        ))),
     )
 }
 

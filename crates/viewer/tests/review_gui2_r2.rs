@@ -888,7 +888,7 @@ fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
         .find(|&&placement| placement != face.node)
         .expect("the other placement");
     let twin = FaceSelection {
-        name: own.in_copy(other),
+        name: own,
         node: other,
         ..face.clone()
     };

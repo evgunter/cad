@@ -80,13 +80,7 @@ fn in_part_in_part(
     body: RecipeNodeId,
     cap: CapEnd,
 ) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: in_part(sub, body, cap).into(),
-        }],
-    }
+    in_part(sub, body, cap)
 }
 
 /// A `Rest` mate declaring `a`'s TOP face against `b`'s BOTTOM face,
@@ -147,17 +141,11 @@ fn seated(doc: ProfileDoc, seat: Seat) -> (ProfileDoc, MateRef) {
 /// placement it is in refuses at evaluation.
 fn dangling(instance: RecipeNodeId) -> StableName {
     StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
-            .into(),
-        }],
-    }
+            
 }
 
 /// **Issue 946's inner document**: a stand whose validity DEPENDS on
@@ -952,10 +940,7 @@ fn cap_vertex(
     end: CapEnd,
 ) -> NamedCell {
     fn minted(name: &StableName) -> &StableName {
-        match name.path.as_slice() {
-            [RoleSeg::InPart { of } | RoleSeg::Placed { of }] => minted(of),
-            _ => name,
-        }
+        name
     }
     let input = doc
         .output(instance, 0)

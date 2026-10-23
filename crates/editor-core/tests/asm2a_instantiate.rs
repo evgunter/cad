@@ -224,21 +224,15 @@ fn nominally_pinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
 /// **One copy of `body`, which never evaluates, in the world**: a
 /// placement of it, [`nominally_pinned`].
 fn placed_nominally(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, placement) = insert(doc, crate::fixture::stood(vec![body.into()]));
+    let (doc, placement) = insert(doc, crate::fixture::stood(body));
     (nominally_pinned(doc, placement), placement)
 }
 
 /// The one product body an instance's copies carry.
 fn copies_body(ev: &Evaluation<f64>, node: RecipeNodeId) -> &topo::Body<f64> {
     match ev.value(node).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Copies(c)) => match c.bodies.as_slice() {
-            [b] => b,
-            other => panic!(
-                "an instance's copies are one product body, got {}",
-                other.len()
-            ),
-        },
-        other => panic!("an instance's value is its copies, got {other:?}"),
+        Some(editor_core::ValuePayload::Body(b)) => b,
+        other => panic!("an instance's value is its part's product body, got {other:?}"),
     }
 }
 
@@ -248,19 +242,11 @@ fn copy_in(
     part: &ProfileDoc,
     instance: RecipeNodeId,
 ) -> editor_core::BodyRead<editor_core::Formula> {
-    let [placement] = part.placements()[..] else {
+    let [_] = part.placements()[..] else {
         panic!("the part places one copy")
     };
-    let Some(Node::Place { shapes, .. }) = part.node(placement) else {
-        panic!("the part's placement places a shape")
-    };
-    let [shape] = shapes.as_slice() else {
-        panic!("the part's placement places one shape")
-    };
-    editor_core::BodyRead::keyed(
-        editor_core::Operand::Node(instance),
-        editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(shape.read)),
-    )
+    // The part's product is that one copy: the instance's copy, whole.
+    editor_core::BodyRead::plain(editor_core::Operand::Node(instance))
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
@@ -471,52 +457,31 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
     let b = instance_names(&ev, ids[1]);
     assert!(!a.is_empty(), "an instance has names at all");
     assert_eq!(a.len(), b.len(), "the two instances name the same entities");
-    for name in &a {
-        assert!(!b.contains(name), "no name is shared between instances");
-    }
-    // Every non-body name is an `InPart` wrapper minted AT the instance
-    // node; the body name is the instance's own output.
-    for (names, node) in [(&a, ids[0]), (&b, ids[1])] {
+    // A copy names its entities as its part's product does: the two
+    // instances carry one set of names, each its own body row.
+    for (names, others, node) in [(&a, &b, ids[0]), (&b, &a, ids[1])] {
         for name in names {
-            assert_eq!(name.node, node, "names are minted at the instance");
-            match &name.path[..] {
-                [RoleSeg::InPart { of }] => {
-                    assert_eq!(of.kind, name.kind, "the wrapper preserves the kind");
-                }
-                [RoleSeg::OutputBody] => {
-                    assert_eq!(name.kind, editor_core::EntityKind::Body);
-                }
-                other => panic!("unexpected instance role path {other:?}"),
+            if name.kind == editor_core::EntityKind::Body {
+                assert_eq!(name.node, node, "the body row is the instance's own");
+                assert!(!others.contains(name), "each instance names its own body");
+            } else {
+                assert!(others.contains(name), "one part, one table: {name:?}");
             }
         }
     }
 
-    // Cross-wiring probe: the SAME part-local vertex name, wrapped
-    // under each instance, must land in that instance's OWN copy. If
-    // the tables were cross-wired the two positions would agree.
+    // Cross-wiring probe: the SAME part-local vertex name, read in each
+    // instance's copy, must land in that instance's OWN copy. If the
+    // tables were cross-wired the two positions would agree.
     let a_vertex = a
         .iter()
         .find(|n| n.kind == editor_core::EntityKind::Vertex)
         .expect("a vertex name");
-    let RoleSeg::InPart { of } = &a_vertex.path[0] else {
-        panic!("an instance's vertex name wraps a part-local one");
-    };
-    let under = |node: RecipeNodeId| StableName {
-        kind: a_vertex.kind,
-        node,
-        path: vec![RoleSeg::InPart { of: of.clone() }],
-    };
-    let pa = editor_core::vertex_position(&ev, ids[0], &under(ids[0])).expect("resolves");
-    let pb = editor_core::vertex_position(&ev, ids[1], &under(ids[1])).expect("resolves");
+    let pa = editor_core::vertex_position(&ev, ids[0], a_vertex).expect("resolves");
+    let pb = editor_core::vertex_position(&ev, ids[1], a_vertex).expect("resolves");
     assert!(
         (pb.x - pa.x - 5.0).abs() < 1e-12,
         "one part-local name lands 5 apart under the two instances"
-    );
-    // And a name minted at one instance does not resolve in the other's
-    // value: identity is per instance, not per part.
-    assert!(
-        editor_core::vertex_position(&ev, ids[1], &under(ids[0])).is_err(),
-        "instance 0's name is not instance 1's"
     );
 }
 
@@ -1397,7 +1362,7 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
 
     let twice_fault = part_fault(&ev, ids[1]);
     let twice_kind = kind_of(&twice_fault);
-    assert_eq!(twice_kind, ProductErrorKind::StrandedPlacement);
+    assert_eq!(twice_kind, ProductErrorKind::StrandedProduct);
     assert!(
         !twice_kind.means_no_body(),
         "a stranded placement is a fault, not an absence"
@@ -1428,19 +1393,14 @@ fn r1_part_evaluations_aggregates_through_nesting() {
         ev.part_evaluations, 2,
         "one crossing per document entered, nested crossings included"
     );
-    // And the nesting really produced geometry: a doubly-wrapped name,
-    // each level's instance its own placement, and the leaf's copy under
-    // the leaf's placement (A10).
+    // And the nesting really produced geometry: the leaf's own names,
+    // carried verbatim through each level's copy.
     let names = instance_names(&ev, ids[0]);
     assert!(
-        names.iter().any(|n| matches!(
-            &n.path[..],
-            [RoleSeg::InPart { of }] if matches!(
-                &of.path[..],
-                [RoleSeg::InPart { of }] if of.copy_of().is_some()
-            )
-        )),
-        "a nested instance's names wrap twice: {:?}",
+        names
+            .iter()
+            .any(|n| n.kind != editor_core::EntityKind::Body && n.node != ids[0]),
+        "a nested instance carries its leaf's names: {:?}",
         names.iter().take(3).collect::<Vec<_>>()
     );
 }

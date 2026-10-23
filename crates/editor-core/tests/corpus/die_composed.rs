@@ -134,16 +134,10 @@ pub fn selection(
         other => panic!("{pipped} is the die's subtract, got {other:?}"),
     };
     let ball_face = |seg: RoleSeg| StableName {
-        kind: EntityKind::Face,
-        node: pip,
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(StableName {
                 kind: EntityKind::Face,
                 node: ball,
                 path: vec![seg],
-            }),
-        }],
-    };
+            };
     let lower = crate::fixture::piece(doc, ball, 0, 0);
     let mut out: Vec<StableName> = prism_edges(doc, cube, 4)
         .into_iter()
@@ -210,13 +204,9 @@ pub fn selection(
 /// (`crates/editor-core/src/names/select.rs` module docs).
 pub fn selector() -> Selector {
     let edge = || NamePat::of_kind(EntityKind::Edge);
-    // A face of the pip: the ball's, as its placement copies it.
-    let face = |tag: SegTag| {
-        NamePat::of_kind(EntityKind::Face).seg(
-            SegPat::tag(SegTag::Placed)
-                .of([NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag))]),
-        )
-    };
+    // A face of the pip: the ball's, which its placement copies by
+    // the ball's names.
+    let face = |tag: SegTag| NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag));
     let cap_top =
         NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let from =
@@ -268,13 +258,7 @@ pub fn excluded_meridians(
             };
             let head = RoleSeg::From {
                 read: tool,
-                of: NameRef::new(StableName {
-                    kind: EntityKind::Edge,
-                    node: pip,
-                    path: vec![RoleSeg::Placed {
-                        of: NameRef::new(meridian),
-                    }],
-                }),
+                of: NameRef::new(meridian),
             };
             let pieces: Vec<StableName> = crate::fixture::table(ev, pipped)
                 .iter()

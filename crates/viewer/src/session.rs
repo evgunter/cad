@@ -4137,11 +4137,6 @@ fn frame_off(
         | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => {
             std::sync::Arc::clone(b)
         }
-        ValuePayload::Copies(copies) => copies
-            .bodies
-            .first()
-            .cloned()
-            .ok_or(PinRefusal::NotABody { node })?,
         _ => return Err(PinRefusal::NotABody { node }),
     };
     let var = match body {

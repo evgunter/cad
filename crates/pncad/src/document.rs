@@ -113,7 +113,7 @@ pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 // `CopyKey`; a placement's constraints are addressed by their
 // `ConstraintId`.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, CopyKey, CountMismatch, InputFault, ListFault,
+    Axis3, Bodies, BodyRead, ConstraintId, CountMismatch, InputFault, ListFault,
     LoftSection, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
     PlacementRuleFault, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove, TubeWindow,
     VectorSlot,
@@ -257,7 +257,7 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // refusal's count can read what it was measured against.
 pub use editor_core::{
     DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, FreshEntry,
-    Select, SelectionCount, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName,
+    Pick, Select, SelectionCount, SelectionFault, UnitSym, Var, VarDecl, VarDef, VarId, VarKind, VarName,
     VarNameFault, VarNameReason, VarRef, WrittenDef,
 };
 
@@ -324,9 +324,9 @@ pub use editor_core::{
     NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide, StepTurns,
     ValuePayload, evaluate,
 };
-// A placement's copies, keyed (`ValuePayload::Copies`): each copy by
-// its key, with its own names.
-pub use editor_core::{Copies, KeyedCopy};
+// The pieces a body holds (`NodeValue::pieces`): what a `⊔` grafted,
+// each by its read, which a pick reads one of.
+pub use editor_core::{Piece, Pieces};
 
 // Persistence: the doors, verbatim.
 // `save`/`load` speak `ProfileDoc` + `DocEdit` — exactly this module's
@@ -363,19 +363,17 @@ pub use editor_core::{
 // through the document layer (the memo currency's substrate).
 pub use editor_core::ContentBits;
 
-// The world (A10): the product is every copy a world placement
-// (`Node::Place`, and an instance, which is a placement) defines, in
-// the placements' document order, read through `Doc::placements` and
-// authored by `DocEdit::place` —
-// the one door that places, and the one Python's `Doc.place` is.
-// `product` is the whole-document gather of those copies. `SpaceGather`
-// is one `new_space()`'s copies gathered by themselves for the at-rest
-// check, and `space_gathers` gathers every one. `AtRestRow` is one of the product's at-rest decisions,
-// beside whose pair it is (`AtRestBy`): a mate's, or two copies' the
-// census found touching.
+// The product (D10 `[operations]`): the one body the document's slot
+// reads, set by `DocEdit::SetProduct`. `product` is its gather: a `⊔`'s
+// operands, each one arrival of the census at its door.
+// `AssembleGather` is a `⊔` the slot does not read, gathered by itself
+// for the at-rest check, and `assemble_gathers` gathers every one.
+// `AtRestRow` is one of the product's at-rest decisions, beside whose
+// pair it is (`AtRestBy`): a mate's, or two copies' the census found
+// touching.
 pub use editor_core::{
-    AtRestBy, AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    SourceFinding, SpaceGather, product, product_recorded, space_gathers,
+    AssembleGather, AtRestBy, AtRestRow, Product, ProductError, ProductErrorKind,
+    ProductRefusal, Refusal, SourceFinding, assemble_gathers, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:

@@ -140,13 +140,7 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
     // The instance value itself is the multi-solid body — the lift's
     // whole content: one rigid map over N solids, not N maps.
     let solids_of = |node: RecipeNodeId| match ev.value(node).map(|v| &v.payload) {
-        Some(editor_core::ValuePayload::Copies(c)) => match c.bodies.as_slice() {
-            [b] => b.solids().count(),
-            other => panic!(
-                "an instance's copies are one product body, got {}",
-                other.len()
-            ),
-        },
+        Some(editor_core::ValuePayload::Body(b)) => b.solids().count(),
         other => panic!("an instance's value is its copies, got {other:?}"),
     };
     assert_eq!(solids_of(a_ids[0]), 2, "each instance carries both solids");
@@ -188,54 +182,52 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
     let b = names_of(&ev, a_ids[1]);
     assert!(!a.is_empty(), "an instance has names at all");
     assert_eq!(a.len(), b.len(), "the two instances name the same entities");
-    for name in &a {
-        assert!(!b.contains(name), "no name is shared between instances");
-    }
+    // A copy names its entities as its source does: the two instances
+    // carry the sub-assembly's product names, each its own body row.
+    let entities = |names: &[StableName]| -> Vec<StableName> {
+        names
+            .iter()
+            .filter(|n| n.kind != EntityKind::Body)
+            .cloned()
+            .collect()
+    };
+    assert_eq!(
+        entities(&a),
+        entities(&b),
+        "the two instances carry one table's names"
+    );
 
     // Shape: the body name is the instance's own output; every other
-    // name wraps the sub-assembly's name for it, which an inner
-    // instance — one of the sub-assembly's placements — minted over the
-    // part's own placed name.
-    let mut inner_nodes = std::collections::BTreeSet::new();
+    // name is the sub-assembly's product's, which keys each of its two
+    // pieces by the read it assembled.
+    let mut inner_reads = std::collections::BTreeSet::new();
     for (names, node) in [(&a, a_ids[0]), (&b, a_ids[1])] {
         for name in names {
-            assert_eq!(name.node, node, "names are minted at the outer instance");
             match &name.path[..] {
-                [RoleSeg::InPart { of }] => {
-                    assert_eq!(of.kind, name.kind, "the wrapper preserves the kind");
-                    match &of.path[..] {
-                        [RoleSeg::InPart { of: inner }] => {
-                            assert_eq!(inner.kind, name.kind);
-                            assert!(inner.copy_of().is_some(), "the part's copy: {inner:?}");
-                            inner_nodes.insert(of.node);
-                        }
-                        other => panic!("expected a doubly wrapped name, got {other:?}"),
-                    }
+                [RoleSeg::From { read, of }] => {
+                    assert_eq!(of.kind, name.kind, "the key preserves the kind");
+                    inner_reads.insert(*read);
                 }
-                [RoleSeg::OutputBody] => assert_eq!(name.kind, EntityKind::Body),
+                [RoleSeg::OutputBody] => {
+                    assert_eq!(name.kind, EntityKind::Body);
+                    assert_eq!(name.node, node, "the body row is the instance's own");
+                }
                 other => panic!("unexpected instance role path {other:?}"),
             }
         }
     }
     assert_eq!(
-        inner_nodes.len(),
+        inner_reads.len(),
         2,
         "the two solids come from the sub-assembly's two placements"
     );
 
-    // Cross-wiring probe: one part-local vertex name, wrapped under
-    // each of the four (outer, inner) pairs, lands in FOUR distinct
-    // positions — one per copy. The inner halves are the sub-assembly's
-    // two copies of that one part-local vertex.
-    let wrapped = |name: &StableName| -> StableName {
-        let [RoleSeg::InPart { of }] = &name.path[..] else {
-            panic!("wrapped: {name:?}");
-        };
-        (**of).clone()
-    };
-    let part_local = |inner: &StableName| -> StableName {
-        let [RoleSeg::InPart { of }] = &inner.path[..] else {
-            panic!("wrapped: {inner:?}");
+    // Cross-wiring probe: one part-local vertex name, keyed by each of
+    // the sub-assembly's two reads, lands in FOUR distinct positions
+    // across the two instances — one per copy.
+    let part_local = |name: &StableName| -> StableName {
+        let [RoleSeg::From { of, .. }] = &name.path[..] else {
+            panic!("keyed: {name:?}");
         };
         (**of).clone()
     };
@@ -243,39 +235,18 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
         .iter()
         .find(|n| n.kind == EntityKind::Vertex)
         .expect("a vertex name");
-    let core = part_local(&wrapped(vertex));
+    let core = part_local(vertex);
     let inners: Vec<StableName> = a
         .iter()
-        .filter(|n| n.kind == EntityKind::Vertex)
-        .map(wrapped)
-        .filter(|inner| part_local(inner) == core)
+        .filter(|n| n.kind == EntityKind::Vertex && part_local(n) == core)
+        .cloned()
         .collect();
-    assert_eq!(
-        inners
-            .iter()
-            .map(|inner| inner.node)
-            .collect::<std::collections::BTreeSet<_>>(),
-        inner_nodes,
-        "one copy of the vertex under each of the sub-assembly's placements"
-    );
+    assert_eq!(inners.len(), 2, "one key per piece: {inners:?}");
     let mut seen = std::collections::BTreeSet::new();
     for outer in &a_ids {
         for inner in &inners {
-            let name = StableName {
-                kind: vertex.kind,
-                node: *outer,
-                path: vec![RoleSeg::InPart {
-                    of: inner.clone().into(),
-                }],
-            };
-            let p = editor_core::vertex_position(&ev, *outer, &name).expect("resolves");
+            let p = editor_core::vertex_position(&ev, *outer, inner).expect("resolves");
             assert!(seen.insert(p.x.to_bits()), "each copy has its own position");
-            // A name minted under one instance is not the other's.
-            let other = a_ids.iter().find(|n| **n != *outer).expect("the other");
-            assert!(
-                editor_core::vertex_position(&ev, *other, &name).is_err(),
-                "identity is per instance, not per part"
-            );
         }
     }
     assert_eq!(seen.len(), 4, "four copies, four distinct positions");

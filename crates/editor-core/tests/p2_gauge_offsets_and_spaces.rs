@@ -618,9 +618,7 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
     let (doc, space) = fixture::into_new_space(doc, x);
     let ev = run(&doc, &o);
     match editor_core::product(&doc, &ev, Tol::witness()) {
-        Err(editor_core::ProductError::EmptyProduct { unplaced, .. }) => {
-            assert!(unplaced.is_empty(), "{unplaced:?}");
-        }
+        Err(editor_core::ProductError::EmptyProduct) => {}
         other => panic!("the world gather refuses empty: {other:?}"),
     }
     let said = editor_core::product(&doc, &ev, Tol::witness())
@@ -655,7 +653,7 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
         editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the world gathers");
     assert_eq!(product.solid_copies.len(), 1, "the world's copy alone");
     assert_eq!(
-        product.spaces.iter().map(|g| g.space).collect::<Vec<_>>(),
+        product.assembles.iter().map(|g| g.var).collect::<Vec<_>>(),
         vec![space],
         "the other space is gathered by itself"
     );
@@ -931,10 +929,10 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
         "{:?}",
         product.coincidences
     );
-    let [gathered] = product.spaces.as_slice() else {
-        panic!("one space beside the world: {:?}", product.spaces.len())
+    let [gathered] = product.assembles.as_slice() else {
+        panic!("one space beside the world: {:?}", product.assembles.len())
     };
-    assert_eq!(gathered.space, space);
+    assert_eq!(doc.space_of(gathered.var), Some(space));
     let copies = gathered
         .gather
         .as_ref()
@@ -982,9 +980,8 @@ fn the_gate_checks_each_new_space_whatever_the_world_holds() {
     let ev = run(&doc, &o);
     match editor_core::assemble(&doc, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => match *e {
-            editor_core::ProductError::EmptyProduct { ref elsewhere, .. } => {
-                assert_eq!(elsewhere, &vec![(x, space), (a, space)]);
-                assert!(e.to_string().contains("placed into another space"), "{e}");
+            editor_core::ProductError::EmptyProduct => {
+                assert!(e.to_string().contains("reads nothing"), "{e}");
             }
             ref other => panic!("the gather names where the copies went: {other:?}"),
         },

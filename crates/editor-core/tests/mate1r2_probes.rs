@@ -77,7 +77,7 @@ fn place_copies(
         );
         fixture::insert_pinned(
             doc,
-            crate::fixture::stood(vec![editor_core::BodyRead::plain(copy)]),
+            crate::fixture::stood(editor_core::BodyRead::plain(copy)),
             o,
         )
         .0
@@ -412,7 +412,7 @@ fn r2_a_pattern_copy_of_the_placed_instance_is_not_its_copy() {
         leg,
         fixture::rest(
             fixture::head(in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End))),
-            fixture::head(in_part(top, top_body, CapEnd::Start)),
+            fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
             ContactClass::Rest,
         ),
     );

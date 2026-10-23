@@ -140,12 +140,6 @@ fn slot(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> &mut Arc<Body<f64>> {
     };
     match &mut value.payload {
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        // An instance's copies: the part product as the one body the
-        // gather grafts.
-        ValuePayload::Copies(copies) => match Arc::make_mut(copies).bodies.as_mut_slice() {
-            [body] => body,
-            other => panic!("node {node:?} holds {} bodies, not one", other.len()),
-        },
         other => panic!("node {node:?} is not a body: {other:?}"),
     }
 }

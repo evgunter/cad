@@ -111,14 +111,8 @@ fn uncarried() -> Vec<Uncarried> {
         Uncarried::OtherSpace {
             placement: s(4, "InstantiatePart"),
         },
-        Uncarried::NoSuchCopy {
-            key: Box::new(editor_core::CopyKey::part(
-                n(4),
-                editor_core::CopyKey::Read(editor_core::VarId::new(
-                    0,
-                    test_utils::refusal::tagged(8),
-                )),
-            )),
+        Uncarried::NoSuchPiece {
+            of: vec![editor_core::VarId::new(0, test_utils::refusal::tagged(8))],
         },
     ]
 }

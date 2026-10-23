@@ -166,8 +166,8 @@ fn seat(
         doc,
         upper,
         fixture::rest(
-            fixture::head(in_part(upper, upper_body, CapEnd::Start)),
-            fixture::head(in_part(lower, lower_body, CapEnd::End)),
+            fixture::head_at(upper, in_part(upper, upper_body, CapEnd::Start)),
+            fixture::head_at(lower, in_part(lower, lower_body, CapEnd::End)),
             ContactClass::Rest,
         ),
     )
@@ -397,8 +397,8 @@ fn seated(
         .unwrap();
     // The rest and its three values, each 0, written whole.
     let rest = fixture::rest(
-        fixture::head(in_part(b, body, CapEnd::Start)),
-        fixture::head(in_part(a, body, CapEnd::End)),
+        fixture::head_at(b, in_part(b, body, CapEnd::Start)),
+        fixture::head_at(a, in_part(a, body, CapEnd::End)),
         ContactClass::Rest,
     );
     let squared = fixture::squared(&doc, rest, &[]);
@@ -445,8 +445,8 @@ fn a6_a_mate_graph_edit_on_an_unresolvable_part_is_not_refused() {
         doc,
         lost,
         fixture::rest(
-            fixture::head(in_part(lost, lost_body, CapEnd::Start)),
-            fixture::head(in_part(ids[0], body, CapEnd::End)),
+            fixture::head_at(lost, in_part(lost, lost_body, CapEnd::Start)),
+            fixture::head_at(ids[0], in_part(ids[0], body, CapEnd::End)),
             ContactClass::Rest,
         ),
     );
@@ -495,8 +495,8 @@ fn a6_no_edit_asks_the_store() {
     let seat_c = fixture::squared(
         &doc,
         fixture::rest(
-            fixture::head(in_part(c, body, CapEnd::Start)),
-            fixture::head(in_part(b, body, CapEnd::End)),
+            fixture::head_at(c, in_part(c, body, CapEnd::Start)),
+            fixture::head_at(b, in_part(b, body, CapEnd::End)),
             ContactClass::Rest,
         ),
         &[],
@@ -888,7 +888,7 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
     let (doc, b) = insert(doc, fixture::mated_instance(doc_ref));
     let (doc, c) = insert(doc, fixture::mated_instance(doc_ref));
     let rest_on = |to| Mate {
-        on: fixture::plane(fixture::head(in_part(b, body, CapEnd::Start))),
+        on: fixture::plane(fixture::head_at(b, in_part(b, body, CapEnd::Start))),
         to: fixture::flip(to),
         class: ContactClass::Rest,
     };
@@ -910,8 +910,8 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
         doc,
         c,
         fixture::rest(
-            fixture::head(in_part(c, body, CapEnd::Start)),
-            fixture::head(in_part(b, body, CapEnd::End)),
+            fixture::head_at(c, in_part(c, body, CapEnd::Start)),
+            fixture::head_at(b, in_part(b, body, CapEnd::End)),
             ContactClass::Rest,
         ),
     );

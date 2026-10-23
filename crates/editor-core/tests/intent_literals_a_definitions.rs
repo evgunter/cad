@@ -1106,7 +1106,7 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
             vec![crate::fixture::fname(cube, RoleSeg::Cap(CapEnd::Start))],
         ))
     };
-    let copy = r.insert(crate::fixture::stood(vec![cube.into()]));
+    let copy = r.insert(crate::fixture::stood(cube));
     r.constrain(
         copy,
         editor_core::Mate {
@@ -1137,13 +1137,7 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
             (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
         })
         .expect("the cube has a vertex at the origin");
-    let copied = StableName {
-        kind: vertex.kind,
-        node: copy,
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(vertex.clone()),
-        }],
-    };
+    let copied = vertex.clone();
     r.insert(Node::Measure {
         primitive: editor_core::MeasurePrimitive::Distance {
             a: editor_core::SitedRef::new(cube, vertex).into(),

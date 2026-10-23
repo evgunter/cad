@@ -351,7 +351,7 @@ fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
     insert(
         doc,
         Node::place(
-            vec![body.into()],
+            body.into(),
             Operand::Var(VarId::WORLD),
             stand().bundle(),
         ),
@@ -381,13 +381,7 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
 /// own `FaceName::in_part` ([`head`]); this spells the wrapper for the
 /// edges and vertices a whole-table walk meets too.
 fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
-    StableName {
-        kind: local.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: local.clone().into(),
-        }],
-    }
+    local.clone()
 }
 
 /// The evaluation options that carry the store: an evaluation with no
@@ -561,7 +555,6 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
         .into_iter()
         .next()
         .expect("checked non-empty")
-        .in_copy(placement)
 }
 
 /// The node a `Place` over one shape copies.
@@ -640,12 +633,6 @@ fn bundle(doc: &ProfileDoc, placement: RecipeNodeId) -> Vec<Constraint> {
 /// The one body an instance's copies gather into: its part's product.
 fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str) -> Arc<Body<f64>> {
     match &ev.value(instance).expect("the instance evaluates").payload {
-        ValuePayload::Copies(copies) => {
-            let [body] = &copies.bodies[..] else {
-                panic!("{what}'s part gathers into one body")
-            };
-            Arc::clone(body)
-        }
         other => panic!(
             "{what} is a {}, not an instance's copies",
             other.kind_name()
@@ -717,7 +704,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         let placement = insert(
             &mut doc,
             Node::place(
-                vec![post.into()],
+                post.into(),
                 Operand::Var(VarId::WORLD),
                 stand().bundle(),
             ),
@@ -1836,7 +1823,6 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
                 },
                 &back.node_map,
             )
-            .in_copy(back.placement)
         } else {
             name.clone()
         };

@@ -124,7 +124,6 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
         .into_iter()
         .next()
         .expect("checked non-empty")
-        .in_copy(placement)
 }
 
 /// Author the workspace into a fresh per-test directory and return

@@ -3238,7 +3238,7 @@ impl<'d, P> SpaceWalk<'d, P> {
             Node::Place { target, .. } | Node::InstantiatePart { target, .. } => Some(*target),
             // A `new_space()` defines a space and builds no body.
             Node::Space => None,
-            Node::Union { members } | Node::Intersect { members } => {
+            Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
                 let first = members.rows().first().map(|(_, read)| read.read);
                 first.and_then(|read| self.var(read))
             }

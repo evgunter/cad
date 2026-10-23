@@ -323,7 +323,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::place(
-                vec![editor_core::BodyRead::plain(editor_core::Operand::from(e1))],
+                editor_core::BodyRead::plain(editor_core::Operand::from(e1)),
                 editor_core::Operand::Var(in_e0),
                 editor_core::stand().bundle(),
             )),

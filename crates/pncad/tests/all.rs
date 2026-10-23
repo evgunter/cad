@@ -2167,7 +2167,7 @@ fn stood(
 ) -> pncad::document::AuthoredNode {
     use pncad::document::{Node, Operand, VarId};
     Node::place(
-        vec![body.into()],
+        body.into(),
         Operand::Var(VarId::WORLD),
         pncad::document::stand().bundle(),
     )
@@ -2232,7 +2232,7 @@ fn placed_against(
     insert(
         doc,
         Node::place(
-            vec![pncad::document::BodyRead::plain(body)],
+            pncad::document::BodyRead::plain(body),
             Operand::Var(space),
             placed.bundle(),
         ),
@@ -3038,7 +3038,7 @@ impl PartBody {
 
     /// The same face as the part's product names it: under its copy.
     fn product_cap(self, cap: pncad::select::CapEnd) -> pncad::prelude::StableName {
-        self.cap(cap).in_copy(self.placement)
+        self.cap(cap)
     }
 }
 
@@ -3937,13 +3937,7 @@ fn asm_r2a_mated_assembly(
         asm2a_instance(doc_ref, pncad::document::InterfaceRecord::default()),
     );
     let ids = vec![first, second];
-    let name = |node| StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::InPart {
-            of: body.product_cap(CapEnd::Start).into(),
-        }],
-    };
+    let name = |node| body.product_cap(CapEnd::Start);
     // The fixture's claim that the name it just built is a face is made
     // where the name is built.
     let plane = |name: StableName| {
@@ -4094,13 +4088,7 @@ fn asm_r2b_child_crossing_probe() {
     let (doc, ids) = asm_r2a_mated_assembly("asm-r2b-probe-asm", doc_ref, body);
     // The `outer` is this document's name for a face: the first
     // instance's end cap, worn under the instance that placed it.
-    let outer = FaceName::new(StableName {
-        kind: EntityKind::Face,
-        node: ids[0],
-        path: vec![RoleSeg::InPart {
-            of: (*face(CapEnd::End)).clone().into(),
-        }],
-    })
+    let outer = FaceName::new((*face(CapEnd::End)).clone())
     .expect("a crossing's references are face names");
     let record = pncad::document::InterfaceRecord {
         crossings: vec![pncad::document::InterfaceCrossing::Mate {

@@ -121,7 +121,7 @@ fn copy_name(
     let copies: Vec<StableName> = names
         .iter()
         .map(|(n, _)| n.clone())
-        .filter(|n| n.copy_of() == Some((by, name)) || (n == name && name.node == by))
+        .filter(|n| n == name)
         .collect();
     let [copy] = copies.as_slice() else {
         panic!("{name:?} has one world copy by {by:?}, not {copies:?}");
@@ -384,7 +384,6 @@ pub(crate) fn body_of<T: geom_core::Decide>(ev: &Evaluation<T>, id: RecipeNodeId
         .payload
     {
         ValuePayload::Body(b) => Arc::clone(b),
-        ValuePayload::Copies(c) => one(&c.bodies),
         ValuePayload::Instances(bodies) => one(bodies),
         other => panic!("{id:?} is a {}, not a body", other.kind_name()),
     }
@@ -884,7 +883,7 @@ pub(crate) fn stacked(
     onto: SitedFace,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, copy) = insert(doc, fixture::mated_instance(part));
-    let mover = head(in_part(copy, part_body, CapEnd::Start));
+    let mover = head_at(copy, in_part(copy, part_body, CapEnd::Start));
     let (doc, _) = seat_on(doc, copy, mover, onto, [0.0, 0.0]);
     (doc, copy)
 }

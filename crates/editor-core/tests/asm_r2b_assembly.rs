@@ -122,7 +122,7 @@ fn rest_mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, seat: f64) ->
 /// and stale configurations both live off the axis): `origin`'s x and
 /// y are the in-plane slides, its z the seat.
 fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Seat {
-    let top = fixture::plane(fixture::head(in_part(a, body, CapEnd::End)));
+    let top = fixture::plane(fixture::head_at(a, in_part(a, body, CapEnd::End)));
     let top = if origin[2] == 1.0 {
         top
     } else {
@@ -134,7 +134,7 @@ fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f
     };
     Seat {
         mate: fixture::mate(
-            fixture::plane(fixture::head(in_part(b, body, CapEnd::Start))),
+            fixture::plane(fixture::head_at(b, in_part(b, body, CapEnd::Start))),
             fixture::flip(top),
             ContactClass::Rest,
         ),
@@ -322,14 +322,10 @@ fn names_of(table: &editor_core::NameTable, key: EntityKey) -> Option<StableName
         })
 }
 
-/// Unwraps one seam: the assembly's product name for a part entity is
-/// the part's own product name, wrapped at the instance — itself the
-/// placement that copies it.
+/// One seam: the assembly's product name for a part entity is the
+/// part's own product name, which the instance's copy carries verbatim.
 fn unwrap_in_part(name: &StableName) -> StableName {
-    match &name.path[..] {
-        [RoleSeg::InPart { of }] => (**of).clone(),
-        _ => panic!("an instance's name is InPart-wrapped: {name:?}"),
-    }
+    name.clone()
 }
 
 // ---- Row 1: the contacts channel (D-1) ----
@@ -1440,20 +1436,14 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         // The target keeps its KIND — a face name that answers to
         // nothing, read at the base instance as a real cap is.
         let nothing = StableName {
-            kind: EntityKind::Face,
-            node: ids[0],
-            path: vec![RoleSeg::InPart {
-                of: StableName {
                     kind: EntityKind::Face,
                     node: RecipeNodeId::new(0, tagged(99)),
                     path: vec![RoleSeg::Cap(CapEnd::End)],
                 }
-                .into(),
-            }],
-        };
+                ;
         let mut seating = rest_mate(body, ids[0], ids[1], 1.0);
         seating.mate = fixture::rest(
-            fixture::head(in_part(ids[1], body, CapEnd::Start)),
+            fixture::head_at(ids[1], in_part(ids[1], body, CapEnd::Start)),
             fixture::head(nothing),
             ContactClass::Rest,
         );
@@ -1569,8 +1559,8 @@ fn flush_seat(label: &str) -> (ProfileDoc, MateRef, PartStore) {
         shelf_id,
         Seat {
             mate: fixture::rest(
-                fixture::head(in_part(shelf_id, shelf_body, CapEnd::Start)),
-                fixture::head(in_part(post_id, post_body, CapEnd::End)),
+                fixture::head_at(shelf_id, in_part(shelf_id, shelf_body, CapEnd::Start)),
+                fixture::head_at(post_id, in_part(post_id, post_body, CapEnd::End)),
                 ContactClass::Rest,
             ),
             slide: [0.0, 0.0],
@@ -1806,8 +1796,8 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
                 ],
             }],
         },
-        ProductError::StrandedPlacement {
-            placement: RecipeNodeId::new(0, tagged(2)),
+        ProductError::StrandedProduct {
+            read: editor_core::VarId::new(0, tagged(2)),
         },
         ProductError::Graft {
             node: RecipeNodeId::new(0, tagged(5)),

@@ -263,10 +263,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: editor_core::CapEnd) -> SitedRef {
     use editor_core::{EntityKind, NamePat, SegPat, SegTag, Selector, select};
     let own = NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end));
-    let worn =
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Placed).of([own.clone()]));
     let mut found = select(ev, node, &Selector::of(own));
-    found.extend(select(ev, node, &Selector::of(worn)));
     assert_eq!(found.len(), 1, "one {end:?} cap on node {node:?}");
     SitedRef::new(node, found.remove(0))
 }
@@ -1382,9 +1379,9 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
     );
     let (doc, _) = fixture::insert_pinned(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(editor_core::BodyRead::plain(
             editor_core::Operand::output(split, SplitHalf::Above.port()),
-        )]),
+        )),
         &EvalOptions::default(),
     );
     let ev = eval(&doc);

@@ -79,23 +79,11 @@ impl Kit {
     /// carries it, worn inside `instance`'s `InPart`.
     fn name(&self, kind: EntityKind, instance: RecipeNodeId, seg: RoleSeg) -> StableName {
         let placed = StableName {
-            kind,
-            node: placement_of(self.body),
-            path: vec![RoleSeg::Placed {
-                of: NameRef::new(StableName {
                     kind,
                     node: self.body,
                     path: vec![seg],
-                }),
-            }],
-        };
-        StableName {
-            kind,
-            node: instance,
-            path: vec![RoleSeg::InPart {
-                of: NameRef::new(placed),
-            }],
-        }
+                };
+        placed
     }
 
     /// The cap `end` of `instance`.
@@ -994,17 +982,11 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
     );
     // A head wearing a role the part product has no entity for.
     let bogus = StableName {
-        kind: EntityKind::Face,
-        node: ids[0],
-        path: vec![RoleSeg::InPart {
-            of: StableName {
                 kind: EntityKind::Face,
                 node: kit.body,
                 path: vec![RoleSeg::Lateral(fixture::no_piece().into())],
             }
-            .into(),
-        }],
-    };
+            ;
     let err = editor_core::apply_with_names(
         &doc,
         &add(rest(on, head(bogus.clone()), ContactClass::Rest)),

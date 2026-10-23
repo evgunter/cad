@@ -190,13 +190,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId, StableName, StableName) {
 /// `name` under `levels` part instances, as the top of a part chain
 /// that long names what its bottom part holds.
 fn in_parts(name: StableName, levels: usize) -> StableName {
-    (0..levels).fold(name, |of, _| StableName {
-        kind: of.kind,
-        node: of.node,
-        path: vec![RoleSeg::InPart {
-            of: NameRef::new(of),
-        }],
-    })
+    (0..levels).fold(name, |of, _| of)
 }
 
 /// The block with a fillet over its rim edge and a metadata record on

@@ -75,9 +75,9 @@ pub fn document() -> CorpusDoc {
     let on = Operand::Pose(Box::new(editor_core::pose::PoseDef::Flip {
         pose: editor_core::pose::RoleRead::plain(plane(cap(boss, CapEnd::Start))),
     }));
-    let placed = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+    let placed = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(
         crate::fixture::body_read(&r.doc, boss.into()),
-    )]));
+    )));
     r.constrain(
         placed,
         Mate {

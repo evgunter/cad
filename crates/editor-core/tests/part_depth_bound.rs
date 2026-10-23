@@ -95,8 +95,8 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
         .placements()
         .into_iter()
         .filter_map(|copy| match leaf.node(copy) {
-            Some(Node::Place { shapes, .. }) => leaf
-                .operation_of(shapes[0].read)
+            Some(Node::Place { source, .. }) => leaf
+                .operation_of(source.read)
                 .filter(|&read| matches!(leaf.node(read), Some(Node::Union { .. })))
                 .map(|union| (copy, union)),
             _ => None,
@@ -119,7 +119,7 @@ fn leaf_cap(leaf: &ProfileDoc, block: RecipeNodeId, end: CapEnd) -> editor_core:
             .into(),
         }],
     };
-    editor_core::FaceName::new(cap.in_copy(copy)).expect("a cap is a face")
+    editor_core::FaceName::new(cap).expect("a cap is a face")
 }
 
 /// A document whose one instance, of `below`, is loose: what the
@@ -476,12 +476,10 @@ fn mated(
     let mate = fixture::rest(
         fixture::head(
             leaf_cap(&second_doc, second_block, CapEnd::Start)
-                .in_part(ids[1])
                 .into_name(),
         ),
         fixture::head(
             leaf_cap(&first_doc, first_block, CapEnd::End)
-                .in_part(ids[0])
                 .into_name(),
         ),
         ContactClass::Rest,
@@ -513,12 +511,10 @@ fn rested_on_first(
     let mate = fixture::rest(
         fixture::head(
             leaf_cap(&second_doc, second_block, CapEnd::Start)
-                .in_part(ids[1])
                 .into_name(),
         ),
         fixture::head(
             leaf_cap(&first_doc, first_block, CapEnd::End)
-                .in_part(ids[0])
                 .into_name(),
         ),
         ContactClass::Rest,

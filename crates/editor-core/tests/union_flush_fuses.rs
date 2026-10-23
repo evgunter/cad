@@ -84,8 +84,8 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
         // sited names in the union's own member space, each the
         // prototype's face under its member's copy.
         let mut set = vec![
-            member_face(union, a.at, a.name.in_copy(m1)),
-            member_face(union, b.at, b.name.in_copy(m2)),
+            member_face(union, a.at, a.name),
+            member_face(union, b.at, b.name),
         ];
         set.sort();
         let name = StableName {
@@ -127,8 +127,7 @@ fn a_flush_union_mints_merged_rows_and_renames_nothing_else() {
             fname(
                 proto,
                 RoleSeg::Lateral(crate::fixture::piece(&doc, union, 0, seg as usize).into()),
-            )
-            .in_copy(member),
+            ),
         );
         assert!(
             matches!(t.lookup(&name), Some(Entry::Unique(_))),

@@ -2,12 +2,9 @@
 //!
 //! A name nests one whole name per derivation level: a boolean's
 //! survivor holds its operand's name ([`RoleSeg::From`]), a pattern
-//! copy its master's ([`RoleSeg::Instance`]), an instantiated part's
-//! entity its name in the part ([`RoleSeg::InPart`]), and so on down
-//! the chain. Nothing bounds the depth: a part nested
-//! [`MAX_DEPTH`](crate::eval::parts::MAX_DEPTH) documents deep puts that many
-//! `InPart` levels into every name its top instance carries, and a
-//! document of a thousand booleans nests its survivors a thousand deep.
+//! copy its master's ([`RoleSeg::Instance`]), and so on down the chain.
+//! Nothing bounds the depth: a document of a thousand booleans nests
+//! its survivors a thousand deep.
 //! A walk that recursed once per level would need a stack proportional
 //! to that depth, and the smallest stack a door runs on (the wasm32
 //! build's one mebibyte) holds a few hundred levels at most.
@@ -1924,8 +1921,6 @@ pub(super) mod tests {
                 R::Inner(r(a)),
                 R::Rim(r(b)),
                 R::HoleRim { of: r(a), hole: 4 },
-                R::InPart { of: r(b) },
-                R::Placed { of: r(a) },
                 R::Instance { i: 5, of: r(a) },
             ]
         }};
@@ -2145,7 +2140,7 @@ pub(super) mod tests {
                     of: r,
                 },
                 1 => RoleSeg::Instance { i: 1, of: r },
-                2 => RoleSeg::InPart { of: r },
+                2 => RoleSeg::Inner(r),
                 3 => RoleSeg::Merged(vec![n]),
                 4 => RoleSeg::Fragment(Qualifier::Borders(vec![n])),
                 5 => RoleSeg::Seam {

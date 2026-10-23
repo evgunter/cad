@@ -46,17 +46,11 @@ fn a_mate_bearing_document_round_trips() {
         doc = applied.doc;
     }
     let name = |node| StableName {
-        kind: EntityKind::Face,
-        node,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
                 kind: EntityKind::Face,
                 node: RecipeNodeId::new(0, 1),
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             }
-            .into(),
-        }],
-    };
+            ;
     let add = |doc: &ProfileDoc, placement, mate| {
         apply(
             doc,

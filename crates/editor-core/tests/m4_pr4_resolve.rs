@@ -152,8 +152,8 @@ fn slide_placement(doc: ProfileDoc, placement: RecipeNodeId, tx: f64) -> Profile
 /// The body `placement` copies.
 fn placed_body(doc: &ProfileDoc, placement: RecipeNodeId) -> RecipeNodeId {
     match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => doc
-            .operation_of(shapes[0].read)
+        Some(Node::Place { source, .. }) => doc
+            .operation_of(source.read)
             .expect("the copied body is live"),
         other => panic!("{placement} is a placement, not {other:?}"),
     }
@@ -1001,7 +1001,6 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::CrossingVertex { edge: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
-        | RoleSeg::Placed { of: x }
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)
         | RoleSeg::Mitre { vertex: x }
@@ -1034,10 +1033,6 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             under(edge) || (partners == Partners::Include && band.iter().any(under))
         }
-        // ANOTHER document's id space: a local name and a part-local
-        // name that print alike are different names, so a walk that
-        // descended here would report occurrences that are not.
-        RoleSeg::InPart { .. } => false,
         // Discrimination, not derivation: the fragment is classified
         // AGAINST these, not built from them.
         RoleSeg::Fragment(Qualifier::Borders(v) | Qualifier::Keeps(v) | Qualifier::Ends(v)) => {

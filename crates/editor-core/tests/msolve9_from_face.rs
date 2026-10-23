@@ -73,8 +73,8 @@ fn placed(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
 /// **`part` with `root` placed in its world, and `face` of `root` as
 /// the part's product names it**: under that placement's copy.
 fn world_face(part: ProfileDoc, root: RecipeNodeId, face: &StableName) -> (ProfileDoc, StableName) {
-    let (part, placement) = fixture::place(part, root);
-    (part, face.in_copy(placement))
+    let (part, _) = fixture::place(part, root);
+    (part, face.clone())
 }
 
 fn cap(body: RecipeNodeId, end: CapEnd) -> StableName {
@@ -91,7 +91,6 @@ fn worn_face(at: RecipeNodeId, face: &StableName) -> editor_core::SitedFace {
     fixture::head(
         FaceName::new(face.clone())
             .expect("a face")
-            .in_part(at)
             .into_name(),
     )
 }
@@ -111,7 +110,7 @@ fn seated_on(
         doc,
         block_i,
         fixture::rest(
-            fixture::head(in_part(block_i, block_body, CapEnd::Start)),
+            fixture::head_at(block_i, in_part(block_i, block_body, CapEnd::Start)),
             worn_face(at, face),
             ContactClass::Rest,
         ),
@@ -373,7 +372,7 @@ fn rest_on_the_face(
         doc,
         b,
         fixture::rest(
-            fixture::head(in_part(b, block_body, CapEnd::Start)),
+            fixture::head_at(b, in_part(b, block_body, CapEnd::Start)),
             worn_face(a, face),
             ContactClass::Rest,
         ),
@@ -570,7 +569,7 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
         doc,
         other,
         fixture::rest(
-            fixture::head(in_part(other, s.block_body, CapEnd::Start)),
+            fixture::head_at(other, in_part(other, s.block_body, CapEnd::Start)),
             worn_face(s.post_i, &bogus),
             ContactClass::Rest,
         ),
@@ -664,7 +663,7 @@ fn an_unresolvable_part_fails_its_instance_in_the_resolvers_voice() {
     let seat = fixture::squared(
         &doc,
         fixture::rest(
-            fixture::head(in_part(other, s.block_body, CapEnd::Start)),
+            fixture::head_at(other, in_part(other, s.block_body, CapEnd::Start)),
             worn_face(
                 s.post_i,
                 &fixture::resolver::in_world(s.post_body, CapEnd::End),

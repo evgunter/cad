@@ -371,8 +371,7 @@ fn in_part(
             kind: EntityKind::Face,
             node: body,
             path: vec![RoleSeg::Cap(cap)],
-        }
-        .in_copy(placement),
+        },
     )
     .expect("a cap is a face")
     .in_part(instance)

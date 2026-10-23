@@ -286,7 +286,7 @@ fn spun(pose_: Operand, about: Operand, turn: f64) -> Operand {
 fn placed(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
-        crate::fixture::stood(vec![BodyRead::plain(Operand::output(body, 0))]),
+        crate::fixture::stood(BodyRead::plain(Operand::output(body, 0))),
     )
 }
 

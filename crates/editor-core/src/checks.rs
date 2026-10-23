@@ -2071,12 +2071,12 @@ mod tests {
     /// refusal it was handed, whole, so the checks door can forward it
     /// for the frame holding the document to say.
     ///
-    /// The refusal below is reachable: a placement whose body was
-    /// deleted gathers into `ProductError::StrandedPlacement`.
+    /// The refusal below is reachable: a product whose body was
+    /// deleted gathers into `ProductError::StrandedProduct`.
     #[test]
     fn the_subject_door_carries_the_gather_refusal_it_saw() {
-        let refusal = || crate::ProductError::StrandedPlacement {
-            placement: RecipeNodeId::new(0, 7),
+        let refusal = || crate::ProductError::StrandedProduct {
+            read: crate::VarId::new(0, 7),
         };
         let subject: Subject<'_, f64> = Subject::refused(refusal());
         let Subject::Unavailable {
@@ -2130,10 +2130,7 @@ mod tests {
     #[test]
     fn the_subject_door_routes_an_absence_away_from_the_unavailable_arm() {
         for refusal in [
-            crate::ProductError::EmptyProduct {
-                unplaced: Vec::new(),
-                elsewhere: Vec::new(),
-            },
+            crate::ProductError::EmptyProduct,
             crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId::new(0, 7),
                 through: RecipeNodeId::new(0, 2),

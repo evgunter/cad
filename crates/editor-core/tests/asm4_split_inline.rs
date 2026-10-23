@@ -122,24 +122,7 @@ fn same_volume(a: &topo::Body<f64>, b: &topo::Body<f64>, what: &str) {
 
 /// Wraps a part-local name under an instance — the bridge's own form.
 fn wrap(instance: RecipeNodeId, of: &StableName) -> StableName {
-    StableName {
-        kind: of.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: of.clone().into(),
-        }],
-    }
-}
-
-/// **The key of the one copy a [`part`] document delivers**: its one
-/// placement on its world, and the read that placement copies the body
-/// through ([`editor_core::CopyKey`]).
-fn plain_copy_key(part_doc: &ProfileDoc) -> editor_core::CopyKey {
-    let placement = part_doc.placements()[0];
-    let Some(Node::Place { shapes, .. }) = part_doc.node(placement) else {
-        panic!("the part places its body")
-    };
-    editor_core::CopyKey::part(placement, editor_core::CopyKey::Read(shapes[0].read))
+    of.clone()
 }
 
 /// What `doc` places, in its placements' document order — the order
@@ -150,12 +133,9 @@ fn placed_bodies(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
         .into_iter()
         .map(|p| match doc.node(p) {
             Some(Node::InstantiatePart { .. }) => p,
-            Some(Node::Place { shapes, .. }) => match shapes.as_slice() {
-                [one] => doc
-                    .operation_of(one.read)
-                    .expect("a placement reads a body"),
-                other => panic!("a placement of one shape, got {other:?}"),
-            },
+            Some(Node::Place { source, .. }) => doc
+                .operation_of(source.read)
+                .expect("a placement reads a body"),
             other => panic!("a placement, got {other:?}"),
         })
         .collect()
@@ -727,10 +707,9 @@ fn row3_further_typed_refusals() {
         host,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![
-                editor_core::BodyRead::keyed(
-                    editor_core::Operand::Node(inst),
-                    plain_copy_key(&part("asm4-r3f-part", 0.0, 1.0)),
-                ),
+                // The part's product is its one copy: the instance's copy
+                // is read whole.
+                editor_core::BodyRead::plain(editor_core::Operand::Node(inst)),
                 block.into(),
             ]),
         },
@@ -2251,9 +2230,9 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
     let (part, body) = extrude(part, 0.25);
     let (part, seat) = insert(
         part,
-        crate::fixture::stood(vec![editor_core::BodyRead::from(
+        crate::fixture::stood(editor_core::BodyRead::from(
             editor_core::Operand::Node(body),
-        )]),
+        )),
     );
     let cap = |node, end| StableName {
         kind: EntityKind::Face,

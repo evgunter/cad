@@ -49,8 +49,8 @@ fn r2_a_construction_reading_a_measures_world_copy_selection_by_var() {
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            SitedRef::new(p, cap(a, CapEnd::End).in_copy(p)),
-            SitedRef::new(q, cap(b, CapEnd::End).in_copy(q)),
+            SitedRef::new(p, cap(a, CapEnd::End)),
+            SitedRef::new(q, cap(b, CapEnd::End)),
         ],
     );
     let Some(Node::Measure {
@@ -113,8 +113,8 @@ fn r2_a_named_world_copy_selection_outlives_its_measure() {
         &doc,
         MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            SitedRef::new(p, cap(a, CapEnd::End).in_copy(p)),
-            SitedRef::new(q, cap(b, CapEnd::End).in_copy(q)),
+            SitedRef::new(p, cap(a, CapEnd::End)),
+            SitedRef::new(q, cap(b, CapEnd::End)),
         ],
     );
     let Some(Node::Measure {
@@ -232,7 +232,7 @@ mod interference {
     }
 
     /// A `Gap` over faces of two world copies, read where each copy holds
-    /// it (`face.in_copy(placement)`), bounded by `relation` and `bound`.
+    /// it (`face`), bounded by `relation` and `bound`.
     fn gap_at_copies(
         doc: ProfileDoc,
         (p, outer): (RecipeNodeId, StableName),
@@ -243,8 +243,8 @@ mod interference {
         asserted_gap(
             doc,
             [
-                SitedRef::new(p, outer.in_copy(p)),
-                SitedRef::new(q, inner.in_copy(q)),
+                SitedRef::new(p, outer),
+                SitedRef::new(q, inner),
             ],
             relation,
             bound,

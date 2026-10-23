@@ -406,9 +406,7 @@ fn the_gate_checks_the_world_whatever_another_space_holds() {
     let ev = run(&alone, &o);
     match editor_core::assemble(&alone, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => match *e {
-            editor_core::ProductError::EmptyProduct { ref unplaced, .. } => {
-                assert!(unplaced.is_empty(), "{unplaced:?}");
-            }
+            editor_core::ProductError::EmptyProduct => {}
             ref other => panic!("the gather refuses an empty world: {other:?}"),
         },
         other => panic!("an empty world refuses at the gather: {other:?}"),

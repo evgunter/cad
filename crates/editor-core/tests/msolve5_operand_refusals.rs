@@ -216,17 +216,11 @@ fn a_name_the_copy_does_not_carry_refuses_at_its_placement() {
     // spelling.
     const NO_SUCH_PART_NODE: RecipeNodeId = RecipeNodeId::new(0, 99);
     let nowhere = StableName {
-        kind: EntityKind::Face,
-        node: s.top,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
                 kind: EntityKind::Face,
                 node: NO_SUCH_PART_NODE,
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             }
-            .into(),
-        }],
-    };
+            ;
     let base_top = fixture::head_at(s.base, in_part(s.base, s.base_body, CapEnd::End));
     let (doc, mate) = seat(s.doc, s.top, base_top, fixture::head_at(s.top, nowhere));
     let ev = run(&doc, &s.opts);
@@ -289,9 +283,9 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     // geometry of a copy that does not evaluate.
     let (doc, xf) = insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(editor_core::BodyRead::plain(
             editor_core::Operand::Node(top),
-        )]),
+        )),
     );
     let doc = fixture::pin(
         doc,
@@ -326,9 +320,9 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         );
         let (next, placed) = insert(
             next,
-            crate::fixture::stood(vec![editor_core::BodyRead::plain(
+            crate::fixture::stood(editor_core::BodyRead::plain(
                 editor_core::Operand::Node(part),
-            )]),
+            )),
         );
         doc = next;
         copies.push(placed);

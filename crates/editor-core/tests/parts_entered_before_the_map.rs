@@ -107,8 +107,8 @@ fn assembly(
     }
     if let Rest::Mated = rest {
         let mate = fixture::rest(
-            fixture::head(in_part(ids[1], *body, CapEnd::Start)),
-            fixture::head(in_part(ids[0], *body, CapEnd::End)),
+            fixture::head_at(ids[1], in_part(ids[1], *body, CapEnd::Start)),
+            fixture::head_at(ids[0], in_part(ids[0], *body, CapEnd::End)),
             ContactClass::Rest,
         );
         doc = fixture::constrain(doc, mate).0;

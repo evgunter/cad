@@ -356,17 +356,11 @@ fn rest(to: StableName, on: StableName) -> editor_core::Mate<Formula> {
 
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {
     StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
                 kind: EntityKind::Face,
                 node: part_body,
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             }
-            .into(),
-        }],
-    }
+            
 }
 
 /// **A mate's side strands as a read.**

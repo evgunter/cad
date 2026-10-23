@@ -89,14 +89,14 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
             Placed::unmated(vec![(Coord::Slide(TargetAxis::X), len(100.0))]).values,
         );
         let (doc, both) = fixture::union_over(doc, &[b, c]);
-        let name = fixture::member_name(&doc, both, b, side.in_copy(b));
+        let name = fixture::member_name(&doc, both, b, side);
         (doc, head_at(both, name))
     } else {
-        (doc, head_at(b, side.in_copy(b)))
+        (doc, head_at(b, side))
     };
     let (doc, placement) = insert(
         doc,
-        fixture::stood(vec![BodyRead::plain(Operand::from(boss))]),
+        fixture::stood(BodyRead::plain(Operand::from(boss))),
     );
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
@@ -419,7 +419,7 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
     let (host, instance) = insert(host, fixture::mated_instance(doc_ref));
     let (host, _) = insert(
         host,
-        fixture::stood(vec![BodyRead::plain(Operand::from(instance))]),
+        fixture::stood(BodyRead::plain(Operand::from(instance))),
     );
     let resolver: Arc<dyn PartResolver> = Arc::new(store);
     let two = inline(&host, instance, &resolver, Tol::witness()).expect("inlines");
@@ -474,7 +474,7 @@ fn a_slide_value_sets_its_translation_with_no_width() {
     let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
     let (doc, placement) = insert(
         doc,
-        fixture::stood(vec![BodyRead::plain(Operand::from(boss))]),
+        fixture::stood(BodyRead::plain(Operand::from(boss))),
     );
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
@@ -628,7 +628,7 @@ fn a_mate_reports_each_value_it_drops() {
     let tilt = doc.var_named("tilt").expect("declared");
     let top = fixture::fname(floor, RoleSeg::Cap(CapEnd::End));
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
-    let mate = fixture::rest(head(start), head_at(f, top.in_copy(f)), ContactClass::Rest);
+    let mate = fixture::rest(head(start), head_at(f, top), ContactClass::Rest);
     let applied = doc
         .apply(
             &DocEdit::AddConstraint {

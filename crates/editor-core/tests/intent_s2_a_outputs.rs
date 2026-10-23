@@ -84,9 +84,9 @@ fn every_operation_defines_its_signature_at_insert() {
     // Placements, as inserted: a signature is the insert's, before any
     // mate places them.
     let placement = |of: RecipeNodeId| {
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(editor_core::BodyRead::plain(
             editor_core::Operand::from(of),
-        )])
+        ))
     };
     let (doc, moved_copies) = insert(doc, placement(pattern));
     let (doc, moved_body) = insert(doc, placement(extrude));
@@ -691,7 +691,7 @@ fn a_placer_on_a_deleted_operand_loads_and_refuses_its_read() {
             matches!(
                 error.kind,
                 editor_core::NodeErrorKind::UnresolvedRead {
-                    slot: editor_core::OperandSlot::Shape(0),
+                    slot: editor_core::OperandSlot::Source,
                     var,
                 } if var == read
             ),

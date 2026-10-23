@@ -339,21 +339,6 @@ mod tests {
         assert!(it.passes_through(PATTERN));
     }
 
-    /// The walk stops at the instantiate node: the inner name's node
-    /// is an id in the REFERENCED document, and a chain mixing the two
-    /// documents' ids would name a local node by coincidence of
-    /// numbering.
-    #[test]
-    fn a_part_entity_stops_at_the_instantiate_node() {
-        let in_part = at(INSTANCE, RoleSeg::InPart { of: cap().into() });
-        let it = attribute(&in_part);
-        assert_eq!(it.minted_by(), Some(INSTANCE));
-        assert_eq!(it.chain(), [INSTANCE].as_slice());
-        assert!(
-            !it.passes_through(EXTRUDE),
-            "EXTRUDE here is another document's id"
-        );
-    }
 
     /// A path this partition cannot read answers NO minting node —
     /// the honest empty answer a caller can fall back from, never a
