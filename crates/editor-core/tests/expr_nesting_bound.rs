@@ -115,6 +115,71 @@ fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
     (r, extrude)
 }
 
+/// **A copy placed by the deepest pose a mate holds**: the extrude of
+/// [`extrude_document`] placed into its own space by a plane mate of its
+/// start cap against its end cap's plane spun about a lateral edge and
+/// then slid along its normal [`POSE_SLIDES`] times — written inline in the mate's
+/// `to`, in the edit log, the spin's angle `levels` deep under every
+/// other bracket of the chain.
+fn deepest_pose_document(levels: usize) -> Recorder {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    use editor_core::{ContactClass, Mate, Operand};
+    let (mut r, extrude) = extrude_document(len(0.5));
+    let cap = |end| {
+        fixture::plane(Operand::select(
+            extrude,
+            vec![fixture::fname(extrude, editor_core::RoleSeg::Cap(end))],
+        ))
+    };
+    let top = cap(editor_core::CapEnd::End);
+    let normal = || RoleRead::through(top.clone(), PoseRole::Normal);
+    let by = (1..levels).fold(fixture::ang(0.0), |e, _| {
+        Formula::add(e, fixture::ang(0.0)).unwrap()
+    });
+    let edge = fixture::axis(Operand::select(
+        extrude,
+        vec![fixture::ename(
+            extrude,
+            editor_core::RoleSeg::LateralEdge(fixture::vpiece(&r.doc, extrude, 0, 0)),
+        )],
+    ));
+    let mut to = Operand::Pose(Box::new(PoseDef::Spin {
+        pose: RoleRead::plain(top.clone()),
+        about: RoleRead::plain(edge),
+        by,
+    }));
+    for _ in 0..POSE_SLIDES {
+        to = Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::plain(to),
+            along: normal(),
+            by: len(0.0),
+        }));
+    }
+    let space = r.doc.operand_space(&extrude.into()).expect("the extrude's space");
+    let placed = editor_core::Placed::of(
+        &r.doc,
+        vec![Mate {
+            on: cap(editor_core::CapEnd::Start),
+            to: fixture::flip(to),
+            class: ContactClass::Rest,
+        }],
+        Vec::new(),
+    );
+    // A recorded edit applies or the recorder panics: the chain at the
+    // bound is admitted.
+    r.push(DocEdit::place(
+        vec![editor_core::BodyRead::plain(Operand::from(extrude))],
+        Operand::Var(space),
+        placed.bundle(),
+    ));
+    r
+}
+
+/// How many slides [`deepest_pose_document`] nests its spin under: the
+/// chain that puts the spin's angle as deep as the load door's envelope
+/// reaches (`persist::nesting::ENVELOPE`).
+const POSE_SLIDES: usize = 6;
+
 /// [`extrude_document`] over a plain length, saved as its edit log over
 /// the empty document: the log carries the distance as the formula it
 /// was written as, where the snapshot's slot holds a variable's id.
@@ -268,9 +333,13 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
         let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
 
         // Saved as a snapshot and as an edit log replayed over the empty
-        // document, it loads back to the document it was.
+        // document, it loads back to the document it was; and so does a
+        // copy placed by the deepest pose chain, its spin's angle at the
+        // expression's bound — the deepest position a save writes.
+        let chain = deepest_pose_document(BOUND);
+        let chain_pin = content_pin(&chain.doc, Tol::witness()).expect("the document pins");
         let mut deepest = 0;
-        for (r, pin) in [(&r, pin)] {
+        for (r, pin) in [(&r, pin), (&chain, chain_pin)] {
             for (label, text) in both_saves(r) {
                 deepest = deepest.max(editor_core::test_support::bracket_depth(&text));
                 let loaded = editor_core::persist::load(&text, Tol::witness())
@@ -742,6 +811,10 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
     recorders.push((
         "this suite's deepest document".to_string(),
         deep_document(1).0,
+    ));
+    recorders.push((
+        "this suite's deepest pose chain".to_string(),
+        deepest_pose_document(1),
     ));
     let (mut deepest, mut at) = (0, String::new());
     for (name, r) in &recorders {
