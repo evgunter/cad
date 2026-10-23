@@ -311,13 +311,16 @@ fn planted(
 /// the boundary displacement a zero margin between two such bodies at
 /// scale `s` stays open by once every face has run its last round.
 /// Measured as where the right answer (`planted(A ∖ B = A)`) stops
-/// deciding: between `s = 3e12·ε` and `4e12·ε`, at every ε of the
-/// matrix, against the band's escalation edge `K·ε`, so `≈ 2.9e-12·s`.
+/// deciding: between `s = 1e13·ε` and `3e13·ε` at ε = 1e-9, against
+/// the band's escalation edge `K·ε`, so `≈ 5e-13·s`. It was `2.9e-12·s`
+/// (between `3e12·ε` and `4e12·ε`) while every lane stopped at its
+/// round cap; the rods' cylinder walls now refine to the work wall,
+/// three rounds past that cap.
 /// The rule remainder scales with the volume and the lever with the
 /// area, so the range grows linearly with `s`; the pads' ε share is
 /// below the measurement's resolution.
 fn last_round_open(s: f64) -> f64 {
-    2.9e-12 * s
+    5e-13 * s
 }
 
 /// Whether the backstop's last round decides a zero margin on the pair
@@ -579,13 +582,13 @@ fn scaled_cutter(s: f64) -> AtRestBody<f64> {
 /// with the body ([`last_round_open`]), so on a large enough body it is
 /// larger than the model's resolution. The scales are spelled in ε so
 /// each is the same model at every ε: `10¹⁴·ε` (10⁵ at the default ε)
-/// and `10¹³·ε`. At the first, a result fattened by δ = 1e-12 is too
-/// big by a `0.22·δ·s` = 22ε boundary displacement and its sign is still
-/// open at the last round, which leaves `≈ 290ε` open: the backstop
-/// refuses `VolumeUndecided` rather than accept it. The same holds of a
-/// CORRECT result at the second, whose open range meters `≈ 29ε`,
-/// beyond the band too: the gate cannot tell it from a wrong one, and
-/// says so
+/// and `3·10¹³·ε`. At the first, a result fattened by δ = 1e-12 is too
+/// big by a `0.22·δ·s` = 22ε boundary displacement, and the faces'
+/// rounds to the work wall resolve it: the backstop refuses it
+/// `ResultVolumeImplausible` (it refused `VolumeUndecided` while the
+/// lanes stopped at their round caps). A CORRECT result at the second,
+/// whose open range meters beyond the band, is undecided: the gate
+/// cannot tell it from a wrong one, and says so
 /// (`work/quad/quadrature-interval-floor-grows-with-the-body-past-the-band`).
 #[test]
 fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
@@ -599,10 +602,10 @@ fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
             &b,
             &scaled_oblique_rod(s, 0.5 * (1.0 + 1e-12))
         ),
-        Err(BooleanErrorKind::VolumeUndecided),
+        Err(BooleanErrorKind::ResultVolumeImplausible),
         "22ε too big at scale {s:e}"
     );
-    let s = 1e13 * eps;
+    let s = 3e13 * eps;
     let (a, b) = (scaled_oblique_rod(s, 0.5), scaled_cutter(s));
     assert_eq!(
         planted(BooleanOp::Subtract, &a, &b, &a),
@@ -613,3 +616,4 @@ fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
         .expect_err("undecided");
     assert!(err.to_string().contains("vol(A ∖ B) ≤ vol(A)"), "{err}");
 }
+
