@@ -1255,16 +1255,18 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
         the pattern's count and spacing, the shelf's offset."""
         layout = self.body_of("layout_doc")
         placed = re.search(
-            r"Frame::rotate_then_translate\(\s*(\[[^\]]*\]),\s*([^,]+),\s*(\[[^\]]*\]),",
+            r"Coord::Spin\(TargetAxis::(\w)\),\s*crate::world::turn\((\d+),\s*(true|false)\)\)\];"
+            r"\s*values\.extend\(crate::world::slides\((\[[^\]]*\])\)\)",
             layout,
         )
-        self.assertIsNotNone(placed, "the post is no longer placed by a rotated frame")
-        self.assertScene(tour_value(placed.group(1)), (0.0, 1.0, 0.0), "the post's axis")
+        self.assertIsNotNone(placed, "the post is no longer placed by a spin and slides")
+        self.assertScene(placed.group(1), "Y", "the post's axis")
+        turned = -math.tau if placed.group(3) == "true" else math.tau
         self.assertScene(
-            tour_value(placed.group(2)), -math.pi / 2, "the post's rotation"
+            turned / int(placed.group(2)), -math.pi / 2, "the post's rotation"
         )
         self.assertScene(
-            tour_value(placed.group(3)),
+            tour_value(placed.group(4)),
             (FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0),
             "the post's flat-pack offset",
         )
@@ -1278,8 +1280,8 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             int(spacing.group(1)) / 1000.0, PATTERN_SPACING, "PATTERN_SPACING"
         )
 
-        shelf = re.search(r"Frame::translation\((\[[^\]]*\])\)", layout)
-        self.assertIsNotNone(shelf, "the shelf is no longer placed by a translation")
+        shelf = re.search(r"shelf_i,\s*crate::world::slides\((\[[^\]]*\])\)", layout)
+        self.assertIsNotNone(shelf, "the shelf is no longer placed by slides")
         self.assertScene(
             tour_value(shelf.group(1)),
             (FLAT_PACK_GAP, FLAT_PACK_SHELF_Y, 0.0),
