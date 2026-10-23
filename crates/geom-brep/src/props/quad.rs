@@ -8808,9 +8808,11 @@ mod tests {
             other => panic!("Q11: Green's theorem has no answer for an open walk: {other:?}"),
         }
         // In-bracket: the two sides of one shared vertex are DIFFERENT
-        // brackets, each containing the other's reading — which is the
-        // shipped assembler's own case, two pcurves reading one vertex.
-        // Their midpoints differ by `0.375·d` along `u` (`1 − d/2` and
+        // brackets, each containing the other's reading — two pcurves
+        // reading one vertex. The shipped assembler hulls them into one
+        // bracket before the door (`topo`'s `quad_lane::trimmed_face`),
+        // so a shipped face's gap is `0`; the door pays it for a caller
+        // that does not. Their midpoints differ by `0.375·d` along `u` (`1 − d/2` and
         // `1 − 7d/8`), so the walk does not close exactly and the lane
         // PAYS the gap rather than refusing it.
         let d = 1.0e-3;
@@ -8966,6 +8968,340 @@ mod tests {
             "Q15: the wall ends the run: {run:?}"
         );
         encloses(run.bounds.flux, truth, "Q15 flux at the wall");
+    }
+
+    /// An independent reference for the trimmed lane's flux: the chart
+    /// evaluated by its own Cox–de Boor recursion, the region clipped to
+    /// each knot cell (where the integrand is one polynomial), each
+    /// piece fanned into triangles and each triangle integrated by a
+    /// Duffy-mapped 14 × 14 Gauss–Legendre rule on nodes found here.
+    /// Nothing in it is the lane's: no `PatchGrid`, no Green form, no
+    /// Newton–Cotes.
+    mod reference {
+        use super::RVec3;
+        use crate::props::bracket::mid;
+
+        /// `N_{i,p}(t)` and its derivative, by the recursion with
+        /// `0/0 = 0` and half-open degree-0 supports.
+        fn basis(knots: &[f64], i: usize, p: usize, t: f64) -> f64 {
+            if p == 0 {
+                return if knots[i] <= t && t < knots[i + 1] {
+                    1.0
+                } else {
+                    0.0
+                };
+            }
+            let left = knots[i + p] - knots[i];
+            let right = knots[i + p + 1] - knots[i + 1];
+            let a = if left > 0.0 {
+                (t - knots[i]) / left * basis(knots, i, p - 1, t)
+            } else {
+                0.0
+            };
+            let b = if right > 0.0 {
+                (knots[i + p + 1] - t) / right * basis(knots, i + 1, p - 1, t)
+            } else {
+                0.0
+            };
+            a + b
+        }
+
+        fn basis_d(knots: &[f64], i: usize, p: usize, t: f64) -> f64 {
+            #[allow(clippy::cast_precision_loss)]
+            let pf = p as f64;
+            let left = knots[i + p] - knots[i];
+            let right = knots[i + p + 1] - knots[i + 1];
+            let a = if left > 0.0 {
+                pf / left * basis(knots, i, p - 1, t)
+            } else {
+                0.0
+            };
+            let b = if right > 0.0 {
+                pf / right * basis(knots, i + 1, p - 1, t)
+            } else {
+                0.0
+            };
+            a - b
+        }
+
+        /// A tensor B-spline chart, row-major in `u`.
+        pub(super) struct Chart {
+            pub(super) ku: Vec<f64>,
+            pub(super) kv: Vec<f64>,
+            pub(super) pu: usize,
+            pub(super) pv: usize,
+            pub(super) control: Vec<[f64; 3]>,
+        }
+
+        impl Chart {
+            /// `f = ⟨S, S_u×S_v⟩` at an interior point of a knot cell.
+            fn f(&self, u: f64, v: f64) -> f64 {
+                let (nu, nv) = (self.ku.len() - self.pu - 1, self.kv.len() - self.pv - 1);
+                let (mut s, mut su, mut sv) = ([0.0; 3], [0.0; 3], [0.0; 3]);
+                for i in 0..nu {
+                    let (bu, du) = (
+                        basis(&self.ku, i, self.pu, u),
+                        basis_d(&self.ku, i, self.pu, u),
+                    );
+                    for j in 0..nv {
+                        let (bv, dv) = (
+                            basis(&self.kv, j, self.pv, v),
+                            basis_d(&self.kv, j, self.pv, v),
+                        );
+                        let c = self.control[i * nv + j];
+                        for k in 0..3 {
+                            s[k] += bu * bv * c[k];
+                            su[k] += du * bv * c[k];
+                            sv[k] += bu * dv * c[k];
+                        }
+                    }
+                }
+                let n = [
+                    su[1] * sv[2] - su[2] * sv[1],
+                    su[2] * sv[0] - su[0] * sv[2],
+                    su[0] * sv[1] - su[1] * sv[0],
+                ];
+                s[0] * n[0] + s[1] * n[1] + s[2] * n[2]
+            }
+
+            /// The lane's net, bracketed.
+            pub(super) fn net(&self) -> Vec<RVec3> {
+                self.control.iter().map(|c| c.map(super::pt)).collect()
+            }
+        }
+
+        /// Gauss–Legendre nodes and weights on `[0, 1]`, by Newton on
+        /// `P_n` from the Chebyshev-like guess.
+        fn gauss(n: usize) -> Vec<(f64, f64)> {
+            let mut out = Vec::new();
+            #[allow(clippy::cast_precision_loss)]
+            let nf = n as f64;
+            for i in 1..=n {
+                #[allow(clippy::cast_precision_loss)]
+                let mut x = (core::f64::consts::PI * (i as f64 - 0.25) / (nf + 0.5)).cos();
+                let mut dp = 0.0;
+                for _ in 0..100 {
+                    let (mut p0, mut p1) = (1.0, x);
+                    for k in 2..=n {
+                        #[allow(clippy::cast_precision_loss)]
+                        let kf = k as f64;
+                        let p2 = ((2.0 * kf - 1.0) * x * p1 - (kf - 1.0) * p0) / kf;
+                        p0 = p1;
+                        p1 = p2;
+                    }
+                    dp = nf * (x * p1 - p0) / (x * x - 1.0);
+                    let dx = p1 / dp;
+                    x -= dx;
+                    if dx.abs() < 1e-16 {
+                        break;
+                    }
+                }
+                let w = 2.0 / ((1.0 - x * x) * dp * dp);
+                out.push((0.5 * (x + 1.0), 0.5 * w));
+            }
+            out
+        }
+
+        /// The convex polygon `poly` clipped to `[u0, u1] × [v0, v1]`.
+        fn clip(poly: &[(f64, f64)], (u0, u1, v0, v1): (f64, f64, f64, f64)) -> Vec<(f64, f64)> {
+            let mut out = poly.to_vec();
+            let edges: [(usize, f64, bool); 4] =
+                [(0, u0, true), (0, u1, false), (1, v0, true), (1, v1, false)];
+            for (axis, at, keep_above) in edges {
+                let coord = |p: (f64, f64)| if axis == 0 { p.0 } else { p.1 };
+                let inside = |p: (f64, f64)| {
+                    if keep_above {
+                        coord(p) >= at
+                    } else {
+                        coord(p) <= at
+                    }
+                };
+                let input = core::mem::take(&mut out);
+                for (k, &a) in input.iter().enumerate() {
+                    let b = input[(k + 1) % input.len()];
+                    if inside(a) {
+                        out.push(a);
+                    }
+                    if inside(a) != inside(b) {
+                        let t = (at - coord(a)) / (coord(b) - coord(a));
+                        out.push((a.0 + t * (b.0 - a.0), a.1 + t * (b.1 - a.1)));
+                    }
+                }
+                if out.is_empty() {
+                    break;
+                }
+            }
+            out
+        }
+
+        /// `∫∫ f` over the convex, counter-clockwise polygon `poly`.
+        pub(super) fn flux(chart: &Chart, poly: &[(f64, f64)]) -> f64 {
+            let rule = gauss(14);
+            let cells = |k: &[f64]| -> Vec<(f64, f64)> {
+                k.windows(2)
+                    .filter(|w| w[1] > w[0])
+                    .map(|w| (w[0], w[1]))
+                    .collect()
+            };
+            let mut total = 0.0;
+            for (u0, u1) in cells(&chart.ku) {
+                for (v0, v1) in cells(&chart.kv) {
+                    let piece = clip(poly, (u0, u1, v0, v1));
+                    for k in 1..piece.len().saturating_sub(1) {
+                        let (a, b, c) = (piece[0], piece[k], piece[k + 1]);
+                        // `x = a + s(b − a) + s·t(c − b)`, Jacobian `s·det`.
+                        let det = (b.0 - a.0) * (c.1 - b.1) - (b.1 - a.1) * (c.0 - b.0);
+                        for &(s, ws) in &rule {
+                            for &(t, wt) in &rule {
+                                let x = (
+                                    a.0 + s * (b.0 - a.0) + s * t * (c.0 - b.0),
+                                    a.1 + s * (b.1 - a.1) + s * t * (c.1 - b.1),
+                                );
+                                total += ws * wt * s * det * chart.f(x.0, x.1);
+                            }
+                        }
+                    }
+                }
+            }
+            let _ = mid;
+            total
+        }
+    }
+
+    /// A clamped knot vector of degree `p` on `[0, 1]` with `interior`.
+    fn clamped(p: usize, interior: &[f64]) -> Vec<f64> {
+        let mut k = vec![0.0; p + 1];
+        k.extend_from_slice(interior);
+        k.extend(std::iter::repeat_n(1.0, p + 1));
+        k
+    }
+
+    /// A chart of bidegree `(pu, pv)` with interior knots at `¼, ½, ¾` in
+    /// `u` and `⅛, ⅜, ½, ⅞` in `v`, its net a curved dyadic height over
+    /// the Greville grid: genuinely piecewise, a different polynomial on
+    /// each cell.
+    fn piecewise_chart(pu: usize, pv: usize) -> reference::Chart {
+        let ku = clamped(pu, &[0.25, 0.5, 0.75]);
+        let kv = clamped(pv, &[0.125, 0.375, 0.5, 0.875]);
+        let (nu, nv) = (ku.len() - pu - 1, kv.len() - pv - 1);
+        #[allow(clippy::cast_precision_loss)]
+        let greville =
+            |k: &[f64], p: usize, i: usize| k[i + 1..=i + p].iter().sum::<f64>() / p as f64;
+        let mut control = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                #[allow(clippy::cast_precision_loss)]
+                let z =
+                    f64::from(u32::try_from((3 * i + 5 * j + i * j) % 7).unwrap()) * 0.125 - 0.25;
+                control.push([greville(&ku, pu, i), greville(&kv, pv, j), 0.5 + z]);
+            }
+        }
+        reference::Chart {
+            ku,
+            kv,
+            pu,
+            pv,
+            control,
+        }
+    }
+
+    /// **Q16 — the composite arm holds an independent reference where
+    /// its chords cross knots of both directions at varied slopes.**
+    ///
+    /// Bidegrees `(3, 3)` and `(4, 3)`, interior knots in both
+    /// directions ([`piecewise_chart`]), and two convex regions whose
+    /// chords have slopes far from `0` and `±1` and cross `v`-knots away
+    /// from the `u`-knots: a quadrilateral, and a steep triangle
+    /// (`ℓ′ ≈ ±4.5`). Each runs as iso chords and with its closing edge
+    /// a `General` image, rounds 0–3, against [`reference::flux`]. The
+    /// reference is exact to the rounding of a 14-point rule on each
+    /// knot cell's polynomial; the enclosures are far wider.
+    #[test]
+    fn q16_the_composite_arm_holds_an_independent_reference_across_knots() {
+        let regions: [(&str, Vec<(f64, f64)>); 2] = [
+            (
+                "quadrilateral",
+                vec![(0.05, 0.03), (0.93, 0.2), (0.8, 0.97), (0.1, 0.7)],
+            ),
+            ("steep triangle", vec![(0.2, 0.05), (0.6, 0.1), (0.4, 0.98)]),
+        ];
+        for (pu, pv) in [(3usize, 3usize), (4, 3)] {
+            let chart = piecewise_chart(pu, pv);
+            let ku = KnotVector::clamped(chart.ku.clone(), pu).unwrap();
+            let kvv = KnotVector::clamped(chart.kv.clone(), pv).unwrap();
+            let net = chart.net();
+            let w = vec![1.0; net.len()];
+            for (name, poly) in &regions {
+                let truth = reference::flux(&chart, poly);
+                let n = poly.len();
+                for closing in ["iso", "General"] {
+                    let mut chords: Vec<TrimChord> =
+                        (0..n).map(|k| iso(poly[k], poly[(k + 1) % n])).collect();
+                    if closing == "General" {
+                        chords[n - 1] = general(&[poly[n - 1], poly[0]], 0.0);
+                    }
+                    let mut rounds = Vec::new();
+                    let run = trimmed_patch_face_rounds::<f64>(
+                        &ku,
+                        &kvv,
+                        &net,
+                        &w,
+                        &chords,
+                        Band::linear(Tol::witness()).unwrap(),
+                        RoundWindow { first: 0, last: 3 },
+                        &mut |b, _| {
+                            rounds.push(b.flux);
+                            Ok(false)
+                        },
+                    );
+                    let label = format!("Q16 ({pu},{pv}) {name}, {closing} closing chord");
+                    run.unwrap_or_else(|e| panic!("{label}: the composite arm answers: {e:?}"));
+                    assert_eq!(rounds.len(), 4, "{label}: rounds 0–3 ran");
+                    for (r, flux) in rounds.iter().enumerate() {
+                        encloses(*flux, truth, &format!("{label}, round {r}"));
+                    }
+                }
+            }
+        }
+    }
+
+    /// **Q17 — the closure gap is paid over the column `G` integrates,
+    /// not over the trim box.**
+    ///
+    /// Q11's in-bracket gap, on a chart whose integrand vanishes on the
+    /// trim box and is large below it: `S = (u, v, z(v))` with `z` the
+    /// quadratic spline on knots `(0, ½, 1)` and heights `(400, 0, 0, 0)`,
+    /// so `f = z − v·z′` is `0` on the upper span, where the triangle
+    /// `(0.1, 0.6) → (0.9, 0.6) → (0.9, 0.9)` lies, and the flux it
+    /// bounds is `0`. The walk's closing chord starts `0.375·d` along `u`
+    /// from where the rim ends, so Green's sum differs from `0` by that
+    /// gap times `|G_f| = |∫₀^{0.9} f| ≈ 133`, about `5e-4` at
+    /// `d = 10⁻⁵`. A pad levered by the trim box's `sup|f| = 0` misses
+    /// `0` (measured: reverting the pad to the trim box reds this row).
+    #[test]
+    fn q17_the_closure_gap_is_paid_over_the_column_below_the_trim() {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let kvv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        for u in [0.0, 1.0] {
+            for (y, z) in [(0.0, 400.0), (0.25, 0.0), (0.75, 0.0), (1.0, 0.0)] {
+                control.push([pt(u), pt(y), pt(z)]);
+            }
+        }
+        let w = vec![1.0; 8];
+        let d = 1.0e-5;
+        let mut rim = iso((0.9, 0.6), (0.9, 0.9));
+        rim.b = (Interval::from_bounds(0.9 - d, 0.9), pt(0.9));
+        let mut g = general(&[(0.9 - d, 0.9), (0.1, 0.6)], 0.0);
+        g.a = (
+            Interval::from_bounds(0.9 - 1.5 * d, 0.9 - 0.25 * d),
+            pt(0.9),
+        );
+        g.piece.as_mut().unwrap().control[0] = g.a;
+        let chords = vec![iso((0.1, 0.6), (0.9, 0.6)), rim, g];
+        let run = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(0))
+            .unwrap_or_else(|e| panic!("Q17: an in-bracket gap is paid, not refused: {e:?}"));
+        encloses(run.bounds.flux, 0.0, "Q17 flux");
     }
 
     /// **Q13 — an in-band monotone verdict ESCALATES.**
