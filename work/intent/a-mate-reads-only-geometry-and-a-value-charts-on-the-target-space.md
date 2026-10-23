@@ -56,3 +56,28 @@ mate's target body's frame.
 `an-inline-at-a-moved-landing-reading-a-variable-refuses`,
 `inline-refuses-a-placed-part-off-the-identity`,
 `the-viewer-cannot-mate-two-freshly-inserted-parts`.
+
+## Handoff
+
+2026-10-23, second implementer lane (the first stopped at `31b979f5`
+with no PR and no CI run). State found at `31b979f5`:
+
+- Builds and lints clean: `cargo clippy --workspace --all-targets
+  --all-features -D warnings`, and the same in `demos/tour`,
+  `demos/wild`, `tools/*` and `benches`. The "viewer and demos
+  migration (in progress)" commit was finished by `8f83d72e`.
+- The Done-when grep names no live symbol (its hits are topo's
+  `pair_section_frame_at`, geom-brep's private `place_at` and
+  comment prose).
+- Tests in place: 24 and 21 and the flatten rows in
+  `intent_dprime2_mates_read_geometry.rs`; 20 in
+  `asm_r2a_mate_solve`; inline-then-flatten of a split in `p2_split`
+  and `asm4_split_inline`; the `p2_face` valued-mate row renamed to
+  `..._crosses_split`; the gate
+  `scripts/gates/bundle-constructor-reads-no-evaluation.sh`.
+- Absorbed items: five closed by the first lane; this lane closed
+  `the-viewer-cannot-mate-two-freshly-inserted-parts` (the door's
+  rebundle drops the values a mate fixes).
+- Left: no CI has run; the absorbed items' `PR PRNUM` placeholders;
+  the PR body (geometry moves by document and node, goldens, sweep
+  hit lists); a `[render]` commit.
