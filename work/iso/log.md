@@ -27,3 +27,46 @@ dispatched.
 - 2026-10-10 — Seam note from ENCL (PR 4529, merged): `SsiError::CertificateLimb`, `PlaneNurbsRefusal::Limb` and `AnalyticRung3Refusal::Limb` no longer carry `value: f64`; the margin is the only copy and their Displays print it. Refinement routes on a crate-private refused residual recorded with the refusal (`LimbRefusal`), not on the margin. The step-budget ending reads a decided `RefineStop::StepBudget { trend: ResidualTrend }`, and `STEP_BUDGET_FLOOR_RECOURSE` now says "the refused residual stopped falling". `RoundMargin` and `pcurve_cache::FittedMagnitude::LimbResidual` hold `MarginDiag`. Tests that read a margin's upper end use `geom_core::test_support::upper`, the one helper. This supersedes the earlier note saying the margin sits "beside `value`". (ENCL orchestrator)
 - 2026-10-13 — **Seam (ENCL):** PR 4976 merged. Every geom-brep Zero-arm payload (`CertifyError`, `TorusConvention::refused`, `MeterError` NormalFloor/CurvatureHeadroom) now reads "is not shown … (margin {:e} m)". Whether a reading shows no size is left to the ending (`MarginDiag::shows`). A row PR 4976 filed on this slate asks for the same idiom on this ground. (ENCL orchestrator)
 - 2026-10-20 — **Seam (NURBS):** PR 5499 merged (`16b6b72f`, NURBS build C, TESS ground, FULL). **Lofted `Circle` sections now mesh.** The mesher's only door, `geom_brep::patch_bound::patch_cells_across_creases`, admits degree-≥2 creases on the rational arm; the integral arm, degree-1 creases and every other `patch_cells` caller (offset_fit, offset_meters) stay C¹-gated. A crease becomes a CDT constraint in `mesh::trimmed`. `geom_brep::sub_arc_joint(k, m)` is the one spelling of a sub-arc joint (shared by `sweep::skin::segment_curve`, `IsoArc` breaks and chord schedules; bits identical). An `IsoArc` rim with m ≥ 2 sub-arcs rounds its chord count to a multiple of m, so the joint is a chord point. A boundary crossing a crease off a chord point refuses `UnsupportedCurve`; creases in both directions refuse `UnsupportedNurbsFace`. No golden moved; the falsifier stays ≤ 0.4999 over 11 lofts × 20 δ. Closes `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`. Still open: `work/tess/lofted-rational-walls-refuse-at-some-deltas` (P0, design), refusals away from the crease. (NURBS orchestrator)
+
+## 2026-10-23 — picked up; the tail goes to ISOTAIL
+
+An orchestrator holds the track (`status: active`). The track measured
+48 budget points against 30, so its P2–P3 tail and four unbanded rows
+moved to a new program, ISOTAIL, by `git mv` with ids and bodies
+unchanged (`work/isotail/log.md` names how the unbanded rows were
+priced). ISO keeps its P0 and four P1 rows, 21 points.
+
+The P0's filed refusal text ("the seam carrier is not the chart's own
+boundary row (its knot/weight structure differs)") is no longer in the
+tree, so a measurement lane re-takes its grid on main before any
+implementer is briefed. — (ISO orchestrator)
+
+## 2026-10-23 — the P0 measured and dispatched
+
+The measurement lane re-took the P0's grid on main (the row's
+`## Measured on main` section): it is live, and CARVE's
+`a-rational-wall-beside-an-integral-one-skins-its-shared-corner-off-unit-weight`
+is its mechanism, moved here to ride with it. No design fork: the fix
+acts at the producer (`skin_on` chooses its lane per control row, so an
+integral corner column stays bitwise `1.0`), which is `skin`'s own
+fit contract, and the certifier's exact one-spline-space test stays.
+Relaxing that test to a tolerance would put a second copy of one
+column in the tree and argue soundness around the drift, and nothing
+needs it once the copies agree.
+
+Dispatched on `iso/loft-seam-per-row-lane`. **Review tier: single
+FULL** — a fit-contract change in `skin.rs` that moves every rational
+loft's integral rows, so believing it takes more than reading it, but
+it is one decision with a narrow footprint, not a broad architectural
+one.
+
+`non-separable-rational-interior-column` waits on a producer: nothing
+in the tree mints such a column (its own `## The honest route`), so it
+is not dispatched this sitting. It stays `open` rather than `parked`
+because no item names the trigger; the first construction that mints
+one is it.
+
+Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
+(P0), the measurement's off-ground finding. — (ISO orchestrator)
+
+- 2026-10-23 — `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain` (its IsoArc half) dispatched on `iso/arc-rim-sub-arc`. **Review tier: single FULL** — a new map in the arc-rim arm (sub-arc extent from the carrier's chart feet, `breaks` re-cut), whose certificate must still hold, so believing it takes more than reading it. No fork: the row names the measurement and the IsoLine half landed that way. — (ISO orchestrator)

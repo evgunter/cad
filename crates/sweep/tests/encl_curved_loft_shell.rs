@@ -208,7 +208,7 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 /// of its fixed foot schedule, and on this twisted wall limb 2's value
 /// at a break is about 1e-6 m: in the band at 1e-6, where it escalates,
 /// and past it at 1e-9, where it refuses outright
-/// (`work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`).
+/// (`work/isotail/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`).
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let body = twisted_loft(0.3);

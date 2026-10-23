@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: PlaneNurbsRefusal::Escalated forwards Indeterminate's coincidence menu, unlabelled, where the edge's own faces leave nothing to declare
 status: open
 opened: 2026-09-28
+priority: P3
+cost: E
 ---
 
 (ENCL implementer, from the §5 sweep of

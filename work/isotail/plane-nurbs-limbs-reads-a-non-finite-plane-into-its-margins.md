@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: plane_nurbs_limbs and certify_rung3 read a non-finite plane into their margins, so the refusal blames a margin, not the plane
 status: open
 opened: 2026-10-01
+priority: P3
+cost: M
 ---
 
 

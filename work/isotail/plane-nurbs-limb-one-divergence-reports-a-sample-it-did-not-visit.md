@@ -4,6 +4,9 @@ kind: issue
 title: edge_nurbs refusal() reports a limb-1 foot divergence as image-schedule sample 9, discarding the parameter
 status: open
 opened: 2026-10-01
+priority: P3
+cost: M
+design: true
 ---
 
 
