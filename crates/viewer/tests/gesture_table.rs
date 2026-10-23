@@ -114,7 +114,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 55;
+const OP_COUNT: usize = 56;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -366,6 +366,9 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             ),
         },
         SessionOp::IntoOwnSpace { placement: node },
+        SessionOp::SetProduct {
+            bodies: vec![node.into()],
+        },
     ]
 }
 
@@ -467,6 +470,9 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // A re-target and a bundle written: a document edit, fenced
         // with every other one.
         SessionOp::IntoOwnSpace { .. } => (54, false),
+        // What the document makes: a document edit, fenced with every
+        // other one.
+        SessionOp::SetProduct { .. } => (55, false),
     }
 }
 
@@ -955,6 +961,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
         | SessionOp::SetLabel { .. }
+        | SessionOp::SetProduct { .. }
         | SessionOp::CreateLabelled { .. } => false,
     }
 }
@@ -1568,6 +1575,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddInstance { .. }
         | SessionOp::AcceptPartVersion { .. }
         | SessionOp::SetLabel { .. }
+        | SessionOp::SetProduct { .. }
         | SessionOp::CreateLabelled { .. } => false,
     }
 }

@@ -87,23 +87,23 @@ fn the_kind_refusal_forwards_the_head_constructors_sentence() {
     );
 }
 
-/// **A face name at an instance that is not the instance's own
-/// wrapping of a part face is the placement's refusal where it
-/// evaluates.** The tool reads no pose before committing, so a
-/// hand-built selection naming a face at the instance with no `InPart`
-/// proposes and commits; the instance's product holds only its part's
-/// rows, each in its one `InPart`, so the mate's `on` does not evaluate
-/// and the post's row fails `SideUnevaluated` on the `on` side — never
-/// a placement that silently stands somewhere.
+/// **A face name at an instance that its copy does not carry is the
+/// placement's refusal where it evaluates.** The tool reads no pose
+/// before committing, so a hand-built selection naming a face at the
+/// instance that its part's product holds no row of proposes and
+/// commits; the instance's copy holds only its part's rows, so the
+/// mate's `on` does not evaluate and the post's row fails
+/// `SideUnevaluated` on the `on` side — never a placement that
+/// silently stands somewhere.
 #[test]
-fn a_face_name_at_an_instance_with_no_part_wrapper_refuses_where_it_evaluates() {
+fn a_face_name_at_an_instance_its_copy_does_not_carry_refuses_where_it_evaluates() {
     let tol = Tol::witness();
     let bench = asm::bench("rv-matehead-bare", tol);
     let mut session = asm::open_bench(&bench, tol);
     let (mut a, b) = asm::seat_picks(&session, &bench);
-    assert_eq!(a.name.node, a.node, "pick a is on its instance");
-    // The instance's own name, its `InPart` taken off: a bare face name
-    // at the instance.
+    assert_ne!(a.name.node, a.node, "pick a is its part's name, read at its instance");
+    // The part's name with its role taken off: a bare face name the
+    // copy does not carry.
     let mut bare = a.name.clone();
     bare.path = Vec::new();
     a.name = bare;
@@ -133,7 +133,7 @@ fn a_face_name_at_an_instance_with_no_part_wrapper_refuses_where_it_evaluates() 
                 }
             ) => {}
         other => {
-            panic!("a bare face name at an instance refuses where it evaluates, got {other:?}")
+            panic!("a face name its copy does not carry refuses where it evaluates, got {other:?}")
         }
     }
 }

@@ -1190,8 +1190,6 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
-            self.drafts.rename(&outcome.renamed);
-            self.tools.rename(&outcome.renamed);
             // **Where an outcome's news reaches the user**: what this
             // operation's document transition took out of the display
             // state, and what its committed edits did that nobody

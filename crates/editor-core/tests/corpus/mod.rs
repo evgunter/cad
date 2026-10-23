@@ -160,13 +160,12 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
-            Some(Node::Place { source, .. }) => ({
-                doc.operation_of(source.read)
-                    .and_then(|picked| doc.node(picked))
-                    .is_some_and(|picked| {
-                        matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
-                    })
-            }),
+            Some(Node::Place { source, .. }) => doc
+                .operation_of(source.read)
+                .and_then(|picked| doc.node(picked))
+                .is_some_and(|picked| {
+                    matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
+                }),
             _ => false,
         })
         .collect();

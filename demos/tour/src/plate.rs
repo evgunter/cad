@@ -293,7 +293,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         (blank, [(hole_a, face()), (hole_b, face())])
     };
     let placement = crate::world::place_in_world(&doc, placed, tol);
-    doc = placement.doc;
+    doc = crate::world::world_is_the_product(&placement.doc, tol).doc;
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask for each hole's

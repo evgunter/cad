@@ -493,7 +493,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
 
     // A face of post_a, selected and held while it still resolves.
     let face = FaceSelection {
-        name: common::asm::in_part(bench.post_a, &bench.post_top),
+        name: bench.post_top.clone(),
         node: bench.post_a,
         body: 0,
     };

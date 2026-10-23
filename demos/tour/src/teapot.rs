@@ -1096,7 +1096,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
                 .expect("nothing reads it, so it deletes")
                 .doc
         });
-    [
+    let placed = [
         (r.handle_body, handle_values()),
         (r.lid, Vec::new()),
         (r.cup, Vec::new()),
@@ -1105,7 +1105,8 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     .into_iter()
     .fold(tidied, |doc, (body, values)| {
         crate::world::in_world_by(&doc, body, values, tol).doc
-    })
+    });
+    crate::world::world_is_the_product(&placed, tol).doc
 }
 
 /// The body a node evaluated to.

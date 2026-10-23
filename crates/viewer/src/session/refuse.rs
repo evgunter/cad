@@ -93,6 +93,8 @@ pub fn admits_read(doc: &Doc<ProfileProgram>, read: &Operand, wanted: NodeKindWa
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
+        // A pick reads one piece of a copy: a body.
+        Operand::Pick { .. } => return wanted == NodeKindWanted::Body,
         Operand::Select { .. } | Operand::Pose(_) => return false,
     };
     let kind = match wanted {
@@ -127,6 +129,7 @@ pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
         | Node::Subtract { .. }
         | Node::Union { .. }
         | Node::Intersect { .. }
+        | Node::Assemble { .. }
         | Node::Part { .. }
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
@@ -979,7 +982,6 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         | ValuePayload::Profile(_)
         | ValuePayload::Split { .. }
         | ValuePayload::Instances(_)
-        | ValuePayload::Copies(_)
         | ValuePayload::Measure { .. }
         | ValuePayload::MeasureUnavailable { .. }
         | ValuePayload::Assertion(_) => None,

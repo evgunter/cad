@@ -359,23 +359,21 @@ fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, body, placement)
 }
 
-/// **A cap of `block`'s product under `instance`**: the extrude's cap,
-/// as its placement's copy names it, inside the instance's `InPart`.
+/// **A cap of `block`'s product, read at `instance`**: the extrude's
+/// cap, which the part's copy and the instance's carry as it is.
 fn in_part(
     instance: RecipeNodeId,
-    (body, placement): (RecipeNodeId, RecipeNodeId),
+    (body, _): (RecipeNodeId, RecipeNodeId),
     cap: CapEnd,
-) -> StableName {
-    pncad::document::FaceName::new(
-        StableName {
+) -> crate::fixture::resolver::InPart {
+    crate::fixture::resolver::InPart {
+        at: instance,
+        name: StableName {
             kind: EntityKind::Face,
             node: body,
             path: vec![RoleSeg::Cap(cap)],
         },
-    )
-    .expect("a cap is a face")
-    .in_part(instance)
-    .into_name()
+    }
 }
 
 /// **A mate's carried level inside a part is labelled with that part.**
@@ -429,7 +427,7 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
-                    of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
+                    of: in_part(legs, (leg_body, leg_copy), CapEnd::End).name.into(),
                 }],
             }),
             ContactClass::Rest,

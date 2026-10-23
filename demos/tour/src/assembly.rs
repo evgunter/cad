@@ -102,14 +102,14 @@ use std::sync::Arc;
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    BodyRead,
-    Assembly, AssemblyError, CancelToken, CheckId, ChecksConfig, Constraint, Coord, Dimension,
-    DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
-    InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE,
-    Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, Placed,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis, UNPINNED_RECOURSE,
-    ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
-    parse_formula, product_named, run_checks, save, solve_document, split, stand,
+    Assembly, AssemblyError, BodyRead, CancelToken, CheckId, ChecksConfig, Constraint, Coord,
+    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
+    FreeVar, InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal,
+    NO_AT_REST_RECORD_RECOURSE, Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect,
+    PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis,
+    UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate,
+    inline, load, mixed_pins, parse_formula, product_named, run_checks, save, solve_document,
+    split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -542,10 +542,7 @@ fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
         1,
         "an extruded prism has exactly one {end:?} cap; got {found:?}"
     );
-    found
-        .into_iter()
-        .next()
-        .expect("checked non-empty")
+    found.into_iter().next().expect("checked non-empty")
 }
 
 /// The node a `Place` over one shape copies.

@@ -1980,13 +1980,20 @@ impl Recorder {
         })
     }
 
-    /// Inserts a node, returning its minted id.
+    /// Inserts a node, returning its minted id; a placement into the
+    /// world writes the product anew as the world's copies
+    /// ([`Self::world_product`]).
     pub fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
-        self.push(DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        })
-        .expect("minted id")
+        let at = self
+            .push(DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            })
+            .expect("minted id");
+        if self.doc.node_space(at) == Some(editor_core::VarId::WORLD) {
+            self.world_product();
+        }
+        at
     }
 
     /// **`mate` and the `values` naming it, written onto `placement`**
@@ -2012,6 +2019,10 @@ impl Recorder {
         for edit in bundle_edits(&self.doc, placement, placed.bundle()) {
             self.push(edit);
         }
+        // A bundle may re-target its copy out of the world or into it.
+        if self.doc.product().is_some() {
+            self.world_product();
+        }
     }
 
     /// **A placement of `read` written whole**: into the space the
@@ -2027,11 +2038,7 @@ impl Recorder {
             editor_core::BodyRead::plain(read),
             placed.bundle(),
         );
-        let at = self.insert(node);
-        if self.doc.node_space(at) == Some(editor_core::VarId::WORLD) {
-            self.world_product();
-        }
-        at
+        self.insert(node)
     }
 
     /// **The product written anew as the world's copies**, recorded

@@ -112,7 +112,7 @@ fn boolean_doc(
     );
     let placed =
         crate::world::in_world_by(&doc, boolean, crate::world::slides([0.0, 0.0, lift]), tol);
-    doc = placed.doc;
+    doc = crate::world::world_is_the_product(&placed.doc, tol).doc;
     let placement = placed.placement;
     let ev = evaluate::<f64>(
         &doc,

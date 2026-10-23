@@ -153,7 +153,8 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, body) = document(tol);
     let trimmed = trimmed_and_broken(&doc, body, tol);
-    crate::world::place_in_world(&trimmed.doc, trimmed.chamfer, tol).doc
+    let placed = crate::world::place_in_world(&trimmed.doc, trimmed.chamfer, tol);
+    crate::world::world_is_the_product(&placed.doc, tol).doc
 }
 
 /// The trim and the break, as nodes over the bracket's extrude.

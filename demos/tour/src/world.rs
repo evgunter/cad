@@ -89,6 +89,24 @@ pub fn set_product(doc: &Doc<ProfileProgram>, bodies: &[Operand], tol: Tol) -> P
     Producted { doc, edits }
 }
 
+/// **The product set to the world's copies**, in document order
+/// ([`set_product`]): what a scene whose placements into the world are
+/// what it makes says its product is.
+///
+/// # Panics
+///
+/// If nothing is placed into the world or an edit refuses.
+pub fn world_is_the_product(doc: &Doc<ProfileProgram>, tol: Tol) -> Producted {
+    let copies: Vec<Operand> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| doc.node_space(p) == Some(pncad::document::VarId::WORLD))
+        .filter_map(|p| doc.output(p, 0))
+        .map(Operand::Var)
+        .collect();
+    set_product(doc, &copies, tol)
+}
+
 /// One copy of `body` in the world where it stands ([`stand`]).
 ///
 /// # Panics

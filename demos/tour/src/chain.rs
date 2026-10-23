@@ -449,7 +449,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     // the world where it is drawn.
     let target = pin_along(&mut doc, len(links as f64 * LINK_LENGTH), tol);
     let placed = crate::world::place_in_world(&doc, target, tol);
-    doc = placed.doc;
+    doc = crate::world::world_is_the_product(&placed.doc, tol).doc;
     let target = placed.placement;
 
     // The wall names come from the SELECTION door, the way a user gets

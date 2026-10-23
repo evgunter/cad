@@ -658,6 +658,7 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
         | Node::Mirror { .. }
         | Node::Subtract { .. }
         | Node::Union { .. }
+        | Node::Assemble { .. }
         | Node::Intersect { .. }
         | Node::Pattern { .. }
         | Node::Part { .. }
@@ -719,8 +720,7 @@ fn readout_of(
         ValuePayload::Body(_)
         | ValuePayload::Boolean(BooleanValue::Body { .. })
         | ValuePayload::Profile(_)
-        | ValuePayload::Instances(_)
-        | ValuePayload::Copies(_) => None,
+        | ValuePayload::Instances(_) => None,
     }
 }
 
@@ -1081,12 +1081,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // repair is the reading node's own operands, or a placement's
         // target, and one link would pick for the reader.
         NodeErrorKind::SpaceMismatch { .. } => None,
-        // A copy read the placement does not hold, a copy of the wrong
-        // shape, or two copies under one key: the reading node's own
-        // read, or the placement's own shapes, are the repair.
-        NodeErrorKind::NoSuchCopy { .. }
-        | NodeErrorKind::CopyShape { .. }
-        | NodeErrorKind::CopiesShareAKey { .. } => None,
+        // A pick's path that reaches no piece of the copy, or a piece
+        // of the wrong shape: the pick's own path is the repair.
+        NodeErrorKind::NoSuchPiece { .. } | NodeErrorKind::PieceShape { .. } => None,
         // A payload that names a node does so as evidence: a name's
         // minting node, where the repair is the referring node's own
         // reference; an upstream table the naming pass found missing;

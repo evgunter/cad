@@ -126,13 +126,7 @@ pub fn selection(
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     // The ball's band face as the pip's placement copies it: the
-    // ball's own name, qualified by the placement.
-    let pip = match doc.node(pipped) {
-        Some(Node::Subtract { tool, .. }) => doc
-            .operation_of(tool.read)
-            .unwrap_or_else(|| panic!("{pipped}'s tool reads the pip's placement")),
-        other => panic!("{pipped} is the die's subtract, got {other:?}"),
-    };
+    // ball's own name, which a copy carries as it is.
     let ball_face = |seg: RoleSeg| StableName {
                 kind: EntityKind::Face,
                 node: ball,
@@ -229,9 +223,9 @@ pub fn selector() -> Selector {
 /// checks the exclusion reads the same list the docs above describe.
 /// The cube's face cuts each, so the target publishes each as its one
 /// piece, named by its ends (N2): read off `ev`'s table at `pipped`.
-/// `ball` is the revolve whose names the pip's placement carries,
-/// each under the placement (`Placed`); the carry is keyed by the
-/// subtract's TOOL read (the pip's output), not by the ball's own.
+/// `ball` is the revolve whose names the pip's placement carries as
+/// they are; the carry is keyed by the subtract's TOOL read (the pip's
+/// output), not by the ball's own.
 pub fn excluded_meridians(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
@@ -242,9 +236,6 @@ pub fn excluded_meridians(
         Some(Node::Subtract { tool, .. }) => tool.read,
         other => panic!("{pipped} is the die's subtract, got {other:?}"),
     };
-    let pip = doc
-        .operation_of(tool)
-        .unwrap_or_else(|| panic!("{pipped}'s tool reads the pip's placement"));
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
         .map(|end| {

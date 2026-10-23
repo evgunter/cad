@@ -79,7 +79,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
                 node: pattern,
                 path: vec![RoleSeg::Instance {
                     i: 1,
-                    of: in_part(legs, leg_body, CapEnd::End).into(),
+                    of: in_part(legs, leg_body, CapEnd::End).name.into(),
                 }],
             }),
             ContactClass::Rest,
@@ -170,7 +170,7 @@ fn copies(label: &str, copy: u32, tol: Tol) -> Copies {
         node: pattern,
         path: vec![RoleSeg::Instance {
             i: copy,
-            of: in_part(legs, leg_body, CapEnd::End).into(),
+            of: in_part(legs, leg_body, CapEnd::End).name.into(),
         }],
     };
     let (doc, _) = viewer::test_support::mated(

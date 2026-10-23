@@ -231,16 +231,17 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
     let doc = session.committed_doc();
     assert!(matches!(doc.node(extrude), Some(Node::Extrude { .. })));
     let Some(Node::Place {
-        shapes,
+        source,
         constraints,
         ..
     }) = doc.node(placement)
     else {
         panic!("the extrude's placement: {:?}", doc.node(placement))
     };
-    assert!(
-        matches!(shapes.as_slice(), [shape] if Some(shape.read) == doc.output(extrude, 0)),
-        "the placement copies the extrude: {shapes:?}"
+    assert_eq!(
+        Some(source.read),
+        doc.output(extrude, 0),
+        "the placement copies the extrude: {source:?}"
     );
     {
         use pncad::document::{Coord, TargetAxis};
