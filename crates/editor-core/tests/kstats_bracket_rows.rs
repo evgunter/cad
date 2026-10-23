@@ -62,7 +62,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for r in refs {
-        let (next, id) = insert(doc, Node::instantiate_part(*r));
+        let (next, id) = insert(doc, crate::fixture::mated_instance(*r));
         doc = next;
         ids.push(id);
     }

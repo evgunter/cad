@@ -162,17 +162,22 @@ fn author_die() -> Die {
     // 21 pips: place the tool, subtract from the running body.
     let mut body = cube.unwrap();
     let mut pips = 0;
-    // Each pip's copy of the tool: one placement per pip, the copy it
-    // defines the subtract's tool.
+    // Each pip's copy of the tool: one placement per pip, standing in
+    // the cube's space, the copy it defines the subtract's tool.
+    let in_cube = doc.node_space(body).expect("the cube is in its own space");
     for (_, _, _, offsets) in faces() {
         for _ in offsets {
             let (d2, placed) = step(
                 doc,
                 &mut log,
                 TEdit::InsertNode {
-                    node: Box::new(Node::place(vec![editor_core::BodyRead::plain(
-                        editor_core::Operand::from(pip_extrude),
-                    )])),
+                    node: Box::new(editor_core::Node::place(
+                        vec![editor_core::BodyRead::plain(editor_core::Operand::from(
+                            pip_extrude,
+                        ))],
+                        editor_core::Operand::Var(in_cube),
+                        editor_core::stand().bundle(),
+                    )),
                     fresh: Vec::new(),
                 },
             );

@@ -14,14 +14,13 @@ use std::sync::Arc;
 
 use crate::fixture;
 use crate::p2_gauges::{
-    BASE_HEIGHT, BASE_WIDTH, Parts, TOP_HEIGHT, block, body_of, parts, pinned, seat, seat_on,
+    BASE_HEIGHT, BASE_WIDTH, Parts, TOP_HEIGHT, block, body_of, parts, pinned, seat,
 };
 
 use editor_core::pose::PoseRole;
 use editor_core::{
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, Node, Operand, ParamBox, ProfileDoc, RecipeNodeId, Space, Target, VarName, WorldRead,
-    evaluate,
+    FreeVar, Operand, ParamBox, ProfileDoc, RecipeNodeId, Target, VarName, WorldRead, evaluate,
 };
 use fixture::resolver::with_resolver;
 use fixture::{ang, head, insert, len, run, solve, step};
@@ -243,7 +242,7 @@ fn the_seat_relation_the_rows_compose_with_is_the_solves() {
     let p = parts("r2-control");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r2-control"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let poses = solve(&doc, &o, Tol::witness());
@@ -312,68 +311,10 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     }
 }
 
-// ---- a constraint moves a loose space ----
-
-/// **"Mate a1 to b" moves a1's whole loose space onto b and leaves b
-/// where it is**: a1 (a top) with a2 stacked on it, both loose — one
-/// space rooted at a1 — and b (the base) pinned to the world at
-/// `[20, 0, 0]`. The constraint in a1's bundle puts a1 on b, a2 follows
-/// it into the world, and b does not move.
-#[test]
-fn mate_a_to_b_moves_a_whole_loose_space_and_leaves_b_where_it_is() {
-    let p = parts("r2-door2");
-    let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("r2-door2"), Tol::witness());
-    let (doc, a1) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, a2) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, _) = seat_on(
-        doc,
-        a2,
-        head(p.top_cap(a2)),
-        head(p.top_upper_cap(a1)),
-        [0.0, 0.0],
-    );
-    let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(poses.space(a2), Some(Space::Loose { root: a1 }));
-    let a2_in_a1 = poses.relative(a2).expect("a2 sits in a1's space");
-    let (doc, b) = pinned(doc, p.base, crate::p2_gauges::literal([20.0, 0.0, 0.0]), &o);
-    let (doc, m) = seat(doc, a1, head(p.top_cap(a1)), head(p.base_cap(b)));
-    let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(poses.fault(m.placement), None, "the mate places");
-    assert_eq!(
-        poses.fault(b),
-        None,
-        "DEFECT: the target faulted after 'mate a1 to b'"
-    );
-    let b_at = poses.placement(&doc, b).expect("b placed").translation;
-    assert!(
-        b_at.iter()
-            .zip([20.0, 0.0, 0.0])
-            .all(|(x, y)| (x - y).abs() < 1e-12),
-        "DEFECT: b moved: {b_at:?}"
-    );
-    let a1_at = poses.placement(&doc, a1).expect("a1 placed");
-    assert!(
-        (a1_at.translation[0] - 21.0).abs() < 1e-12 && (a1_at.translation[1] - 1.0).abs() < 1e-12,
-        "DEFECT: a1 not moved onto b: {a1_at:?}"
-    );
-    assert_eq!(
-        poses.space(a2),
-        Some(Space::World),
-        "a2 follows a1 into the world"
-    );
-    let a2_at = M::of(&poses.placement(&doc, a2).expect("a2 placed"));
-    let want = M::of(&a1_at).c(&M::of(&a2_in_a1));
-    assert!(
-        a2_at.dist(&want) <= 1e-12,
-        "DEFECT: a2 left its seat on a1: {a2_at:?} vs {want:?}"
-    );
-}
-
-// ---- loose spaces ----
+// ---- spaces ----
 
 /// **The public clearance door refuses across spaces**: a world base
-/// and a loose top. The two selections live in different spaces, so the
+/// and a top in a space of its own. The two selections live in different spaces, so the
 /// door refuses `AcrossSpaces` naming both — before it reads either
 /// body, which here has no resolver to build.
 #[test]
@@ -383,8 +324,10 @@ fn the_clearance_door_refuses_two_selections_in_different_spaces() {
     };
     let p = parts("r2-clear");
     let doc = ProfileDoc::empty(DocumentId::derive("r2-clear"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &p.opts());
+    let (doc, base) =
+        fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &p.opts());
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, space) = fixture::into_new_space(doc, top);
     let report = clearance(
         &doc,
         &ParamBox::from_axes(BTreeMap::new()),
@@ -396,23 +339,23 @@ fn the_clearance_door_refuses_two_selections_in_different_spaces() {
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(
             SelectionRefusal::AcrossSpaces { a, b },
-        )) => assert_eq!((*a, *b), (Space::World, Space::Loose { root: top })),
+        )) => assert_eq!((*a, *b), (editor_core::VarId::WORLD, space)),
         other => panic!("clearance across spaces refuses typed: {other:?}"),
     }
 }
 
-/// **The at-rest gate checks loose spaces regardless of the world**: a
-/// loose top whose copy only an in-space measure reads holds nothing to
-/// check against, so the gate certifies the world. With the world's base
-/// deleted, the loose top is all the document holds: the gather refuses
-/// `EmptyProduct`, naming it loose.
+/// **The at-rest gate checks the world**: a top in a space of its own,
+/// whose copy only an in-space measure reads, is no part of the world,
+/// so the gate certifies the world. With the world's base deleted, the
+/// world is empty: the gather refuses `EmptyProduct`.
 #[test]
-fn the_gate_checks_loose_spaces_whatever_the_world_holds() {
+fn the_gate_checks_the_world_whatever_another_space_holds() {
     let p = parts("r2-gate");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r2-gate"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = fixture::into_new_space(doc, top);
     let (doc_m, meas) = crate::fixture::measure_node(
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
@@ -424,42 +367,42 @@ fn the_gate_checks_loose_spaces_whatever_the_world_holds() {
     let ev = run(&doc_m, &o);
     assert!(ev.value(meas).is_some(), "{:?}", ev.node_error(meas));
     editor_core::assemble(&doc_m, &ev, Tol::witness())
-        .expect("a loose space with nothing to compare holds nothing to check");
-    // The base goes: the loose top is all the document holds.
+        .expect("the world certifies whatever another space holds");
+    // The base goes: the world is empty.
     let (alone, _) = step(doc, DocEdit::DeleteNode { id: base });
     let ev = run(&alone, &o);
     match editor_core::assemble(&alone, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => match *e {
-            editor_core::ProductError::EmptyProduct { ref loose, .. } => {
-                assert_eq!(loose, &vec![top]);
-                assert!(e.to_string().contains("loose"), "{e}");
+            editor_core::ProductError::EmptyProduct { ref unplaced, .. } => {
+                assert!(unplaced.is_empty(), "{unplaced:?}");
             }
-            ref other => panic!("the gather names the loose copy: {other:?}"),
+            ref other => panic!("the gather refuses an empty world: {other:?}"),
         },
-        other => panic!("a loose copy alone refuses at the gather: {other:?}"),
+        other => panic!("an empty world refuses at the gather: {other:?}"),
     }
 }
 
-/// **A loose copy below does not cross the document seam**: a
-/// sub-assembly holding a pinned base and a loose top crosses as its
-/// world product (A9: the top is not part of that body), so the outer
-/// product holds the base's material alone and the outer gate certifies
-/// it.
+/// **A copy in another space below does not cross the document seam**:
+/// a sub-assembly holding a pinned base and a top in a space of its own
+/// crosses as its world product (A9: the top is not part of that body),
+/// so the outer product holds the base's material alone and the outer
+/// gate certifies it.
 #[test]
-fn a_loose_copy_below_stays_out_of_the_outer_product() {
+fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     let p = parts("r2-seam");
     let sub = ProfileDoc::empty(DocumentId::derive("r2-seam-sub"), Tol::witness());
     let o = p.opts();
-    let (sub, base) = fixture::insert_pinned(sub, Node::instantiate_part(p.base), &o);
+    let (sub, base) = fixture::insert_pinned(sub, crate::fixture::mated_instance(p.base), &o);
     let (sub, top) = insert(sub, fixture::mated_instance(p.top));
+    let (sub, space) = fixture::into_new_space(sub, top);
+    assert_eq!(sub.node_space(top), Some(space));
     let ev_sub = run(&sub, &o);
-    assert_eq!(ev_sub.space(top), Space::Loose { root: top });
     let mut store = p.store.clone();
     let sub_ref = store.insert(sub.clone(), Tol::witness());
     let outer = ProfileDoc::empty(DocumentId::derive("r2-seam-outer"), Tol::witness());
     let (outer, _) = fixture::insert_pinned(
         outer,
-        Node::instantiate_part(sub_ref),
+        crate::fixture::mated_instance(sub_ref),
         &with_resolver(store.clone()),
     );
     let ev = run(&outer, &with_resolver(store));

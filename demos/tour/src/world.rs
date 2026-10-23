@@ -18,7 +18,7 @@
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    BodyRead, Doc, DocEdit, EvalOptions, Frame, Node, Operand, ProfileProgram, RecipeNodeId, apply,
+    BodyRead, Doc, DocEdit, EvalOptions, Frame, Operand, ProfileProgram, RecipeNodeId, apply,
     frame_at, place_against, place_at, stand,
 };
 use pncad::document::{Coord, Formula, Mate, Placed as Answer, Target};
@@ -39,7 +39,7 @@ pub struct Placed {
 ///
 /// If an edit refuses.
 pub fn place_in_world(doc: &Doc<ProfileProgram>, body: impl Into<Operand>, tol: Tol) -> Placed {
-    written(doc, body.into(), stand(), tol)
+    written(doc, body.into(), world(), stand(), tol)
 }
 
 /// One copy of `body` in the world at `at` ([`place_at`]; at the
@@ -60,7 +60,7 @@ pub fn in_world(
     let body = body.into();
     let placed = place_at(doc, &body, at, &EvalOptions::default(), tol)
         .unwrap_or_else(|e| panic!("the copy places at its pose: {e}"));
-    written(doc, body, placed, tol)
+    written(doc, body, world(), placed, tol)
 }
 
 /// [`in_world`] by the "place part" gesture ([`place_at`]) at every
@@ -81,7 +81,7 @@ pub fn in_world_valued(
     let placed = place_at(doc, &body, at, &EvalOptions::default(), tol)
         .unwrap_or_else(|e| panic!("the copy places at its pose: {e}"));
     let values = values(placed.values);
-    written(doc, body, Answer { values, ..placed }, tol)
+    written(doc, body, world(), Answer { values, ..placed }, tol)
 }
 
 /// A copy of `body` placed against `target`'s geometry at `at` — the
@@ -121,7 +121,8 @@ pub fn against_valued(
     let placed = place_against(doc, &target, &body, at, &EvalOptions::default(), tol)
         .unwrap_or_else(|e| panic!("the copy places against its target: {e}"));
     let values = values(placed.values);
-    written(doc, body, Answer { values, ..placed }, tol)
+    let space = space_of(doc, &target);
+    written(doc, body, space, Answer { values, ..placed }, tol)
 }
 
 /// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal
@@ -224,6 +225,7 @@ pub fn on_axis(
 ) -> Placed {
     use pncad::document::{PlacedBy, TargetAxis};
     use pncad::prelude::{ContactClass, Dimension};
+    let space = space_of(doc, &frame);
     let to = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::through(frame.clone(), PoseRole::Z),
         along: RoleRead::through(frame, PoseRole::Z),
@@ -244,7 +246,7 @@ pub fn on_axis(
         ],
         by: PlacedBy::Axis,
     };
-    written(doc, Operand::output(revolve, 0), placed, tol)
+    written(doc, Operand::output(revolve, 0), space, placed, tol)
 }
 
 /// **A copy of `body` placed against `target` by its own axis**, the
@@ -272,6 +274,7 @@ pub fn against_on_axis(
         "an axis placement written by translation alone"
     );
     let (target, body) = (target.into(), body.into());
+    let space = space_of(doc, &target);
     let frame = frame_at(doc, &target, at, &EvalOptions::default(), tol)
         .unwrap_or_else(|e| panic!("the target offers a frame to read: {e}"));
     let mate = Mate {
@@ -298,6 +301,7 @@ pub fn against_on_axis(
     written(
         doc,
         body,
+        space,
         Answer {
             mate: Some(mate),
             values,
@@ -307,34 +311,36 @@ pub fn against_on_axis(
     )
 }
 
-/// The placement of `body` written as edits: the insert, then what the
-/// door answered ([`pncad::document::stand`] and the rest), written as
-/// `write` writes it — the mate and each value against its minted id,
-/// or the values of a bundle with no mate as one edit.
-fn written(doc: &Doc<ProfileProgram>, body: Operand, placed: Answer, tol: Tol) -> Placed {
-    let mut edits = Vec::new();
-    let mut step = |doc: &Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>| {
-        let applied = apply(doc, &edit, tol)
-            .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
-        edits.push(edit);
-        applied
-    };
-    let inserted = step(
-        doc,
-        DocEdit::InsertNode {
-            node: Box::new(Node::place(vec![BodyRead::plain(body)])),
-            fresh: Vec::new(),
-        },
-    );
-    let placement = inserted.record.minted.expect("an insert mints an id");
-    let mut doc = inserted.doc;
-    placed
-        .write(placement, |edit| {
-            let applied = step(&doc, edit);
-            doc = applied.doc;
-            Ok::<_, std::convert::Infallible>(applied.record.minted_constraints)
-        })
-        .unwrap_or_else(|never| match never {});
+/// The world's space, as a placement's target reads it.
+fn world() -> Operand {
+    Operand::Var(pncad::document::VarId::WORLD)
+}
+
+/// **The space `target` is in**, as a placement's target reads it: a
+/// copy placed against a body joins that body's space.
+fn space_of(doc: &Doc<ProfileProgram>, target: &Operand) -> Operand {
+    Operand::Var(
+        doc.operand_space(target)
+            .unwrap_or_else(|| panic!("the target is a body in a space: {target:?}")),
+    )
+}
+
+/// The placement of `body` into `space` written as one edit: the insert
+/// of the placement holding what the door answered
+/// ([`pncad::document::stand`] and the rest), its whole bundle.
+fn written(
+    doc: &Doc<ProfileProgram>,
+    body: Operand,
+    space: Operand,
+    placed: Answer,
+    tol: Tol,
+) -> Placed {
+    let edit = DocEdit::place(vec![BodyRead::plain(body)], space, placed.bundle());
+    let applied =
+        apply(doc, &edit, tol).unwrap_or_else(|err| panic!("the placement applies: {err}"));
+    let placement = applied.record.minted.expect("an insert mints an id");
+    let doc = applied.doc;
+    let edits = vec![edit];
     Placed {
         doc,
         placement,

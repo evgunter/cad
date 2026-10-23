@@ -236,7 +236,10 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     );
     // An empty body has no geometry for a mate to read, so its
     // placement is a loose copy: placed, in no product.
-    insert(doc, Node::place(vec![editor_core::BodyRead::plain(result)]))
+    insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(result)]),
+    )
 }
 
 #[test]
@@ -578,7 +581,7 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
     let (part_ref, body) = store.insert_part((part, body), Tol::witness());
     let opts = fixture::resolver::with_resolver(store);
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(part_ref), &opts);
     let (doc, placed) = insert(doc, fixture::mated_instance(part_ref));
     let nowhere = StableName {
         kind: EntityKind::Face,

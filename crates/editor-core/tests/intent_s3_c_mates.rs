@@ -22,9 +22,9 @@ use crate::fixture::{self, ang, len};
 use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    BodyRead, ConstraintId, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate,
-    MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName,
-    Target, TargetAxis, Value, WorldRead,
+    BodyRead, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate, MateFault, Node,
+    NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName, Target, TargetAxis,
+    WorldRead,
 };
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
@@ -287,7 +287,7 @@ fn spun(pose_: Operand, about: Operand, turn: f64) -> Operand {
 fn placed(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
-        Node::place(vec![BodyRead::plain(Operand::output(body, 0))]),
+        crate::fixture::stood(vec![BodyRead::plain(Operand::output(body, 0))]),
     )
 }
 
@@ -298,28 +298,28 @@ fn world_floor_facing_down() -> WorldRead<Formula> {
         .spin(WorldRead::through(PoseRole::X), ang(std::f64::consts::PI))
 }
 
-/// `value` added to `placement`, its id.
-fn add_value(
+/// **`mate` written onto `placement` whole, its `values` in the order
+/// given**, then the constant `0` on each freedom they leave
+/// ([`fixture::squared`]): every bundle pins its copy.
+fn seat(
     doc: ProfileDoc,
     placement: RecipeNodeId,
-    mate: ConstraintId,
-    coord: Coord,
-    by: Formula,
-) -> Result<(ProfileDoc, ConstraintId), EditError> {
-    let applied = doc.apply(
-        &DocEdit::AddValue {
-            placement,
-            value: Box::new(Value {
-                mate: Some(mate),
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )?;
-    let id = applied.record.minted_constraints[0];
-    Ok((applied.doc, id))
+    mate: Mate<Formula>,
+    values: impl IntoIterator<Item = (Coord, Formula)>,
+) -> ProfileDoc {
+    let mut values: Vec<(Coord, Formula)> = values.into_iter().collect();
+    let full = fixture::squared(&doc, mate.clone(), &values);
+    for (coord, by) in full.values {
+        if !values.iter().any(|(at, _)| *at == coord) {
+            values.push((coord, by));
+        }
+    }
+    let placed = editor_core::Placed {
+        mate: Some(mate),
+        values,
+        by: editor_core::PlacedBy::PlanarFace,
+    };
+    fixture::write_bundle(doc, placement, placed.bundle()).0
 }
 
 /// The value's number for `coord`: a length or an angle.
@@ -367,31 +367,23 @@ fn box_resting_on(
     let (doc, body) = a_box("s3c_floor", 1.0);
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(target),
-            class: ContactClass::Rest,
-        },
-    );
+    let doc = doc;
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: Target::World(target),
+        class: ContactClass::Rest,
+    };
     let coords = [
         Coord::Slide(TargetAxis::X),
         Coord::Slide(TargetAxis::Y),
         Coord::Spin,
     ];
-    for k in order {
-        doc = add_value(
-            doc,
-            placement,
-            mate.id,
-            coords[k],
-            number(coords[k], values[k]),
-        )
-        .expect("a plane mate leaves the freedom")
-        .0;
-    }
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        order.map(|k| (coords[k], number(coords[k], values[k]))),
+    );
     (doc, placement)
 }
 
@@ -486,10 +478,10 @@ fn every_order_places_the_copy_to_the_bit_on_a_tilted_target() {
 }
 
 /// **A freedom set twice refuses at the door, whatever else the bundle
-/// leaves.** A box resting on the floor with a slide along `x`: a
-/// second slide along `x` on the same mate sets the freedom the first
-/// already sets, so the door refuses it, naming both, though the spin
-/// is still free (FORK-S3O).
+/// leaves.** A box's bundle resting it on the floor with two slides
+/// along `x` on the one mate: the second sets the freedom the first
+/// already sets, so the door refuses the bundle, naming both, though
+/// the slide along `y` and the spin are still free (FORK-S3O).
 ///
 /// *Breaks if* a value is admitted beside one of its own freedom, or
 /// the door names only the later one.
@@ -498,35 +490,26 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
     let (doc, body) = a_box("s3c_twice", 1.0);
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
-    let (doc, first) = add_value(
-        doc,
-        placement,
-        mate.id,
-        Coord::Slide(TargetAxis::X),
-        len(1.0),
-    )
-    .expect("a plane mate leaves the slide");
-    match add_value(
-        doc,
-        placement,
-        mate.id,
-        Coord::Slide(TargetAxis::X),
-        len(2.0),
-    ) {
+    let doc = doc;
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+        class: ContactClass::Rest,
+    };
+    let twice = editor_core::Placed {
+        mate: Some(written),
+        values: vec![
+            (Coord::Slide(TargetAxis::X), len(1.0)),
+            (Coord::Slide(TargetAxis::X), len(2.0)),
+        ],
+        by: editor_core::PlacedBy::PlanarFace,
+    };
+    match doc.apply(&twice.write(placement), Tol::witness()) {
         Err(EditError::MateRefused { fault, .. }) => assert!(
             matches!(
                 &*fault,
                 MateFault::Overconstrained { placement: p, constraints, free: 2 }
-                    if *p == placement && constraints.len() == 2 && constraints.contains(&first)
+                    if *p == placement && constraints.len() == 2
             ),
             "{fault}"
         ),
@@ -557,25 +540,23 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
         roll,
     );
     let (doc, placement) = placed(doc, body);
-    let (doc, mate) = fixture::constrain_at(
+    let doc = doc;
+    let written = Mate {
+        on: face,
+        to: Target::World(WorldRead::through(PoseRole::Yz)),
+        class: ContactClass::Rest,
+    };
+    let doc = doc;
+    let doc = seat(
         doc,
         placement,
-        Mate {
-            on: face,
-            to: Target::World(WorldRead::through(PoseRole::Yz)),
-            class: ContactClass::Rest,
-        },
+        written,
+        [
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, ang(30.0_f64.to_radians())),
+        ],
     );
-    let mut doc = doc;
-    for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, ang(30.0_f64.to_radians())),
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
     solved(&doc, placement)
 }
 
@@ -690,24 +671,23 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     let (doc, body) = a_box("s3c_cap", 1.0);
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
+    let doc = doc;
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: Target::World(world_floor_facing_down()),
+        class: ContactClass::Rest,
+    };
+    let doc = seat(
         doc,
         placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(world_floor_facing_down()),
-            class: ContactClass::Rest,
-        },
+        written,
+        [
+            Coord::Slide(TargetAxis::X),
+            Coord::Slide(TargetAxis::Y),
+            Coord::Spin,
+        ]
+        .map(|coord| (coord, number(coord, 0.0))),
     );
-    for coord in [
-        Coord::Slide(TargetAxis::X),
-        Coord::Slide(TargetAxis::Y),
-        Coord::Spin,
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, number(coord, 0.0))
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
     let at = solved(&doc, placement);
     assert!(
         turn_between(at.linear, Mat3::identity()) < 1e-12 && at.translation.norm() < 1e-12,
@@ -728,18 +708,13 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         std::f64::consts::PI.sin(),
     );
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: tilted,
-            to: Target::World(world_floor_facing_down()),
-            class: ContactClass::Rest,
-        },
-    );
-    doc = add_value(doc, placement, mate.id, Coord::Spin, ang(0.0))
-        .expect("a plane mate leaves its spin")
-        .0;
+    let doc = doc;
+    let written = Mate {
+        on: tilted,
+        to: Target::World(world_floor_facing_down()),
+        class: ContactClass::Rest,
+    };
+    let doc = seat(doc, placement, written, [(Coord::Spin, ang(0.0))]);
     let ev = fixture::run(&doc, &EvalOptions::default());
     assert!(
         !matches!(ev.result(placement), Some(NodeResult::Failed(_))),
@@ -748,13 +723,14 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     );
 }
 
-/// **Ruling C-2 — a mate a value names goes only once the value has
-/// gone.** Removing the floor mate while its spin value names it
-/// refuses `MateNamedByValue`; removing the value, then the mate, is
-/// admitted.
+/// **Ruling C-2 — a mate a value names goes only with the value.**
+/// Removing the floor mate while its spin value names it refuses
+/// `MateNamedByValue`; removing one value alone leaves its copy
+/// unpinned, which every bundle refuses; the identity bundle written in
+/// their place takes the mate and its values out together.
 ///
 /// *Breaks if* the mate goes and leaves a value setting a freedom of
-/// nothing.
+/// nothing, or a bundle is left short of pinning its copy.
 #[test]
 fn a_mate_a_value_names_is_removed_only_after_it() {
     let (doc, p) = box_on_the_floor([0.0, 0.0, 0.5], [2, 0, 1]);
@@ -777,11 +753,28 @@ fn a_mate_a_value_names_is_removed_only_after_it() {
         Err(EditError::MateNamedByValue { mate: named, .. }) => assert_eq!(named, mate),
         other => panic!("the mate is named by its values: {other:?}"),
     }
-    let mut doc = doc;
-    for value in bundle.iter().filter(|c| c.value().is_some()) {
-        doc = remove(&doc, value.id).expect("a value goes").doc;
+    let value = bundle
+        .iter()
+        .find(|c| c.value().is_some())
+        .expect("a value")
+        .id;
+    match remove(&doc, value) {
+        Err(EditError::MateRefused { fault, .. }) => assert!(
+            matches!(&*fault, MateFault::Unpinned { placement, free: 1 } if *placement == p),
+            "{fault}"
+        ),
+        other => panic!("a value alone leaves its freedom: {other:?}"),
     }
-    remove(&doc, mate).expect("with its values gone, the mate goes");
+    let stood = doc
+        .apply(&editor_core::stand().write(p), Tol::witness())
+        .expect("the identity bundle replaces the mate with its values")
+        .doc;
+    assert!(
+        fixture::bundle(&stood, p)
+            .iter()
+            .all(|c| c.mate().is_none()),
+        "the mate went with its values"
+    );
 }
 
 /// **The "place part" gesture reproduces its pose.** A box placed at a
@@ -818,12 +811,7 @@ fn the_place_gesture_reproduces_its_pose() {
         placed_by.values
     );
     let mate = placed_by.mate.expect("the gesture writes a plane mate");
-    let (mut doc, mate) = fixture::constrain_at(doc, placement, mate);
-    for (coord, by) in placed_by.values {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("the gesture's values are its mate's freedoms")
-            .0;
-    }
+    let doc = seat(doc, placement, mate, placed_by.values);
     let at = solved(&doc, placement);
     assert!(
         turn_between(at.linear, turn) < 1e-12 && (at.translation - shift).norm() < 1e-12,
@@ -875,12 +863,7 @@ fn the_place_gesture_flips_a_face_looking_down_so_its_chart_has_a_swing() {
             "{angle}: the cap looks down, so its copy side is flipped: {:?}",
             mate.on
         );
-        let (mut doc, mate) = fixture::constrain_at(doc.clone(), placement, mate);
-        for (coord, by) in near.values {
-            doc = add_value(doc, placement, mate.id, coord, by)
-                .expect("the gesture's values are its mate's freedoms")
-                .0;
-        }
+        let doc = seat(doc.clone(), placement, mate, near.values);
         let at = solved(&doc, placement);
         assert!(
             turn_between(at.linear, turn) < 1e-12 && at.translation.norm() < 1e-12,
@@ -993,7 +976,7 @@ fn inline_moves_a_landing_under_a_world_value_with_its_instance() {
     let o = fixture::resolver::with_resolver(store.clone());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     let host = ProfileDoc::empty_derived("s3c_inline_host", Tol::witness());
-    let (host, instance) = fixture::insert(host, Node::instantiate_part(part_ref));
+    let (host, instance) = fixture::insert(host, crate::fixture::mated_instance(part_ref));
     // The world's vertices, sorted: a re-pin re-composes the pose, so
     // the copy stands where it stood to the rounding of that one step.
     let world = |doc: &ProfileDoc, o: &EvalOptions| {
@@ -1088,28 +1071,26 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
     );
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
+    let doc = doc;
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+        class: ContactClass::Rest,
+    };
     let slide = Formula::named(
         editor_core::VarName::new("s").expect("a name"),
         editor_core::Dimension::Length,
     );
-    for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), slide),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, ang(0.0)),
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        [
+            (Coord::Slide(TargetAxis::X), slide),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, ang(0.0)),
+        ],
+    );
     let seeded = EvalOptions {
         seed: doc.var_named("s"),
         ..EvalOptions::default()
@@ -1253,28 +1234,26 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
     );
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
+    let doc = doc;
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+        class: ContactClass::Rest,
+    };
     let turn = Formula::named(
         editor_core::VarName::new("t").expect("a name"),
         editor_core::Dimension::Angle,
     );
-    for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, turn),
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        [
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, turn),
+        ],
+    );
     let value_lane = motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement)
         .expect("a bundle reading a variable runs its map at the nominal")
         .to_affine();
@@ -1335,28 +1314,26 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
     );
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
+    let doc = doc;
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
+        class: ContactClass::Rest,
+    };
     let turn = Formula::named(
         editor_core::VarName::new("t").expect("a name"),
         editor_core::Dimension::Angle,
     );
-    for (coord, by) in [
-        (Coord::Slide(TargetAxis::X), len(0.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Spin, turn),
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        [
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin, turn),
+        ],
+    );
     let t = doc.var_named("t").expect("declared");
     let at = |value: f64| {
         let d = fixture::step(
@@ -1475,12 +1452,11 @@ fn a_copy_stands_where_its_body_stands_at_every_value() {
         let (doc, placement) = a_box_of_height_standing(nominal);
         let ev = evaluated::<f64>(&doc, &EvalOptions::default());
         assert!(motion_of(&ev, placement).is_none(), "at h = {nominal}");
-        match ev.result(placement) {
-            Some(NodeResult::Ok(value)) => {
-                assert_eq!(value.space, Some(editor_core::Space::World));
-            }
-            other => panic!("the placement evaluates: {other:?}"),
-        }
+        assert!(
+            matches!(ev.result(placement), Some(NodeResult::Ok(_))),
+            "the placement evaluates"
+        );
+        assert_eq!(doc.node_space(placement), Some(editor_core::VarId::WORLD));
     }
     let (doc, placement) = a_box_of_height_standing(1.0);
     let h = doc.var_named("h").expect("declared");
@@ -1519,7 +1495,7 @@ fn inline_carries_a_standing_copy_at_the_identity_and_at_a_moved_landing() {
     let o = fixture::resolver::with_resolver(store.clone());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     let host = ProfileDoc::empty_derived("s3c_world_pin_host", Tol::witness());
-    let (host, instance) = fixture::insert(host, Node::instantiate_part(part_ref));
+    let (host, instance) = fixture::insert(host, crate::fixture::mated_instance(part_ref));
     let still = fixture::pinned(host.clone(), instance, &o);
     let inlined = editor_core::inline(&still, instance, &resolver, Tol::witness())
         .expect("at the identity the part's world is the host's");
@@ -1600,7 +1576,7 @@ fn a_part_inlined_twice_lands_at_the_composed_pose_at_its_pins_depth() {
         let resolver: std::sync::Arc<dyn editor_core::PartResolver> =
             std::sync::Arc::new(store.clone());
         let host = ProfileDoc::empty_derived(&format!("s3c_inline_twice_{level}"), Tol::witness());
-        let (host, instance) = fixture::insert(host, Node::instantiate_part(doc_ref));
+        let (host, instance) = fixture::insert(host, crate::fixture::mated_instance(doc_ref));
         let host = fixture::pin(host, instance, &editor_core::Frame::from_affine(at), &o);
         doc = editor_core::inline(&host, instance, &resolver, Tol::witness())
             .unwrap_or_else(|e| panic!("inline {level} lands: {e}"))

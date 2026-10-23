@@ -60,11 +60,9 @@ fn a_mate_bearing_document_round_trips() {
     let add = |doc: &ProfileDoc, placement, mate| {
         apply(
             doc,
-            &DocEdit::AddConstraint {
-                placement,
-                mate: Box::new(mate),
-                fresh: Vec::new(),
-            },
+            // The mate and a zero on each freedom it leaves, written
+            // whole: every bundle pins its copy.
+            &crate::fixture::squared(doc, mate, &[]).write(placement),
             Tol::witness(),
         )
         .expect("a mate inserts")

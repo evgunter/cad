@@ -146,8 +146,8 @@ pub use eval::{
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 pub use spoken::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
-    node_kind_noun, spoken_by, spoken_within,
+    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
+    SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
 };
 
 pub use expr::{
@@ -162,7 +162,7 @@ pub use mate::{
     CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset, FrameMove,
     FreedomRefusal, LeverRefusal, MAX_WORLD_READ_DEPTH, Mate, MateFault, MateRef, MateSide, Member,
     NO_AT_REST_RECORD_RECOURSE, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, PlacedBy,
-    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Space, Subgroup, SubgroupFamily,
+    Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily,
     Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead, WorldReadFault,
     class_admission, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
     member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
@@ -212,8 +212,8 @@ pub use placement::{AxisRefusal, Frame, FrameFault, FrameSite};
 #[cfg(debug_assertions)]
 pub use product::gathers_on_this_thread;
 pub use product::{
-    LooseSpace, Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding,
-    loose_spaces, product, product_named, product_recorded,
+    Product, ProductError, ProductErrorKind, ProductRefusal, SourceFinding, SpaceGather, product,
+    product_named, product_recorded, space_gathers,
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,

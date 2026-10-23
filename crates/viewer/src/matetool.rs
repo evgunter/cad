@@ -7,8 +7,9 @@
 //! The tool holds **two sequential face picks in tool state** — the
 //! GUI-2 single-select vocabulary ([`FaceSelection`]) consumed twice —
 //! then a choice of class, kind, flip and values ([`MateChoice`]), then
-//! ONE committed action: the mate added to the bundle of the copy it
-//! places, and each value added naming the mate's minted id. Everything
+//! ONE committed action: the bundle of the copy it places written whole
+//! with the mate and its values, the copy re-targeted into the space the
+//! `to` pick is in where it was placed elsewhere. Everything
 //! before the commit is tool state: it never enters the document, never
 //! enters any history, and dies with the session (G1's transient-state
 //! rule).
@@ -173,6 +174,7 @@ partial_mirror! {
         Vertex => "a reference, never a pose",
         Faces => "a reference, never a pose",
         Edges => "a reference, never a pose",
+        Space => "a placement's target, never a pose: a mate reads geometry",
     ],
 }
 
@@ -470,7 +472,7 @@ pub struct MateProposal {
     pub to: SitedFace,
     /// The mate.
     pub mate: Mate<Formula>,
-    /// Its values, added naming the mate once its id is minted.
+    /// Its values, written naming the mate in the same bundle.
     pub values: Vec<(Coord, Formula)>,
     /// The kernel's admission verdict for the mate's class (never
     /// `NotAdmitted` — that refuses at [`MateTool::proposal`]).
@@ -478,13 +480,27 @@ pub struct MateProposal {
 }
 
 impl MateProposal {
-    /// **The one committed action**: the session op that adds the mate
-    /// and its values through the ordinary commit door.
+    /// **The one committed action**: the session op that writes the
+    /// mate and its values through the ordinary commit door. A mate
+    /// whose `to` reads outside the copy's target space is refused there,
+    /// naming both spaces ([`Self::op_into_target_space`] moves it).
     pub fn op(&self) -> SessionOp {
+        self.committed(false)
+    }
+
+    /// [`Self::op`], the copy moved by name into the space the mate's
+    /// `to` reads where that is not its target — the chrome's explicit
+    /// "move the copy" choice, never a side effect of the mate.
+    pub fn op_into_target_space(&self) -> SessionOp {
+        self.committed(true)
+    }
+
+    fn committed(&self, into_target_space: bool) -> SessionOp {
         SessionOp::AddMate {
             placement: self.placement,
             mate: Box::new(self.mate.clone()),
             values: self.values.clone(),
+            into_target_space,
         }
     }
 }

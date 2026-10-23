@@ -11,8 +11,8 @@
 //! id whose carrier has an axis (a line, a circle, an ellipse), and the
 //! first vertex by id off that edge's line, decided at the run's band
 //! — a frame `Through` the edge's axis and the vertex. A copy that
-//! offers no such pair refuses ([`PinRefusal::NoFrame`]), never a loose
-//! copy in silence.
+//! offers no such pair refuses ([`PinRefusal::NoFrame`]), never a copy
+//! left unpinned in silence.
 //!
 //! A copy standing where its body stands is placed by [`stand`]: the
 //! identity bundle, no mate and the constant `0` on every freedom.
@@ -426,8 +426,8 @@ pub enum PlacedBy {
 
 /// **A placement gesture's constraints** ([`place_at`], [`stand`]): the
 /// mate, then the values that name it, each a freedom and its number;
-/// or no mate, and the values that state the copy's whole motion, which
-/// are written whole ([`crate::DocEdit::AddValues`]).
+/// or no mate, and the values that state the copy's whole motion. A
+/// bundle is written whole ([`Placed::bundle`]).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Placed {
     /// The mate, `None` where the values state the whole motion.
@@ -462,45 +462,41 @@ impl Placed {
         }
     }
 
-    /// **The edits that write this bundle onto `placement`**, each
-    /// handed to `apply` in order, which answers the constraint ids the
-    /// edit minted: the mate ([`crate::DocEdit::AddConstraint`]) and
-    /// then each value naming it ([`crate::DocEdit::AddValue`]), or,
-    /// with no mate, the values as one write
-    /// ([`crate::DocEdit::AddValues`]). Answers every id minted, in
-    /// order.
-    ///
-    /// # Errors
-    ///
-    /// The first refusal `apply` answers.
-    pub fn write<E>(
-        self,
-        placement: RecipeNodeId,
-        mut apply: impl FnMut(
-            crate::DocEdit<crate::ProfileProgram>,
-        ) -> Result<Vec<crate::node::ConstraintId>, E>,
-    ) -> Result<Vec<crate::node::ConstraintId>, E> {
-        let Some(mate) = self.mate else {
-            return apply(crate::DocEdit::unmated(placement, self.values));
-        };
-        let mut minted = apply(crate::DocEdit::AddConstraint {
+    /// **This bundle as one write** ([`crate::DocEdit::place`],
+    /// [`crate::DocEdit::SetConstraints`]): the mate under the first
+    /// placeholder id, then each value naming it by that id
+    /// ([`crate::node::ConstraintId::placeholder`]); or, with no mate,
+    /// the values alone.
+    #[must_use]
+    pub fn bundle(self) -> Vec<super::Constraint<Formula>> {
+        use crate::node::ConstraintId;
+        let at = ConstraintId::placeholder(1);
+        let named = self.mate.is_some().then_some(at);
+        self.mate
+            .map(|mate| super::Constraint::of_mate(at, mate))
+            .into_iter()
+            .chain((2..).zip(self.values).map(|(i, (coord, by))| {
+                super::Constraint::of_value(
+                    ConstraintId::placeholder(i),
+                    super::Value {
+                        mate: named,
+                        coord,
+                        by,
+                    },
+                )
+            }))
+            .collect()
+    }
+
+    /// **The edit that writes this bundle onto `placement`** in place of
+    /// the one it holds ([`crate::DocEdit::SetConstraints`]).
+    #[must_use]
+    pub fn write(self, placement: RecipeNodeId) -> crate::DocEdit<crate::ProfileProgram> {
+        crate::DocEdit::SetConstraints {
             placement,
-            mate: Box::new(mate),
+            constraints: self.bundle(),
             fresh: Vec::new(),
-        })?;
-        let named = minted.first().copied();
-        for (coord, by) in self.values {
-            minted.extend(apply(crate::DocEdit::AddValue {
-                placement,
-                value: Box::new(super::Value {
-                    mate: named,
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            })?);
         }
-        Ok(minted)
     }
 }
 

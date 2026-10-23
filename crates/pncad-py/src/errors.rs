@@ -119,6 +119,7 @@ pub const fn var_kind_tag(kind: pncad::document::VarKind) -> &'static str {
         VarKind::Body => "body",
         VarKind::Bodies => "bodies",
         VarKind::Profile => "profile",
+        VarKind::Space => "space",
         VarKind::Face => "face",
         VarKind::Edge => "edge",
         VarKind::Vertex => "vertex",

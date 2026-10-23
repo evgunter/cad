@@ -390,13 +390,18 @@ fn target_axis(axis: &str) -> PyResult<d::TargetAxis> {
 #[derive(Clone)]
 pub(crate) struct MateValue(pub(crate) d::Value<d::Formula>);
 
-/// **The mate a value names**: its id, or its address.
+/// **The mate a value names**: its id, its address, or, in a bundle
+/// written whole, its position there.
 #[derive(FromPyObject)]
 pub(crate) enum MateIdArg {
     /// An address: its id is read.
     Ref(MateRef),
     /// An id.
     Id(ConstraintId),
+    /// The position of a mate written in the same bundle, from `0`:
+    /// the id the bundle holds it under until its write mints one
+    /// (`ConstraintId::placeholder`).
+    At(u32),
 }
 
 impl MateIdArg {
@@ -404,8 +409,37 @@ impl MateIdArg {
         match self {
             Self::Ref(r) => r.0.id,
             Self::Id(id) => id.0,
+            Self::At(at) => placeholder(*at),
         }
     }
+}
+
+/// The id a bundle written whole holds its entry at `at` under until
+/// its write mints one.
+fn placeholder(at: u32) -> d::ConstraintId {
+    d::ConstraintId::placeholder(at.saturating_add(1))
+}
+
+/// **One entry of a bundle as Python writes it**: a mate, or a value.
+#[derive(FromPyObject, Clone)]
+pub(crate) enum ConstraintArg {
+    /// A mate.
+    Mate(Mate),
+    /// A value, naming a mate of the bundle by its position, or no mate.
+    Value(MateValue),
+}
+
+/// **A bundle as Python writes it**, each entry under the id of its
+/// position (`ConstraintId::placeholder`), which the edit writing it
+/// mints: a value names a mate beside it by that position.
+pub(crate) fn bundle(entries: Vec<ConstraintArg>) -> Vec<d::Constraint<d::Formula>> {
+    (0..)
+        .zip(entries)
+        .map(|(at, entry)| match entry {
+            ConstraintArg::Mate(mate) => d::Constraint::of_mate(placeholder(at), mate.0),
+            ConstraintArg::Value(value) => d::Constraint::of_value(placeholder(at), value.0),
+        })
+        .collect()
 }
 
 impl MateValue {
@@ -791,8 +825,8 @@ impl MateFault {
     }
 
     /// The placement a bundle's fault is about: the one a constraint
-    /// over-constrains (`mate_overconstrained`), or whose constraints
-    /// target different copies (`mate_targets_differ`).
+    /// over-constrains (`mate_overconstrained`), or whose bundle leaves
+    /// a freedom unwritten (`mate_unpinned`).
     #[getter]
     fn placement(&self) -> Option<NodeId> {
         self.payload().placement.map(NodeId)
@@ -800,8 +834,7 @@ impl MateFault {
 
     /// The constraints of `placement` the fault names, by address: on
     /// `mate_overconstrained` each whose removal leaves the bundle's
-    /// codimension unchanged, on `mate_targets_differ` the bundle's
-    /// constraints whose targets differ.
+    /// codimension unchanged.
     #[getter]
     fn constraints(&self) -> Option<Vec<MateRef>> {
         let payload = self.payload();
@@ -954,10 +987,11 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault, voice: &Voice) -> P
 /// [`d::SolvedPoses::placement`]'s refusal, raised: the solve's own
 /// fault as `MateError`, spoken from `solved`, the document the solve
 /// recorded it over; a placement that did not evaluate for a reason
-/// not its bundle's as its own standing in `evaluation`; and a loose
-/// copy as the `EvaluationError` a node reading its space beside the
-/// world's carries (`space_mismatch`), spoken from `doc`, the document
-/// the placement door read it off.
+/// not its bundle's as its own standing in `evaluation`; and a copy
+/// placed into a space other than the world as the `EvaluationError` a
+/// node reading that space beside the world's carries
+/// (`space_mismatch`), spoken from `doc`, the document the placement
+/// door read it off.
 fn pose_err(
     py: Python<'_>,
     placement: NodeId,
@@ -973,9 +1007,9 @@ fn pose_err(
         d::PoseRefusal::Unevaluated { .. } => {
             return super::value::standing_err(py, solved, evaluation, placement);
         }
-        d::PoseRefusal::Loose { root, .. } => d::NodeErrorKind::SpaceMismatch {
-            a: d::Space::Loose { root: *root },
-            b: d::Space::World,
+        d::PoseRefusal::OtherSpace { space, .. } => d::NodeErrorKind::SpaceMismatch {
+            a: *space,
+            b: d::VarId::WORLD,
         },
     };
     let said = d::Said(refusal, d::Speaker::of(doc)).to_string();
@@ -1008,18 +1042,17 @@ impl SolvedPoses {
             .map(|fault| MateFault(fault, Voice::Doc(Arc::clone(&self.1))))
     }
 
-    /// **The placement's solved pose in its space**: where its copy
-    /// sits in the world's coordinates for a copy pinned, transitively,
-    /// against the world, and in a loose copy's own coordinates for one
-    /// pinned to it. `None` when the solve placed nothing there: a node
+    /// **The placement's solved pose in its target space**: where its
+    /// copy sits in that space's coordinates — the world's for a copy
+    /// placed into the world. `None` when the solve placed nothing there: a node
     /// that is no placement, or a placement whose bundle refused.
     fn pose(&self, placement: &NodeId) -> Option<Frame> {
         self.0.relative(placement.0).map(Frame)
     }
 
     /// **The placement's world pose, at the document's own
-    /// parameters**: its pose in its space, for a copy pinned,
-    /// transitively, against the world.
+    /// parameters**: its pose in its target space, for a copy placed
+    /// into the world.
     ///
     /// A copy pinned to the world at a pose returns that pose, to the
     /// rounding of the values its pin is computed in.
@@ -1033,8 +1066,8 @@ impl SolvedPoses {
     ///
     /// Raises `MateError` when the placement's bundle did not solve,
     /// and `EvaluationError` — kind `space_mismatch` — when the copy is
-    /// loose, or pinned to a loose copy: it lives in a space of its own
-    /// and has no world pose.
+    /// placed into a space other than the world, and so has no world
+    /// pose.
     fn placement(
         &self,
         py: Python<'_>,
@@ -1143,9 +1176,9 @@ impl Maintenance {
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
-            d::Maintenance::Strand { node, .. } | d::Maintenance::StrandedRead { node, .. } => {
-                Some(NodeId(node.id()))
-            }
+            d::Maintenance::Strand { node, .. }
+            | d::Maintenance::StrandedRead { node, .. }
+            | d::Maintenance::StrandedSpace { node, .. } => Some(NodeId(node.id())),
             d::Maintenance::StrandedSelection { readers, .. } => {
                 readers.first().map(|reader| NodeId(reader.id()))
             }
@@ -1171,9 +1204,9 @@ impl Maintenance {
             | d::Maintenance::StrandedAppearance { name, .. } => {
                 super::doc::name_text(py, name.name()).map(Some)
             }
-            d::Maintenance::StrandedRead { .. } | d::Maintenance::AnonymousVarRemoved { .. } => {
-                Ok(None)
-            }
+            d::Maintenance::StrandedRead { .. }
+            | d::Maintenance::StrandedSpace { .. }
+            | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
         }
     }
 

@@ -126,12 +126,9 @@ fn hit_test_fields(py: Python<'_>, err: &s::HitTestError) -> [Py<PyAny>; 5] {
         s::HitTestError::Ambiguous { hits } => {
             [none(), none(), none(), none(), obj(tied(py, hits))]
         }
-        // A loose copy whose space is one of the two, by its
-        // placement; both spaces are in the message.
-        s::HitTestError::AcrossSpaces { a, b } => match a.loose().or(b.loose()) {
-            Some(root) => [node(root), none(), none(), none(), none()],
-            None => [none(), none(), none(), none(), none()],
-        },
+        // Two spaces, each a variable no node field holds: both are
+        // in the message, and the tag is what a caller branches on.
+        s::HitTestError::AcrossSpaces { .. } => [none(), none(), none(), none(), none()],
         s::HitTestError::Unnamed(s::UnnamedEntity { node: n, entity }) => [
             node(*n),
             none(),

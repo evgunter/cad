@@ -2,9 +2,10 @@
 id: the-tour-die-corpus-is-stale-against-its-own-die-corpus-mode
 kind: issue
 title: The committed tour die document is stale against the tour's die-corpus mode, and regenerating it drops the corpus's only AddConstraint and AddValue edits
-status: open
+status: closed
 opened: 2026-10-20
 refs: [a-placement-names-its-target-space]
+closed: 2026-10-22
 ---
 
 
@@ -45,3 +46,12 @@ corpus edit roster (`tests/corpus/mod.rs`) drops `AddConstraint`,
 is written whole. That is the ruling this row asked for, made by the
 design. D′1 should close this row when it lands. If it lands without
 closing it, check the regenerability step first and then close it.
+
+## Closed (2026-10-22)
+
+D′1 (`a-placement-names-its-target-space`, PR 5592) regenerated the
+file from the tour's own `die-corpus` mode (`345feb23`): every bundle
+is written whole, so the log holds no `AddConstraint` or `AddValue`,
+and the corpus's edit roster names `SetConstraints` in their place
+(`corpus::EDIT_KINDS`, with the reason the increments are not listed:
+`incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle`).

@@ -22,14 +22,14 @@ where they disagree with DESIGN, DESIGN is the design.
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartStore`, `Reached`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
-| A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Target`, `WorldRead`, `Value`, `MateRef`, `class_admission`, `MateFault`, `reference_about`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs`, `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::AddConstraint`/`AddValue`/`RemoveConstraint` in `src/edit.rs` |
+| A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Target`, `WorldRead`, `Value`, `MateRef`, `class_admission`, `MateFault`, `reference_about`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs`, `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::SetConstraints`/`AddConstraint`/`AddValue`/`RemoveConstraint` in `src/edit.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split and inline | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
 | A6 improper frames | `src/placement.rs` (`Frame`), `EditError::ImproperPlacement` |
 | A7, A8 interchange | `PlacedInstance` in `crates/step-import/src/lib.rs` |
 | A9 partitions | `relative_freedom_components` in `src/mate/solve.rs` |
-| A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins`, `Space` in `src/mate/solve.rs`; the per-space gather (`LooseSpace`, `loose_spaces`) in `src/product.rs` and the gate's (`AssemblyError::Space`) in `src/assembly.rs`; the one cross-space predicate `Evaluation::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
+| A11 (2) bundles, spaces | `solve_bundle`, `fold_bundle`, `overconstrained`, `pins` in `src/mate/solve.rs`; the space derivation (`Doc::space_of`, `node_space`, `space_fault`) in `src/doc.rs`; the one cross-space predicate `Doc::across_spaces`; an instance's copies (`ValuePayload::Copies`, `CopyKey`) in `src/eval/wire.rs` and `src/eval/parts.rs` |
 | A10 the world and the gather | `Node::Place`, `Node::World` in `src/node.rs`, `Doc::placements`/`Doc::unplaced` in `src/doc.rs`, `src/product.rs`, `DocEdit::place` in `src/edit.rs`, `mate::place_at` and `mate::pin_at` |
 | Store (AQ1) | `Workspace` in `crates/pncad/src/workspace.rs` |
 
@@ -261,9 +261,9 @@ relatively unconstrained exactly when they lie in different connected
 components of the recipe under its reads (`Doc::upstream`;
 `relative_freedom_components`); no solver, no geometry. Evaluation
 stays deterministic, and every copy pinned against the world has a world
-pose, so the world is one body. A loose copy lives in its own space (A11
-(2)): nothing outside it is compared with it, and it is not part of that
-body. The viewer's free-move probe is display state, never persisted
+pose, so the world is one body. A copy in another space (A11 (2)), a
+`new_space()` or a construction's own, is compared with nothing outside
+it, and is not part of that body. The viewer's free-move probe is display state, never persisted
 (`crates/viewer/src/display.rs`).
 
 **A10 — The product is the world.** The product is the copies the
@@ -277,7 +277,7 @@ a constraint read the world. Nothing else places: no edit places or
 unplaces as a side effect, and nothing derives a placement from what
 reads what. An empty world is a valid document with an empty product; a
 door needing a product refuses `EmptyProduct`, naming the bodies no
-placement copies and the loose copies. A placement whose body is deleted
+placement copies. A placement whose body is deleted
 is a stranded reader (D10), and the gather refuses naming it. Split and
 inline move placements with their bodies (A4). `product::product`
 gathers the copies in placement order.
@@ -311,8 +311,8 @@ order-free and decides determination by codimension alone, so a copy's
 space is the recipe's, never a value's (`mate::solve::overconstrained`,
 `pins`). A pinned copy is the case `(Trivial, _)`. The cosets a bundle
 admits are met by construction and never checked
-(`mate::coset::intersect`). The edit doors (`AddConstraint`,
-`AddValue`, an inserted placement, a re-pointed side) ask each
+(`mate::coset::intersect`). The edit doors (`SetConstraints`,
+`AddConstraint`, `AddValue`, an inserted placement, a re-pointed side) ask each
 constraint's own admission (`mate::solve::admit_mate`, `admit_value`)
 and the bundle rule, refusing `EditError::MateRefused`; the load door
 asks the constraint's own admission (`SnapshotError::MateRefused`), and
@@ -325,26 +325,25 @@ bundle is folded inside the placement's own op, where it evaluates
 shapes before placement, their targets read in the space the copy
 joins, each mate's coset intersected, then its values placed inside
 what the mates leave (`mate::value::settle`). The copy's pose is the
-folded representative in its target's space. A bundle's mates all
-target one space (`MateFault::TargetsDiffer` otherwise; the stage's
-named interim, `work/intent/a-bundle-folds-in-the-joined-space.md`).
-Every face is a value there, so a mate reads a face of any copy.
+folded representative in its target's space. A placement names its
+target space (`target`, a `Space` read), and each mate's `to` reads a
+body of it: the edit door refuses one that does not
+(`EditError::SpaceMismatch`), so the fold reads every mate's target in
+that space. Every face is a value there, so a mate reads a face of any
+copy.
 
 A placement is parametric (Ev, `[ev]` #3437, 2026-09-29): its numbers
 are its values and its world reads' slides and spins, each a `Length` or
 an `Angle` slot, so a document parameter can drive where a copy sits.
 
-A bundle that pins its copy puts it in its target's space; one pinned,
-transitively, against the world is of the world's. A bundle that pins
-less than its body needs makes a loose copy: a space of its own with
-everything pinned to it, solved among itself, read at a pose by nothing
-outside it, and not a refusal. Nothing outside a loose space is compared
-with it, so the at-rest gate checks it by itself (`loose_spaces`,
-`AssemblyError::Space`) and cross-space reads refuse
-(`NodeErrorKind::SpaceMismatch`), while everything inside it solves and
-checks as usual. STEP export writes the world and refuses a loose copy
-beside it. The viewer draws a loose copy where it was last shown, as
-display state that no logic reads.
+Every bundle pins its copy: one that leaves a freedom unwritten, an
+empty one included, refuses `MateFault::Unpinned` at the door. The copy
+is in its placement's target space, the world's or another's. Nothing
+outside a space is compared with it: a read across two spaces refuses
+(`NodeErrorKind::SpaceMismatch`), decided from the recipe, while
+everything inside a space solves as usual. The at-rest gate and STEP
+export read the world. The viewer shows a set of spaces, each at a
+display frame that no logic reads (IDENTITY DI5).
 
 No edit records a frame: removing a constraint, deleting an instance or
 a body is never refused for the placement it removes, what is pinned is
@@ -376,8 +375,8 @@ can solve whole and still have no product.
 
 *World pose.* A copy pinned against the world has a world pose, its
 targets' composed onto its solved relative pose; a copy pinned to the
-world at a pose returns that pose's frame bit for bit. A loose copy has
-no world pose, only its pose in its own space.
+world at a pose returns that pose's frame bit for bit. A copy in
+another space has no world pose (`PoseRefusal::OtherSpace`), only its pose in its space.
 `SolvedPoses::placement` is one of A2a's pairing doors: the document it is handed must be the one
 solved, else `MateFault::PosesOfAnotherDocument` before any frame is
 read.
@@ -599,7 +598,7 @@ through every graft by the graft's own solid order
 pairs is the part's, and is not a finding of this document's
 (`checks::at_rest::less_carried`). Each carried finding is reported once
 per part row, by the first route in gather order, so a part placed
-twice, or in the world and in a loose space, reports its overlap once.
+twice, or in the world and in another space, reports its overlap once.
 A carried overlap is reported on `Assembly::carried_interference` and
 never refuses (D10). A carried refusal refuses the outer gate as the
 part's (`AssemblyError::CarriedAtRest`), after `CarriedMintRefusal` and
@@ -609,7 +608,8 @@ once, as the deciding space's (D10, `[placement.placement]`). A finding that nam
 escalation, a pair it had no lane for, a stale record of a vertex or an
 edge) matches nothing when the outer census finds it again inside the
 copy (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
-What does not cross: the census of a part's loose spaces, and the rows
+What does not cross: the census of a part's spaces other than its
+world, and the rows
 of a part read one member at a time rather than whole
 (`work/intent/a-parts-loose-spaces-and-member-reads-drop-its-census-rows.md`).
 

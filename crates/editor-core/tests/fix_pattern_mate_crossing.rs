@@ -76,8 +76,11 @@ pub(crate) fn pinned_block(
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut store = PartStore::new();
     let (part, body) = store.insert_part(block(label), Tol::witness());
-    let (doc, id) =
-        fixture::insert_pinned(doc, Node::instantiate_part(part), &with_resolver(store));
+    let (doc, id) = fixture::insert_pinned(
+        doc,
+        crate::fixture::mated_instance(part),
+        &with_resolver(store),
+    );
     (doc, id, body)
 }
 
@@ -146,7 +149,7 @@ fn four_legs(
     let o = legs_reach();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (leg_ref, leg_body) = block_ref("fix-xs-leg");
-    let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &o);
+    let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(leg_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -203,7 +206,7 @@ pub(crate) fn place_copies(
         );
         fixture::insert_pinned(
             doc,
-            Node::place(vec![editor_core::BodyRead::plain(copy)]),
+            crate::fixture::stood(vec![editor_core::BodyRead::plain(copy)]),
             o,
         )
         .0
@@ -636,7 +639,7 @@ fn a_seat_on_a_copy_its_own_pin_moves_is_not_the_mates_statement() {
     };
     let q = copy_placement(&doc, pattern, COPY);
     let shifted = editor_core::Frame::translation([0.5, 0.0, 0.0]);
-    let doc = fixture::pin(fixture::emptied(doc, q), q, &shifted, &o);
+    let doc = fixture::pin(doc, q, &shifted, &o);
     let ev = fixture::run(&doc, &o);
     fixture::assert_mints_nothing(&doc, &ev, mate);
     let product =

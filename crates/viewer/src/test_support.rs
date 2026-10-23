@@ -236,17 +236,21 @@ pub fn placed_read(
     read: pncad::document::Operand,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, placement) = inserted(
+    inserted(
         doc,
-        Node::place(vec![pncad::document::BodyRead::plain(read)]),
+        Node::place(
+            vec![pncad::document::BodyRead::plain(read)],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
         tol,
-    );
-    (pinned(&doc, placement, tol), placement)
+    )
 }
 
-/// The copy `placement` defines, standing where its body stands
-/// ([`pncad::document::stand`]): the identity bundle, no mate and the
-/// constant `0` on every freedom, which reads nothing of the copy.
+/// The copy `placement` defines, standing where its body stands in the
+/// space it is placed into ([`pncad::document::stand`]): the identity
+/// bundle, no mate and the constant `0` on every freedom, which reads
+/// nothing of the copy.
 pub fn pinned(doc: &Doc<ProfileProgram>, placement: RecipeNodeId, tol: Tol) -> Doc<ProfileProgram> {
     constrained(doc, placement, pncad::document::stand(), tol)
 }
@@ -270,12 +274,18 @@ pub fn against_in(
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let placed = pncad::document::place_against(doc, &target, &body, at, opts, tol)
         .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
-    let (doc, placement) = inserted(
+    let space = doc
+        .operand_space(&target)
+        .expect("the target is in a space");
+    inserted(
         doc,
-        Node::place(vec![pncad::document::BodyRead::plain(body)]),
+        Node::place(
+            vec![pncad::document::BodyRead::plain(body)],
+            pncad::document::Operand::Var(space),
+            placed.bundle(),
+        ),
         tol,
-    );
-    (constrained(&doc, placement, placed, tol), placement)
+    )
 }
 
 /// The read of the copy `placement` defines: a `Place` through its first
@@ -293,23 +303,107 @@ fn copy_of(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> pncad::documen
     }
 }
 
-/// What a placing door answers, written onto `placement`
-/// ([`editor_core::Placed::write`]).
+/// **`mate` and its values written onto `placement` whole**, as the
+/// mate tool's op writes them (`crate::session::mate_bundle`: each
+/// freedom the mate leaves unset the constant `0`, a bundle with mates
+/// kept), the placement re-targeted into the space the mate's `to`
+/// reads first. Answers the document and the mate's address.
+///
+/// # Panics
+///
+/// If the door refuses: a fixture's bug.
+pub fn mated(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    mate: pncad::document::Mate<Formula>,
+    values: Vec<(pncad::document::Coord, Formula)>,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, pncad::document::MateRef) {
+    // A mate into another space re-targets the copy here ([`written`],
+    // an explicit fixture move, never the gesture's), and the bundle it
+    // held, read in the space it leaves, goes.
+    let joins = mate_space(doc, &mate) == doc.node_space(placement);
+    let held = if joins {
+        crate::session::held_bundle(doc, placement)
+    } else {
+        Vec::new()
+    };
+    let constraints = crate::session::mate_bundle(held, mate, values);
+    let doc = written(doc, placement, constraints, tol);
+    let mate = match doc.node(placement) {
+        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
+            constraints
+                .iter()
+                .find(|c| c.mate().is_some())
+                .map(|c| c.id)
+        }
+        _ => None,
+    }
+    .expect("the bundle holds the mate");
+    (doc, pncad::document::MateRef::new(placement, mate))
+}
+
+/// What a placing door answers, written onto `placement` whole
+/// ([`editor_core::Placed::write`]), the placement first re-targeted
+/// into the space the mate's `to` reads where that is not its target.
 fn constrained(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
     placed: editor_core::Placed,
     tol: Tol,
 ) -> Doc<ProfileProgram> {
-    let mut doc = doc.clone();
-    placed
-        .write(placement, |edit| {
-            let applied = apply(&doc, &edit, tol)?;
-            doc = applied.doc;
-            Ok::<_, EditError>(applied.record.minted_constraints)
-        })
-        .expect("the placement's constraints are admitted");
-    doc
+    written(doc, placement, placed.bundle(), tol)
+}
+
+/// `constraints` written onto `placement` whole, re-targeted first as
+/// [`constrained`] says.
+/// **The space `mate`'s `to` reads**: the world for a world read.
+fn mate_space(
+    doc: &Doc<ProfileProgram>,
+    mate: &pncad::document::Mate<Formula>,
+) -> Option<pncad::document::VarId> {
+    match &mate.to {
+        pncad::document::Target::World(_) => Some(pncad::document::VarId::WORLD),
+        pncad::document::Target::Pose(to) => doc.operand_space(to),
+    }
+}
+
+fn written(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    constraints: Vec<pncad::document::Constraint<Formula>>,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    let space = constraints
+        .iter()
+        .find_map(|c| c.mate())
+        .and_then(|mate| mate_space(doc, mate));
+    let mut edits = Vec::new();
+    if let Some(space) = space
+        && doc.node_space(placement) != Some(space)
+    {
+        // The identity first, which reads nothing, so no mate of the
+        // bundle the placement held strands the re-target.
+        edits.push(pncad::document::stand().write(placement));
+        edits.push(DocEdit::SetParam {
+            node: placement,
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
+            value: pncad::document::SlotValue::Read(pncad::document::Operand::Var(space)),
+            fresh: Vec::new(),
+        });
+    }
+    edits.push(DocEdit::SetConstraints {
+        placement,
+        constraints,
+        fresh: Vec::new(),
+    });
+    edits.into_iter().fold(doc.clone(), |doc, edit| {
+        apply(&doc, &edit, tol)
+            .unwrap_or_else(|refusal: EditError| {
+                panic!("the placement's constraints are admitted: {refusal}")
+            })
+            .doc
+    })
 }
 
 /// **The copy `placement` defines, pinned to the world at `pose`**
@@ -468,12 +562,15 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
     let boss_read = pncad::document::Operand::from(boss);
     let at = pncad::document::place_at(&doc, &boss_read, &on_top, &opts, tol)
         .unwrap_or_else(|refusal| panic!("the boss places on the block's top: {refusal}"));
-    let (doc, placement) = inserted(
+    let (doc, _) = inserted(
         &doc,
-        Node::place(vec![pncad::document::BodyRead::plain(boss_read)]),
+        Node::place(
+            vec![pncad::document::BodyRead::plain(boss_read)],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            at.bundle(),
+        ),
         tol,
     );
-    let doc = constrained(&doc, placement, at, tol);
     (doc, block, boss)
 }
 

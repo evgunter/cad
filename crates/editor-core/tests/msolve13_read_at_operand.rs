@@ -20,7 +20,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, DocumentId, EvalOptions, Formula, MateRef, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, SitedFace, Space, SplitError, StableName, member_of,
+    RecipeNodeId, SitedFace, SplitError, StableName, VarId, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve};
@@ -101,7 +101,7 @@ fn scene_with(label: &str, two: bool) -> Scene {
     } else {
         (doc, base1)
     };
-    let (doc, top) = fixture::insert_pinned(doc, Node::instantiate_part(top_ref), &opts);
+    let (doc, top) = fixture::insert_pinned(doc, crate::fixture::mated_instance(top_ref), &opts);
     // Each row seats the slabs under what it builds over `top`.
     Scene {
         doc,
@@ -181,7 +181,7 @@ fn seat(
 fn place(doc: ProfileDoc, body: RecipeNodeId, o: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert_pinned(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(body)]),
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(body)]),
         o,
     )
 }
@@ -245,7 +245,7 @@ fn assert_placed(s: &Scene, f: &Fused, what: &str) {
     }
     assert_eq!(
         (poses.space(f.m1.placement), poses.space(f.m2.placement)),
-        (Some(Space::World), Some(Space::World)),
+        (Some(VarId::WORLD), Some(VarId::WORLD)),
         "{what}: both seats pin their copies"
     );
 }
@@ -323,7 +323,7 @@ fn seated_through(
     );
     assert_eq!(
         poses.space(s.base1),
-        Some(Space::World),
+        Some(VarId::WORLD),
         "A2: the slab is pinned"
     );
     let at = poses.placement(&doc, s.base1).expect("the slab has a pose");
