@@ -4189,9 +4189,10 @@ enum CrossingBacking {
 ///    same arm the parallel gate meters). No new numerics; and
 /// 3. the pair itself is CONFIRMED ([`Declared::confirmed`]): a record
 ///    that confirms ([`Declared::confirm`]), or a pair the planar
-///    face-pair arm found. The side test reads every
-///    recorded pair too, so a declared pair that holds the crossing
-///    with the materials on one side names that verdict.
+///    face-pair arm found, and the crossing lies in the closure of its
+///    overlap ([`in_overlap_closure`], `[assertions]`). The side test
+///    reads every recorded pair too, so a declared pair that holds the
+///    crossing with the materials on one side names that verdict.
 ///
 /// The side test is read BEFORE the verified-overlap doors, and the
 /// order is load-bearing rather than convenient: Door 1 CONTRADICTS a
@@ -4213,17 +4214,15 @@ enum CrossingBacking {
 /// else same-side over undecided (definite evidence over an
 /// escalation), else unanswered.
 ///
-/// **What region containment replaced, named**: the other rungs confine
-/// by STRUCTURAL INCIDENCE to a confirmed pair (the pair must hold the
-/// event's entities); this rung confines by the carrier instead —
-/// nothing checks that `ea`/`eb` are boundary edges of `fa`/`fb`, and
-/// the CLOSED containment admits a pair whose region only
-/// corner-touches the crossing point. That is the unified sentence's
-/// licence read literally — the pair answers for every event at its
-/// verified interface, whoever's entities carry it — and after the
-/// edge screen the interface really does carry the whole crossing;
-/// the trade (incidence out, carrier-confinement in) is this
-/// paragraph, not an accident.
+/// **What region containment replaced, named**: the other rungs read
+/// a confirmed pair through STRUCTURAL INCIDENCE (the pair must hold
+/// the event's entities); this rung reads it through the carrier
+/// instead — nothing checks that `ea`/`eb` are boundary edges of
+/// `fa`/`fb`, so the pair answers for every crossing at its verified
+/// interface, whoever's entities carry it. Both confine by location
+/// alike: the crossing is the pair's only in the closure of its
+/// overlap, so a pair whose regions only corner-touch the crossing
+/// point does not answer for it.
 ///
 /// Curved pairs are outside the planar-first rung and never answer;
 /// `EdgeFacePierce` takes NO rung at all: a transverse dive is
@@ -4295,7 +4294,11 @@ fn ee_cross_backed<T: Decide>(
         if side == CrossingSideVerdict::OppositeSides {
             // An opposite-sides pair that is not confirmed answers for
             // nothing; its own state is the confirm pass's report.
-            backed |= declared.confirmed.contains(&(fa, fb));
+            if declared.confirmed.contains(&(fa, fb)) {
+                let cells = (EntityId::Edge(ea.key), EntityId::Edge(eb.key));
+                backed |=
+                    in_overlap_closure(body, geo, (fa, fb), cells, q, band, errors) == Some(true);
+            }
         } else {
             same_side = true;
         }
