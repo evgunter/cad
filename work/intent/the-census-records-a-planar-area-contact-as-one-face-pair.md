@@ -91,13 +91,16 @@ Today the census falls short in four ways:
   each pair the planar arm found, recorded or not. A touch of the two
   faces' boundaries is the pair's only where it lies in the closure of
   their overlap (`Declared::holds`, `in_overlap_closure`: both closed
-  regions hold the point, and where both hold it on their boundary their
-  corners share material, `corners_meet`); `Declared::confine` lets the
-  lane read the touch first, and drops what it found, an in-band reading
-  included, only where a pair holds it. Elsewhere the touch is decided
-  as a pair of its own (`m9_c1_r1_probes::the_lemma_probe_declared`'s
-  tangent vertex), and a place the census cannot read (a curved pair, a
-  pinch or an arc corner) is a `CensusUndecidable` naming the two cells.
+  regions hold the point, and the overlap reaches it, `pair_contact`: an
+  area pair's cones share material there, `corners_meet`; a tangent
+  line leaves it into both cones; a point pair's closures share only
+  the point). `Declared::confine` lets the lane read the touch first,
+  and drops what it found, an in-band reading included, only where a
+  pair holds it; the crossing rung reads the same test. Elsewhere the
+  touch is decided as a pair of its own
+  (`m9_c1_r1_probes::the_lemma_probe_declared`'s tangent vertex), and a
+  place the census cannot read (a pinch, a spline departure, a contact
+  no line derives) is a `CensusUndecidable` naming the two cells.
   A vertex inside the other face, and an edge's run through it, lie in
   the closure by incidence alone (`vf_face_backed`, the edge-face lane).
   `vf_face_backed_confined` and `ee_face_backed` are gone. A record
