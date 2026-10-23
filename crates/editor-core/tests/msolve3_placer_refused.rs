@@ -24,7 +24,7 @@ use crate::fixture;
 use std::sync::Arc;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault,
+    CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault,
     MateRef, MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult, OperandSlot, PatternKind,
     ProfileDoc, RecipeNodeId, SlotId, StableName,
 };
@@ -175,7 +175,6 @@ where
     let mate = fixture::rest(
         fixture::head(in_part(cap, top_body, CapEnd::Start)),
         fixture::head_at(placer, name),
-        ContactClass::Rest,
     );
     let (doc, mate) = fixture::constrain_at(doc, cap, mate);
     (

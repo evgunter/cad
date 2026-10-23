@@ -16,7 +16,7 @@ use crate::fixture;
 use editor_core::Formula;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocumentId, EvalOptions, MateFault, Node, NodeErrorClass, Operand,
+    CapEnd, Coord, DocumentId, EvalOptions, MateFault, Node, NodeErrorClass, Operand,
     ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -99,7 +99,7 @@ impl Rig {
         self.doc = fixture::with_values(
             self.doc.clone(),
             self.copy,
-            fixture::mate(on, to, ContactClass::Rest),
+            fixture::mate(on, to),
             values,
         );
     }
@@ -146,7 +146,6 @@ fn c4_poses_of_another_document_reaches_no_row() {
             fixture::rest(
                 fixture::head(in_part(upper, body, CapEnd::Start)),
                 fixture::head(in_part(lower, body, CapEnd::End)),
-                ContactClass::Rest,
             ),
             vec![
                 (Coord::Slide(TargetAxis::X), len(0.0)),
@@ -246,7 +245,6 @@ fn a_determined_bundle_and_a_v_block_keep_their_verdicts_under_the_witness() {
             fixture::mate(
                 r.side(r.b, k as usize),
                 r.side(r.t, k as usize),
-                ContactClass::Rest,
             ),
         )
     });

@@ -20,7 +20,7 @@ use crate::p2_gauges::{Parts, block, body_of, cut, min_corner, parts};
 
 use editor_core::pose::PoseRole;
 use editor_core::{
-    ContactClass, Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
+    Coord, Dimension, DocEdit, DocumentId, EditError, EvalOptions, Formula,
     FreeValue, FreeVar, Mate, MateRef, ProfileDoc, RecipeNodeId, SlotId, SplitError, TargetAxis,
     Value, VarName, apply,
 };
@@ -99,7 +99,6 @@ fn seated(
         rest(
             head(p.top_cap(top)),
             head(p.base_cap(base)),
-            ContactClass::Rest,
         ),
         x,
         y,
@@ -268,7 +267,6 @@ fn a_parameter_drives_a_value_and_the_solved_pose_moves() {
                 rest(
                     head(p.top_cap(top)),
                     head(p.base_cap(base)),
-                    ContactClass::Rest,
                 ),
                 &[(
                     Coord::Slide(TargetAxis::X),
@@ -316,13 +314,12 @@ fn a_standoff_places_the_copy_and_declares_no_contact() {
         along: editor_core::pose::RoleRead::through(cap, PoseRole::Normal),
         by: len(0.25),
     }));
-    let (doc, m, _) = plane_seated(
+    let (doc, _, _) = plane_seated(
         doc,
         top,
         fixture::mate(
             plane(head(p.top_cap(top))),
             flip(standoff),
-            ContactClass::Rest,
         ),
         len(1.0),
         len(1.0),
@@ -335,7 +332,6 @@ fn a_standoff_places_the_copy_and_declares_no_contact() {
         "placed as asked"
     );
     let ev = run(&doc, &o);
-    fixture::assert_mints_nothing(&doc, &ev, m);
     assert!(gate(&doc, &ev).is_ok(), "{:?}", gate(&doc, &ev).err());
 }
 
@@ -369,7 +365,6 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
             rest(
                 head(p.top_cap(top)),
                 head(p.base_cap(base)),
-                ContactClass::Rest,
             ),
             x,
             len(1.0),
@@ -440,7 +435,6 @@ fn a_value_and_its_parameter_cross_split_and_inline() {
         rest(
             head(p.top_cap(top)),
             head(p.base_cap(base)),
-            ContactClass::Rest,
         ),
         len(1.5),
         len(1.0),

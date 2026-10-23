@@ -940,9 +940,7 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
         .as_ref()
         .expect("the space gathers")
         .coincidences
-        .iter()
-        .filter(|r| matches!(r.by, editor_core::AtRestBy::Copies(..)))
-        .count();
+        .len();
     assert!(copies > 0, "the tops' touch is the space's rows");
     let report = editor_core::run_checks(
         &doc,

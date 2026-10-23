@@ -17,7 +17,7 @@
 
 use crate::fixture;
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node,
+    CancelToken, CapEnd, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node,
     NodeResult, ProfileDoc, RecipeNodeId, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -109,7 +109,6 @@ fn assembly(
         let mate = fixture::rest(
             fixture::head(in_part(ids[1], *body, CapEnd::Start)),
             fixture::head(in_part(ids[0], *body, CapEnd::End)),
-            ContactClass::Rest,
         );
         doc = fixture::constrain(doc, mate).0;
     }

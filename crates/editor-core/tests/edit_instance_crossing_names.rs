@@ -30,7 +30,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
     FaceName, Formula, InterfaceCrossing, InterfaceRecord, Maintenance, Mate, Node, ProfileDoc,
     RecipeNodeId, RoleSeg, SplitError, StableName, apply, inline, split,
 };
@@ -94,7 +94,6 @@ fn spelled_on(node: RecipeNodeId, cap: CapEnd) -> FaceName {
 
 fn crossing(outer: StableName, inner: FaceName) -> InterfaceCrossing {
     InterfaceCrossing::Mate {
-        class: ContactClass::Rest,
         outer: FaceName::new(outer).expect("a crossing's references are face names"),
         inner,
     }
@@ -106,7 +105,6 @@ fn mate(target: StableName, placed: StableName) -> Mate<Formula> {
     fixture::rest(
         fixture::head(placed),
         fixture::head(target),
-        ContactClass::Rest,
     )
 }
 

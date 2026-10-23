@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
+    CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
     MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
     SitedFace, TargetAxis, evaluate,
 };
@@ -153,7 +153,6 @@ impl Scene {
         let mate = fixture::mate(
             fixture::plane(self.block_cap(block, CapEnd::Start)),
             standoff(self.base_top(), h),
-            ContactClass::Rest,
         );
         self.add(block, mate, &[])
     }
@@ -165,7 +164,6 @@ impl Scene {
         let mate = fixture::mate(
             fixture::plane(self.block_cap(block, CapEnd::Start)),
             standoff(self.base_top(), 0.0),
-            ContactClass::Rest,
         );
         self.add(
             block,
@@ -183,7 +181,6 @@ impl Scene {
         let rest = fixture::rest(
             self.block_cap(upper, CapEnd::Start),
             self.block_cap(lower, CapEnd::End),
-            ContactClass::Rest,
         );
         self.add(upper, rest, &[])
     }
@@ -212,7 +209,6 @@ impl Scene {
         let mate = fixture::mate(
             fixture::plane(self.block_cap(block, CapEnd::Start)),
             standoff(self.base_top(), h),
-            ContactClass::Rest,
         );
         self.add_past_the_door(block, mate)
     }

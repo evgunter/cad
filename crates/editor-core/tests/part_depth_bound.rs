@@ -27,7 +27,7 @@ use crate::fixture;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, Coord, DocRef, DocumentId, EvalOptions, Node, NodeErrorKind,
+    CapEnd, ContentPin, Coord, DocRef, DocumentId, EvalOptions, Node, NodeErrorKind,
     NodeResult, PartFault, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault,
     TargetAxis, product,
 };
@@ -484,7 +484,6 @@ fn mated(
                 .in_part(ids[0])
                 .into_name(),
         ),
-        ContactClass::Rest,
     );
     let (doc, _mate) = crate::fixture::mated(
         doc,
@@ -521,7 +520,6 @@ fn rested_on_first(
                 .in_part(ids[0])
                 .into_name(),
         ),
-        ContactClass::Rest,
     );
     let (doc, _) = fixture::constrain_at(doc, ids[1], mate);
     (doc, ids)

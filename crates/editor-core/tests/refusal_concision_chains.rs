@@ -5324,7 +5324,6 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 found: DocumentId::derive("b"),
             },
         ),
-        ("ClassNotAdmitted", M::ClassNotAdmitted { mate: r(9) }),
         (
             "Overconstrained",
             M::Overconstrained {

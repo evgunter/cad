@@ -21,7 +21,7 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
     Evaluation, MateFault, MateRef, MateSide, NameRef, Node, Operand, PatternKind, ProfileDoc,
     RecipeNodeId, RoleSeg, StableName, VarId, load, product, save,
 };
@@ -644,7 +644,6 @@ fn two_operands(
     let second = rest(
         head(top_part.cap(top, CapEnd::Start)),
         at2(base_part.cap(base, CapEnd::End)),
-        ContactClass::Rest,
     );
     (doc, opts, m1, second, top)
 }
@@ -722,7 +721,6 @@ fn a6_a_residual_bundle_refuses_on_the_target_or_its_copy() {
         let mate = rest(
             head(top_part.cap(top, CapEnd::Start)),
             to,
-            ContactClass::Rest,
         );
         let refused = fixture::bundle_edits(
             &doc,
@@ -770,7 +768,6 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
                 mate: Box::new(rest(
                     head(s.face_b()),
                     head_at(ghost, s.face_a()),
-                    ContactClass::Rest,
                 )),
                 fresh: Vec::new(),
             },
@@ -881,7 +878,6 @@ fn a8c_the_content_key_separates_two_operands() {
                     if at_part { part } else { pattern },
                     in_copy(pattern, 1, base_part.cap(base, CapEnd::End)),
                 ),
-                ContactClass::Rest,
             ),
         );
         let ev = run(&doc, &opts);
@@ -1164,7 +1160,6 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         rest(
             head(top_part.cap(top, CapEnd::Start)),
             to,
-            ContactClass::Rest,
         ),
     );
     let doc = world(doc, &o, &[local, xf], &[]);
@@ -1334,7 +1329,6 @@ fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, Rec
         rest(
             head(top_part.cap(top, CapEnd::Start)),
             head_at(xf, base_part.cap(base, CapEnd::End)),
-            ContactClass::Rest,
         ),
     );
     (doc, mate, base, xf)

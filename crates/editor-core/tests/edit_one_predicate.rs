@@ -45,7 +45,7 @@ use editor_core::AuthoredNode;
 use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
-    ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula,
+    Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula,
     Frame, FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node,
     PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply,
     load, save,
@@ -314,7 +314,6 @@ fn mate(body: RecipeNodeId, on: RecipeNodeId, placed: RecipeNodeId) -> Mate<Form
     fixture::rest(
         fixture::head(in_part(placed, body, CapEnd::Start)),
         fixture::head(in_part(on, body, CapEnd::Start)),
-        ContactClass::Rest,
     )
 }
 
@@ -442,7 +441,6 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
     let (doc, doc_ref, ids, body) = instances_and_ref_of_a_stored_part(label, 2);
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            class: ContactClass::Rest,
             outer: face(in_part(ids[0], body, CapEnd::Start)),
             inner: face(part_face(body)),
         }],
@@ -573,7 +571,6 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
     };
     let crossing = InterfaceCrossing::Mate {
-        class: ContactClass::Rest,
         outer: face(reference(3)),
         inner: face(reference(5)),
     };
@@ -614,7 +611,6 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
     let on_the_world = Mate {
         on: cap.clone(),
         to: cap,
-        class: ContactClass::Rest,
     };
     match apply(
         &doc,

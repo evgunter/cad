@@ -38,7 +38,7 @@ use std::sync::Arc;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
+    BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId,
     EvalOptions, Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand,
     ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
     VarName, all_vertices, evaluate, vertex_position,
@@ -270,7 +270,6 @@ fn seat(
         fixture::mate(
             fixture::plane(head(foot)),
             fixture::flip(standoff(fixture::plane(head(onto)), by)),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), x),
@@ -489,7 +488,7 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
     let doc = declare(doc, idle(), IDLE, Dimension::Length);
     let line = || p.slab_line(slab, 4.0, 4.0);
     let mates = [
-        fixture::mate(p.bolt_edge(bolt, 0), line(), ContactClass::Rest),
+        fixture::mate(p.bolt_edge(bolt, 0), line()),
         fixture::mate(
             p.bolt_edge(bolt, 0),
             slid(
@@ -497,7 +496,6 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
                 p.slab_side(slab, 1),
                 len(off.1),
             ),
-            ContactClass::Rest,
         ),
         fixture::mate(
             fixture::plane(head(p.bolt_foot(bolt))),
@@ -505,12 +503,10 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
                 fixture::plane(head(p.slab_top(slab))),
                 named(rise(), Dimension::Length),
             )),
-            ContactClass::Rest,
         ),
         fixture::mate(
             p.bolt_edge(bolt, 1),
             slid(line(), p.slab_side(slab, 1), len(BOLT_WIDTH)),
-            ContactClass::Rest,
         ),
     ];
     // The first bore through the door; the rest beside it past the
@@ -578,7 +574,6 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         fixture::mate(
             p.bolt_edge(bolts[0], 0),
             p.slab_line(slab, 4.0, 4.0),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
@@ -599,7 +594,6 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         fixture::rest(
             head(p.bolt_foot(bolt)),
             head(p.slab_top(slab)),
-            ContactClass::Rest,
         ),
     );
     let frame = |at: RecipeNodeId, body: RecipeNodeId, names: &Names, edge: Operand, end| {
@@ -637,7 +631,6 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
                 p.slab_edge(slab, 0),
                 CapEnd::End,
             ),
-            ContactClass::Rest,
         ),
         Tol::witness(),
     );

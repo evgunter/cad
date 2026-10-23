@@ -5,7 +5,7 @@
 //! The door decides of a constraint what its recipe alone decides: a
 //! mate's `on` reads the copy its placement defines
 //! (`MateFault::NotOnTheCopy`), its two poses are of one kind
-//! (`MateFault::KindsDiffer`), and its class is admitted; a value's
+//! (`MateFault::KindsDiffer`); a value's
 //! freedom is one its bundle's mates leave, else it fixes an equation
 //! they already fix (`MateFault::Overconstrained`). It refuses
 //! `EditError::MateRefused` carrying the fault unaltered, and the load
@@ -28,7 +28,7 @@ use crate::wire;
 use editor_core::Formula;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef,
+    CapEnd, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef,
     Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, TargetAxis, VarKind, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -90,7 +90,6 @@ fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Ma
     fixture::rest(
         cap(b, body, CapEnd::Start),
         cap(a, body, CapEnd::End),
-        ContactClass::Rest,
     )
 }
 
@@ -104,7 +103,6 @@ fn kinds_differ(
     fixture::mate(
         fixture::plane(cap(b, body, CapEnd::Start)),
         fixture::point_of(cap(a, body, CapEnd::End)),
-        ContactClass::Rest,
     )
 }
 
@@ -278,7 +276,6 @@ fn a1_a_value_is_admitted_by_its_bundle() {
     let ball = fixture::mate(
         fixture::point_of(cap(ids[2], body, CapEnd::Start)),
         fixture::point_of(cap(ids[1], body, CapEnd::End)),
-        ContactClass::Rest,
     );
     let mut bundle = lone(ball);
     for (at, axis) in (2..).zip(TargetAxis::ALL) {
@@ -295,7 +292,6 @@ fn a1_a_value_is_admitted_by_its_bundle() {
     let mut bundle = lone(fixture::mate(
         fixture::axis(cap(lines[2], body, CapEnd::Start)),
         meet,
-        ContactClass::Rest,
     ));
     bundle.push(value_at(2, Coord::Slide(TargetAxis::Z), len(0.0)));
     bundle.push(value_at(
@@ -413,7 +409,6 @@ fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
         mate: Box::new(fixture::rest(
             cap(ids[1], body, CapEnd::End),
             cap(ids[0], body, CapEnd::End),
-            ContactClass::Rest,
         )),
         fresh: Vec::new(),
     };
@@ -496,7 +491,6 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     let swapped_mate = fixture::mate(
         fixture::flip(fixture::plane(cap(ids[0], body, CapEnd::End))),
         fixture::plane(cap(ids[1], body, CapEnd::Start)),
-        ContactClass::Rest,
     );
     let (named, door) = at_the_door_of(&doc, ids[1], swapped_mate).expect_err("refused");
     assert_eq!(named, ids[1]);
@@ -513,8 +507,7 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
 fn a_door_fault(fault: &MateFault) -> bool {
     matches!(
         fault,
-        MateFault::ClassNotAdmitted { .. }
-            | MateFault::NotOnTheCopy { .. }
+        MateFault::NotOnTheCopy { .. }
             | MateFault::KindsDiffer { .. }
             | MateFault::NoChart { .. }
             | MateFault::Overconstrained { .. }
@@ -526,8 +519,8 @@ fn a_door_fault(fault: &MateFault) -> bool {
 type Row = (&'static str, ProfileDoc, EvalOptions);
 
 /// **The corpus**: shapes of constraint a document can hold, through
-/// the doors that admit them — a sound pair, a chain, a class that
-/// solves and mints nothing, a value on a mate, and a state the
+/// the doors that admit them — a sound pair, a chain, a value on a
+/// mate, and a state the
 /// evaluation refuses: a target stranded past a pattern's count after
 /// the mate is in.
 fn corpus() -> Vec<Row> {
@@ -542,15 +535,6 @@ fn corpus() -> Vec<Row> {
         let (doc, _) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
         let (doc, _) = fixture::constrain(doc, mate(body, ids[1], ids[2]));
         ("msolve10-corpus-chain", doc, opts)
-    });
-    rows.push({
-        let (doc, ids, opts, body) = instances("msolve10-corpus-tangent", 2);
-        let m = editor_core::Mate {
-            class: ContactClass::Tangent,
-            ..mate(body, ids[0], ids[1])
-        };
-        let (doc, _) = fixture::constrain(doc, m);
-        ("msolve10-corpus-tangent", doc, opts)
     });
     rows.push({
         let (doc, ids, opts, body) = instances("msolve10-corpus-value", 2);
@@ -588,7 +572,6 @@ fn corpus() -> Vec<Row> {
                     2,
                     in_part(ids[0], body, CapEnd::End),
                 )),
-                ContactClass::Rest,
             ),
         );
         let (doc, _) = step(

@@ -1691,12 +1691,7 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
         .coincidences
         .iter()
         .map(|r| {
-            let editor_core::AtRestBy::Copies(a, _) = r.by else {
-                panic!(
-                    "the copies' touch is their rows: {:?}",
-                    product.coincidences
-                )
-            };
+            let (a, _) = r.copies;
             let node = doc.operation_of(a.var).expect("a copy's placement");
             let rows = [r.row.clone()];
             let proof = editor_core::coincide::prove(

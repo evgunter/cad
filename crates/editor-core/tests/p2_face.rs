@@ -22,7 +22,7 @@ use crate::p2_gauges::{Parts, block, cut, parts};
 use crate::p2_split::{pinned_at, seat_at, seated};
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide,
+    CapEnd, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide,
     Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -181,7 +181,6 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
         fixture::rest(
             head(p.top_cap(k)),
             head(p.top_upper_cap(top)),
-            ContactClass::Rest,
         ),
     );
     (p, doc, [base, top, k], m)

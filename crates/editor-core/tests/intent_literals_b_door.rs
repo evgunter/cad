@@ -13,7 +13,7 @@ use crate::corpus;
 use crate::fixture::resolver::PartStore;
 use crate::fixture::{len, scl};
 use editor_core::{
-    AuthoredNode, CapEnd, ContactClass, CountMismatch, Dimension, DocEdit, DocRef, DocumentId,
+    AuthoredNode, CapEnd, CountMismatch, Dimension, DocEdit, DocRef, DocumentId,
     EditError, Formula, Frame, FreeVar, LoopProgram, Node, PatternKind, ProfileDoc, ProfileProgram,
     RecipeNodeId, RoleSeg, TubeWindow, VarDecl, VarName, apply, content_pin,
 };
@@ -63,7 +63,6 @@ fn on_the_world(body: RecipeNodeId) -> editor_core::Mate<Formula> {
             RoleSeg::Cap(CapEnd::Start),
         ))),
         to: moved(body, len(0.3)),
-        class: ContactClass::Rest,
     }
 }
 

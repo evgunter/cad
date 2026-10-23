@@ -19,7 +19,7 @@ use crate::blocks::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::{
-    ContactClass, DocEdit, DocumentId, Maintenance, MateSide, Node, ProfileDoc, RecipeNodeId,
+    DocEdit, DocumentId, Maintenance, MateSide, Node, ProfileDoc, RecipeNodeId,
     StableName, apply,
 };
 use fixture::{fname, insert, len, wall};
@@ -127,7 +127,6 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         crate::fixture::rest(
             crate::fixture::head(instance_face(ia, part_body)),
             crate::fixture::head_at(placed, head_b),
-            ContactClass::Rest,
         ),
     );
 

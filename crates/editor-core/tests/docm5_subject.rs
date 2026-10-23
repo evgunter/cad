@@ -45,7 +45,7 @@ use topo::Body;
 /// refuses it typed. Answers the document, the options that resolve its
 /// part, and the failed placement.
 fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, RecipeNodeId) {
-    use editor_core::{CapEnd, ContactClass, EntityKind, RoleSeg, StableName};
+    use editor_core::{CapEnd, EntityKind, RoleSeg, StableName};
     let mut store = fixture::resolver::PartStore::default();
     let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
     let (part, profile) = on_frame(
@@ -82,7 +82,6 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
     let mate = fixture::rest(
         fixture::head(fixture::resolver::in_part(placed, body, CapEnd::Start)),
         fixture::head(nowhere),
-        ContactClass::Rest,
     );
     let (doc, _) = fixture::constrain_at(doc, placed, mate);
     (doc, opts, placed)
@@ -522,11 +521,10 @@ fn agree(
     match (wrapped, direct) {
         (Ok(a), Ok(b)) => {
             assert_eq!(measure(&a.body), measure(&b.body), "{name}: the same body");
-            assert_eq!(a.minted.len(), b.minted.len(), "{name}: the same minting");
             assert_eq!(
                 a.contacts.face_face().count(),
                 b.contacts.face_face().count(),
-                "{name}: the same declared contacts"
+                "{name}: the same contacts"
             );
             assert_eq!(a.names.len(), b.names.len(), "{name}: the same name table");
         }

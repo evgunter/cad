@@ -13,7 +13,7 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 
 use editor_core::{
-    AssertionRelation, CancelToken, CapEnd, ContactClass, ContentPin, Dimension, DocEdit, DocRef,
+    AssertionRelation, CancelToken, CapEnd, ContentPin, Dimension, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, ExprPath, Formula, FreeVar, InterfaceRecord, LoopProgram,
     Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
@@ -735,7 +735,6 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                             nid(1),
                             RoleSeg::Cap(CapEnd::Start),
                         ))),
-                        ContactClass::Rest,
                     ),
                 ),
                 spin_z(3, 0.5),

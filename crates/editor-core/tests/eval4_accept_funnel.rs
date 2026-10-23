@@ -17,7 +17,7 @@ use editor_core::Formula;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocumentId, Frame, MateRef, Node, ProfileDoc, RecipeNodeId,
+    CapEnd, Coord, DocumentId, Frame, MateRef, Node, ProfileDoc, RecipeNodeId,
     StableName, TargetAxis, inline,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
@@ -49,7 +49,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 fn stacked(doc: ProfileDoc, a: StableName, b: StableName) -> (ProfileDoc, MateRef) {
     let (doc, joint) = crate::fixture::constrain_with(
         doc,
-        fixture::rest(fixture::head(b), fixture::head(a), ContactClass::Rest),
+        fixture::rest(fixture::head(b), fixture::head(a)),
         &[
             (Coord::Slide(TargetAxis::X), len(0.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),

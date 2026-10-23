@@ -13,7 +13,7 @@
 
 use crate::fixture;
 use editor_core::{
-    Bodies, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, Maintenance,
+    Bodies, CapEnd, Coord, DocEdit, DocumentId, EditError, EvalOptions, Maintenance,
     MateFault, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PersistError, ProfileDoc,
     RecipeNodeId, RoleSeg, SlotId, SlotValue, TargetAxis, VarId, VarKind, apply, load, save,
 };
@@ -173,7 +173,6 @@ fn an_empty_bundle_and_a_plane_mate_with_one_value_refuse_unpinned() {
             target,
             fixture::fname(b, RoleSeg::Cap(CapEnd::End)),
         ))),
-        ContactClass::Rest,
     );
     let one_value = editor_core::Placed {
         mates: vec![mate],
@@ -334,7 +333,6 @@ fn a_bundle_names_its_mate_in_any_order_and_a_rewrite_keeps_its_ids() {
             RoleSeg::Cap(CapEnd::Start),
         ))),
         fixture::flip(fixture::plane(fixture::head(top))),
-        ContactClass::Rest,
     );
     // The values first, the mate last.
     let mut bundle = fixture::squared(&doc, mate, &[]).bundle();

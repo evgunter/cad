@@ -29,7 +29,7 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
-    Attr, AttrKind, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Maintenance,
+    Attr, AttrKind, CapEnd, DocEdit, DocumentId, EntityKind, Maintenance,
     MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
     cascade_delete_order,
 };
@@ -351,7 +351,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 /// A rest of `on`'s face against `to`'s, `on` the face of the copy it
 /// places.
 fn rest(to: StableName, on: StableName) -> editor_core::Mate<Formula> {
-    fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
+    fixture::rest(fixture::head(on), fixture::head(to))
 }
 
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {

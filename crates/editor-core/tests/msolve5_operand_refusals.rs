@@ -22,7 +22,7 @@
 use crate::fixture;
 
 use editor_core::{
-    AssemblyError, CapEnd, ContactClass, Coord, DocumentId, EntityKind, Entry, EvalOptions,
+    AssemblyError, CapEnd, Coord, DocumentId, EntityKind, Entry, EvalOptions,
     Evaluation, Formula, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
     NodeStanding, PartFault, PatternKind, ProductError, ProfileDoc, RecipeNodeId, RoleSeg,
     SitedFace, StableName, TargetAxis,
@@ -150,7 +150,7 @@ fn seat(
     fixture::mated(
         doc,
         top,
-        fixture::rest(bottom, base_top, ContactClass::Rest),
+        fixture::rest(bottom, base_top),
         &[
             (Coord::Slide(TargetAxis::X), len(1.0)),
             (Coord::Slide(TargetAxis::Y), len(1.0)),

@@ -22,7 +22,7 @@ use crate::fixture;
 use crate::wire;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
+    CapEnd, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
     EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError,
     ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, VarName, apply, load,
     save,
@@ -205,7 +205,6 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         fixture::rest(
             head(in_part(top, top_body, CapEnd::Start)),
             head(in_part(base, base_body, CapEnd::End)),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), x),
@@ -414,7 +413,6 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
         fixture::mate(
             fixture::plane(name(ids[1], CapEnd::Start)),
             standoff(name(ids[0], CapEnd::End), 0.5),
-            ContactClass::Rest,
         ),
         &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.25))],
     );
