@@ -6,7 +6,7 @@
 //! the hairline-cell hazard; two of the three now certify or refuse
 //! honestly, and the third (`knot_one_ulp_from_a_block_edge`) still
 //! carries a large width for a reason that is NOT this unit's cut
-//! rule — see `refined_grid`'s exact-equality insertion guard, measured
+//! rule — see `RefinedNet`'s exact-equality insertion guard, measured
 //! and reported rather than changed here.
 //!
 //! Every probe drives the PUBLIC props door `nurbs_patch_face` and

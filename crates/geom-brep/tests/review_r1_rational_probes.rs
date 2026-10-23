@@ -875,7 +875,7 @@ fn probe_c0_kink_area() {
 /// DIAGNOSIS: is certified knot refinement exact on the two-span
 /// half-circle? Refine the HOMOGENEOUS 1-D net with the kernel's own
 /// refine_plan chain (weights-1 plans, plain lerp — exactly what
-/// refined_grid does) and compare rational curve points before/after
+/// RefinedNet does) and compare rational curve points before/after
 /// with the independent evaluator.
 #[test]
 fn diag_refine_half_circle() {

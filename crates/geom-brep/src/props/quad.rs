@@ -1534,7 +1534,7 @@ const AREA_GAUGE_CEILING: f64 = 1.0;
 /// ([`area_gauge_ok`]).
 const AREA_GAUGE_REL_CEILING: f64 = 1.0e3;
 /// Spans per axis the RATIONAL lane refines its bracketed net to
-/// before hulling it (fixed, D9) — see [`refined_grid`].
+/// before hulling it (fixed, D9) — see [`RefinedNet`].
 const QUAD2_REFINE_SPANS: usize = 16;
 
 /// A ring-bracketed 3-vector (a control point, an enclosure).
@@ -1817,20 +1817,21 @@ impl PatchNet<'_> {
         ([x, y, z], w.lo())
     }
 
-    /// The weights, row-major.
-    fn weights(&self) -> Vec<f64> {
+    /// `f` of the weights, row-major, as the point brackets that hold
+    /// them exactly: `lo()` is the weight.
+    fn with_weights<R>(&self, f: impl FnOnce(&[Interval]) -> R) -> R {
         let [.., w] = self.net.channels();
-        w.net().as_flat().iter().map(|w| w.lo()).collect()
+        f(w.net().as_flat())
     }
 
     /// Whether any weight is not `1.0` (exact `f64` structure, C6).
     fn is_rational(&self) -> bool {
-        self.weights().iter().any(|w| *w != 1.0)
+        self.with_weights(|ws| ws.iter().any(|w| w.lo() != 1.0))
     }
 
     /// The three channels of `f` over the net's vectors, `f` read at
     /// each control point and its weight.
-    fn channels(&self, f: impl Fn(RVec3, f64) -> RVec3) -> TensorChannels<'_, 3> {
+    fn map_points(&self, f: impl Fn(RVec3, f64) -> RVec3) -> TensorChannels<'_, 3> {
         TensorChannels::from_fn(self.knots_u(), self.knots_v(), |i, j| {
             let (c, w) = self.at(i, j);
             f(c, w)
@@ -1839,7 +1840,7 @@ impl PatchNet<'_> {
 
     /// The position channels — the net itself, weights apart.
     fn positions(&self) -> TensorChannels<'_, 3> {
-        self.channels(|c, _| c)
+        self.map_points(|c, _| c)
     }
 }
 
@@ -2862,35 +2863,47 @@ fn area_midpoint_taylor<E>(
     Ok(widen(acc, boundary_defect))
 }
 
-/// **Certified knot refinement of a bracketed tensor net** into its
-/// base grid, both directions, to a FIXED span target (D9: the schedule is a constant,
-/// never data-dependent).
+/// **A bracketed tensor net, certified-refined** in both directions
+/// to a FIXED span target (D9: the schedule is a constant, never
+/// data-dependent), held with the two insertion chains that refined it,
+/// so the refined vectors are the chains' own.
 ///
-/// Why the rational lane takes it: a range hull read off a control net is
-/// a convexity fact, and those are **span-granular** — on a single-span
-/// patch the hull over a sub-cell IS the hull over the whole patch. The
-/// rational lane's Taylor remainders and area pads are the quotient
-/// statement's, which cuts its own spans ([`MeasureCells`]); what it
-/// still reads off the net is the weight hull its zero test takes and
-/// the position bound its boundary pad takes. Knot insertion is exact
-/// in ℝ (Book §5.2/§5.3 — it changes the representation, never the
-/// locus) and the control polygon converges to the patch at O(h²), so
-/// `QUAD2_REFINE_SPANS` spans per axis tightens both.
-///
-/// `None` if the knot algebra refuses — the caller then refuses typed
-/// rather than proceeding on an unrefined net.
-fn refined_grid(net: &TensorChannels<'_, 3>) -> Option<PatchGrid> {
-    let chain = |kv: &KnotVector| {
-        RingRefinement::new(kv, &algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS)).ok()
-    };
-    let (ref_u, ref_v) = (chain(net.knots_u())?, chain(net.knots_v())?);
-    Some(PatchGrid {
-        du: Dir::Kv(ref_u.knots().clone()),
-        dv: Dir::Kv(ref_v.knots().clone()),
-        ch: net
-            .channels()
-            .map(|c| c.net().refine_u(&ref_u).refine_v(&ref_v)),
-    })
+/// Why the rational lane takes it: a range hull read off a control net
+/// is a convexity fact, and those are **span-granular** — on a
+/// single-span patch the hull over a sub-cell IS the hull over the
+/// whole patch. The rational lane's Taylor remainders and area pads are
+/// the quotient statement's, which cuts its own spans
+/// ([`MeasureCells`]); what it still reads off the net is the weight
+/// hull its zero test takes and the position bound its boundary pad
+/// takes. Knot insertion is exact in ℝ (Book §5.2/§5.3 — it changes the
+/// representation, never the locus) and the control polygon converges
+/// to the patch at O(h²), so `QUAD2_REFINE_SPANS` spans per axis
+/// tightens both.
+struct RefinedNet {
+    u: RingRefinement,
+    v: RingRefinement,
+    nets: [TensorNet; 3],
+}
+
+impl RefinedNet {
+    /// `net` refined, its chains built from its own vectors. `None` if
+    /// the knot algebra refuses — the caller then refuses typed rather
+    /// than proceeding on an unrefined net.
+    fn of(net: &TensorChannels<'_, 3>) -> Option<Self> {
+        let chain = |kv: &KnotVector| {
+            RingRefinement::new(kv, &algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS)).ok()
+        };
+        let (u, v) = (chain(net.knots_u())?, chain(net.knots_v())?);
+        let nets = net.channels().map(|c| c.net().refine_u(&u).refine_v(&v));
+        Some(Self { u, v, nets })
+    }
+
+    /// The refined channels over the refined vectors.
+    fn channels(&self) -> TensorChannels<'_, 3> {
+        TensorChannels::from_fn(self.u.knots(), self.v.knots(), |i, j| {
+            self.nets.each_ref().map(|n| n.get(i, j))
+        })
+    }
 }
 
 /// A cut per axis, `None` along an axis kept whole.
@@ -3139,7 +3152,7 @@ fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
 /// the hull blocks' containment.
 ///
 /// Nor is it [`algebra::domain_grid_points`], the knot-blind grid
-/// [`refined_grid`] and [`bezier_blocks`] take: that grid runs over a knot
+/// [`RefinedNet`] and [`bezier_blocks`] take: that grid runs over a knot
 /// vector's own domain and clears only its interior knots, while this
 /// range is the trim rectangle's and its knots are a raw slice that may
 /// be a derivative's. Both are [`algebra::range_grid_points`]
@@ -3372,9 +3385,10 @@ fn remainder_cell_v(hu: Interval, hv: Interval) -> Interval {
 ///
 /// # Errors
 ///
-/// [`PropsError`] — non-positive or non-finite weights, a weight hull
-/// that does not exclude zero, an escalated funnel decision, a
-/// degenerate face, or `accept`'s own refusal.
+/// [`PropsError`] — a non-positive weight (a non-finite one never
+/// becomes a [`PatchNet`]), a weight hull that does not exclude zero,
+/// an escalated funnel decision, a degenerate face, or `accept`'s own
+/// refusal.
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the integral lane
 fn rational_patch_face<T: Decide>(
     net: &PatchNet<'_>,
@@ -3390,32 +3404,32 @@ fn rational_patch_face<T: Decide>(
     // Exact `f64` structure (C6): the rational hull property IS the
     // positive-weight hypothesis, so a non-positive weight is not a
     // tolerance question but a refusal.
-    if net.weights().iter().any(|w| *w <= 0.0) {
+    if net.with_weights(|ws| ws.iter().any(|w| w.lo() <= 0.0)) {
         return Err(PropsError::QuadratureUnsupported {
-            what: "a rational patch with a non-positive or non-finite weight: the \
-                   convex-hull property (and with it every enclosure here) needs \
-                   strictly positive weights",
+            what: "a rational patch with a non-positive weight: the convex-hull \
+                   property (and with it every enclosure here) needs strictly \
+                   positive weights",
         });
     }
     // The homogeneous position net `A = w·P` and the weight net, each
-    // refined FIRST ([`refined_grid`]): the weight hull and the
+    // refined FIRST ([`RefinedNet`]): the weight hull and the
     // position bound below are control-net facts.
     let refuse_refine = PropsError::QuadratureUnsupported {
         what: "a rational patch whose bracketed net would not refine (malformed knot \
                structure) — its weight hull and position bound have no other lever",
     };
-    let a = refined_grid(&net.channels(|c, w| {
+    let a_net = RefinedNet::of(&net.map_points(|c, w| {
         let rw = pt(w);
         [rw * c[0], rw * c[1], rw * c[2]]
     }))
     .ok_or(refuse_refine.clone())?;
-    let w = refined_grid(&net.channels(|_, w| [pt(w), Interval::zero(), Interval::zero()]))
+    let w_net = RefinedNet::of(&net.map_points(|_, w| [pt(w), Interval::zero(), Interval::zero()]))
         .ok_or(refuse_refine)?;
+    let (a_ch, w_ch) = (a_net.channels(), w_net.channels());
     // The refined `v` vector, whose spans the exact-in-v arm walks.
-    let Dir::Kv(r_v) = w.dv.clone() else {
-        unreachable!("a refined base grid's directions are knot vectors");
-    };
-    let (a, w) = (Ladder::build(a), Ladder::build(w));
+    let r_v = w_ch.knots_v();
+    let a = Ladder::build(PatchGrid::base(&a_ch));
+    let w = Ladder::build(PatchGrid::base(&w_ch));
 
     // The CUT lists come from the ORIGINAL knot vectors: refinement's
     // inserted knots are artificial (the locus and its smoothness are
@@ -3530,10 +3544,10 @@ fn rational_patch_face<T: Decide>(
     // caller's weight net: nothing here is a tolerance question.
     let nv_in = kv_v.control_count();
     let w_uniform_in_v = nv_in > 0
-        && net
-            .weights()
-            .chunks_exact(nv_in)
-            .all(|row| row.iter().all(|x| *x == row[0]));
+        && net.with_weights(|ws| {
+            ws.chunks_exact(nv_in)
+                .all(|row| row.iter().all(|x| x.lo() == row[0].lo()))
+        });
     let nc_v = if w_uniform_in_v {
         newton_cotes_weights(3 * r_v.degree())
     } else {
@@ -3618,7 +3632,7 @@ fn rational_patch_face<T: Decide>(
                     (Some(nc), Some(cube), None) => {
                         removable += r_uu.width();
                         flux = flux
-                            + hu * (a.num_v_exact(&slice, &r_v, c_vlo, c_vhi, nc) / cube)
+                            + hu * (a.num_v_exact(&slice, r_v, c_vlo, c_vhi, nc) / cube)
                             + r_uu;
                     }
                     (None, None, Some(b_vv)) => {
@@ -6911,12 +6925,12 @@ mod tests {
                     .collect()
             };
             let (knots_u, knots_v) = (inner(&ku), inner(&kv));
-            let a = Ladder::build(PatchGrid::base(&net.channels(|c, w| {
+            let a = Ladder::build(PatchGrid::base(&net.map_points(|c, w| {
                 let rw = pt(w);
                 [rw * c[0], rw * c[1], rw * c[2]]
             })));
             let w = Ladder::build(PatchGrid::base(
-                &net.channels(|_, w| [pt(w), Interval::zero(), Interval::zero()]),
+                &net.map_points(|_, w| [pt(w), Interval::zero(), Interval::zero()]),
             ));
             let f = |u: f64, v: f64| {
                 mid(a.integrand_at(&w, &a.flux_slice(&w, Collapse::At(u)), Collapse::At(v)))
@@ -7453,6 +7467,13 @@ mod tests {
             forward: true,
             env: pt(env),
         }
+    }
+
+    /// `piece` with its first control point moved to `p`, minted again.
+    fn first_point_at(piece: &TrimPiece, p: RPt2) -> TrimPiece {
+        let mut control = piece.control().to_vec();
+        control[0] = p;
+        TrimPiece::new(piece.knots().clone(), control, piece.weights().to_vec()).unwrap()
     }
 
     /// A CURVED chart of bidegree `(pu, pv)` with one interior knot per
@@ -8305,7 +8326,7 @@ mod tests {
         );
         let mut g = general(&[(1.0, 1.0), (0.0, 0.0)], 0.0);
         g.a = fat;
-        g.piece.as_mut().unwrap().control[0] = fat;
+        g.piece = g.piece.as_ref().map(|piece| first_point_at(piece, fat));
         let mut rim = iso((1.0, 0.0), (1.0, 1.0));
         rim.b = fat;
         let chords = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
@@ -8377,7 +8398,7 @@ mod tests {
             Interval::from_bounds(1.0 - 1.5 * d, 1.0 - 0.25 * d),
             pt(1.0),
         );
-        g.piece.as_mut().unwrap().control[0] = g.a;
+        g.piece = g.piece.as_ref().map(|piece| first_point_at(piece, g.a));
         let closed = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
         let b = bounds_of(
             &trimmed(&net, &closed, RoundWindow::SCHEDULE)
@@ -8479,14 +8500,14 @@ mod tests {
         encloses(b.area, g_int, "Q12 area");
     }
 
-    /// `refined_grid`'s grid is the DOMAIN's sixteenths, a grid point
+    /// `RefinedNet`'s grid is the DOMAIN's sixteenths, a grid point
     /// skipped up to and including `GRID_CLEARANCE` of the spacing
     /// (`2⁻¹²`) from a knot: `0.5` is a knot, and `1/16` is skipped
     /// beside a knot exactly `2⁻¹²` above it. A knot one ulp further
     /// than that above `3/8` leaves `3/8` standing, so both land. The
     /// expected vector is written out by hand.
     #[test]
-    fn refined_grid_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
+    fn refined_net_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
         let c = algebra::grid_clearance(0.0, 1.0, QUAD2_REFINE_SPANS);
         let near = 0.0625 + c;
         let clear = (0.375 + c).next_up();
@@ -8503,21 +8524,19 @@ mod tests {
         assert_eq!(count, 19);
     }
 
-    /// [`refined_grid`] of a net over `kv` by a linear segment: the
-    /// refined `u` vector, and the `u` count its channels were refined to.
+    /// [`RefinedNet`] of a net over `kv` by a linear segment: the
+    /// refined `u` vector, and the `u` count its nets were refined to.
     fn refined_u(kv: &KnotVector) -> (KnotVector, usize) {
         let lin = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         #[allow(clippy::cast_precision_loss)]
         let net = TensorChannels::from_fn(kv, &lin, |i, _| [pt(i as f64); 3]);
-        let grid = refined_grid(&net).unwrap();
-        let Dir::Kv(rkv) = grid.du else {
-            panic!("a refined base grid holds a knot vector");
-        };
-        let count = grid.ch[0].nu();
+        let refined = RefinedNet::of(&net).unwrap();
+        let rkv = refined.channels().knots_u().clone();
+        let count = refined.nets[0].nu();
         assert_eq!(
             count,
             rkv.control_count(),
-            "the channels' count is the vector's"
+            "the refined nets' count is the refined vector's"
         );
         (rkv, count)
     }
@@ -8603,7 +8622,7 @@ mod tests {
         bounds_of(&out)
     }
 
-    /// `refined_grid`'s width has no cliff at any distance of a stated
+    /// `RefinedNet`'s width has no cliff at any distance of a stated
     /// knot from a grid point: with the quarter cylinder split at every
     /// offset of [`crate::grid_offsets::knot_offsets`] from the first
     /// point of the [`QUAD2_REFINE_SPANS`] grid, the round-0 flux and
@@ -8642,12 +8661,12 @@ mod tests {
         }
     }
 
-    /// `refined_grid` has no "already fine enough" cut-off: a vector
+    /// `RefinedNet` has no "already fine enough" cut-off: a vector
     /// with more control points than the grid has spans still takes
     /// every grid point it lacks. The interior knots are the odd
     /// 64ths, none on the sixteenths grid, so all fifteen go in.
     #[test]
-    fn refined_grid_refines_an_already_fine_vector() {
+    fn refined_net_refines_an_already_fine_vector() {
         let mut knots = vec![0.0, 0.0, 0.0];
         knots.extend((0..21).map(|j| f64::from(2 * j + 1) / 64.0));
         knots.extend([1.0, 1.0, 1.0]);
