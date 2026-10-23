@@ -5,7 +5,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::shared::patch::{met, to_target};
+use crate::shared::patch::{met, patch_net, to_target};
 use crate::shared::tol::band;
 use core::num::NonZeroUsize;
 use geom_brep::props::quad::nurbs_patch_face;
@@ -29,10 +29,7 @@ fn probe_masquerading_net_through_the_props_quadrature_door() {
         p(nan, 1.0, 1.0),
     ];
     let out = met(nurbs_patch_face::<f64>(
-        &kv,
-        &kv,
-        &net,
-        &[1.0; 4],
+        &patch_net(&kv, &kv, &net, &[1.0; 4]),
         (0.0, 1.0, 0.0, 1.0),
         4.0,
         0.0,
@@ -64,10 +61,7 @@ fn probe_masquerading_net_poisoned_in_z_through_the_same_door() {
         p(1.0, 1.0, nan),
     ];
     let out = met(nurbs_patch_face::<f64>(
-        &kv,
-        &kv,
-        &net,
-        &[1.0; 4],
+        &patch_net(&kv, &kv, &net, &[1.0; 4]),
         (0.0, 1.0, 0.0, 1.0),
         4.0,
         0.0,
