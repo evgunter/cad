@@ -155,8 +155,10 @@ fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
 
 /// **The sign settles while the number is open.** The gate admits the
 /// tube on a positive enclosure; the reporting door refuses its number
-/// with the wall's own width, after the rounds the lane ran; and a
-/// refusal the certificate carries is that same one.
+/// with the wall's own width, after the rounds the lane ran; the gate
+/// carries no refusal (it stopped where the sign settled); and the
+/// certificate's continuation refuses verbatim as the door does, with a
+/// positive bracket no wider than the gate's.
 #[test]
 fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
     let tol = Tol::witness();
@@ -168,7 +170,8 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
         enclosure.volume_lo > 0.0,
         "the admitted tube's volume enclosure is positive: {enclosure:?}"
     );
-    match topo::mass_properties(&body, tol) {
+    let door = topo::mass_properties(&body, tol);
+    match &door {
         Err(MassPropsError::Face {
             source:
                 source @ geom_brep::PropsError::QuadratureBudget {
@@ -177,18 +180,35 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
                     rounds: 11,
                 },
             ..
-        }) => {
-            assert!(width_len > target_len, "{source:?}");
-            assert_eq!(
-                certificate.target_refusal(),
-                Some(&source),
-                "the certificate carries the door's refusal"
-            );
-        }
+        }) => assert!(width_len > target_len, "{source:?}"),
         other => panic!(
             "the reporting door refuses the tube's number at the wall at ε = {:e}: {other:?}",
             tol.eps()
         ),
+    }
+    // The gate stopped each wall where the sign settled, long before any
+    // reached its wall, so the certificate carries no refusal of its
+    // own; its continuation runs the walls on and refuses verbatim as
+    // the door does.
+    assert_eq!(
+        certificate.target_refusal(),
+        None,
+        "no face ran out under the gate"
+    );
+    match certificate.measure() {
+        Err(topo::TargetUnreached { refusal, bracket }) => {
+            assert_eq!(
+                Err(refusal),
+                door.map(|_| ()),
+                "the continuation refuses as the door does"
+            );
+            let b = bracket.expect("a budget refusal keeps a bracket");
+            assert!(
+                b.volume_lo > 0.0
+                    && b.volume_hi - b.volume_lo <= enclosure.volume_hi - enclosure.volume_lo
+            );
+        }
+        Ok(p) => panic!("the continuation measured the tube: {p:?}"),
     }
 }
 
