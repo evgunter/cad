@@ -49,7 +49,7 @@ test_utils::f6_variants! {
 /// entries buy over that is a BRACE-FREE field token in an otherwise
 /// prose sentence, and they are unwelded to the enum, so a payload
 /// field added to an existing variant leaves them short in silence.
-const CONTACT_REFUSAL_FIELDS: &[&str] = &["diag:", "steer:", "what:"];
+const CONTACT_REFUSAL_FIELDS: &[&str] = &["diag:", "what:"];
 
 test_utils::f6_variants! {
     /// [`ReadbackError`]'s census — see [`CONTACT_REFUSAL`].
@@ -72,7 +72,6 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
         (
             ContactRefusal::Contradicted {
                 diag: in_band(),
-                steer: None,
             },
             // The one reason true at every contradiction site; the
             // predicate and margin are developer detail in `Debug`.
@@ -98,25 +97,6 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
         ),
     ];
     assert_f6_every_variant(&cases, &CONTACT_REFUSAL, &[], CONTACT_REFUSAL_FIELDS);
-    // A `Fit` steer rides the contradiction rather than replacing the
-    // recourse: the deferral is extra steering. It renders in the
-    // user's words (`FIT_DEFERRAL_FOR_USERS`), never as the wire
-    // sentence with its `Fit { gap }` variant name — which is the
-    // brace this row now also refuses.
-    let steered = ContactRefusal::Contradicted {
-        diag: in_band(),
-        steer: Some(topo::FIT_DEFERRAL),
-    };
-    let shown = steered.to_string();
-    for want in [topo::CONTRADICTION_RECOURSE, topo::FIT_DEFERRAL_FOR_USERS] {
-        assert!(shown.contains(want), "{shown:?} is missing {want:?}");
-    }
-    for dump in CONTACT_REFUSAL.identifiers() {
-        assert!(!shown.contains(dump), "{shown:?} leaks the variant name");
-    }
-    assert!(!shown.contains(topo::FIT_DEFERRAL), "{shown:?}");
-    assert!(!shown.contains('{'), "{shown:?}");
-    assert_ne!(shown, format!("{steered:?}"));
     // The bare `Indeterminate` Display ends in the three-arm
     // coincidence sentence, whose "lower the tolerance" arm is wrong at
     // a contact site. Composing the payload instead is what keeps it

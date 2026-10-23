@@ -154,7 +154,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::coincidence::{Cited, Cites};
-use crate::contact::{ContactClass, GlueClass};
+use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
@@ -211,7 +211,7 @@ pub use carrier_pair::{
     face_carrier, flush_pair_relation, rest_locus,
 };
 pub(crate) use contact_verify::rest_pair_reading;
-pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
+pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
     point_in_solid_of,
@@ -2917,9 +2917,6 @@ pub enum BooleanError {
         fact: Option<Contradiction>,
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
-        /// Extra recourse steering when the counter-evidence has a
-        /// named remedy (AQ6's designed-clearance arm).
-        steer: Option<&'static str>,
     },
     /// A declared CONTINUATION meets definite counter-evidence at the
     /// op (C4's continuation clause): the two faces are not one carrier,
@@ -4640,7 +4637,7 @@ impl core::fmt::Display for BooleanError {
             // disagreeing with itself.
             Self::ContactContradicted {
                 declaration, fact, ..
-            } if declaration.class == crate::contact::ContactClass::Tangent => write!(
+            } if declaration.class == GlueClass::Tangent => write!(
                 f,
                 "the Boolean read two of the operands' faces tangent along a line or rim, \
                  and a later reading of the same faces contradicts that: {}. {}",
@@ -4652,18 +4649,13 @@ impl core::fmt::Display for BooleanError {
             // payload. The faces are the first and second operands'
             // (the declaration's own order).
             Self::ContactContradicted {
-                declaration,
-                steer,
-                fact,
-                ..
+                declaration, fact, ..
             } => write!(
                 f,
-                "the declared {} contact between the operands' faces is contradicted: {}. \
-                 {}{}",
+                "the declared {} contact between the operands' faces is contradicted: {}. {}",
                 declaration.class.name(),
                 fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 crate::contact::CONTRADICTION_RECOURSE,
-                crate::contact::steer_clause(*steer),
             ),
             Self::ContinuationContradicted { fact, .. } => write!(
                 f,
@@ -6548,15 +6540,7 @@ pub(super) fn glue_contradicted(
             margin,
         },
         GlueClass::Rest | GlueClass::Tangent => BooleanError::ContactContradicted {
-            declaration: crate::contact::DeclaredContact {
-                a: fa,
-                b: fb,
-                class: match class {
-                    GlueClass::Tangent => ContactClass::Tangent,
-                    GlueClass::Rest | GlueClass::Continuation => ContactClass::Rest,
-                },
-            },
-            steer: fact.and_then(contact_verify::fit_steer),
+            declaration: crate::contact::DeclaredContact { a: fa, b: fb, class },
             fact,
             margin,
         },
@@ -6920,7 +6904,6 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
                     predicate: Some(predicate),
                     terminal_sliver: false,
                 },
-                steer: None,
             });
         }
         Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
@@ -7326,7 +7309,7 @@ fn route_rim<T: Decide>(
             pair: crate::contact::DeclaredContact {
                 a: fa,
                 b: fb,
-                class: ContactClass::Tangent,
+                class: GlueClass::Tangent,
             },
             wedge,
         })),
@@ -8692,7 +8675,7 @@ mod tests {
         let declaration = crate::contact::DeclaredContact {
             a: face,
             b: face,
-            class: ContactClass::Rest,
+            class: GlueClass::Rest,
         };
         vec![
             BooleanError::Band(Band::new(1.0, 1.0).unwrap_err()),
@@ -8798,16 +8781,14 @@ mod tests {
             BooleanError::ContactContradicted {
                 declaration,
                 margin: diag,
-                steer: None,
                 fact: None,
             },
             BooleanError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
-                    class: ContactClass::Tangent,
+                    class: GlueClass::Tangent,
                     ..declaration
                 },
                 margin: diag,
-                steer: None,
                 fact: None,
             },
             BooleanError::ContinuationContradicted {

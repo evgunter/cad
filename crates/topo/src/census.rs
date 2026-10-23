@@ -1389,15 +1389,7 @@ fn pair_region_verified<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> bool {
-    let Ok(verdict) = crate::boolean::contact_pair_verdict(
-        body,
-        fa,
-        body,
-        fb,
-        crate::contact::ContactClass::Rest,
-        None,
-        band,
-    ) else {
+    let Ok(verdict) = crate::boolean::rest_pair_verdict(body, fa, body, fb, band) else {
         return false;
     };
     matches!(
@@ -5315,7 +5307,7 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
             pair: crate::contact::DeclaredContact {
                 a: pair.a,
                 b: pair.b,
-                class: crate::contact::ContactClass::Rest,
+                class: crate::contact::GlueClass::Rest,
             },
             verdict: crate::contact::ContactVerdict::Definite,
         };
@@ -5415,7 +5407,7 @@ fn sweep_conformal_patches<T: Decide>(
                                 pair: crate::contact::DeclaredContact {
                                     a: fa,
                                     b: fb,
-                                    class: crate::contact::ContactClass::Rest,
+                                    class: crate::contact::GlueClass::Rest,
                                 },
                                 verdict: crate::contact::ContactVerdict::Definite,
                             };
@@ -5646,7 +5638,7 @@ fn same_solid_tangent_pair<T: Decide>(
                     pair: crate::contact::DeclaredContact {
                         a,
                         b,
-                        class: crate::contact::ContactClass::Tangent,
+                        class: crate::contact::GlueClass::Tangent,
                     },
                     verdict,
                 },
@@ -5671,7 +5663,7 @@ fn same_solid_tangent_pair<T: Decide>(
             _ => errors.push(pair_lane_refused(
                 a,
                 b,
-                ContactRefusal::Contradicted { diag, steer: None },
+                ContactRefusal::Contradicted { diag },
             )),
         },
         Err(refusal) => errors.push(pair_lane_refused(a, b, refusal)),
@@ -9622,16 +9614,15 @@ fn confirm_face_pair<T: Decide>(
         return;
     }
     let refused = |refusal| match refusal {
-        crate::contact::ContactRefusal::Contradicted { diag, steer } => {
+        crate::contact::ContactRefusal::Contradicted { diag } => {
             ValidationError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
                     a,
                     b,
-                    class: crate::contact::ContactClass::Tangent,
+                    class: crate::contact::GlueClass::Tangent,
                 },
                 witness: TANGENT_LOCUS_WITNESS.to_owned(),
                 margin: diag,
-                steer,
             }
         }
         refusal => pair_lane_refused(a, b, refusal),
@@ -10054,16 +10045,15 @@ fn rest_door_one<T: Decide>(
 ) -> Result<(crate::contact::ContactVerdict, geom_core::MarginDiag), ValidationError> {
     crate::boolean::rest_pair_reading(body, face_a, body, face_b, band).map_err(|refusal| {
         match refusal {
-            crate::contact::ContactRefusal::Contradicted { diag, steer } => {
+            crate::contact::ContactRefusal::Contradicted { diag } => {
                 ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
                         a: face_a,
                         b: face_b,
-                        class: crate::contact::ContactClass::Rest,
+                        class: crate::contact::GlueClass::Rest,
                     },
                     witness: CARRIER_COMPARISON_WITNESS.to_owned(),
                     margin: diag,
-                    steer,
                 }
             }
             crate::contact::ContactRefusal::Escalated { diag }
@@ -11147,7 +11137,7 @@ mod tests {
         // verify — the recourse is a quotable declaration.
         let pair = (hit.pair.a.min(hit.pair.b), hit.pair.a.max(hit.pair.b));
         assert_eq!(pair, (w1.min(w2), w1.max(w2)));
-        assert_eq!(hit.pair.class, crate::contact::ContactClass::Rest);
+        assert_eq!(hit.pair.class, crate::contact::GlueClass::Rest);
         assert_eq!(hit.verdict, crate::contact::ContactVerdict::Definite);
     }
 
@@ -16685,7 +16675,7 @@ mod records_by_carrier {
                 e,
                 ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
-                        class: crate::contact::ContactClass::Tangent,
+                        class: crate::contact::GlueClass::Tangent,
                         ..
                     },
                     ..
