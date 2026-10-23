@@ -755,3 +755,13 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
       - the "mapped apart" wording.
     - It filed `work/coincide/walls-across-a-mirror-off-a-wall-do-not-prove-at-sym.md` and `work/intent/a-mirrors-body-reads-as-in-no-space.md`.
   - **Nightly:** main's nightly has been red every night since at least 10-19, in 7 jobs, including about 104 full-suite rows. No orchestrator was triaging it. Lane `session_014BxhTBULM7MsZhXgqY7kfC` (branch `intent/nightly-triage-1023`) attributes each red, fixes INTENT's, and files the rest on their owners' slates.
+- 2026-10-23 — **Orchestrator state, 11:25Z.**
+  - **D′2** (PR #5613): concurrent dual on `ca29c81468`. R1 is `session_01V31vS7jzdKCBdfhDeHqs9a` and R2 is `session_01P2rauxReh3fHVrhPXHDnMo`. Both say APPROVE-WITH-FIXES. Blinding byte 101 (odd), so A = R2.
+    - Bilateral findings: the antipode chart jump, the tour's retired read-back (`demos/tour/src/world.rs`), the msolve14 seats re-pinned rather than rewritten, and spec row 20's text.
+    - Tally candidate (unilateral, R2, executed): `rebundle` drops a later written chain value when a middle link is removed.
+    - The fix pass is running in `session_01YN83En2svESHE5qoqTC3rP` (last push `be339bfc`). The row is drafted after it.
+  - **The antipode** went to designers, and they converged after one round on a written `up` axis per side, refusing at `−up`. It is on `[ev]` PR #5621, fork-log row 192; byte 73, record on `analysis/design-fork/intent-value-chart-antipode`. D′2 merges with today's chart, and `a-value-chart-jumps-at-the-antipode-under-a-downward-face` is the follow-up.
+  - **Nightly triage** PR #5620 merged, orchestrator's read. It fixed 7 red groups and filed 6. The next nightly is the real test. The tour's second split refusing D′1's `Space` node is filed as `the-tours-post-cell-split-refuses-the-space-its-copies-read` (design). That is why the gui montage stays red.
+  - **Mirror seam** (PR #5616): its review was re-dispatched as `session_01Jm3s3aXhc3t897vBTFoKGq`. The first session never started because I gave it a short SHA; give a session the full SHA or a branch. The lane was asked to merge main after #5620 (`symmetric_plate` rows).
+  - **Census** (PR #5605): the lane's container restarted at 09:59 with `ddb44f28` green and the PR edit undone. It was woken at 11:24.
+  - **Merged in this sitting:** #5612, #5614 (MSOLVE plane-pose ruling), #5615 (mirror-seam ruling), #5617 (state), #5618 and #5619. #5618 filed the antipode item without its header, so lint was red on main for about two minutes; #5619 fixed it. Work merges are now gated on lint.
