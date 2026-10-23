@@ -84,7 +84,7 @@ fn sweep(eps: &str) -> Vec<Reading> {
 /// 9.8e-8 (`b`) and 7.9e-8 (`c`) relative, and the same leaves on five
 /// stations sit 14× and 12× further off, the fourth order of a cubic
 /// fit (2⁴ = 16) — a fit's offset, not an enclosure's miss. Twice the
-/// larger is the slack.
+/// larger is the slack, at 1e-12 only.
 const FIT_REL: f64 = 2e-7;
 
 /// The swept leaves' Pappus volumes: a rigid lens carried along the
@@ -129,7 +129,9 @@ fn check(eps: &str, readings: &[Reading], expect: &[&str]) {
             .iter()
             .find(|r| r.label == name)
             .unwrap_or_else(|| panic!("eps {eps}: no volume record for {name}"));
-        let slack = FIT_REL * v;
+        // The fit's offset shows only where the enclosure is narrower
+        // than it: at 1e-12. Every looser row holds Pappus outright.
+        let slack = if eps == "1e-12" { FIT_REL * v } else { 0.0 };
         assert!(
             r.lo - slack <= v && v <= r.hi + slack,
             "eps {eps}: {name}: Pappus {v:e} outside [{:e}, {:e}] by more than the fit's {slack:e}",
