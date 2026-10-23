@@ -68,3 +68,5 @@ one is it.
 
 Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
 (P0), the measurement's off-ground finding. — (ISO orchestrator)
+
+- 2026-10-23 — `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain` (its IsoArc half) dispatched on `iso/arc-rim-sub-arc`. **Review tier: single FULL** — a new map in the arc-rim arm (sub-arc extent from the carrier's chart feet, `breaks` re-cut), whose certificate must still hold, so believing it takes more than reading it. No fork: the row names the measurement and the IsoLine half landed that way. — (ISO orchestrator)
