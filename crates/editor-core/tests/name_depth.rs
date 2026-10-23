@@ -187,14 +187,21 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId, StableName, StableName) {
     (doc, extrude, rim, cap)
 }
 
-/// `name` under `levels` part instances, as the top of a part chain
-/// that long names what its bottom part holds.
+/// `name` under `levels` pattern instances, as the top of a chain of
+/// patterns that long names what its bottom one copies.
 fn in_parts(name: StableName, levels: usize) -> StableName {
-    (0..levels).fold(name, |of, _| of)
+    (0..levels).fold(name, |of, _| StableName {
+        kind: of.kind,
+        node: of.node,
+        path: vec![RoleSeg::Instance {
+            i: 0,
+            of: of.into(),
+        }],
+    })
 }
 
 /// The block with a fillet over its rim edge and a metadata record on
-/// its cap, each name `levels` part instances deep, through the edit
+/// its cap, each name `levels` pattern instances deep, through the edit
 /// door; saved, and the saved text loaded back.
 fn names_in_parts(levels: usize) -> (ProfileDoc, String) {
     let tol = Tol::witness();
@@ -220,13 +227,13 @@ fn names_in_parts(levels: usize) -> (ProfileDoc, String) {
 
 /// **Names nested past the load door's limit save and load, on the
 /// smallest stack, and the file stays linear in their depth**: a
-/// fillet's edge and a metadata record's face each named 1 024 part
-/// instances deep, as a part chain at `MAX_DEPTH` names what its bottom
-/// part holds, round-trip through save and load, byte for byte and pin
+/// fillet's edge and a metadata record's face each named 1 024
+/// pattern instances deep, as a chain of patterns names what its
+/// bottom one copies, round-trip through save and load, byte for byte and pin
 /// for pin. Twice as deep writes a file under twice as long: the pretty
 /// layout stops indenting where only a name nests.
 #[test]
-fn names_a_thousand_part_instances_deep_save_and_load_on_the_smallest_stack() {
+fn names_a_thousand_pattern_instances_deep_save_and_load_on_the_smallest_stack() {
     on_the_smallest_stack(|| {
         let tol = Tol::witness();
         let (doc, text) = names_in_parts(1_024);
@@ -380,7 +387,7 @@ fn what_nests_outside_a_name_is_refused_past_the_limit_whatever_keys_sit_beside_
 
 /// **A malformed name nested deep in a document refuses where it is
 /// written**, in the words the derived form gives there: a misspelled
-/// variant at the bottom of a name 1 024 part instances deep, and an
+/// variant at the bottom of a name 1 024 pattern instances deep, and an
 /// unknown field in a name nested a few levels down, each at its own
 /// line and column of the body.
 #[test]
@@ -416,10 +423,10 @@ fn a_malformed_name_nested_deep_in_a_document_refuses_where_it_is_written() {
             }
             other => panic!("{levels} deep: unreadable, got {other:?}"),
         }
-        let bad = text.replacen("\"InPart\": {", "\"InPart\": {\n\"x\": 0,", 2);
+        let bad = text.replacen("\"Instance\": {", "\"Instance\": {\n\"x\": 0,", 2);
         let refused = load(&bad, Tol::witness()).err();
         assert!(
-            matches!(&refused, Some(PersistError::Unreadable { detail, .. }) if detail.starts_with("unknown field `x`, expected `of`")),
+            matches!(&refused, Some(PersistError::Unreadable { detail, .. }) if detail.starts_with("unknown field `x`, expected `i` or `of`")),
             "{levels} deep: an unknown field in a nested segment, got {refused:?}"
         );
     }

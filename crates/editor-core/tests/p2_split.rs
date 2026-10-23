@@ -174,26 +174,74 @@ fn same_extent(a: ([f64; 3], [f64; 3], f64), b: ([f64; 3], [f64; 3], f64), what:
 }
 
 /// **`name`, an entity of a copy in `part`, as `part`'s product names
-/// it** (A10): an instance's own name as it is, since the instance is
-/// its own placement; a body's name under the copy of the one `Place`
-/// in `part` that copies its minting node.
+/// it** (A10): a copy carries its source's names as they are, so a lone
+/// copy's product names it as it is, and a `⊔` of copies names it by
+/// the read it takes the copy through — an instance's own copy, or the
+/// copy of the one `Place` in `part` that copies its minting node.
 fn in_world_of(part: &ProfileDoc, name: impl crate::fixture::Sited) -> StableName {
-    if matches!(part.node(name.site()), Some(Node::InstantiatePart { .. })) {
-        return name.name();
-    }
+    let site = name.site();
     let name = name.name();
-    let copies: Vec<RecipeNodeId> = part
-        .placements()
-        .into_iter()
-        .filter(|&at| {
-            matches!(part.node(at), Some(Node::Place { source, .. })
-                if (part.operation_of(source.read) == Some(name.node)))
-        })
-        .collect();
-    let [copy] = copies[..] else {
-        panic!("one placement places {:?}, not {copies:?}", name.node);
+    let copy = if matches!(part.node(site), Some(Node::InstantiatePart { .. })) {
+        site
+    } else {
+        let copies: Vec<RecipeNodeId> = part
+            .placements()
+            .into_iter()
+            .filter(|&at| {
+                matches!(part.node(at), Some(Node::Place { source, .. })
+                    if (part.operation_of(source.read) == Some(name.node)))
+            })
+            .collect();
+        let [copy] = copies[..] else {
+            panic!("one placement places {:?}, not {copies:?}", name.node);
+        };
+        copy
     };
-    name
+    let product = part
+        .product()
+        .and_then(|var| part.operation_of(var))
+        .expect("the part has a product");
+    match part.node(product) {
+        Some(Node::Assemble { .. }) => StableName {
+            kind: name.kind,
+            node: product,
+            path: vec![editor_core::RoleSeg::From {
+                read: part.output(copy, 0).expect("the copy"),
+                of: name.into(),
+            }],
+        },
+        _ => name,
+    }
+}
+
+/// **`name`, as `part`'s product names it, landed by an inline**: the
+/// name [`in_world_of`] gives, its `⊔` and the read it takes the copy
+/// through mapped onto the nodes and outputs the inline spliced.
+fn landed(
+    out: &editor_core::InlineOutcome,
+    part: &ProfileDoc,
+    name: impl crate::fixture::Sited,
+) -> StableName {
+    let name = in_world_of(part, name);
+    let node = out.node_map.get(&name.node).copied().unwrap_or(name.node);
+    let path = match name.path.as_slice() {
+        [editor_core::RoleSeg::From { read, of }] => {
+            let (at, port) = part.defined_by(*read).expect("the read is an output");
+            vec![editor_core::RoleSeg::From {
+                read: out
+                    .doc
+                    .output(out.node_map[&at], port)
+                    .expect("the spliced copy"),
+                of: of.clone(),
+            }]
+        }
+        _ => name.path.clone(),
+    };
+    StableName {
+        kind: name.kind,
+        node,
+        path,
+    }
 }
 
 /// `name` as a host spells a face of its part through `instance`: the
@@ -536,20 +584,25 @@ fn i1_inline_at_a_pose_places_the_parts_world_under_the_instances_bundle() {
         );
         let o = with_resolver(store);
         let ev = run(&out.doc, &o);
-        let landed = match &ev
+        let stood = match &ev
             .value(out.placement)
-            .expect("the copies evaluate")
+            .expect("the copy evaluates")
             .payload
         {
+            editor_core::ValuePayload::Body(body) => {
+                body.vertex_points().fold([f64::INFINITY; 3], |m, (_, p)| {
+                    [m[0].min(p.x), m[1].min(p.y), m[2].min(p.z)]
+                })
+            }
             other => panic!(
-                "{what}: the new placement holds copies: {}",
+                "{what}: the new placement holds a copy: {}",
                 other.kind_name()
             ),
         };
         let lowest = corners.iter().fold([f64::INFINITY; 3], |m, (_, c)| {
             [m[0].min(c[0]), m[1].min(c[1]), m[2].min(c[2])]
         });
-        crate::p2_gauges::close(landed, lowest, &format!("{what}: the copies' world pose"));
+        crate::p2_gauges::close(stood, lowest, &format!("{what}: the copies' world pose"));
         same_extent(
             extent(&doc, &o),
             extent(&out.doc, &o),
@@ -581,9 +634,10 @@ fn i2_a_host_constraint_reading_the_instance_crosses_onto_the_spliced_copy() {
     let before = min_corner(&body_of(&run(&doc, &o), top));
     let out = inline(&doc, h, &store);
     let carried = only_constraint(&out.doc, top);
+    let sub = store.doc(part_id_of(&doc, h));
     assert_eq!(
         read_name(&out.doc, target_of(&carried)),
-        p.base_cap(out.node_map[&first]),
+        landed(&out, &sub, p.base_cap(first)),
         "the constraint reads the spliced base's copy in the host's world"
     );
     let after = min_corner(&body_of(&run(&out.doc, &o), top));
@@ -679,7 +733,7 @@ fn i4_a_mate_placed_instance_inlines_under_its_own_bundle() {
     let taken = only_constraint(&out.doc, out.placement);
     assert_eq!(
         read_name(&out.doc, on_of(&taken)),
-        base_bottom(&p, spliced),
+        landed(&out, &part, base_bottom(&p, part_base)),
         "the instance's mate reads the spliced base"
     );
     same_extent(extent(&host, &o), extent(&out.doc, &o), "no material moves");
@@ -696,8 +750,8 @@ fn i4_a_mate_placed_instance_inlines_under_its_own_bundle() {
     let out = inline(&through_top, i, &store);
     let taken = only_constraint(&out.doc, out.placement);
     assert_eq!(
-        fixture::side_name(&out.doc, fixture::face_reads(&out.doc, on_of(&taken))[0]).node,
-        out.node_map[&part_top],
+        fixture::side_name(&out.doc, fixture::face_reads(&out.doc, on_of(&taken))[0]),
+        landed(&out, &part, p.top_cap(part_top)),
         "the instance's mate reads the spliced top"
     );
     same_extent(
@@ -716,7 +770,12 @@ fn i4_a_mate_placed_instance_inlines_under_its_own_bundle() {
 #[test]
 fn i5_a_mate_placed_instance_over_any_part_inlines() {
     let (p, store, host, [ht, i, _, _], _) = mate_placed("i5-mate-placed");
-    let (shifted, _) = pair_part(&p, "i5-mate-placed-part", [1.0, 0.0, 0.0]);
+    let (shifted, [shifted_base, _]) = pair_part(&p, "i5-mate-placed-part", [1.0, 0.0, 0.0]);
+    let shifted = crate::fixture::world_product(shifted);
+    // The shifted part's product is a `⊔` minted after its own edits,
+    // so the host names its faces anew in the new version
+    // (`work/intent/a-name-through-a-parts-assemble-moves-with-every-earlier-part-edit.md`).
+    let shifted_bottom = in_world_of(&shifted, base_bottom(&p, shifted_base));
     let mut shifted_store = store.clone();
     let shifted_ref = shifted_store.insert(shifted, Tol::witness());
     let (repinned, _) = step(
@@ -725,6 +784,13 @@ fn i5_a_mate_placed_instance_over_any_part_inlines() {
             node: i,
             new_pin: shifted_ref.pin,
         },
+    );
+    let (repinned, _) = seat_at(
+        repinned,
+        i,
+        head(wrap(i, shifted_bottom)),
+        head(p.top_upper_cap(ht)),
+        [0.0, 0.0],
     );
     let out = inline(&repinned, i, &shifted_store);
     let o = with_resolver(shifted_store.clone());
@@ -737,7 +803,7 @@ fn i5_a_mate_placed_instance_over_any_part_inlines() {
     let (two, first) = two_pinned(&p, "i5-mate-placed-part");
     let first_bottom = in_world_of(&two, base_bottom(&p, first));
     let mut two_store = p.store.clone();
-    let two_ref = two_store.insert(two, Tol::witness());
+    let two_ref = two_store.insert(crate::fixture::world_product(two), Tol::witness());
     let (other, _) = step(
         host,
         DocEdit::UpdateReference {

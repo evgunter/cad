@@ -1824,7 +1824,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             "\n  placement 000000000003 output 1: a solid encloses negative volume, so it is \
              inside-out",
         ],
-        &["the product reads", "whose body is gone"],
+        &["the product reads", "a body that is gone"],
         &["the kernel could not graft placement 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {

@@ -3871,14 +3871,22 @@ pub fn inline(
     // A name the part's own copy of an instance carries is that
     // instance's part's, spelled in ids the part never minted: it
     // crosses verbatim, as it entered the part.
+    // Only those ids cross as they are: every id the part minted is
+    // still read through the maps, so a part's `⊔` naming another
+    // part's face lands on the spliced `⊔` and read.
     let parted = part.reaches_instance(product);
     let to_host = |of: &StableName| -> Result<StableName, InlineError> {
-        match remap_name(of, &host_nodes, &host_steps, &host_reads) {
-            Ok(name) => Ok(name),
-            Err(RemapError::Unmapped(Unmapped::Node(id))) if parted && !part.has_minted(id) => {
-                Ok(of.clone())
+        let mut nodes = std::borrow::Cow::Borrowed(&host_nodes);
+        loop {
+            match remap_name(of, &nodes, &host_steps, &host_reads) {
+                Ok(name) => return Ok(name),
+                Err(RemapError::Unmapped(Unmapped::Node(id)))
+                    if parted && !part.has_minted(id) =>
+                {
+                    nodes.to_mut().insert(id, id);
+                }
+                Err(missing) => return Err(InlineError::stranded(&part, of, missing)),
             }
-            Err(missing) => Err(InlineError::stranded(&part, of, missing)),
         }
     };
     // A pick's path lands on the spliced variables.

@@ -241,7 +241,7 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
     let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     // A: 3×3×1 block; B: a slot crossing the top cap fully in y.
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
-    let (doc, _, b) = block_on(doc, a, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, slot, b) = block_on(doc, a, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, sub) = insert(
         doc,
         Node::Subtract {
@@ -274,14 +274,15 @@ fn slot_subtract_names_cap_fragments_by_the_walls_they_border() {
     assert_eq!(frags.len(), 2, "expected two Borders-qualified cap pieces");
     assert_ne!(frags[0], frags[1]);
     // The walls are B lateral names (recipe-covariant references),
-    // one per piece: the slot wall on its side.
+    // one per piece: the slot wall on its side, the slot's own name,
+    // which B's copy carries as it is.
     for f in frags {
         let Some(RoleSeg::Fragment(Qualifier::Borders(walls))) = f.path.get(1) else {
             unreachable!()
         };
         assert_eq!(walls.len(), 1, "{f:?}");
         for wall in walls {
-            assert_eq!(wall.node, b, "a wall is not a B-operand face");
+            assert_eq!(wall.node, slot, "a wall is not a B-operand face");
         }
     }
 }
