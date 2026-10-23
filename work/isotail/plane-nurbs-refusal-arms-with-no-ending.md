@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep: PlaneNurbsRefusal's FootPointInconclusive and Unsupported end in no recourse, and its SSI mapping folds every other SsiError arm into Unsupported
 status: open
 opened: 2026-10-02
+priority: P3
+cost: M
 ---
 
 (SSI implementer, from the §5 sweep of PR "SSI: every SsiError arm ends

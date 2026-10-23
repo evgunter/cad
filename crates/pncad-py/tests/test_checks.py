@@ -516,7 +516,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertIsNone(row.rung)
         self.assertEqual(
             row.residual,
-            "the two cells are two constructions, placed apart; with every variable a symbol, "
+            "the two cells are two constructions, placed or reflected apart; with every variable a symbol, "
             "neither the carriers' verdict nor the deciding margin is shown "
             "identically zero within the door's budget",
         )

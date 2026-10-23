@@ -53,7 +53,7 @@ Nobody has checked the sites one by one.
   not carried (`PropsError::Escalated`), are filed on their owners'
   slates:
   - `work/encl/certify-escalation-renders-the-coincidence-menu-unlabelled.md`
-  - `work/iso/plane-nurbs-escalation-renders-the-coincidence-menu-unlabelled.md`
+  - `work/isotail/plane-nurbs-escalation-renders-the-coincidence-menu-unlabelled.md`
   - `work/pcert/pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled.md`
   - `work/props/props-escalation-renders-the-coincidence-menu-unlabelled.md`
 - Extrude and revolve offer the menu on purpose, even on their definite
@@ -80,7 +80,7 @@ structure, seg, path/arc_fillet), `geom` (curves 2), `geom-core`
 dihedral). `ssi::SsiError::Escalated` and
 `intersect`'s `Escalated(diag)` render `{diag}` whole under a comment
 that says so on purpose (S6); `edge_nurbs`'s is the
-`work/iso/plane-nurbs-…` row above. The rest are for the triage.
+`work/isotail/plane-nurbs-…` row above. The rest are for the triage.
 
 ## The shape guard counts the forwarded menu (CHROME, 2026-09-29)
 
@@ -169,7 +169,7 @@ editor-core
 geom-brep
 - `certify.rs:424` `CertifyError::Escalated`: d (`work/encl/certify-escalation-renders-the-coincidence-menu-unlabelled.md`)
 - `dihedral.rs:500` `MustCarryVerdict::InBand`: c (`sweep/src/extrude.rs` near :1044, `blend/surgery.rs` near :4158, `revolve/upgrade.rs` near :183)
-- `edge_nurbs.rs:176` `PlaneNurbsRefusal::TransversalityEscalated`: d (`work/iso/plane-nurbs-escalation-renders-the-coincidence-menu-unlabelled.md`)
+- `edge_nurbs.rs:176` `PlaneNurbsRefusal::TransversalityEscalated`: d (`work/isotail/plane-nurbs-escalation-renders-the-coincidence-menu-unlabelled.md`)
 - `edge_nurbs.rs:180` `PlaneNurbsRefusal::Escalated`: d (same row)
 - `intersect.rs:636` `SectionError::Escalated`: c (`topo/src/boolean/join.rs` → `BooleanError::Escalated`; `chord_join.rs` near :751 → `SplitJoinError::Escalated`; `replace_face.rs` near :1926 → `ReplaceFaceError::Escalated`)
 - `newell.rs:95` `NewellError::Escalated`: b, unowned (`work/issues/`)

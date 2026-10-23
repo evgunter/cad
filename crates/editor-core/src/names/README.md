@@ -12,7 +12,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 
 | Decisions | Module |
 |---|---|
-| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: split's carried-name test and the mate member walk) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
+| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: split's carried-name test, the mate member walk and the coincidence door's walk to a construction) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs` (an edge its closing join made over several trims, rim trims or survivors `Merged`), `emit_shell.rs` (the shell: survivors `From` the target's read, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
@@ -804,9 +804,9 @@ appearance key).
 **N6 — A cell's construction is read from the document.** A recorded
 cell is named by the read it entered the deciding operation through and its
 name there. The door reads its carrier at that name from the symbolic
-evaluation (D10, Coincidence); a pass-through placement adds no name segment
-(N1), so the read, not the name, carries where the cell was placed. The kernel
-carries no recipe provenance of a description.
+evaluation (D10, Coincidence); a placement or a mirror adds no name segment
+(N1), so the read, not the name, carries where the cell was placed or
+reflected. The kernel carries no recipe provenance of a description.
 
 **N7 — The topology-change sites, exhaustively.** (i) structural parameter
 change, (ii) reified predicate flip, N2 discriminators included, (iii) recipe
