@@ -80,6 +80,11 @@ with no PR and no CI run). State found at `31b979f5`:
 - Absorbed items: five closed by the first lane; this lane closed
   `the-viewer-cannot-mate-two-freshly-inserted-parts` (the door's
   rebundle drops the values a mate fixes).
-- Left: no CI has run; the absorbed items' PR number (now 5613);
-  the PR body (geometry moves by document and node, goldens, sweep
-  hit lists); a `[render]` commit.
+- Done by this lane: PR 5613 opened; CI's first run found three
+  digests and two doctests the first lane had not re-pinned
+  (`m4_pr4_ci`, `seat4_verb_lowering`, `msolve14_run_scalar`'s A3
+  fence; `node::SitedFace`, the GUIDE's plate journey). Each was
+  compared id-free against main before re-pinning; msolve14's three
+  moved seats are the space chart's, reported in its re-pin note.
+- Left: CI green on the final head; the gui render lane (its first
+  run died installing packages).
