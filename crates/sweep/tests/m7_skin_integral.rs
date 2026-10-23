@@ -140,6 +140,204 @@ fn the_homogeneous_lane_still_drifts_where_the_shipped_lane_does_not() {
     walls_are_integral(&g, "non-uniform loft");
 }
 
+/// The Cartesian solve of every row: `(x, y, z)` triples through the
+/// same collocation, no weight anywhere. What a constant-weight row's
+/// control points must be, bit for bit.
+fn cartesian_lane(
+    sections: &[NurbsCurve3<f64>],
+    v_degree: usize,
+    params: &[f64],
+) -> Vec<Point3<f64>> {
+    let n = sections[0].control().len();
+    let rows: Vec<Vec<f64>> = sections
+        .iter()
+        .map(|c| c.control().iter().flat_map(|p| p.to_array()).collect())
+        .collect();
+    let (_, solved) = interpolate_columns(params, v_degree, &rows).expect("cartesian lane solves");
+    let mut control = Vec::new();
+    for i in 0..n {
+        for row in &solved {
+            control.push(Point3::new(row[3 * i], row[3 * i + 1], row[3 * i + 2]));
+        }
+    }
+    control
+}
+
+fn bits(p: Point3<f64>) -> [u64; 3] {
+    p.to_array().map(f64::to_bits)
+}
+
+/// Asserts the skinned row `i` (its `nv` stations) is the Cartesian
+/// lane's control points at weight exactly `c`.
+fn assert_cartesian_row(
+    what: &str,
+    (control, weights): (&[Point3<f64>], &[f64]),
+    cartesian: &[Point3<f64>],
+    (i, nv): (usize, usize),
+    c: f64,
+) {
+    for at in i * nv..(i + 1) * nv {
+        assert_eq!(
+            weights[at].to_bits(),
+            c.to_bits(),
+            "{what}: row {i}, net index {at}: weight {} is not bit-exactly {c}",
+            weights[at]
+        );
+        assert_eq!(
+            bits(control[at]),
+            bits(cartesian[at]),
+            "{what}: row {i}, net index {at}: {:?} is not the Cartesian lane's {:?}",
+            control[at],
+            cartesian[at]
+        );
+    }
+}
+
+/// Asserts the skinned row `i` is the homogeneous lane's, bit for bit.
+fn assert_homogeneous_row(
+    what: &str,
+    (control, weights): (&[Point3<f64>], &[f64]),
+    (old_c, old_w): (&[Point3<f64>], &[f64]),
+    (i, nv): (usize, usize),
+) {
+    for at in i * nv..(i + 1) * nv {
+        assert!(
+            weights[at].to_bits() == old_w[at].to_bits() && bits(control[at]) == bits(old_c[at]),
+            "{what}: row {i}, net index {at} moved off the homogeneous lane: {:?} w {} vs {:?} w {}",
+            control[at],
+            weights[at],
+            old_c[at],
+            old_w[at]
+        );
+    }
+}
+
+/// Whether the homogeneous lane lands row `i` anywhere off the Cartesian
+/// lane at weight `c` — what makes a constant-weight row's pin bite.
+fn homogeneous_drifts(
+    (old_c, old_w): (&[Point3<f64>], &[f64]),
+    cartesian: &[Point3<f64>],
+    (i, nv): (usize, usize),
+    c: f64,
+) -> (bool, bool) {
+    let range = i * nv..(i + 1) * nv;
+    (
+        range.clone().any(|at| old_w[at] != c),
+        range
+            .into_iter()
+            .any(|at| bits(old_c[at]) != bits(cartesian[at])),
+    )
+}
+
+/// **An arc wall's rows are each constant-weight.** `arc_section`'s arc
+/// is one rational quadratic: its two end rows are the corners it
+/// shares with the line walls, at weight `1.0`, and its middle row
+/// carries the arc's weight `cos 45°`. The sections are identical
+/// copies, so every row is constant along the stack by construction,
+/// and every row skins in the Cartesian lane at its own weight — the
+/// corner rows at exactly `1.0`, which is what the line neighbour's
+/// boundary row holds. At z = 0, 1, 3 the homogeneous lane lands the
+/// corner rows' weights AND every row's control points off that, so
+/// neither a whole-wall homogeneous solve nor one whose weights are
+/// snapped back afterwards passes.
+#[test]
+fn an_arc_walls_rows_each_skin_cartesian_at_their_own_weight() {
+    let g = lofted_geometry(
+        &[
+            common::arc_section(1.0),
+            common::arc_section(1.0),
+            common::arc_section(1.0),
+        ],
+        &stacked_at(&[0.0, 1.0, 3.0]),
+    );
+    let sections = &g.sections[0][1];
+    let wall = &g.walls[0][1];
+    let params = &g.section_params;
+    let nv = params.len();
+    let (old_c, old_w) = homogeneous_lane(sections, 2, params);
+    let cartesian = cartesian_lane(sections, 2, params);
+    // The arc's own middle weight, `cos 45°` as the profile door
+    // rounds it.
+    let arc_w = sections[0].weights()[1];
+    let want = [1.0, arc_w, 1.0];
+    assert!(
+        sections[0].weights() == want.as_slice() && (arc_w - 0.5f64.sqrt()).abs() < 1e-15,
+        "the fixture's arc must be one rational quadratic, ends at 1 and middle at cos 45° \
+         (weights {:?})",
+        sections[0].weights()
+    );
+    let skinned = (wall.control(), wall.weights());
+    let old = (old_c.as_slice(), old_w.as_slice());
+    let corner_weight_drifts = homogeneous_drifts(old, &cartesian, (0, nv), 1.0).0;
+    let points_drift = (0..3).all(|i| homogeneous_drifts(old, &cartesian, (i, nv), want[i]).1);
+    assert!(
+        corner_weight_drifts && points_drift,
+        "the homogeneous lane must still land the corner row's weights and every row's \
+         points off the Cartesian lane here; if it no longer does, this row tests nothing"
+    );
+    for (i, c) in want.into_iter().enumerate() {
+        assert_cartesian_row("arc wall", skinned, &cartesian, (i, nv), c);
+    }
+}
+
+/// **Each row takes its own lane, decided over every section.** A
+/// static three-row net over four sections, its rows by construction:
+/// row 0 at weight `1.0` in every section (integral), row 1 at `1.0` in
+/// section 0 only (rational — a lane decided on one section, or on
+/// any section, would take it for integral), row 2 at `0.75` in every
+/// section (constant-weight). Rows 0 and 2 must be the Cartesian lane's
+/// at their constant; row 1 the homogeneous lane's, bit for bit.
+#[test]
+fn each_row_takes_its_own_lane() {
+    const INTEGRAL: usize = 0;
+    const MIXED: usize = 1;
+    const CONSTANT: usize = 2;
+    let weights = [
+        [1.0, 1.0, 0.75],
+        [1.0, 0.8, 0.75],
+        [1.0, 0.9, 0.75],
+        [1.0, 0.85, 0.75],
+    ];
+    let heights = [0.0, 0.7, 1.9, 3.0];
+    let sections: Vec<NurbsCurve3<f64>> = heights
+        .iter()
+        .zip(weights)
+        .enumerate()
+        .map(|(k, (z, w))| {
+            let k = f64::from(u8::try_from(k).expect("four sections"));
+            NurbsCurve3::new(
+                geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2)
+                    .expect("one quadratic span"),
+                vec![
+                    Point3::new(0.0, 0.1 * k, *z),
+                    Point3::new(1.0 + 0.3 * k, 1.1, *z),
+                    Point3::new(2.0, 0.2 - 0.05 * k, *z),
+                ],
+                w.to_vec(),
+            )
+            .expect("a section")
+        })
+        .collect();
+    let params = [0.0, 0.3, 0.65, 1.0];
+    let nv = params.len();
+    let wall = sweep::skin::skin_on(&sections, 2, &params).expect("the net skins");
+    let (old_c, old_w) = homogeneous_lane(&sections, 2, &params);
+    let cartesian = cartesian_lane(&sections, 2, &params);
+    let old = (old_c.as_slice(), old_w.as_slice());
+    let (integral_w, integral_p) = homogeneous_drifts(old, &cartesian, (INTEGRAL, nv), 1.0);
+    let (constant_w, constant_p) = homogeneous_drifts(old, &cartesian, (CONSTANT, nv), 0.75);
+    assert!(
+        integral_w && integral_p && constant_w && constant_p,
+        "the homogeneous lane must land the integral and constant rows' weights and points \
+         off the Cartesian lane here ({integral_w} {integral_p} {constant_w} {constant_p}); \
+         if it no longer does, this row tests nothing"
+    );
+    let skinned = (wall.control(), wall.weights());
+    assert_cartesian_row("integral row", skinned, &cartesian, (INTEGRAL, nv), 1.0);
+    assert_cartesian_row("constant row", skinned, &cartesian, (CONSTANT, nv), 0.75);
+    assert_homogeneous_row("mixed row", skinned, old, (MIXED, nv));
+}
+
 /// **Pin 3: the uniform case did not move a bit.** For every wall of
 /// the `loft_prism` corpus loft, the shipped control points are
 /// BITWISE the ones the old homogeneous lane produced. (The other half

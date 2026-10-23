@@ -592,9 +592,12 @@ pub fn axes_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
 /// plane of the body's planar face whose outward normal is `normal`'s
 /// direction, or its opposite flipped, slid along it onto `origin` — a
 /// split's tool or a plane target parallel to a face of the body,
-/// written with no turn, so it stands exactly where it is meant. A
-/// placed copy is read where its placement put it, `origin` and
-/// `normal` carried there with it.
+/// written with no turn, so it stands exactly where it is meant. A face
+/// whose plane passes through `origin`, within `tol`'s ε, is that
+/// plane, read with no slide; of several, the first by name, so the
+/// face read is the document's choice and never the arena's. A placed
+/// copy is read where its placement put it, `origin` and `normal`
+/// carried there with it.
 ///
 /// # Panics
 ///
@@ -629,9 +632,9 @@ pub fn plane_on(
         None => (n, o),
         Some(m) => (m.linear * n, m.transform_point(o)),
     };
-    let (face, sense, at) = solid
+    let parallel: Vec<_> = solid
         .faces()
-        .find_map(|(face, _)| {
+        .filter_map(|(face, _)| {
             let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
             (kind == geom::SurfaceKind::Plane).then_some(())?;
             let pose = topo::readback::face_pose(&solid, face).ok()?;
@@ -645,14 +648,28 @@ pub fn plane_on(
             };
             Some((face, sense, pose.origin))
         })
-        .unwrap_or_else(|| panic!("{node} has a planar face with normal {normal:?}"));
-    let name = table
-        .name_of(&crate::names::EntityRef {
-            body: 0,
-            key: crate::names::EntityKey::Face(face),
-        })
-        .expect("a face of the body is named")
-        .clone();
+        .collect();
+    let named = |face| {
+        table
+            .name_of(&crate::names::EntityRef {
+                body: 0,
+                key: crate::names::EntityKey::Face(face),
+            })
+            .expect("a face of the body is named")
+            .clone()
+    };
+    let through = parallel
+        .iter()
+        .filter(|(_, _, at)| (o - *at).dot(n).abs() <= tol.eps())
+        .map(|&(face, sense, at)| (named(face), sense, at))
+        .min_by(|a, b| a.0.cmp(&b.0));
+    let (name, sense, at) = match through.clone() {
+        Some(on) => on,
+        None => parallel
+            .first()
+            .map(|&(face, sense, at)| (named(face), sense, at))
+            .unwrap_or_else(|| panic!("{node} has a planar face with normal {normal:?}")),
+    };
     let read = |def| RoleRead::plain(crate::Operand::Pose(Box::new(def)));
     let plane = read(PoseDef::Plane {
         face: crate::Operand::select(body, vec![name]),
@@ -662,10 +679,10 @@ pub fn plane_on(
     } else {
         read(PoseDef::Flip { pose: plane })
     };
-    let by = (o - at).dot(n);
-    if by == 0.0 {
+    if through.is_some() {
         return plane;
     }
+    let by = (o - at).dot(n);
     let along = RoleRead::through(plane.read.clone(), PoseRole::Normal);
     read(PoseDef::Slide {
         pose: plane,
@@ -1021,8 +1038,8 @@ pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     use crate::names::VerbatimEdge;
     Some(match crate::names::verbatim_edge(node)? {
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
-        VerbatimEdge::Intact => VerbatimKind::Intact,
-        VerbatimEdge::Reflected => VerbatimKind::Reflected,
+        VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
+        VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
     })
 }
 

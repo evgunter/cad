@@ -1710,8 +1710,9 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
 }
 
 /// **One at-rest census decision** ([`crate::Product::coincidences`]):
-/// a mated pair's, which the mate's record cites, or a contact between
-/// two copies that no record backs.
+/// a mated pair's, which the mate's record cites, a contact between
+/// two copies that no record backs, or a flush pair between two copies,
+/// which no record cites (`topo::AtRestPolicy::flush_at_rest`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtRestRow {
     /// Whose pair the census decided.
@@ -1727,7 +1728,7 @@ pub enum AtRestBy {
     /// The constraint whose two faces the census read as one carrier.
     Mate(crate::mate::MateRef),
     /// Two copies the census found in contact where no record backs it
-    /// (D1 (iii)): earlier in gather order first.
+    /// (D1 (iii)), or flush: earlier in gather order first.
     Copies(
         crate::checks::at_rest::CopyRef,
         crate::checks::at_rest::CopyRef,

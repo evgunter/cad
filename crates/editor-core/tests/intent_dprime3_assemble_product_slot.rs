@@ -15,7 +15,7 @@ use crate::fixture;
 use editor_core::{
     Bodies, BodyRead, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, SplitHalf, ValuePayload, VarId, apply,
 };
-use fixture::{insert, len, on_frame, run, square};
+use fixture::{len, on_frame, run, square};
 use geom_core::Tol;
 
 /// A block of half-width `half` centred at `(x, y)`, from `0` to

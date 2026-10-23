@@ -267,10 +267,16 @@ mod result_gate_sites;
 mod review_4996_carry_probes;
 #[path = "review_4996_r2_probes.rs"]
 mod review_4996_r2_probes;
+#[path = "review_census_fixpass_probes.rs"]
+mod review_census_fixpass_probes;
+#[path = "review_census_r2_probes.rs"]
+mod review_census_r2_probes;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
 mod review_cleave_nurbs_lane;
+#[path = "review_intent_census_r1_probes.rs"]
+mod review_intent_census_r1_probes;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]

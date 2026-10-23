@@ -155,15 +155,35 @@ fn beam_across_two_supports(lift: f64) -> Body<f64> {
     ])
 }
 
-/// **A beam resting across two supports clears.** The beam's two
-/// bottom edges cross each support's two top edges in the plane `z = 1`, so the
+/// **A beam resting across two supports clears.** The beam's bottom
+/// rests on each support's top over an area: one face pair each, which
+/// the census confirms and reads as a rest, asking nothing of the
+/// edges bounding them. Where no pair can be confirmed (the structural
+/// twin, which holds no region door), the beam's two bottom edges
+/// cross each support's two top edges in the plane `z = 1`, so the
 /// sweeps report edge crosses; each is read at the crossing point
 /// through the two edges' wedges, which the plane `z = 1` separates.
 /// Together with the edges lying in the other's faces, every finding
 /// is a rest.
 #[test]
 fn a_beam_across_two_supports_clears() {
-    let errors = errors_of(&beam_across_two_supports(0.0));
+    let body = beam_across_two_supports(0.0);
+    let certified = errors_of(&body);
+    assert_eq!(certified.len(), 2, "{certified:?}");
+    assert!(
+        certified.iter().all(|e| matches!(
+            e,
+            ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::ConformalPatch { .. },
+                ..
+            }
+        )),
+        "{certified:?}"
+    );
+    assert!(placement_findings(&certified).is_empty(), "{certified:?}");
+    let errors =
+        topo::validate_pseudomanifold_structural(&body, &ContactRecords::default(), Tol::witness())
+            .unwrap_err();
     assert_eq!(crosses(&errors), 8, "{errors:?}");
     assert_eq!(pierces(&errors), 0, "{errors:?}");
     assert!(placement_findings(&errors).is_empty(), "{errors:?}");

@@ -2649,8 +2649,8 @@ pub fn split(
                     }
                     Some(
                         crate::names::VerbatimEdge::Selected { .. }
-                        | crate::names::VerbatimEdge::Intact
-                        | crate::names::VerbatimEdge::Reflected,
+                        | crate::names::VerbatimEdge::Intact { .. }
+                        | crate::names::VerbatimEdge::Reflected { .. },
                     )
                     | None => None,
                 };

@@ -444,10 +444,10 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         panic!("both cells walk to the box: {residual:?}")
     };
     assert_eq!(a.origin, b.origin, "one extrude minted both tops");
-    assert_ne!(a.placed, b.placed, "placed by two instances");
+    assert_ne!(a.maps, b.maps, "placed by two instances");
     assert_eq!(
         residual.to_string(),
-        "the two cells are one construction placed apart; the replay with every variable a \
+        "the two cells are one construction placed or reflected apart; the replay with every variable a \
          symbol took other decisions there",
         "a row no node decided matches no row of the replay"
     );
@@ -805,7 +805,9 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         "both caps lie on the one tool plane"
     );
     let [Ok(a), Ok(b)] = caps.each_ref().map(|c| match c {
-        NamedCell::Entity { input, name } => coincide::construction(&doc, *input, name),
+        NamedCell::Entity { input, name } => {
+            coincide::construction(&doc, *input, name, Tol::witness())
+        }
         NamedCell::Tool { .. } | NamedCell::Piece { .. } => unreachable!(),
     }) else {
         panic!("both caps walk")
@@ -813,7 +815,7 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     let Some(Node::Split { tool, .. }) = doc.node(split) else {
         panic!("the split")
     };
-    assert_eq!(a.origin, coincide::Origin::Tool(tool.read, tool.role));
+    assert_eq!(a.origin, coincide::Origin::Pose(tool.read, tool.role));
     assert_eq!(a, b);
     for proof in proofs(&doc, union, &got) {
         assert!(
@@ -1656,15 +1658,22 @@ fn two_documents_variables_are_two_symbols() {
 /// one** (D10, `Placed::World`). A unit block placed at the identity
 /// and again turned half a turn about z and moved 2 along x and 1
 /// along y: the copies meet at x = 1, each by the image of the block's
-/// own +x wall, so every row between them names the same face, edge or
-/// vertex of the one construction in each cell. The door walks each
-/// cell through its copy's placement, so none of those rows is proven
-/// `SameConstruction`, and the check reports every one.
+/// own +x wall, and lie flush on four sides, so every row between them
+/// names the same face, edge or vertex of the one construction in each
+/// cell. The door walks each cell through its copy's placement, so
+/// none of those rows is proven `SameConstruction`.
+///
+/// The seat and the two side walls are reported. Their coincidence
+/// holds only because the turned copy's move equals the block's width.
+/// The top and bottom walls lie on the planes both copies hold for every
+/// value (the turn is about z), which the replay's carrier verdict
+/// proves.
 ///
 /// Red if the walk drops the placement: same-cell rows between copies
 /// then read as one construction and go silent.
 #[test]
 fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
+    use editor_core::coincide::{Proof, Rung};
     let doc = ProfileDoc::empty_derived("coincide-copies-same-face", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _) = crate::fixture::place(doc, the_box);
@@ -1682,21 +1691,52 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
     let doc = crate::fixture::pin(doc, q, &turned, &EvalOptions::default());
     let ev = run(&doc);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
-    let rows = product.coincidences.len();
-    assert!(
-        rows > 0
-            && product
-                .coincidences
-                .iter()
-                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
-        "the copies' touch is their rows: {:?}",
-        product.coincidences
+    let proofs: Vec<(topo::Relation, Option<Rung>)> = product
+        .coincidences
+        .iter()
+        .map(|r| {
+            let editor_core::AtRestBy::Copies(a, _) = r.by else {
+                panic!(
+                    "the copies' touch is their rows: {:?}",
+                    product.coincidences
+                )
+            };
+            let node = doc.operation_of(a.var).expect("a copy's placement");
+            let rows = [r.row.clone()];
+            let proof = editor_core::coincide::prove(
+                &doc,
+                &[(node, &rows[..])],
+                None,
+                Tol::witness(),
+                &editor_core::CancelToken::new(),
+            )
+            .expect("the door runs");
+            let rung = match proof[0][0] {
+                Proof::Structural(rung) => Some(rung),
+                Proof::Unproven { .. } => None,
+            };
+            (r.row.relation, rung)
+        })
+        .collect();
+    let mut kinds = proofs.clone();
+    kinds.sort_by_key(|(relation, rung)| (format!("{relation:?}"), format!("{rung:?}")));
+    assert_eq!(
+        kinds,
+        vec![
+            (topo::Relation::SameOpposite, None),
+            (topo::Relation::SameOriented, None),
+            (topo::Relation::SameOriented, None),
+            (topo::Relation::SameOriented, Some(Rung::CarrierVerdict)),
+            (topo::Relation::SameOriented, Some(Rung::CarrierVerdict)),
+        ],
+        "the seat and the two side walls unproven, the top and bottom proven by their \
+         carriers, none one construction"
     );
     let reported = unproven(&doc, &ev)
         .into_iter()
         .filter(|f| matches!(f.subject, FindingSubject::Copies { .. }))
         .count();
-    assert_eq!(reported, rows, "every row between the copies is unproven");
+    assert_eq!(reported, 3, "and the check reports the three unproven");
 }
 
 /// **The door enters a report one way.** On a filleted corpus document,

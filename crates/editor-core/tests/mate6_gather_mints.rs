@@ -837,8 +837,10 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
 /// mate whose pair it decided. The row names each cap in its copy, as
 /// that instance's output names it. The two caps are the faces whose
 /// planes the mate equates, so the door's first rung proves the row
-/// (`[coincidence.structural]`) and `unproven-coincidence` reports
-/// nothing.
+/// (`[coincidence.structural]`). The two cubes stand flush on all four
+/// sides, and each side is a flush pair the census records as a row of
+/// its own (`[assertions]`); the mate equates no side's plane, so
+/// `unproven-coincidence` reports those four and nothing else.
 ///
 /// Red if the mint makes a record citing nothing the product holds,
 /// names a cap anywhere but in its copy, or the door leaves the mate's
@@ -860,9 +862,11 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
         topo::Cites::decided(0),
         "the record cites the product's row 0"
     );
-    let [row] = product.coincidences.as_slice() else {
-        panic!("one row: {:?}", product.coincidences);
+    let (seats, flush) = seat_and_flush(&product.coincidences);
+    let [row] = seats[..] else {
+        panic!("one seat row: {:?}", product.coincidences);
     };
+    assert_eq!(flush.len(), 4, "the four flush sides: {flush:?}");
     assert_eq!(
         row.by,
         editor_core::AtRestBy::Mate(mate),
@@ -898,12 +902,22 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
         Tol::witness(),
     )
     .expect("checks run over the stand");
-    assert!(
-        !report
-            .findings
-            .iter()
-            .any(|f| f.check == editor_core::CheckId::UnprovenCoincidence),
-        "the mate's own seat is proven: {report}"
+    let unproven: Vec<_> = report
+        .findings
+        .iter()
+        .filter_map(|f| match &f.evidence {
+            editor_core::CheckEvidence::UnprovenCoincidence { row, .. }
+                if f.check == editor_core::CheckId::UnprovenCoincidence =>
+            {
+                Some(row.relation)
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        unproven,
+        vec![topo::Relation::SameOriented; 4],
+        "the mate's own seat is proven, and the four flush sides are not: {report}"
     );
     assert_eq!(
         door(&stand, mate.placement, &row.row, &ev),
@@ -913,6 +927,22 @@ fn a_mated_record_cites_the_census_row_the_lint_reports() {
 }
 
 // ---- What the door reads a seat by ----
+
+/// A product's at-rest rows split into the seat's (two faces decided one
+/// carrier, opposed) and the flush pairs' (one carrier, aligned).
+fn seat_and_flush(
+    rows: &[editor_core::AtRestRow],
+) -> (Vec<&editor_core::AtRestRow>, Vec<&editor_core::AtRestRow>) {
+    let (seats, rest): (Vec<_>, Vec<_>) = rows
+        .iter()
+        .partition(|r| r.row.relation == topo::Relation::SameOpposite);
+    assert!(
+        rest.iter()
+            .all(|r| r.row.relation == topo::Relation::SameOriented),
+        "every other row is a flush pair: {rest:?}"
+    );
+    (seats, rest)
+}
 
 /// **The door's one proof of `row`**, decided at `at` with `ev`'s
 /// resolver.
@@ -1049,8 +1079,9 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
     let (doc, ids, mate) = stand("mate6-states-stand", part, body, 0.0, &store);
     let ev = run(&doc, &with_resolver(store.clone()));
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("the stand gathers");
-    let [seat] = product.coincidences.as_slice() else {
-        panic!("one row: {:?}", product.coincidences);
+    let (seats, _) = seat_and_flush(&product.coincidences);
+    let [seat] = seats[..] else {
+        panic!("one seat row: {:?}", product.coincidences);
     };
     let (upper_bottom, lower_top) = (
         copy_cap(&doc, ids[1], body, CapEnd::Start),
@@ -1388,4 +1419,112 @@ fn the_gate_skips_a_mate_on_a_loose_copy_and_mints_the_placed_ones() {
         gathered.unminted
     );
     crate::fixture::assert_mints_nothing(&doc, &ev, loose_mate);
+}
+
+/// **The name of `body`'s entity `seg` in `instance`'s copy**: the
+/// part's own name, which the instance's copy carries verbatim, read at
+/// the instance ([`fixture::resolver::in_part_of`]).
+fn in_part_entity(
+    instance: RecipeNodeId,
+    body: RecipeNodeId,
+    kind: EntityKind,
+    seg: RoleSeg,
+) -> InPart {
+    fixture::resolver::in_part_of(kind, instance, body, seg)
+}
+
+/// **A mate's wall states the rim on it** (`[coincidence.structural]`):
+/// two cubes of one part, the upper's `x = 0` wall rested on the
+/// lower's `x = 1` wall. The upper's end rim over that wall lies on the
+/// wall it bounds, so a row laying it on the lower's wall is the mate's
+/// statement, proven by the first rung. A rim over another wall is no
+/// cell of the mate's faces, and a standoff (the lower wall's plane slid
+/// `0` along its normal) equates no face's plane, so neither is the
+/// mate's statement.
+#[test]
+fn a_mates_wall_states_the_rim_on_it_and_a_standoff_states_nothing() {
+    let mut store = PartStore::default();
+    let (part_doc, part_body) = cube_part("mate6-wall-cube");
+    // Segment 1 runs along x = 1 and segment 3 along x = 0 (the square's
+    // corner order).
+    let (east, west, south) = (
+        fixture::wall(&part_doc, part_body, 1),
+        fixture::wall(&part_doc, part_body, 3),
+        fixture::wall(&part_doc, part_body, 0),
+    );
+    let rim = |seg: &RoleSeg| match seg {
+        RoleSeg::Lateral(run) => RoleSeg::RimEdge(CapEnd::End, run.clone()),
+        other => panic!("a wall, got {other:?}"),
+    };
+    let (part, body) = store.insert_part((part_doc, part_body), Tol::witness());
+    let standoff = |to: InPart| {
+        use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+        let up = || fixture::flip(fixture::plane(fixture::head(to.clone())));
+        editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::plain(up()),
+            along: RoleRead::through(up(), PoseRole::Normal),
+            by: len(0.0),
+        }))
+    };
+    for (label, stated) in [("mate6-wall-rest", true), ("mate6-wall-standoff", false)] {
+        let (doc, ids, mate) = stand_by(label, part, &store, |ids| {
+            let (on, to) = (
+                in_part_entity(ids[1], body, EntityKind::Face, west.clone()),
+                in_part_entity(ids[0], body, EntityKind::Face, east.clone()),
+            );
+            if stated {
+                fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
+            } else {
+                editor_core::Mate {
+                    on: fixture::plane(fixture::head(on)),
+                    to: standoff(to),
+                    class: ContactClass::Rest,
+                }
+            }
+        });
+        let ev = run(&doc, &with_resolver(store.clone()));
+        let cell = |instance: RecipeNodeId, kind, seg: RoleSeg| {
+            let input = doc
+                .output(instance, 0)
+                .expect("an instance defines its copies");
+            let name = in_part_entity(instance, body, kind, seg).name;
+            assert!(
+                ev.table(input).is_some_and(|t| t.lookup(&name).is_some()),
+                "{label}: the premise, the copy names {name:?}"
+            );
+            NamedCell::Entity { input, name }
+        };
+        let lower_east = cell(ids[0], EntityKind::Face, east.clone());
+        let on_wall = door(
+            &doc,
+            mate.placement,
+            &at_rest_row(
+                vec![
+                    cell(ids[1], EntityKind::Edge, rim(&west)),
+                    lower_east.clone(),
+                ],
+                topo::Relation::OnCarrier,
+            ),
+            &ev,
+        );
+        assert_eq!(
+            on_wall == Proof::Structural(Rung::SameConstruction),
+            stated,
+            "{label}: the rim on the mated wall: {on_wall:?}"
+        );
+        let off_wall = door(
+            &doc,
+            mate.placement,
+            &at_rest_row(
+                vec![cell(ids[1], EntityKind::Edge, rim(&south)), lower_east],
+                topo::Relation::OnCarrier,
+            ),
+            &ev,
+        );
+        assert_ne!(
+            off_wall,
+            Proof::Structural(Rung::SameConstruction),
+            "{label}: a rim over another wall"
+        );
+    }
 }

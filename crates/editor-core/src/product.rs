@@ -1305,14 +1305,24 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         &|solid| groups.get(&solid).copied(),
         first_row,
     );
+    // The flush pairs between copies are rows of their own, which no
+    // record cites (`topo::AtRestPolicy::flush_at_rest`).
+    let flush = match geom_core::Band::linear(tol) {
+        Ok(band) => T::flush_at_rest(&aggregate, &|solid| groups.get(&solid).copied(), band),
+        Err(error) => topo::FlushAtRest {
+            findings: vec![ValidationError::Band { error }],
+            ..topo::FlushAtRest::default()
+        },
+    };
     contacts.extend(recorded.records.rows().iter().cloned());
     coincidences.extend(crate::checks::at_rest::copy_rows(
         &aggregate,
         &names,
         &copies,
-        recorded.rows,
+        recorded.rows.into_iter().chain(flush.rows).collect(),
     ));
-    let census = recorded.findings;
+    let mut census = recorded.findings;
+    census.extend(flush.findings);
     let gap_assertions =
         crate::checks::at_rest::gap_assertions(doc, evaluation, &aggregate, &names, &copies, tol);
     Ok(Product {

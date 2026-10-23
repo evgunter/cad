@@ -92,6 +92,19 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     }
 }
 
+/// [`errors`] where no face pair can be confirmed: the structural twin
+/// holds no region door, so no pair is confirmed and every crossing on
+/// a seat's boundary is read through the crossing rung's screens, which
+/// the certified census does not reach once it confirms the seat's own
+/// pair, which answers for the touches of its boundary inside its
+/// overlap's closure (`[assertions]`).
+fn structural(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
+    match topo::validate_pseudomanifold_structural(body, records, Tol::witness()) {
+        Ok(()) => Vec::new(),
+        Err(e) => e,
+    }
+}
+
 /// A crossing's side verdict.
 fn side(contact: &CensusContact) -> Option<CrossingSideVerdict> {
     match contact {
@@ -199,14 +212,16 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
     }
 }
 
-/// **The region half, attacked the way the grandfathered rungs give
-/// in** (`review_mate4a_r2_probes` probe 1): a declared pair that is
-/// GENUINELY VERIFIED — a second post resting flush under the shelf,
-/// door 1 and door 2 both answering — but whose interface does not
-/// hold the crossing points. The rung is born region-confined: the
-/// verified-elsewhere pair answers for nothing here, the crossings
-/// stay hard, and their witnesses are byte-identical to the bare
-/// seat's (no verdict named — the pair never spoke).
+/// **The region half**: a declared pair that is GENUINELY VERIFIED — a
+/// second post resting flush under the shelf, door 1 and door 2 both
+/// answering — but whose interface does not hold the crossing points
+/// changes nothing about them. The crossings lie on the boundary of the
+/// seat's own pair, cap on underside, which the census confirms whether
+/// or not it is recorded and which answers for them, inside its
+/// overlap's closure, so they are no finding
+/// either way; the seat's pair is the one finding, unrecorded. The
+/// rung's own confinement against a confirmed pair elsewhere is
+/// `census::tests::a_confirmed_pair_elsewhere_backs_no_crossing`.
 #[test]
 fn a_verified_pair_elsewhere_backs_no_crossing() {
     let post: common::Prism<f64> = common::prism_z(
@@ -233,16 +248,32 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
     let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
 
-    let bare = crossings(&errors(&body, &ContactRecords::default()));
+    let bare = errors(&body, &ContactRecords::default());
     let found = errors(&body, &declared(&body, &[(flush_top, shelf_bottom)]));
     let crossed = crossings(&found);
     assert_eq!(
-        format!("{bare:?}"),
+        format!("{:?}", crossings(&bare)),
         format!("{crossed:?}"),
         "a verified pair whose region does not hold the crossing \
          points changes nothing about them"
     );
-    assert_eq!(crossed.len(), 2, "{found:?}");
+    assert!(crossed.is_empty(), "{found:?}");
+    let seat = |errors: &[ValidationError]| {
+        errors
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::UnrecordedContact {
+                        contact: CensusContact::ConformalPatch { .. },
+                        ..
+                    }
+                )
+            })
+            .count()
+    };
+    assert_eq!(seat(&found), 1, "the post's own seat: {found:?}");
+    assert_eq!(seat(&bare), 2, "both seats, bare: {bare:?}");
     // And the flush pair's own seat IS answered: its declaration is
     // neither contradicted nor stale, and no finding names its faces.
     assert!(
@@ -275,7 +306,7 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
 fn a_perpendicular_pair_holding_the_point_names_nothing() {
     let (body, _, post_side_x030, _, shelf_side_y030) = straddle_parts();
     let pair = (post_side_x030, shelf_side_y030);
-    let found = errors(&body, &declared(&body, &[pair]));
+    let found = structural(&body, &declared(&body, &[pair]));
     let crossed = crossings(&found);
     assert_eq!(crossed.len(), 2, "{found:?}");
     assert!(
@@ -313,7 +344,10 @@ fn a_perpendicular_pair_holding_the_point_names_nothing() {
 /// y ∈ [0.30, 0.42]` — zero area — so the region walk refuses
 /// `TouchingBoundary`, the witness rung finds no interior point, and
 /// Door 2 never answers `PositiveArea`. The pair answers for nothing;
-/// the crossing it corner-touches stays a hard finding.
+/// the events on the boundary segment the two share stand as they do
+/// with nothing declared. (The crossing it corner-touches lies on the
+/// boundary of the post's own seat under the shelf, which the census
+/// confirms and which answers for it, inside its overlap's closure.)
 ///
 /// GUARD CONTRACT: this row goes red under the mutation
 /// `pair_region_verified(..) → true` — the verified-interface
@@ -347,21 +381,31 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
     let bkeys = topo::graft_disjoint_all_keyed(&mut body, &block.body).unwrap();
     let block_bottom = bkeys.face(block.bottom_face).unwrap();
 
-    let bare = crossings(&errors(&body, &ContactRecords::default()));
+    let unrecorded = |errors: &[ValidationError]| -> Vec<CensusContact> {
+        errors
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::UnrecordedContact { contact, .. } => Some(*contact),
+                _ => None,
+            })
+            .collect()
+    };
+    let bare = unrecorded(&errors(&body, &ContactRecords::default()));
     let found = errors(&body, &declared(&body, &[(post_top, block_bottom)]));
-    let with = crossings(&found);
+    let with = unrecorded(&found);
     assert_eq!(
-        format!("{bare:?}"),
-        format!("{with:?}"),
+        bare, with,
         "a point-holding, edge-holding, opposite-sided pair whose \
          overlap region has no positive area answers for nothing"
     );
-    assert_eq!(with.len(), 2, "{found:?}");
-    assert!(
-        with.iter().all(|(c, _)| side(c).is_none()),
-        "and no verdict is named — the pair never verified, so it \
-         never spoke: {with:?}"
+    assert_eq!(
+        with.iter()
+            .filter(|c| matches!(c, CensusContact::VertexOnEdge { .. }))
+            .count(),
+        2,
+        "the two corners on the shared segment stand: {found:?}"
     );
+    assert!(crossings(&found).is_empty(), "{found:?}");
 }
 
 /// **The pierce pin.** `EdgeFacePierce` consults NO rung: a
