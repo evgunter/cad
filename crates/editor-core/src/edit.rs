@@ -4964,14 +4964,24 @@ fn stranded_references<P: crate::ProfilePayload>(
         .collect()
 }
 
-/// Whether `carrier` is an appearance key whose body read the delete of
-/// `deleted` took: the operation defining it, in `before`.
+/// Whether `carrier` is an appearance key or a selection whose body
+/// read the delete of `deleted` took: the operation defining it, in
+/// `before`. A copy carries its source's names, so a name read in a
+/// copy goes with the copy whichever node minted it.
 fn body_went<P: crate::ProfilePayload>(
     before: &Doc<P>,
     carrier: NameCarrier<'_>,
     deleted: RecipeNodeId,
 ) -> bool {
-    matches!(carrier, NameCarrier::Store { body, .. } if before.operation_of(body) == Some(deleted))
+    let body = match carrier {
+        NameCarrier::Store { body, .. } => body,
+        NameCarrier::Select { var, .. } => match before.selection(var) {
+            Some(select) => select.body,
+            None => return false,
+        },
+        NameCarrier::Payload { .. } => return false,
+    };
+    before.operation_of(body) == Some(deleted)
 }
 
 /// **A `SetProgram`'s step ids, checked and minted** — before the

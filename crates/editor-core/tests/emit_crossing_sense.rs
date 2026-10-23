@@ -229,10 +229,12 @@ fn a_corner_resting_on_a_face_is_the_corner_in_either_order() {
         let [name] = names.as_slice() else {
             panic!("{members:?}: one name at the corner: {names:?}");
         };
-        let [RoleSeg::From { of, .. }] = name.path.as_slice() else {
+        let [RoleSeg::From { read, of }] = name.path.as_slice() else {
             panic!("{members:?}: the corner is a member's own vertex: {name:?}");
         };
-        assert_eq!(of.node, b, "{members:?}: b's corner: {name:?}");
+        // `b` is a copy, carrying its source's names: the corner is the
+        // one read through `b`.
+        assert_eq!(Some(*read), doc.output(b, 0), "{members:?}: b's corner: {name:?}");
         match &first {
             None => first = Some((**of).clone()),
             Some(want) => assert_eq!(**of, *want, "{members:?}"),

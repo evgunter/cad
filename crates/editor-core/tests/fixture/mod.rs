@@ -2027,7 +2027,20 @@ impl Recorder {
             editor_core::BodyRead::plain(read),
             placed.bundle(),
         );
-        self.insert(node)
+        let at = self.insert(node);
+        if self.doc.node_space(at) == Some(editor_core::VarId::WORLD) {
+            self.world_product();
+        }
+        at
+    }
+
+    /// **The product written anew as the world's copies**, recorded
+    /// ([`editor_core::test_support::world_product_edits`]): what a
+    /// world placement calls, so a replayed log carries its product.
+    pub fn world_product(&mut self) {
+        let (doc, edits) = editor_core::test_support::world_product_edits(self.doc.clone());
+        self.doc = doc;
+        self.edits.extend(edits);
     }
 
     /// **One copy of `body` in the world** (A10), standing where its

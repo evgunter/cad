@@ -399,11 +399,14 @@ fn a_mates_side_strands_as_a_read() {
         }),
         "the side's read is reported"
     );
+    // The product's `⊔` read the copy too, and strands as a read.
     assert!(
         matches!(
             &rows[1..],
-            [Maintenance::StrandedSelection { readers, name, .. }]
-                if readers == &vec![doc.spoken(mate.placement)] && *name.name() == head_a
+            [
+                Maintenance::StrandedRead { slot: editor_core::OperandSlot::Member(0), .. },
+                Maintenance::StrandedSelection { readers, name, .. },
+            ] if readers == &vec![doc.spoken(mate.placement)] && *name.name() == *head_a
         ),
         "and its selection, once, naming the side's face: {rows:?}"
     );
@@ -628,6 +631,7 @@ fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
             rows.as_slice(),
             [
                 Maintenance::StrandedRead { node, .. },
+                Maintenance::StrandedRead { slot: editor_core::OperandSlot::Member(0), .. },
                 Maintenance::StrandedSelection { .. },
                 Maintenance::StrandedAppearance { name, .. },
             ] if *node == doc.spoken(mate) && *name == doc.spoken_name(&painted.name)

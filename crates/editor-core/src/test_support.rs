@@ -1298,13 +1298,29 @@ mod tests {
 ///
 /// If a door refuses an edit it writes.
 #[must_use]
-#[allow(clippy::expect_used)]
 pub fn with_world_product(doc: ProfileDoc) -> ProfileDoc {
+    world_product_edits(doc).0
+}
+
+/// **[`with_world_product`] with the edits it wrote**, in the order it
+/// wrote them: what a recorded log replays to reach the same product.
+///
+/// # Panics
+///
+/// If a door refuses an edit it writes.
+#[must_use]
+#[allow(clippy::expect_used)]
+pub fn world_product_edits(
+    doc: ProfileDoc,
+) -> (ProfileDoc, Vec<crate::DocEdit<ProfileProgram>>) {
     let tol = geom_core::Tol::witness();
-    let apply = |doc: &ProfileDoc, edit: crate::DocEdit<ProfileProgram>| -> ProfileDoc {
-        crate::apply(doc, &edit, tol)
+    let mut log = Vec::new();
+    let apply = |log: &mut Vec<_>, doc: &ProfileDoc, edit: crate::DocEdit<ProfileProgram>| {
+        let out = crate::apply(doc, &edit, tol)
             .unwrap_or_else(|e| panic!("the product's edit applies: {e}"))
-            .doc
+            .doc;
+        log.push(edit);
+        out
     };
     let mut doc = doc;
     // A `⊔` the slot reads, read by nothing else, is this helper's own.
@@ -1322,9 +1338,9 @@ pub fn with_world_product(doc: ProfileDoc) -> ProfileDoc {
                 })
             })
         });
-    doc = apply(&doc, crate::DocEdit::SetProduct { product: None });
+    doc = apply(&mut log, &doc, crate::DocEdit::SetProduct { product: None });
     if let Some(at) = held {
-        doc = apply(&doc, crate::DocEdit::DeleteNode { id: at });
+        doc = apply(&mut log, &doc, crate::DocEdit::DeleteNode { id: at });
     }
     let copies: Vec<crate::VarId> = doc
         .placements()
@@ -1334,33 +1350,33 @@ pub fn with_world_product(doc: ProfileDoc) -> ProfileDoc {
         .filter(|&copy| doc.var(copy).is_some_and(|v| v.kind() == crate::VarKind::Body))
         .collect();
     let product = match copies.as_slice() {
-        [] => return doc,
+        [] => return (doc, log),
         [one] => crate::Operand::Var(*one),
         several => {
-            let outcome = crate::apply(
-                &doc,
-                &crate::DocEdit::InsertNode {
-                    node: Box::new(Node::Assemble {
-                        members: crate::Bodies::Spelled(
-                            several
-                                .iter()
-                                .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
-                                .collect(),
-                        ),
-                    }),
-                    fresh: Vec::new(),
-                },
-                tol,
-            )
-            .unwrap_or_else(|e| panic!("the world's copies assemble: {e}"));
+            let insert = crate::DocEdit::InsertNode {
+                node: Box::new(Node::Assemble {
+                    members: crate::Bodies::Spelled(
+                        several
+                            .iter()
+                            .map(|&copy| crate::BodyRead::plain(crate::Operand::Var(copy)))
+                            .collect(),
+                    ),
+                }),
+                fresh: Vec::new(),
+            };
+            let outcome = crate::apply(&doc, &insert, tol)
+                .unwrap_or_else(|e| panic!("the world's copies assemble: {e}"));
+            log.push(insert);
             doc = outcome.doc;
             crate::Operand::Node(outcome.record.minted.expect("an insert mints its node"))
         }
     };
-    apply(
+    let doc = apply(
+        &mut log,
         &doc,
         crate::DocEdit::SetProduct {
             product: Some(product),
         },
-    )
+    );
+    (doc, log)
 }
