@@ -920,6 +920,7 @@ fn a_number_that_moves_nothing_is_reported() {
 fn inline_moves_a_landing_under_a_world_value_with_its_instance() {
     let (part, _) = box_on_the_floor([0.5, 0.0, 0.0], [0, 1, 2]);
     let mut store = fixture::resolver::PartStore::new();
+    let part = crate::fixture::world_product(part);
     let part_ref = store.insert(part, Tol::witness());
     let o = fixture::resolver::with_resolver(store.clone());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
@@ -1445,6 +1446,7 @@ fn a_copy_stands_where_its_body_stands_at_every_value() {
 fn inline_carries_a_standing_copy_at_the_identity_and_at_a_moved_landing() {
     let (part, _) = a_box_of_height_standing(1.0);
     let mut store = fixture::resolver::PartStore::new();
+    let part = crate::fixture::world_product(part);
     let part_ref = store.insert(part, Tol::witness());
     let o = fixture::resolver::with_resolver(store.clone());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
@@ -1520,7 +1522,7 @@ fn a_part_inlined_twice_lands_at_the_composed_pose() {
     let mut store = fixture::resolver::PartStore::new();
     let mut doc = part;
     for (level, &at) in poses[1..].iter().enumerate() {
-        let doc_ref = store.insert(doc, Tol::witness());
+        let doc_ref = store.insert(crate::fixture::world_product(doc), Tol::witness());
         let o = fixture::resolver::with_resolver(store.clone());
         let resolver: std::sync::Arc<dyn editor_core::PartResolver> =
             std::sync::Arc::new(store.clone());

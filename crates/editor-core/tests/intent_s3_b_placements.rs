@@ -10,7 +10,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::resolver::{PartStore, placement_of, with_resolver};
+use crate::fixture::resolver::{InPart, PartStore, placement_of, with_resolver};
 use crate::fixture::{
     self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step,
 };
@@ -55,17 +55,10 @@ fn host(label: &str) -> (ProfileDoc, PartStore, editor_core::DocRef, RecipeNodeI
     (doc, store, doc_ref, body)
 }
 
-/// **Face `seg` of the part's block, as instance `instance` names it**:
-/// the block's face under its part placement's copy, worn inside the
-/// instance's `InPart`.
-fn face_in(instance: RecipeNodeId, body: RecipeNodeId, seg: RoleSeg) -> StableName {
-    let own = StableName {
-        kind: editor_core::EntityKind::Face,
-        node: body,
-        path: vec![seg],
-    };
-    let _ = instance;
-    own
+/// **Face `seg` of the block, read at the copy `instance` carries it
+/// in**: the block's own name, which every copy of it carries verbatim.
+fn face_in(instance: RecipeNodeId, body: RecipeNodeId, seg: RoleSeg) -> InPart {
+    fixture::resolver::in_part_of(editor_core::EntityKind::Face, instance, body, seg)
 }
 
 /// `b`'s bottom resting on `a`'s top: the rest a stack starts from,
@@ -100,7 +93,7 @@ fn place_by_values(
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, placement) = insert(doc, crate::fixture::stood(body));
     (
-        fixture::pin(doc, placement, pose, &EvalOptions::default()),
+        fixture::world_product(fixture::pin(doc, placement, pose, &EvalOptions::default())),
         placement,
     )
 }
@@ -854,6 +847,7 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
         &Frame::translation([5.0, 0.0, 0.0]),
         &with_resolver(store.clone()),
     );
+    let mid = crate::fixture::world_product(mid);
     let mid_ref = store.insert(mid, Tol::witness());
     let top = ProfileDoc::empty(DocumentId::derive("s3b-nested-top"), Tol::witness());
     let (top, outer) = insert(

@@ -465,6 +465,7 @@ fn two_pinned(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// store holding `sub`.
 fn host_of(p: &Parts, sub: ProfileDoc, label: &str) -> (ProfileDoc, PartStore, RecipeNodeId) {
     let mut store = p.store.clone();
+    let sub = crate::fixture::world_product(sub);
     let sub_ref = store.insert(sub, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, h) = pinned_at(doc, sub_ref, [2.0, 8.0, 4.0], &with_resolver(store.clone()));
@@ -630,6 +631,7 @@ fn mate_placed(
     let (part, [part_base, part_top]) = pair_part(&p, &format!("{label}-part"), [0.0; 3]);
     let bottom = in_world_of(&part, base_bottom(&p, part_base));
     let mut store = p.store.clone();
+    let part = crate::fixture::world_product(part);
     let part_ref = store.insert(part, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
     let (host, ht) = instance(host, p.top, &with_resolver(store.clone()));

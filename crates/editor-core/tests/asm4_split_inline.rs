@@ -1348,6 +1348,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
             )),
         },
     );
+    let part_doc = crate::fixture::world_product(part_doc);
     let doc_ref = store.insert(part_doc, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-param-host"), Tol::witness());
     let (host, _) = step(
@@ -1386,6 +1387,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-eps-host"), Tol::witness());
     let moved_eps = host.epsilon() * 0.5;
     let (part_doc, _) = step(part_doc, DocEdit::SetTolerance { eps: moved_eps });
+    let part_doc = crate::fixture::world_product(part_doc);
     let doc_ref = store.insert(part_doc, Tol::witness());
     let (host, inst) = insert(host, crate::fixture::mated_instance(doc_ref));
     match inline(
@@ -1421,6 +1423,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         .expect("the carrying document loads")
         .doc;
     assert_eq!(carrying.metadata().len(), 1);
+    let carrying = crate::fixture::world_product(carrying);
     let doc_ref = store.insert(carrying, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-meta-host"), Tol::witness());
     let (host, inst) = insert(host, crate::fixture::mated_instance(doc_ref));
@@ -1544,6 +1547,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         );
         let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
         let part_doc = labelled(part_doc, body, "part body");
+        let part_doc = crate::fixture::world_product(part_doc);
         let doc_ref = store.insert(part_doc, Tol::witness());
         let o = with_resolver(store.clone());
         let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
@@ -1779,6 +1783,7 @@ fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
     }
 
     let mut store = PartStore::default();
+    let doc = crate::fixture::world_product(doc);
     let doc_ref = store.insert(doc, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-dropped-host"), Tol::witness());
     let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
@@ -2027,6 +2032,7 @@ fn a_split_and_an_inline_keep_a_reordered_profiles_step_order() {
     );
 
     let mut store = PartStore::default();
+    let doc = crate::fixture::world_product(doc);
     let doc_ref = store.insert(doc, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-order-host"), Tol::witness());
     let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
@@ -2102,6 +2108,7 @@ fn an_inline_keeps_each_profiles_order_and_refuses_a_run_across_two() {
     );
     let inline_into = |part: ProfileDoc, label: &str| {
         let mut store = PartStore::default();
+        let part = crate::fixture::world_product(part);
         let doc_ref = store.insert(part, Tol::witness());
         let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (host, instance) = pinned(host, doc_ref, &with_resolver(store.clone()));
@@ -2213,6 +2220,7 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
     let seat_bundle = fixture::bundle(&part, seat);
     let world_offset = fixture::offset_of(&part, world);
     let mut store = PartStore::default();
+    let part = crate::fixture::world_product(part);
     let doc_ref = store.insert(part, Tol::witness());
     let o = with_resolver(store.clone());
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);

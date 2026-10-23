@@ -92,6 +92,7 @@ fn instantiating(
     n: usize,
 ) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions) {
     let mut store = PartStore::new();
+    let part = crate::fixture::world_product(part.clone());
     let doc_ref = store.insert(part.clone(), Tol::witness());
     let opts = with_resolver(store);
     let mut doc = ProfileDoc::empty_derived(label, Tol::witness());
@@ -177,6 +178,7 @@ fn a_part_placed_twice_reports_its_overlap_once() {
 fn an_overlap_two_documents_down_carries_up_by_its_route() {
     let part = overlapping("seam-deep-part");
     let mut store = PartStore::new();
+    let part = crate::fixture::world_product(part);
     let part_ref = store.insert(part.clone(), Tol::witness());
     let opts = with_resolver(store);
     let mid = ProfileDoc::empty_derived("seam-deep-mid", Tol::witness());
@@ -184,7 +186,9 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
     let mid_own = gate(&mid, &opts).unwrap_or_else(|e| panic!("the middle refused: {e}"));
     assert_eq!(mid_own.carried_interference.len(), 1);
     let mut store = PartStore::new();
+    let part = crate::fixture::world_product(part);
     store.insert(part.clone(), Tol::witness());
+    let mid = crate::fixture::world_product(mid);
     let mid_ref = store.insert(mid, Tol::witness());
     let opts = with_resolver(store);
     let top = ProfileDoc::empty_derived("seam-deep-top", Tol::witness());
@@ -281,12 +285,15 @@ fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
         panic!("the part's own gate refuses its escalations")
     };
     let mut store = PartStore::new();
+    let part = crate::fixture::world_product(part);
     let part_ref = store.insert(part.clone(), Tol::witness());
     let opts = with_resolver(store);
     let mid = ProfileDoc::empty_derived("seam-deep-band-mid", Tol::witness());
     let (mid, inner) = insert_pinned(mid, crate::fixture::mated_instance(part_ref), &opts);
     let mut store = PartStore::new();
+    let part = crate::fixture::world_product(part);
     store.insert(part.clone(), Tol::witness());
+    let mid = crate::fixture::world_product(mid);
     let mid_ref = store.insert(mid, Tol::witness());
     let opts = with_resolver(store);
     let top = ProfileDoc::empty_derived("seam-deep-band-top", Tol::witness());

@@ -2637,6 +2637,39 @@ pub fn split(
             _ => None,
         }
     };
+    // The instance whose part's names `body` carries verbatim: its own
+    // copy, or a placement's copy of it (a copy's names are its
+    // source's). A name read there is spelled in the part's ids, never
+    // this document's, so the cut is decided by that instance.
+    let part_names_at = |mut at: RecipeNodeId| -> Option<RecipeNodeId> {
+        loop {
+            match doc.node(at)? {
+                Node::InstantiatePart { .. } => return Some(at),
+                Node::Place { source, .. } => at = doc.operation_of(source.read)?,
+                _ => return None,
+            }
+        }
+    };
+    let part_names = |body: VarId| part_names_at(doc.operation_of(body)?);
+    // A copy's own body row is minted at the copying node, so a name
+    // of that node is this document's.
+    let carrier_part = |carrier: NameCarrier<'_>| -> Option<RecipeNodeId> {
+        let body = match carrier {
+            NameCarrier::Store { body, .. } => body,
+            NameCarrier::Select { var, .. } => doc.selection(var)?.body,
+            NameCarrier::Payload { .. } => return None,
+        };
+        (doc.operation_of(body) != Some(carrier.name().node))
+            .then(|| part_names(body))
+            .flatten()
+    };
+    // A name `at`'s copy holds: one a cut world placement's copy
+    // carries ([`home`]), or a part's name a copy of an instance
+    // carries verbatim.
+    let holds = |name: &StableName, at: RecipeNodeId| {
+        home(name, Some(at)).is_some()
+            || (name.node != at && world(at) && part_names_at(at).is_some())
+    };
     // **The piece a remainder whole read of the cut re-points to**: at a
     // body seat, a read of a cut world placement's copy or of a pick of
     // it, or a read of a body one cut world `Place` copies at the
@@ -2732,10 +2765,7 @@ pub fn split(
                         doc.var_name(leaf).is_none()
                             && doc.selection(leaf).is_some_and(|select| {
                                 doc.operation_of(select.body).is_some_and(|at| {
-                                    select
-                                        .names
-                                        .iter()
-                                        .all(|name| home(name, Some(at)).is_some())
+                                    select.names.iter().all(|name| holds(name, at))
                                 })
                             })
                     };
@@ -2752,11 +2782,7 @@ pub fn split(
                     Some(select) => (
                         select.body,
                         doc.operation_of(select.body).is_some_and(|at| {
-                            cut.contains(&at)
-                                && select
-                                    .names
-                                    .iter()
-                                    .all(|name| home(name, Some(at)).is_some())
+                            cut.contains(&at) && select.names.iter().all(|name| holds(name, at))
                         }),
                     ),
                     None => match heir_of(node, slot, var) {
@@ -2856,32 +2882,6 @@ pub fn split(
         }
     }
     let moving = moving_vars(doc, &cut_refs, &kept_refs)?;
-    // The instance whose part's names `body` carries verbatim: its own
-    // copy, or a placement's copy of it (a copy's names are its
-    // source's). A name read there is spelled in the part's ids, never
-    // this document's, so the cut is decided by that instance.
-    let part_names_at = |mut at: RecipeNodeId| -> Option<RecipeNodeId> {
-        loop {
-            match doc.node(at)? {
-                Node::InstantiatePart { .. } => return Some(at),
-                Node::Place { source, .. } => at = doc.operation_of(source.read)?,
-                _ => return None,
-            }
-        }
-    };
-    let part_names = |body: VarId| part_names_at(doc.operation_of(body)?);
-    // A copy's own body row is minted at the copying node, so a name
-    // of that node is this document's.
-    let carrier_part = |carrier: NameCarrier<'_>| -> Option<RecipeNodeId> {
-        let body = match carrier {
-            NameCarrier::Store { body, .. } => body,
-            NameCarrier::Select { var, .. } => doc.selection(var)?.body,
-            NameCarrier::Payload { .. } => return None,
-        };
-        (doc.operation_of(body) != Some(carrier.name().node))
-            .then(|| part_names(body))
-            .flatten()
-    };
     // Each selection's readers, by node.
     let mut select_readers: BTreeMap<VarId, Vec<RecipeNodeId>> = BTreeMap::new();
     for id in doc.ids() {
@@ -3264,23 +3264,38 @@ pub fn split(
             {
                 continue;
             }
-            let inside = |name: &StableName| derivation_nodes(name).is_subset(cut);
-            let (outer, inner) = match (inside(&a.name), inside(&b.name)) {
-                (false, true) => (&a.name, &b.name),
-                (true, false) => (&b.name, &a.name),
+            // A part's name is inside where the copy carrying it is.
+            let inside = |head: &crate::node::SitedFace| {
+                if head.name.node != head.at && part_names_at(head.at).is_some() {
+                    cut.contains(&head.at)
+                } else {
+                    derivation_nodes(&head.name).is_subset(cut)
+                }
+            };
+            let (outer, inner) = match (inside(&a), inside(&b)) {
+                (false, true) => (&a, &b),
+                (true, false) => (&b, &a),
                 _ => continue,
             };
+            // An `outer` is a name of this document's: a part's name, read
+            // in a kept copy of an instance, is spelled in the part's ids
+            // and has no spelling a record can hold (issue
+            // `a-part-name-in-the-host-is-spelled-in-the-parts-ids`), so
+            // that crossing goes unrecorded.
+            if outer.name.node != outer.at && part_names_at(outer.at).is_some() {
+                continue;
+            }
             // The part-side reference is stored in the PART's own names:
             // that is what the part's product answers to, and what
             // re-verification resolves against. `classify` above already
             // refused a name that straddles, so the remap is total here —
             // and it refuses typed rather than assuming so.
-            let Ok(inner) = FaceName::new(in_world(inner, None)?) else {
+            let Ok(inner) = FaceName::new(in_world(&inner.name, Some(inner.at))?) else {
                 unreachable!("a remap keeps a face a face")
             };
             crossings.push(InterfaceCrossing::Mate {
                 class: *class,
-                outer: outer.clone(),
+                outer: outer.name.clone(),
                 inner,
             });
         }
@@ -3965,13 +3980,23 @@ pub fn inline(
     // Every host name the instance's copy carried lands on its spliced
     // name: the selections of the copy are authored afresh below; every
     // other carrier is repaired here, a selection by its body.
+    // A name read in a body that reaches another instance only is that
+    // instance's part's, spelled in ids the splice's maps may also hold:
+    // it is not this instance's, and stays.
+    let reaches_this = |body: VarId| {
+        doc.read_operation(body).is_some_and(|at| {
+            at == instance || crate::doc::strict_ancestors(doc, at).contains(&instance)
+        })
+    };
+    let others_only = |body: VarId| doc.reaches_instance(body) && !reaches_this(body);
     let mut moved: BTreeMap<StableName, StableName> = BTreeMap::new();
     for carrier in doc.name_carriers() {
-        if let NameCarrier::Select { var, .. } = carrier
-            && doc
-                .selection(var)
-                .is_some_and(|select| reads_instance(select.body))
-        {
+        let read_in = match carrier {
+            NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body),
+            NameCarrier::Store { body, .. } => Some(body),
+            NameCarrier::Payload { .. } => None,
+        };
+        if read_in.is_some_and(|body| reads_instance(body) || others_only(body)) {
             continue;
         }
         let from = carrier.name();
@@ -4521,6 +4546,28 @@ pub fn flatten(
         .operation_of(space)
         .unwrap_or_else(|| unreachable!("a new space is a node's output"));
     step(&mut current, DocEdit::DeleteNode { id: space_node })?;
+    // A `⊔` the source is — the product an inline spliced — read by
+    // nothing once its copy's readers read its operands, goes with the
+    // placement: the copy it grouped is gone.
+    let read = |doc: &ProfileDoc, var: VarId| {
+        doc.product() == Some(var)
+            || doc.ids().into_iter().any(|id| {
+                doc.node(id).is_some_and(|node| {
+                    node.operand_rows().into_iter().any(|(_, read)| {
+                        read == var
+                            || doc.selection(read).is_some_and(|select| select.body == var)
+                            || doc.pick(read).is_some_and(|pick| pick.placement == var)
+                    })
+                })
+            })
+    };
+    if let Some(group) = doc
+        .operation_of(source)
+        .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
+        && !read(current.doc(), source)
+    {
+        step(&mut current, DocEdit::DeleteNode { id: group })?;
+    }
     if let Some((name, var)) = renamed {
         step(
             &mut current,

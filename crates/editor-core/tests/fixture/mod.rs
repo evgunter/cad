@@ -390,7 +390,9 @@ pub fn write_bundle(
     constraints: Vec<editor_core::Constraint<Formula>>,
 ) -> (ProfileDoc, Vec<editor_core::MateRef>) {
     let mut doc = doc;
-    for edit in bundle_edits(&doc, placement, constraints) {
+    let edits = bundle_edits(&doc, placement, constraints);
+    let retargets = edits.len() > 1;
+    for edit in edits {
         let applied = editor_core::apply(&doc, &edit, Tol::witness())
             .unwrap_or_else(|e| panic!("the bundle is admitted: {e}"));
         doc = applied.doc;
@@ -401,6 +403,11 @@ pub fn write_bundle(
                 .iter()
                 .map(|&id| editor_core::MateRef::new(placement, id))
                 .collect();
+            // A world product the fixture wrote is the world's copies,
+            // which a re-targeted copy may have joined or left.
+            if retargets && doc.product().is_some() {
+                doc = world_product(doc);
+            }
             return (doc, minted);
         }
     }
@@ -460,6 +467,13 @@ pub fn into_new_space(doc: ProfileDoc, placement: RecipeNodeId) -> (ProfileDoc, 
         },
     )
     .0;
+    // A world product the fixture wrote is the world's copies, which
+    // this one has left.
+    let doc = if doc.product().is_some() {
+        world_product(doc)
+    } else {
+        doc
+    };
     (doc, space)
 }
 
@@ -1158,6 +1172,7 @@ pub fn newest(doc: &ProfileDoc) -> RecipeNodeId {
 }
 
 pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
+    let held = doc.product().is_some();
     let (doc, minted) = step(
         doc,
         DocEdit::InsertNode {
@@ -1165,7 +1180,19 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
             fresh: Vec::new(),
         },
     );
-    (doc, minted.unwrap())
+    let id = minted.unwrap();
+    // A world product the fixture wrote is the world's copies, which a
+    // placement into the world joins.
+    let joins = matches!(
+        doc.node(id),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    ) && doc.node_space(id) == Some(VarId::WORLD);
+    let doc = if held && joins {
+        world_product(doc)
+    } else {
+        doc
+    };
+    (doc, id)
 }
 
 /// **A primitive over indices into `refs`, sited**: the rows' spelling

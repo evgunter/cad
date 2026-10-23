@@ -213,7 +213,7 @@ fn seated_row(
         doc = next;
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::world_product(doc), ids)
 }
 
 /// `count` instances of `part`, each pinned `spacing * i` along +x so
@@ -235,7 +235,7 @@ fn row_of(
         doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::world_product(doc), ids)
 }
 
 /// Every finding the gate raised, rendered — from either refusing arm,
@@ -268,6 +268,7 @@ fn three_identical_stands_in_a_row_carry_their_inner_declarations() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-cube"), Tol::witness());
     let (inner, _, _) = stand("mate6-stand", part, body, 0.0, &store);
+    let inner = crate::fixture::world_product(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, ids) = row_of("mate6-row", inner_ref, 3, 4.0, &store);
 
@@ -308,9 +309,11 @@ fn the_carry_survives_a_second_nesting_level() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-deep-cube"), Tol::witness());
     let (inner, _, _) = stand("mate6-deep-stand", part, body, 0.0, &store);
+    let inner = crate::fixture::world_product(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     // The MID document is a pair of stands, side by side and disjoint.
     let (mid, _) = row_of("mate6-deep-mid", inner_ref, 2, 4.0, &store);
+    let mid = crate::fixture::world_product(mid);
     let mid_ref = store.insert(mid, Tol::witness());
     let (outer, _) = row_of("mate6-deep-outer", mid_ref, 2, 12.0, &store);
 
@@ -358,6 +361,7 @@ fn a_carried_declaration_the_outer_geometry_refutes_is_refuted_loudly() {
     let (part, body) = store.insert_part(cube_part("mate6-gap-cube"), Tol::witness());
     let (inner, _, inner_mate) = stand("mate6-gap-stand", part, body, 2.0, &store);
     let inner_id = inner.id();
+    let inner = crate::fixture::world_product(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, instances) = row_of("mate6-gap-row", inner_ref, 1, 4.0, &store);
 
@@ -408,6 +412,7 @@ fn an_outer_mate_the_geometry_refutes_is_refuted_naming_its_mate() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-outer-cube"), Tol::witness());
     let (inner, subs, _) = stand("mate6-outer-stand", part, body, 0.0, &store);
+    let inner = crate::fixture::world_product(inner);
     let inner_ref = store.insert(inner, Tol::witness());
 
     // Two stands, and an OUTER mate resting the second stand's lower
@@ -1291,6 +1296,7 @@ fn an_instances_record_cites_the_parts_record() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("mate6-seam-cube"), Tol::witness());
     let (stand, _, _) = stand("mate6-seam-stand", part, body, 0.0, &store);
+    let stand = crate::fixture::world_product(stand);
     let stand_ref = store.insert(stand, Tol::witness());
     let (outer, instances) = row_of("mate6-seam-row", stand_ref, 1, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));

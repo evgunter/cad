@@ -111,6 +111,7 @@ fn nested_fixture() -> (PartStore, ProfileDoc, ProfileDoc, DocRef, Vec<RecipeNod
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-b", &[p, p], 3.0, &store);
+    let b_doc = crate::fixture::world_product(b_doc);
     let b = store.insert(b_doc.clone(), Tol::witness());
     let (a_doc, a_ids) = assembly("asm2b-a", &[b, b], 100.0, &store);
     (store, a_doc, b_doc, b, a_ids)
@@ -298,6 +299,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-r4-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-r4-b", &[p, p], 3.0, &store);
+    let b_doc = crate::fixture::world_product(b_doc);
     let b = store.insert(b_doc, Tol::witness());
     let (doc, ids) = assembly("asm2b-r4-a", &[b], 0.0, &store);
     let opts = with_resolver(store);
@@ -464,6 +466,7 @@ fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
     // 2B's shape: two copies of a two-solid sub-assembly, placed so a
     // solid of each lands inside a solid of the other.
     let (b_doc, _) = assembly("asm2b-ov-b", &[p, p], 3.0, &store);
+    let b_doc = crate::fixture::world_product(b_doc);
     let b = store.insert(b_doc, Tol::witness());
     let (multi, _) = assembly("asm2b-ov-multi", &[b, b], 3.25, &store);
     let opts = with_resolver(store);

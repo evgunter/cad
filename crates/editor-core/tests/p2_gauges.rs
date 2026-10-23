@@ -1255,6 +1255,7 @@ fn a_verbatim_split_keeps_every_bundle() {
 fn an_inline_at_the_identity_keeps_every_bundle() {
     let (p, part, _) = pair_beside_a_base("p2-carry-inline");
     let mut store = p.store.clone();
+    let part = crate::fixture::world_product(part);
     let part_ref = store.insert(part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("p2-carry-inline-host"), Tol::witness());
     let (host, instance) = fixture::insert_pinned(

@@ -212,6 +212,7 @@ fn inline_keeps_a_variable_driving() {
         .values,
     );
     let mut store = PartStore::default();
+    let part = crate::fixture::world_product(part);
     let doc_ref = store.insert(part.clone(), Tol::witness());
     let opts = with_resolver(store.clone());
     let host = ProfileDoc::empty(DocumentId::derive("dprime2-t21-host"), Tol::witness());
@@ -306,6 +307,7 @@ fn inlined(dx: f64) -> (ProfileDoc, editor_core::InlineOutcome, RecipeNodeId) {
     let (part, body) = block(part, 1.0, 1.0, 1.0);
     let (part, placed) = fixture::place(part, body);
     let mut store = PartStore::default();
+    let part = crate::fixture::world_product(part);
     let doc_ref = store.insert(part, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("dprime2-flatten-host"), Tol::witness());
     let (host, instance) = insert(host, fixture::mated_instance(doc_ref));
@@ -411,6 +413,7 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
         Placed::unmated(vec![(Coord::Slide(TargetAxis::X), len(3.0))]).values,
     );
     let mut store = PartStore::default();
+    let part = crate::fixture::world_product(part);
     let doc_ref = store.insert(part, Tol::witness());
     let host = ProfileDoc::empty(
         DocumentId::derive("dprime2-flatten-two-host"),

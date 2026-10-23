@@ -133,6 +133,7 @@ fn instances(
 ) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptions, RecipeNodeId) {
     let body = body_node(&part);
     let mut store = PartStore::new();
+    let part = crate::fixture::world_product(part);
     let doc_ref = store.insert(part, Tol::witness());
     let opts = EvalOptions {
         resolver: Some(Arc::new(store)),
@@ -882,6 +883,7 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
     let part = box_part("msolve6-p3c-part", 5.0, 10.0);
     let body = body_node(&part);
     let mut store = PartStore::new();
+    let part = crate::fixture::world_product(part);
     let doc_ref = store.insert(part, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p3c"), Tol::witness());
@@ -991,7 +993,9 @@ fn a5_two_mated_parts_evaluate_once_each() {
     let mut store = PartStore::new();
     let (pa, pb) = (box_part("msolve6-p8-a", 0.5, 1.0), block("msolve6-p8-b"));
     let (a_body, b_body) = (body_node(&pa), body_node(&pb));
+    let pa = crate::fixture::world_product(pa);
     let ra = store.insert(pa, Tol::witness());
+    let pb = crate::fixture::world_product(pb);
     let rb = store.insert(pb, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve6-p8"), Tol::witness());

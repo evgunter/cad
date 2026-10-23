@@ -806,6 +806,7 @@ fn an_inline_at_a_turned_pose_over_two_pinned_instances_moves_nothing() {
     let (sub, _) = fixture::insert_pinned(sub, crate::fixture::mated_instance(p.base), &po);
     let (sub, _) = pinned(sub, p.base, Frame::translation([10.0, 0.0, 0.0]), &po);
     let mut store = p.store.clone();
+    let sub = crate::fixture::world_product(sub);
     let sub_ref = store.insert(sub, Tol::witness());
     let o = with_resolver(store.clone());
     let pose = Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [2.0, 5.0, 0.0], band()).unwrap();

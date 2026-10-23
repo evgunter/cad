@@ -225,6 +225,7 @@ fn a_lone_multi_solid_source_is_named() {
         let (next, id) = insert(sub, fixture::mated_instance(p));
         sub = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
     }
+    let sub = crate::fixture::world_product(sub);
     let b = store.insert(sub, Tol::witness());
     let o = with_resolver(store);
     let (doc, source) = fixture::insert_pinned(

@@ -362,6 +362,7 @@ fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
     let (part_doc, sub_aside) = insert(part_doc, fixture::mated_instance(p.top));
     let (part_doc, _) = fixture::into_new_space(part_doc, sub_aside);
     let mut store = p.store.clone();
+    let part_doc = crate::fixture::world_product(part_doc);
     let sub = store.insert(part_doc, Tol::witness());
     let with_sub = with_resolver(store);
     let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
@@ -594,6 +595,7 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
 
     let (rebuilt, new_body) = renamed(&base_doc, base_body, 1.5);
     assert_ne!(new_body, base_body, "the cap is renamed");
+    let rebuilt = crate::fixture::world_product(rebuilt);
     let new_ref = store.insert(rebuilt, Tol::witness());
     let o = with_resolver(store.clone());
     let (doc, _) = step(
