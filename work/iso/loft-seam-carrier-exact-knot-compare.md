@@ -2,12 +2,13 @@
 id: loft-seam-carrier-exact-knot-compare
 kind: issue
 title: loft_body refuses at degree ≥ 2 on generic parameterizations: pcurve_cache compares the seam carrier's knots/weights by exact equality
-status: open
+status: review
 opened: 2026-08-30
 github: 1316
 refs: [1314]
 priority: P0
 cost: H
+pr: 5629
 ---
 
 ## From GitHub issue 1316
