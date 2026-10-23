@@ -134,6 +134,12 @@ use editor_core::Node;
 /// seam face plainly, so its ids moved too. Ids only:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held unmoved.
+///
+/// **Re-pinned when a plane pose came to hold its normal and offset
+/// alone**: `cut_cylinder`'s two rows alone. Its tool is a tilted plane,
+/// and a split reads the plane's point nearest the origin rather than
+/// the face's stored point, so its halves' section points moved at the
+/// rounding level; every other row held its word.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 160, 0x7a418db6ed3af4d3),
     ("die", 196, 0xee8cd1d99dc4ae36),
@@ -201,8 +207,8 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("kitchen_sink", 233, 0x1c57c9a887162282),
     ("kitchen_sink", 250, 0xebb4a065eb6dafe3),
     ("kitchen_sink", 264, 0xdd794aba8c9e3e0d),
-    ("cut_cylinder", 45, 0x2d323075ffb3ef6b),
-    ("cut_cylinder", 59, 0x2372040a2a3953ed),
+    ("cut_cylinder", 45, 0x449cda974caa08ec),
+    ("cut_cylinder", 59, 0x8d0ab69834e92862),
     ("measured_web", 46, 0xaa3af5fc6b752068),
     ("measured_web", 65, 0x600af1ccf8d3e908),
     ("boss_union", 42, 0xf652865bea3769ed),
