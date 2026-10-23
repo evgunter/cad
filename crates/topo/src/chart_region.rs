@@ -828,17 +828,47 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     door_one: crate::contact::ContactVerdict,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
+    // INVARIANT: a shared trim boundary is what a FLUSH seat is made of,
+    // and it is not by itself an undecidable area. The region walk cannot
+    // build intersection pieces across a collinear boundary overlap and
+    // refuses honestly, and a boundary in band of the other's (a
+    // NEAR-flush seat) escalates there; a point certified strictly
+    // interior to BOTH trims proves the intersection contains a disc of
+    // definitely-positive radius, which IS the positive claim. The rung
+    // runs on whichever chart the pair was read in, and only ever turns a
+    // REFUSAL into a proof — it can neither contradict a decided answer
+    // nor manufacture an `Empty`: its decline carries the walk's refusal,
+    // which no reader takes for an empty overlap.
+    let rescued = |read: Result<ChartOverlap, ChartRegionError>,
+                   carrier: &Surface<T>,
+                   uv_a: &FaceUv<T>,
+                   uv_b: &FaceUv<T>| match read {
+        Err(refusal @ (ChartRegionError::TouchingBoundary | ChartRegionError::Escalated(_))) => {
+            match interior_witness(
+                body_a, face_a, body_b, face_b, carrier, uv_a, uv_b, door_one, band,
+            ) {
+                WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
+                // The rung's schedule stopped short. That is a fact about
+                // the work, not about the geometry, so it does NOT leave
+                // the carried refusal standing under a name that says the
+                // overlap is undecidably thin.
+                WitnessOutcome::SegmentCapExceeded { segments } => {
+                    Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
+                }
+                WitnessOutcome::CellCapExceeded { segments, cells } => {
+                    Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
+                }
+                WitnessOutcome::Declined => Err(refusal),
+            }
+        }
+        other => other,
+    };
     let divergence = match declared_chart(body_a, face_a, body_b, face_b) {
         Ok(surface) => {
-            return overlap_on(
-                body_a,
-                face_a,
-                body_b,
-                face_b,
-                &surface,
-                ChartRead::Minted,
-                band,
-            );
+            let uv_a = extract_face_uv(body_a, face_a, &surface, ChartRead::Minted, band)?;
+            let uv_b = extract_face_uv(body_b, face_b, &surface, ChartRead::Minted, band)?;
+            let read = overlap_of_uv(body_a, face_a, body_b, face_b, &surface, &uv_a, &uv_b, band);
+            return rescued(read, &surface, &uv_a, &uv_b);
         }
         Err(divergence) => divergence,
     };
@@ -856,34 +886,8 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     carrier_agreement(body_a, face_a, body_b, face_b, band)?;
     let uv_a = extract_face_uv(body_a, face_a, &carrier, ChartRead::WorldCarrier, band)?;
     let uv_b = extract_face_uv(body_b, face_b, &carrier, ChartRead::WorldCarrier, band)?;
-    match overlap_of_uv(body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band) {
-        // INVARIANT: a shared trim boundary is what a FLUSH seat is
-        // made of, and it is not by itself an undecidable area. The
-        // region walk cannot build intersection pieces across a
-        // collinear boundary overlap and refuses honestly; a point
-        // certified strictly interior to BOTH trims proves the
-        // intersection contains a disc of definitely-positive radius,
-        // which IS the positive claim. The rung only ever turns a
-        // REFUSAL into a proof — it can neither contradict a decided
-        // answer nor manufacture an `Empty`.
-        Err(ChartRegionError::TouchingBoundary) => match interior_witness(
-            body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, door_one, band,
-        ) {
-            WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
-            // The rung's schedule stopped short. That is a fact about
-            // the work, not about the geometry, so it does NOT leave
-            // the carried refusal standing under a name that says the
-            // overlap is undecidably thin.
-            WitnessOutcome::SegmentCapExceeded { segments } => {
-                Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
-            }
-            WitnessOutcome::CellCapExceeded { segments, cells } => {
-                Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
-            }
-            WitnessOutcome::Declined => Err(ChartRegionError::TouchingBoundary),
-        },
-        other => other,
-    }
+    let read = overlap_of_uv(body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band);
+    rescued(read, &carrier, &uv_a, &uv_b)
 }
 
 /// Which description a loop walk's chart polygon is a picture OF.
@@ -2423,14 +2427,26 @@ fn pcurve_entry<T: Decide + Bounds>(
             let t = if forward { t0 } else { t1 };
             Ok(Point2::new(p0.x + pl.x * t, p0.y + pl.y * t))
         }
-        // The UV image is the straight segment `p0 → p0 + pd` by
+        // The UV image lies on the straight segment `p0 → p0 + pd` by
         // variant; only the parameterization along it is
-        // transcendental, and endpoints are read structurally
-        // (`g = 0` at the carrier's `t0`, `g = 1` at `t1`).
-        Pcurve::IsoArc { p0, pd, .. } => Ok(if forward {
-            *p0
+        // transcendental. An edge spanning the image's whole arc has
+        // the segment's ends as its own, read structurally (`g = 0` at
+        // `t0`, `g = 1` at `t1`); an edge covering part of the arc (a
+        // split rim's child) ends where the image is at its parameter.
+        Pcurve::IsoArc {
+            p0,
+            pd,
+            t0: at0,
+            angle,
+            ..
+        } => Ok(if exact_zero(*at0 - t0) && exact_zero(*angle - (t1 - t0)) {
+            if forward {
+                *p0
+            } else {
+                Point2::new(p0.x + pd.x, p0.y + pd.y)
+            }
         } else {
-            Point2::new(p0.x + pd.x, p0.y + pd.y)
+            pcurve.eval(if forward { t0 } else { t1 })
         }),
         // Straight iff each channel is (C6). An angle channel is, by
         // its kind: a phase and a winding's rate, with no trig terms.
@@ -3955,9 +3971,22 @@ mod tests {
             breaks: geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
         };
         // The UV image is the straight segment p0 → p0 + pd by
-        // variant; endpoints are structural, no Bézier evaluation.
-        assert_pt(pcurve_entry(&arc, 0.0, 1.0, true).unwrap(), 0.0, 1.0);
-        assert_pt(pcurve_entry(&arc, 0.0, 1.0, false).unwrap(), 1.0, 1.0);
+        // variant; a span that is the whole arc ends at its ends,
+        // structurally.
+        let quarter = core::f64::consts::FRAC_PI_2;
+        assert_pt(pcurve_entry(&arc, 0.0, quarter, true).unwrap(), 0.0, 1.0);
+        assert_pt(pcurve_entry(&arc, 0.0, quarter, false).unwrap(), 1.0, 1.0);
+        // A span covering part of the arc (a split rim's child) ends
+        // where the image is at its parameter: on one sub-arc of a
+        // quarter turn, `g(π/4)` is the Bézier midpoint, `½`.
+        let half = core::f64::consts::FRAC_PI_4;
+        assert_pt(pcurve_entry(&arc, 0.0, half, false).unwrap(), 0.5, 1.0);
+        assert_pt(pcurve_entry(&arc, half, quarter, true).unwrap(), 0.5, 1.0);
+        let end = pcurve_entry(&arc, half, quarter, false).unwrap();
+        assert!(
+            (end.x - 1.0).abs() < 1e-15 && end.y == 1.0,
+            "the child ending at the arc's end ends at its corner: {end:?}"
+        );
     }
 
     #[test]

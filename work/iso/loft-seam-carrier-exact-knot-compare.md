@@ -2,13 +2,15 @@
 id: loft-seam-carrier-exact-knot-compare
 kind: issue
 title: loft_body refuses at degree ≥ 2 on generic parameterizations: pcurve_cache compares the seam carrier's knots/weights by exact equality
-status: dispatched
+status: closed
+closed: 2026-10-23
 opened: 2026-08-30
 github: 1316
 refs: [1314]
 priority: P0
 cost: H
 branch: iso/loft-seam-per-row-lane
+pr: 5629
 ---
 
 ## From GitHub issue 1316
@@ -84,3 +86,24 @@ The fix it names, the lane chosen per control row, is `skin`'s own
 integral-in ⇒ integral-out contract at the granularity the seam needs,
 and acts at the producer, so the certifier's exact one-spline-space
 test stays as it is.
+
+## Measured again (2026-10-23, `iso/loft-seam-per-row-lane`, PR 5629)
+
+All 38 refusals on main failed the weights compare, never the knots
+one: the line wall's end row (weights exactly `1.0`) against the arc
+wall's corner row, a few ulps off `1.0`. The jittered row of this
+census builds at n = 3 and refuses at n = 4..9, the reverse of the
+table above at n = 3 and 4: its jitter (`t + 0.15·sin(7k)/n` on the
+interior stations) is not the measurement lane's, so the two rows are
+different spacings. A review census reproduced this one.
+
+## Closed
+
+PR 5629. The refusal was the weights compare: the arc wall's corner
+row, solved homogeneously, landed an ulp off the line wall's exact
+`1.0`. `skin_on` now chooses its lane per control row (a row of one
+constant weight in every section skins in Cartesian ℝ³ at that weight),
+which fixes it at the producer; the certifier's exact one-spline-space
+test is unchanged. Pinned by
+`an_arc_loft_seams_its_rational_wall_at_every_spacing` and
+`m7_skin_integral::each_row_takes_its_own_lane`.

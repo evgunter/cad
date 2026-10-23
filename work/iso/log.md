@@ -41,6 +41,7 @@ boundary row (its knot/weight structure differs)") is no longer in the
 tree, so a measurement lane re-takes its grid on main before any
 implementer is briefed. — (ISO orchestrator)
 
+- 2026-10-23 — P0 PR 5629 is up and green: `skin_on` now picks its lane per control row. All 38 refusing cells failed the weights compare, never the knots, always the line wall's end column against the arc wall's corner column. All 48 cells build after the fix. One new row from it, `a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim` (P2): the CARVE row's second shape, which has another mechanism (the arc-rim pick on an unsplit body). Single FULL review dispatched on frozen `8ca0f5481a`. — (ISO orchestrator)
 ## 2026-10-23 — the P0 measured and dispatched
 
 The measurement lane re-took the P0's grid on main (the row's
@@ -70,3 +71,26 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
 (P0), the measurement's off-ground finding. — (ISO orchestrator)
 
 - 2026-10-23 — `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain` (its IsoArc half) dispatched on `iso/arc-rim-sub-arc`. **Review tier: single FULL** — a new map in the arc-rim arm (sub-arc extent from the carrier's chart feet, `breaks` re-cut), whose certificate must still hold, so believing it takes more than reading it. No fork: the row names the measurement and the IsoLine half landed that way. — (ISO orchestrator)
+
+- 2026-10-23 — PR 5629 review (single FULL, frozen `8ca0f5481a`): APPROVE-WITH-FIXES, no MAJOR. The core change was confirmed by execution (1,869 random cases with rational rows bitwise the old lane; the 38→0 census reproduced). The fix pass takes every item:
+  - two test gaps, each shown by mutants that pass every committed test (a silent weight heal on the integral rows; `all`→`any` on the every-section rule);
+  - the passenger row closes with the carrier;
+  - two evidence errors in the new arc-bulge row;
+  - the history prose in skin's docs.
+
+  Orchestrator's call: a constant non-1 weight row also takes the Cartesian lane, with its constant attached. That closes the `skin.rs` bullet of `rational-gates-test-unit-weights-not-constancy` in passing. The "is integral" predicate is spelled differently across `patch_bound`, `curves` and `skin`, a class whose home is that row. — (ISO orchestrator)
+
+- 2026-10-23 — IsoArc P1 PR 5630 is up and green. Departure from the row: a split child keeps its PARENT's `IsoArc` (the whole boundary row's arc), evaluated over its own span, rather than a re-cut sub-arc. The lane's argument is that `split_edge`'s carry already settles what the image is. The review is asked to judge that as a final state. Closed in passing: two SELECT rows (the span-in-arc certificate check, and a child certified through its parent's image). Filed on TESS: `a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints` (P3). Single FULL review dispatched on frozen `05c551e643`. — (ISO orchestrator)
+
+- 2026-10-23 — PR 5630 review (single FULL, frozen `05c551e643`): APPROVE-WITH-FIXES.
+  - **Certificate sound:** every mutant of the measured `at0` and angle reds; whole rims are unchanged across 7,766 CI tests.
+  - **The class finding (both arms):** the iso schedules judge a closed-form candidate at ONE probe point. For each span there is one split start where the wrong whole-row map passes through the carrier exactly there. The closed form then wins and the mint refuses `LoopDiscontinuity`, a natural split included. It is sound, because certify refuses `MapResidual`. The fix pass gives both arms one judge that cannot coincide at a point.
+  - **Also taken:**
+    - a non-principal-branch fixture;
+    - the volume assertion restored against the unsplit body (whose 1e-12 refusal is EXCH's row);
+    - the describing door's reversed-u `Unimplemented` filed;
+    - an explicit refusal for a polynomial row's zero angle;
+    - one home each for the weight↔angle relation and the sub-arc count. — (ISO orchestrator)
+
+- 2026-10-23 — **P0 closed:** PR 5629 merged at `6700652675`. The fix pass pinned the integral half (control points bitwise against a Cartesian reference) and the every-section rule by construction. A row of constant weight c now takes the Cartesian lane with c attached. That is the same surface in ℝ, and it moves the arc's middle row in identically-sectioned lofts by ulps; no stored bit moved. Its tracker-closing commit is not literally last: a lint-gate count fix followed it. Both reviews were already delivered, so nothing a reviewer must not see rode early.
+- 2026-10-23 — `trimmed-quadrature-composite-rounds` dispatched on `iso/trimmed-composite-rounds`. QUADTAIL's `a-fitted-face-trimmed-by-a-section-has-no-volume-rule` moves here to ride with it, since it is the fixture that reaches the fence. **Review tier: DUAL** — a new convergent round schedule with a certified remainder (`F₂` via the chain rule through the chart's derivative grids) and its own lever in the round schedule is especially tricky logic, and a wrong enclosure there is silent. QUAD is live on `props/quad.rs` (the measure door, `PatchNet`), so the lane merges main often. — (ISO orchestrator)

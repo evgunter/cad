@@ -237,6 +237,23 @@ fn three_prime(
         let ends = [plus.start, next.start].map(point);
         (0..sides.len()).any(|k| ends.iter().all(|&q| on_side(q, k)))
     };
+    // Whether `f`'s carrier is the glued rectangle's plane.
+    let in_glued_plane = |f: topo::FaceKey| {
+        let Some(&[o, c]) = sides.first() else {
+            return false;
+        };
+        let Some(&[_, d]) = sides.get(1) else {
+            return false;
+        };
+        let n = (c - o).cross(d - c);
+        let n = n / n.norm();
+        let surface = r
+            .body
+            .get_face(f)
+            .and_then(|f| r.body.get_surface(f.surface));
+        matches!(surface, Some(geom::Surface::Plane { origin, normal, .. })
+            if (*origin - o).dot(n).abs() < 1e-6 && normal.cross(n).norm() < 1e-9)
+    };
     for e in &errors {
         let ok = match e {
             ValidationError::UnrecordedContact { contact, .. } => match *contact {
@@ -247,6 +264,10 @@ fn three_prime(
                     true
                 }
                 CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex) || at_far(vertex),
+                // The glued pieces' own area contact, one face pair.
+                CensusContact::ConformalPatch { ref finding } => {
+                    in_glued_plane(finding.pair.a) && in_glued_plane(finding.pair.b)
+                }
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 _ => false,
             },

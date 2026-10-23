@@ -710,8 +710,13 @@ fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
         let noise = (1.0e3 * f64::EPSILON / sin_theta).clamp(1e-9, 0.5);
         let b = turned_plate(1.0, 1.0, sin_theta.atan().to_degrees(), 0.0, 0.0);
         let (fa, fb) = pair(&base, &b);
-        let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Definite, band());
-        let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Definite, band());
+        // `Bridged`, so the interior-witness rung declines and the
+        // region walk's own margins are what each order reports: a
+        // certified interior point would answer an in-band walk
+        // `PositiveArea` in both orders, which is no measurement of
+        // where the walk's frames part.
+        let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Bridged, band());
+        let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Bridged, band());
 
         // (1) never two different certified answers.
         if let (Ok(x), Ok(y)) = (&ab, &ba) {
