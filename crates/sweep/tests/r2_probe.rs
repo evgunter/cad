@@ -87,3 +87,23 @@ fn r2_a_settled_sign_continues_to_the_number_doors_bits() {
         "continuation {c:?} vs number door {m:?}"
     );
 }
+
+/// R2 cost probe: check 7 on thin strips whose sign stays open past the
+/// target, timed (prints only).
+#[test]
+fn r2_cost_of_an_open_sign() {
+    let tol = Tol::witness();
+    let eps = tol.get().eps;
+    for (k, ratio) in [(1.0e10, 1e-9), (1.0e11, 1e-10)] {
+        let s = k * eps;
+        let sec = section(s, ratio * s, 0.9);
+        let planes = sweep::test_support::stacked_at(&[0.0, s]);
+        let Ok(l) = loft_body::<f64>(&[sec.clone(), sec], &planes, 1, tol) else {
+            eprintln!("R2COST k={k:e} ratio={ratio:e}: loft refused");
+            continue;
+        };
+        let t = std::time::Instant::now();
+        let got = topo::validate_geometric_certificate(&l.body, tol);
+        eprintln!("R2COST k={k:e} ratio={ratio:e}: {:?} ok={}", t.elapsed(), got.is_ok());
+    }
+}
