@@ -947,7 +947,7 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                 && !killed[k]
                 && pair(body, k)? == Pair::Alone
             {
-                body.kef_minting(edges[k].1, tol)?;
+                kill_pair(body, edges, &pair_of, k, &mut report, tol)?;
                 killed[k] = true;
             }
         }
@@ -974,11 +974,56 @@ fn glue<T: Decide + crate::props::AtRestPolicy>(
                     body.mfkrh_minting(l, FaceSurface::Inherit, tol)?;
                 }
             }
-            body.kef_minting(edges[k].1, tol)?;
+            kill_pair(body, edges, &pair_of, k, &mut report, tol)?;
             killed[k] = true;
         }
     }
     Ok(report)
+}
+
+/// **Kills seam pair `k`'s loop of two** with `kef`, across B's edge,
+/// whose A partner survives in its place; or across A's, where B's edge
+/// is a strut of its section face, both its halves paired: killing it
+/// would kill the other pair's half too. That strut is a section run
+/// along a line where the other operand's section runs its two coincident
+/// edges (a slit's, whose face the result closes across the line), and
+/// it survives with a kept face on each side, `report` naming it in
+/// place of A's. An A edge paired so too refuses.
+///
+/// # Errors
+///
+/// [`BooleanError::ZipCorrespondence`] where both edges of the pair are
+/// struts so paired; [`BooleanError::Euler`] where `kef` refuses.
+fn kill_pair<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    edges: &[(HalfEdgeKey, HalfEdgeKey)],
+    pair_of: &BTreeMap<HalfEdgeKey, usize>,
+    k: usize,
+    report: &mut ZipReport,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let (ob, r) = edges[k];
+    let strut = |h: HalfEdgeKey| {
+        body.mate(h)
+            .and_then(|m| pair_of.get(&m))
+            .is_some_and(|&j| j != k)
+    };
+    let edge = |h: HalfEdgeKey| proven(&body.half_edges, h, EntityId::HalfEdge).edge;
+    let dying = match (strut(ob), strut(r)) {
+        (_, false) => r,
+        (false, true) => {
+            report.seam_edges[k] = edge(r);
+            report.edge_merges[k] = (edge(ob), edge(r));
+            ob
+        }
+        (true, true) => {
+            return Err(BooleanError::ZipCorrespondence {
+                what: "both edges of a seam pair are struts of their section faces",
+            });
+        }
+    };
+    body.kef_minting(dying, tol)?;
+    Ok(())
 }
 
 /// The half-edge cycle of a section face's loop `l`.

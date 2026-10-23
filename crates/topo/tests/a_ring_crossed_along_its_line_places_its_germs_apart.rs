@@ -20,9 +20,8 @@
 //! along the line its edges are the creased material sectors the
 //! operands' material decides, the result's material round the line the
 //! op's. The union keeps only the top on both sides of the ring and
-//! closes it across the line, which the join does not build: it refuses
-//! `SlitLineCrossed` `Closes`
-//! (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
+//! closes it across the line, no edge left there: around the void, the
+//! union is the plate.
 //! A partner with a face flush with the top beside the ring refuses
 //! `Flush` where the op keeps one of the two flush faces
 //! (`work/cleave/a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line.md`).
@@ -200,20 +199,6 @@ fn check(s: &Scene, pose: &Pose) {
     let mut vol = Vec::new();
     for (op, keep, r) in ops {
         let what = format!("{}, {}, {op}", s.label, pose.label);
-        if op.contains('∪') {
-            assert!(
-                matches!(
-                    r,
-                    Err(BooleanError::SlitLineCrossed {
-                        gap: SlitLineGap::Closes,
-                        ..
-                    })
-                ),
-                "{what}: the union closes the top across the ring, got {:?}",
-                r.map(|_| ())
-            );
-            continue;
-        }
         let r = match r {
             Ok(BooleanResult::Body(r)) => r,
             other => panic!("{what}: builds, got {:?}", other.map(|_| ())),
@@ -242,6 +227,23 @@ fn check(s: &Scene, pose: &Pose) {
             let held = creases(p, d, 1e-3, &|q| inside(&r.body, q));
             assert_eq!(held, want, "{what}: the result's own material at {at}");
         }
+        if op.contains('∪') && s.label == "around" {
+            // The partner fills the void: the union is the plate, the
+            // top closed across the ring.
+            assert_eq!(
+                (
+                    r.body.vertices().count(),
+                    r.body.edges().count(),
+                    r.body.faces().count()
+                ),
+                (8, 12, 6),
+                "{what}: the plate, a box"
+            );
+            assert!(
+                (vol[vol.len() - 1] - volume(&plate)).abs() < 1e-12,
+                "{what}: the plate's volume"
+            );
+        }
         if op == "x − y" && s.label == "around" {
             // The partner holds the void whole: the difference is the void.
             assert_eq!(
@@ -260,11 +262,16 @@ fn check(s: &Scene, pose: &Pose) {
         }
     }
     let (vx, vy) = (volume(&x), volume(&y));
-    let [xy, yx, i, i2] = vol[..] else {
-        unreachable!("four ops build")
+    let [xy, yx, i, i2, u, u2] = vol[..] else {
+        unreachable!("six ops build")
     };
     let what = format!("{}, {}", s.label, pose.label);
     assert!((i - i2).abs() < 1e-12, "{what}: |x ∩ y| in both orders");
+    assert!((u - u2).abs() < 1e-12, "{what}: |x ∪ y| in both orders");
+    assert!(
+        (u + i - vx - vy).abs() < 1e-9,
+        "{what}: |x ∪ y| + |x ∩ y| = |x| + |y|"
+    );
     assert!(
         (xy + i - vx).abs() < 1e-9,
         "{what}: |x − y| + |x ∩ y| = |x|"
@@ -276,7 +283,7 @@ fn check(s: &Scene, pose: &Pose) {
 }
 
 #[test]
-fn an_edge_along_a_ring_places_its_germs_apart_in_every_op_it_builds() {
+fn an_edge_along_a_ring_places_its_germs_apart_in_every_op() {
     let poses = poses();
     for s in &scenes() {
         for pose in [&poses[0], &poses[2]] {
