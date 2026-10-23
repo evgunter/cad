@@ -4,12 +4,10 @@
 //!
 //! The door decides of a constraint what its recipe alone decides: a
 //! mate's `on` reads the copy its placement defines
-//! (`MateFault::NotOnTheCopy`), its world read is a pose
-//! (`MateFault::WorldRead`), its two poses are of one kind
-//! (`MateFault::KindsDiffer`), and its class is admitted; a value names
-//! a mate of its bundle (`MateFault::ValueNamesNoMate`), its mate's kind
-//! leaves the freedom it sets (`MateFault::NotAFreedom`), and the
-//! freedom has a chart (`MateFault::NoChart`). It refuses
+//! (`MateFault::NotOnTheCopy`), its two poses are of one kind
+//! (`MateFault::KindsDiffer`), and its class is admitted; a value's
+//! freedom is one its bundle's mates leave, else it fixes an equation
+//! they already fix (`MateFault::Overconstrained`). It refuses
 //! `EditError::MateRefused` carrying the fault unaltered, and the load
 //! door asks the same of every constraint a snapshot holds. THE DOORS
 //! DECIDE EDITS AND THE EVALUATION DECIDES STATES: what needs the poses'
@@ -31,8 +29,7 @@ use editor_core::Formula;
 
 use editor_core::{
     CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, Target, TargetAxis, VarKind,
-    WorldRead, WorldReadFault, load, save,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, TargetAxis, VarKind, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, at_the_door_of, insert, insert_pinned, len, on_frame, step};
@@ -178,58 +175,13 @@ fn whole_door(
     }
 }
 
-/// A value of `coord` on the constraint written as `mate`, by `by`, at
-/// placeholder `at` of a bundle written whole.
-fn value_at(
-    at: u32,
-    mate: editor_core::ConstraintId,
-    coord: Coord,
-    by: Formula,
-) -> editor_core::Constraint<Formula> {
+/// A value of `coord`, by `by`, at placeholder `at` of a bundle written
+/// whole.
+fn value_at(at: u32, coord: Coord, by: Formula) -> editor_core::Constraint<Formula> {
     editor_core::Constraint::of_value(
         editor_core::ConstraintId::placeholder(at),
-        editor_core::Value {
-            mate: Some(mate),
-            coord,
-            by,
-        },
+        editor_core::Value { coord, by },
     )
-}
-
-/// The edit that adds a value of `coord` on `mate` to `placement`'s
-/// bundle.
-fn add_value(
-    placement: RecipeNodeId,
-    mate: editor_core::ConstraintId,
-    coord: Coord,
-    by: Formula,
-) -> DocEdit<editor_core::ProfileProgram> {
-    DocEdit::AddValue {
-        placement,
-        value: Box::new(editor_core::Value {
-            mate: Some(mate),
-            coord,
-            by,
-        }),
-        fresh: Vec::new(),
-    }
-}
-
-/// `edit` through the door: the document and the constraint it minted, or the fault the door refused with.
-#[allow(clippy::result_large_err)]
-fn through_door(
-    doc: &ProfileDoc,
-    placement: RecipeNodeId,
-    edit: &DocEdit<editor_core::ProfileProgram>,
-) -> Result<(ProfileDoc, MateRef), MateFault> {
-    match doc.apply(edit, Tol::witness()) {
-        Ok(applied) => {
-            let id = applied.record.minted_constraints[0];
-            Ok((applied.doc, MateRef::new(placement, id)))
-        }
-        Err(EditError::MateRefused { fault, .. }) => Err(*fault),
-        Err(other) => panic!("the door refused otherwise: {other:?}"),
-    }
 }
 
 // ---- A1: the door's refusal, naming the placement ----
@@ -300,159 +252,39 @@ fn a1_a_mate_whose_on_reads_another_copy_refuses_not_on_the_copy() {
     );
 }
 
-/// **A world read that is no pose refuses `WorldRead`** naming the
-/// construction its kinds refuse: a flip of the world's origin, which
-/// as a point has no sense.
-#[test]
-fn a1_a_world_read_that_is_no_pose_refuses_world_read() {
-    let (doc, ids, _, body) = instances("msolve10-a1-world", 2);
-    let flipped_origin = editor_core::Mate {
-        on: fixture::point_of(cap(ids[1], body, CapEnd::Start)),
-        to: Target::World(WorldRead::through(editor_core::pose::PoseRole::Origin).flip()),
-        class: ContactClass::Rest,
-    };
-    let fault = fixture::door_refusal(&doc, flipped_origin);
-    assert!(
-        matches!(
-            fault,
-            MateFault::WorldRead {
-                mate,
-                fault: WorldReadFault::FlippedPoint,
-            } if mate.placement == ids[1]
-        ),
-        "{fault:?}"
-    );
-}
-
-/// **A world read nested past its bound refuses `TooDeep`** before its
-/// kinds are read: the world's frame spun about z one turn more than
-/// [`editor_core::MAX_WORLD_READ_DEPTH`] allows, read at its origin.
-/// The read is written inside its mate, so the door's bound is what
-/// holds a saved mate within the load door's nesting limit.
+/// **A value is asked of its bundle, at the door** (row 190: a value
+/// names no mate): a slide along a plane mate's normal is a freedom the
+/// mate fixes, so the bundle refuses `Overconstrained`, naming the
+/// value and the mate; a ball's rotation is a chain of spins about the
+/// target space's axes, admitted; and a spin about an axis mate whose
+/// target is the line two copies' caps meet in is admitted too, since
+/// the chart is the target space's whatever bodies the target reads.
 ///
-/// *Breaks if* the door admits a read deeper than the bound (a save
-/// could then write a file the load door refuses), or reads the kinds
-/// of one first.
+/// *Breaks if* a value's freedom is admitted beside a mate that fixes
+/// it, or a value is charted on a body its mate's target reads.
 #[test]
-fn a1_a_world_read_past_its_bound_refuses_too_deep() {
-    let (doc, ids, _, body) = instances("msolve10-a1-world-deep", 2);
-    let mut world = WorldRead::Frame;
-    // Each spin about z (two deep) adds one; the role adds one more.
-    for _ in 0..editor_core::MAX_WORLD_READ_DEPTH - 2 {
-        world = world.spin(
-            WorldRead::through(editor_core::pose::PoseRole::Z),
-            fixture::ang(0.0),
-        );
-    }
-    let to = WorldRead::Role {
-        pose: Box::new(world),
-        role: editor_core::pose::PoseRole::Origin,
-    };
-    let depth = to.depth();
-    assert_eq!(depth, editor_core::MAX_WORLD_READ_DEPTH + 1);
-    let too_deep = editor_core::Mate {
-        on: fixture::point_of(cap(ids[1], body, CapEnd::Start)),
-        to: Target::World(to),
-        class: ContactClass::Rest,
-    };
-    let fault = fixture::door_refusal(&doc, too_deep);
-    assert!(
-        matches!(
-            fault,
-            MateFault::WorldRead {
-                mate,
-                fault: WorldReadFault::TooDeep { depth: d },
-            } if mate.placement == ids[1] && d == depth
-        ),
-        "{fault:?}"
-    );
-}
-
-/// **A value's own admission refuses at insert**: a value naming no
-/// constraint of its bundle, or a value rather than a mate
-/// (`ValueNamesNoMate`); a value on a freedom its mate's kind fixes — a
-/// plane mate's slide along its normal (`NotAFreedom { kind:
-/// Some(Plane) }`); a point mate's rotation (`NoChart {
-/// PointRotation }`); and a mate whose `to` reads two bodies, whose
-/// frames do not agree on which reference to chart from (`NoChart {
-/// TwoBodies }`). The freedom the kind leaves is admitted beside each,
-/// so each refusal is the value's and not the fixture's.
-#[test]
-fn a1_a_values_own_admission_refuses_at_insert() {
+fn a1_a_value_is_admitted_by_its_bundle() {
     let (doc, ids, _, body) = instances("msolve10-a1-values", 3);
-    // A plane mate leaves its in-plane slide: the bundle sets it.
-    let (doc, rest) = fixture::mated(
-        doc,
-        ids[1],
-        mate(body, ids[0], ids[1]),
-        &[(Coord::Slide(TargetAxis::X), len(0.25))],
-    );
-    let slid = fixture::bundle(&doc, ids[1])
-        .into_iter()
-        .find(|c| {
-            c.value()
-                .is_some_and(|v| v.coord == Coord::Slide(TargetAxis::X))
-        })
-        .map(|c| MateRef::new(ids[1], c.id))
-        .expect("the slide is held");
-
-    let unheld = editor_core::ConstraintId(editor_core::MintId::new(0, 0x5eed));
-    for named in [unheld, slid.id] {
-        let fault = through_door(
-            &doc,
-            ids[1],
-            &add_value(ids[1], named, Coord::Spin, ang(0.1)),
-        )
-        .expect_err("refused");
-        assert!(
-            matches!(fault, MateFault::ValueNamesNoMate { value, mate }
-                if value.placement == ids[1] && mate == named),
-            "{named}: {fault:?}"
-        );
-    }
-
-    let fault = through_door(
-        &doc,
-        ids[1],
-        &add_value(ids[1], rest.id, Coord::Slide(TargetAxis::Z), len(0.25)),
-    )
-    .expect_err("refused");
+    let plane = mate(body, ids[0], ids[1]);
+    let mut bundle = lone(plane);
+    bundle.push(value_at(2, Coord::Slide(TargetAxis::Z), len(0.25)));
+    let (_, fault) = whole_door(&doc, ids[1], bundle).expect_err("refused");
     assert!(
-        matches!(
-            fault,
-            MateFault::NotAFreedom {
-                coord: Coord::Slide(TargetAxis::Z),
-                kind: VarKind::Plane,
-                ..
-            }
-        ),
+        matches!(&fault, MateFault::Overconstrained { constraints, .. } if constraints.len() == 2),
         "{fault:?}"
     );
 
-    // A ball's rotation, written beside it.
+    // A ball's rotation, written beside it as a chain.
     let ball = fixture::mate(
         fixture::point_of(cap(ids[2], body, CapEnd::Start)),
         fixture::point_of(cap(ids[1], body, CapEnd::End)),
         ContactClass::Rest,
     );
     let mut bundle = lone(ball);
-    bundle.push(value_at(
-        2,
-        editor_core::ConstraintId::placeholder(1),
-        Coord::Spin,
-        ang(0.1),
-    ));
-    let (_, fault) = whole_door(&doc, ids[2], bundle).expect_err("refused");
-    assert!(
-        matches!(
-            fault,
-            MateFault::NoChart {
-                why: editor_core::NoChartWhy::PointRotation,
-                ..
-            }
-        ),
-        "{fault:?}"
-    );
+    for (at, axis) in (2..).zip(TargetAxis::ALL) {
+        bundle.push(value_at(at, Coord::Spin(axis), ang(0.1)));
+    }
+    whole_door(&doc, ids[2], bundle).expect("a ball's chain of spins pins it");
 
     // An axis mate whose target is the line two copies' faces meet in.
     let (doc, lines, _, body) = instances("msolve10-a1-two-bodies", 3);
@@ -465,78 +297,13 @@ fn a1_a_values_own_admission_refuses_at_insert() {
         meet,
         ContactClass::Rest,
     ));
+    bundle.push(value_at(2, Coord::Slide(TargetAxis::Z), len(0.0)));
     bundle.push(value_at(
-        2,
-        editor_core::ConstraintId::placeholder(1),
-        Coord::Spin,
+        3,
+        Coord::Spin(editor_core::TargetAxis::Z),
         ang(0.1),
     ));
-    let (_, fault) = whole_door(&doc, lines[2], bundle).expect_err("refused");
-    assert!(
-        matches!(
-            fault,
-            MateFault::NoChart {
-                why: editor_core::NoChartWhy::TwoBodies,
-                ..
-            }
-        ),
-        "{fault:?}"
-    );
-}
-
-/// **A mate re-written re-asks the values naming it**: an axis mate
-/// read off one copy's cap, with a spin value, is admitted; re-pointing
-/// its target onto the line two copies' caps meet in (a read off two
-/// bodies) refuses at the slot door as the value's `NoChart {
-/// TwoBodies }`, as `AddValue` refuses it on that target — whichever
-/// was written last, the door's verdict on the value is the load
-/// door's, and no document it admits fails to save.
-///
-/// *Breaks if* a mate re-pointed is admitted alone (the document saves
-/// no more: the save walk asks every value).
-#[test]
-fn a1_a_mate_re_pointed_re_asks_the_values_naming_it() {
-    let (doc, lines, _, body) = instances("msolve10-a1-re-pointed", 3);
-    // A spin on a one-body target is admitted.
-    let (doc, coaxial) = fixture::mated(
-        doc,
-        lines[2],
-        fixture::mate(
-            fixture::axis(cap(lines[2], body, CapEnd::Start)),
-            fixture::axis(cap(lines[0], body, CapEnd::End)),
-            ContactClass::Rest,
-        ),
-        &[(Coord::Spin, ang(0.1))],
-    );
-    let meet = editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Meet {
-        a: editor_core::pose::RoleRead::plain(fixture::plane(cap(lines[0], body, CapEnd::End))),
-        b: editor_core::pose::RoleRead::plain(fixture::plane(cap(lines[1], body, CapEnd::End))),
-    }));
-    let refused = doc.apply(
-        &DocEdit::SetParam {
-            node: lines[2],
-            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side {
-                constraint: coaxial.id,
-                side: editor_core::MateSide::To,
-            }),
-            value: editor_core::SlotValue::Read(meet),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    );
-    assert!(
-        matches!(
-            &refused,
-            Err(EditError::MateRefused { fault, .. }) if matches!(
-                **fault,
-                MateFault::NoChart {
-                    why: editor_core::NoChartWhy::TwoBodies,
-                    ..
-                }
-            )
-        ),
-        "{refused:?}"
-    );
+    whole_door(&doc, lines[2], bundle).expect("a target over two bodies has one chart");
 }
 
 // ---- The history and the log ----
@@ -664,7 +431,7 @@ fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
     assert!(
         matches!(
             &**fault,
-            MateFault::Overconstrained { placement, constraints, free: 1 }
+            MateFault::Overconstrained { placement, constraints, free: 0 }
                 if *placement == ids[1] && constraints.len() == 2 && constraints.contains(&held)
         ),
         "{fault:?}"
@@ -689,18 +456,15 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     let (doc, ids, _, body) = instances("msolve10-a3-snapshot", 2);
     let (doc, mate_id) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    // The one mate whose target is a pose (the first instance's world
-    // mate reads the world): its `on` and `to` reads exchanged, so
-    // every variable keeps its one reader.
+    // The one mate: its `on` and `to` reads exchanged, so every
+    // variable keeps its one reader.
     fn swap(v: &mut serde_json::Value, swapped: &mut usize) {
         match v {
             serde_json::Value::Object(map) => {
-                if map.contains_key("on")
-                    && map.get("to").is_some_and(|to| to.get("pose").is_some())
-                {
+                if map.contains_key("on") && map.contains_key("to") {
                     let on = map["on"].clone();
-                    map["on"] = map["to"]["pose"].clone();
-                    map["to"]["pose"] = on;
+                    map["on"] = map["to"].clone();
+                    map["to"] = on;
                     *swapped += 1;
                 }
                 for value in map.values_mut() {
@@ -717,10 +481,7 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     }
     let mut swapped = 0_usize;
     let doctored = wire::doctored(&text, |w| swap(w, &mut swapped));
-    assert_eq!(
-        swapped, 1,
-        "the snapshot's one pose-to-pose mate was swapped"
-    );
+    assert_eq!(swapped, 1, "the snapshot's one mate was swapped");
     match load(&doctored, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::MateRefused {
             node,
@@ -755,9 +516,6 @@ fn a_door_fault(fault: &MateFault) -> bool {
         MateFault::ClassNotAdmitted { .. }
             | MateFault::NotOnTheCopy { .. }
             | MateFault::KindsDiffer { .. }
-            | MateFault::WorldRead { .. }
-            | MateFault::ValueNamesNoMate { .. }
-            | MateFault::NotAFreedom { .. }
             | MateFault::NoChart { .. }
             | MateFault::Overconstrained { .. }
     )
@@ -801,7 +559,7 @@ fn corpus() -> Vec<Row> {
             doc,
             ids[1],
             mate(body, ids[0], ids[1]),
-            &[(Coord::Spin, ang(0.3))],
+            &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.3))],
         );
         ("msolve10-corpus-value", doc, opts)
     });

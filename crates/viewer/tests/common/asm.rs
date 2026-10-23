@@ -8,8 +8,8 @@
 //! Geometry is deliberately tiny (three small prisms, all disjoint)
 //! so every suite's evaluations stay cheap; what matters is the
 //! STRUCTURE: two pinned part documents, three instances, each pinned
-//! to the world by one world mate (a frame mate read off the copy's
-//! geometry, `editor_core::pin_at`) and related by no mate. A copy
+//! to the world by values on the world's axes (`test_support::pin`)
+//! and related by no mate. A copy
 //! placed into the world is in the product's space, which the free-move
 //! probe does not move (DI5), so a free-move row gives post_b a space of
 //! its own first ([`unpin`]) and probes it there with [`where_b_stood`].
@@ -194,8 +194,8 @@ pub fn instance_at(
     instance_posed(asm, part, &Frame::translation(at), opts, tol)
 }
 
-/// [`instance_at`] at any pose: the pin is read off the copy's own
-/// geometry through `opts` (`editor_core::pin_at`).
+/// [`instance_at`] at any pose: the pin is values on the world's axes
+/// (`test_support::pin`).
 pub fn instance_posed(
     asm: &mut ProfileDoc,
     part: DocRef,
@@ -206,41 +206,6 @@ pub fn instance_posed(
     let instance = insert_into(asm, crate::fixture::mated_instance(part), tol);
     *asm = super::pin(asm, instance, pose, opts, tol);
     instance
-}
-
-/// **What places `placement` in the world**, by its address: the one
-/// mate its bundle holds reading the world, or, for a bundle with no
-/// mate (the identity bundle the place gesture writes), its first value,
-/// whose removal takes the bundle whole (`DocEdit::removing`).
-///
-/// # Panics
-///
-/// Unless the bundle holds exactly one mate reading the world, or is a
-/// bundle with no mate.
-pub fn world_pin_of(
-    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    placement: RecipeNodeId,
-) -> pncad::document::MateRef {
-    let bundle = crate::fixture::bundle(doc, placement);
-    if let Some(first) = bundle.first()
-        && bundle
-            .iter()
-            .all(|c| c.value().is_some_and(|v| v.mate.is_none()))
-    {
-        return pncad::document::MateRef::new(placement, first.id);
-    }
-    let pins: Vec<_> = bundle
-        .into_iter()
-        .filter(|constraint| {
-            constraint
-                .mate()
-                .is_some_and(|mate| matches!(mate.to, pncad::document::Target::World(_)))
-        })
-        .collect();
-    let [pin] = pins.as_slice() else {
-        panic!("{placement:?} holds one world mate: {pins:?}")
-    };
-    pncad::document::MateRef::new(placement, pin.id)
 }
 
 /// **Give `instance`'s copy a space of its own through the session**,
@@ -359,25 +324,41 @@ pub use super::{down_at, up_at};
 /// rests on the shelf's underside (a plane mate, flipped), which leaves
 /// the post free to slide and spin in the shelf's plane; the values put
 /// its top cap's middle under the shelf at `b_x` along it and midway
-/// across it, unturned. Each value is measured on the two parts' own
-/// coordinates — the post's origin from the shelf's — along the
-/// shelf's frame swung onto the underside's outward normal, its own
-/// `−z`: the half-turn about its `x`, so the chart's `y` is the
-/// shelf's `−y`.
+/// across it, unturned. Each value is measured on the axes of the space
+/// the shelf stands in — the world, the shelf at [`SHELF_AT`]
+/// ([`seat_values_at`]).
 pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
+    seat_values_at(b_x, SHELF_AT)
+}
+
+/// [`seat_values`] under a shelf standing unturned at `shelf_at` in its
+/// space: the post's origin from the space's, on the space's axes swung
+/// onto the underside's outward normal, the space's `−z` — the
+/// half-turn about its `x`, so the chart's `y` is the space's `−y`.
+pub fn seat_values_at(b_x: f64, shelf_at: [f64; 3]) -> Vec<(Coord, pncad::document::Formula)> {
     vec![
-        (Coord::Slide(TargetAxis::X), len(b_x - POST_SECTION / 2.0)),
+        (
+            Coord::Slide(TargetAxis::X),
+            len(shelf_at[0] + b_x - POST_SECTION / 2.0),
+        ),
         (
             Coord::Slide(TargetAxis::Y),
-            len(POST_SECTION / 2.0 - SHELF_DEPTH / 2.0),
+            len(POST_SECTION / 2.0 - SHELF_DEPTH / 2.0 - shelf_at[1]),
         ),
-        (Coord::Spin, ang(0.0)),
+        (Coord::Spin(TargetAxis::Z), ang(0.0)),
     ]
 }
 
 /// [`seat_values`] under the shelf's middle.
 pub fn middle_seat_values() -> Vec<(Coord, pncad::document::Formula)> {
     seat_values(SHELF_LENGTH / 2.0)
+}
+
+/// [`seat_values_at`] under the shelf's middle, the shelf standing at
+/// its space's identity — a shelf given a space of its own ([`unpin`]),
+/// or pinned at the world's origin.
+pub fn own_space_seat_values() -> Vec<(Coord, pncad::document::Formula)> {
+    seat_values_at(SHELF_LENGTH / 2.0, [0.0; 3])
 }
 
 /// **Where [`seat_values`] puts a post under the bench shelf**: the

@@ -138,21 +138,26 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     probe(&mut session);
 
     // The shipped mate tool's op takes them from here. A fresh instance
-    // stands by the identity bundle, values and no mate, which the mate
-    // and its values replace: the seat places the post, one bundle
-    // written whole.
+    // stands by the identity bundle, values and no mate: the mate drops
+    // the values it fixes, and the seat's values set the ones it leaves.
+    // The shelf stands at the world's identity, so the values are
+    // measured from it.
     let seat = || {
         asm::seat_op_under(
             &bench,
             post_i,
             shelf_i,
             ContactClass::Rest,
-            asm::middle_seat_values(),
+            asm::seat_values_at(asm::SHELF_LENGTH / 2.0, [0.0; 3]),
         )
     };
     let outcome = session.perform(seat());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "the bundle, written whole");
+    assert_eq!(
+        outcome.committed.len(),
+        2,
+        "the mate, and its values written over the bundle"
+    );
     session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
     // The same mate again joins the post's bundle, which the seat
@@ -1052,7 +1057,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
                 &bench,
                 bench.post_b,
                 ContactClass::Rest,
-                asm::middle_seat_values(),
+                asm::own_space_seat_values(),
             ),
         );
         session.pump();

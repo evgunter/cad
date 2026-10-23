@@ -301,7 +301,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// It moved again by tags in `die_tool` alone, when its master ball came
 /// to stand on the cube's corner frame by an axis mate, which mints 42
-/// fewer ids than the `place_against` it replaces. [`NAME_WORDS`] held.
+/// fewer ids than the retired place-against helper it replaces. [`NAME_WORDS`] held.
 ///
 /// A seam's sides and a crossing's lines named in the boolean's own
 /// table (N3) moved it with [`NAME_WORDS`], in every document holding a
@@ -310,7 +310,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// Re-pinned, `die` alone, when its pips came to stand on frames stated
 /// from the cube's corner by whole quarter turns and dyadic slides (a
-/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
 /// written `atan2`'s rounded turns: the die's world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
 /// placements, their ids and the names under them are new.

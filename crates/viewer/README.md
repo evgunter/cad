@@ -1996,52 +1996,55 @@ places, and the second is `to`, read where it was picked; each is the
 picked face read as its plane or its carrier's axis
 (`matetool::MATE_KINDS`), and `to` is flipped where the faces rest
 against each other (a plain plane mate equates outward normals). So
-the mate tool's one committed action writes the `on` pick's placement's
-bundle whole (`DocEdit::SetConstraints`): the mate, and a value naming
-it on each freedom the kind leaves (`matetool::MateFreedom`), the
-person's number where they set one and the constant `0` otherwise, which
-the panel states beside the freedoms (every bundle pins its copy). On
-a bundle with no mate (the identity the place gestures write) the mate
-and its values replace the values; beside a bundle's mates they are
-added, and the door refuses what overconstrains. Where `to` is read in another
-space than the one the copy is placed into, the door refuses the mate,
-`EditError::SpaceMismatch` naming both spaces: the gesture never moves
-a copy as a side effect. The panel's "move the copy into the target's
-space" choice asks for the move by name
+the mate tool's one committed action adds the mate to the `on` pick's
+placement's bundle (`DocEdit::AddConstraint`), which writes the bundle
+whole: the values whose freedoms the mate fixes go, each freedom the
+bundle's mates leave keeps its value or is written the constant `0`,
+and the door refuses what overconstrains. The person's numbers on the
+freedoms the kind leaves (`matetool::MateFreedom`) are then written
+over those values, in the same action (`DocEdit::SetConstraints`); the
+panel states that a freedom left unset is `0` (every bundle pins its
+copy). A value is measured on the axes of the space the copy is placed
+into, swung onto the mated direction. So a freshly inserted copy,
+standing by the identity bundle, is mated as it is. Where `to` is read
+in another space than the one the copy is placed into, the door
+refuses the mate, `EditError::SpaceMismatch` naming both spaces: the
+gesture never moves a copy as a side effect. The panel's "move the
+copy into the target's space" choice asks for the move by name
 (`MateProposal::op_into_target_space`, `SessionOp::AddMate`'s
 `into_target_space`): the same action then stands the copy by the
 identity bundle where its bundle holds a mate and re-targets the
-placement into `to`'s space (`SetParam` of its `target`) before writing
-the bundle. A pick on a `Place`'s copy reads `on` off the
-shape it copies; a pick elsewhere is read through the member walk to
-the instance it places.
+placement into `to`'s space (`SetParam` of its `target`) before adding
+the mate. A pick on a `Place`'s copy reads `on` off the shape it
+copies; a pick elsewhere is read through the member walk to the
+instance it places.
 
-**"Place part" is a mate and its values.** Every gesture that puts a
+**"Place part" writes the identity bundle.** Every gesture that puts a
 body or a part in the world — a creation, a duplicate, an inserted
 instance — inserts the placement into the world with the identity
 bundle (`editor_core::stand`): no mate, and the constant `0` on each
 slide and spin, so the copy stands where its body stands and can then
-be moved by its numbers. The transform gesture places a body against
-its own geometry (`place_against`) into the body's own space; a copy
-that door cannot read stands where its body stands, by the identity
-bundle; `OpOutcome::placed` carries which, and the status line says so
-(`frame::place_notice`).
+be moved by its numbers. The transform gesture places a body into its
+own space by values on that space's axes: the three slides as the
+person wrote them, and the spin about the axis the rotation names
+where it is one of the space's, else the chain of turns its frame
+makes. A combine re-places an operand from another space at the pose
+it held, by values on the first operand's space's axes. Nothing a
+place gesture writes reads the copy's geometry.
 
 **A mate beyond the pin refuses, typed.** The edit door reads the
 bundle's families and measures nothing, so a mate added to a bundle
-that already fixes any of its equations — pinned or not — is refused
-where it is authored (`EditError::MateRefused` carrying
-`MateFault::Overconstrained`), whether it agrees with the pin or not;
-the document stays as it was, and the mate is never dropped silently. Taking a mate off is
-`SessionOp::RemoveConstraint`, which writes the bundle whole without it
-and the values naming it, in one action. The door admits no bundle
-beyond the pin, so every stored bundle is minimal and a removal leaves
-a freedom unwritten: it is refused `Unpinned`, in the kernel's words,
-and nothing changes
-(`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`). `SessionOp::IntoOwnSpace`
-gives a copy a space of its own — a `new_space()`, the placement
-re-targeted into it at the identity — which the Properties pane offers
-beside the free-move probe's refusal for a copy in the world.
+whose mates already fix any of its equations is refused where it is
+authored (`EditError::MateRefused` carrying
+`MateFault::Overconstrained`), whether it agrees or not; the document
+stays as it was, and the mate is never dropped silently. Taking a
+constraint off is `SessionOp::RemoveConstraint`
+(`DocEdit::RemoveConstraint`), which writes the bundle whole without
+it by the same rule: the freedoms it fixed are written `0`, so the
+copy stays pinned. `SessionOp::IntoOwnSpace` gives a copy a space of
+its own — a `new_space()`, the placement re-targeted into it at the
+identity — which the Properties pane offers beside the free-move
+probe's refusal for a copy in the world.
 
 **The rule reads the document alone.** The mate reads poses off
 geometry and its values are numbers the person supplies; the viewer's

@@ -258,7 +258,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// `die_tool` moved again when its master ball came to stand on the
 /// cube's corner frame (`corner_frame`) by an axis mate whose slide and
-/// spin are the constant `0`, where `place_against` had placed it by a
+/// spin are the constant `0`, where the retired place-against helper had placed it by a
 /// read-back frame that minted 42 more ids, and its explicit rule's
 /// frames came to be built from the fraction of a turn each is. Every
 /// other document held.
@@ -273,7 +273,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// Re-pinned, `die` alone, when its pips came to stand on frames stated
 /// from the cube's corner by whole quarter turns and dyadic slides (a
-/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
 /// written `atan2`'s rounded turns: the die's world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
 /// placements, their ids and the names under them are new.

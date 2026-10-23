@@ -534,21 +534,19 @@ impl ViewerBehavior<'_> {
         );
         // The freedoms this kind leaves, each set to its number when
         // ticked. Every bundle pins its copy, so a freedom left unticked
-        // is written as the constant 0 (`session::mate_bundle`), and the
+        // is written as the constant 0 (the bundle door's rule), and the
         // panel says so rather than leaving it to be found out.
         ui.label(MATE_UNSET_IS_ZERO);
         for (freedom, (set, value)) in MateFreedom::ALL.iter().zip(&mut self.drafts.mate_values) {
             let coord = freedom.coord();
-            if coord.admitted_by(kind).is_err() {
+            if !freedom.left_by(kind) {
                 continue;
             }
             ui.horizontal(|ui| {
                 ui.checkbox(set, coord.name());
                 let (unit, speed) = match coord {
                     Coord::Slide(_) => (self.notation.length.def(), FIELD_DRAG_SPEED),
-                    Coord::Spin | Coord::SpinAbout(_) => {
-                        (self.notation.angle.def(), ANGLE_DRAG_SPEED)
-                    }
+                    Coord::Spin(_) => (self.notation.angle.def(), ANGLE_DRAG_SPEED),
                 };
                 unit_field(ui, unit, speed, value);
             });
@@ -559,13 +557,13 @@ impl ViewerBehavior<'_> {
             if ui.button(ToolKind::Mate.commit()).clicked() {
                 let values: Result<Vec<_>, _> = MateFreedom::ALL
                     .iter()
-                    .map(|freedom| freedom.coord())
                     .zip(self.drafts.mate_values)
-                    .filter(|(coord, (set, _))| *set && coord.admitted_by(kind).is_ok())
-                    .map(|(coord, (_, value))| {
+                    .filter(|(freedom, (set, _))| *set && freedom.left_by(kind))
+                    .map(|(freedom, (_, value))| {
+                        let coord = freedom.coord();
                         match coord {
                             Coord::Slide(_) => self.notation.length_literal(value),
-                            Coord::Spin | Coord::SpinAbout(_) => self.notation.angle_literal(value),
+                            Coord::Spin(_) => self.notation.angle_literal(value),
                         }
                         .map(|by| (coord, by))
                     })

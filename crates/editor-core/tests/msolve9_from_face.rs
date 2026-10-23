@@ -27,14 +27,14 @@ use std::sync::Arc;
 use editor_core::mate::SurfaceKind;
 use editor_core::pose::{PoseDef, PoseReadFault};
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, EvalOptions,
-    Evaluation, FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind,
-    NodeResult, PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE,
-    RecipeNodeId, RoleSeg, SlotId, StableName, Target, TargetAxis, VarDef, VarKind, all_faces,
-    face_carrier_kind, face_frame, load, save,
+    CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
+    FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
+    PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId,
+    RoleSeg, SlotId, StableName, VarDef, VarKind, all_faces, face_carrier_kind, face_frame, load,
+    save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, gate, insert, len, on_frame, run, solve, square, step};
+use fixture::{gate, insert, len, on_frame, run, solve, square, step};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -167,35 +167,12 @@ fn seat(label: &str, post_height: f64) -> Seat {
     }
 }
 
-/// **`instance` standing in the world on its part's base**: its copy's
-/// start cap of `body` resting on the world's floor, the three values
-/// zero — so an edit growing the part moves its top and keeps its base
-/// where it stands.
-fn stood_on_its_base(doc: ProfileDoc, instance: RecipeNodeId, body: RecipeNodeId) -> ProfileDoc {
-    let copy = editor_core::Operand::Var(
-        doc.output(instance, 0)
-            .expect("an instance defines its copies"),
-    );
-    let mate = editor_core::Mate {
-        on: fixture::plane(editor_core::Operand::select(
-            copy,
-            vec![in_part(instance, body, CapEnd::Start)],
-        )),
-        to: editor_core::Target::World(
-            editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy).flip(),
-        ),
-        class: ContactClass::Rest,
-    };
-    fixture::with_values(
-        doc,
-        instance,
-        mate,
-        vec![
-            (Coord::Slide(TargetAxis::X), len(0.0)),
-            (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin, ang(0.0)),
-        ],
-    )
+/// **`instance` standing in the world on its part's base**: by the
+/// identity bundle, its part's start cap on the world's `xy` — so an
+/// edit growing the part moves its top and keeps its base where it
+/// stands.
+fn stood_on_its_base(doc: ProfileDoc, instance: RecipeNodeId, _body: RecipeNodeId) -> ProfileDoc {
+    fixture::stand_again(doc, instance)
 }
 
 /// The post's cap pose, read off the post document's OWN evaluation
@@ -344,9 +321,7 @@ fn a1_the_mate_follows_the_edited_face() {
     // Nothing stored twice: the target is the face's plane, flipped —
     // a read of the face, with no number of where it was.
     let mate = fixture::constraint(&s.doc, s.mate);
-    let Target::Pose(to) = mate.to else {
-        panic!("the seat's target is a pose of the post");
-    };
+    let to = mate.to;
     let flipped = match s.doc.var(to).map(editor_core::Var::def) {
         Some(VarDef::Pose(PoseDef::Flip { pose })) => pose.read,
         other => panic!("the target is the cap's plane, flipped: {other:?}"),
@@ -633,19 +608,15 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
             new_pin: new_ref.pin,
         },
     );
-    // The post's own pin was read off a face the extrude had: the
-    // author re-pins the round post over its own geometry, so what
-    // remains unresolved is the seat's face alone. Its pin is one mate
-    // and the values on its freedoms, written over whole: the copy
-    // stood where it is, then pinned again.
+    // The post's own pin is values on the world's axes, reading none of
+    // the geometry the extrude had, so what remains unresolved is the
+    // seat's face alone.
     let bundle = fixture::bundle(&doc, s.post_i);
     assert_eq!(
         bundle.iter().filter(|c| c.mate().is_some()).count(),
-        1,
-        "the post is pinned by one mate"
+        0,
+        "the post is pinned by values alone"
     );
-    let (doc, _) = step(doc, editor_core::stand().write(s.post_i));
-    let doc = fixture::pinned(doc, s.post_i, &s.opts);
     let ev = run(&doc, &s.opts);
     assert!(
         matches!(

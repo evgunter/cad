@@ -7,6 +7,7 @@
 //! fallback with zero corpus coverage).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::shared::patch::{met, to_target};
 use crate::shared::ring::p3;
 use crate::shared::tol::band;
 use geom_brep::props::quad::nurbs_patch_face;
@@ -31,7 +32,7 @@ fn r2_flat_square_perimeter_anchor() {
             net.push(p3(x, y, 0.0));
         }
     }
-    let out = nurbs_patch_face::<f64>(
+    let out = met(nurbs_patch_face::<f64>(
         &k,
         &k,
         &net,
@@ -39,9 +40,9 @@ fn r2_flat_square_perimeter_anchor() {
         (0.0, 1.0, 0.0, 1.0),
         4.0,
         0.0,
-        Tol::witness().get().eps,
         band(),
-    )
+        &mut to_target(Tol::witness().get().eps),
+    ))
     .expect("the flat square certifies");
     println!(
         "R2 flat square: area [{:e},{:e}] (true 1)",
@@ -74,7 +75,7 @@ fn r2_collapsed_boundary_balloon_probe() {
         }
     }
     let (a, b) = k.domain();
-    let out = nurbs_patch_face::<f64>(
+    let out = met(nurbs_patch_face::<f64>(
         &k,
         &k,
         &net,
@@ -82,9 +83,9 @@ fn r2_collapsed_boundary_balloon_probe() {
         (a, b, a, b),
         0.0,
         0.0,
-        Tol::witness().get().eps,
         band(),
-    );
+        &mut to_target(Tol::witness().get().eps),
+    ));
     match out {
         Ok(fb) => println!(
             "R2 balloon: CERTIFIED, area [{:e},{:e}] width {:e} — fallback arm was LIVE if the \

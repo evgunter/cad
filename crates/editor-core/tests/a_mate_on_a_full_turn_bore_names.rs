@@ -19,7 +19,32 @@ use editor_core::{
 use geom_core::Tol;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
-use crate::fixture::{against, ang, frame_at, insert, len, len2, revolve_about};
+use editor_core::{Coord, Formula, TargetAxis};
+
+use crate::fixture::{ang, insert, len, len2, revolve_about};
+
+/// A copy of `body`'s revolve in `space`, placed by `placed`.
+fn place(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    space: editor_core::VarId,
+    placed: editor_core::Placed,
+) -> (ProfileDoc, RecipeNodeId) {
+    let applied = doc
+        .apply(
+            &editor_core::DocEdit::place(
+                vec![editor_core::BodyRead::plain(editor_core::Operand::output(
+                    body, 0,
+                ))],
+                editor_core::Operand::Var(space),
+                placed.bundle(),
+            ),
+            Tol::witness(),
+        )
+        .expect("the collar is placed");
+    let placement = applied.record.minted.expect("a placement mints its node");
+    (applied.doc, placement)
+}
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -69,8 +94,6 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         revolve_about(section, (0.0, 0.0), crate::fixture::along_y(), ang(TAU)),
     );
-    // x along azimuth `a` about `y`, and y chosen so the normal is `+y`.
-    let (c, s) = (a.cos(), a.sin());
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
@@ -89,14 +112,21 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         },
     );
     // The shaft is the root: its own frame stands at `(0, y0, 0)` in
-    // the collar's coordinates, `x` along `(c, 0, −s)` and `y` along
-    // `(−s, 0, −c)`, so the collar is placed at that frame's inverse.
-    let (doc, collar) = against(
-        doc,
-        shaft,
-        editor_core::Operand::output(collar, 0),
-        &frame_at([0.0, 0.0, -y0], [c, -s, 0.0], [0.0, 0.0, 1.0]),
-    );
+    // the collar's coordinates, `x` along `(cos a, 0, −sin a)` and `y` along
+    // `(−sin a, 0, −cos a)`, so the collar is placed at that frame's inverse: a
+    // quarter turn about `x`, then `−a` about `z`, slid `−y0` along `z`.
+    let placed = editor_core::Placed::unmated(vec![
+        (
+            Coord::Spin(TargetAxis::X),
+            Formula::turn_over(4).expect("a quarter turn"),
+        ),
+        (Coord::Spin(TargetAxis::Z), ang(-a)),
+        (Coord::Slide(TargetAxis::Z), len(-y0)),
+    ]);
+    let space = doc
+        .operand_space(&shaft.into())
+        .expect("the shaft is in a space");
+    let (doc, collar) = place(doc, collar, space, placed);
     (doc, collar, shaft)
 }
 

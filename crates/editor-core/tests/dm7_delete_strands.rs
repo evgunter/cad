@@ -53,6 +53,7 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
             Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
             | Maintenance::StrandedSpace { .. }
+            | Maintenance::ValueDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
@@ -77,6 +78,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
             | Maintenance::StrandedSelection { .. }
             | Maintenance::StrandedRead { .. }
             | Maintenance::StrandedSpace { .. }
+            | Maintenance::ValueDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()

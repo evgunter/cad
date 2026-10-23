@@ -1,29 +1,35 @@
 //! **Placements**: every copy of a body the tour puts somewhere is a
-//! `Node::place` of it, constrained by what one of the placement doors
-//! computes over the body's own geometry —
+//! `Node::place` of it, its bundle the mates and values the scene
+//! means ([`Answer`]) — each number the scene writes, nothing read back
+//! off an evaluation:
 //!
 //! - [`place_in_world`]: the copy in the world where it stands
 //!   ([`stand`]: the identity bundle, no mate and the constant `0` on
 //!   every freedom), so it follows every variable its body reads;
-//! - [`in_world`]: the copy in the world at a pose ([`place_at`]);
-//! - [`against`]: the copy placed against another body's geometry at a
-//!   frame in that body's own coordinates ([`place_against`]) — how a
-//!   construction combined with another joins its space.
+//! - [`in_world_by`]: the copy in the world moved by values on the
+//!   world's axes, as written;
+//! - [`against`]: the copy placed into another body's space by values
+//!   on that space's axes — how a construction combined with another
+//!   joins its space;
+//! - [`on_axis`]: a revolve's copy mated by its own axis to a frame's
+//!   `z`.
 //!
-//! A placement is a sequence of edits applied in order (the insert, the
-//! mate and one value per freedom it leaves, or the values of a bundle
-//! with no mate as one edit); [`Placed::edits`] is
-//! that sequence, so a scene that exports its edit log replays exactly
-//! what it applied.
+//! A pose a split or a pattern reads is a frame read off a body's
+//! corners ([`corner_frame`]) and moved by the turns and slides the
+//! scene means ([`moved_frame`]).
+//!
+//! A placement is one edit, the insert of the placement holding its
+//! whole bundle; [`Placed::edits`] is that edit, so a scene that
+//! exports its edit log replays exactly what it applied.
 
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    BodyRead, Doc, DocEdit, EvalOptions, Frame, Operand, ProfileProgram, RecipeNodeId, apply,
-    frame_at, place_against, place_at, stand,
+    BodyRead, Coord, Doc, DocEdit, EvalOptions, Formula, FrameMove, Mate, Operand,
+    Placed as Answer, ProfileProgram, RecipeNodeId, TargetAxis, apply, corner_frame, moved_frame,
+    stand,
 };
-use pncad::document::{Coord, Formula, Mate, Placed as Answer, Target};
 use pncad::geom_core::Tol;
-use pncad::prelude::StableName;
+use pncad::prelude::Dimension;
 
 /// What a placement left: the document, the placement it minted, and
 /// the edits it applied, in order.
@@ -42,176 +48,94 @@ pub fn place_in_world(doc: &Doc<ProfileProgram>, body: impl Into<Operand>, tol: 
     written(doc, body.into(), world(), stand(), tol)
 }
 
-/// One copy of `body` in the world at `at` ([`place_at`]; at the
-/// identity, [`place_in_world`]).
+/// One copy of `body` in the world placed by `values` on the world's
+/// axes as written — the spins a chain of turns about the world's `x`,
+/// `y` and `z` through the copy's origin, the slides where they carry
+/// it — each freedom no value names written `0`.
 ///
 /// # Panics
 ///
-/// If the copy offers no geometry to place by, or an edit refuses.
-pub fn in_world(
+/// If an edit refuses.
+pub fn in_world_by(
     doc: &Doc<ProfileProgram>,
     body: impl Into<Operand>,
-    at: &Frame,
+    values: Vec<(Coord, Formula)>,
     tol: Tol,
 ) -> Placed {
-    if *at == Frame::IDENTITY {
-        return place_in_world(doc, body, tol);
-    }
-    let body = body.into();
-    let placed = place_at(doc, &body, at, &EvalOptions::default(), tol)
-        .unwrap_or_else(|e| panic!("the copy places at its pose: {e}"));
-    written(doc, body, world(), placed, tol)
+    written(doc, body.into(), world(), Answer::unmated(values), tol)
 }
 
-/// [`in_world`] by the "place part" gesture ([`place_at`]) at every
-/// pose, the identity included, its values rewritten by `values` before
-/// they are written (a spin read off a variable, say).
+/// A copy of `body` placed into `target`'s space by `values` on that
+/// space's axes, as written ([`in_world_by`]'s rule). The placement's
+/// output is the copy, in `target`'s space.
 ///
 /// # Panics
 ///
-/// As [`in_world`]'s.
-pub fn in_world_valued(
-    doc: &Doc<ProfileProgram>,
-    body: impl Into<Operand>,
-    at: &Frame,
-    values: impl FnOnce(Vec<(Coord, Formula)>) -> Vec<(Coord, Formula)>,
-    tol: Tol,
-) -> Placed {
-    let body = body.into();
-    let placed = place_at(doc, &body, at, &EvalOptions::default(), tol)
-        .unwrap_or_else(|e| panic!("the copy places at its pose: {e}"));
-    let values = values(placed.values);
-    written(doc, body, world(), Answer { values, ..placed }, tol)
-}
-
-/// A copy of `body` placed against `target`'s geometry at `at` — the
-/// copy's own frame in `target`'s own coordinates ([`place_against`]).
-/// The placement's output is the copy, in `target`'s space; a target
-/// that is itself a placed copy carries `at` by its motion.
-///
-/// # Panics
-///
-/// If either offers no geometry to place by, or an edit refuses.
+/// If an edit refuses.
 pub fn against(
     doc: &Doc<ProfileProgram>,
     target: impl Into<Operand>,
     body: impl Into<Operand>,
-    at: &Frame,
-    tol: Tol,
-) -> Placed {
-    against_valued(doc, target, body, at, |values| values, tol)
-}
-
-/// [`against`], its values rewritten by `values` before they are
-/// written (a joint's spin read off a variable, say). The values are
-/// charted on the two bodies' own frames.
-///
-/// # Panics
-///
-/// As [`against`]'s.
-pub fn against_valued(
-    doc: &Doc<ProfileProgram>,
-    target: impl Into<Operand>,
-    body: impl Into<Operand>,
-    at: &Frame,
-    values: impl FnOnce(Vec<(Coord, Formula)>) -> Vec<(Coord, Formula)>,
+    values: Vec<(Coord, Formula)>,
     tol: Tol,
 ) -> Placed {
     let (target, body) = (target.into(), body.into());
-    let placed = place_against(doc, &target, &body, at, &EvalOptions::default(), tol)
-        .unwrap_or_else(|e| panic!("the copy places against its target: {e}"));
-    let values = values(placed.values);
     let space = space_of(doc, &target);
-    written(doc, body, space, Answer { values, ..placed }, tol)
+    written(doc, body, space, Answer::unmated(values), tol)
 }
 
-/// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal
-/// to `u`, both normalised; the normal `u × v`).
-///
-/// # Panics
-///
-/// If `u` and `v` span no plane.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Frame {
-    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    let unit = |a: [f64; 3]| {
-        let n = dot(a, a).sqrt();
-        assert!(n > 0.0, "the frame's axes span a plane");
-        a.map(|c| c / n)
-    };
-    let x = unit(u);
-    let along = dot(v, x);
-    let y = unit([
-        v[0] - x[0] * along,
-        v[1] - x[1] * along,
-        v[2] - x[2] * along,
-    ]);
-    let z = [
-        x[1] * y[2] - x[2] * y[1],
-        x[2] * y[0] - x[0] * y[2],
-        x[0] * y[1] - x[1] * y[0],
-    ];
-    Frame {
-        columns: [x, y, z],
-        translation: origin,
+/// **The slides along the space's `x`, `y` and `z`** by `by`, each
+/// that is not zero.
+pub fn slides(by: [f64; 3]) -> Vec<(Coord, Formula)> {
+    TargetAxis::ALL
+        .into_iter()
+        .zip(by)
+        .filter(|&(_, by)| by != 0.0)
+        .map(|(axis, by)| {
+            let by = Formula::literal(by, Dimension::Length).expect("a finite length");
+            (Coord::Slide(axis), by)
+        })
+        .collect()
+}
+
+/// `turn/den`, negated where `neg`: an exact fraction of a turn.
+pub fn turn(den: u64, neg: bool) -> Formula {
+    let t = Formula::turn_over(den).expect("a turn is an angle");
+    if neg {
+        Formula::neg(t).expect("an angle negates")
+    } else {
+        t
     }
 }
 
-/// **The plane through `origin` with normal `normal`, read off `body`'s
-/// own geometry** ([`frame_at`] through its `xy`): a plane written in
-/// the body's own coordinates, as a split's tool reads one.
+/// **A pose read off `body`'s corners** ([`corner_frame`]: `z` along
+/// its edge from `corner` to `up`, `x` toward its vertex at `toward`)
+/// **and moved by `moves`** as written, about and along that frame's
+/// own axes ([`moved_frame`]).
 ///
 /// # Panics
 ///
-/// If `normal` is zero or `body` offers no frame to read.
-pub fn plane_on(
+/// If `body` has no line edge from `corner` to `up` or no vertex at
+/// `toward`.
+pub fn frame_on(
     doc: &Doc<ProfileProgram>,
     body: impl Into<Operand>,
-    origin: [f64; 3],
-    normal: [f64; 3],
+    [corner, up, toward]: [[f64; 3]; 3],
+    moves: &[FrameMove],
     tol: Tol,
-) -> RoleRead<Operand> {
-    let seed = if normal[0].abs() <= normal[1].abs().max(normal[2].abs()) {
-        [1.0, 0.0, 0.0]
-    } else {
-        [0.0, 1.0, 0.0]
-    };
-    let nn = normal.iter().map(|c| c * c).sum::<f64>();
-    let k = (seed[0] * normal[0] + seed[1] * normal[1] + seed[2] * normal[2]) / nn;
-    let u = [0, 1, 2].map(|i| seed[i] - normal[i] * k);
-    let v = [
-        normal[1] * u[2] - normal[2] * u[1],
-        normal[2] * u[0] - normal[0] * u[2],
-        normal[0] * u[1] - normal[1] * u[0],
-    ];
-    let at = frame(origin, u, v);
-    let read = frame_at(doc, &body.into(), &at, &EvalOptions::default(), tol)
-        .unwrap_or_else(|e| panic!("the body offers a frame to read the plane off: {e}"));
-    RoleRead::through(read, PoseRole::Xy)
-}
-
-/// **The axis through `origin` along `dir`, read off `body`'s own
-/// geometry** ([`frame_at`] through its `z`): a pattern's axis written in
-/// the body's own coordinates.
-///
-/// # Panics
-///
-/// As [`plane_on`]'s.
-pub fn axis_on(
-    doc: &Doc<ProfileProgram>,
-    body: impl Into<Operand>,
-    origin: [f64; 3],
-    dir: [f64; 3],
-    tol: Tol,
-) -> RoleRead<Operand> {
-    RoleRead::through(plane_on(doc, body, origin, dir, tol).read, PoseRole::Z)
+) -> Operand {
+    let body = body.into();
+    let base = corner_frame(doc, &body, corner, up, toward, &EvalOptions::default(), tol)
+        .unwrap_or_else(|refusal| panic!("a frame is read off {body:?}'s corners: {refusal}"));
+    moved_frame(base, moves)
 }
 
 /// **A copy of the full revolve `revolve` standing on the `z` of
 /// `frame`** — a frame read off the body it joins and stated by exact
 /// moves ([`pncad::document::moved_frame`]), so a quarter turn is
 /// `turn/4` and the axis is exactly where it is meant: an `Axis` mate
-/// from the revolve's own axis, slid `along` it (measured from the
-/// target body's own origin), its spin about it the constant `0`.
+/// from the revolve's own axis, slid `along` it (on the target space's
+/// axes swung onto it), its spin about it the constant `0`.
 ///
 /// # Panics
 ///
@@ -223,92 +147,24 @@ pub fn on_axis(
     along: Formula,
     tol: Tol,
 ) -> Placed {
-    use pncad::document::{PlacedBy, TargetAxis};
-    use pncad::prelude::{ContactClass, Dimension};
+    use pncad::prelude::ContactClass;
     let space = space_of(doc, &frame);
     let to = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::through(frame.clone(), PoseRole::Z),
         along: RoleRead::through(frame, PoseRole::Z),
         by: Formula::zero(Dimension::Length),
     }));
-    let placed = Answer {
-        mate: Some(Mate {
-            on: Operand::Output {
-                node: revolve,
-                port: 1,
-            },
-            to: Target::Pose(to),
-            class: ContactClass::Rest,
-        }),
-        values: vec![
-            (Coord::Slide(TargetAxis::Z), along),
-            (Coord::Spin, Formula::zero(Dimension::Angle)),
-        ],
-        by: PlacedBy::Axis,
-    };
-    written(doc, Operand::output(revolve, 0), space, placed, tol)
-}
-
-/// **A copy of `body` placed against `target` by its own axis**, the
-/// axis of `body`'s face `face` (a tube's torus, whose axis is the
-/// tube's own `z`), mated to the `z` of a frame read off `target`
-/// standing at `at` ([`frame_at`]) — the axis form of [`against`], for a
-/// copy whose own axis the door does not find (a tube with a window).
-/// The copy's own frame is `at` up to a turn about that axis, so `at`
-/// is a translation and the two values the mate leaves are zero.
-///
-/// # Panics
-///
-/// If `at` turns, or a door refuses.
-pub fn against_on_axis(
-    doc: &Doc<ProfileProgram>,
-    target: impl Into<Operand>,
-    body: impl Into<Operand>,
-    face: StableName,
-    at: &Frame,
-    tol: Tol,
-) -> Placed {
-    assert_eq!(
-        at.columns,
-        Frame::IDENTITY.columns,
-        "an axis placement written by translation alone"
-    );
-    let (target, body) = (target.into(), body.into());
-    let space = space_of(doc, &target);
-    let frame = frame_at(doc, &target, at, &EvalOptions::default(), tol)
-        .unwrap_or_else(|e| panic!("the target offers a frame to read: {e}"));
     let mate = Mate {
-        on: Operand::Pose(Box::new(PoseDef::Axis {
-            of: Operand::select(body.clone(), vec![face]),
-        })),
-        to: Target::Pose(Operand::Pose(Box::new(PoseDef::Slide {
-            pose: RoleRead::through(frame.clone(), PoseRole::Z),
-            along: RoleRead::through(frame, PoseRole::Z),
-            by: Formula::zero(pncad::document::Dimension::Length),
-        }))),
-        class: pncad::select::ContactClass::Rest,
-    };
-    let values = vec![
-        (
-            Coord::Slide(pncad::document::TargetAxis::Z),
-            Formula::zero(pncad::document::Dimension::Length),
-        ),
-        (
-            Coord::Spin,
-            Formula::zero(pncad::document::Dimension::Angle),
-        ),
-    ];
-    written(
-        doc,
-        body,
-        space,
-        Answer {
-            mate: Some(mate),
-            values,
-            by: pncad::document::PlacedBy::Axis,
+        on: Operand::Output {
+            node: revolve,
+            port: 1,
         },
-        tol,
-    )
+        to,
+        class: ContactClass::Rest,
+    };
+    // The slide an axis mate leaves, written; its spin is the constant 0.
+    let placed = Answer::of(doc, vec![mate], vec![(Coord::Slide(TargetAxis::Z), along)]);
+    written(doc, Operand::output(revolve, 0), space, placed, tol)
 }
 
 /// The world's space, as a placement's target reads it.

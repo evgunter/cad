@@ -78,21 +78,22 @@ fn rest_choice(slide: [f64; 2], spin: f64) -> viewer::matetool::MateChoice {
         values: vec![
             (Coord::Slide(TargetAxis::X), common::len(slide[0])),
             (Coord::Slide(TargetAxis::Y), common::len(slide[1])),
-            (Coord::Spin, common::ang(spin)),
+            (Coord::Spin(TargetAxis::Z), common::ang(spin)),
         ],
     }
 }
 
 /// **A sail's rest on one of the hub's walls**: the sail's underside
 /// on the wall, its middle at the wall's middle. The chart is the
-/// hub's frame swung onto the wall's outward normal, the hub's `∓y`
-/// (front, back): the shortest turn there keeps the hub's `x`, so the
-/// chart's `y` is `∓y × x = ±z`. The sail's origin is its underside's
-/// middle and the wall's middle is `HUB_SIDE / 2` up the hub, so the
-/// slide along the chart's `y` is `±HUB_SIDE / 2`; `spin` turns the
-/// blade about the wall's normal from the hub's `x`.
+/// world's frame — the space the hub stands in — swung onto the wall's
+/// outward normal, the world's `∓y` (front, back): the shortest turn
+/// there keeps the world's `x`, so the chart's `y` is `∓y × x = ±z`.
+/// The sail's origin is its underside's middle and the wall's middle
+/// is `HUB_SIDE / 2` up the hub, which sits on the tower's top, so the
+/// slide along the chart's `y` is `±(TOWER_HEIGHT + HUB_SIDE / 2)`;
+/// `spin` turns the blade about the wall's normal from the world's `x`.
 fn sail_choice(front: bool, spin: f64) -> viewer::matetool::MateChoice {
-    let up = HUB_SIDE / 2.0;
+    let up = TOWER_HEIGHT + HUB_SIDE / 2.0;
     rest_choice([0.0, if front { up } else { -up }], spin)
 }
 
@@ -519,8 +520,8 @@ fn the_windmill_story() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        2,
-        "the re-target and the bundle: {:?}",
+        3,
+        "the re-target, the mate and its values: {:?}",
         outcome.committed
     );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
@@ -689,7 +690,11 @@ fn the_windmill_story() {
     };
     let outcome = session.perform(sail_a_proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 2, "the re-target and the bundle");
+    assert_eq!(
+        outcome.committed.len(),
+        3,
+        "the re-target, the mate and its values"
+    );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!("exactly one frame is superseded at the edit")
     };
@@ -733,7 +738,11 @@ fn the_windmill_story() {
     };
     let outcome = session.perform(sail_b_proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 2, "the re-target and the bundle");
+    assert_eq!(
+        outcome.committed.len(),
+        3,
+        "the re-target, the mate and its values"
+    );
     let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!("exactly one frame is superseded at the edit")
     };

@@ -693,7 +693,7 @@ fn two_copies_in_one_space_free_move_as_one() {
             &bench,
             bench.post_b,
             ContactClass::Rest,
-            asm::middle_seat_values(),
+            asm::own_space_seat_values(),
         ),
     );
     session.pump();
@@ -765,28 +765,9 @@ fn two_copies_in_one_space_free_move_as_one() {
         "one space, one frame"
     );
 
-    // The shelf pinned to the world where it stood: post_b is still
-    // placed into the space, so the frame stays.
-    let shelf_copy = pncad::document::Operand::Var(
-        session
-            .doc()
-            .output(bench.shelf_i, 0)
-            .expect("an instance defines its copies"),
-    );
-    let pin = editor_core::pin_at(
-        session.doc(),
-        &shelf_copy,
-        &Frame::translation(asm::SHELF_AT),
-        &bench.opts(),
-        tol,
-    )
-    .expect("the shelf's copy offers a frame");
-    let outcome = session.perform(SessionOp::AddMate {
-        placement: bench.shelf_i,
-        mate: Box::new(pin),
-        values: Vec::new(),
-        into_target_space: true,
-    });
+    // The shelf moved into the world, resting on post_a: post_b is
+    // still placed into the space, so the frame stays.
+    let outcome = session.perform(asm::shelf_rest_op(&bench, bench.post_a, 0.0));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(outcome.withdrawn.superseded.is_empty());
     assert!(session.display().free_move_of(space).is_some());
@@ -850,7 +831,7 @@ fn a_frame_whose_space_empties_into_another_goes_saying_so() {
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat_values(),
+        asm::own_space_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let joined = session
@@ -894,7 +875,7 @@ fn gesture_on_a_non_root_copy(name: &str, tol: Tol) -> (asm::Bench, DocSession, 
             &bench,
             bench.post_b,
             ContactClass::Rest,
-            asm::middle_seat_values(),
+            asm::own_space_seat_values(),
         ),
     );
     session.pump();
@@ -1104,7 +1085,7 @@ fn landed_superseded(session: &mut DocSession) -> Vec<viewer::display::Withdrawn
 /// space says so at once, and the scratch landing of a drag opened
 /// after it has nothing left to say.
 #[test]
-fn an_undo_before_a_value_drag_drops_the_frame_at_the_edit() {
+fn an_undo_before_a_value_drag_drops_the_frame_on_the_edit() {
     let tol = Tol::witness();
     let bench = asm::bench("fmovertaken", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -1186,7 +1167,7 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
             bench,
             bench.post_b,
             ContactClass::Rest,
-            asm::middle_seat_values(),
+            asm::own_space_seat_values(),
         ),
     );
     let outcome = session.perform(SessionOp::BeginFreeMove {
@@ -1511,8 +1492,8 @@ fn a_mate_that_moves_the_copy_discards_the_probe_value() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        2,
-        "the re-target and the bundle: {:?}",
+        3,
+        "the re-target, the mate and its values: {:?}",
         outcome.committed
     );
     let [superseded] = &outcome.withdrawn.superseded[..] else {

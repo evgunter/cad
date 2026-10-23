@@ -15,11 +15,11 @@ use crate::fixture::{
     self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step,
 };
 use editor_core::eval::bound_pose;
-use editor_core::pose::{PoseDef, PoseRole};
+use editor_core::pose::PoseDef;
 use editor_core::{
     BodyRead, CapEnd, ContactClass, CopyKey, DocEdit, DocumentId, EditError, EvalOptions, Formula,
     Frame, MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, Target, VarId, WorldRead,
+    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use geom_core::Tol;
 use geom_core::UnitVec3;
@@ -101,7 +101,11 @@ fn stack(
 
 /// **One copy of `body` in the world at `pose`**: a placement of it,
 /// pinned there over its own geometry.
-fn place_at(doc: ProfileDoc, body: RecipeNodeId, pose: &Frame) -> (ProfileDoc, RecipeNodeId) {
+fn place_by_values(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    pose: &Frame,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, placement) = insert(doc, crate::fixture::stood(vec![body.into()]));
     (
         fixture::pin(doc, placement, pose, &EvalOptions::default()),
@@ -114,7 +118,7 @@ fn place_at(doc: ProfileDoc, body: RecipeNodeId, pose: &Frame) -> (ProfileDoc, R
 /// target's as far as the mate allows. The whole bundle.
 fn zeroed(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formula>> {
     editor_core::Placed {
-        mate: Some(mate),
+        mates: vec![mate],
         values: vec![
             (
                 editor_core::Coord::Slide(editor_core::TargetAxis::X),
@@ -124,9 +128,11 @@ fn zeroed(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formu
                 editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                 len(0.0),
             ),
-            (editor_core::Coord::Spin, fixture::ang(0.0)),
+            (
+                editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+                fixture::ang(0.0),
+            ),
         ],
-        by: editor_core::PlacedBy::PlanarFace,
     }
     .bundle()
 }
@@ -158,7 +164,7 @@ fn product_solids(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) -> usize 
 fn two_placements_of_one_body_are_two_copies() {
     let (doc, body) = block("s3b-two-copies");
     let (doc, first) = fixture::place(doc, body);
-    let (doc, second) = place_at(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
+    let (doc, second) = place_by_values(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
     assert_ne!(
         doc.output(first, 0),
         doc.output(second, 0),
@@ -354,20 +360,19 @@ fn block_at(doc: ProfileDoc, half: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// **A copy of no instance forms no lever its constraints do not ask
-/// for**: a `Place` copy resting on the world's xy plane decides nothing
-/// over a lever, so its bundle never asks the parts' reach, which has no
-/// part to answer for it. The copy stands in the world.
+/// for**: a `Place` copy resting on a floor's top decides nothing over a
+/// lever, so its bundle never asks the parts' reach, which has no part
+/// to answer for it. The copy stands in the world.
 #[test]
 fn a_place_copy_resting_on_the_world_asks_no_lever() {
     let (doc, body) = block("s3b-world-rest");
+    let (doc, top, _) = fixture::floor(doc, Vec::new());
     let rest = editor_core::Mate {
         on: fixture::plane(fixture::head(fixture::fname(
             body,
             RoleSeg::Cap(CapEnd::Start),
         ))),
-        to: Target::World(WorldRead::Flip {
-            pose: Box::new(WorldRead::through(PoseRole::Xy)),
-        }),
+        to: fixture::flip(top),
         class: ContactClass::Rest,
     };
     let (doc, place) = step(
@@ -531,7 +536,11 @@ fn a_mate_beyond_the_pin_refuses_at_the_door() {
                 fixture::bundle(&doc, b).len() > 1,
                 "the premise: values beside the rest"
             );
-            assert_eq!(free, 1, "two planes in general position leave a slide");
+            assert_eq!(
+                free, 0,
+                "the bundle is written whole: the slide two planes in general position \
+                 leave is written 0"
+            );
         }
         other => panic!("a mate beyond the pin refuses, not {other:?}"),
     }
@@ -678,7 +687,6 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
                 editor_core::Constraint::of_value(
                     editor_core::ConstraintId::placeholder(3),
                     editor_core::Value {
-                        mate: Some(editor_core::ConstraintId::placeholder(2)),
                         coord: editor_core::Coord::Slide(editor_core::TargetAxis::X),
                         by: len(0.1),
                     },
@@ -694,7 +702,7 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
                 assert_eq!(value.placement, c);
                 assert_eq!(why, editor_core::NoChartWhy::SlideTurnsABall);
                 let said = MateFault::NoChart { value, why }.to_string();
-                assert!(said.contains("direction mate's spin"), "{said}");
+                assert!(said.contains("set the turn as a"), "{said}");
             }
             other => panic!("a slide beside a ball has no chart, not {other:?}"),
         },
@@ -702,34 +710,46 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
     }
 }
 
-/// **A mate on a pinned copy is overconstrained**: on a copy its world
-/// mate already pins, a rest on another copy in the world that holds
-/// where the pin puts it is a mate the pin already fixes, refused at
-/// the door, naming both — the case `(Trivial, _)`.
+/// **A mate on a copy pinned by values takes the freedoms it fixes
+/// from them** (D′2: the door rewrites the bundle whole): on a copy its
+/// values alone pin, a rest on another copy holding where the values put
+/// it is admitted, and the values it fixes go, the slides and the spin
+/// it leaves kept as written. The copy stands where it stood.
+///
+/// *Breaks if* the door keeps a value the rest fixes, or drops one it
+/// leaves.
 #[test]
-fn a_mate_on_a_pinned_copy_is_overconstrained() {
+fn a_mate_on_a_copy_pinned_by_values_takes_the_freedoms_it_fixes() {
+    use editor_core::{Coord, TargetAxis};
     let (doc, store, doc_ref, body) = host("s3b-pin-first");
     let o = with_resolver(store);
     let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &o);
     // `b` pinned where the rest puts it, on `a`'s top.
     let (doc, b) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let doc = fixture::pin(doc, b, &Frame::translation([0.0, 0.0, 1.0]), &o);
-    let pin = fixture::bundle(&doc, b)[0].id;
-    match fixture::door_refusal(&doc, rest_on(body, a, b)) {
-        MateFault::Overconstrained {
-            placement,
-            constraints,
-            free,
-        } => {
-            assert_eq!(placement, b);
-            assert!(
-                constraints.len() == 2 && constraints.contains(&pin),
-                "{constraints:?}"
-            );
-            assert_eq!(free, 0, "the pin leaves nothing");
-        }
-        other => panic!("a mate on a pinned copy is overconstrained, not {other:?}"),
-    }
+    let before = fixture::solve(&doc, &o, Tol::witness()).placement(&doc, b);
+    let (doc, rest) = fixture::at_the_door(&doc, rest_on(body, a, b))
+        .unwrap_or_else(|(_, fault)| panic!("the rest is admitted: {fault}"));
+    let bundle = fixture::bundle(&doc, b);
+    assert_eq!(bundle[0].id, rest.id, "the rest leads the bundle");
+    let kept: Vec<Coord> = bundle
+        .iter()
+        .filter_map(|c| c.value().map(|v| v.coord))
+        .collect();
+    assert_eq!(
+        kept,
+        [
+            Coord::Slide(TargetAxis::X),
+            Coord::Slide(TargetAxis::Y),
+            Coord::Spin(TargetAxis::Z),
+        ],
+        "the values the rest leaves, and none it fixes"
+    );
+    assert_eq!(
+        fixture::solve(&doc, &o, Tol::witness()).placement(&doc, b),
+        before,
+        "the copy stands where it stood"
+    );
 }
 
 /// **A constraint has its `on` on its copy**: one relating two other
@@ -877,26 +897,14 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
         translation: [0.0, 0.0, 0.0],
     };
     // The reader copies the one copy where the outer instance puts it:
-    // one pin, read off that copy while the instance is loose, holds
-    // the instance at the quarter turn and the reader where it reads.
-    let at_turn = editor_core::pin_at(
-        &top,
-        &Operand::Var(
-            top.output(outer, 0)
-                .expect("an instance defines its copies"),
-        ),
-        &quarter_turn,
-        &with_resolver(store.clone()),
-        Tol::witness(),
-    )
-    .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    let (top, _) = fixture::constrain_at(top, outer, at_turn.clone());
+    // values hold the instance at the quarter turn and the reader where
+    // it reads.
+    let top = fixture::pin(top, outer, &quarter_turn, &with_resolver(store.clone()));
     let key = CopyKey::part(inner, copy_key(leaf_body));
     let (top, reader) = insert(
         top,
         crate::fixture::stood(vec![BodyRead::keyed(Operand::Node(outer), key)]),
     );
-    let (top, _) = fixture::constrain_at(top, reader, at_turn);
     let ev = run(&top, &with_resolver(store));
     let body = match ev.value(reader).map(|v| &v.payload) {
         Some(editor_core::ValuePayload::Body(b)) => b.clone(),
@@ -1008,7 +1016,7 @@ fn a_place_of_several_shapes_keys_its_copies_by_read() {
 #[test]
 fn a_carried_pose_moves_with_its_copy() {
     let (doc, body) = block("s3b-carried");
-    let (doc, placement) = place_at(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
+    let (doc, placement) = place_by_values(doc, body, &Frame::translation([3.0, 0.0, 0.0]));
     let top = fixture::fname(body, RoleSeg::Cap(CapEnd::End));
     let plane = |carried: bool| {
         let face = Operand::Pose(Box::new(PoseDef::Plane {

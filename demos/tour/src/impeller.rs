@@ -56,8 +56,8 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     Bodies, BooleanValue, CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
-    Frame, FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId,
-    ValuePayload, VarName, apply, evaluate, parse_formula,
+    FreeValue, FreeVar, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, ValuePayload,
+    VarName, apply, evaluate, parse_formula,
 };
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
@@ -124,14 +124,20 @@ fn pe(src: &str) -> Formula {
 /// The hub's cross-section: a regular [`HUB_FACETS`]-gon of
 /// circumradius [`HUB_R`].
 fn hub_polygon() -> LoopProgram<Formula> {
-    #[allow(clippy::cast_precision_loss)]
     let pts: Vec<(f64, f64)> = (0..HUB_FACETS)
         .map(|i| {
-            let a = std::f64::consts::TAU * i as f64 / HUB_FACETS as f64;
-            (HUB_R * a.cos(), HUB_R * a.sin())
+            let [x, y, _] = hub_corner(i);
+            (x, y)
         })
         .collect();
     LoopProgram::polygon(pts).expect("the hub's corners are finite")
+}
+
+/// The hub's `i`th corner on its own `xy`.
+fn hub_corner(i: usize) -> [f64; 3] {
+    #[allow(clippy::cast_precision_loss)]
+    let a = std::f64::consts::TAU * i as f64 / HUB_FACETS as f64;
+    [HUB_R * a.cos(), HUB_R * a.sin(), 0.0]
 }
 
 /// One blade, in the xy plane: a rectangle reaching from inside the
@@ -222,14 +228,29 @@ fn build_doc(tol: Tol) -> Recipe {
         &doc,
         hub_e,
         blade_e,
-        &Frame::translation([0.0, 0.0, BLADE_Z0]),
+        crate::world::slides([0.0, 0.0, BLADE_Z0]),
         tol,
     );
     doc = seated.doc;
     let blade_e = seated.placement;
-    // The axis the blades step about: the hub's own, read off its
-    // geometry.
-    let axis = crate::world::axis_on(&doc, hub_e, [0.0; 3], [0.0, 0.0, 1.0], tol);
+    // The axis the blades step about: the hub's own. A frame read off
+    // the hub's corners — `z` up its edge at corner 0, `x` toward the
+    // opposite corner — slid the hub's radius along that `x`, onto the
+    // hub's centre.
+    let [c0, c12] = [0, HUB_FACETS / 2].map(hub_corner);
+    let axis = pncad::document::pose::RoleRead::through(
+        crate::world::frame_on(
+            &doc,
+            hub_e,
+            [c0, [c0[0], c0[1], HUB_H], c12],
+            &[pncad::document::FrameMove::Slide(
+                pncad::document::TargetAxis::X,
+                len(HUB_R),
+            )],
+            tol,
+        ),
+        pncad::document::pose::PoseRole::Z,
+    );
 
     // **The two slots, one parameter.** The count IS `blades`; the
     // step is `360°/blades` through the grammar's Count→Scalar

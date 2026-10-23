@@ -431,7 +431,7 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     let [moved] = moved.as_slice() else {
         panic!("the top's one mate moved into the part with it: {moved:?}");
     };
-    let [a] = fixture::face_reads(&out.part, *moved.to.pose().expect("a pose target"))[..] else {
+    let [a] = fixture::face_reads(&out.part, moved.to)[..] else {
         panic!("the seat's target reads a face");
     };
     let a = editor_core::head_of(&out.part, a).expect("the moved head resolves");

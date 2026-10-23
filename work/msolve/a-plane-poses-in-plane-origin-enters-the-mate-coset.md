@@ -2,12 +2,12 @@
 id: a-plane-poses-in-plane-origin-enters-the-mate-coset
 kind: issue
 title: A Plane (or Axis) pose's representative origin, which the kind forgets, enters the mate solve's frame and coset
-status: parked
+status: dispatched
 opened: 2026-10-19
 priority: P1
 cost: M
-blocked_on: [a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space]
 refs: [flag-and-pivot-pose-kinds]
+branch: msolve/plane-pose-holds-its-invariants
 ---
 
 

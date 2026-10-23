@@ -584,7 +584,7 @@ fn a_supplementary_chamfer_turn_is_recorded_unproven() {
         doc,
         y,
         x,
-        &crate::fixture::frame_at([3.5, 0.0, 3.5], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+        &crate::fixture::axes_at([3.5, 0.0, 3.5], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
     );
     let (doc, sheared) = insert(
         doc,
@@ -1841,7 +1841,7 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
         doc,
         plate,
         slab,
-        &crate::fixture::frame_at([0.0, 4.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        &crate::fixture::axes_at([0.0, 4.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
     let (doc, cut) = insert(
         doc,

@@ -426,23 +426,6 @@ pub enum SlotId {
     /// [`crate::Node::Tube`] does not carry, because a solid tube has
     /// no wall to drive.
     TubeWall,
-    /// A slide's length in a mate's world read ([`crate::WorldRead`]):
-    /// the `step`th scalar of constraint `constraint`'s read, in
-    /// pre-order.
-    WorldSlide {
-        /// Which constraint of the placement.
-        constraint: ConstraintId,
-        /// The scalar's place in the read.
-        step: usize,
-    },
-    /// A spin's angle in a mate's world read ([`crate::WorldRead`]),
-    /// addressed as [`SlotId::WorldSlide`] is.
-    WorldSpin {
-        /// Which constraint of the placement.
-        constraint: ConstraintId,
-        /// The scalar's place in the read.
-        step: usize,
-    },
     /// A slide of a loft section's station ([`StationMove::Slide`]):
     /// the `step`th move of section `section`'s station, sections
     /// counted in skin order from the first, which has none.
@@ -638,8 +621,8 @@ impl SlotId {
             Self::Count | Self::VDegree | Self::Stations | Self::Instance | Self::Index { .. } => {
                 Dimension::Count
             }
-            Self::WorldSlide { .. } | Self::StationSlide { .. } => Dimension::Length,
-            Self::WorldSpin { .. } | Self::StationSpin { .. } => Dimension::Angle,
+            Self::StationSlide { .. } => Dimension::Length,
+            Self::StationSpin { .. } => Dimension::Angle,
             Self::ValueSlide { .. } => Dimension::Length,
             Self::ValueSpin { .. } => Dimension::Angle,
             // Profile-program roles carry V2's per-role table; none is
@@ -728,8 +711,6 @@ impl SlotId {
             Self::Profile { loop_, step, arg } => {
                 format!("loop {loop_} step {step} · {}", arg.label())
             }
-            Self::WorldSlide { step, .. } => format!("world read slide {}", step + 1),
-            Self::WorldSpin { step, .. } => format!("world read spin {}", step + 1),
             Self::StationSlide { section, step } => {
                 format!("section {} station slide {}", section + 1, step + 1)
             }
@@ -776,19 +757,11 @@ impl SlotId {
             | Self::Operand(_)
             | Self::Index { .. }
             | Self::Profile { .. }
-            | Self::WorldSlide { .. }
-            | Self::WorldSpin { .. }
             | Self::StationSlide { .. }
             | Self::StationSpin { .. }
             | Self::ValueSlide { .. }
             | Self::ValueSpin { .. } => None,
         }
-    }
-
-    /// Whether this slot addresses a scalar of a mate's world read —
-    /// an address only a mate carries.
-    pub fn is_world_read_step(self) -> bool {
-        matches!(self, Self::WorldSlide { .. } | Self::WorldSpin { .. })
     }
 
     /// Whether this slot addresses a value's number — an address only a
@@ -1338,7 +1311,7 @@ impl SitedRef {
 /// use editor_core::pose::PoseDef;
 /// use editor_core::{
 ///     ContactClass, EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
-///     StableName, Target,
+///     StableName,
 /// };
 /// let face = FaceName::new(StableName {
 ///     kind: EntityKind::Face,
@@ -1356,7 +1329,7 @@ impl SitedRef {
 /// }));
 /// let _: Mate<Formula> = Mate {
 ///     on: plane(face),
-///     to: Target::Pose(flipped),
+///     to: flipped,
 ///     class: ContactClass::Rest,
 /// };
 /// ```
@@ -4027,9 +4000,7 @@ where
             continue;
         };
         out.push((seat(crate::mate::MateSide::On), mate.on.clone()));
-        if let Some(to) = mate.to.pose() {
-            out.push((seat(crate::mate::MateSide::To), to.clone()));
-        }
+        out.push((seat(crate::mate::MateSide::To), mate.to.clone()));
     }
     out
 }
@@ -4049,9 +4020,7 @@ fn side_rows_mut<S: Slot>(
             continue;
         };
         out.push((seat(crate::mate::MateSide::On), on));
-        if let Some(to) = to.pose_mut() {
-            out.push((seat(crate::mate::MateSide::To), to));
-        }
+        out.push((seat(crate::mate::MateSide::To), to));
     }
     out
 }

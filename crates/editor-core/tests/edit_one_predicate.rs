@@ -47,8 +47,8 @@ use editor_core::CapEnd;
 use editor_core::{
     ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula,
     Frame, FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node,
-    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, Target, VarName,
-    apply, load, save,
+    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply,
+    load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
@@ -331,9 +331,7 @@ fn saved_mate(label: &str) -> (String, MateRef, [editor_core::VarId; 2]) {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
     let written = fixture::constraint(&doc, id);
-    let Target::Pose(to) = written.to else {
-        panic!("the mate's target is a pose of the pinned copy");
-    };
+    let to = written.to;
     let face = |pose| match fixture::face_reads(&doc, pose).as_slice() {
         [one] => *one,
         other => panic!("a plane pose reads one face, got {other:?}"),
@@ -408,9 +406,7 @@ fn a_face_to_face_mate_round_trips() {
     let (text, mate, reads) = saved_mate("onepred-matehead-ok");
     let loaded = load(&text, Tol::witness()).expect("a face-to-face mate loads");
     let kept = fixture::constraint(&loaded.doc, mate);
-    let Target::Pose(to) = kept.to else {
-        panic!("the mate survives the round trip, its target a pose");
-    };
+    let to = kept.to;
     assert_eq!(
         [
             fixture::face_reads(&loaded.doc, kept.on),
@@ -614,11 +610,10 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
+    let cap = fixture::plane(fixture::head(in_part(ids[0], body, CapEnd::Start)));
     let on_the_world = Mate {
-        on: fixture::plane(fixture::head(in_part(ids[0], body, CapEnd::Start))),
-        to: Target::World(editor_core::WorldRead::through(
-            editor_core::pose::PoseRole::Xy,
-        )),
+        on: cap.clone(),
+        to: cap,
         class: ContactClass::Rest,
     };
     match apply(

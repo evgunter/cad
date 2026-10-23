@@ -2,9 +2,10 @@
 id: inline-refuses-a-placed-part-off-the-identity
 kind: issue
 title: Inline refuses every part placed by the place gesture once its instance stands off the identity (ValueOnAMovedWorld)
-status: open
+status: closed
 opened: 2026-10-18
 parent: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
+closed: 2026-10-23
 ---
 
 
@@ -35,3 +36,7 @@ landing, the values re-read off the copy's landed pose with
 the mate as the landing's frame mate. Either keeps every name and pose
 through a split-then-inline round trip off the identity, and the row
 above becomes a landing row.
+
+## Closed
+
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). Inline no longer re-expresses the instance's values: it places the spliced copies under the instance's bundle as written, so a part placed anywhere inlines (`p2_split::i5_a_mate_placed_instance_over_any_part_inlines`, `p2_gauge_offsets_and_spaces::a_mate_placed_instance_inlines_in_place`). The new `refactor::flatten` folds the identity placement back, and inline then flatten of a split returns the original.

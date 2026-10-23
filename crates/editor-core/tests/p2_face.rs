@@ -46,7 +46,7 @@ fn face_mate(
 /// The selection a stored mate's target reads.
 fn target_var(doc: &ProfileDoc, mate: MateRef) -> editor_core::VarId {
     let stored = fixture::constraint(doc, mate);
-    let to = *stored.to.pose().expect("a mate to a pose");
+    let to = stored.to;
     let [select] = fixture::face_reads(doc, to)[..] else {
         panic!("the target reads one face")
     };
@@ -189,20 +189,19 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
 
 // ---- the seam ----
 
-/// **A valued mate whose target reads a mate-placed copy refuses to
-/// cross split, typed.** The kept constraint `m` reads the top —
-/// placed by its mate, not pinned — through its head face, and every
-/// bundle pins its copy, so `m` carries values. A value is charted on
-/// its mate's target body's own frame, which across the seam would be
-/// the instance's, the part's world, rather than the top's moved one:
-/// split refuses the reader `Posed`, naming the top's placement, where
-/// it once carried a mate that held no value (D′2 charts a value on the
-/// target space instead).
+/// **A valued mate whose target reads a mate-placed copy crosses
+/// split, and stands where it stood** (D′2). The kept constraint `m`
+/// reads the top — placed by its mate, not pinned — through its head
+/// face, and every bundle pins its copy, so `m` carries values. A value
+/// is charted on the target space, the world on both sides of the seam,
+/// not on the body the target is read off, so the top's own placement
+/// is nothing the crossing has to carry: the split admits the reader,
+/// and `k` lands where it landed.
 ///
-/// *Breaks if* split carries a value onto another frame than the one
-/// it was charted on.
+/// *Breaks if* split refuses the reader for where its target body
+/// stands, or the crossing moves `k`.
 #[test]
-fn a_valued_mate_reading_a_mate_placed_copy_refuses_to_cross_split() {
+fn a_valued_mate_reading_a_mate_placed_copy_crosses_split() {
     let label = "p2-face-nonroot";
     let (p, doc, [base, top, k], _m) = face_across(label);
     let o = p.opts();
@@ -210,22 +209,22 @@ fn a_valued_mate_reading_a_mate_placed_copy_refuses_to_cross_split() {
         fixture::offset_of(&doc, top).is_none(),
         "the top is placed by its mate, not pinned"
     );
-    match editor_core::split(
+    let before = crate::p2_gauges::min_corner(&crate::p2_gauges::body_of(&run(&doc, &o), k));
+    let out = editor_core::split(
         &doc,
         &cut(&doc, &[base, top]),
         DocumentId::derive(&format!("{label}-part")),
         Tol::witness(),
         o.resolver.as_ref(),
-    ) {
-        Err(SplitError::RemainderReadUncarried {
-            reader,
-            why: editor_core::Uncarried::Posed { placement },
-        }) => {
-            assert_eq!(reader.id(), k, "the kept reader");
-            assert_eq!(placement.id(), top, "the top's own placement");
-        }
-        other => panic!("a valued mate on a moved copy refuses Posed, got {other:?}"),
-    }
+    )
+    .unwrap_or_else(|e| panic!("a valued mate on a mate-placed copy crosses: {e}"));
+    let mut store = p.store.clone();
+    store.insert(out.part.clone(), Tol::witness());
+    let after = crate::p2_gauges::min_corner(&crate::p2_gauges::body_of(
+        &run(&out.remainder, &with_resolver(store)),
+        k,
+    ));
+    crate::p2_gauges::close(before, after, "k stands where it stood");
 }
 
 /// **A mate whose target reads a pattern copy crosses split and inline,
@@ -235,9 +234,11 @@ fn a_valued_mate_reading_a_mate_placed_copy_refuses_to_cross_split() {
 /// placing `k` whose target reads copy 2's upper cap. Split cuts the
 /// leg and its pattern, and the target then reads the instance plainly,
 /// its face the copy's cap as the new part names it; inline unwraps it
-/// back onto copy 2 of the inner pattern. At each of the three
-/// documents the target's world pose is the same, and
-/// `inline(split(d))` is `d` up to node ids under the R1 comparator.
+/// back onto copy 2 of the inner pattern, and flatten folds the new
+/// space away. The target's world pose is the same through the split
+/// and the inline, and `flatten(inline(split(d)))` is `d` up to node
+/// ids but for the target's read, which lands on the identity placement
+/// that copies copy 2 rather than on its `Part`.
 ///
 /// *Breaks if* the copy's face crosses as its master's, or moves.
 #[test]
@@ -292,14 +293,25 @@ fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("inline refused: {e}"));
-    same_world(
-        target_world(&back.doc, &o, m, copy_two),
-        before,
-        "inline: the target's world pose",
-    );
+    // Flattened, the target reads copy 2 on the identity placement the
+    // part copied it into the world by, which split's crossing read it
+    // through, rather than on its `Part`: the one difference from `d`,
+    // and the copy lands where it landed.
+    let flat = crate::fixture::round_trip::flat(&back);
     let (map, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &map, &steps)
-        .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
+    let said = same_up_to_ids(&doc, &flat, &map, &steps)
+        .expect_err("the target reads the identity placement's copy");
+    let [only] = said.lines().collect::<Vec<_>>()[..] else {
+        panic!("the target's read is the one difference: {said}")
+    };
+    assert!(
+        only.starts_with(&format!("payload: {k:?} -> ")),
+        "the kept mate's target: {said}"
+    );
+    let corner = |doc: &ProfileDoc| {
+        crate::p2_gauges::min_corner(&crate::p2_gauges::body_of(&run(doc, &o), k))
+    };
+    crate::p2_gauges::close(corner(&flat), corner(&doc), "k stands where it stood");
 }
 
 /// **A mate whose target reads a copy in a space of its own refuses at split**: a copy
@@ -634,8 +646,10 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
 /// name row for row — at different heights and places; the top seated
 /// on the first's cap, then its target re-pointed by its slot door onto
 /// the second's. The pose reads the second base's cap, in the second
-/// part: the top lands there, at the second's height and place, and
-/// nowhere a name read in the wrong part could put it.
+/// part: the top lands on it, at the second's height, its values still
+/// measured on the world's axes (D′2: a value charts on the target
+/// space, not the body read), and nowhere a name read in the wrong part
+/// could put it.
 ///
 /// *Breaks if* the re-pointed head is read in the first part.
 #[test]
@@ -689,7 +703,7 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
     );
     let on_high = origin_of(&doc, &o, top);
     assert!(
-        at(on_high, [on_low[0] + 10.0, on_low[1], 2.0]),
+        at(on_high, [on_low[0], on_low[1], 2.0]),
         "the top sits on the high base's cap: {on_high:?}"
     );
 }

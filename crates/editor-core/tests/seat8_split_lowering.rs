@@ -337,7 +337,7 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// a turn written as a fraction of a turn takes its sine and cosine from
 /// the fraction, so its revolve's heading `turn/4` puts the axis on the
 /// profile's `y` exactly; its revolve stands upright by a bundle with no
-/// mate spun `turn/4` (`fixture::upright_at`) where `place_at` wrote an
+/// mate spun `turn/4` (`fixture::upright_at`) where the retired place-at helper wrote an
 /// `Axis` mate onto a world read spun by turns read off by `atan2`; and
 /// its split's plane and its circular pattern's axis are read off its
 /// faces (`fixture::plane_on`, `axis_on`) where they were frames moved by

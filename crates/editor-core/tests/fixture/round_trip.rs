@@ -40,6 +40,19 @@ use editor_core::{
     InlineOutcome, MintId, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap,
 };
 
+/// **An inline's result with its placement flattened** ([`editor_core::flatten`]):
+/// the document an inline of a split's instance standing at the identity
+/// gives back, its new space folded into the instance's target (A4).
+///
+/// # Panics
+///
+/// When the placement does not flatten.
+pub fn flat(back: &editor_core::InlineOutcome) -> editor_core::ProfileDoc {
+    editor_core::flatten(&back.doc, back.placement, geom_core::Tol::witness())
+        .unwrap_or_else(|e| panic!("the inline's identity placement flattens: {e:?}"))
+        .doc
+}
+
 /// **The split document's ids carried through split then inline**: a
 /// kept node keeps its id (the remainder is the document edited), and a
 /// cut node goes to the inline's image of its image in the part; the

@@ -7,7 +7,7 @@
 //! one vertex per wedge), and wall to wall (two floor faces, two solids).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{against, desc, frame_at, insert, len, table};
+use crate::fixture::{against, axes_at, desc, insert, len, table};
 use editor_core::{
     BooleanValue, CancelToken, EntityKey, Entry, EvalOptions, Node, ProfileDoc, ValuePayload,
     evaluate,
@@ -44,7 +44,7 @@ fn a_keel_on_the_floor_names_its_two_edges_apart() {
             doc,
             slab,
             prism,
-            &frame_at([x0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+            &axes_at([x0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
         );
         let (doc, cut) = insert(
             doc,

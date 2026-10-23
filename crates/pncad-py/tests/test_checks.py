@@ -55,7 +55,6 @@ from pncad import (
     FreeValue,
     FreeVar,
     Frame,
-    Mate,
     MateValue,
     Node,
     Open,
@@ -69,6 +68,8 @@ from pncad import (
     run_checks,
     subject_body,
 )
+
+from placing import against
 from test_assembly_eval import identities, opened
 
 
@@ -91,7 +92,7 @@ def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0, on=None):
     if on is None:
         assert z0 == 0.0, "a box standing alone sits on its own xy"
         return body
-    return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
+    return against(doc, on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
 
 
 def disjoint_union():
@@ -409,7 +410,6 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         instance = doc.insert(
             Node.instantiate_part(DocRef(ident, store.current_pin(ident)), doc.world)
         )
-        doc.pin(instance, resolver=store)
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):
@@ -456,28 +456,22 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         reporting over what did evaluate."""
         doc = Doc("checks-sliver")
         a = slab(doc, 0.0, 1.0)
-        # Placed while it builds — the gesture reads the union's faces —
-        # 0.5 m beside the first along x, by a value reading `apart`;
-        # then `apart` closes the gap to 2 nm: in band, so the union
-        # refuses.
+        # Placed 0.5 m beside the first along x, by a value reading
+        # `apart`; then `apart` closes the gap to 2 nm: in band, so the
+        # union refuses.
         doc.apply(DocEdit.declare_var(VarName("apart"), FreeVar.length(1.5 * m)))
-        b = doc.place_against(a, slab(doc, 0.0, 1.0), Frame.translation((1.5 * m, 0 * m, 0 * m)))
+        b = against(doc, a, slab(doc, 0.0, 1.0), Frame.translation((1.5 * m, 0 * m, 0 * m)))
         # The bundle written again whole, its slide along `x` reading
-        # `apart`: the mate first, so each value names it at position 0.
-        ((_, mate),) = [(r, c) for r, c in doc.bundle(b) if isinstance(c, Mate)]
-        values = [c for _, c in doc.bundle(b) if isinstance(c, MateValue)]
+        # `apart`.
+        values = [c for _, c in doc.bundle(b)]
         doc.set_constraints(
             b,
             [
-                mate,
-                *(
-                    MateValue(
-                        0,
-                        c.coord,
-                        doc.var(VarName("apart")) if c.coord == Coord.slide("x") else c.by,
-                    )
-                    for c in values
-                ),
+                MateValue(
+                    c.coord,
+                    doc.var(VarName("apart")) if c.coord == Coord.slide("x") else c.by,
+                )
+                for c in values
             ],
         )
         union = doc.insert(Node.union([a, b]))

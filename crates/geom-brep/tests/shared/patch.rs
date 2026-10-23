@@ -28,7 +28,10 @@
 //! here for it rather than restating it.
 
 use geom_brep::props::PropsError;
-use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
+use geom_brep::props::quad::{
+    FaceCutBounds, LaneEnd, LaneRun, LaneStop, QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement,
+    nurbs_patch_face,
+};
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::spline::KnotVector;
@@ -295,21 +298,81 @@ pub(crate) fn oracle_patch(
     }
 }
 
-/// Drive the patch door over a knot vector pair's own domain and hand
-/// back its posture, having already ruled out the postures no probe in
-/// this crate accepts.
+/// The reporting target as these suites ask for it: a round is
+/// accepted when its mean boundary displacement is at most
+/// `QUAD_TARGET_LEN_FACTOR·eps`, read as a plain comparison (the funnel's
+/// reading of the same target is `topo`'s).
+pub(crate) fn to_target(
+    eps: f64,
+) -> impl FnMut(&FaceCutBounds, LaneStop) -> Result<bool, PropsError> {
+    move |b, _| Ok(mean_boundary_displacement(b.flux, b.area)? <= QUAD_TARGET_LEN_FACTOR * eps)
+}
+
+/// The enclosure of a run the caller accepted; a run that stopped
+/// short of it panics, naming where it stopped.
+#[track_caller]
+#[allow(clippy::panic)]
+pub(crate) fn met(run: Result<LaneRun, PropsError>) -> Result<FaceCutBounds, PropsError> {
+    let run = run?;
+    match run.end {
+        LaneEnd::Accepted(_) => Ok(run.bounds),
+        _ => panic!("the lane stopped short of the target: {run:?}"),
+    }
+}
+
+/// Why the patch door gave no enclosure at the target: it stopped short
+/// (its floor or its work wall, with the narrowest enclosure it
+/// reached), or it refused.
+#[derive(Debug)]
+pub(crate) enum Unmet {
+    /// The lane stopped before the target.
+    Stopped(LaneRun),
+    /// A typed refusal.
+    Refused(PropsError),
+}
+
+impl core::fmt::Display for Unmet {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Stopped(run) => write!(
+                f,
+                "stopped at its {:?} after {} round(s), narrowest at round {}",
+                run.end, run.rounds, run.round
+            ),
+            Self::Refused(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+/// A run read at the target: its enclosure if the caller accepted it,
+/// and why not otherwise.
+pub(crate) fn at_target(out: Result<LaneRun, PropsError>) -> Result<FaceCutBounds, Unmet> {
+    match out {
+        Ok(LaneRun {
+            bounds,
+            end: LaneEnd::Accepted(_),
+            ..
+        }) => Ok(bounds),
+        Ok(run) => Err(Unmet::Stopped(run)),
+        Err(e) => Err(Unmet::Refused(e)),
+    }
+}
+
+/// **The patch door to the reporting target, under the one posture
+/// contract** its probes share.
 ///
-/// `Ok(bounds)` is a certified return. `Err(e)` is one of the four
-/// HONEST refusals — a quadrature budget stop, an unsupported
-/// configuration, an escalated funnel decision, a degenerate face — and
-/// a caller is free to treat it as a pass, print it, or count it.
-/// Anything else PANICS: a door that answers a probe with a posture
-/// outside that set has broken a contract the probe cannot express as a
-/// number, and each caller spelling that panic itself is how two of
-/// them came to spell it differently. The panic is `#[track_caller]`,
-/// so it names the caller's own line rather than a string the caller
-/// had to remember to pass — put `#[track_caller]` on any wrapper that
-/// sits between a row and this, or the row will not be the line named.
+/// `Ok(bounds)` is a certified return. `Err(e)` is one of the HONEST
+/// non-answers — a lane that stopped short of the target, an
+/// unsupported configuration, an escalated funnel decision, a
+/// degenerate face — and a caller is free to treat it as a pass, print
+/// it, or count it. Anything else PANICS: a door that answers a probe
+/// with a posture outside that set has broken a contract the probe
+/// cannot express as a number, and each caller spelling that panic
+/// itself is how two of them came to spell it differently. The panic is
+/// `#[track_caller]`, so it names the caller's own line rather than a
+/// string the caller had to remember to pass — put `#[track_caller]` on
+/// any wrapper that sits between a row and this, or the row will not be
+/// the line named.
 ///
 /// The rectangle is the two knot vectors' own domain, which is what
 /// every caller passed; `boundary_defect` is zero, which is what an
@@ -328,7 +391,7 @@ pub(crate) fn face_posture(
     weights: &[f64],
     perimeter: f64,
     eps: f64,
-) -> Result<FaceCutBounds, PropsError> {
+) -> Result<FaceCutBounds, Unmet> {
     let (a, b) = ku.domain();
     let (c, d) = kv.domain();
     let band = crate::shared::tol::band();
@@ -340,17 +403,22 @@ pub(crate) fn face_posture(
         (a, b, c, d),
         perimeter,
         0.0,
-        eps,
         band,
+        &mut to_target(eps),
     );
-    match out {
-        Ok(fb) => Ok(fb),
+    match at_target(out) {
+        Ok(bounds) => Ok(bounds),
         Err(
-            e @ (PropsError::QuadratureBudget { .. }
-            | PropsError::QuadratureUnsupported { .. }
-            | PropsError::Escalated { .. }
-            | PropsError::DegenerateFace),
-        ) => Err(e),
+            unmet @ (Unmet::Stopped(LaneRun {
+                end: LaneEnd::Floor | LaneEnd::Wall,
+                ..
+            })
+            | Unmet::Refused(
+                PropsError::QuadratureUnsupported { .. }
+                | PropsError::Escalated { .. }
+                | PropsError::DegenerateFace,
+            )),
+        ) => Err(unmet),
         Err(other) => panic!("not an honest posture: {other}"),
     }
 }

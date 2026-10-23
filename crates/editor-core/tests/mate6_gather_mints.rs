@@ -129,7 +129,7 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
         &[
             (Coord::Slide(TargetAxis::X), len(seat.apart)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin, fixture::ang(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
         ],
     );
     (doc, m)
@@ -1132,7 +1132,7 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
     // read against the census row of its own two caps.
     let plain = |on: StableName, to: StableName| editor_core::Mate {
         on: fixture::plane(fixture::head(on)),
-        to: editor_core::Target::Pose(fixture::plane(fixture::head(to))),
+        to: fixture::plane(fixture::head(to)),
         class: ContactClass::Rest,
     };
     let standoff = |on: StableName, to: StableName| {
@@ -1140,11 +1140,11 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
         let up = || fixture::flip(fixture::plane(fixture::head(to.clone())));
         editor_core::Mate {
             on: fixture::plane(fixture::head(on)),
-            to: editor_core::Target::Pose(editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+            to: editor_core::Operand::Pose(Box::new(PoseDef::Slide {
                 pose: RoleRead::plain(up()),
                 along: RoleRead::through(up(), PoseRole::Normal),
                 by: len(0.0),
-            }))),
+            })),
             class: ContactClass::Rest,
         }
     };
@@ -1451,7 +1451,7 @@ fn a_mates_wall_states_the_rim_on_it_and_a_standoff_states_nothing() {
             } else {
                 editor_core::Mate {
                     on: fixture::plane(fixture::head(on)),
-                    to: editor_core::Target::Pose(standoff(to)),
+                    to: standoff(to),
                     class: ContactClass::Rest,
                 }
             }

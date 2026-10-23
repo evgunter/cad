@@ -57,15 +57,9 @@ fn unit_box() -> (ProfileDoc, RecipeNodeId) {
 /// of it is the cube's own. A split by its xy plane reads it, and it is
 /// named, so further seats share it.
 fn turned_frame(doc: ProfileDoc, cube: RecipeNodeId) -> (ProfileDoc, VarId) {
-    let at = fixture::frame_at([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
-    let frame = editor_core::frame_at(
-        &doc,
-        &Operand::from(cube),
-        &at,
-        &EvalOptions::default(),
-        Tol::witness(),
-    )
-    .expect("the cube offers a frame");
+    let at = fixture::axes_at([1.0, 2.0, 3.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]);
+    let frame =
+        editor_core::test_support::frame_on(&doc, &Operand::from(cube), &at, Tol::witness());
     let (doc, split) = fixture::insert(
         doc,
         Node::Split {
