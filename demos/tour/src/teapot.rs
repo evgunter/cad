@@ -266,7 +266,9 @@
 //!
 //!    So what the comparison measures, where the door opens at all, is
 //!    the BRACKET: the straightened frustum inside the kernel's own
-//!    certified enclosure. That oracle self-calibrates with ε, and the
+//!    certified enclosure, widened by the lofted skin's own measured gap
+//!    from the ideal canal (`SPOUT_SKIN_GAP_V`), which a fine bracket
+//!    resolves. That oracle self-calibrates with ε, and the
 //!    scene PROBES rather than asserting through a door that may not
 //!    open.
 //!
@@ -399,6 +401,17 @@ const SPOUT_R1: f64 = 3.0 / 256.0;
 /// constant absolute thickness would move the centroid off the spine
 /// as the section shrank, and the closed form would go with it.
 const SPOUT_BORE: f64 = 3.0 / 4.0;
+/// **How far the lofted skin's volume sits from the straightened
+/// frustum's**, m³. The frustum is the volume of the IDEAL canal, a
+/// centred circle swept along the spine; the skin is fitted through
+/// [`SPOUT_STATIONS`] sections, and between them it is not that tube.
+/// Measured: the skin encloses about 1.2e-10 m³ (2.2e-6 of V) more than
+/// the frustum, the same at ε = 1e-9 (number 1.30e-10 above it) and at
+/// 1e-12 (bracket midpoint 1.16e-10 above it, half-width 1.3e-11). So
+/// the frustum is held to the kernel's enclosure widened by twice that,
+/// which a bracket narrower than the gap would otherwise falsely
+/// refuse.
+const SPOUT_SKIN_GAP_V: f64 = 2.5e-10;
 /// How many sections the spout's skin is fitted through.
 const SPOUT_STATIONS: usize = 7;
 // The stop's `ops` line is a `&'static str` and spells this count.
@@ -2179,7 +2192,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             let v_gap = (p.volume - v_spout).abs();
             let a_gap = (p.surface_area - a_spout).abs();
             assert!(
-                v_gap <= p.volume_pad,
+                v_gap <= p.volume_pad + SPOUT_SKIN_GAP_V,
                 "the canal's V = {} vs the straightened frustum's {v_spout}: they differ \
                  by {v_gap:e} m^3, OUTSIDE the certified enclosure's own half-width {:e}",
                 p.volume,
@@ -2228,9 +2241,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             );
             let half = 0.5 * (b.volume_hi - b.volume_lo);
             assert!(
-                b.volume_lo <= v_spout && v_spout <= b.volume_hi,
+                b.volume_lo - SPOUT_SKIN_GAP_V <= v_spout
+                    && v_spout <= b.volume_hi + SPOUT_SKIN_GAP_V,
                 "the straightened frustum's V = {v_spout} lies OUTSIDE the canal's \
-                 certified bracket [{}, {}]",
+                 certified bracket [{}, {}] widened by the skin's own gap {SPOUT_SKIN_GAP_V:e}",
                 b.volume_lo,
                 b.volume_hi
             );
@@ -2244,7 +2258,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  back, continued as far as the schedule reaches, keeps a bracket through the \
                  refusal — V in [{:.9}, {:.9}] m^3, whose \
                  lower end clears zero by {:.1e} half-widths, and which holds the \
-                 straightened frustum's V = {v_spout:.9}. The frustum's A = {a_spout:.9} m^2 \
+                 straightened frustum's V = {v_spout:.9} to the lofted skin's own \
+                 {SPOUT_SKIN_GAP_V:e} m^3. The frustum's A = {a_spout:.9} m^2 \
                  has no bracket to sit in here: the certificate's area is the +V check's \
                  lever, not an enclosure",
                 b.volume_lo,
