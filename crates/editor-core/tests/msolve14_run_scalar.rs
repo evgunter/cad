@@ -625,12 +625,31 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let doc = declare(doc, lift(), 2.0, Dimension::Length);
     let doc = declare(doc, turn(), 0.25, Dimension::Angle);
     let (doc, slab) = insert(doc, fixture::mated_instance(p.slab));
+    // The motion the world read `slide x 5, spin x 0.3, slide z lift,
+    // spin z turn` (each move about the world's own axes) put the slab's
+    // upper corner frame at, written as the moves it is: `turn` about z
+    // after 0.3 about x, the slab's origin a unit below that corner,
+    // `Rz(turn)·(5, 0, lift) − Rz(turn)·Rx(0.3)·(0, 0, 1)`.
+    let cos = || Formula::cos(named(turn(), Dimension::Angle)).expect("an angle's cosine");
+    let sin = || Formula::sin(named(turn(), Dimension::Angle)).expect("an angle's sine");
+    let metres = |k: f64, f: Formula| Formula::mul(len(k), f).expect("a length");
+    let plus = |a: Formula, b: Formula| Formula::add(a, b).expect("a sum");
+    let (c3, s3) = (0.3_f64.cos(), 0.3_f64.sin());
     let values = vec![
         (Coord::Spin(TargetAxis::X), ang(0.3)),
         (Coord::Spin(TargetAxis::Z), named(turn(), Dimension::Angle)),
-        (Coord::Slide(TargetAxis::X), len(5.0)),
-        (Coord::Slide(TargetAxis::Y), len(0.0)),
-        (Coord::Slide(TargetAxis::Z), named(lift(), Dimension::Length)),
+        (
+            Coord::Slide(TargetAxis::X),
+            plus(metres(5.0, cos()), metres(-s3, sin())),
+        ),
+        (
+            Coord::Slide(TargetAxis::Y),
+            plus(metres(5.0, sin()), metres(s3, cos())),
+        ),
+        (
+            Coord::Slide(TargetAxis::Z),
+            plus(named(lift(), Dimension::Length), len(-c3)),
+        ),
     ];
     let doc = fixture::written(doc, slab, editor_core::Placed::unmated(values));
     let (doc, top) = insert(doc, fixture::mated_instance(p.bolt));
