@@ -5,7 +5,7 @@ title: The tour's second cut no longer splits the patterned-post cell: the cut r
 status: open
 opened: 2026-10-23
 priority: P2
-cost: S
+cost: E
 ---
 
 
