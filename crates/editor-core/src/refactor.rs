@@ -636,10 +636,7 @@ fn remap_with_selects(
     // never minted), carried verbatim: the carried instance's copy
     // carries it as the source's did.
     let carried_name = |n: &StableName, body: VarId| -> Result<StableName, RemapMiss> {
-        let parted = source.reaches_instance(body);
-        remap_name_keeping(n, node_map, step_map, out_map, |id| {
-            parted && !source.has_minted(id)
-        })
+        remap_name_keeping(n, node_map, step_map, out_map, (source, source.reaches_instance(body)))
         .map_err(|missing| RemapMiss::Name {
             name: Box::new(n.clone()),
             missing,
@@ -1790,26 +1787,35 @@ pub fn remap_name(
     })
 }
 
-/// **[`remap_name`], keeping the ids `keep` admits as they are**: a
-/// copy carries its source's names, so a name read in a copy of an
-/// instance holds its part's ids, which no map of this document's
-/// holds; those cross verbatim while every other id still maps.
+/// **[`remap_name`], keeping a part's ids as they are**: a copy
+/// carries its source's names, so a name read in a copy of an instance
+/// (`parted`) holds its part's node and step ids, which `source` never
+/// minted and no map of its holds; those cross verbatim while every
+/// other id still maps.
 ///
 /// # Errors
 ///
-/// The first id the maps lack that `keep` does not admit.
-pub(crate) fn remap_name_keeping(
+/// The first id the maps lack that `source` minted.
+pub(crate) fn remap_name_keeping<P: crate::ProfilePayload>(
     name: &StableName,
     map: &NodeMap,
     steps: &StepMap,
     reads: &ReadMap,
-    keep: impl Fn(RecipeNodeId) -> bool,
+    (source, parted): (&Doc<P>, bool),
 ) -> Result<StableName, RemapError> {
     let mut nodes = std::borrow::Cow::Borrowed(map);
+    let mut kept_steps = std::borrow::Cow::Borrowed(steps);
     loop {
-        match remap_name(name, &nodes, steps, reads) {
-            Err(RemapError::Unmapped(Unmapped::Node(id))) if keep(id) && !nodes.contains_key(&id) => {
+        match remap_name(name, &nodes, &kept_steps, reads) {
+            Err(RemapError::Unmapped(Unmapped::Node(id)))
+                if parted && !source.has_minted(id) && !nodes.contains_key(&id) =>
+            {
                 nodes.to_mut().insert(id, id);
+            }
+            Err(RemapError::Unmapped(Unmapped::Step(step)))
+                if parted && !source.mint().has_step(step) && !kept_steps.contains_key(&step) =>
+            {
+                kept_steps.to_mut().insert(step, step);
             }
             done => return done,
         }
@@ -3213,9 +3219,7 @@ pub fn split(
                 // A part's ids inside the name (a pattern copy of an
                 // instance's face) cross as they are.
                 None => (
-                    remap_name_keeping(name, &node_map, &step_map, &read_map, |id| {
-                        !doc.has_minted(id)
-                    })
+                    remap_name_keeping(name, &node_map, &step_map, &read_map, (doc, true))
                     .map_err(|missing| SplitError::straddles(doc, name, missing))?,
                     home(name, body).ok_or_else(outside)?.0,
                 ),
@@ -3907,9 +3911,7 @@ pub fn inline(
     // part's face lands on the spliced `⊔` and read.
     let parted = part.reaches_instance(product);
     let to_host = |of: &StableName| -> Result<StableName, InlineError> {
-        remap_name_keeping(of, &host_nodes, &host_steps, &host_reads, |id| {
-            parted && !part.has_minted(id)
-        })
+        remap_name_keeping(of, &host_nodes, &host_steps, &host_reads, (&part, parted))
         .map_err(|missing| InlineError::stranded(&part, of, missing))
     };
     // A pick's path lands on the spliced variables.
@@ -4483,6 +4485,30 @@ pub fn flatten(
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
+        // Names a `⊔` source keys by one member's read are that member's
+        // own, read in the member: the `⊔` only grouped the copy.
+        let group = doc
+            .operation_of(source)
+            .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })));
+        let member = |name: &StableName| match name.path.as_slice() {
+            [RoleSeg::From { read, of }] if Some(name.node) == group => {
+                Some((*read, (**of).clone()))
+            }
+            _ => None,
+        };
+        if select.body == copy
+            && let Some(members) = names.iter().map(member).collect::<Option<Vec<_>>>()
+            && let Some(&(read, _)) = members.first()
+            && members.iter().all(|(r, _)| *r == read)
+        {
+            return Ok(crate::Operand::select(
+                crate::Operand::Var(read),
+                crate::var::Select::canonical(
+                    selection_kind(doc, var),
+                    members.into_iter().map(|(_, of)| of).collect(),
+                ),
+            ));
+        }
         Ok(crate::Operand::select(
             in_source(select.body),
             crate::var::Select::canonical(selection_kind(doc, var), names),
@@ -4599,9 +4625,15 @@ pub fn flatten(
             || doc.ids().into_iter().any(|id| {
                 doc.node(id).is_some_and(|node| {
                     node.operand_rows().into_iter().any(|(_, read)| {
-                        read == var
-                            || doc.selection(read).is_some_and(|select| select.body == var)
-                            || doc.pick(read).is_some_and(|pick| pick.placement == var)
+                        let reads = |read: VarId| {
+                            read == var
+                                || doc.selection(read).is_some_and(|select| select.body == var)
+                                || doc.pick(read).is_some_and(|pick| pick.placement == var)
+                        };
+                        // A pose reads its leaves.
+                        reads(read)
+                            || pose_leaves(doc, read)
+                                .is_some_and(|leaves| leaves.into_iter().any(reads))
                     })
                 })
             })
