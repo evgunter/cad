@@ -1,7 +1,7 @@
 ---
 id: the-census-records-a-planar-area-contact-as-one-face-pair
 kind: unit
-title: the at-rest census records a planar area contact between arrivals as one face pair, a flush pair as its own row, and asks nothing of a confirmed pair's boundary cells
+title: the at-rest census records a planar area contact between arrivals as one face pair, a flush pair as its own row, and a touch of its faces' boundaries as the pair's only inside its overlap's closure
 status: closed
 opened: 2026-10-22
 closed: 2026-10-22
@@ -14,12 +14,15 @@ pr: 5605
 
 ## What
 
-`[assertions]` as ratified on PR 5555:
+`[assertions]` as ratified on PR 5555, and confined by location on
+PR 5605 (Ev, 2026-10-23):
 
 - **An area contact is one row.** Between two arrivals, the census
   decides each pair once, at the highest-dimensional cells that touch.
-  Two faces meeting over an area are one pair. The census asks nothing
-  of a cell bounding one of them against a cell bounding the other.
+  Two faces meeting over an area are one pair. A touch of a cell
+  bounding one of them against a cell bounding the other is part of
+  that pair where it lies in the closure of their overlap; elsewhere it
+  is a pair of its own.
 - **A flush pair is its own row.** Two faces on one carrier, facing the
   same way, whose boundaries meet while their interiors do not, are a
   flush pair. It is a finding unless it is established.
@@ -82,13 +85,23 @@ Today the census falls short in four ways:
   share a boundary). The row is `SameOriented` on the two faces, cited
   by no record. An in-band pair is a `CensusUndecidable` naming the two
   faces.
-- **Confinement.** Every face-pair rung reads `Declared::confirmed`:
-  each record that passes `pair_verified` or the confirm pass's own
-  reading of it (a point touch, a tangent line), and each pair the
-  planar arm found, recorded or not. `vf_face_backed_confined` and
-  `ee_face_backed` are gone. Each lane reads the rung before its own
-  margin, so a confirmed pair's boundary cells are asked nothing and do
-  not escalate. A record that does not confirm answers for nothing, and
+- **Confinement, by location.** Every face-pair rung reads
+  `Declared::confirmed`: each record that passes `pair_verified` or the
+  confirm pass's own reading of it (a point touch, a tangent line), and
+  each pair the planar arm found, recorded or not. A touch of the two
+  faces' boundaries is the pair's only where it lies in the closure of
+  their overlap (`Declared::holds`, `in_overlap_closure`: both closed
+  regions hold the point, and where both hold it on their boundary their
+  corners share material, `corners_meet`); `Declared::confine` lets the
+  lane read the touch first, and drops what it found, an in-band reading
+  included, only where a pair holds it. Elsewhere the touch is decided
+  as a pair of its own (`m9_c1_r1_probes::the_lemma_probe_declared`'s
+  tangent vertex), and a place the census cannot read (a curved pair, a
+  pinch or an arc corner) is a `CensusUndecidable` naming the two cells.
+  A vertex inside the other face, and an edge's run through it, lie in
+  the closure by incidence alone (`vf_face_backed`, the edge-face lane).
+  `vf_face_backed_confined` and `ee_face_backed` are gone. A record
+  that does not confirm answers for nothing, and
   arm 2 no longer refuses on one (`RecordedFacePair` is gone). The
   crossing rung still reads the side of every recorded pair, so
   `SameSide` is still named.

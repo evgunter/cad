@@ -8128,7 +8128,7 @@ fn pinch_corner_errors<T: Decide>(
 
 /// One corner side: the half-edge leaving the point, its edge, and
 /// its departure there.
-type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<geom_core::Vec3<T>>);
+pub(crate) type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<geom_core::Vec3<T>>);
 
 /// [`pinch_corner_errors`] at one point key, whose corners are the
 /// half-edges of `cycle` at the indices `group` carries: the first
@@ -8206,7 +8206,7 @@ fn pinch_corners_at<T: Decide>(
 }
 
 /// The other half of `he`'s edge.
-fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
+pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
     let e = body.edges.get(body.half_edges.get(he)?.edge)?;
     Some(if e.he_plus == he {
         e.he_minus
@@ -8219,7 +8219,7 @@ fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
 /// edge's extent so a cross product over its length is a lever: a line
 /// by its chord, a conic or spiric arc by its walk tangent there.
 /// `None` for the departure of a NURBS edge, the residue.
-fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
+pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
     let h = body.half_edges.get(he)?;
     let curve = certified_carrier(body, h.edge)?;
     let plus = body.edges.get(h.edge)?.he_plus == he;

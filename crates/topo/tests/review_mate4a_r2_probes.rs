@@ -266,12 +266,16 @@ fn r2_the_new_rows_hold_at_the_default_band() {
         Tol::witness(),
     );
     assert!(
-        undeclared(&declared_seat).is_empty(),
-        "declared seat at the default band: {declared_seat:?}"
-    );
-    assert!(
-        declared_seat.is_empty(),
-        "and the seat certifies at the default band: {declared_seat:?}"
+        matches!(
+            &declared_seat[..],
+            [ValidationError::UnrecordedContact {
+                contact: CensusContact::VertexOnEdge { .. },
+                witness,
+                ..
+            }] if witness == "(0.7, 0.3, 0.5)"
+        ),
+        "declared seat at the default band: the tangent T, outside the \
+         overlap's closure, is all: {declared_seat:?}"
     );
 
     let bare = undeclared(&structural(

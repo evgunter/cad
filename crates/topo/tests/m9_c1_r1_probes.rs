@@ -5,10 +5,9 @@
 //! 1. `the_lemma_probe_*`: a POSITIVE-overlap declared pair whose own
 //!    seat also induces a vertex-on-edge event genuinely outside the
 //!    closure of the positive-area overlap (a tangent spike, no proper
-//!    crossings). If the rung backs it, the "positive overlap confines
-//!    every induced v-on-e to the interface closure" lemma is false —
-//!    the region-unconfined strength is exercised by a positive-area
-//!    pair, not only by the zero-area fixture the strength row uses.
+//!    crossings). The two faces' closures meet there although their
+//!    overlap does not reach it, so the pair does not answer for it:
+//!    the touch is decided as a pair of its own (`[assertions]`).
 //! 2. The same fixture reaches `ef_bound_backed`'s interior arm: the
 //!    shelf's boundary edge dives through the cap's interior between
 //!    two cap vertices resting on the edge's interior. A flush seat
@@ -33,7 +32,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError, VertexKey};
 
 /// Post under the shelf's SIDE edge (y = 0.30), overhanging it: the
 /// cap has positive-area overlap with the shelf's underside on the
@@ -42,7 +41,8 @@ use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 /// the edge's interior — 0.30 in x away from the overlap's closure.
 /// The boundary meets the line y = 0.30 only at vertices (H and B
 /// crossing, T tangent): no proper edge-edge crossings anywhere.
-fn overhang_seat() -> (Body<f64>, FaceKey, FaceKey, FaceKey) {
+/// Returns the body, the cap, the shelf's underside and top, and T.
+fn overhang_seat() -> (Body<f64>, FaceKey, FaceKey, FaceKey, VertexKey) {
     let post: common::Prism<f64> = common::prism_z(
         &[
             (0.20, 0.20), // A (below the line)
@@ -64,11 +64,12 @@ fn overhang_seat() -> (Body<f64>, FaceKey, FaceKey, FaceKey) {
         0.54,
         Tol::witness(),
     );
+    let tangent = post.top[3];
     let mut body = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let shelf_top = keys.face(shelf.top_face).unwrap();
-    (body, post.top_face, shelf_bottom, shelf_top)
+    (body, post.top_face, shelf_bottom, shelf_top, tangent)
 }
 
 /// The unit's own flush seat, rebuilt verbatim, plus the shelf's TOP
@@ -122,17 +123,27 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
 }
 
 /// Undeclared baseline: the overhang seat's own census is one face
-/// pair, the cap on the underside. Read where no pair can be confirmed
+/// pair, the cap on the underside, and T on the shelf edge, outside the
+/// pair's overlap. Read where no pair can be confirmed
 /// (the structural twin, which holds no region door), three cap vertices
 /// rest on the shelf edge's interior (H, B, T) and the shelf edge dives
 /// through the cap's interior.
 #[test]
 fn the_lemma_probe_undeclared_baseline() {
-    let (body, _, _, _) = overhang_seat();
+    let (body, _, _, _, tangent) = overhang_seat();
     let certified = undeclared(&errors(&body, &ContactRecords::default()));
-    assert!(
-        matches!(certified[..], [CensusContact::ConformalPatch { .. }]),
+    assert_eq!(
+        count(&certified, |c| matches!(
+            c,
+            CensusContact::ConformalPatch { .. }
+        )),
+        1,
         "one face pair: {certified:?}"
+    );
+    assert_eq!(
+        only_vertex_on_edge(&certified),
+        tangent,
+        "and T, its own pair: {certified:?}"
     );
     let found = undeclared(
         &topo::validate_pseudomanifold_structural(
@@ -157,40 +168,28 @@ fn the_lemma_probe_undeclared_baseline() {
     );
 }
 
-/// The attack: declared, every vertex-on-edge event is backed —
-/// INCLUDING the tangent T, which lies 0.30 away from the closure of
-/// the pair's positive-area overlap. A positive-overlap pair backs an
-/// event outside its interface closure; the confinement lemma does not
-/// hold, and region-unconfinement is not a zero-area-only phenomenon.
+/// Declared, the pair answers for the two vertices that rest on the
+/// shelf edge where it bounds the overlap (H and B), and for the edge's
+/// run through the cap between them, but not for the tangent T: the two
+/// faces' closures meet there, 0.30 away from the closure of their
+/// overlap, so the touch is decided as a pair of its own and, unrecorded,
+/// is the one finding.
 ///
-/// AND: the edge-on-face overlap between the same two entities is
-/// backed too. Its two bounds fall on the shelf edge's INTERIOR, where
-/// cap vertices rest, so each bound is a vertex-on-edge event and reads
-/// that lane's rung — `ef_bound_backed`'s interior arm. No finding of
-/// this seat is unattributed any more.
-///
-/// The seat CERTIFIES, and this probe's outcome has now flipped twice.
-/// It was an `Unattributed` hard error; the census rungs above made it
-/// `CensusUnsupported`/`Attribution::Declined`, because the declared
-/// patch's region-overlap confirm ran `interior_witness`'s rescue rung
-/// on a `Definite` door-1 verdict and its fixed candidate schedule
-/// missed this overlap (measured — ~7.5e-3 m², seven orders above ε);
-/// completing that schedule to search the two trims' own arrangement
-/// lands the overlap and leaves nothing at all. The intermediate state
-/// was never the class's outcome — a same-class seat whose overlap the
-/// old landmarks happened to land certified outright throughout
-/// (`r1_mate4a_probes`) — which is why the last assertion below is the
-/// whole error list and no longer the census's share of it.
+/// The edge-on-face overlap between the same two entities is backed:
+/// its two bounds fall on the shelf edge's INTERIOR, where cap vertices
+/// rest, so each bound is a vertex-on-edge event and reads that lane's
+/// rung — `ef_bound_backed`'s interior arm — inside the overlap's
+/// closure.
 #[test]
 fn the_lemma_probe_declared() {
-    let (body, post_top, shelf_bottom, _) = overhang_seat();
+    let (body, post_top, shelf_bottom, _, tangent) = overhang_seat();
     let all = errors(&body, &declared(&body, post_top, shelf_bottom));
     let found = undeclared(&all);
     assert_eq!(
-        count(&found, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
-        0,
-        "the rung backs all three, the out-of-interface tangent \
-         included: {found:?}"
+        only_vertex_on_edge(&found),
+        tangent,
+        "the tangent outside the overlap is its own pair, the crossing \
+         vertices the pair's: {found:?}"
     );
     assert_eq!(
         count(&found, |c| matches!(
@@ -204,10 +203,26 @@ fn the_lemma_probe_declared() {
     // Gated-band row (see the header): the whole-list form is red at
     // 1e-3, where four honest `pm_census_ee_parallel` escalations join
     // the list. The two census assertions above hold at every band.
-    assert!(
-        all.is_empty(),
-        "and door 2's rescue rung finds the overlap: {all:?}"
+    assert_eq!(
+        all.len(),
+        1,
+        "and door 2's rescue rung finds the overlap, so T is all: {all:?}"
     );
+}
+
+/// The one vertex-on-edge finding's vertex.
+fn only_vertex_on_edge(found: &[CensusContact]) -> VertexKey {
+    let ve: Vec<_> = found
+        .iter()
+        .filter_map(|c| match c {
+            CensusContact::VertexOnEdge { vertex, .. } => Some(*vertex),
+            _ => None,
+        })
+        .collect();
+    let [v] = ve[..] else {
+        panic!("one vertex on an edge: {found:?}");
+    };
+    v
 }
 
 /// A pair naming the wrong shelf face (its TOP) answers for none of the

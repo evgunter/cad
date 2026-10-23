@@ -129,6 +129,21 @@ fn one_face_pair(found: &[ValidationError]) -> bool {
     )
 }
 
+/// Whether `found` is exactly the tangent T resting on the shelf edge
+/// at (0.70, 0.30, 0.5): the two faces' closures meet there, outside
+/// the closure of their overlap, so the touch is a pair of its own
+/// (`[assertions]`) and, unrecorded, a finding.
+fn only_the_tangent(found: &[ValidationError]) -> bool {
+    matches!(
+        found,
+        [ValidationError::UnrecordedContact {
+            contact: CensusContact::VertexOnEdge { .. },
+            witness,
+            ..
+        }] if witness == "(0.7, 0.3, 0.5)"
+    )
+}
+
 fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
@@ -143,10 +158,11 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
     cs.iter().filter(|c| f(c)).count()
 }
 
-/// The unit's claim: nothing in the declared overhang seat is a hard
-/// `UnrecordedContact` any more. The edge-on-face overlap's two bounds
-/// (H and B, on the shelf edge's interior) are vertex-on-edge events
-/// the declared pair holds, so the overlap is backed like any other.
+/// The unit's claim: the edge-on-face overlap's two bounds (H and B,
+/// on the shelf edge's interior) are vertex-on-edge events the declared
+/// pair holds in the closure of its overlap, so the overlap is backed
+/// like any other. The one finding left is the tangent T, a touch of
+/// the pair's boundaries outside that closure.
 ///
 /// The seat also has nothing left at door 2. The declared patch's
 /// region-overlap confirm reaches `interior_witness`'s rescue rung with
@@ -162,12 +178,9 @@ fn the_declared_overhang_seat_keeps_no_hard_finding() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
     let found = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
-        undeclared(&found).is_empty(),
-        "every finding of the declared overhang seat is answered: {found:?}"
-    );
-    assert!(
-        found.is_empty(),
-        "and door 2 certifies the seat outright: {found:?}"
+        only_the_tangent(&found),
+        "every finding inside the declared overlap is answered, and door 2 \
+         certifies it: {found:?}"
     );
 }
 
@@ -179,7 +192,14 @@ fn the_declared_overhang_seat_keeps_no_hard_finding() {
 fn the_bare_overhang_seat_still_refuses() {
     let (body, _, _, _) = overhang_seat();
     let certified = errors(&body, &ContactRecords::default());
-    assert!(one_face_pair(&certified), "{certified:?}");
+    let (pair, tangent): (Vec<_>, Vec<_>) = certified
+        .iter()
+        .cloned()
+        .partition(|e| one_face_pair(core::slice::from_ref(e)));
+    assert!(
+        one_face_pair(&pair) && only_the_tangent(&tangent),
+        "one face pair, and T: {certified:?}"
+    );
     let found = undeclared(&structural(&body, &ContactRecords::default()));
     assert_eq!(
         count(&found, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
