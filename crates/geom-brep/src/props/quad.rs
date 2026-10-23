@@ -8770,7 +8770,7 @@ mod tests {
             if k < i {
                 return 0.0;
             }
-            let sign = if (k - i) % 2 == 0 { 1.0 } else { -1.0 };
+            let sign = if (k - i).is_multiple_of(2) { 1.0 } else { -1.0 };
             sign * binom(n, i) * binom(n - i, k - i)
         };
         let mut truth = 0.0;
