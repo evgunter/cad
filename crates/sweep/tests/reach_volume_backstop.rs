@@ -609,4 +609,3 @@ fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
         .expect_err("undecided");
     assert!(err.to_string().contains("vol(A ∖ B) ≤ vol(A)"), "{err}");
 }
-

@@ -168,7 +168,10 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
         }) => {
             assert!(width_len > target_len, "{source:?}");
             if let Some(carried) = certificate.target_refusal() {
-                assert_eq!(carried, &source, "the certificate carries the door's refusal");
+                assert_eq!(
+                    carried, &source,
+                    "the certificate carries the door's refusal"
+                );
             }
         }
         other => panic!(

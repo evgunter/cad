@@ -353,4 +353,3 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
          reporting target — otherwise the sign level is a name and not a level"
     );
 }
-
