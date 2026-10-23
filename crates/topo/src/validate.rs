@@ -5619,29 +5619,35 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
-    let mut errors = Vec::new();
+    let subjects = check7_subjects(body);
+    // Every solid's round 0, then one walk over the solids measured.
+    let mut unmeasured = Vec::new();
     let mut parts = Vec::new();
-    for (solid, faces) in check7_subjects(body) {
-        let walked = match crate::props::role_walk(
-            body,
-            &faces,
-            band,
-            tol,
-            quad,
-            quad,
-            PLUS_V,
-            PLUS_V_EXACT,
-        ) {
-            Ok((role, certificate)) => {
+    for (_, faces) in &subjects {
+        match crate::props::SignCertificate::at_round_zero(body, faces, band, tol, quad) {
+            Ok(certificate) => {
+                unmeasured.push(None);
                 parts.push(certificate);
-                Some(plus_v_verdict(role))
             }
-            Err(source) => {
+            Err(source) => unmeasured.push(Some(source)),
+        }
+    }
+    let roles = {
+        let mut members: Vec<&mut crate::props::SignCertificate<'b, T>> =
+            parts.iter_mut().collect();
+        crate::props::role_walk_set(&mut members, quad, PLUS_V_SIGN)
+    };
+    let mut roles = roles.into_iter();
+    let mut errors = Vec::new();
+    for ((solid, faces), unmeasured) in subjects.into_iter().zip(unmeasured) {
+        let verdict = match unmeasured {
+            Some(source) => {
                 errors.push(ValidationError::VolumeUncomputable { solid, source });
                 None
             }
+            None => roles.next().map(plus_v_verdict),
         };
-        errors.extend(plus_v_errors(body, solid, faces, walked.as_ref(), band));
+        errors.extend(plus_v_errors(body, solid, faces, verdict.as_ref(), band));
     }
     if errors.is_empty() {
         Ok(crate::props::SignCertificate::assembled(
@@ -6020,6 +6026,12 @@ pub(crate) const PLUS_V: crate::props::RoleNames = crate::props::RoleNames {
 /// value of the stored geometry ([`crate::props::Round::certify`]).
 pub(crate) const PLUS_V_EXACT: crate::props::RoleNames =
     crate::props::RoleNames::one("positive_volume_exact");
+
+/// Check 7's predicate: the volume's sign, under its names.
+pub(crate) const PLUS_V_SIGN: crate::props::SignNames = crate::props::SignNames {
+    walk: PLUS_V,
+    certified: PLUS_V_EXACT,
+};
 
 /// Check 7's reading of one volume ([`crate::props::read_role`] under
 /// [`PLUS_V`]).

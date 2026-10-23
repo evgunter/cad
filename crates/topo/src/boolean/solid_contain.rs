@@ -5718,8 +5718,10 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
         tol,
         lane,
         T::quad_lane(),
-        AT_INFINITY,
-        AT_INFINITY_ENCLOSURE,
+        crate::props::SignNames {
+            walk: AT_INFINITY,
+            certified: AT_INFINITY_ENCLOSURE,
+        },
     )
     .map_err(refused)?;
     let role = role.map_err(|refusal| match refusal {

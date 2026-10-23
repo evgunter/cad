@@ -2152,11 +2152,12 @@ pub(super) fn output_substitutions(
 /// favourable — is certified negative. Where the upper end is not
 /// negative but the lower one is, the sign is open because of the
 /// enclosures and not the bodies, and the gate REFINES before it
-/// decides: both compared bodies' quadrature faces are taken one round
-/// further at a time from the round each met its target at
-/// ([`crate::props::PastTarget::refine`]), until the
-/// sign is decided or every face reaches its lane's own stop, its floor
-/// or its work wall (`geom_brep::props::quad::FACE_WORK_WALL`).
+/// decides: every compared body is measured from round 0, and all their
+/// quadrature faces are taken one round further at a time, as one walk
+/// over the set ([`crate::props::walk_set`]), until the sign is decided
+/// or every face reaches its lane's own stop, its floor or its work wall
+/// (`geom_brep::props::quad::FACE_WORK_WALL`). No body is measured to a
+/// number: a body is refined only as far as a question asked of it needs.
 ///
 /// There the rounds run out at a resolution: the last round's
 /// half-width, measured on the oblique-capped rod (`r = 0.5`, cut 20° at
@@ -2190,7 +2191,7 @@ pub(super) fn output_substitutions(
 /// pad, so a result congruent to an operand through another face order
 /// can land ulps past it. A violation the walk's sums call is therefore
 /// re-derived in interval arithmetic before it refuses
-/// ([`crate::props::PastTarget::interval_volume`]); one the interval
+/// ([`crate::props::Round::interval_volume`]); one the interval
 /// margin does not certify stays open.
 ///
 /// A declared coincidence the door glues inside the band also moves a
@@ -2275,16 +2276,12 @@ pub(crate) fn volume_backstop<T: Decide>(
     tol: Tol,
     lane: QuadLane<T>,
 ) -> Result<(), BooleanError> {
-    // Each body to its reporting target, keeping the walk so a bound
-    // the reporting enclosures leave open can be refined past it.
+    // Each body at round 0, refined further only while a question asked
+    // of it is open.
     let measure = |body, operand| {
         let faces = crate::query::all_faces(body);
-        let (refused, certificate) = crate::props::target_walk(body, &faces, band, tol, Some(lane))
-            .map_err(|source| props_refusal(operand, source))?;
-        match refused {
-            Some(source) => Err(props_refusal(operand, source)),
-            None => Ok(certificate.past_target()),
-        }
+        crate::props::SignCertificate::at_round_zero(body, &faces, band, tol, Some(lane))
+            .map_err(|source| props_refusal(operand, source))
     };
     // The exact (bit-hairline) band for the sign arm below — the same
     // device the splitter's total order uses (`splitting::order`, audit
@@ -2296,35 +2293,10 @@ pub(crate) fn volume_backstop<T: Decide>(
     let mut ca = measure(a, Some(Operand::A))?;
     let mut cb = measure(b, Some(Operand::B))?;
     let mut cr = measure(result, None)?;
-    // A bound applies only against a certified-bounded operand
-    // (positive flux volume, at its enclosure's lower end); complement
-    // operands (certified negative) make it vacuous. Poison refuses.
-    // Metered `V/A`, the volume's margin as a length (fn docs). Surface
-    // area is unsigned (props.rs), so the quotient keeps V's sign and
-    // the complement arm is unchanged. An in-band quotient certifies no
-    // bound: skip.
-    // The backstops live on the INVARIANT LANE (Ev's #213 layering
-    // ruling): consistency inequalities between integral results are
-    // outside the length seam by design — no door, bare T — and a
-    // certified violation is a kernel invariant failure, not a
-    // validity refusal.
-    let bounded = |p: crate::MassProperties<T>| -> Result<bool, BooleanError> {
-        let e = p.enclosure();
-        match geom_core::k_stats::decide_invariant(
-            "volume_backstop_operand",
-            e.volume_lo / e.surface_area,
-            band,
-        ) {
-            Ok(Sign::Positive) => Ok(true),
-            Ok(Sign::Zero | Sign::Negative) => Ok(false),
-            Err(diag) if diag.margin.is_invalid() => Err(BooleanError::Escalated {
-                decision: BooleanDecision::VolumeBackstop,
-                diag,
-            }),
-            Err(_) => Ok(false),
-        }
-    };
-    let (ba, bb) = (bounded(ca.props())?, bounded(cb.props())?);
+    let (ba, bb) = (
+        bounded(Some(Operand::A), &mut ca, band, lane)?,
+        bounded(Some(Operand::B), &mut cb, band, lane)?,
+    );
     let (a_, b_, r_) = (Some(Operand::A), Some(Operand::B), None);
     let bound = Posture::Bound { band, exact };
     let plus_v = Posture::PlusV { band };
@@ -2332,43 +2304,116 @@ pub(crate) fn volume_backstop<T: Decide>(
         BooleanOp::Intersect => {
             if ba {
                 let (small, large) = (&mut [(r_, &mut cr)], &mut [(a_, &mut ca)]);
-                bound_holds("vol(A ∩ B) ≤ vol(A)", small, large, bound)?;
+                bound_holds("vol(A ∩ B) ≤ vol(A)", small, large, bound, lane)?;
             }
             if bb {
                 let (small, large) = (&mut [(r_, &mut cr)], &mut [(b_, &mut cb)]);
-                bound_holds("vol(A ∩ B) ≤ vol(B)", small, large, bound)?;
+                bound_holds("vol(A ∩ B) ≤ vol(B)", small, large, bound, lane)?;
             }
             if ba || bb {
-                bound_holds("vol(A ∩ B) ≥ 0", &mut [], &mut [(r_, &mut cr)], plus_v)?;
+                bound_holds(
+                    "vol(A ∩ B) ≥ 0",
+                    &mut [],
+                    &mut [(r_, &mut cr)],
+                    plus_v,
+                    lane,
+                )?;
             }
         }
         BooleanOp::Union => {
             if ba {
                 let (small, large) = (&mut [(a_, &mut ca)], &mut [(r_, &mut cr)]);
-                bound_holds("vol(A ∪ B) ≥ vol(A)", small, large, bound)?;
+                bound_holds("vol(A ∪ B) ≥ vol(A)", small, large, bound, lane)?;
             }
             if bb {
                 let (small, large) = (&mut [(b_, &mut cb)], &mut [(r_, &mut cr)]);
-                bound_holds("vol(A ∪ B) ≥ vol(B)", small, large, bound)?;
+                bound_holds("vol(A ∪ B) ≥ vol(B)", small, large, bound, lane)?;
             }
             if ba && bb {
                 let (small, large) = (&mut [(r_, &mut cr)], &mut [(a_, &mut ca), (b_, &mut cb)]);
-                bound_holds("vol(A ∪ B) ≤ vol(A) + vol(B)", small, large, bound)?;
+                bound_holds("vol(A ∪ B) ≤ vol(A) + vol(B)", small, large, bound, lane)?;
             }
         }
         BooleanOp::Subtract => {
             if ba {
                 let (small, large) = (&mut [(r_, &mut cr)], &mut [(a_, &mut ca)]);
-                bound_holds("vol(A ∖ B) ≤ vol(A)", small, large, bound)?;
-                bound_holds("vol(A ∖ B) ≥ 0", &mut [], &mut [(r_, &mut cr)], plus_v)?;
+                bound_holds("vol(A ∖ B) ≤ vol(A)", small, large, bound, lane)?;
+                bound_holds(
+                    "vol(A ∖ B) ≥ 0",
+                    &mut [],
+                    &mut [(r_, &mut cr)],
+                    plus_v,
+                    lane,
+                )?;
             }
             if ba && bb {
                 let (small, large) = (&mut [(a_, &mut ca)], &mut [(r_, &mut cr), (b_, &mut cb)]);
-                bound_holds("vol(A ∖ B) ≥ vol(A) − vol(B)", small, large, bound)?;
+                bound_holds("vol(A ∖ B) ≥ vol(A) − vol(B)", small, large, bound, lane)?;
             }
         }
     }
     Ok(())
+}
+
+/// **Whether an operand bounds a solid**: its volume certified positive
+/// at the enclosure's lower end, metered `V/A` (the volume's margin as a
+/// length; surface area is unsigned, so the quotient keeps V's sign). A
+/// bound applies only against such an operand; a complement operand
+/// (certified negative) makes it vacuous, and an in-band quotient
+/// certifies no bound. The operand is refined while its enclosure
+/// straddles the band, its lower end not positive where its upper end
+/// is: a narrower enclosure may certify it. Poison refuses.
+///
+/// The backstops live on the INVARIANT LANE (Ev's #213 layering
+/// ruling): consistency inequalities between integral results are
+/// outside the length seam by design — no door, bare T — and a
+/// certified violation is a kernel invariant failure, not a validity
+/// refusal.
+fn bounded<T: Decide>(
+    operand: Option<Operand>,
+    certificate: &mut crate::props::SignCertificate<'_, T>,
+    band: Band,
+    lane: QuadLane<T>,
+) -> Result<bool, BooleanError> {
+    let escalated = |diag| BooleanError::Escalated {
+        decision: BooleanDecision::VolumeBackstop,
+        diag,
+    };
+    let read = crate::props::walk_set(&mut [certificate], Some(lane), |rounds, _| {
+        let props = rounds[0].props();
+        let e = props.enclosure();
+        let decide = |end: T| {
+            geom_core::k_stats::decide_invariant(
+                "volume_backstop_operand",
+                end / e.surface_area,
+                band,
+            )
+        };
+        match decide(e.volume_lo) {
+            Ok(Sign::Positive) => return Some(Ok(true)),
+            Err(diag) if diag.margin.is_invalid() => return Some(Err(escalated(diag))),
+            _ if props.reading().is_exact() => return Some(Ok(false)),
+            _ => {}
+        }
+        match decide(e.volume_hi) {
+            Ok(Sign::Positive) => None,
+            Err(diag) if diag.margin.is_invalid() => Some(Err(escalated(diag))),
+            _ => Some(Ok(false)),
+        }
+    })
+    .map_err(|refused| first_props_refusal(refused, &[operand]))?;
+    read.unwrap_or(Ok(false))
+}
+
+/// The first of a set walk's refusals, naming the operand its member is.
+fn first_props_refusal(
+    refused: Vec<(usize, crate::MassPropsError)>,
+    operands: &[Option<Operand>],
+) -> BooleanError {
+    let Some((member, source)) = refused.into_iter().next() else {
+        unreachable!("a set walk returns its refusals only when it holds one")
+    };
+    props_refusal(operands[member], source)
 }
 
 /// The property layer's refusal, as the backstop reports it — in tier
@@ -2385,7 +2430,10 @@ fn props_refusal(operand: Option<Operand>, source: crate::MassPropsError) -> Boo
 
 /// One body of a backstop inequality: the operand a refusal of its
 /// measurement names (`None` is the result), and the measurement.
-type Term<'t, 'b, T> = (Option<Operand>, &'t mut crate::props::PastTarget<'b, T>);
+type Term<'t, 'b, T> = (
+    Option<Operand>,
+    &'t mut crate::props::SignCertificate<'b, T>,
+);
 
 /// Which side of `Σ small ≤ Σ large` a body's volume is summed on.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -2458,125 +2506,191 @@ impl Posture {
     }
 }
 
-/// A body's volume and area in interval arithmetic
-/// ([`crate::props::PastTarget::interval_volume`]), a refusal naming
-/// the body by `operand`.
-fn interval_measure<T: Decide>(
-    which: &'static str,
-    operand: Option<Operand>,
-    target: &crate::props::PastTarget<'_, T>,
-) -> Result<(Interval, Interval), BooleanError> {
-    match target.interval_volume() {
-        Some(Ok(measured)) => Ok(measured),
-        Some(Err(source)) => Err(props_refusal(operand, source)),
-        None => Err(BooleanError::VolumeUndecided { which }),
-    }
-}
-
 /// One inequality of [`volume_backstop`], `Σ small ≤ Σ large` over the
-/// bodies' volumes, named by `which` and decided as `posture` says:
-/// refuse a certified violation once the interval re-derivation
-/// confirms it, refine while the enclosures alone keep the sign open,
-/// and (a set bound) decide what the last round leaves against the
-/// band, then the magnitude arm.
+/// bodies' volumes, named by `which` and decided as `posture` says: one
+/// walk over the set of the bodies' certificates
+/// ([`crate::props::walk_set`]), settled by the relation over their
+/// enclosures. It refuses a certified violation once the interval
+/// re-derivation confirms it, refines every body's faces while the
+/// enclosures alone keep the sign open, and (a set bound) decides what
+/// the last round leaves against the band, then the magnitude arm.
 fn bound_holds<'t, 'b, T: Decide>(
     which: &'static str,
     small: &mut [Term<'t, 'b, T>],
     large: &mut [Term<'t, 'b, T>],
+    posture: Posture,
+    lane: QuadLane<T>,
+) -> Result<(), BooleanError> {
+    let terms: Vec<(Side, Option<Operand>)> = small
+        .iter()
+        .map(|&(operand, _)| (Side::Small, operand))
+        .chain(large.iter().map(|&(operand, _)| (Side::Large, operand)))
+        .collect();
+    let operands: Vec<Option<Operand>> = terms.iter().map(|&(_, operand)| operand).collect();
+    let mut members: Vec<&mut crate::props::SignCertificate<'b, T>> = small
+        .iter_mut()
+        .chain(large.iter_mut())
+        .map(|(_, certificate)| &mut **certificate)
+        .collect();
+    // What the last round read and left open, for the decision the walk
+    // leaves when no face can refine.
+    let mut left = None;
+    let walked = crate::props::walk_set(&mut members, Some(lane), |rounds, _| {
+        let read = read_bound(which, &terms, rounds, posture);
+        match read {
+            Ok(BoundRead::Open(open)) => {
+                left = Some(open);
+                None
+            }
+            Ok(BoundRead::Closed(open)) => Some(decide_left(which, open, posture)),
+            Err(refusal) => Some(Err(refusal)),
+        }
+    })
+    .map_err(|refused| first_props_refusal(refused, &operands))?;
+    match walked {
+        Some(decided) => decided,
+        None => match left {
+            Some(open) => decide_left(which, open, posture),
+            None => unreachable!("a set walk asks its question before it stops"),
+        },
+    }
+}
+
+/// One round's reading of an inequality ([`read_bound`]).
+enum BoundRead<T> {
+    /// The enclosures keep the sign open: refine.
+    Open(Left<T>),
+    /// Nothing a narrower round could change.
+    Closed(Left<T>),
+}
+
+/// What an inequality's reading leaves for [`decide_left`]: whether the
+/// sign is still open, the margin's lower end, its metered upper end and
+/// its lever, and the refusal's text.
+struct Left<T> {
+    open: bool,
+    lo: T,
+    metered: T,
+    lever: T,
+    got: String,
+    bound: String,
+}
+
+/// **One round of an inequality**, `Σ large − Σ small` over the members'
+/// enclosures as they stand (`rounds`, in `terms`' order). Arm 1 — the
+/// inequality itself, at the margin's upper end: the walk's own sums
+/// round, so a violation they call is re-derived in interval arithmetic
+/// before it refuses ([`crate::props::Round::interval_volume`]), and one
+/// the interval margin does not certify is the rounding's, and stays
+/// open.
+fn read_bound<T: Decide>(
+    which: &'static str,
+    terms: &[(Side, Option<Operand>)],
+    rounds: &[crate::props::Round<'_, '_, T>],
+    posture: Posture,
+) -> Result<BoundRead<T>, BooleanError> {
+    // The margin `Σ large − Σ small`, and the summed surface area it is
+    // metered over (fn docs, audit F3).
+    let mut margin = crate::props::SignReading::exact(T::zero(), T::zero());
+    // The result's volume, and what the other bodies bound it by, for
+    // the refusal's text.
+    let (mut got, mut others) = (T::zero(), T::zero());
+    let mut result_side = Side::Small;
+    for (&(side, operand), round) in terms.iter().zip(rounds) {
+        let p = round.props();
+        margin = margin.plus(p.reading(), side == Side::Small);
+        match (operand, side) {
+            (None, _) => (got, result_side) = (p.volume, side),
+            (Some(_), Side::Small) => others = others - p.volume,
+            (Some(_), Side::Large) => others = others + p.volume,
+        }
+    }
+    let bound = match result_side {
+        Side::Small => others,
+        Side::Large => -others,
+    };
+    let (mut lo, hi, lever) = margin.ends();
+    let metered = hi / lever;
+    let reading = posture.read(margin);
+    // Open: the enclosures keep the sign open.
+    let mut open = !margin.is_exact() && reading == Reading::Open;
+    if reading == Reading::Violated {
+        let (mut margin, mut area) = (Interval::zero(), Interval::zero());
+        for (&(side, operand), round) in terms.iter().zip(rounds) {
+            let (v, a) = match round.interval_volume() {
+                Some(Ok(measured)) => measured,
+                Some(Err(source)) => return Err(props_refusal(operand, source)),
+                None => return Err(BooleanError::VolumeUndecided { which }),
+            };
+            margin = match side {
+                Side::Small => margin - v,
+                Side::Large => margin + v,
+            };
+            area = area + a;
+        }
+        if posture.read(crate::props::SignReading::exact(margin, area)) == Reading::Violated {
+            return Err(BooleanError::ResultVolumeImplausible {
+                which,
+                got: format!("{got:?}"),
+                bound: format!("{bound:?}"),
+            });
+        }
+        open = true;
+        lo = T::from_computed(margin.lo());
+    }
+    let left = Left {
+        open,
+        lo,
+        metered,
+        lever,
+        got: format!("{got:?}"),
+        bound: format!("{bound:?}"),
+    };
+    Ok(if open {
+        BoundRead::Open(left)
+    } else {
+        BoundRead::Closed(left)
+    })
+}
+
+/// **What an inequality's last reading decides** ([`bound_holds`]): the
+/// +V invariant exempts what is left open, as at rest; a set bound whose
+/// rounds ran out with the sign open is either below the model's
+/// resolution or not, and then the magnitude arm, for the near-zero
+/// region arm 1 leaves open: only a certified negative refuses, Zero and
+/// in-band PASS, poison refuses.
+fn decide_left<T: Decide>(
+    which: &'static str,
+    left: Left<T>,
     posture: Posture,
 ) -> Result<(), BooleanError> {
     let escalated = |diag| BooleanError::Escalated {
         decision: BooleanDecision::VolumeBackstop,
         diag,
     };
-    loop {
-        // The margin `Σ large − Σ small`, and the summed surface area it
-        // is metered over (fn docs, audit F3).
-        let mut margin = crate::props::SignReading::exact(T::zero(), T::zero());
-        // The result's volume, and what the other bodies bound it by,
-        // for the refusal's text.
-        let (mut got, mut others) = (T::zero(), T::zero());
-        let mut result_side = Side::Small;
-        for (side, terms) in [(Side::Small, &*small), (Side::Large, &*large)] {
-            for (operand, target) in terms {
-                let p = target.props();
-                margin = margin.plus(p.reading(), side == Side::Small);
-                match (operand, side) {
-                    (None, _) => (got, result_side) = (p.volume, side),
-                    (Some(_), Side::Small) => others = others - p.volume,
-                    (Some(_), Side::Large) => others = others + p.volume,
-                }
-            }
+    let Posture::Bound { band, .. } = posture else {
+        return Ok(());
+    };
+    let Left {
+        open,
+        lo,
+        metered,
+        lever,
+        got,
+        bound,
+    } = left;
+    if open {
+        match geom_core::k_stats::decide_invariant("volume_backstop", lo / lever, band) {
+            Ok(Sign::Negative) => return Err(BooleanError::VolumeUndecided { which }),
+            Err(diag) if diag.margin.is_invalid() => return Err(escalated(diag)),
+            Ok(Sign::Zero | Sign::Positive) | Err(_) => {}
         }
-        let bound = match result_side {
-            Side::Small => others,
-            Side::Large => -others,
-        };
-        let implausible = || BooleanError::ResultVolumeImplausible {
-            which,
-            got: format!("{got:?}"),
-            bound: format!("{bound:?}"),
-        };
-        let (mut lo, hi, lever) = margin.ends();
-        let metered = hi / lever;
-        let reading = posture.read(margin);
-        // Open: the enclosures keep the sign open.
-        let mut open = !margin.is_exact() && reading == Reading::Open;
-        // Arm 1 — the inequality itself, at the margin's upper end. The
-        // walk's own sums round (`PastTarget::interval_volume`), so a
-        // violation they call is re-derived in interval arithmetic
-        // before it refuses: one the interval margin does not certify
-        // is the rounding's, and stays open.
-        if reading == Reading::Violated {
-            let (mut margin, mut area) = (Interval::zero(), Interval::zero());
-            for (side, terms) in [(Side::Small, &*small), (Side::Large, &*large)] {
-                for (operand, target) in terms {
-                    let (v, a) = interval_measure(which, *operand, target)?;
-                    margin = match side {
-                        Side::Small => margin - v,
-                        Side::Large => margin + v,
-                    };
-                    area = area + a;
-                }
-            }
-            if posture.read(crate::props::SignReading::exact(margin, area)) == Reading::Violated {
-                return Err(implausible());
-            }
-            open = true;
-            lo = T::from_computed(margin.lo());
-        }
-        if open {
-            // Every body, not the first that moves.
-            let mut moved = false;
-            for (_, target) in small.iter_mut().chain(large.iter_mut()) {
-                moved |= target.refine();
-            }
-            if moved {
-                continue;
-            }
-        }
-        let Posture::Bound { band, .. } = posture else {
-            // The +V invariant exempts what is left open, as at rest.
-            return Ok(());
-        };
-        // The rounds ran out with the sign open: what is left open,
-        // metered, is either below the model's resolution or not.
-        if open {
-            match geom_core::k_stats::decide_invariant("volume_backstop", lo / lever, band) {
-                Ok(Sign::Negative) => return Err(BooleanError::VolumeUndecided { which }),
-                Err(diag) if diag.margin.is_invalid() => return Err(escalated(diag)),
-                Ok(Sign::Zero | Sign::Positive) | Err(_) => {}
-            }
-        }
-        // Arm 2 — the magnitude, for the near-zero region arm 1 leaves
-        // open: only a certified negative refuses, Zero and in-band
-        // PASS, poison refuses.
-        return match geom_core::k_stats::decide_invariant("volume_backstop", metered, band) {
-            Ok(Sign::Negative) => Err(implausible()),
-            Ok(Sign::Zero | Sign::Positive) => Ok(()),
-            Err(diag) if diag.margin.is_invalid() => Err(escalated(diag)),
-            Err(_) => Ok(()),
-        };
+    }
+    match geom_core::k_stats::decide_invariant("volume_backstop", metered, band) {
+        Ok(Sign::Negative) => Err(BooleanError::ResultVolumeImplausible { which, got, bound }),
+        Ok(Sign::Zero | Sign::Positive) => Ok(()),
+        Err(diag) if diag.margin.is_invalid() => Err(escalated(diag)),
+        Err(_) => Ok(()),
     }
 }
 
