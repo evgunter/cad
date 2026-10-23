@@ -3817,6 +3817,10 @@ pub(crate) mod tests {
     ///   planar-only corpus does not reach (the hull is the box) and a
     ///   curved reach box reaches once arm 1 has proved its face's
     ///   pairs apart, where it costs probes, never a wrong clear.
+    ///   And `flush_at_rest`'s `face_box` read, a tree over the planar
+    ///   faces whose overlapping boxes are the flush candidates.
+    ///   **Prunes**: a loose box only adds candidates, each read
+    ///   exactly; a box tighter than its face would drop a flush pair.
     /// - `census/depth_gap.rs` — arm 1's depth-gap clear: one
     ///   [`face_box_rule`] read, which picks a face's cover and its
     ///   carrier's depth, and one [`edge_box_rule`] read per boundary
@@ -3864,9 +3868,10 @@ pub(crate) mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts TEN: the pre-filter's `face_box` read (one
+        // `census.rs` counts ELEVEN: the pre-filter's `face_box` read (one
         // box per face, read by the planar and every-face classes) and
-        // its `edge_box` read, pass 2′'s curved-edge `edge_box` read
+        // its `edge_box` read, the flush door's `face_box` read (the
+        // pruning door over its candidates), pass 2′'s curved-edge `edge_box` read
         // (`census::Candidates::build`, the pruning door) and
         // `collinear_overlaps`' `edge_box` read (the same pruning door),
         // three rule reads of its own and the edge reach's
@@ -3896,7 +3901,7 @@ pub(crate) mod tests {
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
-            ("census.rs", 10),
+            ("census.rs", 11),
             ("census/depth_gap.rs", 2),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
