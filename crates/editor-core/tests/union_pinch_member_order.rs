@@ -1442,7 +1442,9 @@ fn named_alike(gap: &Gap) -> usize {
         if let Err(e) = topo::validate_geometric(body, Tol::witness()) {
             panic!("{what}: tier 3 refused the body: {e:?}");
         }
-        let mut walls = gap.walls.map(|i| doc.output(m[i], 0).expect("a member's body"));
+        let mut walls = gap
+            .walls
+            .map(|i| doc.output(m[i], 0).expect("a member's body"));
         walls.sort_unstable();
         for &(lo, hi) in gap.seams {
             let on: Vec<&StableName> = crate::fixture::table(&ev, u)
