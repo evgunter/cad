@@ -19,7 +19,7 @@ program claims `crates/geom-brep/src/certify.rs`.)
 `TangentCertificateUnsupported` and `Band`. So `CertifyError::ending`
 gives `None` and `CertifyError::render` shows the payload alone. The
 `PlaneNurbs` arm inherits `PlaneNurbsRefusal`'s own `None`s
-(`work/iso/plane-nurbs-refusal-arms-with-no-ending.md`).
+(`work/isotail/plane-nurbs-refusal-arms-with-no-ending.md`).
 
 Readers:
 
