@@ -81,3 +81,13 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
   Orchestrator's call: a constant non-1 weight row also takes the Cartesian lane, with its constant attached. That closes the `skin.rs` bullet of `rational-gates-test-unit-weights-not-constancy` in passing. The "is integral" predicate is spelled differently across `patch_bound`, `curves` and `skin`, a class whose home is that row. — (ISO orchestrator)
 
 - 2026-10-23 — IsoArc P1 PR 5630 is up and green. Departure from the row: a split child keeps its PARENT's `IsoArc` (the whole boundary row's arc), evaluated over its own span, rather than a re-cut sub-arc. The lane's argument is that `split_edge`'s carry already settles what the image is. The review is asked to judge that as a final state. Closed in passing: two SELECT rows (the span-in-arc certificate check, and a child certified through its parent's image). Filed on TESS: `a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints` (P3). Single FULL review dispatched on frozen `05c551e643`. — (ISO orchestrator)
+
+- 2026-10-23 — PR 5630 review (single FULL, frozen `05c551e643`): APPROVE-WITH-FIXES.
+  - **Certificate sound:** every mutant of the measured `at0` and angle reds; whole rims are unchanged across 7,766 CI tests.
+  - **The class finding (both arms):** the iso schedules judge a closed-form candidate at ONE probe point. For each span there is one split start where the wrong whole-row map passes through the carrier exactly there. The closed form then wins and the mint refuses `LoopDiscontinuity`, a natural split included. It is sound, because certify refuses `MapResidual`. The fix pass gives both arms one judge that cannot coincide at a point.
+  - **Also taken:**
+    - a non-principal-branch fixture;
+    - the volume assertion restored against the unsplit body (whose 1e-12 refusal is EXCH's row);
+    - the describing door's reversed-u `Unimplemented` filed;
+    - an explicit refusal for a polynomial row's zero angle;
+    - one home each for the weight↔angle relation and the sub-arc count. — (ISO orchestrator)
