@@ -7,6 +7,7 @@ opened: 2026-10-09
 priority: P3
 refs: [a-fitted-wall-has-no-section-with-a-moved-cap, trimmed-quadrature-composite-rounds]
 cost: M
+rides_with: trimmed-quadrature-composite-rounds
 ---
 
 Found by SHELL's plane × `Approx` unit. `crates/sweep/tests/common/approx.rs`'s
