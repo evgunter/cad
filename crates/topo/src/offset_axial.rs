@@ -445,8 +445,8 @@ impl<T: Decide> Profile<T> {
 /// is not written.
 ///
 /// **What it READS is not as tight as what it writes**, and the whole
-/// account — which two reads are scope-sized, which four are still
-/// linear in the body, and what that costs — is [`crate::offset_together::Scope`]'s, stated
+/// account — which reads are scope-sized and which still read the whole
+/// body — is [`crate::offset_together::Scope`]'s, stated
 /// there once for both doors.
 ///
 /// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
@@ -811,13 +811,10 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             source: source.for_driver(),
         }
     })?;
-    // Tier 2 over the WHOLE clone, deliberately, and one of the four
-    // reads that stay linear in the body (`Scope`'s docs carry the
-    // account and the reason for each).
-    work.sweep_and_close();
-    if let Err(errors) = crate::validate::validate_closed(&staged) {
-        return Err(ReplaceFaceError::ResultNotClosed { errors });
-    }
+    // Tiers 1 and 2 over the WHOLE clone, in one walk (`Scope`'s docs
+    // carry the account of what stays linear in the body).
+    work.close_gated("offset_charts_together")
+        .map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
     let joins =
         crate::replace_face::staged_join(&mut staged, join, tol, &|v| scope.holds_vertex(v))?;
     body.adopt(staged);

@@ -142,8 +142,7 @@ use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{
-    AtRestBody, OrientationUnread, ValidationError, decide, scaffolds_at_rest, validate,
-    validate_closed,
+    AtRestBody, OrientationUnread, ValidationError, decide, scaffolds_at_rest, validate_closed,
 };
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
@@ -5704,7 +5703,6 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
 /// construction that stopped half-way, and a joinable vertex one the
 /// join did not finish.
 pub(super) fn structural_gate<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
-    validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     let mut errors = scaffolds_at_rest(body);
     errors.extend(crate::validate::joinable_at_rest_errors(body, band));

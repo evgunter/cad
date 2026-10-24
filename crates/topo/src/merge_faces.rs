@@ -2142,50 +2142,45 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // own tier-2 gate, which is the price of letting the rest of
         // the run commit. A placeholder run has no regime and no
         // surgery: it is set aside here, its faces already named.
+        //
+        // One surgery scope over `work` for the whole run: the ring
+        // surgery inside every `merge_group` is this door's, and the
+        // closing gate is what certifies the run's result.
         let mut work = self.clone();
+        let mut surgery = work.begin_surgery();
         for (seed, members) in groups {
-            let (rep, rest) = work.outermost_survivor(seed, members);
+            let (rep, rest) = surgery.outermost_survivor(seed, members);
             let (regime, kind) = match Self::group_contract(rep, &rest, &kinds)? {
                 GroupContract::Runs { regime, kind } => (regime, kind),
                 GroupContract::SetAside => continue,
             };
             match regime {
                 GroupRegime::RefusesTheCall => {
-                    // One surgery scope per group: the ring surgery
-                    // inside `merge_group` is this door's, and the
-                    // tier-2 gate below is what certifies its result.
-                    let mut surgery = work.begin_surgery();
-                    let group = surgery.merge_group(rep, &rest, kind, tol)?;
-                    surgery.sweep_and_close();
-                    outcome.groups.push(group);
+                    outcome
+                        .groups
+                        .push(surgery.merge_group(rep, &rest, kind, tol)?);
                 }
                 GroupRegime::RecordsASkip => {
-                    let mut trial = work.clone();
-                    // The sub-stage's own tier-2 gate: the group is
-                    // adopted only if its trial validates, so a
-                    // recorded skip leaves `work` exactly as it was.
+                    // The sub-stage's own gate: the group is adopted
+                    // only if its trial validates, so a recorded skip
+                    // leaves `work` exactly as it was. The gate is the
+                    // SUCCESS path's. A refusal here is the trial's
+                    // own — the group is recorded as skipped and the
+                    // trial thrown away — and the state a refusal
+                    // leaves behind was never this door's to certify.
+                    let mut trial = (*surgery).clone();
                     let staged = {
-                        // The sweep is the SUCCESS path's. A refusal
-                        // here is the trial's own — the group is
-                        // recorded as skipped and the trial thrown
-                        // away — and the state a refusal leaves
-                        // behind was never this door's to certify.
-                        let mut surgery = trial.begin_surgery();
-                        match surgery.merge_group(rep, &rest, kind, tol) {
-                            Ok(group) => {
-                                surgery.sweep_and_close();
-                                Ok(group)
-                            }
-                            Err(error) => Err(error),
-                        }
-                    }
-                    .and_then(|group| match validate_closed(&trial) {
-                        Ok(()) => Ok(group),
-                        Err(errors) => Err(MergeCoplanarError::GroupNotClosed { errors }),
-                    });
+                        let mut scope = trial.begin_surgery();
+                        scope.merge_group(rep, &rest, kind, tol).and_then(|group| {
+                            scope
+                                .close_gated("merge_coplanar_faces")
+                                .map(|()| group)
+                                .map_err(|errors| MergeCoplanarError::GroupNotClosed { errors })
+                        })
+                    };
                     match staged {
                         Ok(group) => {
-                            work = trial;
+                            surgery.adopt(trial);
                             outcome.groups.push(group);
                         }
                         Err(reason) => {
@@ -2205,9 +2200,9 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
             }
         }
         // ---- Gate: tier-valid after. ----
-        if let Err(errors) = validate_closed(&work) {
-            return Err(MergeCoplanarError::ResultNotClosed { errors });
-        }
+        surgery
+            .close_gated("merge_coplanar_faces")
+            .map_err(|errors| MergeCoplanarError::ResultNotClosed { errors })?;
         // ---- The kept faces' boundaries, re-described. ----
         //
         // An absorbed face's boundary edges now lie on its survivor,

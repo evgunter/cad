@@ -157,8 +157,8 @@ struct MovedPlane<T: Real> {
 /// is not offset and its geometry is not written.
 ///
 /// **What it READS is not as tight as what it writes**, and the whole
-/// account — which two reads are scope-sized, which four are still
-/// linear in the body, and what that costs — is [`Scope`]'s, stated
+/// account — which reads are scope-sized and which still read the whole
+/// body — is [`Scope`]'s, stated
 /// there once for both doors.
 ///
 /// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
@@ -523,13 +523,10 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             source: source.for_driver(),
         }
     })?;
-    // Tier 2 over the WHOLE clone, deliberately, and one of the four
-    // reads that stay linear in the body (`Scope`'s docs carry the
-    // account and the reason for each).
-    work.sweep_and_close();
-    if let Err(errors) = crate::validate::validate_closed(&staged) {
-        return Err(ReplaceFaceError::ResultNotClosed { errors });
-    }
+    // Tiers 1 and 2 over the WHOLE clone, in one walk (`Scope`'s docs
+    // carry the account of what stays linear in the body).
+    work.close_gated("offset_planes_together")
+        .map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
     let joins =
         crate::replace_face::staged_join(&mut staged, join, tol, &|v| scope.holds_vertex(v))?;
     body.adopt(staged);
@@ -733,41 +730,39 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 /// [`Scope::faces_in_scope`]): the rows of the scope's faces are
 /// re-derived and no others are read or written.
 ///
-/// **Everything else a door does is still O(body):**
+/// **Everything else a door does reads the whole body:**
 ///
-/// - **The tier-1 postcondition, once per door call.** The door runs
-///   its mutations under a surgery scope ([`crate::surgery`]), inside
-///   which `set_face_surface` and `set_edge_curve` check their own
-///   arena deltas and nothing else; the whole-body tier-1
-///   [`validate`](crate::validate()) runs once, when the scope closes,
-///   and it is a panic rather than a typed refusal
-///   (`scope_walks::the_door_panics_on_an_out_of_scope_malformed_solid`).
-///   Built with the `per-op-postcondition` feature, every setter sweeps
-///   the whole body instead.
+/// - **The clone** each door writes to.
+/// - **One tiers-1-and-2 walk over that clone**, when the door's
+///   surgery scope ([`crate::surgery`]) closes
+///   ([`Surgery::close_gated`](crate::Surgery::close_gated)). Inside
+///   the scope `set_face_surface` and `set_edge_curve` check their own
+///   arena deltas and nothing else; the close derives tier 1 once, a
+///   tier-1 finding panics naming the door
+///   (`scope_walks::the_door_panics_on_an_out_of_scope_malformed_solid`),
+///   and a tier-2 finding is the typed `ResultNotClosed`. Tier 1's
+///   passes are global by construction — ownership partitions, the
+///   edge ↔ half-edge bijection, orphan-geometry refcounts and
+///   edge-adjacency shell coherence are statements about the whole
+///   arena, and evaluating them over a shell subset reports every
+///   entity outside the subset as unowned or orphaned — so there is no
+///   restriction of them that is the same check narrowed rather than a
+///   different one. Built with the `per-op-postcondition` feature,
+///   every setter sweeps the whole body as well.
 /// - **Three whole-arena iterations in each door's decide phase**,
 ///   filtered by `holds_face` / `holds_vertex` / `holds_edge`: the
 ///   plane (or chart) sweep, the corner walk and the edge walk visit
 ///   every entity of the body and skip the ones the scope does not
 ///   hold. `axial_frame` sweeps `body.vertices()` the same way. The
-///   maps make the ANSWER scoped; the iteration is not.
-/// - **The clone** each door writes to.
-/// - **The closing tier-2 check**, `validate_closed` on that clone.
-///   Tier 1's passes are global by construction — ownership
-///   partitions, the edge ↔ half-edge bijection, orphan-geometry
-///   refcounts and edge-adjacency shell coherence are statements about
-///   the whole arena, and evaluating them over a shell subset reports
-///   every entity outside the subset as unowned or orphaned — so there
-///   is no restriction of them that is the same check narrowed rather
-///   than a different one.
+///   maps make the ANSWER scoped; the iteration is not
+///   (`work/shelf/offset-doors-take-solids-and-a-per-chart-rule.md`).
 ///
-/// So a scoped call is **linear in the whole body, not in its scope**,
-/// and it is measured that way: the same one-solid move set costs about
-/// 0.20, 0.30, 0.51 and 1.00 ms on bodies of one, two, four and eight
-/// solids. What the scope buys is which entities are WRITTEN and
-/// which failures are this call's — not the asymptotics. **Nothing
-/// pins that cost**: there is no guard and no register, so the numbers
-/// above are a measurement taken once, not a contract. The residue and
-/// what would close it: `work/offset/doors-still-read-the-whole-body-for-tier1.md`.
+/// So a scoped call is **linear in the whole body, not in its scope**:
+/// what the scope buys is which entities are WRITTEN and which
+/// failures are this call's — not the asymptotics. Nothing pins the
+/// whole-body cost; what does pin is that the WRITE side is driven by
+/// the writes (`attach`'s orphan pass, counted by
+/// `attach::orphan_sweep_scales_with_the_writes`).
 ///
 /// **Tier 2 is the whole contract on the result, and it is tier 2
 /// only.** A door returns `Ok` on a body that then fails
@@ -1141,15 +1136,14 @@ mod scope_walks {
     /// the walk a move set naming the SOUND solid takes never reads it.
     ///
     /// **The door as a whole is not** — and the row stops at the scope
-    /// deliberately. A structurally corrupt body is refused by two
-    /// arena-global reads that are not scoped, both downstream of the
-    /// scope: the door's own tier-1 postcondition, run once over
-    /// the staged clone when its surgery scope closes (a panic, not a
-    /// refusal, and compiled into this workspace's release profile
-    /// too), and the closing tier-2 check. Driving the door here would
-    /// measure those, not this; the first is pinned by
-    /// `the_door_panics_on_an_out_of_scope_malformed_solid` below. The
-    /// narrowing is the pair of walks above.
+    /// deliberately. A structurally corrupt body is caught by the
+    /// door's closing walk, which is arena-global and downstream of the
+    /// scope: tiers 1 and 2 derived once over the staged clone when its
+    /// surgery scope closes, a tier-1 finding a panic rather than a
+    /// refusal (compiled into this workspace's release profile too).
+    /// Driving the door here would measure that, not this; it is pinned
+    /// by `the_door_panics_on_an_out_of_scope_malformed_solid` below.
+    /// The narrowing is the pair of walks above.
     #[test]
     fn an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk() {
         let (mut body, first, second) = two_boxes();
@@ -1296,11 +1290,12 @@ mod scope_walks {
     /// deltas and nothing else; the whole-body re-derivation is the
     /// close. The corruption is planted before the door is entered and
     /// is caught before the door returns, which is the property this
-    /// row is about — and the typed `ResultNotClosed` gate after it is
-    /// NOT what catches it: a kernel bug still panics here rather than
-    /// becoming an error return.
+    /// row is about — and the close's tier-2 half, which shares its
+    /// walk, does not turn it into a `ResultNotClosed`: a kernel bug
+    /// still panics, naming the door, rather than becoming an error
+    /// return.
     #[test]
-    #[should_panic(expected = "postcondition: result is not tier-1 valid")]
+    #[should_panic(expected = "offset_planes_together postcondition: result is not tier-1 valid")]
     fn the_door_panics_on_an_out_of_scope_malformed_solid() {
         let (mut body, first, second) = two_boxes();
         break_a_loop(&mut body, second);

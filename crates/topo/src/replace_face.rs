@@ -235,7 +235,7 @@ use crate::geometry::SurfaceKey;
 use crate::live::{dangling_link, linked, proven};
 use crate::offset_derive::WallSlot;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
-use crate::validate::{ValidationError, validate_closed};
+use crate::validate::ValidationError;
 
 /// Typed refusal of the face-replacement door. Scalar payloads echo the
 /// classified quantity's ingredients — data, not a decision (the offset
@@ -722,7 +722,16 @@ pub enum ReplaceFaceError<T: Real> {
         /// Why the join refused.
         refusal: crate::boolean::JoinRefusal,
     },
-    /// The re-described clone is not tier-2 valid, so it is discarded.
+    /// The re-described clone is not a closed solid (tier 2), so it is
+    /// discarded and the body is untouched.
+    ///
+    /// The doors do not gate their operand at tier 2, so an operand
+    /// carrying scaffolding — which public Euler operators can leave —
+    /// reaches this, on a solid the call moved or one it did not. On a
+    /// closed operand it is a kernel defect. A tier-1 finding is one
+    /// always: under debug assertions it panics naming the door
+    /// ([`crate::Surgery::close_gated`]) instead of arriving here, and
+    /// with them off it arrives here ahead of the tier-2 findings.
     ResultNotClosed {
         /// The validator's report.
         errors: Vec<ValidationError>,
@@ -981,7 +990,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::ResultNotClosed { errors } => write!(
                 f,
-                "the offset body is not valid ({}), so it is discarded. {KERNEL_DEFECT_ENDING}",
+                "the offset body is not a closed solid ({}), so it is discarded: the body \
+                 offset was not closed either, or this is a kernel defect; report it",
                 error_count(errors.len())
             ),
         }
@@ -2143,8 +2153,8 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
             })?;
     }
     mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
-    work.sweep_and_close();
-    validate_closed(&staged).map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
+    work.close_gated("offset_charts_staged")
+        .map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
     let ends: std::collections::BTreeSet<crate::VertexKey> = written
         .iter()
         .filter_map(|&e| staged.get_edge(e))
