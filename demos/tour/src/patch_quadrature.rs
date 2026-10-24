@@ -21,7 +21,7 @@
 //! Every wall must be a whole patch (its face spans its surface's
 //! domain), which a loft's or a sweep's lateral faces are.
 
-use pncad::geom::Surface;
+use pncad::geom::{NurbsSurface, Surface};
 use pncad::topo::Body;
 
 /// Gauss–Legendre nodes and weights on `[-1, 1]`.
@@ -85,72 +85,62 @@ fn basis(k: &[f64], p: usize, s: usize, t: f64) -> (Vec<f64>, Vec<f64>) {
     (n, d)
 }
 
-/// One wall as plain data.
-struct Patch {
-    ku: Vec<f64>,
-    kv: Vec<f64>,
-    pu: usize,
-    pv: usize,
-    nv: usize,
-    cp: Vec<[f64; 3]>,
-    w: Vec<f64>,
-}
-
-impl Patch {
-    /// `(∫∫ (S − c)·(S_u × S_v), ∫∫ |S_u × S_v|)` over the whole patch
-    /// for each `c`, at `q` Gauss points a span a direction.
-    fn integrals(&self, q: usize, cs: &[[f64; 3]]) -> (Vec<f64>, f64) {
-        let g = gauss(q);
-        let spans = |k: &[f64], p: usize| -> Vec<usize> {
-            (p..k.len() - p - 1).filter(|&s| k[s + 1] > k[s]).collect()
-        };
-        let (mut flux, mut area) = (vec![0.0; cs.len()], 0.0);
-        for su in spans(&self.ku, self.pu) {
-            for sv in spans(&self.kv, self.pv) {
-                let (a, b) = (self.ku[su], self.ku[su + 1]);
-                let (c, d) = (self.kv[sv], self.kv[sv + 1]);
-                let jac = 0.25 * (b - a) * (d - c);
-                for &(xu, wu) in &g {
-                    for &(xv, wv) in &g {
-                        let u = 0.5 * (a + b) + 0.5 * (b - a) * xu;
-                        let v = 0.5 * (c + d) + 0.5 * (d - c) * xv;
-                        let (nu, du) = basis(&self.ku, self.pu, su, u);
-                        let (nv, dv) = basis(&self.kv, self.pv, sv, v);
-                        let (mut h, mut hu, mut hv) = ([0.0; 4], [0.0; 4], [0.0; 4]);
-                        for i in 0..=self.pu {
-                            for j in 0..=self.pv {
-                                let idx = (su - self.pu + i) * self.nv + (sv - self.pv + j);
-                                let (p, wt) = (self.cp[idx], self.w[idx]);
-                                let hw = [p[0] * wt, p[1] * wt, p[2] * wt, wt];
-                                for k in 0..4 {
-                                    h[k] += nu[i] * nv[j] * hw[k];
-                                    hu[k] += du[i] * nv[j] * hw[k];
-                                    hv[k] += nu[i] * dv[j] * hw[k];
-                                }
+/// `(∫∫ (S − c)·(S_u × S_v), ∫∫ |S_u × S_v|)` over the whole of `net`
+/// for each `c`, at `q` Gauss points a span a direction.
+fn integrals(net: &NurbsSurface<f64>, q: usize, cs: &[[f64; 3]]) -> (Vec<f64>, f64) {
+    let (ku, kv) = (net.knot_values_u().values(), net.knot_values_v().values());
+    let (pu, pv) = (net.knot_values_u().degree(), net.knot_values_v().degree());
+    let stride = net.control_counts().1;
+    let (cp, w) = (net.control(), net.weights());
+    let g = gauss(q);
+    let spans = |k: &[f64], p: usize| -> Vec<usize> {
+        (p..k.len() - p - 1).filter(|&s| k[s + 1] > k[s]).collect()
+    };
+    let (mut flux, mut area) = (vec![0.0; cs.len()], 0.0);
+    for su in spans(ku, pu) {
+        for sv in spans(kv, pv) {
+            let (a, b) = (ku[su], ku[su + 1]);
+            let (c, d) = (kv[sv], kv[sv + 1]);
+            let jac = 0.25 * (b - a) * (d - c);
+            for &(xu, wu) in &g {
+                for &(xv, wv) in &g {
+                    let u = 0.5 * (a + b) + 0.5 * (b - a) * xu;
+                    let v = 0.5 * (c + d) + 0.5 * (d - c) * xv;
+                    let (nu, du) = basis(ku, pu, su, u);
+                    let (nv, dv) = basis(kv, pv, sv, v);
+                    let (mut h, mut hu, mut hv) = ([0.0; 4], [0.0; 4], [0.0; 4]);
+                    for i in 0..=pu {
+                        for j in 0..=pv {
+                            let idx = (su - pu + i) * stride + (sv - pv + j);
+                            let (p, wt) = (cp[idx], w[idx]);
+                            let p = [p.x, p.y, p.z];
+                            let hw = [p[0] * wt, p[1] * wt, p[2] * wt, wt];
+                            for k in 0..4 {
+                                h[k] += nu[i] * nv[j] * hw[k];
+                                hu[k] += du[i] * nv[j] * hw[k];
+                                hv[k] += nu[i] * dv[j] * hw[k];
                             }
                         }
-                        let s: [f64; 3] = core::array::from_fn(|k| h[k] / h[3]);
-                        let s_u: [f64; 3] = core::array::from_fn(|k| (hu[k] - hu[3] * s[k]) / h[3]);
-                        let s_v: [f64; 3] = core::array::from_fn(|k| (hv[k] - hv[3] * s[k]) / h[3]);
-                        let n = [
-                            s_u[1] * s_v[2] - s_u[2] * s_v[1],
-                            s_u[2] * s_v[0] - s_u[0] * s_v[2],
-                            s_u[0] * s_v[1] - s_u[1] * s_v[0],
-                        ];
-                        let wq = wu * wv * jac;
-                        for (f, c) in flux.iter_mut().zip(cs) {
-                            *f += wq
-                                * ((s[0] - c[0]) * n[0]
-                                    + (s[1] - c[1]) * n[1]
-                                    + (s[2] - c[2]) * n[2]);
-                        }
-                        area += wq * (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
                     }
+                    let s: [f64; 3] = core::array::from_fn(|k| h[k] / h[3]);
+                    let s_u: [f64; 3] = core::array::from_fn(|k| (hu[k] - hu[3] * s[k]) / h[3]);
+                    let s_v: [f64; 3] = core::array::from_fn(|k| (hv[k] - hv[3] * s[k]) / h[3]);
+                    let n = [
+                        s_u[1] * s_v[2] - s_u[2] * s_v[1],
+                        s_u[2] * s_v[0] - s_u[0] * s_v[2],
+                        s_u[0] * s_v[1] - s_u[1] * s_v[0],
+                    ];
+                    let wq = wu * wv * jac;
+                    for (f, c) in flux.iter_mut().zip(cs) {
+                        *f += wq
+                            * ((s[0] - c[0]) * n[0] + (s[1] - c[1]) * n[1] + (s[2] - c[2]) * n[2]);
+                    }
+                    area += wq * (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
                 }
             }
         }
-        (flux, area)
     }
+    (flux, area)
 }
 
 /// What [`measure`] read off a body.
@@ -181,17 +171,7 @@ pub fn measure(
         let sense = if face.sense { 1.0 } else { -1.0 };
         match surface {
             Surface::Nurbs(net) => {
-                let (ku, kv) = (net.knots_u_f64_interim(), net.knots_v_f64_interim());
-                let patch = Patch {
-                    ku: ku.knots().to_vec(),
-                    kv: kv.knots().to_vec(),
-                    pu: ku.degree(),
-                    pv: kv.degree(),
-                    nv: net.control_counts().1,
-                    cp: net.control().iter().map(|p| [p.x, p.y, p.z]).collect(),
-                    w: net.weights().to_vec(),
-                };
-                let (flux, a) = patch.integrals(q, cs);
+                let (flux, a) = integrals(net, q, cs);
                 for (v, f) in volume.iter_mut().zip(flux) {
                     *v += sense * f / 3.0;
                 }
