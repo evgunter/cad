@@ -2,7 +2,9 @@
 id: the-region-doors-share-one-skeleton-three-times
 kind: issue
 title: The sphere, torus and ruled region doors each carry their own copy of one skeleton: the boundary gather, the path roster and the leg helpers
-status: open
+status: review
+branch: chart/region-skeleton
+pr: 5671
 priority: P1
 cost: M
 refs: [curved-face-containment-answers-none-on-a-ringed-face]

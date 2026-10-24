@@ -133,10 +133,8 @@ crates/topo/src/boolean/sectors.rs	1	constant	2.0 * sectors.len() as f64	a count
 crates/topo/src/boolean/separating.rs	1	constant	2.0 * pad	the band's sweep pad, a tolerance
 crates/topo/src/boolean/separating.rs	1	constant	f64::from(n)	a count
 crates/topo/src/boolean/solid_contain.rs	1	constant	<fn>	a fixed ray direction of the schedule
-crates/topo/src/boolean/ruled_region.rs	1	constant	share	a fixed split fraction
+crates/topo/src/boolean/region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/boolean/sphere_region.rs	1	constant	<fn>	a fixed ray direction of the schedule
-crates/topo/src/boolean/sphere_region.rs	1	constant	share	a fixed split fraction
-crates/topo/src/boolean/torus_region.rs	1	constant	share	a fixed split fraction
 crates/topo/src/census.rs	1	constant	band.escalate() - band.zero()	the band's room (K - 1)·ε, a tolerance
 crates/topo/src/census.rs	2	constant	band.zero()	the band's zero width, a tolerance
 crates/topo/src/census/depth_gap.rs	1	constant	2.0 * sweep_pad(band)	both faces' sweep pads, a tolerance
