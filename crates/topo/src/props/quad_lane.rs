@@ -1,6 +1,6 @@
 use geom_brep::props::quad::{
-    self, Accept, FaceCutBounds, HarmChan, LaneEnd, LaneRun, LaneStop, QUAD_TARGET_LEN_FACTOR,
-    RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
+    self, Accept, FaceCutBounds, HarmChan, LaneEnd, LaneRun, LaneStop, PatchNet,
+    QUAD_TARGET_LEN_FACTOR, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
 use geom_brep::props::spiric;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
@@ -1419,11 +1419,14 @@ fn nurbs_face<T: Decide + Bounds + CertifiedEnclosure>(
             .collect(),
         centre,
     );
-    let out = quad::nurbs_patch_face_rounds::<T>(
+    let net = PatchNet::new(
         payload.knots_u_f64_interim(),
         payload.knots_v_f64_interim(),
         &control,
         payload.weights_f64_interim(),
+    )?;
+    let out = quad::nurbs_patch_face_rounds::<T>(
+        &net,
         (u0, u1, v0, v1),
         perimeter,
         boundary_defect,
@@ -1559,15 +1562,15 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                                along chart the face does not bound",
                     });
                 }
-                Some(TrimPiece {
-                    knots: image.knots_f64_interim().clone(),
-                    control: image
+                Some(TrimPiece::new(
+                    image.knots_f64_interim().clone(),
+                    image
                         .control()
                         .iter()
                         .map(|p| (ring(p.x), ring(p.y)))
                         .collect(),
-                    weights: image.weights_f64_interim().to_vec(),
-                })
+                    image.weights_f64_interim().to_vec(),
+                )?)
             }
             Pcurve::Fitted(_) => {
                 return Err(PropsError::QuadratureUnsupported {
@@ -1647,16 +1650,13 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
             .collect(),
         centre,
     );
-    quad::trimmed_patch_face_rounds::<T>(
+    let net = PatchNet::new(
         payload.knots_u_f64_interim(),
         payload.knots_v_f64_interim(),
         &control,
         payload.weights_f64_interim(),
-        &chords,
-        band,
-        window,
-        accept,
-    )
+    )?;
+    quad::trimmed_patch_face_rounds::<T>(&net, &chords, band, window, accept)
 }
 
 /// A patch's lifted control net carried by `−centre`, when the flux is
