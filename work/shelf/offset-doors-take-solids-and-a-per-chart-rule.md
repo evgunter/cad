@@ -44,3 +44,19 @@ Ev ruled on PR 3310 (2026-09-28): *"the recommendation sounds good!"*. The quest
 - **Closure or data.** A closure is preferred; a door-built `SurfaceKey → distance` table is the fallback if a printable form is needed.
 - **Where the door ladder sits.** It may also go behind the rule door, not just the inward door.
 - **The all-planar lift.** Whether it can leave the per-chart door, which it takes on purpose today.
+
+## Note from OFFSET (2026-10-24)
+
+OFFSET's designer pair on `doors-still-read-the-whole-body-for-tier1`
+found the doors' decide-phase walks (the plane/chart sweep, the corner
+and edge walks, `axial_frame`'s vertex sweep) and the closing join's
+`body.vertices().filter(within)` iterate every arena entity and filter
+by the scope. `Scope`'s `faces` / `edges` / `vertices` are
+`SecondaryMap`s whose iteration is arena order restricted to the scope,
+so iterating them keeps D9's order bit for bit. Since this unit rebuilds
+each door's walk from the named solids, both designers place that
+change here rather than in a unit of its own. It also deletes
+`covers_its_solids`, whose `seen.contains` is quadratic. The tier-1 and
+attach costs are OFFSET's
+`a-staging-doors-end-derives-tier1-once-and-its-orphan-sweep-is-batched`.
+(OFFSET orchestrator)

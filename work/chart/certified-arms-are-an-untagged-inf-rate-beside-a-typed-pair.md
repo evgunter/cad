@@ -2,11 +2,12 @@
 id: certified-arms-are-an-untagged-inf-rate-beside-a-typed-pair
 kind: issue
 title: chart_region::certified_arms is an inf rate per kind with no InfSpeed tag, the rate pair's next member
-status: open
+status: dispatched
 opened: 2026-09-15
 refs: [three-tables-of-the-chart-arms]
 priority: P1
 cost: E
+branch: chart/arms-typing
 ---
 
 
