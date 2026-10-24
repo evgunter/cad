@@ -64,6 +64,8 @@ from pncad import (
     mm,
 )
 
+from placing import against, placed
+
 SQUARE = [
     (Formula.length_in(0, m), Formula.length_in(0, m)),
     (Formula.length_in(1, m), Formula.length_in(0, m)),
@@ -78,7 +80,7 @@ def in_world(doc, body, z=0.0):
     world's."""
     if z == 0.0:
         return doc.place(body, doc.world)
-    return doc.place(body, doc.world, pose=Frame.translation((0 * m, 0 * m, z * m)))
+    return placed(doc, body, Frame.translation((0 * m, 0 * m, z * m)))
 
 
 def prism(doc, height=1.0):
@@ -362,7 +364,7 @@ class TestTheClosedForms(unittest.TestCase):
         travel = 100.0
         body = prism(doc)
         here = in_world(doc, body)
-        moved = doc.place(body, doc.world, pose=Frame.translation((travel * m, 0 * m, 0 * m)))
+        moved = placed(doc, body, Frame.translation((travel * m, 0 * m, 0 * m)))
         ev = evaluate(doc)
         corner = sorted(ev.all_vertices(moved))[0]
         at = [c.meters for c in ev.vertex_position(moved, corner)]
@@ -376,10 +378,10 @@ class TestTheClosedForms(unittest.TestCase):
             < 1e-9
         ]
         self.assertEqual(len(same), 1, "each copy holds the prism's corner once")
-        placed = doc.insert(
+        measure = doc.insert(
             Node.measure(MeasurePrimitive.distance((here, same[0]), (moved, corner)))
         )
-        self.assertAlmostEqual(measured(doc, placed).value, travel, places=9)
+        self.assertAlmostEqual(measured(doc, measure).value, travel, places=9)
         # The same name read at ONE site measures against itself: zero,
         # which is what makes the number above the translation and not
         # an artefact of which vertex was picked.
@@ -845,7 +847,8 @@ class TestTheDocumentCarriesIt(unittest.TestCase):
         one."""
         doc = Doc()
         left = cylinder_body(doc, -0.30, 0.2)
-        right = doc.place_against(
+        right = against(
+            doc,
             left, cylinder_body(doc, 0.30, 0.2), Frame.translation((0 * m, 0 * m, 0 * m))
         )
         placed = doc.place(doc.insert(Node.union([left, right])), doc.world)

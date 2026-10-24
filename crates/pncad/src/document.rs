@@ -400,24 +400,22 @@ pub use editor_core::{
 
 // Mates: a placement's constraints (`Constraint`, addressed by a
 // `MateRef`), each a `Mate` of two poses of one kind — `on` read off
-// the copy's geometry, `to` a `Target`: a pose of the space the
-// placement places into, or the world read inside the mate
-// (`WorldRead`) — or a
-// `Value` setting one freedom (`Coord`: a slide along a `TargetAxis`,
-// the spin about the mated direction, or a spin about a `TargetAxis`)
-// its mate leaves, or, naming no mate, one of the target space's own
-// axes. The solve's outcome (`SolvedPoses`, each copy's target
-// space and motion; a pose kind's symmetry `Subgroup` and its `SubgroupFamily`,
-// whose meeting decides a bundle), and `MateFault` — the typed refusal
-// every door carries. A gesture's answer is a `Placed` — its mate, if
-// any, its values and how it placed the copy (`PlacedBy`) — which
-// `Placed::bundle` writes whole. `stand` writes the identity
-// bundle, no mate and the constant `0` on every freedom; `pin_at` pins a copy to the world
-// at a pose over its own geometry; `place_at` is the "place part" gesture's
-// constraints (`PlacedBy` saying whether the copy had a planar face to
-// rest). `unobservable` reports each number an evaluation shows moves
-// nothing (`Unobservable`): a pose move inside its pose's own symmetry,
-// a spin value about a line its copy is round about. `member_of` is A11's member vocabulary itself
+// the copy's geometry, `to` a pose of the space the placement places
+// into — or a `Value` setting one freedom (`Coord`: a slide along, or
+// a spin about, one of the target space's axes as `TargetAxis` names
+// it), which names no mate: the bundle's mates together leave it, and
+// it charts on the target space's axes swung onto the one mated
+// direction. The solve's outcome (`SolvedPoses`, each copy's target
+// space and motion; a pose kind's symmetry `Subgroup` and its
+// `SubgroupFamily`, whose meeting decides a bundle), and `MateFault` —
+// the typed refusal every door carries. A placement's bundle is a
+// `Placed` — its mates and its values — built by the one pure
+// constructor `Placed::of` (each freedom the mates leave and no value
+// sets written the constant `0`), and `Placed::bundle` writes it
+// whole; `stand` is the identity bundle. `unobservable` reports each
+// number an evaluation shows moves nothing (`Unobservable`): a pose
+// move inside its pose's own symmetry, a spin value about a line its
+// copy is round about. `member_of` is A11's member vocabulary itself
 // (`Member` is its answer); `member_reading` is the same walk with the
 // name it reached at the member's instance, and `head_face` the face
 // of the member's part a head names. `OVERCONSTRAINED_RECOURSE` and
@@ -443,14 +441,12 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Constraint, ConstraintKind, Coord, FrameMove, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate,
-    MateFault, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed,
-    PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Subgroup,
-    SubgroupFamily, Target, TargetAxis, UNPINNED_RECOURSE, Unobservable, Value, WorldRead,
-    WorldReadFault, corner_frame, corner_frame_in, frame_at, frame_at_in, head_face, head_of,
-    member_of, member_reading, moved_frame, pin_at, pin_at_in, place_against, place_against_in,
-    place_at, place_at_in, reference_about, relative_freedom_components, solve_document, stand,
-    unobservable,
+    Constraint, ConstraintKind, Coord, FrameMove, Mate, MateFault, MateRef, MateSide, Member,
+    NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing, PoseRefusal, PoseSymmetry,
+    ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis, UNPINNED_RECOURSE,
+    Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of, member_of,
+    member_reading, moved_frame, reference_about, relative_freedom_components, solve_document,
+    stand, unobservable,
 };
 
 // The class-admission table (`ClassAdmission`, read through
@@ -511,20 +507,22 @@ pub use editor_core::{
     RefusedRef, Relation, Route, Unlocalized, assemble, assemble_gathered,
 };
 
-// Split and inline: the first-class
+// Split, inline and flatten: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new
 // document (identity supplied by the caller — `DocumentId::derive` or
 // `workspace::random_document_id`) and leaves an instance behind;
 // `inline` splices a referenced document back in through a
-// `PartResolver`. Both return the new document VALUES plus the
+// `PartResolver`, into a new space placed under the instance's bundle;
+// `flatten` folds an identity placement out of such a space back into
+// its target. Both return the new document VALUES plus the
 // ordinary recorded edits producing them; persistence of the results
 // is the workspace write side (`workspace::Workspace::create` /
 // `resave`). `InterfaceRecord`/`InterfaceCrossing` are the split
 // seam's crossing-declaration record, inhabited by
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
-    InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, StepMap, Uncarried, inline, split,
+    FlattenError, FlattenOutcome, InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord,
+    NodeMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

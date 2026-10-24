@@ -2104,23 +2104,17 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "model buds as spheroids",
     );
 
-    // 5. The three leaves are hand-placed because there is no mirror:
-    //    a reflection is improper, and the rigidity predicate decides
-    //    the determinant, not just the column norms.
-    let mirror = Affine3::from_parts(
-        Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, -1.0, 0.0), v3(0.0, 0.0, 1.0)),
-        v3(0.0, 0.0, 0.0),
-    );
-    wall(
-        5,
-        "mirror a leaf across the plant's plane (improper isometry)",
-        RigidMotion::check_rigid(&mirror, band)
-            .map(|mirror| pncad::topo::transform_rigid(by("lily_leaf_a"), &mirror, tol)),
-        // A reflection's columns ARE unit and orthogonal; only the
-        // determinant catches it, and that is the whole point.
-        |e| matches!(e, RigidMotionError::NotRigid { check } if *check == "transform_rigid_det_plus_one"),
-        "author leaves once and mirror them",
-    );
+    // Wall 5 — RETIRED. A mirror is a construction now
+    //    (`topo::mirror_body`): a leaf mirrored across the plant's plane
+    //    builds, and is a body at rest. The scene's three leaves are
+    //    still placed by hand; authoring one and mirroring it is the
+    //    scene's own change to make.
+    let across = pncad::topo::Reflection::across(p3(0.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), tol)
+        .expect("the plant's plane has a normal");
+    let mirrored = pncad::topo::mirror_body(leaf_a, &across, tol)
+        .expect("a leaf mirrors across the plant's plane");
+    finished("lily_leaf_a mirrored", mirrored, tol);
+    println!("   wall 5 — RETIRED: a leaf mirrored across the plant's plane builds at rest");
 
     // 6. The lantern's mouth is a hard circle where the sphere zone
     //    meets the conical pucker. A rolling ball would soften it —
@@ -3015,23 +3009,24 @@ mod review_probes {
         // sits that far above the chord, i.e. OUTSIDE the spine's
         // centre of curvature, so its arc is len + |curl|·rise.
         //
-        // Two readings against it. The kernel's own certified volume
-        // must CONTAIN it, at every width: a sound enclosure misses the
-        // true volume at none. A containment is strong evidence only
-        // when the enclosure is narrow — under `BRACKET_CEILING` of
-        // Pappus, a tenth of the mesh's own deficit below, so a closed
-        // form off by more than that is excluded. At the default ε the
-        // full widths are 5.1e-5 (b) and 1.4e-4 (c) of it. At 1e-6 the pad,
-        // and at 1e-12 the bracket the budget refusal keeps
-        // (`work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`),
-        // are wider than the ceiling, and the row says so beside the
-        // containment it still asserts. And the mesh must fall
-        // SHORT of it by between 3e-3 and 6e-3: every chord across the
-        // convex lens cuts inside it, and the inscribed deficit measured
-        // 4.4e-3 and 5.0e-3 at δ = 2e-3. A mesh that met Pappus would
-        // not have been measured off a real tessellation; one further
-        // off would mean the section rolled about the tangent on its
-        // way down the path.
+        // Pappus is the IDEAL sweep's volume, and the blade is a skin
+        // through [`LEAF_STATIONS`] sections on a cubic interpolant of
+        // the arc, so the two differ by the fit. The kernel's certified
+        // volume must therefore contain the skin's OWN volume,
+        // integrated over its surfaces
+        // ([`crate::patch_quadrature`]), at every width: a
+        // sound enclosure misses the true volume at none. Pappus is
+        // held to the skin at the fit's scale: a cubic spline through
+        // stations `Δ` apart in the arc's angle misses it by
+        // `(5/384)·Δ⁴` of its own scale, and a section's area is
+        // quadratic in its scale, so the volume misses by about twice
+        // that. And the mesh must fall SHORT of the skin by between
+        // 3e-3 and 6e-3: every chord across the convex lens cuts
+        // inside it, and the inscribed deficit measured 4.4e-3 and
+        // 5.0e-3 at δ = 2e-3. A mesh that met the skin would not have
+        // been measured off a real tessellation; one further off would
+        // mean the section rolled about the tangent on its way down
+        // the path.
         //
         // `lily_leaf_a` is NOT in this list, and its absence is the
         // point: it is the lofted blade, and it both tapers and rolls.
@@ -3039,7 +3034,6 @@ mod review_probes {
         // which is exactly what a loft stops being. What pins the
         // lofted blade instead is
         // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
-        const BRACKET_CEILING: f64 = 5e-4;
         for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_C)] {
             let pappus = leaf.section.area()
                 * leaf
@@ -3047,6 +3041,26 @@ mod review_probes {
                     .abs()
                     .mul_add(leaf.section.centroid_rise(), leaf.len);
             let b = body(&ps, name);
+            // The caps are the authored lens placed rigidly, and each
+            // reading is taken about two points: a shell that does not
+            // close reads two volumes.
+            let cap = |_o: [f64; 3], _n: [f64; 3]| leaf.section.area();
+            let about = [[0.0; 3], [leaf.base.x, leaf.base.y, leaf.base.z]];
+            let coarse = crate::patch_quadrature::measure(b, 24, &about, cap);
+            let fine = crate::patch_quadrature::measure(b, 32, &about, cap);
+            let skin_v = fine.volume[0];
+            let skin_err = (skin_v - coarse.volume[0])
+                .abs()
+                .max((skin_v - fine.volume[1]).abs());
+            #[allow(clippy::cast_precision_loss)]
+            let fit_step = leaf.curl.abs() / (LEAF_STATIONS - 1) as f64;
+            let fit_scale = 2.0 * (5.0 / 384.0) * fit_step.powi(4);
+            let fit = ((skin_v - pappus) / pappus).abs();
+            assert!(
+                fit <= fit_scale,
+                "{name}: the skin's V = {skin_v} misses Pappus {pappus} by {fit:e} of it, past \
+                 the cubic fit's scale {fit_scale:e}"
+            );
             let reading = pncad::topo::VolumeReading::of(
                 pncad::topo::validate_geometric_certificate(b, Tol::witness())
                     .expect("the swept leaf is tier 3 clean")
@@ -3057,19 +3071,12 @@ mod review_probes {
                 .enclosure();
             let (lo, hi) = (e.volume_lo, e.volume_hi);
             assert!(
-                lo <= pappus && pappus <= hi,
-                "{name}: Pappus {pappus} outside the certified [{lo}, {hi}]"
+                lo <= skin_v - skin_err && skin_v + skin_err <= hi,
+                "{name}: the skin's own V = {skin_v} (± {skin_err:e}) outside the certified \
+                 [{lo}, {hi}]"
             );
-            if hi - lo > BRACKET_CEILING * pappus {
-                println!(
-                    "{name}: certified [{lo:e}, {hi:e}] is {:.1e} of Pappus wide, past \
-                     the {BRACKET_CEILING:e} ceiling at this ε — it contains Pappus, \
-                     which at this width is weak evidence of agreement",
-                    (hi - lo) / pappus
-                );
-            }
             let m = pncad::mesh::tessellate(b, 2e-3, Tol::witness()).expect("tessellate");
-            let short = (pappus - signed_volume(&m)) / pappus;
+            let short = (skin_v - signed_volume(&m)) / skin_v;
             assert!(
                 short > 3e-3 && short < 6e-3,
                 "{name}: mesh short by {short}"

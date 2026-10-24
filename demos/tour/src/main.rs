@@ -72,6 +72,8 @@ mod mate7a_r2_probes;
 mod mcchain;
 mod mcplate;
 mod oracles;
+#[cfg(test)]
+mod patch_quadrature;
 mod plate;
 #[cfg(feature = "probe")]
 mod probe;
@@ -638,8 +640,8 @@ fn run_body(
             );
             println!(
                 "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3, certified bracket \
-                 (tier 3 certified the sign; the reporting target 1024·ε is under this \
-                 body's quadrature floor, so it has no volume NUMBER at this ε), \
+                 (tier 3 certified the sign; the reporting target 1024·ε is under the \
+                 width this body's quadrature stops at, so it has no volume NUMBER at this ε), \
                  A = {:.6} m^2; mesh (delta = {:.0e}): {} triangles, \
                  V_mesh = {v_mesh:.6e} (inside the bracket, chordal slack ±{slack:.1e})",
                 enclosure.volume_lo,

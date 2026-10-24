@@ -62,7 +62,7 @@ use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Bodies, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Formula, Frame, LoopProgram, Node,
+    Bodies, CancelToken, Doc, DocEdit, EvalOptions, Evaluation, Formula, LoopProgram, Node,
     PatternKind, ProfileProgram, RecipeNodeId, SlotId, ValuePayload, apply, evaluate,
     parse_formula,
 };
@@ -234,7 +234,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
         &doc,
         base,
         fin_e,
-        &Frame::translation([0.0, 0.0, fin_z]),
+        crate::world::slides([0.0, 0.0, fin_z]),
         tol,
     );
     doc = seated.doc;

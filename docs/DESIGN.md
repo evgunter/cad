@@ -1087,7 +1087,8 @@ suits the slot.
 **Kinds.** `[variables.kinds]`
 
 - *Scalars:* `Length`, `Angle`, `Scalar`, `Count`.
-- *Discrete kinds:* a side, a half, a sense.
+- *Discrete kinds:* a side, a half, a sense, an orientation
+  ([placement.values]).
 - *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Pivot`, `Flag`, `Frame`
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
@@ -1260,10 +1261,10 @@ integers. Copies of one body are built once and mapped; a construction
 whose scalar inputs read an index is built per member, and no
 construction reads a frame. A mirror image is not a copy, because a
 reflection is not a pose: `Mirror { body, plane }`
-is a construction defining a new `Body` in its source's root, the
-plane a `Plane` pose whose reads reach that root alone (a face read as a
-plane, or a plane constructed from the body's geometry), and every pose
-is proper. A symmetric part is `union(body, Mirror { body, plane })`,
+is a construction defining a new `Body` in its source's space, the
+plane a `Plane` pose whose reads reach that space alone (a face read as
+a plane, or a plane constructed from the body's geometry), and every
+pose is proper. A symmetric part is `union(body, Mirror { body, plane })`,
 one construction whose seam is the plane's face read twice; a chiral
 twin elsewhere is a placement of the image, and there the plane carries
 no shape.
@@ -1373,40 +1374,53 @@ copy is read as that copy carries it. A mate places and never checks.
 
 **Values.** `[placement.values]` A **value** sets one freedom of a
 placement's motion that its mates leave, a slide or a spin, to a
-`Length` or `Angle` variable, along or about an axis of the
-freedoms the mates leave. Those axes are the target space's own where
-no mate fixes a direction, and the target's swung onto the direction
-where one does, so a slide a plane mate leaves runs in that plane
-however the plane is tilted. Where the mates fix a direction (a plane's
-normal, an axis, a lone direction; a bundle holds at most one mate
-fixing a direction, since a second would state the angle between
+`Length` or `Angle` variable. Where the mates fix a direction (a
+plane's normal, an axis, a lone direction; a bundle holds at most one
+mate fixing a direction, since a second would state the angle between
 them, an equation the first already fixes, so its values have one
-chart and a value names no mate), each of the two spaces' axes is swung
-onto it by the shortest turn carrying its own z to the mated
-direction, the half-turn about its own x where that direction is its
-own −z, so a mate between axis-aligned poses has an axis-aligned zero
-and no edit that tilts a wall or turns a profile moves a held value's
-meaning; a slide runs along the target's swung axes, a spin is the
-angle about the mated direction from the target's swung x to the
-copy's, and a mate's `Flip` is on the copy's side. Inside the sliver
-band about that one pole the chart refuses, typed at evaluation, as a
-construction refuses at its degenerate values. Where no direction is
-fixed (no mate, or a lone point mate), the rotation is a written
-chain of at most three spins, each about the target space's x, y or z
-(through the mated point, for a point mate), no two in a row about one
-axis; turns do not commute, so the author writes the order and the
-kernel chooses none. A slide is the copy's origin measured from the
-target's along one of the target's (swung) axes, a function of the
-relative pose alone, so no slide is ordered. Every freedom is set
-explicitly, as a written value: zero is always a valid value and says the two spaces agree
-as far as the mates allow, a placement whose values are all zero and
-which has no mate is the identity, and the façade writes the constant
-`0` for each freedom a gesture leaves unnamed. A bundle with no mate is
-legal. A space's axes are read only by values, so setting a part on
-the world's xy is written as values (`z = 0`, the two tilts `0`, and
-the slides and spin the author chooses). A placement is the only reader of a
-source's own coordinates, and reads them only through the freedoms its
-mates leave.
+chart and a value names no mate), the placement writes an
+**orientation**: one of the 24 ways the source's axes lie along the
+target's (`x: +x, z: −z`), a discrete kind, the identity unless
+written; the gesture writes the one nearest where the copy stands.
+The orientation says where the copy's mated direction should point,
+and the **least turn** carries that onto the mated direction. Every
+value beside the mate is read through it: a **slide** runs along one
+of the target space's axes as the least turn carries it, so a slide a
+plane mate leaves runs in that plane however the plane is tilted, and
+where the face is where the orientation puts it the least turn is the
+identity and a slide is a coordinate on the target's own axes; the
+one **spin** is the angle about the mated direction left after the
+least turn, so no reference axis is chosen on either side and zero
+says the two spaces agree, up to the orientation, as far as the mates
+allow. Where the source's own mated direction is one of its axes, one
+carried axis lands on the mated direction and the mate takes that
+slide; otherwise the written slides are admitted only where they span
+the plane (or line) the mate leaves, decided once from the source's
+geometry. Where the mated direction is opposite to where the
+orientation puts it (the orientation written backwards) the least
+turn has no answer, and within the band about that one pole the chart
+refuses, typed at evaluation and naming the orientation to write, as
+a construction refuses at its degenerate values; so no edit that keeps
+the face short of a half turn from where the orientation puts it
+moves a held value's meaning, or the copy's place on the face. The
+orientation and a mate's `Flip` are two facts, the copy's attitude and
+the contact's sense; only the pole band refuses. Where no direction is
+fixed (no mate, or a lone point mate), there is no orientation: a
+slide is a coordinate on the target space's own axes, and the
+rotation is a written chain of at most three spins, each about the
+target space's x, y or z (through the mated point, for a point mate),
+no two in a row about one axis; turns do not commute, so the author
+writes the order and the kernel chooses none. A slide is the copy's
+origin measured from the target's, a function of the relative pose
+alone, so no slide is ordered. Every freedom is set explicitly, as a
+written value: zero is always a valid value, a placement whose values
+are all zero and which has no mate is the identity, and the façade
+writes the constant `0` for each freedom a gesture leaves unnamed. A
+bundle with no mate is legal. A space's axes are read only by values,
+so setting a part on the world's xy is written as values (`z = 0`, the
+two tilts `0`, and the slides and spin the author chooses). A
+placement is the only reader of a source's own coordinates, and reads
+them only through the freedoms its mates leave.
 
 **The world** `[placement.world]` is a space like any other, the one
 every document holds and cannot delete: it sets the coordinates. Its
@@ -1586,11 +1600,11 @@ examines the meetings between that operator's operands pairwise, and
 nothing it finds refuses. An **arrival** is one operand of an operator
 at one value of its indices. Between two arrivals the
 census decides each pair, once, at the highest-dimensional cells that
-touch: two faces meeting over an area are one pair, and the census
-asks nothing of a cell bounding one of them against a cell bounding
-the other, since wherever such cells meet is inside that area's
-closure and leaves the same contact, and any further coincidence such
-a meeting implies is a face pair of its own. Two faces on one carrier,
+touch: two faces meeting over an area are one pair, and a touch of a
+cell bounding one of them against a cell bounding the other is part
+of that pair where it lies in the closure of their overlap, and leaves
+the same contact; elsewhere it is a pair of its own. Any further
+coincidence such a meeting implies is a face pair of its own. Two faces on one carrier,
 facing the same way, whose boundaries meet while their interiors do
 not are a flush pair: no contact, but a coincidence the census infers
 from values, so a finding unless established, by a flag mate or by
@@ -2284,7 +2298,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/CHECKS.md` | Ratified (2026-10-18) | Checks, DISCIPLINES-DESIGN DS3, DS6, DS8, DS9: no knob changes a body, certified vs heuristic, `error` only where a finding can be quieted, out-of-tree checks |
 | `docs/PCURVE-UNIFY-DESIGN.md` | Ratified (#514); executed | Pcurve unification: the conventional edge variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record. P-2 residue stays open |
 | `docs/RECIPE-DOORS-DESIGN.md` | Ratified (D2–D5) | Recipe doors for the surgery verbs, D2–D5: `Node::Chamfer` beside `Node::Fillet`, `Node::Tube`/`HollowTube`, and `Node::Shell` with its ordered open faces |
-| `docs/MIRROR-DESIGN.md` | Ratified (#909); unbuilt | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
+| `docs/MIRROR-DESIGN.md` | Ratified (#909); mirror built | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, the boundary of A6's equivariance audit |
 | `docs/DRAFT-DESIGN.md` | Ratified (#908); unbuilt | Draft DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming |
 | `docs/SELECT-DESIGN.md` | Ratified | Selection: filters, heterogeneous sets, vanishing entities; the contact-site recourse (§3d) |
 | `crates/editor-core/VARIABLES.md` | Ratified | How a variable is represented, VARIABLES-DESIGN VR1–VR9: minted identity and optional name, `Expr` holds no float, `Formula` lowered at the edit door, lifecycle, id-keyed tokens |

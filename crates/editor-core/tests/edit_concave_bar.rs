@@ -79,7 +79,7 @@ fn barred_die() -> (ProfileDoc, RecipeNodeId) {
         doc,
         block,
         bar,
-        &fixture::frame_at([0.1, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+        &fixture::axes_at([0.1, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
     );
     fixture::insert(
         doc,

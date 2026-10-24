@@ -55,3 +55,42 @@ through the script on main; PR 5552's review ran the dump directly.
 
 **Done when** each row is green on main, or re-blessed with its cause
 named.
+
+## 2026-10-23 — first nightly, and the merge (INTENT nightly triage)
+
+All 24 slow-set rows are red at every ε row (default, 1e-6, 1e-12) in
+the nightly full suite from 2026-10-22 (run 39728496598, main
+`0ffab3663d`) onward, and green on 2026-10-21 (run 39549991622,
+`8c7db2ae37`). Bisected over the merges between `8c7db2ae37` and the
+review's `d39fbfc`, nine rows (the five `docm9_range` rows, both
+`m10_bulge` rows, `revalue_loft_prism`, `sym11_…ceiling`) run as the
+nightly runs them (`--profile ci --ignore-default-filter`, default ε):
+all nine pass at `42af7c0b48` (#5548, which already holds INTENT's
+#5506) and eight of them fail at `fa901e4308`, the merge of #5542
+(`nurbs/seg-one-line`, `profile::seg`'s `gaps_apart` reading
+`segment_gap`); the ninth was still running at 400 s when stopped. The
+revalue and `m10_bulge` messages name `segment_gap` themselves. So the
+suspected merge is #5542. The rows are still red on 2026-10-23 (run
+39906156937, `be9b907694`).
+
+## 2026-10-24 — still red (INTENT nightly triage)
+
+Nightly run 40066431545 (main `3dfb96b91c`) still reds 22 of the 24
+rows at every ε, with the same panics: `docm9_range` ×5,
+`m10_3_driver_interval`, `m10_3_r2_probes_interval`,
+`m10_6_ci_rows_interval`, `m10_9_pins_interval` ×2,
+`m10_sym_profile_interval` ×2, `revalue_corpus` ×7,
+`sym11_exact_channel_rows`, `sym_9_retry_interval` ×2. The two
+`m10_bulge_interval` rows pass tonight. Some receipt counts have
+drifted since 10-23, though each row fails the same way:
+`m10_9_the_pad_at_both_rule_f_dials` read `(1546, 1252, 3048)` on 10-23
+and reads `(1546, 1251, 2420)` tonight, against the pin
+`(1546, 1260, 3026)`. `sym_9_the_drive_writes_the_ladders_receipt`
+went from `[1421, 1378, 34]` to `[1421, 1377, 34]`, against
+`[1421, 1386, 34]`. So when a fix lands, re-derive the receipts on the
+day. Do not take them from this file.
+
+`k-lint (dev-probe)` still stops on
+`ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`:
+`predicates whose margins do not scale with the model:
+["curve_foot_branch: 6 pairs off, e.g. 9.990e2"]`.

@@ -2,11 +2,14 @@
 id: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
 kind: unit
 title: D′2: WorldRead retires into values; a value names no mate and charts on the target space's axes; a point mate's spin chain; the placement helpers become one pure constructor; inline is one rule; the flatten edit
-status: spec
+status: closed
 opened: 2026-10-22
 priority: P0
 cost: H
 parent: a-placement-pins-by-written-values-without-a-mate
+pr: 5613
+branch: intent/dprime2-mates-read-geometry
+closed: 2026-10-23
 ---
 
 
@@ -56,3 +59,46 @@ mate's target body's frame.
 `an-inline-at-a-moved-landing-reading-a-variable-refuses`,
 `inline-refuses-a-placed-part-off-the-identity`,
 `the-viewer-cannot-mate-two-freshly-inserted-parts`.
+
+## Handoff
+
+2026-10-23, second implementer lane (the first stopped at `31b979f5`
+with no PR and no CI run). State found at `31b979f5`:
+
+- Builds and lints clean: `cargo clippy --workspace --all-targets
+  --all-features -D warnings`, and the same in `demos/tour`,
+  `demos/wild`, `tools/*` and `benches`. The "viewer and demos
+  migration (in progress)" commit was finished by `8f83d72e`.
+- The Done-when grep names no live symbol (its hits are topo's
+  `pair_section_frame_at`, geom-brep's private `place_at` and
+  comment prose).
+- Tests in place: 24 and 21 and the flatten rows in
+  `intent_dprime2_mates_read_geometry.rs`; 20 in
+  `asm_r2a_mate_solve`; inline-then-flatten of a split in `p2_split`
+  and `asm4_split_inline`; the `p2_face` valued-mate row renamed to
+  `..._crosses_split`; the gate
+  `scripts/gates/bundle-constructor-reads-no-evaluation.sh`.
+- Absorbed items: five closed by the first lane; this lane closed
+  `the-viewer-cannot-mate-two-freshly-inserted-parts` (the door's
+  rebundle drops the values a mate fixes).
+- Done by this lane: PR 5613 opened; CI's first run found three
+  digests and two doctests the first lane had not re-pinned
+  (`m4_pr4_ci`, `seat4_verb_lowering`, `msolve14_run_scalar`'s A3
+  fence; `node::SitedFace`, the GUIDE's plate journey). Each was
+  compared id-free against main before re-pinning; msolve14's three
+  moved seats are the space chart's, reported in its re-pin note.
+- Also done: the boolean gesture's re-placement no longer reads a
+  pose back (`in_one_space` re-targets with the values as written);
+  the viewer's two remaining read-back heuristics are filed
+  (`the-viewers-numeric-gestures-read-a-frame-back-off-geometry`).
+- State at hand-off to review: hosted CI `gate ok` green; the gui
+  render lane failed twice installing apt packages before rendering
+  (as on main's nightly), so its cells are not re-baselined.
+- Fix pass after the dual review (frozen head `ca29c814`): a removed
+  value is `0` in its place and every dropped value is reported
+  (`Maintenance::ValueDropped`); the tour writes the values it means
+  and reads a split's plane and a pattern's axis off named corners;
+  msolve14's seats sit on what they are seated on; spec row 20, test
+  21's commuting slide and test 20's unbreakable claim corrected; the
+  stale prose; one `residual`; the combine's coordinates rule pinned
+  (`combine_ops::a_combine_takes_the_operand_into_the_first_ones_space_by_its_coordinates`).

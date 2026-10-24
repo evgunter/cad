@@ -28,9 +28,9 @@ use crate::p2_gauges::{Parts, body_of, cut, min_corner, parts, placed_pair, poin
 
 use editor_core::pose::PoseRole;
 use editor_core::{
-    CapEnd, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Frame, InlineError, InlineOutcome,
-    Label, MateFault, MateRef, Node, PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError,
-    SplitOutcome, StableName, Target, Uncarried, VarId, WorldRead, product,
+    CapEnd, DocEdit, DocRef, DocumentId, EvalOptions, Frame, InlineOutcome, Label, MateRef, Node,
+    PartResolver, ProfileDoc, RecipeNodeId, SitedFace, SplitError, SplitOutcome, StableName, VarId,
+    product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -84,23 +84,25 @@ pub(crate) fn pinned_lifted(
     angle: f64,
     o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
+    use editor_core::{Coord, TargetAxis};
+    let _ = o;
     let (doc, id) = insert(doc, fixture::mated_instance(part));
-    let copy = editor_core::Operand::Var(doc.output(id, 0).expect("an instance's copies"));
-    let mut pin = editor_core::pin_at(&doc, &copy, &Frame::IDENTITY, o, Tol::witness())
-        .expect("the copy pins over its geometry");
-    let Target::World(world) = pin.to else {
-        unreachable!("a pin reads the world")
+    // Spun `angle` about the world's z, then lifted along `along` by the
+    // variable, by values alone.
+    let axis = match along {
+        PoseRole::X => TargetAxis::X,
+        PoseRole::Y => TargetAxis::Y,
+        _ => TargetAxis::Z,
     };
-    let world = if angle == 0.0 {
-        world
-    } else {
-        world.spin(WorldRead::through(PoseRole::Z), fixture::ang(angle))
-    };
-    pin.to = Target::World(world.slide(
-        WorldRead::through(along),
+    let mut values = vec![(
+        Coord::Slide(axis),
         Formula::named(crate::p2_gauges::lift(), editor_core::Dimension::Length),
-    ));
-    (fixture::constrain_at(doc, id, pin).0, id)
+    )];
+    if angle != 0.0 {
+        values.push((Coord::Spin(TargetAxis::Z), fixture::ang(angle)));
+    }
+    let placed = editor_core::Placed::unmated(values);
+    (fixture::written(doc, id, placed), id)
 }
 
 /// **`placement`'s bundle replaced by one pin at the translation `at`**.
@@ -145,14 +147,6 @@ fn inline(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> Inline
     let r: Arc<dyn PartResolver> = Arc::new(store.clone());
     editor_core::inline(doc, instance, &r, Tol::witness())
         .unwrap_or_else(|e| panic!("inline refused: {e}"))
-}
-
-fn inline_err(doc: &ProfileDoc, instance: RecipeNodeId, store: &PartStore) -> InlineError {
-    let r: Arc<dyn PartResolver> = Arc::new(store.clone());
-    match editor_core::inline(doc, instance, &r, Tol::witness()) {
-        Ok(_) => panic!("inline admitted what it should refuse"),
-        Err(e) => e,
-    }
 }
 
 /// The whole document's product: its corners and volume.
@@ -236,9 +230,7 @@ fn read_name(doc: &ProfileDoc, pose: VarId) -> StableName {
 
 /// The pose a stored constraint's target reads.
 fn target_of(c: &editor_core::Constraint) -> VarId {
-    *c.mate()
-        .and_then(|m| m.to.pose())
-        .expect("a mate to a pose")
+    c.mate().expect("a mate").to
 }
 
 /// The pose a stored constraint's own side reads.
@@ -258,8 +250,9 @@ fn only_constraint(doc: &ProfileDoc, placement: RecipeNodeId) -> editor_core::Co
     one.clone()
 }
 
-/// **R1**: `doc` split at `ids` and the instance inlined back at the
-/// identity it sits at is `doc` up to node ids.
+/// **R1**: `doc` split at `ids`, the instance inlined back at the
+/// identity it sits at, and the placement inline wrote flattened
+/// ([`editor_core::flatten`]) is `doc` up to node ids.
 fn round_trip(doc: &ProfileDoc, ids: &[RecipeNodeId], p: &Parts, label: &str) -> SplitOutcome {
     let out = split(doc, ids, label, &p.opts()).unwrap_or_else(|e| panic!("{label}: {e}"));
     let mut store = p.store.clone();
@@ -270,8 +263,10 @@ fn round_trip(doc: &ProfileDoc, ids: &[RecipeNodeId], p: &Parts, label: &str) ->
         "{label}: the instance a split leaves is pinned to the world at the identity"
     );
     let back = inline(&out.remainder, out.instance, &store);
+    let flat = editor_core::flatten(&back.doc, back.placement, Tol::witness())
+        .unwrap_or_else(|e| panic!("{label}: the identity placement flattens: {e:?}"));
     let (map, steps) = composed(doc, &out, &back);
-    same_up_to_ids(doc, &back.doc, &map, &steps)
+    same_up_to_ids(doc, &flat.doc, &map, &steps)
         .unwrap_or_else(|e| panic!("{label}: inline(split(d)) is d up to node ids:\n{e}"));
     out
 }
@@ -403,20 +398,18 @@ fn s3_a_cut_placement_reading_a_kept_copy_refuses_severed_edge() {
 
 // ---- S5: a kept mate reading the cut ----
 
-/// **A kept mate reading a cut instance's face crosses where that
-/// instance stands at the identity** (A4): the cut holds a base pinned
-/// at the identity and one pinned at `[8, 0, 0]`. A kept top seated on
-/// the base at the identity crosses — its target written afresh over the
-/// instance's copies — and stands where it stood. Seated on the shifted
-/// base it refuses `RemainderReadUncarried` naming that base as posed:
-/// the seat's values are charted on its target body's frame, which
-/// would become the instance's, the part's world, so the top would move.
+/// **A kept mate reading a cut instance's face crosses wherever that
+/// instance stands** (A4): the cut holds a base pinned at the identity
+/// and one pinned at `[8, 0, 0]`. A kept top seated on either base
+/// crosses — its target written afresh over the instance's copies — and
+/// stands where it stood: the seat's values are charted on the target
+/// space, the world on both sides of the split, not on the base it
+/// reads.
 ///
 /// *Breaks if* the crossing keeps reading the cut node or moves the top,
-/// or the values of a seat on a copy off the identity are carried over
-/// onto the instance's frame.
+/// or a seat on a copy off the identity is charted on that copy.
 #[test]
-fn s5_a_kept_mate_reading_a_cut_instance_crosses_only_at_the_identity() {
+fn s5_a_kept_mate_reading_a_cut_instance_crosses_wherever_it_stands() {
     let p = parts("s5-frame");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("s5-frame"), Tol::witness());
@@ -433,32 +426,25 @@ fn s5_a_kept_mate_reading_a_cut_instance_crosses_only_at_the_identity() {
         .0
     };
 
-    let mated = seat_on(at_identity);
-    let before = min_corner(&body_of(&run(&mated, &o), kept));
-    let out = split(&mated, &[shifted, at_identity], "s5-frame", &o)
-        .unwrap_or_else(|e| panic!("the kept mate crosses: {e}"));
-    let carried = only_constraint(&out.remainder, kept);
-    let [select] = fixture::face_reads(&out.remainder, target_of(&carried))[..] else {
-        panic!("the target reads one face")
-    };
-    assert_eq!(
-        out.remainder.selection(select).map(|s| s.body),
-        out.remainder.output(out.instance, 0),
-        "the kept mate's target reads the instance's copies"
-    );
-    let mut store = p.store.clone();
-    store.insert(out.part.clone(), Tol::witness());
-    let after = min_corner(&body_of(&run(&out.remainder, &with_resolver(store)), kept));
-    crate::p2_gauges::close(before, after, "the top is where it was");
-
-    let err = split(&seat_on(shifted), &[shifted, at_identity], "s5-frame", &o)
-        .expect_err("a seat with values on a copy off the identity");
-    assert!(
-        matches!(&err, SplitError::RemainderReadUncarried { reader, why: Uncarried::Posed { placement } }
-            if reader.id() == kept && placement.id() == shifted),
-        "{err:?}"
-    );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
+    for base in [at_identity, shifted] {
+        let mated = seat_on(base);
+        let before = min_corner(&body_of(&run(&mated, &o), kept));
+        let out = split(&mated, &[shifted, at_identity], "s5-frame", &o)
+            .unwrap_or_else(|e| panic!("the kept mate crosses: {e}"));
+        let carried = only_constraint(&out.remainder, kept);
+        let [select] = fixture::face_reads(&out.remainder, target_of(&carried))[..] else {
+            panic!("the target reads one face")
+        };
+        assert_eq!(
+            out.remainder.selection(select).map(|s| s.body),
+            out.remainder.output(out.instance, 0),
+            "the kept mate's target reads the instance's copies"
+        );
+        let mut store = p.store.clone();
+        store.insert(out.part.clone(), Tol::witness());
+        let after = min_corner(&body_of(&run(&out.remainder, &with_resolver(store)), kept));
+        crate::p2_gauges::close(before, after, "the top is where it was");
+    }
 }
 
 // ---- I1–I3: inline at a pose ----
@@ -483,17 +469,19 @@ fn host_of(p: &Parts, sub: ProfileDoc, label: &str) -> (ProfileDoc, PartStore, R
     (doc, store, h)
 }
 
-/// **Inline at a pose moves the part's world mates by the pin's
-/// motion** (A4): an instance pinned at `[2, 8, 4]`, over a part of two
-/// pinned instances, over a part whose one instance sits off the
-/// identity, and over a part whose one instance is pinned up, splices
-/// the part's placements after the host's, each where it stood in the
-/// world; the material is where it was.
+/// **Inline at a pose places the part's world under the instance's
+/// bundle** (A4, one rule): an instance pinned at `[2, 8, 4]`, over a
+/// part of two pinned instances, over a part whose one instance sits
+/// off the identity, and over a part whose one instance is pinned up,
+/// splices the part's placements into a new space verbatim, each where
+/// it stood in the part, and places their copies into the host's world
+/// under the instance's own pin, last; each copy lands where it stood
+/// in the world, and the material is where it was.
 ///
-/// *Breaks if* a spliced world mate lands unmoved, or moved by the
-/// part's own pin rather than the instance's.
+/// *Breaks if* a spliced placement is moved by the instance's motion,
+/// or the new placement composes anything but the instance's bundle.
 #[test]
-fn i1_inline_at_a_pose_moves_the_parts_world_mates_by_its_motion() {
+fn i1_inline_at_a_pose_places_the_parts_world_under_the_instances_bundle() {
     let p = parts("i1-pose");
     let o = p.opts();
     // Each part, with where each of its instances' lowest corner lands
@@ -525,21 +513,47 @@ fn i1_inline_at_a_pose_moves_the_parts_world_mates_by_its_motion() {
         let (doc, store, h) = host_of(&p, sub.clone(), &format!("i1-host-{what}"));
         let out = inline(&doc, h, &store);
         assert!(out.doc.node(h).is_none(), "{what}: the instance is gone");
-        // The world: the part's placements, carried in its own order.
+        // The new space: the part's placements, carried verbatim in its
+        // own order; the new placement of their copies comes last.
         let spliced: Vec<RecipeNodeId> = sub.placements().iter().map(|r| out.node_map[r]).collect();
+        for (&old, &new) in sub.placements().iter().zip(&spliced) {
+            assert!(
+                fixture::same_offset(&out.doc, new, &sub, old),
+                "{what}: {old:?} stands in the new space as it stood in the part"
+            );
+        }
+        assert_eq!(
+            out.doc.placements().last(),
+            Some(&out.placement),
+            "{what}: the new placement comes last"
+        );
         assert!(
-            out.doc.placements().ends_with(&spliced),
-            "{what}: the part's placements are the host's"
+            fixture::same_offset(&out.doc, out.placement, &doc, h),
+            "{what}: under the instance's own pin"
         );
         let o = with_resolver(store);
         let ev = run(&out.doc, &o);
-        for (old, corner) in corners {
-            crate::p2_gauges::close(
-                min_corner(&body_of(&ev, out.node_map[&old])),
-                corner,
-                &format!("{what}: {old:?}'s world pose"),
-            );
-        }
+        let landed = match &ev
+            .value(out.placement)
+            .expect("the copies evaluate")
+            .payload
+        {
+            editor_core::ValuePayload::Copies(c) => c
+                .bodies
+                .iter()
+                .map(|b| min_corner(b))
+                .fold([f64::INFINITY; 3], |m, c| {
+                    [m[0].min(c[0]), m[1].min(c[1]), m[2].min(c[2])]
+                }),
+            other => panic!(
+                "{what}: the new placement holds copies: {}",
+                other.kind_name()
+            ),
+        };
+        let lowest = corners.iter().fold([f64::INFINITY; 3], |m, (_, c)| {
+            [m[0].min(c[0]), m[1].min(c[1]), m[2].min(c[2])]
+        });
+        crate::p2_gauges::close(landed, lowest, &format!("{what}: the copies' world pose"));
         same_extent(
             extent(&doc, &o),
             extent(&out.doc, &o),
@@ -573,8 +587,8 @@ fn i2_a_host_constraint_reading_the_instance_crosses_onto_the_spliced_copy() {
     let carried = only_constraint(&out.doc, top);
     assert_eq!(
         read_name(&out.doc, target_of(&carried)),
-        p.base_cap(out.node_map[&first]),
-        "the constraint reads the spliced base"
+        p.base_cap(out.node_map[&first]).in_copy(out.placement),
+        "the constraint reads the spliced base's copy in the host's world"
     );
     let after = min_corner(&body_of(&run(&out.doc, &o), top));
     crate::p2_gauges::close(before, after, "the top is where it was");
@@ -635,35 +649,46 @@ fn mate_placed(
     (p, store, host, [ht, i, part_base, part_top], m)
 }
 
-/// **The mate-placed inline** (A4): an instance its constraint places
-/// on a host block, over a part whose one placement on its world is an
-/// instance pinned there at the identity, inlines. That placement takes
-/// the instance's bundle in place of its pin, the host constraint reads
-/// it, and the material is where it was. A host mate whose own side
-/// reads the part through a copy that is not that placement lands on a
-/// placement whose copy it does not read, and the root's door refuses it
-/// `NotOnTheCopy`.
+/// **The mate-placed inline** (A4, one rule): an instance its
+/// constraint places on a host block, over a part whose placements on
+/// its world are a base pinned at the identity and a top mated onto it,
+/// inlines. The part's placements land in a new space verbatim, the base
+/// keeping its own pin, and the instance becomes a placement of their
+/// copies under its own bundle, whose mate reads the spliced base. The
+/// material is where it was. A mate reading the part's top instead
+/// inlines the same way, reading the spliced top.
 ///
-/// *Breaks if* the root keeps its pin beside the taken bundle, the taken
-/// mate reads anything but the spliced base, or a mate on another copy is
-/// moved onto the root in silence.
+/// *Breaks if* the base's pin gives way to the instance's bundle, the
+/// new placement's mate reads anything but the spliced copy it read, or
+/// material moves.
 #[test]
-fn i4_a_mate_placed_instance_over_one_pinned_instance_inlines() {
+fn i4_a_mate_placed_instance_inlines_under_its_own_bundle() {
     let (p, store, host, [ht, i, part_base, part_top], _) = mate_placed("i4-mate-placed");
     let o = with_resolver(store.clone());
+    let part = store.doc(part_id_of(&host, i));
     let out = inline(&host, i, &store);
+    let ev = run(&out.doc, &o);
+    assert!(
+        ev.node_error(out.placement).is_none(),
+        "the new placement evaluates: {:?}",
+        ev.node_error(out.placement)
+    );
     let spliced = out.node_map[&part_base];
-    assert_eq!(offset_of(&out.doc, spliced), None, "the pin gives way");
-    let taken = only_constraint(&out.doc, spliced);
+    assert_eq!(
+        offset_of(&out.doc, spliced),
+        offset_of(&part, part_base),
+        "the base keeps its own pin"
+    );
+    let taken = only_constraint(&out.doc, out.placement);
     assert_eq!(
         read_name(&out.doc, on_of(&taken)),
         base_bottom(&p, spliced),
-        "the host constraint reads the spliced base"
+        "the instance's mate reads the spliced base"
     );
     same_extent(extent(&host, &o), extent(&out.doc, &o), "no material moves");
 
-    // Through the top, which is not the part's placement on its world.
-    let top_cap = in_world_of(&store.doc(part_id_of(&host, i)), p.top_cap(part_top));
+    // Through the top, the part's other placement on its world.
+    let top_cap = in_world_of(&part, p.top_cap(part_top));
     let (through_top, _) = seat_at(
         host,
         i,
@@ -671,24 +696,30 @@ fn i4_a_mate_placed_instance_over_one_pinned_instance_inlines() {
         head(p.top_upper_cap(ht)),
         [0.0, 0.0],
     );
-    let err = inline_err(&through_top, i, &store);
-    assert!(
-        matches!(&err, InlineError::Edit { error }
-            if matches!(error.as_ref(), EditError::MateRefused { fault, .. }
-                if matches!(fault.as_ref(), MateFault::NotOnTheCopy { .. }))),
-        "{err:?}"
+    let out = inline(&through_top, i, &store);
+    let taken = only_constraint(&out.doc, out.placement);
+    assert_eq!(
+        fixture::side_name(&out.doc, fixture::face_reads(&out.doc, on_of(&taken))[0]).node,
+        out.node_map[&part_top],
+        "the instance's mate reads the spliced top"
+    );
+    same_extent(
+        extent(&through_top, &o),
+        extent(&out.doc, &o),
+        "no material moves",
     );
 }
 
-/// **The mate-placed refusal stays narrow** (A4): over a part whose one
-/// placement on its world sits off the identity, the instance refuses
-/// `UnplaceablePart` naming that placement as posed; over a part of two
-/// placements on its world it refuses naming the count. Each says the
-/// recourse.
+/// **The mate-placed inline asks nothing of the part's numbers** (A4,
+/// one rule): over a part whose base sits off the identity, and over a
+/// part of two pinned bases, the instance inlines, and no material
+/// moves.
+///
+/// *Breaks if* inline refuses a part for where its placements stand.
 #[test]
-fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
+fn i5_a_mate_placed_instance_over_any_part_inlines() {
     let (p, store, host, [ht, i, _, _], _) = mate_placed("i5-mate-placed");
-    let (shifted, [shifted_base, _]) = pair_part(&p, "i5-mate-placed-part", [1.0, 0.0, 0.0]);
+    let (shifted, _) = pair_part(&p, "i5-mate-placed-part", [1.0, 0.0, 0.0]);
     let mut shifted_store = store.clone();
     let shifted_ref = shifted_store.insert(shifted, Tol::witness());
     let (repinned, _) = step(
@@ -698,19 +729,12 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
             new_pin: shifted_ref.pin,
         },
     );
-    let err = inline_err(&repinned, i, &shifted_store);
-    assert!(
-        matches!(&err, InlineError::UnplaceablePart { instance, why: Uncarried::Posed { placement } }
-            if instance.id() == i && placement.id() == shifted_base),
-        "{err:?}"
-    );
-    let said = err.to_string();
-    assert!(
-        said.contains(&format!(
-            "Recourse: pin {} to the world alone",
-            host.spoken(i)
-        )),
-        "{said}"
+    let out = inline(&repinned, i, &shifted_store);
+    let o = with_resolver(shifted_store.clone());
+    same_extent(
+        extent(&repinned, &o),
+        extent(&out.doc, &o),
+        "a part off the identity: no material moves",
     );
 
     let (two, first) = two_pinned(&p, "i5-mate-placed-part");
@@ -731,13 +755,13 @@ fn i5_a_mate_placed_instance_over_any_other_part_refuses() {
         head(p.top_upper_cap(ht)),
         [0.0, 0.0],
     );
-    let err = inline_err(&other, i, &two_store);
-    assert!(
-        matches!(&err, InlineError::UnplaceablePart { instance, why: Uncarried::Bodies { count: 2 } }
-            if instance.id() == i),
-        "{err:?}"
+    let out = inline(&other, i, &two_store);
+    let o = with_resolver(two_store.clone());
+    same_extent(
+        extent(&other, &o),
+        extent(&out.doc, &o),
+        "a part of two placements: no material moves",
     );
-    assert!(err.to_string().contains("Recourse:"), "{err}");
 }
 
 // ---- R1: the round trip ----
@@ -1061,10 +1085,10 @@ fn r1_every_shape_split_admits_round_trips_exactly() {
 }
 
 /// **A cut a kept placement separates comes back regrouped** (A4:
-/// inline-of-split is the document up to minted ids and order): three
-/// pinned instances x, y, z, inserted in that order, and a cut of x and
-/// z. Split appends its instance and inline its splice, so the round
-/// trip lists y, then x and z, and the regrouping is the only thing the
+/// inline-of-split, flattened, is the document up to minted ids and
+/// order): three pinned instances x, y, z, inserted in that order, and a
+/// cut of x and z. Split appends its instance and inline its splice, so
+/// the round trip lists y, then x and z, and the regrouping is the only thing the
 /// comparator reads as changed. The regrouped document's cut comes
 /// last, so a second round trip changes nothing.
 #[test]
@@ -1079,18 +1103,21 @@ fn r1_a_cut_whose_placements_a_kept_one_separates_round_trips() {
     let mut store = p.store.clone();
     store.insert(out.part.clone(), Tol::witness());
     let back = inline(&out.remainder, out.instance, &store);
+    let flat = editor_core::flatten(&back.doc, back.placement, Tol::witness())
+        .expect("the identity placement flattens")
+        .doc;
     let (map, steps) = composed(&doc, &out, &back);
-    let said = same_up_to_ids(&doc, &back.doc, &map, &steps)
+    let said = same_up_to_ids(&doc, &flat, &map, &steps)
         .expect_err("the round trip regroups the placements");
     let [only] = said.lines().collect::<Vec<_>>()[..] else {
         panic!("the regrouping is the one difference: {said}")
     };
     assert!(only.starts_with("order: "), "the regrouping: {said}");
-    let order: Vec<RecipeNodeId> = back.doc.placements();
+    let order: Vec<RecipeNodeId> = flat.placements();
     assert_eq!(
         order,
         vec![map[&y], map[&x], map[&z]],
         "the kept placement, then the cut's in their order"
     );
-    round_trip(&back.doc, &[map[&x], map[&z]], &p, "the regrouped document");
+    round_trip(&flat, &[map[&x], map[&z]], &p, "the regrouped document");
 }

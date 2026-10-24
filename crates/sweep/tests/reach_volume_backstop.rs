@@ -314,13 +314,17 @@ fn planted(
 /// the boundary displacement a zero margin between two such bodies at
 /// scale `s` stays open by once every face has run its last round.
 /// Measured as where the right answer (`planted(A ∖ B = A)`) stops
-/// deciding: between `s = 3e12·ε` and `4e12·ε`, at every ε of the
-/// matrix, against the band's escalation edge `K·ε`, so `≈ 2.9e-12·s`.
+/// deciding: between `s = 6e13·ε` and `1e14·ε` at ε = 1e-9, against
+/// the band's escalation edge `K·ε`, so `≈ 1.2e-13·s`. It was
+/// `2.9e-12·s` (between `3e12·ε` and `4e12·ε`) while every lane stopped
+/// at its round cap: the rods' cylinder walls now refine to the work
+/// wall, past that cap, and a face walked round by round keeps its
+/// narrowest enclosure.
 /// The rule remainder scales with the volume and the lever with the
 /// area, so the range grows linearly with `s`; the pads' ε share is
 /// below the measurement's resolution.
 fn last_round_open(s: f64) -> f64 {
-    2.9e-12 * s
+    1.2e-13 * s
 }
 
 /// Whether the backstop's last round decides a zero margin on the pair
@@ -337,13 +341,14 @@ fn last_round_decides(s: f64) -> bool {
 /// in ε. A fattening refuses — by refinement
 /// past the reporting target where the reporting enclosures alone
 /// cannot decide — down to the open range the last round every lane
-/// runs leaves ([`last_round_open`]): `100·ε` clears it at every ε, and
-/// `ε` does where `0.22·ε` exceeds it (ε = 1e-9 and 1e-6; at 1e-12 the
-/// flip sits near `13·ε`). A fattening
-/// below it, and the right answer with it, is below the model's
-/// resolution and is accepted where the range meters inside the band
-/// ([`last_round_decides`]; at ε = 1e-12 the `ε` plant is such a
-/// fattening). Where the range meters beyond the band the gate cannot
+/// runs leaves ([`last_round_open`]): `100·ε` and `ε` both clear it at
+/// every ε (measured at 1e-6, 1e-9 and 1e-12; at 1e-12 the `ε` plant
+/// was accepted, its flip near `13·ε`, while every lane stopped at its
+/// round cap, and the unit pair's range is now under `0.22·ε` there, so
+/// the large-scale fit [`last_round_open`] overstates it at `s = 1`).
+/// A fattening below it, `ε/100`, and the right answer with it, is
+/// below the model's resolution and is accepted where the range meters
+/// inside the band ([`last_round_decides`]). Where the range meters beyond the band the gate cannot
 /// tell the right answer from a fattening the model resolves, and every
 /// plant below the range refuses `VolumeUndecided`.
 #[test]
@@ -377,19 +382,11 @@ fn planted_subtraction_results_refuse_down_to_the_stated_resolution() {
             Ok(AtRestOutcome::Validated),
             "the right answer passes"
         );
-        if 0.22 * eps > last_round_open(1.0) {
-            assert_eq!(
-                eps_fat,
-                Err(BooleanErrorKind::ResultVolumeImplausible),
-                "a result fattened by δ = ε refuses"
-            );
-        } else {
-            assert_eq!(
-                eps_fat,
-                Ok(AtRestOutcome::Validated),
-                "a fattening by δ = ε is below the last round's open range"
-            );
-        }
+        assert_eq!(
+            eps_fat,
+            Err(BooleanErrorKind::ResultVolumeImplausible),
+            "a result fattened by δ = ε refuses"
+        );
         assert_eq!(
             below,
             Ok(AtRestOutcome::Validated),
@@ -581,14 +578,14 @@ fn scaled_cutter(s: f64) -> AtRestBody<f64> {
 /// **The last round fails loud.** What the last round leaves open grows
 /// with the body ([`last_round_open`]), so on a large enough body it is
 /// larger than the model's resolution. The scales are spelled in ε so
-/// each is the same model at every ε: `10¹⁴·ε` (10⁵ at the default ε)
-/// and `10¹³·ε`. At the first, a result fattened by δ = 1e-12 is too
-/// big by a `0.22·δ·s` = 22ε boundary displacement and its sign is still
-/// open at the last round, which leaves `≈ 290ε` open: the backstop
-/// refuses `VolumeUndecided` rather than accept it. The same holds of a
-/// CORRECT result at the second, whose open range meters `≈ 29ε`,
-/// beyond the band too: the gate cannot tell it from a wrong one, and
-/// says so
+/// each is the same model at every ε: `10¹⁴·ε` (10⁵ at the default ε).
+/// There a result fattened by δ = 1e-12 is too
+/// big by a `0.22·δ·s` = 22ε boundary displacement, and the faces'
+/// rounds to the work wall resolve it: the backstop refuses it
+/// `ResultVolumeImplausible` (it refused `VolumeUndecided` while the
+/// lanes stopped at their round caps). A CORRECT result at the same
+/// scale, whose open range meters beyond the band, is undecided: the gate
+/// cannot tell it from a wrong one, and says so
 /// (`work/quad/quadrature-interval-floor-grows-with-the-body-past-the-band`).
 #[test]
 fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
@@ -602,11 +599,9 @@ fn an_open_sign_beyond_the_band_at_the_last_round_refuses() {
             &b,
             &scaled_oblique_rod(s, 0.5 * (1.0 + 1e-12))
         ),
-        Err(BooleanErrorKind::VolumeUndecided),
+        Err(BooleanErrorKind::ResultVolumeImplausible),
         "22ε too big at scale {s:e}"
     );
-    let s = 1e13 * eps;
-    let (a, b) = (scaled_oblique_rod(s, 0.5), scaled_cutter(s));
     assert_eq!(
         planted(BooleanOp::Subtract, &a, &b, &a),
         Err(BooleanErrorKind::VolumeUndecided),

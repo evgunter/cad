@@ -2,10 +2,11 @@
 id: chrome-calls-one-node-two-names
 kind: issue
 title: The chrome calls a node "feature N" in widgets and "node N" in refusals, including two widgets in one file
-status: open
+status: closed
 opened: 2026-09-21
 priority: P3
 cost: D
+closed: 2026-10-23
 ---
 
 ## What
@@ -145,3 +146,15 @@ drop in *One status line, two names, one delete* reaches the notices
 through `frame::tool_notice(&ToolNotice)`, not `frame::tool_news`,
 which now takes only a panel's refusal (`tools::PanelRefusal`). The
 sentence and the finding are unchanged.
+
+## Closed (2026-10-23)
+
+Fixed by `295c2e786e` (2026-10-01, "rows, pickers, headings and tool
+lines speak a node as the document does; node_number goes").
+`tree::node_number` and every `"feature {"` literal are gone from
+`crates/viewer/src`. The chrome and the refusals both speak a node
+through `SpokenNode` (`crates/editor-core/src/spoken.rs:384-401`;
+`crates/viewer/src/session/refuse.rs:428-435`; `tree::node_label` at
+`crates/viewer/src/tree.rs:483-494`). The `"node {}"` literals that
+remain are in tests or in `unreachable!`, and "node <id>" is
+`SpokenNode`'s fallback for a node of unknown kind.

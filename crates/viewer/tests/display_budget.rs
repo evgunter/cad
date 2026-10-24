@@ -465,11 +465,11 @@ struct Answer {
 /// δ the application starts on and at the decade finer where the
 /// budget binds on the curved ones.
 ///
-/// Twenty-nine documents, two requests each, and seven rows where
+/// Thirty documents, two requests each, and seven rows where
 /// the budget binds. **The δ is the answer to a question about the
 /// body and the budget**, so the work of finding it may change and
 /// these may not: a row that moves is a change to what the viewer
-/// opens documents at, and has to be argued as one. The fifty-one
+/// opens documents at, and has to be argued as one. The fifty-three
 /// rows the budget does not bind hold the tighter half of that — the
 /// δ asked for, drawn as asked, priced off the very mesh a single
 /// probe at [`scene::fit_delta`]'s probe factor reads.
@@ -819,6 +819,24 @@ const ANSWERS: &[Answer] = &[
         requested_cost: None,
         largest_probe: 24,
         probe_triangles: 72,
+        stop: ProbeStop::Flat,
+    },
+    Answer {
+        document: "symmetric_plate",
+        requested: 0.0001,
+        delta: 0.0001,
+        requested_cost: None,
+        largest_probe: 28,
+        probe_triangles: 84,
+        stop: ProbeStop::Flat,
+    },
+    Answer {
+        document: "symmetric_plate",
+        requested: 1e-5,
+        delta: 1e-5,
+        requested_cost: None,
+        largest_probe: 28,
+        probe_triangles: 84,
         stop: ProbeStop::Flat,
     },
     Answer {

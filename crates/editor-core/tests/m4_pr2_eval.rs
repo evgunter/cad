@@ -216,7 +216,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         mended,
         block,
         block,
-        &fixture::frame_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
+        &fixture::axes_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
     );
     let ev = run(&mended, None, false);
     let body = match &ev.value(turned).expect("the recourse builds").payload {

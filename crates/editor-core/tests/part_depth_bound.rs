@@ -500,7 +500,7 @@ fn mated(
         &[
             (Coord::Slide(TargetAxis::X), len(0.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin, fixture::ang(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
         ],
     );
     (doc, ids)

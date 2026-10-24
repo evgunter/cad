@@ -35,7 +35,7 @@ Uncurated:
 - `JoinReading` (`topo/src/boolean/edge_join.rs`), under `BooleanError` and `ValidationError`, via `JoinUndecided`;
 - `UncrossableCarrier` (`topo/src/splitting/containment.rs`), under `BooleanError` via `Uncrossable`;
 - `Origin` (`editor-core/src/coincide.rs`), under `Residual` via `Construction`;
-- `Placed` (`editor-core/src/coincide.rs`), under `Residual` via `Construction`;
+- `Map` (`editor-core/src/coincide.rs`), under `Residual` via `Construction`;
 - `Relation` (`topo/src/coincidence.rs`), under `BooleanBody` (prelude) and `StepImport`, via `Coincidence`. It read as cross-list while the sweep resolved by spelling: the `Relation` `document` carries is `editor_core::assembly::Relation`; this one is reachable only through `document::coincidence`, re-exported whole.
 
 Each needs the usual decision: carry it where its carrier is carried, or

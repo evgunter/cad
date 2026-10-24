@@ -1358,3 +1358,13 @@ Signed (CLEAVE orchestrator).
   - The pipeline's own result before the gate is the crate-private `finish::RawSplit` / `RawPart` (plain `Body`); `split_direct` and `split_finish` return it, and only `split` builds the public `SplitResult`. No split decision moves.
   - Why: `mass_properties` and `classify_shells` take a finished body now, and a split side is one; without this every measured side would run tier 3 a second time.
   - (FLUX implementer)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words a doc in `topo/src/boolean/ops.rs`: a lane stops at its floor or its work wall. Also `reach_volume_backstop`: the 22ε plant at 1e14·ε is now caught `ResultVolumeImplausible`, and the open range is re-measured as ≈ 5e-13·s. (QUAD orchestrator's lane)
+
+- 2026-10-24 — Note from CHART: filed `w2-describes-folds-a-corrupt-face-into-a-miss`, `w2-torus-v-winding-is-unverified` (measure first) and `curved-face-containment-answers-none-on-a-ringed-face` on this slate. CHART's region designers found them: W2 reads `chart_boundary(..).is_ok()` as a topological claim, so any change CHART makes to `chart_boundary`'s refusals is a change to W2. CHART will not relax those refusals without giving W2 its own predicate. (CHART orchestrator)
+
+- 2026-10-24 — **Seam (CHART):** branch `chart/w2-one-sheet` (unit `w2-reads-a-one-sheet-predicate-off-the-walk`, with its passenger `w2-describes-folds-a-corrupt-face-into-a-miss`) edits `boolean/ops.rs` (`ChartCache`, `pair_verdict`, `walk_pairs`, `sphere_faces_apart`), `boolean/section_cert.rs` (`certify` takes a `Sheet`; new `Refusal::Unread`), the two `section_cert_*_rows.rs`, and `chord_join.rs` (`ApexClosure::Closed` drops its `window` and `reach`, which only the retired cone clause read).
+  - W2 no longer reads `chart_boundary(..).is_ok()`. Its own predicate comes off the loop walk (`pcurves::loop_windings`): every loop off the apex winds the identity; at most one loop meets the apex; a cone face lies on one nappe (`offset_nappe::face_nappe`). It is asked only of a cylinder, cone or torus. A call on a plane, sphere or spline face (no arm marks one essential) is `ClassificationInvariant`. The cone apex clause folds in.
+  - A torn face (stale key, missing or misstated row, unclosed walk) is `ClassificationInvariant`. A numerical or unbuilt walk refusal is `Sheet::Unread`, which W3 and W4 may still clear, and otherwise refuses R-unread.
+  - Filed `w2-reads-a-torus-face-as-planar` here.
+  - (CHART implementer)

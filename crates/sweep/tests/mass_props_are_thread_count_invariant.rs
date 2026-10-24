@@ -69,10 +69,11 @@ fn arc_loft(s: f64) -> Body<f64> {
     .body
 }
 
-/// The thin curved strip, two stations high — the body no round of
-/// whose schedule meets the reporting target, so its target-level
-/// reading refuses after round 0 and names a face, while the gate
-/// refines on past round 0 until its sign settles.
+/// The thin curved strip, two stations high: two large rational walls
+/// whose fluxes nearly cancel. It refused its number at round 0 while
+/// a lane refused on a predicted last round; its walls now refine past
+/// that, and at `1e12·ε` its number certifies (`sign_walk_plus_v`
+/// carries the strip that still refuses, at `1e14·ε`).
 fn strip_loft(s: f64, delta: f64) -> Body<f64> {
     loft_body::<f64>(
         &[
@@ -93,8 +94,7 @@ fn strip_loft(s: f64, delta: f64) -> Body<f64> {
 /// verb produces; `bulged_extrusion` — the same chart from the extrude
 /// door), `loft_prism` (described splines, the finding's own body), the
 /// arc lofts scaled against the run's own ε so no row goes vacuous at
-/// one point of the matrix, and the thin strip whose target reading
-/// refuses.
+/// one point of the matrix, and the thin strip.
 fn roster() -> Vec<(String, Body<f64>)> {
     let eps = Tol::witness().get().eps;
     let mut out: Vec<(String, Body<f64>)> = vec![
@@ -177,8 +177,8 @@ fn budget() -> SymBudget {
 /// A `Sym` body's builder, run inside the session that reads it.
 type SymBody = fn() -> Body<Sym<f64>>;
 
-/// The same two bodies at `Sym<f64>` — one that answers and one whose
-/// target reading refuses — as builders, so a session can be installed
+/// The same two bodies at `Sym<f64>`, the arc loft and the thin
+/// strip, as builders, so a session can be installed
 /// before their nodes are minted ([`receipts`]).
 fn sym_bodies() -> [(&'static str, SymBody); 2] {
     [
@@ -207,7 +207,7 @@ fn sym_arc_loft() -> Body<Sym<f64>> {
     .body
 }
 
-/// The thin strip at `Sym<f64>`, whose target reading refuses.
+/// The thin strip at `Sym<f64>`.
 fn sym_thin_strip() -> Body<Sym<f64>> {
     let eps = Tol::witness().get().eps;
     loft_body::<Sym<f64>>(

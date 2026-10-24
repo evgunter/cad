@@ -1758,23 +1758,39 @@ pub(crate) enum VerbatimEdge<'a> {
     },
     /// The entities of the split target the split leaves intact: a
     /// [`Node::Split`](crate::node::Node::Split). Which ones those are
-    /// is the geometry's answer, not the recipe's, so no walk follows
-    /// this edge and it carries no input.
-    Intact,
+    /// is the geometry's answer, not the recipe's: a walk that holds a
+    /// name the split carries follows it to `target`, and one that asks
+    /// which names come through does not follow it.
+    Intact {
+        /// The split target's read.
+        target: crate::VarId,
+    },
+    /// Every entity of the body reflected: a
+    /// [`Node::Mirror`](crate::node::Node::Mirror). Its names are the
+    /// source's, but its material is the source's image across `plane`,
+    /// so a walk that reads a pose follows this edge only as a map: one
+    /// that fixes the plane, and so every entity on it.
+    Reflected {
+        /// The source's read.
+        body: crate::VarId,
+        /// The mirror plane.
+        plane: &'a crate::pose::RoleRead<crate::VarId>,
+    },
 }
 
 /// **The name-carrying edge `node` is, if any**: a part's projection,
-/// a split's intact entities (N1's pass-through ops). Every other node
+/// a split's intact entities, a mirror's image (N1's pass-through ops). Every other node
 /// is classified as re-minting what it carries.
 ///
-/// Two walks read the set here: split's test of which cut placement's
-/// copy carries a name (`refactor::split`'s `in_world`) and the mate
-/// member walk (`mate::member::walk`); they differ only in where each
-/// stops. The compiler holds the three together: this match is
-/// exhaustive, so a new node kind does not compile until it is
-/// classified here, and both walks match [`VerbatimEdge`] without a
-/// wildcard, so a new kind of edge does not compile until each decides
-/// what to do with it.
+/// Three walks read the set here: split's test of which cut placement's
+/// copy carries a name (`refactor::split`'s `in_world`), the mate
+/// member walk (`mate::member::walk`) and the coincidence door's walk
+/// to a cell's construction (`coincide::construction`); they differ
+/// only in where each stops. The compiler holds the four together:
+/// this match is exhaustive, so a new node kind does not compile until
+/// it is classified here, and each walk matches [`VerbatimEdge`]
+/// without a wildcard, so a new kind of edge does not compile until
+/// each decides what to do with it.
 ///
 /// What the compiler cannot hold — that this classification agrees
 /// with what the evaluator actually passes through (`eval::wire`'s
@@ -1789,7 +1805,13 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
     use crate::node::Node;
     match node {
         Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
-        Node::Split { .. } => Some(VerbatimEdge::Intact),
+        Node::Split { target, .. } => Some(VerbatimEdge::Intact {
+            target: target.read,
+        }),
+        Node::Mirror { body, plane } => Some(VerbatimEdge::Reflected {
+            body: body.read,
+            plane,
+        }),
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }

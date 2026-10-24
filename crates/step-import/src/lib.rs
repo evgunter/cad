@@ -155,11 +155,11 @@
 //! round-trippable class today is uniformly-spaced lofts with polyline
 //! profiles (non-rational, full tier 3). Arc-bearing profiles export
 //! and read, and their rational walls now have a volume quadrature
-//! that converges through interior knots — but it is a composite on a
-//! fixed round budget, so a large or strongly curved rational wall can
-//! still exhaust that budget. The at-rest gate below decides each
-//! solid's volume SIGN and admits such a body; what the budget refuses
-//! is the NUMBER, and the import carries that refusal — with the
+//! that converges through interior knots — but it is a composite under
+//! a per-face work wall, so a large or strongly curved rational wall can
+//! still stop short of the reporting target. The at-rest gate below
+//! decides each solid's volume SIGN and admits such a body; what the
+//! wall refuses is the NUMBER, and the import carries that refusal — with the
 //! measured width and the narrowest bracket the measurement held — on
 //! the enclosure it returns rather than refusing the file.
 //!
@@ -553,7 +553,7 @@ pub enum StepImport {
         /// **An `Err` is not an import refusal.** Check 7 decides a
         /// SIGN, so the gate admits a valid body whose volume is not
         /// measurable at this ε (a rational-walled loft whose
-        /// quadrature exhausts its round budget, say) exactly as it
+        /// quadrature stops at its work wall, say) exactly as it
         /// admits that body's native twin; the reader holds no opinion
         /// of its own about which admitted bodies ship (DESIGN import
         /// step 4). What it cannot give is the number, and
@@ -740,7 +740,7 @@ pub fn import_step(
         return Err(StepImportError::InvalidEpsOverride { value: eps });
     }
     let file = parse::parse_file(text)?;
-    let model = entities::resolve(&file, options.eps_in)?;
+    let model = entities::resolve(&file, options.eps_in, tol)?;
     let eps_in = options.eps_in.unwrap_or(model.uncertainty_m);
     match model.shape {
         entities::Shape::Solids(ref solids) => {
@@ -990,13 +990,30 @@ fn gate3(
         &|solid| instance.get(&solid).copied(),
         0,
     );
+    // The flush pairs between instances are rows of their own, which no
+    // record cites.
+    let flush = match geom_core::Band::linear(tol) {
+        Ok(band) => <f64 as topo::AtRestPolicy>::flush_at_rest(
+            body,
+            &|solid| instance.get(&solid).copied(),
+            band,
+        ),
+        Err(error) => topo::FlushAtRest {
+            findings: vec![topo::ValidationError::Band { error }],
+            ..topo::FlushAtRest::default()
+        },
+    };
+    let mut findings = recorded.findings;
+    findings.extend(flush.findings);
     match certificate {
-        Some(certified) if recorded.findings.is_empty() => {
-            Ok((recorded.records, recorded.rows, certified.measure()))
+        Some(certified) if findings.is_empty() => {
+            let mut rows = recorded.rows;
+            rows.extend(flush.rows);
+            Ok((recorded.records, rows, certified.measure()))
         }
         _ => Err(StepImportError::TierInvalid {
             solid: None,
-            errors: recorded.findings,
+            errors: findings,
         }),
     }
 }

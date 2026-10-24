@@ -2351,8 +2351,11 @@ pub enum PairRefusalSite {
     /// The crossings path's interior-loop guard, after the reduction:
     /// the section certificate (`section_cert`) could not certify a face
     /// pair free of a closed loop interior to both faces — an
-    /// intractable pose, a tangency, a certified interior loop, or an
-    /// undecided witness.
+    /// intractable pose, a tangency, a certified interior loop, an
+    /// undecided witness, or a face whose boundary walk could not be
+    /// read (R-unread). The site carries no refusal reason; the
+    /// no-crossings path's [`BooleanError::FallbackExtentUnsupported`]
+    /// does.
     InteriorLoopGuard,
 }
 
@@ -7281,7 +7284,7 @@ fn verify_tangency<T: Decide>(
 /// per op needs the membership, which this stage does not hold (filed:
 /// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`).
 /// The wedge is levered at the farther of the two faces' extents, each
-/// read in its own operand ([`crate::wedge_reach`]).
+/// read in its own operand ([`fn@crate::wedge_reach`]).
 fn route_rim<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,

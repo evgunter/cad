@@ -49,7 +49,7 @@ from pncad import (
     rad,
 )
 
-from placing import own_frame
+from placing import against, own_frame
 
 
 def slab(doc, x, y, z):
@@ -139,7 +139,8 @@ class TestTheFinGroup(unittest.TestCase):
         fin = fin_only(chain_doc)
         acc = fin
         for i in range(1, 5):
-            placed = chain_doc.place_against(
+            placed = against(
+                chain_doc,
                 fin, fin, Frame.translation((i * PITCH * m, 0 * m, 0 * m))
             )
             acc = chain_doc.insert(Node.union([acc, placed]))
@@ -310,8 +311,8 @@ def die_tool_document():
                     PoseDef.slide(RoleRead(own, "z"), RoleRead(own, "z"), Formula.zero("length")),
                     ContactClass.Rest,
                 ),
-                MateValue(0, Coord.slide("z"), Formula.zero("length")),
-                MateValue(0, Coord.spin(), Formula.zero("angle")),
+                MateValue(Coord.slide("z"), Formula.zero("length")),
+                MateValue(Coord.spin("z"), Formula.zero("angle")),
             ],
         )
     )
@@ -504,18 +505,6 @@ class TestThePlacementRuleRefuses(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "placement_axis")
         self.assertIn("placement rotation axis", str(caught.exception))
 
-    def test_an_improper_frame_refuses(self):
-        """A mirror is REPRESENTABLE so that it can be refused (A6,
-        pending the equivariance audit) — the reason a frame stores a
-        general linear part rather than an axis-angle triple."""
-        doc = Doc()
-        box = slab(doc, (0, 1), (0, 1), (0, 1))
-        mirror = Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
-        self.assertLess(mirror.determinant, 0.0)
-        with self.assertRaises(EditError) as caught:
-            doc.insert(Node.placed_union_at(box, [mirror]))
-        self.assertEqual(caught.exception.variant, "improper_placement")
-
     def test_overlapping_placements_refuse_at_evaluate(self):
         """Disjointness is CERTIFIED, never declared. Two placements of
         one unit box a quarter apart interpenetrate; nothing is built,
@@ -583,8 +572,8 @@ class TestTheFrameValue(unittest.TestCase):
             {Frame.translation((0 * m, 0 * m, 0 * m))}
 
     def test_the_frame_trio_builds_and_refuses(self):
-        """`point_at`, `path_start_frame`, `mirror_across_plane` — the
-        frame constructors, with their typed refusals."""
+        """`point_at` and `path_start_frame` — the frame constructors,
+        with their typed refusals."""
         aimed = Frame.point_at(
             (0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m), (0.0, 1.0, 0.0)
         )
@@ -593,9 +582,6 @@ class TestTheFrameValue(unittest.TestCase):
 
         start = Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
         self.assertAlmostEqual(start.determinant, 1.0, places=12)
-
-        mirror = Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
-        self.assertAlmostEqual(mirror.determinant, -1.0, places=12)
 
         # A roll reference ALONG the aim fixes no roll, and refuses
         # rather than picking a fallback.
@@ -615,23 +601,18 @@ class TestTheFrameValue(unittest.TestCase):
             Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
         self.assertEqual(caught.exception.variant, "degenerate_tangent")
 
-        with self.assertRaises(FrameError) as caught:
-            Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
-        self.assertEqual(caught.exception.variant, "degenerate_mirror_normal")
-
     def test_a_direction_with_no_finite_length_is_refused_at_this_door(self):
         """The public door with no pre-validation in front of it.
 
         A normal past the ~1e154 overflow band makes the norm infinite,
         which is maximally DEFINITE to the sign gate, and the division
-        that follows collapses the normal to zero: this call used to
-        return the IDENTITY — a mirror that mirrors nothing. It is not
-        a `degenerate_*` refusal, because the direction is not zero and
+        that follows would collapse the direction to zero. It is not a
+        `degenerate_*` refusal, because the direction is not zero and
         no tolerance lever reaches it."""
         with self.assertRaises(FrameError) as caught:
-            Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (1e200, 0.0, 0.0))
+            Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1e200, 0.0, 0.0))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "non_finite_mirror_normal")
+        self.assertEqual(refusal.variant, "non_finite_tangent")
         self.assertIn("no finite length", str(refusal))
         self.assertIn("scale the geometry into the session's range", str(refusal))
         # Nothing was classified, so there is no classifier payload.
@@ -646,9 +627,9 @@ class TestTheFrameValue(unittest.TestCase):
         landed in the band, so there is nothing for the classifier to
         report. Every attribute is present and `None`."""
         with self.assertRaises(FrameError) as caught:
-            Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
+            Frame.path_start_frame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 0.0))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "degenerate_mirror_normal")
+        self.assertEqual(refusal.variant, "degenerate_tangent")
         for absent in (
             "inner_variant", "margin", "margin_low", "margin_high",
             "zero", "escalate", "predicate", "field", "value",

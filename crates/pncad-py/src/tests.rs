@@ -325,6 +325,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Product => "ProductError",
             ErrorClass::Split => "SplitError",
             ErrorClass::Inline => "InlineError",
+            ErrorClass::Flatten => "FlattenError",
             ErrorClass::Update => "UpdateError",
             ErrorClass::Readback => "ReadbackError",
             ErrorClass::HitTest => "HitTestError",
@@ -366,6 +367,7 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Product,
         ErrorClass::Split,
         ErrorClass::Inline,
+        ErrorClass::Flatten,
         ErrorClass::Update,
         ErrorClass::Readback,
         ErrorClass::HitTest,
@@ -841,8 +843,8 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
     use pncad::document::{
-        ConstraintId, Coord, DocumentId, LeverRefusal, MateFault as F, MateRef, MateSide, MintId,
-        NoChartWhy, NodeErrorKind, NodeRefusal, RecipeNodeId, TargetAxis, VarKind, WorldReadFault,
+        ConstraintId, DocumentId, LeverRefusal, MateFault as F, MateRef, MateSide, MintId,
+        NoChartWhy, NodeErrorKind, NodeRefusal, RecipeNodeId, VarKind,
     };
 
     let id = |n| RecipeNodeId::new(0, n);
@@ -915,31 +917,9 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         &["mate", "on_kind", "to_kind"],
     );
     carries(
-        &F::WorldRead {
-            mate: m(1),
-            fault: WorldReadFault::SlidDirection,
-        },
-        &["mate", "inner_variant"],
-    );
-    carries(
-        &F::ValueNamesNoMate {
-            value: m(1),
-            mate: ConstraintId(MintId::new(5, 5)),
-        },
-        &["value_ref", "named"],
-    );
-    carries(
-        &F::NotAFreedom {
-            value: m(1),
-            coord: Coord::Slide(TargetAxis::Z),
-            kind: VarKind::Plane,
-        },
-        &["value_ref", "coord", "mate_kind"],
-    );
-    carries(
         &F::NoChart {
             value: m(1),
-            why: NoChartWhy::PointRotation,
+            why: NoChartWhy::SlideTurnsABall,
         },
         &["value_ref", "why"],
     );
@@ -999,15 +979,14 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     assert_eq!(mate_payload(&unevaluated).side, Some(MateSide::On));
 
-    // The value arms name the value and what it set, each in its own
-    // role: the id a value names is not the value's own.
-    let names = F::ValueNamesNoMate {
+    // The value arm names the value by its own address.
+    let chartless = F::NoChart {
         value: m(2),
-        mate: ConstraintId(MintId::new(7, 7)),
+        why: NoChartWhy::SlideTurnsABall,
     };
-    let payload = mate_payload(&names);
+    let payload = mate_payload(&chartless);
     assert_eq!(payload.value_ref, Some(m(2)));
-    assert_eq!(payload.named, Some(ConstraintId(MintId::new(7, 7))));
+    assert_eq!(payload.why, Some(NoChartWhy::SlideTurnsABall));
     let kinds = F::KindsDiffer {
         mate: m(1),
         on: VarKind::Point,
@@ -1033,11 +1012,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // The nested refusals' words are the tag maps' own, so a caller
     // branches on one vocabulary whether the refusal reached them
     // from this door or from the door that owns it.
-    let world = F::WorldRead {
-        mate: m(1),
-        fault: WorldReadFault::FlippedPoint,
-    };
-    assert_eq!(mate_payload(&world).inner_variant, Some("flipped_point"));
     let unleverable = F::Unleverable {
         mate: m(1),
         refusal: Box::new(LeverRefusal::Reach {
@@ -2110,6 +2084,7 @@ fn node_error_tags_are_the_published_words() {
         Chamfer => "chamfer",
         Boolean => "boolean",
         Transform => "transform",
+        Mirror => "mirror",
         Motion => "motion",
         Skin => "skin",
         Loft => "loft",
@@ -2147,7 +2122,6 @@ fn node_error_tags_are_the_published_words() {
         PlacementRuleCountSpelling => "placement_rule_mismatch",
         PlacementRuleNoPlacements => "empty_placement_list",
         PlacementRuleNonFiniteFrame => "non_finite_placement",
-        PlacementRuleImproperFrame => "improper_placement",
         PlacementRuleNonRigidFrame => "non_rigid_placement",
         UnschedulableCycle => "unschedulable_cycle",
         Naming => "naming",
@@ -2173,10 +2147,7 @@ fn node_error_tags_are_the_published_words() {
         MateNotOnTheCopy => "mate_not_on_the_copy",
         MateUnleverable => "mate_unleverable",
         MateKindsDiffer => "mate_kinds_differ",
-        MateWorldRead => "mate_world_read",
         MateSideUnevaluated => "mate_side_unevaluated",
-        MateValueNamesNoMate => "mate_value_names_no_mate",
-        MateNotAFreedom => "mate_not_a_freedom",
         MateNoChart => "mate_no_chart",
         CrossingUnverified => "crossing_unverified",
         SpaceMismatch => "space_mismatch",
@@ -2412,16 +2383,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::UnknownConstraint {
             node: sp(1),
             constraint,
-        },
-        &["node", "constraint"],
-    );
-    // The mate a removal would strand a value of is the constraint;
-    // the value naming it is in the prose.
-    carries(
-        &E::MateNamedByValue {
-            node: sp(1),
-            mate: constraint,
-            value: pncad::document::ConstraintId(pncad::document::MintId::new(4, 4)),
         },
         &["node", "constraint"],
     );
@@ -2823,14 +2784,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- scalars and addresses ----
     carries(&E::InvalidTolerance { value: -1.0 }, &["value"]);
-    carries(
-        &E::ImproperPlacement {
-            node: sp(1),
-            at: pncad::document::FrameSite::Listed { index: 2 },
-            determinant: -1.0,
-        },
-        &["node", "determinant", "index"],
-    );
     carries(
         &E::NonRigidPlacement {
             node: sp(1),
@@ -4085,8 +4038,6 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                 matches!(
                     *word,
                     "program"
-                        | "world_slide"
-                        | "world_spin"
                         | "station_slide"
                         | "station_spin"
                         | "value_slide"
@@ -4741,13 +4692,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coord_tag",
         values: &[
-            "slide_x",
-            "slide_y",
-            "slide_z",
-            "spin",
-            "spin_about_x",
-            "spin_about_y",
-            "spin_about_z",
+            "slide_x", "slide_y", "slide_z", "spin_x", "spin_y", "spin_z",
         ],
         delegates: &[],
     },
@@ -4862,14 +4807,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fresh_kind",
             "fresh_unheld",
             "fresh_unread",
-            "improper_placement",
             "indexed_read",
             "invalid_distribution",
             "invalid_tolerance",
             "label_unchanged",
             "loft_section_count",
             "loft_sections_spelled",
-            "mate_named_by_value",
             "mate_refused",
             "meta_non_finite",
             "meta_not_set",
@@ -5039,6 +4982,20 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "flatten_error_tag",
+        values: &[
+            "both_named",
+            "flatten_edit",
+            "not_a_new_space",
+            "not_a_placement",
+            "not_the_identity",
+            "read_uncarried",
+            "space_shared",
+            "unknown_node",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "fmt_quantity_error_tag",
         values: &["non_finite"],
         delegates: &[],
@@ -5081,26 +5038,20 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "inline_error_tag",
         values: &[
-            "construction_reads_copy",
             "epsilon_seam",
             "foreign_instance_name",
             "inline_edit",
             "instance_body_name_referenced",
-            "instance_output_uncarried",
             "instance_read_uncarried",
-            "instance_unsolved",
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
-            "pin_reads_variable",
             "ranked_run_reordered",
-            "repin_refused",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
             "unplaceable_part",
             "unresolved_var_crosses_cut",
-            "value_on_a_moved_world",
             "var_name_conflict",
         ],
         delegates: &["resolve_fault_tag"],
@@ -5195,6 +5146,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "stranded_read",
             "stranded_selection",
             "stranded_space",
+            "value_dropped",
         ],
         delegates: &[],
     },
@@ -5283,13 +5235,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "no_chart_why_tag",
-        values: &[
-            "beside_a_mate",
-            "no_mated_direction",
-            "point_rotation",
-            "slide_turns_a_ball",
-            "two_bodies",
-        ],
+        values: &["slide_turns_a_ball"],
         delegates: &[],
     },
     TagEntry {
@@ -5315,26 +5261,23 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "extrude",
             "fillet",
             "full_range_step",
-            "improper_placement",
             "instance_out_of_range",
             "loft",
             "mate_class_not_admitted",
             "mate_kinds_differ",
             "mate_no_chart",
-            "mate_not_a_freedom",
             "mate_not_on_the_copy",
             "mate_overconstrained",
             "mate_poses_of_another_document",
             "mate_side_unevaluated",
             "mate_unleverable",
             "mate_unpinned",
-            "mate_value_names_no_mate",
-            "mate_world_read",
             "measure_clearance_refused",
             "measure_non_finite",
             "measure_not_parallel",
             "measure_ref_unreadable",
             "measure_unsupported",
+            "mirror",
             "missing_input",
             "missing_slot",
             "motion",
@@ -5456,6 +5399,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "of",
             "open",
             "path",
+            "plane",
             "profile",
             "section",
             "selection",
@@ -5559,17 +5503,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "pin_refusal_tag",
         values: &[
             "pin_already_placed",
-            "pin_band",
             "pin_no_frame",
             "pin_no_node",
             "pin_not_a_body",
             "pin_unevaluated",
         ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "placed_by_tag",
-        values: &["axis", "identity", "pin", "planar_face"],
         delegates: &[],
     },
     TagEntry {
@@ -5949,8 +5887,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "v_degree",
             "value_slide",
             "value_spin",
-            "world_slide",
-            "world_spin",
         ],
         delegates: &["operand_slot_tag"],
     },
@@ -5979,7 +5915,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "operand_unminted",
             "output_signature",
             "payload_var_kind",
-            "placement_improper",
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
@@ -6351,18 +6286,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         ],
         delegates: &[],
     },
-    TagEntry {
-        function: "world_read_fault_tag",
-        values: &[
-            "about",
-            "along",
-            "flipped_point",
-            "role",
-            "slid_direction",
-            "too_deep",
-        ],
-        delegates: &[],
-    },
 ];
 
 /// **Every word that two tag maps both mint, and how many mint it.**
@@ -6396,9 +6319,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("anonymous_var_unread", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
-    // A coincidence: an operand seat that reads an axis, and a copy
-    // placed on its own axis.
-    ("axis", 2),
     ("band", 17),
     ("body", 2),
     ("cap_plane", 3),
@@ -6462,7 +6382,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // another kind.
     ("fresh_kind", 2),
     ("fresh_unheld", 2),
-    ("improper_placement", 2),
     // Two: a resolution lands in the ambiguity band exactly as a
     // profile's structure does — the same verdict, undecided at this ε.
     ("indeterminate", 2),
@@ -6508,8 +6427,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.
     ("pieces", 2),
-    ("pin", 2),
     ("placement_rule_mismatch", 2),
+    ("plane", 2),
     ("poisoned", 2),
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
@@ -6526,9 +6445,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),
     ("revolve", 2),
-    // One fact at an authored pose and a mate's world read: a role
-    // its pose's kind does not offer.
-    ("role", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
     // One fact at the edit and load doors: a selection not in its
@@ -6570,7 +6486,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // (`topo::Unfinished::Unjoined`) found a vertex tier 3's check 11
     // refuses.
     ("unjoined_operand", 2),
-    ("unknown_node", 5),
+    ("unknown_node", 6),
     ("unknown_param", 3),
     // One fact three times: a reference to something no mint holds —
     // a program's step, a step handle, and (`pose_fault_tag`) a pose
@@ -8115,10 +8031,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "ErrorClass::class_name",
-        literals: 35,
+        literals: 36,
         held_by: &[Holder::Test {
             name: "error_classes_name_the_python_hierarchy",
-            holds: "the 36 class names, against a SECOND exhaustive match, so a new \
+            holds: "the 37 class names, against a SECOND exhaustive match, so a new \
                     class stops the build",
         }],
     },
@@ -10289,6 +10205,7 @@ const NODE_KIND_ROSTER: &[&str] = &[
     "intersect",
     "loft",
     "measure",
+    "mirror",
     "part",
     "pattern",
     "place",

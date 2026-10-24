@@ -62,7 +62,7 @@ fn seated(doc: ProfileDoc, mate: Mate<Formula>) -> (ProfileDoc, MateRef) {
         &[
             (Coord::Slide(TargetAxis::X), len(0.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin, fixture::ang(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
         ],
     );
     (doc, mate)
@@ -273,21 +273,16 @@ fn a_mate_on_unplaced_operands_mints_nothing() {
 fn a_side_whose_body_is_placed_twice_refuses_ambiguous() {
     let (doc, [a, b], store, body) = pair("f-twice");
     let opts = with_resolver(store);
-    // The moved copy's pin, read off `b`'s own copy:
-    // where the seat puts it, one up.
-    let pin = editor_core::pin_at(
-        &doc,
-        &editor_core::Operand::Var(doc.output(b, 0).expect("an instance defines its copies")),
+    let (doc, mate) = seated(doc, seat(body, (b, b), (a, a)));
+    // `again` stands where `b` stands, by the identity bundle; values
+    // move a second copy of it one up, where the seat puts it.
+    let (doc, again) = insert(doc, crate::fixture::stood(vec![b.into()]));
+    let moved = fixture::pin(
+        doc.clone(),
+        again,
         &editor_core::Frame::translation([0.0, 0.0, 1.0]),
         &opts,
-        Tol::witness(),
-    )
-    .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    let (doc, mate) = seated(doc, seat(body, (b, b), (a, a)));
-    // `again` stands where `b` stands, by the identity bundle; the pin
-    // moves a second copy of it one up.
-    let (doc, again) = insert(doc, crate::fixture::stood(vec![b.into()]));
-    let (moved, _) = fixture::constrain_at(doc.clone(), again, pin);
+    );
     let (minted, unminted) = fixture::mate_mints(&moved, &run(&moved, &opts));
     assert!(
         unminted.is_empty() && minted.iter().any(|m| m.mate == mate),
@@ -538,9 +533,7 @@ fn a_side_selection_of_a_patterns_copies_is_read_by_sides_alone() {
             ContactClass::Rest,
         ),
     );
-    let editor_core::Target::Pose(target) = fixture::constraint(&doc, mate).to else {
-        panic!("the mate's target is a pose")
-    };
+    let target = fixture::constraint(&doc, mate).to;
     let [side] = fixture::face_reads(&doc, target)[..] else {
         panic!("the mate's target reads one face")
     };

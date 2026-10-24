@@ -340,7 +340,7 @@ fn an_edge_through_a_seam_is_read_against_the_seams_members() {
             doc,
             y,
             x,
-            &crate::fixture::frame_at(origin, [0.0, 1.0, 0.0], w),
+            &crate::fixture::axes_at(origin, [0.0, 1.0, 0.0], w),
         );
         let m = [y, z, x];
         let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| m[i]));

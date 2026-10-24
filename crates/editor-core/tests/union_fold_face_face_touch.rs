@@ -26,7 +26,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, block_on, failure, run};
-use crate::fixture::{self, against, frame_at, insert, len, slid, union_over};
+use crate::fixture::{self, against, axes_at, insert, len, slid, union_over};
 use editor_core::{
     BooleanValue, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload,
 };
@@ -68,7 +68,7 @@ fn leaning_rod(doc: ProfileDoc, plate: RecipeNodeId, lean: f64) -> (ProfileDoc, 
         doc,
         plate,
         body,
-        &frame_at(
+        &axes_at(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, lean.cos(), lean.sin()],
@@ -97,7 +97,7 @@ fn slab(
         doc,
         plate,
         body,
-        &frame_at(origin, [1.0, 0.0, 0.0], [0.0, 0.8, 0.6]),
+        &axes_at(origin, [1.0, 0.0, 0.0], [0.0, 0.8, 0.6]),
     )
 }
 
@@ -381,7 +381,7 @@ fn far_origin_rod(
         doc,
         plate,
         cut,
-        &frame_at([0.0, back * s, -back * c], [1.0, 0.0, 0.0], [0.0, c, s]),
+        &axes_at([0.0, back * s, -back * c], [1.0, 0.0, 0.0], [0.0, c, s]),
     )
 }
 

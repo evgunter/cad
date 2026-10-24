@@ -41,21 +41,19 @@ pub enum PoseValue<T: Real> {
         /// The direction.
         dir: UnitVec3<T>,
     },
-    /// An axis through `origin` along `dir`: known up to slide and spin
-    /// along itself.
-    Axis {
-        /// A point on the axis.
-        origin: Point3<T>,
-        /// The direction.
-        dir: UnitVec3<T>,
-    },
-    /// A plane through `origin` with `normal`: known up to in-plane
-    /// motion.
+    /// An axis: known up to slide and spin along itself, so it holds
+    /// its line alone ([`AxisLine`]), and no reader sees a slide along
+    /// it.
+    Axis(AxisLine<T>),
+    /// The plane `p · normal = offset`: known up to in-plane motion, so
+    /// it holds those invariants alone, and no reader sees a point in
+    /// the plane ([`Self::plane_through`] reads one off).
     Plane {
-        /// A point on the plane.
-        origin: Point3<T>,
         /// The normal.
         normal: UnitVec3<T>,
+        /// The signed distance of the plane from its space's origin
+        /// along `normal` (Length).
+        offset: T,
     },
     /// **A frame**: origin plus a right-handed orthonormal pair of
     /// in-plane directions, so the surface and the spin about its
@@ -65,14 +63,91 @@ pub enum PoseValue<T: Real> {
     Frame(RigidMotion<T>),
 }
 
+/// **An axis's line**: its direction and its foot, the line's point
+/// nearest its space's origin. The fields are private, so every foot is
+/// the one [`Self::through`] projects, and a construction that keeps
+/// the line ([`Self::reversed`]) goes through this type.
+#[derive(Debug, Clone, Copy)]
+pub struct AxisLine<T: Real> {
+    foot: Point3<T>,
+    dir: UnitVec3<T>,
+}
+
+impl<T: Real> AxisLine<T> {
+    /// **The line through `point` along `dir`**: its foot is `point`
+    /// with its component along `dir` taken off.
+    #[must_use]
+    pub fn through(point: Point3<T>, dir: UnitVec3<T>) -> Self {
+        let d = dir.get();
+        Self {
+            foot: point - d * (point - Point3::origin()).dot(d),
+            dir,
+        }
+    }
+
+    /// The line's point nearest its space's origin.
+    #[must_use]
+    pub fn foot(&self) -> Point3<T> {
+        self.foot
+    }
+
+    /// The line's direction.
+    #[must_use]
+    pub fn dir(&self) -> UnitVec3<T> {
+        self.dir
+    }
+
+    /// The same line in the opposite sense: its foot is kept.
+    #[must_use]
+    pub fn reversed(self) -> Self {
+        Self {
+            foot: self.foot,
+            dir: -self.dir,
+        }
+    }
+}
+
 impl<T: Real> PoseValue<T> {
+    /// **The axis through `point` along `dir`** ([`AxisLine::through`]).
+    #[must_use]
+    pub fn axis_through(point: Point3<T>, dir: UnitVec3<T>) -> Self {
+        Self::Axis(AxisLine::through(point, dir))
+    }
+
+    /// **The plane through `point` with `normal`**: its offset the
+    /// point's along the normal.
+    #[must_use]
+    pub fn plane_through(point: Point3<T>, normal: UnitVec3<T>) -> Self {
+        Self::Plane {
+            normal,
+            offset: (point - Point3::origin()).dot(normal.get()),
+        }
+    }
+
+    /// The direction a direction or an axis runs along; `None` for any
+    /// other kind.
+    #[must_use]
+    pub(crate) fn heading(&self) -> Option<UnitVec3<T>> {
+        match self {
+            Self::Direction { dir } => Some(*dir),
+            Self::Axis(line) => Some(line.dir),
+            Self::Point { .. } | Self::Plane { .. } | Self::Frame(_) => None,
+        }
+    }
+
+    /// **A plane's point nearest its space's origin**: `offset · normal`.
+    #[must_use]
+    pub fn plane_foot(normal: UnitVec3<T>, offset: T) -> Point3<T> {
+        Point3::origin() + normal.get() * offset
+    }
+
     /// The kind this value is of.
     #[must_use]
     pub fn kind(&self) -> crate::VarKind {
         match self {
             Self::Point { .. } => crate::VarKind::Point,
             Self::Direction { .. } => crate::VarKind::Direction,
-            Self::Axis { .. } => crate::VarKind::Axis,
+            Self::Axis(_) => crate::VarKind::Axis,
             Self::Plane { .. } => crate::VarKind::Plane,
             Self::Frame(_) => crate::VarKind::Frame,
         }
@@ -88,9 +163,9 @@ impl<T: Real> PoseSymmetry<T> for PoseValue<T> {
         match *self {
             Self::Point { position } => Subgroup::Spherical { point: position },
             Self::Direction { dir } => Subgroup::Parallel { direction: dir },
-            Self::Axis { origin, dir } => Subgroup::Cylindrical {
-                point: origin,
-                direction: dir,
+            Self::Axis(line) => Subgroup::Cylindrical {
+                point: line.foot,
+                direction: line.dir,
             },
             Self::Plane { normal, .. } => Subgroup::Planar { normal },
             Self::Frame(_) => Subgroup::Trivial,
@@ -108,10 +183,10 @@ impl<T: Real> PoseSymmetry<T> for PoseValue<T> {
 #[must_use]
 pub fn pose_distance<T: Real>(pose: &PoseValue<T>, p: Point3<T>) -> Option<T> {
     Some(match pose {
-        PoseValue::Plane { origin, normal } => (p - *origin).dot(normal.get()),
-        PoseValue::Axis { origin, dir } => {
-            let d = dir.get();
-            let v = p - *origin;
+        PoseValue::Plane { normal, offset } => (p - Point3::origin()).dot(normal.get()) - *offset,
+        PoseValue::Axis(line) => {
+            let d = line.dir.get();
+            let v = p - line.foot;
             (v - d * v.dot(d)).norm()
         }
         PoseValue::Point { position } => (p - *position).norm(),
@@ -218,7 +293,7 @@ pub enum PoseDef<R = crate::VarId, S = crate::VarId> {
         point: RoleRead<R>,
     },
     /// **The axis two planes meet in** (FORK-1b), along `a.n × b.n`,
-    /// through the line's point nearest `a`'s origin. Parallel planes
+    /// through the line's point nearest the origin. Parallel planes
     /// refuse typed at evaluation.
     Meet {
         /// The first plane.
@@ -337,16 +412,15 @@ impl PoseRole {
     #[must_use]
     pub fn read<T: Real>(self, value: &PoseValue<T>) -> Option<PoseValue<T>> {
         Some(match (value, self) {
-            (PoseValue::Frame(f), Self::X | Self::Y | Self::Z) => PoseValue::Axis {
-                origin: f.origin(),
-                dir: Self::frame_axis(f, self),
-            },
+            (PoseValue::Frame(f), Self::X | Self::Y | Self::Z) => {
+                PoseValue::axis_through(f.origin(), Self::frame_axis(f, self))
+            }
             (PoseValue::Frame(f), Self::Origin) => PoseValue::Point {
                 position: f.origin(),
             },
-            (PoseValue::Frame(f), Self::Xy | Self::Yz | Self::Zx) => PoseValue::Plane {
-                origin: f.origin(),
-                normal: Self::frame_axis(
+            (PoseValue::Frame(f), Self::Xy | Self::Yz | Self::Zx) => PoseValue::plane_through(
+                f.origin(),
+                Self::frame_axis(
                     f,
                     match self {
                         Self::Xy => Self::Z,
@@ -354,9 +428,11 @@ impl PoseRole {
                         _ => Self::Y,
                     },
                 ),
-            },
-            (PoseValue::Plane { normal: dir, .. }, Self::Normal)
-            | (PoseValue::Axis { dir, .. }, Self::Direction) => PoseValue::Direction { dir: *dir },
+            ),
+            (PoseValue::Plane { normal: dir, .. }, Self::Normal) => {
+                PoseValue::Direction { dir: *dir }
+            }
+            (PoseValue::Axis(line), Self::Direction) => PoseValue::Direction { dir: line.dir },
             _ => return None,
         })
     }
@@ -1077,8 +1153,8 @@ mod tests {
         let band = Band::new(1e-6, 1e-3).expect("a well-ordered band");
         let p = Point3::new(3.0, 4.0, -2.0);
         let at = |v| PoseValue::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
             normal: UnitVec3::new(v, POSE_UNIT_NORM, band).expect("a vector with a length"),
+            offset: 0.0,
         };
         assert_eq!(
             pose_distance(&at(Vec3::new(0.0, 0.0, 1e6)), p),
@@ -1091,8 +1167,8 @@ mod tests {
         let band = Band::new(1e-6, 1e-3).expect("a well-ordered band");
         let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), POSE_UNIT_NORM, band).expect("a unit z");
         let origin = Point3::new(0.0, 0.0, 0.0);
-        let plane = PoseValue::Plane { origin, normal: up };
-        let axis = PoseValue::Axis { origin, dir: up };
+        let plane = PoseValue::plane_through(origin, up);
+        let axis = PoseValue::axis_through(origin, up);
         let point = PoseValue::Point { position: origin };
         let p = Point3::new(3.0, 4.0, -2.0);
         // SIGNED along a plane's normal, UNSIGNED to an axis or point.

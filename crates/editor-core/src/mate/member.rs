@@ -190,7 +190,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
             // about: a `Part` selecting an instance moves nothing at
             // all and carries every name
             // VERBATIM. Anything else — a boolean, a split's intact
-            // pass-through — is a different body, not this one placed. (A union is the
+            // pass-through, a mirror's image — is a different body, not this one placed. (A union is the
             // head of every name it carries, so the walk meets it
             // below, at the head.)
             match doc.node(at).and_then(crate::names::verbatim_edge) {
@@ -205,7 +205,9 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                     // copy.
                     at = doc.operation_of(of).ok_or(at)?;
                 }
-                Some(VerbatimEdge::Intact) | None => return Err(at),
+                Some(VerbatimEdge::Intact { .. } | VerbatimEdge::Reflected { .. }) | None => {
+                    return Err(at);
+                }
             }
             continue;
         }

@@ -745,11 +745,24 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
     mirror.columns[0] = [-1.0, 0.0, 0.0];
     assert!(matches!(
         with(mirror).placement_rule_fault(Tol::witness()),
-        Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
+        Some(PlacementRuleFault::NonRigidFrame {
+            index: 0,
+            check: "transform_rigid_det_plus_one"
+        })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)), fresh: Vec::new() }, Tol::witness()),
-        Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
+        apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(with(mirror)),
+                fresh: Vec::new()
+            },
+            Tol::witness()
+        ),
+        Err(EditError::NonRigidPlacement {
+            check: "transform_rigid_det_plus_one",
+            ..
+        })
     ));
 
     // A proper frame that scales an axis: refused at the edit door by
@@ -962,7 +975,6 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
                 want,
                 EditError::EmptyPlacementList { .. }
                     | EditError::NonFinitePlacement { .. }
-                    | EditError::ImproperPlacement { .. }
                     | EditError::NonRigidPlacement { .. }
             ),
             "the premise: `apply` refuses {what} at the placement backstop: {want:?}"

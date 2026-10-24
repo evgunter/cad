@@ -238,7 +238,7 @@ use geom_core::{
 
 use crate::descent::{self, Descent, Work};
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig};
-use crate::patch_bound::{PatchBoundError, check_direction, is_rational, unit_scaled_weights};
+use crate::patch_bound::{PatchBoundError, check_direction, unit_scaled_weights};
 use crate::recourse::{NARROW_SPAN, NARROW_SPAN_RECOURSE, Reading};
 use geom_core::spline::{Derived, TensorCoeffs};
 
@@ -1980,12 +1980,13 @@ struct Composite {
     y: [PatchSpans; 3],
     /// `D = Ẽ · M̃`, the sign witness of `E·n`.
     dd: PatchSpans,
-    /// The BASE's weight channel `w` (a positive constant `1` patch
-    /// when the base is non-rational). `M̃ = w³·m` is scaled by this
+    /// The BASE's weight channel `w` (the constant `1` patch when the
+    /// base's weights are one constant, which the spatial form reads as
+    /// `1`). `M̃ = w³·m` is scaled by this
     /// one alone, because `m` is the base's own.
     w: PatchSpans,
     /// `w̃ = w·w_fit`, the weight `Ẽ` is homogeneous in. Equal to `w`
-    /// exactly when the fit carries unit weights.
+    /// exactly when the fit's weights are one constant.
     wt: PatchSpans,
     /// `Ẽ = w̃·E` itself, kept so the residual's normal component can
     /// divide by a DIRECT lower bound on `‖E‖` (module docs, "the
@@ -2063,8 +2064,8 @@ fn weight_net(n: &NurbsSurface<f64>) -> TensorCoeffs<'_> {
 /// a bare `true` at a call site does not say which was meant.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum NetForm {
-    /// `P − c`. Correct only where every weight is `1`, so that the
-    /// spatial net IS the homogeneous one.
+    /// `P − c`, every weight read as `1`. Correct only where the
+    /// weights are one constant (`NurbsSurface::constant_weight`).
     Spatial,
     /// `w·(P − c)`, the homogeneous net.
     Homogeneous,
@@ -2073,7 +2074,7 @@ enum NetForm {
 impl NetForm {
     /// The form a surface's own weights call for.
     fn of(n: &NurbsSurface<f64>) -> Self {
-        if is_rational(n) {
+        if n.constant_weight().is_none() {
             Self::Homogeneous
         } else {
             Self::Spatial
@@ -2173,7 +2174,7 @@ impl Composite {
         fit: &NurbsSurface<f64>,
         d: f64,
     ) -> Result<Self, OffsetFitError> {
-        // The arms are the DESCRIBED nets' ([`is_rational`]); the
+        // The arms are the DESCRIBED nets' (`constant_weight`); the
         // arithmetic reads them at unit weight scale.
         let (base_form, fit_form) = (NetForm::of(base), NetForm::of(fit));
         let rational = base_form == NetForm::Homogeneous;
@@ -2188,9 +2189,9 @@ impl Composite {
         extra_v.extend(fit.knots_v_f64_interim().interior_knots().map(|(t, _)| t));
         let dec = |grid: &TensorCoeffs<'_>| PatchSpans::decompose(grid, &extra_u, &extra_v);
         // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
-        // channel. On a unit-weight fit `w_fit ≡ 1`, the spatial net
-        // IS the homogeneous one and `wf` is not formed: the identity
-        // product would widen the enclosure for nothing.
+        // channel. On a constant-weight fit the spatial net IS the
+        // homogeneous one at `w_fit ≡ 1`, and `wf` is not formed: the
+        // identity product would widen the enclosure for nothing.
         // The one recentring origin every net below is built against.
         let ctr = recentre_origin(base);
         let fc = |c: usize| channel(fit, c, fit_form, &ctr);
@@ -3297,11 +3298,13 @@ mod tests {
     /// the base or on the fit, describes the same surface, so each cell
     /// bound is the unit pair's to the bit.
     ///
-    /// **The arm is the described net's.** The same control net with
-    /// every weight `2` is a polynomial surface described rationally,
-    /// and it is read by the rational arm at every scale — `2⁻¹`,
-    /// `2⁻³⁰⁰` and `2³⁰⁰` as at `2¹` — with the sup bound pinned at the
-    /// value that arm gives.
+    /// **A constant weight is the polynomial arm's.** The same control
+    /// net with every weight one constant is the polynomial surface on
+    /// that net, so it takes the spatial form, and every cell bound is
+    /// the unit-weight net's to the bit: at `3` and `0.1`, and at every
+    /// power-of-two scale — `2⁻¹`, `2⁻³⁰⁰` and `2³⁰⁰` as at `2¹`. Red where a constant weight is read as
+    /// rational: the homogeneous arm's sup on this net is
+    /// `1.018_060_029_513_912e-1`.
     #[test]
     fn a_uniform_weight_scale_moves_no_cell_bound() {
         use crate::patch_bound::tests::weights_times_pow2;
@@ -3322,24 +3325,31 @@ mod tests {
             assert_eq!(got, want, "base 2^{kb}, fit 2^{kf}: a cell bound moved");
         }
 
-        let twos = geom::NurbsSurface::new(
-            cylinder.knots_u_f64_interim().clone(),
-            cylinder.knots_v_f64_interim().clone(),
-            cylinder.control().to_vec(),
-            vec![2.0; 6],
-        )
-        .unwrap();
+        let constant = |w: f64| {
+            geom::NurbsSurface::new(
+                cylinder.knots_u_f64_interim().clone(),
+                cylinder.knots_v_f64_interim().clone(),
+                cylinder.control().to_vec(),
+                vec![w; 6],
+            )
+            .unwrap()
+        };
+        let (ones, twos) = (constant(1.0), constant(2.0));
+        let want = cell_bound_bits(&ones, &radially_scaled(&ones, 1.0 + d), d);
         let fit = radially_scaled(&twos, 1.0 + d);
-        let want = cell_bound_bits(&twos, &fit, d);
-        let sup = want.iter().map(|b| f64::from_bits(*b)).fold(0.0, f64::max);
         assert_eq!(
-            sup.to_bits(),
-            1.018_060_029_513_912e-1_f64.to_bits(),
-            "the weights-2 net's sup bound is {sup:e}, not the rational arm's"
+            cell_bound_bits(&twos, &fit, d),
+            want,
+            "the weights-2 net's cell bounds are not the unit-weight net's"
         );
         for k in [-2, -301, 299] {
             let got = cell_bound_bits(&weights_times_pow2(&twos, k), &fit, d);
             assert_eq!(got, want, "weights 2^{}: a cell bound moved", k + 1);
+        }
+        for c in [3.0, 0.1] {
+            let net = constant(c);
+            let got = cell_bound_bits(&net, &radially_scaled(&net, 1.0 + d), d);
+            assert_eq!(got, want, "weights {c}: a cell bound moved");
         }
     }
 

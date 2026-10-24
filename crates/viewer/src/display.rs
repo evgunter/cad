@@ -108,20 +108,8 @@ use pncad::document::{
     Doc, Evaluation, Frame, Node, OperandSlot, ProfileProgram, RecipeNodeId, SpokenNode,
     SpokenSpace, VarId,
 };
-use pncad::geom_core::Vec3;
 
 use crate::g1;
-
-/// How far off exactly orthonormal a free-move frame's linear part may
-/// be and still count as rigid.
-///
-/// A display bound, not a kernel predicate: nothing downstream decides
-/// geometry on it. What it protects is the pick path — a hit's ray
-/// parameter is compared across differently-moved instances, and that
-/// comparison is only meaningful when every admitted frame preserves
-/// lengths. Generous against accumulated rotation round-off, tight
-/// against any actual scale or shear.
-const RIGID_SLACK: f64 = 1e-9;
 
 /// **Why an instance cannot hold display state** — what the admission
 /// tests answer, and the only cause a [`Withdrawn`] carries.
@@ -456,8 +444,8 @@ pub enum DisplayFault {
     /// runs one of the admission tests, and the fault it raises is
     /// the test's own answer rather than a re-wording of it.
     Admission(AdmissionFault),
-    /// The previewed frame is not a finite rigid motion (orthonormal
-    /// linear part, det = +1 within [`RIGID_SLACK`]). Refused because a
+    /// The previewed frame is not one the document admits
+    /// ([`Frame::admission_fault`]: a finite rigid motion). Refused because a
     /// scaling or mirroring probe would draw geometry the document
     /// cannot mean, and because the pick path compares hit distances
     /// across instances, which only lengths-preserving frames keep
@@ -865,24 +853,6 @@ fn probe_space_of(
     }
 }
 
-/// Whether `frame` is a finite rigid motion: finite everywhere,
-/// orthonormal columns, determinant +1 — each within [`RIGID_SLACK`].
-fn is_rigid(frame: &Frame) -> bool {
-    if !frame.is_finite() {
-        return false;
-    }
-    let [c0, c1, c2] = frame.columns.map(Vec3::from_array);
-    let unit = |c: Vec3<f64>| (c.dot(c) - 1.0).abs() <= RIGID_SLACK;
-    let perp = |a: Vec3<f64>, b: Vec3<f64>| a.dot(b).abs() <= RIGID_SLACK;
-    unit(c0)
-        && unit(c1)
-        && unit(c2)
-        && perp(c0, c1)
-        && perp(c1, c2)
-        && perp(c0, c2)
-        && (frame.determinant() - 1.0).abs() <= RIGID_SLACK
-}
-
 /// **The probe's words for the three G1 states**, declared once and
 /// handed to [`g1::Slot`] at every door.
 ///
@@ -1244,12 +1214,13 @@ impl DisplayState {
         &mut self,
         instance: RecipeNodeId,
         frame: Frame,
+        tol: pncad::geom_core::Tol,
     ) -> Result<(), DisplayFault> {
         self.free_move.preview(
             free_move_words(),
             |probed| probed.instance == instance,
             |_| {
-                if is_rigid(&frame) {
+                if frame.admission_fault(tol).is_none() {
                     Ok((frame, ()))
                 } else {
                     Err(DisplayFault::NonRigidFrame {

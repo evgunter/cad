@@ -47,8 +47,8 @@ use editor_core::CapEnd;
 use editor_core::{
     ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula,
     Frame, FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node,
-    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, Target, VarName,
-    apply, load, save,
+    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply,
+    load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
@@ -331,9 +331,7 @@ fn saved_mate(label: &str) -> (String, MateRef, [editor_core::VarId; 2]) {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
     let written = fixture::constraint(&doc, id);
-    let Target::Pose(to) = written.to else {
-        panic!("the mate's target is a pose of the pinned copy");
-    };
+    let to = written.to;
     let face = |pose| match fixture::face_reads(&doc, pose).as_slice() {
         [one] => *one,
         other => panic!("a plane pose reads one face, got {other:?}"),
@@ -408,9 +406,7 @@ fn a_face_to_face_mate_round_trips() {
     let (text, mate, reads) = saved_mate("onepred-matehead-ok");
     let loaded = load(&text, Tol::witness()).expect("a face-to-face mate loads");
     let kept = fixture::constraint(&loaded.doc, mate);
-    let Target::Pose(to) = kept.to else {
-        panic!("the mate survives the round trip, its target a pose");
-    };
+    let to = kept.to;
     assert_eq!(
         [
             fixture::face_reads(&loaded.doc, kept.on),
@@ -614,11 +610,10 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
+    let cap = fixture::plane(fixture::head(in_part(ids[0], body, CapEnd::Start)));
     let on_the_world = Mate {
-        on: fixture::plane(fixture::head(in_part(ids[0], body, CapEnd::Start))),
-        to: Target::World(editor_core::WorldRead::through(
-            editor_core::pose::PoseRole::Xy,
-        )),
+        on: cap.clone(),
+        to: cap,
         class: ContactClass::Rest,
     };
     match apply(
@@ -670,22 +665,24 @@ fn frame_cell(wire: &mut serde_json::Value, transform: RecipeNodeId) -> &mut ser
         [0][0]
 }
 
-/// **An IMPROPER placement frame — both doors.** A mirror is authored
-/// data this build declines to admit (A6, gated on R4's equivariance
-/// audit), and the load door says so in its own arm rather than folding
-/// it in with a coordinate no predicate can read.
+/// **A mirrored placement frame — both doors.** Every pose is proper:
+/// a mirror is a construction (`Node::Mirror`), so a frame that
+/// reflects is one that is not a rigid motion, refused by the
+/// predicate the evaluation moves a body by, on its determinant.
 #[test]
-fn an_improper_placement_is_refused_at_both_doors() {
+fn a_mirrored_placement_is_refused_at_both_doors() {
     let mirror = Frame {
         columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
     };
-    assert!(mirror.determinant() < 0.0, "the fixture really mirrors");
     match transformed("onepred-improper", mirror) {
-        Err(EditError::ImproperPlacement { determinant, .. }) => {
-            assert!(determinant < 0.0, "the refusal carries the determinant");
+        Err(EditError::NonRigidPlacement { check, .. }) => {
+            assert_eq!(
+                check, "transform_rigid_det_plus_one",
+                "refused on its determinant"
+            );
         }
-        other => panic!("an improper placement must refuse typed, got {other:?}"),
+        other => panic!("a mirrored placement must refuse typed, got {other:?}"),
     }
 
     // The load door's half: a proper frame on the wire, mirrored by
@@ -699,13 +696,16 @@ fn an_improper_placement_is_refused_at_both_doors() {
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PlacementRule {
             node,
-            fault: editor_core::PlacementRuleFault::ImproperFrame { index, determinant },
+            fault: editor_core::PlacementRuleFault::NonRigidFrame { index, check },
             ..
         })) => {
             assert_eq!((node.id(), index), (transform, 0));
-            assert!(determinant < 0.0, "the refusal carries the determinant");
+            assert_eq!(
+                check, "transform_rigid_det_plus_one",
+                "refused on its determinant"
+            );
         }
-        other => panic!("an improper frame must refuse typed at load, got {other:?}"),
+        other => panic!("a mirrored frame must refuse typed at load, got {other:?}"),
     }
 }
 

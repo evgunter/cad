@@ -608,7 +608,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     let quarter = r.against(
         block,
         revolve,
-        &fixture::frame_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+        &fixture::axes_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
     let placed = translated(&mut r, block, block, [len(0.0), param("place"), len(0.0)]);
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));

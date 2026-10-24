@@ -137,7 +137,7 @@ fn with_record(
 
 /// The one name a stored constraint's target pose selects.
 fn target_name(doc: &ProfileDoc, mate: &Mate) -> StableName {
-    let pose = *mate.to.pose().expect("a target read off geometry");
+    let pose = mate.to;
     let [face] = fixture::face_reads(doc, pose)[..] else {
         panic!("a rest's target reads one face")
     };
@@ -382,6 +382,7 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
             | Maintenance::StrandedSpace { .. }
+            | Maintenance::ValueDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect();
@@ -612,8 +613,9 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
     );
     assert_eq!(
         back.doc.len(),
-        before - 1 + part_nodes,
-        "the instance went and the part's own nodes came in its place — a count the \
-         untouched neighbour cannot supply"
+        before - 1 + part_nodes + 2,
+        "the instance went and the part's own nodes came in its place, beside the new \
+         space they stand in and the placement of their copy — a count the untouched \
+         neighbour cannot supply"
     );
 }

@@ -4,6 +4,8 @@ kind: issue
 title: offset_axial re-authors a moved sketch arc's sweep as atan2 of its endpoints, folding past a half turn
 status: open
 opened: 2026-10-02
+priority: P2
+cost: E
 ---
 
 

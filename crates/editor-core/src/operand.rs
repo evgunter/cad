@@ -187,8 +187,10 @@ pub enum OperandSlot {
     Input,
     /// The copies a part projection picks one of.
     Of,
-    /// The body a world placement places.
+    /// The body a mirror reflects.
     Body,
+    /// A mirror's plane.
+    Plane,
     /// The space a placement places into, its target.
     Space,
 }
@@ -235,6 +237,7 @@ impl OperandSlot {
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
             Self::Body => "body".to_owned(),
+            Self::Plane => "plane".to_owned(),
             Self::Space => "target space".to_owned(),
         }
     }
@@ -246,7 +249,7 @@ impl OperandSlot {
             Self::Profile | Self::Section(_) | Self::Path => SlotKind::Is(VarKind::Profile),
             Self::Axis => SlotKind::Is(VarKind::Axis),
             Self::Frame => SlotKind::Is(VarKind::Frame),
-            Self::Tool => SlotKind::Is(VarKind::Plane),
+            Self::Tool | Self::Plane => SlotKind::Is(VarKind::Plane),
             Self::Target | Self::From | Self::Cut | Self::Member(_) | Self::Body => {
                 SlotKind::Is(VarKind::Body)
             }

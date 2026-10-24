@@ -231,6 +231,8 @@ mod missed_ray_side;
 mod narrow_needle_containment;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
+#[path = "ngon_prism_offset_scaling.rs"]
+mod ngon_prism_offset_scaling;
 #[path = "offset_a_corner_kiss.rs"]
 mod offset_a_corner_kiss;
 #[path = "offset_doors_read_charts_not_material.rs"]
@@ -267,10 +269,16 @@ mod result_gate_sites;
 mod review_4996_carry_probes;
 #[path = "review_4996_r2_probes.rs"]
 mod review_4996_r2_probes;
+#[path = "review_census_fixpass_probes.rs"]
+mod review_census_fixpass_probes;
+#[path = "review_census_r2_probes.rs"]
+mod review_census_r2_probes;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
 mod review_cleave_nurbs_lane;
+#[path = "review_intent_census_r1_probes.rs"]
+mod review_intent_census_r1_probes;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]

@@ -170,8 +170,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// name says it at each of its ends; the growth is the same placed-copy
 /// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 59_743]),
-    ("full", [19, 135, 396, 458_233]),
+    ("scoped faces", [16, 43, 57, 60_241]),
+    ("full", [19, 135, 396, 461_129]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -301,7 +301,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// It moved again by tags in `die_tool` alone, when its master ball came
 /// to stand on the cube's corner frame by an axis mate, which mints 42
-/// fewer ids than the `place_against` it replaces. [`NAME_WORDS`] held.
+/// fewer ids than the retired place-against helper it replaces. [`NAME_WORDS`] held.
 ///
 /// A seam's sides and a crossing's lines named in the boolean's own
 /// table (N3) moved it with [`NAME_WORDS`], in every document holding a
@@ -310,7 +310,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 ///
 /// Re-pinned, `die` alone, when its pips came to stand on frames stated
 /// from the cube's corner by whole quarter turns and dyadic slides (a
-/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
 /// written `atan2`'s rounded turns: the die's world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
 /// placements, their ids and the names under them are new.
@@ -322,7 +322,13 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// (`e605bc0e`), and [`NAME_WORDS`] held: a read of a construction's
 /// body is said by the node alone, its space being no part of what it
 /// holds.
-const SAID_DIGEST: u64 = 0x2954_4d78_a391_f39b;
+///
+/// **Re-pinned for PR 5616**, taken merged over D′2 (PR 5613), which
+/// left this row red on main: D′2 moved every corpus document's ids,
+/// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
+/// seam face plainly, so its node tags moved too; the words that moved
+/// are the node tags.
+const SAID_DIGEST: u64 = 0x7ad5_6d1b_cd48_fe0b;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

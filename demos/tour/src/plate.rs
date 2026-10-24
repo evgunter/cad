@@ -29,8 +29,8 @@
 
 use pncad::document::{
     AssertionRelation, CancelToken, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, VarId, VarName, apply, evaluate,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -251,7 +251,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     // its copy placed on the blank's own frame is the hole in the
     // blank's space, which the cut and the measure read.
     let mut on_blank = |hole: RecipeNodeId| {
-        let placed = crate::world::against(&doc, blank, hole, &Frame::IDENTITY, tol);
+        let placed = crate::world::against(&doc, blank, hole, Vec::new(), tol);
         doc = placed.doc;
         placed.placement
     };

@@ -181,20 +181,25 @@ fn pinch_copies_do_not_reach_rest() {
             .count()
     };
     for (name, r) in pinches::<f64>() {
-        let recorded: std::collections::HashSet<_> = r
+        let recorded: slotmap::SecondaryMap<topo::VertexKey, ()> = r
             .contacts
             .vertex_vertex()
-            .flat_map(|(a, b)| [a, b])
+            .flat_map(|(a, b)| [(a, ()), (b, ())])
             .collect();
-        let mut on_key: std::collections::HashMap<_, Vec<_>> = std::collections::HashMap::new();
+        let mut on_key: slotmap::SecondaryMap<topo::PointKey, Vec<_>> =
+            slotmap::SecondaryMap::new();
         for (k, v) in r.body.vertices() {
-            on_key.entry(v.point).or_default().push(k);
+            on_key
+                .entry(v.point)
+                .expect("a live point key")
+                .or_default()
+                .push(k);
         }
         let copies: Vec<_> = on_key
             .values()
             .filter(|vs| vs.len() > 1)
             .flatten()
-            .filter(|k| !recorded.contains(k))
+            .filter(|&&k| !recorded.contains_key(k))
             .collect();
         assert_eq!(
             copies,

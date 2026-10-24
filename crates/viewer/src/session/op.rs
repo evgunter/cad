@@ -17,7 +17,7 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Coord, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance, Mate,
-    MateRef, Operand, PinRefusal, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
+    MateRef, Operand, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -60,19 +60,14 @@ pub enum SessionOp {
         /// The node to delete, with its dependents.
         node: RecipeNodeId,
     },
-    /// Remove one constraint from its placement's bundle: the bundle
-    /// written whole without it (`DocEdit::SetConstraints`), as the mate
-    /// tool writes one, and without, for a mate, each value naming it —
-    /// a value sets a freedom of its mate, so it goes with it, in the
-    /// same action. A constraint is no node, so it has no cone to
-    /// delete: the copy it pinned is recomputed from what remains.
-    /// Every bundle pins its copy (D10 `[placement.values]`) and the
-    /// door admits none beyond the pin (`Overconstrained`), so every
-    /// stored bundle is minimal and any removal leaves a freedom
-    /// unwritten: the door refuses it `Unpinned`, in the kernel's words,
-    /// and nothing changes
-    /// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
-    /// A constraint the bundle does not hold is refused as
+    /// Remove one constraint from its placement's bundle
+    /// (`DocEdit::RemoveConstraint`): the bundle written whole without
+    /// it, by the rule a mate's addition writes it — a mate taken away
+    /// frees what it fixed, and each freedom no value then sets is
+    /// written the constant `0`, so the copy stays pinned (D10
+    /// `[placement.values]`). A constraint is no node, so it has no cone
+    /// to delete: the copy it pinned is recomputed from what remains. A
+    /// constraint the bundle does not hold is refused as
     /// `DocEdit::RemoveConstraint` refuses it.
     RemoveConstraint {
         /// The constraint: its placement and minted id.
@@ -474,11 +469,13 @@ pub enum SessionOp {
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
-    /// Write `placement`'s bundle whole with the mate and its values
-    /// naming it (`DocEdit::SetConstraints`), each freedom the mate
-    /// leaves unset written as the constant `0` — in place of a bundle
-    /// with no mate, beside the mates of one that has them, which the
-    /// door then refuses overconstrained. A mate whose `to` reads
+    /// Add the mate to `placement`'s bundle (`DocEdit::AddConstraint`,
+    /// which writes the bundle whole: the values whose freedoms the
+    /// mate fixes go, each freedom it leaves keeps its value or is the
+    /// constant `0`, and a mate beside mates that already fix its
+    /// equations is refused overconstrained), then the values written
+    /// over the freedoms they set (`DocEdit::SetConstraints`). A mate
+    /// whose `to` reads
     /// outside the placement's target space is refused by the door,
     /// naming both spaces, unless the author asked to move the copy
     /// there (`into_target_space`): the gesture never moves a copy into
@@ -671,15 +668,14 @@ pub enum SessionOp {
     ///
     /// **Operands in two spaces are related by a placement** (D10): each
     /// operand after the first whose value lives in another space than
-    /// the first's is placed against the first operand's root
-    /// ([`pncad::document::place_against`]; in the world where the first
-    /// is a world copy), in the same action. A construction is placed at
-    /// the identity and the boolean reads the new placement; a copy
-    /// placed against its own body's geometry ([`Self::AddTransform`]'s)
-    /// has its mate and values replaced in place by the ones that stand
-    /// it against the first's root at the pose it held relative to its
-    /// body. An operand the door cannot place is read as it is, and the
-    /// boolean refuses `SpaceMismatch` at evaluation, on its own badge.
+    /// the first's is placed into the first's, in the same action. A
+    /// construction is placed at the identity and the boolean reads the
+    /// new placement; a copy placed into its own body's space
+    /// ([`Self::AddTransform`]'s) is re-targeted in place, its bundle
+    /// the values on the first's space's axes that stand it at the pose
+    /// it held relative to its body. An operand whose pose does not
+    /// solve is read as it is, and the boolean refuses `SpaceMismatch`
+    /// at evaluation, on its own badge.
     AddBoolean {
         /// The operation and its operands.
         spec: super::BooleanSpec,
@@ -708,22 +704,21 @@ pub enum SessionOp {
         normal: [Formula; 3],
     },
     /// **Move an existing body rigidly** — the transform tool's one
-    /// committed action: a placement of the body against its own
-    /// geometry (`Node::Place` and its mate, `place_against`) at the
-    /// frame the numbers make — rotated by `rotation_angle` about
-    /// `rotation_axis` through the body's own origin, then translated
-    /// — with its values, and the body's world placements re-pointed to
-    /// it (A10, Ev's residue 1), as one action.
+    /// committed action: a placement of the body into the space it is
+    /// in (`Node::Place`, no mate), its values on that space's axes —
+    /// rotated by `rotation_angle` about `rotation_axis` through the
+    /// body's own origin, then translated — and the body's world
+    /// placements re-pointed to it (A10, Ev's residue 1), as one action.
     ///
-    /// The numbers are formulas taken at their NOMINAL values in the
-    /// document when the frame is made; what the placement holds
-    /// afterwards is its mate's values, editable through its value
-    /// slots. A number of the wrong dimension, one that does not
-    /// evaluate, and an axis that names no direction refuse
-    /// [`Refusal::Frame`]; an input that is no placeable body refuses
-    /// as a body seat does. A copy the placing door cannot place stands
-    /// where its body stands (the identity bundle), and
-    /// [`OpOutcome::placed`] says so.
+    /// The translation is written as the three slides, each formula as
+    /// given; a rotation about one of the space's axes is the spin about
+    /// it by `rotation_angle` as given, and one about any other axis is
+    /// the chain of turns its frame makes at the numbers' NOMINAL
+    /// values. What the placement holds afterwards is its values,
+    /// editable through their slots. A number of the wrong dimension,
+    /// one that does not evaluate, and an axis that names no direction
+    /// refuse [`Refusal::Frame`]; an input that is no placeable body
+    /// refuses as a body seat does.
     AddTransform {
         /// The body placed.
         input: Operand,
@@ -932,8 +927,7 @@ pub enum SessionOp {
     ///
     /// **A creation, so its copies are placed** (A10): an instance is a
     /// placement, inserted and placed at the identity by the "place
-    /// part" gesture (a mate to the world and its values,
-    /// [`OpOutcome::placed`]), with its reference and an empty
+    /// part" gesture (the identity bundle), with its reference and an empty
     /// interface record (an authored instance crosses no split seam).
     /// Hiding, the free-move probe and the mate tool take it from
     /// there.
@@ -1739,27 +1733,10 @@ pub struct OpOutcome {
     /// gesture's previews: a preview enters no history, so nothing it
     /// did has happened yet.
     pub maintenance: Vec<Maintenance>,
-    /// **How each copy a place gesture made was placed**
-    /// ([`editor_core::place_at`]), in the order the action placed
-    /// them: on a planar face and its values, pinned where the copy has
-    /// none, or standing where its body stands, with the reason the
-    /// door could not place it. Empty for every other
-    /// operation.
-    pub placed: Vec<PlaceReport>,
     /// **The picked names this operation moved** ([`Renamed`]): what
     /// every holder of a pick re-seats its names through. Empty for
     /// every operation that re-pointed no copy to a new placement.
     pub renamed: Renamed,
-}
-
-/// **How the "place part" gesture placed one copy**
-/// ([`editor_core::place_at`]).
-#[derive(Debug, Clone, PartialEq)]
-pub struct PlaceReport {
-    /// The placement the gesture made.
-    pub placement: RecipeNodeId,
-    /// How its copy was placed, or why the door could not place it.
-    pub by: Result<editor_core::PlacedBy, PinRefusal>,
 }
 
 impl OpOutcome {

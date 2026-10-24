@@ -3317,10 +3317,7 @@ impl<'d, P> SpaceWalk<'d, P> {
         bundle: &[crate::mate::Constraint],
     ) -> Option<(VarId, VarId)> {
         for mate in bundle.iter().filter_map(crate::mate::Constraint::mate) {
-            let spaces = match &mate.to {
-                crate::mate::Target::World(_) => vec![VarId::WORLD],
-                crate::mate::Target::Pose(var) => self.reached_all([*var]),
-            };
+            let spaces = self.reached_all([mate.to]);
             if let Some(space) = spaces.into_iter().find(|&space| space != target) {
                 return Some((target, space));
             }

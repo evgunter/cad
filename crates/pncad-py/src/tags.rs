@@ -132,12 +132,12 @@ use pncad::document::LabelFault;
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission, Coord,
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
-    EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    EvalError, FlattenError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
     MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
-    NodeStanding, ParseError, PersistError, PinRefusal, PlacedBy, PlacementRuleFault, ProgramFault,
+    NodeStanding, ParseError, PersistError, PinRefusal, PlacementRuleFault, ProgramFault,
     ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault,
     ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
-    TargetAxis, Unlocalized, UpdateError, WorldReadFault,
+    TargetAxis, Unlocalized, UpdateError,
 };
 use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
@@ -461,13 +461,12 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 /// An operand is a slot too (D10): its word is the field's own
 /// ([`operand_slot_tag`]), `profile`, `target`, `input`.
 ///
-/// `program`, a constraint's `world_slide`, `world_spin`,
-/// `value_slide` and `value_spin`, and a loft station's
+/// `program`, a constraint's `value_slide` and `value_spin`, and a
+/// loft station's
 /// `station_slide` and `station_spin` are the arms that stop one level,
 /// and they stop for the reason [`profile_error_tag`]'s family does:
 /// what is left below them — a profile program's loop index, step
-/// index and argument role; a constraint's id and a world move's
-/// place; a section's index and a station move's place — holds an
+/// index and argument role; a constraint's id; a section's index and a station move's place — holds an
 /// integer, and no `&'static str` carries one. A loft's `section` and a union's
 /// `member` stop the same way, their position riding the payload's
 /// `index`. The address is in the refusal's prose; the word says which
@@ -504,8 +503,6 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::Profile { .. } => "program",
         SlotId::Operand(operand) => operand_slot_tag(operand),
         SlotId::Index { .. } => "index",
-        SlotId::WorldSlide { .. } => "world_slide",
-        SlotId::WorldSpin { .. } => "world_spin",
         SlotId::ValueSlide { .. } => "value_slide",
         SlotId::ValueSpin { .. } => "value_spin",
         SlotId::StationSlide { .. } => "station_slide",
@@ -556,6 +553,7 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Input => "input",
         S::Of => "of",
         S::Body => "body",
+        S::Plane => "plane",
         S::Space => "target_space",
     }
 }
@@ -669,10 +667,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // Its reads lie in two spaces, decided from the recipe.
         EditError::SpaceMismatch { .. } => "space_mismatch",
         EditError::UnknownConstraint { .. } => "unknown_constraint",
-        EditError::MateNamedByValue { .. } => "mate_named_by_value",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
-        EditError::ImproperPlacement { .. } => "improper_placement",
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
         EditError::NonRigidPlacement { .. } => "non_rigid_placement",
         EditError::PlacementAxis { .. } => "placement_axis",
@@ -810,7 +806,6 @@ pub fn placement_rule_inner_tag(fault: &PlacementRuleFault) -> Option<&'static s
         PlacementRuleFault::CountSpelling { shape } => Some(count_mismatch_tag(shape)),
         PlacementRuleFault::NoPlacements
         | PlacementRuleFault::NonFiniteFrame { .. }
-        | PlacementRuleFault::ImproperFrame { .. }
         | PlacementRuleFault::NonRigidFrame { .. } => None,
     }
 }
@@ -834,6 +829,9 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameInput::Tangent => "degenerate_tangent",
             FrameInput::RollReference => "degenerate_roll_reference",
             FrameInput::ReferenceLadder => "degenerate_reference_ladder",
+            // The mirror normal is the kernel's reflection door's
+            // (`topo::Reflection::across`), which no binding reaches: a
+            // mirror is `Node.mirror`, its plane a pose.
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
         },
         FrameError::NonFiniteLength { input } => match input {
@@ -901,6 +899,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Chamfer => "chamfer",
         C::Boolean => "boolean",
         C::Transform => "transform",
+        C::Mirror => "mirror",
         C::Motion => "motion",
         C::Skin => "skin",
         C::Loft => "loft",
@@ -959,7 +958,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PlacementRuleCountSpelling => "placement_rule_mismatch",
         C::PlacementRuleNoPlacements => "empty_placement_list",
         C::PlacementRuleNonFiniteFrame => "non_finite_placement",
-        C::PlacementRuleImproperFrame => "improper_placement",
         C::PlacementRuleNonRigidFrame => "non_rigid_placement",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
@@ -1001,10 +999,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
         C::MateUnleverable => "mate_unleverable",
         C::MateKindsDiffer => "mate_kinds_differ",
-        C::MateWorldRead => "mate_world_read",
         C::MateSideUnevaluated => "mate_side_unevaluated",
-        C::MateValueNamesNoMate => "mate_value_names_no_mate",
-        C::MateNotAFreedom => "mate_not_a_freedom",
         C::MateNoChart => "mate_no_chart",
         C::CrossingUnverified => "crossing_unverified",
         // A node reading two spaces: its reads, or a placement's mate
@@ -1070,7 +1065,9 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Split(inner) => Some(split_op_error_tag(inner)),
         NodeErrorKind::Blend { error, .. } => Some(blend_error_tag(error)),
         NodeErrorKind::Boolean(inner) => Some(boolean_error_tag(inner.kind())),
-        NodeErrorKind::Transform(inner) => Some(transform_error_tag(inner)),
+        NodeErrorKind::Transform(inner) | NodeErrorKind::Mirror(inner) => {
+            Some(transform_error_tag(inner))
+        }
         NodeErrorKind::Motion(inner) => Some(rigid_motion_error_tag(inner)),
         NodeErrorKind::Skin(inner) => Some(skin_error_tag(inner)),
         NodeErrorKind::Loft(inner) => Some(loft_error_tag(inner)),
@@ -1246,11 +1243,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::ConstraintOnNonPlacement { .. } => None,
         EditError::SpaceMismatch { .. } => None,
         EditError::UnknownConstraint { .. } => None,
-        EditError::MateNamedByValue { .. } => None,
         // Which answer the rule gives twice is the arm.
         EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
-        EditError::ImproperPlacement { .. } => None,
         EditError::NonFinitePlacement { .. } => None,
         EditError::NonRigidPlacement { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
@@ -1889,17 +1884,15 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
 }
 
 /// The stable tag for which freedom a value sets (`Coord`): a slide
-/// along the chart's `x`, `y` or `z`, the spin about the mated
-/// direction, or a spin about the target's own `x`, `y` or `z`.
+/// along, or a spin about, the chart's `x`, `y` or `z`.
 pub fn coord_tag(coord: Coord) -> &'static str {
     match coord {
         Coord::Slide(TargetAxis::X) => "slide_x",
         Coord::Slide(TargetAxis::Y) => "slide_y",
         Coord::Slide(TargetAxis::Z) => "slide_z",
-        Coord::Spin => "spin",
-        Coord::SpinAbout(TargetAxis::X) => "spin_about_x",
-        Coord::SpinAbout(TargetAxis::Y) => "spin_about_y",
-        Coord::SpinAbout(TargetAxis::Z) => "spin_about_z",
+        Coord::Spin(TargetAxis::X) => "spin_x",
+        Coord::Spin(TargetAxis::Y) => "spin_y",
+        Coord::Spin(TargetAxis::Z) => "spin_z",
     }
 }
 
@@ -1907,30 +1900,13 @@ pub fn coord_tag(coord: Coord) -> &'static str {
 /// of `mate_no_chart`.
 pub fn no_chart_why_tag(why: NoChartWhy) -> &'static str {
     match why {
-        NoChartWhy::PointRotation => "point_rotation",
-        NoChartWhy::NoMatedDirection => "no_mated_direction",
-        NoChartWhy::BesideAMate => "beside_a_mate",
-        NoChartWhy::TwoBodies => "two_bodies",
         NoChartWhy::SlideTurnsABall => "slide_turns_a_ball",
     }
 }
 
-/// The stable tag for why a mate's world read is no pose — the inner
-/// arm of `mate_world_read`.
-pub fn world_read_fault_tag(fault: &WorldReadFault) -> &'static str {
-    match fault {
-        WorldReadFault::Role { .. } => "role",
-        WorldReadFault::Along => "along",
-        WorldReadFault::SlidDirection => "slid_direction",
-        WorldReadFault::About => "about",
-        WorldReadFault::FlippedPoint => "flipped_point",
-        WorldReadFault::TooDeep { .. } => "too_deep",
-    }
-}
-
-/// The stable tag for why a copy could not be pinned over its
-/// geometry (`pin_at`, `place_at`): the `EditError.variant` the
-/// "place part" gesture (`Doc.place_at`) raises under.
+/// The stable tag for why a frame could not be read off a copy's
+/// geometry (`corner_frame`): the `EditError.variant`
+/// `Doc.corner_frame` raises under.
 pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
     match refusal {
         PinRefusal::NoNode => "pin_no_node",
@@ -1938,19 +1914,6 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
         PinRefusal::NotABody { .. } => "pin_not_a_body",
         PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
         PinRefusal::NoFrame { .. } => "pin_no_frame",
-        PinRefusal::Band => "pin_band",
-    }
-}
-
-/// The stable tag for how a gesture placed a copy: by the identity
-/// bundle, resting a planar face, on its own axis, or pinned over a
-/// frame read off its geometry.
-pub fn placed_by_tag(by: PlacedBy) -> &'static str {
-    match by {
-        PlacedBy::Identity => "identity",
-        PlacedBy::PlanarFace => "planar_face",
-        PlacedBy::Axis => "axis",
-        PlacedBy::Pin => "pin",
     }
 }
 
@@ -2057,7 +2020,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         // constraint's word for `node_not_minted`.
         SnapshotError::ConstraintNotMinted { .. } => "constraint_not_minted",
         SnapshotError::PlacementNonFinite { .. } => "placement_non_finite",
-        SnapshotError::PlacementImproper { .. } => "placement_improper",
         SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
         SnapshotError::MateRefused { .. } => "mate_refused",
         SnapshotError::PlacementRule { .. } => "placement_rule",
@@ -2634,13 +2596,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
-        InlineError::InstanceOutputUncarried { .. } => "instance_output_uncarried",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
-        InlineError::ConstructionReadsCopy { .. } => "construction_reads_copy",
-        InlineError::PinReadsVariable { .. } => "pin_reads_variable",
-        InlineError::ValueOnAMovedWorld { .. } => "value_on_a_moved_world",
-        InlineError::RepinRefused { .. } => "repin_refused",
-        InlineError::InstanceUnsolved { .. } => "instance_unsolved",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
@@ -2648,6 +2604,20 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::RankedRunReordered { .. } => "ranked_run_reordered",
         InlineError::Edit { .. } => "inline_edit",
+    }
+}
+
+/// The stable tag for why a `flatten` refactoring refused.
+pub fn flatten_error_tag(err: &FlattenError) -> &'static str {
+    match err {
+        FlattenError::UnknownNode { .. } => "unknown_node",
+        FlattenError::NotAPlacement { .. } => "not_a_placement",
+        FlattenError::NotTheIdentity { .. } => "not_the_identity",
+        FlattenError::NotANewSpace { .. } => "not_a_new_space",
+        FlattenError::SpaceShared { .. } => "space_shared",
+        FlattenError::ReadUncarried { .. } => "read_uncarried",
+        FlattenError::BothNamed { .. } => "both_named",
+        FlattenError::Edit { .. } => "flatten_edit",
     }
 }
 
@@ -3436,6 +3406,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
         Maintenance::StrandedSpace { .. } => "stranded_space",
+        Maintenance::ValueDropped { .. } => "value_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }
 }

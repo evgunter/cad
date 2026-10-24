@@ -279,21 +279,18 @@
 //! order and stops at the first one whose lane refuses. So on a body
 //! whose sign settles early the check pays a fraction of the
 //! measurement, and on a body with a refusing face it can pay MORE:
-//! a face whose lane proves after round 0 that no round meets the
-//! reporting target costs the measurement one round, and the check
-//! every round its sign needs. The honest bound is the schedule's own:
-//! at worst every face's whole schedule.
+//! the measurement stops at the first refusing face, and the check
+//! reads every face until its sign settles. The honest bound is the
+//! lanes' own: at worst every face's rounds to its floor or its work
+//! wall.
 //!
 //! **Gating and then measuring costs more than measuring**, and that
 //! is worth knowing before a caller reaches for the continuation as a
 //! saving. On a face that meets the target, the piece evaluations
 //! compose exactly — the gate's rounds plus the continuation's are the
-//! measurement's; a face refused at the budget exit costs the
-//! measurement one round and the gate as many as its sign needs. And
-//! each entry into
+//! measurement's. And each entry into
 //! a face's lane re-derives that face's per-round-independent SETUP
-//! (the derivative grids, the block hulls, the last round's cut lists
-//! and the bound taken from them), so the pair runs 1.3–1.8× one
+//! (the derivative grids, the block hulls), so the pair runs 1.3–1.8× one
 //! measurement's wall time on the bodies measured. Reusing a face's
 //! setup across windows is `work/perf/`'s
 //! `quadrature-setup-is-re-derived-per-round-window`.
@@ -3465,7 +3462,9 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         ),
         // A net closed in `v` whose `v` sections sit in the band's sliver
         // of collapsing: an undecided reading, read as one.
-        M::Escalated { cause, .. } | M::NetStretchUndecided { cause, .. } => {
+        M::Escalated { cause, .. }
+        | M::NetStretchUndecided { cause, .. }
+        | M::OuterSpanPoisoned { cause } => {
             return (
                 CLOSE,
                 geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
@@ -3813,6 +3812,10 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ChartRegionError::DegenerateLoop { .. } => (
             "a face's boundary encloses no definite area at this tolerance (a sliver)",
             "Recourse: widen the face well past the tolerance",
+        ),
+        ChartRegionError::EdgeScale => (
+            crate::chart_region::EDGE_SCALE_REASON,
+            crate::chart_region::EDGE_SCALE_RECOURSE,
         ),
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
@@ -8128,7 +8131,7 @@ fn pinch_corner_errors<T: Decide>(
 
 /// One corner side: the half-edge leaving the point, its edge, and
 /// its departure there.
-type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<geom_core::Vec3<T>>);
+pub(crate) type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<geom_core::Vec3<T>>);
 
 /// [`pinch_corner_errors`] at one point key, whose corners are the
 /// half-edges of `cycle` at the indices `group` carries: the first
@@ -8206,7 +8209,7 @@ fn pinch_corners_at<T: Decide>(
 }
 
 /// The other half of `he`'s edge.
-fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
+pub(crate) fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
     let e = body.edges.get(body.half_edges.get(he)?.edge)?;
     Some(if e.he_plus == he {
         e.he_minus
@@ -8219,7 +8222,7 @@ fn mate<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
 /// edge's extent so a cross product over its length is a lever: a line
 /// by its chord, a conic or spiric arc by its walk tangent there.
 /// `None` for the departure of a NURBS edge, the residue.
-fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
+pub(crate) fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
     let h = body.half_edges.get(he)?;
     let curve = certified_carrier(body, h.edge)?;
     let plus = body.edges.get(h.edge)?.he_plus == he;
@@ -9509,11 +9512,12 @@ pub fn validate_pseudomanifold<
 /// every same-key opposed-sense curved pair, and the record
 /// confirm arm on every patch record whose pair passes Door 1 — each
 /// as [`ValidationError::CensusLaneUnsupported`] naming the pair; and
-/// the crossing rung's backing consult answers `false`, so an in-plane
-/// `EdgeEdgeCross` at a declared seat that [`validate_pseudomanifold`]
-/// reports backed is reported here as
-/// [`ValidationError::UnrecordedContact`], with the declaration in
-/// hand. The declaration is not found wrong; it is not read.
+/// it confirms no face pair, so the planar face-pair arm finds none and
+/// every meeting of the cells bounding a seat is read and reported as
+/// [`ValidationError::UnrecordedContact`] where [`validate_pseudomanifold`]
+/// confirms the seat's pair and lets it answer for those inside its
+/// overlap's closure, with the declaration in hand. The declaration is not found wrong; it is not
+/// read.
 ///
 /// # Errors
 ///
@@ -9521,7 +9525,7 @@ pub fn validate_pseudomanifold<
 /// plus the closed form's typed refusal at check 7, plus the census's
 /// `CensusLaneUnsupported` on every conformal candidate and every
 /// Door-1-verified patch record, and an `UnrecordedContact` on every
-/// crossing a declared pair would have backed.
+/// meeting a confirmed pair would have answered for.
 pub fn validate_pseudomanifold_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
@@ -9952,8 +9956,18 @@ fn edge_endpoints<T: Real>(
     Some((p_start, p_end))
 }
 
+#[cfg(test)]
+std::thread_local! {
+    /// Whole-body tier-1 derivations run on this thread, counted under
+    /// `cfg(test)` (`edge_join::join_door::a_join_sweeps_tier_1_once_however_many_it_joins`).
+    pub(crate) static TIER1_DERIVATIONS: core::cell::Cell<usize> =
+        const { core::cell::Cell::new(0) };
+}
+
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).
 fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
+    #[cfg(test)]
+    TIER1_DERIVATIONS.with(|n| n.set(n.get() + 1));
     let mut errors = Vec::new();
 
     // Reference/ownership counters, filled by pass 1 and consumed by the
@@ -10671,19 +10685,24 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     // records name) are intentionally not tier-1 checks: Euler
     // surgery legitimately rewires neighborhoods mid-sequence, and
     // tier 2 refuses null entities at rest regardless.
-    for (curve_key, entry) in body.curves.iter() {
-        if matches!(entry, CurveGeom::NullScaffold(_)) {
-            let referers = body
-                .edges
-                .values()
-                .filter(|edge| edge.curve == curve_key)
-                .count();
-            if referers >= 2 {
-                errors.push(ValidationError::NullScaffoldShared {
-                    curve: curve_key,
-                    edges: referers,
-                });
-            }
+    let mut referers: SecondaryMap<CurveKey, usize> = body
+        .curves
+        .iter()
+        .filter(|(_, entry)| matches!(entry, CurveGeom::NullScaffold(_)))
+        .map(|(curve_key, _)| (curve_key, 0))
+        .collect();
+    for edge in body.edges.values() {
+        if let Some(n) = referers.get_mut(edge.curve) {
+            *n += 1;
+        }
+    }
+    // A secondary map iterates in slot order: curve-arena order.
+    for (curve_key, &edges) in &referers {
+        if edges >= 2 {
+            errors.push(ValidationError::NullScaffoldShared {
+                curve: curve_key,
+                edges,
+            });
         }
     }
     for (face_key, record) in body.null_faces.iter() {

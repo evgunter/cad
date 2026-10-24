@@ -427,10 +427,13 @@ assert blended.vertex_count == 4
 **A profile is 2-D, and a body has no location.** A profile is drawn
 on its own xy plane and an extrude runs up its own +z, so a
 construction lies in its own coordinates and reads no frame. Where it
-stands is a placement's: `doc.place(body, doc.world, pose=frame)` stands it in the
-world at a `Frame`, and `doc.place_against(target, body, frame)` stands
-it at a frame in `target`'s own coordinates — which is how a body
-joins a boolean with another construction.
+stands is a placement's: `doc.place(body, doc.world, bundle)` stands it in
+the world by its bundle — `Placed.unmated(values)`, a chain of spins
+about the world's axes and the slides along them, each a `MateValue`
+written as its author means it (a quarter turn is
+`Formula.turn_over(4)`) — and `doc.place(body, doc.space(target),
+bundle)` stands it in `target`'s space — which is how a body joins a
+boolean with another construction.
 
 Rigidity is **the door's, not yours**, in Python exactly as in Rust.
 `Frame.point_at(eye, target, roll)` aims the frame's +z from `eye` at
@@ -440,12 +443,13 @@ perpendicular. An aim of zero length, or a reference parallel to it,
 raises `FrameError` rather than building a degenerate frame.
 
 ```python
-from pncad import Doc, Formula, Frame, FrameError, Node, evaluate, m
+from pncad import Coord, Doc, Formula, Frame, FrameError, MateValue, Node, Placed, evaluate, m
 
 doc = Doc()
 # An upright wall: a 2 x 3 sketch extruded 0.25 up its own z, stood in
 # the world on the yz-plane: its x along world +y, its y along world
-# +z, so its own z — the extrusion — is world +x.
+# +z, so its own z — the extrusion — is world +x. A quarter turn about
+# the world's x, then one about its z.
 slab = doc.insert(
     Node.extrude(
         doc.insert(
@@ -461,7 +465,12 @@ slab = doc.insert(
         Formula.length_in(0.25, m),
     )
 )
-wall = doc.place(slab, doc.world, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+quarter = Formula.turn_over(4)
+wall = doc.place(
+    slab,
+    doc.world,
+    Placed.unmated([MateValue(Coord.spin("x"), quarter), MateValue(Coord.spin("z"), quarter)]),
+)
 ev = evaluate(doc)
 assert abs(ev.value(wall).body().mass_properties().volume - 1.5) < 1e-12
 corners = [ev.vertex_position(wall, v) for v in ev.all_vertices(wall)]
@@ -924,7 +933,7 @@ opaque kernel calls.
 The same bracket, the same numbers:
 
 ```python
-from pncad import Doc, Formula, Frame, Node, evaluate, import_step, mm
+from pncad import Coord, Doc, Formula, MateValue, Node, Placed, evaluate, import_step, mm
 
 
 def slab(doc, x, y, z, on=None):
@@ -939,11 +948,11 @@ def slab(doc, x, y, z, on=None):
         )
     )
     body = doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
-    # A body has no location: one that joins `on` stands against it,
-    # `z[0]` up in its coordinates.
+    # A body has no location: one that joins `on` stands in its space,
+    # `z[0]` up that space's z.
     if on is None:
         return body
-    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z[0])))
+    return doc.place(body, doc.space(on), Placed.unmated([MateValue(Coord.slide("z"), z[0])]))
 
 
 doc = Doc()
@@ -1244,15 +1253,17 @@ import math
 
 from pncad import (
     Bulge,
+    Coord,
     CurveKind,
     Doc,
     EntityKind,
     Formula,
     GeomPred,
+    MateValue,
     NamePat,
     Node,
     Open,
-    Frame,
+    Placed,
     Selector,
     Start,
     SurfaceKind,
@@ -1295,14 +1306,20 @@ axis = (
 )
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half)), *axis, Formula.angle_in(2 * math.pi, rad)))
 # A revolve defines two outputs, its body and its axis, so a read of
-# it names which: `doc.output(ball, 0)` is the body. It stands against
-# the cube at a frame whose +y — the pole axis — is the cube's +z,
-# centred over the top face and sunk H into it.
-centre = (0.5 * m, 0.5 * m, (1.0 + R - H) * m)
-pip = doc.place_against(
-    cube,
+# it names which: `doc.output(ball, 0)` is the body. It stands in the
+# cube's space turned a quarter about x, so its +y — the pole axis — is
+# the cube's +z, centred over the top face and sunk H into it.
+pip = doc.place(
     doc.output(ball, 0),
-    Frame.point_at(centre, (0.5 * m, -0.5 * m, (1.0 + R - H) * m), (0.0, 0.0, 1.0)),
+    doc.space(cube),
+    Placed.unmated(
+        [
+            MateValue(Coord.spin("x"), Formula.turn_over(4)),
+            MateValue(Coord.slide("x"), 0.5 * m),
+            MateValue(Coord.slide("y"), 0.5 * m),
+            MateValue(Coord.slide("z"), (1.0 + R - H) * m),
+        ]
+    ),
 )
 pipped = doc.insert(Node.subtract(cube, pip))
 
@@ -1819,7 +1836,7 @@ one identifier) with a `VarNameFault`:
 
 ```
 use pncad::prelude::*;
-use pncad::document::{Bodies, BodyRead, BooleanValue, EditError, Frame, NodeResult, Operand, place_against};
+use pncad::document::{Bodies, BodyRead, BooleanValue, Coord, EditError, NodeResult, Operand, Placed, TargetAxis};
 
 let tol = Tol::witness();
 let lit = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
@@ -1856,8 +1873,8 @@ doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
 // re-evaluation below has a sibling to REUSE. It is drawn in its own
-// coordinates and joins the plate's space by a placement against the
-// plate, 0.125 up the plate's own z.
+// coordinates and joins the plate's space by a placement into it,
+// 0.125 up that space's z.
 let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
     loops: vec![
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
@@ -1868,15 +1885,9 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
 doc = next;
 let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: lit(0.25) });
 doc = next;
-let placed = place_against(
-    &doc,
-    &plate.into(),
-    &tab.into(),
-    &Frame::translation([0.0, 0.0, 0.125]),
-    &EvalOptions::default(),
-    tol,
-)?;
-// The tab's copy is placed into the plate's space, which the mate reads.
+// The one bundle constructor: the slide its author writes, and the
+// constant zero on every freedom left unnamed.
+let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), lit(0.125))]);
 let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
 let (next, tab_on_plate) = insert(
     &doc,
@@ -1911,18 +1922,17 @@ let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(
 assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
 // One `DefineVar` moves BOTH holes; the tab's own branch never
-// re-runs. Its placement does: it is placed against the plate's
-// geometry, so it reads the plate.
+// re-runs, its placement included: it reads the plate's space, not
+// the plate's geometry.
 let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
     fresh: Vec::new(),
 }, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
-assert_eq!(ev2.recomputed, 4); // the profile, the plate, the tab's
-                               // placement, the union
-assert_eq!(ev2.reused, 2);     // the tab's profile and extrude, by
-                               // content key
+assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
+assert_eq!(ev2.reused, 3);     // the tab's profile, extrude and
+                               // placement, by content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
 
 // The holes were authored by NAME and are stored by IDENTITY: the

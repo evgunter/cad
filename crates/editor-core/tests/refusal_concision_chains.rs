@@ -275,7 +275,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "InstanceOutOfRange",
     "PlacementsUncertified",
     "PlacementRule/CountSpelling",
-    "PlacementRule/ImproperFrame",
     "PlacementRule/NoPlacements",
     "PlacementRule/NonFiniteFrame",
     "PlacementRule/NonRigidFrame",
@@ -820,7 +819,6 @@ test_utils::f6_variants! {
         CountSpelling,
         NoPlacements,
         NonFiniteFrame,
-        ImproperFrame,
         NonRigidFrame,
     ];
 }
@@ -836,7 +834,7 @@ test_utils::f6_variants! {
     /// an arm added to the enum stops this compiling until it is here.
     const NODE_ERROR_KIND: NodeErrorKind = [
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
-        Boolean, Transform, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
+        Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
         ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
         UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
@@ -1273,9 +1271,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         NodeErrorKind::PoseRead { .. }
         | NodeErrorKind::Mate(_)
         | NodeErrorKind::SpaceMismatch { .. } => Forward::Unwelded(UNWELDED_HELD),
-        NodeErrorKind::Part { .. } | NodeErrorKind::Transform(_) | NodeErrorKind::Motion(_) => {
-            Forward::Unwelded(UNWELDED_PLACEMENT)
-        }
+        NodeErrorKind::Part { .. }
+        | NodeErrorKind::Transform(_)
+        | NodeErrorKind::Mirror(_)
+        | NodeErrorKind::Motion(_) => Forward::Unwelded(UNWELDED_PLACEMENT),
         NodeErrorKind::CurvedSolidFrontier { .. }
         | NodeErrorKind::MissingInput { .. }
         | NodeErrorKind::UnresolvedRead { .. }
@@ -2872,10 +2871,19 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "ApproxLaneUnsupported",
             E::ApproxLaneUnsupported { scalar: "interval" },
         ),
-        ("Corrupt", E::Corrupt { what: "face" }),
+        (
+            "Corrupt",
+            E::Corrupt {
+                found: "a vertex references a missing point",
+            },
+        ),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
+    .chain([row(
+        "Mirror/NurbsPlaceholder",
+        NodeErrorKind::Mirror(E::NurbsPlaceholder),
+    )])
     .chain(certify_refusal_routes())
     .chain(offset_fit_routes())
     .collect()
@@ -4522,13 +4530,6 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             PlacementRuleFault::NonFiniteFrame { index: 2 },
         ),
         (
-            "ImproperFrame",
-            PlacementRuleFault::ImproperFrame {
-                index: 2,
-                determinant: -1.0,
-            },
-        ),
-        (
             "NonRigidFrame",
             PlacementRuleFault::NonRigidFrame {
                 index: 2,
@@ -5315,9 +5316,7 @@ fn part_products_forwarding() -> Vec<(String, NodeErrorKind)> {
 }
 
 fn mate() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::{
-        Coord, DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, TargetAxis, VarKind,
-    };
+    use editor_core::{DocumentId, LeverRefusal, MateFault as M, MateSide, NoChartWhy, VarKind};
     let n = |id| RecipeNodeId::new(0, tagged(id));
     let c = |id: u32| editor_core::ConstraintId(editor_core::MintId::new(id, 0));
     // Constraint `id` of placement 7, the copy every row's bundle places.
@@ -5349,42 +5348,10 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "WorldRead",
-            M::WorldRead {
-                mate: r(9),
-                fault: editor_core::WorldReadFault::Role {
-                    role: editor_core::pose::PoseRole::Normal,
-                    found: VarKind::Frame,
-                },
-            },
-        ),
-        (
-            "ValueNamesNoMate",
-            M::ValueNamesNoMate {
-                value: r(9),
-                mate: c(8),
-            },
-        ),
-        (
-            "NotAFreedom",
-            M::NotAFreedom {
-                value: r(9),
-                coord: Coord::Slide(TargetAxis::Z),
-                kind: VarKind::Plane,
-            },
-        ),
-        (
             "NoChart",
             M::NoChart {
                 value: r(9),
-                why: NoChartWhy::PointRotation,
-            },
-        ),
-        (
-            "NoChart/TwoBodies",
-            M::NoChart {
-                value: r(9),
-                why: NoChartWhy::TwoBodies,
+                why: NoChartWhy::SlideTurnsABall,
             },
         ),
         (

@@ -2,12 +2,14 @@
 id: census-face-rungs-for-a-collinear-overlap-are-unconfined
 kind: issue
 title: The census's face rungs for an edge–edge overlap, ee_face_backed and vv_face_backed, back by structural incidence and are scheduled for no migration
-status: parked
+status: closed
 opened: 2026-10-11
 priority: P3
 cost: M
 refs: [ef-bound-backed-migrates-to-region-confinement, declared-only-meetings-clear-at-the-census-gate-unread]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+closed: 2026-10-23
+pr: 5605
+branch: intent/census-planar-face-pair
 ---
 
 ## What
@@ -47,3 +49,19 @@ at-rest findings, which INTENT stages 4 and 5 rebuild. Per RESTREAD's
 plan (a row needing declared pairs or contact parks and moves to
 CONTACTHOLD), it moved here by `git mv` with its id unchanged. Priced
 `M` where it carried no cost. (RESTREAD orchestrator)
+
+## Closed (2026-10-23, PR 5605)
+
+Overtaken by INTENT's by-location confinement (`docs/DESIGN.md`
+`[assertions]`, Ev on PR 5605). `ee_face_backed` and `vv_face_backed`
+are gone. A collinear overlap and its bounds are now the confirmed
+pair's only where they lie in the closure of the pair's overlap
+(`census.rs` `Declared::confine` in `pair_edge_edge`, `Declared::holds`
+in `ee_bound_backed`), and the pair is confirmed only where both doors
+answer (`Declared::confirm`). That is stronger than the Done-when's
+`PositiveArea` gate. The line-contact row it cites is now
+`m9_c1_rest_face_rung::the_rung_backs_no_event_outside_the_declared_pairs_overlap_region`.
+The location rows are `review_intent_census_r1_probes` and
+`review_census_r2_probes`, including a collinear run outside a
+non-convex overlap.
+

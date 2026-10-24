@@ -2833,7 +2833,7 @@ pub(crate) mod tests {
             .body;
         for (_, face) in body.faces() {
             if let Some(geom::Surface::Nurbs(p)) = body.get_surface(face.surface)
-                && p.weights().iter().any(|w| *w != 1.0)
+                && p.constant_weight().is_none()
             {
                 return (**p).clone();
             }
@@ -2981,42 +2981,46 @@ pub(crate) mod tests {
         }
     }
 
-    /// The rational dust re-derivation (the
-    /// `planar_bilinear_bounds_collapse` class, rational arm): a flat
-    /// bilinear patch with UNIFORM weight `1/2` and zero twist is
-    /// bitwise rational but geometrically the same flat quad (constant
-    /// weights cancel in ℝ), so every true second partial is zero.
-    ///
-    /// All three sups are the EXACT zero, and that is a proof rather
-    /// than a cancellation: the rational arm cuts its pieces from the
-    /// described net and forms each second-order numerator
-    /// (`geom_core::spline::derivative`, "The second order") in
-    /// interval arithmetic, and on this description — dyadic points,
-    /// weight `1/2`, dyadic piece ends — every operation is exact, so
-    /// each coefficient is the exact zero it is in ℝ. The row used to
-    /// bracket `muv` above a floor, because the rational arm refined
-    /// the net first and the refinement's width was the honest answer;
-    /// there is no refinement on this arm now, so there is no width for
-    /// a floor to guard.
+    /// **A uniform weight is the integral arm's** (the
+    /// `planar_bilinear_bounds_collapse` class): a bilinear patch with
+    /// UNIFORM weight (`1/2`, `3`, `0.1`) is the polynomial bilinear on
+    /// its net (`NurbsSurface::constant_weight`), so it takes
+    /// the integral arm and its bound is the unit-weight patch's to the
+    /// bit. On the flat net with zero twist every second-partial sup is
+    /// the exact zero; on the twisted net (`z` lifted at one corner) the
+    /// pair agreeing is what goes red where a uniform weight is read as
+    /// rational, whose arm bounds the same patch through the quotient.
     #[test]
-    fn rational_uniform_weight_bilinear_dust() {
+    fn a_uniform_weight_bilinear_bounds_as_its_unit_twin() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
-        let control = vec![
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(0.0, 1.0, 0.0),
-            Point3::new(1.0, 0.0, 0.0),
-            Point3::new(1.0, 1.0, 0.0),
-        ];
-        let s = NurbsSurface::new(kv.clone(), kv, control, vec![0.5; 4]).unwrap();
-        let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
+        let net = |z: f64| {
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, z),
+            ]
+        };
+        let bound = |z: f64, w: f64| {
+            let s = NurbsSurface::new(kv.clone(), kv.clone(), net(z), vec![w; 4]).unwrap();
+            nurbs_face_bound(&s, FaceKey::default()).unwrap()
+        };
+        let bits = |b: &NurbsFaceBound| [b.muu, b.muv, b.mvv, b.mu1, b.mv1].map(f64::to_bits);
+        for z in [0.0, 0.7] {
+            let unit = bound(z, 1.0);
+            for c in [0.5, 3.0, 0.1] {
+                let b = bound(z, c);
+                assert_eq!(
+                    bits(&b),
+                    bits(&unit),
+                    "z = {z}: weight {c} ({b:?}) is not the unit-weight patch's bound ({unit:?})"
+                );
+            }
+        }
+        let b = bound(0.0, 0.5);
         assert!(
             b.muu == 0.0 && b.muv == 0.0 && b.mvv == 0.0,
-            "every coefficient of every second-order numerator is exact on this \
-             description, so each sup is the exact zero: muu {:.17e}, muv {:.17e}, \
-             mvv {:.17e}",
-            b.muu,
-            b.muv,
-            b.mvv
+            "a flat bilinear's second partials are the exact zero: {b:?}"
         );
         let (hu, hv) = b.grid_steps(1e-3);
         assert!(hu > 1e3 && hv > 1e3, "flat stays effectively unconstrained");
@@ -3368,21 +3372,21 @@ pub(crate) mod tests {
         // build the product is a 75-second row, which is not what this
         // claim is worth.
         //
-        // **Every pattern is RATIONAL, and that is load-bearing.**
-        // `patch_bound::is_rational` is `any weight != 1.0` on the bit
-        // pattern, so an all-`1.0` pattern takes the INTEGRAL arm —
-        // which never refines at `patch_cells` and is not this stratum
-        // at all. One sat here and it was the pattern whose ratio this
-        // row printed as its worst, so the printed number was about the
-        // wrong arm. The integral arm's own domination rows are
+        // **Every pattern is RATIONAL, and that is load-bearing.** A
+        // constant pattern, `1.0` or any other, takes the INTEGRAL arm
+        // (`NurbsSurface::constant_weight`) — which never refines at
+        // `patch_cells` and is not this stratum at all. One sat here and
+        // it was the pattern whose ratio this row printed as its worst,
+        // so the printed number was about the wrong arm. So each
+        // decade's coinciding corners are taken one ulp apart. The integral arm's own domination rows are
         // `planar_bilinear_bounds_collapse` and
         // `twisted_bilinear_mixed_term_is_tight`; the near-unit pattern
         // below is what reaches the rational arm nearest to unit
         // weights.
         const WEIGHTS: [[f64; 4]; 6] = [
-            [1.0e-2, 1.0e-2, 1.0e-2, 1.0e-2],
+            [1.0e-2f64.next_up(), 1.0e-2, 1.0e-2, 1.0e-2],
             [1.0 + f64::EPSILON, 1.0, 1.0, 1.0],
-            [1.0e2, 1.0e2, 1.0e2, 1.0e2],
+            [1.0e2f64.next_up(), 1.0e2, 1.0e2, 1.0e2],
             [1.0e-2, 1.0, 1.0e2, 1.0],
             [1.0e2, 1.0e-2, 1.0e-2, 1.0e2],
             [1.03e-2, 1.07e-2, 1.35e-2, 1.24e-2],
@@ -3939,7 +3943,7 @@ pub(crate) mod tests {
     pub(crate) fn whole_net_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
         use geom_core::spline::{Derived, TensorCoeffs, TensorNet};
         assert!(
-            !patch_bound::is_rational(s),
+            s.constant_weight().is_some(),
             "the whole-net spelling is the integral arm's; a rational face has no such arm"
         );
         let (kv_u, kv_v) = (s.knots_u_f64_interim(), s.knots_v_f64_interim());

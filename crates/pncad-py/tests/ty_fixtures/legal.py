@@ -29,7 +29,6 @@ from pncad import (
     AngleUnit,
     ArcSweep,
     Assembly,
-    WorldRead,
     Bulge,
     ClosedLoop,
     CancelToken,
@@ -58,6 +57,7 @@ from pncad import (
     PersistError,
     StlError,
     DocRef,
+    FlattenOutcome,
     InlineOutcome,
     InterfaceRecord,
     EntityKind,
@@ -133,6 +133,7 @@ from pncad import (
     import_step,
     load,
     header_document_id,
+    flatten,
     inline,
     m,
     mixed_pins,
@@ -192,15 +193,17 @@ disc = circle((0 * mm, 0 * mm), 10 * mm)
 doc = Doc()
 plate = doc.insert(Node.extrude(doc.insert(Node.profile(rounded)), Formula.length_in(8, mm)))
 # A construction lies on its own xy and goes up its own z; where it
-# stands against another body is a placement at a FRAME in that body's
-# own coordinates.
+# stands beside another body is a placement into that body's space,
+# by values on the space's axes.
 hole_body = doc.insert(Node.extrude(doc.insert(Node.profile(disc)), Formula.length_in(10, mm)))
-hole: NodeId = doc.place_against(plate, hole_body, Frame.translation((0 * mm, 0 * mm, -1 * mm)))
+plate_space: Var | None = doc.space(plate)
+assert plate_space is not None
+hole: NodeId = doc.place(hole_body, plate_space, Placed.unmated([MateValue(Coord.slide("z"), -1 * mm)]))
 lightened = doc.insert(Node.subtract(plate, hole))
 volume: float = evaluate(doc).value(lightened).body().mass_properties().volume
 
 # A profile is 2-D: its points are length pairs on its own xy, and a
-# world placement stands the construction where it goes, at a frame.
+# world placement stands the construction where it goes, by values.
 upright: NodeId = doc.insert(
     Node.extrude(
         doc.insert(
@@ -216,7 +219,7 @@ upright: NodeId = doc.insert(
     )
 )
 stood: NodeId = doc.place(
-    upright, doc.world, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
+    upright, doc.world, Placed.unmated([MateValue(Coord.spin("y"), Formula.turn_over(4))])
 )
 sideways: NodeId = doc.insert(Node.extrude(doc.insert(Node.profile(circle((0 * m, 0 * m), 1 * m))), Formula.length_in(4, m)))
 
@@ -336,12 +339,12 @@ through_edge: PoseDef = PoseDef.through(
 )
 pose_cut: NodeId = doc.insert(Node.split(plate, inset))
 
-# A rigid placement: rotate about an axis through the world origin,
-# then translate — a world placement at that frame.
+# A rigid placement: a spin about the world's z, then a slide — the
+# values on the world's axes, written whole.
 placed: NodeId = doc.place(
     plate_with_holes,
     doc.world,
-    pose=Frame.rotate_then_translate((0.0, 0.0, 1.0), 90 * deg, (0 * m, 0 * m, 2 * m)),
+    Placed.unmated([MateValue(Coord.spin("z"), 90 * deg), MateValue(Coord.slide("z"), 2 * m)]),
 )
 
 # LIB-PYSEL: the selector language, typed. The diecomposed filters —
@@ -465,7 +468,6 @@ here: Frame = Frame.translation((0 * m, 0 * m, 0 * m))
 turned: Frame = Frame.rotate_then_translate((0.0, 0.0, 1.0), 90 * deg, (1 * m, 0 * m, 0 * m))
 aimed: Frame = Frame.point_at((0 * m, 0 * m, 0 * m), (0 * m, 0 * m, 1 * m), (0.0, 1.0, 0.0))
 swept: Frame = Frame.path_start_frame((0 * m, 0 * m, 0 * m), (1.0, 0.0, 0.0))
-flipped: Frame = Frame.mirror_across_plane((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0))
 frame_origin: tuple[Length, Length, Length] = here.origin
 frame_det: float = here.determinant
 
@@ -545,16 +547,15 @@ crossings: int = both.part_evaluations
 # two copies meet, and the gate says whether the result is valid at
 # rest.
 instance: NodeId = doc.insert(Node.instantiate_part(reference, doc.world))
-gesture: Placed = doc.pin(instance, here, resolver=store)
-gesture_by: str = gesture.by
-gesture_values: list[MateRef] = gesture.values
+gesture: Placed = Placed.identity()
+gesture_values: list[MateValue] = gesture.values
+gesture_entries: list[Mate | MateValue] = gesture.bundle()
 aside: NodeId = doc.new_space(label="aside")
 aside_instance: Node = Node.instantiate_part(reference, aside)
 space_node: Node = Node.space()
 in_space: Var | None = doc.space(instance)
 repinned: DocEdit = DocEdit.update_reference(instance, pin)
-placed: NodeId = doc.place(sideways, doc.world, pose=here, label="the post")
-placed_at: Placed = doc.place_at(sideways, here)
+placed: NodeId = doc.place(sideways, doc.world, gesture, label="the post")
 twice: NodeId = doc.place([sideways, sideways], doc.world)
 world: list[NodeId] = doc.placements()
 the_world: NodeId = doc.world
@@ -567,31 +568,28 @@ carried_reference: DocRef | None = doc.reference(instance)
 seam_record: InterfaceRecord | None = doc.interface(instance)
 after_edit: list[Maintenance] = doc.last_maintenance
 
-# The authored mate: two poses of one kind, a pose of the world read
-# inside the mate, and the values that set what it leaves free.
-floor: WorldRead = WorldRead.through("xy").flip()
-raised: WorldRead = floor.slide(WorldRead.through("z"), 1 * m)
-spun_world: WorldRead = WorldRead.frame().spin(WorldRead.through("z"), 90 * deg).role("xy")
-floor_kind: str | None = floor.kind
+# The authored mate: two poses of one kind, each read off geometry,
+# and the values that set what the mates leave free.
+floor: PoseDef = PoseDef.flip(PoseDef.plane(plate, "c-name"))
 mate: Mate = Mate(PoseDef.plane(instance, "a-name"), floor, ContactClass.Rest)
 between: Mate = Mate(
     PoseDef.plane(instance, "a-name"), PoseDef.flip(PoseDef.plane(sideways, "b-name")), ContactClass.Rest
 )
 mate_class: ContactClass = mate.class_
 mate_on: PoseDef = mate.on
-mate_to: PoseDef | WorldRead = mate.to
+mate_to: PoseDef = mate.to
 pinned_on: DocEdit = DocEdit.add_constraint(instance, mate)
 placer: Node = Node.place(
-    sideways, doc.world, [mate, MateValue(0, Coord.slide("x"), 0.1 * m)]
+    sideways, doc.world, [mate, MateValue(Coord.slide("x"), 0.1 * m)]
 )
-rewritten: list[MateRef] = doc.set_constraints(instance, [mate, MateValue(0, Coord.spin(), 0)])
+rewritten: list[MateRef] = doc.set_constraints(instance, [mate, MateValue(Coord.spin("z"), 0)])
 rewrite: DocEdit = DocEdit.set_constraints(instance, [mate])
+bundled: Placed = Placed.of(doc, [mate], [MateValue(Coord.slide("x"), 0.1 * m)])
+rebundled: DocEdit = DocEdit.set_constraints(instance, bundled)
+unmated: Placed = Placed.unmated([MateValue(Coord.spin("x"), Formula.turn_over(4))])
 joint: MateRef = doc.constrain(instance, mate)
-slide_x: MateRef = doc.add_value(joint, Coord.slide("x"), 0.1 * m)
-spun: MateRef = doc.add_value(joint, Coord.spin(), 90 * deg)
-set_value: MateValue = MateValue(joint, Coord.slide("y"), 0)
-set_by_id: MateValue = MateValue(joint.constraint, Coord.spin(), 0)
-value_edit: DocEdit = DocEdit.add_value(instance, set_value)
+freed: list[MateRef] = doc.remove_mate(joint)
+set_value: MateValue = MateValue(Coord.slide("y"), 0)
 value_coord: str = set_value.coord.variant
 
 # The solve's read side, and the admission table a tool asks first.
@@ -613,6 +611,9 @@ declared: int = len(checked.minted)
 # The refactorings and the pin-update door.
 cut: SplitOutcome = split(doc, [instance], minted)
 spliced: InlineOutcome = inline(cut.remainder, cut.instance, store)
+inlined_at: NodeId = spliced.placement
+inlined_into: Var = spliced.space
+flattened: FlattenOutcome = flatten(spliced.doc, spliced.placement)
 lint: list[PinMultiplicity] = mixed_pins(doc)
 moves: list[DocEdit] = update_references(doc, doc.id, pin)
 to_store: list[DocEdit] = store.update_to_store(doc, doc.id)
@@ -884,7 +885,6 @@ except EditError as edit_refusal:
     again_at: int | None = edit_refusal.again
     refused_eps: float | None = edit_refusal.value
     refused_value: float | int | None = edit_refusal.offered
-    det: float | None = edit_refusal.determinant
     address: tuple[int, ...] | None = edit_refusal.path
     inside_meta: str | None = edit_refusal.value_path
     already: ContentPin | None = edit_refusal.pin

@@ -815,6 +815,27 @@ geometry conversation, of the same kind `scripts/k_probe_sweep.sh`
 declines when it keeps the M2 corpus beside the linted CSV rather than
 inside it.
 
+**Retirement (2026-10-22): `props_quad_last_round`, and the gate that
+kept the ruling above honest.** The quadrature lanes know no target
+(`[tolerance.measure]`, `docs/QUAD-MEASURE-SPEC.md` unit A): a lane
+stops at its floor or its work wall and no lane bounds a round it will
+not run, so the budget exit that minted this name is gone and nothing
+mints it. The ruling above was `k_lint::EPS_COUPLED_UNRULED`'s one
+entry, so the list went with it, together with the CLI's gate on an
+unruled name's rows and the three rows that pinned the ruling
+(`an_unruled_eps_coupled_row_*` in `tests/cli_contract.rs`,
+`the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from`
+and `an_unruled_eps_coupled_margins_positive_side_is_loud_under_rule_3_at_the_tight_rows`).
+A future ε-coupled name ruled off rule (4) brings that machinery back
+with its own reason. `props_quad_converged` stays on the roster: it is
+minted now by `topo`'s interim reporting adapter
+(`crates/topo/src/props/quad_lane.rs`, `to_target`), which reads the
+target the lanes no longer do, and the roster pin reads that source
+beside `props/quad.rs`. Its margin and band are the ones the lanes
+minted it with, and a face that meets the target records the same
+samples; a face that cannot now records one at every round to its
+lane's stop, where the budget exit ended it after round 0.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_walk::ParityRows` value, the carrier this document already
@@ -3215,3 +3236,17 @@ name and so the same at main (`curve_pair_pose_parallel`, `curve_pair_pose_clear
 `curve_pair_pose_travel` on demo/projectbox_cutaway, `bool_pair_gap` on
 demo/tiltedcut), and the nightly's sweep stops before it in the
 plain-suite prelude, so these figures are a local reading.
+
+## CHART addendum (2026-10-24): `chart_bound_outer_span` decides at Probe
+
+The outer-span margin is now read off each envelope's `reach` (the
+pcurve's `chart_box`, finite at every scalar), not off its `image`,
+which is poison at a point scalar
+(`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+Measured at ε = 1e-9 with the Band 4 corpus and the tour scenes, main
+against the branch: all 41 `chart_bound_outer_span` samples move from
+`invalid`/`NaN` to `negative`, with margins between −0.236 m and
+−29.1 m, far outside the band. The sample count (3,437,597) is
+identical, no other row differs, and rule 1 falls from 43 to 2 (the
+two `props_quad_converged` indeterminates).
+

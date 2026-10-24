@@ -295,7 +295,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "OperandKeys": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Cell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Origin": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "Placed": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "Map": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     # `topo::coincidence::Relation`, reachable through `document::coincidence`;
     # the `Relation` `document` carries by name is `editor_core`'s.
     "Relation": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
@@ -800,8 +800,8 @@ class Resolver:
     of the module the `use` is written in (which shadows a crate of the same
     name); its middle segments are modules; and its last segment is a type the target module declares, or one a `pub use`
     there re-exports by that name (followed in turn), or one a `pub use …::*`
-    there globs in. This is what tells `editor_core::Placed` — re-exported from
-    `mate::pin` — from the `Placed` that `coincide` declares beside it.
+    there globs in. This is what tells a name one module re-exports from
+    another declared under the same word elsewhere in the crate.
     """
 
     def __init__(self, root: Path, crates: dict[str, Path], index: dict[str, list[Decl]]):

@@ -58,8 +58,10 @@ fn overlaps_on(errors: &[ValidationError], face: FaceKey) -> Vec<String> {
         .collect()
 }
 
-/// Bare, the seat reports each resting stretch at a point inside the
-/// face it rests in: the shelf edge on the cap between the cap's two
+/// Bare, the certified census records the seat as one face pair, which
+/// answers for its boundary's touches. Read where no pair can be confirmed
+/// (the structural twin holds no region door), the seat reports each
+/// resting stretch at a point inside the face it rests in: the shelf edge on the cap between the cap's two
 /// sides (`x = 0.2`), the cap's lower edge on the underside, and each
 /// cap side edge on the underside from its lower corner up to the shelf
 /// edge (`y = 0.25`) — never a stretch's far part outside the face, and
@@ -67,7 +69,20 @@ fn overlaps_on(errors: &[ValidationError], face: FaceKey) -> Vec<String> {
 #[test]
 fn the_bare_lap_seat_reports_each_stretch_inside_its_face() {
     let (body, cap, underside) = lap_seat();
-    let found = errors(&body, &ContactRecords::default());
+    let certified = errors(&body, &ContactRecords::default());
+    assert!(
+        matches!(
+            certified.as_slice(),
+            [ValidationError::UnrecordedContact {
+                contact: CensusContact::ConformalPatch { .. },
+                ..
+            }]
+        ),
+        "{certified:?}"
+    );
+    let found =
+        topo::validate_pseudomanifold_structural(&body, &ContactRecords::default(), Tol::witness())
+            .unwrap_err();
     assert_eq!(
         overlaps_on(&found, cap),
         vec!["(0.19999999999999996, 0.3, 0.5)".to_owned()],

@@ -6,12 +6,13 @@
 //! flux/area lie INSIDE the returned brackets, or the call refuses
 //! typed. A returned bracket that EXCLUDES the truth is the failure.
 //!
-//! **The refusals are held to a contract too** — they are not merely
-//! printed. Each one must be a typed outcome this lane is allowed to
-//! produce, must carry a FINITE width that really missed the run's own
-//! `1024·ε` target, and must land on the carrier's PINNED floor (the
-//! refinement schedule is fixed by D9, so only the target moves with
-//! ε). A probe that only prints its `Err` asserts nothing: that is how
+//! **The non-answers are held to a contract too** — they are not merely
+//! printed. A lane that stops short of the target must stop at its own
+//! floor or work wall, still contain the truth, carry a FINITE width
+//! that really missed the run's own `1024·ε` target, and land on the
+//! carrier's PINNED width (neither stop moves with ε, only the target
+//! does); a refusal must be a typed outcome this lane is allowed to
+//! produce. A probe that only prints its `Err` asserts nothing: that is how
 //! a convergence meter dividing by a cancelled lever reported an `inf`
 //! displacement — for a flux enclosure that was still narrowing —
 //! through eight rounds and two ε rows of a green suite.
@@ -23,13 +24,16 @@
     clippy::useless_vec
 )]
 
+use crate::shared::patch::{Unmet, at_target, patch_net, to_target};
 use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
-use geom_brep::props::quad::nurbs_patch_face;
+use geom_brep::props::quad::{
+    LaneEnd, LaneRun, QUAD_TARGET_LEN_FACTOR, mean_boundary_displacement, nurbs_patch_face,
+};
 use geom_core::Bounds;
+use geom_core::Interval;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{ErrorTextReading, Interval};
 
 use crate::shared::patch::{dbasis_over, dense_over};
 use crate::shared::ring::p3 as p;
@@ -46,12 +50,6 @@ fn overshoot_ulps(lo: f64, hi: f64, v: f64) -> f64 {
     ((lo - v).max(v - hi).max(0.0)) / (mag * f64::EPSILON)
 }
 
-/// The engine's convergence target as a multiple of ε
-/// (`QUAD_TARGET_LEN_FACTOR`, crate-private — mirrored here, once for
-/// the aggregated binary, so a refusal's carried target can be checked
-/// against the run's ε).
-pub(crate) const TARGET_LEN_FACTOR: f64 = 1024.0;
-
 /// The corpus's declared ambient uncertainty — the ε the fixed
 /// quadrature schedule (D9) is dimensioned for, and the boundary the
 /// ε-keyed anti-vacuity claim below is pinned against (`quad.rs`'s own
@@ -61,72 +59,68 @@ const CORPUS_EPS: f64 = 1e-9;
 // ---------------------------------------------------------------
 // The measured refusal floors, one per carrier.
 //
-// Each is the mean boundary displacement (m) the fixed schedule (D9)
-// bottoms out at for that carrier — the number a
-// `PropsError::QuadratureBudget` carries when the run's `1024·ε`
-// target sits below it. The SCHEDULE is fixed and only the target
-// moves with ε, so these are ε-independent: measured identical on the
-// 1e-9 and 1e-12 rows. A carrier whose floor is under the run's
-// target certifies instead, and the pin stands down (see `pin_floor`).
+// Each is the mean boundary displacement (m) of the narrowest
+// enclosure the lane reaches for that carrier before it stops, at its
+// floor or its work wall — the width it hands back when the run's
+// `1024·ε` target sits below it. Neither stop moves with ε, only the
+// target does, so these are ε-independent. A carrier whose floor is
+// under the run's target certifies instead, and the pin stands down
+// (see `pin_floor`).
 //
 // They are pinned because "it refused, typed" is a contract a broken
 // engine also satisfies: without a number, a refusal that got 10×
 // worse still reads as green.
 // ---------------------------------------------------------------
 
-// Every floor but the C0 kink's is set by the flux's Taylor remainder,
-// whose `f_uu`/`f_vv` hulls are the quotient statement's
-// (`geom_core::spline::cell_measure_quotients`). The kink wall's is set
-// by the cells beside its kink.
+// Every width below is set by the flux's Taylor remainder, whose
+// `f_uu`/`f_vv` hulls are the quotient statement's
+// (`geom_core::spline::cell_measure_quotients`), at the round the
+// lane's work wall stops it: the composite arm's round 7, the exact-v
+// arm's round 10 (`props::quad`'s `FACE_WORK_WALL`).
 
-/// Möbius-reparameterized quarter cylinder (weight ratio 100).
-const MOEBIUS_FLOOR: f64 = 2.015_259_398_904e-6;
-/// Warped bilinear with 1e-1/1e1 weights.
-const HYPAR_FLOOR: f64 = 1.295_834_045_203e-5;
-/// Quarter torus, R = 2 m, r = 0.5 m.
-const QUARTER_TORUS_FLOOR: f64 = 4.648e-8;
-/// Two-span half cylinder, r = 1 m, h = 2 m: under the DEFAULT ε's
-/// 1.024e-6 m target by 38×.
-const HALF_CYLINDER_FLOOR: f64 = 2.688e-8;
+/// Möbius-reparameterized quarter cylinder (weight ratio 100), exact-v.
+const MOEBIUS_FLOOR: f64 = 3.149_977_622_964e-8;
+/// Warped bilinear with 1e-1/1e1 weights. Round 7's own width: the
+/// 1.295834045203e-5 that stood here was the budget exit's lower bound
+/// on it, as for [`QUARTER_TORUS_FLOOR`] (4e-6 relative wider).
+const HYPAR_FLOOR: f64 = 1.295_839_630_913e-5;
+/// Quarter torus, R = 2 m, r = 0.5 m. Round 7's own width: a pin of
+/// 4.648e-8 stood here while the budget exit refused this carrier, and
+/// that was the exit's lower bound on round 7's width, which omits the
+/// midpoint sum's own width — round 7's enclosure is the same.
+const QUARTER_TORUS_FLOOR: f64 = 4.687_047_770_243e-8;
 /// Bilinear unit square with a 1e-3/1e3 weight spread: the enclosure
 /// is uselessly wide, but it is a WIDTH rather than a degeneracy (see
-/// the row for why).
-const SQUARE_FLOOR: f64 = 6.357_819_236_722e5;
-/// C0-kink extruded wall (5 m profile).
-const C0_KINK_FLOOR: f64 = 4.785e-4;
-/// Unit sphere octant (degenerate pole row).
-const SPHERE_OCTANT_FLOOR: f64 = 2.907e-8;
+/// the row for why). Round 7's own width: the 6.357819236722e5 that
+/// stood here was the budget exit's lower bound on it, as for
+/// [`QUARTER_TORUS_FLOOR`] (1e-9 relative wider).
+const SQUARE_FLOOR: f64 = 6.357_819_244_047e5;
+/// Unit sphere octant (degenerate pole row). Round 7's own width; the
+/// 2.907e-8 that stood here was the budget exit's lower bound on it, as
+/// for [`QUARTER_TORUS_FLOOR`].
+const SPHERE_OCTANT_FLOOR: f64 = 2.920_125_725_497e-8;
 /// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
 /// with the part (1e3 × the metre-scale quarter cylinder's).
-const HUGE_CYLINDER_FLOOR: f64 = 3.352_413_123_990e-6;
-/// The outcomes a probe is allowed to have on the run's ε — three
+const HUGE_CYLINDER_FLOOR: f64 = 5.996_463_398_199e-8;
+/// The outcomes a probe is allowed to have on the run's ε — two
 /// honest postures plus the degenerate-face refusal, which is sound
 /// but is a capability gap and so is pinned per carrier.
 ///
 /// This is `quad.rs`'s own `eps_posture` contract, ported: the target
-/// is `1024·ε` while the refinement schedule is FIXED (D9), so the
-/// same patch that certifies at ε = 1e-6 genuinely cannot at
-/// ε = 1e-12. A probe that merely PRINTS its refusal asserts nothing
-/// about it — that is how an `inf` width and a mis-typed escalation
-/// rode along under this suite for two ε rows.
+/// is `1024·ε` while the lane's floor and work wall do not move with
+/// ε, so the same patch that certifies at ε = 1e-6 genuinely cannot at
+/// ε = 1e-12. A probe that merely PRINTS its non-answer asserts
+/// nothing about it — that is how an `inf` width and a mis-typed
+/// escalation rode along under this suite for two ε rows.
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Posture {
     /// The enclosure certified — and contains every truth in hand
     /// (checked in the `Ok` arm of [`probe`]).
     Certified,
-    /// [`PropsError::QuadratureBudget`]: the fixed schedule's floor is
-    /// DEFINITELY above the run's target. Carries the width the
-    /// schedule's LAST round reaches: measured, when the schedule ran
-    /// out, or its lower bound, when the loop proved after round 0
-    /// that the last round could not certify and refused without
-    /// running it. The two differ by the midpoint sum's own rounding
-    /// width — at most 4e-4 relative on every carrier below, inside
-    /// the pins' 1e-3 window — so a pin reads either the same way.
-    Budget(f64),
-    /// The same shortfall, in-band for the run's `Band{ε, Kε}` — so
-    /// `props_quad_converged` escalates through the funnel before the
-    /// budget can run out.
-    Escalated,
+    /// The lane stopped (its floor or its work wall) with its
+    /// narrowest enclosure DEFINITELY wider than the run's target.
+    /// Carries that enclosure's width.
+    Stopped(f64),
     /// [`PropsError::DegenerateFace`]: the area enclosure does not
     /// certify positive extent, so the convergence meter has no lever
     /// and the face-extent gate would refuse the same way one step
@@ -138,26 +132,23 @@ enum Posture {
 
 /// Pin one carrier's measured refusal floor.
 ///
-/// The refinement schedule is fixed by D9 and only the target moves
-/// with ε, so a carrier that refuses at the budget refuses with the
+/// The lane's floor and work wall do not move with ε, only the target
+/// does, so a carrier that stops short of the target stops with the
 /// SAME width on every ε row; the pinned number is that width, as
-/// measured by this suite. The refusal's payload is that width or its
-/// lower bound ([`Posture::Budget`]) — every pin below was re-read
-/// against the bound, none moved past its window, and no pinned
-/// number changed. A carrier whose floor sits under the run's
+/// measured by this suite. A carrier whose floor sits under the run's
 /// target certifies instead (the ε row working as designed), so only
-/// the budget arm is pinned — the anti-vacuity test below is what
-/// keeps "everything refuses" from being green.
+/// the stopped arm is pinned — the anti-vacuity test below is what
+/// keeps "everything stops short" from being green.
 #[track_caller]
 fn pin_floor(name: &str, posture: Posture, floor: f64) {
     match posture {
-        Posture::Budget(width_len) => assert!(
+        Posture::Stopped(width_len) => assert!(
             (width_len - floor).abs() <= 1e-3 * floor,
-            "{name}: the refusal floor MOVED: {width_len:e} against the pinned \
-             {floor:e}. The schedule is fixed (D9), so a moved floor is a changed \
-             enclosure — re-measure and re-pin deliberately, never widen this bound"
+            "{name}: the stopping width MOVED: {width_len:e} against the pinned \
+             {floor:e}. The floor and the work wall are fixed, so a moved width is a \
+             changed enclosure — re-measure and re-pin deliberately, never widen this bound"
         ),
-        Posture::Certified | Posture::Escalated => {}
+        Posture::Certified => {}
         Posture::Degenerate => panic!(
             "{name}: the engine now refuses this carrier as DEGENERATE — its area \
              enclosure stopped certifying positive extent. That is a capability \
@@ -383,10 +374,7 @@ fn probe(
         }
     }
     let out = nurbs_patch_face::<f64>(
-        ku,
-        kv,
-        control,
-        weights,
+        &patch_net(ku, kv, control, weights),
         {
             let (a, b) = ku.domain();
             let (c, d) = kv.domain();
@@ -394,11 +382,15 @@ fn probe(
         },
         perimeter,
         0.0,
-        Tol::witness().get().eps,
         band(),
+        &mut to_target(Tol::witness().get().eps),
     );
     match out {
-        Ok(fb) => {
+        Ok(LaneRun {
+            bounds: fb,
+            end: LaneEnd::Accepted(_),
+            ..
+        }) => {
             println!(
                 "{name}: flux [{:.12e}, {:.12e}] oracle {:.12e}; area [{:.12e}, {:.12e}] oracle {:.12e}",
                 fb.flux.lo(),
@@ -468,47 +460,46 @@ fn probe(
             }
             Posture::Certified
         }
-        // The refusal arm asserts the SAME contract as the crate's own
-        // `eps_posture` (quad.rs): a budget refusal carries a finite
-        // width that really missed the run's own `1024·ε` target, an
-        // escalation is the convergence predicate with a finite in-band
-        // margin, and anything else is an unsound outcome.
+        // A lane that stopped short asserts the SAME contract as the
+        // crate's own `eps_posture` (quad.rs): its narrowest enclosure
+        // still holds every truth in hand, and its width really missed
+        // the run's own `1024·ε` target.
+        Ok(run) => {
+            let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
+            let fb = run.bounds;
+            let width_len = mean_boundary_displacement(fb.flux, fb.area).unwrap();
+            println!("{name}: stopped short (sound): {run:?}");
+            if let Some(cf) = closed_flux {
+                assert!(
+                    fb.flux.lo() <= cf && cf <= fb.flux.hi(),
+                    "{name}: FLUX EXCLUSION of closed form {cf} at the stop: [{}, {}]",
+                    fb.flux.lo(),
+                    fb.flux.hi()
+                );
+            }
+            if let Some(ca) = closed_area {
+                assert!(
+                    fb.area.lo() <= ca && ca <= fb.area.hi(),
+                    "{name}: AREA EXCLUSION of closed form {ca} at the stop: [{}, {}]",
+                    fb.area.lo(),
+                    fb.area.hi()
+                );
+            }
+            assert!(
+                matches!(run.end, LaneEnd::Floor | LaneEnd::Wall),
+                "{name}: a whole-schedule call ends at the lane's own stop: {run:?}"
+            );
+            assert!(
+                width_len.is_finite() && width_len > target,
+                "{name}: a lane stopped short must carry a width that really \
+                 missed: {width_len:e} vs {target:e}"
+            );
+            println!("FLOOR {name} {width_len:.12e} target {target:.6e} {run:?}");
+            Posture::Stopped(width_len)
+        }
         Err(e) => {
             println!("{name}: typed refusal (sound): {e}");
-            let target = TARGET_LEN_FACTOR * Tol::witness().get().eps;
             match e {
-                PropsError::QuadratureBudget {
-                    width_len,
-                    target_len,
-                    ..
-                } => {
-                    assert!(
-                        width_len.is_finite() && width_len > target_len,
-                        "{name}: a budget refusal must carry a width that really \
-                         missed: {width_len:e} vs {target_len:e}"
-                    );
-                    assert!(
-                        (target_len - target).abs() <= target * 1e-12,
-                        "{name}: the refused target must BE 1024·ε for this run: \
-                         {target_len:e} vs {target:e}"
-                    );
-                    println!("FLOOR {name} {width_len:.12e} target {target_len:.6e}");
-                    Posture::Budget(width_len)
-                }
-                PropsError::Escalated { cause, .. } => {
-                    assert_eq!(
-                        cause.predicate,
-                        Some("props_quad_converged"),
-                        "{name}: only the convergence predicate may escalate here: \
-                         {cause:?}"
-                    );
-                    assert!(
-                        matches!(cause.margin.diagnostic_f64_for_error_text(), ErrorTextReading::Value(m) if m.is_finite()),
-                        "{name}: the escalation must carry a finite in-band margin: \
-                         {cause:?}"
-                    );
-                    Posture::Escalated
-                }
                 // A face whose AREA enclosure does not certify positive
                 // extent: the convergence meter has no lever, and the
                 // face-extent gate would read the same `area.lo()` the
@@ -650,8 +641,8 @@ fn probe_extreme_weight_square() {
     //
     // That is a refusal changing class, and in this direction it is
     // the honest one: the patch really is a unit square, the engine
-    // really cannot bracket it usefully, and a budget refusal carrying
-    // its width says exactly that, where `DegenerateFace` said the
+    // really cannot bracket it usefully, and a stop carrying its width
+    // says exactly that, where `DegenerateFace` said the
     // face had no extent — which was false of it. The enclosure is
     // still uselessly wide, so the capability gap this carrier exists
     // to hold still is intact; only its spelling improved.
@@ -723,8 +714,8 @@ fn quarter_cylinder_probe(name: &str, r: f64, h: f64) -> Posture {
 /// ε-keyed rather than waived here, and it predates the meter guard
 /// (verified: the pre-guard engine refuses the same row identically).
 ///
-/// The 1 km carrier's floor is 1e3× the metre-scale one and refuses on
-/// every row of the matrix.
+/// The 1 km carrier's width is 1e3× the metre-scale one's: it
+/// certifies at 1e-6 and 1e-9 and stops short at 1e-12.
 #[test]
 fn probe_scale_extremes() {
     let tiny = quarter_cylinder_probe("tiny-cylinder", 1e-6, 2e-6);
@@ -766,8 +757,8 @@ fn probe_scale_extremes() {
 ///   must certify, so the rational lane is covered too. Below the
 ///   corpus ε this is not available and pretending otherwise would be
 ///   the ε-blindness the [`Posture`] docs describe: the rational
-///   target is ε-coupled against a FIXED schedule (D9), so at
-///   ε = 1e-12 every rational carrier here honestly refuses.
+///   target is ε-coupled against a stop that is not, so at ε = 1e-12
+///   a rational carrier here may honestly stop short.
 ///
 /// (Containment is checked inside [`probe`]: certifying with a bracket
 /// that excluded the truth fails there, not here.)
@@ -839,7 +830,9 @@ fn probe_half_cylinder_interior_knot() {
         Some(2.0 * PI),
         Some(2.0 * PI),
     );
-    pin_floor("half-cylinder-2span", posture, HALF_CYLINDER_FLOOR);
+    // Its exact-v arm reaches 4.27e-10 m at the work wall, under the
+    // tightest row's 1.024e-9 m target, so it certifies on every row.
+    assert_eq!(posture, Posture::Certified, "half-cylinder-2span");
 }
 
 /// A C0 CORNER inside the domain (double knot, degree 2, kink not on
@@ -873,13 +866,16 @@ fn probe_c0_kink_area() {
         Some(4.0),
         Some(5.0),
     );
-    pin_floor("c0-kink-wall", posture, C0_KINK_FLOOR);
+    // Both legs are straight, so the knot-aligned cells carry no
+    // remainder and the enclosure is the arithmetic's: it certifies on
+    // every row.
+    assert_eq!(posture, Posture::Certified, "c0-kink-wall");
 }
 
 /// DIAGNOSIS: is certified knot refinement exact on the two-span
 /// half-circle? Refine the HOMOGENEOUS 1-D net with the kernel's own
 /// refine_plan chain (weights-1 plans, plain lerp — exactly what
-/// refine_dir does) and compare rational curve points before/after
+/// RefinedNet does) and compare rational curve points before/after
 /// with the independent evaluator.
 #[test]
 fn diag_refine_half_circle() {
@@ -965,17 +961,14 @@ fn diag_uniform_weight_twins() {
         p(-1.0, 0.0, h),
     ];
     let run = |ws: &[f64]| {
-        nurbs_patch_face::<f64>(
-            &ku,
-            &kv,
-            &net,
-            ws,
+        at_target(nurbs_patch_face::<f64>(
+            &patch_net(&ku, &kv, &net, ws),
             (0.0, 1.0, 0.0, 1.0),
             2.0 * h + 2.0 * PI,
             0.0,
-            Tol::witness().get().eps,
             band(),
-        )
+            &mut to_target(Tol::witness().get().eps),
+        ))
     };
     let poly = run(&[1.0; 10]).expect("integral lane");
     println!(
@@ -998,8 +991,9 @@ fn diag_uniform_weight_twins() {
     let pa = patch(&ku, &kv, &net, &[0.5; 10]);
     let (of, _) = pa.dense(48);
     println!("oracle flux {of:.12}");
-    // The RATIONAL twin's target is ε-coupled against a FIXED schedule,
-    // so below the corpus ε its honest outcome is a typed refusal. Both
+    // The RATIONAL twin's target is ε-coupled against a lane whose stop
+    // is not, so below the corpus ε its honest outcome may be to stop
+    // short. Both
     // arms are pinned; a wide or wrong answer is what is ruled out.
     match run(&[0.5; 10]) {
         Ok(rat) => {
@@ -1028,9 +1022,12 @@ fn diag_uniform_weight_twins() {
             assert!(
                 matches!(
                     e,
-                    PropsError::QuadratureBudget { .. } | PropsError::Escalated { .. }
+                    Unmet::Stopped(LaneRun {
+                        end: LaneEnd::Floor | LaneEnd::Wall,
+                        ..
+                    })
                 ),
-                "the rational twin must refuse TYPED: {e:?}"
+                "the rational twin must stop at the lane's own stop: {e:?}"
             );
         }
     }
@@ -1057,12 +1054,25 @@ fn probe_interval_scalar_agrees() {
     let weights = [1.0, 1.0, W2, W2, 1.0, 1.0];
     let rect = (0.0, 1.0, 0.0, 1.0);
     let eps = Tol::witness().get().eps;
-    let a = nurbs_patch_face::<f64>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band());
-    let b =
-        nurbs_patch_face::<Interval>(&ku, &kv, &net, &weights, rect, 4.0 + PI, 0.0, eps, band());
-    // The agreement claim is ε-independent and covers the refusals too:
-    // below the corpus ε the ε-coupled target is out of the fixed
-    // schedule's reach and BOTH scalars must refuse, identically.
+    let a = at_target(nurbs_patch_face::<f64>(
+        &patch_net(&ku, &kv, &net, &weights),
+        rect,
+        4.0 + PI,
+        0.0,
+        band(),
+        &mut to_target(eps),
+    ));
+    let b = at_target(nurbs_patch_face::<Interval>(
+        &patch_net(&ku, &kv, &net, &weights),
+        rect,
+        4.0 + PI,
+        0.0,
+        band(),
+        &mut to_target(eps),
+    ));
+    // The agreement claim is ε-independent and covers the stops too:
+    // below the corpus ε the ε-coupled target may be out of the lane's
+    // reach, and then BOTH scalars must stop short, identically.
     match (a, b) {
         (Ok(a), Ok(b)) => {
             assert_eq!(a.flux.lo().to_bits(), b.flux.lo().to_bits());
@@ -1076,9 +1086,12 @@ fn probe_interval_scalar_agrees() {
             assert!(
                 matches!(
                     a,
-                    PropsError::QuadratureBudget { .. } | PropsError::Escalated { .. }
+                    Unmet::Stopped(LaneRun {
+                        end: LaneEnd::Floor | LaneEnd::Wall,
+                        ..
+                    })
                 ),
-                "an ε row must refuse TYPED: {a:?}"
+                "an ε row must stop at the lane's own stop: {a:?}"
             );
             assert_eq!(
                 format!("{a:?}"),
@@ -1088,4 +1101,93 @@ fn probe_interval_scalar_agrees() {
         }
         (x, y) => panic!("f64 and Interval disagree on the OUTCOME: {x:?} vs {y:?}"),
     }
+}
+
+/// The quarter torus `(R, r)` over `θ, φ ∈ [0, π/2]` as `spans × spans`
+/// degree-2 conic spans (each a rational quadratic arc of
+/// `π/(2·spans)`, joined at double knots): the surface of revolution of
+/// the minor arc about `z` (Piegl–Tiller), with weights `w_i·w_j`.
+fn conic_quarter_torus(
+    rr: f64,
+    r: f64,
+    spans: usize,
+) -> (KnotVector, Vec<[Interval; 3]>, Vec<f64>) {
+    #[allow(clippy::cast_precision_loss)]
+    let a = core::f64::consts::FRAC_PI_2 / spans as f64;
+    let mut knots = vec![0.0; 3];
+    for k in 1..spans {
+        #[allow(clippy::cast_precision_loss)]
+        let t = k as f64 / spans as f64;
+        knots.extend([t, t]);
+    }
+    knots.extend([1.0; 3]);
+    let kv = KnotVector::clamped(knots, 2).expect("a clamped conic knot vector");
+    // The unit arc's control points and weights over [0, π/2].
+    let mut unit: Vec<((f64, f64), f64)> = vec![((1.0, 0.0), 1.0)];
+    for k in 0..spans {
+        #[allow(clippy::cast_precision_loss)]
+        let (a0, a1) = (a * k as f64, a * (k + 1) as f64);
+        let m = 0.5 * (a0 + a1);
+        let c = (0.5 * a).cos();
+        unit.push(((m.cos() / c, m.sin() / c), c));
+        unit.push(((a1.cos(), a1.sin()), 1.0));
+    }
+    let mut net = Vec::new();
+    let mut weights = Vec::new();
+    // u: the minor (profile) arc, `(d, z) = (R + r·cos φ, r·sin φ)`;
+    // v: the major arc about z.
+    for &((cx, sx), wu) in &unit {
+        let (d, z) = (rr + r * cx, r * sx);
+        for &((ca, sa), wv) in &unit {
+            net.push(p(d * ca, d * sa, z));
+            weights.push(wu * wv);
+        }
+    }
+    (kv, net, weights)
+}
+
+/// The quarter torus's area and its flux `∫ S·n dA` about the origin
+/// (outward normal), closed form.
+fn quarter_torus_closed(rr: f64, r: f64) -> (f64, f64) {
+    let h = core::f64::consts::FRAC_PI_2;
+    let area = h * r * (rr * h + r);
+    let flux = h * r * (rr * rr + rr * r * core::f64::consts::FRAC_PI_4 + rr * r * h + r * r);
+    (flux, area)
+}
+
+/// **The wall bounds work, not rounds** (`FACE_WORK_WALL`'s doc). The
+/// quarter torus at 12× (R = 24 m, r = 6 m) on one conic span a
+/// direction certifies at round 7, as the round caps did, and on 7×7
+/// spans too. On 9×9 (PR 5589's first reviewer's witness) every round
+/// costs more cells than the calibrating face's: it stops at the wall
+/// after round 6, and round 6's bracket holds the closed-form flux and
+/// area. The flux is read about the origin with the patch's normal
+/// inward, so its value is `−∫ S·n dA`.
+#[test]
+fn a_conic_torus_costlier_per_round_stops_at_the_wall_holding_its_closed_form() {
+    use geom_core::interval::certification::Certification;
+    let (rr, r) = (24.0, 6.0);
+    let (flux, area) = quarter_torus_closed(rr, r);
+    let (kv, net, w) = conic_quarter_torus(rr, r, 9);
+    let run = nurbs_patch_face::<f64>(
+        &patch_net(&kv, &kv, &net, &w),
+        (0.0, 1.0, 0.0, 1.0),
+        2.0 * core::f64::consts::FRAC_PI_2 * (rr + r) + 2.0 * core::f64::consts::FRAC_PI_2 * r,
+        0.0,
+        crate::shared::tol::band(),
+        &mut to_target(CORPUS_EPS),
+    )
+    .expect("the conic torus has an enclosure");
+    assert_eq!((run.end, run.rounds), (LaneEnd::Wall, 7), "{run:?}");
+    assert!(
+        run.bounds.flux.contains(-flux),
+        "flux {:?} misses {}",
+        run.bounds.flux,
+        -flux
+    );
+    assert!(
+        run.bounds.area.contains(area),
+        "area {:?} misses {area}",
+        run.bounds.area
+    );
 }

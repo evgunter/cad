@@ -69,6 +69,7 @@ pub mod plate_param;
 pub mod reshaped_rod;
 pub mod sink;
 pub mod slots;
+pub mod symmetric_plate;
 pub mod table;
 pub mod tangency;
 pub mod tube_arc;
@@ -107,15 +108,9 @@ pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
         .into_iter()
         .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
         .chain([
-            (Coord::SpinAbout(TargetAxis::X), back),
-            (
-                Coord::SpinAbout(TargetAxis::Y),
-                Formula::zero(Dimension::Angle),
-            ),
-            (
-                Coord::SpinAbout(TargetAxis::Z),
-                Formula::zero(Dimension::Angle),
-            ),
+            (Coord::Spin(TargetAxis::X), back),
+            (Coord::Spin(TargetAxis::Y), Formula::zero(Dimension::Angle)),
+            (Coord::Spin(TargetAxis::Z), Formula::zero(Dimension::Angle)),
         ])
         .collect()
 }
@@ -315,6 +310,9 @@ pub fn documents() -> Vec<CorpusDoc> {
         // consumed downstream, so every standard row (every ε, the
         // Interval lane, persistence, latency) runs both.
         part_select::document(),
+        // `symmetric_plate`: a mirror is a construction, and a symmetric
+        // part is a body unioned with its mirror across its own face.
+        symmetric_plate::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
         // (every ε, interval lane, persistence, latency) for free by
@@ -487,7 +485,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 22] = [
+pub const NODE_KINDS: [&str; 23] = [
     "Profile",
     "Extrude",
     "Revolve",
@@ -501,6 +499,7 @@ pub const NODE_KINDS: [&str; 22] = [
     // document.
     "Chamfer",
     "Split",
+    "Mirror",
     // The three booleans are three nodes: a union and an intersect over
     // a `Bodies` argument, a subtract over its binary `from`/`tool`.
     "Union",
@@ -560,10 +559,9 @@ pub const NODE_KINDS: [&str; 22] = [
 /// `RemoveConstraint`, `RemoveConstraints`, `RenameVar`, `DeleteVar` and
 /// `UpdateReference` are arms of `DocEdit` that no corpus document
 /// authors, and listing them here would report six permanent misses
-/// rather than covering anything. `AddConstraint`, `AddValue` and
-/// `AddValues` are not listed either: every bundle pins its copy, so
-/// an increment over a stored bundle can only refuse
-/// (`work/intent/incremental-constraint-edits-cannot-succeed-on-a-pinned-bundle.md`).
+/// rather than covering anything. `AddConstraint` is not listed
+/// either: no corpus document authors one, its placements being
+/// written whole.
 /// `SetConstraints` is listed: a placement's bundle is written whole.
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
@@ -678,6 +676,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         // payload's emptiness, which no other kind counts either.
         | Node::Shell { .. }
         | Node::Split { .. }
+        | Node::Mirror { .. }
         | Node::Place { .. }
         | Node::World
         | Node::Space
@@ -704,6 +703,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Tube { .. } => "Tube",
         Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
+        Node::Mirror { .. } => "Mirror",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
@@ -749,8 +749,6 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::AddConstraint { .. } => "AddConstraint",
         DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
         DocEdit::RemoveConstraints { .. } => "RemoveConstraints",
-        DocEdit::AddValue { .. } => "AddValue",
-        DocEdit::AddValues { .. } => "AddValues",
         DocEdit::SetConstraints { .. } => "SetConstraints",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",

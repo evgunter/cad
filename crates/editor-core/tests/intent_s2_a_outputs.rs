@@ -505,6 +505,7 @@ fn every_node_shape_states_its_signature() {
         "Chamfer -> [body:Body]",
         "Shell -> [body:Body]",
         "Split -> [above:Body, below:Body]",
+        "Mirror -> [body:Body]",
         "Subtract -> [body:Body]",
         "Union -> [body:Body]",
         "Intersect -> [body:Body]",
@@ -624,10 +625,11 @@ fn instance_named_bracket(
     )
 }
 
-/// **Inline carries the name on an instance's body** onto the one body
-/// of the part that stands where it did (VR2: the kernel drops no name),
-/// and refuses typed where the part has no one such body, or where that
-/// body's own name would make a variable hold two.
+/// **Inline carries the name on an instance's body** onto the copy the
+/// instance became (VR2: the kernel drops no name): the placement of the
+/// part's world copies into the instance's target, however many bodies
+/// the part places and whatever they are named; it refuses typed only a
+/// name the host already holds.
 #[test]
 fn inline_carries_the_name_on_an_instances_body() {
     let (host, instance, store, _) = instance_named_bracket("s2a-inline", None, false);
@@ -640,36 +642,23 @@ fn inline_carries_the_name_on_an_instances_body() {
         .def()
         .output()
         .expect("onto an output");
-    // Onto the spliced copy: the extrude's body is in a space of its
-    // own, the copy in the world where the instance stood.
-    assert!(
-        matches!(out.doc.node(node), Some(Node::Place { .. })),
-        "{node:?}"
-    );
+    // Onto the copy the instance became.
+    assert_eq!(node, out.placement, "{node:?}");
     assert_eq!(port, 0);
 
-    let (host, instance, store, _) = instance_named_bracket("s2a-inline-two", None, true);
-    match editor_core::inline(&host, instance, &store, Tol::witness()) {
-        Err(editor_core::InlineError::InstanceOutputUncarried { name, why }) => {
-            assert_eq!(name.as_str(), "bracket");
-            assert_eq!(why, editor_core::Uncarried::Bodies { count: 2 });
-        }
-        other => panic!("two placed bodies have no one heir, got {other:?}"),
-    }
-
-    let (host, instance, store, _) =
-        instance_named_bracket("s2a-inline-held", Some("plate"), false);
-    match editor_core::inline(&host, instance, &store, Tol::witness()) {
-        Err(editor_core::InlineError::InstanceOutputUncarried { name, why }) => {
-            assert_eq!(name.as_str(), "bracket");
-            assert_eq!(
-                why,
-                editor_core::Uncarried::HeirNamed {
-                    held: VarName::new("plate").unwrap()
-                }
-            );
-        }
-        other => panic!("a named heir would hold two names, got {other:?}"),
+    for (seed, heir, second) in [
+        ("s2a-inline-two", None, true),
+        ("s2a-inline-held", Some("plate"), false),
+    ] {
+        let (host, instance, store, _) = instance_named_bracket(seed, heir, second);
+        let out = editor_core::inline(&host, instance, &store, Tol::witness())
+            .unwrap_or_else(|e| panic!("{seed}: inlines: {e}"));
+        let bracket = out.doc.var_named("bracket").expect("the name crossed");
+        assert_eq!(
+            out.doc.var(bracket).and_then(|v| v.def().output()),
+            Some((out.placement, 0)),
+            "{seed}: onto the copy the instance became"
+        );
     }
 
     let (host, instance, store, _) =

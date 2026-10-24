@@ -152,7 +152,7 @@ fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, Ma
         &[
             (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
             (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
-            (Coord::Spin, fixture::ang(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
         ],
     );
     (doc, mate)
@@ -215,41 +215,14 @@ fn seated_pair(
     (doc, vec![base, seated])
 }
 
-/// `instance` pinned to the world standing on its bottom: its part's
-/// start cap, flipped to face up its `z`, on the world's `xy`, with the
-/// constant `0` on the three freedoms that leaves. The bottom holds at
-/// `z = 0` whatever the part's height.
+/// `instance` standing on its bottom: by the identity bundle, its part's
+/// start cap on the world's `xy` whatever the part's height.
 fn standing_on_its_bottom(
     doc: ProfileDoc,
     instance: RecipeNodeId,
-    body: RecipeNodeId,
+    _body: RecipeNodeId,
 ) -> ProfileDoc {
-    let mate = Mate {
-        on: fixture::flip(fixture::plane(fixture::head(in_part(
-            instance,
-            body,
-            CapEnd::Start,
-        )))),
-        to: editor_core::Target::World(editor_core::WorldRead::through(PoseRole::Xy)),
-        class: ContactClass::Rest,
-    };
-    let zero = |dim| Formula::zero(dim);
-    fixture::with_values(
-        doc,
-        instance,
-        mate,
-        vec![
-            (
-                Coord::Slide(TargetAxis::X),
-                zero(editor_core::Dimension::Length),
-            ),
-            (
-                Coord::Slide(TargetAxis::Y),
-                zero(editor_core::Dimension::Length),
-            ),
-            (Coord::Spin, zero(editor_core::Dimension::Angle)),
-        ],
-    )
+    fixture::stand_again(doc, instance)
 }
 
 /// An instance of `doc_ref` carrying `record`, pinned to the world at
@@ -913,10 +886,11 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     // `inline` never touches, so `!order().is_empty()` would hold
     // however little came in. The count can only come from the part
     // (`ids` leaves out each document's world, which every document
-    // has its own of).
+    // has its own of), beside the new space the part's recipe stands in
+    // and the placement of its copy under the instance's bundle.
     assert_eq!(
         back.doc.ids().len(),
-        before - 1 + part_nodes,
+        before - 1 + part_nodes + 2,
         "the instance went and the part's own recipe came in its place"
     );
 }

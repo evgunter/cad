@@ -60,13 +60,7 @@
 //! construction history, which the pure-replay model guarantees. The
 //! standing invariant (documented at [`body`]): no arena iteration may
 //! feed a geometry decision unless the construction sequence is itself
-//! deterministic; accordingly this crate contains no `HashMap`/`HashSet`
-//! in any position that can feed a decision. One `HashSet` does exist —
-//! `transform.rs`'s `rewritten` set, which tracks which curve keys the
-//! walk remapped so an orphaned entry is refused as corruption. It is
-//! **membership-only and never iterated**, so no hash order can reach
-//! an output; a `SecondaryMap` would be both cheaper and consistent
-//! with the rule, and is the preferred form for anything new.
+//! deterministic; accordingly this crate contains no `HashMap`/`HashSet`.
 //! Half-edge traversal is **bounded** — the walks cap at the arena
 //! length and fail loud instead of spinning on corrupt input (the kernel
 //! never hangs, D9).
@@ -181,6 +175,7 @@ pub(crate) mod live;
 // the same rustdoc reason as the sector modules below.
 pub(crate) mod loop_winding;
 pub mod merge_faces;
+pub mod mirror;
 pub mod movefac;
 #[cfg(test)]
 mod n2r1_probes;
@@ -828,7 +823,7 @@ pub mod test_support {
     /// `(A face, B face, outcome)`. The outcome is `Ok` with each
     /// component's witness (`Unbounded`, `Essential(F|G)`, `Out(F|G)`,
     /// `LoneEvented`) or `Err` with the refusal (`Reach`, `Tangent(..)`,
-    /// `Loop`, `Undecided`, `LoneVertex`), spelled by `Debug`.
+    /// `Loop`, `Undecided`, `LoneVertex`, `Unread`), spelled by `Debug`.
     ///
     /// # Errors
     ///
@@ -879,9 +874,10 @@ pub mod test_support {
             .collect())
     }
 
-    /// Does `face` describe for the section certificate's W2 — its
-    /// `chart_boundary` answers, or, on a cone face, its apex closure
-    /// closes? The verdict the certificate reads per face.
+    /// Does `face` lift to one sheet for the section certificate's W2
+    /// (`boolean::ops::ChartCache::describes` answers `Sheet::One`)?
+    /// The verdict the certificate reads per face; a torn face, or one
+    /// whose walk is unread, answers `false`.
     pub fn face_describes<T: crate::props::AtRestPolicy>(
         body: &Body<T>,
         face: crate::FaceKey,
@@ -893,12 +889,15 @@ pub mod test_support {
         else {
             return false;
         };
-        crate::boolean::ChartCache::default().describes(
-            crate::Operand::A,
-            body,
-            face,
-            &surface.clone(),
-            band,
+        matches!(
+            crate::boolean::ChartCache::default().describes(
+                crate::Operand::A,
+                body,
+                face,
+                &surface.clone(),
+                band,
+            ),
+            Ok(crate::boolean::section_cert::Sheet::One)
         )
     }
 
@@ -998,9 +997,9 @@ pub use chord_join::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
 pub use census::{
-    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, TouchUnread, census_cell_solid,
-    census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
-    census_uncleared_solids, record_at_rest,
+    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, TouchUnread,
+    census_cell_solid, census_contact_row, census_entity_solid, census_interference_solids,
+    census_rest_decision, census_uncleared_solids, record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
@@ -1070,6 +1069,7 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
+pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{
     CurveKind, CurveKindSet, POSE_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,

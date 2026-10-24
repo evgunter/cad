@@ -53,7 +53,7 @@ pyo3::create_exception!(
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
      `found_kind` and `expected_kind` (the entity kind a selection's \
      name denotes and the one its seat reads), \
-     `count`, `first`, `again`, `value`, `offered`, `determinant`, \
+     `count`, `first`, `again`, `value`, `offered`, \
      `index` (which of a node's placement frames: a transform's step \
      or an explicit rule's listed placement), `side` (the mate side \
      whose frame offset holds that step), `path`, `value_path` and \
@@ -374,12 +374,20 @@ pyo3::create_exception!(
     "The `inline` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
      (`node`, `by`, `name`, `param`, `key`, `host_epsilon`, \
-     `part_epsilon`, `mate`), `None` where inapplicable.\n\n\
+     `part_epsilon`), `None` where inapplicable.\n\n\
      Inline crosses the SAME document seam evaluation does, so a \
      reference that will not resolve refuses under the seam's own \
      tags — `part_pin_mismatch`, `part_epsilon_seam`, \
      `part_unresolved` — the ones `EvaluationError.kind` already \
      speaks. A stale pin is refused here, never silently retargeted."
+);
+pyo3::create_exception!(
+    pncad,
+    FlattenError,
+    PncadError,
+    "The `flatten` refactoring refused. Carries `variant`, the stable \
+     tag of the refusing arm, plus its payload as attributes \
+     (`node`, `by`, `name`, `param`), `None` where inapplicable."
 );
 pyo3::create_exception!(
     pncad,
@@ -744,6 +752,7 @@ fn raise_typed(
         ErrorClass::Product => ProductError::new_err(message),
         ErrorClass::Split => SplitError::new_err(message),
         ErrorClass::Inline => InlineError::new_err(message),
+        ErrorClass::Flatten => FlattenError::new_err(message),
         ErrorClass::Update => UpdateError::new_err(message),
         ErrorClass::Readback => ReadbackError::new_err(message),
         ErrorClass::HitTest => HitTestError::new_err(message),
@@ -851,6 +860,7 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::Product
         | ErrorClass::Split
         | ErrorClass::Inline
+        | ErrorClass::Flatten
         | ErrorClass::Update
         | ErrorClass::Readback
         | ErrorClass::HitTest
@@ -917,6 +927,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ProductError", py.get_type::<ProductError>())?;
     m.add("SplitError", py.get_type::<SplitError>())?;
     m.add("InlineError", py.get_type::<InlineError>())?;
+    m.add("FlattenError", py.get_type::<FlattenError>())?;
     m.add("UpdateError", py.get_type::<UpdateError>())?;
     m.add("ReadbackError", py.get_type::<ReadbackError>())?;
     m.add("HitTestError", py.get_type::<HitTestError>())?;

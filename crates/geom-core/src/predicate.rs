@@ -670,13 +670,17 @@ impl<T: crate::real::Real> Margin<T> {
 
     /// Door: a **dimensionless** quantity levered by an **arm** —
     /// computes `x · arm`. The dimensional argument: `x` is a pure
-    /// number (a sine or cosine of unit vectors, an angle or angular
-    /// difference in radians, a curvature × length product such as
+    /// number (a sine or cosine of unit vectors, an angle between two
+    /// directions or frames, a curvature × length product such as
     /// `κ·L`), and `arm` is the length lever that converts it to the
     /// point deviation it implies (D4's θ·r form). The arm names the
     /// geometry that would move: a radius, an extent, a sector chord, a
     /// curvature arm. Multiplication is the door's one operation, so
     /// `levered(x, arm)` is bit-identical to the bare `x * arm`.
+    ///
+    /// A span or gap in a chart's or curve's PARAMETER is not such an
+    /// `x`, radians included: it crosses through the rate pair
+    /// ([`Margin::metered`], [`Margin::metered_sup`]; `[tolerance.margins]` clause (iii)).
     pub fn levered(x: T, arm: T) -> Self {
         Self(x * arm)
     }
@@ -710,7 +714,10 @@ impl<T: crate::real::Real> Margin<T> {
 
     /// Metric door (clause (iii) at the seam): a **parameter-space
     /// span** crossed to model space by its per-kind **metric rate** —
-    /// computes `span * rate`. The dimensional argument: `span` is in
+    /// computes `span * rate`. Every span or gap in a chart's or
+    /// curve's parameter crosses here or at [`Margin::metered_sup`],
+    /// an angular parameter's radians included; [`Margin::levered`] is
+    /// for dimensionless quantities that are not parameters. The dimensional argument: `span` is in
     /// the carrier's parameter units and `rate` is the kind's metres
     /// per parameter unit, so the product is the model-space length
     /// the span subtends. This is the levered door's shape with a rate

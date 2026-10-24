@@ -11,8 +11,8 @@
 use crate::fixture::{flip, head, len, plane};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, Mate, Operand,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName, Target, WorldRead, apply, load, save,
+    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, Operand, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -68,15 +68,7 @@ fn a_mate_bearing_document_round_trips() {
         .expect("a mate inserts")
         .doc
     };
-    let doc = add(
-        &doc,
-        ids[0],
-        Mate {
-            on: plane(head(name(ids[0]))),
-            to: Target::World(WorldRead::through(PoseRole::Xy)),
-            class: ContactClass::Rest,
-        },
-    );
+    let doc = crate::fixture::stand_again(doc, ids[0]);
     // The second's start cap rests half a unit off the first's: the
     // first's plane slid along its own normal, flipped to face it.
     let a = plane(head(name(ids[0])));

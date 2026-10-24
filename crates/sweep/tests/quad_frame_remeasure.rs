@@ -12,7 +12,9 @@ use core::f64::consts::PI;
 
 use crate::common::arc_section;
 use geom_brep::PropsError;
-use geom_brep::props::quad::{RVec3, nurbs_patch_face};
+use geom_brep::props::quad::{
+    PatchNet, QUAD_TARGET_LEN_FACTOR, RVec3, mean_boundary_displacement, nurbs_patch_face,
+};
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, RigidMotion, Tol, UnitVec3, Vec3};
@@ -51,21 +53,14 @@ fn rational_wall(
 
 fn patch(label: &str, map: &dyn Fn([f64; 3]) -> [f64; 3]) {
     let (ku, kv, control, w) = rational_wall(map);
+    let net = PatchNet::new(&ku, &kv, &control, &w).unwrap();
     let band = Band::linear(tol()).unwrap();
-    let out = nurbs_patch_face::<f64>(
-        &ku,
-        &kv,
-        &control,
-        &w,
-        (0.0, 1.0, 0.0, 1.0),
-        3.8,
-        0.0,
-        tol().get().eps,
-        band,
-    );
-    match out {
-        Ok(fb) => println!(
-            "PATCH {label}: area [{:.15e}, {:.15e}] width {:.3e} | flux width {:.3e} (mid {:.6e})",
+    let out = nurbs_patch_face::<f64>(&net, (0.0, 1.0, 0.0, 1.0), 3.8, 0.0, band, &mut |b, _| {
+        Ok(mean_boundary_displacement(b.flux, b.area)? <= QUAD_TARGET_LEN_FACTOR * tol().get().eps)
+    });
+    match out.map(|run| (run.end, run.bounds)) {
+        Ok((end, fb)) => println!(
+            "PATCH {label} ({end:?}): area [{:.15e}, {:.15e}] width {:.3e} | flux width {:.3e} (mid {:.6e})",
             fb.area.lo(),
             fb.area.hi(),
             fb.area.hi() - fb.area.lo(),
