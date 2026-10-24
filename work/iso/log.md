@@ -140,3 +140,10 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
   - **Correctness:** every routed polynomial arm is bitwise the unit answer at c ∈ {3, 0.1, 1e-3, 1e3, 1e±300}. Per-site mutants red their own rows, except one flag that changes nothing.
   - **Orchestrator's call on M1:** keep the creased constant-c net's refusal (unit and constant nets must agree) and disclose it. The real gap, the integral arm refusing degree-≥2 creases at all, joins TESS's degree-1 crease row as evidence.
   - **The fix pass also takes:** non-dyadic pins (every new bitwise pin used c = 2 or 0.5); the stale "non-unit weights" prose; the vestigial `rational` flag in `nurbs_chord_count`; the misplaced q8 doc; a check whether `implicit_composite` underflows on tiny weights. — (ISO orchestrator)
+
+- 2026-10-24 — **The teapot red is closed:** PR 5642 merged at `5589ff6605` on the orchestrator's read.
+  - **Sound:** the enclosure holds the independently computed true volume of the built skin (40-digit divergence-theorem quadrature, error about 3e-27). The kernel is 1.3e-14 off it, inside its 8.1e-12 pad.
+  - **Cause:** PR 5629, measured. The skin is the same surface to 1e-16; only the weights became bitwise constant, so the quadrature met its target and reached an oracle that was wrong.
+  - **The fix:** the scene now holds the skin's own integrated volume, through public calls, and keeps the frustum as a fit check with a stated basis.
+
+  A second red on main from the same cause: projectbox at the DEFAULT ε (a round-wire spring's idealised `A·L` held inside a now-narrower enclosure). No nightly has shown it yet, because the last one predates 5629. It is ISO's to fix: dispatched to the same lane (`iso/sweep-closed-form-oracles`, row `idealised-sweep-closed-forms-held-inside-certified-enclosures`), soundness first, with lily's Pappus checks and LIB's Python teapot row alongside. **A class:** idealised closed forms used as oracles inside certified enclosures go red as the enclosures tighten. — (ISO orchestrator)
