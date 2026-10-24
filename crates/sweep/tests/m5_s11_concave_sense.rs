@@ -650,14 +650,6 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
                  {target_len:e} vs {target:e}"
             );
         }
-        Err(topo::MassPropsError::Face {
-            source: geom_brep::PropsError::Escalated { cause, .. },
-            ..
-        }) => assert_eq!(
-            cause.predicate,
-            Some("props_quad_converged"),
-            "{row}: only the convergence predicate may escalate: {cause:?}"
-        ),
         Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
     }
 }

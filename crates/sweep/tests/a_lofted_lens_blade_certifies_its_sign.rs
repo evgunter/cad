@@ -202,7 +202,7 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
                 door.map(|_| ()),
                 "the continuation refuses as the door does"
             );
-            let b = bracket.expect("a budget refusal keeps a bracket");
+            let b = bracket;
             assert!(
                 b.volume_lo > 0.0
                     && b.volume_hi - b.volume_lo <= enclosure.volume_hi - enclosure.volume_lo

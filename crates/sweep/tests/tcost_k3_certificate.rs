@@ -506,7 +506,7 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         let refine = quad_rounds(|| continued = Some(gated.measure()));
         let (continued, bracket) = match continued.expect("the closure ran") {
             Ok(props) => (Ok(props), None),
-            Err(topo::TargetUnreached { refusal, bracket }) => (Err(refusal), bracket),
+            Err(topo::TargetUnreached { refusal, bracket }) => (Err(refusal), Some(bracket)),
         };
 
         match (&continued, &measured) {

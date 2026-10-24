@@ -36,14 +36,16 @@
 //!   found in the mint's own enclosing function, and that binding's
 //!   value `QUAD_TARGET_LEN_FACTOR * eps` with the factor finite and
 //!   positive;
-//! - **every mint whose margin derives from `target_len` is rostered**,
-//!   or excused by name in `EPS_COUPLED_UNRULED` (empty today)
-//!   — the ADDED direction, closed for `target_len`-derived mints in
-//!   these sources and for nothing wider;
-//! - **every `classify_len` in these sources is a parsed mint or the
-//!   function's own declaration** — a site respelled out of the parse
-//!   reds rather than dropping quietly out of the population every pin
-//!   above quantifies over.
+//! - **every mint whose margin derives from the ε-scaled target is
+//!   rostered** — a margin naming `target_len`, `interim_resolution` or
+//!   `QUAD_TARGET_LEN_FACTOR` — or excused by name in
+//!   `EPS_COUPLED_UNRULED` (empty today): the ADDED direction, closed
+//!   for those spellings in these sources and for nothing wider;
+//! - **every funnel call in these sources is a parsed mint or the
+//!   function's own declaration** (`classify_len` in the lanes,
+//!   `decide_reported` in topo's measurement door) — a site respelled
+//!   out of the parse reds rather than dropping quietly out of the
+//!   population every pin above quantifies over.
 //!
 //! "These sources" is their KERNEL code: each file's
 //! `#[cfg(test)] mod tests` is blanked out of the views first
@@ -94,19 +96,56 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use k_lint::{EPS_COUPLED_PREDICATES, EPS_COUPLED_UNRULED};
+use k_lint::{EPS_COUPLED_PREDICATES, EPS_COUPLED_UNRULED, ERA_EPS_COUPLED_PREDICATES};
 use std::sync::OnceLock;
 use test_utils::source;
 
+/// **How a source spells its mints**: the funnel call a mint is, the
+/// call's bare name and its declaration head (where the source declares
+/// it), and whether a mint's name must be a plain string literal there.
+#[derive(Clone, Copy)]
+struct MintSpelling {
+    /// The call that mints a predicate name, whose first argument IS the
+    /// name.
+    call: &'static str,
+    /// The call's bare name.
+    bare: &'static str,
+    /// The head of its declaration, where the source declares it.
+    decl: Option<&'static str>,
+    /// Whether every mint names a plain string literal. topo's
+    /// measurement door decides under names its callers hand it, so a
+    /// mint there names a parameter and is read for its margin alone.
+    literal_names: bool,
+}
+
+/// The lanes' spelling: `props/quad.rs`'s funnel wrapper over
+/// `geom_core::k_stats::decide`.
+const LANE_MINTS: MintSpelling = MintSpelling {
+    call: "classify_len::<T>(",
+    bare: "classify_len",
+    decl: Some("fn classify_len"),
+    literal_names: true,
+};
+
+/// topo's measurement door's spelling: the funnel's reporting call.
+const DOOR_MINTS: MintSpelling = MintSpelling {
+    call: "decide_reported(",
+    bare: "decide_reported",
+    decl: None,
+    literal_names: false,
+};
+
 /// Every kernel source the roster's names are minted in, as
-/// `(path, text)`.
+/// `(path, text, spelling)`.
 ///
-/// The lanes' own mints (`props_quad_face_extent`). The roster is empty
-/// (its one family, `props_quad_converged`, is no longer minted: the
-/// reporting target became a resolution, compared and not decided), so
-/// what this table still guards is the ADDED direction: a mint here
-/// whose margin derives from `target_len` must be ruled on. A roster entry
-/// minted somewhere not listed here REDS
+/// The lanes' own mints (`props_quad_face_extent`), and topo's
+/// measurement door, where a deciding predicate reads a volume enclosure
+/// (`props.rs`'s role read, `props/settle.rs`'s relations). The roster is
+/// empty (its one family, `props_quad_converged`, is no longer minted:
+/// the reporting target became a resolution, compared and not decided),
+/// so what this table still guards is the ADDED direction: a mint here
+/// whose margin derives from the ε-scaled target must be ruled on. A
+/// roster entry minted somewhere not listed here REDS
 /// [`every_rostered_predicate_is_still_minted_by_the_kernel`] rather
 /// than passing quietly, and the fix is a line in this table — the same
 /// fail-loud posture the allow-list itself takes.
@@ -119,29 +158,33 @@ use test_utils::source;
 /// **A path here is also a trigger** in `.github/workflows/ci.yml`'s
 /// `tools` row, since a PR editing only the kernel file is this
 /// roster's subject; a new entry adds its path there.
-const MINT_SOURCES: [(&str, &str); 1] = [(
-    "crates/geom-brep/src/props/quad.rs",
-    include_str!("../../../crates/geom-brep/src/props/quad.rs"),
-)];
+const MINT_SOURCES: [(&str, &str, MintSpelling); 3] = [
+    (
+        "crates/geom-brep/src/props/quad.rs",
+        include_str!("../../../crates/geom-brep/src/props/quad.rs"),
+        LANE_MINTS,
+    ),
+    (
+        "crates/topo/src/props.rs",
+        include_str!("../../../crates/topo/src/props.rs"),
+        DOOR_MINTS,
+    ),
+    (
+        "crates/topo/src/props/settle.rs",
+        include_str!("../../../crates/topo/src/props/settle.rs"),
+        DOOR_MINTS,
+    ),
+];
 
-/// What the pins searched, for their refusals.
-const SEARCHED: &str = "the kernel's quadrature mint sites";
-
-/// The call that mints a predicate name in `props/quad.rs`: the file's
-/// funnel wrapper over `geom_core::k_stats::decide`, whose first
-/// argument IS the name.
-const MINT_CALL: &str = "classify_len::<T>(";
-
-/// The funnel's bare name, and the head of its declaration.
+/// The call the lanes mint with, as the pins below name it.
 ///
-/// [`mint_sites`] parses [`MINT_CALL`] exactly; these two are what make
-/// that parse's COVERAGE checkable. Every occurrence of the bare name
-/// in a source must be a parsed call or the declaration itself, so a
-/// site respelled `classify_len:: <T>(` — still a call, no longer
-/// [`MINT_CALL`] — reds rather than silently leaving the population the
-/// other pins quantify over.
-const MINT_FN: &str = "classify_len";
-const MINT_DECL: &str = "fn classify_len";
+/// [`mint_sites`] parses a source's call exactly; its bare name and
+/// declaration head are what make that parse's COVERAGE checkable.
+/// Every occurrence of the bare name in a source must be a parsed call
+/// or the declaration itself, so a site respelled `classify_len:: <T>(`
+/// — still a call, no longer the spelling — reds rather than silently
+/// leaving the population the other pins quantify over.
+const MINT_CALL: &str = LANE_MINTS.call;
 
 /// A `(code_only, code_and_literals)` pair per [`MINT_SOURCES`] entry,
 /// lexed once, with [`kernel_only`] applied, and held in `cache`.
@@ -149,7 +192,7 @@ fn source_views(cache: &'static OnceLock<Vec<(String, String)>>) -> &'static [(S
     cache.get_or_init(|| {
         MINT_SOURCES
             .iter()
-            .map(|(path, text)| kernel_only(path, text))
+            .map(|(path, text, _)| kernel_only(path, text))
             .collect()
     })
 }
@@ -211,24 +254,28 @@ fn test_modules(code: &str, searched: &str) -> Vec<std::ops::Range<usize>> {
         .collect()
 }
 
-/// `(path, code_view, literal_view)` for every [`MINT_SOURCES`] entry.
+/// `(path, code_view, literal_view, spelling)` for every [`MINT_SOURCES`]
+/// entry.
 ///
 /// The code view has prose AND string literals blanked — where a call
 /// is LOCATED. The literal view keeps the literals — where a located
 /// argument's VALUE is read. `source::blanked` refuses either unless it
 /// is the original's bytes blanked in place, so an offset means the
 /// same byte in both.
-fn kernel_views() -> Vec<(&'static str, &'static str, &'static str)> {
+fn kernel_views() -> Vec<(&'static str, &'static str, &'static str, MintSpelling)> {
     static VIEWS: OnceLock<Vec<(String, String)>> = OnceLock::new();
     MINT_SOURCES
         .iter()
         .zip(source_views(&VIEWS))
-        .map(|((path, _), (code, literals))| (*path, code.as_str(), literals.as_str()))
+        .map(|((path, _, spelling), (code, literals))| {
+            (*path, code.as_str(), literals.as_str(), *spelling)
+        })
         .collect()
 }
 
-/// One parsed mint: the predicate name, its margin argument, and the
-/// byte the call starts at in its source's code view.
+/// One parsed mint: the predicate name (the name argument's text, where
+/// the source names a parameter), its margin argument, and the byte the
+/// call starts at in its source's code view.
 #[derive(Debug)]
 struct Mint {
     name: String,
@@ -236,7 +283,7 @@ struct Mint {
     at: usize,
 }
 
-/// Every [`MINT_CALL`] site in `code`, with names read out of
+/// Every `spelling.call` site in `code`, with names read out of
 /// `literals`.
 ///
 /// **Located over the code view, which is what makes an answer a
@@ -245,36 +292,44 @@ struct Mint {
 /// occurrence, every bracket and every top-level comma is real code, so
 /// `balanced_end` and `top_level_split` ARE the parse.
 ///
-/// **And the parse must cover the file.** Every [`MINT_FN`] in `code`
-/// is either a site this returns or the [`MINT_DECL`] head, else this
-/// refuses. Without that check a respelled call is not a failure but an
+/// **And the parse must cover the file.** Every `spelling.bare` in
+/// `code` is either a site this returns or the declaration head, else
+/// this refuses. Without that check a respelled call is not a failure but an
 /// absence, and every pin downstream quantifies over a smaller
 /// population without saying so.
-fn mint_sites(code: &str, literals: &str, searched: &str) -> Vec<Mint> {
+fn mint_sites(spelling: MintSpelling, code: &str, literals: &str, searched: &str) -> Vec<Mint> {
+    let MintSpelling {
+        call,
+        bare,
+        decl,
+        literal_names,
+    } = spelling;
     assert_eq!(
         code.len(),
         literals.len(),
         "the two views are the same bytes, blanked differently"
     );
     let sites: Vec<Mint> = code
-        .match_indices(MINT_CALL)
+        .match_indices(call)
         .map(|(at, _)| {
-            let open = at + MINT_CALL.len() - 1;
+            let open = at + call.len() - 1;
             let close = source::balanced_end(code, open).expect("the call closes");
             let inner = open + 1..close;
             let args = source::top_level_split(&code[inner.clone()], ',');
             assert!(
                 args.len() >= 2,
-                "a `{MINT_CALL}` site in {searched} takes {} arguments, not a name and a margin",
+                "a `{call}` site in {searched} takes {} arguments, not a name and a margin",
                 args.len()
             );
             let at_name = inner.start + args[0].start..inner.start + args[0].end;
             let text = literals[at_name].trim();
-            let name = source::plain_string_literal(text).unwrap_or_else(|| {
-                panic!(
-                    "a `{MINT_CALL}` site in {searched} names {text:?}, not a plain string literal"
-                )
-            });
+            let name = match source::plain_string_literal(text) {
+                Some(name) => name,
+                None if !literal_names => text,
+                None => panic!(
+                    "a `{call}` site in {searched} names {text:?}, not a plain string literal"
+                ),
+            };
             let at_margin = inner.start + args[1].start..inner.start + args[1].end;
             Mint {
                 name: name.to_string(),
@@ -285,20 +340,23 @@ fn mint_sites(code: &str, literals: &str, searched: &str) -> Vec<Mint> {
         .collect();
     assert!(
         !sites.is_empty(),
-        "no `{MINT_CALL}` site in {searched} — the kernel's mint spelling moved and every pin \
+        "no `{call}` site in {searched} — the kernel's mint spelling moved and every pin \
          over it is now vacuous"
     );
-    for (at, _) in code.match_indices(MINT_FN) {
+    for (at, _) in code.match_indices(bare) {
         let is_call = sites.iter().any(|m| m.at == at);
-        let decl_at = (at + MINT_FN.len()).checked_sub(MINT_DECL.len());
-        let is_decl = decl_at.is_some_and(|d| code[d..].starts_with(MINT_DECL));
+        let is_decl = decl.is_some_and(|decl| {
+            (at + bare.len())
+                .checked_sub(decl.len())
+                .is_some_and(|d| code[d..].starts_with(decl))
+        });
         assert!(
             is_call || is_decl,
-            "`{MINT_FN}` occurs in {searched} at byte {at}, spelled {:?} — neither a \
-             `{MINT_CALL}` site this parse read nor the `{MINT_DECL}` declaration. A call the \
+            "`{bare}` occurs in {searched} at byte {at}, spelled {:?} — neither a \
+             `{call}` site this parse read nor the {decl:?} declaration. A call the \
              parse cannot see leaves every pin over these mints quantifying over fewer sites \
              without reddening",
-            &code[at..code.len().min(at + MINT_CALL.len() + 8)]
+            &code[at..code.len().min(at + call.len() + 8)]
         );
     }
     sites
@@ -309,8 +367,8 @@ fn mint_sites(code: &str, literals: &str, searched: &str) -> Vec<Mint> {
 /// another's sites. One `(path, code_view, mint)` per site.
 fn kernel_mint_sites() -> Vec<(&'static str, &'static str, Mint)> {
     let mut out = Vec::new();
-    for (path, code, literals) in kernel_views() {
-        for mint in mint_sites(code, literals, path) {
+    for (path, code, literals, spelling) in kernel_views() {
+        for mint in mint_sites(spelling, code, literals, path) {
             out.push((path, code, mint));
         }
     }
@@ -350,7 +408,7 @@ fn unminted_roster_names(roster: &[&str], minted: &[&str], searched: &str) -> Ve
 fn every_rostered_predicate_is_still_minted_by_the_kernel() {
     let sites = kernel_mint_sites();
     let minted: Vec<&str> = sites.iter().map(|(_, _, m)| m.name.as_str()).collect();
-    let paths: Vec<&str> = MINT_SOURCES.iter().map(|(p, _)| *p).collect();
+    let paths: Vec<&str> = MINT_SOURCES.iter().map(|(p, _, _)| *p).collect();
     let complaints = unminted_roster_names(&EPS_COUPLED_PREDICATES, &minted, &format!("{paths:?}"));
     assert!(complaints.is_empty(), "{}", complaints.join("\n"));
 }
@@ -361,6 +419,15 @@ const TARGET: &str = "target_len";
 const TARGET_BINDING: &str = "let target_len =";
 const TARGET_VALUE: &str = "QUAD_TARGET_LEN_FACTOR * eps";
 const FACTOR_DECL: &str = "const QUAD_TARGET_LEN_FACTOR: f64 = ";
+
+/// Whether a margin names the ε-scaled target by any of its spellings:
+/// the lanes' [`TARGET`] binding, topo's interim number-door resolution,
+/// or the factor itself.
+fn eps_scaled(margin: &str) -> bool {
+    uses_target(margin)
+        || margin.contains("interim_resolution")
+        || margin.contains("QUAD_TARGET_LEN_FACTOR")
+}
 
 /// Whether `text` uses [`TARGET`] as a WHOLE identifier.
 ///
@@ -439,49 +506,10 @@ fn enclosing_fn(code: &str, at: usize) -> (std::ops::Range<usize>, std::ops::Ran
 /// `work/instr/k-lint-eps-coupled-criterion-unwritten` schedules.
 #[test]
 fn the_rostered_familys_margin_is_still_eps_scaled_at_its_mint() {
-    let mut rostered = 0usize;
-    for (path, code, mint) in kernel_mint_sites() {
-        if !EPS_COUPLED_PREDICATES.contains(&mint.name.as_str()) {
-            continue;
-        }
-        rostered += 1;
-        let (name, margin) = (&mint.name, &mint.margin);
-        assert!(
-            uses_target(margin),
-            "{name} is rostered ε-coupled and its margin at the mint in {path} reads \
-             {margin:?}, which does not derive from the identifier `{TARGET}` — rule (4)'s \
-             premise is that this margin is a headroom against an ε-scaled target"
-        );
-        let (head, item) = enclosing_fn(code, mint.at);
-        assert!(
-            !uses_target(&code[head.clone()]),
-            "{name} is rostered ε-coupled and is minted inside `{}`, which takes `{TARGET}` as a \
-             PARAMETER — whether it is ε-scaled is then the caller's property, and this textual \
-             pin does not follow it. Refused rather than answered",
-            code[head].split('(').next().unwrap_or_default().trim()
-        );
-        let body = &code[item];
-        let bindings = source::initializers(body, TARGET_BINDING);
-        assert_eq!(
-            bindings.len(),
-            1,
-            "{name} is rostered ε-coupled and its enclosing `fn` in {path} binds \
-             `{TARGET_BINDING}` {} times, not once — a mint cannot be read against an ambiguous \
-             binding",
-            bindings.len()
-        );
-        assert_eq!(
-            body[bindings[0].clone()].trim(),
-            TARGET_VALUE,
-            "the `{TARGET}` in scope at {name}'s mint in {path} is not {TARGET_VALUE:?} — rule \
-             (4)'s exemption assumes this family's margin scales with ε"
-        );
-    }
-    assert!(
-        EPS_COUPLED_PREDICATES.is_empty() || rostered > 0,
-        "no rostered name is minted in {SEARCHED}, so the loop above asserted nothing"
-    );
-    let (path, code, _) = kernel_views()[0];
+    let sites = kernel_mint_sites();
+    let (_, complaints) = rostered_margin_complaints(&EPS_COUPLED_PREDICATES, &sites);
+    assert!(complaints.is_empty(), "{}", complaints.join("\n"));
+    let (path, code, _, _) = kernel_views()[0];
     let factor: f64 = code[source::sole_initializer(code, path, FACTOR_DECL)]
         .trim()
         .parse()
@@ -490,6 +518,98 @@ fn the_rostered_familys_margin_is_still_eps_scaled_at_its_mint() {
         factor.is_finite() && factor > 0.0,
         "QUAD_TARGET_LEN_FACTOR is {factor}, so the target is not a positive multiple of ε"
     );
+}
+
+/// The live roster is empty, so the pin above asserts nothing over it.
+/// **Its rule is read here against a synthetic roster** instead: a
+/// kernel mint whose margin is no headroom against the target REDS it,
+/// naming the mint, and a fixture mint metered against a correctly bound
+/// `target_len` is QUIET, so the rule is neither vacuous nor a refusal
+/// of everything.
+#[test]
+fn the_margin_rule_reds_an_unscaled_rostered_mint_and_passes_a_scaled_one() {
+    let sites = kernel_mint_sites();
+    let (rostered, complaints) = rostered_margin_complaints(&["props_quad_face_extent"], &sites);
+    assert!(rostered > 0, "the lanes mint `props_quad_face_extent`");
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("props_quad_face_extent") && c.contains("does not derive")),
+        "a rostered mint metered against a perimeter, not the target, reds: {complaints:?}"
+    );
+
+    let scaled = concat!(
+        "\n",
+        "pub(crate) fn walk<T: Decide>(eps: f64, w: f64) -> R {\n",
+        "    let target_len = QUAD_TARGET_LEN_FACTOR * eps;\n",
+        "    classify_len::<T>(\"synthetic_coupled\", Margin::of(target_len - w), band)\n",
+        "}\n",
+    );
+    let (code, literals) = (source::code_only(scaled), source::code_and_literals(scaled));
+    let fixture: Vec<(&str, &str, Mint)> = mint_sites(LANE_MINTS, &code, &literals, "the fixture")
+        .into_iter()
+        .map(|mint| ("the fixture", code.as_str(), mint))
+        .collect();
+    let (rostered, complaints) = rostered_margin_complaints(&["synthetic_coupled"], &fixture);
+    assert_eq!(rostered, 1, "the fixture mints the synthetic entry once");
+    assert!(
+        complaints.is_empty(),
+        "a mint metered against a bound `target_len` passes: {complaints:?}"
+    );
+}
+
+/// [`the_rostered_familys_margin_is_still_eps_scaled_at_its_mint`]'s rule
+/// over `sites` under `roster`: how many sites are rostered, and the
+/// refusal of each that breaks it.
+fn rostered_margin_complaints(
+    roster: &[&str],
+    sites: &[(&str, &str, Mint)],
+) -> (usize, Vec<String>) {
+    let mut rostered = 0usize;
+    let mut complaints = Vec::new();
+    for (path, code, mint) in sites {
+        if !roster.contains(&mint.name.as_str()) {
+            continue;
+        }
+        rostered += 1;
+        let (name, margin) = (&mint.name, &mint.margin);
+        if !uses_target(margin) {
+            complaints.push(format!(
+                "{name} is rostered ε-coupled and its margin at the mint in {path} reads \
+                 {margin:?}, which does not derive from the identifier `{TARGET}` — rule (4)'s \
+                 premise is that this margin is a headroom against an ε-scaled target"
+            ));
+            continue;
+        }
+        let (head, item) = enclosing_fn(code, mint.at);
+        if uses_target(&code[head.clone()]) {
+            complaints.push(format!(
+                "{name} is rostered ε-coupled and is minted inside `{}`, which takes `{TARGET}` \
+                 as a PARAMETER — whether it is ε-scaled is then the caller's property, and this \
+                 textual pin does not follow it. Refused rather than answered",
+                code[head].split('(').next().unwrap_or_default().trim()
+            ));
+            continue;
+        }
+        let body = &code[item];
+        let bindings = source::initializers(body, TARGET_BINDING);
+        if bindings.len() != 1 {
+            complaints.push(format!(
+                "{name} is rostered ε-coupled and its enclosing `fn` in {path} binds \
+                 `{TARGET_BINDING}` {} times, not once — a mint cannot be read against an \
+                 ambiguous binding",
+                bindings.len()
+            ));
+            continue;
+        }
+        if body[bindings[0].clone()].trim() != TARGET_VALUE {
+            complaints.push(format!(
+                "the `{TARGET}` in scope at {name}'s mint in {path} is not {TARGET_VALUE:?} — \
+                 rule (4)'s exemption assumes this family's margin scales with ε"
+            ));
+        }
+    }
+    (rostered, complaints)
 }
 
 /// **Every mint whose margin derives from the ε-scaled target is on the
@@ -510,7 +630,7 @@ fn the_rostered_familys_margin_is_still_eps_scaled_at_its_mint() {
 #[test]
 fn every_target_len_mint_is_rostered_or_excused() {
     for (path, _, mint) in kernel_mint_sites() {
-        if !uses_target(&mint.margin) {
+        if !eps_scaled(&mint.margin) {
             continue;
         }
         let name = mint.name.as_str();
@@ -544,12 +664,9 @@ fn every_target_len_mint_is_rostered_or_excused() {
 /// rather than assumed, and the roster half exercises
 /// [`unminted_roster_names`] itself — the function
 /// [`every_rostered_predicate_is_still_minted_by_the_kernel`] asserts
-/// on — rather than a second copy of its rule.
-/// The roster the fixtures below are read against: the live one is
-/// empty ([`EPS_COUPLED_PREDICATES`]), and a roster check over it would
-/// red nothing.
-const FIXTURE_ROSTER: [&str; 1] = ["props_quad_converged"];
-
+/// on — rather than a second copy of its rule. The roster the fixtures
+/// are read against is the committed eras' ([`ERA_EPS_COUPLED_PREDICATES`]):
+/// the live one is empty, and a roster check over it would red nothing.
 #[test]
 fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
     let decoyed = concat!(
@@ -566,6 +683,7 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
         "four spellings in the text"
     );
     let sites = mint_sites(
+        LANE_MINTS,
         &source::code_only(decoyed),
         &source::code_and_literals(decoyed),
         "the decoy fixture",
@@ -578,7 +696,7 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
     );
     assert_eq!(sites[0].margin, "Margin::of(target_len - width_len)");
     assert!(
-        unminted_roster_names(&FIXTURE_ROSTER, &names, "the decoy fixture").is_empty(),
+        unminted_roster_names(&ERA_EPS_COUPLED_PREDICATES, &names, "the decoy fixture").is_empty(),
         "this fixture mints the whole roster, so the roster check must be QUIET on it — \
          otherwise the red below says nothing about a missing name"
     );
@@ -587,6 +705,7 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
     let respelled = decoyed.replace("if classify_len::<T>(", "if classify_len:: <T>(");
     let refused = std::panic::catch_unwind(|| {
         mint_sites(
+            LANE_MINTS,
             &source::code_only(&respelled),
             &source::code_and_literals(&respelled),
             "the respelled fixture",
@@ -606,12 +725,13 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
     // name is not interchangeable with this one.
     let short = "let x = classify_len::<T>(\"other_name\", Margin::of(m), b);";
     let minted = mint_sites(
+        LANE_MINTS,
         &source::code_only(short),
         &source::code_and_literals(short),
         "the short fixture",
     );
     let names: Vec<&str> = minted.iter().map(|m| m.name.as_str()).collect();
-    let complaints = unminted_roster_names(&FIXTURE_ROSTER, &names, "the short fixture");
+    let complaints = unminted_roster_names(&ERA_EPS_COUPLED_PREDICATES, &names, "the short fixture");
     assert_eq!(complaints.len(), 1, "one rostered name is unminted here");
     assert!(
         complaints[0].contains("props_quad_converged")
@@ -656,6 +776,7 @@ fn the_test_module_exclusion_blanks_the_module_and_no_kernel_mint() {
     // coverage check — the failure this exclusion exists for.
     let unexcluded = std::panic::catch_unwind(|| {
         mint_sites(
+            LANE_MINTS,
             &source::code_only(fixture),
             &source::code_and_literals(fixture),
             "the unexcluded fixture",
@@ -672,7 +793,7 @@ fn the_test_module_exclusion_blanks_the_module_and_no_kernel_mint() {
 
     let (code, literals) = kernel_only("the fixture", fixture);
     assert_eq!(code.len(), fixture.len(), "blanked, not stripped");
-    let names: Vec<String> = mint_sites(&code, &literals, "the fixture")
+    let names: Vec<String> = mint_sites(LANE_MINTS, &code, &literals, "the fixture")
         .into_iter()
         .map(|m| m.name)
         .collect();

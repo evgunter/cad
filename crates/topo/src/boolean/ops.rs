@@ -2280,8 +2280,15 @@ pub(crate) fn volume_backstop<T: Decide>(
     // of it is open.
     let measure = |body, operand| {
         let faces = crate::query::all_faces(body);
-        crate::props::SignCertificate::at_round_zero(body, &faces, band, tol, Some(lane))
-            .map_err(|source| props_refusal(operand, source))
+        crate::props::SignCertificate::at_round_zero(
+            body,
+            &faces,
+            band,
+            tol,
+            Some(lane),
+            crate::props::FaceWalk::Mapped,
+        )
+        .map_err(|source| props_refusal(operand, source))
     };
     // The exact (bit-hairline) band for the sign arm below — the same
     // device the splitter's total order uses (`splitting::order`, audit
@@ -2293,10 +2300,7 @@ pub(crate) fn volume_backstop<T: Decide>(
     let mut ca = measure(a, Some(Operand::A))?;
     let mut cb = measure(b, Some(Operand::B))?;
     let mut cr = measure(result, None)?;
-    let (ba, bb) = (
-        bounded(Some(Operand::A), &mut ca, band, lane)?,
-        bounded(Some(Operand::B), &mut cb, band, lane)?,
-    );
+    let (ba, bb) = (bounded(&mut ca, band, lane)?, bounded(&mut cb, band, lane)?);
     let (a_, b_, r_) = (Some(Operand::A), Some(Operand::B), None);
     let bound = Posture::Bound { band, exact };
     let plus_v = Posture::PlusV { band };
@@ -2355,14 +2359,18 @@ pub(crate) fn volume_backstop<T: Decide>(
     Ok(())
 }
 
-/// **Whether an operand bounds a solid**: its volume certified positive
-/// at the enclosure's lower end, metered `V/A` (the volume's margin as a
-/// length; surface area is unsigned, so the quotient keeps V's sign). A
-/// bound applies only against such an operand; a complement operand
-/// (certified negative) makes it vacuous, and an in-band quotient
-/// certifies no bound. The operand is refined while its enclosure
-/// straddles the band, its lower end not positive where its upper end
-/// is: a narrower enclosure may certify it. Poison refuses.
+/// **Whether an operand bounds a solid**: `V ≥ 0` read as a relation
+/// ([`crate::props::settle::relation_step_by`]) at the enclosure's ends,
+/// metered `V/A` (the volume's margin as a length; surface area is
+/// unsigned, so the quotient keeps V's sign) and decided on the invariant
+/// lane under `volume_backstop_operand`. A bound applies only against an
+/// operand certified positive; a complement operand (certified negative)
+/// makes it vacuous, and an in-band quotient certifies no bound. The
+/// operand is refined while its enclosure straddles the band: a narrower
+/// enclosure may certify it. One the walk runs out on certifies no bound,
+/// as one it left with a face a later round refused outright does (the
+/// face stands at the enclosure it held, [`crate::props::walk_set`]).
+/// Poison refuses.
 ///
 /// The backstops live on the INVARIANT LANE (Ev's #213 layering
 /// ruling): consistency inequalities between integral results are
@@ -2370,7 +2378,6 @@ pub(crate) fn volume_backstop<T: Decide>(
 /// certified violation is a kernel invariant failure, not a validity
 /// refusal.
 fn bounded<T: Decide>(
-    operand: Option<Operand>,
     certificate: &mut crate::props::SignCertificate<'_, T>,
     band: Band,
     lane: QuadLane<T>,
@@ -2379,41 +2386,37 @@ fn bounded<T: Decide>(
         decision: BooleanDecision::VolumeBackstop,
         diag,
     };
-    let read = crate::props::walk_set(&mut [certificate], Some(lane), |rounds, _| {
+    let walked = crate::props::walk_set(&mut [certificate], Some(lane), |rounds| {
         let props = rounds[0].props();
         let e = props.enclosure();
-        let decide = |end: T| {
-            geom_core::k_stats::decide_invariant(
-                "volume_backstop_operand",
-                end / e.surface_area,
-                band,
-            )
-        };
-        match decide(e.volume_lo) {
-            Ok(Sign::Positive) => return Some(Ok(true)),
-            Err(diag) if diag.margin.is_invalid() => return Some(Err(escalated(diag))),
-            _ if props.reading().is_exact() => return Some(Ok(false)),
-            _ => {}
+        // The claim's margin `0 − V` has the sign opposite `V/A`'s, which
+        // is what the gate records.
+        let step = crate::props::settle::relation_step_by(
+            e,
+            crate::props::RelOp::Ge,
+            props.reading().is_exact(),
+            |volume| {
+                geom_core::k_stats::decide_invariant(
+                    "volume_backstop_operand",
+                    volume / e.surface_area,
+                    band,
+                )
+                .map(Sign::flip)
+            },
+        );
+        match step {
+            crate::props::settle::Step::Settled(holds) => crate::props::Ask::Decided(Ok(holds)),
+            crate::props::settle::Step::Band => crate::props::Ask::Decided(Ok(false)),
+            crate::props::settle::Step::Poisoned(cause) => {
+                crate::props::Ask::Decided(Err(escalated(cause)))
+            }
+            crate::props::settle::Step::Refine => crate::props::Ask::Refine(vec![true]),
         }
-        match decide(e.volume_hi) {
-            Ok(Sign::Positive) => None,
-            Err(diag) if diag.margin.is_invalid() => Some(Err(escalated(diag))),
-            _ => Some(Ok(false)),
-        }
-    })
-    .map_err(|refused| first_props_refusal(refused, &[operand]))?;
-    read.unwrap_or(Ok(false))
-}
-
-/// The first of a set walk's refusals, naming the operand its member is.
-fn first_props_refusal(
-    refused: Vec<(usize, crate::MassPropsError)>,
-    operands: &[Option<Operand>],
-) -> BooleanError {
-    let Some((member, source)) = refused.into_iter().next() else {
-        unreachable!("a set walk returns its refusals only when it holds one")
-    };
-    props_refusal(operands[member], source)
+    });
+    match walked {
+        crate::props::Walked::Decided(read) => read,
+        crate::props::Walked::Exhausted { .. } => Ok(false),
+    }
 }
 
 /// The property layer's refusal, as the backstop reports it — in tier
@@ -2464,7 +2467,10 @@ enum Reading {
     Violated,
     /// Certified held.
     Held,
-    /// Neither, at these ends.
+    /// Neither, at these ends, and wholly in the band: no narrower
+    /// enclosure decides it.
+    InBand,
+    /// Neither, at these ends: a narrower enclosure may decide it.
     Open,
 }
 
@@ -2498,9 +2504,10 @@ impl Posture {
                 }
             }
             Posture::PlusV { band } => match crate::validate::plus_v_read(margin, band) {
-                Some(crate::props::ShellRole::Void) => Reading::Violated,
-                Some(crate::props::ShellRole::Outer) => Reading::Held,
-                None => Reading::Open,
+                crate::props::RoleRead::Decided(crate::props::ShellRole::Void) => Reading::Violated,
+                crate::props::RoleRead::Decided(crate::props::ShellRole::Outer) => Reading::Held,
+                crate::props::RoleRead::Unread(unread) if unread.reads_zero() => Reading::InBand,
+                crate::props::RoleRead::Unread(_) => Reading::Open,
             },
         }
     }
@@ -2535,24 +2542,39 @@ fn bound_holds<'t, 'b, T: Decide>(
     // What the last round read and left open, for the decision the walk
     // leaves when no face can refine.
     let mut left = None;
-    let walked = crate::props::walk_set(&mut members, Some(lane), |rounds, _| {
+    let wanted = members.len();
+    let walked = crate::props::walk_set(&mut members, Some(lane), |rounds| {
         let read = read_bound(which, &terms, rounds, posture);
         match read {
             Ok(BoundRead::Open(open)) => {
                 left = Some(open);
-                None
+                crate::props::Ask::Refine(vec![true; wanted])
             }
-            Ok(BoundRead::Closed(open)) => Some(decide_left(which, open, posture)),
-            Err(refusal) => Some(Err(refusal)),
+            Ok(BoundRead::Closed(open)) => {
+                crate::props::Ask::Decided(decide_left(which, open, posture))
+            }
+            Err(refusal) => crate::props::Ask::Decided(Err(refusal)),
         }
-    })
-    .map_err(|refused| first_props_refusal(refused, &operands))?;
+    });
     match walked {
-        Some(decided) => decided,
-        None => match left {
-            Some(open) => decide_left(which, open, posture),
-            None => unreachable!("a set walk asks its question before it stops"),
-        },
+        crate::props::Walked::Decided(decided) => decided,
+        crate::props::Walked::Exhausted { refused } => {
+            let Some(open) = left else {
+                unreachable!("a set walk asks its question before it stops")
+            };
+            // A face a later round refused outright stands at the enclosure
+            // it held: the refusal surfaces only where what the walk held
+            // cannot decide the inequality.
+            match (
+                decide_left(which, open, posture),
+                refused.into_iter().next(),
+            ) {
+                (Err(BooleanError::VolumeUndecided { .. }), Some((member, source))) => {
+                    Err(props_refusal(operands[member], source))
+                }
+                (decided, _) => decided,
+            }
+        }
     }
 }
 

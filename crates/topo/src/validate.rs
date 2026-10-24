@@ -286,9 +286,15 @@
 //!
 //! **Gating and then measuring costs more than measuring**, and that
 //! is worth knowing before a caller reaches for the continuation as a
-//! saving. On a face that meets the target, the piece evaluations
-//! compose exactly — the gate's rounds plus the continuation's are the
-//! measurement's. And each entry into
+//! saving. The continuation runs no round twice: it resumes only the
+//! faces still short of the target, each from the round after its last.
+//! The pair is not the measurement, though. The sign walk refines every
+//! face its lane can refine while the sign straddles, a face that has
+//! already met the target included, so the gate can run rounds the
+//! measurement never does, and the continued number then keeps those
+//! faces' narrower enclosures: never wider than the measurement's, face
+//! by face, and in its bits only where no face was taken past the
+//! target. And each entry into
 //! a face's lane re-derives that face's per-round-independent SETUP
 //! (the derivative grids, the block hulls), so the pair runs 1.3–1.8× one
 //! measurement's wall time on the bodies measured. Reusing a face's
@@ -5601,11 +5607,17 @@ fn validate_geometric_certified<
 /// on every face that needed the quadrature, exactly as the reporting
 /// read over the same lane does.
 ///
-/// ONE walk per solid, held and then handed on: the caller receives the
-/// body certificate the walks assemble to, continuable from there by a
-/// caller who wants the number
+/// Every solid's round 0, then ONE walk over the solids
+/// ([`crate::props::role_walk_set`]), each solid refined only while its
+/// own sign straddles, and the certificates held and then handed on: the
+/// caller receives the body certificate they assemble to, continuable
+/// from there by a caller who wants the number
 /// ([`crate::SignCertificate::refine_to_target`]). So a body of several
-/// solids pays one read of each face, never a further arena-wide one.
+/// solids reads each face once per round its solid's sign needs, never a
+/// further arena-wide walk. The walk's recordings interleave the solids
+/// round by round (each round takes every solid still open, in arena
+/// order), so a multi-solid body's decision stream is ordered by round,
+/// not by solid.
 ///
 /// **Check 7 is clean or it is not, and the type says which**: `Ok` is
 /// the body certificate — every solid derived and passed, so the parts
@@ -5624,7 +5636,14 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     let mut unmeasured = Vec::new();
     let mut parts = Vec::new();
     for (_, faces) in &subjects {
-        match crate::props::SignCertificate::at_round_zero(body, faces, band, tol, quad) {
+        match crate::props::SignCertificate::at_round_zero(
+            body,
+            faces,
+            band,
+            tol,
+            quad,
+            crate::props::FaceWalk::Mapped,
+        ) {
             Ok(certificate) => {
                 unmeasured.push(None);
                 parts.push(certificate);
@@ -6038,8 +6057,8 @@ pub(crate) const PLUS_V_SIGN: crate::props::SignNames = crate::props::SignNames 
 pub(crate) fn plus_v_read<T: geom_core::Decide>(
     reading: crate::props::SignReading<T>,
     band: Band,
-) -> Option<crate::props::ShellRole> {
-    crate::props::read_role(reading, PLUS_V, band).role()
+) -> crate::props::RoleRead {
+    crate::props::read_role(reading, PLUS_V, band)
 }
 
 /// **Check 7's verdict off the role walk** ([`crate::props::role_walk`]):
@@ -6064,7 +6083,9 @@ fn plus_v_verdict(
         Err(RoleWalkRefusal::Unread {
             limit: Some(limit), ..
         }) => PlusVVerdict::Unresolved(limit),
-        Err(RoleWalkRefusal::Unread { last, .. }) => PlusVVerdict::Undecided(last.escalation()),
+        Err(RoleWalkRefusal::Poisoned(last) | RoleWalkRefusal::Unread { last, .. }) => {
+            PlusVVerdict::Undecided(last.escalation())
+        }
     }
 }
 
@@ -10859,6 +10880,7 @@ mod tests {
                 last: Box::new(last),
                 limit,
                 measuring: None,
+                in_band: false,
             }))
         };
         assert!(

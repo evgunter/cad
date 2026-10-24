@@ -19,10 +19,12 @@ any more.
 
 - The variant (`crates/geom-brep/src/props/mod.rs`, `PropsCheck::Converged`)
   and its two arms in `PropsCheck`'s words and recourse are dead.
-- Two tests still mint `props_quad_converged` by hand to read them:
-  `a_last_rounds_rejected_zero_ends_in_the_last_resort`, and the
-  `Converged` leg of `an_escalation_ends_by_the_check_that_raised_it`.
+- One test still reads it by hand: the `Converged` leg of
+  `an_escalation_ends_by_the_check_that_raised_it`. The other,
+  `a_last_rounds_rejected_zero_ends_in_the_last_resort`, which minted
+  `props_quad_converged` to read the retired gate, went in unit B's fix
+  pass.
 
-Fix: delete the variant, its arms and those two legs. That is a public
+Fix: delete the variant, its arms and that leg. That is a public
 enum change in `geom_brep`, so it rides with unit C, which removes the
 rest of the reporting target's vocabulary (R10).

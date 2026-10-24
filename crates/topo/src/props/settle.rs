@@ -10,7 +10,7 @@
 //! sizing: it decides nothing, is compared rather than decided, and is
 //! not recorded.
 
-use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Real, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign};
 use quantity::Length;
 
 use super::{RoleNames, ShellRole, VolumeEnclosure};
@@ -115,10 +115,7 @@ pub(crate) enum Step {
 
 /// **A relation read off a volume enclosure**: `V op bound`, the margin
 /// `bound − V` at each end of the enclosure, metered over the surface
-/// area and decided under `name`. Each end is decided as the volume's
-/// least favourable reading for the side it settles: the claim `V ≤ b`
-/// holds when the margin at the HIGH end is definitely positive, and
-/// fails when the margin at the LOW end is definitely negative.
+/// area and decided under `name` ([`relation_step_by`]).
 pub(crate) fn relation_step<T: Decide>(
     e: VolumeEnclosure<T>,
     op: RelOp,
@@ -126,34 +123,68 @@ pub(crate) fn relation_step<T: Decide>(
     name: &'static str,
     band: Band,
 ) -> Step {
-    let decide = |volume: T| {
+    relation_step_by(e, op, false, |volume| {
         geom_core::k_stats::decide_reported(
             name,
             Margin::over_lever(bound - volume, e.surface_area),
             band,
         )
-    };
-    let poisoned = |d: &Result<Decided, Indeterminate>| match d {
+        .map(|decided| decided.sign)
+    })
+}
+
+/// **A relation read off a volume enclosure, by a stated decider**:
+/// `V op bound`, where `decide(v)` is the sign of the claim's margin
+/// `bound − V` at the volume end `v`. The one reading of a relation; its
+/// deciders differ only in the lane they record on and how they spell
+/// the margin (the funnel's [`relation_step`], and the backstop's
+/// operand gate on the invariant lane).
+///
+/// Each end is decided as the volume's least favourable reading for the
+/// side it settles: the claim `V ≤ b` holds when the margin at the HIGH
+/// end of the volume is definitely positive, and fails when the margin
+/// at its LOW end is definitely negative (`≥` the mirror). The end that
+/// can make the claim hold is decided first and the other only where it
+/// does not; an `exact` enclosure (both ends one value) is decided once.
+pub(crate) fn relation_step_by<T: Decide>(
+    e: VolumeEnclosure<T>,
+    op: RelOp,
+    exact: bool,
+    decide: impl Fn(T) -> Result<Sign, Indeterminate>,
+) -> Step {
+    let poisoned = |d: &Result<Sign, Indeterminate>| match d {
         Err(cause) if cause.margin.is_invalid() => Some(*cause),
         _ => None,
     };
-    let sign = |d: &Result<Decided, Indeterminate>| d.as_ref().ok().map(|d| d.sign);
-    // `bound − V` at the volume's high end is the margin's low end.
-    let low = decide(e.volume_hi);
-    if let Some(cause) = poisoned(&low) {
+    // The margin at the volume's high end (`low`, the margin's low end)
+    // settles `≤` as held; at its low end (`high`), `≥` as held.
+    let (first, second) = match op {
+        RelOp::Le => (e.volume_hi, e.volume_lo),
+        RelOp::Ge => (e.volume_lo, e.volume_hi),
+    };
+    let first = decide(first);
+    if let Some(cause) = poisoned(&first) {
         return Step::Poisoned(cause);
     }
-    let high = decide(e.volume_lo);
-    if let Some(cause) = poisoned(&high) {
+    let holds = |d: &Result<Sign, Indeterminate>| match op {
+        RelOp::Le => d.as_ref().ok() == Some(&Sign::Positive),
+        RelOp::Ge => d.as_ref().ok() == Some(&Sign::Negative),
+    };
+    if holds(&first) {
+        return Step::Settled(true);
+    }
+    let second = if exact { first } else { decide(second) };
+    if let Some(cause) = poisoned(&second) {
         return Step::Poisoned(cause);
     }
-    let (low, high) = (sign(&low), sign(&high));
+    let (low, high) = match op {
+        RelOp::Le => (first.ok(), second.ok()),
+        RelOp::Ge => (second.ok(), first.ok()),
+    };
     let below = low == Some(Sign::Positive);
     let above = high == Some(Sign::Negative);
     match op {
-        RelOp::Le if below => Step::Settled(true),
         RelOp::Le if above => Step::Settled(false),
-        RelOp::Ge if above => Step::Settled(true),
         RelOp::Ge if below => Step::Settled(false),
         _ => {
             // Undecided at both ends: wholly in the band where neither end

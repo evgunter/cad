@@ -539,6 +539,32 @@ pub mod test_support {
         crate::boolean::insert::ops_under_test(f)
     }
 
+    /// **The measurement door** ([`crate::props::measure_to`]) over every
+    /// face of `body`, measured and certified through the certified lane,
+    /// under `settle`: why it stopped and the enclosure it reached, or the
+    /// refusal's text. The door is crate-private until unit C makes it
+    /// every caller's; this is the one a suite drives it through.
+    ///
+    /// # Errors
+    ///
+    /// The door's refusal, as text, or a tolerance that forms no band.
+    ///
+    /// # Panics
+    ///
+    /// On a resolution finer than ε, as the door does.
+    pub fn measure_to(
+        body: &Body<f64>,
+        settle: crate::Settle<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<(crate::Stop, crate::VolumeEnclosure<f64>), String> {
+        let band = geom_core::Band::linear(tol).map_err(|e| format!("{e:?}"))?;
+        let lane = Some(crate::props::QuadLane::certified());
+        let faces = crate::query::all_faces(body);
+        crate::props::measure_to(body, &faces, band, tol, (lane, lane), settle)
+            .map(|(stop, certificate)| (stop, certificate.enclosure()))
+            .map_err(|refusal| format!("{refusal:?}"))
+    }
+
     /// The boolean's volume backstop over `a`, `b` and a `result`, as the
     /// pipeline gates a finished body
     /// ([`crate::AtRestPolicy::gate_volume_backstop`]) — the door a

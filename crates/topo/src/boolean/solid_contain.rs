@@ -5731,7 +5731,8 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
         crate::props::RoleWalkRefusal::Unread { limit: Some(_), .. } => {
             PointInSolidError::VolumeUncertified
         }
-        crate::props::RoleWalkRefusal::Unread { last, .. } => unread_refusal(&last, faces[0]),
+        crate::props::RoleWalkRefusal::Poisoned(last)
+        | crate::props::RoleWalkRefusal::Unread { last, .. } => unread_refusal(&last, faces[0]),
     });
     // An `Outer` boundary leaves infinity outside its material, a `Void`
     // one inside.

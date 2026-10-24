@@ -384,10 +384,11 @@ pub const ERA_EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// metre rules catch a POSITIVE row loudly at the tight ε rows
 /// (`tests/predicate_roster.rs`), and catch nothing on the refusal
 /// side: a large negative margin is decisive, passes both rules clean,
-/// and `crates/topo/src/props.rs` (`sign_walk`'s doc, "A face
-/// that refuses on BUDGET is different") says such a refusal rides on
-/// the certificate and is reported only when `settle` never accepted
-/// — so refusals can accumulate on a wholly green suite. Gating on
+/// and `crates/topo/src/props.rs` (`walk_set`'s doc: a face a later
+/// round refuses stands at the enclosure it held, and the refusal
+/// surfaces only where the walk runs out undecided) carries such a
+/// refusal on the certificate — so refusals can accumulate on a wholly
+/// green suite. Gating on
 /// the NAME is the one statement that does not depend on a row's sign
 /// or size.
 ///
