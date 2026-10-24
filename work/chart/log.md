@@ -246,3 +246,4 @@ This was not a crossover, because only one designer moved, so reconciliation end
   - the ruled `Carrier` rename;
   - the residual skeleton duplication (the sphere ray, `Legs` under `Paths`, the circle-leg place written three times, the two `along`s, three restricted-curve spellings) filed as one P1 row.
 - 2026-10-24 — **PR 5671 merged** (`702feaba18`). The region doors share one skeleton in `region.rs`.
+- 2026-10-24 — I pushed `f5a9002319` with conflict markers in this item file: I committed during a merge that had not finished. Fixed in the next commit. From now on the rule INTENT logged applies here too: `git merge --no-commit`, grep for markers, then commit.
