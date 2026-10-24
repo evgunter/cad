@@ -1989,7 +1989,15 @@ pub(super) fn projected_envelope<T: Decide>(
         }
         _ => return Err(refuse("the stored carrier is not the edge's carrier kind")),
     };
-    let (u_arm, v_arm) = super::chart_sup_arms_at(surface, boxed)?;
+    let (u_arm, v_arm) = match *surface {
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("answered above")
+        }
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => super::chart_sup_arms_at(surface, boxed)?,
+    };
     // Consecutive branch centres on one branch: each piece holds its
     // sector at the break it shares with the next, so their centres are
     // at most a quarter turn apart on one branch, and a whole period or

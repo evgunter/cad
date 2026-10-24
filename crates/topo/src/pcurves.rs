@@ -1611,23 +1611,14 @@ fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
     edge_record(body, half_edge).1.he_plus == half_edge
 }
 
-/// The FIRST-CHANNEL arm of a chart at second-parameter value `v` —
-/// the metres a unit step of the chart's `u` moves the mapped point
-/// (D4 ¶1: no UV-space tolerance ever reaches ε), as the sup side of
-/// the rate pair.
-///
-/// On the azimuth charts `u` IS the radian, so the arm is a rate per
-/// parameter unit like any other: the LOCAL lever at that latitude,
-/// cylinder `r`, sphere `|r·cos v|`, torus `|R + r·cos v|`, cone
-/// `|v·sin α|`. It is exact there, so a sup by being exact. A joint
-/// does not read it: its lever is the joint vertex's own distance from
-/// the axis ([`joint_arm`]), the same quantity without a stored
-/// latitude in it.
-///
-/// On a plane `u` IS metres, so the arm is exactly 1; on a spline
-/// chart `u` is the net's own parameter, and the arm is
-/// `geom_brep::chart_stretch_sup`'s first component, a sup over the
-/// whole chart.
+/// The FIRST-CHANNEL arm of a chart — the metres a unit step of the
+/// chart's `u` moves the mapped point (D4 ¶1: no UV-space tolerance
+/// ever reaches ε), as a sup over the WHOLE chart:
+/// `geom_brep::chart_stretch_sup`'s first component. On a plane `u` IS
+/// metres, so the arm is exactly 1; on a spline chart `u` is the net's
+/// own parameter, and the arm is the net's `sup |S_u|`. A joint on an
+/// azimuth chart reads the vertex's own distance from the axis instead
+/// ([`joint_arm`]).
 ///
 /// # Direction of error: why the spline arm is the SUP bound
 ///
@@ -1655,32 +1646,17 @@ fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
 /// `geom_brep::chart_stretch_sup` is that bound and states the same
 /// split at the export; it is emphatically not a lower bound, and
 /// nothing here may be read as one.
-fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>, v: T) -> SupSpeed<T> {
-    let surface = chart.surface();
-    match *surface {
-        Surface::Cylinder { radius, .. } => SupSpeed::new(radius),
-        Surface::Sphere { radius, .. } => SupSpeed::new((radius * v.cos()).abs()),
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => SupSpeed::new((major_radius + minor_radius * v.cos()).abs()),
-        Surface::Cone { half_angle, .. } => SupSpeed::new((v * half_angle.sin()).abs()),
-        // The plane answers exactly 1 through this door (its chart
-        // parameters ARE metres), and each spline kind answers its
-        // net's own `sup |S_u|`. `chart_stretch_sup` refuses the cone,
-        // answered above, and the placeholder, which a
-        // [`DescribedChart`] is not.
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            let Ok((sup_u, _)) = geom_brep::chart_stretch_sup(surface) else {
-                unreachable!(
-                    "chart_stretch_sup refuses only the cone, answered above, and the \
-                     placeholder, which DescribedChart::of excludes"
-                )
-            };
-            sup_u
-        }
-    }
+fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>) -> SupSpeed<T> {
+    // `chart_stretch_sup` refuses only the cone, whose arm grows with
+    // `v` and which no caller asks here, and the placeholder, which a
+    // [`DescribedChart`] is not.
+    let Ok((sup_u, _)) = geom_brep::chart_stretch_sup(chart.surface()) else {
+        unreachable!(
+            "chart_u_arm is asked on a plane or spline chart only, and DescribedChart::of \
+             excludes the placeholder"
+        )
+    };
+    sup_u
 }
 
 /// The chart's **u period** — the whole-number shift the loop walk may
@@ -1819,7 +1795,7 @@ fn net_reach<T: Real>(
     match channel {
         NetChannel::U => {
             let (u0, u1) = payload.knot_values_u().domain();
-            Margin::metered_sup(u1 - u0, chart_u_arm(chart, T::zero()))
+            Margin::metered_sup(u1 - u0, chart_u_arm(chart))
         }
         NetChannel::V => {
             let (v0, v1) = payload.knot_values_v().domain();
@@ -4187,7 +4163,7 @@ pub(crate) fn joint_arm<T: Real>(
     chart: DescribedChart<'_, T>,
     vertex: geom_core::Point3<T>,
 ) -> SupSpeed<T> {
-    axis_distance(chart, vertex).map_or_else(|| chart_u_arm(chart, T::zero()), SupSpeed::new)
+    axis_distance(chart, vertex).map_or_else(|| chart_u_arm(chart), SupSpeed::new)
 }
 
 /// A vertex's distance from an azimuth chart's axis — cylinder `r`,
@@ -4790,7 +4766,7 @@ fn spline_gap_closes<T: Decide>(
     prev: geom_core::Point2<T>,
     band: Band,
 ) -> Result<(), PinMiss> {
-    let arm = chart_u_arm(chart, prev.y);
+    let arm = chart_u_arm(chart);
     for margin in [
         Margin::metered_sup(entry.x - prev.x, arm),
         Margin::metered_sup(entry.y - prev.y, v_meter(chart)),
@@ -5217,15 +5193,19 @@ pub fn chart_boundary<T: AtRestPolicy>(
     // there is no honest description to return and no empty one that
     // would not be a claim.
     let outer = outer.ok_or(PcurveMintError::EmptyOuter { face })?;
-    // The span check's lever: the chart's own first-channel arm. Every
-    // chart this function describes has a constant one except the
-    // torus, where the local lever at the outer's lowest latitude is
-    // the honest reading and an inexact one can only move where the
-    // refusal fires.
-    let u_arm = chart_u_arm(
-        described,
-        outer.edges.first().map_or_else(T::zero, |e| e.a().y),
-    );
+    // The span check's arm: the chart's sup first-channel rate over the
+    // outer's own window, which the outer's whole span lies in.
+    let Some(window) = outer.window() else {
+        unreachable!(
+            "a walked outer loop has an edge: a lone-vertex boundary is left out of the walks \
+             and refused EmptyOuter above"
+        )
+    };
+    let Ok((u_arm, _)) = geom_brep::chart_sup_arms_at(described.surface(), &window) else {
+        unreachable!(
+            "chart_sup_arms_at refuses only the placeholder, which DescribedChart::of excludes"
+        )
+    };
     ChartBound::assembled(outer, rings, period, u_arm, band)
 }
 
@@ -6190,7 +6170,7 @@ mod stretch_meter {
     #[test]
     fn a_stretched_nurbs_chart_meters_its_azimuth_gap_in_metres() {
         let s = flat_chart(100.0);
-        let arm = chart_u_arm(chart(&s), 0.0);
+        let arm = chart_u_arm(chart(&s));
         assert_eq!(arm.get(), 100.0, "the chart's own metre stretch, not 1");
         let gap = 1e-10;
         assert_eq!(
@@ -6247,8 +6227,8 @@ mod stretch_meter {
         let small = flat_chart(100.0);
         let large = flat_chart(100.0e3);
         assert_eq!(
-            chart_u_arm(chart(&large), 0.0).get(),
-            chart_u_arm(chart(&small), 0.0).get() * 1e3
+            chart_u_arm(chart(&large)).get(),
+            chart_u_arm(chart(&small)).get() * 1e3
         );
         assert_eq!(
             v_meter(chart(&large)).get(),
@@ -6261,8 +6241,7 @@ mod stretch_meter {
     #[test]
     fn a_plane_chart_keeps_its_exact_unit_arms() {
         let p = plane();
-        assert_eq!(chart_u_arm(chart(&p), 0.0).get(), 1.0);
-        assert_eq!(chart_u_arm(chart(&p), 0.7).get(), 1.0);
+        assert_eq!(chart_u_arm(chart(&p)).get(), 1.0);
         assert_eq!(v_meter(chart(&p)).get(), 1.0);
     }
 
@@ -6272,7 +6251,7 @@ mod stretch_meter {
     #[test]
     fn an_in_band_metred_gap_escalates_rather_than_deciding() {
         let s = flat_chart(100.0);
-        let arm = chart_u_arm(chart(&s), 0.0);
+        let arm = chart_u_arm(chart(&s));
         assert!(
             decide(
                 "pcurve_loop_continuity",

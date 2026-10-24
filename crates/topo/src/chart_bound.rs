@@ -171,7 +171,7 @@ pub struct ChartLoop<T: Real> {
 
 impl<T: Real> ChartLoop<T> {
     /// The loop's own chart box, over its vertices and envelope boxes.
-    fn window(&self) -> Option<ChartWindow<T>> {
+    pub(crate) fn window(&self) -> Option<ChartWindow<T>> {
         self.edges
             .iter()
             .map(ChartEdge::window)
@@ -265,13 +265,11 @@ impl<T: Decide> ChartBound<T> {
     /// face's region is then not periodic within its own outer, the
     /// lifts are not lifts of anything, and there is no honest
     /// description to return.
-    /// `u_arm` is the chart's FIRST-channel arm — the rate that turns
-    /// the span excess into a length (metres per radian on an azimuth
-    /// chart, whose `u` IS the radian). It is a chart constant on the
-    /// two charts a consumer meters exactly (plane `1`, cylinder `r`);
-    /// on a torus it is the local lever, a sup only at its own
-    /// latitude, and an over- or under-stated arm can only move where
-    /// the refusal fires, never what a surviving description certifies.
+    /// `u_arm` is a sup of the chart's FIRST-channel rate over the
+    /// outer loop's window — what turns the span excess into a length
+    /// (metres per radian on an azimuth chart, whose `u` IS the
+    /// radian). Only a definite excess refuses, so an over-stated rate
+    /// can only refuse.
     pub fn assembled(
         outer: ChartLoop<T>,
         rings: Vec<ChartLoop<T>>,
