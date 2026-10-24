@@ -5263,12 +5263,8 @@ fn chart_ring_side<T: Decide>(
     ring: LoopKey,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let WallChart {
-        origin: centre,
-        axis,
-        radius,
-        u_ref,
-    } = wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
+    let WallChart { radius, .. } =
+        wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
     let tau = T::tau();
     let invariant = |what| SplitJoinError::SectionInvariant { face: newf, what };
     let images = face_azimuth_images(body, surface, newf, band)?.ok_or(invariant(
@@ -5303,10 +5299,14 @@ fn chart_ring_side<T: Decide>(
     let n = images.len();
     let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
         let decide_r = |name, margin| decide(name, margin, band);
-        let w = vertex_point(body, v) - centre;
-        // The chart's one azimuth read (`geom_brep::Azimuth::principal`),
-        // lifted onto the run's window below by `periodic_branch`.
-        let raw = geom_brep::Azimuth::of(w.dot(axis.cross(u_ref)), w.dot(u_ref)).principal(band);
+        // The vertex's chart coordinates (`geom::Surface::chart_point`),
+        // its azimuth lifted onto the run's window below by
+        // `periodic_branch`.
+        let at = surface
+            .chart_point(vertex_point(body, v), band)
+            .map_err(|_| ring_island_unread(newf, surface))?
+            .uv;
+        let raw = at.x;
         // The vertex on the branch of the window's middle, in
         // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
         // own branch. One at the seam of a whole-period window lands on
@@ -5315,7 +5315,7 @@ fn chart_ring_side<T: Decide>(
         // `Sym` the crossings read `u_p` numerically, against image ends
         // of another provenance, never as an identity.
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
-        let v_p = w.dot(axis);
+        let v_p = at.y;
         let mut crossings = 0usize;
         for (i, image) in images.iter().enumerate() {
             let next = &images[(i + 1) % n];
