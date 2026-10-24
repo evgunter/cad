@@ -49,10 +49,7 @@ of an `Intersection` edge (the 3-D curve cached against the intensional
 description `{pair, witness}`) is, by surface-kind pair and most exact
 first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
 `Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
-equal-radius cylinder×cylinder), the exact conics `Curve3::Hyperbola`
-and `Curve3::Parabola` (the rest of plane×cone: a plane meeting both
-nappes, and a plane parallel to a generator; each carries one branch,
-as the spiric carries one oval),
+equal-radius cylinder×cylinder)
 and the exact quartic `Curve3::Spiric` (the axis-parallel plane×torus
 section, one oval in the torus's own minor angle — minted by
 `plane_torus_section`'s axis-parallel arm, which the offset-axial
@@ -64,11 +61,14 @@ evidence of any kind — a fitted cubic `Curve3::Nurbs` where the kernel
 marched it, a closed form where a file stated one or recognition
 promoted one — carrying the C2 certificate. A closed form is zero by
 construction only on rungs 1–2; declared on a rung-3 pair, it is
-checked like any other carrier. A section with a closed form in the
-kernel's arithmetic is a carrier kind, minted exactly; a pair with
-none takes rung 3. Conics round-trip to rational-quadratic NURBS only as
-an export/tessellation form, never as the kernel carrier (the axes and
-centre are what dispatch consumes). There is no polyline rung.
+checked like any other carrier. The kind inventory is closed at the
+kinds above: a section that has a closed form and no kind is minted
+exactly into the NURBS container. A plane×cone parabola or hyperbola is
+such a section, minted from the pair in closed form as a
+rational-quadratic arc (weights `(1, w, 1)`, `w = 1` the parabola,
+`w > 1` the hyperbola), never marched. The line, circle and ellipse
+carriers stay kinds; they round-trip to rational-quadratic NURBS only as
+an export/tessellation form. There is no polyline rung.
 
 **C2 — The certificate of a carrier the kernel did not derive has three limbs, all mandatory.**
 (1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
