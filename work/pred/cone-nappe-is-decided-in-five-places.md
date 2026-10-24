@@ -79,3 +79,14 @@ when the cone face's flux and area got one home,
 Blind spot: a nappe read through a sign of `(p − apex)·axis` that is
 not passed to a named predicate (a bare comparison, or a `copysign`)
 is not matched by this sweep.
+
+## Moved by CHART (2026-10-24)
+
+Branch `chart/ringed-curved-doors` deletes `bool_cone_trim_nappe` and
+`bool_cone_trim_side` with the cone chart trim. Its region reading,
+`topo::boolean::ruled_region`, decides which nappe a point lies on under
+`bool_ruled_region_nappe` (the query's, an aimed path's target's, an
+edge's middle: `(y − apex)·â`) and `bool_ruled_region_component` (a
+root's nappe on a ruling leg). The ray lane's cone arm now reads a hit's
+nappe under `bool_ray_cone_nappe`. That is still one fact under several
+names: the count moved, but the row is not settled.

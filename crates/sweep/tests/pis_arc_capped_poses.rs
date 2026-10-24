@@ -1242,16 +1242,13 @@ fn every_tilted_cut_section_face_is_counter_clockwise() {
 /// answer.
 /// An escalation this row admits: a trim row's margin strictly inside
 /// the band's gap `(ε, K·ε)` — a probe's ray landing within the band of
-/// a boundary edge, which is a typed refusal and not an answer. Two rows
-/// only: the wall's own (`bool_wall_trim`), and a planar face's arc
-/// window (`point_in_arc_loop_conic_window`, which the cuts' ellipse
-/// faces reach). Each shape's count is capped at what was measured.
+/// a boundary edge, which is a typed refusal and not an answer. One row
+/// only: a planar face's arc window (`point_in_arc_loop_conic_window`,
+/// which the cuts' ellipse faces reach). Each shape's count is capped at what was measured.
 fn in_the_trim_band(diag: &geom_core::Indeterminate) -> bool {
     let (eps, k) = (tol().eps(), tol().k());
-    matches!(
-        diag.predicate,
-        Some("bool_wall_trim" | "point_in_arc_loop_conic_window")
-    ) && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
+    matches!(diag.predicate, Some("point_in_arc_loop_conic_window"))
+        && matches!(diag.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(v) if v.abs() > eps && v.abs() < k * eps)
 }
 
 /// Each shape's answered-count floor and escalation cap. The floor is

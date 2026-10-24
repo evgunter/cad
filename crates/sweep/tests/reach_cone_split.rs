@@ -341,13 +341,12 @@ fn a_plane_missing_the_cone_splits_the_body() {
 
 /// The halves of a cut tilted about `x` — a section whose height peaks
 /// inside its arcs, not at their ends on the seams — answer the solid
-/// containment door correctly or refuse `PartialConeFace`, never a
-/// wrong verdict. The three points are outside the half they are asked
+/// containment door correctly. The three points are outside the half they are asked
 /// of, between the section's true height and the window its vertices
 /// fold; a cone trim reading that window answered `In` for each.
 #[test]
 fn a_tilted_cone_cut_is_never_misread_by_containment() {
-    use topo::{PointInSolidError, SolidContainment, point_in_solid};
+    use topo::{SolidContainment, point_in_solid};
     let f = narrowing();
     let n = Vec3::new(0.0, 0.4f64.cos(), 0.4f64.sin());
     let cut = SplitPlane {
@@ -372,7 +371,6 @@ fn a_tilted_cone_cut_is_never_misread_by_containment() {
             match point_in_solid(part, q, band, Tol::witness()) {
                 Ok(SolidContainment::In) if inside => {}
                 Ok(SolidContainment::Out) if !inside => {}
-                Err(PointInSolidError::PartialConeFace { .. }) => {}
                 other => panic!("{q:?} (inside: {inside}): {other:?}"),
             }
         }

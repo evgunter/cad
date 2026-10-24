@@ -72,3 +72,12 @@ all nine pass at `42af7c0b48` (#5548, which already holds INTENT's
 revalue and `m10_bulge` messages name `segment_gap` themselves. So the
 suspected merge is #5542. The rows are still red on 2026-10-23 (run
 39906156937, `be9b907694`).
+
+## 2026-10-24 — one more slow-set red on `chart/orchestrator` (CHART implementer)
+
+`intent_s2_c_world::the_migrated_world_is_the_pre_c_product` fails on
+`chart/orchestrator` at `1a428c9`: "cut_cylinder: the product moved",
+`d2acb2b37c5273db/28` against the recorded `cb8ccadf87044e7f/28`. It
+fails the same on `chart/ringed-curved-doors`, whose product body for
+`cut_cylinder` is bit-identical to the base's: the same counts, the same
+points in the same arena order, the same faces and senses.
