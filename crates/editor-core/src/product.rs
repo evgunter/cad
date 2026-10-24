@@ -1194,10 +1194,9 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             keys: Arc::clone(keys),
         });
         carry_names(&mut tie_rows, table, *node, *ix, keys);
-        // Each source's records cite the placement's list, by the
-        // source's position among the product's inputs, which names the
-        // placement's `body` read: the copy's records are the body's, in
-        // its order.
+        // Each source's records cite the source by its position among
+        // the product's inputs, which names the read it entered through:
+        // the copy's records are its body's, in their order.
         let input = u32::try_from(cited_inputs.len()).unwrap_or(u32::MAX);
         cited_inputs.push(match doc.node(*node) {
             Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => {
