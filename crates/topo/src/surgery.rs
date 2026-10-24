@@ -32,9 +32,9 @@
 //! its close DOES sweep — once per call, not once per setter.
 //! `merge_coplanar_faces_declared` is the same shape: one scope over
 //! its staged clone for the whole run, and one more over each
-//! recorded-skip group's trial clone. That is correct rather than unfortunate: no outer door ever promised to
-//! sweep that clone, and the clone is the body the staging door is
-//! about to hand back.
+//! recorded-skip group's trial clone. That is correct rather than
+//! unfortunate: no outer door ever promised to sweep that clone, and
+//! the clone is the body the staging door is about to hand back.
 //!
 //! Such a door ends with a typed tier-2 gate as well as D1's sweep,
 //! and **a panic and a typed refusal are different contracts**: a
@@ -90,8 +90,9 @@
 //! `Body::enter_surgery` and its two closes — `leave_surgery_and_sweep`
 //! and `leave_surgery` — are the sweeping and the non-sweeping close
 //! without the guard, for the two sites in this crate where a borrow
-//! forbids one; the guardless path has no gated close. They are `pub(crate)` and their obligation is
-//! the caller's; the method docs carry it.
+//! forbids one; the guardless path has no gated close. They are
+//! `pub(crate)` and their obligation is the caller's; the method docs
+//! carry it.
 //!
 //! # What actually fires, and what does not
 //!
