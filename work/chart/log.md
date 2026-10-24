@@ -191,3 +191,14 @@ This was not a crossover, because only one designer moved, so reconciliation end
   - the stale `revalue_corpus` citation;
   - the comment that was false for the span premise;
   - the Interval change stated.
+- 2026-10-24 — **PR 5655's STYLE review** (`session_01KkcHsNioVQk1Kp4YikBjsP`): the typing is right and bit-identical, but the fix mints two instances of its own class:
+  - S2: a pointwise lever is tagged as a span sup in `assembled`;
+  - S1/S9/S10: radians × radius crosses through `metered_sup` in u and `levered` in v in the same predicate, and neither door's doc states the rule.
+
+  The fix pass:
+  - separate pointwise from window sup in the types;
+  - one rule written into both doors (the lane stops if the rule is a fork);
+  - restore fail-loud in `projected_envelope`;
+  - collapse the `fidelity` and `azimuth_lever` copies of the arm table.
+
+  The remaining table copies are to be filed as one row. The PR's base was retargeted to main; it had been opened against `chart/orchestrator`.
