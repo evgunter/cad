@@ -1315,8 +1315,14 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
         panic!("a quadrature over two caps, got {} planes", planes.len())
     };
     // The point of the two planes' common line nearest the origin.
-    let (c, d1, d2) = (n1.dot(n2), n1.dot(o1 - Point3::origin()), n2.dot(o2 - Point3::origin()));
-    let p = Point3::origin() + n1 * ((d1 - c * d2) / (1.0 - c * c)) + n2 * ((d2 - c * d1) / (1.0 - c * c));
+    let (c, d1, d2) = (
+        n1.dot(n2),
+        n1.dot(o1 - Point3::origin()),
+        n2.dot(o2 - Point3::origin()),
+    );
+    let p = Point3::origin()
+        + n1 * ((d1 - c * d2) / (1.0 - c * c))
+        + n2 * ((d2 - c * d1) / (1.0 - c * c));
     let breaks = |knots: &[f64]| {
         let mut b = knots.to_vec();
         b.dedup();
@@ -1330,7 +1336,10 @@ fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
             other => panic!("a quadrature over planes and NURBS, got {other:?}"),
         };
         let sense = if f.sense { 1.0 } else { -1.0 };
-        let (bu, bv) = (breaks(n.knot_values_u().values()), breaks(n.knot_values_v().values()));
+        let (bu, bv) = (
+            breaks(n.knot_values_u().values()),
+            breaks(n.knot_values_v().values()),
+        );
         for u in bu.windows(2) {
             for v in bv.windows(2) {
                 let (hu, hv) = (0.5 * (u[1] - u[0]), 0.5 * (v[1] - v[0]));
