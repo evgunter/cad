@@ -8,7 +8,7 @@ priority: P1
 cost: M
 design: true
 refs: [a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space]
-needs_ev: true
+needs_ev: false
 ---
 
 
@@ -40,3 +40,12 @@ Ev, on PR 5621: "stop doing the swing thing and just make people specify the con
 - `Flip` stays, and nothing refuses short of the pole band.
 
 They crossed on slides, then both leaned to target coordinates that the mate solves. Carried axes are the alternative. That choice is Ev's on the PR, and `[placement.values]` states the lean. Retiring under either: `reference_about`, `mate_chart_reference_antipode`, the `copy_x` swing, the half-turn at −z. Also absorbed: `a-lone-slide-refuses-the-chart-it-never-reads`, and the viewer's `AddMate` re-reading kept values on the swung chart (`viewer/src/session.rs`).
+
+## 2026-10-24 — Ev decided: F
+
+Ev, on PR 5621: "F makes sense if it's reasonable". So slides run along the target's axes, carried by the least turn. On an axis-aligned face that is a coordinate on the target's own axes. `[placement.values]` states it, with the agreed core. Both designers held F coherent (row 192), so it is reasonable. Its costs as they stated them:
+- a slide beside a tilted mate is measured along the face;
+- where the source's mating face is off its own axes, the written slides are admitted by a span check;
+- the viewer's mate tool rewrites the slides it keeps so a freshly mated copy moves only by the snap.
+
+The implementation is `the-value-chart-reads-a-written-orientation`.

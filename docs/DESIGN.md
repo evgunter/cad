@@ -1374,52 +1374,53 @@ copy is read as that copy carries it. A mate places and never checks.
 
 **Values.** `[placement.values]` A **value** sets one freedom of a
 placement's motion that its mates leave, a slide or a spin, to a
-`Length` or `Angle` variable. A **slide** is a coordinate of the
-copy's origin on one of the target space's own axes, mate or none, a
-function of the relative pose alone, so no slide is ordered. A mate
-is equations on that position and solves the coordinates it fixes: a
-plane mate solves the one the author leaves unwritten, an axis mate
-two, a direction mate none. The solve is degenerate where the mated
-plane or line is parallel to an axis left unwritten (x and y written
-for a vertical wall), and there it refuses, typed at evaluation, as a
-construction refuses at its degenerate values; the gesture leaves
-unwritten the axis nearest the mated normal. No turn touches a slide,
-so no edit moves a held slide's meaning. Where the mates fix a
-direction (a plane's normal, an axis, a lone direction; a bundle
-holds at most one mate fixing a direction, since a second would state
-the angle between them, an equation the first already fixes, so its
-values have one chart and a value names no mate), the placement
-writes an **orientation**: one of the 24 ways the source's axes lie
-along the target's (`x: +x, z: −z`), a discrete kind, the identity
-unless written; the gesture writes the one nearest where the copy
-stands. The orientation says where the copy's mated direction should
-point; the least turn carries that onto the mated direction, and the
-one **spin** is the angle about the mated direction left after it, so
-no reference axis is chosen on either side and zero says the two
-spaces agree, up to the orientation, as far as the mates allow. Where
-the mated direction is opposite to where the orientation puts it (the
-orientation written backwards) the least turn has no answer, and
-within the band about that one pole the chart refuses, typed at
-evaluation, naming the orientation to write. The orientation and a
-mate's `Flip` are two facts, the copy's attitude and the contact's
-sense; only the pole band refuses. Where no direction is fixed (no
-mate, or a lone point mate), there is no orientation: the rotation is
-a written chain of at most three spins, each about the target space's
-x, y or z (through the mated point, for a point mate), no two in a
-row about one axis; turns do not commute, so the author writes the
-order and the kernel chooses none. Every freedom is set explicitly,
-as a written value: zero is always a valid value, a placement whose
-values are all zero and which has no mate is the identity, and the
-façade writes the constant `0` for each freedom a gesture leaves
-unnamed. A bundle with no mate is legal. A space's axes are read only
-by values, so setting a part on the world's xy is written as values
-(`z = 0`, the two tilts `0`, and the slides and spin the author
-chooses). A placement is the only reader of a source's own
-coordinates, and reads them only through the freedoms its mates
-leave. A position relative to a face rather than to the space ("10
-along the ramp") is a relation between the copy and geometry, stated
-by geometry (a flag mate, or a mate to a constructed pose), never by
-a value.
+`Length` or `Angle` variable. Where the mates fix a direction (a
+plane's normal, an axis, a lone direction; a bundle holds at most one
+mate fixing a direction, since a second would state the angle between
+them, an equation the first already fixes, so its values have one
+chart and a value names no mate), the placement writes an
+**orientation**: one of the 24 ways the source's axes lie along the
+target's (`x: +x, z: −z`), a discrete kind, the identity unless
+written; the gesture writes the one nearest where the copy stands.
+The orientation says where the copy's mated direction should point,
+and the **least turn** carries that onto the mated direction. Every
+value beside the mate is read through it: a **slide** runs along one
+of the target space's axes as the least turn carries it, so a slide a
+plane mate leaves runs in that plane however the plane is tilted, and
+where the face is where the orientation puts it the least turn is the
+identity and a slide is a coordinate on the target's own axes; the
+one **spin** is the angle about the mated direction left after the
+least turn, so no reference axis is chosen on either side and zero
+says the two spaces agree, up to the orientation, as far as the mates
+allow. Where the source's own mated direction is one of its axes, one
+carried axis lands on the mated direction and the mate takes that
+slide; otherwise the written slides are admitted only where they span
+the plane (or line) the mate leaves, decided once from the source's
+geometry. Where the mated direction is opposite to where the
+orientation puts it (the orientation written backwards) the least
+turn has no answer, and within the band about that one pole the chart
+refuses, typed at evaluation and naming the orientation to write, as
+a construction refuses at its degenerate values; so no edit that keeps
+the face short of a half turn from where the orientation puts it
+moves a held value's meaning, or the copy's place on the face. The
+orientation and a mate's `Flip` are two facts, the copy's attitude and
+the contact's sense; only the pole band refuses. Where no direction is
+fixed (no mate, or a lone point mate), there is no orientation: a
+slide is a coordinate on the target space's own axes, and the
+rotation is a written chain of at most three spins, each about the
+target space's x, y or z (through the mated point, for a point mate),
+no two in a row about one axis; turns do not commute, so the author
+writes the order and the kernel chooses none. A slide is the copy's
+origin measured from the target's, a function of the relative pose
+alone, so no slide is ordered. Every freedom is set explicitly, as a
+written value: zero is always a valid value, a placement whose values
+are all zero and which has no mate is the identity, and the façade
+writes the constant `0` for each freedom a gesture leaves unnamed. A
+bundle with no mate is legal. A space's axes are read only by values,
+so setting a part on the world's xy is written as values (`z = 0`, the
+two tilts `0`, and the slides and spin the author chooses). A
+placement is the only reader of a source's own coordinates, and reads
+them only through the freedoms its mates leave.
 
 **The world** `[placement.world]` is a space like any other, the one
 every document holds and cannot delete: it sets the coordinates. Its
