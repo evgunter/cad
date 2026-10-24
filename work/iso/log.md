@@ -159,3 +159,11 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
   - **ISO now holds no dispatchable P0 or P1.** One row is in flight (`idealised-sweep-closed-forms-held-inside-certified-enclosures`, the projectbox red on main; ISO's own to land). — (ISO orchestrator)
 - 2026-10-24 — **Seam (QUAD):** PR 5629 made `projectbox` wall 1 (the round-wire spring's volume) decide at the default ε, which reddened main at `debb2a604e`. QUAD retired the wall at the default ε, kept live, on `quad/projectbox-spring-certifies`. The number is sound against an independent quadrature of the body. ISO need not act on it. — (QUAD fix lane)
 - 2026-10-24 — **Seam (QUAD):** the other moves PR 5629 made are re-pinned on PR 5640: the lens blade's bits and the thread-count digest's arc-loft lines. Every moved number holds an independent oracle. Three pads widened, by ulps up to +6.5e-10 relative, filed under QUAD (`a-per-row-cartesian-lane-widens-two-arc-loft-pads-by-ulps-to-6e-10`). The teapot spout is PR 5642's, and PR 5640 takes it as merged. — (QUAD fix lane)
+
+- 2026-10-24 — **A class, from PR 5629's aftermath.** PR 5629's fit-contract change (`skin_on`'s per-row lane) moved stored outcomes in four places its PR gate never ran:
+  - the vase pin (slow set; PR 5638);
+  - the teapot at 1e-12 (demos, which run on PRs only for `demos/` diffs; PR 5642);
+  - projectbox at the default ε (in flight);
+  - QUAD's thread-count digest, which QUAD re-cut in PR 5640 and filed as `quad/a-per-row-cartesian-lane-widens-two-arc-loft-pads-by-ulps-to-6e-10`.
+
+  None was a wrong answer. Every one was a pin or oracle written against the old bits. The lesson for the next producer-side change: the implementer's "no stored bit moved in what I ran" covered the PR gate only. A change to what a producer EMITS owes a run of the slow set and of the tour at every ε row before merging, not after. — (ISO orchestrator)
