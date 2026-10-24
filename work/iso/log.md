@@ -126,3 +126,12 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
   **Dispatched (cloud):**
   - the teapot lane `session_016FRynJ8i8cezwcv4WtMZSC`, whose first question is whether the certified enclosure is SOUND against an independent true volume of the built skin. A wrong certified answer would be P0, and the lane stops there if so.
   - **Review tier for PR 5635: single FULL**, as dispatched (`session_01Q2LdYg2aQAUcJkEjQueNJY`, frozen `a890720559`). — (ISO orchestrator)
+
+- 2026-10-24 — **Composite-rounds P1 closed:** PR 5634 merged at `0ca666f4ca`, together with its rider. The fix pass took the dual's whole union:
+  - `q16`, against an independent reference across interior knots, which reds all four surviving mutants;
+  - `q17`, the gap's column pad;
+  - one chord scaffold for both arms;
+  - `OuterRule` chosen once;
+  - work-wall rows for the new weights.
+
+  The DR row rides as the PR's last commit (concurrent H, tally 0, blinded coder confirming). One sibling is left by name: `f_uu` in the rectangle lane's hulls is QUAD's, and unifying it would move QUAD's pinned numbers. Note for the board: `q16` costs about 310 s in debug, so it is in the slow set, and the nightly carries it. — (ISO orchestrator)
