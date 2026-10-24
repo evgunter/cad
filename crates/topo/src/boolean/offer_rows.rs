@@ -46,7 +46,7 @@ use super::super::sectors::{NO_CURVATURE, Reach, side_code, tangent_relative_sid
 use super::super::{BooleanError, BooleanErrorKind, Glue, GluedPair, GluedPairs, Operand};
 use super::tests::every_decision;
 use super::*;
-use crate::contact::ContactClass;
+use crate::contact::GlueClass;
 use crate::entity::VertexKey;
 use crate::test_support::finished;
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
@@ -223,7 +223,7 @@ cases! {
     // arc's ends are read; a smaller tolerance decides the radii apart.
     arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", D, CURVED_ARM_SITE,
         Withdrawn(Because::Refuses("ContactContradicted")) =>
-        arc_against_a_wall(1.0 + D, Some(ContactClass::Rest));
+        arc_against_a_wall(1.0 + D, Some(GlueClass::Rest));
     thin_wedge_on_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, D);
     thin_wedge_cut_from_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
@@ -722,7 +722,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
 /// sharing its axis, the pair declared `class` through the Boolean's
 /// declaration door (`verify_declared_contacts`, which also says whether
 /// the two are one carrier): the first arc's raise.
-fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), BooleanError> {
+fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
     let xw = cyl_wall_sheet(&mut x, CylFrame::canonical(r), (0.5, 1.0), (0.25, 0.5), tol);
@@ -1541,7 +1541,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     let flank = if against { -x } else { x };
     let decls = Glue {
         pairs: if rest {
-            vec![GluedPair::new(fa, fb, ContactClass::Rest)]
+            vec![GluedPair::new(fa, fb, GlueClass::Rest)]
         } else {
             Vec::new()
         },
@@ -2970,9 +2970,9 @@ lever_rows! {
     // it) passes; moved clearly clear of it, the declaration is
     // contradicted, which is why the lever no longer names that side.
     covered_vertex_moved_onto_its_face: None =>
-        arc_against_a_wall(1.0, Some(ContactClass::Rest));
+        arc_against_a_wall(1.0, Some(GlueClass::Rest));
     covered_vertex_moved_clear_of_its_face: Some("ContactContradicted") =>
-        arc_against_a_wall(1.1, Some(ContactClass::Rest));
+        arc_against_a_wall(1.1, Some(GlueClass::Rest));
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,
     // refuses next, whose own story is the declaration, which passes.

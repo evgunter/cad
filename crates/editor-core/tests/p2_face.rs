@@ -22,8 +22,8 @@ use crate::p2_gauges::{Parts, block, cut, parts};
 use crate::p2_split::{pinned_at, seat_at, seated};
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide,
-    Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
+    CapEnd, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide, Node,
+    PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -178,11 +178,7 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
     let (doc, m) = fixture::constrain_at(
         doc,
         k,
-        fixture::rest(
-            head(p.top_cap(k)),
-            head(p.top_upper_cap(top)),
-            ContactClass::Rest,
-        ),
+        fixture::rest(head(p.top_cap(k)), head(p.top_upper_cap(top))),
     );
     (p, doc, [base, top, k], m)
 }

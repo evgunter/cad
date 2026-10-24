@@ -21,9 +21,9 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
-    Evaluation, MateFault, MateRef, MateSide, NameRef, Node, Operand, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, VarId, load, product, save,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, MateFault,
+    MateRef, MateSide, NameRef, Node, Operand, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, VarId, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
 use fixture::seat::map_gap;
@@ -644,7 +644,6 @@ fn two_operands(
     let second = rest(
         head(top_part.cap(top, CapEnd::Start)),
         at2(base_part.cap(base, CapEnd::End)),
-        ContactClass::Rest,
     );
     (doc, opts, m1, second, top)
 }
@@ -719,11 +718,7 @@ fn a6_a_residual_bundle_refuses_on_the_target_or_its_copy() {
             (doc, base)
         };
         let to = read_at(&doc, at)(base_part.cap(base, CapEnd::End));
-        let mate = rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            to,
-            ContactClass::Rest,
-        );
+        let mate = rest(head(top_part.cap(top, CapEnd::Start)), to);
         let refused = fixture::bundle_edits(
             &doc,
             top,
@@ -767,11 +762,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
         .apply(
             &DocEdit::AddConstraint {
                 placement: s.top,
-                mate: Box::new(rest(
-                    head(s.face_b()),
-                    head_at(ghost, s.face_a()),
-                    ContactClass::Rest,
-                )),
+                mate: Box::new(rest(head(s.face_b()), head_at(ghost, s.face_a()))),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -881,7 +872,6 @@ fn a8c_the_content_key_separates_two_operands() {
                     if at_part { part } else { pattern },
                     in_copy(pattern, 1, base_part.cap(base, CapEnd::End)),
                 ),
-                ContactClass::Rest,
             ),
         );
         let ev = run(&doc, &opts);
@@ -1158,15 +1148,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &o);
     let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End));
-    let (doc, _) = constrain_at(
-        doc,
-        top,
-        rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            to,
-            ContactClass::Rest,
-        ),
-    );
+    let (doc, _) = constrain_at(doc, top, rest(head(top_part.cap(top, CapEnd::Start)), to));
     let doc = world(doc, &o, &[local, xf], &[]);
     // Cut the LOCAL block out into its own part, with the world
     // placement of what it moves: nothing it holds is read by a
@@ -1334,7 +1316,6 @@ fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, Rec
         rest(
             head(top_part.cap(top, CapEnd::Start)),
             head_at(xf, base_part.cap(base, CapEnd::End)),
-            ContactClass::Rest,
         ),
     );
     (doc, mate, base, xf)

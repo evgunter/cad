@@ -10,9 +10,9 @@
 //! - *bridged residue* — the indeterminate margins intent covers, and
 //!   NOTHING else ([`crate::contact::ContactVerdict::Bridged`]).
 //!
-//! [`contact_pair_verdict`] is the class-dispatching door: `Rest`
-//! goes down the carrier ladder ([`mod@super::carrier_eq`]), `Tangent`
-//! down the jet schedule ([`tangent_pair_relation`]).
+//! `Rest` goes down the carrier ladder ([`rest_pair_verdict`],
+//! [`mod@super::carrier_eq`]), `Tangent` down the jet schedule
+//! ([`tangent_pair_relation`]).
 //!
 //! **One `Tangent` table, three readings** (`tangent_table`): a contact
 //! claims opposed senses and a void crescent, and is read declared
@@ -79,65 +79,32 @@ use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Vec3};
 
 use crate::body::Body;
-use crate::contact::{ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL};
+use crate::contact::{ContactRefusal, ContactVerdict};
 use crate::entity::FaceKey;
 
 use super::carrier_eq::{CarrierEqError, CarrierRelation};
-use super::refusal_routes::Contradiction;
 
-/// **The class-dispatching contact door**: does this face pair hold
-/// the declared contact, and on whose evidence?
-///
-/// `witness` is the locus a `Tangent` declaration is verified along,
-/// with its parameter range; `Rest` ignores it (the conformal class's
-/// evidence is the carrier, not a locus).
+/// **The `Rest` contact door**: do these two faces rest on one
+/// carrier, opposed, and on whose evidence?
 ///
 /// The verdict is the AQ6 trilean: [`ContactVerdict::Definite`] (the
-/// geometry says so on its own — the declaration added nothing),
-/// [`ContactVerdict::Bridged`] (the definite conditions hold and the
-/// declaration covers the in-band residue), or a typed
-/// [`ContactRefusal`]. Every definite verdict wins over every
-/// declaration.
+/// geometry says so on its own), [`ContactVerdict::Bridged`] (the
+/// definite conditions hold and the claim covers the in-band residue),
+/// or a typed [`ContactRefusal`]. Every definite verdict wins over every
+/// claim.
 ///
 /// # Errors
 ///
 /// [`ContactRefusal`] — contradiction, escalation, or a configuration
 /// outside the class's certifiable set.
-pub fn contact_pair_verdict<T: Decide>(
+pub fn rest_pair_verdict<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
-    class: ContactClass,
-    witness: Option<(&Curve3<T>, T, T)>,
     band: Band,
 ) -> Result<ContactVerdict, ContactRefusal> {
-    match class {
-        ContactClass::Rest => rest_pair_reading(a, fa, b, fb, band).map(|(verdict, _)| verdict),
-        ContactClass::Tangent => {
-            let Some((carrier, t0, t1)) = witness else {
-                return Err(ContactRefusal::NotCertifiable {
-                    what: "a Tangent declaration is verified ALONG a locus; none was supplied",
-                });
-            };
-            tangent_pair_relation(a, fa, b, fb, carrier, t0, t1, true, band)
-        }
-    }
-}
-
-/// **AQ6's steer**: when a declared `Rest` is contradicted by a
-/// SEPARATION-shaped margin — a radius difference, a centre offset, a
-/// parallel-plane offset — the geometry is usually a designed
-/// clearance wearing the wrong declaration. The steer names the class
-/// that fits AND names its deferral, so the message is a live pointer
-/// rather than a dead one.
-///
-/// An ANGULAR contradiction (axes not parallel, planes not parallel)
-/// gets no steer: no gap makes those two carriers one, so pointing at
-/// `Fit` there would be advice that cannot work
-/// ([`Contradiction::fits_a_clearance`]).
-pub(super) fn fit_steer(fact: Contradiction) -> Option<&'static str> {
-    fact.fits_a_clearance().then_some(FIT_DEFERRAL)
+    rest_pair_reading(a, fa, b, fb, band).map(|(verdict, _)| verdict)
 }
 
 /// The `Rest` table (C4): carrier non-contradiction through the
@@ -186,7 +153,6 @@ pub(crate) fn rest_pair_reading<T: Decide>(
                 predicate: Some("contact_rest_senses_opposed"),
                 terminal_sliver: false,
             },
-            steer: None,
         }),
         // The ladder contradicts a declared pair before it can call
         // it `Distinct`, and a declared pair never reaches the
@@ -202,10 +168,9 @@ pub(crate) fn rest_pair_reading<T: Decide>(
                 },
             })
         }
-        Err(CarrierEqError::Contradicted { fact, diag }) => Err(ContactRefusal::Contradicted {
-            steer: fit_steer(fact),
-            diag,
-        }),
+        Err(CarrierEqError::Contradicted { diag, .. }) => {
+            Err(ContactRefusal::Contradicted { diag })
+        }
         Err(CarrierEqError::Escalated { diag, .. } | CarrierEqError::Unsettled { diag }) => {
             Err(ContactRefusal::Escalated { diag })
         }
@@ -226,9 +191,8 @@ pub(crate) fn rest_pair_reading<T: Decide>(
 ///   OPPOSED and parallel within the derived angle at lever arm
 ///   `1/κ_rel`, the C7 threshold verbatim;
 /// - **contradicts**: definite separation or definite crossing (the
-///   separation definitely positive or negative, with the `Fit` steer),
-///   a bad witness (a residual definitely nonzero where the pair
-///   touches, no steer), definite normal independence (`sin θ`
+///   separation definitely positive or negative), a bad witness (a
+///   residual definitely nonzero where the pair touches), definite normal independence (`sin θ`
 ///   definitely nonzero at that arm), or aligned normals (containment,
 ///   not tangency);
 /// - **bridges** (declared only): the second-order margin and ONLY it
@@ -251,7 +215,7 @@ pub(crate) fn rest_pair_reading<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`ContactRefusal`] — see [`contact_pair_verdict`].
+/// [`ContactRefusal`] — see [`rest_pair_verdict`].
 #[allow(clippy::too_many_arguments)]
 pub fn tangent_pair_relation<T: Decide>(
     a: &Body<T>,
@@ -599,7 +563,6 @@ fn tangent_pass<T: Decide>(
                         predicate: Some("contact_tangent_opposed"),
                         terminal_sliver: false,
                     },
-                    steer: None,
                 }));
             }
             // A definite zero means the normals are perpendicular:
@@ -613,7 +576,6 @@ fn tangent_pass<T: Decide>(
                         predicate: Some("contact_tangent_independent"),
                         terminal_sliver: false,
                     },
-                    steer: None,
                 }));
             }
             // MUST-VERIFY-DEFINITE, same reasoning as the residual
@@ -718,7 +680,6 @@ fn tangent_pass<T: Decide>(
                         predicate: Some("contact_tangent_parallel"),
                         terminal_sliver: false,
                     },
-                    steer: None,
                 }));
             }
             Ok(Sign::Zero) => {}
@@ -749,7 +710,6 @@ fn tangent_pass<T: Decide>(
                                 predicate: Some("contact_tangent_overlap"),
                                 terminal_sliver: false,
                             },
-                            steer: None,
                         }));
                     }
                     Err(diag) => {
@@ -813,7 +773,6 @@ fn sides_mixed(band: Band) -> ContactRefusal {
             predicate: Some("tangency_sides_mixed"),
             terminal_sliver: false,
         },
-        steer: None,
     }
 }
 
@@ -833,8 +792,7 @@ fn sides_mixed(band: Band) -> ContactRefusal {
 /// - Zero passes; the span between samples is the caller's line.
 /// - A definite sign contradicts (`contact_tangent_gap`, its margin
 ///   signed: positive is C4's definite separation, negative its
-///   definite crossing), with the `Fit` steer: a designed gap or
-///   interference is what the geometry holds.
+///   definite crossing).
 /// - In band escalates: the touch is MUST-VERIFY-DEFINITE (C4), never
 ///   the bridged residue.
 ///
@@ -859,7 +817,6 @@ fn touching<T: Decide>(
                 predicate: Some("contact_tangent_gap"),
                 terminal_sliver: false,
             },
-            steer: Some(FIT_DEFERRAL),
         }),
         Err(diag) => Err(ContactRefusal::Escalated { diag }),
     }
@@ -899,8 +856,7 @@ fn span_touch<T: Decide>(
 ///   a measured point of the witness off the surface is a miss whatever
 ///   the spans do, so the sag does not shrink it. The pair has already
 ///   been read touching there ([`touching`]), so the miss is the
-///   witness's, a bad cache, and no gap could help: no `Fit` steer. The
-///   refusal carries the `off` reading;
+///   witness's, a bad cache. The refusal carries the `off` reading;
 /// - escalated on an in-band sample (`off`), which no finer schedule
 ///   moves;
 /// - the sag's to settle with the sample decided on the surface
@@ -933,7 +889,6 @@ fn on_surface<T: Decide>(
                 predicate: Some(off),
                 terminal_sliver: false,
             },
-            steer: None,
         })),
         Ok(geom_core::Decided {
             sign: Sign::Zero, ..
@@ -1141,23 +1096,6 @@ mod tests {
             tangent_locus_relation(&cone, true, &flat, true, &along, -1.0, 1.0, true, band()),
             Err(ContactRefusal::NotCertifiable { .. })
         ));
-    }
-
-    /// AQ6's steer: a SEPARATION-shaped contradiction points at the
-    /// class that would fit and names its deferral; an ANGULAR one
-    /// does not, because no gap makes two non-parallel carriers one.
-    #[test]
-    fn fit_steer_fires_only_where_a_gap_could_help() {
-        assert_eq!(
-            fit_steer(Contradiction::SphereRadiiDiffer),
-            Some(FIT_DEFERRAL)
-        );
-        assert_eq!(
-            fit_steer(Contradiction::CylinderAxesApart),
-            Some(FIT_DEFERRAL)
-        );
-        assert_eq!(fit_steer(Contradiction::CylinderAxesNotParallel), None);
-        assert_eq!(fit_steer(Contradiction::PlanesNotParallel), None);
     }
 
     /// The on-surface gate's verdicts, each on its own side of the
@@ -1397,10 +1335,10 @@ mod tests {
     /// - 1.8ε apart: each residual is 0.9ε, within ε; the gap is in
     ///   band and escalates under its own name.
     /// - 15ε apart: the gap is definite, a separation (positive), and
-    ///   carries the `Fit` steer. Each residual (7.5ε) is in band, so a
+    ///   contradicts. Each residual (7.5ε) is in band, so a
     ///   decider reading only the residuals escalates here.
     /// - 15ε into each other: the gap is definite and negative, a
-    ///   crossing, with the same steer.
+    ///   crossing.
     #[test]
     fn a_witness_between_the_surfaces_reads_their_whole_gap() {
         let eps = band().zero();
@@ -1416,7 +1354,7 @@ mod tests {
         }
         for (gap, sign, what) in [(15.0, 1.0, "separation"), (-15.0, -1.0, "crossing")] {
             match lifted_cylinder_on_plane(gap * eps, 0.5 * gap * eps) {
-                Err(ContactRefusal::Contradicted { diag, steer }) => {
+                Err(ContactRefusal::Contradicted { diag }) => {
                     assert_eq!(
                         diag.predicate,
                         Some("contact_tangent_gap"),
@@ -1426,7 +1364,6 @@ mod tests {
                         margin_of(&diag) * sign > 0.0,
                         "{what}: the margin's sign names it: {diag:?}"
                     );
-                    assert_eq!(steer, Some(FIT_DEFERRAL), "{what}: the Fit steer");
                 }
                 other => panic!("{what} by 15ε contradicts on the gap: {other:?}"),
             }
@@ -1437,15 +1374,13 @@ mod tests {
     /// Displaced 11ε along the shared normal, the witness is 11ε out of
     /// the cylinder and 11ε above the plane, and the two heights cancel
     /// in the gap: the pair touches. The residual row contradicts,
-    /// naming the first surface it reads, with no `Fit` steer, since no
-    /// designed clearance is what the geometry holds.
+    /// naming the first surface it reads.
     #[test]
     fn a_witness_off_a_touching_pair_contradicts_as_a_bad_witness() {
         let eps = band().zero();
         match lifted_cylinder_on_plane(0.0, 11.0 * eps) {
-            Err(ContactRefusal::Contradicted { diag, steer }) => {
+            Err(ContactRefusal::Contradicted { diag }) => {
                 assert_eq!(diag.predicate, Some("contact_tangent_off_1"), "{diag:?}");
-                assert_eq!(steer, None, "a bad witness carries no Fit steer");
             }
             other => panic!("a witness 11ε off contradicts on its residual: {other:?}"),
         }

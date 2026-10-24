@@ -156,7 +156,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     use geom_brep::MaterialWedge;
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
-        BooleanError, BooleanOp, ContactClass, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
+        BooleanError, BooleanOp, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
         PointInSolidError, SectorRead, SolidKey, VertexKey,
     };
 
@@ -184,7 +184,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     let declaration = DeclaredContact {
         a: face,
         b: face,
-        class: ContactClass::Tangent,
+        class: topo::GlueClass::Rest,
     };
     let boolean: Vec<(&'static str, BooleanError)> = vec![
         (

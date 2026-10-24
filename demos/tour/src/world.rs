@@ -147,7 +147,6 @@ pub fn on_axis(
     along: Formula,
     tol: Tol,
 ) -> Placed {
-    use pncad::prelude::ContactClass;
     let space = space_of(doc, &frame);
     let to = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::through(frame.clone(), PoseRole::Z),
@@ -160,7 +159,6 @@ pub fn on_axis(
             port: 1,
         },
         to,
-        class: ContactClass::Rest,
     };
     // The slide an axis mate leaves, written; its spin is the constant 0.
     let placed = Answer::of(doc, vec![mate], vec![(Coord::Slide(TargetAxis::Z), along)]);

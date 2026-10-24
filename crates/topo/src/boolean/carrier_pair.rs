@@ -427,16 +427,7 @@ mod lever_rows {
     }
 
     fn door(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> Result<(), ContactRefusal> {
-        crate::boolean::contact_pair_verdict(
-            a,
-            fa,
-            b,
-            fb,
-            crate::contact::ContactClass::Rest,
-            None,
-            band(),
-        )
-        .map(|_| ())
+        crate::boolean::rest_pair_verdict(a, fa, b, fb, band()).map(|_| ())
     }
 
     /// A torus of `R + r = 2.5 m` against its twin tilted by `θ` about

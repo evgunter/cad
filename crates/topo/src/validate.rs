@@ -1845,9 +1845,6 @@ pub enum ValidationError {
         /// coincidence at another), so the message states what is true
         /// at all of them ([`crate::contact::CONTRADICTION_REASON`]).
         margin: Indeterminate,
-        /// Extra recourse steering when the counter-evidence has a
-        /// named remedy (AQ6's designed-clearance arm).
-        steer: Option<&'static str>,
     },
     /// Tier 3′: a census predicate escalated (sliver band or poison) —
     /// indeterminate coincidence geometry at rest is a defect (the
@@ -4244,21 +4241,19 @@ impl fmt::Display for ValidationError {
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
                 "{declaration} names a contact the geometry does not have. \
-                 Recourse: remove that declaration (the mate named with it, where one is), \
+                 Recourse: remove that declaration, \
                  or move the geometry so the contact exists"
             ),
             Self::ContactContradicted {
                 declaration,
                 witness,
-                steer,
                 ..
             } => write!(
                 f,
-                "the declared {} contact is contradicted {witness}: {}. {}{}",
+                "the declared {} contact is contradicted {witness}: {}. {}",
                 declaration.class.name(),
                 crate::contact::CONTRADICTION_REASON,
                 crate::contact::CONTRADICTION_RECOURSE,
-                crate::contact::steer_clause(*steer),
             ),
             // Two long edges' ends read past their rounding: the
             // precision limit, whose recourse is no move apart.
@@ -9406,9 +9401,10 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// through the chart-region predicate), face-granularity backing from
 /// face–face records, and the record certifiers (chart-region overlap
 /// for a face–face record). ASM R2-b
-/// consumes THIS gate (ASM-R2-SPEC-DRAFT:39-58): mate declarations
-/// land in the product body's [`crate::boolean::ContactRecords`] —
-/// same currency, no adapter — and validate here.
+/// consumes THIS gate (ASM-R2-SPEC-DRAFT:39-58): the records the
+/// at-rest census writes for the touches between copies land in the
+/// product body's [`crate::boolean::ContactRecords`] — same currency,
+/// no adapter — and validate here.
 ///
 /// # Errors
 ///

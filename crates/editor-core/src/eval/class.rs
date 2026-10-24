@@ -188,8 +188,6 @@ pub enum NodeErrorClass {
     /// [`NodeErrorKind::Mate`] carrying
     /// [`MateFault::PosesOfAnotherDocument`].
     MatePosesOfAnotherDocument,
-    /// [`NodeErrorKind::Mate`] carrying [`MateFault::ClassNotAdmitted`].
-    MateClassNotAdmitted,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Overconstrained`].
     MateOverconstrained,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unpinned`].
@@ -340,7 +338,6 @@ impl NodeErrorClass {
     pub fn of_mate(fault: &MateFault) -> Self {
         match fault {
             MateFault::PosesOfAnotherDocument { .. } => Self::MatePosesOfAnotherDocument,
-            MateFault::ClassNotAdmitted { .. } => Self::MateClassNotAdmitted,
             MateFault::Overconstrained { .. } => Self::MateOverconstrained,
             MateFault::Unpinned { .. } => Self::MateUnpinned,
             MateFault::NotOnTheCopy { .. } => Self::MateNotOnTheCopy,
@@ -457,7 +454,6 @@ mod tests {
         PartDepthExceeded,
         PartNotEntered,
         MatePosesOfAnotherDocument,
-        MateClassNotAdmitted,
         MateOverconstrained,
         MateUnpinned,
         MateNotOnTheCopy,
@@ -791,7 +787,6 @@ mod tests {
                 expected: crate::DocumentId::derive("a"),
                 found: crate::DocumentId::derive("b"),
             }),
-            C::MateClassNotAdmitted => mate(crate::MateFault::ClassNotAdmitted { mate: m(9) }),
             C::MateOverconstrained => mate(crate::MateFault::Overconstrained {
                 placement: n(6),
                 constraints: vec![c(1), c(2)],
