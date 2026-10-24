@@ -7,6 +7,7 @@ opened: 2026-09-08
 priority: P0
 cost: H
 design: true
+needs_ev: true
 ---
 
 
