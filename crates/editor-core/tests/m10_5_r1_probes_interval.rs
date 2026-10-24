@@ -411,22 +411,13 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// slack, so neither `Violated` nor `Holds` was reachable and a sound
 /// rounded body got a budget refusal for its answer.
 ///
-/// **FLIPPED by TRIM-3 PR-2.** The bump's window `u` is the
-/// description's azimuth hull — the half turn the face actually
-/// occupies — and not the whole turn, so the phantom lower half is
-/// gone before the tree is built. The body's real minimum gap is 0.5,
-/// which the proximity prune then excludes outright.
-///
-/// **`candidates == 0` is the assertion, and it is the root cut's only
-/// e2e observable.** The v6 dual measured that the `Holds` alone
-/// proves nothing about the root: forcing the cylinder `u` back to the
-/// whole turn moves `candidates` `0 -> 1` and the row still passes,
-/// because the per-cell drops carry the verdict from there. So what
-/// this row pins is that the phantom lower half never reached the
-/// proximity tree at all — nothing was subdivided, because nothing
-/// came within reach. The band rule itself is decided directly by
-/// `editor_core::clearance`'s `root_rule` unit rows, and its e2e row
-/// is `trim_3_windows_interval::a_negative_band_is_not_intersected_with_the_canonical_turn`.
+/// **FLIPPED by deciding cells off the face.** The bump's window is
+/// still the whole turn, so the pair reaches the tree
+/// (`candidates == 1`); every cell of the phantom lower half meets no
+/// edge of the bump on its own carrier (the end circles read as their
+/// half arcs, not as whole circles) and its station is out of the face,
+/// so it drops (`outside > 0`) and the touching pair is never
+/// classified. The body's real minimum gap is 0.5.
 #[test]
 fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
@@ -457,25 +448,22 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         report.windows()
     );
     assert_eq!(
-        r.candidates,
-        0,
-        "the bump's root is its own half turn, so the phantom lower half never comes \
-         within reach of the bottom wall and no pair is subdivided at all — this is the \
-         number a full-turn root moves, and the `Holds` below is not: {}",
+        (r.candidates, r.outside > 0),
+        (1, true),
+        "the bump's whole-turn window reaches the bottom wall, and its phantom cells drop: {}",
         report.serialize()
     );
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
-        "the bump's window is its own half turn now, so nothing on this sound body is at \
-         separation zero: {}",
+        "the phantom lower half is decided out of the bump, so nothing on this sound body is \
+         at separation zero: {}",
         report.serialize()
     );
     assert_eq!(
         report.windows().1,
         0,
-        "every carrier here is a plane or a cylinder, so every window carries a \
-         description: {}",
+        "every window of the bound question is decided cell by cell: {}",
         report.serialize()
     );
 }
@@ -956,13 +944,13 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (10, 972, 962, 296),
+        (10, 1264, 1254, 532),
         "the measured receipt, pinned; like the L-plate row's it is what catches a drop \
-         rule that changes without changing a verdict. Stable across the three eps \
-         rows. RE-BASELINED from (10, 930, 920, 292) by PROPS's sign-hull unit, for the \
-         reason that row states: the stored chart is the retired re-chart turned a \
-         quarter turn, so the subdivision halves the other axis first. The verdict and \
-         both claims above it are unchanged: {}",
+         rule that changes without changing a verdict. RE-BASELINED from \
+         (10, 972, 962, 296) when cells came to be decided off the face's edges in model \
+         space: a cell clears its boundary only once the ball about its centre does, \
+         which is wider than the cell, so cells beside an edge split once or twice more \
+         before they drop. The verdict and both claims above it are unchanged: {}",
         whole.serialize()
     );
     let inner = Selection {

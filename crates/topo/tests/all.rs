@@ -243,6 +243,8 @@ mod on_verdict;
 mod one_record_carry;
 #[path = "pcurve_door_refusals.rs"]
 mod pcurve_door_refusals;
+#[path = "projected_row_chart_box.rs"]
+mod projected_row_chart_box;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
 #[path = "r1_lane1_bracket_read_census.rs"]
@@ -367,8 +369,6 @@ mod split_operand_gate;
 mod stated_general_image_mint;
 #[path = "surgery_carries_records.rs"]
 mod surgery_carries_records;
-#[path = "trim_3_chart_bound.rs"]
-mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
 #[path = "vertex_on_edge_records.rs"]

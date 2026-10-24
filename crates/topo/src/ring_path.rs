@@ -41,16 +41,16 @@
 //! The parity does not depend on the path because the curve is
 //! null-homotopic where the paths run. Every closed curve on a sphere
 //! is. On a cone, the paths run on the punctured nappe, an annulus, and
-//! the curve bounds a disc of it: it lies on one face, and no face winds
-//! round the axis — at rest, tier 3's pcurve mint refuses a face whose
-//! outer loop spans a full period or whose loop wraps
-//! (`PcurveMintError::{OuterSpansPeriod, LoopWraps}`), so a face that
-//! reaches round the axis is cut by its seam, and no curve on it winds
-//! round the apex. On a torus, the paths run anywhere on it and the
-//! curve bounds a disc: it lies on one face, and tier 3's pcurve mint
-//! refuses a loop whose chart walk closes only by a period in either
-//! direction (`LoopWraps`), so a face lifts to a disc of the chart
-//! plane and a closed curve on it lifts closed. The parity of a path
+//! the curve bounds a disc of it: it lies on one face, and no loop of the
+//! face winds round the axis, so no curve on it winds round the apex. On
+//! a torus, the paths run anywhere on it and the curve bounds a disc: it
+//! lies on one face, no loop of which winds round either period, so the
+//! face lifts to a disc of the chart plane and a closed curve on it
+//! lifts closed. A loop that does not wind is one whose chart walk closes
+//! on its start, its deck elements composed to the identity
+//! (`pcurves::loop_windings`' `zero`); nothing about how far the loop
+//! spans the chart enters, and the at-rest pass does not yet refuse a
+//! loop that winds (`work/pctail/a-seamless-band-mints-and-passes-tier-3-though-loopwraps-says-no-constructor-makes-one.md`). The parity of a path
 //! across a curve that bounds is its ends' sides of the disc, whichever
 //! way round the tube or the axis it goes.
 //!

@@ -128,3 +128,24 @@ Re-priced `cost: M` and `design: true` from legacy `D`. Weigh it after
 INTENT's `an-operation-computes-in-a-frame-of-its-reads` lands: that
 unit changes how an operation (a measure among them) evaluates, which is
 where the lane split lives. (CHART orchestrator)
+
+## Note (CHART, 2026-10-24, `clearance-cells-are-decided-in-model-space`)
+
+The description this row's walk rows came from is gone: `chart_bound.rs`
+and `pcurves::chart_boundary` left the tree, and clearance decides a cell
+off its face's edges in model space (`topo::cell_region`: `Inside`,
+`Outside` or `Undecided`) and places a station with the face's point door
+(`topo::cell_region::station_region`). So the rows a tightened
+`min_separation` would record are now `cell_region_gap`,
+`cell_region_arc_trim` and the point doors' own (`bool_contact_*`, the
+region readings'), not the `pcurve_loop_*` walk rows measured above. The
+lane split is untouched: the `f64` lane still answers `None` and records
+none of them, so any decision inside `min_separation` still crosses the
+drive. `min_separation` keeps `band: None`.
+
+What lands here once the split closes is the measure's half of the
+design: `hi` reads only cells `cell_region` decides `Inside` and
+stations `station_region` places `In`, `OnEdge` or `OnVertex`, which
+bound the FACES' separation from above, so `window_hi` becomes a bound
+on the faces and `Certified::LowerBoundOnly` can retire. The clearance
+sweep already admits only such stations as a `Violated` witness.

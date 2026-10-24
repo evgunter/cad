@@ -1189,7 +1189,12 @@ pub(crate) fn arc_trim<T: Decide>(
 /// never compressed below the angle to the nearer end — for a caller that
 /// has decided the ends by another metric first (an ellipse's exact end
 /// distances, [`ConicArc::hit`]). The one body of the construction.
-fn arc_trim_margin<T: Decide>(p: Point3<T>, a: Point3<T>, apex: Point3<T>, anti: Point3<T>) -> T {
+pub(crate) fn arc_trim_margin<T: Decide>(
+    p: Point3<T>,
+    a: Point3<T>,
+    apex: Point3<T>,
+    anti: Point3<T>,
+) -> T {
     ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
 }
 
