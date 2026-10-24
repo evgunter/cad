@@ -2,7 +2,8 @@
 id: chart-inversion-is-spelled-three-times
 kind: issue
 title: A point's chart coordinates are inverted by three copies, and stable_azimuth is spelled twice
-status: dispatched
+status: review
+pr: 5659
 opened: 2026-10-14
 priority: P1
 cost: M
