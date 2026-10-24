@@ -785,3 +785,34 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
     - ATREST stage 4 I `mates-declare-no-contact` (`session_019tRXC73J6ZavA9dQrrqHbE`). ATREST is held by this orchestrator.
 - 2026-10-24 — D′3 (PR #5636) is at review: concurrent dual (letter H), R1 `session_01UyqCwUjn2yuff7KKR9YU1d` and R2 `session_017UA3HAnATVgLfEKazgcVfS` on frozen `d9799aca54`. Its only red is the teapot 1e-12 row (`demos`), which is main's since ISO's PR 5629; ISO's lane `session_016FRynJ8i8cezwcv4WtMZSC` owns it, and both D′3 and ATREST I wait on it for `gate ok`.
 - 2026-10-24 — The antipode fork (#5621), round 2, run on Ev's redirect ("stop doing the swing thing"): C and D both retire the swing. A placement writes an orientation, one of the 24 axis correspondences. A spin is the residual about the mated direction after the least turn that seats that orientation, and the one pole is an orientation written backwards, which refuses. They split on slides beside a mate: target coordinates with the mate solving the fixed one (C), or target axes carried by the least turn (D). They also split on whether `Flip` stays. Round 3 hands each the other's report. Ev was told the status on the PR.
+- 2026-10-24 — **Orchestrator state, 03:35Z** (the INTENT orchestrator, `session_01ErHpqNBTJdZAB9DbuaLNnJ`, also holds ATREST). For a successor:
+  - **#5621 `[ev]`, the antipode / value chart.** Ev redirected ("stop doing the swing thing"). Rounds 2–4 used designers C (`session_01KXaR1nqcGhVuTqyTkXJwKC`) and D (`session_01Qe4fiY4g42w6nv4QMETSDt`). Ev approved the core ("that plan makes sense!"):
+    - the swing retires;
+    - beside a direction-fixing mate only, the placement writes an orientation (one of 24);
+    - the spin is the residual after the least turn;
+    - one pole (the orientation written backwards) refuses;
+    - `Flip` stays.
+    - **Open to Ev:** slides as (P) target coordinates that the mate solves (both lean to it; the diff states it), or (F) axes carried by the least turn. The body carries both round-4 For-Ev sections.
+    - **On Ev's answer:** update `[placement.values]` in place if F, merge, and file the implementation unit. Its hit list is in the PR body's last paragraph and in the item's 2026-10-24 section. `flag-and-pivot-pose-kinds` waits on it.
+  - **D′3 (#5636).** The concurrent dual (H) on frozen `d9799aca54`:
+    - R1 `session_01UyqCwUjn2yuff7KKR9YU1d` and R2 `session_017UA3HAnATVgLfEKazgcVfS` both returned NOT-MERGEABLE.
+    - Their MAJORs are all bilateral: a `⊔` re-decided when placed or nested; a cut through a seat refusing `VertexReadTwice`; the product slot leaving the world.
+    - Coded blind by a local Opus agent (inputs `analysis/dual-review/pr-5636-coding` `c27407e602`; byte 62, A = R1). **Tally 0.** The near-miss is R2's slot MAJOR, ruled one defect with R1's load-door MINOR.
+    - Divergence ruled: the placed seat is a regression from main (R1's executed differential).
+    - The fix list went to the lane (`session_017HwxSpesEsgKsHjvrj6TyM`).
+  - **D′3 fix-pass state:**
+    - items 4–8 are pushed (`00be3e53dc`);
+    - item 1 (the census at the `⊔`'s door, with records carried) **waits for #5637 to merge**, so it is built with no mint (orchestrator's sequencing call);
+    - items 2–3, ruled (C): booleans over a `⊔` distribute per piece in the editor layer (`−`, `∩`, and the tool side where exact). The kernel fix in `topo::boolean::vtxfac::pierced_and_paired`, reading a recorded seat as one interface, is filed P1 on topo's slate. The bridged bead is pinned to today's `VertexReadTwice`.
+    - **Owed when 5636 is green:** row `docs/dual-review-log/rows/PR-5636.md` as the last commit. Its content is below.
+  - **D′3 row content.** Arm concurrent, letter H, dispatched together at 00:59Z. R1's report is 3/6/5; R2's is 3/3/5. The coder found 15 bilateral; unilateral A: m4, m5, m6, doc and dead arms; unilateral B: n4, s6, s7, the roots doc. Fair: one brief file modulo the lane label, no glimpses, neither interrupted.
+  - **Teapot 1e-12 red on main:** fixed by ISO's #5642.
+  - **Filed:** ciw `a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins` (#5643), the third instance in two days.
+- 2026-10-24 — **The antipode fork closes on Ev's F** (PR 5621, "F makes sense if it's reasonable"; merged). `[placement.values]` now reads:
+  - a written orientation beside a direction-fixing mate;
+  - slides carried by the least turn;
+  - the spin as the residual;
+  - one pole refusing;
+  - `Flip` kept.
+
+  Row 192: match is round 2's D. Designers archived. The implementation `the-value-chart-reads-a-written-orientation` (P1) is dispatched to `session_01ReeWyLMjbS8q7pwdH5Tpwo` on `intent/value-chart-orientation`. Tier: dual (letter M, arm byte at review). Briefed to run the whole slow set before green. `flag-and-pivot-pose-kinds` waits on it.

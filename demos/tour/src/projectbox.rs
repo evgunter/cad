@@ -175,6 +175,15 @@ fn coil_volume(area: f64) -> f64 {
 /// spine's own length is 1.8e-6 short of the helix's, below all three.
 const COIL_GAP: f64 = 5e-3;
 
+/// The round-wire coil BODY's volume (m³) and area (m²): the slab
+/// stack's own, not the continuum tube's, as an independent quadrature
+/// of its patches measures them
+/// (`tests::the_round_coils_own_quadrature_is_the_pinned_oracle`
+/// re-derives both from the body on every test run). Where wall 1 is
+/// retired, the kernel's certified bracket is held to these.
+const ROUND_COIL_V: f64 = 0.010_360_121_170_116;
+const ROUND_COIL_A: f64 = 0.835_189_181_993_04;
+
 /// The cap on the gap at twice [`PER_TURN`] stations a turn, measured
 /// 1.7e-4.
 #[cfg(test)]
@@ -185,17 +194,17 @@ const FINE_GAP: f64 = 5e-4;
 /// boss. Returns the body and its relative gap to [`coil_volume`].
 ///
 /// Round wire is the natural section, and it is wall 1: the swept
-/// `circle_split` wire builds, and at the default ε and finer its
-/// volume refuses `QuadratureBudget`, an enclosure 3.98e-4 m wide
-/// against the 1024·ε target
-/// (`work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
-/// At ε = 1e-6 the wall is RETIRED, kept live: the enclosure was
-/// 3.59e-3 m when the wall was pinned (2026-10-06) and has tightened
-/// about 9x since, under the 1.024e-3 target, so the volume decides
-/// there (`work/quad/main-red-projectbox-wall-1-no-longer-refuses-at-eps-1e-6`).
-/// It measures the coil it should: `volume ± volume_pad` contains
-/// [`coil_volume`]`(π WIRE_H²)`, the slab gap inside [`COIL_GAP`] as
-/// the square wire's is.
+/// `circle_split` wire builds, and finer than the default ε its volume
+/// refuses `QuadratureBudget` (at ε = 1e-12, an enclosure 2.74e-8 m
+/// wide against the 1024·ε target, after 7 rounds;
+/// `work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
+/// At the default ε and looser the wall is RETIRED, kept live: the
+/// volume decides, 0.01036012 ± 1.9e-7 at the default ε, and the wall
+/// asserts its bracket holds the body's own [`ROUND_COIL_V`] and
+/// [`ROUND_COIL_A`]. Neither bracket holds [`coil_volume`]`(π WIRE_H²)`,
+/// the continuum tube's: the body is a stack of slabs, as the square
+/// wire's is, and the retired wall asserts the same slab gap against
+/// it, inside [`COIL_GAP`] (measured −4.40e-3).
 fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     let round: Vec<ConstructedLoop<f64>> = vec![
         circle_split(p2(0.0, 0.0), WIRE_H, 4, 0.0, tol)
@@ -217,27 +226,34 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             })
             .expect("the round-wire coil passes tier 3 or cannot be measured")),
     };
-    if tol.eps() > pncad::tolerance::DEFAULT_EPS {
+    if tol.eps() >= pncad::tolerance::DEFAULT_EPS {
         let props = round_props.unwrap_or_else(|e| {
             panic!(
                 "wall 1 (measure the round-wire spring's volume) refuses at ε = {:e}, \
-                 looser than the default, where it was retired: {e:?} — the wall MOVED; \
-                 re-derive it",
+                 where it was retired: {e:?} — the wall MOVED; re-derive it",
                 tol.eps()
             )
         });
         let want = coil_volume(core::f64::consts::PI * WIRE_H * WIRE_H);
         let gap = (props.volume - want) / want;
         assert!(
-            (props.volume - want).abs() <= props.volume_pad && (-COIL_GAP..0.0).contains(&gap),
-            "the round-wire coil's volume {} ± {:.1e} against A·L = {want}: relative gap \
-             {gap:.3e}",
+            (props.volume - ROUND_COIL_V).abs() <= props.volume_pad
+                && (props.surface_area - ROUND_COIL_A).abs() <= props.area_pad,
+            "the round-wire coil's V = {} ± {:.1e} and A = {} ± {:.1e} against the body's own \
+             {ROUND_COIL_V} and {ROUND_COIL_A}",
             props.volume,
-            props.volume_pad
+            props.volume_pad,
+            props.surface_area,
+            props.area_pad
+        );
+        assert!(
+            (-COIL_GAP..0.0).contains(&gap),
+            "the round-wire coil's volume {} against A·L = {want}: relative gap {gap:.3e}",
+            props.volume
         );
         println!(
             "   wall 1 RETIRED at ε = {:e} — the round-wire spring's volume {} ± {:.1e} \
-             (A·L = {want})",
+             (A·L = {want}, gap {gap:.3e})",
             tol.eps(),
             props.volume,
             props.volume_pad
@@ -516,6 +532,41 @@ mod tests {
         .collect();
         assert_eq!(roles, [ShellRole::Outer; 3], "the above half's shell roles");
         assert_eq!(above.body.solids().count(), 3, "one solid per piece");
+    }
+
+    /// The round-wire coil BODY's own volume and area, from an
+    /// independent quadrature of its patches
+    /// ([`crate::patch_quadrature`]), against the [`ROUND_COIL_V`] and
+    /// [`ROUND_COIL_A`] that [`standing_spring`] holds the kernel's
+    /// certified bracket to.
+    #[test]
+    fn the_round_coils_own_quadrature_is_the_pinned_oracle() {
+        let tol = Tol::witness();
+        let round: Vec<ConstructedLoop<f64>> = vec![
+            circle_split(p2(0.0, 0.0), WIRE_H, 4, 0.0, tol)
+                .expect("a round wire")
+                .into(),
+        ];
+        let body = spring::<f64>(&round, PER_TURN, tol).expect("the round-wire coil builds");
+        let cap = |_o: [f64; 3], _n: [f64; 3]| PI * WIRE_H * WIRE_H;
+        let about = [[0.0; 3], [SPRING_AXIS.0, SPRING_AXIS.1, 1.1]];
+        let coarse = crate::patch_quadrature::measure(&body, 24, &about, cap);
+        let fine = crate::patch_quadrature::measure(&body, 32, &about, cap);
+        println!("round coil oracle: coarse {coarse:?}, fine {fine:?}");
+        let rel = |a: f64, b: f64| (a - b).abs() / b.abs();
+        assert!(
+            rel(coarse.volume[0], fine.volume[0]) <= 1e-12
+                && rel(coarse.area, fine.area) <= 1e-12
+                && rel(fine.volume[0], fine.volume[1]) <= 1e-12,
+            "the oracle converges and its shell closes: {coarse:?} vs {fine:?}"
+        );
+        assert!(
+            rel(fine.volume[0], ROUND_COIL_V) <= 1e-12 && rel(fine.area, ROUND_COIL_A) <= 1e-12,
+            "the round coil measures V = {:e}, A = {:e} against the pinned {ROUND_COIL_V:e}, \
+             {ROUND_COIL_A:e}",
+            fine.volume[0],
+            fine.area
+        );
     }
 
     /// **The coil's gap to `A·L` is discretization, not a volume
