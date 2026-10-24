@@ -1028,6 +1028,8 @@ test_utils::f6_variants! {
         DefinitionCycle,
         DefinitionTooLarge,
         EpsilonInvalid,
+        ProductRead,
+        PickPath,
         ConstraintNotMinted,
         PlacementNonFinite,
         PlacementNonRigid,
@@ -1396,6 +1398,20 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "as a length",
                 "declared angle",
             ],
+        ),
+        (
+            SnapshotError::ProductRead {
+                read: editor_core::VarId::new(0, 7),
+                fault: editor_core::ProductReadFault::Unresolved,
+            },
+            vec!["the product slot reads", "it names no live variable"],
+        ),
+        (
+            SnapshotError::PickPath {
+                var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
+                at: Some(0),
+            },
+            vec!["picks no piece", "step 1 of its path names no one operand"],
         ),
         (
             SnapshotError::EpsilonInvalid { value: 0.0 },

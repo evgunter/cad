@@ -1269,10 +1269,14 @@ pub struct Piece<T: Decide> {
 }
 
 impl<T: Decide> Pieces<T> {
-    /// The piece read through `read`, if any.
+    /// The one piece read through `read`; `None` where no piece is, and
+    /// where two are (a `⊔` reading one body twice), which a read
+    /// cannot tell apart.
     #[must_use]
     pub fn piece(&self, read: crate::VarId) -> Option<&Piece<T>> {
-        self.pieces.iter().find(|p| p.read == read)
+        let mut held = self.pieces.iter().filter(|p| p.read == read);
+        let one = held.next()?;
+        held.next().is_none().then_some(one)
     }
 }
 

@@ -1639,37 +1639,74 @@ fn mint_pick<P: crate::ProfilePayload>(
 
 /// **Why `of` names no piece of the copy `copy`**, or `None`: `Some(None)`
 /// where `copy` is no placement's or instance's output or `of` is empty,
-/// `Some(Some(k))` where step `k` is no operand of the `⊔` the walk
-/// reaches through the placements before it. A walk entering an instance
-/// is in its part, which the door does not hold, so it stops there.
+/// `Some(Some(k))` where step `k` names no one operand of the `⊔` the walk
+/// reaches before it: none, or one the `⊔` reads twice, which two pieces
+/// answer to. The walk goes through each placement to its source, and
+/// through a pick to the piece it reads, so a pick of a pick walks only
+/// the piece the inner pick kept. A walk entering an instance is in its
+/// part, which the door does not hold (`DocEdit::UpdateReference`: no
+/// edit door reads across the seam), so it stops there and the
+/// evaluation answers ([`crate::NodeErrorKind::NoSuchPiece`]).
 pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<Option<usize>> {
-    let source = |var: VarId| match doc.operation_of(var).and_then(|at| doc.node(at)) {
-        Some(Node::Place { source, .. }) => Some(Some(source.read)),
-        Some(Node::InstantiatePart { .. }) => Some(None),
-        _ => None,
+    // What a read denotes once its placements and picks are walked: the
+    // body it copies, or a body inside an instance's part.
+    enum Reached {
+        Body(VarId),
+        Part,
+    }
+    let reach = |mut var: VarId| loop {
+        if let Some(pick) = doc.pick(var) {
+            match pick.of.last() {
+                Some(&piece) if !inside_part(doc, pick.placement) => var = piece,
+                _ => return Reached::Part,
+            }
+            continue;
+        }
+        match doc.operation_of(var).and_then(|at| doc.node(at)) {
+            Some(Node::Place { source, .. }) => var = source.read,
+            Some(Node::InstantiatePart { .. }) => return Reached::Part,
+            _ => return Reached::Body(var),
+        }
     };
-    let Some(mut at) = source(copy) else {
-        return Some(None);
-    };
-    if of.is_empty() {
+    let copied = matches!(
+        doc.operation_of(copy).and_then(|at| doc.node(at)),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    );
+    if !copied || of.is_empty() {
         return Some(None);
     }
+    let mut at = copy;
     for (k, &step) in of.iter().enumerate() {
-        // Through the placements, to the first operation that is none.
-        let mut var = at?;
-        while let Some(inner) = source(var) {
-            var = inner?;
-        }
+        let var = match reach(at) {
+            Reached::Part => return None,
+            Reached::Body(var) => var,
+        };
         let members = match doc.operation_of(var).and_then(|at| doc.node(at)) {
             Some(Node::Assemble { members }) => members.rows(),
             _ => return Some(Some(k)),
         };
-        if !members.iter().any(|(_, read)| read.read == step) {
+        if members.iter().filter(|(_, read)| read.read == step).count() != 1 {
             return Some(Some(k));
         }
-        at = Some(step);
+        at = step;
     }
     None
+}
+
+/// Whether the copy `copy` reads, through its placements and picks, is
+/// inside an instance's part.
+fn inside_part<P>(doc: &Doc<P>, mut copy: VarId) -> bool {
+    loop {
+        if let Some(pick) = doc.pick(copy) {
+            copy = pick.placement;
+            continue;
+        }
+        match doc.operation_of(copy).and_then(|at| doc.node(at)) {
+            Some(Node::Place { source, .. }) => copy = source.read,
+            Some(Node::InstantiatePart { .. }) => return true,
+            _ => return false,
+        }
+    }
 }
 
 /// **The entity kind a selection of `names` at a seat of `expected`
@@ -2268,9 +2305,10 @@ pub enum EditError {
     },
     /// A pick this edit authors at `slot` names no piece of its copy
     /// (D10 `[placement.placement]`): its read is no placement's or
-    /// instance's copy, its path is empty, or step `at` of the path is
-    /// no operand of the `⊔` the walk reaches through the placements
-    /// before it. A path through any other operator refuses here.
+    /// instance's copy, its path is empty, or step `at` of the path
+    /// names no one operand of the `⊔` the walk reaches through the
+    /// placements and picks before it: none, or one the `⊔` reads twice.
+    /// A path through any other operator refuses here.
     PickPath {
         /// The node whose seat the pick is authored at.
         node: SpokenNode,
@@ -2966,7 +3004,8 @@ pub enum EditError {
     },
     /// **A product read that is no body in the world** (D10
     /// `[operations]`): `SetProduct`'s read resolves to no variable, to
-    /// a variable that is no `Body`, or to a body in another space.
+    /// a variable that is no `Body`, or to a body in another space; or
+    /// an edit would move the body the slot reads out of the world.
     ProductRead {
         /// The read as written, boxed: an operand is the widest payload
         /// a refusal carries.
@@ -3727,8 +3766,8 @@ impl EditError {
                 match at {
                     Some(at) => write!(
                         f,
-                        "{node}'s {slot} picks no piece: step {} of its path is no operand of \
-                         the assemble the walk reaches",
+                        "{node}'s {slot} picks no piece: step {} of its path names no one \
+                         operand of the assemble the walk reaches",
                         at + 1
                     )?,
                     None => write!(
@@ -6775,6 +6814,17 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             var: Box::new(new.spoken_var(var)),
         });
     }
+    // D10 `[operations]`, on EVERY arm: the slot reads a body in the
+    // world, so an edit that moves the body it reads out of the world
+    // (a re-target of its copy) refuses as `SetProduct` would.
+    if let Some(var) = new.product()
+        && let Some(fault) = product_fault(&new, var)
+    {
+        return Err(EditError::ProductRead {
+            read: Box::new(crate::Operand::Var(var)),
+            fault,
+        });
+    }
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
     // lists at least one placement, and its frames meet the SAME bar
@@ -8707,10 +8757,26 @@ fn product_read<P: crate::ProfilePayload>(
             found: kind.unwrap_or(VarKind::Body),
         }));
     }
+    match product_fault(doc, var) {
+        None => Ok(var),
+        Some(fault) => Err(refused(fault)),
+    }
+}
+
+/// **What is wrong with the slot reading `var`**: a live variable of
+/// another kind than `Body`, or a body outside the world. `None` for a
+/// slot that reads a body in the world, and for one whose variable is
+/// gone, which is a stranded reader ([`crate::ProductError::StrandedProduct`]).
+pub(crate) fn product_fault<P>(doc: &Doc<P>, var: VarId) -> Option<ProductReadFault> {
+    let held = doc.var(var)?;
+    if held.kind() != VarKind::Body {
+        return Some(ProductReadFault::Kind { found: held.kind() });
+    }
     match doc.space_of(var) {
-        Some(VarId::WORLD) => Ok(var),
-        space => Err(refused(ProductReadFault::Space {
-            space: Box::new(doc.spoken_space(space.unwrap_or(VarId::WORLD))),
-        })),
+        Some(VarId::WORLD) => None,
+        Some(space) => Some(ProductReadFault::Space {
+            space: Box::new(doc.spoken_space(space)),
+        }),
+        None => unreachable!("a live body {var:?} is in a space"),
     }
 }

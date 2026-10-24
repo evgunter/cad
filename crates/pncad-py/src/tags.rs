@@ -2013,6 +2013,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::DefinitionVarKind { .. } => "definition_var_kind",
         SnapshotError::DefinitionCycle { .. } => "definition_cycle",
         SnapshotError::DefinitionTooLarge { .. } => "definition_too_large",
+        SnapshotError::ProductRead { .. } => "product_read",
+        SnapshotError::PickPath { .. } => "pick_path",
         SnapshotError::EpsilonInvalid { .. } => "epsilon_invalid",
         // A constraint whose id the mint log never minted, the
         // constraint's word for `node_not_minted`.

@@ -1426,6 +1426,24 @@ pub enum SnapshotError {
         /// The higher id holding it.
         b: VarId,
     },
+    /// The product slot reads a variable the mint log never held, a
+    /// variable that is no `Body`, or a body outside the world: no edit
+    /// leaves the slot so ([`crate::EditError::ProductRead`]).
+    ProductRead {
+        /// The variable the slot reads.
+        read: VarId,
+        /// Why it is no product.
+        fault: crate::edit::ProductReadFault,
+    },
+    /// A pick whose path names no piece of its copy, by the edit door's
+    /// own walk ([`crate::EditError::PickPath`]).
+    PickPath {
+        /// The pick.
+        var: SpokenVar,
+        /// The step that names no one piece, `None` where its read is no
+        /// copy or its path is empty.
+        at: Option<usize>,
+    },
     /// The recorded ε is not admissible: not finite, or below
     /// `geom_core::tolerance::EPS_MIN`.
     EpsilonInvalid {
@@ -1841,6 +1859,19 @@ impl core::fmt::Display for SnapshotError {
                 "the name {name} is held by two variables, {a} and {b}, and a name is unique \
                  within a document"
             ),
+            Self::PickPath { var, at: Some(at) } => write!(
+                f,
+                "{var} picks no piece: step {} of its path names no one operand of the \
+                 assemble the walk reaches",
+                at + 1
+            ),
+            Self::PickPath { var, at: None } => write!(
+                f,
+                "{var} picks no piece: it reads no placement's copy, or its path is empty"
+            ),
+            Self::ProductRead { read, fault } => {
+                write!(f, "the product slot reads {read}, and {fault}")
+            }
             Self::EpsilonInvalid { value } => write!(
                 f,
                 "the recorded ε {value:e} is not admissible: {}",
@@ -2149,6 +2180,29 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             });
         }
     }
+    // The product slot, by the edit door's own rule: a body in the
+    // world, or a stranded read of a variable the mint log holds.
+    if let Some(read) = doc.product() {
+        let fault = if doc.mint.has_var(read) {
+            crate::edit::product_fault(doc, read)
+        } else {
+            Some(crate::edit::ProductReadFault::Unresolved)
+        };
+        if let Some(fault) = fault {
+            return Err(SnapshotError::ProductRead { read, fault });
+        }
+    }
+    // Every pick, by the edit door's own walk.
+    for var in doc.definition_order() {
+        if let Some(pick) = doc.pick(var)
+            && let Some(at) = crate::edit::pick_fault(doc, pick.placement, &pick.of)
+        {
+            return Err(SnapshotError::PickPath {
+                var: doc.spoken_var(var),
+                at,
+            });
+        }
+    }
     // The label store's key rule: every key names a live node.
     for &node in doc.labels.keys() {
         check_id(node)?;
@@ -2377,6 +2431,8 @@ mod tests {
             ObservedRead,
             DefinitionCycle,
             DefinitionTooLarge,
+            ProductRead,
+            PickPath,
             EpsilonInvalid,
             ConstraintNotMinted,
             PlacementNonFinite,
@@ -2438,6 +2494,8 @@ mod tests {
             | SnapshotError::WitnessSite { .. }
             | SnapshotError::WitnessOnMissingNode { .. }
             | SnapshotError::LabelOnMissingNode { .. }
+            | SnapshotError::ProductRead { .. }
+            | SnapshotError::PickPath { .. }
             | SnapshotError::EpsilonInvalid { .. }
             | SnapshotError::ConstraintNotMinted { .. }
             | SnapshotError::PlacementNonFinite { .. }
@@ -2603,6 +2661,14 @@ mod tests {
             SnapshotError::DefinitionTooLarge {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 nodes: 4097,
+            },
+            SnapshotError::ProductRead {
+                read: crate::VarId::new(0, 7),
+                fault: crate::edit::ProductReadFault::Unresolved,
+            },
+            SnapshotError::PickPath {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                at: Some(0),
             },
             SnapshotError::EpsilonInvalid { value: 0.0 },
             SnapshotError::ConstraintNotMinted {

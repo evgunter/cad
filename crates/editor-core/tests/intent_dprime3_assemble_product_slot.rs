@@ -570,3 +570,202 @@ fn an_instances_census_decisions_are_its_parts() {
     );
     editor_core::assemble(&doc, &ev, Tol::witness()).expect("the host assembles");
 }
+
+// ---- Every door holds the slot and the picks ----
+
+/// **The slot reads a body in the world after every edit**: a re-target
+/// of the copy the slot reads, out of the world, refuses as `SetProduct`
+/// would, and the document keeps its product.
+#[test]
+fn a_retarget_of_the_products_copy_out_of_the_world_refuses() {
+    let d = doc("dprime3-retarget");
+    let (d, a) = block(d, [0.0; 2], 0.5, 1.0);
+    let (d, copy) = in_world(d, a);
+    let d = set_product(&d, Some(Operand::Node(copy)));
+    let (d, space) = put(d, Node::Space);
+    let space = d.output(space, 0).unwrap();
+    let moved = apply(
+        &d,
+        &DocEdit::SetParam {
+            node: copy,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Space),
+            value: Operand::Var(space).into(),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            moved,
+            Err(EditError::ProductRead {
+                fault: editor_core::ProductReadFault::Space { .. },
+                ..
+            })
+        ),
+        "the slot's copy moved out of the world: {moved:?}"
+    );
+}
+
+/// **The load door holds the slot as the edit door does**: a stored
+/// document whose slot reads a body outside the world, or a variable it
+/// never minted, refuses typed.
+#[test]
+fn the_load_door_refuses_a_slot_reading_no_body_in_the_world() {
+    let d = doc("dprime3-load-slot");
+    let (d, p) = block(d, [0.0; 2], 0.5, 0.5);
+    let (d, copy) = in_world(d, p);
+    let d = set_product(&d, Some(Operand::Node(copy)));
+    let text = editor_core::persist::save(&d, &[], Tol::witness()).unwrap();
+    let ser = |v: VarId| serde_json::to_string(&v).unwrap();
+    let product = ser(d.product().unwrap());
+    let needles = [
+        format!("\"product\":{product}"),
+        format!("\"product\": {product}"),
+    ];
+    assert!(
+        needles.iter().any(|n| text.contains(n.as_str())),
+        "the slot is on the wire"
+    );
+    let inner = ser(d.output(p, 0).unwrap());
+    for (what, to) in [
+        ("a construction's body", inner),
+        ("no variable", ser(VarId::new(999, 5))),
+    ] {
+        let swapped = needles.iter().fold(text.clone(), |t, n| {
+            t.replace(n.as_str(), &n.replace(&product, &to))
+        });
+        let loaded = editor_core::persist::load(&swapped, Tol::witness());
+        assert!(
+            matches!(
+                loaded,
+                Err(editor_core::PersistError::Snapshot(
+                    editor_core::SnapshotError::ProductRead { .. }
+                ))
+            ),
+            "a slot reading {what} loads: {:?}",
+            loaded.map(|l| l.doc.product())
+        );
+    }
+}
+
+/// **A pick of a pick walks the piece the inner pick kept**: through a
+/// copy of the bolt's pick, the bolt is a piece and the plate is not.
+#[test]
+fn a_pick_through_a_pick_walks_the_piece_it_kept() {
+    let d = doc("dprime3-pick-pick");
+    let (d, bolt) = block(d, [0.0; 2], 0.2, 1.0);
+    let (d, plate) = beside(d, bolt, [2.0, 0.0, 0.0], 0.5, 0.2);
+    let (d, seat) = put(
+        d,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let (d, place) = in_world(d, seat);
+    let [bolt_var, plate_var] = [bolt, plate].map(|n| d.output(n, 0).unwrap());
+    let pick = |at: RecipeNodeId, of: Vec<VarId>| {
+        fixture::stood(BodyRead::plain(Operand::pick(Operand::Node(at), of)))
+    };
+    let (d, kept) = put(d, pick(place, vec![bolt_var]));
+    let (d, again) = in_world(d, kept);
+    let insert = |node| {
+        apply(
+            &d,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+    };
+    let plate_through_bolt = insert(pick(again, vec![plate_var]));
+    assert!(
+        matches!(
+            plate_through_bolt,
+            Err(EditError::PickPath { at: Some(0), .. })
+        ),
+        "the plate is no piece of the bolt's copy: {:?}",
+        plate_through_bolt.map(|a| a.record.minted)
+    );
+    // The bolt's own copy holds no `⊔`, so no step names a piece of it.
+    let bolt_through_bolt = insert(pick(again, vec![bolt_var]));
+    assert!(
+        matches!(
+            bolt_through_bolt,
+            Err(EditError::PickPath { at: Some(0), .. })
+        ),
+        "the bolt's copy has no pieces: {:?}",
+        bolt_through_bolt.map(|a| a.record.minted)
+    );
+}
+
+/// **A pick of a `⊔` reading one body twice, by that body, is
+/// ambiguous and refuses**: two pieces answer to the read.
+#[test]
+fn a_pick_by_a_read_the_assemble_reads_twice_refuses() {
+    let d = doc("dprime3-pick-twice");
+    let (d, a) = block(d, [0.0; 2], 0.5, 1.0);
+    let (d, twice) = put(
+        d,
+        Node::Assemble {
+            members: spelled(&[a, a]),
+        },
+    );
+    let (d, place) = in_world(d, twice);
+    let a_var = d.output(a, 0).unwrap();
+    let picked = apply(
+        &d,
+        &DocEdit::InsertNode {
+            node: Box::new(fixture::stood(BodyRead::plain(Operand::pick(
+                Operand::Node(place),
+                vec![a_var],
+            )))),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    );
+    assert!(
+        matches!(picked, Err(EditError::PickPath { at: Some(0), .. })),
+        "two pieces answer to the read: {:?}",
+        picked.map(|a| a.record.minted)
+    );
+}
+
+/// **A pick into an instance's part is the evaluation's to answer**: the
+/// edit door reads nothing across the seam (`DocEdit::UpdateReference`),
+/// so a path naming no piece of the part is admitted and refuses at
+/// evaluation, typed.
+#[test]
+fn a_pick_into_a_part_naming_no_piece_refuses_at_evaluation() {
+    let part = doc("dprime3-pick-part");
+    let (part, bolt) = block(part, [0.0; 2], 0.2, 1.0);
+    let (part, bolt) = in_world(part, bolt);
+    let part = set_product(&part, Some(Operand::Node(bolt)));
+    let mut store = fixture::resolver::PartStore::default();
+    let part_ref = store.insert(part, Tol::witness());
+    let host = doc("dprime3-pick-part-host");
+    let (host, inst) = put(
+        host,
+        Node::instantiate_part(
+            part_ref,
+            Operand::Var(VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    );
+    let (host, read) = put(
+        host,
+        fixture::stood(BodyRead::plain(Operand::pick(
+            Operand::Node(inst),
+            vec![VarId::WORLD],
+        ))),
+    );
+    let ev = run(&host, &fixture::resolver::with_resolver(store));
+    assert!(
+        matches!(
+            ev.node_error(read).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::NoSuchPiece { .. })
+        ),
+        "a pick naming no piece of the part: {:?}",
+        ev.node_error(read)
+    );
+}

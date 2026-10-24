@@ -996,7 +996,9 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     else {
         return Err(ProductError::StrandedProduct { read: var });
     };
-    let space = doc.space_of(var).unwrap_or(crate::VarId::WORLD);
+    let space = doc
+        .space_of(var)
+        .unwrap_or_else(|| unreachable!("a live read {var:?} is in a space"));
     let value = evaluation.usable(node).map_err(ProductError::Root)?;
     let table = || {
         evaluation
