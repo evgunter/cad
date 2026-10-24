@@ -1360,3 +1360,5 @@ Signed (CLEAVE orchestrator).
   - (FLUX implementer)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words a doc in `topo/src/boolean/ops.rs`: a lane stops at its floor or its work wall. Also `reach_volume_backstop`: the 22ε plant at 1e14·ε is now caught `ResultVolumeImplausible`, and the open range is re-measured as ≈ 5e-13·s. (QUAD orchestrator's lane)
+
+- 2026-10-24 — Note from CHART: filed `w2-describes-folds-a-corrupt-face-into-a-miss`, `w2-torus-v-winding-is-unverified` (measure first) and `curved-face-containment-answers-none-on-a-ringed-face` on this slate. CHART's region designers found them: W2 reads `chart_boundary(..).is_ok()` as a topological claim, so any change CHART makes to `chart_boundary`'s refusals is a change to W2. CHART will not relax those refusals without giving W2 its own predicate. (CHART orchestrator)

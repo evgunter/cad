@@ -130,3 +130,40 @@ survives.
 - **`normalize-without-the-length-question-two-more-sites`**: `session_01BEinSjRAhefi8FBtveZTva`, branch `chart/normalize-length`. Tier: single FULL. The fix is to a silent loss of a touching boundary, so correctness carries the review.
 - **`chart-inversion-is-spelled-three-times`**: `session_01Y3MbonGyom32v6Vp4QGBzt`, branch `chart/chart-inversion-one-reading`. Tier: single FULL, because it unifies a reading across three crates. The lane stops if D3 leaves a fork.
 - **`chart-bound-outer-span-decides-a-poisoned-margin`**: `session_013ALUU1XvFKmRJjbgmBe3B9`, branch `chart/outer-span-poison`. It measures first, and stops if the right reading changes what k-lint may ask. Tier: single FULL if built.
+
+## 2026-10-24 — the region description is decided (the designer pair converged)
+
+**Round 1.** Both designers corrected the same premises:
+- W2 reads `chart_boundary(..).is_ok()` as a topological claim, so relaxing the pole refusal inside `chart_boundary` is a wrong-boolean hazard;
+- the P0 band was wrong;
+- `hi` needs an on-face witness, not exact cells;
+- the round-hole lune buys nothing.
+
+They split on the design:
+- **A:** decide cells in model space, off the face's edges on their carriers plus the existing point-in-face doors, with no chart region and no arms.
+- **B:** one exact chart region minted at rest, with cut edges, inside and outside certificates, and a window-scoped inf-arm door.
+
+**Round 2** (each was shown the other's report). A held, and argued that an exact region with `contains(p)` would be a second point-in-face reading beside the boolean's doors (`[one-way.readings]`). B withdrew its region and adopted A, with four amendments:
+1. separation is carrier-aware, never box against box;
+2. the cylinder and cone point doors read rings BEFORE clearance switches;
+3. `hi` is a witness;
+4. W2 gets its own predicate off the walk.
+
+B also conceded that minting at rest does not close the min_separation lane split. It checked the torus `v`-winding concern and found it is not a hole.
+
+This was not a crossover, because only one designer moved, so reconciliation ended there. No ratified text moves, and the design follows `[intrinsic]` and `[one-way.readings]`. It is therefore a high-confidence design decision taken here, not an `[ev]` fork (`memories/orchestration-model.md`). Ev reviews it retroactively. Where the two reports differed on sequencing, the amendment-2 prerequisite is taken: no holed-cylinder regression.
+
+**The slate now:**
+- `clearance-cells-are-decided-in-model-space` (P1 H), parked on `curved-face-containment-answers-none-on-a-ringed-face` (P1 H, claimed from CLEAVE). The pole, round-hole, cone/sphere/torus and exact-region rows are closed into it.
+- `w2-reads-a-one-sheet-predicate-off-the-walk` (P1 M, new). It measures first whether a sphere-octant boolean refuses today. If one does, the row is P0.
+- The arms rows shrink to typing work plus a rename.
+- `Certified::LowerBoundOnly` still waits on CLEAR's lane-split row, under either design.
+- The outer-span lane is narrowed to Phase 1: its check is deleted with `chart_bound.rs`, so it reports whether the poison reaches a surviving predicate.
+- `w2-torus-v-winding-is-unverified` (CLEAVE) is closed, checked.
+
+## 2026-10-24 — dispatched (05:25Z)
+
+- `w2-reads-a-one-sheet-predicate-off-the-walk`, with its passenger: `session_01DScnVgqrsdRV3qkW1hn4Qc`, branch `chart/w2-one-sheet`. It measures the sphere-octant boolean first. Tier: single FULL, on W2's soundness.
+- `curved-face-containment-answers-none-on-a-ringed-face`: `session_01ASbZAvowuj7eiwTjedp2hN`, branch `chart/ringed-curved-doors`. Tier: DUAL, because these doors decide booleans (the ray lane, the pierce arm) and a third point-in-face reading may need unifying.
+- The three arms rows as one PR: `session_017S6REdqJJkQ1SwVnS3RsvZ`, branch `chart/arms-typing`. Tier: single STYLE.
+- Designers A and B are done; their sessions stay unarchived until this decision has been read back.
