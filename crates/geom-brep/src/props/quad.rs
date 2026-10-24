@@ -1586,7 +1586,7 @@ const AREA_GAUGE_CEILING: f64 = 1.0;
 /// ([`area_gauge_ok`]).
 const AREA_GAUGE_REL_CEILING: f64 = 1.0e3;
 /// Spans per axis the RATIONAL lane refines its bracketed net to
-/// before hulling it (fixed, D9) — see [`refine_dir`].
+/// before hulling it (fixed, D9) — see [`RefinedNet`].
 const QUAD2_REFINE_SPANS: usize = 16;
 
 /// A ring-bracketed 3-vector (a control point, an enclosure).
@@ -1800,13 +1800,100 @@ fn finite_param(t: f64) -> Option<Param> {
     Param::new(t).filter(|p| p.get().is_finite())
 }
 
-/// Entry `(i, j)` of a row-major bracketed control net laid out
-/// against `kv_v`'s count, refused where the net does not reach — a net
-/// that does not fill the extent refuses the SLOTS it misses, not the
-/// whole grid.
-fn row_major<'n>(net: &'n [RVec3], kv_v: &KnotVector) -> impl Fn(usize, usize) -> RVec3 + 'n {
-    let nv = kv_v.control_count();
-    move |i, j| net.get(i * nv + j).copied().unwrap_or_else(refused_vec)
+/// **A patch's bracketed control net over its two knot vectors**, with
+/// its weights: one [`TensorChannels`] of four channels — the position
+/// `(x, y, z)` and the weight as a point bracket — over the caller's
+/// vectors, borrowed. [`PatchNet::new`] checks the counts once, so no
+/// door reads a net beside vectors it is related to by count alone.
+#[derive(Clone, Debug)]
+pub struct PatchNet<'a> {
+    net: TensorChannels<'a, 4>,
+}
+
+impl<'a> PatchNet<'a> {
+    /// The net `control` (row-major, `v` fastest) with `weights` over
+    /// `kv_u × kv_v`.
+    ///
+    /// # Errors
+    ///
+    /// [`PropsError::QuadratureUnsupported`] when `control` is not
+    /// `kv_u`'s count by `kv_v`'s, `weights` not one per point, or a
+    /// weight not finite.
+    pub fn new(
+        kv_u: &'a KnotVector,
+        kv_v: &'a KnotVector,
+        control: &[RVec3],
+        weights: &[f64],
+    ) -> Result<Self, PropsError> {
+        let nv = kv_v.control_count();
+        let extent = kv_u.control_count().checked_mul(nv);
+        if extent != Some(control.len()) || weights.len() != control.len() {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a patch net that does not fill its knot vectors' extent, or whose \
+                       weights are not one per control point",
+            });
+        }
+        // A point bracket holds a finite weight exactly; a non-finite
+        // one has no point to hold.
+        if weights.iter().any(|w| !w.is_finite()) {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a patch net with a non-finite weight",
+            });
+        }
+        Ok(Self {
+            net: TensorChannels::from_fn(kv_u, kv_v, |i, j| {
+                let k = i * nv + j;
+                let c = control[k];
+                [c[0], c[1], c[2], pt(weights[k])]
+            }),
+        })
+    }
+}
+
+impl PatchNet<'_> {
+    /// The `u` direction's knot vector.
+    #[must_use]
+    pub fn knots_u(&self) -> &KnotVector {
+        self.net.knots_u()
+    }
+
+    /// The `v` direction's knot vector.
+    #[must_use]
+    pub fn knots_v(&self) -> &KnotVector {
+        self.net.knots_v()
+    }
+
+    /// Control point `(i, j)` and its weight.
+    fn at(&self, i: usize, j: usize) -> (RVec3, f64) {
+        let [x, y, z, w] = self.net.channels().map(|c| c.net().get(i, j));
+        ([x, y, z], w.lo())
+    }
+
+    /// `f` of the weights, row-major, as the point brackets that hold
+    /// them exactly: `lo()` is the weight.
+    fn with_weights<R>(&self, f: impl FnOnce(&[Interval]) -> R) -> R {
+        let [.., w] = self.net.channels();
+        f(w.net().as_flat())
+    }
+
+    /// Whether any weight is not `1.0` (exact `f64` structure, C6).
+    fn is_rational(&self) -> bool {
+        self.with_weights(|ws| ws.iter().any(|w| w.lo() != 1.0))
+    }
+
+    /// The three channels of `f` over the net's vectors, `f` read at
+    /// each control point and its weight.
+    fn map_points(&self, f: impl Fn(RVec3, f64) -> RVec3) -> TensorChannels<'_, 3> {
+        TensorChannels::from_fn(self.knots_u(), self.knots_v(), |i, j| {
+            let (c, w) = self.at(i, j);
+            f(c, w)
+        })
+    }
+
+    /// The position channels — the net itself, weights apart.
+    fn positions(&self) -> TensorChannels<'_, 3> {
+        self.map_points(|c, _| c)
+    }
 }
 
 /// One (possibly derivative-exhausted) tensor grid of a vector
@@ -2828,82 +2915,47 @@ fn area_midpoint_taylor<E>(
     Ok(widen(acc, boundary_defect))
 }
 
-/// **Certified knot refinement of a bracketed tensor net**, one
-/// direction, to a FIXED span target (D9: the schedule is a constant,
-/// never data-dependent).
+/// **A bracketed tensor net, certified-refined** in both directions
+/// to a FIXED span target (D9: the schedule is a constant, never
+/// data-dependent), held with the two insertion chains that refined it,
+/// so the refined vectors are the chains' own.
 ///
-/// Why the rational lane takes it: a range hull read off a control net is
-/// a convexity fact, and those are **span-granular** — on a single-span
-/// patch the hull over a sub-cell IS the hull over the whole patch. The
-/// rational lane's Taylor remainders and area pads are the quotient
-/// statement's, which cuts its own spans ([`MeasureCells`]); what it
-/// still reads off the net is the weight hull its zero test takes and
-/// the position bound its boundary pad takes. Knot insertion is exact
-/// in ℝ (Book §5.2/§5.3 — it changes the representation, never the
-/// locus) and the control polygon converges to the patch at O(h²), so
-/// `QUAD2_REFINE_SPANS` spans per axis tightens both.
-///
-/// `None` if the knot algebra refuses (a malformed net) — the caller
-/// then refuses typed rather than proceeding on an unrefined net.
-fn refine_dir(
-    kv: &KnotVector,
-    net: &[RVec3],
-    nv: usize,
-    along_u: bool,
-) -> Option<(KnotVector, Vec<RVec3>, usize)> {
-    let count = kv.control_count();
-    if count == 0 || nv == 0 {
-        return None;
-    }
-    // The net is row-major with stride `nv`. On the u pass the refined
-    // direction has `count` lines of `nv`; on the v pass it IS the
-    // stride, so `count` must BE `nv` and the line count has to divide
-    // out EXACTLY. (R1's m2: `net.len() != count * nv && along_u`
-    // parses as `(…) && along_u`, so the v pass had no shape check at
-    // all and `net.len() / nv` truncated silently.)
-    let malformed = if along_u {
-        net.len() != count * nv
-    } else {
-        count != nv || !net.len().is_multiple_of(nv)
-    };
-    if malformed {
-        return None;
-    }
-    let add = algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS);
-    let refinement = RingRefinement::new(kv, &add).ok()?;
-    // Each coordinate a tensor net refined along this direction, per
-    // line in ascending index, through the insertion chain (D9).
-    let nu = net.len() / nv;
-    let [x, y, z] = core::array::from_fn(|c| {
-        let channel = TensorNet::from_flat(nu, nv, net.iter().map(|q| q[c]).collect());
-        if along_u {
-            channel.refine_u(&refinement)
-        } else {
-            channel.refine_v(&refinement)
-        }
-    });
-    let out = x
-        .as_flat()
-        .iter()
-        .zip(y.as_flat())
-        .zip(z.as_flat())
-        .map(|((x, y), z)| [*x, *y, *z])
-        .collect();
-    let cur_kv = refinement.knots().clone();
-    let new_count = cur_kv.control_count();
-    Some((cur_kv, out, new_count))
+/// Why the rational lane takes it: a range hull read off a control net
+/// is a convexity fact, and those are **span-granular** — on a
+/// single-span patch the hull over a sub-cell IS the hull over the
+/// whole patch. The rational lane's Taylor remainders and area pads are
+/// the quotient statement's, which cuts its own spans
+/// ([`MeasureCells`]); what it still reads off the net is the weight
+/// hull its zero test takes and the position bound its boundary pad
+/// takes. Knot insertion is exact in ℝ (Book §5.2/§5.3 — it changes the
+/// representation, never the locus) and the control polygon converges
+/// to the patch at O(h²), so `QUAD2_REFINE_SPANS` spans per axis
+/// tightens both.
+struct RefinedNet {
+    u: RingRefinement,
+    v: RingRefinement,
+    nets: [TensorNet; 3],
 }
 
-/// Both directions of [`refine_dir`], u then v.
-fn refine_net(
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-    net: &[RVec3],
-) -> Option<(KnotVector, KnotVector, Vec<RVec3>)> {
-    let nv = kv_v.control_count();
-    let (ru, net_u, _) = refine_dir(kv_u, net, nv, true)?;
-    let (rv, net_uv, _) = refine_dir(kv_v, &net_u, nv, false)?;
-    Some((ru, rv, net_uv))
+impl RefinedNet {
+    /// `net` refined, its chains built from its own vectors. `None` if
+    /// the knot algebra refuses — the caller then refuses typed rather
+    /// than proceeding on an unrefined net.
+    fn of(net: &TensorChannels<'_, 3>) -> Option<Self> {
+        let chain = |kv: &KnotVector| {
+            RingRefinement::new(kv, &algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS)).ok()
+        };
+        let (u, v) = (chain(net.knots_u())?, chain(net.knots_v())?);
+        let nets = net.channels().map(|c| c.net().refine_u(&u).refine_v(&v));
+        Some(Self { u, v, nets })
+    }
+
+    /// The refined channels over the refined vectors.
+    fn channels(&self) -> TensorChannels<'_, 3> {
+        TensorChannels::from_fn(self.u.knots(), self.v.knots(), |i, j| {
+            self.nets.each_ref().map(|n| n.get(i, j))
+        })
+    }
 }
 
 /// A cut per axis, `None` along an axis kept whole.
@@ -2929,24 +2981,18 @@ impl MeasureCells {
                no finite bound there",
     };
 
-    fn build<'a>(
-        kv_u: &'a KnotVector,
-        kv_v: &'a KnotVector,
-        control: &[RVec3],
-        weights: &[f64],
-        rect: PatchRect,
-    ) -> Result<Self, PropsError> {
+    fn build<'n>(net: &'n PatchNet<'_>, rect: PatchRect) -> Result<Self, PropsError> {
+        let (kv_u, kv_v) = (net.knots_u(), net.knots_v());
         let (u0, u1, v0, v1) = rect.corners();
         let held =
             |kv: &KnotVector| -> Vec<Interval> { kv.knots().iter().map(|k| pt(*k)).collect() };
         let (held_u, held_v) = (held(kv_u), held(kv_v));
-        let meeting = |kv: &'a KnotVector, lo: f64, hi: f64| {
+        let meeting = |kv: &'n KnotVector, lo: f64, hi: f64| {
             let k = kv.knots();
             (kv.first_span()..=kv.last_span())
                 .filter_map(|i| kv.span(i))
                 .filter(move |s| k[s.index()] < hi && k[s.index() + 1] > lo)
         };
-        let nv = kv_v.control_count();
         let mut cells = Vec::new();
         for su in meeting(kv_u, u0, u1) {
             for sv in meeting(kv_v, v0, v1) {
@@ -2954,9 +3000,9 @@ impl MeasureCells {
                 let mut ws = Vec::new();
                 for iu in su.window() {
                     for iv in sv.window() {
-                        let k = iu * nv + iv;
-                        points.push(*control.get(k).ok_or(Self::REFUSED_CUT)?);
-                        ws.push(pt(*weights.get(k).ok_or(Self::REFUSED_CUT)?));
+                        let (c, w) = net.at(iu, iv);
+                        points.push(c);
+                        ws.push(pt(w));
                     }
                 }
                 let q = cell_measure_quotients(
@@ -3158,7 +3204,7 @@ fn ratio_hull(q: &QuotientPiece<Interval, 1>) -> Result<Interval, PropsError> {
 /// the hull blocks' containment.
 ///
 /// Nor is it [`algebra::domain_grid_points`], the knot-blind grid
-/// [`refine_dir`] and [`bezier_blocks`] take: that grid runs over a knot
+/// [`RefinedNet`] and [`bezier_blocks`] take: that grid runs over a knot
 /// vector's own domain and clears only its interior knots, while this
 /// range is the trim rectangle's and its knots are a raw slice that may
 /// be a derivative's. Both are [`algebra::range_grid_points`]
@@ -3391,16 +3437,13 @@ fn remainder_cell_v(hu: Interval, hv: Interval) -> Interval {
 ///
 /// # Errors
 ///
-/// [`PropsError`] — non-positive or non-finite weights, a weight hull
-/// that does not exclude zero, an escalated funnel decision, a
-/// degenerate face, or `accept`'s own refusal.
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity
+/// [`PropsError`] — a non-positive weight (a non-finite one never
+/// becomes a [`PatchNet`]), a weight hull that does not exclude zero,
+/// an escalated funnel decision, a degenerate face, or `accept`'s own
+/// refusal.
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the integral lane
 fn rational_patch_face<T: Decide>(
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-    control: &[RVec3],
-    weights: &[f64],
+    net: &PatchNet<'_>,
     rect: PatchRect,
     perimeter: f64,
     boundary_defect: f64,
@@ -3409,47 +3452,36 @@ fn rational_patch_face<T: Decide>(
     accept: &mut Accept<'_>,
 ) -> Result<LaneRun, PropsError> {
     let (u0, u1, v0, v1) = rect.corners();
-    if weights.len() != control.len() {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a rational patch whose weight count does not match its control net",
-        });
-    }
+    let (kv_u, kv_v) = (net.knots_u(), net.knots_v());
     // Exact `f64` structure (C6): the rational hull property IS the
     // positive-weight hypothesis, so a non-positive weight is not a
     // tolerance question but a refusal.
-    if weights.iter().any(|w| *w <= 0.0 || !w.is_finite()) {
+    if net.with_weights(|ws| ws.iter().any(|w| w.lo() <= 0.0)) {
         return Err(PropsError::QuadratureUnsupported {
-            what: "a rational patch with a non-positive or non-finite weight: the \
-                   convex-hull property (and with it every enclosure here) needs \
-                   strictly positive weights",
+            what: "a rational patch with a non-positive weight: the convex-hull \
+                   property (and with it every enclosure here) needs strictly \
+                   positive weights",
         });
     }
-    // The homogeneous position net `A = w·P` and the weight net.
-    let mut a_net: Vec<RVec3> = Vec::with_capacity(control.len());
-    let mut w_net: Vec<RVec3> = Vec::with_capacity(control.len());
-    for (c, w) in control.iter().zip(weights) {
-        let rw = pt(*w);
-        a_net.push([rw * c[0], rw * c[1], rw * c[2]]);
-        w_net.push([rw, Interval::zero(), Interval::zero()]);
-    }
-    // Certified refinement FIRST ([`refine_dir`]): the weight hull and
-    // the position bound below are control-net facts.
+    // The homogeneous position net `A = w·P` and the weight net, each
+    // refined FIRST ([`RefinedNet`]): the weight hull and the
+    // position bound below are control-net facts.
     let refuse_refine = PropsError::QuadratureUnsupported {
         what: "a rational patch whose bracketed net would not refine (malformed knot \
                structure) — its weight hull and position bound have no other lever",
     };
-    let (r_u, r_v, a_net) = refine_net(kv_u, kv_v, &a_net).ok_or(refuse_refine.clone())?;
-    let (_, _, w_net) = refine_net(kv_u, kv_v, &w_net).ok_or(refuse_refine)?;
-    let a = Ladder::build(PatchGrid::base(&TensorChannels::from_fn(
-        &r_u,
-        &r_v,
-        row_major(&a_net, &r_v),
-    )));
-    let w = Ladder::build(PatchGrid::base(&TensorChannels::from_fn(
-        &r_u,
-        &r_v,
-        row_major(&w_net, &r_v),
-    )));
+    let a_net = RefinedNet::of(&net.map_points(|c, w| {
+        let rw = pt(w);
+        [rw * c[0], rw * c[1], rw * c[2]]
+    }))
+    .ok_or(refuse_refine.clone())?;
+    let w_net = RefinedNet::of(&net.map_points(|_, w| [pt(w), Interval::zero(), Interval::zero()]))
+        .ok_or(refuse_refine)?;
+    let (a_ch, w_ch) = (a_net.channels(), w_net.channels());
+    // The refined `v` vector, whose spans the exact-in-v arm walks.
+    let r_v = w_ch.knots_v();
+    let a = Ladder::build(PatchGrid::base(&a_ch));
+    let w = Ladder::build(PatchGrid::base(&w_ch));
 
     // The CUT lists come from the ORIGINAL knot vectors: refinement's
     // inserted knots are artificial (the locus and its smoothness are
@@ -3466,7 +3498,7 @@ fn rational_patch_face<T: Decide>(
     };
     let knots_u = interior(kv_u, u0, u1);
     let knots_v = interior(kv_v, v0, v1);
-    let measure = MeasureCells::build(kv_u, kv_v, control, weights, rect)?;
+    let measure = MeasureCells::build(net, rect)?;
 
     let over_all = (Collapse::Over(rect.u), Collapse::Over(rect.v));
     let g_w = w.chan(over_all.0, over_all.1);
@@ -3564,10 +3596,10 @@ fn rational_patch_face<T: Decide>(
     // caller's weight net: nothing here is a tolerance question.
     let nv_in = kv_v.control_count();
     let w_uniform_in_v = nv_in > 0
-        && weights.len().is_multiple_of(nv_in)
-        && weights
-            .chunks_exact(nv_in)
-            .all(|row| row.iter().all(|x| *x == row[0]));
+        && net.with_weights(|ws| {
+            ws.chunks_exact(nv_in)
+                .all(|row| row.iter().all(|x| x.lo() == row[0].lo()))
+        });
     let nc_v = if w_uniform_in_v {
         newton_cotes_weights(3 * r_v.degree())
     } else {
@@ -3652,7 +3684,7 @@ fn rational_patch_face<T: Decide>(
                     (Some(nc), Some(cube), None) => {
                         removable += r_uu.width();
                         flux = flux
-                            + hu * (a.num_v_exact(&slice, &r_v, c_vlo, c_vhi, nc) / cube)
+                            + hu * (a.num_v_exact(&slice, r_v, c_vlo, c_vhi, nc) / cube)
                             + r_uu;
                     }
                     (None, None, Some(b_vv)) => {
@@ -3748,12 +3780,8 @@ fn rational_patch_face<T: Decide>(
 ///
 /// [`PropsError`] — `accept`'s own refusal, an escalated funnel
 /// decision, a degenerate face, or the rational lane's own refusals.
-#[allow(clippy::too_many_arguments)] // one parameter per named quantity
 pub fn nurbs_patch_face<T: Decide>(
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-    control: &[RVec3],
-    weights: &[f64],
+    net: &PatchNet<'_>,
     rect: (f64, f64, f64, f64),
     perimeter: f64,
     boundary_defect: f64,
@@ -3761,10 +3789,7 @@ pub fn nurbs_patch_face<T: Decide>(
     accept: &mut Accept<'_>,
 ) -> Result<LaneRun, PropsError> {
     nurbs_patch_face_rounds::<T>(
-        kv_u,
-        kv_v,
-        control,
-        weights,
+        net,
         rect,
         perimeter,
         boundary_defect,
@@ -3789,13 +3814,9 @@ pub fn nurbs_patch_face<T: Decide>(
 /// # Errors
 ///
 /// As [`nurbs_patch_face`].
-#[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
 pub fn nurbs_patch_face_rounds<T: Decide>(
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-    control: &[RVec3],
-    weights: &[f64],
+    net: &PatchNet<'_>,
     rect: (f64, f64, f64, f64),
     perimeter: f64,
     boundary_defect: f64,
@@ -3807,12 +3828,9 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let (u0, u1, v0, v1) = rect.corners();
     // M8-3: the rational patch is the SAME integrand over a polynomial
     // cube (`f = N/w³`), so it takes its own lane rather than refusing.
-    if weights.iter().any(|w| *w != 1.0) {
+    if net.is_rational() {
         return rational_patch_face::<T>(
-            kv_u,
-            kv_v,
-            control,
-            weights,
+            net,
             rect,
             perimeter,
             boundary_defect,
@@ -3823,11 +3841,8 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     }
     // The derivative grids, built once (mixed partials commute on
     // spline nets exactly).
-    let s = PatchGrid::base(&TensorChannels::from_fn(
-        kv_u,
-        kv_v,
-        row_major(control, kv_v),
-    ));
+    let (kv_u, kv_v) = (net.knots_u(), net.knots_v());
+    let s = PatchGrid::base(&net.positions());
     let su = s.deriv_u();
     let sv = s.deriv_v();
     let suu = su.as_ref().and_then(PatchGrid::deriv_u);
@@ -4092,12 +4107,55 @@ type RPt2 = (Interval, Interval);
 /// refuses typed rather than reading the hull of a quotient.
 #[derive(Clone, Debug)]
 pub struct TrimPiece {
+    knots: KnotVector,
+    control: Vec<RPt2>,
+    weights: Vec<f64>,
+}
+
+impl TrimPiece {
+    /// The image with knot vector `knots`, bracketed control polygon
+    /// `control` (one `(u, v)` pair per point) and `weights` (all
+    /// `1.0`, or the door refuses).
+    ///
+    /// # Errors
+    ///
+    /// [`PropsError::QuadratureUnsupported`] when `control` is not
+    /// `knots`' count, or `weights` not one per point.
+    pub fn new(
+        knots: KnotVector,
+        control: Vec<RPt2>,
+        weights: Vec<f64>,
+    ) -> Result<Self, PropsError> {
+        if control.len() != knots.control_count() || weights.len() != control.len() {
+            return Err(PropsError::QuadratureUnsupported {
+                what: "a trim image whose control polygon is not its knot vector's count, \
+                       or whose weights are not one per control point",
+            });
+        }
+        Ok(Self {
+            knots,
+            control,
+            weights,
+        })
+    }
+
     /// The image's knot vector.
-    pub knots: KnotVector,
-    /// The bracketed control polygon, one `(u, v)` pair per point.
-    pub control: Vec<RPt2>,
-    /// The image's weights (all `1.0`, or the door refuses).
-    pub weights: Vec<f64>,
+    #[must_use]
+    pub fn knots(&self) -> &KnotVector {
+        &self.knots
+    }
+
+    /// The bracketed control polygon.
+    #[must_use]
+    pub fn control(&self) -> &[RPt2] {
+        &self.control
+    }
+
+    /// The image's weights.
+    #[must_use]
+    pub fn weights(&self) -> &[f64] {
+        &self.weights
+    }
 }
 
 /// One trim-loop EDGE of the trimmed lane, fully bracketed by the
@@ -4175,8 +4233,7 @@ enum BlockRefusal {
     /// A weight is not `1.0`: the blocks' hulls would not be the
     /// polynomial convex-hull fact.
     Rational,
-    /// A zero degree, a net and weights not one per control point, or
-    /// a refusing knot algebra.
+    /// A zero degree, or a refusing knot algebra.
     Malformed,
 }
 
@@ -4192,12 +4249,11 @@ enum BlockRefusal {
 /// homogeneous channel below, and the blocks' hulls the polynomial
 /// convex-hull fact. A rational net refuses
 /// ([`BlockRefusal::Rational`]), as does a malformed one: a zero
-/// degree, a net and weights not one per control point, or a knot
-/// algebra that refuses ([`BlockRefusal::Malformed`]).
+/// degree, or a knot algebra that refuses ([`BlockRefusal::Malformed`]).
 fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefusal> {
     let kv = &img.knots;
     let p = kv.degree();
-    if p == 0 || img.control.len() != kv.control_count() || img.weights.len() != img.control.len() {
+    if p == 0 {
         return Err(BlockRefusal::Malformed);
     }
     if img.weights.iter().any(|w| *w != 1.0) {
@@ -5388,13 +5444,9 @@ fn polygon_winding(cells: &[TrimCell]) -> f64 {
 /// decision, a degenerate face, and the typed refusals of the rational
 /// chart, the rational image, the non-monotone piece and the inner
 /// Newton–Cotes window.
-#[allow(clippy::too_many_arguments)]
 #[allow(clippy::too_many_lines)] // one engine, kept whole like the cylinder lane
 pub fn trimmed_patch_face_rounds<T: Decide>(
-    kv_u: &KnotVector,
-    kv_v: &KnotVector,
-    control: &[RVec3],
-    weights: &[f64],
+    net: &PatchNet<'_>,
     chords: &[TrimChord],
     band: Band,
     window: RoundWindow,
@@ -5406,7 +5458,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                    interior for Green's theorem to bound",
         });
     }
-    if weights.iter().any(|w| *w != 1.0) {
+    if net.is_rational() {
         return Err(PropsError::QuadratureUnsupported {
             what: "a RATIONAL chart reached the trimmed lane — the chord integrand is the \
                    polynomial `⟨S, S_u×S_v⟩`, and a quotient's is not polynomial in the \
@@ -5414,17 +5466,14 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                    rational chart carries IsoArc rims only on this head",
         });
     }
+    let (kv_u, kv_v) = (net.knots_u(), net.knots_v());
     let (p_u, p_v) = (kv_u.degree(), kv_v.degree());
     let Some(wv) = (3 * p_v).checked_sub(1).and_then(newton_cotes_weights) else {
         return Err(PropsError::QuadratureUnsupported {
             what: TRIM_NC_WINDOW,
         });
     };
-    let s = PatchGrid::base(&TensorChannels::from_fn(
-        kv_u,
-        kv_v,
-        row_major(control, kv_v),
-    ));
+    let s = PatchGrid::base(&net.positions());
     let su = s.deriv_u();
     let sv = s.deriv_v();
     let suu = su.as_ref().and_then(PatchGrid::deriv_u);
@@ -5722,6 +5771,16 @@ mod tests {
     use super::test_target::{met, to_target};
     use super::*;
     use geom_core::Tol;
+
+    /// The checked net of a fixture's parts.
+    fn patch<'a>(
+        ku: &'a KnotVector,
+        kv: &'a KnotVector,
+        control: &[RVec3],
+        weights: &[f64],
+    ) -> PatchNet<'a> {
+        PatchNet::new(ku, kv, control, weights).unwrap()
+    }
 
     /// **A node straddling its span's end, whose true value lies past
     /// it, is enclosed by the extension.** On `t − 1` over `[0, 1]` (the
@@ -6860,10 +6919,7 @@ mod tests {
             p(1.0, 1.0, 1.0),
         ];
         let out = met(nurbs_patch_face::<f64>(
-            &kv,
-            &kv,
-            &flat,
-            &[1.0; 4],
+            &patch(&kv, &kv, &flat, &[1.0; 4]),
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
@@ -6883,10 +6939,7 @@ mod tests {
             p(1.0, 1.0, 2.0),
         ];
         let out = met(nurbs_patch_face::<f64>(
-            &kv,
-            &kv,
-            &warped,
-            &[1.0; 4],
+            &patch(&kv, &kv, &warped, &[1.0; 4]),
             (0.0, 1.0, 0.0, 1.0),
             6.0,
             0.0,
@@ -6960,10 +7013,7 @@ mod tests {
             p(1.0, 1.0, 1.0),
         ];
         let out = nurbs_patch_face::<f64>(
-            &kv,
-            &kv,
-            &flat,
-            &[1.0, 2.0, 1.0, 1.0],
+            &patch(&kv, &kv, &flat, &[1.0, 2.0, 1.0, 1.0]),
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
@@ -7008,10 +7058,7 @@ mod tests {
             weights.push(w);
         }
         let out = nurbs_patch_face::<f64>(
-            &kv_u,
-            &kv_v,
-            &net,
-            &weights,
+            &patch(&kv_u, &kv_v, &net, &weights),
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
@@ -7169,10 +7216,7 @@ mod tests {
                 let lane = if rational { "rational" } else { "integral" };
                 let row = format!("mult {mult} / {lane}");
                 let out = nurbs_patch_face::<f64>(
-                    &kv_u,
-                    &kv_v,
-                    &net,
-                    &ws,
+                    &patch(&kv_u, &kv_v, &net, &ws),
                     (0.0, 1.0, 0.0, 1.0),
                     10.0,
                     0.0,
@@ -7250,10 +7294,7 @@ mod tests {
         let w = core::f64::consts::FRAC_1_SQRT_2;
         let weights = [1.0, 1.0, w, w, 1.0, 1.0];
         let out = nurbs_patch_face::<f64>(
-            &kv_u,
-            &kv_v,
-            &net,
-            &weights,
+            &patch(&kv_u, &kv_v, &net, &weights),
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
@@ -7348,7 +7389,8 @@ mod tests {
     fn the_statements_hulls_and_pads_hold_the_sampled_integrand_on_every_rational_carrier() {
         for (name, ku, kv, control, weights) in rational_carriers() {
             let rect = PatchRect::new((0.0, 1.0, 0.0, 1.0)).unwrap();
-            let measure = MeasureCells::build(&ku, &kv, &control, &weights, rect).unwrap();
+            let net = patch(&ku, &kv, &control, &weights);
+            let measure = MeasureCells::build(&net, rect).unwrap();
             let inner = |k: &KnotVector| -> Vec<f64> {
                 k.knots()
                     .iter()
@@ -7357,20 +7399,13 @@ mod tests {
                     .collect()
             };
             let (knots_u, knots_v) = (inner(&ku), inner(&kv));
-            let (mut a_net, mut w_net) = (Vec::new(), Vec::new());
-            for (c, w) in control.iter().zip(&weights) {
-                let rw = pt(*w);
-                a_net.push([rw * c[0], rw * c[1], rw * c[2]]);
-                w_net.push([rw, Interval::zero(), Interval::zero()]);
-            }
-            let ladder = |net: &[RVec3]| {
-                Ladder::build(PatchGrid::base(&TensorChannels::from_fn(
-                    &ku,
-                    &kv,
-                    row_major(net, &kv),
-                )))
-            };
-            let (a, w) = (ladder(&a_net), ladder(&w_net));
+            let a = Ladder::build(PatchGrid::base(&net.map_points(|c, w| {
+                let rw = pt(w);
+                [rw * c[0], rw * c[1], rw * c[2]]
+            })));
+            let w = Ladder::build(PatchGrid::base(
+                &net.map_points(|_, w| [pt(w), Interval::zero(), Interval::zero()]),
+            ));
             let f = |u: f64, v: f64| {
                 mid(a.integrand_at(&w, &a.flux_slice(&w, Collapse::At(u)), Collapse::At(v)))
             };
@@ -7895,14 +7930,24 @@ mod tests {
         TrimChord {
             a: (pt(a.0), pt(a.1)),
             b: (pt(b.0), pt(b.1)),
-            piece: Some(TrimPiece {
-                knots: KnotVector::clamped(knots, p).unwrap(),
-                control: points.iter().map(|q| (pt(q.0), pt(q.1))).collect(),
-                weights: vec![1.0; points.len()],
-            }),
+            piece: Some(
+                TrimPiece::new(
+                    KnotVector::clamped(knots, p).unwrap(),
+                    points.iter().map(|q| (pt(q.0), pt(q.1))).collect(),
+                    vec![1.0; points.len()],
+                )
+                .unwrap(),
+            ),
             forward: true,
             env: pt(env),
         }
+    }
+
+    /// `piece` with its first control point moved to `p`, minted again.
+    fn first_point_at(piece: &TrimPiece, p: RPt2) -> TrimPiece {
+        let mut control = piece.control().to_vec();
+        control[0] = p;
+        TrimPiece::new(piece.knots().clone(), control, piece.weights().to_vec()).unwrap()
     }
 
     /// A CURVED chart of bidegree `(pu, pv)` with one interior knot per
@@ -7939,12 +7984,9 @@ mod tests {
 
     /// The rectangle certificate on the same chart — the independent
     /// lane every curved-chart row below is measured against.
-    fn rectangle(ku: &KnotVector, kvv: &KnotVector, control: &[RVec3], w: &[f64]) -> FaceCutBounds {
+    fn rectangle(net: &PatchNet<'_>) -> FaceCutBounds {
         nurbs_patch_face_rounds::<f64>(
-            ku,
-            kvv,
-            control,
-            w,
+            net,
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
@@ -7962,18 +8004,12 @@ mod tests {
 
     /// The lane over the whole schedule, at the run's own ε and band.
     fn trimmed(
-        ku: &KnotVector,
-        kvv: &KnotVector,
-        control: &[RVec3],
-        w: &[f64],
+        net: &PatchNet<'_>,
         chords: &[TrimChord],
         window: RoundWindow,
     ) -> Result<LaneRun, PropsError> {
         trimmed_patch_face_rounds::<f64>(
-            ku,
-            kvv,
-            control,
-            w,
+            net,
             chords,
             Band::linear(Tol::witness()).unwrap(),
             window,
@@ -8006,13 +8042,14 @@ mod tests {
     fn q1_a_flat_patch_with_a_diagonal_general_trim() {
         let c = 3.0;
         let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
         ];
-        let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
-            .expect("the diagonal trim certifies");
+        let out =
+            trimmed(&net, &chords, RoundWindow::SCHEDULE).expect("the diagonal trim certifies");
         let LaneRun {
             bounds: b,
             end: LaneEnd::Accepted(_),
@@ -8069,10 +8106,7 @@ mod tests {
     fn n_gon_run(chords: &[TrimChord]) -> LaneRun {
         let (ku, kvv, control, w) = flat_chart(1.0);
         trimmed_patch_face_rounds::<f64>(
-            &ku,
-            &kvv,
-            &control,
-            &w,
+            &patch(&ku, &kvv, &control, &w),
             chords,
             Band::linear(Tol::witness()).unwrap(),
             RoundWindow::SCHEDULE,
@@ -8123,27 +8157,21 @@ mod tests {
     #[test]
     fn the_trimmed_lanes_envelope_is_a_floor() {
         let (ku, kvv, control, w) = flat_chart(1.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             general(&[(1.0, 0.0), (0.7, 0.7), (0.0, 1.0)], 1e-2),
             iso((0.0, 1.0), (0.0, 0.0)),
         ];
-        let whole = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+        let whole = trimmed(&net, &chords, RoundWindow::SCHEDULE)
             .expect("the enveloped arc has an enclosure");
         assert_eq!(
             whole.end,
             LaneEnd::Floor,
             "the envelope is a floor: {whole:?}"
         );
-        let at = trimmed(
-            &ku,
-            &kvv,
-            &control,
-            &w,
-            &chords,
-            RoundWindow::at(whole.rounds - 1),
-        )
-        .expect("the same round, windowed");
+        let at = trimmed(&net, &chords, RoundWindow::at(whole.rounds - 1))
+            .expect("the same round, windowed");
         assert_eq!(
             (at.end, at.rounds),
             (LaneEnd::Floor, whole.rounds),
@@ -8163,6 +8191,7 @@ mod tests {
     fn q2_an_arc_trim_pads_its_lunes_and_the_pad_is_second_order() {
         let c = 1.0;
         let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let arc = [(1.0, 0.0), (0.7, 0.7), (0.0, 1.0)];
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
@@ -8179,7 +8208,7 @@ mod tests {
         let truth = 0.5 + 2.0 / 3.0 * tri;
         let mut widths = Vec::new();
         for round in 0..2 {
-            let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(round))
+            let out = trimmed(&net, &chords, RoundWindow::at(round))
                 .unwrap_or_else(|e| panic!("Q2 round {round}: {e:?}"));
             let b = bounds_of(&out);
             encloses(b.flux, c * truth, &format!("Q2 round {round} flux"));
@@ -8213,6 +8242,7 @@ mod tests {
     fn q3_the_rectangle_loop_agrees_with_the_rectangle_certificate() {
         let c = 2.0;
         let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -8220,14 +8250,11 @@ mod tests {
             iso((0.0, 1.0), (0.0, 0.0)),
         ];
         let mine = bounds_of(
-            &trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+            &trimmed(&net, &chords, RoundWindow::SCHEDULE)
                 .expect("the rectangle loop certifies through the trimmed door"),
         );
         let theirs = nurbs_patch_face_rounds::<f64>(
-            &ku,
-            &kvv,
-            &control,
-            &w,
+            &net,
             (0.0, 1.0, 0.0, 1.0),
             4.0,
             0.0,
@@ -8269,6 +8296,7 @@ mod tests {
         let c = 10.0;
         let env = 1.0e-4;
         let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let square = |e: f64| {
             vec![
                 iso((0.0, 0.0), (1.0, 0.0)),
@@ -8278,7 +8306,7 @@ mod tests {
         };
         let read = |e: f64| {
             bounds_of(
-                &trimmed(&ku, &kvv, &control, &w, &square(e), RoundWindow::SCHEDULE)
+                &trimmed(&net, &square(e), RoundWindow::SCHEDULE)
                     .unwrap_or_else(|err| panic!("Q4 env {e:e}: {err:?}")),
             )
         };
@@ -8335,12 +8363,13 @@ mod tests {
     #[test]
     fn q5_a_fold_over_its_chord_refuses_typed() {
         let (ku, kvv, control, w) = flat_chart(1.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(1.0, 1.0), (2.0, 2.0), (0.0, 0.0)], 0.0),
         ];
-        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
+        match trimmed(&net, &chords, RoundWindow::SCHEDULE) {
             Err(PropsError::QuadratureUnsupported { what }) => {
                 assert!(
                     what.contains("monotonicity") && what.contains("UNRESOLVED"),
@@ -8366,12 +8395,13 @@ mod tests {
     fn q5b_a_piece_that_only_looks_folded_resolves_by_bisection() {
         let c = 3.0;
         let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(1.0, 1.0), (0.2, 0.2), (0.8, 0.8), (0.0, 0.0)], 0.0),
         ];
-        let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
+        let out = trimmed(&net, &chords, RoundWindow::SCHEDULE)
             .expect("bisection resolves a monotone piece with a backward control step");
         let b = bounds_of(&out);
         encloses(b.flux, c * 0.5, "Q5b flux");
@@ -8396,26 +8426,21 @@ mod tests {
     fn the_bisection_halves_are_the_retired_doors_to_the_bit() {
         BISECTED.with(|b| b.borrow_mut().clear());
         let (ku, kvv, control, w) = flat_chart(1.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let fold = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(1.0, 1.0), (2.0, 2.0), (0.0, 0.0)], 0.0),
         ];
-        let _ = trimmed(&ku, &kvv, &control, &w, &fold, RoundWindow::SCHEDULE);
+        let _ = trimmed(&net, &fold, RoundWindow::SCHEDULE);
         let (ku, kvv, control, w) = flat_chart(3.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let looks_folded = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(1.0, 1.0), (0.2, 0.2), (0.8, 0.8), (0.0, 0.0)], 0.0),
         ];
-        let _ = trimmed(
-            &ku,
-            &kvv,
-            &control,
-            &w,
-            &looks_folded,
-            RoundWindow::SCHEDULE,
-        );
+        let _ = trimmed(&net, &looks_folded, RoundWindow::SCHEDULE);
         let blocks = BISECTED.with(|b| b.borrow().clone());
         assert_eq!(blocks.len(), 4, "the fixtures bisect four blocks");
         let bits = |row: &[Interval]| -> Vec<(u64, u64, bool)> {
@@ -8473,10 +8498,7 @@ mod tests {
             general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
         ];
         let b = met(trimmed(
-            &ku,
-            &kvv,
-            &control,
-            &w,
+            &patch(&ku, &kvv, &control, &w),
             &chords,
             RoundWindow::SCHEDULE,
         ))
@@ -8495,7 +8517,11 @@ mod tests {
             }
         }
         let w = vec![1.0; 12];
-        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
+        match trimmed(
+            &patch(&ku, &kvv, &control, &w),
+            &chords,
+            RoundWindow::SCHEDULE,
+        ) {
             Err(PropsError::QuadratureUnsupported { what }) => {
                 assert!(
                     what == TRIM_NC_WINDOW,
@@ -8559,8 +8585,12 @@ mod tests {
         };
         let seg = |a: f64, b: f64| xp(0.5 * (a + b)) * 0.5 * (wv(a) + wv(b)) * (b - a);
         let g_int = seg(0.0, vk) + seg(vk, uk) + seg(uk, 1.0);
-        let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
-            .expect("the knot-crossing diagonal certifies");
+        let out = trimmed(
+            &patch(&ku, &kvv, &control, &w),
+            &chords,
+            RoundWindow::SCHEDULE,
+        )
+        .expect("the knot-crossing diagonal certifies");
         let b = bounds_of(&out);
         encloses(b.flux, c * g_int, "Q7 flux");
         encloses(b.area, g_int, "Q7 area");
@@ -8587,7 +8617,8 @@ mod tests {
     fn q8_a_curved_chart_area_agrees_with_the_rectangle_lane() {
         for (pu, pv) in [(1usize, 2usize), (2, 2), (3, 2), (3, 3)] {
             let (ku, kvv, control, w) = curved_chart(pu, pv);
-            let rect = rectangle(&ku, &kvv, &control, &w);
+            let net = patch(&ku, &kvv, &control, &w);
+            let rect = rectangle(&net);
             // Both triangles of the diagonal, the General walked each
             // way — `second` is the orientation the whole-box hull
             // refused.
@@ -8604,13 +8635,12 @@ mod tests {
             let mut sum_a = Interval::zero();
             let mut sum_f = Interval::zero();
             for (label, chords) in [("first", &first), ("second", &second)] {
-                let out = trimmed(&ku, &kvv, &control, &w, chords, RoundWindow::SCHEDULE)
-                    .unwrap_or_else(|e| {
-                        panic!(
-                            "Q8 ({pu},{pv}) {label}: a curved chart's half-patch is an \
+                let out = trimmed(&net, chords, RoundWindow::SCHEDULE).unwrap_or_else(|e| {
+                    panic!(
+                        "Q8 ({pu},{pv}) {label}: a curved chart's half-patch is an \
                                 ordinary face, got {e:?}"
-                        )
-                    });
+                    )
+                });
                 let b = bounds_of(&out);
                 assert!(
                     b.area.lo() > 0.0,
@@ -8701,6 +8731,7 @@ mod tests {
     #[test]
     fn q9_the_inner_rules_order_is_pinned_at_two_short_and_the_outer_at_four() {
         let (ku, kvv, control, w) = curved_chart(2, 2);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
@@ -8708,7 +8739,7 @@ mod tests {
         ];
         let read = |round: usize| {
             bounds_of(
-                &trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(round))
+                &trimmed(&net, &chords, RoundWindow::at(round))
                     .unwrap_or_else(|e| panic!("Q9 round {round}: {e:?}")),
             )
         };
@@ -8783,18 +8814,19 @@ mod tests {
         let c = 3.0;
         let d = 1.0e-4;
         let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let fat = (
             Interval::from_bounds(1.0 - 2.0 * d, 1.0),
             Interval::from_bounds(1.0, 1.0 + 2.0 * d),
         );
         let mut g = general(&[(1.0, 1.0), (0.0, 0.0)], 0.0);
         g.a = fat;
-        g.piece.as_mut().unwrap().control[0] = fat;
+        g.piece = g.piece.as_ref().map(|piece| first_point_at(piece, fat));
         let mut rim = iso((1.0, 0.0), (1.0, 1.0));
         rim.b = fat;
         let chords = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
-        let out = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
-            .unwrap_or_else(|e| panic!("Q10: {e:?}"));
+        let out =
+            trimmed(&net, &chords, RoundWindow::SCHEDULE).unwrap_or_else(|e| panic!("Q10: {e:?}"));
         let b = bounds_of(&out);
         // The true corner is (1,1) and the bracket's midpoint is not;
         // the truth has to stay inside.
@@ -8832,12 +8864,13 @@ mod tests {
     fn q11_an_open_walk_refuses_and_an_in_bracket_gap_is_paid() {
         let c = 3.0;
         let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let open = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(0.95, 1.0), (0.0, 0.0)], 0.0),
         ];
-        match trimmed(&ku, &kvv, &control, &w, &open, RoundWindow::SCHEDULE) {
+        match trimmed(&net, &open, RoundWindow::SCHEDULE) {
             Err(PropsError::QuadratureUnsupported { what }) => {
                 assert!(
                     what.contains("does not close"),
@@ -8862,10 +8895,10 @@ mod tests {
             Interval::from_bounds(1.0 - 1.5 * d, 1.0 - 0.25 * d),
             pt(1.0),
         );
-        g.piece.as_mut().unwrap().control[0] = g.a;
+        g.piece = g.piece.as_ref().map(|piece| first_point_at(piece, g.a));
         let closed = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
         let b = bounds_of(
-            &trimmed(&ku, &kvv, &control, &w, &closed, RoundWindow::SCHEDULE)
+            &trimmed(&net, &closed, RoundWindow::SCHEDULE)
                 .unwrap_or_else(|e| panic!("Q11: an in-bracket gap is paid, not refused: {e:?}")),
         );
         // The truth is the polygon the caller MEANT — the corner at
@@ -8958,8 +8991,12 @@ mod tests {
         let chords = the_triangle();
         let mut widths = Vec::new();
         for round in 0..3 {
-            let run = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(round))
-                .expect("Q14: the composite arm answers");
+            let run = trimmed(
+                &patch(&ku, &kvv, &control, &w),
+                &chords,
+                RoundWindow::at(round),
+            )
+            .expect("Q14: the composite arm answers");
             encloses(run.bounds.flux, truth, &format!("Q14 round {round} flux"));
             widths.push(run.bounds.flux.width());
         }
@@ -8970,10 +9007,7 @@ mod tests {
             );
         }
         let b = met(trimmed(
-            &ku,
-            &kvv,
-            &control,
-            &w,
+            &patch(&ku, &kvv, &control, &w),
             &chords,
             RoundWindow::SCHEDULE,
         ))
@@ -8991,10 +9025,7 @@ mod tests {
     fn q15_a_composite_face_short_of_its_caller_stops_at_the_wall() {
         let (ku, kvv, control, w, truth) = cubic_by_quadratic(CUBIC_HEIGHTS);
         let run = trimmed_patch_face_rounds::<f64>(
-            &ku,
-            &kvv,
-            &control,
-            &w,
+            &patch(&ku, &kvv, &control, &w),
             &the_triangle(),
             Band::linear(Tol::witness()).unwrap(),
             RoundWindow::SCHEDULE,
@@ -9300,10 +9331,7 @@ mod tests {
                     }
                     let mut rounds = Vec::new();
                     let run = trimmed_patch_face_rounds::<f64>(
-                        &ku,
-                        &kvv,
-                        &net,
-                        &w,
+                        &patch(&ku, &kvv, &net, &w),
                         &chords,
                         Band::linear(Tol::witness()).unwrap(),
                         RoundWindow { first: 0, last: 3 },
@@ -9357,7 +9385,7 @@ mod tests {
         );
         g.piece.as_mut().unwrap().control[0] = g.a;
         let chords = vec![iso((0.1, 0.6), (0.9, 0.6)), rim, g];
-        let run = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::at(0))
+        let run = trimmed(&patch(&ku, &kvv, &control, &w), &chords, RoundWindow::at(0))
             .unwrap_or_else(|e| panic!("Q17: an in-bracket gap is paid, not refused: {e:?}"));
         encloses(run.bounds.flux, 0.0, "Q17 flux");
     }
@@ -9380,13 +9408,14 @@ mod tests {
     fn q13_an_in_band_monotone_verdict_escalates() {
         let eps = Tol::witness().get().eps;
         let (ku, kvv, control, w) = flat_chart(1.0);
+        let net = patch(&ku, &kvv, &control, &w);
         let chords = vec![
             iso((0.0, 0.0), (1.0, 0.0)),
             iso((1.0, 0.0), (1.0, 1.0)),
             iso((1.0, 1.0), (0.0, 1.0)),
             general(&[(0.0, 1.0), (0.0, 1.0 + 40.0 * eps), (0.0, 0.0)], 0.0),
         ];
-        match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
+        match trimmed(&net, &chords, RoundWindow::SCHEDULE) {
             Err(PropsError::Escalated { cause, .. }) => {
                 assert!(
                     cause
@@ -9440,29 +9469,31 @@ mod tests {
         // `{0 < v < u < 1}`, `∫∫ = ∫₀¹ x′(u)·u du`.
         let g_int = (0.5 / uk) * 0.5 * uk.powi(2) + (0.5 / (1.0 - uk)) * 0.5 * (1.0 - uk.powi(2));
         let b = bounds_of(
-            &trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE)
-                .unwrap_or_else(|e| panic!("Q12: {e:?}")),
+            &trimmed(
+                &patch(&ku, &kvv, &control, &w),
+                &chords,
+                RoundWindow::SCHEDULE,
+            )
+            .unwrap_or_else(|e| panic!("Q12: {e:?}")),
         );
         encloses(b.flux, c * g_int, "Q12 flux");
         encloses(b.area, g_int, "Q12 area");
     }
 
-    /// `refine_dir`'s grid is the DOMAIN's sixteenths, a grid point
+    /// `RefinedNet`'s grid is the DOMAIN's sixteenths, a grid point
     /// skipped up to and including `GRID_CLEARANCE` of the spacing
     /// (`2⁻¹²`) from a knot: `0.5` is a knot, and `1/16` is skipped
     /// beside a knot exactly `2⁻¹²` above it. A knot one ulp further
     /// than that above `3/8` leaves `3/8` standing, so both land. The
     /// expected vector is written out by hand.
     #[test]
-    fn refine_dir_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
+    fn refined_net_skips_a_grid_point_up_to_the_clearance_from_a_knot() {
         let c = algebra::grid_clearance(0.0, 1.0, QUAD2_REFINE_SPANS);
         let near = 0.0625 + c;
         let clear = (0.375 + c).next_up();
         let kv =
             KnotVector::clamped(vec![0.0, 0.0, 0.0, near, clear, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
-        #[allow(clippy::cast_precision_loss)]
-        let net: Vec<RVec3> = (0..kv.control_count()).map(|i| [pt(i as f64); 3]).collect();
-        let (rkv, rnet, count) = refine_dir(&kv, &net, 1, true).unwrap();
+        let (rkv, count) = refined_u(&kv);
         assert_eq!(
             rkv.knots(),
             [
@@ -9471,7 +9502,23 @@ mod tests {
             ]
         );
         assert_eq!(count, 19);
-        assert_eq!(rnet.len(), 19);
+    }
+
+    /// [`RefinedNet`] of a net over `kv` by a linear segment: the
+    /// refined `u` vector, and the `u` count its nets were refined to.
+    fn refined_u(kv: &KnotVector) -> (KnotVector, usize) {
+        let lin = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
+        #[allow(clippy::cast_precision_loss)]
+        let net = TensorChannels::from_fn(kv, &lin, |i, _| [pt(i as f64); 3]);
+        let refined = RefinedNet::of(&net).unwrap();
+        let rkv = refined.channels().knots_u().clone();
+        let count = refined.nets[0].nu();
+        assert_eq!(
+            count,
+            rkv.control_count(),
+            "the refined nets' count is the refined vector's"
+        );
+        (rkv, count)
     }
 
     /// The quarter cylinder `x² + y² = 1`, `0 ≤ z ≤ 2` as ONE rational
@@ -9500,10 +9547,7 @@ mod tests {
     fn a_never_accepted_face_stops_at_its_cumulative_wall() {
         let (ku, kv, net, w) = one_span_quarter_cylinder();
         let run = nurbs_patch_face_rounds::<f64>(
-            &ku,
-            &kv,
-            &net,
-            &w,
+            &patch(&ku, &kv, &net, &w),
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
@@ -9546,10 +9590,7 @@ mod tests {
             }
         }
         let out = nurbs_patch_face_rounds::<f64>(
-            &kv_u,
-            &kv_v,
-            &net,
-            &weights,
+            &patch(&kv_u, &kv_v, &net, &weights),
             (0.0, 1.0, 0.0, 1.0),
             2.0f64.mul_add(2.0, core::f64::consts::PI),
             0.0,
@@ -9561,7 +9602,7 @@ mod tests {
         bounds_of(&out)
     }
 
-    /// `refine_dir`'s width has no cliff at any distance of a stated
+    /// `RefinedNet`'s width has no cliff at any distance of a stated
     /// knot from a grid point: with the quarter cylinder split at every
     /// offset of [`crate::grid_offsets::knot_offsets`] from the first
     /// point of the [`QUAD2_REFINE_SPANS`] grid, the round-0 flux and
@@ -9600,20 +9641,18 @@ mod tests {
         }
     }
 
-    /// `refine_dir` has no "already fine enough" cut-off: a vector
+    /// `RefinedNet` has no "already fine enough" cut-off: a vector
     /// with more control points than the grid has spans still takes
     /// every grid point it lacks. The interior knots are the odd
     /// 64ths, none on the sixteenths grid, so all fifteen go in.
     #[test]
-    fn refine_dir_refines_an_already_fine_vector() {
+    fn refined_net_refines_an_already_fine_vector() {
         let mut knots = vec![0.0, 0.0, 0.0];
         knots.extend((0..21).map(|j| f64::from(2 * j + 1) / 64.0));
         knots.extend([1.0, 1.0, 1.0]);
         let kv = KnotVector::clamped(knots, 2).unwrap();
         assert_eq!(kv.control_count(), 24);
-        #[allow(clippy::cast_precision_loss)]
-        let net: Vec<RVec3> = (0..24).map(|i| [pt(i as f64); 3]).collect();
-        let (rkv, _, count) = refine_dir(&kv, &net, 1, true).unwrap();
+        let (rkv, count) = refined_u(&kv);
         assert_eq!(count, 24 + 15);
         for k in 1..16 {
             let t = f64::from(k) / 16.0;
@@ -9632,11 +9671,12 @@ mod tests {
     fn bezier_blocks_drops_a_uniform_break_within_the_clearance_of_a_knot() {
         let near = f64::from_bits(0.25f64.to_bits() + 1);
         let kv = KnotVector::clamped(vec![0.0, 0.0, near, 1.0, 1.0], 1).unwrap();
-        let img = TrimPiece {
-            knots: kv,
-            control: [0.0, near, 1.0].iter().map(|t| (pt(*t), pt(0.0))).collect(),
-            weights: vec![1.0; 3],
-        };
+        let img = TrimPiece::new(
+            kv,
+            [0.0, near, 1.0].iter().map(|t| (pt(*t), pt(0.0))).collect(),
+            vec![1.0; 3],
+        )
+        .unwrap();
         let blocks = bezier_blocks(&img, 4).unwrap();
         assert_eq!(blocks.len(), 4, "{blocks:?}");
         for (block, start) in blocks.iter().zip([0.0, near, 0.5, 0.75]) {
@@ -9647,26 +9687,24 @@ mod tests {
     }
 
     /// `bezier_blocks` holds its unit-weight invariant itself: an image
-    /// with a non-unit weight refuses as `Rational`, whoever calls it,
-    /// and a weight list of the wrong length as `Malformed`.
+    /// with a non-unit weight refuses as `Rational`, whoever calls it.
+    /// A weight list or a control polygon of the wrong length never
+    /// becomes an image at all.
     #[test]
     fn bezier_blocks_refuses_a_rational_image_by_name() {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let control: Vec<RPt2> = [0.0, 0.5, 1.0].iter().map(|t| (pt(*t), pt(0.0))).collect();
-        let img = |weights: Vec<f64>| TrimPiece {
-            knots: kv.clone(),
-            control: control.clone(),
-            weights,
-        };
+        let img = |weights: Vec<f64>| TrimPiece::new(kv.clone(), control.clone(), weights);
         assert_eq!(
-            bezier_blocks(&img(vec![1.0, 0.5, 1.0]), 4).err(),
+            bezier_blocks(&img(vec![1.0, 0.5, 1.0]).unwrap(), 4).err(),
             Some(BlockRefusal::Rational)
         );
-        assert_eq!(
-            bezier_blocks(&img(vec![1.0; 2]), 4).err(),
-            Some(BlockRefusal::Malformed)
+        assert!(bezier_blocks(&img(vec![1.0; 3]).unwrap(), 4).is_ok());
+        assert!(img(vec![1.0; 2]).is_err(), "a short weight list");
+        assert!(
+            TrimPiece::new(kv.clone(), control[..2].to_vec(), vec![1.0; 2]).is_err(),
+            "a short control polygon"
         );
-        assert!(bezier_blocks(&img(vec![1.0; 3]), 4).is_ok());
     }
 
     /// `bezier_blocks`' breaks are the DISTINCT interior knots: a
@@ -9684,11 +9722,12 @@ mod tests {
         // The Greville abscissae: an identity image, so each block
         // starts at its break.
         let greville = [0.0, 1.0 / 6.0, 1.0 / 3.0, 2.0 / 3.0, 5.0 / 6.0, 1.0];
-        let img = TrimPiece {
-            knots: kv,
-            control: greville.iter().map(|t| (pt(*t), pt(0.0))).collect(),
-            weights: vec![1.0; 6],
-        };
+        let img = TrimPiece::new(
+            kv,
+            greville.iter().map(|t| (pt(*t), pt(0.0))).collect(),
+            vec![1.0; 6],
+        )
+        .unwrap();
         let blocks = bezier_blocks(&img, 4).unwrap();
         assert_eq!(blocks.len(), 4, "{blocks:?}");
         for (block, start) in blocks.iter().zip([0.0, 0.25, 0.5, 0.75]) {
@@ -9905,12 +9944,9 @@ mod tests {
     /// is minted, and the rate is the refused one.
     #[test]
     fn a_trv_block_does_not_certify_a_piece_monotone() {
-        let (ku, kvv, control, _) = flat_chart(3.0);
-        let s = PatchGrid::base(&TensorChannels::from_fn(
-            &ku,
-            &kvv,
-            row_major(&control, &kvv),
-        ));
+        let (ku, kvv, control, w) = flat_chart(3.0);
+        let net = patch(&ku, &kvv, &control, &w);
+        let s = PatchGrid::base(&net.positions());
         let (su, sv) = (s.deriv_u(), s.deriv_v());
         let band = Band::linear(Tol::witness()).unwrap();
         // The `Trv` rides on the LAST point, so the first step's advance
@@ -9952,6 +9988,7 @@ mod tests {
     fn a_trv_trim_endpoint_does_not_converge_the_trimmed_lane() {
         let c = 3.0;
         let (ku, kvv, control, w) = flat_chart(c);
+        let net = patch(&ku, &kvv, &control, &w);
         let trv = trv_zero();
         let mut first = iso((0.0, 0.0), (1.0, 0.0));
         first.a = (trv, pt(0.0));
@@ -9960,7 +9997,7 @@ mod tests {
             iso((1.0, 0.0), (1.0, 1.0)),
             general(&[(1.0, 1.0), (0.5, 0.5), (0.0, 0.0)], 1e-3),
         ];
-        let got = trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE);
+        let got = trimmed(&net, &chords, RoundWindow::SCHEDULE);
         assert!(
             !matches!(
                 got,
