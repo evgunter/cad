@@ -845,7 +845,7 @@ pub mod test_support {
     /// `(A face, B face, outcome)`. The outcome is `Ok` with each
     /// component's witness (`Unbounded`, `Essential(F|G)`, `Out(F|G)`,
     /// `LoneEvented`) or `Err` with the refusal (`Reach`, `Tangent(..)`,
-    /// `Loop`, `Undecided`, `LoneVertex`), spelled by `Debug`.
+    /// `Loop`, `Undecided`, `LoneVertex`, `Unread`), spelled by `Debug`.
     ///
     /// # Errors
     ///

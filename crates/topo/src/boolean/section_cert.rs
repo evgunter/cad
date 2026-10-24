@@ -415,6 +415,8 @@ pub(crate) enum Cleared {
 
 /// Why a pair refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// The roster the refusal censuses read (test builds only).
+#[cfg_attr(test, derive(strum::EnumIter))]
 pub(crate) enum Refusal {
     /// R-reach: no arm.
     Reach,
@@ -489,8 +491,10 @@ impl Refusal {
             }
             Self::Unread => {
                 "a curved face's section with a face of the other solid has a component that \
-                 winds about the face's surface, the face's boundary could not be read to show \
-                 the component leaves it, and no crossing layer saw an event on it"
+                 winds about the face's surface, and no crossing layer saw an event on it; the \
+                 face's boundary, which would show the component leaves it, could not be read, \
+                 most often because a vertex of it stands too near the surface's axis or apex \
+                 (moving that vertex away lets it be read)"
             }
         }
     }

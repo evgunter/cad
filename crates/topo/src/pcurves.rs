@@ -5069,30 +5069,124 @@ pub(crate) struct LoopWinding {
     pub(crate) zero: bool,
 }
 
-/// **How each loop of `face` winds in `chart`**, read off the loop walk,
-/// for a reader that asks only whether loops wind and never draws a
-/// polygon: the section certificate's W2
-/// (`boolean::ops::ChartCache::describes`).
+/// One loop walked as the face readers read it ([`read_loop`]).
+struct ReadLoop<T: Real> {
+    /// The rows, unlifted, with their joints' elements.
+    walked: Vec<Walked<T>>,
+    /// Each joint's element, in walk order.
+    elements: Vec<JointElement>,
+    /// The first joint not definitely off the chart's singular set, and
+    /// the reading's diagnostic where it was undecided rather than `On`.
+    /// Nothing past the walk is read of such a loop.
+    singular: Option<(HalfEdgeKey, Option<Indeterminate>)>,
+}
+
+/// **The loop walk both face readers stand on** ([`chart_boundary`],
+/// [`loop_windings`]): `lp` walked in `chart`, and, off the singular
+/// set, every closed-form row certified and every joint's room decided,
+/// so the winding read off the elements is the loop's own. `None` for
+/// an empty loop, which bounds nothing.
 ///
-/// The reading is [`chart_boundary`]'s up to its winding check, with
-/// the singular-joint fence turned into a reading. A loop with a joint
-/// on the singular set is reported `singular` and nothing else of it
-/// is read. Every other loop has each closed-form row certified
-/// against `chart`, and each joint's room decided ([`joint_has_room`]),
-/// before its winding is read, because a joint without room may read
-/// an integer a step off. Loops come outer first; an empty loop is
-/// absent.
+/// THE SINGULAR-JOINT FENCE comes first. A joint on the chart's singular
+/// set — a sphere pole, a cone apex — has no azimuth, so the walk
+/// decides no azimuth periods there (a reset, [`decide_joint`]) and
+/// leaves whatever azimuth the derivation produced. Minting is right to
+/// do that: no downstream sample reads the azimuth AT the pole. A chord
+/// polygon does read it, as a vertex, and a winding read across it has
+/// no first channel to count. Decided as 3-D incidence of each joint's
+/// vertex on that set ([`singular_at`]). Every reset the walk wrote
+/// reads not-Off here, because the walk writes a reset only on a
+/// `singular_at` reading of `On` or, on a spline chart, an undecided
+/// one ([`AzimuthRule`]), and this reads the same `singular_at` at the
+/// same band; on a spline chart that reading is net-level
+/// ([`net_reach`]).
+///
+/// Off the singular set each closed-form row is certified against
+/// `chart` as the row it is: the joint bound rests on each row's
+/// envelope (check 4), and these rows are fresh derivations in the
+/// CALLER's chart, which no mint certified; a fitted or general one
+/// reads its stored certificate ([`chart_edge`]). Then THE ROOM FENCE:
+/// the walk decided each joint's azimuth integer with half the step to
+/// the next orbit point as room, at the vertex's own lever, and where
+/// that room is not past the joint bound a mark may have named an orbit
+/// point other than the joint's own, so the winding may read one step
+/// off ([`joint_has_room`]).
+///
+/// # Errors
+///
+/// The loop walk's own refusals ([`walk_loop`]);
+/// [`PcurveMintError::Certify`] for a row that does not certify against
+/// `chart`; [`PcurveMintError::JointWithoutRoom`] for a joint without
+/// room.
+fn read_loop<T: AtRestPolicy>(
+    body: &Body<T>,
+    face: FaceKey,
+    lp: LoopKey,
+    (chart, described): (&Surface<T>, DescribedChart<'_, T>),
+    period: Option<Period<T>>,
+    band: Band,
+) -> Result<Option<ReadLoop<T>>, PcurveMintError> {
+    let mut walked: Vec<Walked<T>> = Vec::new();
+    walk_loop(body, face, lp, described, band, &mut walked)?;
+    if walked.is_empty() {
+        return Ok(None);
+    }
+    let elements: Vec<JointElement> = walked
+        .iter()
+        .map(|w| {
+            w.element
+                .unwrap_or_else(|| unreachable!("a closed walk decides every joint"))
+        })
+        .collect();
+    let singular =
+        walked.iter().find_map(
+            |w| match singular_at(described, entry_vertex(body, w.key), band) {
+                Singular::Off => None,
+                Singular::On => Some((w.key, None)),
+                Singular::Undecided(cause) => Some((w.key, Some(cause))),
+            },
+        );
+    if singular.is_none() {
+        for w in &walked {
+            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
+                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
+                    .map_err(|error| PcurveMintError::Certify {
+                        half_edge: w.key,
+                        error,
+                    })?;
+            }
+        }
+        for w in &walked {
+            let orbit = Orbit::of(chart, &w.pcurve);
+            if !joint_has_room(described, entry_vertex(body, w.key), period, orbit, band) {
+                return Err(PcurveMintError::JointWithoutRoom {
+                    face,
+                    r#loop: lp,
+                    half_edge: w.key,
+                });
+            }
+        }
+    }
+    Ok(Some(ReadLoop {
+        walked,
+        elements,
+        singular,
+    }))
+}
+
+/// **How each loop of `face` winds in `chart`**, read off the loop walk
+/// ([`read_loop`]), for a reader that asks only whether loops wind and
+/// never draws a polygon: the section certificate's W2
+/// (`boolean::ops::ChartCache::describes`). A loop with a joint on the
+/// singular set is reported `singular`, and nothing else of it is read.
+/// Loops come outer first; an empty loop is absent.
 ///
 /// # Errors
 ///
 /// [`PcurveMintError::Stale`] when `face` does not resolve, and
 /// [`PcurveMintError::PlaceholderChart`] when `chart` is the mvfs
-/// placeholder; the loop walk's own refusals ([`walk_loop`]);
-/// [`PcurveMintError::Escalated`] for a joint whose incidence on the
-/// singular set is undecided; and, on a loop off that set,
-/// [`PcurveMintError::Certify`] for a row that does not certify against
-/// `chart` and [`PcurveMintError::JointWithoutRoom`] for a joint without
-/// room.
+/// placeholder; [`read_loop`]'s; and [`PcurveMintError::Escalated`] for
+/// a joint whose incidence on the singular set is undecided.
 pub(crate) fn loop_windings<T: AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
@@ -5107,57 +5201,23 @@ pub(crate) fn loop_windings<T: AtRestPolicy>(
     let period = ChartPeriods::of(chart, band).u();
     let mut out = Vec::new();
     for lp in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
-        let mut walked: Vec<Walked<T>> = Vec::new();
-        walk_loop(body, face, lp, described, band, &mut walked)?;
-        if walked.is_empty() {
+        let Some(read) = read_loop(body, face, lp, (chart, described), period, band)? else {
             continue;
-        }
-        let mut singular = false;
-        for w in &walked {
-            match singular_at(described, entry_vertex(body, w.key), band) {
-                Singular::Off => {}
-                Singular::On => singular = true,
-                Singular::Undecided(cause) => {
-                    return Err(PcurveMintError::Escalated {
-                        half_edge: w.key,
-                        cause,
-                    });
-                }
+        };
+        out.push(match read.singular {
+            Some((half_edge, Some(cause))) => {
+                return Err(PcurveMintError::Escalated { half_edge, cause });
             }
-        }
-        if singular {
-            out.push(LoopWinding {
+            Some((_, None)) => LoopWinding {
                 r#loop: lp,
-                singular,
+                singular: true,
                 zero: false,
-            });
-            continue;
-        }
-        for w in &walked {
-            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
-                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
-                    .map_err(|error| PcurveMintError::Certify {
-                        half_edge: w.key,
-                        error,
-                    })?;
-            }
-            let orbit = Orbit::of(chart, &w.pcurve);
-            if !joint_has_room(described, entry_vertex(body, w.key), period, orbit, band) {
-                return Err(PcurveMintError::JointWithoutRoom {
-                    face,
-                    r#loop: lp,
-                    half_edge: w.key,
-                });
-            }
-        }
-        let elements = walked.iter().map(|w| {
-            w.element
-                .unwrap_or_else(|| unreachable!("a closed walk decides every joint"))
-        });
-        out.push(LoopWinding {
-            r#loop: lp,
-            singular,
-            zero: Winding::of(elements).is_zero(),
+            },
+            None => LoopWinding {
+                r#loop: lp,
+                singular: false,
+                zero: Winding::of(read.elements).is_zero(),
+            },
         });
     }
     Ok(out)
@@ -5211,10 +5271,12 @@ pub(crate) fn loop_windings<T: AtRestPolicy>(
 /// Each joint's polygon vertex is the row's entry: the walk decided the
 /// joint's element, and the entry lies within the joint bound
 /// [`decide_joint`] states of the exit before it. That bound rests on
-/// each row's envelope, so every closed-form row is certified against
-/// `chart` here first ([`PcurveCertifyError`] through
-/// [`PcurveMintError::Certify`] where one does not), minted face or
-/// not, whatever chart the caller names.
+/// each row's envelope, so every closed-form row of a loop off the
+/// singular set is certified against `chart` before it is read
+/// ([`PcurveCertifyError`] through [`PcurveMintError::Certify`] where one
+/// does not), minted face or not, whatever chart the caller names. The
+/// walk and its fences are [`read_loop`], the one [`loop_windings`]
+/// reads too.
 ///
 /// # Errors
 ///
@@ -5258,33 +5320,27 @@ pub fn chart_boundary<T: AtRestPolicy>(
     let mut outer: Option<ChartLoop<T>> = None;
     let mut rings: Vec<ChartLoop<T>> = Vec::new();
     for (index, lp) in loops.iter().enumerate() {
-        let mut walked: Vec<Walked<T>> = Vec::new();
-        walk_loop(body, face, *lp, described, band, &mut walked)?;
-        // The joint bound the polygon leans on rests on each row's
-        // envelope (check 4), and these rows are fresh derivations in
-        // the CALLER's chart, which no mint certified. So each
-        // closed-form row is certified against that chart here, as the
-        // row it is, before it is lifted; a fitted or general one reads
-        // its stored certificate ([`chart_edge`]).
-        for w in &walked {
-            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
-                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
-                    .map_err(|error| PcurveMintError::Certify {
-                        half_edge: w.key,
-                        error,
-                    })?;
-            }
+        let Some(read) = read_loop(body, face, *lp, (chart, described), period, band)? else {
+            continue;
+        };
+        // A joint on the singular set has no azimuth, and the chord
+        // drawn to it bounds a different region from the face; anything
+        // but definitely off the set refuses ([`read_loop`]).
+        if let Some((half_edge, _)) = read.singular {
+            return Err(PcurveMintError::SingularChartJoint {
+                face,
+                r#loop: *lp,
+                half_edge,
+            });
         }
+        let ReadLoop {
+            mut walked,
+            elements,
+            ..
+        } = read;
         // The chord polygon is drawn on the loop's lift: each row with the
         // deck element summed from the loop's first half-edge (C4: a lifted
         // copy is the row and its element, never certified again).
-        let elements: Vec<JointElement> = walked
-            .iter()
-            .map(|w| {
-                w.element
-                    .unwrap_or_else(|| unreachable!("a closed walk decides every joint"))
-            })
-            .collect();
         for (w, lift) in walked.iter_mut().zip(lift_decks(&elements)) {
             w.pcurve = lift.apply(&w.pcurve, chart, periods).unwrap_or_else(|| {
                 unreachable!(
@@ -5293,61 +5349,6 @@ pub fn chart_boundary<T: AtRestPolicy>(
                      periods at this band give, the periods it is applied in here"
                 )
             });
-        }
-        if walked.is_empty() {
-            // An empty loop bounds nothing to describe.
-            continue;
-        }
-        // THE SINGULAR-JOINT FENCE, before anything else is read off
-        // the walk. A joint on the chart's singular set — a sphere pole,
-        // a cone apex — has no azimuth, so the walk decides no azimuth
-        // periods there (a reset, [`decide_joint`]) and leaves whatever
-        // azimuth the derivation produced. Minting is right to do that:
-        // no downstream sample reads the azimuth AT the pole. A chord
-        // polygon does read it, as a vertex, and the polygon it draws
-        // bounds a different region from the face. Decided here as 3-D
-        // incidence of each joint's vertex on that set
-        // ([`singular_at`]), and anything but definitely off it refuses.
-        //
-        // The assumption: every reset the walk wrote reads not-Off here,
-        // so a loop whose lift restarted its first channel (above, at a
-        // reset: [`JointElement::follow`]) never reaches the polygon. It
-        // holds because the walk writes a reset only on a `singular_at`
-        // reading of `On` or, on a spline chart, an undecided one
-        // ([`AzimuthRule`]), and this reads the same `singular_at` at the
-        // same band. On a spline chart that reading is net-level
-        // ([`net_reach`]), so a net whose `u` sweep is not definitely past
-        // the band refuses here at every joint, not only at a reset.
-        for w in &walked {
-            if !matches!(
-                singular_at(described, entry_vertex(body, w.key), band),
-                Singular::Off
-            ) {
-                return Err(PcurveMintError::SingularChartJoint {
-                    face,
-                    r#loop: *lp,
-                    half_edge: w.key,
-                });
-            }
-        }
-        // THE ROOM FENCE. Off the singular set the walk decided each
-        // joint's azimuth integer with half the step to the next orbit
-        // point as room, at the vertex's own lever. Where that room is
-        // not past the joint bound, a mark may have named an orbit point
-        // other than the joint's own: a lift of the same point, so the
-        // walk stays continuous in metres, but the winding read below
-        // may then be one step off, and a polygon built on it would
-        // bound a different region. So each joint's room is decided here
-        // ([`joint_has_room`]), and a joint without it refuses.
-        for w in &walked {
-            let orbit = Orbit::of(chart, &w.pcurve);
-            if !joint_has_room(described, entry_vertex(body, w.key), period, orbit, band) {
-                return Err(PcurveMintError::JointWithoutRoom {
-                    face,
-                    r#loop: *lp,
-                    half_edge: w.key,
-                });
-            }
         }
         // The walk certified that the loop CLOSES; it accepts a winding
         // of one whole period (the seam case) and, on a sphere chart, a

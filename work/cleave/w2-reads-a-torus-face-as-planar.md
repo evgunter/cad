@@ -39,3 +39,16 @@ bounds the face's side, which the face's sense can decide. If it is not,
 make it unrepresentable or refuse it at rest. Found by CHART's
 `w2-reads-a-one-sheet-predicate-off-the-walk` lane while proving that
 reading. Not reproduced. (CHART implementer)
+
+## Evidence (PR 5657's FULL review, 2026-10-24)
+
+- A genus-1 torus face arriving by STEP import is refused at the import
+  door by `CurvedSenseInverted` (`topo::validate`, the curved-sense check),
+  in both of its loop encodings.
+- The booleans keep "`int F` minus its edges is planar": no boolean leaves
+  a torus face with a handle.
+- The open route is a torus face bounded by non-iso edges. Validation's
+  check 7 likely refuses it; this has not been run. A probe that builds
+  one and reads its at-rest verdict closes or confirms the row.
+
+Priority stays P2.

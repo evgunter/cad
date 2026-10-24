@@ -1368,8 +1368,13 @@ impl ChartCache {
     /// 3. a cone face's corners lie on one nappe
     ///    ([`crate::offset_nappe::face_nappe`]).
     ///
-    /// **Why that is enough.** `int F` is the face less its edges, seams
-    /// included: an event marks a section crossing any of them (L1). On
+    /// **Why that is enough.** Its premises: `int F` is the face less
+    /// its edges, seams included, because the sweep examines every edge
+    /// of `F` against `G`, a seam's two halves among them, so a section
+    /// crossing any edge carries an event (L1, premise S); and `F`
+    /// carries no lone-vertex loop, which [`pair_verdict`] refuses
+    /// (`Refusal::LoneVertex`) before W2 is asked, so every loop the walk
+    /// reads is a cycle. Then, on
     /// a cylinder or a cone a closed curve `γ` off the apex winds by its
     /// class in the first homology of the carrier less the apex, and `γ`
     /// in `int F` is homologous there to a sum over every boundary
@@ -1390,11 +1395,10 @@ impl ChartCache {
     ///
     /// # Errors
     ///
-    /// [`BooleanError::ClassificationInvariant`] for a torn face (a key
-    /// that does not resolve, an edge with no carrier, a missing or
-    /// misstated row, or a loop whose walk does not close: each a state
-    /// the at-rest pass refuses), and for a face on a plane, a sphere or
-    /// a spline, which no section arm asks about.
+    /// [`BooleanError::ClassificationInvariant`] for a torn face
+    /// ([`WalkRefusal::Torn`]: a state the at-rest pass refuses) or one
+    /// the walk cannot be asked of, and for a face on a plane, a sphere
+    /// or a spline, which no section arm asks about.
     pub(crate) fn describes<T: crate::props::AtRestPolicy>(
         &mut self,
         operand: Operand,
@@ -1420,7 +1424,6 @@ fn one_sheet<T: crate::props::AtRestPolicy>(
     surface: &geom::Surface<T>,
     band: Band,
 ) -> Result<Sheet, BooleanError> {
-    use crate::pcurves::PcurveMintError as M;
     use geom::Surface as S;
     match surface {
         S::Cylinder { .. } | S::Cone { .. } | S::Torus { .. } => {}
@@ -1431,36 +1434,107 @@ fn one_sheet<T: crate::props::AtRestPolicy>(
             });
         }
     }
+    let torn = || BooleanError::ClassificationInvariant {
+        what: "an operand face's loop walk reads it torn (a stale key, an edge with no carrier, \
+               a missing or misstated row, a row that is not its edge's on the face, or a walk \
+               that does not close), which the at-rest pass refuses",
+    };
     let loops = match crate::pcurves::loop_windings(body, face, surface, band) {
         Ok(loops) => loops,
-        Err(
-            M::Stale { .. }
-            | M::NoCarrier { .. }
-            | M::MissingCache { .. }
-            | M::Unminted { .. }
-            | M::RowInterval { .. }
-            | M::LoopDiscontinuity { .. }
-            | M::LoopNotClosed { .. },
-        ) => {
-            return Err(BooleanError::ClassificationInvariant {
-                what: "an operand face's loop walk reads it torn (a stale key, an edge with no \
-                       carrier, a missing or misstated row, or a walk that does not close), \
-                       which the at-rest pass refuses",
-            });
+        Err(e) => {
+            return match walk_refusal(&e) {
+                WalkRefusal::Torn => Err(torn()),
+                WalkRefusal::Unread => Ok(Sheet::Unread),
+                WalkRefusal::NotRaised => Err(BooleanError::ClassificationInvariant {
+                    what: "W2's loop walk answered a refusal only the chart description or the \
+                           at-rest pass raises",
+                }),
+            };
         }
-        Err(_) => return Ok(Sheet::Unread),
     };
     if !loops_lift(&loops) {
         return Ok(Sheet::Not);
     }
     if matches!(surface, S::Cone { .. }) {
-        match crate::offset_nappe::face_nappe(body, face, band) {
+        use crate::offset_nappe::NappeRefusal;
+        match crate::offset_nappe::face_nappe_reading(body, face, band) {
             Ok(_) => {}
-            Err(crate::ReplaceFaceError::NappeStraddles { .. }) => return Ok(Sheet::Not),
-            Err(_) => return Ok(Sheet::Unread),
+            Err(NappeRefusal::Straddles { .. }) => return Ok(Sheet::Not),
+            Err(NappeRefusal::Escalated(_)) => return Ok(Sheet::Unread),
+            Err(NappeRefusal::Stale) => return Err(torn()),
         }
     }
     Ok(Sheet::One)
+}
+
+/// How [`ChartCache::describes`] reads a refusal of the loop walk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WalkRefusal {
+    /// The face is not what its rest certificate says: a kernel defect.
+    Torn,
+    /// A numerical or unbuilt refusal: W2 reads nothing of the face.
+    Unread,
+    /// A refusal [`crate::pcurves::loop_windings`] never returns: only
+    /// the chart description ([`crate::pcurves::chart_boundary`]) or the
+    /// at-rest pass raises it.
+    NotRaised,
+}
+
+/// [`WalkRefusal`] of `e`, matched whole so a new refusal is read here
+/// before it is folded anywhere. A certification refusal is torn where
+/// the at-rest pass reads it as a boundary that does not match its face
+/// (`validate::classify_pcurve`), and unread where it is a precision
+/// limit or a lane not built: a face whose rows are not owed
+/// (`pcurves::not_owed`) is legal at rest, and its fresh derivation can
+/// meet one.
+fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
+    use crate::pcurves::PcurveMintError as M;
+    use geom_brep::PcurveCertifyError as C;
+    match e {
+        M::Stale { .. }
+        | M::PlaceholderChart { .. }
+        | M::NoCarrier { .. }
+        | M::LoopDiscontinuity { .. }
+        | M::LoopNotClosed { .. }
+        | M::MissingCache { .. }
+        | M::RowInterval { .. } => WalkRefusal::Torn,
+        M::Escalated { .. }
+        | M::NetStretchUndecided { .. }
+        | M::JointWithoutRoom { .. }
+        | M::UncertifiedImage { .. }
+        | M::Band(_) => WalkRefusal::Unread,
+        M::EmptyOuter { .. }
+        | M::SingularChartJoint { .. }
+        | M::OuterSpansPeriod
+        | M::LoopWraps { .. }
+        | M::Unminted { .. } => WalkRefusal::NotRaised,
+        M::Certify { error, .. } => match error {
+            C::PlaceholderChart
+            | C::CarrierOffChart { .. }
+            | C::CarrierGrazesChart { .. }
+            | C::ChartRow { .. }
+            | C::ImageMismatch { .. }
+            | C::ChannelKindMismatch { .. }
+            | C::WindingMismatch { .. }
+            | C::FittedCertificate { .. }
+            | C::IntervalNotForward
+            | C::AzimuthPeriodExceeded
+            | C::TubePeriodExceeded => WalkRefusal::Torn,
+            C::UnsupportedChart { .. }
+            | C::IsoUnsupported { .. }
+            | C::ChartWindingUnsupported
+            | C::SectorRefused { .. }
+            | C::FittedLaneUnsupported { .. }
+            | C::CarrierDomain(_)
+            | C::PlacementTurnsExceeded
+            | C::CarrierEnclosure(_)
+            | C::ResidualExceeded { .. }
+            | C::FittedLimb { .. }
+            | C::FittedEscalated { .. }
+            | C::Escalated { .. }
+            | C::Band(_) => WalkRefusal::Unread,
+        },
+    }
 }
 
 /// Clauses (1) and (2) of [`ChartCache::describes`]: every loop off the
@@ -10154,13 +10228,8 @@ mod cut_holder_rows {
             Ok(Some(face)),
             "R-loop cuts the face it names"
         );
-        for refusal in [
-            SectionRefusal::Reach,
-            SectionRefusal::Tangent("section_sphere_plane_reach"),
-            SectionRefusal::Unordered("section_torus_square_wall_fold_half"),
-            SectionRefusal::Undecided,
-            SectionRefusal::LoneVertex,
-        ] {
+        use strum::IntoEnumIterator;
+        for refusal in SectionRefusal::iter().filter(|r| *r != SectionRefusal::Loop) {
             assert_eq!(
                 cut_holder(Some((face, refusal))),
                 Err(refusal.what()),
