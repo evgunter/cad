@@ -5,7 +5,8 @@ title: the simultaneous doors' tier-1 reads are still whole-body: the closing cl
 status: open
 opened: 2026-09-08
 priority: P1
-cost: D
+cost: H
+design: true
 ---
 
 
