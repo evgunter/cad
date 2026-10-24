@@ -721,6 +721,7 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             half_edge,
         },
         PcurveMintError::OuterSpansPeriod,
+        PcurveMintError::OuterSpanPoisoned { cause: diag() },
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
         PcurveMintError::Unminted { face },

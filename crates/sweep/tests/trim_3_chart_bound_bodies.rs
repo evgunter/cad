@@ -1030,20 +1030,20 @@ fn widen(b: &ChartBound<Interval>, w: f64) -> ChartBound<Interval> {
                         ChartEdge::Envelope {
                             a,
                             b,
+                            reach,
                             image,
                             slack,
-                            reach,
                         } => ChartEdge::Envelope {
                             a: wp(a),
                             b: wp(b),
-                            image: wp(image),
-                            slack,
                             reach: ChartWindow {
                                 u_min: wi(reach.u_min),
                                 u_max: wi(reach.u_max),
                                 v_min: wi(reach.v_min),
                                 v_max: wi(reach.v_max),
                             },
+                            image: image.map(wp),
+                            slack,
                         },
                     })
                     .collect(),
@@ -1404,4 +1404,71 @@ fn an_arc_walls_envelopes_reach_finitely_at_f64() {
         envelopes > 0,
         "the arc wall's rims are envelopes on its cylinder chart"
     );
+}
+
+/// **The mint's `reach` holds the image's INTERIOR.** The bumped
+/// block's cap carries a half-circle edge from `(1.5, 0.5)` to
+/// `(0.5, 0.5)` whose apex `(1, 1)` lies half a unit off its chord, so
+/// a box that only held the edge's two ends would miss it.
+/// Kills: a closed-form `reach` minted as the chord's own box.
+#[test]
+fn a_cap_arcs_reach_holds_its_apex_at_f64() {
+    let lps: Vec<ProfileLoop<f64>> = bumped_block()
+        .iter()
+        .map(|l| bulge_loop(l.iter().map(|(p, b)| (Point2::new(p.0, p.1), *b)).collect()))
+        .collect();
+    let vp = Profile::new(SketchPlane::<f64>::xy(), lps)
+        .validate(Tol::witness())
+        .unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
+    let mut caps = 0;
+    for (face, data) in t.body.faces() {
+        let chart = t.body.get_surface(data.surface).unwrap().clone();
+        let Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } = chart
+        else {
+            continue;
+        };
+        // Only the two caps, whose normal is the extrusion axis.
+        if normal.z.abs() < 0.5 {
+            continue;
+        }
+        let bound = chart_boundary(&t.body, face, &chart, band())
+            .unwrap_or_else(|e| panic!("the cap {face:?} describes at f64: {e}"));
+        let apex = Point3::new(1.0, 1.0, origin.z) - origin;
+        let (u, v) = (apex.dot(u_ref), apex.dot(normal.cross(u_ref)));
+        let reaches: Vec<_> = bound.loops[0]
+            .edges
+            .iter()
+            .filter_map(|e| match *e {
+                ChartEdge::Envelope { reach, .. } => Some(reach),
+                ChartEdge::Segment { .. } => None,
+            })
+            .collect();
+        assert!(
+            !reaches.is_empty(),
+            "{face:?}: the cap's arc is an envelope"
+        );
+        let slop = 1e-12;
+        assert!(
+            reaches.iter().any(|r| r.u_min - slop <= u
+                && u <= r.u_max + slop
+                && r.v_min - slop <= v
+                && v <= r.v_max + slop),
+            "{face:?}: no envelope's reach holds the arc's apex ({u}, {v}): {reaches:?}"
+        );
+        caps += 1;
+    }
+    assert_eq!(caps, 2, "both caps carry the arc");
 }

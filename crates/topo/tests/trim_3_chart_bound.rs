@@ -342,8 +342,9 @@ fn t5b_an_outer_wider_than_the_period_refuses() {
 /// results is, so a premise read off it could never refuse; this edge's
 /// `reach` carries it past the period while every vertex stays inside
 /// one unit.
-/// Kills: the span read off `image` (poison stands), and the span read
-/// off the chord polygon alone (the bulge is lost).
+/// Kills: the span read off `image` (poison stands), the span read off
+/// the chord polygon alone (the bulge is lost), and a poisoned span
+/// read as "stand".
 #[test]
 fn t5c_an_envelope_reaching_past_the_period_refuses_at_f64() {
     let tau = core::f64::consts::TAU;
@@ -357,14 +358,14 @@ fn t5c_an_envelope_reaching_past_the_period_refuses_at_f64() {
             ChartEdge::Envelope {
                 a: p(1.0, 0.0),
                 b: p(1.0, 1.0),
-                image: Point2::new(1.0_f64.enclosure_hull(reach_u), 0.0_f64.enclosure_hull(1.0)),
-                slack: 0.0,
                 reach: ChartWindow {
                     u_min: 1.0,
                     u_max: reach_u,
                     v_min: 0.0,
                     v_max: 1.0,
                 },
+                image: None,
+                slack: 0.0,
             },
             ChartEdge::Segment {
                 a: p(1.0, 1.0),
@@ -395,6 +396,14 @@ fn t5c_an_envelope_reaching_past_the_period_refuses_at_f64() {
         assemble(2.0).is_ok(),
         "an image well inside a period is described at f64"
     );
+    // A poisoned reach (a projected row that locates no piece answers
+    // one) leaves the span unmeasured, and that refuses too: the
+    // description licenses W2's premise.
+    let err = assemble(f64::NAN).expect_err("a poisoned span refuses at f64");
+    assert!(
+        matches!(err, PcurveMintError::OuterSpanPoisoned { .. }),
+        "a poisoned span refuses under its own name: {err}"
+    );
 }
 
 // ---------------------------------------------------------------- //
@@ -418,17 +427,14 @@ fn t6_an_envelope_box_is_widened_by_its_certificate_slack() {
             ChartEdge::Envelope {
                 a: p2(2.0, 0.0),
                 b: p2(2.0, 2.0),
-                image: Point2::new(
-                    iv(2.0).enclosure_hull(iv(2.1)),
-                    iv(0.0).enclosure_hull(iv(2.0)),
-                ),
-                slack: iv(slack),
                 reach: ChartWindow {
                     u_min: iv(2.0),
                     u_max: iv(2.1),
                     v_min: iv(0.0),
                     v_max: iv(2.0),
                 },
+                image: None,
+                slack: iv(slack),
             },
             ChartEdge::Segment {
                 a: p2(2.0, 2.0),
@@ -844,9 +850,10 @@ fn t9c_a_projected_edge_on_part_of_its_net_reads_the_tighter_box() {
         .iter()
         .find(|e| !matches!(e, ChartEdge::Segment { .. }))
         .expect("the spline edge is an envelope");
-    let ChartEdge::Envelope { a, b, image, .. } = spline else {
+    let ChartEdge::Envelope { a, b, .. } = spline else {
         panic!("an envelope edge: {spline:?}")
     };
+    let image = &spline.image().expect("an envelope has an image");
     let mid = |x: Interval| 0.5 * (x.lo() + x.hi());
     let (a, b) = ((mid(a.x), mid(a.y)), (mid(b.x), mid(b.y)));
     let d = (b.0 - a.0, b.1 - a.1);
@@ -965,17 +972,14 @@ fn t11_the_metred_hull_is_widened_by_every_envelope_slack() {
             ChartEdge::Envelope {
                 a: p2(2.0, 0.0),
                 b: p2(2.0, 2.0),
-                image: Point2::new(
-                    iv(2.0).enclosure_hull(iv(2.1)),
-                    iv(0.0).enclosure_hull(iv(2.0)),
-                ),
-                slack: iv(slack),
                 reach: ChartWindow {
                     u_min: iv(2.0),
                     u_max: iv(2.1),
                     v_min: iv(0.0),
                     v_max: iv(2.0),
                 },
+                image: None,
+                slack: iv(slack),
             },
             ChartEdge::Segment {
                 a: p2(2.0, 2.0),

@@ -174,12 +174,19 @@ Blind spot: paths the corpus and tour do not exercise. The static pass
 covers them for the `enclosure_hull` shape, but not for some other
 construction of point-scalar poison.
 
-**Phase 2 was built before the retirement reached this lane**: PR
-#5656, `gate ok` green. Under the retirement it is superseded. What it
-did: `ChartEdge::Envelope` carries `reach` (the pcurve's
-`chart_box` over the span), and the span check reads the outer's
-`reach` hull instead of `hull`. `image`, `hull` and the outside test
-are unchanged at every scalar. After the fix, at ε = 1e-9 the 41 rows
-decide `negative`, with margins from −0.236 m to −29.1 m. No other
-row in the CSV changes. k-lint's rule 1 goes from 43 to 2 (both
-`props_quad_converged`, unrelated).
+**Phase 2: an interim fix, PR #5656.** `reach` and these tests retire
+with `chart_bound.rs` (`work/chart/clearance-cells-are-decided-in-model-space.md`).
+What it changes:
+- `ChartEdge::Envelope` carries `reach` (the pcurve's `chart_box`
+  over the span).
+- The outer `hull`, and the span check that reads it, are taken off
+  `reach`, so both are finite at every scalar.
+- `image` is stored only where it is tighter: the closed forms'
+  interval natural extension. On the fitted, general and projected
+  arms it is derived from `reach`.
+- A poisoned span margin now refuses, typed as `OuterSpanPoisoned`.
+- The outside test's boxes are unchanged.
+
+Effect at ε = 1e-9: the 41 rows decide `negative`, with margins from
+−0.236 m to −29.1 m. No other row in the CSV changes. k-lint's rule 1
+goes from 43 to 2 (both `props_quad_converged`, unrelated).
