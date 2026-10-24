@@ -1005,6 +1005,7 @@ fn part_defining_h(seed: &str) -> (ProfileDoc, PartStore, editor_core::DocRef) {
     let (part, [_, body]) = block(part, 0.0, named("h"));
     let part = crate::fixture::place(part, body).0;
     let mut store = PartStore::default();
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part.clone(), Tol::witness());
     (part, store, doc_ref)
 }
@@ -1088,7 +1089,7 @@ fn inline_carries_a_definition_at_the_carried_ids() {
 /// is `|param − 0|` with no geometry standing between the variable and
 /// the reading. Returns the measure.
 fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
-    use editor_core::{CapEnd, Coord, Dimension, Formula, RoleSeg, StableName, TargetAxis};
+    use editor_core::{CapEnd, Coord, Dimension, Formula, RoleSeg, TargetAxis};
     let name = editor_core::VarName::new(param).expect("a valid name");
     let profile = r.profile(
         [0.0, 0.0, 0.0],
@@ -1106,7 +1107,7 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
             vec![crate::fixture::fname(cube, RoleSeg::Cap(CapEnd::Start))],
         ))
     };
-    let copy = r.insert(crate::fixture::stood(vec![cube.into()]));
+    let copy = r.insert(crate::fixture::stood(cube));
     r.constrain(
         copy,
         editor_core::Mate {
@@ -1137,13 +1138,7 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
             (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
         })
         .expect("the cube has a vertex at the origin");
-    let copied = StableName {
-        kind: vertex.kind,
-        node: copy,
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(vertex.clone()),
-        }],
-    };
+    let copied = vertex.clone();
     r.insert(Node::Measure {
         primitive: editor_core::MeasurePrimitive::Distance {
             a: editor_core::SitedRef::new(cube, vertex).into(),

@@ -1,0 +1,289 @@
+//! **`−` and `∩` distribute over `⊔`** (D10 `[operations.operators]`):
+//! a `⊔` value is its pieces, so a boolean reading one acts on each
+//! piece and assembles what it made, `(p ⊔ q) − t = (p − t) ⊔ (q − t)`
+//! and `(p ⊔ q) ∩ t = (p ∩ t) ⊔ (q ∩ t)`. A meeting inside the `⊔` is
+//! its own decision and no boolean above it decides it again; this is
+//! also the kernel's own recourse for a cut through two pieces that
+//! touch (`topo::boolean`'s `VertexReadTwice`, "apply to each piece and
+//! combine").
+//!
+//! Each piece's result keeps that piece's records and is keyed by the
+//! piece's read, as the `⊔` keyed it ([`names::name_assemble`]); a
+//! piece the boolean empties drops out, and a result with no piece left
+//! is the typed empty result. The rows a piece's boolean decided name
+//! its cells as the node's operand spells them, through the read the
+//! node took it in by, so the coincidence door reads them where the
+//! operand stands.
+//!
+//! A `⊔` read as the TOOL of a cut is cut by whole
+//! (`work/cleave/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`).
+
+use std::sync::Arc;
+
+use geom_core::{Decide, Tol};
+use topo::Body;
+
+use super::{BooleanValue, NodeErrorKind, OpOut, OpResult, ValuePayload};
+use crate::eval::{Piece, Pieces};
+use crate::names::{self, NameTable};
+use crate::node::RecipeNodeId;
+
+/// **A boolean's operand, as a distribution reads it**: a body read
+/// through a seat, or one piece of one, with its names, records and
+/// pieces.
+pub(super) struct Operand<T: Decide> {
+    /// The node it is read from (error context).
+    pub node: RecipeNodeId,
+    /// The read its entities are keyed by in what the boolean makes:
+    /// the seat's, or the piece's.
+    pub read: crate::VarId,
+    /// Its body, where the node reads it.
+    pub body: Arc<Body<T>>,
+    /// Its own names, total over `body`.
+    pub table: Arc<NameTable>,
+    /// Its own contact records, keyed in `body`'s arena.
+    pub records: Arc<topo::ContactRecords>,
+    /// The pieces it holds.
+    pub pieces: Option<Arc<Pieces<T>>>,
+    /// The read the node takes it in through: what its rows name it by.
+    pub seat: crate::VarId,
+    /// How a piece's names nest in the seat's table: each holder's
+    /// keying node and the piece's read there, outermost first.
+    pub wraps: Vec<(RecipeNodeId, crate::VarId)>,
+}
+
+impl<T: Decide + topo::AtRestPolicy> Operand<T> {
+    /// The body `node` defines, read through `read`.
+    pub(super) fn read(
+        results: &super::Results<T>,
+        node: RecipeNodeId,
+        read: crate::VarId,
+    ) -> Result<Self, NodeErrorKind> {
+        let value = super::value_of(results, node)?;
+        Ok(Self {
+            node,
+            read,
+            body: super::read_body(results, node)?,
+            table: super::read_table(value),
+            records: super::records_of(value),
+            pieces: value.pieces.clone(),
+            seat: read,
+            wraps: Vec::new(),
+        })
+    }
+
+    /// Its body, finished: the gate every boolean operand passes.
+    pub(super) fn finished(&self, tol: Tol) -> Result<topo::AtRestBody<T>, NodeErrorKind> {
+        T::gate_at_rest_kept((*self.body).clone(), tol).map_err(|errors| {
+            NodeErrorKind::UnfinishedOperand {
+                input: self.node,
+                errors,
+            }
+        })
+    }
+
+    /// Its names as the seat's table spells them: each holder's
+    /// keying, innermost first.
+    pub(super) fn spelled(&self) -> Result<Arc<NameTable>, NodeErrorKind> {
+        let mut view = Arc::clone(&self.table);
+        for &(by, read) in self.wraps.iter().rev() {
+            view = Arc::new(names::member_view(by, read, &view).map_err(NodeErrorKind::Naming)?);
+        }
+        Ok(view)
+    }
+
+    /// Its pieces, each an operand where it stands: a family piece is
+    /// one per member, each its member's names and none of the
+    /// family's records (as a union reads a family's members).
+    pub(super) fn units(&self, tol: Tol) -> Result<Vec<Self>, NodeErrorKind> {
+        let Some(pieces) = &self.pieces else {
+            return Ok(Vec::new());
+        };
+        let mut units = Vec::with_capacity(pieces.pieces.len());
+        for piece in &pieces.pieces {
+            let bodies = super::place_each_by(&piece.bodies, piece.motion.as_ref(), tol)?;
+            let mut wraps = self.wraps.clone();
+            wraps.push((pieces.by, piece.read));
+            let unit = |body: Arc<Body<T>>, table, records, pieces| Self {
+                node: self.node,
+                read: piece.read,
+                body,
+                table,
+                records,
+                pieces,
+                seat: self.seat,
+                wraps: wraps.clone(),
+            };
+            if piece.family {
+                for (j, body) in bodies.into_iter().enumerate() {
+                    let index = u32::try_from(j).unwrap_or(u32::MAX);
+                    let table = piece
+                        .table
+                        .project(index)
+                        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+                    units.push(unit(body, Arc::new(table), Arc::default(), None));
+                }
+            } else {
+                let Some(body) = bodies.into_iter().next() else {
+                    unreachable!("a piece that is a body holds one")
+                };
+                let nested = super::moved_pieces(piece.pieces.as_ref(), piece.motion.as_ref())?;
+                units.push(unit(
+                    body,
+                    Arc::clone(&piece.table),
+                    Arc::clone(&piece.contacts),
+                    nested,
+                ));
+            }
+        }
+        Ok(units)
+    }
+
+    /// `rows` with every cell this piece's boolean named by its own
+    /// read and table spelled as the seat's table spells it. A cell
+    /// named by a tie is left as it is.
+    pub(super) fn respelled(
+        &self,
+        rows: &[crate::coincide::NamedCoincidence],
+    ) -> Result<Vec<crate::coincide::NamedCoincidence>, NodeErrorKind> {
+        use crate::coincide::NamedCell;
+        let spelled = self.spelled()?;
+        Ok(rows
+            .iter()
+            .map(|row| crate::coincide::NamedCoincidence {
+                cells: row
+                    .cells
+                    .iter()
+                    .map(|cell| match cell {
+                        NamedCell::Entity { input, name } if *input == self.read => {
+                            match self.table.lookup(name) {
+                                Some(names::Entry::Unique(e)) => spelled.name_of(e).map_or_else(
+                                    || cell.clone(),
+                                    |name| NamedCell::Entity {
+                                        input: self.seat,
+                                        name: name.clone(),
+                                    },
+                                ),
+                                _ => cell.clone(),
+                            }
+                        }
+                        _ => cell.clone(),
+                    })
+                    .collect(),
+                ..row.clone()
+            })
+            .collect())
+    }
+}
+
+/// **What a boolean made of each piece, assembled** (`id`'s output):
+/// each non-empty result grafted beside the others as a piece keyed by
+/// the read its piece came through, with that result's names, rows and
+/// records; the records' citations renumbered onto the assembled rows
+/// and inputs. Nothing left is the typed empty result.
+pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
+    id: RecipeNodeId,
+    outs: Vec<(crate::VarId, OpOut<T>)>,
+) -> OpResult<T> {
+    let mut fused = Body::new();
+    let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> = Vec::new();
+    let mut pieces: Vec<Piece<T>> = Vec::new();
+    let mut contacts = topo::ContactRecords::default();
+    let mut coincidences: Vec<crate::coincide::NamedCoincidence> = Vec::new();
+    let mut citing: Vec<crate::coincide::CitedInput> = Vec::new();
+    let mut kinds = Vec::new();
+    let mut parts = 0;
+    for (read, out) in outs {
+        let (body, kind, records) = match &out.payload {
+            ValuePayload::Boolean(BooleanValue::Empty) => continue,
+            ValuePayload::Boolean(BooleanValue::Body {
+                body,
+                kind,
+                contacts,
+            }) => (Arc::clone(body), *kind, Arc::clone(contacts)),
+            ValuePayload::Body(body) => (
+                Arc::clone(body),
+                topo::BooleanResultKind::OperandA,
+                Arc::clone(&out.contacts),
+            ),
+            _ => unreachable!("a boolean of one piece makes a body or nothing"),
+        };
+        let keys = topo::graft_disjoint_all_keyed(&mut fused, body.as_ref())
+            .map_err(NodeErrorKind::Boolean)?;
+        let base = coincidences.len();
+        let inputs: Vec<u32> = out
+            .cited_inputs
+            .iter()
+            .map(|input| {
+                let at = citing.iter().position(|c| c == input).unwrap_or_else(|| {
+                    citing.push(input.clone());
+                    citing.len() - 1
+                });
+                u32::try_from(at).unwrap_or(u32::MAX)
+            })
+            .collect();
+        let recited = (*records)
+            .clone()
+            .recited(|b| match b {
+                topo::Backing::Decided(k) => vec![topo::Backing::Decided(
+                    u32::try_from(base + k as usize).unwrap_or(u32::MAX),
+                )],
+                topo::Backing::Carried { input, record } => vec![topo::Backing::Carried {
+                    input: inputs.get(input as usize).copied().unwrap_or_else(|| {
+                        unreachable!(
+                            "a piece's record cites its input {input}, which its boolean does \
+                             not publish"
+                        )
+                    }),
+                    record,
+                }],
+            })
+            .unwrap_or_else(|k| unreachable!("record {k} cites nothing once renumbered"));
+        crate::product::carry_contacts(&fused, &mut contacts, &recited, &keys)
+            .map_err(|what| NodeErrorKind::Naming(names::NamingError::Emission { what }))?;
+        coincidences.extend(out.coincidences.iter().cloned());
+        let table = out
+            .outputs
+            .first()
+            .map_or_else(names::empty, super::super::OutputNames::shared_table);
+        parts += out.parts;
+        kinds.push(kind);
+        pieces.push(Piece {
+            read,
+            bodies: vec![body],
+            family: false,
+            parts: out.parts,
+            table: Arc::clone(&table),
+            contacts: records,
+            carried: Arc::default(),
+            pieces: out.pieces.clone(),
+            motion: None,
+        });
+        named.push((read, table, vec![keys]));
+    }
+    let kind = match kinds.as_slice() {
+        [] => {
+            return Ok(OpOut::plain(
+                ValuePayload::Boolean(BooleanValue::Empty),
+                names::empty(),
+            ));
+        }
+        [one] => *one,
+        _ => topo::BooleanResultKind::Assembly,
+    };
+    let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
+    Ok(OpOut {
+        pieces: Some(Arc::new(Pieces { by: id, pieces })),
+        ..OpOut::plain(
+            ValuePayload::Boolean(BooleanValue::Body {
+                body: Arc::new(fused),
+                kind,
+                contacts: Arc::new(contacts),
+            }),
+            table,
+        )
+        .carrying(parts)
+        .with_coincidences(coincidences)
+        .citing(citing)
+    })
+}

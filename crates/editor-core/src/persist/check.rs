@@ -1186,6 +1186,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::RemoveConstraints { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
+        | DocEdit::SetProduct { .. }
         | DocEdit::UpdateReference { .. } => None,
     }
 }
@@ -1424,6 +1425,24 @@ pub enum SnapshotError {
         a: VarId,
         /// The higher id holding it.
         b: VarId,
+    },
+    /// The product slot reads a variable the mint log never held, or a
+    /// variable that is no `Body`: no edit leaves the slot so
+    /// ([`crate::EditError::ProductRead`]).
+    ProductRead {
+        /// The variable the slot reads.
+        read: VarId,
+        /// Why it is no product.
+        fault: crate::edit::ProductReadFault,
+    },
+    /// A pick whose path names no piece of its copy, by the edit door's
+    /// own walk ([`crate::EditError::PickPath`]).
+    PickPath {
+        /// The pick.
+        var: SpokenVar,
+        /// The step that names no one piece, `None` where its read is no
+        /// copy or its path is empty.
+        at: Option<usize>,
     },
     /// The recorded ε is not admissible: not finite, or below
     /// `geom_core::tolerance::EPS_MIN`.
@@ -1840,6 +1859,19 @@ impl core::fmt::Display for SnapshotError {
                 "the name {name} is held by two variables, {a} and {b}, and a name is unique \
                  within a document"
             ),
+            Self::PickPath { var, at: Some(at) } => write!(
+                f,
+                "{var} picks no piece: step {} of its path names no one operand of the \
+                 assemble the walk reaches",
+                at + 1
+            ),
+            Self::PickPath { var, at: None } => write!(
+                f,
+                "{var} picks no piece: it reads no placement's copy, or its path is empty"
+            ),
+            Self::ProductRead { read, fault } => {
+                write!(f, "the product slot reads {read}, and {fault}")
+            }
             Self::EpsilonInvalid { value } => write!(
                 f,
                 "the recorded ε {value:e} is not admissible: {}",
@@ -2060,6 +2092,30 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // loads. A carrier added to `Carrier` is checked here without
     // being remembered into this door.
     for carrier in doc.name_carriers() {
+        // A name read in a body that reaches an instance may be its
+        // part's, spelled in ids this mint log never held: the copy
+        // carries its part's names verbatim. Only such a name is let
+        // through, and only there; one spelled wholly in this
+        // document's ids is held to every rule below.
+        let read_in = match carrier {
+            NameCarrier::Store { body, .. } => Some(body),
+            NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body),
+            NameCarrier::Payload { .. } => None,
+        };
+        let foreign = derivation_nodes(carrier.name())
+            .into_iter()
+            .any(|n| !doc.has_minted(n));
+        if foreign && read_in.is_some_and(|body| doc.reaches_instance(body)) {
+            continue;
+        }
+        // An instance record's outer may be a face of another
+        // instance's copy, so its part's name: the edit door's rule.
+        if let NameCarrier::Payload { node, name } = carrier
+            && matches!(doc.node(node), Some(Node::InstantiatePart { .. }))
+            && !doc.mint.has_node(name.node)
+        {
+            continue;
+        }
         for n in derivation_nodes(carrier.name()) {
             check_id(n)?;
         }
@@ -2126,6 +2182,32 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 WitnessSiteFault::NotSketchBearing => SnapshotError::WitnessSite {
                     node: doc.spoken(node),
                 },
+            });
+        }
+    }
+    // The product slot, by the edit doors' own rules: a variable the
+    // mint log holds, and a body. A body an edit moved out of the world
+    // (`Maintenance::ProductOutsideWorld`), or one gone, is a state the
+    // doors leave, so a file holding it loads and the gather refuses it.
+    if let Some(read) = doc.product() {
+        let fault = if doc.mint.has_var(read) {
+            crate::edit::product_fault(doc, read)
+                .filter(|fault| !matches!(fault, crate::edit::ProductReadFault::Space { .. }))
+        } else {
+            Some(crate::edit::ProductReadFault::Unresolved)
+        };
+        if let Some(fault) = fault {
+            return Err(SnapshotError::ProductRead { read, fault });
+        }
+    }
+    // Every pick, by the edit door's own walk.
+    for var in doc.definition_order() {
+        if let Some(pick) = doc.pick(var)
+            && let Some(at) = crate::edit::pick_fault(doc, pick.placement, &pick.of)
+        {
+            return Err(SnapshotError::PickPath {
+                var: doc.spoken_var(var),
+                at,
             });
         }
     }
@@ -2357,6 +2439,8 @@ mod tests {
             ObservedRead,
             DefinitionCycle,
             DefinitionTooLarge,
+            ProductRead,
+            PickPath,
             EpsilonInvalid,
             ConstraintNotMinted,
             PlacementNonFinite,
@@ -2418,6 +2502,8 @@ mod tests {
             | SnapshotError::WitnessSite { .. }
             | SnapshotError::WitnessOnMissingNode { .. }
             | SnapshotError::LabelOnMissingNode { .. }
+            | SnapshotError::ProductRead { .. }
+            | SnapshotError::PickPath { .. }
             | SnapshotError::EpsilonInvalid { .. }
             | SnapshotError::ConstraintNotMinted { .. }
             | SnapshotError::PlacementNonFinite { .. }
@@ -2583,6 +2669,14 @@ mod tests {
             SnapshotError::DefinitionTooLarge {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 nodes: 4097,
+            },
+            SnapshotError::ProductRead {
+                read: crate::VarId::new(0, 7),
+                fault: crate::edit::ProductReadFault::Unresolved,
+            },
+            SnapshotError::PickPath {
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                at: Some(0),
             },
             SnapshotError::EpsilonInvalid { value: 0.0 },
             SnapshotError::ConstraintNotMinted {

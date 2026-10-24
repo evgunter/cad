@@ -151,9 +151,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// Place …". The longest full name, in `nested_islands_106_depth2`, is
 /// a piece of a lateral edge between two crossings, whose ends say the
 /// edge again: each extra placement read is said three times over in
-/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`;
-/// retiring `RoleSeg::Placed` and `InPart` in D′ is expected to bring
-/// them back, and D′ re-tightens this pin.
+/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`,
+/// which D′3 closed (below).
 ///
 /// The full total rose by 11 970 and its p99 by seven, and the scoped
 /// total by 200, with a seam's sides and a crossing's edge and face named
@@ -169,9 +168,17 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// read as well as the `Placed` copy it came through, and the longest
 /// name says it at each of its ends; the growth is the same placed-copy
 /// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
+///
+/// D′3 retired that wrapping, so no name spells a placement: a copy
+/// carries its source's names as they are, so full p99 135 → 122, max
+/// 396 → 196 (main's before D's wrapping), total 461129 → 342994, and
+/// scoped total 60241 → 46933. Scoped p99 grew 43 → 45: a product that
+/// reads a `⊔` keys each copy's faces by the read they came through
+/// (`From { read }`), so a face scoped to the product says that read,
+/// where the gather's table said the copy's wrapped name.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 60_241]),
-    ("full", [19, 135, 396, 461_129]),
+    ("scoped faces", [16, 45, 57, 46_933]),
+    ("full", [19, 122, 196, 342_994]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -328,7 +335,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
 /// seam face plainly, so its node tags moved too; the words that moved
 /// are the node tags.
-const SAID_DIGEST: u64 = 0x7ad5_6d1b_cd48_fe0b;
+///
+/// Re-pinned for D′3: no name says a placement layer, a
+/// product's names say the `⊔` read they came through, and node tags
+/// moved with the ids.
+const SAID_DIGEST: u64 = 0xea0f_1a37_b898_f6d0;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -1168,6 +1179,15 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     );
 }
 
+/// How many faces `node`'s table names that `node` itself heads.
+fn own_faces(ev: &editor_core::Evaluation<f64>, node: editor_core::RecipeNodeId) -> usize {
+    ev.table_at(node).map_or(0, |t| {
+        t.iter()
+            .filter(|(name, _)| name.node == node && name.kind == EntityKind::Face)
+            .count()
+    })
+}
+
 /// **A failed row said within the largest corpus table costs no search
 /// again**: the tree says a failed node's row every frame, and the
 /// detail each name is said at is worked out once per table. Measured
@@ -1187,10 +1207,12 @@ fn a_failed_row_said_within_the_largest_table_is_cheap_again() {
                 .iter()
                 .copied()
                 .filter(|&id| ev.value(id).is_some())
-                .max_by_key(|&id| ev.table_at(id).map_or(0, |t| t.iter().count()))?;
+                .max_by_key(|&id| own_faces(&ev, id))?;
             Some((doc, ev, node))
         })
-        .max_by_key(|(_, ev, node)| ev.table_at(*node).map_or(0, |t| t.iter().count()))
+        // The largest table of faces a node names itself: a copy's
+        // table is its source's names (D′3), which it does not head.
+        .max_by_key(|(_, ev, node)| own_faces(ev, *node))
         .expect("the corpus evaluates");
     let faces: Vec<StableName> = ev
         .table_at(node)

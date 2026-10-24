@@ -97,9 +97,6 @@ pub(crate) enum CarriedAs {
     /// Passed through whole from the input the op read through `read`:
     /// a member, a seat or a target.
     From(crate::VarId),
-    /// Copied by a placement ([`crate::Node::Place`]), the same entity
-    /// at another pose.
-    Placed,
     /// Shortened to the part of it a split's half holds.
     Split,
     /// Copied into a split's half, where the tool plane passed through
@@ -123,7 +120,6 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // Carried through: the argument is the entity's own name one
         // level down.
         RoleSeg::From { read, of } => SegOrigin::Carried(of, CarriedAs::From(*read)),
-        RoleSeg::Placed { of } => SegOrigin::Carried(of, CarriedAs::Placed),
         RoleSeg::SplitFragment { parent } => SegOrigin::Carried(parent, CarriedAs::Split),
         RoleSeg::OnToolVertex { of } => SegOrigin::Carried(of, CarriedAs::ToolCopy),
         RoleSeg::Instance { of, i } => SegOrigin::Carried(of, CarriedAs::Instance(*i)),
@@ -164,13 +160,6 @@ pub(crate) fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         // of the reading, stated: a merged face answers the boolean
         // rather than either operand it retired.
         RoleSeg::Merged(_) => SegOrigin::Minted,
-
-        // The instantiate node is where a referenced part's entity
-        // enters THIS document, and the walk stops there on purpose:
-        // the inner name's node is an id in the OTHER document, and a
-        // chain mixing the two would name a local node by coincidence
-        // of numbering.
-        RoleSeg::InPart { .. } => SegOrigin::Minted,
 
         // A qualifier, which composes AFTER the parent-bearing segment
         // and never leads a path. Leading one is a name this walk
@@ -223,7 +212,6 @@ mod tests {
     const CUT: RecipeNodeId = RecipeNodeId::new(0, 2);
     const FILLET: RecipeNodeId = RecipeNodeId::new(0, 3);
     const PATTERN: RecipeNodeId = RecipeNodeId::new(0, 4);
-    const INSTANCE: RecipeNodeId = RecipeNodeId::new(0, 5);
 
     /// A cap face of the extrude — a name-free role, minted where it
     /// is emitted.
@@ -348,22 +336,6 @@ mod tests {
         let it = attribute(&copy);
         assert_eq!(it.minted_by(), Some(EXTRUDE));
         assert!(it.passes_through(PATTERN));
-    }
-
-    /// The walk stops at the instantiate node: the inner name's node
-    /// is an id in the REFERENCED document, and a chain mixing the two
-    /// documents' ids would name a local node by coincidence of
-    /// numbering.
-    #[test]
-    fn a_part_entity_stops_at_the_instantiate_node() {
-        let in_part = at(INSTANCE, RoleSeg::InPart { of: cap().into() });
-        let it = attribute(&in_part);
-        assert_eq!(it.minted_by(), Some(INSTANCE));
-        assert_eq!(it.chain(), [INSTANCE].as_slice());
-        assert!(
-            !it.passes_through(EXTRUDE),
-            "EXTRUDE here is another document's id"
-        );
     }
 
     /// A path this partition cannot read answers NO minting node —

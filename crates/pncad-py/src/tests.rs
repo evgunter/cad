@@ -92,7 +92,7 @@ fn stood(
 ) -> pncad::document::AuthoredNode {
     use pncad::document::{Node, Operand, VarId};
     Node::place(
-        vec![body.into()],
+        body.into(),
         Operand::Var(VarId::WORLD),
         pncad::document::stand().bundle(),
     )
@@ -100,7 +100,7 @@ fn stood(
 
 /// A one-box document under the id `label` derives: square(2)
 /// extruded 1.5, volume exactly 6.0, the box placed once in the world
-/// standing where it stands. Returns (doc, profile id, body id) — the
+/// standing where it stands, and that copy the product. Returns (doc, profile id, body id) — the
 /// MINTED ids, so no caller couples to mint order.
 fn box_doc(
     label: &str,
@@ -119,7 +119,15 @@ fn box_doc(
             distance: len(1.5),
         },
     );
-    let (doc, _) = insert(doc, stood(body));
+    let (doc, placement) = insert(doc, stood(body));
+    // The copy is what the document makes.
+    let doc = applied(
+        &doc,
+        pncad::document::DocEdit::SetProduct {
+            product: Some(pncad::document::Operand::Node(placement)),
+        },
+    )
+    .doc;
     (doc, profile, body)
 }
 // END box-document fixture twin
@@ -2094,13 +2102,11 @@ fn node_error_tags_are_the_published_words() {
         ParamBox => "param_box",
         Seed => "seed",
         WrongOperand => "wrong_operand",
-        NoSuchCopy => "no_such_copy",
-        CopyShape => "copy_shape",
-        CopiesShareAKey => "copies_share_a_key",
+        NoSuchPiece => "no_such_piece",
+        PieceShape => "piece_shape",
         UnresolvedRead => "unresolved_read",
         SelectResolve => "select_resolve",
         EmptyOperand => "empty_operand",
-        ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
         EmptyHalf => "empty_half",
         InstanceOutOfRange => "instance_out_of_range",
@@ -2431,7 +2437,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::OperandUnresolved {
             node: sp(1),
             slot: SlotId::Operand(OperandSlot::Profile),
-            read: Operand::Node(id(2)),
+            read: Box::new(Operand::Node(id(2))),
         },
         &["node", "slot"],
     );
@@ -3345,13 +3351,7 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         checks_error_tag(&ChecksError::Product {
-            refusal: Some(
-                pncad::document::ProductError::EmptyProduct {
-                    unplaced: Vec::new(),
-                    elsewhere: Vec::new(),
-                }
-                .into()
-            )
+            refusal: Some(pncad::document::ProductError::EmptyProduct.into())
         }),
         "product_unavailable"
     );
@@ -4044,7 +4044,6 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
                         | "value_spin"
                         | "section"
                         | "member"
-                        | "shape"
                         | "index"
                         | "measured"
                         | "side"
@@ -4439,10 +4438,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "assembly_error_tag",
         values: &[
+            "assemble",
             "at_rest",
             "carried_at_rest",
             "carried_mint_refusal",
-            "own_space",
             "uncertified",
             "unminted_mates",
         ],
@@ -4790,7 +4789,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "constraint_on_non_placement",
             "construction_reads_observed",
             "continuous_var_cannot_be_count",
-            "copy_read_off_body_seat",
             "declare_names_missing_node",
             "defines_nothing",
             "definition_cycle",
@@ -4829,10 +4827,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "payload_unknown_var_name",
             "payload_unresolved_var",
             "payload_var_kind",
+            "pick_path",
             "pin_unchanged",
             "placement_axis",
             "placement_rule_mismatch",
             "pose_shape",
+            "product_read",
             "profile_program_refused",
             "read_site_missing_node",
             "rebind_appearance_collision",
@@ -4888,6 +4888,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_version_error_tag",
             "node_error_tag",
             "pose_fault_tag",
+            "product_read_fault_tag",
             "program_refusal_tag",
             "selection_fault_tag",
             "step_id_fault_tag",
@@ -5039,10 +5040,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "inline_error_tag",
         values: &[
             "epsilon_seam",
-            "foreign_instance_name",
             "inline_edit",
             "instance_body_name_referenced",
-            "instance_read_uncarried",
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
@@ -5141,6 +5140,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "maintenance_tag",
         values: &[
             "anonymous_var_removed",
+            "product_outside_world",
             "strand",
             "stranded_appearance",
             "stranded_read",
@@ -5245,8 +5245,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "boolean",
             "chamfer",
-            "copies_share_a_key",
-            "copy_shape",
             "count_out_of_range",
             "crossing_unverified",
             "curved_solid_frontier",
@@ -5283,7 +5281,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "motion",
             "naming",
             "negative_spacing",
-            "no_such_copy",
+            "no_such_piece",
             "non_finite_direction",
             "non_finite_placement",
             "non_rigid_placement",
@@ -5297,12 +5295,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_root_failure_unrecorded",
             "part_root_poisoned",
             "payload_expr",
+            "piece_shape",
             "placement_rule_mismatch",
             "placements_uncertified",
             "pose_degenerate",
             "pose_read",
             "pose_scalar",
-            "product_operand",
             "profile",
             "profile_lane_replay",
             "profile_replay",
@@ -5403,8 +5401,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile",
             "section",
             "selection",
-            "shape",
             "side",
+            "source",
             "target",
             "target_space",
             "tool",
@@ -5547,12 +5545,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "graft_refused",
             "product_invalid",
+            "product_outside_world",
             "root_failed",
             "root_invalid",
             "root_poisoned",
-            "stranded_placement",
+            "stranded_product",
             "unknown_node",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "product_read_fault_tag",
+        values: &["kind", "space", "unresolved"],
         delegates: &[],
     },
     TagEntry {
@@ -5915,10 +5919,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "operand_unminted",
             "output_signature",
             "payload_var_kind",
+            "pick_path",
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
             "pose_shape",
+            "product_read",
             "read_cycle",
             "reader_of_unminted_var",
             "selection_body",
@@ -6393,6 +6399,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // Three: the join every finisher ends with refused, at a door that
     // tags it by its stage (the boolean's, the split's, the import's).
     ("join", 3),
+    // A coincidence: a pose read of another kind than its role reads
+    // (`pose_fault_tag`) and a product read of a variable that is no
+    // body (`product_read_fault_tag`).
+    ("kind", 2),
     // One fact at the edit and load doors: a constraint the per-mate
     // admission refuses, its fault carried whole.
     ("mate_refused", 2),
@@ -6423,6 +6433,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_var_kind", 2),
     ("pcurve", 6),
     ("pcurves", 3),
+    // One fact at the edit and load doors: a pick whose path names no
+    // one piece of its copy (`editor_core::edit::pick_fault`).
+    ("pick_path", 2),
     // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.
@@ -6433,6 +6446,13 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
     ("pose_shape", 2),
+    // One fact: the edit that moved the product's body out of the
+    // world (`maintenance_tag`) and the gather that refuses it after
+    // (`product_error_tag`).
+    ("product_outside_world", 2),
+    // One fact at the edit and load doors: a product slot reading no
+    // body (`editor_core::edit::product_fault`).
+    ("product_read", 2),
     // The profile operand and the profile node's own evaluation class:
     // one word for the one node kind. The profile PROGRAM's slot says
     // `program`, which leaves `profile` to the operand the slot
@@ -6450,9 +6470,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a selection not in its
     // kind's stored form.
     ("selection_shape", 2),
-    // A coincidence: a placement's shape operand (`operand_slot_tag`)
-    // and a step-id list of another shape than its program's.
-    ("shape", 2),
     // One fact (VR2) at the edit and load doors: a variable with no
     // name that more than one reader reads.
     ("shared_var_needs_name", 2),
@@ -10196,6 +10213,7 @@ fn the_errors_mint_reader_refuses_an_attribute_on_an_item_it_cannot_name() {
 /// at test time and compares, so an added, renamed or deleted kind
 /// reds by name.
 const NODE_KIND_ROSTER: &[&str] = &[
+    "assemble",
     "assertion",
     "chamfer",
     "extrude",
@@ -10488,10 +10506,10 @@ mod product_memo_rows {
         let count = gathers(|| {
             for _ in 0..2 {
                 let refusal = product_memo::body(&memo, &doc, &ev, tol)
-                    .expect_err("a document with nothing placed has no product");
+                    .expect_err("a document whose slot reads nothing has no product");
                 assert!(
-                    matches!(&refusal, d::ProductError::EmptyProduct { unplaced, .. } if unplaced.is_empty()),
-                    "a sketch places nothing and defines no body: {refusal:?}"
+                    matches!(&refusal, d::ProductError::EmptyProduct),
+                    "a sketch's document reads no product: {refusal:?}"
                 );
             }
         });

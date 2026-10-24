@@ -873,6 +873,13 @@ pub struct Doc<P> {
         with = "crate::persist::strict::labels"
     )]
     pub(crate) labels: BTreeMap<RecipeNodeId, crate::Label>,
+    /// **The product** (D10 `[operations]`): the one body the document
+    /// delivers, read in the world, or none. Written only by
+    /// [`crate::DocEdit::SetProduct`]; what reads the document from
+    /// outside (export, an instance of it) reads this body and nothing
+    /// else. Absent from the wire while empty.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) product: Option<VarId>,
 }
 
 /// **Which of the document's own fields hold a [`StableName`]** — one
@@ -993,7 +1000,15 @@ impl<P> Doc<P> {
             metadata: BTreeMap::new(),
             appearance: AppearanceMap::new(),
             labels: BTreeMap::new(),
+            product: None,
         }
+    }
+
+    /// **The product slot** ([`Self::product`]): the body the document
+    /// delivers, `None` for an empty product.
+    #[must_use]
+    pub fn product(&self) -> Option<VarId> {
+        self.product
     }
 
     /// The empty document under a seed-derived identity —
@@ -1108,6 +1123,7 @@ impl<P> Doc<P> {
             crate::Operand::Var(var) => self.space_of(*var),
             crate::Operand::Name(name) => self.space_of(self.var_named(name.as_str())?),
             crate::Operand::Select { body, .. } => self.operand_space(body),
+            crate::Operand::Pick { placement, .. } => self.operand_space(placement),
             crate::Operand::Pose(def) => def
                 .reads()
                 .into_iter()
@@ -1174,37 +1190,6 @@ impl<P> Doc<P> {
         self.nodes
             .iter()
             .filter_map(|(&id, node)| walk.fault(node).map(|(a, b)| (id, a, b)))
-            .collect()
-    }
-
-    /// **The unplaced bodies** (A10): every live `Body` or `Bodies`
-    /// output no placement copies, a placement's own copies aside, in
-    /// document order. What a door needing a product names when the
-    /// world is empty ([`crate::ProductError::EmptyProduct`]); a
-    /// `Bodies` output (a pattern's) is placed through a `Part` pick of
-    /// one of its bodies.
-    pub fn unplaced(&self) -> Vec<VarId> {
-        let placed: std::collections::BTreeSet<VarId> = self
-            .nodes
-            .values()
-            .flat_map(|node| match node {
-                Node::Place { shapes, .. } => shapes
-                    .iter()
-                    .filter(|shape| !shape.is_member())
-                    .map(|shape| shape.read)
-                    .collect(),
-                _ => Vec::new(),
-            })
-            .collect();
-        self.nodes
-            .iter()
-            .filter(|(_, node)| !matches!(node, Node::Place { .. } | Node::InstantiatePart { .. }))
-            .flat_map(|(&id, _)| self.outputs(id))
-            .filter(|var| {
-                self.vars.get(var).is_some_and(|v| {
-                    matches!(v.kind(), crate::VarKind::Body | crate::VarKind::Bodies)
-                }) && !placed.contains(var)
-            })
             .collect()
     }
 
@@ -1308,6 +1293,7 @@ impl<P> Doc<P> {
         match self.vars.get(&var).map(Var::def) {
             Some(VarDef::Defined(expr)) => expr.var_reads(&mut reads),
             Some(VarDef::Select(select)) => return vec![select.body],
+            Some(VarDef::Pick(pick)) => return vec![pick.placement],
             Some(VarDef::Pose(def)) => {
                 let mut out: Vec<VarId> = def.reads().into_iter().map(|(_, &r, _, _)| r).collect();
                 out.extend(def.scalars().into_iter().map(|(_, &s)| s));
@@ -1841,8 +1827,33 @@ impl<P> Doc<P> {
 
     /// **The operation `var` is an output of** ([`Self::defined_by`]
     /// without the port).
+    /// A pick ([`VarDef::Pick`]) is its placement's piece, so the
+    /// operation it depends on is the placement's.
     pub fn operation_of(&self, var: VarId) -> Option<RecipeNodeId> {
-        self.defined_by(var).map(|(node, _)| node)
+        match self.pick(var) {
+            Some(pick) => self.operation_of(pick.placement),
+            None => self.defined_by(var).map(|(node, _)| node),
+        }
+    }
+
+    /// **Whether the body `var` reads reaches an instance** — its
+    /// operation, or one upstream of it, is an `InstantiatePart`: its
+    /// names may then be a part's, in the part's ids.
+    pub fn reaches_instance(&self, var: VarId) -> bool
+    where
+        P: crate::ProfilePayload,
+    {
+        let Some(at) = self.read_operation(var) else {
+            return false;
+        };
+        core::iter::once(at)
+            .chain(strict_ancestors(self, at))
+            .any(|id| matches!(self.node(id), Some(Node::InstantiatePart { .. })))
+    }
+
+    /// **The pick `var` is defined by**, if it is one.
+    pub fn pick(&self, var: VarId) -> Option<&crate::var::Pick> {
+        self.vars.get(&var)?.def().pick()
     }
 
     /// **The selection `var` is defined by**, if it is one.
@@ -1957,6 +1968,7 @@ impl<P> Doc<P> {
             VarDef::Output { .. } if held.kind() == crate::VarKind::Space => None,
             VarDef::Output { node, port } => Some((*node, *port)),
             VarDef::Select(select) => self.defined_by(select.body),
+            VarDef::Pick(pick) => self.defined_by(pick.placement),
             VarDef::Pose(def) => {
                 for (_, &read, _, _) in def.reads() {
                     self.push_read_ports(read, out, seen);
@@ -1987,6 +1999,7 @@ impl<P> Doc<P> {
                 .operation_of(select.body)
                 .is_none()
                 .then_some(select.body),
+            VarDef::Pick(pick) => self.unresolved_read(pick.placement),
             VarDef::Pose(def) => def
                 .reads()
                 .into_iter()
@@ -2213,14 +2226,13 @@ impl<P> Doc<P> {
                     // over a `Bodies`, `Body` otherwise.
                     crate::PortKind::Placed => match node {
                         // One shape's shape: a member read is a body.
-                        Node::Place { shapes, .. } => match shapes.as_slice() {
-                            [one] if !one.is_member() => match self.vars.get(&one.read)?.kind() {
+                        Node::Place { source, .. } if !source.is_member() => {
+                            match self.vars.get(&source.read)?.kind() {
                                 crate::VarKind::Bodies => crate::VarKind::Bodies,
                                 _ => crate::VarKind::Body,
-                            },
-                            [_] => crate::VarKind::Body,
-                            _ => crate::VarKind::Bodies,
-                        },
+                            }
+                        }
+                        Node::Place { .. } => crate::VarKind::Body,
                         _ => unreachable!("only a placer's port is placed"),
                     },
                 };
@@ -2611,7 +2623,8 @@ impl<P> Doc<P> {
                     .ok(),
                 crate::VarDef::Output { .. }
                 | crate::VarDef::Select(_)
-                | crate::VarDef::Pose(_) => None,
+                | crate::VarDef::Pose(_)
+                | crate::VarDef::Pick(_) => None,
             }
         })
     }
@@ -3205,6 +3218,8 @@ impl<'d, P> SpaceWalk<'d, P> {
             VarDef::Output { .. } if held.kind() == crate::VarKind::Space => None,
             VarDef::Output { node, .. } => self.node(*node),
             VarDef::Select(select) => self.var(select.body),
+            // A piece of a copy is where the copy is.
+            VarDef::Pick(pick) => self.var(pick.placement),
             // A pose is in the first space it reaches.
             VarDef::Pose(_) => self.reached_all([var]).first().copied(),
             VarDef::Free(_) | VarDef::Defined(_) => None,
@@ -3222,7 +3237,7 @@ impl<'d, P> SpaceWalk<'d, P> {
             Node::Place { target, .. } | Node::InstantiatePart { target, .. } => Some(*target),
             // A `new_space()` defines a space and builds no body.
             Node::Space => None,
-            Node::Union { members } | Node::Intersect { members } => {
+            Node::Union { members } | Node::Intersect { members } | Node::Assemble { members } => {
                 let first = members.rows().first().map(|(_, read)| read.read);
                 first.and_then(|read| self.var(read))
             }
@@ -3292,11 +3307,8 @@ impl<'d, P> SpaceWalk<'d, P> {
             Node::Place {
                 target,
                 constraints,
-                shapes,
-            } => {
-                let shapes = self.reached_all(shapes.iter().map(|shape| shape.read));
-                two(&shapes).or_else(|| self.targets_fault(*target, constraints))
-            }
+                source: _,
+            } => self.targets_fault(*target, constraints),
             Node::InstantiatePart {
                 target,
                 constraints,

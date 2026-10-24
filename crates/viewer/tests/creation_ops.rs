@@ -231,16 +231,17 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
     let doc = session.committed_doc();
     assert!(matches!(doc.node(extrude), Some(Node::Extrude { .. })));
     let Some(Node::Place {
-        shapes,
+        source,
         constraints,
         ..
     }) = doc.node(placement)
     else {
         panic!("the extrude's placement: {:?}", doc.node(placement))
     };
-    assert!(
-        matches!(shapes.as_slice(), [shape] if Some(shape.read) == doc.output(extrude, 0)),
-        "the placement copies the extrude: {shapes:?}"
+    assert_eq!(
+        Some(source.read),
+        doc.output(extrude, 0),
+        "the placement copies the extrude: {source:?}"
     );
     {
         use pncad::document::{Coord, TargetAxis};
@@ -1173,4 +1174,49 @@ fn a_viewport_picked_revolve_is_its_body_not_a_split_half() {
     );
     let outcome = session.perform(tool.op().expect("seated"));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+}
+
+/// **A document made in the viewer says what it makes**: two boxes,
+/// each placed in the world by its creation gesture, are no product
+/// until the author adds them, one by one, through the properties
+/// pane's door; the product is then their `⊔`, and taking one out
+/// leaves the other alone. The `⊔` the product read before goes with
+/// the old answer.
+#[test]
+fn the_product_is_what_the_author_adds_to_it() {
+    let tol = Tol::witness();
+    let mut session = DocSession::inline(
+        pncad::document::Doc::empty_derived("viewer-product-gesture", tol),
+        tol,
+    );
+    let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
+    let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
+    let [big, small] = [big, small].map(|body| {
+        let doc = session.committed_doc();
+        viewer::world::world_copy(doc, common::copy_of(doc, body)).expect("a world copy")
+    });
+    assert!(
+        viewer::world::product_reads(session.committed_doc()).is_empty(),
+        "nothing joins the product by being placed"
+    );
+    for copy in [big, small] {
+        let bodies = viewer::world::product_with(session.committed_doc(), copy);
+        let outcome = session.perform(SessionOp::SetProduct { bodies });
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
+    let doc = session.committed_doc();
+    assert_eq!(viewer::world::product_reads(doc), vec![big, small]);
+    let assembles = |doc: &pncad::document::Doc<pncad::document::ProfileProgram>| {
+        doc.ids()
+            .into_iter()
+            .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Assemble { .. })))
+            .count()
+    };
+    assert_eq!(assembles(doc), 1, "one `⊔`, the product's");
+    let bodies = viewer::world::product_without(doc, big);
+    let outcome = session.perform(SessionOp::SetProduct { bodies });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let doc = session.committed_doc();
+    assert_eq!(viewer::world::product_reads(doc), vec![small]);
+    assert_eq!(assembles(doc), 0, "the old `⊔` went with the old answer");
 }

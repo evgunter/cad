@@ -2290,12 +2290,14 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
     );
 }
 
-/// **A twin copy's face is a different face** (A10): two copies of one
-/// body wear its names under two placements' wraps, so an id answer on
-/// the other copy names another face of the world, and the cross-check
-/// says so — where it used to compare one name drawn twice.
+/// **A twin copy's face wears the same name** (D′3: a copy carries
+/// its source's names as they are): two copies of one body both wear
+/// the body's names, so an id answer on the other copy names the same
+/// face by name, and the name-keyed cross-check agrees where the two
+/// copies are two faces of the world. Which copy a pick is on is its
+/// node (`work/intent/the-pick-cross-check-cannot-tell-two-copies-of-one-body-apart.md`).
 #[test]
-fn a_twin_copys_face_is_a_disagreement() {
+fn a_twin_copys_face_wears_the_same_name() {
     let tol = Tol::witness();
     let (doc, left, right) = two_placements(tol);
     let mut session = DocSession::inline(doc, tol);
@@ -2309,28 +2311,33 @@ fn a_twin_copys_face_is_a_disagreement() {
         .expect("no refusal")
         .expect("the right placement is hit");
     assert_eq!(hit.node, right);
-    assert_eq!(
-        index.ids_of(&hit.name).len(),
-        1,
-        "each copy wears its own name"
-    );
-    // The same face of the body, on the left copy.
-    let (_, own) = hit.name.copy_of().expect("a copy's name is wrapped");
-    let twin = own.in_copy(left);
-    let [other] = index.ids_of(&twin) else {
-        panic!("the left copy draws the twin face once");
-    };
-    assert!(
-        idpass::compare(
-            &index,
-            &DisplayView::none(),
-            Some(&answer(3, *other)),
-            Some(3),
-            Ok(std::slice::from_ref(&hit.name))
+    let drawn = index.ids_of(&hit.name);
+    assert_eq!(drawn.len(), 2, "both copies wear the body's name");
+    let left_hit = index
+        .pick(
+            session.evaluation().expect("landed"),
+            &common::down_at(0.015, 0.01),
         )
-        .is_some(),
-        "an id on the other copy names another face"
+        .expect("no refusal")
+        .expect("the left placement is hit");
+    assert_eq!(left_hit.node, left);
+    assert_eq!(
+        left_hit.name, hit.name,
+        "the same face of the body, on the left copy"
     );
+    for id in drawn {
+        assert_eq!(
+            idpass::compare(
+                &index,
+                &DisplayView::none(),
+                Some(&answer(3, *id)),
+                Some(3),
+                Ok(std::slice::from_ref(&hit.name))
+            ),
+            None,
+            "an id on either copy agrees by name"
+        );
+    }
 }
 
 fn face_of(hit: &pncad::select::PickHit) -> FaceSelection {
@@ -2342,7 +2349,7 @@ fn face_of(hit: &pncad::select::PickHit) -> FaceSelection {
 }
 
 /// One extrude placed twice in the world: both copies carry the
-/// extrude's names, each under its own placement's wrap. Answers the document and the two
+/// extrude's names as they are. Answers the document and the two
 /// placements, left then right.
 fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-two-placements", tol);
@@ -2388,8 +2395,8 @@ fn the_highlight_narrows_a_copys_name_to_exactly_one_id() {
     );
     assert_eq!(
         index.ids_of(&face.name).len(),
-        1,
-        "each copy wears its own name"
+        2,
+        "both copies wear the body's name, which the narrowing tells apart"
     );
     let marked = viewer::marks::highlight(&index, &Selection::Face(face.clone()), None);
     let key = index

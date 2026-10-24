@@ -378,12 +378,10 @@ fn shelf_on(
         .expect("the shelf's rest proposes")
 }
 
-/// **The name a target pick on a placement's copy carries**, the copy's
-/// wrapper taken off: the copied body's own name for the face.
+/// **The name a target pick on a placement's copy carries**: the
+/// copied body's own name for the face, which a copy carries as it is.
 fn own_name(side: &pncad::document::SitedFace) -> pncad::prelude::StableName {
-    let name = side.name.clone().into_name();
-    let (_, own) = name.copy_of().expect("a pick on a copy is wrapped");
-    own.clone()
+    side.name.clone().into_name()
 }
 
 /// **A pattern-placed copy is a target, and the shelf rests on it.** The
@@ -538,9 +536,9 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     // pins: its copy is pinned `UNION_SHIFT` along y, clear of them.
     let (doc, union_copy) = common::inserted(
         &doc,
-        crate::fixture::stood(vec![pncad::document::BodyRead::plain(
+        crate::fixture::stood(pncad::document::BodyRead::plain(
             pncad::document::Operand::from(union),
-        )]),
+        )),
         tol,
     );
     let doc = common::pin(
@@ -564,7 +562,7 @@ fn a_pick_on_a_union_of_instances_stands_on_the_member() {
     assert_eq!(post_top.node, union_copy, "the ray met the union's copy");
     assert!(
         matches!(
-            post_top.name.copy_of().and_then(|(_, own)| own.path.first()),
+            post_top.name.path.first(),
             Some(RoleSeg::From { read, .. }) if Some(*read) == post_b_read
         ),
         "the union names post_b's face as its member's: {:?}",
@@ -614,10 +612,9 @@ fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
 }
 
 /// The master entity a pattern copy's pick names, from the
-/// `Instance(i)` qualifier its head carries under the copy's wrap.
+/// `Instance(i)` qualifier its head carries.
 fn master_face(pick: &FaceSelection) -> pncad::prelude::StableName {
-    let (_, own) = pick.name.copy_of().expect("a pick on a copy is wrapped");
-    match own.path.first() {
+    match pick.name.path.first() {
         Some(RoleSeg::Instance { of, .. }) => (**of).clone(),
         other => panic!("an Instance-qualified head: {other:?}"),
     }
@@ -658,10 +655,7 @@ fn a_circular_pattern_copy_is_a_target_whose_rotation_is_applied_once() {
     );
     assert!(
         matches!(
-            copy_one
-                .name
-                .copy_of()
-                .and_then(|(_, own)| own.path.first()),
+            copy_one.name.path.first(),
             Some(RoleSeg::Instance { i: 1, .. })
         ),
         "the copy rides in the head: {:?}",

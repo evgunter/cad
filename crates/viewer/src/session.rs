@@ -102,7 +102,7 @@ pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
     GestureFrameFault, NodeKindWanted, Refusal, Step, VersionOffer, admits, admits_read,
 };
-pub use select::{EdgeSelection, FaceSelection, Hovered, Renamed, Selection, Standing};
+pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
 /// What a gesture is dragging.
 #[derive(Clone, Debug)]
@@ -1606,7 +1606,6 @@ impl DocSession {
     /// spelled per gesture and per table.
     pub fn perform(&mut self, op: SessionOp) -> OpOutcome {
         let outcome = self.perform_op(op);
-        outcome.renamed.selection(&mut self.derived.selection);
         // Every document change is an operation, so this is the one
         // place the kept nodes follow the newest document that holds
         // them. A landing changes only the landed run, an earlier
@@ -1843,6 +1842,7 @@ impl DocSession {
             SessionOp::SetLabel { node, label } => {
                 self.commit_written(DocEdit::SetLabel { node, label })
             }
+            SessionOp::SetProduct { bodies } => self.set_product(bodies),
             SessionOp::CreateLabelled { creation, label } => self.create_labelled(creation, label),
         }
     }
@@ -2799,7 +2799,7 @@ impl DocSession {
                 distance,
                 spin,
             )?;
-            repoint(run, over, sketched.union).map(drop)
+            repoint(run, over, sketched.union)
         })
     }
 
@@ -3060,18 +3060,15 @@ impl DocSession {
             // Into the space the body is in, on that space's axes.
             let target = run.doc().operand_space(&input).unwrap_or(VarId::WORLD);
             let placement = run.insert(Node::place(
-                vec![pncad::document::BodyRead::plain(input.clone())],
+                pncad::document::BodyRead::plain(input.clone()),
                 Operand::Var(target),
                 pncad::document::Placed::unmated(moves).bundle(),
             ))?;
-            let copies = repoint(run, over, placement)?;
-            Ok(Renamed::through(copies, placement))
+            repoint(run, over, placement)?;
+            Ok(())
         });
         match staged {
-            Ok((staged, renamed)) => OpOutcome {
-                renamed,
-                ..self.record_run(staged)
-            },
+            Ok((staged, ())) => self.record_run(staged),
             Err(refusal) => OpOutcome::refused(refusal),
         }
     }
@@ -3204,16 +3201,12 @@ impl DocSession {
         // placement places, and the body's own name for each edge.
         let doc = self.committed_doc();
         let (read, over, selection): (Operand, _, _) = match crate::world::placed_var(doc, target) {
+            // A copy carries its body's names, so the edges' names are
+            // the body's already.
             Some(body) => (
                 body.into(),
                 crate::world::placements_of_var(doc, body),
-                selection
-                    .into_iter()
-                    .map(|name| match name.copy_of() {
-                        Some((placement, own)) if placement == target => own.clone(),
-                        _ => name,
-                    })
-                    .collect(),
+                selection,
             ),
             None => (
                 target.into(),
@@ -3251,7 +3244,7 @@ impl DocSession {
     fn feature_over(&mut self, over: Vec<RecipeNodeId>, node: AuthoredNode) -> OpOutcome {
         self.commit_run(|run| {
             let result = run.insert(node)?;
-            repoint(run, over, result).map(drop)
+            repoint(run, over, result)
         })
     }
 
@@ -3359,8 +3352,7 @@ impl DocSession {
             // enters; no panel offers one, so it is never a field's
             // standing value.
             DocEdit::SetParam {
-                value:
-                    pncad::document::SlotValue::Read(_) | pncad::document::SlotValue::Copy { .. },
+                value: pncad::document::SlotValue::Read(_),
                 ..
             } => false,
             // A declaration's two independent fields, each against
@@ -3391,6 +3383,8 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
+            // What the document makes: structure, not a panel field.
+            | DocEdit::SetProduct { .. }
             // A profile's program replaced whole: structure, not a
             // panel field's value — and the identity program keeping
             // every step is the door's own no-op.
@@ -3453,6 +3447,52 @@ impl DocSession {
     /// lands (`DocSession::land`'s second prune).
     fn commit(&mut self, edit: DocEdit<ProfileProgram>) -> OpOutcome {
         self.commit_action(vec![edit])
+    }
+
+    /// **The product set to `bodies`** ([`SessionOp::SetProduct`]): the
+    /// one body, a `⊔` of several inserted first, or nothing; the `⊔` the
+    /// slot read before, where nothing else reads it, deleted in the same
+    /// action.
+    fn set_product(&mut self, bodies: Vec<Operand>) -> OpOutcome {
+        // The `⊔` the slot read before goes with the old answer, where
+        // nothing else reads it: the action says what the document makes,
+        // not one more thing beside it.
+        let doc = self.committed_doc();
+        let held = doc
+            .product()
+            .and_then(|var| doc.operation_of(var))
+            .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
+            .filter(|&at| {
+                let read = doc.output(at, 0);
+                !doc.ids().into_iter().any(|id| {
+                    doc.node(id).is_some_and(|node| {
+                        node.operand_rows()
+                            .into_iter()
+                            .any(|(_, r)| Some(r) == read)
+                    })
+                })
+            });
+        self.commit_run(|run| {
+            if let Some(id) = held {
+                run.apply(DocEdit::SetProduct { product: None })?;
+                run.apply(DocEdit::DeleteNode { id })?;
+            }
+            let product = match bodies.as_slice() {
+                [] => None,
+                [one] => Some(one.clone()),
+                several => {
+                    let members = pncad::document::Bodies::Spelled(
+                        several
+                            .iter()
+                            .cloned()
+                            .map(pncad::document::BodyRead::plain)
+                            .collect(),
+                    );
+                    Some(Operand::Node(run.insert(Node::Assemble { members })?))
+                }
+            };
+            run.apply(DocEdit::SetProduct { product }).map(drop)
+        })
     }
 
     /// **Delete a feature and everything downstream of it**, as one
@@ -3651,45 +3691,33 @@ impl DocSession {
 }
 
 /// **Re-point each of `placements` to `result`** (A10, Ev's residue
-/// 1): the slot door on each shape of each placement that copies the
+/// 1): the slot door on the source of each placement that copies the
 /// output of a node `result` reads, in the action that authored
 /// `result` — so a placement of the target copies the result in its
-/// place. Answers the placements it re-pointed, each once.
+/// place.
 fn repoint(
     run: &mut Recording<'_, ProfileProgram>,
     placements: Vec<RecipeNodeId>,
     result: RecipeNodeId,
-) -> Result<Vec<RecipeNodeId>, EditError> {
+) -> Result<(), EditError> {
     let doc = run.doc();
     let read = doc.upstream(result);
     let copies_read = |var: VarId| doc.operation_of(var).is_some_and(|at| read.contains(&at));
-    let edits: Vec<(RecipeNodeId, u32)> = placements
+    let edits: Vec<RecipeNodeId> = placements
         .into_iter()
-        .flat_map(|placement| {
-            let shapes: Vec<u32> = match doc.node(placement) {
-                Some(Node::Place { shapes, .. }) => (0_u32..)
-                    .zip(shapes)
-                    .filter(|(_, shape)| copies_read(shape.read))
-                    .map(|(index, _)| index)
-                    .collect(),
-                _ => Vec::new(),
-            };
-            shapes.into_iter().map(move |index| (placement, index))
+        .filter(|&placement| {
+            matches!(doc.node(placement), Some(Node::Place { source, .. }) if copies_read(source.read))
         })
         .collect();
-    let mut repointed: Vec<RecipeNodeId> = Vec::new();
-    for (placement, index) in edits {
+    for placement in edits {
         run.apply(DocEdit::SetParam {
             node: placement,
-            slot: SlotId::Operand(OperandSlot::Shape(index)),
+            slot: SlotId::Operand(OperandSlot::Source),
             value: pncad::document::SlotValue::Read(result.into()),
             fresh: Vec::new(),
         })?;
-        if !repointed.contains(&placement) {
-            repointed.push(placement);
-        }
     }
-    Ok(repointed)
+    Ok(())
 }
 
 /// **The body `node` defines, as a read**: its first `Body` output (a
@@ -3743,10 +3771,9 @@ fn in_one_space(
         }
         // A copy placed into its own body's space.
         let self_placed = match run.doc().node(node) {
-            Some(Node::Place { shapes, .. }) => match shapes.as_slice() {
-                [shape] => run.doc().space_of(shape.read) == run.doc().node_space(node),
-                _ => false,
-            },
+            Some(Node::Place { source, .. }) => {
+                run.doc().space_of(source.read) == run.doc().node_space(node)
+            }
             _ => false,
         };
         if self_placed {
@@ -3767,7 +3794,7 @@ fn in_one_space(
         } else {
             // A body never placed stands where it stands.
             let placement = run.insert(Node::place(
-                vec![pncad::document::BodyRead::plain(operand.clone())],
+                pncad::document::BodyRead::plain(operand.clone()),
                 Operand::Var(home),
                 pncad::document::stand().bundle(),
             ))?;
@@ -4137,11 +4164,6 @@ fn frame_off(
         | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => {
             std::sync::Arc::clone(b)
         }
-        ValuePayload::Copies(copies) => copies
-            .bodies
-            .first()
-            .cloned()
-            .ok_or(PinRefusal::NotABody { node })?,
         _ => return Err(PinRefusal::NotABody { node }),
     };
     let var = match body {
@@ -4227,13 +4249,13 @@ fn place_in_world(
     body: Operand,
 ) -> Result<RecipeNodeId, EditError> {
     run.insert(Node::place(
-        vec![pncad::document::BodyRead::plain(body)],
+        pncad::document::BodyRead::plain(body),
         Operand::Var(VarId::WORLD),
         editor_core::stand().bundle(),
     ))
 }
 
-/// **Whether `node`'s value is a placement's copies**: a placement or
+/// **Whether `node`'s value is a placement's copy**: a placement or
 /// an instance.
 fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     matches!(
@@ -4281,6 +4303,7 @@ fn puts_an_instance(node: &Node<ProfileProgram>) -> bool {
         | Node::Subtract { .. }
         | Node::Union { .. }
         | Node::Intersect { .. }
+        | Node::Assemble { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,
     }

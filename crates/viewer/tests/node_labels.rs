@@ -776,6 +776,8 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let mut session = DocSession::inline(Doc::empty_derived("checks-window-speaks", tol), tol);
     let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
     let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
+    let copies = [big, small].map(|body| common::copy_of(session.committed_doc(), body));
+    common::product_is(&mut session, &copies);
     let named = session.perform(SessionOp::SetLabel {
         node: big,
         label: Some(label("big block")),

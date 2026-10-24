@@ -27,7 +27,7 @@ use editor_core::{
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
-use fixture::{head, in_copy, insert, len, run, scl, solve, step};
+use fixture::{head, head_at, in_copy, insert, len, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -271,7 +271,7 @@ fn a_mate_reading_a_pattern_copy_crosses_split_and_inline_unmoved() {
         .filter(|&id| matches!(doc.node(id), Some(Node::Part { .. })))
         .nth(2)
         .expect("copy 2's Part, the third `place_copies` inserts");
-    let copy_cap = fixture::head_at(part_two, in_copy(pattern, 2, p.top_upper_cap(leg)));
+    let copy_cap = head_at(part_two, in_copy(pattern, 2, p.top_upper_cap(leg)));
     let (doc, m) = face_mate(doc, k, head(p.top_cap(k)), copy_cap);
     let copy_two = [4.0, 0.0, 0.0];
     let before = target_world(&doc, &o, m, copy_two);
@@ -362,16 +362,17 @@ fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
     let (part_doc, sub_aside) = insert(part_doc, fixture::mated_instance(p.top));
     let (part_doc, _) = fixture::into_new_space(part_doc, sub_aside);
     let mut store = p.store.clone();
+    let part_doc = crate::fixture::assemble_world_copies(part_doc);
     let sub = store.insert(part_doc, Tol::witness());
     let with_sub = with_resolver(store);
     let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
     let (host, i) = fixture::insert_pinned(host, crate::fixture::mated_instance(sub), &with_sub);
     let (host, k) = insert(host, fixture::mated_instance(p.top));
-    let through = FaceName::new(p.top_upper_cap(sub_aside))
+    let through = FaceName::new(p.top_upper_cap(sub_aside).name)
         .expect("a face")
-        .in_part(i)
         .into_name();
-    let (host, _) = face_mate(host, k, head(p.top_cap(k)), head(through));
+    // Read at the instance: a face its copy does not carry.
+    let (host, _) = face_mate(host, k, head(p.top_cap(k)), fixture::head_at(i, through));
     let poses = solve(&host, &with_sub, Tol::witness());
     assert!(
         matches!(
@@ -391,8 +392,8 @@ fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
 /// **A mate's target on a pattern copy reads its master's face, carried
 /// by the copy map.** A leg patterned three times two apart along x,
 /// and a base seated on copy 2's upper cap: the head is `Instance(2)`
-/// round the leg instance's name, the strip takes off that one
-/// qualifier and then the instance's `InPart`, and the base's bottom
+/// round the leg's part name, the strip takes off that one qualifier,
+/// reading the part's own name at the instance, and the base's bottom
 /// lands on the master's cap plane. A value on a target read off a
 /// pattern's copy is charted on the space's frame
 /// (`work/intent/a-value-on-a-placed-copy-target-is-charted-on-the-space.md`),
@@ -424,7 +425,7 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
     let (doc, m) = seat_at(
         doc,
         mover,
-        head(in_part(mover, p.base_body, CapEnd::Start)),
+        head_at(mover, in_part(mover, p.base_body, CapEnd::Start)),
         head(copy_cap),
         [4.0, 0.0],
     );
@@ -460,8 +461,8 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
 }
 
 /// **A head that names no face of its part does not evaluate**: a face
-/// name headed at the instance but not wrapped in the instance's
-/// `InPart` walks to a member, and there is no part row under it to
+/// name headed at the instance's own node, which is no name of its
+/// part, walks to a member, and there is no part row under it to
 /// read a plane off. The door is structural and admits the mate; its
 /// target is `k`'s own refusal where it evaluates, with its recourse.
 /// An instance mints no such name, so only a head written by hand meets
@@ -523,8 +524,8 @@ fn renamed(base: &ProfileDoc, body: RecipeNodeId, height: f64) -> (ProfileDoc, R
         .placements()
         .into_iter()
         .filter(|&at| {
-            matches!(base.node(at), Some(Node::Place { shapes, .. })
-                if shapes.iter().any(|s| base.operation_of(s.read) == Some(body)))
+            matches!(base.node(at), Some(Node::Place { source, .. })
+                if (base.operation_of(source.read) == Some(body)))
         })
         .collect();
     let base = old_copies
@@ -585,7 +586,7 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
     let (doc, m) = face_mate(
         doc,
         top,
-        head(in_part(top, top_body, CapEnd::Start)),
+        head_at(top, in_part(top, top_body, CapEnd::Start)),
         head(old_head.clone()),
     );
     assert!(
@@ -595,6 +596,7 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
 
     let (rebuilt, new_body) = renamed(&base_doc, base_body, 1.5);
     assert_ne!(new_body, base_body, "the cap is renamed");
+    let rebuilt = crate::fixture::assemble_world_copies(rebuilt);
     let new_ref = store.insert(rebuilt, Tol::witness());
     let o = with_resolver(store.clone());
     let (doc, _) = step(
@@ -625,8 +627,8 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
         doc,
         DocEdit::Rebind {
             body: Some(base_out),
-            from: old_head,
-            to: in_part(base, new_body, CapEnd::End),
+            from: old_head.name,
+            to: in_part(base, new_body, CapEnd::End).name,
         },
     );
     let ev = run(&doc, &o);
@@ -670,8 +672,8 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
     let (doc, m) = face_mate(
         doc,
         top,
-        head(in_part(top, top_body, CapEnd::Start)),
-        head(in_part(low, low_body, CapEnd::End)),
+        head_at(top, in_part(top, top_body, CapEnd::Start)),
+        head_at(low, in_part(low, low_body, CapEnd::End)),
     );
     let on_low = origin_of(&doc, &o, top);
     assert!(
@@ -687,11 +689,10 @@ fn a_head_rebound_onto_another_parts_instance_reads_the_new_heads_face() {
                 constraint: m.id,
                 side: MateSide::To,
             }),
-            value: editor_core::SlotValue::Read(fixture::flip(fixture::plane(head(in_part(
+            value: editor_core::SlotValue::Read(fixture::flip(fixture::plane(head_at(
                 high,
-                high_body,
-                CapEnd::End,
-            ))))),
+                in_part(high, high_body, CapEnd::End),
+            )))),
             fresh: Vec::new(),
         },
     );

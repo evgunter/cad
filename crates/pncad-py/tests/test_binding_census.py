@@ -701,7 +701,6 @@ BOUND_AS = {
     "Constraint": "Doc.bundle",
     "ConstraintKind": "Doc.bundle",
     # An instance's value: its copies' bodies are `Value.bodies`.
-    "Copies": "Value.bodies",
     # THE CHART-COHERENCE VOCABULARY, curated at the prelude because
     # `StepImport::Solid::coherence` hands a Rust caller the kernel's
     # report whole and its discriminants are closed enums meant to be
@@ -1362,6 +1361,8 @@ BOUND_AS = {
     # segment, which is what the role-name doors take.
     "ProfilePieces": "Doc.pieces",
     "PlacementRuleFault": "EditError.variant",
+    "ProductReadFault": "EditError.inner_variant",
+    "Pick": "PickRead",
     # What a `RootInvalid` refusal lists, one per failing source body;
     # the arm crosses as its tag word, its first failing root as
     # `node`, and every root, output and finding in its message.
@@ -1639,19 +1640,6 @@ FAMILIES: dict[str, str] = {
         "door that folds each `Doc.apply` result with the document it "
         "produced, a `pncad.pyi` entry on `Maintenance` for it, and one "
         "Python row asserting the net of a cascade whose rows cancel."
-    ),
-    # THE COPY KEY ARRIVED WITH THE PLACEMENT MODEL (INTENT stage 3):
-    # an instance's output is a keyed enumeration of copies, and a
-    # seat that reads one body reads one copy of it by its key. The
-    # key is computed off the body the part was stored with, through a
-    # resolver door the façade does not curate.
-    "B-COPY-KEY": (
-        "a read of ONE copy of a placement's keyed copies — `CopyKey`, "
-        "and each copy as `KeyedCopy` carries it. Closing it needs the "
-        "façade to curate the door that keys a copy by the body a part "
-        "was stored with, a Python spelling of the keyed read beside "
-        "`IndexedRead`, and one Python row reading one copy of an "
-        "instance at a body seat."
     ),
 }
 
@@ -2410,8 +2398,6 @@ NOT_BOUND = {
     # whose space it is. Python reads a refusal's spaces in its message.
     "SpokenSpace": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
-    "CopyKey": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
-    "KeyedCopy": f"{GAP}: B-COPY-KEY the key of one copy of a placement's copies",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
     # A direction refusal before it is spelled as a node error: which
@@ -3092,8 +3078,9 @@ NOT_BOUND = {
     # gather's interim: D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`,
     # `a-space-other-than-the-world-is-census-checked-only-if-a-new-space`)
     # retires both into the `⊔` operator's door.
-    "SpaceGather": INTERIOR,
-    "space_gathers": INTERIOR,
+    "AssembleGather": INTERIOR,
+    "assemble_gathers": INTERIOR,
+    "Pieces": INTERIOR,
     "run_checks_on": INTERIOR,
     # The registry with the coincidence door split off to run at rest,
     # for a frame that redraws on every edit: Python's `run_checks` is
@@ -3589,10 +3576,10 @@ MEMBERS_BOUND_AS = {
     "Value::by": "MateValue.by",
     "AssemblyError::Product": "AssemblyError.variant",
     "AssemblyError::Mint": "AssemblyError.variant",
+    "AssemblyError::Assemble": "AssemblyError.variant",
     "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
     "AssemblyError::CarriedAtRest": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
-    "AssemblyError::Space": "AssemblyError.variant",
     "AssemblyError::Uncertified": "AssemblyError.variant",
     # The two mint arms answer with a LIST, so the word a caller
     # branches on for ONE refused mate rides the row, not the gate.
@@ -3659,6 +3646,8 @@ MEMBERS_BOUND_AS = {
     # A re-target through `DocEdit.set_param` at `target_space` makes
     # one appear.
     "Maintenance::StrandedSpace": "Maintenance.variant",
+    # A re-target of the copy the product slot reads makes one appear.
+    "Maintenance::ProductOutsideWorld": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
     "Maintenance::ValueDropped": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
@@ -3668,8 +3657,10 @@ MEMBERS_BOUND_AS = {
     "EditError::WorldIsUndeletable": "EditError.variant",
     "EditError::ConstraintOnNonPlacement": "EditError.variant",
     "EditError::SpaceMismatch": "EditError.variant",
+    "EditError::PickPath": "EditError.variant",
+    "EditError::ProductRead": "EditError.variant",
+    "DocEdit::SetProduct": "Doc.set_product",
     "EditError::UnknownConstraint": "EditError.variant",
-    "EditError::CopyReadOffBodySeat": "EditError.variant",
     "EditError::ProfileProgramRefused": "EditError.variant",
     "EditError::UnresolvedInput": "EditError.variant",
     "EditError::WouldCycle": "EditError.variant",
@@ -3776,14 +3767,12 @@ MEMBERS_BOUND_AS = {
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",
     "InlineError::UnplaceablePart": "InlineError.variant",
-    "InlineError::InstanceReadUncarried": "InlineError.variant",
     "InlineError::Unresolved": "InlineError.variant",
     "InlineError::EpsilonSeam": "InlineError.variant",
     "InlineError::PartCarriesMetadata": "InlineError.variant",
     "InlineError::VarNameConflict": "InlineError.variant",
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
-    "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
     "InlineError::StrandedPartRead": "InlineError.variant",
     "InlineError::NameOnDroppedStep": "InlineError.variant",
@@ -3878,7 +3867,8 @@ MEMBERS_BOUND_AS = {
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
     "ProductError::Root": "ProductError.variant",
     "ProductError::EmptyProduct": "ProductError.variant",
-    "ProductError::StrandedPlacement": "ProductError.variant",
+    "ProductError::StrandedProduct": "ProductError.variant",
+    "ProductError::ProductOutsideWorld": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
@@ -4199,6 +4189,20 @@ ARMS_SPELLED_BY_A_PROPERTY = {
 #: gone from this table. The remaining entry cites `G2`, the audit's,
 #: beside `sweep_body` above.
 MEMBERS_NOT_BOUND = {
+    # A `⊔`'s piece as an evaluation holds it (`editor_core::Piece`),
+    # which shares its name with Python's profile `Piece` and nothing
+    # else: Python reads a `⊔`'s pieces as the bodies its value holds,
+    # and a pick (`Doc.pick`) reads one, so no piece is a value of its
+    # own there.
+    "Piece::bodies": INTERIOR,
+    "Piece::carried": INTERIOR,
+    "Piece::contacts": INTERIOR,
+    "Piece::family": INTERIOR,
+    "Piece::motion": INTERIOR,
+    "Piece::parts": INTERIOR,
+    "Piece::pieces": INTERIOR,
+    "Piece::read": INTERIOR,
+    "Piece::table": INTERIOR,
     # The document a report was taken of, which the kernel's `render`
     # checks it is handed. Python's `McReport` holds that document
     # itself and renders from it, so there is no second document to

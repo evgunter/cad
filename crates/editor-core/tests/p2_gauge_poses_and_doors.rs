@@ -393,25 +393,23 @@ fn the_gate_checks_the_world_whatever_another_space_holds() {
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
-            editor_core::SitedRef::at_mint(p.top_cap(top)),
-            editor_core::SitedRef::at_mint(p.top_upper_cap(top)),
+            crate::fixture::sited_ref(p.top_cap(top)),
+            crate::fixture::sited_ref(p.top_upper_cap(top)),
         ],
     );
     let ev = run(&doc_m, &o);
     assert!(ev.value(meas).is_some(), "{:?}", ev.node_error(meas));
     editor_core::assemble(&doc_m, &ev, Tol::witness())
         .expect("the world certifies whatever another space holds");
-    // The base goes: the world is empty.
+    // The base goes: the product reads a body that is gone.
     let (alone, _) = step(doc, DocEdit::DeleteNode { id: base });
     let ev = run(&alone, &o);
     match editor_core::assemble(&alone, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => match *e {
-            editor_core::ProductError::EmptyProduct { ref unplaced, .. } => {
-                assert!(unplaced.is_empty(), "{unplaced:?}");
-            }
-            ref other => panic!("the gather refuses an empty world: {other:?}"),
+            editor_core::ProductError::StrandedProduct { .. } => {}
+            ref other => panic!("the gather refuses a stranded product: {other:?}"),
         },
-        other => panic!("an empty world refuses at the gather: {other:?}"),
+        other => panic!("a stranded product refuses at the gather: {other:?}"),
     }
 }
 
@@ -431,6 +429,7 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     assert_eq!(sub.node_space(top), Some(space));
     let ev_sub = run(&sub, &o);
     let mut store = p.store.clone();
+    let sub = crate::fixture::assemble_world_copies(sub);
     let sub_ref = store.insert(sub.clone(), Tol::witness());
     let outer = ProfileDoc::empty(DocumentId::derive("r2-seam-outer"), Tol::witness());
     let (outer, _) = fixture::insert_pinned(

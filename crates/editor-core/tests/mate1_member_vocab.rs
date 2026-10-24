@@ -87,7 +87,7 @@ pub(crate) fn against_with(
     );
     let (doc, placement) = insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+        crate::fixture::stood(editor_core::BodyRead::plain(read)),
     );
     // The mate and its values written whole, into the target's space.
     let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());
@@ -146,7 +146,7 @@ fn cube(store: &mut PartStore, label: &str) -> Cube {
 
 impl Cube {
     /// The cap `end` of this part as `instance` places it.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> StableName {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::PartName {
         in_part(instance, self.body, end)
     }
 
@@ -160,9 +160,16 @@ impl Cube {
         wrap: &dyn Fn(StableName) -> StableName,
     ) -> editor_core::Operand {
         let name = |kind, seg| {
-            fixture::read_minted(wrap(fixture::resolver::in_part_of(
-                kind, instance, self.body, seg,
-            )))
+            let own = fixture::resolver::in_part_of(kind, instance, self.body, seg);
+            let worn = wrap(own.name.clone());
+            // A part's own name is read at its instance; a name a
+            // pattern wraps, at the pattern that minted it.
+            let at = if worn == own.name {
+                instance
+            } else {
+                worn.node
+            };
+            fixture::read_at(at, worn)
         };
         fixture::corner_frame(
             name(EntityKind::Edge, RoleSeg::LateralEdge(self.corners[0])),

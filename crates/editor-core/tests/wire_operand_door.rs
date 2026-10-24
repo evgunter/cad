@@ -171,7 +171,7 @@ fn wired() -> (
     let mut doc = add(
         doc,
         &mut rows,
-        "body_operand over a plane (Shell)",
+        "a body operand over a plane (Shell)",
         Owes::EditDoor(VarKind::Plane, SlotKind::Is(VarKind::Body)),
         Node::Shell {
             thickness: len(0.1),
@@ -182,7 +182,7 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "body_operand over instances (Shell of a pattern)",
+        "a body operand over instances (Shell of a pattern)",
         Owes::EditDoor(VarKind::Bodies, SlotKind::Is(VarKind::Body)),
         Node::Shell {
             thickness: len(0.1),

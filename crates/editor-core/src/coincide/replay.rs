@@ -375,9 +375,15 @@ fn carrier_verdict(
 
 /// The face `cell` names, as the replay built it: the body of the read
 /// it came in through and its key there, read in that read's own table.
+/// A product `⊔`'s name of the read's entity, keyed by that read, is
+/// the read's own name there.
 fn face_of<'e>(ev: &'e Evaluation<Lane>, cell: &NamedCell) -> Option<(&'e Body<Lane>, FaceKey)> {
     let NamedCell::Entity { input, name } = cell else {
         return None;
+    };
+    let name = match name.path.as_slice() {
+        [crate::names::RoleSeg::From { read, of }] if read == input => &**of,
+        _ => name,
     };
     let Some(Entry::Unique(EntityRef {
         body,

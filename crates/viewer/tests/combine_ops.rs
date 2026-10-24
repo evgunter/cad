@@ -259,7 +259,7 @@ fn the_combine_gesture_re_points_the_world_in_one_action() {
                 DocEdit::InsertNode { .. },
                 DocEdit::SetParam {
                     node,
-                    slot: pncad::document::SlotId::Operand(OperandSlot::Shape(0)),
+                    slot: pncad::document::SlotId::Operand(OperandSlot::Source),
                     value: pncad::document::SlotValue::Read(pncad::document::Operand::Node(read)),
                     ..
                 },
@@ -2203,7 +2203,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
         ),
         (
             "placement",
-            crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(body))]),
+            crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(body))),
         ),
         (
             "split",
@@ -2339,17 +2339,28 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
 // AUTH-4: projecting one body out of several, and duplicating one.
 // ---------------------------------------------------------------
 
-/// The whole document's drawn volume — the gather over the world's
-/// placements the viewport draws (A10), as one number.
+/// The whole document's drawn volume — the world's copies the
+/// viewport draws, gathered as one `⊔`, as one number.
 ///
-/// **The product and not a node**, because every row below this line
+/// **The world and not a node**, because every row below this line
 /// is about WHAT IS DRAWN rather than about what one node evaluates
 /// to, and the two differ as soon as a body is authored and not placed.
+/// The gather is of the landed document with its product set to the
+/// world's copies, so the session's own document is not edited.
 fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
     session.pump();
-    let body = session.landed_body().expect("the landing kept a product");
+    let (landed, _) = session.landed_pair().expect("a run landed");
+    let doc = crate::fixture::assemble_world_copies(landed.clone());
+    let ev = pncad::document::evaluate::<f64>(
+        &doc,
+        None,
+        &pncad::document::CancelToken::new(),
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
+    let body = pncad::document::product(&doc, &ev, tol).expect("the world gathers");
     pncad::topo::mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&body), tol)
             .expect("the measured body passes tier 3"),
         tol,
     )
@@ -2405,9 +2416,8 @@ fn a_split_half_is_read_by_its_port_at_a_body_seat() {
     assert!(
         matches!(
             doc.node(moved),
-            Some(Node::Place { shapes, .. })
-                if shapes.first().map(|shape| shape.read)
-                    == doc.output(split, SplitHalf::Below.port())
+            Some(Node::Place { source, .. })
+                if Some(source.read) == doc.output(split, SplitHalf::Below.port())
         ),
         "the transform's placement reads the split's below output"
     );
@@ -2718,9 +2728,7 @@ fn the_part_seats_track_the_part_door() {
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
-        crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(
-            pattern,
-        ))]),
+        crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(pattern))),
         tol,
     );
 
@@ -3128,9 +3136,7 @@ fn duplicating_a_several_body_value_is_refused() {
     let mut doc = session.committed_doc().clone();
     let placed = common::insert_into(
         &mut doc,
-        crate::fixture::stood(vec![pncad::document::BodyRead::plain(Operand::from(
-            pattern,
-        ))]),
+        crate::fixture::stood(pncad::document::BodyRead::plain(Operand::from(pattern))),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);

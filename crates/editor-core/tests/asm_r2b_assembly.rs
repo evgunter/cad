@@ -122,7 +122,7 @@ fn rest_mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, seat: f64) ->
 /// and stale configurations both live off the axis): `origin`'s x and
 /// y are the in-plane slides, its z the seat.
 fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f64; 3]) -> Seat {
-    let top = fixture::plane(fixture::head(in_part(a, body, CapEnd::End)));
+    let top = fixture::plane(fixture::head_at(a, in_part(a, body, CapEnd::End)));
     let top = if origin[2] == 1.0 {
         top
     } else {
@@ -134,7 +134,7 @@ fn rest_mate_at(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId, origin: [f
     };
     Seat {
         mate: fixture::mate(
-            fixture::plane(fixture::head(in_part(b, body, CapEnd::Start))),
+            fixture::plane(fixture::head_at(b, in_part(b, body, CapEnd::Start))),
             fixture::flip(top),
             ContactClass::Rest,
         ),
@@ -212,7 +212,7 @@ fn seated_pair(
         &with_resolver(store.clone()),
     );
     let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
-    (doc, vec![base, seated])
+    (fixture::assemble_world_copies(doc), vec![base, seated])
 }
 
 /// `instance` standing on its bottom: by the identity bundle, its part's
@@ -322,14 +322,10 @@ fn names_of(table: &editor_core::NameTable, key: EntityKey) -> Option<StableName
         })
 }
 
-/// Unwraps one seam: the assembly's product name for a part entity is
-/// the part's own product name, wrapped at the instance — itself the
-/// placement that copies it.
+/// One seam: the assembly's product name for a part entity is the
+/// part's own product name, which the instance's copy carries verbatim.
 fn unwrap_in_part(name: &StableName) -> StableName {
-    match &name.path[..] {
-        [RoleSeg::InPart { of }] => (**of).clone(),
-        _ => panic!("an instance's name is InPart-wrapped: {name:?}"),
-    }
+    name.clone()
 }
 
 // ---- Row 1: the contacts channel (D-1) ----
@@ -344,6 +340,7 @@ fn unwrap_in_part(name: &StableName) -> StableName {
 fn row1_a_parts_declared_contacts_survive_instantiation() {
     let mut store = PartStore::default();
     let part = kiss_part("asm-r2b-row1-part");
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part.clone(), Tol::witness());
 
     // What the part's own product records, on its own keys.
@@ -448,8 +445,8 @@ fn row2_a_solved_rest_mate_mints_its_declaration() {
     assert_eq!(
         (declared.a.clone(), declared.b.clone()),
         (
-            in_part(ids[1], body, CapEnd::Start),
-            in_part(ids[0], body, CapEnd::End)
+            in_part(ids[1], body, CapEnd::Start).name,
+            in_part(ids[0], body, CapEnd::End).name
         ),
         "and both of its references, the copy's first"
     );
@@ -639,8 +636,8 @@ fn row4_a_gapped_rest_declaration_refuses_naming_its_mate() {
     assert_eq!(
         (named.a, named.b),
         (
-            in_part(ids[1], body, CapEnd::Start),
-            in_part(ids[0], body, CapEnd::End)
+            in_part(ids[1], body, CapEnd::Start).name,
+            in_part(ids[0], body, CapEnd::End).name
         ),
         "both references are named"
     );
@@ -744,7 +741,9 @@ fn remainder_with_a_neighbour(
     let (doc, ids) = seated_pair(label, doc_ref, store);
     let neighbour = ids[0];
     let (doc, _) = seat(doc, ids[1], rest_mate(body, neighbour, ids[1], 1.0));
-    let outer = FaceName::new(in_part(neighbour, body, CapEnd::End))
+    // A remainder name, spelled on the live neighbour: an instance's
+    // copy carries its part's names, in the part's id space.
+    let outer = FaceName::new(fixture::resolver::in_world(neighbour, CapEnd::End))
         .expect("a crossing's references are face names");
     (doc, outer)
 }
@@ -832,7 +831,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     // apart.
     assert!(
         err.contains(&format!(
-            "in the part of node {} on the remainder",
+            "the end cap of node {} on the remainder",
             test_utils::refusal::tag(outer_probe.node.0.digest())
         )),
         "the refusal names the crossing by its `outer`: {err}"
@@ -929,6 +928,7 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
     let (doc, base) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let doc = standing_on_its_bottom(doc, base, body);
     let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
+    let doc = fixture::assemble_world_copies(doc);
     let ids = [base, seated];
     let (doc, mate) = seat(doc, ids[1], rest_mate(body, ids[0], ids[1], 1.0));
 
@@ -1076,7 +1076,7 @@ fn a_crossing_record_keys_on_each_of_its_fields() {
     let (host, outer) = remainder_with_a_neighbour("asm-r2b-row6-fields", doc_ref, body, &store);
     // The SAME live node, a different face of it: only the `outer`
     // moves between the two records below.
-    let other_outer = FaceName::new(in_part(outer.node, body, CapEnd::Start))
+    let other_outer = FaceName::new(fixture::resolver::in_world(outer.node, CapEnd::Start))
         .expect("a crossing's references are face names");
     let record = |outer: FaceName, inner: FaceName, class| editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -1244,6 +1244,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
     let (doc_ref, body) = store.insert_part(cube_part("asm-r2b-mixed-part"), Tol::witness());
     let (doc, mut ids) = seated_pair("asm-r2b-mixed", doc_ref, &store);
     let (doc, third) = insert(doc, fixture::mated_instance(doc_ref));
+    let doc = fixture::assemble_world_copies(doc);
     ids.push(third);
     // Declined: instance 1 seated one unit along x, so its underside is
     // coplanar with instance 0's top and meets it along the line x = 1
@@ -1439,21 +1440,17 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         let (doc, ids) = seated_pair("asm-r2b-vanish", doc_ref, &store);
         // The target keeps its KIND — a face name that answers to
         // nothing, read at the base instance as a real cap is.
-        let nothing = StableName {
-            kind: EntityKind::Face,
-            node: ids[0],
-            path: vec![RoleSeg::InPart {
-                of: StableName {
-                    kind: EntityKind::Face,
-                    node: RecipeNodeId::new(0, tagged(99)),
-                    path: vec![RoleSeg::Cap(CapEnd::End)],
-                }
-                .into(),
-            }],
+        let nothing = fixture::resolver::PartName {
+            at: ids[0],
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, tagged(99)),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
         };
         let mut seating = rest_mate(body, ids[0], ids[1], 1.0);
         seating.mate = fixture::rest(
-            fixture::head(in_part(ids[1], body, CapEnd::Start)),
+            fixture::head_at(ids[1], in_part(ids[1], body, CapEnd::Start)),
             fixture::head(nothing),
             ContactClass::Rest,
         );
@@ -1473,14 +1470,17 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         "the target's selection refuses: {:?}",
         ev.node_error(mate.placement)
     );
-    // The constraint's placement is the copy it would place, so the
-    // gather meets the failed placement first and refuses it typed.
+    // The product's `⊔` reads the copy the constraint's placement would
+    // place, so the gather meets the `⊔` poisoned through the failed
+    // placement and refuses it typed.
     match assemble(&doc, &ev, Tol::witness()) {
         Err(AssemblyError::Product(refusal)) => assert!(
             matches!(
                 *refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node })
-                    if node == mate.placement
+                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                    through,
+                    ..
+                }) if through == mate.placement
             ),
             "the failed placement is the gather's refusal: {refusal:?}"
         ),
@@ -1564,13 +1564,14 @@ fn flush_seat(label: &str) -> (ProfileDoc, MateRef, PartStore) {
         &with_resolver(store.clone()),
     );
     let (doc, shelf_id) = insert(doc, fixture::mated_instance(shelf));
+    let doc = fixture::assemble_world_copies(doc);
     let (doc, mate) = seat(
         doc,
         shelf_id,
         Seat {
             mate: fixture::rest(
-                fixture::head(in_part(shelf_id, shelf_body, CapEnd::Start)),
-                fixture::head(in_part(post_id, post_body, CapEnd::End)),
+                fixture::head_at(shelf_id, in_part(shelf_id, shelf_body, CapEnd::Start)),
+                fixture::head_at(post_id, in_part(post_id, post_body, CapEnd::End)),
                 ContactClass::Rest,
             ),
             slide: [0.0, 0.0],
@@ -1806,8 +1807,8 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
                 ],
             }],
         },
-        ProductError::StrandedPlacement {
-            placement: RecipeNodeId::new(0, tagged(2)),
+        ProductError::StrandedProduct {
+            read: editor_core::VarId::new(0, tagged(2)),
         },
         ProductError::Graft {
             node: RecipeNodeId::new(0, tagged(5)),
@@ -1823,7 +1824,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
             "\n  placement 000000000003 output 1: a solid encloses negative volume, so it is \
              inside-out",
         ],
-        &["placement 000000000002 reads a body that is gone"],
+        &["the product reads", "a body that is gone"],
         &["the kernel could not graft placement 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {

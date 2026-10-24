@@ -140,12 +140,6 @@ fn slot(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> &mut Arc<Body<f64>> {
     };
     match &mut value.payload {
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
-        // An instance's copies: the part product as the one body the
-        // gather grafts.
-        ValuePayload::Copies(copies) => match Arc::make_mut(copies).bodies.as_mut_slice() {
-            [body] => body,
-            other => panic!("node {node:?} holds {} bodies, not one", other.len()),
-        },
         other => panic!("node {node:?} is not a body: {other:?}"),
     }
 }
@@ -154,16 +148,43 @@ fn slot(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> &mut Arc<Body<f64>> {
 /// its value slot, and returns how many solids that body holds.
 fn flip_one_face(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> usize {
     let body = slot(ev, node);
+    let was = Arc::clone(body);
     *body = flipped(body);
-    body.solids().count()
+    let now = Arc::clone(body);
+    let solids = now.solids().count();
+    in_every_assemble(ev, &was, &now);
+    solids
 }
 
 /// Writes the reversed, inside-out copy of `node`'s body into its value
 /// slot.
 fn turn_inside_out(ev: &mut Evaluation<f64>, node: RecipeNodeId) {
     let body = slot(ev, node);
-    let reversed = body.revert().unwrap();
-    *body = Arc::new(reversed);
+    let was = Arc::clone(body);
+    *body = Arc::new(body.revert().unwrap());
+    let now = Arc::clone(body);
+    in_every_assemble(ev, &was, &now);
+}
+
+/// **The written body where a `⊔` holds it too**: a `⊔` keeps its
+/// members' bodies as its pieces, and the product's gather reads them
+/// there, so a piece holding `was` holds `now`.
+fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<Body<f64>>) {
+    for result in ev.nodes.values_mut() {
+        let NodeResult::Ok(value) = result else {
+            continue;
+        };
+        let Some(pieces) = value.pieces.as_mut() else {
+            continue;
+        };
+        for piece in &mut Arc::make_mut(pieces).pieces {
+            for body in &mut piece.bodies {
+                if Arc::ptr_eq(body, was) {
+                    *body = Arc::clone(now);
+                }
+            }
+        }
+    }
 }
 
 /// The refusal's findings, as (placement, output) pairs, in list order.
@@ -231,6 +252,7 @@ fn a_lone_multi_solid_source_is_named() {
         let (next, id) = insert(sub, fixture::mated_instance(p));
         sub = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
     }
+    let sub = crate::fixture::assemble_world_copies(sub);
     let b = store.insert(sub, Tol::witness());
     let o = with_resolver(store);
     let (doc, source) = fixture::insert_pinned(

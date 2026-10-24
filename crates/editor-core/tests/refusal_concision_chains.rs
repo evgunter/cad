@@ -835,8 +835,8 @@ test_utils::f6_variants! {
     const NODE_ERROR_KIND: NodeErrorKind = [
         Expr, Profile, ProfileReplay, ProfileLaneReplay, Extrude, Revolve, Tube, Split, Blend,
         Boolean, Transform, Mirror, Motion, Skin, Loft, CurvedSolidFrontier, MissingInput, UnresolvedRead, SelectResolve,
-        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand, ProductOperand,
-        UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchCopy, CopiesShareAKey, CopyShape,
+        ToleranceConflict, ParamBox, Seed, WrongOperand, EmptyOperand,
+        UnfinishedOperand, EmptyHalf, InstanceOutOfRange, NoSuchPiece, PieceShape,
         DegenerateDirection, NonFiniteDirection, UnderflowedDirection, Band, MissingSlot,
         Escalated, MeasureEscalated, PlacementAxisEscalated, PoseDirectionEscalated,
         PoseRead, PoseDegenerate, PoseScalar, CountOutOfRange, NegativeSpacing, DegenerateSpacing,
@@ -1281,12 +1281,10 @@ fn forward(kind: &NodeErrorKind) -> Forward {
         | NodeErrorKind::ToleranceConflict { .. }
         | NodeErrorKind::WrongOperand { .. }
         | NodeErrorKind::EmptyOperand { .. }
-        | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }
         | NodeErrorKind::InstanceOutOfRange { .. }
-        | NodeErrorKind::NoSuchCopy { .. }
-        | NodeErrorKind::CopiesShareAKey { .. }
-        | NodeErrorKind::CopyShape { .. }
+        | NodeErrorKind::NoSuchPiece { .. }
+        | NodeErrorKind::PieceShape { .. }
         | NodeErrorKind::DegenerateDirection { .. }
         | NodeErrorKind::NonFiniteDirection { .. }
         | NodeErrorKind::UnderflowedDirection { .. }
@@ -1819,46 +1817,23 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
-            "NoSuchCopy",
-            NodeErrorKind::NoSuchCopy {
-                input: RecipeNodeId::new(0, tagged(3)),
-                key: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
-                    0,
-                    tagged(2),
-                ))),
+            "NoSuchPiece",
+            NodeErrorKind::NoSuchPiece {
+                pick: editor_core::VarId::new(0, tagged(2)),
+                at: 0,
             },
         ),
         row(
-            "CopiesShareAKey",
-            NodeErrorKind::CopiesShareAKey {
-                key: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
-                    0,
-                    tagged(2),
-                ))),
-            },
-        ),
-        row(
-            "CopyShape/Family",
-            NodeErrorKind::CopyShape {
-                input: RecipeNodeId::new(0, tagged(3)),
-                key: Box::new(editor_core::CopyKey::Part {
-                    placement: RecipeNodeId::new(0, tagged(4)),
-                    within: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
-                        0,
-                        tagged(2),
-                    ))),
-                }),
+            "PieceShape/Family",
+            NodeErrorKind::PieceShape {
+                pick: editor_core::VarId::new(0, tagged(2)),
                 family: true,
             },
         ),
         row(
-            "CopyShape/OneBody",
-            NodeErrorKind::CopyShape {
-                input: RecipeNodeId::new(0, tagged(3)),
-                key: Box::new(editor_core::CopyKey::Read(editor_core::VarId::new(
-                    0,
-                    tagged(2),
-                ))),
+            "PieceShape/OneBody",
+            NodeErrorKind::PieceShape {
+                pick: editor_core::VarId::new(0, tagged(2)),
                 family: false,
             },
         ),
@@ -1931,13 +1906,6 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             NodeErrorKind::UnresolvedRead {
                 slot: editor_core::OperandSlot::Selection,
                 var: editor_core::VarId::new(0, tagged(4)),
-            },
-        ),
-        row(
-            "ProductOperand",
-            NodeErrorKind::ProductOperand {
-                input: RecipeNodeId::new(0, tagged(3)),
-                parts: 2,
             },
         ),
         row(
@@ -5212,8 +5180,10 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
                 distance: len(1.0),
             },
         );
-        let (doc, _) = crate::fixture::place(doc, body);
-        crate::fixture::step(doc, editor_core::DocEdit::DeleteNode { id: body }).0
+        // The product reads the placement's copy, and the placement
+        // goes: the slot reads a body that is gone.
+        let (doc, placement) = crate::fixture::place(doc, body);
+        crate::fixture::step(doc, editor_core::DocEdit::DeleteNode { id: placement }).0
     };
     let mut store = PartStore::new();
     let parts = [
@@ -5223,9 +5193,9 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             ProductErrorKind::EmptyProduct,
         ),
         (
-            "Part/PartProduct(StrandedPlacement)",
+            "Part/PartProduct(StrandedProduct)",
             store.insert(stranded, tol),
-            ProductErrorKind::StrandedPlacement,
+            ProductErrorKind::StrandedProduct,
         ),
     ];
     let opts = with_resolver(store);

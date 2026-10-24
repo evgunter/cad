@@ -166,6 +166,37 @@ pub(crate) fn member_view(
     Ok(view)
 }
 
+/// **One piece's view in a `⊔` that reads `member` more than once**:
+/// [`member_view`]'s names, each row a candidate of the tie the `⊔`
+/// itself names over every piece of that read
+/// ([`super::emit::name_assemble`]), numbered on from `next`, which
+/// carries the count from one piece of the read to the next. The
+/// gather carries the pieces' rows one source at a time, and these
+/// candidates merge back into that tie there.
+pub(crate) fn repeated_member_view(
+    union: RecipeNodeId,
+    member: VarId,
+    table: &NameTable,
+    next: &mut BTreeMap<StableName, u32>,
+) -> Result<NameTable, NamingError> {
+    table.seal_order();
+    let mut view = NameTable::new();
+    for (name, row) in table.rows() {
+        let wrapped = keyed(union, member, name.clone(), name.kind);
+        let k = next.entry(wrapped.clone()).or_default();
+        let pairs = row
+            .pairs()
+            .map(|(_, e)| {
+                let c = crate::names::table::Candidate::Of(*k);
+                *k += 1;
+                (c, e)
+            })
+            .collect();
+        view.insert_candidates_ref(NameRef::new(wrapped), pairs)?;
+    }
+    Ok(view)
+}
+
 /// **The table of a union or an intersect of one member** (DM4): the
 /// member's rows keyed by its read, as [`member_view`] keys them, and the
 /// body named by the node itself. No boolean runs, so this is the whole

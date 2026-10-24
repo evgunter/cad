@@ -39,11 +39,11 @@ use std::sync::Arc;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
     BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, MateRef, NameRef, Node, NodeResult, Operand,
-    ParamBox, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis,
-    VarName, all_vertices, evaluate, vertex_position,
+    EvalOptions, Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName,
+    all_vertices, evaluate, vertex_position,
 };
-use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
+use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
 use geom_core::{Dual64, Interval, Tol};
 
@@ -155,24 +155,6 @@ fn parts(label: &str) -> Parts {
     }
 }
 
-/// **`name`, an entity of a part's body, as `instance` wears it**:
-/// under the placement the part's world copies the body by, inside the
-/// instance's `InPart` wrapper.
-fn worn(instance: RecipeNodeId, body: RecipeNodeId, name: &StableName) -> StableName {
-    let placed = StableName {
-        kind: name.kind,
-        node: placement_of(body),
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name.clone()),
-        }],
-    };
-    StableName {
-        kind: placed.kind,
-        node: instance,
-        path: vec![RoleSeg::InPart { of: placed.into() }],
-    }
-}
-
 /// A pose slid `by` along a direction or an axis's direction.
 fn slid(pose: Operand, along: RoleRead<Operand>, by: Formula) -> Operand {
     Operand::Pose(Box::new(PoseDef::Slide {
@@ -204,30 +186,24 @@ impl Parts {
         with_resolver(self.store.clone())
     }
     /// The slab's top cap, as `slab` places it.
-    fn slab_top(&self, slab: RecipeNodeId) -> StableName {
+    fn slab_top(&self, slab: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(slab, self.slab_body, CapEnd::End)
     }
     /// The bolt's bottom cap, as `bolt` places it.
-    fn bolt_foot(&self, bolt: RecipeNodeId) -> StableName {
+    fn bolt_foot(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(bolt, self.bolt_body, CapEnd::Start)
     }
     /// The bolt's top cap, as `bolt` places it.
-    fn bolt_head(&self, bolt: RecipeNodeId) -> StableName {
+    fn bolt_head(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(bolt, self.bolt_body, CapEnd::End)
     }
     /// The bolt's lateral edge `k`, as an axis `bolt` places.
     fn bolt_edge(&self, bolt: RecipeNodeId, k: usize) -> Operand {
-        fixture::axis(SitedRef::new(
-            bolt,
-            worn(bolt, self.bolt_body, &self.bolt_names.lateral[k]),
-        ))
+        fixture::axis(SitedRef::new(bolt, self.bolt_names.lateral[k].clone()))
     }
     /// The slab's lateral edge `k`, as an axis `slab` places.
     fn slab_edge(&self, slab: RecipeNodeId, k: usize) -> Operand {
-        fixture::axis(SitedRef::new(
-            slab,
-            worn(slab, self.slab_body, &self.slab_names.lateral[k]),
-        ))
+        fixture::axis(SitedRef::new(slab, self.slab_names.lateral[k].clone()))
     }
     /// **One of the slab's two side directions**, as an axis: the `x`
     /// of the frame standing on its edge at canonical vertex 0 and aimed
@@ -237,10 +213,7 @@ impl Parts {
         RoleRead::through(
             through(
                 self.slab_edge(slab, 0),
-                fixture::point_of(SitedRef::new(
-                    slab,
-                    worn(slab, self.slab_body, &self.slab_names.corner[k]),
-                )),
+                fixture::point_of(SitedRef::new(slab, self.slab_names.corner[k].clone())),
             ),
             PoseRole::X,
         )
@@ -264,8 +237,8 @@ impl Parts {
 fn seat(
     doc: ProfileDoc,
     mover: RecipeNodeId,
-    foot: StableName,
-    onto: StableName,
+    foot: impl crate::fixture::Sited,
+    onto: impl crate::fixture::Sited,
     by: Formula,
     (x, y, spin): (Formula, Formula, Formula),
 ) -> (ProfileDoc, MateRef) {
@@ -659,10 +632,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
                 },
             ),
         };
-        through(
-            edge,
-            fixture::point_of(SitedRef::new(at, worn(at, body, &corner))),
-        )
+        through(edge, fixture::point_of(SitedRef::new(at, corner.clone())))
     };
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
         &doc,
@@ -1000,10 +970,20 @@ fn run_at<T: editor_core::EvalScalar>(
 /// translation entry by at most one ulp (8.9e-16 m) and every rotation
 /// entry bit-identical; every other solved pose of the corpus is main's
 /// bit for bit (each map dumped on main and on the branch).
+///
+/// And for D′3 (the product is an authored `⊔`, a copy carries its
+/// source's names, all three rows): each corpus document writes its
+/// product as a `⊔` of its world copies, a node the digest walks, and
+/// its instances' copies name their faces as their parts do, so the
+/// evaluations' name tables and every id after the product moved.
+/// Re-blessed at all three ε; each seat still stands on what it is
+/// seated on ([`each_seat_stands_on_what_it_is_seated_on`]), and the
+/// solved poses were not compared id-free against main separately.
+/// Re-measured on main's plane pose merged in, at all three ε.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb2a4_c6af_68c0_eabf),
-    (1e-6, 0xf1ee_344a_2a63_4bd7),
-    (1e-12, 0xc404_5ce6_ff18_2ef7),
+    (1e-9, 0x2d41_38b9_c4c8_1bef),
+    (1e-6, 0x00c0_3569_5647_6ed6),
+    (1e-12, 0xed86_149f_65a5_daef),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

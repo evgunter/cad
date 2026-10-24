@@ -818,6 +818,8 @@ pub(crate) enum OperandArg {
     Var(Var),
     /// A pose defined at the seat.
     Pose(super::pose::PoseDef),
+    /// One piece of a copy, picked at the seat.
+    Pick(PickRead),
 }
 
 impl OperandArg {
@@ -827,7 +829,35 @@ impl OperandArg {
             Self::Node(node) => d::Operand::Node(node.0),
             Self::Var(var) => d::Operand::Var(var.0),
             Self::Pose(pose) => pose.inner,
+            Self::Pick(pick) => pick.read(),
         }
+    }
+}
+
+/// **A pick as Python writes it** (D10 `[placement.placement]`): one
+/// piece of the copy `placement` reads, by the path to the piece's
+/// variable in the source — each step an operand of the `⊔` the walk
+/// reaches through the placements before it (`Doc.pick`). Read at a
+/// seat, the door mints one pick variable there, as it mints a
+/// selection, so a pick written at two seats is two variables.
+#[pyclass(module = "pncad", frozen, from_py_object)]
+#[derive(Clone)]
+pub(crate) struct PickRead {
+    placement: Box<OperandArg>,
+    of: Vec<d::VarId>,
+}
+
+impl PickRead {
+    /// The authored read.
+    pub(crate) fn read(self) -> d::Operand {
+        d::Operand::pick(self.placement.read(), self.of)
+    }
+}
+
+#[pymethods]
+impl PickRead {
+    fn __repr__(&self) -> String {
+        format!("PickRead(of={} steps)", self.of.len())
     }
 }
 
@@ -905,8 +935,10 @@ impl IndexedRead {
         let read = match &self.read {
             OperandArg::Node(node) => format!("NodeId({})", node.0.full()),
             OperandArg::Var(var) => format!("Var({})", var.0.full()),
-            OperandArg::Pose(_) => {
-                unreachable!("an indexed read is `[]` on a node or a variable, never a pose")
+            OperandArg::Pose(_) | OperandArg::Pick(_) => {
+                unreachable!(
+                    "an indexed read is `[]` on a node or a variable, never a pose or a pick"
+                )
             }
         };
         let at: Vec<String> = self.at.iter().map(ToString::to_string).collect();
@@ -930,26 +962,6 @@ impl BodyArg {
         match self {
             Self::Indexed(IndexedRead { read, at }) => d::BodyRead::indexed(read.read(), at),
             Self::Read(read) => d::BodyRead::plain(read.read()),
-        }
-    }
-}
-
-/// **A placement's shapes as Python writes them**: one body argument,
-/// or a sequence of them.
-#[derive(FromPyObject, Clone)]
-pub(crate) enum ShapesArg {
-    /// One shape: the copy has its kind.
-    One(BodyArg),
-    /// Several, in the order written: a keyed enumeration of copies.
-    Many(Vec<BodyArg>),
-}
-
-impl ShapesArg {
-    /// The authored reads, in order.
-    pub(crate) fn reads(self) -> Vec<d::BodyRead<d::Formula>> {
-        match self {
-            Self::One(read) => vec![read.read()],
-            Self::Many(reads) => reads.into_iter().map(BodyArg::read).collect(),
         }
     }
 }
@@ -1055,9 +1067,10 @@ impl Doc {
                 let dim = self.inner.var(var).and_then(|held| match held.def() {
                     d::VarDef::Free(free) => Some(free.dim()),
                     d::VarDef::Defined(expr) => Some(expr.dim()),
-                    d::VarDef::Output { .. } | d::VarDef::Select(_) | d::VarDef::Pose(_) => {
-                        held.kind().dimension()
-                    }
+                    d::VarDef::Output { .. }
+                    | d::VarDef::Select(_)
+                    | d::VarDef::Pose(_)
+                    | d::VarDef::Pick(_) => held.kind().dimension(),
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -1375,9 +1388,9 @@ impl Doc {
 
     /// **The placements**, in document order: every `Place` and
     /// `InstantiatePart` node — the nodes whose copies a bundle of
-    /// constraints places. Those placed into the world are the product
-    /// (`product` and `assemble` gather them in this order); the rest
-    /// place into other spaces (`Doc.space`).
+    /// constraints places, into the world or another space
+    /// (`Doc.space`). Which body is the product is the product slot's
+    /// (`Doc.set_product`), never derived from these.
     ///
     /// Written through `place` and `Node.instantiate_part`, and through
     /// nothing else: no edit places as a side effect.
@@ -1701,13 +1714,12 @@ impl Doc {
         Ok(SketchedOnFace(sketched))
     }
 
-    /// **Place one copy of `shapes` into `target`**, placed by
+    /// **Place one copy of `source` into `target`**, placed by
     /// `constraints`, and return the placement's id: the insert of
-    /// `Node.place(shapes, target, constraints)`.
+    /// `Node.place(source, target, constraints)`.
     ///
-    /// `shapes` is one body argument or a sequence of them; over one
-    /// the copy is a body, over several a keyed enumeration of copies.
-    /// `target` is the space the copy is placed into, always written:
+    /// `source` is one body argument: several bodies are placed as one
+    /// by placing their `Doc.assemble`. `target` is the space the copy is placed into, always written:
     /// the world (`Doc.world`), a `Doc.new_space()`, a construction's
     /// own space (the construction itself, or `Doc.space`'s `Var`).
     /// `constraints` is the bundle, written whole: a `Placed` (its one
@@ -1719,29 +1731,94 @@ impl Doc {
     /// `Placed.identity()`: the copy stands in `target` where its
     /// body's own coordinates put it — the "place part" gesture.
     ///
-    /// The one door that puts a body in the product: nothing places as
-    /// a side effect, so a boolean of two placed bodies leaves both
-    /// placed and the boolean unplaced until it is placed here. A
-    /// split's half is placed by its output, `place(doc.output(split,
-    /// 1))`.
+    /// Nothing places as a side effect, and nothing a placement does
+    /// puts its copy in the product: the product is the body
+    /// `Doc.set_product` names. A split's half is placed by its output,
+    /// `place(doc.output(split, 1))`.
     ///
     /// Two placements of one body are two copies. `label=` labels the
     /// placement in the same call, as `insert`'s does.
-    #[pyo3(signature = (shapes, target, constraints=None, *, label=None))]
+    #[pyo3(signature = (source, target, constraints=None, *, label=None))]
     fn place(
         &mut self,
         py: Python<'_>,
-        shapes: ShapesArg,
+        source: BodyArg,
         target: SpaceArg,
         constraints: Option<super::mate::BundleArg>,
         label: Option<&str>,
     ) -> PyResult<NodeId> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
         let constraints = constraints.map_or_else(|| d::stand().bundle(), super::mate::bundle);
-        let (reads, target) = (shapes.reads(), target.read());
-        Node::placed(py, reads.clone(), target.clone(), constraints.clone())?;
-        self.insert_edit(d::DocEdit::place(reads, target, constraints), label)
+        let (read, target) = (source.read(), target.read());
+        Node::placed(py, read.clone(), target.clone(), constraints.clone())?;
+        self.insert_edit(d::DocEdit::place(read, target, constraints), label)
             .map_err(|err| edit_err(py, &err))
+    }
+
+    /// **The assemble** (`⊔`): `members` side by side as the pieces of
+    /// one body, none decided against another, and return its id: the
+    /// insert of `Node.assemble(members)`. Its door runs the at-rest
+    /// census over the pieces, one arrival per member; its result is a
+    /// body like any other, which a boolean cuts or joins piece by
+    /// piece, and which `Doc.set_product` makes the document's product.
+    #[pyo3(signature = (members, *, label=None))]
+    fn assemble(
+        &mut self,
+        py: Python<'_>,
+        members: MembersArg,
+        label: Option<&str>,
+    ) -> PyResult<NodeId> {
+        let label = label.map(|text| label_from_text(py, text)).transpose()?;
+        self.insert_edit(
+            d::DocEdit::InsertNode {
+                node: Box::new(d::Node::Assemble {
+                    members: members.bodies(),
+                }),
+                fresh: Vec::new(),
+            },
+            label,
+        )
+        .map_err(|err| edit_err(py, &err))
+    }
+
+    /// **One piece of the copy `placement` reads** (D10
+    /// `[placement.placement]`): `of` is the path to the piece's
+    /// variable in the source, each step an operand of the `⊔` the walk
+    /// reaches through the placements before it — `[bolt]` for the bolt
+    /// of a copy of `bolt ⊔ plate`. Read at a seat; a path through any
+    /// other operator raises `EditError` (`pick_path`) at the insert.
+    fn pick(&self, placement: OperandArg, of: Vec<Var>) -> PickRead {
+        PickRead {
+            placement: Box::new(placement),
+            of: of.into_iter().map(|var| var.0).collect(),
+        }
+    }
+
+    /// **Set the product** (D10 `[operations]`): the one body the
+    /// document delivers, read in the world, or `None` for an empty
+    /// product. What export writes and an instance of the document
+    /// copies. A body in another space raises `EditError`
+    /// (`product_read`).
+    fn set_product(&mut self, py: Python<'_>, body: Option<OperandArg>) -> PyResult<()> {
+        let applied = d::apply(
+            &self.inner,
+            &d::DocEdit::SetProduct {
+                product: body.map(OperandArg::read),
+            },
+            Tol::witness(),
+        )
+        .map_err(|err| edit_err(py, &err))?;
+        self.accept(applied);
+        Ok(())
+    }
+
+    /// **The product** (`Doc.set_product`): the variable the slot
+    /// reads, `None` for an empty product.
+    #[getter]
+    fn product(&self) -> Option<Var> {
+        self.inner
+            .product()
+            .map(|var| Var(var, Some(d::VarKind::Body)))
     }
 
     /// **`body`'s own frame at a corner it has**, as a pose to read: the
@@ -2319,16 +2396,16 @@ impl Node {
         Ok(())
     }
 
-    /// A `Place` over `shapes` into `target` holding `constraints`,
+    /// A `Place` of `source` into `target` holding `constraints`,
     /// each number checked against its slot. The ids are placeholders
     /// the insert door mints.
     pub(crate) fn placed(
         py: Python<'_>,
-        shapes: Vec<d::BodyRead<d::Formula>>,
+        source: d::BodyRead<d::Formula>,
         target: d::Operand,
         constraints: Vec<d::Constraint<d::Formula>>,
     ) -> PyResult<Self> {
-        let inner = d::Node::place(shapes, target, constraints);
+        let inner = d::Node::place(source, target, constraints);
         Self::check_slots(py, &inner)?;
         Ok(Self { inner })
     }
@@ -2787,23 +2864,22 @@ impl Node {
     /// the operation whose output is a copy. Inserting it is
     /// `Doc.place`.
     ///
-    /// `shapes` is one body argument or a sequence of them: over one,
-    /// the copy has that shape's kind (a body over a body); over
-    /// several, its output is a keyed enumeration of copies. `target`
-    /// is the space it places into (`Doc.place`'s). `constraints` is
+    /// `source` is one body argument: the copy has its kind (a body
+    /// over a body). `target` is the space it places into
+    /// (`Doc.place`'s). `constraints` is
     /// the bundle, written whole: a `Placed`, or `Mate`s and
     /// `MateValue`s. Every bundle pins its copy: the insert refuses one
     /// that leaves a freedom unwritten (`mate_unpinned`).
     #[staticmethod]
     fn place(
         py: Python<'_>,
-        shapes: ShapesArg,
+        source: BodyArg,
         target: SpaceArg,
         constraints: super::mate::BundleArg,
     ) -> PyResult<Self> {
         Self::placed(
             py,
-            shapes.reads(),
+            source.read(),
             target.read(),
             super::mate::bundle(constraints),
         )
@@ -2846,6 +2922,18 @@ impl Node {
     fn union(members: MembersArg) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Union {
+                members: members.bodies(),
+            },
+        })
+    }
+
+    /// **The assemble** (`⊔`): the members side by side as the pieces
+    /// of one body, read as `Node.union` reads its members
+    /// (`Doc.assemble`).
+    #[staticmethod]
+    fn assemble(members: MembersArg) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::Node::Assemble {
                 members: members.bodies(),
             },
         })
@@ -4640,6 +4728,7 @@ const fn _binds_every_kernel_window(kernel: &d::TubeWindow<d::Formula>) -> &'sta
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NodeId>()?;
     m.add_class::<IndexedRead>()?;
+    m.add_class::<PickRead>()?;
     m.add_class::<Doc>()?;
     m.add_class::<DocEdit>()?;
     m.add_class::<VarName>()?;

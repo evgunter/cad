@@ -35,7 +35,7 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    ProfileDoc, RecipeNodeId, RoleSeg,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{in_copy, insert, len, on_frame, scl};
@@ -107,8 +107,8 @@ fn legs_reach() -> EvalOptions {
 pub(crate) fn seat(
     doc: ProfileDoc,
     placement: RecipeNodeId,
-    onto: StableName,
-    mover: StableName,
+    onto: impl crate::fixture::Sited,
+    mover: impl crate::fixture::Sited,
 ) -> (ProfileDoc, MateRef) {
     crate::p2_split::seat_at(
         doc,
@@ -206,7 +206,7 @@ pub(crate) fn place_copies(
         );
         fixture::insert_pinned(
             doc,
-            crate::fixture::stood(vec![editor_core::BodyRead::plain(copy)]),
+            crate::fixture::stood(editor_core::BodyRead::plain(copy)),
             o,
         )
         .0
@@ -228,8 +228,8 @@ fn copy_placement(doc: &ProfileDoc, pattern: RecipeNodeId, i: u32) -> RecipeNode
     doc.placements()
         .into_iter()
         .find(|&p| {
-            matches!(doc.node(p), Some(Node::Place { shapes, .. })
-                if shapes.iter().any(|s| doc.operation_of(s.read) == Some(part)))
+            matches!(doc.node(p), Some(Node::Place { source, .. })
+                if doc.operation_of(source.read) == Some(part))
         })
         .expect("the copy is placed")
 }
@@ -270,18 +270,18 @@ fn a_pattern_headed_mate_is_an_edge_and_reads_the_pattern_input_instance() {
 
 /// INVARIANT (AQ8, for a PATTERN-HEADED edge): cutting the pattern
 /// side keeps the top's constraint, whose target reads a cut copy
-/// placed at the identity — one crossing, the top's face outside, the
-/// pattern copy's inside, in the part's names. Cutting the top alone
-/// takes its constraint with it, whose read of the kept pattern copy
-/// the cut severs. The whole cut carries both ends, so its record is
-/// empty.
+/// placed at the identity; the top is an instance, whose face is its
+/// part's name, so the crossing goes unrecorded (the D′3 seam hazard).
+/// Cutting the top alone takes its constraint with it, whose read of
+/// the kept pattern copy the cut severs. The whole cut carries both
+/// ends, so its record is empty.
 ///
-/// *Breaks if* the crossing is dropped or minted from the wrong side,
-/// or a cut placement's read of a kept copy is carried in silence.
+/// *Breaks if* a crossing is minted from a part's name, or a cut
+/// placement's read of a kept copy is carried in silence.
 #[test]
 fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_its_placement() {
     let o = legs_reach();
-    let (doc, leg, pattern, top, mate, leg_body) = four_legs("fix-xs-torn");
+    let (doc, leg, pattern, top, _mate, _leg_body) = four_legs("fix-xs-torn");
     let across = editor_core::split(
         &doc,
         &cut(&doc, [leg, pattern]),
@@ -290,46 +290,13 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
         o.resolver.as_ref(),
     )
     .expect("a cut of the pattern side splits");
+    // The kept top is an instance, so its face is its part's name, which
+    // a record has no spelling for: the crossing goes unrecorded
+    // (`work/intent/a-part-name-in-the-host-is-spelled-in-the-parts-ids.md`).
     let record = crossings(&across.remainder, across.instance);
-    let [
-        editor_core::InterfaceCrossing::Mate {
-            class,
-            outer,
-            inner,
-        },
-    ] = record.crossings.as_slice()
-    else {
-        panic!("the kept constraint is one crossing: {record:?}");
-    };
-    let mate = fixture::constraint(&doc, mate);
-    let [top_side] = fixture::face_reads(&doc, mate.on)[..] else {
-        panic!("the seat reads the top's face");
-    };
-    assert_eq!(*class, ContactClass::Rest, "the crossing keeps its class");
-    assert_eq!(
-        *outer,
-        editor_core::head_of(&doc, top_side)
-            .expect("the top's side resolves")
-            .name,
-        "the outside reference is the kept top's face"
-    );
-    // The part's product spells the copy's face under the cut
-    // placement of that copy (`Placed`), in the part's ids.
-    let held = StableName {
-        kind: editor_core::EntityKind::Face,
-        node: across.node_map[&copy_placement(&doc, pattern, COPY)],
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(in_copy(
-                across.node_map[&pattern],
-                COPY,
-                in_part(across.node_map[&leg], leg_body, CapEnd::End),
-            )),
-        }],
-    };
-    assert_eq!(
-        inner.clone().into_name(),
-        held,
-        "the inside reference is the pattern copy's face, in the part's names"
+    assert!(
+        record.crossings.is_empty(),
+        "a kept instance's face crosses unrecorded: {record:?}"
     );
 
     // The top alone: its constraint goes with it, and reads the kept
@@ -526,26 +493,48 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 }
 
 /// INVARIANT: an operand that is a live `InstantiatePart` under a
-/// name derived from ANOTHER instance resolves to no member. The
-/// constraint door is structural and admits the mate as written; the
-/// member walk is what knows the reference resolves to nothing, so
-/// the target contributes no member.
+/// name its copy does not carry is refused where the mate evaluates.
 ///
-/// This is the shape that separates the vocabulary from a head's
-/// SPELLING in the direction the nested-pattern row cannot reach:
-/// there the head is a `Pattern`, so a gate matching
-/// `Node::InstantiatePart` skips it for the right answer by accident;
-/// here the head IS an `InstantiatePart` and only the walk knows the
-/// reference resolves to nothing.
+/// A copy carries its part's names as they are (D′3), so a name names
+/// no instance: the member walk is structural and reads no part, and
+/// it admits the side read at the stranger as the stranger's member.
+/// Whether the stranger's copy carries the name is the evaluation's to
+/// say, and it refuses the side (`work/intent/a-part-name-in-the-host-
+/// is-spelled-in-the-parts-ids.md`).
 ///
-/// *Breaks if* the walk admits a name another instance minted because
-/// the node it is read at is an instance.
+/// *Breaks if* a side read at an instance whose copy carries no such
+/// name evaluates.
 #[test]
-fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
+fn a_stranded_operand_over_an_instance_head_is_refused_where_it_evaluates() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-stranded"), Tol::witness());
     // A live instance that consumes nothing: it neither places nor
-    // projects `leg`, so no walk from it reaches `leg`.
-    let (doc, stranger, _) = pinned_block(doc, "fix-xs-st-other");
+    // projects `leg`, so no walk from it reaches `leg`. Its part is a
+    // wider block, so its ids are not the leg part's: a copy carries
+    // its part's names, and two parts of one recipe name alike.
+    let mut store = PartStore::new();
+    let wider = {
+        let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-st-other"), Tol::witness());
+        let (doc, profile) = on_frame(
+            doc,
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: len(1.0),
+            },
+        )
+    };
+    let (other, _) = store.insert_part(wider, Tol::witness());
+    let (doc, stranger) = fixture::insert_pinned(
+        doc,
+        crate::fixture::mated_instance(other),
+        &with_resolver(store.clone()),
+    );
     let (doc, leg, leg_body) = pinned_block(doc, "fix-xs-st-leg");
     let (top_ref, top_body) = block_ref("fix-xs-st-top");
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
@@ -555,15 +544,29 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         doc,
         top,
         fixture::rest(
-            fixture::head(in_part(top, top_body, CapEnd::Start)),
+            fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
             stranded,
             ContactClass::Rest,
         ),
     );
     assert_eq!(
         seam_members(&doc, mate),
-        vec![(mate, top)],
-        "the stranded target resolves to no member; only the top's side does"
+        vec![(mate, top), (mate, stranger)],
+        "the walk reads no part: the stranger is the target's member"
+    );
+    for label in ["fix-xs-st-leg", "fix-xs-st-top"] {
+        store.insert_part(block(label), Tol::witness());
+    }
+    let o = with_resolver(store);
+    assert!(
+        matches!(
+            crate::fixture::solve(&doc, &o, Tol::witness()).fault(mate.placement),
+            Some(editor_core::MateFault::SideUnevaluated {
+                side: editor_core::MateSide::To,
+                ..
+            })
+        ),
+        "the stranger's copy carries no such name, so the target refuses"
     );
 }
 

@@ -2,11 +2,12 @@
 id: a-placement-copy-is-its-own-table-in-the-product
 kind: unit
 title: A placement copy is its own table in the product: Placed retires and the product reads one table per copy
-status: open
+status: closed
 opened: 2026-10-11
 priority: P2
 refs: [a-name-is-scoped-by-the-variable-holding-its-body, the-at-rest-census-is-a-check]
 parent: assemble-is-an-operator-and-the-product-is-a-slot
+closed: 2026-10-23
 ---
 
 Filed by FORK-DM4 unit 2 (`a-name-is-scoped-by-the-variable-holding-its-body`),
@@ -39,3 +40,5 @@ per-copy tables:
 It meets stage 4 F's ground (declared pairs retire, which removes the other
 reader that names an entity across copies) and the at-rest census items, so
 it is sliced with them rather than before.
+
+Absorbed by D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`). `Placed` retired: a copy carries its source's names verbatim, and the product is the body its slot reads. Where that is a `⊔`, each piece's names are keyed by its read (`names::member_view`, the union's own keying), one table per piece, carried into the aggregate one source at a time (`product.rs`, `gather`); a read assembled twice keys its pieces' names as a tie (`names::repeated_member_view`).

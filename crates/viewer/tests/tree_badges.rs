@@ -493,7 +493,7 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
 
     // A face of post_a, selected and held while it still resolves.
     let face = FaceSelection {
-        name: common::asm::in_part(bench.post_a, &bench.post_top),
+        name: bench.post_top.clone(),
         node: bench.post_a,
         body: 0,
     };
@@ -791,7 +791,12 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
             .collect();
         for door in STANDING_DOORS {
             for (at, _) in code.match_indices(door) {
-                if door.starts_with(|c: char| c.is_alphabetic()) && !boundary_before(&code, at) {
+                // A door is a whole word; `product(` called as a method is
+                // `Doc::product`, the slot's accessor, not the gather.
+                if door.starts_with(|c: char| c.is_alphabetic())
+                    && (!boundary_before(&code, at)
+                        || (*door == "product(" && code[..at].ends_with('.')))
+                {
                     continue;
                 }
                 calls += 1;

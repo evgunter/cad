@@ -255,6 +255,9 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         doc = placed.doc;
         placed.placement
     };
+    // A copy carries its hole's names as they are, so the names a cut
+    // carries in are the holes' own, minted at their extrudes.
+    let (minted_a, minted_b) = (hole_a, hole_b);
     let (hole_a, hole_b) = (on_blank(hole_a), on_blank(hole_b));
 
     // The holes run the plate's full depth, so each hole's caps lie
@@ -285,15 +288,20 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         (
             part,
             [
-                (part, from(from(face().node(hole_a)))),
-                (part, from(face().node(hole_b))),
+                (part, from(from(face().node(minted_a)))),
+                (part, from(face().node(minted_b))),
             ],
         )
     } else {
         (blank, [(hole_a, face()), (hole_b, face())])
     };
     let placement = crate::world::place_in_world(&doc, placed, tol);
-    doc = placement.doc;
+    doc = crate::world::set_product(
+        &placement.doc,
+        &[pncad::document::Operand::Node(placement.placement)],
+        tol,
+    )
+    .doc;
 
     // The wall names come from the SELECTION door, the way a user gets
     // them: evaluate what is built so far, then ask for each hole's

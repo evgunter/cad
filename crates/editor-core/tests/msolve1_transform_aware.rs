@@ -22,8 +22,8 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
-    Evaluation, MateFault, MateRef, MateSide, NameRef, Node, Operand, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, VarId, load, product, save,
+    Evaluation, MateFault, MateRef, MateSide, Node, Operand, PatternKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, VarId, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
 use fixture::seat::map_gap;
@@ -89,7 +89,7 @@ impl Part {
         end: CapEnd,
         at: &dyn Fn(StableName) -> Operand,
     ) -> Operand {
-        let name = |kind, seg| in_part_of(kind, instance, self.body, seg);
+        let name = |kind, seg| in_part_of(kind, instance, self.body, seg).name;
         fixture::corner_frame(
             at(name(
                 EntityKind::Edge,
@@ -103,7 +103,7 @@ impl Part {
     }
 
     /// The cap `end` of this part as `instance` places it.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> StableName {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::PartName {
         in_part(instance, self.body, end)
     }
 }
@@ -127,7 +127,7 @@ fn seat(
         doc,
         top,
         fixture::frame_seat(
-            top_part.frame(top, CapEnd::Start, &fixture::read_minted),
+            top_part.frame(top, CapEnd::Start, &|n| fixture::read_at(top, n)),
             base_part.frame(base, CapEnd::End, base_at),
             1.0,
             1.0,
@@ -207,77 +207,56 @@ fn place(doc: ProfileDoc, o: &EvalOptions, body: RecipeNodeId) -> ProfileDoc {
     let read = fixture::body_read(&doc, body.into());
     let (doc, placement) = insert(
         doc,
-        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+        crate::fixture::stood(editor_core::BodyRead::plain(read)),
     );
     fixture::pinned(doc, placement, o)
 }
 
-/// **`name`'s world copy**: the one name in the gathered product's
-/// table that is a copy of `name` ([`StableName::copy_of`]) — what the
-/// product names a face by under the `Place` that put a body in the
-/// world — or, where no `Place` copies it, `name`
-/// itself, which is how the product names a face of an instance (an
-/// instance is a placement, its face names already its copy's).
-fn copy_name(doc: &ProfileDoc, ev: &Evaluation<f64>, name: &StableName) -> StableName {
-    let (_, names) =
-        editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
-    let copies: Vec<StableName> = names
-        .iter()
-        .map(|(n, _)| n.clone())
-        .filter(|n| n.copy_of().is_some_and(|(_, of)| of == name))
-        .collect();
-    match copies.as_slice() {
-        [copy] => copy.clone(),
-        [] if names.iter().any(|(n, _)| n == name) => name.clone(),
-        _ => panic!("{name:?} has one world copy, not {copies:?}"),
-    }
+/// **A name read at `at`**: a copy carries its source's names verbatim,
+/// so a name is read at a placement as at its source.
+fn read_at(_doc: &ProfileDoc, at: RecipeNodeId) -> impl Fn(StableName) -> Operand + use<> {
+    move |name| fixture::read_at(at, name)
 }
 
-/// `name`, as the placement `p` names its copy of the entity.
-fn placed(p: RecipeNodeId, name: StableName) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: p,
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(name),
-        }],
-    }
-}
-
-/// **A name read at `at`**: under `at`'s own layer where `at` is a
-/// `Place` (a copy's names are its placement's), as it is otherwise.
-fn read_at(doc: &ProfileDoc, at: RecipeNodeId) -> impl Fn(StableName) -> Operand + use<> {
-    let copy = matches!(doc.node(at), Some(Node::Place { .. }));
-    move |name| fixture::read_at(at, if copy { placed(at, name) } else { name })
-}
-
-/// [`fixture::seat::assert_seated`] over the world copies of `a` and
-/// `b` ([`copy_name`]).
+/// [`fixture::seat::assert_seated`] over the product names of `a` and
+/// `b` ([`fixture::product_name`]).
 fn assert_seated(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
+    a: &(impl fixture::Sited + Clone),
+    b: &(impl fixture::Sited + Clone),
     control: &Affine3<f64>,
     what: &str,
 ) {
-    let (a, b) = (copy_name(doc, ev, a), copy_name(doc, ev, b));
+    let (a, b) = (
+        fixture::product_name(doc, ev, a.clone()),
+        fixture::product_name(doc, ev, b.clone()),
+    );
     fixture::seat::assert_seated(doc, ev, &a, &b, control, what);
 }
 
-/// [`fixture::seat::seat_map`] over the world copies of `a` and `b`.
+/// [`fixture::seat::seat_map`] over the product names of `a` and `b`.
 fn seat_map(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
-    a: &StableName,
-    b: &StableName,
+    a: &(impl fixture::Sited + Clone),
+    b: &(impl fixture::Sited + Clone),
 ) -> Affine3<f64> {
-    fixture::seat::seat_map(doc, ev, &copy_name(doc, ev, a), &copy_name(doc, ev, b))
+    fixture::seat::seat_map(
+        doc,
+        ev,
+        &fixture::product_name(doc, ev, a.clone()),
+        &fixture::product_name(doc, ev, b.clone()),
+    )
 }
 
-/// [`fixture::seat::product_face_frame`] of `name`'s world copy.
-fn product_face_frame(doc: &ProfileDoc, ev: &Evaluation<f64>, name: &StableName) -> Affine3<f64> {
-    fixture::seat::product_face_frame(doc, ev, &copy_name(doc, ev, name))
+/// [`fixture::seat::product_face_frame`] of `name`'s product name.
+fn product_face_frame(
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    name: &(impl fixture::Sited + Clone),
+) -> Affine3<f64> {
+    fixture::seat::product_face_frame(doc, ev, &fixture::product_name(doc, ev, name.clone()))
 }
 
 /// A rigid motion: `(translation, rotation axis, angle)`.
@@ -360,10 +339,15 @@ impl Scene {
     fn eval(&self) -> Evaluation<f64> {
         run(&self.doc, &self.opts)
     }
-    fn face_a(&self) -> StableName {
-        self.base_part.cap(self.base, CapEnd::End)
+    /// The base's top cap where the seat reads it: at its placed copy,
+    /// or at the base.
+    fn face_a(&self) -> crate::fixture::resolver::PartName {
+        crate::fixture::resolver::PartName {
+            at: self.a_at,
+            name: self.base_part.cap(self.base, CapEnd::End).name,
+        }
     }
-    fn face_b(&self) -> StableName {
+    fn face_b(&self) -> crate::fixture::resolver::PartName {
         self.top_part.cap(self.top, CapEnd::Start)
     }
     /// Every node evaluated, no mate fault, the mated faces seated in
@@ -545,13 +529,13 @@ fn a3a_a_pattern_of_a_placed_copy_seats() {
         // The placed copy is in the product already, standing where
         // the pattern's copy 0 does.
         let doc = world(doc, &opts, &[], &[(pattern, 1..3)]);
-        let a = in_copy(pattern, COPY, placed(xf, base_part.cap(base, CapEnd::End)));
+        let a = in_copy(pattern, COPY, base_part.cap(base, CapEnd::End));
         let b = top_part.cap(top, CapEnd::Start);
         let (doc, _) = seat(
             doc,
             top,
             &top_part,
-            &|n| fixture::read_minted(in_copy(pattern, COPY, placed(xf, n))),
+            &|n| fixture::read_minted(in_copy(pattern, COPY, n)),
             &base_part,
             base,
         );
@@ -643,7 +627,7 @@ fn two_operands(
     let (doc, m1) = seat(doc, top, &top_part, &at1, &base_part, base);
     let second = rest(
         head(top_part.cap(top, CapEnd::Start)),
-        at2(base_part.cap(base, CapEnd::End)),
+        at2(base_part.cap(base, CapEnd::End).name),
         ContactClass::Rest,
     );
     (doc, opts, m1, second, top)
@@ -718,7 +702,7 @@ fn a6_a_residual_bundle_refuses_on_the_target_or_its_copy() {
         } else {
             (doc, base)
         };
-        let to = read_at(&doc, at)(base_part.cap(base, CapEnd::End));
+        let to = read_at(&doc, at)(base_part.cap(base, CapEnd::End).name);
         let mate = rest(
             head(top_part.cap(top, CapEnd::Start)),
             to,
@@ -1010,7 +994,7 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
         place(doc, &opts, copy)
     });
     let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
-    let a = nest(base_part.cap(base, CapEnd::End));
+    let a = nest(base_part.cap(base, CapEnd::End).name);
     let b = top_part.cap(top, CapEnd::Start);
     let (doc, _) = seat(
         doc,
@@ -1157,7 +1141,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &o);
-    let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End));
+    let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End).name);
     let (doc, _) = constrain_at(
         doc,
         top,
@@ -1211,20 +1195,20 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         crate::fixture::side_head(&out.remainder, *on),
         crate::fixture::side_head(&out.remainder, *to),
     );
-    let Some(Node::Place { shapes, .. }) = out.remainder.node(b.at) else {
+    let Some(Node::Place { source, .. }) = out.remainder.node(b.at) else {
         panic!("the `to` operand still names a placement");
     };
-    let [RoleSeg::Placed { of }] = b.name.path.as_slice() else {
-        panic!("the `to` face wears the placement's layer: {:?}", b.name);
-    };
-    assert_eq!(
-        out.remainder.operation_of(shapes[0].read),
-        Some(of.name().node),
-        "over the very instance the name it wraps is headed at"
+    assert!(
+        out.remainder
+            .operation_of(source.read)
+            .and_then(|at| out.remainder.node(at))
+            .is_some_and(|node| matches!(node, Node::InstantiatePart { .. })),
+        "the placement copies the instance, whose names the `to` face carries: {:?}",
+        b.name
     );
     assert_eq!(
-        a.at, a.name.node,
-        "the `on` face is still read at its own mint"
+        a.at, moved,
+        "the `on` face is still read at the instance whose copy carries it"
     );
     assert!(
         matches!(out.remainder.node(a.at), Some(Node::InstantiatePart { .. })),
@@ -1385,8 +1369,8 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     // `T` is in the product already, standing where the outer
     // pattern's copies `(0, i)` do.
     let doc = world(doc, &opts, &[], &[(outer, 3..6)]);
-    let nest = |n: StableName| in_copy(outer, 1, placed(t, in_copy(inner, 1, n)));
-    let a = nest(base_part.cap(base, CapEnd::End));
+    let nest = |n: StableName| in_copy(outer, 1, in_copy(inner, 1, n));
+    let a = nest(base_part.cap(base, CapEnd::End).name);
     let b = top_part.cap(top, CapEnd::Start);
     let (doc, _) = seat(
         doc,
@@ -1496,15 +1480,10 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
         },
     );
     let nest = |n: StableName| in_copy(outer, j, in_copy(inner, i, n));
-    // The name the `Part` carries: the placed copy's, where it reads one.
-    let carried = |n: StableName| {
-        if via_placed {
-            placed(of, nest(n))
-        } else {
-            nest(n)
-        }
-    };
-    let a = nest(base_part.cap(base, CapEnd::End));
+    // The name the `Part` carries, a placed copy carrying its source's.
+    let carried = nest;
+    // Read where the `Part` is copied into the world.
+    let a = (part, nest(base_part.cap(base, CapEnd::End).name));
     let b = top_part.cap(top, CapEnd::Start);
     let what = format!("Part({k}) naming ({j}, {i}), via a placed copy: {via_placed}");
     // The door decides structure alone, so either seat enters.
@@ -1518,13 +1497,8 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
     );
     match expect {
         PartCase::Seats => {
-            // A placed copy is in the product already; a bare `Part`
-            // is placed here.
-            let doc = if via_placed {
-                doc
-            } else {
-                world(doc, &opts, &[part], &[])
-            };
+            // The `Part` is placed in the world here, whatever it reads.
+            let doc = world(doc, &opts, &[part], &[]);
             let poses = solve(&doc, &opts, Tol::witness());
             let ev = run(&doc, &opts);
             assert!(poses.fault(top).is_none(), "{what}: {:?}", poses.fault(top));

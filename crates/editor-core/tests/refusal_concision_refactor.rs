@@ -93,9 +93,9 @@ test_utils::f6_variants! {
 
 test_utils::f6_variants! {
     const INLINE: InlineError = [
-        UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
+        UnknownNode, NotAnInstance, UnplaceablePart, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict,
-        UnresolvedVarCrossesCut, InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep, RankedRunReordered,
+        UnresolvedVarCrossesCut, InstanceBodyNameReferenced, NameOnDroppedStep, RankedRunReordered,
         StrandedPartName,
         StrandedPartRead, Edit,
     ];
@@ -111,14 +111,8 @@ fn uncarried() -> Vec<Uncarried> {
         Uncarried::OtherSpace {
             placement: s(4, "InstantiatePart"),
         },
-        Uncarried::NoSuchCopy {
-            key: Box::new(editor_core::CopyKey::part(
-                n(4),
-                editor_core::CopyKey::Read(editor_core::VarId::new(
-                    0,
-                    test_utils::refusal::tagged(8),
-                )),
-            )),
+        Uncarried::NoSuchPiece {
+            of: vec![editor_core::VarId::new(0, test_utils::refusal::tagged(8))],
         },
     ]
 }
@@ -234,19 +228,10 @@ fn inline_refusals() -> Vec<InlineError> {
             node: s(5, "Extrude"),
         },
     ];
-    out.extend(uncarried().into_iter().flat_map(|why| {
-        [
-            InlineError::UnplaceablePart {
-                instance: s(4, "InstantiatePart"),
-                why: why.clone(),
-            },
-            InlineError::InstanceReadUncarried {
-                reader: s(5, "Union"),
-                why,
-            },
-        ]
-    }));
     out.extend([
+        InlineError::UnplaceablePart {
+            instance: s(4, "InstantiatePart"),
+        },
         InlineError::Unresolved {
             failure: ResolveFailure::new(
                 ResolveFault::EpsilonSeam,
@@ -269,7 +254,6 @@ fn inline_refusals() -> Vec<InlineError> {
             node: s(4, "Extrude"),
         },
         InlineError::InstanceBodyNameReferenced { name: name() },
-        InlineError::ForeignInstanceName { name: name() },
         InlineError::NameOnDroppedStep {
             name: name(),
             step: StepId::new(0, 4),

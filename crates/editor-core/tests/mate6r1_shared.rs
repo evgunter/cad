@@ -20,7 +20,7 @@ use editor_core::{
     Frame, MateRef, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis,
     assemble, product_recorded, run_checks,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{PartName, PartStore, in_part, with_resolver};
 use fixture::{ang, insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
 
@@ -61,24 +61,25 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// A reference that resolves to NO product face: the part's extrude
 /// has caps, but node 99 does not exist in it at all.
-fn dangling(instance: RecipeNodeId) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 99),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            }
-            .into(),
-        }],
+fn dangling(instance: RecipeNodeId) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
+        at: instance,
+        name: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 99),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        },
     }
 }
 
 /// A rest of `b`'s face on `a`'s, declaring `class`, standing `b`
 /// `apart` beside `a` ([`Seat`]).
-fn mate_of(a: StableName, b: StableName, apart: f64, class: ContactClass) -> Seat {
+fn mate_of(
+    a: impl crate::fixture::Sited,
+    b: impl crate::fixture::Sited,
+    apart: f64,
+    class: ContactClass,
+) -> Seat {
     Seat {
         mate: fixture::rest(fixture::head(b), fixture::head(a), class),
         apart,
@@ -88,7 +89,7 @@ fn mate_of(a: StableName, b: StableName, apart: f64, class: ContactClass) -> Sea
 /// `b` sunk `depth` into `a`: `b`'s face on `a`'s plane slid `-depth`
 /// along its own normal, facing it. A plane constructed off a face
 /// declares no contact, so the overlap is geometry nothing declares.
-fn sunk(a: StableName, b: StableName, depth: f64) -> Seat {
+fn sunk(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, depth: f64) -> Seat {
     let under = fixture::plane(fixture::head(a));
     let under = Operand::Pose(Box::new(PoseDef::Slide {
         pose: RoleRead::plain(under.clone()),
@@ -158,7 +159,7 @@ fn seated_row(
         doc = next;
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// A two-cube stand: the lower cube pinned to the world, the upper one
@@ -168,7 +169,7 @@ fn stand_with(
     part: DocRef,
     body: RecipeNodeId,
     store: &PartStore,
-    seat: impl FnOnce(StableName, StableName) -> Seat,
+    seat: impl FnOnce(PartName, PartName) -> Seat,
 ) -> ProfileDoc {
     let (inner, sub) = seated_row(label, part, 2, store);
     seated(
@@ -213,7 +214,7 @@ fn row_of(
         doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// The refusal `assemble` raised, as a stable one-line tag. This is the
@@ -431,6 +432,7 @@ fn r1_false_carried_declaration_at_both_doors() {
     // a unit apart. The inner mate declares a Rest that the geometry
     // refutes.
     let inner = stand("r1-false-stand", part, body, 2.0, &store);
+    let inner = crate::fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-false-outer", inner_ref, 1, 4.0, &store);
 
@@ -455,6 +457,7 @@ fn r1_true_carried_declaration_at_both_doors() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-true-cube"), Tol::witness());
     let inner = stand("r1-true-stand", part, body, 0.0, &store);
+    let inner = crate::fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-true-outer", inner_ref, 1, 4.0, &store);
 
@@ -557,6 +560,7 @@ fn r1_three_stands_exact_counts() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-x3-cube"), Tol::witness());
     let inner = stand("r1-x3-stand", part, body, 0.0, &store);
+    let inner = crate::fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-x3-outer", inner_ref, 3, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
@@ -583,6 +587,7 @@ fn r1_overlapping_false_carried_declaration() {
     // Sunk half a unit into a unit cube: the two cubes INTERPENETRATE,
     // and nothing declares their caps.
     let inner = stand_with("r1-ovl-stand", part, body, &store, |a, b| sunk(a, b, 0.5));
+    let inner = crate::fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-ovl-outer", inner_ref, 1, 4.0, &store);
 
@@ -612,6 +617,7 @@ fn r1_two_overlapping_false_stands() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("r1-ovl2-cube"), Tol::witness());
     let inner = stand_with("r1-ovl2-stand", part, body, &store, |a, b| sunk(a, b, 0.5));
+    let inner = crate::fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("r1-ovl2-outer", inner_ref, 2, 4.0, &store);
     let ev = run(&outer, &with_resolver(store.clone()));

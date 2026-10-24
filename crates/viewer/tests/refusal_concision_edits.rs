@@ -222,7 +222,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             EditError::OperandUnresolved {
                 node: s(5, "Extrude"),
                 slot: SlotId::Operand(pncad::document::OperandSlot::Profile),
-                read: pncad::document::Operand::Node(s(3, "Profile").id()),
+                read: Box::new(pncad::document::Operand::Node(s(3, "Profile").id())),
             },
         ),
         (
@@ -647,10 +647,11 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "CopyReadOffBodySeat",
-            EditError::CopyReadOffBodySeat {
-                node: s(5, "Extrude"),
-                slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Profile),
+            "PickPath",
+            EditError::PickPath {
+                node: s(5, "Union"),
+                slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Member(0)),
+                at: Some(1),
             },
         ),
         // `PlacementRuleMismatch`: every shape, each spoken with the

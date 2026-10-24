@@ -75,7 +75,7 @@ from pncad import (
     m,
 )
 
-from placing import moves, placed
+from placing import moves, placed, assemble_world_copies
 
 # ---- The scene's dimensions ----
 
@@ -151,7 +151,7 @@ def prism(seed, width, depth, height):
     # edited flat — the part edited until it no longer builds.
     built = height if height > 0 else 1.0
     body = doc.insert(Node.extrude(profile, Formula.length_in(built, m)))
-    doc.place(body, doc.world)
+    doc.set_product(doc.place(body, doc.world))
     if built != height:
         doc.apply(DocEdit.set_param(body, "distance", Formula.length_in(height, m)))
     return doc
@@ -188,8 +188,7 @@ def cap_selector(side, wrapper=None):
     query one nesting deeper. Nothing here reads inside a name.
 
     `PART_FACE` is the wrapper a part's face wears seen through an
-    instance: the instance's own, round the copy the part's world
-    placement makes of its body.
+    instance: none, since a copy carries its source's names verbatim.
     """
     pat = NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(side))
     for tag in reversed(wrapper or []):
@@ -198,9 +197,9 @@ def cap_selector(side, wrapper=None):
 
 
 #: A part's face as an instance of the part names it: the part's
-#: product name — its body's face under its one world placement's copy
-#: — worn under the instance.
-PART_FACE = [SegTag.InPart, SegTag.Placed]
+#: product name, its body's own face, which its one world placement's
+#: copy and the instance's copy carry verbatim.
+PART_FACE = []
 
 
 def one(found):
@@ -213,9 +212,9 @@ def instance_face(store, doc, node, side):
 
     The mate-authoring flow, and the reason no name has to be
     hand-composed: instantiate, evaluate against the store, then SELECT
-    on the instantiate node. What comes back is the part's own name
-    already wrapped at the instance that placed it, which is what a
-    mate reference is.
+    on the instantiate node. What comes back is the part's own name,
+    as the instance's copy carries it, read at that node, which is what
+    a mate reference is.
     """
     found = evaluate(doc, resolver=store).select(node, cap_selector(side, PART_FACE))
     return one(found)
@@ -356,6 +355,7 @@ def layout(store, post_ref, shelf_ref, posts=Node.pattern):
             placed(doc, doc.insert(Node.part(family, PartSelect.instance(Formula.count(i)))), lying())
     else:
         placed(doc, family, lying())
+    assemble_world_copies(doc)
     return doc, post_i, family, shelf_i
 
 
@@ -375,6 +375,8 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
     doc.set_constraints(post_a, Placed.unmated(moves(doc, Frame.translation((0 * m, ROOT_OFFSET_Y * m, 0 * m)))))
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref, doc.world))
     post_b = doc.insert(Node.instantiate_part(post_ref, doc.world))
+    # What the stand delivers: its three copies side by side.
+    assemble_world_copies(doc)
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)

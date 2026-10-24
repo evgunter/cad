@@ -102,23 +102,11 @@ fn lift(r: &mut Recorder, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
     r.in_world(input, &editor_core::Frame::translation([0.0, 0.0, dz]))
 }
 
-/// `name`, as the placement `p` names its copy of the entity.
-fn placed(p: RecipeNodeId, name: &StableName) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: p,
-        path: vec![RoleSeg::Placed {
-            of: editor_core::NameRef::new(name.clone()),
-        }],
-    }
-}
-
 /// The `Body` value of a node — a Part's, a placement's one copy — as
 /// the Arc it holds.
 fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<Body<f64>> {
     match &ev.value(id).expect("a value").payload {
         ValuePayload::Body(b) => b,
-        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("node {} is a {}, not a body", id.0, other.kind_name()),
     }
 }
@@ -400,7 +388,7 @@ fn edges_of_body(ev: &Evaluation<f64>, node: RecipeNodeId, body: u32) -> Vec<Sta
 /// **A3 — names pass through, and only the selected body's.** A fillet
 /// spelled against the split's own above-half edge rows resolves on a
 /// read of the above port, every name uniquely, and a placement of
-/// that read carries exactly those rows, each under its `Placed` layer; a below-half name read there
+/// that read carries exactly those rows, verbatim; a below-half name read there
 /// refuses through the N5 ladder, never re-anchored to a congruent
 /// above-half edge; a selector for instance 2 against `Part(1)` refuses
 /// `Vanished` the same way; `Part(1)`'s table is the master's row count
@@ -442,7 +430,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     assert!(ev.value(rounded).is_some(), "{:?}", error_of(&ev, rounded));
     for name in &selection {
         assert_eq!(
-            denotation(&ev, moved, &placed(moved, name)),
+            denotation(&ev, moved, &name.clone()),
             Ok(Denotation::Unique),
             "{name} resolves through the port as it did on the split"
         );
@@ -456,7 +444,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     // re-anchored to a congruent above-half edge.
     for name in &below_rows {
         assert_eq!(
-            denotation(&ev, moved, &placed(moved, name)),
+            denotation(&ev, moved, &name.clone()),
             Err(editor_core::InterrogateError::NoSuchName),
             "{name} is the other half's"
         );
@@ -527,9 +515,10 @@ fn a4_every_refusal_is_typed() {
     });
     // The empty side offers no geometry to place by: its reader is a
     // placement with no mate yet.
-    let above = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
-        port(split, SplitHalf::Above),
-    )]));
+    let above = r.insert(crate::fixture::stood(editor_core::BodyRead::plain(port(
+        split,
+        SplitHalf::Above,
+    ))));
     let below = lift(&mut r, port(split, SplitHalf::Below), 0.0);
     let ev = eval(&r.doc);
     assert!(
@@ -915,7 +904,7 @@ fn a_tie_the_split_separates_is_unique_through_each_port() {
         assert_eq!(candidates.len(), 2, "{name}: one candidate per half");
         for (p, h) in [(above, SplitHalf::Above), (below, SplitHalf::Below)] {
             assert_eq!(
-                denotation(&ev, p, &placed(p, name)),
+                denotation(&ev, p, &name.clone()),
                 Ok(Denotation::Unique),
                 "{name} is unique through the {h:?} port"
             );

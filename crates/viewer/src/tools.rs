@@ -205,6 +205,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         // A labelled creation is its creation's commit, labelled.
         SessionOp::CreateLabelled { creation, .. } => committed_by(creation.op()),
         SessionOp::SetLabel { .. }
+        | SessionOp::SetProduct { .. }
         | SessionOp::AddMate { .. }
         | SessionOp::Select(_)
         | SessionOp::Hover(_)
@@ -727,26 +728,6 @@ impl Tools {
             }
         }
         notices
-    }
-
-    /// **The open tool's picked names re-seated** after an operation
-    /// that moved them ([`crate::session::Renamed`]); a tool whose
-    /// picks are bodies holds no name to move.
-    pub fn rename(&mut self, renamed: &crate::session::Renamed) {
-        match &mut self.open {
-            Some(OpenTool::Mate(tool)) => tool.rename(renamed),
-            Some(OpenTool::Blend(tool)) => tool.rename(renamed),
-            None
-            | Some(
-                OpenTool::Revolve(_)
-                | OpenTool::Boolean(_)
-                | OpenTool::Split(_)
-                | OpenTool::Transform(_)
-                | OpenTool::Pattern(_)
-                | OpenTool::Part(_)
-                | OpenTool::Duplicate(_),
-            ) => {}
-        }
     }
 
     /// **The open tool's held nodes, spoken again from `doc`**, the

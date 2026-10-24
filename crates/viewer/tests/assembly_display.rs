@@ -45,7 +45,11 @@ fn the_open_path_wires_a_resolver_and_the_assembly_evaluates() {
     // The assembly actually evaluates: every row ok, and the product
     // gathers the three placed solids.
     let rows = session.tree_rows();
-    assert_eq!(rows.len(), 3, "three instances, each its own placement");
+    assert_eq!(
+        rows.len(),
+        4,
+        "three instances, each its own placement, and the product's ⊔"
+    );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

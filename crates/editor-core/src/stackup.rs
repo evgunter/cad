@@ -920,16 +920,7 @@ fn payload_digest<T: ValueChannel>(payload: &ValuePayload<T>) -> u64 {
                 d.body(b);
             }
         }
-        // 10 to 13, 20, 21, 26 and 27 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
-        // The material the table indexes; its copies are the same
-        // material read copy by copy.
-        ValuePayload::Copies(copies) => {
-            d.u64(29);
-            d.u64(copies.bodies.len() as u64);
-            for b in &copies.bodies {
-                d.body(b);
-            }
-        }
+        // 10 to 13, 20, 21, 26, 27 and 29 are retired (`RETIRED_VALUE_DIGEST_TAGS`).
         ValuePayload::Measure { value, .. } => {
             d.u64(22);
             d.scalar(*value);
@@ -973,6 +964,7 @@ const RETIRED_VALUE_DIGEST_TAGS: &[(u64, &str)] = &[
     (21, "Mate"),
     (26, "Gauge"),
     (27, "Datum direction"),
+    (29, "Copies"),
 ];
 
 // ------------------------------------------------- the verdict's tie
@@ -1995,7 +1987,7 @@ mod tests {
             .collect();
         // A census that read nothing would pass vacuously.
         assert!(
-            starts.len() >= 10,
+            starts.len() >= 9,
             "the arm census found only {} arms — the sentinels or the scan have drifted from \
              the match they are supposed to read",
             starts.len()

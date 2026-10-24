@@ -418,11 +418,6 @@ impl<'s> Cites<'_, '_, 's> {
         Item::Name(name, self.at(), self.by)
     }
 
-    /// One cited name, said by tag.
-    fn by_tag<'n>(&mut self, name: &'n StableName) -> Item<'n, 's> {
-        Item::Name(name, self.at(), Speaker::TAG)
-    }
-
     /// A list of cited names: those opened in full, then how many more;
     /// where none is opened, how many of what kind.
     fn list<'n>(&mut self, names: &'n [StableName]) -> Vec<Item<'n, 's>> {
@@ -524,8 +519,6 @@ fn walk<'n>(name: &'n StableName, by: Speaker<'_>) -> Walk<'n> {
                 let join = Join { at: at.node, read };
                 (!join_words(join, by).is_empty()).then_some(Step::Join(join))
             }
-            // A placement's copy is the same entity, placed.
-            CarriedAs::Placed => None,
             CarriedAs::Split => Some(Step::Wrap(Wrap::Split)),
             CarriedAs::ToolCopy => Some(Step::Wrap(Wrap::ToolCopy)),
             CarriedAs::Instance(i) => Some(Step::Wrap(Wrap::Instance(i))),
@@ -991,10 +984,6 @@ fn role<'n, 's>(
         RoleSeg::HoleRim { of, hole } => {
             vec![text(format!("the rim of hole {hole} in ")), cites.one(of)]
         }
-        // The part's own steps and nodes are another document's ids,
-        // so the part-local name is said by tag.
-        RoleSeg::InPart { of } => vec![cites.by_tag(of), text(" in the part")],
-        RoleSeg::Placed { of } => vec![text("the world copy of "), cites.one(of)],
         // A carry or a qualifier is a role only inside a path no
         // operation mints: the walk looks through a lone carry, and a
         // qualifier never ends the head. Each still has words of its

@@ -312,8 +312,8 @@ fn part_face(body: RecipeNodeId) -> StableName {
 /// whose body is `body`: the mate `placed`'s bundle holds.
 fn mate(body: RecipeNodeId, on: RecipeNodeId, placed: RecipeNodeId) -> Mate<Formula> {
     fixture::rest(
-        fixture::head(in_part(placed, body, CapEnd::Start)),
-        fixture::head(in_part(on, body, CapEnd::Start)),
+        fixture::head_at(placed, in_part(placed, body, CapEnd::Start)),
+        fixture::head_at(on, in_part(on, body, CapEnd::Start)),
         ContactClass::Rest,
     )
 }
@@ -443,7 +443,9 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
             class: ContactClass::Rest,
-            outer: face(in_part(ids[0], body, CapEnd::Start)),
+            // An `outer` is a remainder name: spelled on a node this
+            // document holds.
+            outer: face(crate::fixture::resolver::in_world(ids[0], CapEnd::Start)),
             inner: face(part_face(body)),
         }],
     };
@@ -610,7 +612,10 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let cap = fixture::plane(fixture::head(in_part(ids[0], body, CapEnd::Start)));
+    let cap = fixture::plane(fixture::head_at(
+        ids[0],
+        in_part(ids[0], body, CapEnd::Start),
+    ));
     let on_the_world = Mate {
         on: cap.clone(),
         to: cap,

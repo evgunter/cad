@@ -181,7 +181,8 @@ fn through_the_document(tol: Tol) -> Body<f64> {
 /// hands a reader exactly the recipe this scene's claim rests on.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, revolved) = document(tol);
-    crate::world::place_in_world(&doc, Operand::output(revolved, 0), tol).doc
+    let placed = crate::world::place_in_world(&doc, Operand::output(revolved, 0), tol);
+    crate::world::set_product(&placed.doc, &[Operand::Node(placed.placement)], tol).doc
 }
 
 /// The ring's recipe and its revolve node.

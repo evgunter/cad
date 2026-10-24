@@ -31,7 +31,7 @@ use editor_core::{
     Frame, MateRef, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, TargetAxis, assemble,
     run_checks,
 };
-use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::resolver::{PartName, PartStore, in_part, with_resolver};
 use fixture::{insert, len, mated_instance, on_frame, run};
 use geom_core::Tol;
 
@@ -71,24 +71,25 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// A reference whose inner name answers to nothing of the part —
 /// `RecipeNodeId(99)` has no face — so a pose read off it does not
 /// evaluate, and its placement refuses.
-fn vanished(instance: RecipeNodeId) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, 99),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            }
-            .into(),
-        }],
+fn vanished(instance: RecipeNodeId) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
+        at: instance,
+        name: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId::new(0, 99),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        },
     }
 }
 
 /// A rest of `b`'s face on `a`'s, declaring `class`, standing `b`
 /// `apart` beside `a` ([`Seat`]).
-fn mate_node(a: StableName, b: StableName, class: ContactClass, apart: f64) -> Seat {
+fn mate_node(
+    a: impl crate::fixture::Sited,
+    b: impl crate::fixture::Sited,
+    class: ContactClass,
+    apart: f64,
+) -> Seat {
     Seat {
         mate: fixture::rest(fixture::head(b), fixture::head(a), class),
         apart,
@@ -98,7 +99,7 @@ fn mate_node(a: StableName, b: StableName, class: ContactClass, apart: f64) -> S
 /// `b` sunk `depth` into `a`: `b`'s face on `a`'s plane slid `-depth`
 /// along its own normal, facing it. A plane constructed off a face
 /// declares no contact, so the overlap is geometry nothing declares.
-fn sunk(a: StableName, b: StableName, depth: f64) -> Seat {
+fn sunk(a: impl crate::fixture::Sited, b: impl crate::fixture::Sited, depth: f64) -> Seat {
     let under = fixture::plane(fixture::head(a));
     let under = editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Slide {
         pose: editor_core::pose::RoleRead::plain(under.clone()),
@@ -155,7 +156,7 @@ fn stand_with(
     part: DocRef,
     body: RecipeNodeId,
     store: &PartStore,
-    seat: impl FnOnce(StableName, StableName) -> Seat,
+    seat: impl FnOnce(PartName, PartName) -> Seat,
 ) -> (ProfileDoc, Vec<RecipeNodeId>, MateRef) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, lower) = fixture::insert_pinned(
@@ -206,7 +207,7 @@ fn row_of(
         doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// A one-line, cross-tree-comparable rendering of an assemble error.
@@ -250,6 +251,7 @@ fn stand_with_two_bad_mates(
     let (doc, ids, _) = stand(&format!("{label}-stand"), part, body, 2.0, store);
     let (doc, first) = insert(doc, mated_instance(part));
     let (doc, second) = insert(doc, mated_instance(part));
+    let doc = crate::fixture::assemble_world_copies(doc);
     let (badref, tangent) = if badref_first {
         (first, second)
     } else {
@@ -277,9 +279,10 @@ fn stand_with_two_bad_mates(
 }
 
 /// The gate's answer over a document whose bad reference failed its
-/// placement: the gather refuses that placement typed, ahead of every
-/// mint row (the Tangent's included) and of the declared gate, and the
-/// placement's own refusal is the mate's.
+/// placement: the gather refuses the product's `⊔`, poisoned through
+/// that placement, typed, ahead of every mint row (the Tangent's
+/// included) and of the declared gate, and the placement's own refusal
+/// is the mate's.
 fn refuses_the_failed_placement(
     doc: &ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
@@ -290,8 +293,10 @@ fn refuses_the_failed_placement(
         Err(AssemblyError::Product(refusal)) => assert!(
             matches!(
                 **refusal,
-                editor_core::ProductError::Root(editor_core::NodeStanding::Failed { node })
-                    if node == badref
+                editor_core::ProductError::Root(editor_core::NodeStanding::Poisoned {
+                    through,
+                    ..
+                }) if through == badref
             ),
             "the failed placement is the gate's answer: {refusal:?}"
         ),
@@ -334,6 +339,7 @@ fn p3_checks_over_the_seam_document() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("m6r2-p3-cube"), Tol::witness());
     let (inner, _, _) = stand("m6r2-p3-stand", part, body, 0.0, &store);
+    let inner = crate::fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p3-row", inner_ref, 3, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
@@ -417,6 +423,7 @@ fn p6_carried_penetration_is_loud() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("m6r2-p6-cube"), Tol::witness());
     let (inner, _, _) = stand_with("m6r2-p6-stand", part, body, &store, |a, b| sunk(a, b, 0.5));
+    let inner = crate::fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p6-row", inner_ref, 1, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
@@ -433,6 +440,7 @@ fn p7_seam_gate_by_arm() {
     let mut store = PartStore::default();
     let (part, body) = store.insert_part(cube_part("m6r2-p7-cube"), Tol::witness());
     let (inner, _, _) = stand("m6r2-p7-stand", part, body, 0.0, &store);
+    let inner = crate::fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p7-row", inner_ref, 3, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
@@ -485,6 +493,7 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
     );
     let inner_ev = run(&inner, &with_resolver(store.clone()));
     let inner_result = assemble(&inner, &inner_ev, Tol::witness());
+    let inner = crate::fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p8-row", inner_ref, 1, 4.0, &store);
     let ev = run(&outer, &with_resolver(store));
