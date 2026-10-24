@@ -1057,11 +1057,7 @@ pub(crate) mod tests {
         );
         // A constant weight is the integral arm's, `1` or not.
         for c in [1.0, 2.0] {
-            let integral = patch(
-                vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0],
-                &arc,
-                &[c; 5],
-            );
+            let integral = patch(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], &arc, &[c; 5]);
             assert!(
                 matches!(
                     patch_cells_across_creases(&integral),
