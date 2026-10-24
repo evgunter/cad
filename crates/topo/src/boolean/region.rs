@@ -1,20 +1,24 @@
 //! **What the region readings share**: the skeleton [`super::sphere_region`],
 //! [`super::torus_region`] and [`super::ruled_region`] read a trimmed
-//! curved face with, each door supplying only its surface's legs and
+//! curved face with, each door supplying only its surface's courses and
 //! landings —
-//! the boundary gather ([`boundary`]: every edge of every loop, seams
-//! left out, an uncertified edge refused, null scaffolding stepped over
-//! or refused as the door says), the boundary pre-pass
-//! ([`Region::on_boundary`]), the path roster and its walk ([`walk`], over
-//! a [`Paths`] door's legs), a path's reading ([`read_path`],
-//! [`read_leg`]) and its crossing offer (`offer`), and the leaves under
-//! them:
+//! the boundary gather ([`boundary`]: every edge of every loop on its
+//! certified [`geom::Curve3`], of a kind the door admits, seams left
+//! out, an uncertified edge refused, null scaffolding stepped over or
+//! refused as the door says), the boundary pre-pass
+//! ([`Region::on_boundary`]), the path roster and its walk ([`walk`],
+//! over a [`Paths`] door's legs), a leg's reading ([`read_leg`], over a
+//! [`Legs`] door's landings, which the sphere's rays read too) and a
+//! path's ([`read_path`]), their crossing offer (`offer`), and the leaves
+//! under them:
 //! the one refusal they answer ([`RegionRefusal`]), the targets their aimed
 //! paths take ([`targets`], at [`TARGET_SHARES`]), the boundary reading of
 //! a circle edge on its own carrier ([`circle_edge_hit`]), a root against
 //! its edge's span ([`span`]), the verdict read at a path's closest
-//! crossing ([`side_at_closest`]), a leg round a parallel ([`Round`],
-//! [`parallel`]), and a leg's turn and root answer ([`turn`], [`found`]).
+//! crossing ([`side_at_closest`]), a leg ([`Leg`]: its [`Course`], a
+//! circle [`Round`] or a [`Line`], its [`End`], a landing's place along
+//! it and an edge lying along it), a parallel ([`parallel`]), and a
+//! turn and a root answer ([`turn`], [`found`]).
 //! Each door keeps its own rows and its crossing arithmetic.
 
 use geom_brep::roots::{RootRefusal, Roots};
@@ -201,46 +205,28 @@ pub(crate) fn found<T: Decide>(
 /// edge, where no side is read.
 pub(crate) type Landing<T> = (Point3<T>, T, bool);
 
-/// An edge's carrier, as a region reads it.
-pub(crate) trait EdgeCarrier<T: geom_core::Real> {
-    /// The point at parameter `t`.
-    fn at(&self, t: T) -> Point3<T>;
-
-    /// A tangent at `t` along increasing `t`, of any length.
-    fn tangent(&self, t: T) -> Vec3<T>;
-}
-
-impl<T: Decide> EdgeCarrier<T> for geom::Curve3<T> {
-    fn at(&self, t: T) -> Point3<T> {
-        self.eval(t)
-    }
-
-    fn tangent(&self, t: T) -> Vec3<T> {
-        self.deriv(t)
-    }
-}
-
-/// One boundary edge of a region over its certified span `[t0, t1]`.
+/// One boundary edge of a region over its certified span `[t0, t1]`,
+/// on its certified carrier, of a kind its door admits ([`boundary`]).
 #[derive(Clone, Debug)]
-pub(crate) struct RegionEdge<T: geom_core::Real, C> {
+pub(crate) struct RegionEdge<T: geom_core::Real> {
     pub(crate) edge: EdgeKey,
     /// The loop the edge bounds.
     pub(crate) r#loop: LoopKey,
-    pub(crate) carrier: C,
+    pub(crate) carrier: geom::Curve3<T>,
     pub(crate) t0: T,
     pub(crate) t1: T,
     /// Whether the loop runs `t0 → t1` (its `he_plus`).
     pub(crate) forward: bool,
 }
 
-impl<T: Decide, C: EdgeCarrier<T>> RegionEdge<T, C> {
+impl<T: Decide> RegionEdge<T> {
     pub(crate) fn at(&self, t: T) -> Point3<T> {
-        self.carrier.at(t)
+        self.carrier.eval(t)
     }
 
     /// The loop's unit traversal direction at `t`.
     pub(crate) fn traversal(&self, t: T) -> Vec3<T> {
-        let d = self.carrier.tangent(t);
+        let d = self.carrier.deriv(t);
         let d = d / d.norm();
         if self.forward { d } else { -d }
     }
@@ -257,9 +243,8 @@ pub(crate) enum Scaffolding {
 }
 
 /// **`face`'s boundary**: every edge of its outer loop and its rings, in
-/// loop order, each with the carrier `carrier` reads off its certified
-/// curve. `None` where `carrier` refuses a curve, or where an edge has no
-/// certified curve: an uncertified edge between two points is a gap in
+/// loop order, each on its certified carrier. `None` where a carrier's
+/// kind is not one of `admits`, or where an edge has no certified curve: an uncertified edge between two points is a gap in
 /// the boundary no reading may step over, and null scaffolding is as
 /// `scaffolding` says. An edge both of whose sides are the face (a seam,
 /// both its half-edges in the face's loops) is no boundary of it and is
@@ -275,12 +260,12 @@ pub(crate) enum Scaffolding {
 /// Where a boundary edge's curve does not resolve (D2 row 4): a torn
 /// curve is not null scaffolding. The links hold at rest and, on the
 /// reduction's working copies, by [`crate::live::OPERATORS_KEEP_LINKS`].
-pub(crate) fn boundary<T: Decide, C>(
+pub(crate) fn boundary<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     scaffolding: Scaffolding,
-    mut carrier: impl FnMut(&geom::Curve3<T>) -> Option<C>,
-) -> Result<Option<Vec<RegionEdge<T, C>>>, PointInSolidError> {
+    admits: &[geom::CurveKind],
+) -> Result<Option<Vec<RegionEdge<T>>>, PointInSolidError> {
     let corrupt = || PointInSolidError::CorruptFace { face };
     let f = body.get_face(face).ok_or_else(corrupt)?;
     let mut edges = Vec::new();
@@ -309,14 +294,14 @@ pub(crate) fn boundary<T: Decide, C>(
                 }
                 return Ok(None);
             };
-            let Some(read) = carrier(curve.carrier()) else {
+            if !admits.contains(&curve.carrier().kind()) {
                 return Ok(None);
-            };
+            }
             let (t0, t1) = curve.params();
             edges.push(RegionEdge {
                 edge: edge_key,
                 r#loop: lk,
-                carrier: read,
+                carrier: curve.carrier().clone(),
                 t0,
                 t1,
                 forward: he == edge.he_plus,
@@ -331,9 +316,7 @@ pub(crate) fn boundary<T: Decide, C>(
 
 /// Three points of every edge, in loop order, at [`TARGET_SHARES`] of
 /// its span: the aimed paths' targets.
-pub(crate) fn targets<T: Decide, C: EdgeCarrier<T>>(
-    edges: &[RegionEdge<T, C>],
-) -> impl Iterator<Item = Point3<T>> + '_ {
+pub(crate) fn targets<T: Decide>(edges: &[RegionEdge<T>]) -> impl Iterator<Item = Point3<T>> + '_ {
     edges.iter().flat_map(|edge| {
         TARGET_SHARES
             .into_iter()
@@ -345,10 +328,8 @@ pub(crate) fn targets<T: Decide, C: EdgeCarrier<T>>(
 /// boundary and, per edge, the boundary reading on the edge's own
 /// carrier.
 pub(crate) trait Region<T: Decide> {
-    type Carrier: EdgeCarrier<T>;
-
     /// The face's boundary ([`boundary`]).
-    fn edges(&self) -> &[RegionEdge<T, Self::Carrier>];
+    fn edges(&self) -> &[RegionEdge<T>];
 
     /// The face's outer loop, named by an exhaustion.
     fn outer(&self) -> LoopKey;
@@ -361,7 +342,7 @@ pub(crate) trait Region<T: Decide> {
     /// In the band of the edge, or a reading that cannot place `p`.
     fn on_edge(
         &self,
-        edge: &RegionEdge<T, Self::Carrier>,
+        edge: &RegionEdge<T>,
         p: Point3<T>,
         band: Band,
     ) -> Result<bool, RegionRefusal>;
@@ -384,6 +365,155 @@ pub(crate) trait Region<T: Decide> {
     }
 }
 
+/// **A leg's course**: the line or circle it runs along from its start
+/// at place `0`, places measured in metres along it.
+pub(crate) trait Course<T: Decide> {
+    /// Where `y`, a crossing on the course, lies along it, on the row
+    /// `at`: `Some(place)` ahead of the start, `None` behind it.
+    ///
+    /// # Errors
+    ///
+    /// A crossing at the start grazes; an in-band one sets the path aside.
+    fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault>;
+
+    /// Where `y`, an end of an edge lying along the course, lies along
+    /// it: `Some(place)` ahead of the start, `None` behind it.
+    ///
+    /// # Errors
+    ///
+    /// An end at the start grazes; an in-band one sets the path aside.
+    fn reach(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault>;
+
+    /// The unit direction of travel at `y`.
+    fn heading(&self, y: Point3<T>) -> Vec3<T>;
+}
+
+/// Where a bounded leg stops: its place along the leg, and the row a
+/// place is read against it on.
+#[derive(Clone, Copy)]
+pub(crate) struct End<T: geom_core::Real> {
+    pub(crate) place: T,
+    pub(crate) row: &'static str,
+}
+
+/// One leg of a path along its course `C`, ending at `end` where it is
+/// bounded.
+#[derive(Clone, Copy)]
+pub(crate) struct Leg<T: geom_core::Real, C> {
+    pub(crate) course: C,
+    pub(crate) end: Option<End<T>>,
+}
+
+impl<T: Decide, C: Course<T>> Leg<T, C> {
+    /// A leg running its whole course.
+    pub(crate) fn whole(course: C) -> Self {
+        Self { course, end: None }
+    }
+
+    /// Whether a place ahead of the start lies short of the leg's end.
+    ///
+    /// # Errors
+    ///
+    /// A place at the end grazes; an in-band one sets the path aside.
+    fn short_of_end(&self, s: T, band: Band) -> Result<bool, Fault> {
+        let Some(end) = self.end else {
+            return Ok(true);
+        };
+        match decide(end.row, Margin::of(end.place - s), band).map_err(in_band)? {
+            Sign::Positive => Ok(true),
+            Sign::Negative => Ok(false),
+            Sign::Zero => Err(RayFault::Graze),
+        }
+    }
+
+    /// Where the landing `y` lies along the leg, on the row `at`:
+    /// `Some(place)` ahead of its start and short of its end, `None` off
+    /// the leg.
+    ///
+    /// # Errors
+    ///
+    /// A graze or an in-band reading sets the path aside.
+    pub(crate) fn place(
+        &self,
+        y: Point3<T>,
+        at: &'static str,
+        band: Band,
+    ) -> Result<Option<T>, Fault> {
+        let Some(s) = self.course.place(y, at, band)? else {
+            return Ok(None);
+        };
+        Ok(self.short_of_end(s, band)?.then_some(s))
+    }
+
+    /// **An edge lying along the leg's own course**: the leg runs along
+    /// it if it reaches it, which grazes. A leg reaches every point of its
+    /// course from its start to its end; neither end of the edge is the
+    /// leg's start, which the boundary pre-pass placed off the edge.
+    ///
+    /// # Errors
+    ///
+    /// The leg reaching the edge grazes; an in-band reading sets the path
+    /// aside.
+    pub(crate) fn along(
+        &self,
+        edge: &RegionEdge<T>,
+        at: &'static str,
+        band: Band,
+    ) -> Result<(), Fault> {
+        let mut behind = 0;
+        let mut past = 0;
+        for t in [edge.t0, edge.t1] {
+            let Some(s) = self.course.reach(edge.at(t), at, band)? else {
+                behind += 1;
+                continue;
+            };
+            let Some(end) = self.end else {
+                return Err(RayFault::Graze);
+            };
+            match decide(end.row, Margin::of(end.place - s), band).map_err(in_band)? {
+                Sign::Negative => past += 1,
+                Sign::Positive | Sign::Zero => return Err(RayFault::Graze),
+            }
+        }
+        if behind == 2 || past == 2 {
+            Ok(())
+        } else {
+            Err(RayFault::Graze)
+        }
+    }
+}
+
+/// **A region read along legs**: where a leg meets the boundary, and the
+/// face's side there.
+pub(crate) trait Legs<T: Decide>: Region<T> {
+    type Course: Course<T> + Copy;
+
+    /// The row a crossing's place along a leg is read on.
+    const AT: &'static str;
+
+    /// The rows the closest crossing is read under: `(order, cross)`.
+    const SIDE: (&'static str, &'static str);
+
+    /// The lever of the closest crossing's sine.
+    fn lever(&self) -> T;
+
+    /// Where `leg` meets `edge`'s carrier. Where along the leg each
+    /// landing lies is the skeleton's to read ([`Leg::place`]).
+    ///
+    /// # Errors
+    ///
+    /// A graze or an in-band reading sets the path aside.
+    fn landings(
+        &self,
+        edge: &RegionEdge<T>,
+        leg: &Leg<T, Self::Course>,
+        band: Band,
+    ) -> Result<Vec<Landing<T>>, Fault>;
+
+    /// The face's unit outward normal at `y`.
+    fn outward(&self, y: Point3<T>) -> Vec3<T>;
+}
+
 /// A path to read: a leg from `p`, or two through a corner.
 #[derive(Clone, Copy)]
 pub(crate) enum Path<T: geom_core::Real> {
@@ -402,17 +532,8 @@ pub(crate) enum Path<T: geom_core::Real> {
 }
 
 /// **A region read along paths of legs**: a surface's two families of
-/// curves through a point, its parallels and one other, each leg read
-/// by its own landings.
-pub(crate) trait Paths<T: Decide>: Region<T> {
-    type Leg;
-
-    /// The rows the closest crossing is read under: `(order, cross)`.
-    const SIDE: (&'static str, &'static str);
-
-    /// The lever of the closest crossing's sine.
-    fn lever(&self) -> T;
-
+/// curves through a point, its parallels and one other.
+pub(crate) trait Paths<T: Decide>: Legs<T> {
     /// `p`'s own leg of a family ([`Path::Single`]).
     ///
     /// # Errors
@@ -424,17 +545,17 @@ pub(crate) trait Paths<T: Decide>: Region<T> {
         parallel: bool,
         forward: bool,
         band: Band,
-    ) -> Result<Self::Leg, Fault>;
+    ) -> Result<Leg<T, Self::Course>, Fault>;
 
-    /// An aimed path's legs ([`Path::Aimed`]): the first, ending at its
-    /// corner; the corner's place along the path, where the second
-    /// starts; and the second, built only where the first leg leaves the
-    /// path undecided.
+    /// An aimed path's legs ([`Path::Aimed`]): the first, whose end is
+    /// its corner, where the second starts; and the second, built only
+    /// where the first leg leaves the path undecided.
     ///
     /// # Errors
     ///
     /// A leg the door cannot frame sets the path aside.
     #[allow(clippy::too_many_arguments)] // one path's spec, unpacked
+    #[allow(clippy::type_complexity)] // the first course, its corner, the second leg
     fn aimed(
         &self,
         p: Point3<T>,
@@ -443,33 +564,7 @@ pub(crate) trait Paths<T: Decide>: Region<T> {
         first_forward: bool,
         then_forward: bool,
         band: Band,
-    ) -> Result<(Self::Leg, T, impl FnOnce() -> Self::Leg), Fault>;
-
-    /// Where `leg` meets `edge`'s carrier.
-    ///
-    /// # Errors
-    ///
-    /// A graze or an in-band reading sets the path aside.
-    fn landings(
-        &self,
-        edge: &RegionEdge<T, Self::Carrier>,
-        leg: &Self::Leg,
-        band: Band,
-    ) -> Result<Vec<Landing<T>>, Fault>;
-
-    /// Where the landing `y` lies along `leg`: `Some(place)` ahead of its
-    /// start and short of its end, `None` off the leg.
-    ///
-    /// # Errors
-    ///
-    /// A graze or an in-band reading sets the path aside.
-    fn place(&self, leg: &Self::Leg, y: Point3<T>, band: Band) -> Result<Option<T>, Fault>;
-
-    /// The unit direction of travel along `leg` at `y`.
-    fn heading(&self, leg: &Self::Leg, y: Point3<T>) -> Vec3<T>;
-
-    /// The face's unit outward normal at `y`.
-    fn outward(&self, y: Point3<T>) -> Vec3<T>;
+    ) -> Result<(Self::Course, End<T>, impl FnOnce() -> Leg<T, Self::Course>), Fault>;
 }
 
 /// **The path walk** ([`ray_walk::walk`]): `p`'s parallel forward and
@@ -526,12 +621,16 @@ pub(crate) fn read_path<T: Decide, D: Paths<T>>(
         } => {
             let (first, corner, then) =
                 door.aimed(p, target, parallel_first, first_forward, then_forward, band)?;
+            let first = Leg {
+                course: first,
+                end: Some(corner),
+            };
             let mut crossings = Crossings::new();
             // Past a crossing before the corner, every crossing of the
             // second leg lies beyond it, decided apart from the corner by
             // its own rows.
             if !offer(door, &first, T::zero(), &mut crossings, band)? {
-                offer(door, &then(), corner, &mut crossings, band)?;
+                offer(door, &then(), corner.place, &mut crossings, band)?;
             }
             side(door, crossings, band)
         }
@@ -539,9 +638,9 @@ pub(crate) fn read_path<T: Decide, D: Paths<T>>(
 }
 
 /// A path of the one leg `leg`: whether its start is in the face.
-pub(crate) fn read_leg<T: Decide, D: Paths<T>>(
+pub(crate) fn read_leg<T: Decide, D: Legs<T>>(
     door: &D,
-    leg: &D::Leg,
+    leg: &Leg<T, D::Course>,
     band: Band,
 ) -> Result<bool, Fault> {
     let mut crossings = Crossings::new();
@@ -551,7 +650,7 @@ pub(crate) fn read_leg<T: Decide, D: Paths<T>>(
 
 /// A path's verdict at its closest crossing. A path meeting no edge
 /// lies wholly on one side.
-fn side<T: Decide, D: Paths<T>>(
+fn side<T: Decide, D: Legs<T>>(
     door: &D,
     crossings: Crossings<T, Hit<T>>,
     band: Band,
@@ -561,12 +660,12 @@ fn side<T: Decide, D: Paths<T>>(
 
 /// **The crossing offer**: every crossing of `leg` with the boundary,
 /// edge by edge, at `offset` plus its place along the leg
-/// ([`Paths::place`]). Each edge's landings are all read
-/// ([`Paths::landings`]) before any of them is placed. Whether one was
+/// ([`Leg::place`]). Each edge's landings are all read
+/// ([`Legs::landings`]) before any of them is placed. Whether one was
 /// offered.
-fn offer<T: Decide, D: Paths<T>>(
+fn offer<T: Decide, D: Legs<T>>(
     door: &D,
-    leg: &D::Leg,
+    leg: &Leg<T, D::Course>,
     offset: T,
     crossings: &mut Crossings<T, Hit<T>>,
     band: Band,
@@ -574,13 +673,13 @@ fn offer<T: Decide, D: Paths<T>>(
     let mut offered = false;
     for edge in door.edges() {
         for (y, t, sideless) in door.landings(edge, leg, band)? {
-            let Some(s) = door.place(leg, y, band)? else {
+            let Some(s) = leg.place(y, D::AT, band)? else {
                 continue;
             };
             crossings.push(
                 offset + s,
                 Hit {
-                    heading: door.heading(leg, y),
+                    heading: leg.course.heading(y),
                     face_side: door.outward(y).cross(edge.traversal(t)),
                 },
                 sideless,
@@ -615,11 +714,59 @@ impl<T: Decide> Round<T> {
         let w = y - self.center;
         w.dot(self.e2).atan2(w.dot(self.e1))
     }
+}
 
-    /// The unit direction of travel at `y`.
-    pub(crate) fn heading(&self, y: Point3<T>) -> Vec3<T> {
+/// Places round the circle are arc lengths in `[0, 2π·radius)`: a
+/// circle has no behind.
+impl<T: Decide> Course<T> for Round<T> {
+    /// Read the shorter way round ([`ray_walk::apart`]), then as a turn
+    /// ahead.
+    fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
+        let s = self.angle(y);
+        ray_walk::apart(at, Margin::of((self.radius * s).abs()), band)
+            .map_err(|f| f.map(RegionRefusal::Escalated))?;
+        Ok(Some(self.radius * turn(s)))
+    }
+
+    fn reach(&self, y: Point3<T>, _: &'static str, _: Band) -> Result<Option<T>, Fault> {
+        Ok(Some(self.radius * turn(self.angle(y))))
+    }
+
+    fn heading(&self, y: Point3<T>) -> Vec3<T> {
         let h = self.normal.cross(y - self.center);
         h / h.norm()
+    }
+}
+
+/// A leg along the line from `start` in unit direction `dir`.
+#[derive(Clone, Copy)]
+pub(crate) struct Line<T: geom_core::Real> {
+    pub(crate) start: Point3<T>,
+    pub(crate) dir: Vec3<T>,
+}
+
+impl<T: Decide> Course<T> for Line<T> {
+    fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
+        let s = (y - self.start).dot(self.dir);
+        match ray_walk::advance(at, Margin::of(s), band)
+            .map_err(|f| f.map(RegionRefusal::Escalated))?
+        {
+            Sign::Negative => Ok(None),
+            _ => Ok(Some(s)),
+        }
+    }
+
+    fn reach(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
+        let s = (y - self.start).dot(self.dir);
+        match decide(at, Margin::of(s), band).map_err(in_band)? {
+            Sign::Negative => Ok(None),
+            Sign::Positive => Ok(Some(s)),
+            Sign::Zero => Err(RayFault::Graze),
+        }
+    }
+
+    fn heading(&self, _: Point3<T>) -> Vec3<T> {
+        self.dir
     }
 }
 
