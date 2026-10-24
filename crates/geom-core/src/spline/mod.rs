@@ -87,4 +87,4 @@ pub use locate::{SpanLocate, SpanSet, poison_from, structure_ascends, structure_
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
 pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
 pub use range::{Param, ParamRange};
-pub use weights::Weights;
+pub use weights::{Weights, constant_weight};
