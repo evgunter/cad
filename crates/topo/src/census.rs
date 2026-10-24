@@ -16631,6 +16631,7 @@ mod records_by_carrier {
                 (0.0, 1.0),
                 tol,
             );
+            crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, tol);
             let block = brick::<f64>((x, x + 1.0), (-0.5, 0.5), (0.0, 1.0), tol);
             let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
             let side = block
@@ -16909,6 +16910,7 @@ mod two_carrier_records {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         let wall = cyl_wall_sheet(&mut body, CylFrame::canonical(1.0), u, v, tol);
+        crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, tol);
         let block = brick::<f64>((1.0, 2.0), (-0.5, 0.5), bz, tol);
         let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
         let side = block
@@ -16988,7 +16990,7 @@ mod two_carrier_records {
             u_ref: -geom_core::Vec3::unit_z(),
         };
         let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
-        body.get_face_mut(wall).unwrap().sense = true;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
         let placed = |x: f64| {
             crate::boolean::face_placement(
                 &body,
@@ -17195,8 +17197,8 @@ mod two_carrier_records {
         let mut frame = CylFrame::canonical(0.5);
         frame.origin = geom_core::Point3::new(0.5, 0.0, 0.0);
         let b = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.0, 1.0), tol);
-        body.get_face_mut(a).unwrap().sense = true;
-        body.get_face_mut(b).unwrap().sense = false;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, a, true, Tol::witness());
+        crate::test_support_fixtures::set_sheet_sense(&mut body, b, false, Tol::witness());
         let bare = census_and_certify(&body, &ContactRecords::default(), band(), tol, None);
         assert!(
             names(&bare, a, b),
@@ -17282,7 +17284,7 @@ mod two_carrier_records {
                 u_ref: -geom_core::Vec3::unit_z(),
             };
             let wall = cyl_wall_sheet(&mut body, frame, u, wx, tol);
-            body.get_face_mut(wall).unwrap().sense = true;
+            crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
             Rig { body, wall, top }
         }
 
@@ -17417,7 +17419,12 @@ mod two_carrier_records {
         /// of each row.
         fn census_opposed(outline: &[(f64, f64)]) -> (Rig, Vec<(f64, bool, Vec<ValidationError>)>) {
             let mut r = rig(outline, (0.5, 3.5), (-0.5, 0.5));
-            r.body.get_face_mut(r.wall).unwrap().sense = false;
+            crate::test_support_fixtures::set_sheet_sense(
+                &mut r.body,
+                r.wall,
+                false,
+                Tol::witness(),
+            );
             let rows = census(&r);
             (r, rows)
         }
@@ -17468,7 +17475,12 @@ mod two_carrier_records {
         /// or `confirmed` where nothing names the pair.
         fn reading(outline: &[(f64, f64)], wx: (f64, f64), sense: bool) -> [String; 2] {
             let mut r = rig(outline, wx, (-0.5, 0.5));
-            r.body.get_face_mut(r.wall).unwrap().sense = sense;
+            crate::test_support_fixtures::set_sheet_sense(
+                &mut r.body,
+                r.wall,
+                sense,
+                Tol::witness(),
+            );
             let b = Band::linear(Tol::witness()).unwrap();
             let (a, t) = (r.wall, r.top);
             let is = |x: FaceKey, y: FaceKey| (x, y) == (a, t) || (x, y) == (t, a);
@@ -17949,7 +17961,12 @@ mod two_carrier_records {
                     u_ref: -geom_core::Vec3::unit_z(),
                 };
                 let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (-2.0, 2.0), tol);
-                body.get_face_mut(wall).unwrap().sense = true;
+                crate::test_support_fixtures::set_sheet_sense(
+                    &mut body,
+                    wall,
+                    true,
+                    Tol::witness(),
+                );
                 let b = Band::linear(tol).unwrap();
                 let line = crate::boolean::tangent_pair_at_rest(&body, wall, cap, b);
                 let desc = match &line {
@@ -19130,8 +19147,8 @@ mod same_solid_tangent_lines {
         let (fa, _) = cyl_wall_sheet_keyed(&mut body, a, CylKey::Bare, (-ua, ua), (0.0, 1.0), tol);
         let (fb, _) = cyl_wall_sheet_keyed(&mut body, b, CylKey::Bare, (-ub, ub), (0.2, 0.8), tol);
         crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
-        body.get_face_mut(fa).unwrap().sense = sense_a;
-        body.get_face_mut(fb).unwrap().sense = sense_b;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, fa, sense_a, Tol::witness());
+        crate::test_support_fixtures::set_sheet_sense(&mut body, fb, sense_b, Tol::witness());
         if one_solid {
             body.merge_all_solids().unwrap();
         }

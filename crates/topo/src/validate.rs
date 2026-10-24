@@ -809,7 +809,7 @@ pub enum OrientationUnread {
         /// `None` where the ends decided zero, or opposite signs.
         margin: Option<Indeterminate>,
         /// How many of its faces offered an aim: a planar face's point
-        /// certified inside it, a curved face's chart window's middle.
+        /// certified inside it, a point of a curved face's surface.
         aimed: usize,
         /// The aimed rays set aside, and why: a sharp corner, a crossing
         /// in band of a face's boundary, a graze, or a limit.

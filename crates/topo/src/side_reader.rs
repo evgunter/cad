@@ -179,7 +179,7 @@ impl core::fmt::Display for UnreadRays<'_> {
         if self.set_aside.is_empty() {
             return f.write_str(
                 "no face of it offers a ray to aim (a point more than the tolerance inside a \
-                 planar face, or a curved face's chart window)",
+                 planar face, or a point of a curved face)",
             );
         }
         if self.aimed == 0 {
@@ -431,8 +431,8 @@ fn aim_turn() -> (f64, f64) {
 ///
 /// **Aimed rays first.** Each face of the selection that offers an aim
 /// ([`aim_at`]: a line-bounded planar face's mean point, another planar
-/// face's certified interior point, a curved face's chart window's
-/// middle) is aimed at, in face order: the ray leaves from twice the
+/// face's certified interior point, a point of a curved face's surface)
+/// is aimed at, in face order: the ray leaves from twice the
 /// selection's reach from that point, beyond every face, so its start
 /// lies on the side at infinity, and meets the face at 10° from its
 /// outward normal ([`AIM_INCIDENCE`]), turned about it off the coordinate

@@ -794,7 +794,7 @@ pub fn curved_face_containment<T: Decide>(
 ///   CONTRADICTS its own certificate, and the only honest answer is to
 ///   keep its typed door.
 /// - `Trim(Some(FaceContainment::Out))`: the point is on the surface and
-///   the face's chart trim excludes it — a sibling face's incidence.
+///   the face's region excludes it — a sibling face's incidence.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CurvedPlacement {
     /// Definitely off the face's carrier surface.
@@ -809,9 +809,9 @@ pub(crate) enum CurvedPlacement {
 /// and in a boolean's carry onto the pieces of a divided face, and a
 /// section witness in its face. On a plane, `q` is first decided on the
 /// plane by `on_plane` (the caller's predicate) and `OffCarrier` is that
-/// decision's nonzero, then [`contfp`] places it; on a curved face the
-/// chart trim places it ([`curved_face_placement`]). `Trim(None)` is the
-/// curved trim's remainder, a face it does not read.
+/// decision's nonzero, then [`contfp`] places it; on a curved face its
+/// region places it ([`curved_face_placement`]). `Trim(None)` is the
+/// curved door's remainder, a face it does not read.
 ///
 /// # Errors
 ///

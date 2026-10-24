@@ -1861,8 +1861,8 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// on-carrier endpoint is
 /// classified through the boundary pre-pass rows
 /// ([`super::contain::curved_face_containment`] — the boundary walk,
-/// and behind it the cylinder chart trim), producing the same v-v
-/// record family, or the v-f record when the trim places the endpoint
+/// and behind it the face's region), producing the same v-v record
+/// family, or the v-f record when the region places the endpoint
 /// strictly inside.
 ///
 /// **Each on-carrier endpoint has three outcomes, not two**
@@ -3985,7 +3985,7 @@ impl<T: geom_core::Real> CurvedEvent<T> {
 /// Where one on-carrier endpoint's incidence lives.
 ///
 /// The distinction between the last two is the whole point of this
-/// type: `Elsewhere` is a CERTIFIED verdict — the chart trim proved
+/// type: `Elsewhere` is a CERTIFIED verdict — the face's region proved
 /// the point is not in this face — whereas `Undecided` is the
 /// containment door's honest remainder. A caller that reads them as
 /// one thing refuses at a frontier for a pair that has no incidence to
@@ -4097,8 +4097,8 @@ impl Placement {
 ///
 /// **`Out` and no-verdict are DIFFERENT answers, and this door reports
 /// them apart.** `curved_face_containment` answers `Out` from a
-/// certified comparison — the point is off the carrier, or the
-/// iso-bounded wall's exact chart rectangle excludes it — so `Out`
+/// certified comparison — the point is off the carrier, or the face's
+/// region excludes it — so `Out`
 /// says the endpoint's incidence is not this pair's. It says nothing
 /// about whether the endpoint has an incidence at all: on a carrier
 /// shared by several faces the endpoint is a seam site, and the face
@@ -4152,14 +4152,13 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
             push_vv(contacts, x_is, vx, wy, on);
             return Ok((Placement::Recorded, Some(wy)));
         }
-        // Strictly inside the curved face's chart trim: the same
-        // v-f record the planar sweep writes ([`vertex_on_face`]),
-        // now that the trim can say so.
+        // Strictly inside the curved face: the same v-f record the
+        // planar sweep writes ([`vertex_on_face`]).
         Some(FaceContainment::In) => {
             push_vf(contacts, x_is, vx, face, on_carrier);
             return Ok((Placement::Recorded, None));
         }
-        // Definitely outside this face's trim, or no verdict at all:
+        // Definitely outside this face, or no verdict at all:
         // fall through to the face-free question below.
         Some(FaceContainment::Out) | None => {}
     }
@@ -5260,6 +5259,7 @@ mod declaration_order_rows {
             (0.0, 1.0),
             tol,
         );
+        crate::test_support_fixtures::set_sheet_sense(&mut y, yw, true, tol);
         let decls = Glue {
             pairs: class
                 .map(|class| vec![GluedPair::new(xw, yw, class)])
@@ -5790,6 +5790,7 @@ mod edge_span_tests {
             (-1.0, 1.0),
             Tol::witness(),
         );
+        crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, Tol::witness());
         let wall = y
             .get_surface(y.get_face(face).expect("the sheet's face").surface)
             .expect("the sheet's wall")

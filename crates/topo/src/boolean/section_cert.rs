@@ -47,8 +47,8 @@
 //!   assumed of a kind: a seamless periodic band — one face closing on
 //!   itself with no meridian edge — fails the check and loses W2.
 //! - **W3, a witness point `Out`**: one closed-form point of `γ`,
-//!   certified outside `F` or outside `G` (by the chart trim on a curved
-//!   face, by `contfp` on a plane), so `γ ⊄ F ∩ G`.
+//!   certified outside `F` or outside `G` (by the face's region on a
+//!   curved face, by `contfp` on a plane), so `γ ⊄ F ∩ G`.
 //! - **W4, a lone evented component**: `Σ` has exactly one component and
 //!   the pair has an event. The event's vertex lies on `Σ` within the
 //!   band, hence on `γ`, and on an edge of `F` or `G`, so

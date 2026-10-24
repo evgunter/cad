@@ -3236,3 +3236,40 @@ name and so the same at main (`curve_pair_pose_parallel`, `curve_pair_pose_clear
 `curve_pair_pose_travel` on demo/projectbox_cutaway, `bool_pair_gap` on
 demo/tiltedcut), and the nightly's sweep stops before it in the
 plain-suite prelude, so these figures are a local reading.
+
+**Roster change (CHART, 2026-10-24): a cylinder or cone face's region.**
+Sixteen names from `topo/src/boolean/ruled_region.rs`, which replaces the
+cylinder and cone chart trims. `bool_wall_trim`, `bool_wall_trim_period`,
+`bool_wall_iso_meridian`, `bool_wall_iso_rim`, `bool_wall_section_tilt`,
+`bool_wall_section_seat`, `bool_wall_piece_span`, `bool_wall_rim_level`,
+`bool_wall_junction`, `bool_curved_contain_period`, `bool_cone_trim`,
+`bool_cone_trim_nappe`, `bool_cone_trim_side`, `bool_cone_trim_period`,
+`bool_cone_chart_box`, `bool_cone_group_slant` and `bool_ray_cone_apex`
+leave the roster; `bool_wall_outline_reach` and `bool_cone_partial_reach`
+stay, as the balls a wall or cone face whose region cannot be read
+refuses inside. Eight are its paths' bare literals, four a
+`FirstHarmonicRows` value (`ROOT_ROWS`), two a `ConicRows` value
+(`BOUNDARY`) and two a `ParityRows` value (`LINE`) for its boundary
+pre-pass (whose `side` and `advance` fields are never minted):
+
+| name | carrier |
+|---|---|
+| `bool_ruled_region_frame` | a bare literal: the point's distance from a cylinder's axis, or from a cone's apex (`Zero` reads the point from the apex) |
+| `bool_ruled_region_nappe` | a bare literal: a point's height over the cone's apex along the axis — the query's, a target's, an edge's middle |
+| `bool_ruled_region_component` | a bare literal: which of a meridian plane's two points of an edge a root is (its offset from the axis along the leg's radial, `2ρ` from the other; on a cone its nappe); a line edge's ends' larger distance from the leg's line; its nearer end's distance from the apex |
+| `bool_ruled_region_span` | a bare literal: a root's parameter against its edge's span ends, at the conic's smaller semi-axis or the line's unit speed |
+| `bool_ruled_region_at` | a bare literal: a crossing's place along its leg from the leg's start, arc length on a parallel and metres on a ruling |
+| `bool_ruled_region_corner` | a bare literal: a crossing, or an end of an edge on the leg's line or circle, against a first leg's corner or a generator's end at the apex; an aimed ruling's run to its corner |
+| `bool_ruled_region_order` | a bare literal: two crossings' places along the path |
+| `bool_ruled_region_cross` | a bare literal: the leg's heading against the face side at the closest crossing, at the face's scale |
+| `bool_ruled_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_coaxial` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_extreme` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_arc_span` | `ConicRows` field (`BOUNDARY`): a circle or ellipse edge's gap to a whole turn |
+| `bool_ruled_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle |
+| `bool_ruled_region_edge_length` | `ParityRows` field (`LINE`): a line edge's own length, the degeneracy gate |
+| `bool_ruled_region_edge` | `ParityRows` field (`LINE`): the point's distance from a line edge's closed segment |
+
+They pool with nothing: the region is read by the point doors at points
+on a cylinder or a cone.

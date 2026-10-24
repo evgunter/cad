@@ -265,6 +265,13 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          loop, face or shell is touched, so tier 1 holds as it found it",
     ),
     (
+        "set_sheet_sense",
+        "a test-support door that exchanges a sheet face's loop with its lamina twin's, \
+         each face's outer and each loop's face back-pointer together, which tier 1 reads \
+         as the same pairing; it flips two sense bits and re-mints the pcurve rows it \
+         dropped, and moves no cell",
+    ),
+    (
         "rotate_shell_faces",
         "a test-support door that rotates each shell's stored face list; tier 1 reads a \
          shell's faces as a set with back-pointers, which a rotation keeps",

@@ -2630,7 +2630,7 @@ pub enum BooleanError {
     /// whose
     /// crossing parameters come from the certified root lanes (the line
     /// quadratics and quartic, and `boolean::circle_roots`' doors) and
-    /// whose landing point the chart trim
+    /// whose landing point the face's region
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a line parallel to a cone's
     /// generator, an undeclared on-carrier
@@ -3489,8 +3489,8 @@ pub enum BooleanError {
     RestPieceUnread {
         /// The piece, in result keys.
         face: FaceKey,
-        /// The containment door's refusal; `None` where the curved
-        /// chart trim gives no verdict for this face.
+        /// The containment door's refusal; `None` where a curved face's
+        /// region gives no verdict for this face.
         refusal: Option<ContainError>,
     },
     /// **A record the op carries, or found, could not be placed on the
@@ -8073,6 +8073,7 @@ mod tests {
                 u_ref,
             };
             let face = cyl_wall_sheet(&mut body, frame, u, (0.0, 1.0), tol);
+            crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
             (body, face)
         };
         let near = (1.0, 2.1);

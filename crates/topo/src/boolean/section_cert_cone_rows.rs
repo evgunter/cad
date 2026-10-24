@@ -412,7 +412,7 @@ fn cone_rim(
         },
         carrier: Curve3::Circle {
             center: p(0.0, 0.0, z),
-            axis: Vec3::unit_z(),
+            axis: -normal,
             radius: z,
             u_ref: Vec3::unit_x(),
         },
@@ -571,17 +571,16 @@ fn the_ellipse_clears_by_w2_on_a_describing_cone_face() {
     }
 }
 
-/// **On a seamless band the lone ellipse is W4 with an event, and
-/// undecided without one.** The slab's faces cut the band in ellipses
-/// inside both faces (`z ∈ [0.71, 1.38]` against the band's
+/// **On a seamless band the lone ellipse is W4 with an event, and a
+/// certified loop without one.** The slab's faces cut the band in
+/// ellipses inside both faces (`z ∈ [0.71, 1.38]` against the band's
 /// `[0.5, 1.5]`). The band does not describe, so W2 is out; with an
 /// event on the pair W4 clears the certified single ellipse. Without
-/// one the witness decides, and the cone trim does not place a point on
-/// a seamless band (it reads a full period of a face that is not the
-/// chart rectangle), so the pair refuses R-undec. The mutant reading the
-/// ellipse as a hyperbola clears it W1: red.
+/// one the witness decides: the band's region places it inside, so the
+/// pair refuses R-loop, a loop interior to both faces. The mutant
+/// reading the ellipse as a hyperbola clears it W1: red.
 #[test]
-fn the_ellipse_on_a_seamless_band_is_w4_with_an_event_and_undecided_without() {
+fn the_ellipse_on_a_seamless_band_is_w4_with_an_event_and_a_loop_without() {
     let (band_body, face) = seamless_cone_band(0.5, 1.5);
     assert!(
         !describes(&band_body, face),
@@ -590,10 +589,7 @@ fn the_ellipse_on_a_seamless_band_is_w4_with_an_event_and_undecided_without() {
     let slab = slab(1.0, 0.2);
     let quiet = scan_with(&band_body, face, &slab, false);
     assert_eq!(quiet.len(), 2, "the slab's two broad faces: {quiet:?}");
-    assert!(
-        quiet.iter().all(|v| *v == Err(Refusal::Undecided)),
-        "{quiet:?}"
-    );
+    assert!(quiet.iter().all(|v| *v == Err(Refusal::Loop)), "{quiet:?}");
     let loud = scan_with(&band_body, face, &slab, true);
     assert!(
         loud.iter().all(|v| *v == Ok(vec![Cleared::LoneEvented])),

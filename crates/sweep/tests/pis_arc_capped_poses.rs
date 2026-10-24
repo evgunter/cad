@@ -838,8 +838,8 @@ fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
 /// rectangle their boundary VERTICES span: that rectangle reaches past
 /// the section where it stands high, and a ray from just across the cut
 /// plane would count a hit there as a crossing and read `In`. The wall
-/// arm reads each wall as the azimuth window cut by its two planes
-/// (`wall_outline`), which is the face exactly.
+/// arm reads each wall's region from its boundary edges
+/// (`topo::boolean::ruled_region`), which is the face exactly.
 #[test]
 fn the_cut_cylinder_reads_its_truth() {
     let band = Band::linear(tol()).expect("the witness band");

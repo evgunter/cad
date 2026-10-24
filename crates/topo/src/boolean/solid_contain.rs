@@ -158,27 +158,16 @@
 //! - A torus face outside a closed group is read from its boundary
 //!   edges by [`super::torus_region`], under its own rows
 //!   (`bool_torus_region_*`, `bool_torus_frame_radius`).
-//! - **The cylinder wall's outline** ([`wall_outline`]):
-//!   **`bool_wall_iso_meridian`**, **`bool_wall_iso_rim`**,
-//!   **`bool_wall_section_tilt`** and **`bool_wall_section_seat`**
-//!   classify each boundary edge (sines of unit vectors levered by the
-//!   radius; radius, off-axis and semi-axis differences in metres);
-//!   **`bool_wall_piece_span`** decides which way the walk runs a piece
-//!   (its azimuth extent levered by the radius); **`bool_wall_rim_level`**
-//!   tells two rim planes apart (their offset along the axis, metres),
-//!   for a windowed outline's pieces and a full-turn band's rims alike.
-//! - **The full-turn route** ([`wrap_rims`], every curved chart):
+//! - A cylinder or cone face is read from its boundary edges by
+//!   [`super::ruled_region`], under its own rows (`bool_ruled_region_*`).
+//!   One whose region cannot be read refuses only within a ball holding
+//!   it: **`bool_wall_outline_reach`** on a wall, **`bool_cone_partial_reach`**
+//!   on a cone (a distance less a radius, metres).
+//! - **The full-turn route** ([`wrap_rims`], the sphere's chart):
 //!   **`bool_wrap_rim`** decides whether an unmated boundary circle is an
 //!   iso-line of the coordinate the face does not wrap — coaxial (the
 //!   sine between the axes levered by the circle's radius; the centre's
-//!   distance off the axis, metres). Per hit,
-//!   **`bool_wall_trim`** is every window and side margin (the cosine
-//!   window levered by the radius; a hit's perpendicular distance to a
-//!   piece's plane, metres), **`bool_wall_trim_period`** the window's
-//!   period guard, **`bool_wall_junction`** whether the hit's ruling is
-//!   in band of a junction's (the sine and cosine of their angle,
-//!   levered by the radius), and **`bool_wall_outline_reach`** the
-//!   confined refusal's ball (a distance less a radius, metres).
+//!   distance off the axis, metres).
 //! - **`bool_point_in_solid_vertex`**: a ray's distance from a vertex of
 //!   an edge it is read against (metres); in band ⇒ a corner, Zero ⇒ a
 //!   graze. **`bool_point_in_solid_edge`**: the lower end of the
@@ -296,11 +285,11 @@ pub enum PointInSolidError {
     ///
     /// `point_in_solid` is ray-parity against each face of the body
     /// being classified against, so it needs a ray×surface crossing
-    /// count per kind: `Plane` (its in-face walk), `Cylinder` (its wall
-    /// outline, [`wall_outline`]), `Cone` (its chart trim), `Sphere` (a
-    /// closed group, or a trimmed face whose every edge is a certified
-    /// circle arc, [`super::sphere_region`]) and `Torus` (a closed group,
-    /// or a face its two chart windows express) have one; `Nurbs` and
+    /// count per kind: `Plane` (its in-face walk), `Cylinder` and `Cone`
+    /// (a face's region, [`super::ruled_region`]), `Sphere` (a closed
+    /// group, or a trimmed face whose every edge is a certified circle
+    /// arc, [`super::sphere_region`]) and `Torus` (a closed group, or a
+    /// face's region, [`super::torus_region`]) have one; `Nurbs` and
     /// `Approx` do not.
     ///
     /// **This door is BOX-BLIND on purpose and that is why the kind
@@ -312,10 +301,9 @@ pub enum PointInSolidError {
     /// of reach of the ray. So an operation the gate admits can still
     /// meet this refusal downstream, and that boundary is the honest
     /// one until the kind has a containment arm. Issue 1011 has landed
-    /// whole — the ray×cone quadratic with its chart trim, and the
-    /// ray×torus quartic with its certified root count and its two
-    /// windows — and what this variant now carries is the spline
-    /// kinds.
+    /// whole — the ray×cone quadratic and the ray×torus quartic with
+    /// its certified root count, each root read against the face's
+    /// region — and what this variant now carries is the spline kinds.
     KindUnsupported {
         /// The face.
         face: FaceKey,
@@ -1292,8 +1280,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         return Ok(None);
     };
     // A definite class miss is `None` (the honest remainder); an
-    // in-band one escalates — the two-tolerance pair, as
-    // `wall_outline` runs it for the cylinder.
+    // in-band one escalates — the two-tolerance pair.
     let zero = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
         match decide(name, m, band).map_err(escalate)? {
             Sign::Zero => Ok(true),
@@ -1348,8 +1335,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
         // and is levered by the radius; a length difference is already
-        // metres. The same dimension convention `wall_outline`
-        // states for the cylinder.
+        // metres.
         if zero(
             "bool_sphere_iso_meridian",
             Margin::levered(n_c.dot(axis), r_c),
@@ -1451,9 +1437,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     };
     // A face that ALONE wraps the azimuth ([`wrap_rims`], asked first)
     // attains every azimuth of its latitude range, so its azimuth window
-    // is the whole turn (`None`) — the cylinder's full-turn band
-    // ([`full_turn_outline`]) is the same reading on the same structural
-    // test. Any other face trims by its window, which must then be
+    // is the whole turn (`None`). Any other face trims by its window, which must then be
     // definitely narrower than a period: a window that reads a whole
     // turn on a face that does not wrap alone has a gap the window
     // cannot see (a zone merged with half a cap), and one wider than a
@@ -3312,7 +3296,7 @@ pub(crate) fn ray_crossings<T: Decide>(
             // The cylinder wall arm (M5 PR 9): the ray meets the
             // infinite wall at the roots of a quadratic in metres
             // (the linearized residual along the ray); each definite
-            // root inside the face's chart trim folds like a planar
+            // root inside the face's region folds like a planar
             // hit, with the outward sign read off the root order
             // (below). A tangent ray (discriminant in the zero band)
             // grazes and retries — never a parity guess.
@@ -4586,9 +4570,8 @@ mod wall_root_rows {
     }
 }
 
-/// **The boundary walks panic on a torn boundary curve**, where the torus
-/// region would step over it as null scaffolding and `wall_outline` read
-/// it as a carrier the outline has no piece for.
+/// **The boundary walks panic on a torn boundary curve**, where a region
+/// would step over it as null scaffolding.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {

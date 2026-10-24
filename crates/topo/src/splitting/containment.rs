@@ -1146,9 +1146,7 @@ pub(crate) fn circle_miss<T: Decide>(
 ///
 /// **A DECIDED membership, and so not
 /// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
-/// the one place that says why, for this trim and for the chart
-/// windows' cosine construction (`boolean::solid_contain`'s
-/// `chart_azimuth_margin`) alike. That door answers "may hold" wherever
+/// the one place that says why, for this trim. That door answers "may hold" wherever
 /// exclusion is unproved, which is the sound answer for a caller
 /// selecting between two bounds that each hold either way. A decided
 /// membership has no such free answer: an uncertain one escalates, and

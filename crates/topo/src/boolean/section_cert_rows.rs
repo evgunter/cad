@@ -1572,6 +1572,7 @@ fn an_off_carrier_witness_places_nowhere() {
         (-1.0, 1.0),
         Tol::witness(),
     );
+    crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
     assert_eq!(
         ops::place_witness(&body, wall, p(0.0, 1.5, 0.0), band()),
         None,
@@ -1841,7 +1842,9 @@ pub(super) fn cone_at(h: f64, t: f64) -> Point3<f64> {
 /// key, i)` is the `i`-th edge: its end point, and its spec (`None` for
 /// a straight edge). `close(body, key, end)` is the closing edge, which
 /// runs from `start` to the chain's last vertex `end`, as `mef` states
-/// it. The face returned is the one the chain bounds in its own order.
+/// it. The face returned is the region the chain bounds, its sense
+/// `true` with the loop that agrees with it
+/// ([`crate::test_support_fixtures::set_sheet_sense`]).
 fn chain_sheet(
     surface: Surface<f64>,
     start: Point3<f64>,
@@ -1897,6 +1900,7 @@ fn chain_sheet(
         )
         .unwrap()
         .face;
+    crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
     (body, face)
 }
 
@@ -1950,16 +1954,15 @@ pub(super) fn contain_at(
     crate::curved_face_containment(body, face, q, band()).unwrap()
 }
 
-/// **An L-shaped cone face refuses, never trims by its hull.** The face
-/// covers `z < 1` over `[0, w]` and `z < 2` over `[w, 2w]`; the notch
-/// `1 < z < 2` over `[0, w]` has the same hull, so a window read off the
-/// hull answers `In` there. `bool_cone_chart_box` sees the notch (the
-/// notch's inner sides lie inside its box) and the face door answers
-/// `None`. Narrow (`w = π/8`, the nearest-branch walk's class) and wide
-/// (`w = 3π/4`, the apex closure's), and one clear of the apex (the
-/// notch cut from a frustum band).
+/// **An L-shaped cone face reads its notch out, never trims by its
+/// hull.** The face covers `z < 1` over `[0, w]` and `z < 2` over
+/// `[w, 2w]`; the notch `1 < z < 2` over `[0, w]` has the same hull, so
+/// a window read off the hull answers `In` there. The region, read from
+/// the boundary edges, puts the notch outside and the L's two arms
+/// inside. Narrow (`w = π/8`) and wide (`w = 3π/4`), and one clear of
+/// the apex (the notch cut from a frustum band), with the band itself.
 #[test]
-fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
+fn an_l_shaped_cone_face_reads_its_notch_out() {
     let o = p(0.0, 0.0, 0.0);
     for w in [PI / 8.0, 0.75 * PI] {
         let (body, face) = cone_sheet(
@@ -1971,11 +1974,13 @@ fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
                 Step::Arc(2.0, w, 2.0 * w),
             ],
         );
-        assert_eq!(
-            contain_at(&body, face, cone_at(1.5, 0.5 * w)),
-            None,
-            "w {w}: the notch"
-        );
+        for (at, want, what) in [
+            (cone_at(1.5, 0.5 * w), FaceContainment::Out, "the notch"),
+            (cone_at(0.5, 0.5 * w), FaceContainment::In, "the low arm"),
+            (cone_at(1.5, 1.5 * w), FaceContainment::In, "the high arm"),
+        ] {
+            assert_eq!(contain_at(&body, face, at), Some(want), "w {w}: {what}");
+        }
     }
     let (body, face) = cone_sheet(
         cone_at(0.5, 0.0),
@@ -1987,12 +1992,17 @@ fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
             Step::Arc(1.0, PI / 4.0, 0.0),
         ],
     );
-    assert_eq!(
-        contain_at(&body, face, cone_at(1.5, 0.1)),
-        None,
-        "the frustum L's notch"
-    );
-    // The same frustum band without its notch trims: the rectangle.
+    for (at, want, what) in [
+        (
+            cone_at(1.5, 0.1),
+            FaceContainment::Out,
+            "the frustum L's notch",
+        ),
+        (cone_at(0.75, 0.1), FaceContainment::In, "its low arm"),
+        (cone_at(1.5, 1.2), FaceContainment::In, "its high arm"),
+    ] {
+        assert_eq!(contain_at(&body, face, at), Some(want), "{what}");
+    }
     let (body, face) = cone_sheet(
         cone_at(0.5, 0.0),
         &[
@@ -2004,17 +2014,17 @@ fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
     assert_eq!(
         contain_at(&body, face, cone_at(1.5, 0.1)),
         Some(FaceContainment::In),
-        "the rectangle holds the point"
+        "the band holds the point"
     );
     assert_eq!(
         contain_at(&body, face, cone_at(1.5, PI / 2.0 + 0.1)),
         Some(FaceContainment::Out),
-        "the rectangle trims past its window"
+        "the band ends at its generator"
     );
 }
 
 /// The face door's answer at `q`, an escalation included: the
-/// small-notch rows require a definite refusal, not an in-band one.
+/// small-notch rows require a definite answer, not an in-band one.
 fn door(
     body: &Body<f64>,
     face: FaceKey,
@@ -2365,16 +2375,16 @@ fn a_gap_in_the_torus_boundary_refuses() {
 /// cone.
 const FRUSTA: [(f64, f64); 2] = [(1.0, 2.0), (10.0, 20.0)];
 
-/// **A small notch in a cone face refuses at every size the band
+/// **A small notch in a cone face reads out at every size the band
 /// reads.** Each notch is `s` metres on a side (`s/√2` of height on the
 /// unit cone, whose slant is `h·√2`; `s/h1` of azimuth at the top
 /// rim), cut from the frustum `[h0, h1] × [0, π/4]` as an L at its
 /// top-right corner and as a U from the middle of its top rim, and from
 /// the apex sector `[0, h1] × [0, π/4]` as an L, which the apex closure
-/// walks. Each is asked at the notch's centre: a definite refusal,
-/// never `In`, never an escalation.
+/// walks. Each is asked at the notch's centre, `5·K·ε` or more from its
+/// edges: definitely `Out`, never `In`, never an escalation.
 #[test]
-fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
+fn a_small_notch_in_a_cone_face_reads_out_at_every_size() {
     let eps = Tol::witness().eps();
     let mut bad = Vec::new();
     let w = PI / 4.0;
@@ -2405,13 +2415,16 @@ fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
                     Step::Arc(h1, m - 0.5 * dt, 0.0),
                 ],
             );
+            // Counter-clockwise about the chart normal: the flux lane reads
+            // no side off a loop through the apex at every size, so the
+            // chain's own order is the face's side.
             let apex = cone_sheet(
                 p(0.0, 0.0, 0.0),
                 &[
-                    Step::Line(cone_at(h1, 0.0)),
-                    Step::Arc(h1, 0.0, w - dt),
-                    Step::Line(cone_at(h1 - dh, w - dt)),
-                    Step::Arc(h1 - dh, w - dt, w),
+                    Step::Line(cone_at(h1 - dh, w)),
+                    Step::Arc(h1 - dh, w, w - dt),
+                    Step::Line(cone_at(h1, w - dt)),
+                    Step::Arc(h1, w - dt, 0.0),
                 ],
             );
             for (what, (body, face), q) in [
@@ -2420,7 +2433,7 @@ fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
                 ("apex L", apex, centre),
             ] {
                 let got = door(&body, face, q);
-                if !matches!(got, Ok(None)) {
+                if !matches!(got, Ok(Some(FaceContainment::Out))) {
                     bad.push(format!("frustum {h0}..{h1}, {what} notch {s:e} m: {got:?}"));
                 }
             }
@@ -2447,20 +2460,20 @@ fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
     }
     assert!(
         bad.is_empty(),
-        "ε {eps:e}: {} cells answer other than a refusal:\n{}",
+        "ε {eps:e}: {} cells answer other than Out:\n{}",
         bad.len(),
         bad.join("\n")
     );
 }
 
-/// **The smallest notch the builders mint pins the arms' direction.**
+/// **The smallest notch the builders mint never reads `In`.**
 /// A notch `1.5·K·ε` on a side, on the cone at its top rim and on the
 /// torus at its outer equator, where each region reads the notch on its
 /// edges' own carriers. The face door at either notch's centre,
 /// `0.75·K·ε` from the face, may escalate on that graze; it must never
 /// answer `In`.
 #[test]
-fn the_smallest_notch_refuses_definitely() {
+fn the_smallest_notch_never_reads_in() {
     let tol = Tol::witness();
     let s = 1.5 * tol.k() * tol.eps();
     let mut bad = Vec::new();
@@ -2581,12 +2594,11 @@ fn an_apex_face_on_both_nappes_does_not_close() {
     assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
 }
 
-/// **A face wound past a full turn neither describes nor trims.** Its
-/// rim runs `[0, 5π/2]` in two arcs, so the closure lifts it to a window
-/// wider than a period: `describes` refuses it (`bool_cone_closure_period`)
-/// and the face door answers `None`.
+/// **A face wound past a full turn does not describe.** Its rim runs
+/// `[0, 5π/2]` in two arcs, so the closure lifts it to a window wider
+/// than a period: `describes` refuses it (`bool_cone_closure_period`).
 #[test]
-fn an_apex_face_wound_past_a_turn_neither_describes_nor_trims() {
+fn an_apex_face_wound_past_a_turn_does_not_describe() {
     use crate::chord_join::{ApexClosure, cone_apex_closure};
     let (body, face) = cone_sheet(
         p(0.0, 0.0, 0.0),
@@ -2603,7 +2615,6 @@ fn an_apex_face_wound_past_a_turn_neither_describes_nor_trims() {
     };
     assert!(window.1 - window.0 > TAU, "{window:?}");
     assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
-    assert_eq!(contain_at(&body, face, cone_at(0.5, 0.25 * PI)), None);
 }
 
 // -------------------------------------------------------------------
