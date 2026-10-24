@@ -647,3 +647,22 @@ pub(crate) fn parallel<T: Decide>(
         e2: normal.cross(e1),
     }
 }
+
+/// `face` with null scaffolding added to its outer loop: a null edge
+/// fanned out of the vertex its first half-edge leaves.
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
+    let outer = body.get_face(face).unwrap().outer;
+    let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        unreachable!("the fixture's outer loop is a cycle")
+    };
+    body.mev_null(
+        crate::MevSite::Fan {
+            he1: first,
+            he2: first,
+        },
+        crate::NewVertexSide::Above,
+    )
+    .unwrap();
+}

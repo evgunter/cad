@@ -539,4 +539,34 @@ mod tests {
             }
         }
     }
+
+    /// **Null scaffolding leaves a sphere face with no region**, as any
+    /// edge with no certified curve does: a zone with a null edge fanned
+    /// into its outer loop answers `None`, where the zone without it has
+    /// a region.
+    #[test]
+    fn a_zones_null_edge_leaves_no_region() {
+        let sheet = || {
+            crate::boolean::boxes::sphere_rect_rows::sphere_zone_sheet(
+                (0.2, 1.0),
+                (-0.3, 0.4),
+                geom_core::Tol::witness(),
+            )
+        };
+        let (body, face) = sheet();
+        assert!(
+            sphere_face_region(&body, face, Point3::origin(), 1.0)
+                .unwrap()
+                .is_some(),
+            "the zone's region"
+        );
+        let (mut nulled, nulled_face) = sheet();
+        super::region::with_null_edge(&mut nulled, nulled_face);
+        assert!(
+            sphere_face_region(&nulled, nulled_face, Point3::origin(), 1.0)
+                .unwrap()
+                .is_none(),
+            "a null edge refuses"
+        );
+    }
 }
