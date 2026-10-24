@@ -1611,83 +1611,23 @@ fn is_plus<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> bool {
     edge_record(body, half_edge).1.he_plus == half_edge
 }
 
-/// **A chart channel's arm, and which kind of arm it is** — the answer
-/// [`chart_u_arm`] gives, so that the door a gap on that channel
-/// reaches the band through is picked by the type rather than by a
-/// paragraph.
-///
-/// The two variants are two different crossings, and on the first
-/// channel the difference is what the chart's `u` MEANS:
-///
-/// - [`ChartArm::Angular`] — `u` is an AZIMUTH, so the arm is metres
-///   per RADIAN and the gap it meters is an angle. Metres per radian
-///   is not a rate per parameter unit, so the crossing is
-///   [`Margin::levered`]'s and no [`SupSpeed`] is minted.
-/// - [`ChartArm::Rate`] — `u` is the CHART'S OWN parameter (a plane's
-///   metre axis, a spline chart's net parameter), so the arm is metres
-///   per chart-`u` unit and the gap it meters is a parameter span.
-///   That is the rate pair's own crossing, sup side, and it goes
-///   through [`Margin::metered_sup`].
-///
-/// The second channel splits the same way — a polar radius is angular
-/// ([`polar_arm`]), a spline chart's `v` rate is not ([`v_meter`]) —
-/// and the polar arm is spelled with this type where it meters a gap.
-///
-/// Both leave metres, and [`ChartArm::meter`] is the one place that
-/// says which door does it.
-#[derive(Clone, Copy, Debug)]
-pub enum ChartArm<T> {
-    /// Metres per RADIAN at a latitude — see the type docs.
-    Angular(T),
-    /// Metres per chart-`u` unit — see the type docs.
-    Rate(SupSpeed<T>),
-}
-
-impl<T: Real> ChartArm<T> {
-    /// A first-channel gap crossed to metres by whichever door this
-    /// arm's kind names — one multiply either way, so the two doors
-    /// differ in what they assert and in nothing else.
-    pub(crate) fn meter(self, gap: T) -> Margin<T> {
-        match self {
-            Self::Angular(arm) => Margin::levered(gap, arm),
-            Self::Rate(rate) => Margin::metered_sup(gap, rate),
-        }
-    }
-
-    /// The arm's own magnitude, for a reader that needs the lever itself
-    /// rather than a crossing through it: [`joint_has_room`], which
-    /// subtracts the ends' `2ε` from an analytic chart's arm before
-    /// levering a chord by it. That is a question about the arm and not
-    /// a crossing, so no door applies and the tag comes off here,
-    /// deliberately. (The net-level singular gate does cross: it meters
-    /// the `u` knot domain through the arm, [`net_reach`].)
-    pub(crate) fn magnitude(self) -> T {
-        match self {
-            Self::Angular(arm) => arm,
-            Self::Rate(rate) => rate.get(),
-        }
-    }
-}
-
 /// The FIRST-CHANNEL arm of a chart at second-parameter value `v` —
 /// the metres a unit step of the chart's `u` moves the mapped point
-/// (D4 ¶1: no UV-space tolerance ever reaches ε), **and which kind of
-/// arm that is** ([`ChartArm`]).
+/// (D4 ¶1: no UV-space tolerance ever reaches ε), as the sup side of
+/// the rate pair.
 ///
-/// On the azimuth charts this is the LOCAL lever at that latitude:
+/// On the azimuth charts `u` IS the radian, so the arm is a rate per
+/// parameter unit like any other: the LOCAL lever at that latitude,
 /// cylinder `r`, sphere `|r·cos v|`, torus `|R + r·cos v|`, cone
-/// `|v·sin α|` — metres per radian, every one. A joint does not read
-/// it: its lever is the joint vertex's own distance from the axis
-/// ([`joint_arm`]), the same quantity without a stored latitude in it.
+/// `|v·sin α|`. It is exact there, so a sup by being exact. A joint
+/// does not read it: its lever is the joint vertex's own distance from
+/// the axis ([`joint_arm`]), the same quantity without a stored
+/// latitude in it.
 ///
-/// On the non-azimuth charts there is no latitude and no angle: a
-/// plane's `u` IS metres, so its arm is exactly 1 by construction; a
-/// spline chart's `u` is the net's own parameter, whose metre stretch
-/// is whatever the net says. On those three kinds the number is
-/// `geom_brep::chart_stretch_sup`'s first component — a rate per
-/// parameter unit, minted a [`SupSpeed`] there and carried as one
-/// here, because the gap it meters is a chart-parameter span and not
-/// an angle.
+/// On a plane `u` IS metres, so the arm is exactly 1; on a spline
+/// chart `u` is the net's own parameter, and the arm is
+/// `geom_brep::chart_stretch_sup`'s first component, a sup over the
+/// whole chart.
 ///
 /// # Direction of error: why the spline arm is the SUP bound
 ///
@@ -1715,17 +1655,17 @@ impl<T: Real> ChartArm<T> {
 /// `geom_brep::chart_stretch_sup` is that bound and states the same
 /// split at the export; it is emphatically not a lower bound, and
 /// nothing here may be read as one.
-fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>, v: T) -> ChartArm<T> {
+fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>, v: T) -> SupSpeed<T> {
     let surface = chart.surface();
     match *surface {
-        Surface::Cylinder { radius, .. } => ChartArm::Angular(radius),
-        Surface::Sphere { radius, .. } => ChartArm::Angular((radius * v.cos()).abs()),
+        Surface::Cylinder { radius, .. } => SupSpeed::new(radius),
+        Surface::Sphere { radius, .. } => SupSpeed::new((radius * v.cos()).abs()),
         Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => ChartArm::Angular((major_radius + minor_radius * v.cos()).abs()),
-        Surface::Cone { half_angle, .. } => ChartArm::Angular((v * half_angle.sin()).abs()),
+        } => SupSpeed::new((major_radius + minor_radius * v.cos()).abs()),
+        Surface::Cone { half_angle, .. } => SupSpeed::new((v * half_angle.sin()).abs()),
         // The plane answers exactly 1 through this door (its chart
         // parameters ARE metres), and each spline kind answers its
         // net's own `sup |S_u|`. `chart_stretch_sup` refuses the cone,
@@ -1738,7 +1678,7 @@ fn chart_u_arm<T: Real>(chart: DescribedChart<'_, T>, v: T) -> ChartArm<T> {
                      placeholder, which DescribedChart::of excludes"
                 )
             };
-            ChartArm::Rate(sup_u)
+            sup_u
         }
     }
 }
@@ -1879,7 +1819,7 @@ fn net_reach<T: Real>(
     match channel {
         NetChannel::U => {
             let (u0, u1) = payload.knot_values_u().domain();
-            chart_u_arm(chart, T::zero()).meter(u1 - u0)
+            Margin::metered_sup(u1 - u0, chart_u_arm(chart, T::zero()))
         }
         NetChannel::V => {
             let (v0, v1) = payload.knot_values_v().domain();
@@ -4241,28 +4181,32 @@ fn singular_at<T: Decide>(
 
 /// The first channel's lever **at a joint**, read off the joint's
 /// vertex: on an azimuth chart, the vertex's distance from the chart's
-/// axis — cylinder `r`, sphere `r·|cos v|`, torus `R + r·cos v`, cone
-/// `|v·sin α|`, each at the vertex, but computed from the vertex
-/// point rather than from a stored latitude. On a plane or a spline
-/// chart the first channel is not an angle, and the arm is
-/// [`chart_u_arm`]'s rate.
+/// axis ([`axis_distance`]), exact at the vertex and so a sup there; on
+/// a plane or a spline chart, [`chart_u_arm`]'s rate.
 pub(crate) fn joint_arm<T: Real>(
     chart: DescribedChart<'_, T>,
     vertex: geom_core::Point3<T>,
-) -> ChartArm<T> {
+) -> SupSpeed<T> {
+    axis_distance(chart, vertex).map_or_else(|| chart_u_arm(chart, T::zero()), SupSpeed::new)
+}
+
+/// A vertex's distance from an azimuth chart's axis — cylinder `r`,
+/// sphere `r·|cos v|`, torus `R + r·cos v`, cone `|v·sin α|`, each at
+/// the vertex, but computed from the vertex point rather than from a
+/// stored latitude. `None` on a plane or a spline chart, which has no
+/// axis.
+fn axis_distance<T: Real>(chart: DescribedChart<'_, T>, vertex: geom_core::Point3<T>) -> Option<T> {
     let off_axis = |origin: geom_core::Point3<T>, axis: geom_core::Vec3<T>| {
         let w = vertex - origin;
         (w - axis * w.dot(axis)).norm()
     };
     match *chart.surface() {
-        Surface::Cylinder { radius, .. } => ChartArm::Angular(radius),
+        Surface::Cylinder { radius, .. } => Some(radius),
         Surface::Sphere { center, axis, .. } | Surface::Torus { center, axis, .. } => {
-            ChartArm::Angular(off_axis(center, axis))
+            Some(off_axis(center, axis))
         }
-        Surface::Cone { apex, axis, .. } => ChartArm::Angular(off_axis(apex, axis)),
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            chart_u_arm(chart, T::zero())
-        }
+        Surface::Cone { apex, axis, .. } => Some(off_axis(apex, axis)),
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => None,
     }
 }
 
@@ -4715,7 +4659,7 @@ enum NearRead {
 /// [`chart_boundary`]'s fence refuses such a joint before a polygon
 /// reads its azimuth.
 fn near_pole_gap_closes<T: Decide>(
-    arm: ChartArm<T>,
+    arm: SupSpeed<T>,
     gap: T,
     period: Period<T>,
     orbit: Orbit,
@@ -4729,7 +4673,7 @@ fn near_pole_gap_closes<T: Decide>(
         .filter(|m| !orbit.offsets().any(|o| o == *m));
     let tried = orbit.offsets().chain(bracket);
     match first_within("pcurve_loop_pole_gap", tried, band, |&m| {
-        arm.meter(gap - step.times(m))
+        Margin::metered_sup(gap - step.times(m), arm)
     }) {
         Ok(Some(m)) => NearRead::Closes(m),
         Ok(None) => NearRead::Off,
@@ -4782,13 +4726,16 @@ fn near_pole_gap_closes<T: Decide>(
 /// where an offset is in band. An undecided mark keeps its own cause.
 pub(crate) fn lever_periods<T: Decide>(
     name: &'static str,
-    arm: ChartArm<T>,
+    arm: SupSpeed<T>,
     gap: T,
     period: Period<T>,
     orbit: Orbit,
     band: Band,
 ) -> Result<i32, BranchMiss> {
-    match orbit.step(period).decide(name, gap, |g| arm.meter(g), band) {
+    match orbit
+        .step(period)
+        .decide(name, gap, |g| Margin::metered_sup(g, arm), band)
+    {
         Ok(k) => Ok(k),
         Err(WalkStop {
             miss: miss @ (BranchMiss::Undecided(_) | BranchMiss::OnMark),
@@ -4845,7 +4792,7 @@ fn spline_gap_closes<T: Decide>(
 ) -> Result<(), PinMiss> {
     let arm = chart_u_arm(chart, prev.y);
     for margin in [
-        arm.meter(entry.x - prev.x),
+        Margin::metered_sup(entry.x - prev.x, arm),
         Margin::metered_sup(entry.y - prev.y, v_meter(chart)),
     ] {
         match decide("pcurve_loop_continuity", margin, band) {
@@ -4888,18 +4835,18 @@ fn joint_has_room<T: Decide>(
     orbit: Orbit,
     band: Band,
 ) -> bool {
-    let surface = chart.surface();
     let Some(period) = u_period else {
         return true;
     };
-    if surface.spline_chart().is_some() {
+    // A periodic chart with no axis is a spline chart, exempt above.
+    let Some(distance) = axis_distance(chart, vertex) else {
         return true;
-    }
+    };
     // The step the walk decided this joint's integer in.
     let step = orbit.step(period).length();
     // The ends' least distance from the axis, and a quarter of the
     // chord between two of them half a step apart.
-    let lever = joint_arm(chart, vertex).magnitude() - T::from_f64(2.0 * band.zero());
+    let lever = distance - T::from_f64(2.0 * band.zero());
     let quarter_chord = (step * T::from_f64(0.25)).sin() * T::from_f64(0.5);
     matches!(
         decide(
@@ -6185,7 +6132,7 @@ pub(crate) mod staleness_posture {
 mod stretch_meter {
     #![allow(clippy::unwrap_used, clippy::float_cmp)]
 
-    use super::{ChartArm, DescribedChart, Singular, SupSpeed, chart_u_arm, singular_at, v_meter};
+    use super::{DescribedChart, Singular, SupSpeed, chart_u_arm, singular_at, v_meter};
     use geom::{NurbsSurface, Surface};
     use geom_core::k_stats::decide;
     use geom_core::spline::KnotVector;
@@ -6244,25 +6191,21 @@ mod stretch_meter {
     fn a_stretched_nurbs_chart_meters_its_azimuth_gap_in_metres() {
         let s = flat_chart(100.0);
         let arm = chart_u_arm(chart(&s), 0.0);
-        assert!(
-            matches!(arm, ChartArm::Rate(_)),
-            "a spline chart's u gap is a parameter span, so the arm is a rate"
-        );
-        assert_eq!(
-            arm.magnitude(),
-            100.0,
-            "the chart's own metre stretch, not 1"
-        );
+        assert_eq!(arm.get(), 100.0, "the chart's own metre stretch, not 1");
         let gap = 1e-10;
         assert_eq!(
-            decide("pcurve_loop_continuity", arm.meter(gap), band()),
+            decide(
+                "pcurve_loop_continuity",
+                Margin::metered_sup(gap, arm),
+                band()
+            ),
             Ok(Sign::Positive),
             "1e-10 chart units × 100 m/unit = 1e-8 m, at the escalate edge"
         );
         assert_eq!(
             decide(
                 "pcurve_loop_continuity",
-                ChartArm::Rate(SupSpeed::new(1.0)).meter(gap),
+                Margin::metered_sup(gap, SupSpeed::new(1.0)),
                 band()
             ),
             Ok(Sign::Zero),
@@ -6304,8 +6247,8 @@ mod stretch_meter {
         let small = flat_chart(100.0);
         let large = flat_chart(100.0e3);
         assert_eq!(
-            chart_u_arm(chart(&large), 0.0).magnitude(),
-            chart_u_arm(chart(&small), 0.0).magnitude() * 1e3
+            chart_u_arm(chart(&large), 0.0).get(),
+            chart_u_arm(chart(&small), 0.0).get() * 1e3
         );
         assert_eq!(
             v_meter(chart(&large)).get(),
@@ -6318,8 +6261,8 @@ mod stretch_meter {
     #[test]
     fn a_plane_chart_keeps_its_exact_unit_arms() {
         let p = plane();
-        assert_eq!(chart_u_arm(chart(&p), 0.0).magnitude(), 1.0);
-        assert_eq!(chart_u_arm(chart(&p), 0.7).magnitude(), 1.0);
+        assert_eq!(chart_u_arm(chart(&p), 0.0).get(), 1.0);
+        assert_eq!(chart_u_arm(chart(&p), 0.7).get(), 1.0);
         assert_eq!(v_meter(chart(&p)).get(), 1.0);
     }
 
@@ -6331,11 +6274,20 @@ mod stretch_meter {
         let s = flat_chart(100.0);
         let arm = chart_u_arm(chart(&s), 0.0);
         assert!(
-            decide("pcurve_loop_continuity", arm.meter(5e-11), band()).is_err(),
+            decide(
+                "pcurve_loop_continuity",
+                Margin::metered_sup(5e-11, arm),
+                band()
+            )
+            .is_err(),
             "in-band residue is the third outcome, not a verdict"
         );
         assert_eq!(
-            decide("pcurve_loop_continuity", arm.meter(5e-12), band()),
+            decide(
+                "pcurve_loop_continuity",
+                Margin::metered_sup(5e-12, arm),
+                band()
+            ),
             Ok(Sign::Zero),
             "5e-10 m is honestly closed"
         );
@@ -6575,8 +6527,8 @@ mod stretch_meter {
         // read runs only where the incidence is undecided, so its lever
         // is past the band's zero edge and no two offsets are within ε.
         // So the order is pinned at the read itself.
-        let both = ChartArm::Angular(0.05 * band().zero());
-        let one = ChartArm::Angular(0.5 * band().zero());
+        let both = SupSpeed::new(0.05 * band().zero());
+        let one = SupSpeed::new(0.5 * band().zero());
         for (orbit, period_over) in [(Orbit::Periods, 1), (Orbit::HalfPeriodsWithTwin, 2)] {
             for (sign, gap) in [(1, tau), (-1, -tau)] {
                 let first = near_pole_gap_closes(
@@ -6730,7 +6682,7 @@ mod stretch_meter {
             let gap = turns * tau + side * 0.8 * zero / lever;
             let out = super::lever_periods(
                 "each_branch_row",
-                ChartArm::Angular(lever),
+                SupSpeed::new(lever),
                 gap,
                 geom_brep::Period::new(tau),
                 super::Orbit::Periods,
@@ -6772,7 +6724,7 @@ mod stretch_meter {
     /// the predicate sees the walk it asked for.
     #[test]
     fn an_undecided_mark_keeps_its_own_cause() {
-        let arm = ChartArm::Angular(0.5 * band().zero());
+        let arm = SupSpeed::new(0.5 * band().zero());
         let tau = std::f64::consts::TAU;
         let out = super::lever_periods(
             "undecided_mark_row",
