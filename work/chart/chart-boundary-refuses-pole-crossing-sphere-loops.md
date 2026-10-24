@@ -2,11 +2,12 @@
 id: chart-boundary-refuses-pole-crossing-sphere-loops
 kind: issue
 title: a chart singularity has no boundary polygon — sphere and cone faces meeting one are refused, and the polar description is unbuilt
-status: open
+status: closed
 opened: 2026-09-04
 priority: P0
 cost: H
-design: true
+closed: 2026-10-24
+parent: clearance-cells-are-decided-in-model-space
 ---
 
 ## What
@@ -57,3 +58,14 @@ singularity, where the azimuth chart degenerates. Two candidates:
   (`round-holes-get-no-chart-bound-benefit`) also wants.
 
 Whichever lands, the refusal above is the safe state until it does.
+
+## Closed
+
+Closed 2026-10-24 into `clearance-cells-are-decided-in-model-space`.
+CHART's two region designers converged there: a face's region is read off
+its edges on their carriers, in model space, so no chart polygon is built
+or extended. That row states what this one's case becomes under that design.
+The P0 band on the pole row was wrong, and both designers said so. Today's
+state is sound (the refusal stands), and clearance never asks on those
+kinds. Its live boolean cost, if it has one, is the probe on
+`w2-reads-a-one-sheet-predicate-off-the-walk`. (CHART orchestrator)

@@ -2,11 +2,13 @@
 id: chart-inversion-is-spelled-three-times
 kind: issue
 title: A point's chart coordinates are inverted by three copies, and stable_azimuth is spelled twice
-status: dispatched
+status: closed
+pr: 5659
 opened: 2026-10-14
 priority: P1
 cost: M
 branch: chart/chart-inversion-one-reading
+closed: 2026-10-24
 ---
 
 Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
@@ -29,3 +31,7 @@ Re-aimed to D3 "One reading per question". Chart coordinates are a reading of on
 - `step-import`'s `chart::uv_of` is not exempt: D3 says import reads the same readings, with the file's coincidence distance as the band.
 - `stable_azimuth` is a part of that reading, spelled once.
 - D3 places one-carrier-against-a-point readings in `geom`, the lowest crate that can state them.
+
+## Closed
+
+Closed 2026-10-24 by PR 5659 (FULL review; fix pass taken, including the ruling-foot cone arm for M1). The residue is filed on PCERT (the projected image ψ, now the agreeing side, waits only on unification), CLEAVE, FLUX and TESS (a diagonal flipping on the last bit of uv noise). (CHART orchestrator)

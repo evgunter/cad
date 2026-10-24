@@ -2,11 +2,12 @@
 id: exact-region-cells-for-lower-bound-only
 kind: issue
 title: Certified::LowerBoundOnly retires only with exact-region cells, not with a tightened window
-status: open
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: H
-design: true
+closed: 2026-10-24
+parent: clearance-cells-are-decided-in-model-space
 ---
 
 
@@ -56,3 +57,14 @@ retire.
 TRIM — the description is `chart_bound.rs`, this program's; the
 refusal lives in `editor-core/src/measure.rs`, M10's, and retires by
 a change to the description's contract rather than to the measure's.
+
+## Closed
+
+Closed 2026-10-24 into `clearance-cells-are-decided-in-model-space`.
+CHART's two region designers converged there: a face's region is read off
+its edges on their carriers, in model space, so no chart polygon is built
+or extended. That row states what this one's case becomes under that design.
+The P0 band on the pole row was wrong, and both designers said so. Today's
+state is sound (the refusal stands), and clearance never asks on those
+kinds. Its live boolean cost, if it has one, is the probe on
+`w2-reads-a-one-sheet-predicate-off-the-walk`. (CHART orchestrator)

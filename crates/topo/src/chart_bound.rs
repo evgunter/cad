@@ -37,9 +37,8 @@
 //! directions, because the grazing configurations those obliques
 //! answer are the same ones here.
 
-use crate::pcurves::ChartArm;
 use geom_brep::{ChartWindow, Period};
-use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Vec2};
+use geom_core::{Band, Decide, Margin, Point2, Real, Sign, SpanLocate, SupSpeed, Vec2};
 
 use crate::chart_region::SCHEDULE_2D;
 use crate::pcurves::PcurveMintError;
@@ -94,11 +93,17 @@ pub enum ChartEdge<T: Real> {
         a: Point2<T>,
         /// The exit vertex.
         b: Point2<T>,
-        /// The image over the WHOLE span as ONE enclosure — each
-        /// coordinate is the bracket, so at the interval scalar this
-        /// pair IS the box. At a point scalar the span hull is poison
-        /// and the box is poison, which certifies nothing.
-        image: Point2<T>,
+        /// A conservative box around the image over the WHOLE span —
+        /// the pcurve's own `chart_box`, which is a box at every
+        /// scalar, so the hull and the span premise read off it are
+        /// decided at `f64` too. Not widened by `slack`.
+        reach: ChartWindow<T>,
+        /// A tighter image than `reach` where the arm has one, as ONE
+        /// enclosure (each coordinate the bracket): the closed forms'
+        /// interval natural extension. `None` where the enclosure is
+        /// `reach`'s own ([`ChartEdge::image`]). A stored one is poison
+        /// at a point scalar.
+        image: Option<Point2<T>>,
         /// Metres of residual the stored certificate allows between
         /// the carrier and this image; [`ChartBound::metred`] widens
         /// the box by it. Zero for a closed-form image, which is
@@ -122,24 +127,24 @@ impl<T: Real> ChartEdge<T> {
         }
     }
 
-    /// The chart box this edge's image is known to lie in: the chord's
-    /// own box, hulled with the envelope box where there is one.
-    fn window(&self) -> ChartWindow<T> {
+    /// The chord's own box.
+    fn chord(&self) -> ChartWindow<T> {
         let (a, b) = (self.a(), self.b());
-        let chord = ChartWindow {
+        ChartWindow {
             u_min: a.x.min(b.x),
             u_max: a.x.max(b.x),
             v_min: a.y.min(b.y),
             v_max: a.y.max(b.y),
-        };
+        }
+    }
+
+    /// The chart box this edge's image is known to lie in: the chord's
+    /// own box, hulled with the envelope's `reach` where there is one.
+    fn window(&self) -> ChartWindow<T> {
+        let chord = self.chord();
         match *self {
             ChartEdge::Segment { .. } => chord,
-            ChartEdge::Envelope { image, .. } => chord.hull(ChartWindow {
-                u_min: image.x,
-                u_max: image.x,
-                v_min: image.y,
-                v_max: image.y,
-            }),
+            ChartEdge::Envelope { reach, .. } => chord.hull(reach),
         }
     }
 
@@ -149,10 +154,21 @@ impl<T: Real> ChartEdge<T> {
         let sh = |p: Point2<T>| Point2::new(p.x + du, p.y);
         match *self {
             ChartEdge::Segment { a, b } => ChartEdge::Segment { a: sh(a), b: sh(b) },
-            ChartEdge::Envelope { a, b, image, slack } => ChartEdge::Envelope {
+            ChartEdge::Envelope {
+                a,
+                b,
+                reach,
+                image,
+                slack,
+            } => ChartEdge::Envelope {
                 a: sh(a),
                 b: sh(b),
-                image: sh(image),
+                reach: ChartWindow {
+                    u_min: reach.u_min + du,
+                    u_max: reach.u_max + du,
+                    ..reach
+                },
+                image: image.map(sh),
                 slack,
             },
         }
@@ -170,9 +186,32 @@ pub struct ChartLoop<T: Real> {
     pub ring: bool,
 }
 
+impl<T: SpanLocate> ChartEdge<T> {
+    /// An envelope's image over the whole span as ONE enclosure: the
+    /// stored tighter one, else `reach` hulled into a bracket per
+    /// coordinate. At a point scalar either is poison. `None` for a
+    /// segment.
+    pub fn image(&self) -> Option<Point2<T>> {
+        match *self {
+            ChartEdge::Segment { .. } => None,
+            ChartEdge::Envelope { reach, image, .. } => Some(envelope_image(reach, image)),
+        }
+    }
+}
+
+fn envelope_image<T: SpanLocate>(reach: ChartWindow<T>, image: Option<Point2<T>>) -> Point2<T> {
+    image.unwrap_or_else(|| {
+        Point2::new(
+            reach.u_min.enclosure_hull(reach.u_max),
+            reach.v_min.enclosure_hull(reach.v_max),
+        )
+    })
+}
+
 impl<T: Real> ChartLoop<T> {
-    /// The loop's own chart box, over its vertices and envelope boxes.
-    fn window(&self) -> Option<ChartWindow<T>> {
+    /// The loop's own chart box, over its vertices and envelope
+    /// `reach`es.
+    pub(crate) fn window(&self) -> Option<ChartWindow<T>> {
         self.edges
             .iter()
             .map(ChartEdge::window)
@@ -196,8 +235,9 @@ impl<T: Real> ChartLoop<T> {
 pub struct ChartBound<T: Real> {
     /// The outer loop first, then every ring copy (D9 order).
     pub loops: Vec<ChartLoop<T>>,
-    /// The OUTER loop's box, over its vertices and envelope boxes, in
-    /// CHART units and NOT widened by any envelope's `slack`.
+    /// The OUTER loop's box, over its vertices and envelope `reach`es,
+    /// in CHART units and NOT widened by any envelope's `slack`; a box
+    /// at every scalar.
     ///
     /// Two things it is not. It does not contain the ring lifts —
     /// [`RING_SHIFTS`] puts them a whole period outside it by
@@ -266,49 +306,48 @@ impl<T: Decide> ChartBound<T> {
     /// face's region is then not periodic within its own outer, the
     /// lifts are not lifts of anything, and there is no honest
     /// description to return.
-    /// `u_arm` is the chart's FIRST-channel arm — what turns the span
-    /// excess into a length, and which of the two crossings that is
-    /// ([`ChartArm`]): metres per radian on an azimuth chart, metres
-    /// per chart-`u` unit on a plane or spline chart, where the excess
-    /// it meters is a parameter span and the arm is a certified rate.
-    /// It is a chart constant on the two charts a consumer meters
-    /// exactly (plane `1`, cylinder `r`); on a torus it is the local
-    /// lever, and an over- or under-stated arm can only move where the
-    /// refusal fires, never what a surviving description certifies.
+    /// `u_arm` is a sup of the chart's FIRST-channel rate over the
+    /// outer loop's window — what turns the span excess into a length
+    /// (metres per radian on an azimuth chart, whose `u` IS the
+    /// radian). Only a definite excess refuses, so an over-stated rate
+    /// can only refuse.
     pub fn assembled(
         outer: ChartLoop<T>,
         rings: Vec<ChartLoop<T>>,
         period: Option<Period<T>>,
-        u_arm: ChartArm<T>,
+        u_arm: SupSpeed<T>,
         band: Band,
     ) -> Result<Self, PcurveMintError> {
-        let hull = outer.window().unwrap_or(ChartWindow {
-            // An outer loop with no edges bounds nothing. The INVERTED
-            // box is the honest value for that: it contains no point,
-            // so nothing reads it as a claim about where the face is,
-            // and `certifies_outside` separates every cell from it —
-            // which then fails the parity stage, because a polygon of
-            // fewer than three vertices answers nothing.
+        // An outer loop with no edges bounds nothing. The INVERTED
+        // box is the honest value for that: it contains no point,
+        // so nothing reads it as a claim about where the face is,
+        // and `certifies_outside` separates every cell from it —
+        // which then fails the parity stage, because a polygon of
+        // fewer than three vertices answers nothing.
+        let inverted = ChartWindow {
             u_min: T::one(),
             u_max: -T::one(),
             v_min: T::one(),
             v_max: -T::one(),
-        });
+        };
+        let hull = outer.window().unwrap_or(inverted);
         if let Some(p) = period {
-            // The span check, in the direction the premise needs: only
-            // a DEFINITE excess refuses. A span within `K·ε` of the
+            // A DEFINITE excess refuses, and so does a poisoned margin:
+            // the face's describing is read as W2's premise, so a span
+            // never measured cannot stand. A span within `K·ε` of the
             // period, or one whose enclosure straddles it, is not a
             // measured violation, and refusing it would turn a
             // rounding into a lost description.
-            if matches!(
-                decide(
-                    SPAN,
-                    u_arm.meter(hull.u_max - hull.u_min - p.length()),
-                    band
-                ),
-                Ok(Sign::Positive)
+            match decide(
+                SPAN,
+                Margin::metered_sup(hull.u_max - hull.u_min - p.length(), u_arm),
+                band,
             ) {
-                return Err(PcurveMintError::OuterSpansPeriod);
+                Ok(Sign::Positive) => return Err(PcurveMintError::OuterSpansPeriod),
+                Err(cause) if cause.margin.is_invalid() => {
+                    return Err(PcurveMintError::OuterSpanPoisoned { cause });
+                }
+                Ok(Sign::Zero | Sign::Negative) | Err(_) => {}
             }
         }
         let mut loops = vec![outer];
@@ -330,7 +369,7 @@ impl<T: Decide> ChartBound<T> {
     }
 }
 
-impl<T: Real> ChartBound<T> {
+impl<T: SpanLocate> ChartBound<T> {
     /// The description with every chart quantity scaled to **metres**
     /// by the chart's arms `(a_u, a_v)` — metres per chart unit — and
     /// every envelope box widened by its own `slack`.
@@ -354,8 +393,14 @@ impl<T: Real> ChartBound<T> {
                             a: scale(a),
                             b: scale(b),
                         },
-                        ChartEdge::Envelope { a, b, image, slack } => {
-                            let m = scale(image);
+                        ChartEdge::Envelope {
+                            a,
+                            b,
+                            reach,
+                            image,
+                            slack,
+                        } => {
+                            let m = scale(envelope_image(reach, image));
                             let (ma, mb) = (scale(a), scale(b));
                             // The chord's own box is folded in, so
                             // the single box test of stage (1)
@@ -698,7 +743,7 @@ mod from_computed_rows {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::revalue_pin::{Revalued, S, revalued};
-    use geom_core::{SupSpeed, Tol};
+    use geom_core::Tol;
 
     /// The cell enters as a computed value: built at `Sym<f64>` over the
     /// triangle `(0, 0), (x, 0), (0, x)` with `x` the parameter, and cells
@@ -725,15 +770,9 @@ mod from_computed_rows {
                 ring: false,
             };
             let one = S::one();
-            let bound = ChartBound::assembled(
-                outer,
-                Vec::new(),
-                None,
-                ChartArm::Rate(SupSpeed::new(one)),
-                band,
-            )
-            .unwrap()
-            .metred((one, one));
+            let bound = ChartBound::assembled(outer, Vec::new(), None, SupSpeed::new(one), band)
+                .unwrap()
+                .metred((one, one));
             let (near, far) = (0.25 * p, 0.5 * p);
             for (name, cell) in [
                 ("right", MetredRect::new(p + 0.25, p + 0.5, near, far)),

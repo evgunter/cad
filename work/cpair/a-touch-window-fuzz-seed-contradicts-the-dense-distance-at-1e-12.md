@@ -24,3 +24,16 @@ whether the same seed reds on main. A contradiction against the dense
 distance is a soundness question until shown otherwise. The fuzz draws
 at 1e-12 more rarely than the nightly reaches, so a seed is the
 evidence.
+
+## 2026-10-24 — a second seed (INTENT nightly triage)
+
+Nightly run 40066431545 (main `3dfb96b91c`), full-suite job, eps=1e-6
+pass: `ε 0.000000000001: 2 readings contradicted (reproduce with
+CAD_FUZZ_SEED=0x9ac83e19a6f5b5a3 CAD_FUZZ_EFFORT=1)`. Draw 57 is a
+pair of circles of radius ≈553 whose `Recedes` reading on
+`(-3.909e-7, -3.908e-7)` (away false) and `(1.338e-7, 1.346e-7)`
+(away true) contradicts the dense distance. The default and 1e-12
+passes drew other seeds and passed. No merge in the window touched
+`curve_pair/pose/window/`, so this is the fuzzer drawing into the
+same defect, not a regression. Pin both seeds as deterministic rows
+beside the fix.

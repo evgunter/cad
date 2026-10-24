@@ -50,7 +50,7 @@
 //! # The boundary first
 //!
 //! Before any ray, `p` is read against every arc on the arc's own
-//! circle ([`ConicArc::hit`], the boundary reading the planar loop walk
+//! circle ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit), the boundary reading the planar loop walk
 //! takes of a circle edge): on an arc, or within the band of one of its
 //! ends, is the point on the boundary ([`None`]); in the band of one
 //! refuses. A crossing's place along a ray is no measure of `p`'s
@@ -70,7 +70,7 @@
 //!
 //! The boundary reading is of the ARC, not its circle: a point in the
 //! band of an arc's great circle where the circle runs on past the arc's
-//! ends, and clear of both ends, is off the boundary ([`ConicArc::hit`]).
+//! ends, and clear of both ends, is off the boundary ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit)).
 //!
 //! # Predicates (meters)
 //!
@@ -86,7 +86,7 @@
 //!   face side at the closest crossing, at the sphere's radius.
 //! - `bool_sphere_region_roots_*`: the first-harmonic door's own meters.
 //! - `bool_sphere_region_arc_span`: an arc's gap to a period. Where `p`
-//!   sits against the arc is [`ConicArc::hit`], the on-carrier and span
+//!   sits against the arc is [`ConicArc::hit`](crate::splitting::containment::ConicArc::hit), the on-carrier and span
 //!   readings' rows (`curve_carrier_*`, `curve_pair_span_*`). `bool_sphere_region_arc_straddle`
 //!   is the name an ellipse's straddle would carry; a circle never does.
 

@@ -183,6 +183,9 @@ use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
 
+pub(crate) use geom::Window;
+pub use geom::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START};
+
 use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::ladder::{IdentityLadder, read_identity};
@@ -4156,12 +4159,13 @@ struct ChartWindings {
 }
 
 /// The azimuth lever arm of a chart, in metres per radian — the safe
-/// OVER-statement per kind (module docs' sphere note): cylinder `r`,
-/// sphere `r` (true arm `r·cos v ≤ r`), torus `R + r` (the outer
-/// equator's), cone `v_sup·sin α` — the cone has no surface-level
-/// constant, so the caller supplies the pcurve box's own `|v|` sup,
-/// which dominates the local arm `v·sin α` everywhere the object being
-/// metered lives.
+/// OVER-statement per kind (module docs' sphere note), and the one home
+/// of [`chart_stretch_sup`]'s azimuth column: cylinder `r`, sphere `r`
+/// (true arm `r·cos v ≤ r`), torus `R + r` (the outer equator's), cone
+/// `v_sup·sin α` — the cone has no surface-level constant, so the
+/// caller supplies the pcurve box's own `|v|` sup, which dominates the
+/// local arm `v·sin α` everywhere the object being metered lives.
+/// `v_sup` is read on the cone only.
 fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
     match *surface {
         Surface::Cylinder { radius, .. } | Surface::Sphere { radius, .. } => radius,
@@ -4173,7 +4177,7 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
         Surface::Cone { half_angle, .. } => v_sup * half_angle.sin(),
         // Non-periodic charts have no azimuth, so there is no lever to
         // answer — not even 1. Every caller asks on a periodic chart
-        // only: `chart_arms_at` on the cone arm, and the harmonic lane's
+        // only: `chart_sup_arms_at` on the cone arm, and the harmonic lane's
         // fidelity term and the focal and spiric lanes behind their own
         // non-periodic exclusion.
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
@@ -5292,158 +5296,6 @@ impl<T: Real> Period<T> {
     }
 }
 
-/// **The principal window of an angular channel** starts here: an
-/// angle is placed in `(ANGLE_WINDOW_START, ANGLE_WINDOW_START + τ]`.
-///
-/// C4 places a periodic image "over the edge's span in the chart's
-/// principal window" and leaves the window to the implementation. The
-/// one property that matters is where its cut sits: an image whose span
-/// midpoint lands on the cut has its copy picked by rounding. Images
-/// cluster on the landmark angles (a seam at `0`, the half turn, the
-/// quarter turns), so the cut sits at a generic angle, `−1` radian.
-/// Measured over the workspace suite's harmonic images (3228 distinct,
-/// 237 k reads, planes excluded): the number whose midpoint lies within
-/// `1e-6` of each candidate cut, and the number a candidate moves from
-/// where the derivation used to put it.
-///
-/// | window | moved | on the cut |
-/// |---|---|---|
-/// | `(−π, π]` | 11.1% | 76.9 k |
-/// | `(0, τ]` | 37.8% | 87.6 k |
-/// | `(−π/2, 3π/2]` | 0.9% | 21.6 k |
-/// | `(−1, τ − 1]` | 0.8% | 0 |
-///
-/// On the torus's tube angle the same window moves 6.6% and puts none on
-/// the cut. A sphere's latitude is named in its own window
-/// ([`LATITUDE_WINDOW_START`]).
-///
-/// **The table is a measurement and is not guarded.** It reads every
-/// image the workspace suite derives, which no one row sees, and a census
-/// row would pin the suite's population rather than the window. It is
-/// re-taken by logging each placed image's channels at its span's
-/// midpoint from `chart_pcurve_over` over a full
-/// `cargo nextest run --workspace --profile ci` and counting, per
-/// candidate window, the images it moves and the midpoints within `1e-6`
-/// of its cut.
-///
-/// A body can still put a midpoint on the cut (a cone rotated so its
-/// seam sits at `−1`). Within the band of the cut the placement's mark
-/// is undecided and takes its lower branch (the D9 tie-break), so
-/// either rounding names one copy; and no reader tells the two copies
-/// apart where a midpoint is decided on either side of it
-/// (`topo::pcurves`' `a_meridian_on_the_windows_cut_reads_the_same_either_side_of_it`:
-/// validation, the chart boundary, the polygon modulo a turn and a face's
-/// overlap with itself). That a boolean's union path does not either is
-/// argued, not pinned: it was measured by moving the cut onto a cone's
-/// seam (to `0` and `0.5`) under `refusal_concision`'s cone union, which
-/// read the same (PR 5225), and the row that would hold it is
-/// `work/pcert/no-row-pins-that-the-boolean-union-path-reads-window-copies-alike`.
-pub const ANGLE_WINDOW_START: f64 = -1.0;
-
-/// **A sphere's latitude window** starts here: a latitude is placed in
-/// `(LATITUDE_WINDOW_START, LATITUDE_WINDOW_START + τ]`, that is
-/// `(1 − π, 1 + π]`, centred on latitude `1`.
-///
-/// Every point of the chart has a latitude in `[−π/2, π/2]`, inside the
-/// window. The *read* ranges further: a meridian placed on its far half
-/// reads its polar angle as `π − δ`, anywhere on `(π/2, 3π/2)`. So the
-/// read's one jump has to sit at a generic angle, not on a landmark: at
-/// an equator start a far-half read is `π`, and `atan2`'s own cut there
-/// put an `Interval` read a whole turn wide. The window's cut, at
-/// `1 + π ≡ 1 − π`, is reached by a far-half read only at the generic
-/// latitude `δ = −1`, the footing the angle window's offset arms are on.
-/// Every latitude below `1` reads on the direct side, bit-identical to
-/// `atan2`; those in `(1, π/2]` read through the turned formula
-/// (`stable_azimuth`), so their bits are not `atan2`'s. No pinned row
-/// reads one, but unpinned rows do (the delta-6 review counted 257 reads
-/// strictly inside, in 13 rows, and 122 k exactly at `π/2`, from pole
-/// starts, which are bit-equal at `f64` and a different enclosure at
-/// `Interval`), and all of them pass.
-///
-/// Measured over the workspace suite's sphere placements (1.51 M reads,
-/// 2380 distinct midpoints): no read lies within `1e-6` of this window's
-/// cut, against 431 (27 distinct) within `1e-6` of `atan2`'s at `π`.
-/// This window moves 10.1% of the placements (the angle at the midpoint
-/// before placement lies outside it, `k ≠ 0`), as `(−π, π]` does, and
-/// neither puts a midpoint on its cut (`(−π/2, 3π/2]` would put 302 k
-/// there, `(0, τ]` 551 k). After placement nearly every midpoint lies in
-/// `[−π/2, π/2]`: the delta-6 review counted 3 of 170 k outside, all in
-/// the pole band, on the fast set. Against `(−π, π]`, 504 workspace
-/// midpoints (9 distinct, all of rows that run a meridian past a full
-/// turn) take another turn; on the fast set none do. The table is a
-/// measurement and is not guarded, re-taken as [`ANGLE_WINDOW_START`]'s
-/// is, logging each latitude placement's read and midpoint.
-pub const LATITUDE_WINDOW_START: f64 = 1.0 - core::f64::consts::PI;
-
-/// **An angle read off the geometry**: the two frame components of a
-/// direction, as `atan2` would read them, with no arithmetic of its own.
-/// It leaves as an angle one way: read in a window
-/// ([`Azimuth::principal`] in the angle window, `principal_in` in any),
-/// the stable `atan2` read whose one jump is that window's cut, and whose
-/// copy a derivation then decides through the window's marks
-/// (`Placement::phase`, a [`Period::decide`] about the window's centre).
-/// No whole-period integer is read off a value.
-///
-/// An anchored `atan2` (the direction rotated back by a reference and
-/// read there) would name the copy with no decision, but it rotates
-/// every read, so a symbolic scalar no longer folds the read onto the
-/// carrier's own form: on the M10-10 plate the map-residual reads went
-/// from 36 theorems to 36 numeric decisions and the plate left the band
-/// below its ceiling. The principal read keeps `k = 0` bit-identical.
-#[derive(Clone, Copy, Debug)]
-pub struct Azimuth<T> {
-    y: T,
-    x: T,
-}
-
-impl<T: Real> Azimuth<T> {
-    /// The direction with components `y` and `x` in a chart's angular
-    /// frame, in `atan2`'s argument order.
-    pub fn of(y: T, x: T) -> Self {
-        Self { y, x }
-    }
-
-    /// The direction's length: the radius its angle is read at.
-    pub fn length(self) -> T {
-        (self.x.powi(2) + self.y.powi(2)).sqrt()
-    }
-}
-
-impl<T: Decide> Azimuth<T> {
-    /// The principal angle in the angle window ([`Window::Angle`],
-    /// `principal_in`): `atan2`'s, read on whichever side of the
-    /// window's cut line the direction lies (`stable_azimuth`): a choice
-    /// between two formulas equal modulo a turn, so the angle is one of
-    /// the direction's names. A direction decided on either side reads in
-    /// `(−1, τ − 1]`, and one on the cut reads the closed end `τ − 1`. One
-    /// in band just inside the open end, at angle `−1 + δ`, reads
-    /// `τ − 1 + δ`: the turned formula, a hair past the window, which
-    /// placement's marks take back. A direction of no length (or, at `Interval`,
-    /// one whose enclosure reaches zero length: no bounded reciprocal)
-    /// names no angle, and every angle names its zero-length vector alike:
-    /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
-    /// does at `f64` (a pole's zero-radius parallel, a sub-band rim's
-    /// centre on the axis). At `Interval` the rule broadens the same way:
-    /// an enclosure of the length that straddles zero has no bounded
-    /// reciprocal, so it reads `0` too, although the direction it encloses
-    /// may have length.
-    pub fn principal(self, band: Band) -> T {
-        self.principal_in(Window::Angle, band)
-    }
-
-    /// The angle read in `window`: as [`Azimuth::principal`] reads in the
-    /// angle window, with the cut line through `window`'s own start, so a
-    /// direction decided on either side reads in that window and the
-    /// read's one jump is the window's cut. A direction of no length reads
-    /// `0`, in every window.
-    pub(crate) fn principal_in(self, window: Window, band: Band) -> T {
-        if !(T::one() / self.length()).is_bounded() {
-            return T::zero();
-        }
-        stable_azimuth(self.y, self.x, window.start(), band)
-    }
-}
-
 impl<T: Decide> Period<T> {
     /// **A branch, decided as structure**: the whole number of periods
     /// `k` with `|gap − k·length| < length/2`, as the integer it is. It
@@ -5932,16 +5784,7 @@ fn placement_terms<T: Decide>(
     if period_u.is_none() && period_v.is_none() {
         return Ok((T::zero(), T::zero()));
     }
-    let (arm_u, arm_v) = match chart_stretch_sup(surface) {
-        Ok((u, v)) => (u.get(), v.get()),
-        // `S(u, v) = apex + v·g(u)`: the azimuth's metre rate is the
-        // slant's, read at the stored image's farthest slant.
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => (
-            azimuth_lever(surface, stored.chart_box(t0, t1).v_reach()),
-            T::one(),
-        ),
-        Err(NoChartSup::Placeholder) => return Err(PcurveCertifyError::PlaceholderChart),
-    };
+    let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1))?;
     let derived = chart_pcurve_over(carrier, t0, t1, surface, band)?;
     let at = stored.eval(t0);
     let past_half = |d: T, period: Option<Period<T>>| match period {
@@ -5969,7 +5812,7 @@ fn placement_terms<T: Decide>(
         }
     };
     let (du, dv) = offsets(&named);
-    Ok((du * arm_u, dv * arm_v))
+    Ok((arm_u.to_meters(du), arm_v.to_meters(dv)))
 }
 
 /// **Check 4's verdict**, the one spelling every lane decides its
@@ -6051,23 +5894,15 @@ fn fidelity<T: Decide>(
     // cos θ)`, which is `≥ 0` when the two slants share a nappe (`v₁`
     // the nearer, so `v₁·(v₂ − v₁) ≥ 0`).
     terms.1 = FidelityLegs::of(surface);
-    let (arm_u, arm_v) = match chart_stretch_sup(surface) {
-        Ok(arms) => arms,
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => {
-            // `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
-            // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
-            // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant
-            // levers the azimuth, and the nearer one's is enough.
-            let v_sup = harmonic_span_box(p0, pa, pb, pl, t0, t1)
-                .v_reach()
-                .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach());
-            (
-                SupSpeed::new(azimuth_lever(surface, v_sup)),
-                SupSpeed::new(T::one()),
-            )
-        }
-        Err(NoChartSup::Placeholder) => return Err(PcurveCertifyError::PlaceholderChart),
-    };
+    // On a cone, `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
+    // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
+    // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant levers the
+    // azimuth, and the nearer one's is enough.
+    let (arm_u, arm_v) = chart_sup_arms_over(surface, || {
+        harmonic_span_box(p0, pa, pb, pl, t0, t1)
+            .v_reach()
+            .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach())
+    })?;
     // The stored row is placed as its derivation is (C4: the mint and
     // check 4 place one image over one span, `Placement`), so its
     // constants ARE the derived ones, or on a sphere those of the
@@ -6868,7 +6703,7 @@ pub enum NoChartSup {
     /// A cone's azimuth stretch is `|v·sin α|`, which grows without
     /// bound down the ruling: no surface-level constant dominates it,
     /// so no `u` component exists to mint. The arm is a function of
-    /// the caller's own `v` reach, which is what [`chart_arms_at`]
+    /// the caller's own `v` reach, which is what [`chart_sup_arms_at`]
     /// supplies (`v_sup·sin α`). The `v` channel still has an exact
     /// answer and [`chart_stretch_sup_v`] is the door for it.
     ConeAzimuthGrowsWithV,
@@ -6894,7 +6729,7 @@ pub enum NoChartSup {
 /// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number, and the
 /// placeholder has no locus at all and answers
 /// [`NoChartSup::Placeholder`]. A cone
-/// caller goes through [`chart_arms_at`], which supplies
+/// caller goes through [`chart_sup_arms_at`], which supplies
 /// `v_sup·sin α` from the row's own box, or through
 /// [`chart_stretch_sup_v`] for the `v` channel alone, which is exact
 /// on every kind.
@@ -6928,22 +6763,18 @@ pub fn chart_stretch_sup<T: Real>(
     if surface.is_placeholder_chart() {
         return Err(NoChartSup::Placeholder);
     }
+    // [`azimuth_lever`] reads no `v` reach off a cylinder, sphere or
+    // torus, the kinds that ask it here.
+    let azimuth = || SupSpeed::new(azimuth_lever(surface, T::zero()));
     match *surface {
         // The cone's azimuth arm is the caller's to supply; its `v`
         // channel is answered by [`chart_stretch_sup_v`].
         Surface::Cone { .. } => Err(NoChartSup::ConeAzimuthGrowsWithV),
-        Surface::Cylinder { radius, .. } => Ok((SupSpeed::new(radius), SupSpeed::new(T::one()))),
+        Surface::Cylinder { .. } => Ok((azimuth(), SupSpeed::new(T::one()))),
         // The sphere/torus second parameter IS an angle (M6-3): its
         // arm is the polar / meridional radius.
-        Surface::Sphere { radius, .. } => Ok((SupSpeed::new(radius), SupSpeed::new(radius))),
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => Ok((
-            SupSpeed::new(major_radius + minor_radius),
-            SupSpeed::new(minor_radius),
-        )),
+        Surface::Sphere { radius, .. } => Ok((azimuth(), SupSpeed::new(radius))),
+        Surface::Torus { minor_radius, .. } => Ok((azimuth(), SupSpeed::new(minor_radius))),
         // A described NURBS chart's honest arms are its derivative-net
         // stretch bounds (`sup |S_u|`, `sup |S_v|`) — over-statements
         // of the local stretch, the safe direction exactly as the
@@ -6998,29 +6829,36 @@ pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>,
     }
 }
 
-/// [`chart_stretch_sup`] with the row's own chart box in hand — the
-/// caller that can answer the refusal the surface-level door cannot:
-/// the cone's azimuth arm becomes `v_sup·sin α`, with `v_sup` the
-/// box's `|v|` reach (dominating the local arm everywhere the row
-/// lives — the safe direction); every other kind answers as
-/// [`chart_stretch_sup`].
+/// [`chart_stretch_sup`] over a chart window — the door that can answer
+/// the refusal the surface-level one cannot: the cone's azimuth arm
+/// becomes `v_sup·sin α`, with `v_sup` the window's `|v|` reach
+/// (dominating the local arm everywhere in the window — the safe
+/// direction); every other kind answers as [`chart_stretch_sup`], a
+/// sup over the whole chart and so over any window of it.
 ///
-/// The placeholder has arms nowhere, and refuses as
-/// [`PcurveCertifyError::PlaceholderChart`] — the same refusal every
-/// lane's check 1 answers for it before this is reached.
-fn chart_arms_at<T: Real>(
+/// # Errors
+///
+/// [`PcurveCertifyError::PlaceholderChart`] for the placeholder chart,
+/// which has arms nowhere, and nothing else.
+pub fn chart_sup_arms_at<T: Real>(
     surface: &Surface<T>,
-    boxed: &ChartWindow<T>,
+    window: &ChartWindow<T>,
+) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
+    chart_sup_arms_over(surface, || window.v_reach())
+}
+
+/// [`chart_sup_arms_at`] for a caller whose `|v|` sup is not one
+/// window's reach; `v_sup` is read on a cone only.
+fn chart_sup_arms_over<T: Real>(
+    surface: &Surface<T>,
+    v_sup: impl FnOnce() -> T,
 ) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
     match chart_stretch_sup(surface) {
         Ok(pair) => Ok(pair),
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => {
-            let v_sup = boxed.v_reach();
-            Ok((
-                SupSpeed::new(azimuth_lever(surface, v_sup)),
-                SupSpeed::new(T::one()),
-            ))
-        }
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok((
+            SupSpeed::new(azimuth_lever(surface, v_sup())),
+            SupSpeed::new(T::one()),
+        )),
         Err(NoChartSup::Placeholder) => Err(PcurveCertifyError::PlaceholderChart),
     }
 }
@@ -8338,51 +8176,6 @@ struct Levers<T> {
     latitude: T,
 }
 
-/// **The window a placed channel is named in**, and so the window its
-/// angle is read in: each window carries its start, the reader takes its
-/// cut there (`Azimuth::principal_in`), and the marks are read about its
-/// centre. Every angle of a periodic chart is named in the angular
-/// window, `(ANGLE_WINDOW_START, ANGLE_WINDOW_START + τ]`, but a sphere's
-/// latitude is not an angle every value of which is the chart's: only
-/// `[−π/2, π/2]` is (`chart_region` refuses an image past it as unbounded
-/// in its sphere arm). Its window, `(LATITUDE_WINDOW_START,
-/// LATITUDE_WINDOW_START + τ]`, holds every valid latitude, so each is
-/// named as itself, and its cut sits at a generic angle past both
-/// poles (`1 + π` beyond the north, `1 − π` beyond the south): the
-/// meridian's placed polar angle, the parallel's `asin` and the
-/// projected image's latitude, which is never moved, are one convention.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Window {
-    /// An angle of a periodic chart.
-    Angle,
-    /// A sphere's latitude.
-    Latitude,
-}
-
-/// Every window's start lies in `(−π, 0]`, which `stable_azimuth`'s two
-/// formulas need to cover `(start, start + τ]`; a start moved outside it
-/// fails the build.
-const _: () = {
-    use core::f64::consts::PI;
-    assert!(-PI < ANGLE_WINDOW_START && ANGLE_WINDOW_START <= 0.0);
-    assert!(-PI < LATITUDE_WINDOW_START && LATITUDE_WINDOW_START <= 0.0);
-};
-
-impl Window {
-    /// The window's open end, its cut: the one place its start is spelled.
-    fn start<T: Real>(self) -> T {
-        match self {
-            Window::Angle => T::from_f64(ANGLE_WINDOW_START),
-            Window::Latitude => T::from_f64(LATITUDE_WINDOW_START),
-        }
-    }
-
-    /// The window's centre, half a turn from its cut either way.
-    fn centre<T: Real>(self) -> T {
-        T::pi() + self.start()
-    }
-}
-
 impl Along {
     /// The window the angle is read and named in.
     fn window(self) -> Window {
@@ -8547,27 +8340,6 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
             let (a, b) = net.domain();
             (T::from_f64(a), T::from_f64(b))
         }
-    }
-}
-
-/// The angle of `(x, y)` (M5 S13, shared by every chart's derivation
-/// since M6-3), by one of two formulas equal modulo a turn:
-/// `atan2(y, x)`, its cut on the negative-`x` axis, or
-/// `atan2(−y, −x) + π`, its cut on the positive-`x` axis.
-///
-/// Which one is decided across the line through the angles `start` and
-/// `start + π` (`pcurve_chart_cut_side`), `start` in `(−π, 0]`: on the
-/// side that holds angle `0`, the first; on the other, in band or
-/// undecided, the second. So a direction decided on either side reads in
-/// `(start, start + τ]`, and the read jumps only across the line's band
-/// at `start`, on the angle-`0` side of it (`Azimuth::principal`'s doc
-/// says what a direction in that band reads); the geom-brep README's C4
-/// says why the windows' starts are generic angles.
-fn stable_azimuth<T: Decide>(y: T, x: T, start: T, band: Band) -> T {
-    let (s, c) = start.sin_cos();
-    match decide("pcurve_chart_cut_side", Margin::of(c * y - s * x), band) {
-        Ok(Sign::Positive) => y.atan2(x),
-        Ok(Sign::Negative | Sign::Zero) | Err(_) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
     }
 }
 
@@ -11858,7 +11630,7 @@ mod tests {
             v_min: -3.0,
             v_max: 1.5,
         };
-        let (arm, v_arm) = chart_arms_at(&cone, &boxed).unwrap();
+        let (arm, v_arm) = chart_sup_arms_at(&cone, &boxed).unwrap();
         let (arm, v_arm) = (arm.get(), v_arm.get());
         assert!(
             (v_arm - 1.0).abs() < 1e-15,
@@ -12317,8 +12089,8 @@ mod cone_azimuth_sup {
 #[cfg(test)]
 mod placeholder_sup {
     use super::{
-        ChartWindow, NoChartSup, PcurveCertifyError, chart_arms_at, chart_stretch_inf,
-        chart_stretch_sup, chart_stretch_sup_v,
+        ChartWindow, NoChartSup, PcurveCertifyError, chart_stretch_inf, chart_stretch_sup,
+        chart_stretch_sup_v, chart_sup_arms_at,
     };
     use geom::{NurbsSurface, Surface};
     use std::sync::Arc;
@@ -12344,7 +12116,7 @@ mod placeholder_sup {
             v_max: 1.0,
         };
         assert_eq!(
-            chart_arms_at(&ph, &unit).err(),
+            chart_sup_arms_at(&ph, &unit).err(),
             Some(PcurveCertifyError::PlaceholderChart),
             "the boxed door, which the azimuth headroom reads"
         );
