@@ -227,7 +227,7 @@
 //!
 //!    **So the scene keeps two references apart.** The skin's OWN
 //!    volume and area, integrated over the body's own surfaces by a
-//!    dense Gauss–Legendre rule (`oracles::skin_quadrature`), are what the
+//!    dense Gauss–Legendre rule (`patch_quadrature`), are what the
 //!    kernel's certified enclosure must hold. The frustum is held to
 //!    that reference at the fit's scale. The fit's miss is some
 //!    fourteen thousand of the enclosure's half-widths at ε = 1e-12, so
@@ -398,7 +398,7 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// and a rational patch is a QUADRATURE face whose certified enclosure
 /// is chased to `QUAD_TARGET_LEN_FACTOR·ε`. Every ε the tour runs meets
 /// that target, and the scene holds the enclosure to the skin's own
-/// integrated volume (`oracles::skin_quadrature`). Where a tighter ε refuses
+/// integrated volume (`patch_quadrature`). Where a tighter ε refuses
 /// `QuadratureBudget`, tier 3 still certifies the body on the
 /// enclosure's SIGN, and the scene holds the same reference to the
 /// bracket the certificate keeps.
@@ -1265,6 +1265,99 @@ fn annulus(ro: f64, ri: f64) -> f64 {
     PI * (ro * ro - ri * ri)
 }
 
+/// The `n`-point Gauss–Legendre rule on `[-1, 1]`, as `(node, weight)`:
+/// Newton on the three-term recurrence from Tricomi's initial guess.
+fn gauss_legendre(n: usize) -> Vec<(f64, f64)> {
+    let nf = n as f64;
+    (1..=n)
+        .map(|k| {
+            let mut x = (PI * (k as f64 - 0.25) / (nf + 0.5)).cos();
+            let mut dp = 0.0;
+            for _ in 0..100 {
+                let (mut p0, mut p1) = (1.0, x);
+                for j in 2..=n {
+                    let jf = j as f64;
+                    (p0, p1) = (p1, ((2.0 * jf - 1.0) * x * p1 - (jf - 1.0) * p0) / jf);
+                }
+                dp = nf * (x * p1 - p0) / (x * x - 1.0);
+                let dx = p1 / dp;
+                x -= dx;
+                if dx.abs() <= 1e-16 {
+                    break;
+                }
+            }
+            (x, 2.0 / ((1.0 - x * x) * dp * dp))
+        })
+        .collect()
+}
+
+/// **The volume of a body whose faces are two planes and any number of
+/// NURBS patches, and the area of its patches**, integrated over the
+/// body's OWN surfaces with an `order`-point Gauss–Legendre rule on
+/// every knot span: the reference a fitted skin has where it has no
+/// closed form.
+///
+/// The volume is the divergence theorem, `V = ⅓ ∮ (x − p)·n dA`, with
+/// `p` a point on BOTH planes: `(x − p)·n` vanishes on each, so the
+/// caps contribute nothing and only the patches are integrated. Every
+/// span of a patch is a smooth rational piece, where the rule converges
+/// geometrically in `order`.
+fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
+    let rule = gauss_legendre(order);
+    let planes: Vec<(Point3<f64>, Vec3<f64>)> = body
+        .faces()
+        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
+            _ => None,
+        })
+        .collect();
+    let [(o1, n1), (o2, n2)] = planes[..] else {
+        panic!("a quadrature over two caps, got {} planes", planes.len())
+    };
+    // The point of the two planes' common line nearest the origin.
+    let (c, d1, d2) = (
+        n1.dot(n2),
+        n1.dot(o1 - Point3::origin()),
+        n2.dot(o2 - Point3::origin()),
+    );
+    let p = Point3::origin()
+        + n1 * ((d1 - c * d2) / (1.0 - c * c))
+        + n2 * ((d2 - c * d1) / (1.0 - c * c));
+    let breaks = |knots: &[f64]| {
+        let mut b = knots.to_vec();
+        b.dedup();
+        b
+    };
+    let (mut flux, mut area) = (0.0, 0.0);
+    for (_, f) in body.faces() {
+        let n = match body.get_surface(f.surface) {
+            Some(Surface::Plane { .. }) => continue,
+            Some(Surface::Nurbs(n)) => n,
+            other => panic!("a quadrature over planes and NURBS, got {other:?}"),
+        };
+        let sense = if f.sense { 1.0 } else { -1.0 };
+        let (bu, bv) = (
+            breaks(n.knot_values_u().values()),
+            breaks(n.knot_values_v().values()),
+        );
+        for u in bu.windows(2) {
+            for v in bv.windows(2) {
+                let (hu, hv) = (0.5 * (u[1] - u[0]), 0.5 * (v[1] - v[0]));
+                for &(xu, wu) in &rule {
+                    for &(xv, wv) in &rule {
+                        let jet = n.ders(u[0] + hu * (1.0 + xu), v[0] + hv * (1.0 + xv));
+                        let normal = jet.du.cross(jet.dv) * sense;
+                        let w = wu * wv * hu * hv;
+                        flux += w * (jet.point - p).dot(normal);
+                        area += w * normal.norm();
+                    }
+                }
+            }
+        }
+    }
+    (flux / 3.0, area)
+}
+
 /// The station where the foot cylinder meets the belly sphere, at
 /// inward offset `d`: the sphere shrinks concentrically and the
 /// cylinder shrinks radially, so their meeting slides ALONG the
@@ -2091,10 +2184,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The skin's OWN volume is what a certified enclosure of this body
     // must hold, and the frustum is not it: the two differ by the LOFT
     // FIT. So the skin's reference is integrated over its own surfaces
-    // ([`crate::oracles::skin_quadrature`]) at two orders, and their
-    // difference is the reference's error estimate.
-    let skin = crate::oracles::skin_quadrature(&spout);
-    let (v_skin, a_skin, v_err, a_err) = (skin.volume, skin.area, skin.volume_err, skin.area_err);
+    // ([`patch_quadrature`]) at two orders, and their difference is the
+    // reference's error estimate. The caps are the authored annuli.
+    let (v_lo, a_lo) = patch_quadrature(&spout, 12);
+    let (v_skin, a_walls) = patch_quadrature(&spout, 24);
+    let a_skin = a_walls + annulus(SPOUT_R0, bore * SPOUT_R0) + annulus(SPOUT_R1, bore * SPOUT_R1);
+    let (v_err, a_err) = ((v_skin - v_lo).abs(), (a_walls - a_lo).abs());
 
     // **The frustum is held to the skin at the FIT's scale.** A cubic
     // spline through stations `Δ` apart in the bend's angle misses a

@@ -56,19 +56,19 @@ that, keeping the closed form as a fit check.
 
 ## Closed (2026-10-24)
 
-Both sites now integrate the built body over its own surfaces and hold
-the certified enclosure to that: `demos/tour/src/oracles.rs`'s
-`skin_quadrature`, which teapot's spout now uses too. The closed forms
-are fit checks.
+Both sites now hold the certified enclosure to the built body's own
+volume, integrated over its surfaces by `demos/tour/src/patch_quadrature.rs`.
+The closed forms are fit checks.
 
-- **Projectbox.** Wall 1 is retired at the default ε as well as at
-  1e-6, and stays a wall at 1e-12. The built round coil integrates to
-  `V = 0.010360121170116696…`. A 40-digit evaluation of the dumped
-  control nets with an evaluator independent of the kernel agrees
-  with it to 3e-18, and orders 16 and 20 agree to 6e-25. The default-ε
-  enclosure `0.0103601199 ± 1.9e-7` holds it with a 1.2e-9 miss, and
-  the 1e-6 one `0.0103598206 ± 4.9e-5` holds it with a 3.0e-7 miss.
-  `A·L` sits 4.39e-3 above it, inside `COIL_GAP`. The size of that
+- **Projectbox** is fixed by QUAD's PR 5640, which landed while this
+  row was being worked. Wall 1 is retired at the default ε, and the
+  coil is held to its pinned `ROUND_COIL_V`. As an independent check,
+  this lane evaluated the dumped control nets in 40-digit arithmetic
+  with its own evaluator and got `V = 0.010360121170116696…`. Orders
+  16 and 20 agree to 6e-25, and the result matches the pin to all of
+  its digits. The default-ε enclosure `0.0103601199 ± 1.9e-7` holds it
+  with a 1.2e-9 miss, and the 1e-6 one `0.0103598206 ± 4.9e-5` holds
+  it with a 3.0e-7 miss. `A·L` sits 4.39e-3 above it. The size of that
   deficit is evidence on
   `work/carve/sweep-frame-is-a-minimal-rotation-from-the-start-tangent.md`.
 - **Lily.** This row said lily was not red. It was red at ε = 1e-12:

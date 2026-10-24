@@ -3014,7 +3014,7 @@ mod review_probes {
         // the arc, so the two differ by the fit. The kernel's certified
         // volume must therefore contain the skin's OWN volume,
         // integrated over its surfaces
-        // ([`crate::oracles::skin_quadrature`]), at every width: a
+        // ([`crate::patch_quadrature`]), at every width: a
         // sound enclosure misses the true volume at none. Pappus is
         // held to the skin at the fit's scale: a cubic spline through
         // stations `Δ` apart in the arc's angle misses it by
@@ -3041,16 +3041,25 @@ mod review_probes {
                     .abs()
                     .mul_add(leaf.section.centroid_rise(), leaf.len);
             let b = body(&ps, name);
-            let skin = crate::oracles::skin_quadrature(b);
+            // The caps are the authored lens placed rigidly, and each
+            // reading is taken about two points: a shell that does not
+            // close reads two volumes.
+            let cap = |_o: [f64; 3], _n: [f64; 3]| leaf.section.area();
+            let about = [[0.0; 3], [leaf.base.x, leaf.base.y, leaf.base.z]];
+            let coarse = crate::patch_quadrature::measure(b, 24, &about, cap);
+            let fine = crate::patch_quadrature::measure(b, 32, &about, cap);
+            let skin_v = fine.volume[0];
+            let skin_err = (skin_v - coarse.volume[0])
+                .abs()
+                .max((skin_v - fine.volume[1]).abs());
             #[allow(clippy::cast_precision_loss)]
             let fit_step = leaf.curl.abs() / (LEAF_STATIONS - 1) as f64;
             let fit_scale = 2.0 * (5.0 / 384.0) * fit_step.powi(4);
-            let fit = ((skin.volume - pappus) / pappus).abs();
+            let fit = ((skin_v - pappus) / pappus).abs();
             assert!(
                 fit <= fit_scale,
-                "{name}: the skin's V = {} misses Pappus {pappus} by {fit:e} of it, past the \
-                 cubic fit's scale {fit_scale:e}",
-                skin.volume
+                "{name}: the skin's V = {skin_v} misses Pappus {pappus} by {fit:e} of it, past \
+                 the cubic fit's scale {fit_scale:e}"
             );
             let reading = pncad::topo::VolumeReading::of(
                 pncad::topo::validate_geometric_certificate(b, Tol::witness())
@@ -3062,13 +3071,12 @@ mod review_probes {
                 .enclosure();
             let (lo, hi) = (e.volume_lo, e.volume_hi);
             assert!(
-                lo <= skin.volume - skin.volume_err && skin.volume + skin.volume_err <= hi,
-                "{name}: the skin's own V = {} (± {:e}) outside the certified [{lo}, {hi}]",
-                skin.volume,
-                skin.volume_err
+                lo <= skin_v - skin_err && skin_v + skin_err <= hi,
+                "{name}: the skin's own V = {skin_v} (± {skin_err:e}) outside the certified \
+                 [{lo}, {hi}]"
             );
             let m = pncad::mesh::tessellate(b, 2e-3, Tol::witness()).expect("tessellate");
-            let short = (skin.volume - signed_volume(&m)) / skin.volume;
+            let short = (skin_v - signed_volume(&m)) / skin_v;
             assert!(
                 short > 3e-3 && short < 6e-3,
                 "{name}: mesh short by {short}"

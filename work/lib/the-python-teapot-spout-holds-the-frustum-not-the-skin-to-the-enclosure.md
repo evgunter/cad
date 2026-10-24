@@ -39,12 +39,10 @@ own.
 
 ## The binding has no door to the reference (ISO, 2026-10-24)
 
-The Rust scenes now share the skin quadrature,
-`demos/tour/src/oracles.rs`'s `skin_quadrature`, which also integrates
-the planar caps from the patches' boundary isolines. That function
-reads each face's surface (`Body::get_surface`), a NURBS patch's knots
-and its jet (`NurbsSurface::ders`). `crates/pncad-py/src` exposes
-none of these to Python: no surface accessor on a face, and no control
-net, knot vector or evaluator for a patch. Fixing this test therefore
-first needs a binding door to a face's NURBS jet, which is that
+The Rust scenes' reference is `demos/tour/src/patch_quadrature.rs`.
+It reads each face's surface, and a NURBS patch's knots, weights and
+control net. `crates/pncad-py/src` exposes none of these to Python:
+there is no surface accessor on a face, and no control net, knot
+vector or evaluator for a patch. Fixing this test therefore first
+needs a binding door to a face's NURBS data, which is that
 binding-coverage finding. ISO left the test as it was.
