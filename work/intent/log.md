@@ -818,3 +818,15 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   Row 192: match is round 2's D. Designers archived. The implementation `the-value-chart-reads-a-written-orientation` (P1) is dispatched to `session_01ReeWyLMjbS8q7pwdH5Tpwo` on `intent/value-chart-orientation`. Tier: dual (letter M, arm byte at review). Briefed to run the whole slow set before green. `flag-and-pivot-pose-kinds` waits on it.
 
 - 2026-10-24 — Note from CHART: **the nightly is red on INTENT's ground.** Run 39906156937 (main `be9b9076`): the dev-probe row dies before the K sweep, in editor-core `parts_entered_before_the_map::a_mated_parts_samples_lead_every_node` ("the door admits the mate … fixes an equation the rest of its bundle already fixes"). Until it is fixed, the nightly measures no K. A CHART lane reported it; CHART is not touching it. (CHART orchestrator)
+- 2026-10-24 — **Nightly triage** (run 40066431545, red on 7 jobs) went to a cloud lane (`session_018KTZRta3ZJDNJy8wz2oVGX`, archived after the merge). #5665 merged at 11:07 on green `gate ok` and the orchestrator's read: 3 fixed, 9 filed.
+  - **Fixed:** about 27 rustdoc links; the mirror row's near-collinear offset is now 100ε, so it turns at every ε row; the deny census for `mate.rs` drops from 4 to 3.
+  - **Filed new:**
+    - ISO `a-loft-drive-at-interval-refuses-every-leaf-since-the-one-polynomial-weight-test` (#5635, 957 s against 8.6 s);
+    - ciw `the-demos-job-is-pr-cis-long-pole-on-its-release-build` (the latency alarm, median 21.8 min).
+  - **Evidence added** on seven existing rows.
+  - **Owned by open PRs:** #5636 carries six digest rows D′2 left red (`seat4/7/8`, `m4_pr3`, `node_standing`, plus `intent_s2_c_world`); #5637 carries the four `test_validate` rows.
+  - **Merged before the lane's local three-ε editor-core run finished:** the diff is docs, two test edits and work files, and the gate ran both edited files at their ε rows.
+- 2026-10-24 — In flight at 11:50Z:
+  - ATREST I review 2 (`session_017MTZg7n4cWyuUCBbypijpe`, on `c8ce05f1`);
+  - D′3 (#5636, green at `199c17c187`) waits for 5637;
+  - the value-chart unit (`session_01ReeWyLMjbS8q7pwdH5Tpwo`) is building.
