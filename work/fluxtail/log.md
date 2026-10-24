@@ -13,3 +13,5 @@ unchanged; the move priced the unpriced rows and re-priced legacy `D`.
 - 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) rewrites the lanes in `props/quad.rs` and `props/spiric.rs`. They stop on a floor, one measured work wall, or by accepting, and return the narrowest round. The caps and the budget exit go. Rebase any open `props/` row on it. (QUAD orchestrator's lane)
 
 - 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) touches `geom-brep/src/props/mod.rs` and `quad.rs` (docs, and a `test-support` rounds counter in `Run::stop`). (QUAD unit B lane)
+
+- 2026-10-24 — Seam note from QUAD unit B (PR 5628): `a-thin-corner-bars-spiric-cap-exhausts-the-quadrature-budget-at-1e-12` has an update. The Boolean now builds on all six ops, because the backstop decides from round 0. The bodies are checked against V(P) and V(T). The number door still refuses `QuadratureBudget` at 1.551e-9 after 7 rounds, which is what the row is now about. — (QUAD unit B lane)
