@@ -1356,52 +1356,45 @@ pub(crate) struct ChartCache(BTreeMap<(bool, FaceKey), Sheet>);
 impl ChartCache {
     /// Does `operand`'s `face` of `body` lift to one sheet — does every
     /// closed curve in its interior lift to a closed curve with zero
-    /// winding (W2's premise)? Read off the loop walk
-    /// ([`crate::pcurves::loop_windings`]): [`Sheet::One`] when
+    /// winding (W2's premise)? Asked only of a cylinder, cone or torus
+    /// face: no section arm marks a component essential on a plane, a
+    /// sphere or a spline, and a plane and a sphere carry no essential
+    /// curve at all. Read off the loop walk
+    /// ([`crate::pcurves::loop_windings`]), [`Sheet::One`] when
     ///
-    /// 1. every loop off the chart's singular set winds the identity,
+    /// 1. every loop off the chart's singular set (a cone's apex) winds
+    ///    the identity,
     /// 2. at most one loop meets that set, and
-    /// 3. no singular point lies in `int F`: on a sphere each pole is
-    ///    placed by the face's own point door, and lies `Out`, or on a
-    ///    vertex; on a cone the face's corners lie on one nappe
+    /// 3. a cone face's corners lie on one nappe
     ///    ([`crate::offset_nappe::face_nappe`]).
     ///
     /// **Why that is enough.** `int F` is the face less its edges, seams
     /// included: an event marks a section crossing any of them (L1). On
-    /// a plane, cylinder, cone or sphere, a closed curve `γ` off the
-    /// singular set winds by its class in the first homology of the
-    /// carrier less that set (less the apex, less the poles), and `γ`
+    /// a cylinder or a cone a closed curve `γ` off the apex winds by its
+    /// class in the first homology of the carrier less the apex, and `γ`
     /// in `int F` is homologous there to a sum over every boundary
-    /// circle of `F` but one, and over a small circle about each
-    /// singular point `int F` holds: `F` is planar, since its interior
-    /// lies on a planar carrier. Each loop off the singular set lies
-    /// off it, so its term is its winding, zero by (1); the loop that
-    /// meets the set, if any, is the one left out (2); and (3) leaves no
-    /// singular point in `int F`. On a cone (3)'s apex term is also
-    /// implied: an apex in `int F` sits on no loop, and the sum over
-    /// all of them is then ±1. The nappe clause excludes a loop that
-    /// crosses the apex inside an edge, whose term is not its walk's
-    /// winding; on a sphere a pole inside an edge places `OnEdge`, and
-    /// does not describe. A pinched face (two sectors meeting at an
-    /// apex) reads the same of each sector. A torus has no singular
-    /// set, and (1) is enough while its face is planar, as a face its
-    /// seams cut open is.
+    /// circle of `F` but one, and over a small circle about the apex
+    /// where `int F` holds it: `F` is planar, since it lies on a planar
+    /// carrier. Each loop off the apex lies off it, so its term is its
+    /// winding, zero by (1); the loop through the apex, if any, is the
+    /// one left out (2); and an apex in `int F` sits on no loop, so the
+    /// sum over all of them would be ±1, which (1) excludes. The nappe
+    /// clause excludes a loop that crosses the apex inside an edge,
+    /// whose term is not its walk's winding. A pinched face (two sectors
+    /// meeting at the apex) reads the same of each sector. A torus has
+    /// no singular set, and (1) is enough while its face is planar, as a
+    /// face its seams cut open is.
     ///
-    /// A plane winds nothing and is [`Sheet::One`] unread. A spline or
-    /// approximated chart is [`Sheet::Not`]: no point door places its
-    /// collapsed rows, and no section arm marks a component essential
-    /// on one.
-    ///
-    /// A walk that refuses for a numerical or unbuilt reason, or a
-    /// point door with no verdict, is [`Sheet::Unread`], never `Not`.
+    /// A walk that refuses for a numerical or unbuilt reason is
+    /// [`Sheet::Unread`], never `Not`.
     ///
     /// # Errors
     ///
-    /// [`BooleanError::ClassificationInvariant`] for a torn face: a
-    /// key that does not resolve, an edge with no carrier, a missing or
-    /// misstated row, or a loop whose walk does not close. Each is a
-    /// state the at-rest pass refuses, so an operand reaches here
-    /// without it.
+    /// [`BooleanError::ClassificationInvariant`] for a torn face (a key
+    /// that does not resolve, an edge with no carrier, a missing or
+    /// misstated row, or a loop whose walk does not close: each a state
+    /// the at-rest pass refuses), and for a face on a plane, a sphere or
+    /// a spline, which no section arm asks about.
     pub(crate) fn describes<T: crate::props::AtRestPolicy>(
         &mut self,
         operand: Operand,
@@ -1430,9 +1423,13 @@ fn one_sheet<T: crate::props::AtRestPolicy>(
     use crate::pcurves::PcurveMintError as M;
     use geom::Surface as S;
     match surface {
-        S::Plane { .. } => return Ok(Sheet::One),
-        S::Nurbs(_) | S::Approx(_) => return Ok(Sheet::Not),
-        S::Cylinder { .. } | S::Cone { .. } | S::Sphere { .. } | S::Torus { .. } => {}
+        S::Cylinder { .. } | S::Cone { .. } | S::Torus { .. } => {}
+        S::Plane { .. } | S::Sphere { .. } | S::Nurbs(_) | S::Approx(_) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "the section certificate's W2 was asked of a face on a plane, a sphere or \
+                       a spline, on which no section arm marks a component essential",
+            });
+        }
     }
     let loops = match crate::pcurves::loop_windings(body, face, surface, band) {
         Ok(loops) => loops,
@@ -1456,29 +1453,12 @@ fn one_sheet<T: crate::props::AtRestPolicy>(
     if !loops_lift(&loops) {
         return Ok(Sheet::Not);
     }
-    match *surface {
-        S::Sphere {
-            center,
-            radius,
-            axis,
-            ..
-        } => {
-            for pole in [center + axis * radius, center - axis * radius] {
-                match place_witness(body, face, pole, band) {
-                    Some(FaceContainment::Out | FaceContainment::OnVertex(_)) => {}
-                    Some(FaceContainment::In | FaceContainment::OnEdge(_)) => {
-                        return Ok(Sheet::Not);
-                    }
-                    None => return Ok(Sheet::Unread),
-                }
-            }
-        }
-        S::Cone { .. } => match crate::offset_nappe::face_nappe(body, face, band) {
+    if matches!(surface, S::Cone { .. }) {
+        match crate::offset_nappe::face_nappe(body, face, band) {
             Ok(_) => {}
             Err(crate::ReplaceFaceError::NappeStraddles { .. }) => return Ok(Sheet::Not),
             Err(_) => return Ok(Sheet::Unread),
-        },
-        _ => {}
+        }
     }
     Ok(Sheet::One)
 }

@@ -13,11 +13,11 @@ cost: M
 
 `topo::boolean::ops::ChartCache::describes` reads W2's premise off the loop
 walk (`pcurves::loop_windings`). The premise is that every closed curve in
-`int F` winds nothing. The reading is: every loop off the singular set winds
-the identity, at most one loop meets that set, and no singular point lies
-in `int F`. That rests on `F` being planar, so that every boundary circle
-but one generates its first homology. On the plane, cylinder, cone and
-sphere this is automatic, because the face lies on a planar carrier.
+`int F` winds nothing. The reading is: every loop off the apex winds the
+identity, at most one loop meets it, and a cone face lies on one nappe. That rests on `F` being planar, so that every boundary circle
+but one generates its first homology. On the cylinder and the cone, the
+other kinds W2 is asked of, this is automatic, because the face lies on a
+planar carrier.
 
 A torus is not planar. A torus face could be the torus less a disc: one
 null loop and no seam edges. Its loop walk winds nothing, yet it holds a

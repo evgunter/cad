@@ -861,6 +861,7 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+mod a_boolean_on_a_pole_touching_octant;
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
 #[path = "full_turn_wall.rs"]
@@ -941,7 +942,6 @@ mod near_tangent_pierce_poses;
 mod pi_seam_and_kiss_through_the_boolean;
 #[path = "pierce_tangent_off_face.rs"]
 mod pierce_tangent_off_face;
-mod pole_touching_sphere_faces_lift;
 #[path = "snowman.rs"]
 mod snowman;
 #[path = "tang_circle_cylinder.rs"]

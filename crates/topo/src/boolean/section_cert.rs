@@ -442,9 +442,9 @@ pub(crate) enum Refusal {
 pub(crate) enum Sheet {
     /// It does: W2 clears a component essential on the face.
     One,
-    /// The walk read the face and cannot certify it: a loop winds,
-    /// two loops meet the singular set, or a singular point may lie in
-    /// the interior. W2 does not clear.
+    /// The walk read the face and cannot certify it: a loop winds, two
+    /// loops meet the apex, or a cone face spans both nappes. W2 does
+    /// not clear.
     Not,
     /// The walk refused before reading it, for a numerical or unbuilt
     /// reason. W2 does not clear, and a component nothing else clears

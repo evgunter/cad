@@ -1632,92 +1632,37 @@ fn sphere_cut(c: Point3<f64>, k: Vec3<f64>) -> (Body<f64>, [FaceKey; 2], Surface
     (body, [seed.face, other.face], surface)
 }
 
-/// `faces` ordered as the one holding `at` first.
-fn holding(body: &Body<f64>, faces: [FaceKey; 2], at: Point3<f64>) -> [FaceKey; 2] {
-    let holds = |f| ops::place_witness(body, f, at, band()) == IN;
-    match faces {
-        [x, y] if holds(x) && !holds(y) => [x, y],
-        [x, y] if holds(y) && !holds(x) => [y, x],
-        _ => panic!("exactly one of {faces:?} holds {at:?}"),
-    }
-}
-
-fn sheet(body: &Body<f64>, face: FaceKey, surface: &Surface<f64>) -> Sheet {
-    ops::ChartCache::default()
-        .describes(Operand::A, body, face, surface, band())
-        .unwrap()
-}
-
-/// **A polar cap does not lift, and W2 clears no latitude inside it.**
-/// The unit sphere cut along the latitude `z = 0.5`: the north cap holds
-/// the pole, and a latitude circle inside it (`z = 0.8`) lies in its
-/// interior while winding once round the axis. Its one loop is that
-/// winding latitude, so neither face lifts, and a component essential on
-/// the cap, with no event and a witness inside both faces, is R-loop,
-/// never cleared by W2. The mutant that reads the pole's cap as one
-/// sheet (a polar chart's `Ok`) clears it.
+/// **W2 is not asked of a face on which no arm marks a component
+/// essential.** A sphere face (the unit sphere cut along `z = 0.5`),
+/// and a face asked in a plane chart, are each a kernel defect to ask,
+/// not a face that does or does not lift: S² is simply connected, so a
+/// latitude winding round the axis is null there, and the walk's
+/// windings would not say which side holds the poles. The mutant that
+/// reads a sphere face's walk lifts the small side of a cut away from
+/// the poles and the polar cap alike.
 #[test]
-fn a_polar_cap_does_not_lift_and_w2_clears_no_latitude_in_it() {
+fn w2_asked_of_a_sphere_or_a_plane_face_is_a_defect() {
     let (body, faces, surface) = sphere_cut(p(0.0, 0.0, 0.5), Vec3::unit_z());
-    let [cap, rest] = holding(&body, faces, p(0.0, 0.0, 1.0));
-    assert_eq!(sheet(&body, cap, &surface), Sheet::Not, "the cap");
-    assert_eq!(sheet(&body, rest, &surface), Sheet::Not, "the rest");
-    let latitude = Section::Components {
-        parts: vec![Component {
-            unbounded: false,
-            essential_f: true,
-            essential_g: false,
-            witness: Some(p(0.6, 0.0, 0.8)),
-        }],
-        single: false,
-    };
-    assert_eq!(
-        ops::place_witness(&body, cap, p(0.6, 0.0, 0.8), band()),
-        IN,
-        "the latitude lies inside the cap"
-    );
-    let mut charts = ops::ChartCache::default();
-    assert_eq!(
-        certify(
-            &latitude,
-            false,
-            |_| charts
-                .describes(Operand::A, &body, cap, &surface, band())
-                .unwrap(),
-            at(IN, IN),
-        ),
-        Err(Refusal::Loop)
-    );
-}
-
-/// **A loop that winds nothing lifts only on its side without the
-/// poles.** The unit sphere cut along the circle `x = 0.6`, which keeps
-/// clear of both poles and winds nothing. The small cap about `(1, 0, 0)`
-/// lifts. The rest holds both poles, so a latitude near either lies in
-/// its interior and winds; its pole placement reads `In`, and it does not
-/// lift. The mutant that reads only the loops' windings lifts both.
-#[test]
-fn a_loop_that_winds_nothing_lifts_only_on_its_side_without_the_poles() {
-    let (body, faces, surface) = sphere_cut(p(0.6, 0.0, 0.0), Vec3::unit_x());
-    let [cap, rest] = holding(&body, faces, p(1.0, 0.0, 0.0));
-    let loops = crate::pcurves::loop_windings(&body, rest, &surface, band()).unwrap();
-    assert!(
-        loops.iter().all(|l| !l.singular && l.zero),
-        "the circle winds nothing: {loops:?}"
-    );
-    assert_eq!(
-        ops::place_witness(&body, rest, p(0.0, 0.0, 1.0), band()),
-        IN,
-        "the rest holds the north pole"
-    );
-    assert_eq!(sheet(&body, cap, &surface), Sheet::One, "the cap");
-    assert_eq!(sheet(&body, rest, &surface), Sheet::Not, "the rest");
+    for face in faces {
+        assert!(
+            matches!(
+                ops::ChartCache::default().describes(Operand::A, &body, face, &surface, band()),
+                Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
+            ),
+            "sphere face {face:?}"
+        );
+    }
+    let flat = plane(p(0.0, 0.0, 0.5), Vec3::unit_z());
+    assert!(matches!(
+        ops::ChartCache::default().describes(Operand::A, &body, faces[0], &flat, band()),
+        Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
+    ));
 }
 
 /// **W2's loop clauses, row by row**: a loop off the singular set lifts
-/// only when it winds nothing, and one loop at most may meet the set (a
-/// sphere band between two pole-touching triangles has two, and holds
-/// the equator). The mutant that drops the count lifts the band.
+/// only when it winds nothing, and one loop at most may meet the set:
+/// two loops through the apex leave neither out of the homology sum.
+/// The mutant that drops the count lifts such a face.
 #[test]
 fn at_most_one_loop_meets_the_singular_set() {
     use crate::pcurves::LoopWinding;
