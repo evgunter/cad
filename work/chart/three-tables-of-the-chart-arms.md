@@ -2,12 +2,13 @@
 id: three-tables-of-the-chart-arms
 kind: issue
 title: Three tables of the chart metring arms in three crates, two of them copies
-status: review
+status: closed
 pr: 5655
 opened: 2026-09-14
 priority: P1
 cost: E
 branch: chart/arms-typing
+closed: 2026-10-24
 ---
 
 
@@ -65,3 +66,7 @@ radian is not metres per parameter unit" is false. The distinction that
 carves at the joint is a local exact lever against a bound over a window.
 The two typing rows (`angular-arms-…`, `certified-arms-…`) stand as typing
 work on `chart_region` and `pcurves`. (CHART orchestrator)
+
+## Closed
+
+Closed 2026-10-24 by PR 5655 (STYLE review, fix pass taken, with the door ruling under `[tolerance.margins]` clause (iii)). The remaining table copies are filed as `work/pcert/chart-arm-tables-beside-the-one-sup-door.md`, and the remaining parameter spans as `work/hone/parameter-spans-cross-through-levered-not-the-rate-pair.md`. (CHART orchestrator)
