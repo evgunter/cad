@@ -4,6 +4,8 @@ kind: issue
 title: A point's chart coordinates are inverted by three copies, and stable_azimuth is spelled twice
 status: open
 opened: 2026-10-14
+priority: P1
+cost: M
 ---
 
 Found by the pair-table audit (`fuse/every-pair-question-has-one-total-table`, #5078). The rule it tests is D3's "One reading per question" (`docs/DESIGN.md`, D3): every decision about carriers is a reading (of one carrier against a point, of a carrier pair's pose, or of a pair outcome that takes the pose); each reading is one exhaustive match with one method per arm and no fallback, and every consumer reads it. C5 (`crates/geom-brep/README.md`) is that rule's instance for surface and curve pairs.
