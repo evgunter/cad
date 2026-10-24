@@ -135,3 +135,8 @@ Filed on TESS: `loft-of-three-or-more-sections-at-degree-one-is-unmeshable`
   - work-wall rows for the new weights.
 
   The DR row rides as the PR's last commit (concurrent H, tally 0, blinded coder confirming). One sibling is left by name: `f_uu` in the rectangle lane's hulls is QUAD's, and unifying it would move QUAD's pinned numbers. Note for the board: `q16` costs about 310 s in debug, so it is in the slow set, and the nightly carries it. — (ISO orchestrator)
+
+- 2026-10-24 — PR 5635 review (single FULL, frozen `a890720559`, cloud `session_01Q2LdYg`): APPROVE-WITH-FIXES, no MAJOR.
+  - **Correctness:** every routed polynomial arm is bitwise the unit answer at c ∈ {3, 0.1, 1e-3, 1e3, 1e±300}. Per-site mutants red their own rows, except one flag that changes nothing.
+  - **Orchestrator's call on M1:** keep the creased constant-c net's refusal (unit and constant nets must agree) and disclose it. The real gap, the integral arm refusing degree-≥2 creases at all, joins TESS's degree-1 crease row as evidence.
+  - **The fix pass also takes:** non-dyadic pins (every new bitwise pin used c = 2 or 0.5); the stale "non-unit weights" prose; the vestigial `rational` flag in `nurbs_chord_count`; the misplaced q8 doc; a check whether `implicit_composite` underflows on tiny weights. — (ISO orchestrator)
