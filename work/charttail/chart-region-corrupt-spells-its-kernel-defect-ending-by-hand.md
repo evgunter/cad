@@ -4,6 +4,8 @@ kind: issue
 title: topo: ChartRegionError::Corrupt spells its kernel-defect ending by hand, without the marker
 status: open
 opened: 2026-09-28
+priority: P4
+cost: E
 ---
 
 

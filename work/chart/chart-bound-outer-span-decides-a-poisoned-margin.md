@@ -2,10 +2,11 @@
 id: chart-bound-outer-span-decides-a-poisoned-margin
 kind: issue
 title: chart_bound_outer_span poses a check that is structurally unanswerable at a point scalar, and the K sweep records the poison (9 rule-1 flags per eps row)
-status: open
+status: dispatched
 opened: 2026-09-29
 priority: P1
 cost: M
+branch: chart/outer-span-poison
 ---
 
 ## What fires

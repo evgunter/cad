@@ -99,3 +99,34 @@ Signed (S-DUP orchestrator).
   - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
   - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
   - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)
+
+## 2026-10-24 — CHART picked up; the priority-seam cut
+
+CHART was at 88 budget points against 30, so it is split along its priority
+seam:
+- CHART keeps its P0, its eight P1 rows and
+  `chart-inversion-is-spelled-three-times`, banded P1 at the move as two
+  implementations of one reading (D3). That is 28 points.
+- The 26 P2–P4 rows and the unpriced rows go to CHARTTAIL, opened
+  `ready` with nobody on it (43/45; its program.md gives the reason for
+  the 45-point budget). Eleven unpriced rows were banded and costed at the move,
+  and one duplicate was closed.
+- `min-separation-tightening-crosses-the-drive` goes to CLEAR. Its whole
+  fix shape is on the clearance engine's and the measure's ground, and its
+  ruling is Ev's.
+- The legacy `D` rows are re-priced `M`. `design: true` is set on the
+  region-description family and the arms tables.
+
+Sequencing (the orchestrator's call): one designer pair (Opus and Fable,
+`docs/prompts/designer.md`) weighs the region description, with the arms.
+The three rows that are not that question run as lanes in parallel. The
+alternative was to build the round-hole lune first, which is cheaper. It
+was declined because the region question would decide whether the lune
+survives.
+
+## 2026-10-24 — dispatched (05:07Z)
+
+- **The region-description designer pair**, concurrent and independent, with the same problem statement and no candidate solutions: A `session_01G7XGGxV8D3yfuSM8RdL4R8` and B `session_01XG7Nq1pHzPyv3Eeweqzqzc`. It covers the pole, round-hole, exact-region and cone/sphere/torus-window rows, together with the three arms rows.
+- **`normalize-without-the-length-question-two-more-sites`**: `session_01BEinSjRAhefi8FBtveZTva`, branch `chart/normalize-length`. Tier: single FULL. The fix is to a silent loss of a touching boundary, so correctness carries the review.
+- **`chart-inversion-is-spelled-three-times`**: `session_01Y3MbonGyom32v6Vp4QGBzt`, branch `chart/chart-inversion-one-reading`. Tier: single FULL, because it unifies a reading across three crates. The lane stops if D3 leaves a fork.
+- **`chart-bound-outer-span-decides-a-poisoned-margin`**: `session_013ALUU1XvFKmRJjbgmBe3B9`, branch `chart/outer-span-poison`. It measures first, and stops if the right reading changes what k-lint may ask. Tier: single FULL if built.

@@ -5,7 +5,8 @@ title: Three tables of the chart metring arms in three crates, two of them copie
 status: open
 opened: 2026-09-14
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 
