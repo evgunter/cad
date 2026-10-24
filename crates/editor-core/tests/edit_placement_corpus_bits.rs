@@ -145,7 +145,9 @@ use editor_core::Node;
 /// a slot reading a `⊔`): a placement's payload is its one `source`,
 /// so each placement's id, and the word hashing it, moved; every row's
 /// ordinal held. No point moved: `m10_p_fence`'s ids-masked row, with
-/// the corpus's `⊔` nodes set aside, is main's pin.
+/// the corpus's `⊔` nodes set aside, is main's pin. Measured again
+/// with main's plane pose merged in, where `cut_cylinder`'s two rows
+/// carry both changes.
 const PINNED: &[(&str, u32, u64)] = &[
     ("die", 160, 0xda597511743b6714),
     ("die", 196, 0x82e8008f318aaf84),
@@ -213,8 +215,8 @@ const PINNED: &[(&str, u32, u64)] = &[
     ("kitchen_sink", 241, 0xe96e45c56765bbdf),
     ("kitchen_sink", 260, 0xf9a4e89f22897e4e),
     ("kitchen_sink", 276, 0xdc591a56c7ff599f),
-    ("cut_cylinder", 45, 0x35b8f56f94f96548),
-    ("cut_cylinder", 59, 0xe0ab1d69c2eaa17d),
+    ("cut_cylinder", 45, 0xd8d0024afc3a0827),
+    ("cut_cylinder", 59, 0x27503802b18ddfb2),
     ("measured_web", 46, 0xf2d58fd2758bd800),
     ("measured_web", 65, 0x6eec47a879f4d56f),
     ("boss_union", 42, 0x6a320a5b303adad3),

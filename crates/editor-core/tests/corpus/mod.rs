@@ -564,6 +564,7 @@ pub const NODE_KINDS: [&str; 24] = [
 /// either: no corpus document authors one, its placements being
 /// written whole.
 /// `SetConstraints` is listed: a placement's bundle is written whole.
+/// `SetProduct` is listed: every document says its product.
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -575,7 +576,7 @@ pub const NODE_KINDS: [&str; 24] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 21] = [
+pub const EDIT_KINDS: [&str; 22] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -597,6 +598,7 @@ pub const EDIT_KINDS: [&str; 21] = [
     "ClearAppearanceMeta",
     "SetLabel",
     "SetConstraints",
+    "SetProduct",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: both pattern

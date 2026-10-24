@@ -67,6 +67,11 @@ const FILES: [&str; 5] = [
 /// from the cube's corner by exact turns: its world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its digest,
 /// which reads the carriers and the arena's order too, is new.
+/// `cut_cylinder` moved when a plane pose came to hold its normal and
+/// offset alone (main, `34a2e26e61`): its split reads the tilted plane's
+/// point nearest the origin, so its halves' section points moved at the
+/// rounding level, its word count kept. Main reds this row with the same
+/// value; D′3 carries the re-pin, and moves no product.
 const PRE_C: [(&str, &str); 35] = [
     ("die", "18a00a4411472694/532"),
     ("corner_table", "1b26e7ae1ba4a066/100"),
@@ -77,7 +82,7 @@ const PRE_C: [(&str, &str); 35] = [
     ("nested_islands_106_depth2", "3a7999e85a64a33b/76"),
     ("declared_tangency", "89b46a31a322fc03/88"),
     ("kitchen_sink", "34a5423649535fd1/196"),
-    ("cut_cylinder", "cb8ccadf87044e7f/28"),
+    ("cut_cylinder", "d2acb2b37c5273db/28"),
     ("measured_web", "f556ab19f06e9f9e/28"),
     ("boss_union", "a07c97077aedd76c/46"),
     ("die_fillet", "934f10b8156f9396/76"),

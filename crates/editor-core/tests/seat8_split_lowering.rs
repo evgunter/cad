@@ -370,14 +370,17 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// `Placed` layer, and a `⊔` keys each member's names by its read, so
 /// the name tables this digest feeds moved, and the `⊔` node moved the
 /// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
-/// the corpus's `⊔` nodes set aside, is main's pin.
+/// the corpus's `⊔` nodes set aside, is main's pin. `cut_cylinder` and
+/// `kitchen_sink` were measured again with main's plane pose merged in
+/// (main, `34a2e26e61`, which reds both rows on its own), and carry both
+/// changes.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xfb9a_7e9e_282d_807c_u64),
+        ("cut_cylinder", 0x20ca_6b63_c85d_acc0_u64),
         ("part_select", 0x2580_ef71_c7cb_f8af),
-        ("kitchen_sink", 0xec0a_7285_191c_1903),
+        ("kitchen_sink", 0x0cd1_65be_fdec_84b3),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

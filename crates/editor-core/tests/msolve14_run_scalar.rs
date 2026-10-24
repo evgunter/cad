@@ -979,10 +979,11 @@ fn run_at<T: editor_core::EvalScalar>(
 /// Re-blessed at all three ε; each seat still stands on what it is
 /// seated on ([`each_seat_stands_on_what_it_is_seated_on`]), and the
 /// solved poses were not compared id-free against main separately.
+/// Re-measured on main's plane pose merged in, at all three ε.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xc6ad_8dd6_76c2_b66a),
-    (1e-6, 0x0e53_1a39_832e_37cd),
-    (1e-12, 0xe561_c8e9_57dd_a5f0),
+    (1e-9, 0x2d41_38b9_c4c8_1bef),
+    (1e-6, 0x00c0_3569_5647_6ed6),
+    (1e-12, 0xed86_149f_65a5_daef),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
