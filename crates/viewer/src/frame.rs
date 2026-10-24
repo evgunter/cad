@@ -1539,6 +1539,9 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // The reader's own row refuses `SpaceMismatch` at the next
         // evaluation, naming both spaces.
         Maintenance::StrandedSpace { .. } => Retold::Again,
+        // The product's gather refuses `ProductOutsideWorld` at the next
+        // landing, naming the read.
+        Maintenance::ProductOutsideWorld { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
         // Nothing evaluates differently in a way that names it: the
         // copy simply stops reading the value.
@@ -2589,6 +2592,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         ProductErrorKind::EvaluationOfAnotherDocument
         | ProductErrorKind::EmptyProduct
         | ProductErrorKind::StrandedProduct
+        | ProductErrorKind::ProductOutsideWorld
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid
@@ -3542,6 +3546,7 @@ mod tests {
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::EmptyProduct,
             ProductErrorKind::StrandedProduct,
+            ProductErrorKind::ProductOutsideWorld,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,

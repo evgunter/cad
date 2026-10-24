@@ -292,8 +292,8 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// held unmoved.
 ///
 /// **Re-pinned for D′3** (a placement copies one source, the product is
-/// a slot): a copy carries its source's names verbatim, with no `Placed`
-/// or `InPart` layer, each product reads a `⊔` of its world copies, and
+/// a slot): a copy carries its source's names verbatim, with no layer
+/// naming a placement, each product reads a `⊔` of its world copies, and
 /// every id drawn after one moved. Names and ids only:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// holds with the `⊔` nodes set aside.

@@ -30,7 +30,7 @@ use editor_core::{
     Operand, ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, TargetAxis, Value,
     VarId, apply, load, product, relative_freedom_components, save,
 };
-use fixture::resolver::{InPart, PartStore, in_part, with_resolver};
+use fixture::resolver::{PartName, PartStore, in_part, with_resolver};
 use fixture::{
     ang, flip, head, insert, len, on_frame, plane, point_of, rest, run, solve, square, step,
 };
@@ -76,23 +76,23 @@ impl Kit {
     }
 
     /// The part's own name for `seg` of kind `kind`, as its placement
-    /// carries it, worn inside `instance`'s `InPart`.
-    fn name(&self, kind: EntityKind, instance: RecipeNodeId, seg: RoleSeg) -> InPart {
+    /// carries it, read at `instance`.
+    fn name(&self, kind: EntityKind, instance: RecipeNodeId, seg: RoleSeg) -> PartName {
         fixture::resolver::in_part_of(kind, instance, self.body, seg)
     }
 
     /// The cap `end` of `instance`.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> InPart {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> PartName {
         in_part(instance, self.body, end)
     }
 
     /// Wall `k` of `instance`.
-    fn wall(&self, instance: RecipeNodeId, k: usize) -> InPart {
+    fn wall(&self, instance: RecipeNodeId, k: usize) -> PartName {
         self.name(EntityKind::Face, instance, self.walls[k].clone())
     }
 
     /// The lateral edge at corner `v` of `instance`: a vertical line.
-    fn edge(&self, instance: RecipeNodeId, v: usize) -> InPart {
+    fn edge(&self, instance: RecipeNodeId, v: usize) -> PartName {
         self.name(
             EntityKind::Edge,
             instance,
@@ -101,7 +101,7 @@ impl Kit {
     }
 
     /// The corner `v` of `instance`'s cap `end`.
-    fn corner(&self, instance: RecipeNodeId, end: CapEnd, v: usize) -> InPart {
+    fn corner(&self, instance: RecipeNodeId, end: CapEnd, v: usize) -> PartName {
         self.name(
             EntityKind::Vertex,
             instance,
@@ -111,7 +111,7 @@ impl Kit {
 }
 
 /// **A read of `name` in the instance it is headed at.**
-fn read(name: InPart) -> Operand {
+fn read(name: PartName) -> Operand {
     Operand::select(Operand::Node(name.at), vec![name.name])
 }
 
@@ -241,7 +241,7 @@ fn determined_pair() -> (ProfileDoc, Vec<RecipeNodeId>, Kit, MateRef) {
         mate,
         &[(Coord::Slide(TargetAxis::Z), len(2.0))],
     );
-    (fixture::world_product(doc), ids, kit, coaxial)
+    (fixture::assemble_world_copies(doc), ids, kit, coaxial)
 }
 
 /// A pair determined by ONE mate: a frame coincidence of `b`'s bottom
@@ -1027,7 +1027,7 @@ fn row6j_the_name_door_reads_a_mates_heads_like_any_payload_name() {
         &doc,
         &add(rest(
             on,
-            head(InPart {
+            head(PartName {
                 at: ids[0],
                 name: bogus.clone(),
             }),

@@ -66,8 +66,8 @@ fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 
 /// `inner` seen through the instance `node` placed it at — one rung of
 /// the route a name climbs at each seam.
-fn wrap(node: RecipeNodeId, inner: impl Into<StableName>) -> crate::fixture::resolver::InPart {
-    crate::fixture::resolver::InPart {
+fn wrap(node: RecipeNodeId, inner: impl Into<StableName>) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
         at: node,
         name: inner.into(),
     }
@@ -160,7 +160,7 @@ fn pinned_instance(doc: ProfileDoc, store: &PartStore, part: DocRef) -> (Profile
 /// is the world's by its recipe.
 fn nominally_pinned_instance(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let (doc, instance) = insert(doc, crate::fixture::mated_instance(part));
-    (fixture::world_product(doc), instance)
+    (fixture::assemble_world_copies(doc), instance)
 }
 
 /// `node`'s bundle replaced by one world mate at the translation `at`,
@@ -203,7 +203,7 @@ fn stand(
         ),
         shift,
     );
-    let doc = fixture::world_product(doc);
+    let doc = fixture::assemble_world_copies(doc);
     let id = doc.id();
     (
         store.insert(doc, Tol::witness()),
@@ -253,7 +253,7 @@ fn row_of(
         doc = place(next, store, id, [dx, 0.0, 0.0]);
         ids.push(id);
     }
-    (fixture::world_product(doc), ids)
+    (fixture::assemble_world_copies(doc), ids)
 }
 
 fn findings_of(result: &Result<Assembly<f64>, AssemblyError>) -> Vec<editor_core::AtRestFinding> {
@@ -413,7 +413,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
         0.0,
     );
     let s1_id = s1.id();
-    let s1 = fixture::world_product(s1);
+    let s1 = fixture::assemble_world_copies(s1);
     let s1_ref = store.insert(s1, Tol::witness());
 
     // The MID: S1 twice, a bare cube, and the mid's OWN mate resting a
@@ -438,7 +438,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
         30.0,
     );
     let mid_id = mid.id();
-    let mid = fixture::world_product(mid);
+    let mid = fixture::assemble_world_copies(mid);
     let mid_ref = store.insert(mid, Tol::witness());
 
     // The OUTER: a bare cube first, so the mid instances' ids do not
@@ -448,7 +448,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let outer = place(outer, &store, o_cube, [0.0, -50.0, 0.0]);
     let (outer, o_m1) = pinned_instance(outer, &store, mid_ref);
     let (outer, o_m2) = insert(outer, crate::fixture::mated_instance(mid_ref));
-    let outer = fixture::world_product(place(outer, &store, o_m2, [0.0, 100.0, 0.0]));
+    let outer = fixture::assemble_world_copies(place(outer, &store, o_m2, [0.0, 100.0, 0.0]));
     let outer_id = outer.id();
 
     let ev = run(&outer, &with_resolver(store.clone()));
@@ -474,7 +474,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
 
     // Level four: the outer instantiated once more. Every `via` gains
     // a second entry, nearest first, and `of` does not move.
-    let outer = fixture::world_product(outer);
+    let outer = fixture::assemble_world_copies(outer);
     let outer_ref = store.insert(outer, Tol::witness());
     let top = ProfileDoc::empty(DocumentId::derive("docm6-deep-top"), Tol::witness());
     let (top, t) = pinned_instance(top, &store, outer_ref);
@@ -809,7 +809,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
         let (doc, first) = pinned_instance(doc, &store, part);
         let (doc, second) = insert(doc, fixture::mated_instance(part));
-        (fixture::world_product(doc), vec![first, second])
+        (fixture::assemble_world_copies(doc), vec![first, second])
     };
     // The instances here are of a STAND, so a face of one is named one
     // wrapper deeper: through the stand's own instance of the cube,
@@ -864,7 +864,7 @@ fn a_refusal_two_levels_down_names_its_route() {
     let mut store = PartStore::default();
     let (broken, broken_id, broken_mate, ..) = broken_part(&mut store, "docm6-route-stand");
     let (mid, mid_instances) = row_of(&store, "docm6-route-mid", broken, 1, 4.0);
-    let mid = fixture::world_product(mid);
+    let mid = fixture::assemble_world_copies(mid);
     let mid_ref = store.insert(mid, Tol::witness());
     let (outer, outer_instances) = row_of(&store, "docm6-route-outer", mid_ref, 1, 12.0);
 
@@ -923,7 +923,7 @@ fn a_carried_refusals_deeper_hop_says_its_documents_label_where_the_outer_holds_
     let (broken, broken_id, broken_mate, ..) = broken_part(&mut store, "speak-hop-stand");
     let (mid, mid_instances) = row_of(&store, "speak-hop-mid", broken, 1, 4.0);
     let mid = labelled(mid, mid_instances[0], "mid seat");
-    let mid = fixture::world_product(mid);
+    let mid = fixture::assemble_world_copies(mid);
     let mid_ref = store.insert(mid.clone(), Tol::witness());
     let (outer, twin) = row_of(&store, "speak-hop-outer", broken, 1, 4.0);
     assert_eq!(
@@ -1001,7 +1001,7 @@ fn a_carried_row_says_the_labels_its_pin_fixes() {
         // One store per version: a store holds one version of a
         // document.
         let mut store = store.clone();
-        let mid = fixture::world_product(mid);
+        let mid = fixture::assemble_world_copies(mid);
         let mid_ref = store.insert(mid, Tol::witness());
         let outer = ProfileDoc::empty(DocumentId::derive("speak-pin-outer"), Tol::witness());
         let (outer, _) = pinned_instance(outer, &store, mid_ref);
@@ -1235,7 +1235,7 @@ fn a_product_inside_a_sub_assembly_keeps_its_parts() {
     let (mut store, inner_ref, cube) = product_and_cube("nested", 0.0);
     let wrap = ProfileDoc::empty(DocumentId::derive("docm6-bool-nested-wrap"), Tol::witness());
     let (wrap, _) = pinned_instance(wrap, &store, inner_ref);
-    let wrap = fixture::world_product(wrap);
+    let wrap = fixture::assemble_world_copies(wrap);
     let wrap_ref = store.insert(wrap, Tol::witness());
     let doc = ProfileDoc::empty(
         DocumentId::derive("docm6-bool-nested-outer"),
@@ -1412,12 +1412,12 @@ fn outer_over_twin(
     let mut store = PartStore::default();
     let cube = store.insert_part(cube_part("speak-cube"), Tol::witness());
     let (inner, mate) = stand_over(&store, cube, "speak-inner", class, shift, "inner seat");
-    let inner = fixture::world_product(inner);
+    let inner = fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner.clone(), Tol::witness());
     let (outer, outer_mate) = stand_over(&store, cube, "speak-outer", class, shift, "outer seat");
     assert_eq!(outer_mate, mate, "both stands mint from the zero chain");
     let (outer, instance) = insert(outer, crate::fixture::mated_instance(inner_ref));
-    let outer = fixture::world_product(place(outer, &store, instance, [10.0, 0.0, 0.0]));
+    let outer = fixture::assemble_world_copies(place(outer, &store, instance, [10.0, 0.0, 0.0]));
     let (outer, _) = step(
         outer,
         DocEdit::SetLabel {
@@ -1614,11 +1614,11 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     let mut store = PartStore::default();
     let (cube, cube_body) = store.insert_part(cube_part("speak-c-cube"), Tol::witness());
     let (inner, _) = overconstrained(&store, cube, cube_body, "speak-c-inner", "inner top");
-    let inner = fixture::world_product(inner);
+    let inner = fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner.clone(), Tol::witness());
     let (outer, [held, _added]) =
         overconstrained(&store, cube, cube_body, "speak-c-outer", "outer top");
-    let outer = fixture::world_product(outer);
+    let outer = fixture::assemble_world_copies(outer);
     assert_eq!(
         inner.ids(),
         outer.ids(),
@@ -1717,7 +1717,7 @@ fn a_part_fault_says_the_labels_its_pin_fixes() {
     // One store per version: a store holds one version of a document.
     let instance_of = |part: ProfileDoc| {
         let mut store = store.clone();
-        let part = fixture::world_product(part);
+        let part = fixture::assemble_world_copies(part);
         let part_ref = store.insert(part, Tol::witness());
         let outer = ProfileDoc::empty(DocumentId::derive("speak-d-outer"), Tol::witness());
         let (outer, instance) = nominally_pinned_instance(outer, part_ref);
@@ -1783,7 +1783,7 @@ fn stranded(id: &str, label: &str) -> (ProfileDoc, RecipeNodeId) {
 fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_the_id() {
     let mut store = PartStore::default();
     let (inner, block) = stranded("speak-p-inner", "inner block");
-    let inner = fixture::world_product(inner);
+    let inner = fixture::assemble_world_copies(inner);
     let inner_ref = store.insert(inner.clone(), Tol::witness());
     let (outer, outer_block) = stranded("speak-p-outer", "outer block");
     assert_eq!(
@@ -1934,7 +1934,7 @@ fn a_parts_own_refusal_crosses_whole_with_its_refuted_mate() {
         "the premise: a refutation beside a finding no declaration answers for: {own:?}"
     );
     let mid_id = mid.id();
-    let mid = fixture::world_product(mid);
+    let mid = fixture::assemble_world_copies(mid);
     let mid_ref = store.insert(mid, Tol::witness());
     let (top, instances) = row_of(&store, "docm6-whole-top", mid_ref, 1, 4.0);
     let result = assemble(&top, &run(&top, &with_resolver(store)), Tol::witness());

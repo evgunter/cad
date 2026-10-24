@@ -3646,6 +3646,8 @@ MEMBERS_BOUND_AS = {
     # A re-target through `DocEdit.set_param` at `target_space` makes
     # one appear.
     "Maintenance::StrandedSpace": "Maintenance.variant",
+    # A re-target of the copy the product slot reads makes one appear.
+    "Maintenance::ProductOutsideWorld": "Maintenance.variant",
     "Maintenance::AnonymousVarRemoved": "Maintenance.variant",
     "Maintenance::ValueDropped": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
@@ -3765,7 +3767,6 @@ MEMBERS_BOUND_AS = {
     "InlineError::UnknownNode": "InlineError.variant",
     "InlineError::NotAnInstance": "InlineError.variant",
     "InlineError::UnplaceablePart": "InlineError.variant",
-    "InlineError::InstanceReadUncarried": "InlineError.variant",
     "InlineError::Unresolved": "InlineError.variant",
     "InlineError::EpsilonSeam": "InlineError.variant",
     "InlineError::PartCarriesMetadata": "InlineError.variant",
@@ -3867,6 +3868,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::Root": "ProductError.variant",
     "ProductError::EmptyProduct": "ProductError.variant",
     "ProductError::StrandedProduct": "ProductError.variant",
+    "ProductError::ProductOutsideWorld": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
     "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",

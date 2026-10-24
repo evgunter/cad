@@ -138,7 +138,7 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     let shelf_i = instance_at(&mut asm, shelf_ref, SHELF_AT, &opts, tol);
     let post_b = instance_at(&mut asm, post_ref, POST_B_AT, &opts, tol);
     // What the assembly makes: its three copies.
-    let asm = crate::fixture::world_product(asm);
+    let asm = crate::fixture::assemble_world_copies(asm);
     let asm_path = ws.create(&asm, tol).expect("the assembly stores");
 
     Bench {
@@ -277,8 +277,8 @@ pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
 /// part's names as they are, so the name is the part's and the site
 /// is the instance whose copy carries it — for rows that author a mate
 /// directly.
-pub fn in_part(instance: RecipeNodeId, local: &StableName) -> crate::fixture::resolver::InPart {
-    crate::fixture::resolver::InPart {
+pub fn in_part(instance: RecipeNodeId, local: &StableName) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
         at: instance,
         name: local.clone(),
     }

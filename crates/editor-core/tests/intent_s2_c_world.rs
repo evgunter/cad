@@ -532,7 +532,7 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         (doc, ())
     };
     let mut store = PartStore::default();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let part_ref = store.insert(part, Tol::witness());
     let opts = crate::fixture::resolver::with_resolver(store.clone());
     let host = ProfileDoc::empty(DocumentId::derive("intent-c-inline"), Tol::witness());
@@ -754,11 +754,11 @@ fn inline_carries_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         let (doc, body) = block(doc, 0.0);
         let read = doc.output(body, 0).expect("the block defines its body");
         let (doc, placement) = place_by_values(doc, body, &raised());
-        let doc = editor_core::test_support::with_world_product(doc, Tol::witness());
+        let doc = editor_core::test_support::assemble_world_copies(doc, Tol::witness());
         (doc, placement, read)
     };
     let mut store = PartStore::default();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let part_ref = store.insert(part, Tol::witness());
     let opts = crate::fixture::resolver::with_resolver(store.clone());
     let host = ProfileDoc::empty(DocumentId::derive("intent-c-posed-inline"), Tol::witness());
@@ -944,7 +944,7 @@ fn inline_keeps_both_copies_of_an_instance_placed_twice() {
          label: &str,
          second: &dyn Fn(RecipeNodeId) -> editor_core::BodyRead<editor_core::Formula>| {
             let mut store = PartStore::default();
-            let part = crate::fixture::world_product(part);
+            let part = crate::fixture::assemble_world_copies(part);
             let part_ref = store.insert(part, Tol::witness());
             let host = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
             let (host, instance) = insert(host, crate::fixture::mated_instance(part_ref));

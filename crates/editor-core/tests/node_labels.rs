@@ -553,7 +553,7 @@ fn an_inline_forward_reference_speaks_from_the_part() {
     // to pin where it stands.
     let (part_doc, _) = fixture::place(part_doc, c);
     let mut store = PartStore::default();
-    let part_doc = crate::fixture::world_product(part_doc);
+    let part_doc = crate::fixture::assemble_world_copies(part_doc);
     let doc_ref = store.insert(part_doc.clone(), tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let opts = editor_core::EvalOptions {
@@ -653,9 +653,9 @@ fn an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_par
     let h = part_doc.var_named("h").expect("declared");
     let (part_doc, _) = step(part_doc, DocEdit::DeleteVar { var: h.into() });
     let mut store = PartStore::default();
-    let empty = crate::fixture::world_product(empty);
+    let empty = crate::fixture::assemble_world_copies(empty);
     let empty_ref = store.insert(empty, tol);
-    let part_doc = crate::fixture::world_product(part_doc);
+    let part_doc = crate::fixture::assemble_world_copies(part_doc);
     let doc_ref = store.insert(part_doc, tol);
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
 

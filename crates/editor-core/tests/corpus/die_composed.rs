@@ -182,7 +182,8 @@ pub fn selection(
 /// 2. `Seam { a: From(Cap(End)), b: From(Placed(Band | BandPi)) }` —
 ///    the pip rim, the two arcs the zip minted where the cube's end cap
 ///    crosses the ball's lower band, which the pip's placement copies
-///    (`Placed`), each side carried in through its read. A full
+///    with its names as they are, each side carried in through its
+///    read. A full
 ///    revolve's band is two half-faces split at the seam meridians, so
 ///    the rim is two arcs and the band role has two variants; the union
 ///    says both. A seam's sides are in name order, and the cube's read

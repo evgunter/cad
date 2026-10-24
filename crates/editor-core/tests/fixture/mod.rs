@@ -402,7 +402,7 @@ pub fn write_bundle(
             // A world product the fixture wrote is the world's copies,
             // which a re-targeted copy may have joined or left.
             if retargets && doc.product().is_some() {
-                doc = world_product(doc);
+                doc = assemble_world_copies(doc);
             }
             return (doc, minted);
         }
@@ -466,7 +466,7 @@ pub fn into_new_space(doc: ProfileDoc, placement: RecipeNodeId) -> (ProfileDoc, 
     // A world product the fixture wrote is the world's copies, which
     // this one has left.
     let doc = if doc.product().is_some() {
-        world_product(doc)
+        assemble_world_copies(doc)
     } else {
         doc
     };
@@ -673,14 +673,14 @@ pub fn pinned(doc: ProfileDoc, placement: RecipeNodeId, o: &EvalOptions) -> Prof
 
 /// **`node` inserted and pinned to the world at the identity**
 /// ([`pinned`]): an instance or a placement that stands where its
-/// source does, in the product ([`world_product`]).
+/// source does, in the product ([`assemble_world_copies`]).
 pub fn insert_pinned(
     doc: ProfileDoc,
     node: AuthoredNode,
     o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = insert(doc, node);
-    (world_product(pinned(doc, id, o)), id)
+    (assemble_world_copies(pinned(doc, id, o)), id)
 }
 
 /// **The at-rest gate's verdict**, as a mate row wants to read it:
@@ -793,14 +793,14 @@ pub fn sited_ref(name: impl Sited) -> editor_core::SitedRef {
 
 /// **`doc` with its product the world's copies**, in document order:
 /// the product a document whose placements are its assembly states
-/// ([`editor_core::test_support::with_world_product`]). Called again
+/// ([`editor_core::test_support::assemble_world_copies`]). Called again
 /// after a placement is added, it writes the product anew.
-pub fn world_product(doc: ProfileDoc) -> ProfileDoc {
-    editor_core::test_support::with_world_product(doc, Tol::witness())
+pub fn assemble_world_copies(doc: ProfileDoc) -> ProfileDoc {
+    editor_core::test_support::assemble_world_copies(doc, Tol::witness())
 }
 
 /// **A name and where it is read**: a name this document minted, at
-/// its mint; a part's name ([`resolver::InPart`]), at the instance whose
+/// its mint; a part's name ([`resolver::PartName`]), at the instance whose
 /// copy carries it.
 pub trait Sited {
     /// The node the name is read at.
@@ -835,7 +835,7 @@ impl Sited for (RecipeNodeId, StableName) {
     }
 }
 
-impl Sited for resolver::InPart {
+impl Sited for resolver::PartName {
     fn site(&self) -> RecipeNodeId {
         self.at
     }
@@ -1005,14 +1005,14 @@ pub fn band() -> geom_core::Band {
 pub use editor_core::test_support::{ang, axes_at, len, len2, scl};
 
 /// [`editor_core::test_support::in_world`] at the witness tolerance,
-/// the copy in the product ([`world_product`]).
+/// the copy in the product ([`assemble_world_copies`]).
 pub fn in_world(
     doc: ProfileDoc,
     body: impl Into<editor_core::Operand>,
     at: &editor_core::Frame,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, placement) = editor_core::test_support::in_world(doc, body, at, Tol::witness());
-    (world_product(doc), placement)
+    (assemble_world_copies(doc), placement)
 }
 
 /// [`editor_core::test_support::against`] at the witness tolerance.
@@ -1234,7 +1234,11 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
         doc.node(id),
         Some(Node::Place { .. } | Node::InstantiatePart { .. })
     ) && doc.node_space(id) == Some(VarId::WORLD);
-    let doc = if joins { world_product(doc) } else { doc };
+    let doc = if joins {
+        assemble_world_copies(doc)
+    } else {
+        doc
+    };
     (doc, id)
 }
 
@@ -1367,12 +1371,12 @@ pub fn assertion_value(doc: &ProfileDoc, assertion: RecipeNodeId) -> editor_core
 
 /// **One copy of `body` in the world** (A10), at the identity: the
 /// document's product is the world's copies, which this writes again
-/// ([`editor_core::test_support::with_world_product`]).
+/// ([`editor_core::test_support::assemble_world_copies`]).
 pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let read = body_read(&doc, body.into());
     let (doc, placement) = insert(doc, stood(editor_core::BodyRead::plain(read)));
     (
-        editor_core::test_support::with_world_product(doc, Tol::witness()),
+        editor_core::test_support::assemble_world_copies(doc, Tol::witness()),
         placement,
     )
 }
@@ -1974,7 +1978,7 @@ impl Recorder {
 
     /// Inserts a node, returning its minted id; a placement into the
     /// world writes the product anew as the world's copies
-    /// ([`Self::world_product`]).
+    /// ([`Self::assemble_world_copies`]).
     pub fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
         let at = self
             .push(DocEdit::InsertNode {
@@ -1983,7 +1987,7 @@ impl Recorder {
             })
             .expect("minted id");
         if self.doc.node_space(at) == Some(editor_core::VarId::WORLD) {
-            self.world_product();
+            self.assemble_world_copies();
         }
         at
     }
@@ -2013,7 +2017,7 @@ impl Recorder {
         }
         // A bundle may re-target its copy out of the world or into it.
         if self.doc.product().is_some() {
-            self.world_product();
+            self.assemble_world_copies();
         }
     }
 
@@ -2034,11 +2038,13 @@ impl Recorder {
     }
 
     /// **The product written anew as the world's copies**, recorded
-    /// ([`editor_core::test_support::world_product_edits`]): what a
+    /// ([`editor_core::test_support::assemble_world_copies_edits`]): what a
     /// world placement calls, so a replayed log carries its product.
-    pub fn world_product(&mut self) {
-        let (doc, edits) =
-            editor_core::test_support::world_product_edits(self.doc.clone(), Tol::witness());
+    pub fn assemble_world_copies(&mut self) {
+        let (doc, edits) = editor_core::test_support::assemble_world_copies_edits(
+            self.doc.clone(),
+            Tol::witness(),
+        );
         self.doc = doc;
         self.edits.extend(edits);
     }
@@ -2213,7 +2219,7 @@ impl Recorder {
 
 /// **One copy of `body` in the world, its whole motion stated by
 /// `values`** ([`Recorder::in_world_by`]): a bundle with no mate, the
-/// copy in the product ([`world_product`]). Returns the document and
+/// copy in the product ([`assemble_world_copies`]). Returns the document and
 /// the placement; its copy is the placement's output.
 pub fn in_world_by(
     doc: ProfileDoc,
@@ -2227,7 +2233,7 @@ pub fn in_world_by(
     };
     let node = place_node(&doc, editor_core::BodyRead::plain(read), placed.bundle());
     let (doc, placement) = insert(doc, node);
-    (world_product(doc), placement)
+    (assemble_world_copies(doc), placement)
 }
 
 /// **One copy of `body` in the world on `at`, a frame whose axes are

@@ -3450,29 +3450,49 @@ impl DocSession {
     }
 
     /// **The product set to `bodies`** ([`SessionOp::SetProduct`]): the
-    /// one body, a `⊔` of several inserted first, or nothing.
+    /// one body, a `⊔` of several inserted first, or nothing; the `⊔` the
+    /// slot read before, where nothing else reads it, deleted in the same
+    /// action.
     fn set_product(&mut self, bodies: Vec<Operand>) -> OpOutcome {
-        let product = match bodies.as_slice() {
-            [] => None,
-            [one] => Some(one.clone()),
-            several => {
-                let members = pncad::document::Bodies::Spelled(
-                    several
-                        .iter()
-                        .cloned()
-                        .map(pncad::document::BodyRead::plain)
-                        .collect(),
-                );
-                return self.commit_run(|run| {
-                    let assemble = run.insert(Node::Assemble { members })?;
-                    run.apply(DocEdit::SetProduct {
-                        product: Some(Operand::Node(assemble)),
+        // The `⊔` the slot read before goes with the old answer, where
+        // nothing else reads it: the action says what the document makes,
+        // not one more thing beside it.
+        let doc = self.committed_doc();
+        let held = doc
+            .product()
+            .and_then(|var| doc.operation_of(var))
+            .filter(|&at| matches!(doc.node(at), Some(Node::Assemble { .. })))
+            .filter(|&at| {
+                let read = doc.output(at, 0);
+                !doc.ids().into_iter().any(|id| {
+                    doc.node(id).is_some_and(|node| {
+                        node.operand_rows()
+                            .into_iter()
+                            .any(|(_, r)| Some(r) == read)
                     })
-                    .map(drop)
-                });
+                })
+            });
+        self.commit_run(|run| {
+            if let Some(id) = held {
+                run.apply(DocEdit::SetProduct { product: None })?;
+                run.apply(DocEdit::DeleteNode { id })?;
             }
-        };
-        self.commit_written(DocEdit::SetProduct { product })
+            let product = match bodies.as_slice() {
+                [] => None,
+                [one] => Some(one.clone()),
+                several => {
+                    let members = pncad::document::Bodies::Spelled(
+                        several
+                            .iter()
+                            .cloned()
+                            .map(pncad::document::BodyRead::plain)
+                            .collect(),
+                    );
+                    Some(Operand::Node(run.insert(Node::Assemble { members })?))
+                }
+            };
+            run.apply(DocEdit::SetProduct { product }).map(drop)
+        })
     }
 
     /// **Delete a feature and everything downstream of it**, as one
@@ -4235,7 +4255,7 @@ fn place_in_world(
     ))
 }
 
-/// **Whether `node`'s value is a placement's copies**: a placement or
+/// **Whether `node`'s value is a placement's copy**: a placement or
 /// an instance.
 fn moves_copies(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     matches!(

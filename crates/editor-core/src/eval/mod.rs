@@ -789,8 +789,8 @@ pub struct NodeValue<T: Decide> {
     /// operand (D10 `[operations.operators]`: `(p ⊔ q) − t` cuts both
     /// pieces).
     pub parts: usize,
-    /// **A placement's solved motion** (D10): where its copies sit
-    /// relative to the shapes they copy, `None` for a copy the identity
+    /// **A placement's solved motion** (D10): where its copy sits
+    /// relative to its source, `None` for a copy the identity
     /// bundle places by no map and for every value that is no
     /// placement's. A carried
     /// pose reads it ([`crate::pose::PoseDef::Carried`]).

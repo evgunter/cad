@@ -2350,7 +2350,7 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
 fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
     session.pump();
     let (landed, _) = session.landed_pair().expect("a run landed");
-    let doc = crate::fixture::world_product(landed.clone());
+    let doc = crate::fixture::assemble_world_copies(landed.clone());
     let ev = pncad::document::evaluate::<f64>(
         &doc,
         None,

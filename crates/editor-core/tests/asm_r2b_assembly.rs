@@ -212,7 +212,7 @@ fn seated_pair(
         &with_resolver(store.clone()),
     );
     let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
-    (fixture::world_product(doc), vec![base, seated])
+    (fixture::assemble_world_copies(doc), vec![base, seated])
 }
 
 /// `instance` standing on its bottom: by the identity bundle, its part's
@@ -340,7 +340,7 @@ fn unwrap_in_part(name: &StableName) -> StableName {
 fn row1_a_parts_declared_contacts_survive_instantiation() {
     let mut store = PartStore::default();
     let part = kiss_part("asm-r2b-row1-part");
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part.clone(), Tol::witness());
 
     // What the part's own product records, on its own keys.
@@ -928,7 +928,7 @@ fn row5_e_a_pin_move_that_moves_the_contact_face_carries_the_seat_with_it() {
     let (doc, base) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let doc = standing_on_its_bottom(doc, base, body);
     let (doc, seated) = insert(doc, fixture::mated_instance(doc_ref));
-    let doc = fixture::world_product(doc);
+    let doc = fixture::assemble_world_copies(doc);
     let ids = [base, seated];
     let (doc, mate) = seat(doc, ids[1], rest_mate(body, ids[0], ids[1], 1.0));
 
@@ -1244,7 +1244,7 @@ fn a_mixed_verdict_is_the_at_rest_arm_not_the_frontier() {
     let (doc_ref, body) = store.insert_part(cube_part("asm-r2b-mixed-part"), Tol::witness());
     let (doc, mut ids) = seated_pair("asm-r2b-mixed", doc_ref, &store);
     let (doc, third) = insert(doc, fixture::mated_instance(doc_ref));
-    let doc = fixture::world_product(doc);
+    let doc = fixture::assemble_world_copies(doc);
     ids.push(third);
     // Declined: instance 1 seated one unit along x, so its underside is
     // coplanar with instance 0's top and meets it along the line x = 1
@@ -1440,7 +1440,7 @@ fn a_mate_reference_that_names_nothing_refuses_typed() {
         let (doc, ids) = seated_pair("asm-r2b-vanish", doc_ref, &store);
         // The target keeps its KIND — a face name that answers to
         // nothing, read at the base instance as a real cap is.
-        let nothing = fixture::resolver::InPart {
+        let nothing = fixture::resolver::PartName {
             at: ids[0],
             name: StableName {
                 kind: EntityKind::Face,
@@ -1564,7 +1564,7 @@ fn flush_seat(label: &str) -> (ProfileDoc, MateRef, PartStore) {
         &with_resolver(store.clone()),
     );
     let (doc, shelf_id) = insert(doc, fixture::mated_instance(shelf));
-    let doc = fixture::world_product(doc);
+    let doc = fixture::assemble_world_copies(doc);
     let (doc, mate) = seat(
         doc,
         shelf_id,

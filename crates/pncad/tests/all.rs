@@ -2208,26 +2208,21 @@ fn box_doc(
 // END box-document fixture twin
 
 /// Place one copy of `body` in the world where it stands ([`stood`]),
-/// returning the placement's id. The product is then the world's
-/// copies ([`world_product`]).
+/// returning the placement's id.
 fn place(
     doc: pncad::document::ProfileDoc,
     body: impl Into<pncad::document::BodyRead<pncad::document::Formula>>,
 ) -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
-    let (doc, placement) = insert(doc, stood(body));
-    (world_product(doc), placement)
+    insert(doc, stood(body))
 }
 
-/// **`doc` with its product the world's copies**: the one copy, or a
-/// `⊔` of them in document order, replacing a `⊔` this wrote before.
-fn world_product(doc: pncad::document::ProfileDoc) -> pncad::document::ProfileDoc {
-    use pncad::document::{Bodies, BodyRead, DocEdit, Node, Operand, VarId};
-    let copies: Vec<VarId> = doc
-        .placements()
-        .into_iter()
-        .filter(|&p| doc.node_space(p) == Some(VarId::WORLD))
-        .filter_map(|p| doc.output(p, 0))
-        .collect();
+/// **`doc` with its product said as `copies`**: the one copy, or a `⊔`
+/// of them in the order given, replacing a `⊔` the slot read before.
+fn product_is(
+    doc: pncad::document::ProfileDoc,
+    copies: &[pncad::document::RecipeNodeId],
+) -> pncad::document::ProfileDoc {
+    use pncad::document::{Bodies, BodyRead, DocEdit, Node, Operand};
     let held = doc
         .product()
         .and_then(|var| doc.operation_of(var))
@@ -2236,9 +2231,9 @@ fn world_product(doc: pncad::document::ProfileDoc) -> pncad::document::ProfileDo
     if let Some(at) = held {
         doc = applied(&doc, DocEdit::DeleteNode { id: at }).doc;
     }
-    let product = match copies.as_slice() {
+    let product = match copies {
         [] => return doc,
-        [one] => Operand::Var(*one),
+        [one] => Operand::Node(*one),
         several => {
             let (next, at) = insert(
                 doc,
@@ -2246,7 +2241,7 @@ fn world_product(doc: pncad::document::ProfileDoc) -> pncad::document::ProfileDo
                     members: Bodies::Spelled(
                         several
                             .iter()
-                            .map(|&copy| BodyRead::plain(Operand::Var(copy)))
+                            .map(|&copy| BodyRead::plain(Operand::Node(copy)))
                             .collect(),
                     ),
                 },
@@ -2589,8 +2584,9 @@ fn the_document_export_door_ships_the_multi_solid_product() {
             distance: len(1.0),
         },
     );
-    let (doc, _) = place(doc, b0);
-    let (doc, _) = place(doc, b1);
+    let (doc, c0) = place(doc, b0);
+    let (doc, c1) = place(doc, b1);
+    let doc = product_is(doc, &[c0, c1]);
     let ev = doors_evaluate(&doc);
 
     // The per-node door speaks for ONE node, so no node in this
@@ -2831,7 +2827,8 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             members: pncad::document::Bodies::Spelled(vec![plate.into(), tab.into()]),
         },
     );
-    let (doc, _) = place(doc, solid);
+    let (doc, copy) = place(doc, solid);
+    let doc = product_is(doc, &[copy]);
     // A MEASURE and its ASSERTION (ERROR-DESIGN E3/E10), so the
     // fixture the Python audit loads carries the two node kinds whose
     // READING door Python ships (`Value.measure`, `Value.assertion`).
@@ -3060,7 +3057,8 @@ fn ws_doc_and_body(label: &str) -> (pncad::document::ProfileDoc, String, PartBod
             distance: len(1.5),
         },
     );
-    let (doc, _) = place(doc, body);
+    let (doc, copy) = place(doc, body);
+    let doc = product_is(doc, &[copy]);
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     (doc, text, PartBody { body })
 }
@@ -3723,7 +3721,8 @@ fn asm2a_assembly(
         doc = next;
         ids.push(id);
     }
-    (world_product(doc), ids)
+    let doc = product_is(doc, &ids);
+    (doc, ids)
 }
 
 fn asm2a_eval(
@@ -3814,9 +3813,9 @@ fn step_export_writes_the_world_alone() {
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "p2-step-unplaced-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let (doc, ids) = asm2a_assembly("p2-step-unplaced", doc_ref, 2);
-    // The product is the world's copies: the instance set aside is
-    // none of them.
-    let doc = world_product(asm2a_set_aside(doc, ids[1]));
+    // The product is the world's copy: the instance set aside is not
+    // in it.
+    let doc = product_is(asm2a_set_aside(doc, ids[1]), &[ids[0]]);
     let ev = asm2a_eval(&doc, &ws);
     let opts = StepOptions::default();
     let world = pncad::export::export_document_step(&ev, &doc, &opts, Tol::witness())
@@ -3952,9 +3951,9 @@ fn asm2a_spawn_probe(tag: &str) -> String {
 /// along the chart's x (the part spans 2, so the pair stays disjoint
 /// and the product is a clean two-solid gather).
 ///
-/// The instance names are an `InPart`-headed name whose HEAD is the
-/// instantiate node, wearing the part's product name of the face;
-/// `body` is the part's body. The second's bundle is the mate and its
+/// An instance's copy carries its part's product's names as they are,
+/// so the instance names the face by the part's own name; `body` is the
+/// part's body. The second's bundle is the mate and its
 /// values: its pose is solved from the first's, not stored.
 fn asm_r2a_mated_assembly(
     label: &str,
@@ -4010,7 +4009,8 @@ fn asm_r2a_mated_assembly(
         },
         values,
     );
-    (world_product(doc), ids)
+    let doc = product_is(doc, &ids);
+    (doc, ids)
 }
 
 /// ASM-R2a row 1, the DOCUMENT-layer half (review MINOR-2): a
@@ -4259,7 +4259,8 @@ fn asm2b_outer(
         doc = next;
         ids.push(id);
     }
-    (world_product(doc), ids)
+    let doc = product_is(doc, &ids);
+    (doc, ids)
 }
 
 /// The product's vertex x's in ARENA order — the graft's own order, so

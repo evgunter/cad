@@ -128,7 +128,7 @@ fn assembly(label: &str, refs: &[DocRef], o: &EvalOptions) -> (ProfileDoc, Vec<R
         doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), o);
         ids.push(id);
     }
-    (fixture::world_product(doc), ids)
+    (fixture::assemble_world_copies(doc), ids)
 }
 
 /// The versions of each part `(id, side)` lists, shelved: one shelf the
@@ -614,7 +614,7 @@ fn assembly_under(
         doc = next;
         ids.push(node);
     }
-    (fixture::world_product(doc), ids)
+    (fixture::assemble_world_copies(doc), ids)
 }
 
 /// Row 5c — the WARM channel, which is where "the old content is not

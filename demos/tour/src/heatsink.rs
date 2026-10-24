@@ -351,7 +351,12 @@ pub(crate) fn probe_solids(tol: Tol) -> Vec<pncad::topo::Body<Probe>> {
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = scene_doc(tol);
     let placed = crate::world::place_in_world(&r.doc, r.solid, tol);
-    crate::world::world_is_the_product(&placed.doc, tol).doc
+    crate::world::set_product(
+        &placed.doc,
+        &[pncad::document::Operand::Node(placed.placement)],
+        tol,
+    )
+    .doc
 }
 
 /// Flush fins, measured live — the module docs' first section: the

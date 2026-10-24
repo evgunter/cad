@@ -182,7 +182,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc = next;
         ids.push(id);
     }
-    (fixture::world_product(doc), ids)
+    (fixture::assemble_world_copies(doc), ids)
 }
 
 /// [`assembly`] with each instance pinned to the world at the identity,
@@ -218,7 +218,7 @@ fn repinned(
 /// names are never resolved; the mate is the shape of a pin, so the
 /// copy is the world's by its recipe.
 fn nominally_pinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
-    fixture::world_product(fixture::stand_again(doc, placement))
+    fixture::assemble_world_copies(fixture::stand_again(doc, placement))
 }
 
 /// **One copy of `body`, which never evaluates, in the world**: a
@@ -1383,7 +1383,7 @@ fn r1_part_evaluations_aggregates_through_nesting() {
     let sub = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"), Tol::witness());
         let (doc, instance) = insert(doc, crate::fixture::mated_instance(p));
-        fixture::world_product(fixture::pinned(
+        fixture::assemble_world_copies(fixture::pinned(
             doc,
             instance,
             &with_resolver(store.clone()),

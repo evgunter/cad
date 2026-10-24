@@ -398,6 +398,7 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
             | Maintenance::StrandedSpace { .. }
+            | Maintenance::ProductOutsideWorld { .. }
             | Maintenance::ValueDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })

@@ -2239,6 +2239,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
         K::RootPoisoned => "root_poisoned",
         K::EmptyProduct => "empty_product",
         K::StrandedProduct => "stranded_product",
+        K::ProductOutsideWorld => "product_outside_world",
         K::Graft => "graft_refused",
         K::RootInvalid => "root_invalid",
         K::ProductInvalid => "product_invalid",
@@ -2591,7 +2592,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::UnknownNode { .. } => "unknown_node",
         InlineError::NotAnInstance { .. } => "not_an_instance",
         InlineError::UnplaceablePart { .. } => "unplaceable_part",
-        InlineError::InstanceReadUncarried { .. } => "instance_read_uncarried",
         InlineError::Unresolved { failure } => resolve_fault_tag(&failure.fault),
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
@@ -3405,6 +3405,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
         Maintenance::StrandedSpace { .. } => "stranded_space",
+        Maintenance::ProductOutsideWorld { .. } => "product_outside_world",
         Maintenance::ValueDropped { .. } => "value_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }

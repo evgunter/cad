@@ -1426,9 +1426,9 @@ pub enum SnapshotError {
         /// The higher id holding it.
         b: VarId,
     },
-    /// The product slot reads a variable the mint log never held, a
-    /// variable that is no `Body`, or a body outside the world: no edit
-    /// leaves the slot so ([`crate::EditError::ProductRead`]).
+    /// The product slot reads a variable the mint log never held, or a
+    /// variable that is no `Body`: no edit leaves the slot so
+    /// ([`crate::EditError::ProductRead`]).
     ProductRead {
         /// The variable the slot reads.
         read: VarId,
@@ -2094,13 +2094,18 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     for carrier in doc.name_carriers() {
         // A name read in a body that reaches an instance may be its
         // part's, spelled in ids this mint log never held: the copy
-        // carries its part's names verbatim.
+        // carries its part's names verbatim. Only such a name is let
+        // through, and only there; one spelled wholly in this
+        // document's ids is held to every rule below.
         let read_in = match carrier {
             NameCarrier::Store { body, .. } => Some(body),
             NameCarrier::Select { var, .. } => doc.selection(var).map(|select| select.body),
             NameCarrier::Payload { .. } => None,
         };
-        if read_in.is_some_and(|body| doc.reaches_instance(body)) {
+        let foreign = derivation_nodes(carrier.name())
+            .into_iter()
+            .any(|n| !doc.has_minted(n));
+        if foreign && read_in.is_some_and(|body| doc.reaches_instance(body)) {
             continue;
         }
         // An instance record's outer may be a face of another
@@ -2180,11 +2185,14 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             });
         }
     }
-    // The product slot, by the edit door's own rule: a body in the
-    // world, or a stranded read of a variable the mint log holds.
+    // The product slot, by the edit doors' own rules: a variable the
+    // mint log holds, and a body. A body an edit moved out of the world
+    // (`Maintenance::ProductOutsideWorld`), or one gone, is a state the
+    // doors leave, so a file holding it loads and the gather refuses it.
     if let Some(read) = doc.product() {
         let fault = if doc.mint.has_var(read) {
             crate::edit::product_fault(doc, read)
+                .filter(|fault| !matches!(fault, crate::edit::ProductReadFault::Space { .. }))
         } else {
             Some(crate::edit::ProductReadFault::Unresolved)
         };

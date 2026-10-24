@@ -138,6 +138,13 @@ pub enum ProductError {
         /// The read.
         read: crate::VarId,
     },
+    /// **A product read of a body outside the world** (D10
+    /// `[operations]`): an edit moved the body the slot reads into
+    /// another space ([`crate::Maintenance::ProductOutsideWorld`]).
+    ProductOutsideWorld {
+        /// The read.
+        read: crate::VarId,
+    },
     /// The kernel's disjoint-graft door refused a source body.
     Graft {
         /// The placement whose copy was being grafted.
@@ -345,6 +352,11 @@ impl ProductError {
                 "the product reads a body that is gone. {}",
                 crate::sentence::Recourse("set the product to a live body")
             ),
+            Self::ProductOutsideWorld { .. } => write!(
+                f,
+                "the product reads a body outside the world. {}",
+                crate::sentence::Recourse("set the product to a body in the world")
+            ),
             Self::Graft { node, source } => write!(
                 f,
                 "the kernel could not graft {}'s body: {source}",
@@ -470,6 +482,8 @@ pub enum ProductErrorKind {
     EmptyProduct,
     /// [`ProductError::StrandedProduct`].
     StrandedProduct,
+    /// [`ProductError::ProductOutsideWorld`].
+    ProductOutsideWorld,
     /// [`ProductError::Graft`].
     Graft,
     /// [`ProductError::RootInvalid`].
@@ -518,6 +532,7 @@ impl ProductErrorKind {
         match self {
             Self::EmptyProduct => true,
             Self::StrandedProduct
+            | Self::ProductOutsideWorld
             | Self::EvaluationOfAnotherDocument
             | Self::UnknownNode
             | Self::RootFailed
@@ -550,6 +565,7 @@ impl ProductError {
             },
             Self::EmptyProduct => ProductErrorKind::EmptyProduct,
             Self::StrandedProduct { .. } => ProductErrorKind::StrandedProduct,
+            Self::ProductOutsideWorld { .. } => ProductErrorKind::ProductOutsideWorld,
             Self::Graft { .. } => ProductErrorKind::Graft,
             Self::RootInvalid { .. } => ProductErrorKind::RootInvalid,
             Self::ProductInvalid { .. } => ProductErrorKind::ProductInvalid,
@@ -931,6 +947,9 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
         return Err(ProductError::EmptyProduct);
     };
+    if doc.operation_of(var).is_some() && doc.space_of(var) != Some(crate::VarId::WORLD) {
+        return Err(ProductError::ProductOutsideWorld { read: var });
+    }
     let mut product = gather(doc, evaluation, tol, var, true)?;
     product.assembles = assemble_gathers(doc, evaluation, tol, Some(var));
     Ok(product)
@@ -996,9 +1015,10 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     else {
         return Err(ProductError::StrandedProduct { read: var });
     };
-    let space = doc
-        .space_of(var)
-        .unwrap_or_else(|| unreachable!("a live read {var:?} is in a space"));
+    // A read in no space reads a body whose space is gone.
+    let Some(space) = doc.space_of(var) else {
+        return Err(ProductError::StrandedProduct { read: var });
+    };
     let value = evaluation.usable(node).map_err(ProductError::Root)?;
     let table = || {
         evaluation
@@ -1598,6 +1618,9 @@ mod tests {
             ProductError::StrandedProduct {
                 read: crate::VarId::new(0, test_utils::refusal::tagged(1)),
             },
+            ProductError::ProductOutsideWorld {
+                read: crate::VarId::new(0, test_utils::refusal::tagged(1)),
+            },
             ProductError::Graft {
                 node,
                 source: Box::new(topo::BooleanError::UnrepresentableResult),
@@ -1647,6 +1670,7 @@ mod tests {
                 ProductErrorKind::RootPoisoned => "RootPoisoned",
                 ProductErrorKind::EmptyProduct => "EmptyProduct",
                 ProductErrorKind::StrandedProduct => "StrandedProduct",
+                ProductErrorKind::ProductOutsideWorld => "ProductOutsideWorld",
                 ProductErrorKind::Graft => "Graft",
                 ProductErrorKind::RootInvalid => "RootInvalid",
                 ProductErrorKind::ProductInvalid => "ProductInvalid",
@@ -1661,6 +1685,7 @@ mod tests {
             "RootPoisoned",
             "EmptyProduct",
             "StrandedProduct",
+            "ProductOutsideWorld",
             "Graft",
             "RootInvalid",
             "ProductInvalid",

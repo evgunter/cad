@@ -133,7 +133,7 @@ fn seat(label: &str, post_height: f64) -> Seat {
     let mut store = PartStore::new();
     let (post, post_body) = block(&format!("{label}-post"), 0.5, post_height);
     let post = placed(post, post_body);
-    let post = crate::fixture::world_product(post);
+    let post = crate::fixture::assemble_world_copies(post);
     let post_ref = store.insert(post.clone(), Tol::witness());
     let (block_ref, block_body) =
         store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());
@@ -355,7 +355,7 @@ fn rest_on_the_face(
     face: &StableName,
 ) -> (Evaluation<f64>, MateRef) {
     let mut store = PartStore::new();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let part_ref = store.insert(part, Tol::witness());
     let (block_ref, block_body) =
         store.insert_part(block(&format!("{label}-block"), 0.5, 0.25), Tol::witness());

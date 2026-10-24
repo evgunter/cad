@@ -365,8 +365,8 @@ fn in_part(
     instance: RecipeNodeId,
     (body, _): (RecipeNodeId, RecipeNodeId),
     cap: CapEnd,
-) -> crate::fixture::resolver::InPart {
-    crate::fixture::resolver::InPart {
+) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
         at: instance,
         name: StableName {
             kind: EntityKind::Face,

@@ -182,7 +182,7 @@ fn through_the_document(tol: Tol) -> Body<f64> {
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let (doc, revolved) = document(tol);
     let placed = crate::world::place_in_world(&doc, Operand::output(revolved, 0), tol);
-    crate::world::world_is_the_product(&placed.doc, tol).doc
+    crate::world::set_product(&placed.doc, &[Operand::Node(placed.placement)], tol).doc
 }
 
 /// The ring's recipe and its revolve node.

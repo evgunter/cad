@@ -573,11 +573,13 @@ fn an_instances_census_decisions_are_its_parts() {
 
 // ---- Every door holds the slot and the picks ----
 
-/// **The slot reads a body in the world after every edit**: a re-target
-/// of the copy the slot reads, out of the world, refuses as `SetProduct`
-/// would, and the document keeps its product.
+/// **The slot reads a body in the world, at every door**: a re-target
+/// of the copy the slot reads, out of the world, is reported
+/// (`Maintenance::ProductOutsideWorld`, as a re-target leaving reads in
+/// two spaces is), the gather refuses the slot typed, and the state
+/// saves and loads as the doors left it.
 #[test]
-fn a_retarget_of_the_products_copy_out_of_the_world_refuses() {
+fn a_retarget_of_the_products_copy_out_of_the_world_is_reported_and_refused() {
     let d = doc("dprime3-retarget");
     let (d, a) = block(d, [0.0; 2], 0.5, 1.0);
     let (d, copy) = in_world(d, a);
@@ -593,24 +595,56 @@ fn a_retarget_of_the_products_copy_out_of_the_world_refuses() {
             fresh: Vec::new(),
         },
         Tol::witness(),
+    )
+    .expect("a re-target is admitted");
+    assert!(
+        moved.maintenance.iter().any(|row| matches!(
+            row,
+            editor_core::Maintenance::ProductOutsideWorld { read, .. }
+                if Some(read.id()) == d.product()
+        )),
+        "the edit reports the slot's body leaving the world: {:?}",
+        moved.maintenance
+    );
+    let ev = run(&moved.doc, &EvalOptions::default());
+    assert!(
+        matches!(
+            editor_core::product(&moved.doc, &ev, Tol::witness()),
+            Err(editor_core::ProductError::ProductOutsideWorld { .. })
+        ),
+        "the gather refuses a slot outside the world"
+    );
+    let text = editor_core::persist::save(&moved.doc, &[], Tol::witness()).unwrap();
+    let loaded =
+        editor_core::persist::load(&text, Tol::witness()).expect("what an edit leaves loads");
+    assert_eq!(loaded.doc.product(), moved.doc.product());
+    // `SetProduct` itself refuses a read outside the world.
+    let refused = apply(
+        &moved.doc,
+        &DocEdit::SetProduct {
+            product: Some(Operand::Node(copy)),
+        },
+        Tol::witness(),
     );
     assert!(
         matches!(
-            moved,
+            refused,
             Err(EditError::ProductRead {
                 fault: editor_core::ProductReadFault::Space { .. },
                 ..
             })
         ),
-        "the slot's copy moved out of the world: {moved:?}"
+        "the slot's own door refuses a body outside the world: {:?}",
+        refused.map(|a| a.doc.product())
     );
 }
 
-/// **The load door holds the slot as the edit door does**: a stored
-/// document whose slot reads a body outside the world, or a variable it
-/// never minted, refuses typed.
+/// **The load door holds the slot as the edit doors do**: a stored
+/// document whose slot reads a variable it never minted refuses typed; one
+/// reading a body outside the world, a state an edit can leave, loads,
+/// and the gather refuses it.
 #[test]
-fn the_load_door_refuses_a_slot_reading_no_body_in_the_world() {
+fn the_load_door_holds_the_slot_as_the_edit_doors_do() {
     let d = doc("dprime3-load-slot");
     let (d, p) = block(d, [0.0; 2], 0.5, 0.5);
     let (d, copy) = in_world(d, p);
@@ -626,26 +660,32 @@ fn the_load_door_refuses_a_slot_reading_no_body_in_the_world() {
         needles.iter().any(|n| text.contains(n.as_str())),
         "the slot is on the wire"
     );
-    let inner = ser(d.output(p, 0).unwrap());
-    for (what, to) in [
-        ("a construction's body", inner),
-        ("no variable", ser(VarId::new(999, 5))),
-    ] {
-        let swapped = needles.iter().fold(text.clone(), |t, n| {
-            t.replace(n.as_str(), &n.replace(&product, &to))
-        });
-        let loaded = editor_core::persist::load(&swapped, Tol::witness());
-        assert!(
-            matches!(
-                loaded,
-                Err(editor_core::PersistError::Snapshot(
-                    editor_core::SnapshotError::ProductRead { .. }
-                ))
-            ),
-            "a slot reading {what} loads: {:?}",
-            loaded.map(|l| l.doc.product())
-        );
-    }
+    let swapped = |to: &str| {
+        needles.iter().fold(text.clone(), |t, n| {
+            t.replace(n.as_str(), &n.replace(&product, to))
+        })
+    };
+    let unminted = editor_core::persist::load(&swapped(&ser(VarId::new(999, 5))), Tol::witness());
+    assert!(
+        matches!(
+            unminted,
+            Err(editor_core::PersistError::Snapshot(
+                editor_core::SnapshotError::ProductRead { .. }
+            ))
+        ),
+        "a slot reading no variable loads: {:?}",
+        unminted.map(|l| l.doc.product())
+    );
+    let inner = editor_core::persist::load(&swapped(&ser(d.output(p, 0).unwrap())), Tol::witness())
+        .expect("a slot reading a body outside the world loads");
+    let ev = run(&inner.doc, &EvalOptions::default());
+    assert!(
+        matches!(
+            editor_core::product(&inner.doc, &ev, Tol::witness()),
+            Err(editor_core::ProductError::ProductOutsideWorld { .. })
+        ),
+        "the gather refuses it"
+    );
 }
 
 /// **A pick of a pick walks the piece the inner pick kept**: through a

@@ -478,9 +478,9 @@ fn prism_part(
         },
         tol,
     );
-    place(&mut doc, prism, tol);
+    let copy = place(&mut doc, prism, tol);
     // What the part makes: its one copy.
-    crate::world::world_is_the_product(&doc, tol).doc
+    crate::world::set_product(&doc, &[Operand::Node(copy)], tol).doc
 }
 
 /// The post: a square section, standing.
@@ -658,6 +658,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         tol,
     );
     // The world: each patterned post, laid down.
+    let mut posts = Vec::with_capacity(2);
     for i in 0..2 {
         let post = insert(
             &mut doc,
@@ -677,6 +678,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             tol,
         );
         place_in_world(&mut doc, placement, lying(), tol);
+        posts.push(placement);
     }
     // The shelf, placed in the world beside them: the last placement,
     // as the instance a split of it leaves behind is.
@@ -687,7 +689,13 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         crate::world::slides([FLAT_PACK_GAP, 0.9, 0.0]),
         tol,
     );
-    let doc = crate::world::world_is_the_product(&doc, tol).doc;
+    // What the flat-pack is: its two posts and its shelf.
+    let made: Vec<Operand> = posts
+        .into_iter()
+        .chain([shelf_i])
+        .map(Operand::Node)
+        .collect();
+    let doc = crate::world::set_product(&doc, &made, tol).doc;
     (doc, pattern, shelf_i)
 }
 
@@ -853,7 +861,9 @@ fn stand_doc(parts: &Parts, seating: Seating, tol: Tol) -> Stand {
         under(post_b_at),
         tol,
     );
-    let doc = crate::world::world_is_the_product(&doc, tol).doc;
+    // What the stand is: its two posts and its shelf.
+    let made = [post_a, shelf_i, post_b].map(Operand::Node);
+    let doc = crate::world::set_product(&doc, &made, tol).doc;
     Stand {
         doc,
         post_a,
@@ -905,7 +915,8 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
         tol,
     );
     // The stand's product, the crate with it.
-    let doc = crate::world::world_is_the_product(&doc, tol).doc;
+    let made = [stand.post_a, stand.shelf_i, stand.post_b, crate_i].map(Operand::Node);
+    let doc = crate::world::replace_product(&doc, &made, tol).doc;
     Bench {
         doc,
         crate_i,
@@ -1630,7 +1641,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         tol,
     );
     // The product said anew: the two that remain.
-    let swapped = crate::world::world_is_the_product(&swapped.doc, tol).doc;
+    let remain = [swapped.post_a, swapped.shelf_i].map(Operand::Node);
+    let swapped = crate::world::replace_product(&swapped.doc, &remain, tol).doc;
     let ev = run(&swapped, &with_store(ws), tol);
     let err = assemble(&swapped, &ev, tol).expect_err("a Tangent mate has no at-rest record");
     assert!(

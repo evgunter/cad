@@ -22,9 +22,9 @@
 //! placement's constraints are its own, so a cut placement whose bundle
 //! reads a kept copy severs that read. A part delivers only its world
 //! (A10), so a remainder read of the cut crosses only where the
-//! instance's copies carry what it reads: a selection each of whose
+//! instance's copy carries what it reads: a selection each of whose
 //! names one cut world placement's copy holds, re-authored on the
-//! instance's copies; a read of one copy of a cut world placement, or of
+//! instance's copy; a read of one copy of a cut world placement, or of
 //! a cut `Place`'s one copy, or of a body one cut world `Place` copies
 //! at the identity, each re-pointed to a pick of the instance's copy:
 //! the member of the part's product `⊔` that copy is, or the copy whole
@@ -1186,7 +1186,7 @@ fn cut_and_kept(first_is_cut: bool) -> (&'static str, &'static str) {
 
 /// **Why no one copy stands where a read across the seam read** (A4,
 /// A10): split's remainder reader of cut material, inline's reader of
-/// the instance, a name on the instance's copies, and the part copy a
+/// the instance, a name on the instance's copy, and the part copy a
 /// mate-placed instance's bundle would move onto.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Uncarried {
@@ -1273,21 +1273,11 @@ pub enum InlineError {
         node: SpokenNode,
     },
     /// **The part has no product** (A4): its product slot reads
-    /// nothing, so there is no body for the new placement to copy.
+    /// nothing, or a body that is gone, so there is no body for the new
+    /// placement to copy.
     UnplaceablePart {
         /// The instance.
         instance: SpokenNode,
-        /// What the part's placements on its world are instead.
-        why: Uncarried,
-    },
-    /// **A host node reads one of the instance's copies, and the new
-    /// placement keys no copy for the read** (A4): a key the part
-    /// delivers nothing at, or one inside a copy of several bodies.
-    InstanceReadUncarried {
-        /// The reader.
-        reader: SpokenNode,
-        /// Why no one copy takes its read.
-        why: Uncarried,
     },
     /// The reference did not resolve — the resolver's own classified
     /// refusal (A4's pin gate arrives here as
@@ -1401,19 +1391,13 @@ impl core::fmt::Display for InlineError {
                 "inline: {node} does not instantiate a part. {}",
                 Recourse("name an instance of a part")
             ),
-            Self::UnplaceablePart { instance, why } => write!(
+            Self::UnplaceablePart { instance } => write!(
                 f,
-                "inline: {instance}'s part has no product: {why}. {}",
+                "inline: {instance}'s part has no product: its slot reads nothing, or a body \
+                 that is gone. {}",
                 Recourse(&format!(
                     "point {instance} (UpdateReference) at a version whose product slot reads \
                      a body"
-                ))
-            ),
-            Self::InstanceReadUncarried { reader, why } => write!(
-                f,
-                "inline: {reader} reads the instance's copies, and {why}. {}",
-                Recourse(&format!(
-                    "re-point {reader} at one copy of the instance (SetParam), then inline"
                 ))
             ),
             // The store's sentence states the recourse of a pin or a
@@ -2789,7 +2773,7 @@ pub fn split(
     // A pose read at a seat (a mate's side) crosses where every read of
     // it that reaches the cut is a selection written inside it whose
     // names the part's world carries: it is written afresh over the
-    // instance's copies, those selections re-pointed (`crossing_leaves`).
+    // instance's copy, those selections re-pointed (`crossing_leaves`).
     let mut crossing_poses: Vec<(RecipeNodeId, crate::OperandSlot, VarId)> = Vec::new();
     let mut crossing_leaves: Vec<(RecipeNodeId, VarId)> = Vec::new();
     let mut heirs: BTreeMap<(RecipeNodeId, crate::OperandSlot), SourceKey> = BTreeMap::new();
@@ -3454,7 +3438,7 @@ pub fn split(
         }
     }
     // A pose read that crosses is written afresh, each selection in it
-    // that reads the cut authored in the instance's copies as a crossing
+    // that reads the cut authored in the instance's copy as a crossing
     // selection is.
     for &(node, slot, var) in &crossing_poses {
         let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, SplitError> {
@@ -3695,7 +3679,7 @@ fn read_at<P: crate::ProfilePayload>(
 /// refuses for its numbers. The pin resolves through `resolver` (a
 /// stale pin is the resolver's typed `PinMismatch`, never a silent
 /// retarget); ids remap into fresh host mints in the part's document
-/// order. Every host read of the instance's copies reads the new
+/// order. Every host read of the instance's copy reads the new
 /// placement's, a selection of them authored afresh there with each
 /// part name re-anchored onto the placement's copy, and a
 /// side of the instance's own bundle reads the spliced copy it stood
@@ -3766,10 +3750,12 @@ pub fn inline(
     }
     // The part's product: what the instance copies, and what the new
     // placement copies.
-    let Some(product) = part.product() else {
+    let Some(product) = part
+        .product()
+        .filter(|&read| part.operation_of(read).is_some())
+    else {
         return Err(InlineError::UnplaceablePart {
             instance: doc.spoken(instance),
-            why: Uncarried::Bodies { count: 0 },
         });
     };
     let copies = doc
@@ -3894,15 +3880,7 @@ pub fn inline(
         },
     )?;
     let Some(&spliced) = read_map.get(&product) else {
-        return Err(InlineError::stranded(
-            &part,
-            &StableName {
-                kind: EntityKind::Body,
-                node: part.operation_of(product).unwrap_or(RecipeNodeId::WORLD),
-                path: vec![RoleSeg::OutputBody],
-            },
-            RemapError::Unmapped(Unmapped::Read(product)),
-        ));
+        unreachable!("the part's live product {product:?} is spliced with its operation")
     };
     // A name the instance's copy carries is its part's, verbatim: it
     // lands on the spliced name, every id of the part read through the
@@ -4200,7 +4178,7 @@ pub fn inline(
             },
         )?;
     }
-    // A host appearance key read in the instance's copies is re-attached
+    // A host appearance key read in the instance's copy is re-attached
     // in the new placement's: a Rebind keeps a key's read, and the
     // inline takes that read away.
     for (key, record) in current.doc().appearance().clone() {
@@ -4216,7 +4194,7 @@ pub fn inline(
         )?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
-    // A name on the instance's copies moves onto the new placement's.
+    // A name on the instance's copy moves onto the new placement's.
     if let Some(name) = doc.var_name(copies) {
         step(
             &mut current,

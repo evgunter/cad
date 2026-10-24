@@ -131,7 +131,8 @@ fn author_box_part(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
     );
-    common::world_is_the_product(session);
+    let copy = common::copy_of(session.committed_doc(), extrude);
+    common::product_is(session, &[copy]);
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
@@ -561,7 +562,7 @@ fn the_windmill_story() {
     // identity-placed — and the faces' normals meet opposed. The base,
     // once the author says it is what the document makes, CERTIFIES at
     // rest: one declared contact, nested, answered.
-    common::world_is_the_product(&mut session);
+    common::product_is(&mut session, &[tower_i, hub_i]);
     {
         let (_, eval) = session.landed_pair().expect("landed");
         let pose = face_frame(eval, hub_bottom.node, &hub_bottom.name)
@@ -781,7 +782,7 @@ fn the_windmill_story() {
     // induces — the gate's verdict is the truth about this design,
     // shown on the draw path rather than saved for an export — once the
     // author says the four are what the document makes.
-    common::world_is_the_product(&mut session);
+    common::product_is(&mut session, &[tower_i, hub_i, sail_a, sail_b]);
     let rows = session.tree_rows();
     assert_eq!(
         rows.len(),

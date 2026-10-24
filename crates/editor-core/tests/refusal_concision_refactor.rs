@@ -93,7 +93,7 @@ test_utils::f6_variants! {
 
 test_utils::f6_variants! {
     const INLINE: InlineError = [
-        UnknownNode, NotAnInstance, UnplaceablePart, InstanceReadUncarried, Unresolved,
+        UnknownNode, NotAnInstance, UnplaceablePart, Unresolved,
         EpsilonSeam, PartCarriesMetadata, VarNameConflict,
         UnresolvedVarCrossesCut, InstanceBodyNameReferenced, NameOnDroppedStep, RankedRunReordered,
         StrandedPartName,
@@ -228,19 +228,10 @@ fn inline_refusals() -> Vec<InlineError> {
             node: s(5, "Extrude"),
         },
     ];
-    out.extend(uncarried().into_iter().flat_map(|why| {
-        [
-            InlineError::UnplaceablePart {
-                instance: s(4, "InstantiatePart"),
-                why: why.clone(),
-            },
-            InlineError::InstanceReadUncarried {
-                reader: s(5, "Union"),
-                why,
-            },
-        ]
-    }));
     out.extend([
+        InlineError::UnplaceablePart {
+            instance: s(4, "InstantiatePart"),
+        },
         InlineError::Unresolved {
             failure: ResolveFailure::new(
                 ResolveFault::EpsilonSeam,

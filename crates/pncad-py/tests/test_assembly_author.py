@@ -129,7 +129,7 @@ from pncad import (
     solve_document,
 )
 
-from placing import against, moves, placed, world_product
+from placing import against, moves, placed, assemble_world_copies
 
 
 class BenchWorkspace(unittest.TestCase):
@@ -235,7 +235,7 @@ class TestBenchLayout(BenchWorkspace):
         for name, posts in SPELLINGS.items():
             with self.subTest(posts=name):
                 doc, _, _, _ = self.layout(posts)
-                world_product(doc)
+                assemble_world_copies(doc)
                 assembly = assemble(doc, evaluate(doc, resolver=self.ws))
                 # No mate declares anything and nothing touches, so the
                 # kernel's at-rest door passes with nothing minted.
@@ -694,7 +694,7 @@ class TestBenchStand(BenchWorkspace):
 
     def test_the_flush_seated_stand_certifies_at_the_at_rest_gate(self):
         doc, _, (mate_1, mate_2) = self.stand()
-        world_product(doc)
+        assemble_world_copies(doc)
         assembly = assemble(doc, evaluate(doc, resolver=self.ws))
         # One record per solved mate, at face granularity, in the
         # alphabet the mates were authored in.
@@ -940,7 +940,7 @@ class TestAssemblyRefusals(BenchWorkspace):
     def test_a_class_the_gate_cannot_mint_refuses_at_the_gate(self):
         doc, _, (mate_1, mate_2) = TestBenchStand.stand(self, class_=ContactClass.Tangent)
         with self.assertRaises(pncad.AssemblyError) as caught:
-            world_product(doc)
+            assemble_world_copies(doc)
             assemble(doc, evaluate(doc, resolver=self.ws))
         # A Tangent mate SOLVES and mints nothing at rest: the two
         # doors admit different sets, which is the whole reason the
@@ -974,7 +974,7 @@ class TestAssemblyRefusals(BenchWorkspace):
         )
         doc.apply(DocEdit.set_label(shelf_i, "left seat"))
         with self.assertRaises(pncad.AssemblyError) as caught:
-            world_product(doc)
+            assemble_world_copies(doc)
             assemble(doc, evaluate(doc, resolver=self.ws))
         rows = caught.exception.refusals
         self.assertEqual([r.mate for r in rows], [mate_1, mate_2])
@@ -1040,13 +1040,13 @@ class TestAssemblyRefusals(BenchWorkspace):
         # refuses with the gather's own tag, not a wrapper's, because
         # which invariant broke is what a caller branches on.
         with self.assertRaises(pncad.AssemblyError) as caught:
-            world_product(doc)
+            assemble_world_copies(doc)
             assemble(doc, evaluate(doc))
         self.assertEqual(caught.exception.variant, "root_failed")
         self.assertIsNotNone(caught.exception.node)
         self.assertIsNone(caught.exception.refusals)
         with self.assertRaises(pncad.ProductError) as gather:
-            world_product(doc)
+            assemble_world_copies(doc)
             product(doc, evaluate(doc))
         self.assertEqual(gather.exception.variant, "root_failed")
 
@@ -1277,7 +1277,7 @@ class TestRefactorings(BenchWorkspace):
         doc = Doc("refactor-me")
         post_i = self.pinned(doc, self.post_ref)
         shelf_i = self.pinned(doc, self.shelf_ref, Frame.translation((0 * m, 0.9 * m, 0 * m)))
-        world_product(doc)
+        assemble_world_copies(doc)
         return doc, post_i, shelf_i
 
     def volume(self, doc):
@@ -1599,7 +1599,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
                 MateValue(Coord.spin("z"), 0),
             ],
         )
-        world_product(doc)
+        assemble_world_copies(doc)
         self.ws.create(doc)
         return doc, mate, DocRef(doc.id, content_pin(doc))
 
@@ -1623,7 +1623,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         inner, inner_mate, ref = self.stand_doc("carried-refuted", b_seat=OFF_THE_POST)
         outer, instance = self.instantiated("carried-refuted-outer", ref)
         with self.assertRaises(pncad.AssemblyError) as caught:
-            world_product(outer)
+            assemble_world_copies(outer)
             assemble(outer, evaluate(outer, resolver=self.ws))
         err = caught.exception
         # A refuted declaration is a verdict against the document,
@@ -1649,7 +1649,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         )
         outer, instance = self.instantiated("carried-declined-outer", ref)
         with self.assertRaises(pncad.AssemblyError) as caught:
-            world_product(outer)
+            assemble_world_copies(outer)
             assemble(outer, evaluate(outer, resolver=self.ws))
         err = caught.exception
         self.assertEqual(err.variant, "uncertified")
@@ -1671,7 +1671,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         outer, instance = self.instantiated("carried-unmintable-outer", ref)
         outer.apply(DocEdit.set_label(instance, "left bracket"))
         with self.assertRaises(pncad.AssemblyError) as caught:
-            world_product(outer)
+            assemble_world_copies(outer)
             assemble(outer, evaluate(outer, resolver=self.ws))
         err = caught.exception
         self.assertEqual(err.variant, "carried_mint_refusal")
@@ -1758,7 +1758,7 @@ class TestCarriedAcrossTheSeam(BenchWorkspace):
         outer = Doc("carried-certified-outer")
         first = self.pinned(outer, ref)
         second = self.pinned(outer, ref, Frame.translation((5 * m, 0 * m, 0 * m)))
-        world_product(outer)
+        assemble_world_copies(outer)
         assembly = assemble(outer, evaluate(outer, resolver=self.ws))
         self.assertEqual(assembly.minted, [])
         self.assertEqual(

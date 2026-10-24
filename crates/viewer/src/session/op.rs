@@ -795,10 +795,9 @@ pub enum SessionOp {
     /// fillet, re-pointing the body's world placements to it (A10, Ev's
     /// residue 1).
     ///
-    /// **A target that is a world placement is a pick on its copy**,
-    /// read on the body it places: the fillet reads that body, and each
-    /// selected name the placement's wrap is unwrapped to the body's own
-    /// (`StableName::copy_of`).
+    /// **A target that is a world placement is read on the body it
+    /// places**: the fillet reads that body, and a copy carries its
+    /// body's names as they are, so each selected name is the body's.
     ///
     /// **The selection is a frozen commitment** (`Node::Fillet`'s
     /// ratified #217 semantics): what is authored here is what the
@@ -925,7 +924,7 @@ pub enum SessionOp {
     /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
     /// reference into a store it has not got.
     ///
-    /// **A creation, so its copies are placed** (A10): an instance is a
+    /// **A creation, so its copy is placed** (A10): an instance is a
     /// placement, inserted and placed at the identity by the "place
     /// part" gesture (the identity bundle), with its reference and an empty
     /// interface record (an authored instance crosses no split seam).
@@ -965,8 +964,8 @@ pub enum SessionOp {
     /// product set to the one body of `bodies`, or to a `⊔` of them in
     /// the order given, inserted in the same action; to nothing where
     /// `bodies` is empty. One action, one undo. The door refuses a read
-    /// whose body is not in the world. No pane offers it yet
-    /// (`work/intent/the-viewer-sets-no-product.md`).
+    /// whose body is not in the world. The properties pane offers it on a
+    /// selected world copy: add it to the product, or take it out.
     SetProduct {
         /// The bodies the document makes.
         bodies: Vec<Operand>,

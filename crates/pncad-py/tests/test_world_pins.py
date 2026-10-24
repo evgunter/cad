@@ -45,7 +45,7 @@ from pncad import (
 )
 
 import bench_scene
-from placing import moves, world_product
+from placing import moves, assemble_world_copies
 
 
 def lifted(z):
@@ -210,7 +210,7 @@ class WorldPins(unittest.TestCase):
         gate refuses though the world's product beside them certifies."""
         doc = Doc("py-pin-gate")
         self.pinned(doc, self.post_ref, Frame.translation((1 * m, 0 * m, 0 * m)))
-        world_product(doc)
+        assemble_world_copies(doc)
         aside = doc.new_space()
         shelf = doc.insert(Node.instantiate_part(self.shelf_ref, aside))
         posts = []

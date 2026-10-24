@@ -1,9 +1,10 @@
 //! **A parent's names of a child document's pieces, across the child's
 //! reshaping and the parent's pin update.**
 //!
-//! An assembly holds names of a part's entities as `InPart { of }` at
-//! the instantiate node: `of` is the name the part document mints, so
-//! a swept wall's is spelled by the piece its profile step drew — the
+//! An assembly holds a part's entities by the part's own names, read at
+//! the instantiate node whose copy carries them: each is the name the
+//! part document mints, so a swept wall's is spelled by the piece its
+//! profile step drew — the
 //! step's minted id and its role (`names/README.md`, "N1, the profile
 //! pieces"). A reshaping that keeps the step keeps the id, so the
 //! parent's name needs nothing from the part's edit door, which never

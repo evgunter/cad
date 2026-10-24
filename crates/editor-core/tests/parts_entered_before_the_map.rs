@@ -233,7 +233,7 @@ fn a_nested_assembly_records_the_serial_walks_sequence_under_the_parallel_map() 
         &Frame::translation([9.0, 0.0, 0.0]),
         &with_resolver(store.clone()),
     );
-    let mid = crate::fixture::world_product(mid);
+    let mid = crate::fixture::assemble_world_copies(mid);
     let mid = store.insert(mid, Tol::witness());
     let opts = with_resolver(store);
     let mut top = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());

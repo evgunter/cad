@@ -732,7 +732,8 @@ class ProductError(PncadError):
     `node` and `through` carry the full ids: a failed or poisoned
     operation and the failed node that poisoned it. `empty_product` is
     a slot reading nothing; `stranded_product` a slot whose body is
-    gone, `read` then the variable it reads, and `None` on every other
+    gone and `product_outside_world` one an edit moved out of the
+    world, `read` then the variable it reads, and `None` on every other
     arm."""
 
     variant: str
@@ -767,16 +768,13 @@ class InlineError(PncadError):
 
     variant: str
     node: Optional[NodeId]
-    by: Optional[NodeId]
-    """`instance_read_uncarried`: the host node reading the instance."""
     name: Optional[str]
     param: Optional[str]
     key: Optional[str]
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
-    """`unplaceable_part`: `node` is the instance whose part's world
-    places no list of copies — none, or several placements one of which
-    copies several bodies."""
+    """`unplaceable_part`: `node` is the instance whose part has no
+    product: its slot reads nothing, or a body that is gone."""
 
 class FlattenError(PncadError):
     """The `flatten` refactoring refused: `not_a_placement`,
@@ -6082,6 +6080,11 @@ class Maintenance:
     `space_mismatch` at evaluation until an edit puts its reads back in
     one space.
 
+    A `product_outside_world` says an edit moved the body the product
+    slot reads out of the world (a re-target of its copy). The edit is
+    legal, and the product refuses `product_outside_world` until an
+    edit puts the body back in the world or the slot reads another.
+
     A `value_dropped` names, on `node`, a placement whose bundle an edit
     wrote whole (`add_constraint`, `remove_constraint`) without one of
     its values: a freedom the new mates fix, or a turn its chain already
@@ -6090,8 +6093,8 @@ class Maintenance:
     @property
     def variant(self) -> str:
         """`strand`, `stranded_read`, `stranded_selection`,
-        `stranded_space`, `stranded_appearance`, `value_dropped`, or
-        `anonymous_var_removed`."""
+        `stranded_space`, `product_outside_world`, `stranded_appearance`,
+        `value_dropped`, or `anonymous_var_removed`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...
@@ -6118,7 +6121,8 @@ def product(doc: Doc, evaluation: Evaluation) -> Body:
     for the same nodes and a gather over the wrong one would succeed,
     in full, about other geometry. Raises ProductError, typed:
     `empty_product` for a slot reading nothing, `stranded_product`
-    naming the read whose body is gone, a failed or poisoned
+    naming the read whose body is gone, `product_outside_world` the
+    read an edit moved out of the world, a failed or poisoned
     operation, a graft or validity refusal."""
 
 def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
@@ -6527,10 +6531,10 @@ def split(
     (`severed_edge`). A part delivers only its world: the cut's world
     placements are the part's, and the remainder holds ONE instance of
     the part stood where its world stands (the kernel's `stand`, the
-    identity bundle, which reads nothing of the part), so its copies
-    stand where the cut's did. A remainder read of the cut crosses
-    only where the instance's copies carry what it reads, re-pointed to that copy
-    of the instance; any other is severed (`severed_edge`,
+    identity bundle, which reads nothing of the part), so its copy
+    stands where the cut's world did. A remainder read of the cut
+    crosses only where the instance's copy carries what it reads,
+    re-pointed to a pick of that copy; any other is severed (`severed_edge`,
     `remainder_read_uncarried`), as is a name reaching material the
     part's world does not hold once (`name_outside_part_world`). Pure —
     `doc` is untouched. Raises SplitError, typed, naming the offending
@@ -6541,7 +6545,7 @@ def split(
     parts the document's instances reference.
 
     A kept constraint whose pose reads a cut copy's geometry reads it
-    in the instance: its pose is re-written over the instance's copies.
+    in the instance: its pose is re-written over the instance's copy.
     A cut holding no body refuses (`no_material`), and a cut naming the
     world `cuts_the_world`."""
 
@@ -6580,14 +6584,12 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
 
     One rule (A4): the part's recipe is copied verbatim into a new
     space (`Doc.new_space()`, the outcome's `space`), and a placement
-    of what the part's world placed is put where the instance stood,
-    under the instance's own bundle (the outcome's `placement`), so
-    nothing moves and a variable the bundle reads keeps driving it. A
-    part whose world places no list of copies — none, or several
-    placements one of which copies several bodies — refuses
-    `unplaceable_part` (`node` the instance). A host node that read the
-    instance reads the placement's copy; a read keyed at no copy it
-    makes refuses `instance_read_uncarried` (`by` the reader).
+    of the part's product body is put where the instance stood, under
+    the instance's own bundle (the outcome's `placement`), so nothing
+    moves and a variable the bundle reads keeps driving it. A part with
+    no product refuses `unplaceable_part` (`node` the instance). A host
+    node that read the instance reads the placement's copy, and a pick
+    of the instance's copy a pick of the placement's.
     `flatten` folds the placement away where its bundle is the
     identity."""
 

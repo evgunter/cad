@@ -88,7 +88,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
 fn instance_face(
     instance: RecipeNodeId,
     part_body: RecipeNodeId,
-) -> crate::fixture::resolver::InPart {
+) -> crate::fixture::resolver::PartName {
     crate::fixture::resolver::in_part(instance, part_body, CapEnd::Start)
 }
 

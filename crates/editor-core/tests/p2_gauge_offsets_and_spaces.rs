@@ -76,13 +76,13 @@ impl Parts {
     fn opts(&self) -> EvalOptions {
         with_resolver(self.store.clone())
     }
-    fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(base, self.base_body, CapEnd::End)
     }
-    fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::Start)
     }
-    fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::End)
     }
 }
@@ -807,7 +807,7 @@ fn an_inline_at_a_turned_pose_over_two_pinned_instances_moves_nothing() {
     let (sub, _) = fixture::insert_pinned(sub, crate::fixture::mated_instance(p.base), &po);
     let (sub, _) = pinned(sub, p.base, Frame::translation([10.0, 0.0, 0.0]), &po);
     let mut store = p.store.clone();
-    let sub = crate::fixture::world_product(sub);
+    let sub = crate::fixture::assemble_world_copies(sub);
     let sub_ref = store.insert(sub, Tol::witness());
     let o = with_resolver(store.clone());
     let pose = Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [2.0, 5.0, 0.0], band()).unwrap();
@@ -974,7 +974,7 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
 /// holds. Answers the document, the world's product written again over
 /// what the world still holds, and the `⊔`.
 fn assembled_in_space(doc: ProfileDoc, copies: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
-    let doc = fixture::world_product(doc);
+    let doc = fixture::assemble_world_copies(doc);
     let members = copies
         .iter()
         .map(|&copy| {

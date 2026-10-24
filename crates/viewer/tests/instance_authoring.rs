@@ -184,7 +184,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     probe(&mut session);
     assert!(!tree::has_faults(&session.tree_rows()));
     // What the assembly makes: its two copies.
-    common::world_is_the_product(&mut session);
+    common::product_is(&mut session, &[post_i, shelf_i]);
 
     // Save, reload, re-evaluate: the same document, from the file.
     let saved = session.perform(SessionOp::Save(path.clone()));

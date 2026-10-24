@@ -130,9 +130,9 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// **Two instanced blocks, one seated on the other by a mate** — the
 /// assembly kind the Band 4 corpus does not author (`InstantiatePart`,
 /// with a constraint in its bundle).
-/// An instance's rows wrap its part's names in `InPart` under the
-/// instance's own head, which is the shape the head comparison exists
-/// to read correctly.
+/// An instance's rows carry its part's names as they are, read at the
+/// instance, which is the shape the head comparison exists to read
+/// correctly.
 fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let mut store = PartStore::new();
     let (base, base_body) = store.insert_part(block("vedge-base"), Tol::witness());

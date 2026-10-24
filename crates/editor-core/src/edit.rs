@@ -1469,7 +1469,7 @@ fn mint_pose<P: crate::ProfilePayload>(
         return Err(shape(PoseFault::DoubleFlip));
     }
     // A copy carries the pose: what it reads as the copy is a
-    // placement's copies.
+    // placement's output.
     if let PoseDef::Carried { copy, .. } = &stored
         && !matches!(
             doc.operation_of(*copy).and_then(|at| doc.node(at)),
@@ -4734,6 +4734,18 @@ pub enum Maintenance {
         /// Another.
         b: crate::spoken::SpokenSpace,
     },
+    /// **The product's body this edit moved out of the world** (D10
+    /// `[operations]`): the slot reads `read`, which a re-target of its
+    /// copy put in `space`. It is admitted, as a re-target leaving reads
+    /// in two spaces is, and the gather refuses the slot
+    /// ([`crate::ProductError::ProductOutsideWorld`]) until an edit puts
+    /// the body back in the world or the slot reads another.
+    ProductOutsideWorld {
+        /// The body the slot reads.
+        read: SpokenVar,
+        /// The space it is in now.
+        space: crate::spoken::SpokenSpace,
+    },
     /// **A value this edit dropped from a bundle written whole**
     /// ([`DocEdit::AddConstraint`], [`DocEdit::RemoveConstraint`]): its
     /// freedom is one the bundle's new mates fix, or a turn the chain
@@ -4893,6 +4905,11 @@ impl core::fmt::Display for Maintenance {
                 f,
                 "{node} reads {a} and {b}, which this edit left in two spaces, so {node} \
                  refuses until its reads are in one space"
+            ),
+            Self::ProductOutsideWorld { read, space } => write!(
+                f,
+                "the product reads {read}, which this edit moved into {space}, so the product \
+                 refuses until it reads a body in the world"
             ),
             Self::ValueDropped {
                 placement,
@@ -5349,6 +5366,9 @@ impl MaintenanceNet {
                     })
                 }
                 Maintenance::StrandedSpace { node, .. } => end.space_fault(node.id()).is_some(),
+                Maintenance::ProductOutsideWorld { read, .. } => {
+                    end.product() == Some(read.id()) && product_fault(end, read.id()).is_some()
+                }
                 Maintenance::ValueDropped { .. } | Maintenance::AnonymousVarRemoved { .. } => true,
             })
             .collect()
@@ -6815,15 +6835,29 @@ fn door<P: Clone + crate::ProfilePayload, T>(
         });
     }
     // D10 `[operations]`, on EVERY arm: the slot reads a body in the
-    // world, so an edit that moves the body it reads out of the world
-    // (a re-target of its copy) refuses as `SetProduct` would.
-    if let Some(var) = new.product()
-        && let Some(fault) = product_fault(&new, var)
-    {
-        return Err(EditError::ProductRead {
-            read: Box::new(crate::Operand::Var(var)),
-            fault,
-        });
+    // world. `SetProduct` refuses any other read at its own door; an
+    // edit that moves the body the slot reads out of the world (a
+    // re-target of its copy) is reported, as a re-target leaving reads
+    // in two spaces is, and the gather refuses the slot until it reads
+    // a body in the world again.
+    if let Some(var) = new.product() {
+        match product_fault(&new, var) {
+            None => {}
+            Some(ProductReadFault::Space { space }) => {
+                if product_fault(doc, var).is_none() {
+                    reported.push(Maintenance::ProductOutsideWorld {
+                        read: new.spoken_var(var),
+                        space: *space,
+                    });
+                }
+            }
+            Some(fault) => {
+                return Err(EditError::ProductRead {
+                    read: Box::new(crate::Operand::Var(var)),
+                    fault,
+                });
+            }
+        }
     }
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
@@ -8765,18 +8799,18 @@ fn product_read<P: crate::ProfilePayload>(
 
 /// **What is wrong with the slot reading `var`**: a live variable of
 /// another kind than `Body`, or a body outside the world. `None` for a
-/// slot that reads a body in the world, and for one whose variable is
-/// gone, which is a stranded reader ([`crate::ProductError::StrandedProduct`]).
+/// slot that reads a body in the world, and for one whose variable or
+/// space is gone, which is a stranded reader
+/// ([`crate::ProductError::StrandedProduct`]).
 pub(crate) fn product_fault<P>(doc: &Doc<P>, var: VarId) -> Option<ProductReadFault> {
     let held = doc.var(var)?;
     if held.kind() != VarKind::Body {
         return Some(ProductReadFault::Kind { found: held.kind() });
     }
     match doc.space_of(var) {
-        Some(VarId::WORLD) => None,
+        Some(VarId::WORLD) | None => None,
         Some(space) => Some(ProductReadFault::Space {
             space: Box::new(doc.spoken_space(space)),
         }),
-        None => unreachable!("a live body {var:?} is in a space"),
     }
 }

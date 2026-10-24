@@ -161,36 +161,36 @@ fn placed(body: RecipeNodeId) -> (RecipeNodeId, editor_core::VarId) {
 /// part's name at the instance whose copy carries it — never at its
 /// mint, which is a node of the part's document, not the host's.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct InPart {
+pub struct PartName {
     /// The instance whose copy carries the name.
     pub at: RecipeNodeId,
     /// The part's own name.
     pub name: StableName,
 }
 
-impl From<InPart> for StableName {
-    fn from(part: InPart) -> Self {
+impl From<PartName> for StableName {
+    fn from(part: PartName) -> Self {
         part.name
     }
 }
 
 /// The name itself, wherever a reader wants only the name (a table
 /// lookup, a comparison with what a product says).
-impl std::ops::Deref for InPart {
+impl std::ops::Deref for PartName {
     type Target = StableName;
     fn deref(&self) -> &StableName {
         &self.name
     }
 }
 
-impl PartialEq<StableName> for InPart {
+impl PartialEq<StableName> for PartName {
     fn eq(&self, other: &StableName) -> bool {
         self.name == *other
     }
 }
 
-impl PartialEq<InPart> for StableName {
-    fn eq(&self, other: &InPart) -> bool {
+impl PartialEq<PartName> for StableName {
+    fn eq(&self, other: &PartName) -> bool {
         *self == other.name
     }
 }
@@ -199,8 +199,8 @@ impl PartialEq<InPart> for StableName {
 /// carries it: the part's own name for the face — a cap of `body`,
 /// which its placement's copy names as `body` does, and the part's
 /// product, that one copy, names verbatim ([`PartStore::insert_part`]).
-pub fn in_part(instance: RecipeNodeId, body: RecipeNodeId, cap: CapEnd) -> InPart {
-    InPart {
+pub fn in_part(instance: RecipeNodeId, body: RecipeNodeId, cap: CapEnd) -> PartName {
+    PartName {
         at: instance,
         name: in_world(body, cap),
     }
@@ -224,8 +224,8 @@ pub fn in_part_of(
     instance: RecipeNodeId,
     body: RecipeNodeId,
     seg: editor_core::RoleSeg,
-) -> InPart {
-    InPart {
+) -> PartName {
+    PartName {
         at: instance,
         name: StableName {
             kind,

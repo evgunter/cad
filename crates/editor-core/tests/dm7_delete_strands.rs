@@ -53,6 +53,7 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
             Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
             | Maintenance::StrandedSpace { .. }
+            | Maintenance::ProductOutsideWorld { .. }
             | Maintenance::ValueDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
@@ -78,6 +79,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
             | Maintenance::StrandedSelection { .. }
             | Maintenance::StrandedRead { .. }
             | Maintenance::StrandedSpace { .. }
+            | Maintenance::ProductOutsideWorld { .. }
             | Maintenance::ValueDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
@@ -363,8 +365,8 @@ fn rest(
 fn instance_face(
     instance: RecipeNodeId,
     part_body: RecipeNodeId,
-) -> crate::fixture::resolver::InPart {
-    crate::fixture::resolver::InPart {
+) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
         at: instance,
         name: StableName {
             kind: EntityKind::Face,
@@ -384,7 +386,7 @@ fn a_mates_side_strands_as_a_read() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("dm7_mate_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_mate"), Tol::witness());
@@ -602,7 +604,7 @@ fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
     let mut store = PartStore::new();
     let part = ProfileDoc::empty_derived("dm7_app_order_part", Tol::witness());
     let (part, part_body) = block(part, (0.0, 1.0), (0.0, 1.0), 1.0);
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_app_order"), Tol::witness());

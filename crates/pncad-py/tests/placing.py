@@ -198,7 +198,7 @@ def own_frame(doc, body, origin=(0.0, 0.0, 0.0), x=(1.0, 0.0, 0.0)):
     return PoseDef.through(axis, PoseDef.point(body, vertex[0]))
 
 
-def world_product(doc):
+def assemble_world_copies(doc):
     """The document's product made the world's copies, as a test that
     places bodies into the world means it: the one copy, or the `⊔` of
     them in document order. Nothing joins a product by being placed

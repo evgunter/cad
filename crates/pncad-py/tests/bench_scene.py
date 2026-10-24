@@ -75,7 +75,7 @@ from pncad import (
     m,
 )
 
-from placing import moves, placed, world_product
+from placing import moves, placed, assemble_world_copies
 
 # ---- The scene's dimensions ----
 
@@ -355,7 +355,7 @@ def layout(store, post_ref, shelf_ref, posts=Node.pattern):
             placed(doc, doc.insert(Node.part(family, PartSelect.instance(Formula.count(i)))), lying())
     else:
         placed(doc, family, lying())
-    world_product(doc)
+    assemble_world_copies(doc)
     return doc, post_i, family, shelf_i
 
 
@@ -376,7 +376,7 @@ def stand(store, post_ref, shelf_ref, class_=ContactClass.Rest):
     shelf_i = doc.insert(Node.instantiate_part(shelf_ref, doc.world))
     post_b = doc.insert(Node.instantiate_part(post_ref, doc.world))
     # What the stand delivers: its three copies side by side.
-    world_product(doc)
+    assemble_world_copies(doc)
     a_top = instance_face(store, doc, post_a, CapEnd.End)
     b_top = instance_face(store, doc, post_b, CapEnd.End)
     s_bottom = instance_face(store, doc, shelf_i, CapEnd.Start)

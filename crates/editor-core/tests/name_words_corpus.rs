@@ -151,9 +151,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// Place …". The longest full name, in `nested_islands_106_depth2`, is
 /// a piece of a lateral edge between two crossings, whose ends say the
 /// edge again: each extra placement read is said three times over in
-/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`;
-/// retiring `RoleSeg::Placed` and `InPart` in D′ is expected to bring
-/// them back, and D′ re-tightens this pin.
+/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`,
+/// which D′3 closed (below).
 ///
 /// The full total rose by 11 970 and its p99 by seven, and the scoped
 /// total by 200, with a seam's sides and a crossing's edge and face named
@@ -170,7 +169,7 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// name says it at each of its ends; the growth is the same placed-copy
 /// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
 ///
-/// D′3 retired that wrapping (`RoleSeg::Placed` and `InPart`): a copy
+/// D′3 retired that wrapping, so no name spells a placement: a copy
 /// carries its source's names as they are, so full p99 135 → 122, max
 /// 396 → 196 (main's before D's wrapping), total 461129 → 342994, and
 /// scoped total 60241 → 46933. Scoped p99 grew 43 → 45: a product that
@@ -337,7 +336,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// seam face plainly, so its node tags moved too; the words that moved
 /// are the node tags.
 ///
-/// Re-pinned for D′3: no name says a `Placed` or `InPart` layer, a
+/// Re-pinned for D′3: no name says a placement layer, a
 /// product's names say the `⊔` read they came through, and node tags
 /// moved with the ids.
 const SAID_DIGEST: u64 = 0xea0f_1a37_b898_f6d0;

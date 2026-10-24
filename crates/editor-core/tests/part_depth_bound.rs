@@ -301,7 +301,7 @@ fn instantiating_all(label: &str, below: &[DocRef]) -> (ProfileDoc, Vec<RecipeNo
         doc = d;
         ids.push(id);
     }
-    (crate::fixture::world_product(doc), ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// [`instantiating_all`], each instance [`world_pinned`].
@@ -459,7 +459,7 @@ fn first_pinned(
     let doc = fixture::pinned(doc, ids[0], authoring);
     let (doc, placed) = insert(doc, fixture::mated_instance(second));
     ids.push(placed);
-    (crate::fixture::world_product(doc), ids)
+    (crate::fixture::assemble_world_copies(doc), ids)
 }
 
 /// A document instantiating `first` and `second` — each a reference
@@ -540,7 +540,7 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
         second,
         &with_resolver(store.clone()),
     );
-    let assembly = crate::fixture::world_product(assembly);
+    let assembly = crate::fixture::assemble_world_copies(assembly);
     let assembly_ref = store.insert(assembly.clone(), Tol::witness());
     let opts = with_resolver(store);
     let (top, top_ids) = instantiating_all("part-descent-mated-top", &[assembly_ref]);

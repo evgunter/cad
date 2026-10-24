@@ -225,12 +225,12 @@ struct Scene {
 
 impl Scene {
     /// The cap's bottom cap, as the copy side of its rest.
-    fn cap_bottom(&self) -> crate::fixture::resolver::InPart {
+    fn cap_bottom(&self) -> crate::fixture::resolver::PartName {
         in_part(self.cap, self.top_body, CapEnd::Start)
     }
 
     /// The top's top cap, as a nested copy's chain wears it.
-    fn top_cap(&self) -> crate::fixture::resolver::InPart {
+    fn top_cap(&self) -> crate::fixture::resolver::PartName {
         in_part(self.top, self.top_body, CapEnd::End)
     }
 

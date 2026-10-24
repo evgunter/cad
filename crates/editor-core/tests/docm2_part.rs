@@ -388,7 +388,7 @@ fn edges_of_body(ev: &Evaluation<f64>, node: RecipeNodeId, body: u32) -> Vec<Sta
 /// **A3 — names pass through, and only the selected body's.** A fillet
 /// spelled against the split's own above-half edge rows resolves on a
 /// read of the above port, every name uniquely, and a placement of
-/// that read carries exactly those rows, each under its `Placed` layer; a below-half name read there
+/// that read carries exactly those rows, verbatim; a below-half name read there
 /// refuses through the N5 ladder, never re-anchored to a congruent
 /// above-half edge; a selector for instance 2 against `Part(1)` refuses
 /// `Vanished` the same way; `Part(1)`'s table is the master's row count

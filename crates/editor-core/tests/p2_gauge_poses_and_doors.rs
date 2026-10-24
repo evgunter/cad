@@ -429,7 +429,7 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     assert_eq!(sub.node_space(top), Some(space));
     let ev_sub = run(&sub, &o);
     let mut store = p.store.clone();
-    let sub = crate::fixture::world_product(sub);
+    let sub = crate::fixture::assemble_world_copies(sub);
     let sub_ref = store.insert(sub.clone(), Tol::witness());
     let outer = ProfileDoc::empty(DocumentId::derive("r2-seam-outer"), Tol::witness());
     let (outer, _) = fixture::insert_pinned(

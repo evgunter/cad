@@ -516,9 +516,12 @@ enum ProductRecourse {
 fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     use crate::product::ProductErrorKind as K;
     match kind {
-        K::EmptyProduct | K::StrandedProduct | K::Graft | K::RootInvalid | K::ProductInvalid => {
-            ProductRecourse::Carried
-        }
+        K::EmptyProduct
+        | K::StrandedProduct
+        | K::ProductOutsideWorld
+        | K::Graft
+        | K::RootInvalid
+        | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode

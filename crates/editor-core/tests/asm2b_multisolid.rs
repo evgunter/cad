@@ -64,7 +64,7 @@ fn assembly(
         doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
         ids.push(id);
     }
-    (fixture::world_product(doc), ids)
+    (fixture::assemble_world_copies(doc), ids)
 }
 
 /// `placement`'s bundle replaced by one world mate at `translation`.
@@ -106,12 +106,13 @@ fn names_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
 
 /// The 2B fixture family: part P (one solid), sub-assembly B (two
 /// instances of P), assembly A (two instances of B). A's product holds
-/// FOUR solids, and every name in it is doubly `InPart`-wrapped.
+/// FOUR solids, and every name in it is P's own, carried through both
+/// instances as B's product keys it.
 fn nested_fixture() -> (PartStore, ProfileDoc, ProfileDoc, DocRef, Vec<RecipeNodeId>) {
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-b", &[p, p], 3.0, &store);
-    let b_doc = crate::fixture::world_product(b_doc);
+    let b_doc = crate::fixture::assemble_world_copies(b_doc);
     let b = store.insert(b_doc.clone(), Tol::witness());
     let (a_doc, a_ids) = assembly("asm2b-a", &[b, b], 100.0, &store);
     (store, a_doc, b_doc, b, a_ids)
@@ -167,12 +168,11 @@ fn row2_a_sub_assembly_instantiates_into_four_solids() {
 
 // ---- Row 3: names across all N solids, doubly wrapped ----
 
-/// Row 3 — every name of a doubly-nested instance is
-/// `InPart(InPart(Placed(part-local)))` minted at the OUTER
-/// instantiate node, each instance its own placement and the part's
-/// body named under the part's placement of it (A10);
-/// the four copies' name sets are pairwise disjoint; and each name
-/// resolves to its own copy (the cross-wiring probe).
+/// Row 3 — every name of a doubly-nested instance is the sub-assembly's
+/// product's: P's own name, keyed by the read B assembled it through,
+/// beside the instance's own body row; the four copies' name sets are
+/// pairwise disjoint read at their instances; and each name resolves to
+/// its own copy (the cross-wiring probe).
 #[test]
 fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
     let (store, a_doc, _, _, a_ids) = nested_fixture();
@@ -299,7 +299,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
     let mut store = PartStore::default();
     let p = store.insert(part("asm2b-r4-p", 0.0), Tol::witness());
     let (b_doc, _) = assembly("asm2b-r4-b", &[p, p], 3.0, &store);
-    let b_doc = crate::fixture::world_product(b_doc);
+    let b_doc = crate::fixture::assemble_world_copies(b_doc);
     let b = store.insert(b_doc, Tol::witness());
     let (doc, ids) = assembly("asm2b-r4-a", &[b], 0.0, &store);
     let opts = with_resolver(store);
@@ -417,7 +417,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// the volume bits and the solid count held.
 ///
 /// D′3 moved the digest alone: an instance's copy carries its part's
-/// names verbatim, with no `InPart` layer, and the document's product
+/// names verbatim, with no layer naming the instance, and the document's product
 /// is a `⊔` of its two copies, a node the ids after it count; the
 /// volume bits and the solid count held.
 ///
@@ -479,7 +479,7 @@ fn the_at_rest_gate_does_not_see_instance_interference_single_or_multi() {
     // 2B's shape: two copies of a two-solid sub-assembly, placed so a
     // solid of each lands inside a solid of the other.
     let (b_doc, _) = assembly("asm2b-ov-b", &[p, p], 3.0, &store);
-    let b_doc = crate::fixture::world_product(b_doc);
+    let b_doc = crate::fixture::assemble_world_copies(b_doc);
     let b = store.insert(b_doc, Tol::witness());
     let (multi, _) = assembly("asm2b-ov-multi", &[b, b], 3.25, &store);
     let opts = with_resolver(store);

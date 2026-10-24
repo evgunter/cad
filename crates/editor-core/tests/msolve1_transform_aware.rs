@@ -103,7 +103,7 @@ impl Part {
     }
 
     /// The cap `end` of this part as `instance` places it.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::InPart {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::PartName {
         in_part(instance, self.body, end)
     }
 }
@@ -341,13 +341,13 @@ impl Scene {
     }
     /// The base's top cap where the seat reads it: at its placed copy,
     /// or at the base.
-    fn face_a(&self) -> crate::fixture::resolver::InPart {
-        crate::fixture::resolver::InPart {
+    fn face_a(&self) -> crate::fixture::resolver::PartName {
+        crate::fixture::resolver::PartName {
             at: self.a_at,
             name: self.base_part.cap(self.base, CapEnd::End).name,
         }
     }
-    fn face_b(&self) -> crate::fixture::resolver::InPart {
+    fn face_b(&self) -> crate::fixture::resolver::PartName {
         self.top_part.cap(self.top, CapEnd::Start)
     }
     /// Every node evaluated, no mate fault, the mated faces seated in

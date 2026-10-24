@@ -224,7 +224,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
         &pncad::document::EvalOptions::default(),
         tol,
     );
-    (crate::fixture::world_product(doc), extrude, moved)
+    (crate::fixture::assemble_world_copies(doc), extrude, moved)
 }
 
 /// **`doc` with `body` placed in the world at `at`** — a placement of
@@ -257,7 +257,7 @@ pub fn placed_at(
         &pncad::document::EvalOptions::default(),
         tol,
     );
-    (crate::fixture::world_product(doc), placement)
+    (crate::fixture::assemble_world_copies(doc), placement)
 }
 
 /// The gallery ring document as `demo-tour gallery` saved it (the
@@ -794,32 +794,17 @@ pub fn inline_without_door(
     viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
 }
 
-/// **The session's product set to the world's copies**, through the
-/// session's own doors, and landed: what a row about a GUI-authored
-/// document's product says it makes. A `⊔` the product read before is
-/// deleted first ([`SessionOp::DeleteNode`]), so the product is set
-/// anew ([`SessionOp::SetProduct`]) rather than beside it.
+/// **The session's product said as `copies`**, through the session's
+/// own door ([`SessionOp::SetProduct`]), and landed: what a row about a
+/// GUI-authored document's product says it makes.
 ///
 /// # Panics
 ///
-/// If a door refuses.
-pub fn world_is_the_product(session: &mut DocSession) {
-    let held = session
-        .doc()
-        .product()
-        .and_then(|var| session.doc().operation_of(var))
-        .filter(|&at| matches!(session.doc().node(at), Some(Node::Assemble { .. })));
-    if let Some(node) = held {
-        let outcome = session.perform(SessionOp::DeleteNode { node });
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    }
-    let doc = session.doc();
-    let bodies = doc
-        .placements()
-        .into_iter()
-        .filter(|&p| doc.node_space(p) == Some(pncad::document::VarId::WORLD))
-        .filter_map(|p| doc.output(p, 0))
-        .map(pncad::document::Operand::Var)
+/// If the door refuses.
+pub fn product_is(session: &mut DocSession, copies: &[RecipeNodeId]) {
+    let bodies = copies
+        .iter()
+        .map(|&copy| pncad::document::Operand::Node(copy))
         .collect();
     let outcome = session.perform(SessionOp::SetProduct { bodies });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

@@ -856,8 +856,8 @@ fn a_measure_at_a_placement_reads_the_placed_carrier() {
 
     let ev = eval(&doc);
     // ONE vertex, measured against itself at two different reading
-    // sites: the only thing that differs is `at` (and the `Placed`
-    // layer the copy's names wear).
+    // sites: the only thing that differs is `at`, since a copy carries
+    // its source's names as they are.
     let vname = {
         let mut vs = select(
             &ev,

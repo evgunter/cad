@@ -46,7 +46,7 @@ fn a_mate_bearing_document_round_trips() {
         doc = applied.doc;
     }
     // A part's cap, read at the instance whose copy carries it.
-    let name = |node| crate::fixture::resolver::InPart {
+    let name = |node| crate::fixture::resolver::PartName {
         at: node,
         name: StableName {
             kind: EntityKind::Face,

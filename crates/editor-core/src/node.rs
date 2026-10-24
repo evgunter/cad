@@ -1998,7 +1998,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Place {
         /// The body copied.
         source: crate::BodyRead<S>,
-        /// The space the copies are placed into: a `Space` read.
+        /// The space the copy is placed into: a `Space` read.
         target: S::Read,
         /// The bundle, in the order written.
         constraints: Vec<crate::mate::Constraint<S>>,
@@ -2095,8 +2095,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// seam rather than arriving from an upstream node, so it reads
     /// no operand and the DAG has nothing to schedule ahead of it.
     ///
-    /// **An instance is a placement** (D10): its copies are in its
-    /// `target`, where its constraints pin them.
+    /// **An instance is a placement** (D10): its copy is in its
+    /// `target`, where its constraints pin it.
     InstantiatePart {
         /// Which document, at which version (A4: the id answers "which
         /// part", the pin "which version of it"). Cargo.lock semantics
@@ -2112,9 +2112,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// the node's content key.
         #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
         interface: InterfaceRecord,
-        /// The space the copies are placed into: a `Space` read.
+        /// The space the copy is placed into: a `Space` read.
         target: S::Read,
-        /// The bundle that pins the instance's copies (D10: an
+        /// The bundle that pins the instance's copy (D10: an
         /// instance of a part is a placement), addressed by minted id,
         /// as a [`Node::Place`]'s is. Its copy side reads a face of the
         /// instance's own output: the copied shape in the part's own

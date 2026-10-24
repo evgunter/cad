@@ -93,15 +93,15 @@ impl Parts {
         with_resolver(self.store.clone())
     }
     /// The base's top cap.
-    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(base, self.base_body, CapEnd::End)
     }
     /// The top block's bottom cap.
-    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::Start)
     }
     /// The top block's upper cap, which a second block seats on.
-    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::End)
     }
 }
@@ -1261,7 +1261,7 @@ fn a_verbatim_split_keeps_every_bundle() {
 fn an_inline_at_the_identity_keeps_every_bundle() {
     let (p, part, _) = pair_beside_a_base("p2-carry-inline");
     let mut store = p.store.clone();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let part_ref = store.insert(part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("p2-carry-inline-host"), Tol::witness());
     let (host, instance) = fixture::insert_pinned(

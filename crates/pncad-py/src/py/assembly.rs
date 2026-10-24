@@ -130,7 +130,7 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         ),
         // The read the product slot holds, as the handle
         // `Doc.set_product` takes.
-        E::StrandedProduct { read } => (
+        E::StrandedProduct { read } | E::ProductOutsideWorld { read } => (
             none(),
             none(),
             Py::new(py, Var(*read, Some(d::VarKind::Body)))

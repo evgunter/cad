@@ -72,7 +72,7 @@ fn cube(store: &mut PartStore, label: &str) -> Cube {
 
 impl Cube {
     /// The cap `end` of this part as `instance` places it.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::InPart {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::PartName {
         in_part(instance, self.body, end)
     }
 

@@ -5042,7 +5042,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_seam",
             "inline_edit",
             "instance_body_name_referenced",
-            "instance_read_uncarried",
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
@@ -5141,6 +5140,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "maintenance_tag",
         values: &[
             "anonymous_var_removed",
+            "product_outside_world",
             "strand",
             "stranded_appearance",
             "stranded_read",
@@ -5545,6 +5545,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "graft_refused",
             "product_invalid",
+            "product_outside_world",
             "root_failed",
             "root_invalid",
             "root_poisoned",
@@ -5918,10 +5919,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "operand_unminted",
             "output_signature",
             "payload_var_kind",
+            "pick_path",
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
             "pose_shape",
+            "product_read",
             "read_cycle",
             "reader_of_unminted_var",
             "selection_body",
@@ -6430,6 +6433,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_var_kind", 2),
     ("pcurve", 6),
     ("pcurves", 3),
+    // One fact at the edit and load doors: a pick whose path names no
+    // one piece of its copy (`editor_core::edit::pick_fault`).
+    ("pick_path", 2),
     // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.
@@ -6440,6 +6446,13 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
     ("pose_shape", 2),
+    // One fact: the edit that moved the product's body out of the
+    // world (`maintenance_tag`) and the gather that refuses it after
+    // (`product_error_tag`).
+    ("product_outside_world", 2),
+    // One fact at the edit and load doors: a product slot reading no
+    // body (`editor_core::edit::product_fault`).
+    ("product_read", 2),
     // The profile operand and the profile node's own evaluation class:
     // one word for the one node kind. The profile PROGRAM's slot says
     // `program`, which leaves `profile` to the operand the slot
