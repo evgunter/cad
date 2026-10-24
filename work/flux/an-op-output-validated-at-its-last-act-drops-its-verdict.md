@@ -45,7 +45,7 @@ No other op in `topo`, `sweep` or `geom-brep` validates its output:
 
 ### What it would buy
 
-F2's 14-file sweep sample (release, faster of two runs each) moved from
+F2's 14-file sweep sample (debug test profile, each file's summed test time at nextest's default parallelism, the faster of two runs each) moved from
 11.05 s on main to 13.74 s on F2, which is +24.4%, or +2.70 s. The sweep
 suite as a whole moved 1463 s to 1474 s, +0.75%. Of the +2.70 s, 2.46 s
 is in the eleven files that build through `topo::shell`:
