@@ -5462,6 +5462,7 @@ fn sweep_conformal_patches<T: Decide>(
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
                         | ChartRegionError::RayExhausted
+                        | ChartRegionError::EdgeScale
                         | ChartRegionError::WitnessSegmentCapExceeded { .. }
                         | ChartRegionError::WitnessCellCapExceeded { .. }
                         | ChartRegionError::Corrupt),
@@ -6090,9 +6091,6 @@ pub(crate) enum Undecided {
     /// or gave nothing to read — for a vertex its pre-pass placed off the
     /// boundary.
     WitnessGrazed,
-    /// Arm 2: a vertex near the end of a narrow cylinder wall's window,
-    /// which the point-in-solid door's window reading cannot place.
-    WitnessNarrowWindow,
     /// Arm 2: a ray the point-in-solid door cast met a torus face where
     /// the kernel's count of its crossings came apart.
     WitnessRootCount,
@@ -6264,12 +6262,6 @@ impl Undecided {
                  settled where it lies: each grazed that boundary or could not be read. \
                  Recourse: move the parts until their bounding boxes no longer overlap"
             }
-            Self::WitnessNarrowWindow => {
-                "a corner of one lies near the end of a narrow cylinder wall of the other, \
-                 where the check's reading of the wall's window cannot place it. Recourse: \
-                 move the parts until their bounding boxes no longer overlap; a limit of the \
-                 kernel's narrow-window reading, worth reporting"
-            }
             Self::WitnessRootCount => {
                 "a test ray from a corner of one met a torus face of the other where the \
                  kernel's count of its crossings came apart. Recourse: move the parts until \
@@ -6308,8 +6300,7 @@ impl Undecided {
         use crate::boolean::PointInSolidError as E;
         use crate::splitting::PointInLoopError as L;
         match e {
-            E::Escalated { .. } | E::JunctionSidesDisagree { .. } => Self::WitnessTooClose(None),
-            E::NarrowWindowUnread { .. } => Self::WitnessNarrowWindow,
+            E::Escalated { .. } => Self::WitnessTooClose(None),
             E::RootCountDisagrees { .. } => Self::WitnessRootCount,
             E::Loop(L::Escalated { decision, .. }) => Self::WitnessTooClose(Some(*decision)),
             E::RayExhausted | E::Loop(L::RayExhausted { .. }) => Self::WitnessGrazed,
@@ -6525,7 +6516,7 @@ mod metric {
     /// point within the slack of the one read, so no sector's offset
     /// can flip it; a Zero stays the band's coincidence, the slack being
     /// within it. `None` where the reading is about the sector's own
-    /// apex ([`face_piece`]), so nothing is moved and the one read is
+    /// apex ([`face_piece`](super::face_piece)), so nothing is moved and the one read is
     /// the reading.
     #[derive(Clone, Copy)]
     pub(super) struct Reading<T> {
@@ -8292,7 +8283,7 @@ mod rest {
     /// Whether the piece `c0`–`c1` crosses a face of `other` along a ray
     /// inside both: its ends decidedly on opposite sides of the face's
     /// plane, and the point between them on the plane inside the face's
-    /// sector ([`Sector::place`]: strictly inside a wedge, or on a ray two
+    /// sector ([`Sector::place`](super::Sector::place): strictly inside a wedge, or on a ray two
     /// of its wedges share) and on none of the `rays` of either link that
     /// lie on the face — a cut, where another face of one link reaches
     /// the ray and neither material is a half-space there. Only the
@@ -10735,6 +10726,7 @@ fn confirm_patch<T: Decide>(
             | ChartRegionError::TouchingBoundary
             | ChartRegionError::DegenerateLoop { .. }
             | ChartRegionError::RayExhausted
+            | ChartRegionError::EdgeScale
             | ChartRegionError::WitnessSegmentCapExceeded { .. }
             | ChartRegionError::WitnessCellCapExceeded { .. }
             | ChartRegionError::Corrupt),
@@ -16641,6 +16633,7 @@ mod records_by_carrier {
                 (0.0, 1.0),
                 tol,
             );
+            crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, tol);
             let block = brick::<f64>((x, x + 1.0), (-0.5, 0.5), (0.0, 1.0), tol);
             let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
             let side = block
@@ -16919,6 +16912,7 @@ mod two_carrier_records {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         let wall = cyl_wall_sheet(&mut body, CylFrame::canonical(1.0), u, v, tol);
+        crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, tol);
         let block = brick::<f64>((1.0, 2.0), (-0.5, 0.5), bz, tol);
         let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
         let side = block
@@ -16998,7 +16992,7 @@ mod two_carrier_records {
             u_ref: -geom_core::Vec3::unit_z(),
         };
         let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
-        body.get_face_mut(wall).unwrap().sense = true;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
         let placed = |x: f64| {
             crate::boolean::face_placement(
                 &body,
@@ -17205,8 +17199,8 @@ mod two_carrier_records {
         let mut frame = CylFrame::canonical(0.5);
         frame.origin = geom_core::Point3::new(0.5, 0.0, 0.0);
         let b = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.0, 1.0), tol);
-        body.get_face_mut(a).unwrap().sense = true;
-        body.get_face_mut(b).unwrap().sense = false;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, a, true, Tol::witness());
+        crate::test_support_fixtures::set_sheet_sense(&mut body, b, false, Tol::witness());
         let bare = census_and_certify(&body, &ContactRecords::default(), band(), tol, None);
         assert!(
             names(&bare, a, b),
@@ -17292,7 +17286,7 @@ mod two_carrier_records {
                 u_ref: -geom_core::Vec3::unit_z(),
             };
             let wall = cyl_wall_sheet(&mut body, frame, u, wx, tol);
-            body.get_face_mut(wall).unwrap().sense = true;
+            crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
             Rig { body, wall, top }
         }
 
@@ -17427,7 +17421,12 @@ mod two_carrier_records {
         /// of each row.
         fn census_opposed(outline: &[(f64, f64)]) -> (Rig, Vec<(f64, bool, Vec<ValidationError>)>) {
             let mut r = rig(outline, (0.5, 3.5), (-0.5, 0.5));
-            r.body.get_face_mut(r.wall).unwrap().sense = false;
+            crate::test_support_fixtures::set_sheet_sense(
+                &mut r.body,
+                r.wall,
+                false,
+                Tol::witness(),
+            );
             let rows = census(&r);
             (r, rows)
         }
@@ -17478,7 +17477,12 @@ mod two_carrier_records {
         /// or `confirmed` where nothing names the pair.
         fn reading(outline: &[(f64, f64)], wx: (f64, f64), sense: bool) -> [String; 2] {
             let mut r = rig(outline, wx, (-0.5, 0.5));
-            r.body.get_face_mut(r.wall).unwrap().sense = sense;
+            crate::test_support_fixtures::set_sheet_sense(
+                &mut r.body,
+                r.wall,
+                sense,
+                Tol::witness(),
+            );
             let b = Band::linear(Tol::witness()).unwrap();
             let (a, t) = (r.wall, r.top);
             let is = |x: FaceKey, y: FaceKey| (x, y) == (a, t) || (x, y) == (t, a);
@@ -17959,7 +17963,12 @@ mod two_carrier_records {
                     u_ref: -geom_core::Vec3::unit_z(),
                 };
                 let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (-2.0, 2.0), tol);
-                body.get_face_mut(wall).unwrap().sense = true;
+                crate::test_support_fixtures::set_sheet_sense(
+                    &mut body,
+                    wall,
+                    true,
+                    Tol::witness(),
+                );
                 let b = Band::linear(tol).unwrap();
                 let line = crate::boolean::tangent_pair_at_rest(&body, wall, cap, b);
                 let desc = match &line {
@@ -19140,8 +19149,8 @@ mod same_solid_tangent_lines {
         let (fa, _) = cyl_wall_sheet_keyed(&mut body, a, CylKey::Bare, (-ua, ua), (0.0, 1.0), tol);
         let (fb, _) = cyl_wall_sheet_keyed(&mut body, b, CylKey::Bare, (-ub, ub), (0.2, 0.8), tol);
         crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
-        body.get_face_mut(fa).unwrap().sense = sense_a;
-        body.get_face_mut(fb).unwrap().sense = sense_b;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, fa, sense_a, Tol::witness());
+        crate::test_support_fixtures::set_sheet_sense(&mut body, fb, sense_b, Tol::witness());
         if one_solid {
             body.merge_all_solids().unwrap();
         }

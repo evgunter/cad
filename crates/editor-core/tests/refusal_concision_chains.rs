@@ -1052,7 +1052,7 @@ mod kernel {
             Escalated, RayExhausted, ZeroVolumeBody, InsideOut, Loop, CorruptFace,
             KindUnsupported, VolumeUncertified, PartialSphereFace, PartialConeFace,
             PartialTorusFace, EdgeCarrierUnsupported, WallOutlineUnsupported,
-            JunctionSidesDisagree, NarrowWindowUnread, RootCountDisagrees, NoSuchSolid,
+            RootCountDisagrees, NoSuchSolid,
         ];
     }
 
@@ -2871,7 +2871,12 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "ApproxLaneUnsupported",
             E::ApproxLaneUnsupported { scalar: "interval" },
         ),
-        ("Corrupt", E::Corrupt { what: "face" }),
+        (
+            "Corrupt",
+            E::Corrupt {
+                found: "a vertex references a missing point",
+            },
+        ),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
@@ -6248,21 +6253,6 @@ fn separation_reasons() -> Vec<(String, topo::PointInSolidError)> {
         (
             "WallOutlineUnsupported",
             PointInSolidError::WallOutlineUnsupported { face },
-        ),
-        (
-            "JunctionSidesDisagree",
-            PointInSolidError::JunctionSidesDisagree {
-                face,
-                sides: (
-                    geom_core::MarginDiag::value(2.0e-9),
-                    geom_core::MarginDiag::value(-1.6e-9),
-                ),
-                band: geom_core::Band::new(1e-9, 1.5e-9).unwrap(),
-            },
-        ),
-        (
-            "NarrowWindowUnread",
-            PointInSolidError::NarrowWindowUnread { face, diag: diag() },
         ),
         (
             "RootCountDisagrees",

@@ -28,7 +28,7 @@
 //! A side carried by two or more edges — every exporter emits one the
 //! moment a vertex lands mid-side, and [`topo::Body::split_edge`]
 //! mints one directly — used to have each sub-edge derive its own
-//! column from [`topo::chart_iso::mid_azimuth`] → [`Chart::u_of`], an `atan2` of a
+//! column from [`topo::chart_iso::mid_azimuth`] → [`Chart::u_of`], the azimuth of a
 //! DIFFERENT point of the same carrier. Those agree analytically, and
 //! agree bitwise on axis-aligned dyadic fixtures, but under a general
 //! rigid placement they differ by ulps — which is how 71 rows of a
@@ -1113,8 +1113,8 @@ pub(crate) fn loop_polygon(
         // consumed separately by `curved`'s `flip`.
         let chart_area = if sense { area } else { -area };
         let mid_az = chart_area
-            .dot(chart.v_ref)
-            .atan2(chart_area.dot(chart.u_ref));
+            .dot(chart.v_ref())
+            .atan2(chart_area.dot(chart.u_ref()));
         Some(
             travs
                 .iter()
@@ -1360,15 +1360,39 @@ mod tests {
 
     /// A chart about +z, anchored at the origin.
     fn z_chart(kind: ChartKind) -> Chart {
-        let axis = Vec3::new(0.0, 0.0, 1.0);
-        let u_ref = Vec3::new(1.0, 0.0, 0.0);
-        Chart {
-            axis,
-            u_ref,
-            v_ref: axis.cross(u_ref),
-            anchor: Point3::new(0.0, 0.0, 0.0),
-            kind,
-        }
+        let (o, axis, u_ref) = (
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let surface = match kind {
+            ChartKind::Cylinder { r } => Surface::Cylinder {
+                origin: o,
+                axis,
+                radius: r,
+                u_ref,
+            },
+            ChartKind::Cone { half_angle } => Surface::Cone {
+                apex: o,
+                axis,
+                half_angle,
+                u_ref,
+            },
+            ChartKind::Sphere { r } => Surface::Sphere {
+                center: o,
+                radius: r,
+                axis,
+                u_ref,
+            },
+            ChartKind::Torus { major, minor } => Surface::Torus {
+                center: o,
+                axis,
+                major_radius: major,
+                minor_radius: minor,
+                u_ref,
+            },
+        };
+        Chart::of(&surface).unwrap()
     }
 
     /// The bar is SPATIAL. The gap that falsified the old bare-radian
@@ -1794,7 +1818,7 @@ mod tests {
     /// conditioned the fold that produced `area` was.
     fn band_mid_az(chart: &Chart, pts: &[Point3<f64>]) -> f64 {
         let area = loop_area(pts);
-        area.dot(chart.v_ref).atan2(area.dot(chart.u_ref))
+        area.dot(chart.v_ref()).atan2(area.dot(chart.u_ref()))
     }
 
     /// A 1.3 mm band's own geometry, placed at seven distances from

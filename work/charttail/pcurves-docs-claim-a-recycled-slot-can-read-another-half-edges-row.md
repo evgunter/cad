@@ -4,6 +4,8 @@ kind: issue
 title: pcurves' stale-row consequence says a recycled slot can hand a dead row to a different half-edge; SecondaryMap's version check forecloses that, and the real residue is narrower
 status: open
 opened: 2026-09-14
+priority: P4
+cost: E
 ---
 
 

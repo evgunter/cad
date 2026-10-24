@@ -1456,6 +1456,7 @@ fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
         (0.0, 1.0),
         tol,
     );
+    crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, tol);
     cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
@@ -2808,6 +2809,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
+    (
+        "ruled_region.rs",
+        "-",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
         "sectors.rs",

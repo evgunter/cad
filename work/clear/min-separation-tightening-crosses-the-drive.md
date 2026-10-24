@@ -5,7 +5,8 @@ title: min_separation cannot mint a chart boundary: the walk's rows are recorded
 status: open
 opened: 2026-09-13
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 
@@ -112,3 +113,18 @@ the ruling — whether a lane split may be invisible to the census — is
 Ev's.
 
 **2026-09-28:** `r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors` was deleted in the 2026-09-28 CI-latency cut.
+
+## Re-homed (2026-10-24, CHART's split)
+
+Moved from CHART to CLEAR by `git mv`, with its id and body unchanged.
+The reason is ground: every site the fix shape names is the clearance
+engine's (`editor-core/src/clearance.rs`, CLEAR's and SHELL's) or the
+measure's (`editor-core/src/measure.rs`, FLUXHOLD's), and nothing in
+`chart_bound.rs` is wrong on its own terms. CHART decided nothing here:
+the open question is still whether a lane split may be invisible to the
+census, and the body says that ruling is Ev's.
+
+Re-priced `cost: M` and `design: true` from legacy `D`. Weigh it after
+INTENT's `an-operation-computes-in-a-frame-of-its-reads` lands: that
+unit changes how an operation (a measure among them) evaluates, which is
+where the lane split lives. (CHART orchestrator)

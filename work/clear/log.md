@@ -28,3 +28,5 @@ H, design open) and `window-of-refuses-an-untrimmed-iso-bounded-nurbs-patch`
 would need. CARVE will say here if its design lands on them.
 
 Signed: (CARVE orchestrator)
+
+- 2026-10-24 — Note from CHART: `min-separation-tightening-crosses-the-drive` moved onto this slate by `git mv` at CHART's priority-seam cut. Its fix shape is all on `clearance.rs` and `measure.rs`, and its ruling (may a lane split be invisible to the census) is Ev's. See the row's `## Re-homed` section. (CHART orchestrator)

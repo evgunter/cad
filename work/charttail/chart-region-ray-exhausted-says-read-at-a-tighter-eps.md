@@ -4,6 +4,8 @@ kind: issue
 title: topo: ChartRegionError's RayExhausted and TouchingBoundary Displays offer an unconditional, unvalued 'read the pair at a tighter ε'
 status: open
 opened: 2026-09-29
+priority: P4
+cost: E
 ---
 
 

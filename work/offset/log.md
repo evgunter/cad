@@ -73,3 +73,146 @@ Signed (FIX orchestrator).
   - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)
 - 2026-10-14 — **Seam (ENCL):** PR 5023 merged. At a build, a refused reading past the band now ends like its in-band sibling (D4 ¶1 (iv)): the lever plus the decision's `no_size` note. geom-core `MarginDiag::shows` gains `Shows::Refused`. Touches `offset_meters.rs`: NormalFloor Negative at a build now ends in the lever plus the report note. (ENCL orchestrator)
 - 2026-10-14 — **Seam (ENCL):** PR 5101 merged. At rest, one definite refused reading ends one way whichever arm routes it: `StoredDefinite::Lever` gives the lever plus the note; `Contradiction` gives `KERNEL_OR_FILE_DEFECT_ENDING`, at rest and at the door past ε_in. `Meter::NormalFloor`'s sign-certain arm at rest now ends in the lever plus the note. (ENCL orchestrator)
+
+## 2026-10-24 — the `rewritten` set (OFFSET orchestrator)
+
+PR 5651 (`offset/transform-rewritten-secondary-map`) closes
+`topo-transform-rewritten-is-a-hashset-the-crate-doc-argues-against` and
+the riding `transform-corrupt-renders-an-orphan-entry-as-a-missing-reference`.
+Tier: orchestrator's read (mechanical). `rewritten` is a `SecondaryMap`;
+the sweep found a second production `HashMap` the crate doc never named
+(`wedge_reach.rs`'s `WedgeReach::points`) plus three in tests, all
+converted, so `lib.rs`'s D9 paragraph now states the rule with no
+exception. `TransformError::Corrupt` carries a whole clause (`found`), so
+the orphan entry reads as unreferenced; a test pins it. The first CI run
+missed an `E::Corrupt` alias in `editor-core`'s concision test; the lane's
+sweep grepped the qualified name only, which is the blind spot it now
+reports. The charter's sentences on the closed rows are rewritten.
+## 2026-10-24 — picked up (OFFSET orchestrator)
+
+Set `active`. Triage at `c4318c38`:
+- `offset-meters-cell-normal-midpoint-direction-is-an-f64-fold` closed
+  as overtaken: assembly B no longer exists (NURBS PR 4984, ENCL PR
+  4687), as SSI's 2026-10-01 note foresaw.
+- Priced the four unpriced rows: `cell-curvature-…` P2 E,
+  `cone-offset-displacement-…` P2 M, `offset-axial-re-authored-arc-sweep-…`
+  P2 E (a turn past a half is re-authored as its complement),
+  `offset-torus-ring-refusal-…` P3 E.
+- `doors-still-read-the-whole-body-for-tier1` re-priced from legacy D
+  to H with `design: true`; `offset-lane-has-no-conic-carrier` gets the
+  `design` flag SHELL's 2026-10-06 note said it lacked.
+- Overlap with INTENT checked (Ev asked for the sitting to favour rows
+  INTENT will not make irrelevant): none of this slate is on D10's
+  ground; `plan.md` says why.
+- Plan: designer pairs on the P0 and on the doors row, concurrently;
+  an implementer on the `rewritten` set with the orphan-render row.
+
+## 2026-10-24 — two forks weighed (OFFSET orchestrator)
+
+**Conic carrier (P0).** Both designers recommend exact
+`Curve3::Hyperbola` and `Curve3::Parabola` kinds, plane×cone total at
+rung 2, the axial door taking the moved pair's own section, and C1's R1
+sentence ("outside the inventory by decision") replaced by the
+closed-form principle. Both traced R1 to M5's scheduling fence, hardened
+by later agent text; Ev's OQ1 and spiric rulings point the other way,
+#908 the one note for fitted NURBS. Both corrected the framing: the gap
+is the conic set's, not the offset lane's (booleans' `GermSectionOutsideInventory`,
+the general offset door, draft, STEP import). They agreed on the first
+round; `[ev]` PR 5652 carries it (fork-log row 193). Off-question from
+both: STEP import has no `HYPERBOLA`/`PARABOLA` arm; `offset_general` and
+`offset_axial` describe the same edge differently. Both ride the build if
+Ev says yes.
+
+**Doors' whole-body tier 1 (P1).** Both recommend against a scoped tier
+1. Agreement on the final state: one tier-1 derivation per staging door
+end (`closed_by_tier`, both contracts from one walk), and scope-driven
+walks with SHELF's solids unit. One designer additionally measured a
+large single-solid offset as quadratic in its scope (237 ms at a 1024-gon,
+tier 1 under 1%), from the attach setter's per-key orphan scans, and
+`shell_open`'s per-solid staging as quadratic in solids. Not a fork for
+Ev (no ratified decision moves), so decided here: the row closes, re-cut
+into `a-staging-doors-end-derives-tier1-once-and-its-orphan-sweep-is-batched`
+(P1 M, this slate), a note on SHELF's solids unit, and SHELL's
+`shell-open-stages-a-door-per-solid` (P2 M). The other designer would have
+banded the remainder P3; the quadratic is why the unit stays P1. Not a
+design-fork row: the population is forks that go to Ev.
+
+## 2026-10-24 — one tier-1 walk per offset door end (OFFSET orchestrator)
+
+PR 5661 (`offset/door-end-tier1-once`) closes
+`a-staging-doors-end-derives-tier1-once-and-its-orphan-sweep-is-batched`.
+Tier: single FULL review (the panic/typed split of a gate merged into one
+walk). Verdict MERGEABLE-WITH-FIXES, no MAJOR. The reviewer's executed
+differentials: `close_gated` panics at depth 1 and returns typed at depth
+2; the batched reaper against the per-key sequence over the whole topo lib
+suite (zero diffs, free-list order included) and a 3000-trial fuzz (one
+divergence, the claimed dangling-surface fix); the orphan counter goes red
+with the per-key calls restored.
+
+- `Surgery::close_gated` derives tier 1 once via `closed_by_tier`, through
+  one postcondition helper shared with the sweeping closes (the first draft
+  spelled the assertion twice; the reviewer caught it). "Once per door end"
+  holds for the three simultaneous offset doors; merge, the boolean,
+  `shell`, the split and STEP import still derive twice
+  (`staging-doors-gated-at-tier-3-still-derive-tier-1-twice`, P3).
+- The orphan sweep is one batched pass; the setter's edge walks follow the
+  moved faces. Two deterministic counters pin both halves (each shown to
+  bite). Every face of an n-gon prism offset: 224 → 49 ms at n = 1024
+  (release, debug assertions on). `WedgeReach` keeps it superlinear
+  (`wedge-reach-folds-a-faces-whole-boundary-per-edge`).
+- The merge door's run is one scope now; a tear in one group followed by a
+  typed refusal in a later group comes back typed, stated at the loop as
+  the accepted cost.
+- Filed by the lane: `an-offset-doors-trailing-join-sweeps-tier-1-per-kill`
+  (P2 E), the two above, SHELF's
+  `offset-charts-staged-corner-solve-walks-the-edge-arena-per-group`, and
+  TOPO's `set-edge-curve-scans-the-edge-arena-per-call`. Twin corner-solve
+  setup in `offset_together.rs`/`offset_axial.rs` noted on SHELF's
+  one-door row.
+- Main stopped compiling mid-unit (CHART #5656 + #5657, a missing
+  `walk_refusal` arm); CHART's #5662 one-line fix was ported onto the
+  branch.
+- Process: the lane's worktree and the main checkout both had the branch
+  checked out, so the lane's commit moved the main checkout's HEAD under a
+  stale index that would have reverted the fix pass. Do not check out a
+  lane's branch in the main checkout while the lane works on it.
+
+## 2026-10-24 — a join sweeps tier 1 once (OFFSET orchestrator)
+
+PR 5666 (`offset/trailing-join-one-sweep`) closes
+`an-offset-doors-trailing-join-sweeps-tier-1-per-kill`, the follow-up the
+tier-1-once unit's own trace found. Tier: orchestrator's read (a scope
+around an existing loop). The fix sits in the join, not in each door:
+`Body::join_edges_within` and the public `Body::join_edges` run their kills
+under one surgery scope closed by `sweep_and_close`, which covers the four
+offset doors, `shell`, the blend, the merge, the split's halves and STEP
+import. Pinned by `validate::TIER1_DERIVATIONS` (`cfg(test)`): constant in
+k, where the reverted code paid about 2k. Filed by the lane:
+`offset-surfaces-together-leaves-joinable-vertices-at-rest` (P2 E,
+pre-existing: `offset_charts_staged` offers the join only the rewritten
+edges' ends). Correction to the 2026-10-24 tier-1-once entry: the lane
+banded `staging-doors-gated-at-tier-3-still-derive-tier-1-twice` P2, not P3.
+Friction: the box's disk was nearly full from finished lanes' target dirs
+(about 25 GB of OFFSET's own), now removed.
+
+## 2026-10-24 — the conic fork, rounds 2–4 (OFFSET orchestrator)
+
+Ev asked on PR 5652 why exact conics are not NURBS, then: "we're going to
+have to make nurbs usable at some point, and so i don't know what we gain
+from having a zoo of rarely encountered closed-form curves". Round 2,
+each designer shown that verbatim: both dropped the kinds. Rounds 3 and 4
+crossed twice on one point, whether the exact arc's certificate follows
+the carrier's kind (the full NURBS certificate, waiting on the cone's
+metres enclosure; [one-way.readings]) or its class read from its data (the
+sampled check with a written bound; today's closed-form check rests on
+provenance inferred from the variant). Converged on everything else: no
+kinds, an exact rational-quadratic arc in the NURBS container minted in
+closed form, edge identity by description, the axial door reading the
+moved pair's section and refusing at its gate meanwhile. The PR now states
+that in C1 and puts the one split to Ev (row 193 updated). The hex-nut
+boolean waits on a NURBS crossing layer either way.
+
+Filed: CHARTTAIL's `the-cones-rung3-certificate-has-no-metres-enclosure`
+(P1 M, the shared cone blocker, no item named it) and SELECT's
+`closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`
+(P2 M, both designers' finding; its fix follows Ev's answer).

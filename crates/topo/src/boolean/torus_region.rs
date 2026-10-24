@@ -64,7 +64,7 @@
 //! # The boundary first
 //!
 //! Before any path, `p` is read against every edge on its own carrier
-//! ([`ConicArc::hit`] for a circle, [`SpiricArc::contact`] for an oval):
+//! ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit) for a circle, [`SpiricArc::contact`] for an oval):
 //! on an edge, or within the band of one of its ends, is the point on
 //! the boundary ([`None`]); in the band of one refuses.
 //!
@@ -135,7 +135,7 @@ use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band, near_span,
 };
 use super::region::{
-    Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, in_band, side_at_closest, span,
+    Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, found, in_band, side_at_closest, span, turn,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -994,24 +994,6 @@ impl<T: Decide> TorusFaceRegion<T> {
             &ROOT_ROWS,
             band,
         )
-    }
-}
-
-/// An angle in `(−π, π]` as a turn in `[0, 2π)`.
-fn turn<T: Decide>(s: T) -> T {
-    (T::zero() - s).select_le_zero(s, s + T::tau())
-}
-
-/// A root door's answer on one leg: its roots, none for a miss; an edge
-/// in the leg's plane or a tangency grazes.
-fn found<T: Decide>(
-    roots: Result<FirstHarmonicRoots<T>, RootRefusal>,
-) -> Result<Vec<T>, RayFault<RegionRefusal>> {
-    match roots {
-        Ok(Roots::Miss) => Ok(Vec::new()),
-        Ok(Roots::Certified(found)) => Ok(found.roots().to_vec()),
-        Ok(Roots::On(_)) | Err(RootRefusal::Unsettled(_)) => Err(RayFault::Graze),
-        Err(RootRefusal::Escalated(diag)) => Err(in_band(diag)),
     }
 }
 

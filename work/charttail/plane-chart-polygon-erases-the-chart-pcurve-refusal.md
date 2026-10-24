@@ -4,6 +4,8 @@ kind: issue
 title: chart_region's plane-chart polygon erases chart_pcurve's typed refusal behind one string
 status: open
 opened: 2026-10-01
+priority: P3
+cost: E
 ---
 
 

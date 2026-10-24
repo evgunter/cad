@@ -99,3 +99,11 @@ the cone-section and spiric-wall lanes' in its fix pass (each restated
 the edge certificate's `interval_span_winding` on a carrier it already
 bounds). One `pcurve_azimuth_period` spelling is left, in
 `pcurve_cache/projected.rs`'s check 2, beside its `TubePeriod` twin.
+
+## Moved by CHART (2026-10-24)
+
+Branch `chart/ringed-curved-doors` deletes three of the sites above with
+the cylinder and cone chart trims: `bool_cone_trim_period`,
+`bool_wall_trim_period` (and the closure over `name` beside it) and
+`bool_curved_contain_period`. Cylinder and cone faces are read from
+their boundary edges (`topo::boolean::ruled_region`) and read no period.

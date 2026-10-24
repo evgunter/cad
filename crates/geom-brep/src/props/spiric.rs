@@ -514,7 +514,7 @@ fn cos_moment(e: &SpiricEdgeQ, pieces: usize) -> Interval {
     cos_moment_split(e, pieces).0
 }
 
-/// [`cos_moment`], and the part of its width a later round removes.
+/// `cos_moment`, and the part of its width a later round removes.
 fn cos_moment_split(e: &SpiricEdgeQ, pieces: usize) -> (Interval, f64) {
     let (big, r, d) = (e.major, e.minor, e.offset);
     let ([j], [removable]) = composite(e.t0, e.t1, pieces, |_, c, _| {
@@ -564,7 +564,7 @@ fn spiric_wall_terms(
     wall_terms_split(e, w, chart, pieces).0
 }
 
-/// [`spiric_wall_terms`], and the part of the flux term's width a later
+/// `spiric_wall_terms`, and the part of the flux term's width a later
 /// round removes.
 fn wall_terms_split(
     e: &SpiricEdgeQ,
@@ -619,7 +619,7 @@ fn wall_chart(
     wall_chart_split(face, chart, pieces).map(|(loops, _)| loops)
 }
 
-/// [`wall_chart`], and the part of the face's chart flux width a later
+/// `wall_chart`, and the part of the face's chart flux width a later
 /// round removes.
 fn wall_chart_split(
     face: &SpiricFaceQ,
@@ -715,7 +715,7 @@ fn spiric_chart_length(e: &SpiricEdgeQ) -> Result<Interval, PropsError> {
 
 /// **Every ring of a torus wall winds against its face**: each loop
 /// after the first is a hole cut from the face, so its signed chart
-/// area (its [`wall_chart`] terms at `pieces`) must have the sign
+/// area (its `wall_chart` terms at `pieces`) must have the sign
 /// opposite to the face's whole, as the cylinder's and the planar
 /// lanes' rings must (`curved::require_holes_wound_against`, under
 /// `props_ring_winding`). A ring wound with its face would be added to
@@ -776,7 +776,7 @@ fn require_rings_wound_against(
 }
 
 /// The face's enclosures at `pieces` resolution, a wall's chart terms
-/// loop by loop ([`wall_chart`]; none for a cap), and the part of the
+/// loop by loop (`wall_chart`; none for a cap), and the part of the
 /// flux's width a later round removes: each spiric's moment `J`, which
 /// the flux reads through the lever as `Σₖ leverₖ·nₖ·r·J` — component by
 /// component, as the interval sum carries `J`'s width, so a lever in the

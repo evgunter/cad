@@ -815,7 +815,7 @@ pub enum OrientationUnread {
         /// `None` where the ends decided zero, or opposite signs.
         margin: Option<Indeterminate>,
         /// How many of its faces offered an aim: a planar face's point
-        /// certified inside it, a curved face's chart window's middle.
+        /// certified inside it, a point of a curved face's surface.
         aimed: usize,
         /// The aimed rays set aside, and why: a sharp corner, a crossing
         /// in band of a face's boundary, a graze, or a limit.
@@ -3468,7 +3468,9 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         ),
         // A net closed in `v` whose `v` sections sit in the band's sliver
         // of collapsing: an undecided reading, read as one.
-        M::Escalated { cause, .. } | M::NetStretchUndecided { cause, .. } => {
+        M::Escalated { cause, .. }
+        | M::NetStretchUndecided { cause, .. }
+        | M::OuterSpanPoisoned { cause } => {
             return (
                 CLOSE,
                 geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
@@ -3668,31 +3670,6 @@ pub(crate) fn classify_point_in_solid(
             diag,
             ..
         }) => close_to_boundary(Some((*decision).into()), *escalation, diag),
-        // The in-band escalation's story, read definitely (D4 ¶1 (iv)).
-        S::JunctionSidesDisagree { .. } => (
-            format!(
-                "{} is undecided at this tolerance",
-                crate::boolean::placement_subject(None)
-            )
-            .into(),
-            crate::boolean::unnamed_placement_ending(
-                geom_brep::recourse::RefusedArm::SignCertain(None),
-                Reading::AtRest,
-            )
-            .into(),
-        ),
-        // A limit of the kernel's reading, not of the geometry: each
-        // ends on the solid door's own note.
-        S::NarrowWindowUnread { .. } => (
-            "a point the check read lies near the end of a narrow cylinder wall's window, \
-             which the check cannot place it against"
-                .into(),
-            format!(
-                "{MOVE_GEOMETRY}; {}",
-                crate::boolean::solid_contain::NARROW_WINDOW_NOTE
-            )
-            .into(),
-        ),
         S::RootCountDisagrees { .. } => (
             "a test ray from a point the check read met a torus face where the kernel's count \
              of its crossings came apart"
@@ -3816,6 +3793,10 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ChartRegionError::DegenerateLoop { .. } => (
             "a face's boundary encloses no definite area at this tolerance (a sliver)",
             "Recourse: widen the face well past the tolerance",
+        ),
+        ChartRegionError::EdgeScale => (
+            crate::chart_region::EDGE_SCALE_REASON,
+            crate::chart_region::EDGE_SCALE_RECOURSE,
         ),
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
@@ -5222,10 +5203,13 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     vertex carries is not seen;
 ///   - the curved arm's documented residuals: the rimless sphere band;
 ///     NURBS faces; the quadrature-owned conic-trimmed walls, whose
-///     boundary parse refuses typed and is therefore exempt — such a
-///     body's flips, single-face AND whole-body, certify green today
-///     (executed on the tilted-section cylinder and pinned as
-///     residual).
+///     boundary parse refuses typed and is therefore exempt here. Such
+///     a body's flips are refused by other arms: a lone flip by the
+///     material wedge (`LaminaWedge`, two walls on one cylinder) or by
+///     check 7 and the pinch corners (a wall that is one face), and the
+///     whole-body inversion by check 6's planar arm at the planar faces
+///     (`step-export`'s `m6_6_sense_gate` rows on the tilted-section
+///     cylinder and the tilted-split washer).
 /// - **Shell winding where the witness cannot be read** (check 10's
 ///   silences, the false-refusal direction it must never fail in): a
 ///   shell whose own signed volume does not decide a role (in-band,
@@ -7616,12 +7600,15 @@ pub(crate) fn tier3_local_checks_marked<
     // degenerate/out-of-inventory boundary, conic-trimmed faces the
     // quadrature lane owns, an uncertifiable loop) is EXEMPT here —
     // corrupt structure is tier 1/2's job, an uncomputable volume is
-    // check 7's. The conic-trim exemption is a RECORDED residual, not
-    // a covered class: an ellipse-trimmed wall has a winding-derived
-    // (bit-free) quadrature flux AND an exempt parse, so its flips —
-    // single-face and whole-body — certify green today (executed on
-    // the tilted-section cylinder, pinned as residual; closes when the
-    // ellipse-rim material-side encoding lands). A one-loop sphere
+    // check 7's. The conic-trim exemption is a RECORDED residual of
+    // this arm, not a covered class: an ellipse-trimmed wall has a
+    // winding-derived (bit-free) quadrature flux AND an exempt parse.
+    // Its flips are refused one layer away — a lone flip by the
+    // material wedge (`LaminaWedge`) or check 7 and the pinch corners,
+    // the whole-body inversion by the planar arm above at the planar
+    // faces (`step-export`'s `m6_6_sense_gate` rows); the arm itself
+    // reads it when the ellipse-rim material-side encoding lands. A
+    // one-loop sphere
     // face with both poles on its loop encodes no side alone
     // (`Unencoded`), and is read through its SEAM REGION: the faces on
     // its surface entity it reaches across shared edges
@@ -9983,8 +9970,18 @@ fn edge_endpoints<T: Real>(
     Some((p_start, p_end))
 }
 
+#[cfg(test)]
+std::thread_local! {
+    /// Whole-body tier-1 derivations run on this thread, counted under
+    /// `cfg(test)` (`edge_join::join_door::a_join_sweeps_tier_1_once_however_many_it_joins`).
+    pub(crate) static TIER1_DERIVATIONS: core::cell::Cell<usize> =
+        const { core::cell::Cell::new(0) };
+}
+
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).
 fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
+    #[cfg(test)]
+    TIER1_DERIVATIONS.with(|n| n.set(n.get() + 1));
     let mut errors = Vec::new();
 
     // Reference/ownership counters, filled by pass 1 and consumed by the
@@ -10702,19 +10699,24 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     // records name) are intentionally not tier-1 checks: Euler
     // surgery legitimately rewires neighborhoods mid-sequence, and
     // tier 2 refuses null entities at rest regardless.
-    for (curve_key, entry) in body.curves.iter() {
-        if matches!(entry, CurveGeom::NullScaffold(_)) {
-            let referers = body
-                .edges
-                .values()
-                .filter(|edge| edge.curve == curve_key)
-                .count();
-            if referers >= 2 {
-                errors.push(ValidationError::NullScaffoldShared {
-                    curve: curve_key,
-                    edges: referers,
-                });
-            }
+    let mut referers: SecondaryMap<CurveKey, usize> = body
+        .curves
+        .iter()
+        .filter(|(_, entry)| matches!(entry, CurveGeom::NullScaffold(_)))
+        .map(|(curve_key, _)| (curve_key, 0))
+        .collect();
+    for edge in body.edges.values() {
+        if let Some(n) = referers.get_mut(edge.curve) {
+            *n += 1;
+        }
+    }
+    // A secondary map iterates in slot order: curve-arena order.
+    for (curve_key, &edges) in &referers {
+        if edges >= 2 {
+            errors.push(ValidationError::NullScaffoldShared {
+                curve: curve_key,
+                edges,
+            });
         }
     }
     for (face_key, record) in body.null_faces.iter() {
