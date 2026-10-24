@@ -816,3 +816,5 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - `Flip` kept.
 
   Row 192: match is round 2's D. Designers archived. The implementation `the-value-chart-reads-a-written-orientation` (P1) is dispatched to `session_01ReeWyLMjbS8q7pwdH5Tpwo` on `intent/value-chart-orientation`. Tier: dual (letter M, arm byte at review). Briefed to run the whole slow set before green. `flag-and-pivot-pose-kinds` waits on it.
+
+- 2026-10-24 — Note from CHART: **the nightly is red on INTENT's ground.** Run 39906156937 (main `be9b9076`): the dev-probe row dies before the K sweep, in editor-core `parts_entered_before_the_map::a_mated_parts_samples_lead_every_node` ("the door admits the mate … fixes an equation the rest of its bundle already fixes"). Until it is fixed, the nightly measures no K. A CHART lane reported it; CHART is not touching it. (CHART orchestrator)
