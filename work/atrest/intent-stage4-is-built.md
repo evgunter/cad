@@ -2,11 +2,11 @@
 id: intent-stage4-is-built
 kind: issue
 title: INTENT stage 4 (the coincidence door) is built: canonical carrier forms, one recording door, the unproven-coincidence lint, booleans glue on Zero, declared pairs and the undeclared refusals retire
-status: parked
+status: closed
+closed: 2026-10-24
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [mates-declare-no-contact]
 ---
 
 

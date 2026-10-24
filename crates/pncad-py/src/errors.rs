@@ -858,21 +858,14 @@ pub enum BoundaryEdit<'a> {
 /// Which `#[non_exhaustive]` kernel enum at the SELECTION boundary has
 /// grown a variant this binding predates.
 ///
-/// Both arms answer one word, and that is the point of the type rather
-/// than an accident of it: a caller reads `SelectRefusal.reason ==
+/// Every arm answers one word: a caller reads `SelectRefusal.reason ==
 /// "unclassified"` and learns one fact — this binding could not
-/// classify the refusal — whichever kernel enum out-grew it. The word
-/// used to be spelled twice, once at `crate::tags::select_refusal_tag`'s
-/// forced wildcard and once at the contact-class crossing, with nothing
-/// holding the two equal.
+/// classify the refusal — whichever kernel enum out-grew it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnmirroredSelect {
     /// A `pncad::select::SelectRefusal` arm this binding does not
     /// mirror, reached through the query door.
     Refusal,
-    /// A `pncad::select::ContactClass` this binding does not mirror,
-    /// reached through a mate's or a crossing's `class_`.
-    ContactClass,
 }
 
 /// Everything that can refuse a `to_stl_*` call, as ONE value.
@@ -937,13 +930,6 @@ pub enum StlRefusal<'a> {
 /// deliberate — the fingerprint has to be something prose does not
 /// carry, and no cheaper discriminator was available — but it is a
 /// trade, not a free check.
-///
-/// One arm disagrees with it on purpose: `crate::py::contact`'s
-/// unknown-`ContactClass` refusal renders the unknown variant through
-/// `Debug`, having nothing else to render it with. Today that is a
-/// fieldless name mid-sentence, which passes. A future STRUCT variant
-/// of that kernel enum would trip this assertion and panic where that
-/// arm means to refuse gracefully; the site says so too.
 #[must_use]
 pub fn reads_as_prose(message: &str) -> bool {
     !message.contains(" { ") && !is_bare_camel_token(message)

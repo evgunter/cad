@@ -154,7 +154,7 @@ fn row(label: &str, doc: &ProfileDoc, out: &mut String) {
     }
     out.push_str(&format!("rows: {}\n", subject.coincidences.len()));
     for r in &subject.coincidences {
-        out.push_str(&format!("{:?} {:?}\n", r.by, r.row));
+        out.push_str(&format!("{:?} {:?}\n", r.copies, r.row));
     }
 }
 

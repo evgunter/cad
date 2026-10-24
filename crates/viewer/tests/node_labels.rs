@@ -267,7 +267,6 @@ fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> 
 #[test]
 fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     use common::{ang, asm, len, len3, scl3};
-    use pncad::select::ContactClass;
     use viewer::session::{FaceSelection, PartSelectSpec, PatternRuleSpec};
 
     let tol = Tol::witness();
@@ -417,7 +416,6 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         Creation::of(asm::seat_op(
             &bench,
             bench.post_b,
-            ContactClass::Tangent,
             asm::middle_seat_values(),
         ))
         .is_err(),

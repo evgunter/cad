@@ -1766,29 +1766,20 @@ FAMILIES: dict[str, str] = {
 #:   `surface_census.rs` is where each reason is written and decayed. A
 #:   PERFORMANCE door — "evaluate this in parallel" — would be a new
 #:   unit and a new entry, not this one.
-#: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
-#:   `FIT_DEFERRAL`, `SEL_PLANE_DISTANCE` and `REGENERATE_RECOURSE`
-#:   are the prose a Rust refusal cites; Python's refusals carry theirs
-#:   in the exception's message.
+#: - *Recourse sentences.* `CONTACT_RECOURSE`, `SEL_PLANE_DISTANCE`
+#:   and `REGENERATE_RECOURSE` are the prose a Rust refusal cites;
+#:   Python's refusals carry theirs in the exception's message.
 #:
-#:   `UNDER_RECOURSE` and `CLASS_DEFERRAL` left this bullet at
-#:   LIB-G18b and are bound top-level, on `PIN_MISMATCH_RECOURSE`'s
-#:   precedent: an assembly author's most-hit refusals are an
-#:   under-determined mate and a class outside v1, and a test that
-#:   wants to say "the refusal ends on its recourse" must not do it by
-#:   re-typing the sentence. `CLASS_DEFERRAL` is also what
-#:   `ClassAdmission.why` answers for the `not_admitted` arm, from the
-#:   table rather than restated — so the constant and the door agree
-#:   by construction.
-#:
-#:   `OVERCONSTRAINED_RECOURSE` and `NO_AT_REST_RECORD_RECOURSE` are
-#:   bound for the same reason and complete the set: the four typed
-#:   refusals an assembly author meets — under-determined,
-#:   over-constrained, outside the at-rest vocabulary, and pinned to a
-#:   version the store no longer holds — each end on a named sentence,
-#:   and binding two of the four would leave the other two assertable
-#:   only by re-typing prose. `UNPINNED_RECOURSE` is the under-determined
-#:   refusal's sentence for a bundle with no mate, bound with them.
+#:   `UNDER_RECOURSE` left this bullet at LIB-G18b and is bound
+#:   top-level, on `PIN_MISMATCH_RECOURSE`'s precedent: an assembly
+#:   author's most-hit refusal is an under-determined mate, and a test
+#:   that wants to say "the refusal ends on its recourse" must not do it
+#:   by re-typing the sentence. `OVERCONSTRAINED_RECOURSE` is bound for
+#:   the same reason and completes the set: the three typed refusals an
+#:   assembly author meets — under-determined, over-constrained, and
+#:   pinned to a version the store no longer holds — each end on a named
+#:   sentence. `UNPINNED_RECOURSE` is the under-determined refusal's
+#:   sentence for a bundle with no mate, bound with them.
 #: - *Structures Python's authoring surface replaces with its own.*
 #:   `Applied` and `EditRecord` are `apply`'s pair, and `Doc.apply`
 #:   mutates in place and answers `Optional[NodeId]`, so there is no
@@ -1890,16 +1881,14 @@ FAMILIES: dict[str, str] = {
 #: four a caller must be able to spell, because a window is an
 #: argument and `full()` is a choice, not an omission.
 #: **G18 is CLOSED and no longer a `gap` id here** (LIB-G18b). It
-#: held six families and 43 names: the pin-update door
+#: held six families and 38 names: the pin-update door
 #: (`update_references`, `UpdateError`, `mixed_pins`,
 #: `PinMultiplicity`, `PinSites`), the at-rest gate (`assemble`,
-#: `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`,
-#: `MintedDeclaration`, `RefusedRef`), mates and the solve
+#: `Assembly`, `AssemblyError`, `AtRestFinding`), mates and the solve
 #: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
 #: `Maintenance`, `reading_edges`,
-#: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
-#: `class_admission`), instantiated parts (`PlacementRuleFault`),
+#: `relative_freedom_components`, `solve_document`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,
 #: `InlineOutcome`, `SplitError`, `InlineError`, `NodeMap`,
 #: `InterfaceRecord`, `InterfaceCrossing`) and the product
@@ -2483,7 +2472,6 @@ NOT_BOUND = {
     # with nothing mechanical to say so. Nothing here fails when that
     # happens; only reading the entry beside the door does.
     "EvalOutcome": SHAPE,
-    "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
     "ImportOptions": SHAPE,
     "InterrogateError": SHAPE,
@@ -2718,18 +2706,11 @@ NOT_BOUND = {
     "BooleanResult": INTERIOR,
     "BooleanResultKind": INTERIOR,
     "BooleanValue": INTERIOR,
-    # The instantiation seam's declaration bookkeeping. `Relation` and
-    # `Route` are the two halves of what a carried finding says, and
-    # Python reads both without holding either type:
-    # `Attribution.relation` is `carried_refuted` / `carried_declined`
-    # for a declaration a document below authored, and
-    # `Attribution.of` / `.via` are its route. The same pair rides
-    # `AssemblyError` with `variant == "carried_mint_refusal"` and
-    # `Assembly.carried`'s rows. `CarriedDeclarations` is the
-    # evaluation VALUE channel's bundle, behind `Product` and
-    # `NodeValue`, both interior.
-    "CarriedDeclarations": INTERIOR,
-    "Relation": INTERIOR,
+    # The instantiation seam's bookkeeping. `Route` is what a carried
+    # row says it came by, which Python reads as `of` and `via` without
+    # holding the type. `CarriedFindings` is the evaluation VALUE
+    # channel's bundle, behind `Product` and `NodeValue`, both interior.
+    "CarriedFindings": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
     # A lane trait, one registry over: a trait naming
@@ -2763,7 +2744,8 @@ NOT_BOUND = {
     # `DeclaredContact` and
     # `ContactVerdict` — this type's two fields — sit at `INTERIOR`
     # beside it, which is the sibling test the `CensusContact` entry
-    # names.
+    # names. `GlueClass` is `DeclaredContact`'s class, behind the same
+    # door.
     "ContactFinding": INTERIOR,
     "ContactRefusal": INTERIOR,
     "ContactVerdict": INTERIOR,
@@ -2804,6 +2786,7 @@ NOT_BOUND = {
     "CornerConfig": INTERIOR,
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
+    "GlueClass": INTERIOR,
     "DuplicateName": INTERIOR,
     "EntityNamed": INTERIOR,
     "KindMismatch": INTERIOR,
@@ -3079,10 +3062,6 @@ NOT_BOUND = {
     # One of a product's at-rest decisions, interior with its `Product`:
     # Python reads them as the unproven-coincidence lint's findings.
     "AtRestRow": INTERIOR,
-    # Whose decision a row is (a mate, or two copies), interior with
-    # its row: the lint's finding says it (`CheckFinding.node`,
-    # `CheckFinding.copies`).
-    "AtRestBy": INTERIOR,
     "Subject": INTERIOR,
     "assemble_gathered": INTERIOR,
     "product_recorded": INTERIOR,
@@ -3332,7 +3311,7 @@ NOT_BOUND = {
     # this file accounts whole. The positive form is
     # `tests/test_measures.py`.
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six
-    # families held 43 names — the pin-update door, the at-rest gate,
+    # families held 38 names — the pin-update door, the at-rest gate,
     # mates and the solve, instantiated parts, split/inline, the
     # product — and every one of them is accounted for: name-for-name
     # in `pncad.pyi`, or in `BOUND_AS` because their Python shape
@@ -3576,11 +3555,9 @@ MEMBERS_BOUND_AS = {
     # listed in `ARMS_SPELLED_BY_A_PROPERTY`.
     "InterfaceCrossing::Mate": "InterfaceCrossing.variant",
     # --- the placement model's members ------------------------------
-    # The world is the node `Doc.world` answers; a mate's class is
-    # `Mate.class_` (`class` is a Python keyword); a constraint's id is
+    # The world is the node `Doc.world` answers; a constraint's id is
     # what `MateRef.constraint` answers.
     "Node::World": "Doc.world",
-    "Mate::class": "Mate.class_",
     "MateRef::id": "MateRef.constraint",
     # A mate's value: `pncad.Value` is a node's evaluated value, so the
     # constraint's value class is `MateValue`, and its fields are
@@ -3588,35 +3565,15 @@ MEMBERS_BOUND_AS = {
     "Value::coord": "MateValue.coord",
     "Value::by": "MateValue.by",
     "AssemblyError::Product": "AssemblyError.variant",
-    "AssemblyError::Mint": "AssemblyError.variant",
-    "AssemblyError::CarriedMintRefusal": "AssemblyError.variant",
     "AssemblyError::CarriedAtRest": "AssemblyError.variant",
     "AssemblyError::AtRest": "AssemblyError.variant",
     "AssemblyError::Space": "AssemblyError.variant",
-    "AssemblyError::Uncertified": "AssemblyError.variant",
-    # The two mint arms answer with a LIST, so the word a caller
-    # branches on for ONE refused mate rides the row, not the gate.
-    "MintRefusal::Reference": "MintRefusal.variant",
-    "MintRefusal::NoAtRestRecord": "MintRefusal.variant",
-    "MintRefusal::Unevaluated": "MintRefusal.variant",
-    # A route is three facts and Python reads all three, without
-    # holding the type: the same spelling `Attribution` and
-    # `CarriedDeclaration` use.
-    "CarriedRefusal::route": "CarriedRefusal.of",
-    # The refusal's nodes as the document below holds them: what the
-    # row's `refusal` says them from (`str(row.refusal)`).
-    "CarriedRefusal::held": "CarriedRefusal.refusal",
-    # A part's own census findings, carried: the same route spelling,
-    # and the finding's nodes said from the part's (`str(row.finding)`).
+    # A part's own census findings, carried: a route is three facts and
+    # Python reads all three without holding the type, and the
+    # finding's nodes are said from the part's (`str(row.finding)`).
     "CarriedAtRestFinding::route": "CarriedAtRestFinding.of",
     "CarriedAtRestFinding::held": "CarriedAtRestFinding.finding",
     "CarriedInterference::route": "CarriedInterference.of",
-    # A VALUE's arms, not a refusal's, and the word is `relation` because
-    # what the walk answers is how a declaration stands to the document
-    # it was gathered from.
-    "Attribution::Refuted": "Attribution.relation",
-    "Attribution::Declined": "Attribution.relation",
-    "Attribution::Carried": "Attribution.relation",
     # The registry's evidence, a value: which resident found what.
     "CheckEvidence::Connectedness": "CheckEvidence.variant",
     "CheckEvidence::Escalated": "CheckEvidence.variant",
@@ -3633,10 +3590,6 @@ MEMBERS_BOUND_AS = {
     "ChecksError::Band": "ChecksError.variant",
     "ChecksError::EvaluationOfAnotherDocument": "ChecksError.variant",
     "ChecksError::Product": "ChecksError.variant",
-    # `Mints` is the arm the namesake spells (`ClassAdmission.mints`);
-    # the other two are the word.
-    "ClassAdmission::NoAtRestRecord": "ClassAdmission.variant",
-    "ClassAdmission::NotAdmitted": "ClassAdmission.variant",
     # What an accepted edit did that the caller did not ask for, read
     # off `Doc.last_maintenance`: the offset a placing mate cleared, and
     # the references a delete stranded — a payload name on its carrying
@@ -3798,7 +3751,6 @@ MEMBERS_BOUND_AS = {
     "FlattenError::BothNamed": "FlattenError.variant",
     "FlattenError::Edit": "FlattenError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
-    "MateFault::ClassNotAdmitted": "MateFault.variant",
     "MateFault::Overconstrained": "MateFault.variant",
     "MateFault::NotOnTheCopy": "MateFault.variant",
     "MateFault::KindsDiffer": "MateFault.variant",
@@ -3886,8 +3838,6 @@ MEMBERS_BOUND_AS = {
     "ReadbackError::Dangling": "ReadbackError.variant",
     "ReadbackError::NoCanonicalFrame": "ReadbackError.variant",
     "ReadbackError::NoCarrier": "ReadbackError.variant",
-    # A value the at-rest gate hands back, not a raised refusal.
-    "RefusedRef::Ambiguous": "RefusedRef.variant",
     # The VERDICT's three arms are `status`, not `variant`: `variant`
     # beside it is the failure's own arm, which is why the two words
     # are separate here (`ResolveError`/`ResolveIndeterminate` in
@@ -4098,9 +4048,6 @@ MEMBERS_BOUND_AS = {
     # word every other Python door in this vocabulary spells it with
     # (`Distribution.dimension`, `Measurement.dimension`).
     "AnalyzedParam::dim": "AnalyzedParam.dimension",
-    # `Route` is `INTERIOR`; what it SAYS crosses as the two attributes
-    # that name it, `of` and `via`.
-    "CarriedDeclaration::route": "CarriedDeclaration.of",
     # The lattice's closed loop is handed to `Node.profile` opaquely and
     # read back only as two counts.
     "ClosedLoop::loop_": "ClosedLoop.vertex_count",
@@ -4136,9 +4083,6 @@ MEMBERS_BOUND_AS = {
     "Loaded::edits": "Loaded.edit_count",
     # One patch at a time, by index, beside `patch_count`.
     "Mesh::patches": "Mesh.patch",
-    # `class_` because `class` is a Python keyword — the `IN`/`inch`
-    # shift, one level in.
-    "MintedDeclaration::class": "MintedDeclaration.class_",
     # The entity-kind filter, named for what it does at the door.
     "NamePat::kind": "NamePat.of_kind",
     # Spelled out, as the stub spells every direction.
@@ -4174,9 +4118,7 @@ MEMBERS_BOUND_AS = {
 #: none of them owes a `MEMBERS_BOUND_AS` row today.
 ARMS_SPELLED_BY_A_PROPERTY = {
     # A PREDICATE for the arm: true exactly when the value is that
-    # arm, which is the arm, read. `ClassAdmission.variant` and
-    # `Denotation`'s prose both say so.
-    "ClassAdmission::Mints": "ClassAdmission.mints",
+    # arm, which is the arm, read. `Denotation`'s prose says so.
     "Denotation::Tied": "Denotation.tied",
     # The arm's PAYLOAD, not the arm: the mesh index the refusal
     # carries, and the snapshot invariant's own sentence. Each arm
@@ -4204,11 +4146,6 @@ MEMBERS_NOT_BOUND = {
     # itself and renders from it, so there is no second document to
     # check against and no id to read back.
     "McReport::document": SHAPE,
-    # The carried mate as the document below holds it, kept for the
-    # sentence that names it. Python's row is read by its fields and
-    # says no sentence; the finding that names it does
-    # (`str(AtRestFinding)`), from these labels.
-    "CarriedDeclaration::held": SHAPE,
     # The same for the checks report and its refusal: Python's
     # `ChecksReport` holds the evaluated document and speaks from it,
     # and `CheckRefusal` is raised with the message already spoken.
@@ -4241,9 +4178,9 @@ MEMBERS_NOT_BOUND = {
     # `ContactRecords` is `INTERIOR` and this is that entry one level
     # in: nothing hands one out, so the field has nothing to project.
     "Assembly::contacts": INTERIOR,
-    # The kernel's own story about the refused declaration, composed
-    # into the finding's `str()` — the flattened-payload bullet at the
-    # door that renders rather than raises.
+    # The kernel's own finding, the finding's `str()` — the
+    # flattened-payload bullet at the door that renders rather than
+    # raises.
     "AtRestFinding::error": SHAPE,
     # The census's verdicts on the pair are the kernel's own story, read
     # through `ValidationFinding` where a body is validated; the finding
@@ -4307,10 +4244,6 @@ MEMBERS_NOT_BOUND = {
     # answers `Optional[NodeId]`, so there is no record list to hand
     # back.
     "Loaded::records": SHAPE,
-    # The declared FACES are arena keys, which the curation exists to
-    # keep unnameable in Python; the pair reaches a caller as the two
-    # names `a` and `b`.
-    "MintedDeclaration::faces": SHAPE,
     # The one recipe node kind with no Python constructor, and it is not
     # an omission: `wire_sweep` refuses unconditionally (U4/LQ3,
     # kernel-owned), so the door could not succeed. `sweep_body` carries

@@ -58,20 +58,18 @@ struct Run {
     trace: CensusTrace,
 }
 
-/// The product's records as the census first reads them: every record
-/// but those the gather's census minted between copies, so the
-/// comparator sweeps the touches those records would otherwise back.
-fn mated_records(product: &editor_core::Product<f64>) -> topo::ContactRecords {
+/// The product's records as the census first reads them: those its
+/// copies carried, without the ones the gather's census recorded
+/// between copies, so the comparator sweeps the touches those records
+/// would otherwise back.
+fn carried_records(product: &editor_core::Product<f64>) -> topo::ContactRecords {
     product
         .contacts
         .rows()
         .iter()
         .filter(|record| {
             !record.cites.iter().any(|backing| match backing {
-                topo::Backing::Decided(k) => product
-                    .coincidences
-                    .get(k as usize)
-                    .is_some_and(|row| matches!(row.by, editor_core::AtRestBy::Copies(..))),
+                topo::Backing::Decided(k) => product.coincidences.get(k as usize).is_some(),
                 topo::Backing::Carried { .. } => false,
             })
         })
@@ -92,7 +90,7 @@ fn run(name: &str, doc: &ProfileDoc, strategy: CensusStrategy) -> Run {
         .unwrap_or_else(|e| panic!("{name}: the product gathers: {e:?}"));
     let (errors, trace) = census_traces(
         &product.body,
-        &mated_records(&product),
+        &carried_records(&product),
         band(),
         tol,
         Some(RegionLane::certified()),
@@ -365,7 +363,7 @@ fn planted_degradation_is_caught() {
     let tol = Tol::witness();
     let ev = eval::<f64>(&doc);
     let product = product_recorded(&doc, &ev, tol).expect("the boss gathers");
-    let records = mated_records(&product);
+    let records = carried_records(&product);
     let (_, ideal) = census_traces(
         &product.body,
         &records,

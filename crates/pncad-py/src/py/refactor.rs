@@ -85,7 +85,7 @@ fn document_id(text: &str) -> PyResult<d::DocumentId> {
 /// a mate, and each head names a face — so the kind is fixed by the
 /// record's type and neither getter can answer anything else.
 ///
-/// Those two and the class are the whole of it: a crossing carries no
+/// Those two are the whole of it: a crossing carries no
 /// provenance, and the kernel's `InterfaceCrossing::Mate` says why.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
@@ -101,14 +101,6 @@ impl InterfaceCrossing {
     #[getter]
     fn variant(&self) -> &'static str {
         interface_crossing_tag(&self.0)
-    }
-
-    /// The class the crossing declares.
-    #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
-        match self.0 {
-            d::InterfaceCrossing::Mate { class, .. } => super::contact::contact_class(py, class),
-        }
     }
 
     /// The remainder-side reference, as opaque name text.
