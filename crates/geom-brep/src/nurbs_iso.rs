@@ -130,8 +130,9 @@ pub fn boundary_iso_v<T: SpanLocate>(
 ///   `W_j` is the same number at every `j` and cancels, so the curve
 ///   is the polynomial `Σⱼ Nⱼ(v)·Q_j` with
 ///   `λᵢ = Nᵢ(u*)·wᵢ₀ / Σₖ Nₖ(u*)·wₖ₀`; the row carries weights `1.0`
-///   (every arc-profile loft/sweep wall and every imported cylinder
-///   wall is this case).
+///   (every sweep wall, a loft whose sections share one arc, and every
+///   imported cylinder wall is this case; a loft whose arc sweep differs
+///   per section is neither).
 ///
 /// A polynomial net is both at once; any other net refuses
 /// [`IsoRowError::WeightsNotSeparable`]. The tests are bitwise on
