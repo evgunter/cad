@@ -231,6 +231,8 @@ mod missed_ray_side;
 mod narrow_needle_containment;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
+#[path = "ngon_prism_offset_scaling.rs"]
+mod ngon_prism_offset_scaling;
 #[path = "offset_a_corner_kiss.rs"]
 mod offset_a_corner_kiss;
 #[path = "offset_doors_read_charts_not_material.rs"]

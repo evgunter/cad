@@ -5694,6 +5694,18 @@ pub(crate) mod staleness_posture {
                 "the one-face spelling of `replace_faces_offset`, which re-mints the clone \
                  before adopting it",
             ),
+            (
+                "join_edges",
+                Maintains,
+                "re-mints the staged body whole where it carried rows, before the sweeping \
+                 close adopts it",
+            ),
+            (
+                "join_edges_within",
+                Maintains,
+                "re-mints the faces its kills' kept edges bound (`mint_pcurves_of`), after \
+                 dropping the dead cells' rows, before the sweeping close",
+            ),
             // ---- The pass itself. ----
             (
                 "mint_pcurves",

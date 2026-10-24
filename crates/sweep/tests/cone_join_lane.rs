@@ -33,7 +33,7 @@ use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
 use topo::test_support::JoinedOperands;
-use topo::{AtRestBody, Body, BooleanError, BooleanOp, PointInSolidError, SolidContainment};
+use topo::{AtRestBody, Body, BooleanError, BooleanOp, SolidContainment};
 
 /// The widening frustum: radius `0.5 → 1` over `y ∈ [0, 1]`, so apex
 /// `(0, −1, 0)`, axis `+y`, `tan α = 1/2`.
@@ -588,9 +588,6 @@ struct Pose {
     other: AtRestBody<f64>,
     volumes: (f64, f64, f64),
     points: Vec<(&'static str, Point3<f64>, (bool, bool))>,
-    /// Whether the result keeps a cone face short of a full turn, which
-    /// `point_in_solid` refuses where it could decide (`PartialConeFace`).
-    partial_cone: bool,
 }
 
 fn poses() -> [Pose; 3] {
@@ -636,7 +633,6 @@ fn poses() -> [Pose; 3] {
                     (false, false),
                 ),
             ],
-            partial_cone: false,
         },
         Pose {
             name: "C1",
@@ -673,7 +669,6 @@ fn poses() -> [Pose; 3] {
                     (false, false),
                 ),
             ],
-            partial_cone: false,
         },
         Pose {
             name: "T1",
@@ -698,7 +693,6 @@ fn poses() -> [Pose; 3] {
                 ),
                 ("off both", Point3::new(-1.5, 2.5, 0.0), (false, false)),
             ],
-            partial_cone: true,
         },
     ]
 }
@@ -769,10 +763,8 @@ fn each_poses_body_is_its_closed_form_in_every_op() {
                     (*in_other, *in_cone)
                 };
                 let want_in = holds(in_a, in_b);
-                let at = match topo::point_in_solid(&body, *p, band(), tol) {
-                    Err(PointInSolidError::PartialConeFace { .. }) if pose.partial_cone => continue,
-                    at => at.unwrap_or_else(|e| panic!("{label}: {what}: {e:?}")),
-                };
+                let at = topo::point_in_solid(&body, *p, band(), tol)
+                    .unwrap_or_else(|e| panic!("{label}: {what}: {e:?}"));
                 assert_eq!(
                     at,
                     if want_in {

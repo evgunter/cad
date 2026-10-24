@@ -2,8 +2,9 @@
 id: idealised-sweep-closed-forms-held-inside-certified-enclosures
 kind: issue
 title: Projectbox's wall 1 no longer refuses at the default eps (main red); it and lily's Pappus hold an idealised sweep's closed form inside a certified enclosure without showing the built body IS that sweep
-status: open
+status: closed
 opened: 2026-10-24
+closed: 2026-10-24
 ---
 
 
@@ -52,3 +53,27 @@ Owed, per site: show that the built body is the ideal sweep
 (an exact rational path and frame), or integrate the built surfaces
 as `teapot.rs`'s `patch_quadrature` does and hold the enclosure to
 that, keeping the closed form as a fit check.
+
+## Closed (2026-10-24)
+
+Both sites now hold the certified enclosure to the built body's own
+volume, integrated over its surfaces by `demos/tour/src/patch_quadrature.rs`.
+The closed forms are fit checks.
+
+- **Projectbox** is fixed by QUAD's PR 5640, which landed while this
+  row was being worked. Wall 1 is retired at the default ε, and the
+  coil is held to its pinned `ROUND_COIL_V`. As an independent check,
+  this lane evaluated the dumped control nets in 40-digit arithmetic
+  with its own evaluator and got `V = 0.010360121170116696…`. Orders
+  16 and 20 agree to 6e-25, and the result matches the pin to all of
+  its digits. The default-ε enclosure `0.0103601199 ± 1.9e-7` holds it
+  with a 1.2e-9 miss, and the 1e-6 one `0.0103598206 ± 4.9e-5` holds
+  it with a 3.0e-7 miss. `A·L` sits 4.39e-3 above it. The size of that
+  deficit is evidence on
+  `work/carve/sweep-frame-is-a-minimal-rotation-from-the-start-tangent.md`.
+- **Lily.** This row said lily was not red. It was red at ε = 1e-12:
+  the bracket `[0.003134413572, 0.003134413732]` excluded Pappus
+  `0.003134413343` and held the skin's `0.003134413653`. Both leaves'
+  enclosures now hold their skins at all three ε rows. Pappus is held
+  to the skin at the cubic fit's `2·(5/384)·Δ⁴`: 9.9e-8 against
+  1.6e-7 for leaf b, and 8.0e-8 against 9.5e-8 for leaf c.

@@ -1027,7 +1027,7 @@ fn face_boundary_circles<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<Rim<T>> 
 /// majority, which is the fold's rule.
 ///
 /// `reach` is the lever arm the wedge's margins are metered at — the
-/// two faces' extent ([`crate::wedge_reach`]), as every reader of the
+/// two faces' extent ([`fn@crate::wedge_reach`]), as every reader of the
 /// wedge between an edge's faces levers it.
 ///
 /// `sense_plus`/`sense_minus` are the two faces' `Face::sense` BITS,

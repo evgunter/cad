@@ -554,10 +554,10 @@ fn the_containment_door_reports_the_trim_boundary_rather_than_guessing() {
 /// never read as one. A tilted cut leaves the wall bounded by a section
 /// ELLIPSE, whose height extreme is interior to an edge, so the
 /// rectangle the boundary vertices pin misstates the face in both
-/// directions. The door reads such a wall by its chart outline's parity
-/// along the point's ruling instead, so a point on the carrier is `In`
-/// exactly one wall face below the cut and in none above it — the
-/// rectangle would put both of the points below inside the face.
+/// directions. The door reads such a wall's region from its boundary
+/// edges instead, so a point on the carrier is `In` exactly one wall
+/// face below the cut and in none above it — the rectangle would put
+/// both of the points below inside the face.
 #[test]
 fn a_wall_closed_by_a_tilted_section_is_read_by_its_outline() {
     let tol = Tol::witness();
