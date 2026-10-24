@@ -2,13 +2,12 @@
 id: glue-disagreements-and-held-contradictions-after-stage-4
 kind: unit
 title: after D10 stage 4: type the glue door's disagreements and whatever declared-pair contradiction survives (mints C20-C22, C24, and the 35 held arms)
-status: parked
+status: open
 opened: 2026-10-10
 priority: P1
 cost: M
 design: true
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [intent-stage4-is-built]
 refs: [decided-coincidence-carries-a-synthetic-invalid-margin, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid, declared-pairs-retire]
 ---
 

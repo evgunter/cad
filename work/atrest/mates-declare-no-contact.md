@@ -2,8 +2,9 @@
 id: mates-declare-no-contact
 kind: issue
 title: D10 stage 4 PR I: ContactClass on mates, class_admission and MintedDeclaration retire; at rest every contact between copies, mated ones included, is recorded at the door
-status: review
+status: closed
 pr: 5637
+closed: 2026-10-24
 opened: 2026-10-08
 priority: P0
 cost: M
