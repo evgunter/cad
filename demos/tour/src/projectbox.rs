@@ -171,8 +171,9 @@ fn coil_volume(area: f64) -> f64 {
 /// The kernel's coil against [`coil_volume`]: the body is a stack of
 /// station-to-station skinned slabs, not the continuum tube, and falls
 /// SHORT of it (the gap is negative) by a discretization gap, measured 3.6e-3 at [`PER_TURN`]
-/// stations a turn (1.7e-4 at twice that, 1.1e-5 at four times). The
-/// spine's own length is 1.8e-6 short of the helix's, below all three.
+/// stations a turn (1.7e-4 at twice that, 1.1e-5 at four times) for
+/// the square wire and 4.4e-3 for the round. The spine's own length is
+/// 1.8e-6 short of the helix's, below all of them.
 const COIL_GAP: f64 = 5e-3;
 
 /// The cap on the gap at twice [`PER_TURN`] stations a turn, measured
@@ -184,17 +185,17 @@ const FINE_GAP: f64 = 5e-4;
 /// one `sweep_body` along the whole coil, standing on [`SPRING_AXIS`]'s
 /// boss. Returns the body and its relative gap to [`coil_volume`].
 ///
-/// Round wire is the natural section, and it is wall 1: the swept
-/// `circle_split` wire builds, and at the default ε and finer its
-/// volume refuses `QuadratureBudget`, an enclosure 3.98e-4 m wide
-/// against the 1024·ε target
+/// Round wire is the natural section, and it is wall 1 at ε = 1e-12
+/// only: there the swept `circle_split` wire's volume refuses
+/// `QuadratureBudget` against the 1024·ε target
 /// (`work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
-/// At ε = 1e-6 the wall is RETIRED, kept live: the enclosure was
-/// 3.59e-3 m when the wall was pinned (2026-10-06) and has tightened
-/// about 9x since, under the 1.024e-3 target, so the volume decides
-/// there (`work/quad/main-red-projectbox-wall-1-no-longer-refuses-at-eps-1e-6`).
-/// It measures the coil it should: `volume ± volume_pad` contains
-/// [`coil_volume`]`(π WIRE_H²)`, the slab gap inside [`COIL_GAP`] as
+/// At the default ε and looser the wall is RETIRED, kept live, and the
+/// volume measures the coil it should. Its walls are rational, so
+/// `volume ± volume_pad` is a certified enclosure, and it must hold
+/// the BUILT coil's volume, integrated over its own surfaces
+/// ([`crate::oracles::skin_quadrature`]). [`coil_volume`]`(π WIRE_H²)`
+/// is the ideal tube's, which the slabs fall short of by their
+/// discretization gap; it is held to the skin inside [`COIL_GAP`], as
 /// the square wire's is.
 fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     let round: Vec<ConstructedLoop<f64>> = vec![
@@ -217,30 +218,39 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             })
             .expect("the round-wire coil passes tier 3 or cannot be measured")),
     };
-    if tol.eps() > pncad::tolerance::DEFAULT_EPS {
+    let skin = crate::oracles::skin_quadrature(&round);
+    let want = coil_volume(PI * WIRE_H * WIRE_H);
+    let gap = (skin.volume - want) / want;
+    assert!(
+        (-COIL_GAP..0.0).contains(&gap),
+        "the round-wire coil's own volume {} against A·L = {want}: relative gap {gap:.3e}",
+        skin.volume
+    );
+    if tol.eps() >= pncad::tolerance::DEFAULT_EPS {
         let props = round_props.unwrap_or_else(|e| {
             panic!(
                 "wall 1 (measure the round-wire spring's volume) refuses at ε = {:e}, \
-                 looser than the default, where it was retired: {e:?} — the wall MOVED; \
-                 re-derive it",
+                 where it was retired: {e:?} — the wall MOVED; re-derive it",
                 tol.eps()
             )
         });
-        let want = coil_volume(core::f64::consts::PI * WIRE_H * WIRE_H);
-        let gap = (props.volume - want) / want;
+        let off = (props.volume - skin.volume).abs();
         assert!(
-            (props.volume - want).abs() <= props.volume_pad && (-COIL_GAP..0.0).contains(&gap),
-            "the round-wire coil's volume {} ± {:.1e} against A·L = {want}: relative gap \
-             {gap:.3e}",
+            off <= props.volume_pad + skin.volume_err && props.volume_pad > 0.0,
+            "the round-wire coil's volume {} ± {:.1e} against its own skin's {} (± {:.1e}): \
+             {off:.1e} apart, outside the certified enclosure",
             props.volume,
-            props.volume_pad
+            props.volume_pad,
+            skin.volume,
+            skin.volume_err
         );
         println!(
             "   wall 1 RETIRED at ε = {:e} — the round-wire spring's volume {} ± {:.1e} \
-             (A·L = {want})",
+             holds its own skin's {} ({off:.1e} off); A·L = {want}, {gap:.2e} of it",
             tol.eps(),
             props.volume,
-            props.volume_pad
+            props.volume_pad,
+            skin.volume
         );
     } else {
         crate::walls::wall(
