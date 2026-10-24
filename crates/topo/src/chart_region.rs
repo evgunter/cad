@@ -146,7 +146,7 @@ use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2,
-    is_finite_length,
+    is_underflowed_length,
 };
 
 use crate::body::Body;
@@ -339,16 +339,29 @@ pub enum ChartRegionError {
         /// Cell centres probed before the walk stopped: the cap.
         cells: usize,
     },
-    /// A trim edge's metred chart length is not a finite number: its
-    /// squared components overflowed, so `|edge|` is `∞` (or poison)
-    /// and every rung levered by it would read a finite height as an
-    /// exact zero ([`geom_core::is_finite_length`]). Recourse is the
-    /// model's scale, not ε.
-    NonFiniteEdge,
+    /// A trim edge's metred chart length is not an ordinary number:
+    /// past about 1e154 m its squared components overflow and `|edge|`
+    /// is unbounded (`∞` at a point scalar, an enclosure reaching `∞`
+    /// at the interval scalar, [`Real::is_bounded`](geom_core::Real::is_bounded)), and under about
+    /// 1e-162 m they flush and `|edge|` is `0` for a nonzero edge
+    /// ([`geom_core::is_underflowed_length`], a point-scalar question:
+    /// at the interval scalar an underflowed length still encloses the
+    /// true one, and the rungs escalate on it). Every crossing rung
+    /// levers by edge lengths, so either end reads a height wrong.
+    /// Recourse is the model's scale, not ε.
+    EdgeScale,
     /// The topology could not be walked, or the crossing walk
     /// contradicted itself (fail-loud kernel-invariant class).
     Corrupt,
 }
+
+/// [`ChartRegionError::EdgeScale`]'s reason and recourse, which
+/// `validate` reads apart — the census's `ChordScale` wording, with
+/// the bounds it leaves out.
+pub(crate) const EDGE_SCALE_REASON: &str = "an edge there is too long or too short to measure \
+     (longer than about 1e154 m or shorter than about 1e-162 m)";
+pub(crate) const EDGE_SCALE_RECOURSE: &str =
+    "Recourse: rescale the model so every edge length is an ordinary number";
 
 /// What [`ChartRegionError::Escalated`] leaves undecided.
 const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
@@ -465,11 +478,9 @@ impl core::fmt::Display for ChartRegionError {
                  pair's trims, or read it on a chart whose boundaries meet in fewer \
                  places"
             ),
-            Self::NonFiniteEdge => write!(
+            Self::EdgeScale => write!(
                 f,
-                "chart-region: a trim edge's chart length overflowed the number \
-                 format, so no height across it can be measured. Model the part at \
-                 a scale whose lengths are finite numbers"
+                "chart-region: {EDGE_SCALE_REASON}. {EDGE_SCALE_RECOURSE}"
             ),
             Self::Corrupt => write!(
                 f,
@@ -3062,11 +3073,32 @@ struct Crossing<T: Decide> {
     point: Point2<T>,
 }
 
+/// Each edge's length, `edge i` running from vertex `i` to `i + 1`:
+/// [`ChartRegionError::EdgeScale`] where one is unbounded or flushed
+/// to zero, because every crossing rung levers by these and an `∞`
+/// lever divides a finite height to an exact Zero.
+fn edge_lengths<T: Decide>(poly: &[Point2<T>]) -> Result<Vec<T>, ChartRegionError> {
+    (0..poly.len())
+        .map(|i| {
+            let e = poly[(i + 1) % poly.len()] - poly[i];
+            let len = e.norm();
+            if !len.is_bounded() || is_underflowed_length(len, e.norm_witness()) {
+                return Err(ChartRegionError::EdgeScale);
+            }
+            Ok(len)
+        })
+        .collect()
+}
+
 /// All proper crossings between two CCW metred polygons, every
 /// decision through named rows (fixed pair order, D9).
 ///
 /// # Rows
 ///
+/// - Before any row: each edge's length is asked ([`edge_lengths`]),
+///   refusing [`ChartRegionError::EdgeScale`] — not a decision, so no
+///   row and no K sample. At the interval scalar only the overflow
+///   half refuses; an underflowed enclosure escalates at the rungs.
 /// - `chart_region_parallel`: the transversality determinant over the
 ///   SHORTER edge's length, `over_lever(perp_dot(r, s), min(|r|, |s|))`
 ///   — the perpendicular height the LONGER edge makes across the
@@ -3131,23 +3163,17 @@ fn proper_crossings<T: Decide>(
     band: Band,
 ) -> Result<Vec<Crossing<T>>, ChartRegionError> {
     let escalate = ChartRegionError::Escalated;
-    // Every rung below levers by an edge length, and an overflowed
-    // `|edge| = ∞` divides a finite height to an exact Zero.
-    let finite_norm = |v: Vec2<T>| {
-        let len = v.norm();
-        is_finite_length(len)
-            .then_some(len)
-            .ok_or(ChartRegionError::NonFiniteEdge)
-    };
+    let a_lens = edge_lengths(a)?;
+    let b_lens = edge_lengths(b)?;
     let mut out = Vec::new();
     for ai in 0..a.len() {
         let p = a[ai];
         let r = a[(ai + 1) % a.len()] - p;
-        let r_len = finite_norm(r)?;
+        let r_len = a_lens[ai];
         for bi in 0..b.len() {
             let q = b[bi];
             let s = b[(bi + 1) % b.len()] - q;
-            let s_len = finite_norm(s)?;
+            let s_len = b_lens[bi];
             let qp = q - p;
             let denom = r.perp_dot(s);
             // ARGUMENT-ORDER INVARIANT (#1063 fix pass): both levers
@@ -3716,6 +3742,7 @@ mod tests {
             "lower",
             "separate",
             "declare",
+            "rescale",
         ];
         let diag = Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
@@ -3723,41 +3750,49 @@ mod tests {
             predicate: Some("chart_region_area"),
             terminal_sliver: false,
         };
-        // Every arm, constructed. The list is exhaustive by
-        // inspection and the compiler cannot check that for a Vec, so
-        // the count is asserted against the enum's own arm count as
-        // the census's exhaustive matches spell it.
-        let arms = vec![
-            ChartRegionError::ChartDivergence { detail: "same-key" },
-            ChartRegionError::NonPlanarTrim {
+        // Every arm, constructed: one sample per variant kind, through a
+        // `match` with no wildcard, so an arm added without a sample here
+        // is a compile error rather than a row that never runs.
+        let sample = |kind: ChartRegionErrorKind| match kind {
+            ChartRegionErrorKind::ChartDivergence => {
+                ChartRegionError::ChartDivergence { detail: "same-key" }
+            }
+            ChartRegionErrorKind::NonPlanarTrim => ChartRegionError::NonPlanarTrim {
                 face: FaceKey::default(),
                 half_edge: HalfEdgeKey::default(),
                 what: "a Harmonic image",
             },
-            ChartRegionError::MissingCache {
+            ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
                 half_edge: HalfEdgeKey::default(),
             },
-            ChartRegionError::ArmUnbounded { chart: "cone" },
-            ChartRegionError::SeamBranch,
-            ChartRegionError::PeriodFold,
-            ChartRegionError::CarrierTilt,
-            ChartRegionError::TouchingBoundary,
-            ChartRegionError::DegenerateLoop {
+            ChartRegionErrorKind::ArmUnbounded => ChartRegionError::ArmUnbounded { chart: "cone" },
+            ChartRegionErrorKind::SeamBranch => ChartRegionError::SeamBranch,
+            ChartRegionErrorKind::PeriodFold => ChartRegionError::PeriodFold,
+            ChartRegionErrorKind::CarrierTilt => ChartRegionError::CarrierTilt,
+            ChartRegionErrorKind::TouchingBoundary => ChartRegionError::TouchingBoundary,
+            ChartRegionErrorKind::DegenerateLoop => ChartRegionError::DegenerateLoop {
                 face: FaceKey::default(),
                 r#loop: LoopKey::default(),
             },
-            ChartRegionError::Escalated(diag),
-            ChartRegionError::RayExhausted,
-            ChartRegionError::WitnessSegmentCapExceeded {
-                segments: WITNESS_SEGMENT_CAP + 1,
-            },
-            ChartRegionError::WitnessCellCapExceeded {
-                segments: WITNESS_SEGMENT_CAP,
-                cells: WITNESS_CELL_CAP,
-            },
-            ChartRegionError::Corrupt,
-        ];
-        assert_eq!(arms.len(), 14, "an arm was added without a row here");
+            ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
+            ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
+            ChartRegionErrorKind::WitnessSegmentCapExceeded => {
+                ChartRegionError::WitnessSegmentCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP + 1,
+                }
+            }
+            ChartRegionErrorKind::WitnessCellCapExceeded => {
+                ChartRegionError::WitnessCellCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP,
+                    cells: WITNESS_CELL_CAP,
+                }
+            }
+            ChartRegionErrorKind::EdgeScale => ChartRegionError::EdgeScale,
+            ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
+        };
+        let arms: Vec<_> = <ChartRegionErrorKind as strum::IntoEnumIterator>::iter()
+            .map(sample)
+            .collect();
         for arm in &arms {
             let msg = arm.to_string();
             // `Escalated` delegates to `Indeterminate`, whose Display
@@ -4108,25 +4143,45 @@ mod tests {
         assert!((p - 2.0).abs() < 1e-12, "perimeter of the overlap");
     }
 
-    /// Two collinear segments sharing a span are never read as
-    /// disjoint: they refuse as touching while their lengths are
-    /// numbers, and refuse the overflowed length past that. Scaled by
-    /// 1e199 this pair once returned `Ok(0 crossings)` — the collinear
-    /// lane's `r̂` collapsed to zero and so did the overlap.
+    /// What `proper_crossings` answers for the pair `a`, `b` scaled by
+    /// `k`, as a class: the crossing count, or the refusal's variant.
+    fn crossing_class<T: Decide>(k: f64, a: [(f64, f64); 2], b: [(f64, f64); 2]) -> String {
+        let at = |(x, y): (f64, f64)| Point2::new(T::from_f64(x * k), T::from_f64(y * k));
+        let (a, b) = (a.map(at).to_vec(), b.map(at).to_vec());
+        match proper_crossings(&a, &b, band()) {
+            Ok(c) => format!("Ok({})", c.len()),
+            Err(ChartRegionError::Escalated(_)) => "Escalated".into(),
+            Err(e) => format!("{e:?}"),
+        }
+    }
+
+    /// A shared collinear span, by scale and by scalar. Where the band
+    /// resolves it, it touches; past either end of the format the
+    /// edge-length question refuses before any rung reads it; below the
+    /// band (1e-160) the whole pair is one point at ε and shares no
+    /// span. Scaled by 1e199 this pair once returned `Ok(0)`, with the
+    /// collinear lane's `r̂` collapsed to zero: the edge question now
+    /// refuses first, so the site no longer leans on `normalize`'s
+    /// prescale at either end. At the interval scalar the underflowed
+    /// lengths still enclose the true ones, so the rungs escalate on
+    /// them instead.
     #[test]
-    fn a_shared_collinear_span_is_never_read_as_disjoint() {
-        for (k, overflowed) in [(1.0, false), (1e150, false), (1e199, true), (1e300, true)] {
-            let a = vec![Point2::new(0.0, 0.0), Point2::new(2.0 * k, 0.0)];
-            let b = vec![Point2::new(1.0 * k, 0.0), Point2::new(3.0 * k, 0.0)];
-            let got = proper_crossings(&a, &b, band()).map(|c| c.len());
-            let want = if overflowed {
-                ChartRegionError::NonFiniteEdge
-            } else {
-                ChartRegionError::TouchingBoundary
-            };
-            assert!(
-                matches!(&got, Err(e) if *e == want),
-                "scale {k:e}: want Err({want:?}), got {got:?}"
+    fn a_shared_collinear_span_touches_or_refuses_its_scale() {
+        let (a, b) = ([(0.0, 0.0), (2.0, 0.0)], [(1.0, 0.0), (3.0, 0.0)]);
+        for (k, point, interval) in [
+            (1.0, "TouchingBoundary", "TouchingBoundary"),
+            (1e150, "TouchingBoundary", "TouchingBoundary"),
+            (1e199, "EdgeScale", "EdgeScale"),
+            (1e300, "EdgeScale", "EdgeScale"),
+            (1e-160, "Ok(0)", "Ok(0)"),
+            (1e-170, "EdgeScale", "Escalated"),
+            (1e-300, "EdgeScale", "Escalated"),
+        ] {
+            assert_eq!(crossing_class::<f64>(k, a, b), point, "f64 at {k:e}");
+            assert_eq!(
+                crossing_class::<geom_core::Interval>(k, a, b),
+                interval,
+                "Interval at {k:e}"
             );
         }
     }
@@ -4134,28 +4189,31 @@ mod tests {
     /// An edge whose length overflows refuses before any rung levers by
     /// it: an `∞` lever divides a finite height to an exact Zero, which
     /// read a pair 1 m apart, and a pair crossing at a shallow angle, as
-    /// collinear and overlapping. At 1e150 the same shapes decide.
+    /// collinear and overlapping. At 1e150 the same shapes decide, at
+    /// both scalars.
     #[test]
     fn an_overflowed_edge_refuses_rather_than_zeroing_its_heights() {
-        let shapes = |k: f64| {
-            let a = vec![Point2::new(0.0, 0.0), Point2::new(2.0 * k, 0.0)];
-            let apart = vec![Point2::new(1.0 * k, 1.0), Point2::new(3.0 * k, 1.0)];
-            let shallow = vec![Point2::new(0.5 * k, -1.0), Point2::new(2.5 * k, 1.0)];
-            [
-                ("1 m apart", a.clone(), apart, 0),
-                ("shallow crossing", a, shallow, 4),
-            ]
-        };
-        for (what, a, b, crossings) in shapes(1e150) {
-            let got = proper_crossings(&a, &b, band()).map(|c| c.len());
-            assert_eq!(got, Ok(crossings), "{what} at 1e150 decides");
-        }
-        for (what, a, b, _) in shapes(1e199) {
-            let got = proper_crossings(&a, &b, band()).map(|c| c.len());
+        let a = [(0.0, 0.0), (2.0, 0.0)];
+        for (what, b, decided) in [
+            ("1 m apart", [(1.0, 1e-150), (3.0, 1e-150)], "Ok(0)"),
+            ("shallow crossing", [(0.5, -1e-150), (2.5, 1e-150)], "Ok(4)"),
+        ] {
+            assert_eq!(crossing_class::<f64>(1e150, a, b), decided, "{what}, f64");
             assert_eq!(
-                got,
-                Err(ChartRegionError::NonFiniteEdge),
-                "{what} at 1e199 refuses the overflowed length"
+                crossing_class::<geom_core::Interval>(1e150, a, b),
+                decided,
+                "{what}, Interval"
+            );
+            let far = b.map(|(x, y)| (x, y * 1e-49));
+            assert_eq!(
+                crossing_class::<f64>(1e199, a, far),
+                "EdgeScale",
+                "{what}, f64"
+            );
+            assert_eq!(
+                crossing_class::<geom_core::Interval>(1e199, a, far),
+                "EdgeScale",
+                "{what}, Interval"
             );
         }
     }

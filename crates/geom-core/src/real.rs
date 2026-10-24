@@ -376,7 +376,10 @@ pub trait Real:
     /// through on purpose (an overflowed norm still ENCLOSES the true
     /// length); this one is for a value that must itself be finite to
     /// be what its type claims — a rigid motion's angle and
-    /// translation (`linalg::RigidMotion`'s mints and decided door).
+    /// translation (`linalg::RigidMotion`'s mints and decided door), and
+    /// a length every rung of a door levers by (`topo`'s
+    /// `chart_region::edge_lengths`), where an enclosure reaching `∞`
+    /// would divide a finite height to zero at its lower end.
     ///
     /// It is also how a generic body asks which binade a value is in
     /// without a comparison surface: `x · 2ᵏ` is unbounded exactly when
@@ -907,11 +910,7 @@ pub const fn pow2(e: i32) -> f64 {
 ///   propagates `NaN` but not infinity, so a `min` hides an
 ///   OVERFLOWED chord behind a finite one;
 /// - `profile`'s two 2-D director doors (`unit_from_components`,
-///   `arc_fillet::carrier_tangent`);
-/// - `topo`'s `chart_region::proper_crossings`, which decides no
-///   length but levers every rung by its edges' lengths, so it asks
-///   this of each edge before the first rung: an `∞` lever divides a
-///   finite height to an exact zero.
+///   `arc_fillet::carrier_tangent`).
 ///
 /// Each refuses with its own typed arm, naming the recourse its own
 /// caller can reach: the question is one question, but what a caller
@@ -920,8 +919,8 @@ pub const fn pow2(e: i32) -> f64 {
 /// is not.
 ///
 /// **This roster is hand-kept and nothing enforces it.** It is a
-/// six-door cross-crate claim living in a leaf crate that cannot see
-/// five of them, so it is exactly as current as the last person to
+/// five-door cross-crate claim living in a leaf crate that cannot see
+/// four of them, so it is exactly as current as the last person to
 /// edit it. Treat it as a reading aid, not as a census; the census
 /// that is checked is `docs/K-REPORT.md`'s, and it is about decided
 /// names rather than about this question.

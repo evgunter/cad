@@ -163,7 +163,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             segments: crate::chart_region::WITNESS_SEGMENT_CAP,
             cells: crate::chart_region::WITNESS_CELL_CAP,
         },
-        ChartRegionError::NonFiniteEdge,
+        ChartRegionError::EdgeScale,
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {

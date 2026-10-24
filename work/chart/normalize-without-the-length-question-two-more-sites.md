@@ -203,9 +203,16 @@ both read as collinear and overlapping at 1e199, and both refused
 `TouchingBoundary`, a claim that is false
 (`an_overflowed_edge_refuses_rather_than_zeroing_its_heights`; at 1e150
 the same shapes decide `Ok(0)` and `Ok(4)`). `proper_crossings` now
-asks `is_finite_length` of each edge before the first rung, and refuses
-a new typed arm, `ChartRegionError::NonFiniteEdge`. The census and
-`validate` classify it like every other arm.
+asks each edge's length before the first rung (`edge_lengths`). It must
+be bounded (`Real::is_bounded`, which also refuses an interval reaching
+`∞`) and not underflowed (`is_underflowed_length`, a point-scalar
+question). Otherwise it refuses a new typed arm,
+`ChartRegionError::EdgeScale`, which carries the census's `ChordScale`
+recourse with its bounds. The census and `validate` classify it like
+every other arm. The pins run at `f64` and at `Interval`
+(`a_shared_collinear_span_touches_or_refuses_its_scale`). With the gate
+in place they stay green under the pre-prescale `normalize`, and with
+it removed they go red: this site no longer leans on the prescale.
 
 **Site 2, executed, no code change.** `enters_material` reads `dir`'s
 direction only, never its length. With the prescale, a finite `dir`

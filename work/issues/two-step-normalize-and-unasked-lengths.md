@@ -25,10 +25,13 @@ zero vector rather than a direction. Below ~1e-162 the squares flush,
 `v.norm()` is `0`, and `v / 0` is `±∞`/NaN. `v.normalize()` is
 bit-identical to `v / v.norm()` wherever the largest component lies in
 `(2⁻⁵¹¹, 2⁵¹¹)` (its own docs), so the mechanical rewrite moves no
-in-range bit. Re-derive the list with:
+in-range bit. The reciprocal spelling `v * (T::one() / v.norm())`
+collapses the same way. Rewriting it to `.normalize()` is NOT
+bit-identical, because it drops one rounding. Re-derive both lists
+with:
 
 ```
-grep -rnE '([A-Za-z_][A-Za-z0-9_.]*) / \1\.norm\(\)' crates/topo/src crates/geom-brep/src
+grep -rnE '([A-Za-z_][A-Za-z0-9_.]*) (/ |\* \(T::one\(\) / )\1\.norm\(\)' crates/topo/src crates/geom-brep/src
 ```
 
 As of this filing, outside test modules (52 sites):
@@ -46,10 +49,10 @@ As of this filing, outside test modules (52 sites):
 - `crates/topo/src/boolean/section_cert/cone_search.rs`, line 349
 - `crates/topo/src/boolean/section_cert/cone_pair_search.rs`, lines 555, 596, 701 and 1691
 - `crates/geom-brep/src/implicit.rs`, lines 247 and 503
-- `crates/geom-brep/src/curve_pair/pose.rs`, line 419
+- `crates/geom-brep/src/curve_pair/pose.rs`, line 419 (reciprocal spelling)
 - `crates/geom-brep/src/curve_pair/walk.rs`, line 278
 - `crates/geom-brep/src/intersect.rs`, lines 1265, 1268, 1485 and 1488
-- `crates/geom-brep/src/props/curved.rs`, lines 3420, 3612 and 4801
+- `crates/geom-brep/src/props/curved.rs`, lines 3420, 3612 and 4801 (4801 is the reciprocal spelling)
 - `crates/geom-brep/src/tangent.rs`, line 90 (`d_hat`)
 
 Many divide a stored unit axis or a carrier normal whose length is
@@ -64,10 +67,13 @@ These are worse than shape 1, because the rewrite alone does not close
 them. The length is a lever, a denominator or a span, and an `∞` there
 turns a finite quantity into an exact zero or an infinite definite one.
 `chart_region::proper_crossings` was this shape, and is closed by the
-unit that filed this row. It asks `geom_core::is_finite_length` of each
-edge and refuses `ChartRegionError::NonFiniteEdge`.
+unit that filed this row. It asks each edge's length whether it is
+bounded (`Real::is_bounded`) and not underflowed
+(`is_underflowed_length`), and refuses `ChartRegionError::EdgeScale`.
 
-- `topo` `census::edge_geo` stores `len: chord.norm()` un-asked.
+- `topo` `census::edge_geo` and `census::segment` (the segment
+  twin, for an op's segments before any body holds them) both store
+  `len: chord.norm()` un-asked.
   `edge_vertex_at` reads it as `Margin::of(e.len - s)`
   (`pm_census_bound_end`). For an edge between ~1e154 and ~1.8e308 m,
   `len = ∞` while `s` is finite, so the far-end question answers
@@ -83,6 +89,17 @@ edge and refuses `ChartRegionError::NonFiniteEdge`.
 - `topo` `chord_join`: `t = … / len.powi(2)` and `u_ref: dir / len`.
 - `geom-brep` `offset_fit` (`m * (d / len)`) and `extent`
   (`… / len`, with `len` floored at `f64::MIN_POSITIVE` but not capped).
+- `geom-brep` `conic_bend::conic_bend_side`:
+  `bend.curvature.dot(n) / bend.curvature.norm()` is a two-step
+  direction component. The curvature's length is never asked:
+  overflow reads the component as 0, and a straight departure reads
+  `0/0`.
+- `geom-brep` `enters::enters_material_order2`: the margin divides by
+  the caller's `speed_sq`, which is never asked to be finite or
+  nonzero. An overflowed square reads the curvature comparison as an
+  exact Zero. **Unsure:** every in-tree caller may already derive
+  `speed_sq` from a jet whose length a door asked. That has not been
+  traced.
 - `topo` `boolean::section_cert::search_kit`,
   `ring_path::cone_islands` and
   `boolean::solid_contain::r1_generic_poses`: `v / n` after a local
@@ -90,9 +107,26 @@ edge and refuses `ChartRegionError::NonFiniteEdge`.
 
 ## Ownership
 
-These sites span ATREST, RESTREAD, CLEAVE, HONE, ORBIT, GERMTAIL, TANG,
-GERM, ROOTS and OFFSET ground (`work.py territory --files -`). That is
-why this is an issue rather than a row on one slate. The shape-1 rewrite
-is mechanical and bit-identical in range, so one lane could take all of
-it across those fences. Shape 2 wants each owner's length question and
-the typed refusal that goes with it.
+From `python3 scripts/work.py territory --files -` over every file
+above:
+
+- **topo boolean:** CLEAVE and HONE (`fate`, `node`, `rim_wedge`,
+  `torus_region`, `section_cert/*`, `solid_contain/r1_generic_poses`,
+  `chord_join`, `carrier_touch`, `sphere_region`, `solid_contain`).
+  Also ORBIT (`section_cert`, `sphere_region`), INSIDE
+  (`solid_contain`), APEX (`carrier_touch`) and TANG (`chord_join`).
+- **topo census:** ATREST and RESTREAD (`census`), ATREST
+  (`census/depth_gap`).
+- **topo, other:** GERMTAIL (`ring_path`); CURVED, OFFSET, SHELF and
+  SHELL (`offset_axial`).
+- **geom-brep:** CPAIR (`curve_pair/pose`, `curve_pair/walk`), ROOTS
+  (`implicit`), GERM, GERMCERT, GERMTAIL, ROOTS and TANG
+  (`intersect`), TANG (`tangent`), ENCL (`offset_fit`), FLUX and
+  FLUXTAIL (`props/curved`).
+- **Unowned:** `conic_bend`, `enters`, `extent` and
+  `ring_path/cone_islands`.
+
+That spread is why this is an issue rather than a row on one slate.
+The shape-1 rewrite is mechanical and bit-identical in range, so one
+lane could take all of it across those fences. Shape 2 wants each
+owner's length question and the typed refusal that goes with it.
