@@ -1280,10 +1280,12 @@ impl<T: Decide> LoopEdge<T> {
         band: Band,
     ) -> Result<EdgeContact, ReadEscalation> {
         Ok(match self {
-            Self::Chord => match ray_walk::on_segment_margin(a, b, q, rows.line, band)? {
-                Some(on) => EdgeContact::On(on),
-                None => EdgeContact::Off,
-            },
+            Self::Chord => {
+                match ray_walk::on_segment_margin(a, b, q, &rows.line.segment_rows(), band)? {
+                    Some(on) => EdgeContact::On(on),
+                    None => EdgeContact::Off,
+                }
+            }
             Self::Conic(k) => match k.hit(q, band)? {
                 ConicHit::Off => EdgeContact::Off,
                 ConicHit::Carrier => EdgeContact::Carrier,

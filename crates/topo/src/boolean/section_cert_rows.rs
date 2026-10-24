@@ -2595,19 +2595,36 @@ fn a_small_notch_in_a_cone_face_reads_out_at_every_size() {
 /// A notch `1.5·K·ε` on a side, on the cone at its top rim and on the
 /// torus at its outer equator, where each region reads the notch on its
 /// edges' own carriers. The face door at either notch's centre,
-/// `0.75·K·ε` from the face, may escalate on that graze; it must never
-/// answer `In`.
+/// `0.75·K·ε` from the face, escalates on that graze, in the boundary
+/// pass; the direction is pinned beside it: two notch-widths past the
+/// notch, off the face, reads `Out`, and two into the face past the
+/// notch's inner corner reads `In`. A probe may escalate where the
+/// band does not resolve a far ring's own rows (the ring `(100, 1)` at
+/// `ε = 10⁻¹²`), but each side reads definitely somewhere, and never
+/// the other way.
 #[test]
 fn the_smallest_notch_never_reads_in() {
     let tol = Tol::witness();
     let s = 1.5 * tol.k() * tol.eps();
     let mut bad = Vec::new();
-    let mut door_reads =
-        |what: String, got: Result<Option<FaceContainment>, crate::ContainError>| {
-            if matches!(got, Ok(Some(FaceContainment::In))) {
-                bad.push(format!("{what}: the door answers In"));
-            }
-        };
+    let (mut outs, mut ins) = (0, 0);
+    let mut door_reads = |what: String,
+                          [notch, out, inside]: [Result<Option<FaceContainment>, crate::ContainError>;
+                              3]| {
+        if !matches!(notch, Err(crate::ContainError::Escalated { .. })) {
+            bad.push(format!("{what}: the notch reads {notch:?}"));
+        }
+        match out {
+            Ok(Some(FaceContainment::Out)) => outs += 1,
+            Err(crate::ContainError::Escalated { .. }) => {}
+            other => bad.push(format!("{what}: past the notch reads {other:?}")),
+        }
+        match inside {
+            Ok(Some(FaceContainment::In)) => ins += 1,
+            Err(crate::ContainError::Escalated { .. }) => {}
+            other => bad.push(format!("{what}: inside the notch's corner reads {other:?}")),
+        }
+    };
     for ring in RINGS {
         let (du, dv) = (s / (ring.0 + ring.1), s / ring.1);
         let (w, a) = (PI / 2.0, PI / 4.0);
@@ -2622,7 +2639,12 @@ fn the_smallest_notch_never_reads_in() {
         let (body, face) = torus_sheet(ring, &corners);
         door_reads(
             format!("ring {ring:?}"),
-            door(&body, face, torus_at(ring, (w - 0.5 * du, -0.5 * dv))),
+            [
+                (w - 0.5 * du, -0.5 * dv),
+                (w - 0.5 * du, 2.0 * dv),
+                (w - 3.0 * du, -3.0 * dv),
+            ]
+            .map(|at| door(&body, face, torus_at(ring, at))),
         );
     }
     let w = PI / 4.0;
@@ -2640,9 +2662,18 @@ fn the_smallest_notch_never_reads_in() {
         );
         door_reads(
             format!("frustum {h0}..{h1}"),
-            door(&body, face, cone_at(h1 - 0.5 * dh, w - 0.5 * dt)),
+            [
+                (h1 - 0.5 * dh, w - 0.5 * dt),
+                (h1 + 2.0 * dh, w - 0.5 * dt),
+                (h1 - 3.0 * dh, w - 3.0 * dt),
+            ]
+            .map(|(h, u)| door(&body, face, cone_at(h, u))),
         );
     }
+    assert!(
+        outs > 0 && ins > 0,
+        "no definite side: {outs} Out, {ins} In"
+    );
     assert!(
         bad.is_empty(),
         "notch {s:e} m at ε {:e}:\n{}",

@@ -14,7 +14,14 @@ Found by CHART's `curved-face-containment-answers-none-on-a-ringed-face`
 now read a face's region from its boundary, with the face to the left of
 its loops under its outward normal (S10), as the sphere and torus doors
 always have. Tier 3's check 6 holds the same convention
-(`ValidationError::CurvedSenseInverted`). The chart trims they replaced
+(`ValidationError::CurvedSenseInverted`) wherever its curved arm reads a
+side. It exempts an ellipse-trimmed wall, whose boundary parse refuses,
+but such a wall's flips are refused by other arms all the same. A lone
+flip is a `LaminaWedge` where two walls share the cylinder, and a
+`NegativeVolume` or `PinchCornerCrossed` where the wall is one face. A
+whole-body inversion is a `LoopRoleInverted` at the planar faces. This
+was executed in PR 5664's review
+(`step-export` `m6_6_sense_gate`). The chart trims the doors replaced
 read no orientation, so these fixtures never showed it.
 
 ## What

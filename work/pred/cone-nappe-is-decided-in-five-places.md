@@ -82,11 +82,25 @@ is not matched by this sweep.
 
 ## Moved by CHART (2026-10-24)
 
-Branch `chart/ringed-curved-doors` deletes `bool_cone_trim_nappe` and
-`bool_cone_trim_side` with the cone chart trim. Its region reading,
-`topo::boolean::ruled_region`, decides which nappe a point lies on under
-`bool_ruled_region_nappe` (the query's, an aimed path's target's, an
-edge's middle: `(y − apex)·â`) and `bool_ruled_region_component` (a
-root's nappe on a ruling leg). The ray lane's cone arm now reads a hit's
-nappe under `bool_ray_cone_nappe`. That is still one fact under several
-names: the count moved, but the row is not settled.
+Branch `chart/ringed-curved-doors` (PR 5664) deletes
+`bool_cone_trim_nappe` and `bool_cone_trim_side` with the cone chart
+trim, and `bool_cone_apex_nappe` with `cone_apex_closure`. Its region
+reading, `topo::boolean::ruled_region`, decides which nappe a POINT lies
+on under one name, `bool_ruled_region_nappe`, at four sites, each the
+sign of `(y − apex)·â`:
+
+- `RuledFaceRegion::nappe`: the query's, and a generator's target from
+  the apex;
+- `RuledFaceRegion::reaches_nappe`: a conic edge's middle, a line edge's
+  two ends;
+- `RuledFaceRegion::landings`: a conic's root on a ruling leg's meridian
+  plane.
+
+The ray lane's cone arm reads a hit's nappe under `bool_ray_cone_nappe`.
+
+Routing these through `offset_nappe::face_nappe_reading` was weighed in
+PR 5664's review and does not fit. That door answers a FACE's nappe and
+refuses a face whose corners straddle the apex. The region reads a
+point's nappe on faces that may reach both nappes, and its own answers
+must hold there. So these sites join the per-point granularity this row
+already names: the count moved, but the row is not settled.

@@ -82,19 +82,23 @@
 //!   which the legs divide by, or from a cone's apex, which reads `p`
 //!   from the apex where it is `Zero`.
 //! - `bool_ruled_region_nappe`: which side of a cone's apex a point lies
-//!   along the axis — `p`'s, a target's, an edge's middle.
+//!   along the axis — `p`'s, a generator's target, a conic edge's middle,
+//!   a line edge's end, a conic's crossing with a generator's meridian
+//!   plane.
 //! - `bool_ruled_region_component`: which of a meridian plane's two
-//!   points of an edge a root is (its offset from the axis along the
-//!   leg's radial, and on a cone its nappe); whether a line edge lies on
-//!   the leg's line (its ends' larger distance from it); whether it
-//!   reaches the apex.
+//!   points of an edge a root is: its offset from the axis along the
+//!   leg's radial.
+//! - `bool_ruled_region_collinear`: whether a line edge lies on a ruling
+//!   leg's line: its ends' larger distance from it.
 //! - `bool_ruled_region_span`: a root's parameter against its edge's span
 //!   ends, at the conic's smaller semi-axis or the line's unit speed.
-//! - `bool_ruled_region_at`: a crossing's place along its leg, from the
-//!   leg's start: arc length on a parallel, metres on a ruling.
-//! - `bool_ruled_region_corner`: a crossing, or an end of an edge on a
-//!   leg's line, against a first leg's corner or a generator's end at the
-//!   apex; and an aimed leg's length to its corner.
+//! - `bool_ruled_region_at`: a crossing's place along its leg, or an end
+//!   of an edge on the leg's line, from the leg's start: arc length on a
+//!   parallel, metres on a ruling.
+//! - `bool_ruled_region_end`: a place along a leg against its end — a
+//!   first leg's corner, or a generator's end at the apex.
+//! - `bool_ruled_region_corner`: an aimed ruling's run to its corner,
+//!   which says the side of `p` the target's parallel lies.
 //! - `bool_ruled_region_order`: two crossings' places along the path.
 //! - `bool_ruled_region_cross`: the sine between the leg and the edge's
 //!   face side at the closest crossing, at the face's scale.
@@ -119,10 +123,10 @@
 //!   meridian plane's two points of an edge are `2ρ` apart across the
 //!   axis, and a cone's two nappes are apart wherever a point is clear of
 //!   the apex.
-//! - **at, corner, order**: positions along the path, in metres.
-//! - **cross**: a sine times the face's scale (the cylinder's radius, the
-//!   cone face's reach from its apex), the displacement the crossing
-//!   angle buys within that scale of the crossing.
+//! - **at, end, corner, order**: positions along the path, in metres.
+//! - **cross**: a sine times the face's scale (the cylinder's radius, a
+//!   bound on the cone face's reach from its apex), the displacement the
+//!   crossing angle buys within that scale of the crossing.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -136,7 +140,7 @@ use super::region::{
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, LoopKey};
-use crate::ray_walk::{self, Crossings, ParityRows, RayFault};
+use crate::ray_walk::{self, Crossings, RayFault, SegmentRows};
 use crate::splitting::containment::ConicRows;
 use crate::validate::decide;
 use geom_brep::roots::Roots;
@@ -155,14 +159,10 @@ const BOUNDARY: ConicRows = ConicRows {
     straddle: "bool_ruled_region_arc_straddle",
 };
 
-/// A line edge's boundary reading's rows: [`ray_walk::on_segment`] reads
-/// `segment` and `boundary` and nothing else, so `side` and `advance`
-/// are never minted.
-const LINE: ParityRows = ParityRows {
+/// A line edge's boundary reading's rows ([`ray_walk::on_segment`]).
+const LINE: SegmentRows = SegmentRows {
     segment: "bool_ruled_region_edge_length",
     boundary: "bool_ruled_region_edge",
-    side: "bool_ruled_region_edge_side",
-    advance: "bool_ruled_region_edge_advance",
 };
 
 /// The surface a ruled face lies on.
@@ -197,6 +197,12 @@ impl<T: Decide> Ruled<T> {
     fn axis(&self) -> Vec3<T> {
         match *self {
             Self::Cylinder { axis, .. } | Self::Cone { axis, .. } => axis,
+        }
+    }
+
+    fn u_ref(&self) -> Vec3<T> {
+        match *self {
+            Self::Cylinder { u_ref, .. } | Self::Cone { u_ref, .. } => u_ref,
         }
     }
 
@@ -238,8 +244,9 @@ pub(crate) struct RuledFaceRegion<T: geom_core::Real> {
     sense: bool,
     /// The face's outer loop, named by an exhaustion.
     outer: LoopKey,
-    /// The lever of the crossing's sine: the cylinder's radius, or the
-    /// farthest a cone face's boundary reaches from the apex.
+    /// The lever of the crossing's sine: the cylinder's radius, or a
+    /// bound on the farthest a cone face's boundary reaches from the
+    /// apex, never under it.
     scale: T,
     edges: Vec<RegionEdge<T>>,
 }
@@ -358,12 +365,11 @@ enum LegShape<T: geom_core::Real> {
     /// The line from `start` along unit `dir`. `radial` is the unit
     /// direction from the axis to the leg, in its meridian plane; on a
     /// cone, `nappe` is the side of the apex the leg runs on (`true` the
-    /// opening one), and `to_apex` whether its end is the apex.
+    /// opening one).
     Ruling {
         dir: Vec3<T>,
         radial: Vec3<T>,
         nappe: bool,
-        to_apex: bool,
     },
 }
 
@@ -434,7 +440,7 @@ impl<T: Decide> Leg<T> {
         let Some(end) = self.end else {
             return Ok(true);
         };
-        match decide("bool_ruled_region_corner", Margin::of(end - s), band).map_err(in_band)? {
+        match decide("bool_ruled_region_end", Margin::of(end - s), band).map_err(in_band)? {
             Sign::Positive => Ok(true),
             Sign::Negative => Ok(false),
             Sign::Zero => Err(RayFault::Graze),
@@ -468,8 +474,12 @@ enum PathSpec<T: geom_core::Real> {
 /// is not a line, a circle or an ellipse — a spline or a spiric — whose
 /// crossings this reading has no closed form for. A line, circle or
 /// ellipse is taken as a ruling, a parallel or a plane section of the
-/// surface, unchecked: every such edge of such a face is one at rest
-/// (tier 3 places each edge on both its faces' carriers).
+/// surface, unchecked. The premise is that every edge lies on the face's
+/// surface, as a line on a cylinder or a cone is then a ruling and a
+/// conic a plane section: tier 3 places each edge on both its faces'
+/// carriers at rest, and on the reduction's working copies an edge a
+/// face gains is a section of its carrier with the other operand's, on
+/// both by construction.
 ///
 /// Null scaffolding, a zero-length copy of a vertex (its two ends on one
 /// point), bounds nothing and is left out; an uncertified edge between
@@ -570,14 +580,7 @@ pub(crate) fn ruled_face_region<T: Decide>(
     };
     let seams: Vec<EdgeKey> = edges.iter().map(|a| a.edge).filter(|&e| seam(e)).collect();
     edges.retain(|a| !seams.contains(&a.edge));
-    let scale = match surface {
-        Ruled::Cylinder { radius, .. } => radius,
-        Ruled::Cone { apex, .. } => edges
-            .iter()
-            .flat_map(|e| [e.at(e.t0), e.at(e.t1), e.at(geom::mid_param(e.t0, e.t1))])
-            .map(|y| (y - apex).norm())
-            .fold(T::zero(), T::max),
-    };
+    let scale = reach_bound(&surface, &edges);
     Ok(Some(RuledFaceRegion {
         surface,
         sense: f.sense,
@@ -585,6 +588,25 @@ pub(crate) fn ruled_face_region<T: Decide>(
         scale,
         edges,
     }))
+}
+
+/// The lever of a face's crossings ([`RuledFaceRegion::reach`]): the
+/// cylinder's radius, or a bound on the farthest the cone face's
+/// boundary reaches from the apex, never under it. It is bounded edge by
+/// edge: a segment's distance from the apex is convex along it, so its
+/// farther end bounds it, and a conic lies within its larger semi-axis
+/// of its centre.
+fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[RegionEdge<T>]) -> T {
+    match *surface {
+        Ruled::Cylinder { radius, .. } => radius,
+        Ruled::Cone { apex, .. } => edges
+            .iter()
+            .map(|e| match e.carrier() {
+                Carrier::Line { .. } => (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm()),
+                Carrier::Conic(c) => (c.center - apex).norm() + c.a.max(c.b),
+            })
+            .fold(T::zero(), T::max),
+    }
 }
 
 impl<T: Decide> RuledFaceRegion<T> {
@@ -656,36 +678,42 @@ impl<T: Decide> RuledFaceRegion<T> {
         .map(Some)
     }
 
-    /// The face's scale: the cylinder's radius, or the farthest its
-    /// boundary reaches from the cone's apex.
+    /// The face's scale: the cylinder's radius, or a bound on the
+    /// farthest its boundary reaches from the cone's apex, never under
+    /// it.
     pub(crate) fn reach(&self) -> T {
         self.scale
     }
 
-    /// A point of the face the side-at-infinity reader may aim at: the
-    /// mean of the boundary's middle points, carried onto the surface
-    /// along its parallel. It need not lie in the face; it only steers.
-    pub(crate) fn aim(&self) -> Point3<T> {
+    /// A point of the face's surface the side-at-infinity reader may aim
+    /// at: the mean of the boundary's middle points, carried onto the
+    /// surface along its parallel, or onto the surface's reference
+    /// azimuth where that mean is on the axis (a full band whose rims
+    /// start half a turn apart). It need not lie in the face; it only
+    /// steers. `None` for a face with no boundary edge, which offers no
+    /// aim.
+    pub(crate) fn aim(&self) -> Option<Point3<T>> {
         let base = self.surface.base();
-        let (sum, n) = self
-            .edges
+        let first = self.edges.first()?;
+        let middle = |e: &RegionEdge<T>| e.at(geom::mid_param(e.t0, e.t1)) - base;
+        let (sum, n) = self.edges[1..]
             .iter()
-            .fold((Vec3::zero(), T::zero()), |(sum, n), e| {
-                (
-                    sum + (e.at(geom::mid_param(e.t0, e.t1)) - base),
-                    n + T::one(),
-                )
+            .fold((middle(first), T::one()), |(sum, n), e| {
+                (sum + middle(e), n + T::one())
             });
         let mean = sum / n;
         let axis = self.surface.axis();
         let h = mean.dot(axis);
         let radial = mean - axis * h;
-        let radial = radial / radial.norm();
-        let rho = match self.surface {
+        let rho = radial.norm();
+        // Evaluation, not a decision: the meridian only steers.
+        let on_axis = rho.select_le_zero(T::one(), T::zero());
+        let dir = radial / rho.select_le_zero(T::one(), rho) + self.surface.u_ref() * on_axis;
+        let at = match self.surface {
             Ruled::Cylinder { radius, .. } => radius,
             Ruled::Cone { half_angle, .. } => h.abs() * half_angle.tan(),
         };
-        base + axis * h + radial * rho
+        Some(base + axis * h + dir * at)
     }
 
     /// Three points of every edge, in loop order: the aimed paths'
@@ -698,20 +726,33 @@ impl<T: Decide> RuledFaceRegion<T> {
         })
     }
 
-    /// Whether any edge may lie on `p`'s nappe of the cone: one whose
-    /// middle is not definitely on the other.
+    /// Whether any edge may lie on `p`'s nappe of the cone: one not
+    /// definitely on the other. A conic edge, a bounded plane section,
+    /// lies on one nappe and is read at its middle. A line edge, a
+    /// generator, may run through the apex onto both and is read at its
+    /// two ends: a segment lies on its ends' nappes and the apex, which
+    /// is on neither, so an end within the band's zero of the apex says
+    /// nothing. Whatever of the edge lies on `p`'s nappe within that zero
+    /// bounds nothing as far from the apex as `p`, which its own nappe
+    /// reading places clear of it.
     fn reaches_nappe(&self, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         let own = self.nappe(p, band)?;
         for edge in &self.edges {
-            let mid = edge.at(geom::mid_param(edge.t0, edge.t1));
-            match decide(
-                "bool_ruled_region_nappe",
-                Margin::of((mid - self.surface.base()).dot(self.surface.axis())),
-                band,
-            ) {
-                Ok(Sign::Positive) if !own => {}
-                Ok(Sign::Negative) if own => {}
-                _ => return Ok(true),
+            let (points, at_apex_says_nothing) = match edge.carrier() {
+                Carrier::Line { .. } => (vec![edge.at(edge.t0), edge.at(edge.t1)], true),
+                Carrier::Conic(_) => (vec![edge.at(geom::mid_param(edge.t0, edge.t1))], false),
+            };
+            for y in points {
+                match decide(
+                    "bool_ruled_region_nappe",
+                    Margin::of((y - self.surface.base()).dot(self.surface.axis())),
+                    band,
+                ) {
+                    Ok(Sign::Positive) if !own => {}
+                    Ok(Sign::Negative) if own => {}
+                    Ok(Sign::Zero) if at_apex_says_nothing => {}
+                    _ => return Ok(true),
+                }
             }
         }
         Ok(false)
@@ -802,12 +843,7 @@ impl<T: Decide> RuledFaceRegion<T> {
             }
         };
         Leg {
-            shape: LegShape::Ruling {
-                dir,
-                radial,
-                nappe,
-                to_apex: end.is_some(),
-            },
+            shape: LegShape::Ruling { dir, radial, nappe },
             start: a,
             end,
         }
@@ -847,7 +883,6 @@ impl<T: Decide> RuledFaceRegion<T> {
                         dir: g / g.norm(),
                         radial,
                         nappe,
-                        to_apex: false,
                     },
                     start: apex,
                     end: None,
@@ -860,14 +895,10 @@ impl<T: Decide> RuledFaceRegion<T> {
                 first_forward,
                 then_forward,
             } => {
+                // Both corners lie on `p`'s nappe (on its parallel, or on
+                // its generator at the target's reach), so the path does
+                // too, wherever the target lies: it only steers.
                 let nappe = self.p_nappe(p, band).map_err(fault)?;
-                // A path never crosses the apex: a target on the other
-                // nappe is out of its reach.
-                if let Ruled::Cone { .. } = self.surface
-                    && self.nappe(target, band).ok() != Some(nappe)
-                {
-                    return Err(RayFault::Unread);
-                }
                 let (first, corner) = if parallel_first {
                     let (rho_p, h_p, _) = self.polar(p);
                     let (_, _, radial_t) = self.polar(target);
@@ -899,9 +930,6 @@ impl<T: Decide> RuledFaceRegion<T> {
                     let mut first = self.ruling(p, nappe, outward);
                     // The corner lies short of the apex: the leg ends there.
                     first.end = Some(gap.abs());
-                    if let LegShape::Ruling { to_apex, .. } = &mut first.shape {
-                        *to_apex = false;
-                    }
                     (first, corner)
                 };
                 let kept = self.leg_crossings(&first, T::zero(), &mut crossings, band)?;
@@ -1055,7 +1083,7 @@ impl<T: Decide> RuledFaceRegion<T> {
                     // `2ρ` apart across the axis, and on a cone the leg
                     // runs on one nappe.
                     if let Ruled::Cone { .. } = self.surface {
-                        match row("bool_ruled_region_component", w.dot(axis))? {
+                        match row("bool_ruled_region_nappe", w.dot(axis))? {
                             Sign::Positive if nappe => {}
                             Sign::Negative if !nappe => {}
                             Sign::Zero => return Err(RayFault::Graze),
@@ -1069,29 +1097,22 @@ impl<T: Decide> RuledFaceRegion<T> {
                     }
                 }
             }
-            (Carrier::Line { .. }, LegShape::Ruling { dir, to_apex, .. }) => {
+            (Carrier::Line { .. }, LegShape::Ruling { dir, .. }) => {
                 let ends = [edge.at(edge.t0), edge.at(edge.t1)];
                 let off_line = |y: Point3<T>| {
                     let w = y - leg.start;
                     (w - dir * w.dot(dir)).norm()
                 };
-                match row(
-                    "bool_ruled_region_component",
+                // Two rulings apart meet nowhere the leg runs: a
+                // cylinder's never meet, and a cone's only at the apex,
+                // which a leg reaches only at its end, where nothing is
+                // read.
+                if row(
+                    "bool_ruled_region_collinear",
                     off_line(ends[0]).max(off_line(ends[1])),
-                )? {
-                    Sign::Zero => self.along(edge, leg, band)?,
-                    // Two rulings apart: a cylinder's never meet, a cone's
-                    // only at the apex, where a leg reaches only its end.
-                    _ => {
-                        if let Ruled::Cone { apex, .. } = self.surface
-                            && to_apex
-                        {
-                            let near = (ends[0] - apex).norm().min((ends[1] - apex).norm());
-                            if row("bool_ruled_region_component", near)? == Sign::Zero {
-                                return Err(RayFault::Graze);
-                            }
-                        }
-                    }
+                )? == Sign::Zero
+                {
+                    self.along(edge, leg, band)?;
                 }
             }
         }
@@ -1117,9 +1138,7 @@ impl<T: Decide> RuledFaceRegion<T> {
                 LegShape::Parallel { radius, .. } => radius * turn(leg.angle(y)),
                 LegShape::Ruling { dir, .. } => {
                     let s = (y - leg.start).dot(dir);
-                    match decide("bool_ruled_region_corner", Margin::of(s), band)
-                        .map_err(in_band)?
-                    {
+                    match decide("bool_ruled_region_at", Margin::of(s), band).map_err(in_band)? {
                         Sign::Negative => {
                             behind += 1;
                             continue;
@@ -1132,7 +1151,7 @@ impl<T: Decide> RuledFaceRegion<T> {
             let Some(end) = leg.end else {
                 return Err(RayFault::Graze);
             };
-            match decide("bool_ruled_region_corner", Margin::of(end - s), band).map_err(in_band)? {
+            match decide("bool_ruled_region_end", Margin::of(end - s), band).map_err(in_band)? {
                 Sign::Negative => past += 1,
                 Sign::Positive | Sign::Zero => return Err(RayFault::Graze),
             }

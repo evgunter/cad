@@ -5197,10 +5197,13 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     vertex carries is not seen;
 ///   - the curved arm's documented residuals: the rimless sphere band;
 ///     NURBS faces; the quadrature-owned conic-trimmed walls, whose
-///     boundary parse refuses typed and is therefore exempt — such a
-///     body's flips, single-face AND whole-body, certify green today
-///     (executed on the tilted-section cylinder and pinned as
-///     residual).
+///     boundary parse refuses typed and is therefore exempt here. Such
+///     a body's flips are refused by other arms: a lone flip by the
+///     material wedge (`LaminaWedge`, two walls on one cylinder) or by
+///     check 7 and the pinch corners (a wall that is one face), and the
+///     whole-body inversion by check 6's planar arm at the planar faces
+///     (`step-export`'s `m6_6_sense_gate` rows on the tilted-section
+///     cylinder and the tilted-split washer).
 /// - **Shell winding where the witness cannot be read** (check 10's
 ///   silences, the false-refusal direction it must never fail in): a
 ///   shell whose own signed volume does not decide a role (in-band,
@@ -7564,12 +7567,15 @@ pub(crate) fn tier3_local_checks_marked<
     // degenerate/out-of-inventory boundary, conic-trimmed faces the
     // quadrature lane owns, an uncertifiable loop) is EXEMPT here —
     // corrupt structure is tier 1/2's job, an uncomputable volume is
-    // check 7's. The conic-trim exemption is a RECORDED residual, not
-    // a covered class: an ellipse-trimmed wall has a winding-derived
-    // (bit-free) quadrature flux AND an exempt parse, so its flips —
-    // single-face and whole-body — certify green today (executed on
-    // the tilted-section cylinder, pinned as residual; closes when the
-    // ellipse-rim material-side encoding lands). A one-loop sphere
+    // check 7's. The conic-trim exemption is a RECORDED residual of
+    // this arm, not a covered class: an ellipse-trimmed wall has a
+    // winding-derived (bit-free) quadrature flux AND an exempt parse.
+    // Its flips are refused one layer away — a lone flip by the
+    // material wedge (`LaminaWedge`) or check 7 and the pinch corners,
+    // the whole-body inversion by the planar arm above at the planar
+    // faces (`step-export`'s `m6_6_sense_gate` rows); the arm itself
+    // reads it when the ellipse-rim material-side encoding lands. A
+    // one-loop sphere
     // face with both poles on its loop encodes no side alone
     // (`Unencoded`), and is read through its SEAM REGION: the faces on
     // its surface entity it reaches across shared edges

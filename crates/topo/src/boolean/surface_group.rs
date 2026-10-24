@@ -64,8 +64,7 @@ pub(super) fn off_axis<T: Decide>(origin: Point3<T>, axis: Vec3<T>, c: Point3<T>
 ///
 /// Every site that asks it decides the margins under its own predicate
 /// name, because the names are its door's rows: [`WrapRims`]
-/// (`bool_wrap_rim`), the cylinder wall's rim class
-/// (`bool_wall_iso_rim`) and the sphere trim's latitude-rim class
+/// (`bool_wrap_rim`) and the sphere trim's latitude-rim class
 /// (`bool_sphere_iso_rim`).
 pub(super) fn coaxial_margins<T: Decide>(
     origin: Point3<T>,

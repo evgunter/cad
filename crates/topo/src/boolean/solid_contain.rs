@@ -55,13 +55,13 @@
 //! CARRIER, where its foot lies outside the face. The schedule is walked
 //! by [`crate::ray_walk::walk`], and each ray counts its crossings
 //! ([`crate::ray_walk::Crossings::first_count`]): a crossing landing ON
-//! a curved face's trim boundary or meeting its face tangentially before
+//! a curved face's boundary or meeting its face tangentially before
 //! the count turns, a tie between two faces that do not meet, a tangent
 //! root, or a crossing at `q` grazes the ray; a ray within the band of a
-//! vertex, or of a face at two of its edges (a wedge), reads nothing. A ray that may meet an
-//! untrimmable cone face (`FaceGeo::PartialCone`) ahead of `q` is
-//! blocked, and so is one whose hit lands where a face's outline cannot
-//! be read. On the plane arm, and at every crossing's advance and order,
+//! vertex, or of a face at two of its edges (a wedge), reads nothing. A
+//! ray that meets a cylinder or cone face whose region cannot be read
+//! (`FaceGeo::PartialWall`, `FaceGeo::PartialCone`) ahead of `q`, within
+//! the ball that holds the face, is blocked. On the plane arm, and at every crossing's advance and order,
 //! an in-band margin is about the ray — how it runs against a carrier,
 //! where it meets one, a hit near a face's loop however far from `q` —
 //! and sets it aside. A ray parallel to a carrier within the band skips
@@ -128,16 +128,13 @@
 //! - **`bool_ray_cone_disc`**: that quadratic's discriminant over the
 //!   same extent (a length). Zero ⇒ the ray grazes a generator —
 //!   graze, retry; Negative ⇒ definite miss.
-//! - **`bool_ray_cone_apex`**: the hit's distance from the apex. Zero ⇒
-//!   the hit IS the apex, where the SURFACE (not merely the chart) is
-//!   singular and no outward normal exists — graze, retry, decided
-//!   before any direction is read off the surface.
-//! - **`bool_ray_cone_nappe`**: `(p − apex)·axis` signed by the face's
-//!   own nappe — Negative is the mirror nappe, which this face does not
-//!   bound.
-//! - **`bool_cone_trim`** / **`bool_cone_trim_nappe`** /
-//!   **`bool_cone_trim_side`**: the cone face's azimuth+slant window,
-//!   and the two premises that make the window single-nappe.
+//! - **`bool_ray_cone_nappe`**: the hit's height over the apex along
+//!   the axis, which says the nappe whose outward normal the hit is read
+//!   by. Zero ⇒ the hit is at the apex, where the SURFACE (not merely
+//!   the chart) is singular and no outward normal exists: the crossing
+//!   is offered sideless, and grazes where it counts.
+//! - **`bool_ruled_region_*`**: whether a cylinder or cone hit lies in
+//!   the face, its region read from its edges ([`super::ruled_region`]).
 //! - **`bool_ray_cone_incidence`**: `d·n̂` at a cone hit, levered by the
 //!   local radius — the cone's analogue of the plane arm's `denom`.
 //! - **`bool_ray_torus_disc`**: the ray×torus QUARTIC's discriminant,
@@ -3121,7 +3118,7 @@ fn every_edge_read<T: geom_core::Real>(
 /// Every crossing of the ray `q + s·d` ahead of `q` with the faces of
 /// `geos` (a selection's, each with its resolved query geometry), each
 /// offered as a [`RayHit`] at its advance, and as on an edge where it
-/// lands on a curved face's trim boundary or meets it tangentially.
+/// lands on a curved face's boundary or meets it tangentially.
 ///
 /// **A planar face is crossed edge by edge** (D10, Booleans): every line
 /// edge between two planar faces whose planes the ray crosses is decided
@@ -3398,8 +3395,8 @@ pub(crate) fn ray_crossings<T: Decide>(
             } => {
                 let (sin_a, cos_a) = half_angle.sin_cos();
                 let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
-                // The face's reach from its apex — the lever both margins
-                // below are metered by.
+                // A bound on the face's reach from its apex, never under
+                // it — the lever both margins below are metered by.
                 let v_ext = region.reach();
                 match decide("bool_ray_cone_lead", Margin::levered(a2, v_ext), band)
                     .map_err(escalate)?
@@ -4668,7 +4665,7 @@ mod escalated_ending_rows {
             let diag = Indeterminate {
                 margin,
                 band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("bool_wall_trim"),
+                predicate: Some("bool_ruled_region_cross"),
                 terminal_sliver: false,
             };
             let contfp = ContainError::Escalated {

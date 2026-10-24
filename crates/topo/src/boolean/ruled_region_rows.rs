@@ -2,7 +2,7 @@
 //! edge by edge, read at lattices of points whose side is known in closed
 //! form.
 
-#![allow(clippy::unwrap_used, clippy::panic)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
 use core::f64::consts::{PI, TAU};
@@ -377,4 +377,210 @@ fn a_point_near_an_edge_is_read_before_any_path() {
             "z {z}"
         );
     }
+}
+
+/// **A wall built edge by edge reads an edge inside it as no boundary,
+/// and its null scaffolding as nothing.** The wall over `[0.2, 1.4] ×
+/// [0, 1]` carries a strut up the ruling `u = 0.8` to `z = 0.5`, which
+/// its loop runs both ways, and a null edge at the strut's tip
+/// ([`crate::test_support_fixtures::kill_under_a_null_strut`]). The
+/// strut has the face on both sides: a point on it is inside, and so is
+/// one beside its tip.
+#[test]
+fn a_built_wall_reads_its_strut_as_inside_and_its_null_edge_as_nothing() {
+    let (mut body, face, _, _, _) =
+        crate::test_support_fixtures::kill_under_a_null_strut(geom_core::Tol::witness());
+    // The fixture's loop bounds its window on the sense-false side.
+    body.set_face_sense(face, false).unwrap();
+    let region = ruled_face_region(&body, face).unwrap().expect("a region");
+    for z in [0.1, 0.25, 0.4] {
+        assert_eq!(
+            region.contains(wall(0.8, z), b()),
+            Ok(Some(true)),
+            "on the strut at z {z}"
+        );
+    }
+    reads(
+        &region,
+        lattice().map(|(u, z)| {
+            let truth = both(
+                within(u.rem_euclid(TAU), (0.2, 1.4), 0.01),
+                within(z, (0.0, 1.0), 0.01),
+            );
+            (wall(u, z), truth)
+        }),
+        "the built wall",
+    );
+}
+
+/// **The aim is a point of the surface, wherever the boundary's middles
+/// lie.** A band whose two rims start at opposite azimuths has its
+/// middles on opposite sides of the axis, whose mean is on the axis, and
+/// is aimed on the reference azimuth; a cone face reaching both nappes
+/// has its middles' mean height at the apex; a face with no edge offers
+/// none.
+#[test]
+fn the_aim_is_a_point_of_the_surface() {
+    let opposite = edge(
+        2,
+        geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 1.0),
+            axis: z_axis(),
+            radius: 1.0,
+            u_ref: -x_axis(),
+        },
+        (0.0, TAU),
+        false,
+    );
+    let band = cylinder(vec![rim(1, 0.0, 1.0, (0.0, TAU), true), opposite]);
+    let aim = band.aim().expect("an aim");
+    assert!(
+        (aim - Point3::new(1.0, 0.0, 0.5)).norm() < 1e-12,
+        "on the reference azimuth: {aim:?}"
+    );
+
+    let hourglass = cone(
+        vec![
+            cone_rim(1, 1.0, (0.0, TAU), true),
+            rim(2, -ALPHA.cos(), ALPHA.sin(), (0.0, TAU), true),
+        ],
+        1.0,
+    );
+    let aim = hourglass.aim().expect("an aim");
+    assert!(
+        aim.x.is_finite() && aim.y.is_finite() && aim.z.is_finite(),
+        "{aim:?}"
+    );
+
+    assert!(cylinder(Vec::new()).aim().is_none());
+}
+
+/// **A cone face's scale is never under its boundary's reach.** An
+/// ellipse arc whose farthest point from the apex lies between its ends
+/// and its middle is reached past all three; the scale is bounded by the
+/// arc's carrier, its centre's distance plus its larger semi-axis.
+#[test]
+fn a_cone_faces_scale_bounds_its_reach_from_the_apex() {
+    let arc = edge(
+        1,
+        geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 2.0),
+            axis: Vec3::new(-0.3, 0.0, 1.0) / 1.09_f64.sqrt(),
+            semi_u: 1.5,
+            semi_v: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.3) / 1.09_f64.sqrt(),
+        },
+        (-0.6, 1.8),
+        true,
+    );
+    let reach = |t: f64| (arc.at(t) - Point3::origin()).norm();
+    let sampled = (0..=2400)
+        .map(|i| reach(-0.6 + 2.4 * f64::from(i) / 2400.0))
+        .fold(0.0, f64::max);
+    let three = [-0.6, 0.6, 1.8].map(reach).into_iter().fold(0.0, f64::max);
+    assert!(
+        sampled > three + 1e-3,
+        "the far point is between the three: {sampled} {three}"
+    );
+    let scale = reach_bound(&cone_surface(), &[arc]);
+    assert!(scale >= sampled, "scale {scale} under the reach {sampled}");
+}
+
+/// **A generator edge through the apex reaches both nappes**, read at
+/// its ends: its middle on the opening nappe does not keep it off the
+/// mirror one.
+#[test]
+fn a_generator_through_the_apex_reaches_both_nappes() {
+    let region = cone(vec![segment(1, on_cone(0.0, -1.0), on_cone(0.0, 2.0))], 2.0);
+    assert_eq!(region.reaches_nappe(on_cone(1.0, -0.5), b()), Ok(true));
+    assert_eq!(region.reaches_nappe(on_cone(1.0, 0.5), b()), Ok(true));
+    let opening = cone(vec![segment(1, on_cone(0.0, 0.5), on_cone(0.0, 2.0))], 2.0);
+    assert_eq!(opening.reaches_nappe(on_cone(1.0, -0.5), b()), Ok(false));
+}
+
+/// **A generator meets a conic only on its own nappe.** The meridian
+/// plane of the generator at azimuth 0 meets the mirror nappe's rim at
+/// two points, one of them on the leg's radial side — on the opposite
+/// generator, which the leg never runs on.
+#[test]
+fn a_generator_meets_no_conic_on_the_mirror_nappe() {
+    let mirror = rim(1, -ALPHA.cos(), ALPHA.sin(), (0.0, TAU), true);
+    let own = cone_rim(2, 2.0, (0.0, TAU), true);
+    let region = cone(vec![mirror.clone(), own.clone()], 2.0);
+    let leg = region.ruling(on_cone(0.0, 1.0), true, true);
+    assert!(
+        region
+            .landings(&mirror, &leg, b())
+            .ok()
+            .is_some_and(|l| l.is_empty())
+    );
+    assert_eq!(
+        region.landings(&own, &leg, b()).ok().map(|l| l.len()),
+        Some(1)
+    );
+}
+
+/// **A leg running along an edge grazes**: a ruling along a line edge
+/// it reaches, and a parallel along a rim it reaches, abandon the path
+/// rather than read past the edge.
+#[test]
+fn a_leg_along_an_edge_grazes() {
+    let line = cylinder(vec![segment(1, wall(0.0, 0.0), wall(0.0, 2.0))]);
+    assert!(matches!(
+        line.path(wall(0.0, -0.5), PathSpec::Ruling { outward: true }, b()),
+        Err(RayFault::Graze)
+    ));
+    let arc = cylinder(vec![rim(1, 0.0, 1.0, (0.0, 1.0), true)]);
+    assert!(matches!(
+        arc.path(wall(2.0, 0.0), PathSpec::Parallel { forward: true }, b()),
+        Err(RayFault::Graze)
+    ));
+}
+
+/// **An aimed path's first leg reads nothing past its corner.** From
+/// `(0.5, 0)` up the ruling to the corner at `z = 1`, then round the
+/// parallel: the rim at `z = 1.5` lies on the first leg's line past the
+/// corner, and the path's only crossing is the segment at `u = 1.2`,
+/// which it leaves the face through. Read past the corner, the rim would
+/// be the closest crossing and say the opposite.
+#[test]
+fn an_aimed_paths_first_leg_ends_at_its_corner() {
+    let region = cylinder(vec![
+        rim(1, 1.5, 1.0, (0.0, 1.0), true),
+        segment(2, wall(1.2, 0.5), wall(1.2, 1.2)),
+    ]);
+    let spec = PathSpec::Aimed {
+        target: wall(1.5, 1.0),
+        parallel_first: false,
+        first_forward: true,
+        then_forward: true,
+    };
+    assert!(matches!(region.path(wall(0.5, 0.0), spec, b()), Ok(true)));
+}
+
+fn cone_surface() -> Ruled<f64> {
+    Ruled::Cone {
+        apex: Point3::origin(),
+        axis: z_axis(),
+        half_angle: ALPHA,
+        u_ref: x_axis(),
+    }
+}
+
+/// **A generator ending at the apex stays on its nappe**: the apex is
+/// on neither, so a quarter cone's two generators from the apex keep
+/// the face off the mirror nappe, and a point there is outside.
+#[test]
+fn a_generator_from_the_apex_keeps_its_nappe() {
+    let quarter = cone(
+        vec![
+            segment(1, Point3::origin(), on_cone(PI / 2.0, 2.0)),
+            cone_rim(2, 2.0, (0.0, PI / 2.0), false),
+            segment(3, on_cone(0.0, 2.0), Point3::origin()),
+        ],
+        2.0,
+    );
+    assert_eq!(quarter.reaches_nappe(on_cone(0.7, -1.0), b()), Ok(false));
+    assert_eq!(quarter.contains(on_cone(0.7, -1.0), b()), Ok(Some(false)));
+    assert_eq!(quarter.contains(on_cone(0.7, 1.0), b()), Ok(Some(true)));
 }

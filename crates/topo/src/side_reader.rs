@@ -297,7 +297,12 @@ fn aim_at<T: Decide>(
         .and_then(|f| body.get_surface(f.surface))
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let aim = match *geo {
-        FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => region.aim(),
+        FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => {
+            match region.aim() {
+                Some(aim) => aim,
+                None => return Ok(None),
+            }
+        }
         // A torus face, whole or trimmed, is aimed at one point of its
         // surface: the ray starts beyond every face whatever it aims at.
         FaceGeo::Torus { .. } | FaceGeo::TorusPatch { .. } => surface.eval(T::pi(), T::pi()),
