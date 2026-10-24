@@ -7284,7 +7284,7 @@ fn verify_tangency<T: Decide>(
 /// per op needs the membership, which this stage does not hold (filed:
 /// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`).
 /// The wedge is levered at the farther of the two faces' extents, each
-/// read in its own operand ([`crate::wedge_reach`]).
+/// read in its own operand ([`fn@crate::wedge_reach`]).
 fn route_rim<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,

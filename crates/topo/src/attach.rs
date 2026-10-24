@@ -1588,7 +1588,7 @@ impl<T: Decide> Body<T> {
     /// **The must-carry rule asked again over a pair of this body's
     /// surfaces** ([`geom_brep::reask_pair`]), over `carrier` on
     /// `interval` between `faces`, which lever its wedge
-    /// ([`crate::wedge_reach`]), `declared` riding an under-determined
+    /// ([`fn@crate::wedge_reach`]), `declared` riding an under-determined
     /// answer: the one
     /// call shape every door that re-asks a pair on a body goes through
     /// (the offset doors, whose moved surfaces are not yet the body's,
@@ -1631,7 +1631,7 @@ impl<T: Decide> Body<T> {
 
     /// **A chart image `edge` keeps, re-asked the must-carry rule** over
     /// `carrier` on `interval`, between the surfaces of the edge's two
-    /// faces, levered at their reach ([`crate::wedge_reach`],
+    /// faces, levered at their reach ([`fn@crate::wedge_reach`],
     /// [`geom_brep::reask_chart`]): `Some` is the intrinsic
     /// description the rule now demands, `None` keeps the image. The
     /// call every door that keeps a chart image over a changed extent
