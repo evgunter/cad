@@ -119,7 +119,7 @@ boss_union 3 — not the nine above. The boolean door's tier-3 gate
 (`boolean-door-adopts-the-finished-body-type`) leaves them identical
 (`k-lint-reads-the-boolean-doors-tier-3-at-probe` (REACH, closed)).
 
-## 2026-10-24 — re-measured, decided, fixed (CHART)
+## Phase 1 (2026-10-24)
 
 **Count on main** (`c4318c38`, ε = 1e-9, Band 4 corpus + tour scenes,
 3,437,597 samples): 41 `chart_bound_outer_span` rows, every one
@@ -151,7 +151,32 @@ so this was a local run.)
   (`pcurve_focal_section_*`'s lever via `v_reach`). Only the envelope's
   `image`, which is a single enclosure, is poison at a point scalar.
 
-**Fix.** `ChartEdge::Envelope` carries `reach` (the pcurve's
+**Does the same poison reach a recorded predicate that survives
+`chart_bound.rs`'s retirement? No.**
+
+- *Static.* The only `enclosure_hull` calls at a point scalar in kernel
+  source are `chart_edge`'s three (`pcurves.rs`), and all three feed
+  `ChartEdge::Envelope::image`. That goes with `chart_bound.rs`.
+- *The rest.* Every other `enclosure_hull` in `crates/*/src` is one
+  of two kinds:
+  - gated by a multi-span `locate_spans`, which never happens at a
+    point scalar: `pcurve_cache.rs`'s span accumulator,
+    `projected.rs`'s eval, and the `geom` NURBS evaluators;
+  - typed `Interval`: `carrier_net.rs`.
+- *`chart_region.rs`.* It hulls nothing. It takes straight chart
+  segments only, and a curved image is refused rather than boxed.
+- *`pcurves`' walk rows.* Their extents come from `chart_box`, which
+  is finite at every scalar.
+- *Dynamic.* The 41 rows were the sweep's only NaN margins. The probe
+  records nothing else fed by this hull.
+
+Blind spot: paths the corpus and tour do not exercise. The static pass
+covers them for the `enclosure_hull` shape, but not for some other
+construction of point-scalar poison.
+
+**Phase 2 was built before the retirement reached this lane**: PR
+#5656, `gate ok` green. Under the retirement it is superseded. What it
+did: `ChartEdge::Envelope` carries `reach` (the pcurve's
 `chart_box` over the span), and the span check reads the outer's
 `reach` hull instead of `hull`. `image`, `hull` and the outside test
 are unchanged at every scalar. After the fix, at ε = 1e-9 the 41 rows
