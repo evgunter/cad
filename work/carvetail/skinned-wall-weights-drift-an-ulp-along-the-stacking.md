@@ -33,3 +33,15 @@ the row (`topo::offset_derive`'s `level_row`).
 Where every section's weights are bitwise equal, the skin copies them
 rather than interpolating them, so the net's weights are constant along
 `v` by construction.
+
+## 2026-10-23 — reads fixed by PR 5629 (ISO, `iso/vase-cap-moves-alone`)
+
+Since PR 5629 (`skin_on` picks its lane per control row, so integral
+and constant-weight rows come out exact), the vase's moved bottom cap
+takes `level_row`: each wall carries its rim as the row
+`IsoLine { p0.y = 0.025, pl = (1, 0) }`, and the rim certifies as the
+moved plane and wall's `Intersection`. `interior_iso_u`'s separability
+test is bitwise, so the net's weights are now equal along `v`
+(`encl_curved_loft_shell::shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`).
+The weights were not read bit for bit here. Reading them once is all
+that is left before this row closes.

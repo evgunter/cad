@@ -65,6 +65,11 @@ fn spacing() -> VarName {
     VarName::from_static("s")
 }
 
+/// The in-plane slide of the drift row's target plane.
+fn drift() -> VarName {
+    VarName::from_static("drift")
+}
+
 fn gap() -> VarName {
     VarName::from_static("gap")
 }
@@ -364,6 +369,46 @@ fn slab_and_bolts(
     (doc, slab, bolts)
 }
 
+/// **The slab placed in the world, turned off its axes**: by `turn`
+/// about the world's z after 0.3 about its x, with its upper corner at
+/// `Rz(turn)·(5, 0, lift)`, `turn` and `lift` declared at 0.25 and 2.
+fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let doc = declare(doc, lift(), 2.0, Dimension::Length);
+    let doc = declare(doc, turn(), 0.25, Dimension::Angle);
+    let (doc, slab) = insert(doc, fixture::mated_instance(p.slab));
+    // The motion the world read `slide x 5, spin x 0.3, slide z lift,
+    // spin z turn` (each move about the world's own axes) put the slab's
+    // upper corner frame at, written as the moves it is: `turn` about z
+    // after 0.3 about x, the slab's origin a unit below that corner,
+    // `Rz(turn)·(5, 0, lift) − Rz(turn)·Rx(0.3)·(0, 0, 1)`.
+    let cos = || Formula::cos(named(turn(), Dimension::Angle)).expect("an angle's cosine");
+    let sin = || Formula::sin(named(turn(), Dimension::Angle)).expect("an angle's sine");
+    let metres = |k: f64, f: Formula| Formula::mul(len(k), f).expect("a length");
+    let plus = |a: Formula, b: Formula| Formula::add(a, b).expect("a sum");
+    let (c3, s3) = (0.3_f64.cos(), 0.3_f64.sin());
+    let values = vec![
+        (Coord::Spin(TargetAxis::X), ang(0.3)),
+        (Coord::Spin(TargetAxis::Z), named(turn(), Dimension::Angle)),
+        (
+            Coord::Slide(TargetAxis::X),
+            plus(metres(5.0, cos()), metres(-s3, sin())),
+        ),
+        (
+            Coord::Slide(TargetAxis::Y),
+            plus(metres(5.0, sin()), metres(s3, cos())),
+        ),
+        (
+            Coord::Slide(TargetAxis::Z),
+            plus(named(lift(), Dimension::Length), len(-c3)),
+        ),
+    ];
+    (
+        fixture::written(doc, slab, editor_core::Placed::unmated(values)),
+        slab,
+    )
+}
+
 // ---- The documents the rows share ----
 
 /// **The patterned bolt** (the designers' worked example): the bolt
@@ -655,37 +700,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     // reading parameters — and a seat on the pinned slab,
     // and a seat on that: a chain of bundles back to the world.
     let p = parts("msolve14-c-pin");
-    let doc = ProfileDoc::empty(DocumentId::derive("msolve14-c-pin"), Tol::witness());
-    let doc = declare(doc, lift(), 2.0, Dimension::Length);
-    let doc = declare(doc, turn(), 0.25, Dimension::Angle);
-    let (doc, slab) = insert(doc, fixture::mated_instance(p.slab));
-    // The motion the world read `slide x 5, spin x 0.3, slide z lift,
-    // spin z turn` (each move about the world's own axes) put the slab's
-    // upper corner frame at, written as the moves it is: `turn` about z
-    // after 0.3 about x, the slab's origin a unit below that corner,
-    // `Rz(turn)·(5, 0, lift) − Rz(turn)·Rx(0.3)·(0, 0, 1)`.
-    let cos = || Formula::cos(named(turn(), Dimension::Angle)).expect("an angle's cosine");
-    let sin = || Formula::sin(named(turn(), Dimension::Angle)).expect("an angle's sine");
-    let metres = |k: f64, f: Formula| Formula::mul(len(k), f).expect("a length");
-    let plus = |a: Formula, b: Formula| Formula::add(a, b).expect("a sum");
-    let (c3, s3) = (0.3_f64.cos(), 0.3_f64.sin());
-    let values = vec![
-        (Coord::Spin(TargetAxis::X), ang(0.3)),
-        (Coord::Spin(TargetAxis::Z), named(turn(), Dimension::Angle)),
-        (
-            Coord::Slide(TargetAxis::X),
-            plus(metres(5.0, cos()), metres(-s3, sin())),
-        ),
-        (
-            Coord::Slide(TargetAxis::Y),
-            plus(metres(5.0, sin()), metres(s3, cos())),
-        ),
-        (
-            Coord::Slide(TargetAxis::Z),
-            plus(named(lift(), Dimension::Length), len(-c3)),
-        ),
-    ];
-    let doc = fixture::written(doc, slab, editor_core::Placed::unmated(values));
+    let (doc, slab) = turned_slab(&p, "msolve14-c-pin");
     // A seat's values are charted on the world's axes swung onto the
     // slab's normal `n = Rz(turn)·Rx(0.3)·z`, from the world's origin
     // (§5′.2). The bolt is meant to stand `(1, 1)` along the slab's own
@@ -977,10 +992,18 @@ fn run_at<T: editor_core::EvalScalar>(
 /// against main (`be9b907694`) at 1e-9, every other solved pose, fault
 /// and vertex is main's bit for bit; the pinned chain's escalation at
 /// 1e-12 is gone with the seats it was measured on.
+///
+/// And when a plane pose came to hold its normal and offset alone (all
+/// three rows): a mate's frame is aimed from the plane's point nearest
+/// its space's origin rather than from the face's stored point, so only
+/// the pinned chain's two seats on the turned slab moved, each
+/// translation entry by at most one ulp (8.9e-16 m) and every rotation
+/// entry bit-identical; every other solved pose of the corpus is main's
+/// bit for bit (each map dumped on main and on the branch).
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x45b5_ced6_e808_5c4b),
-    (1e-6, 0xdc84_75b7_d171_b718),
-    (1e-12, 0x5e49_ccd3_7cc6_3340),
+    (1e-9, 0xb2a4_c6af_68c0_eabf),
+    (1e-6, 0xf1ee_344a_2a63_4bd7),
+    (1e-12, 0xc404_5ce6_ff18_2ef7),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1671,6 +1694,138 @@ fn a2_a_wide_box_on_a_spin_is_no_rigidity_refusal() {
         assert!(
             !matches!(kind, Some(editor_core::NodeErrorKind::Motion(_))),
             "{what} refuses at the rigidity door over a boxed spin: {kind:?}"
+        );
+    }
+}
+
+/// **A tilted target plane moved within itself moves no placed map**:
+/// a bolt rests on the turned slab's top, its target that top slid
+/// along the slab's own side by `drift` — a move inside the plane,
+/// which a plane's value forgets. Over a box on `drift` the bolt's
+/// placed map is as thin as the evaluation's rounding, and its `f64`
+/// pose at the box's corners is the nominal's.
+///
+/// *Breaks if* a plane's value holds a point in the plane that the
+/// fold reads: the box on `drift` then widens the map by its own width.
+#[test]
+fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
+    use geom_core::Bounds;
+    let p = parts("msolve14-drift");
+    let (doc, slab) = turned_slab(&p, "msolve14-drift");
+    let doc = declare(doc, drift(), 0.0, Dimension::Length);
+    let (doc, bolt) = insert(doc, fixture::mated_instance(p.bolt));
+    let (x, y) = seat_on_the_pinned_slab(0.25, 2.0);
+    let (doc, mate) = fixture::mated(
+        doc,
+        bolt,
+        fixture::mate(
+            fixture::plane(head(p.bolt_foot(bolt))),
+            fixture::flip(slid(
+                fixture::plane(head(p.slab_top(slab))),
+                p.slab_side(slab, 1),
+                named(drift(), Dimension::Length),
+            )),
+            ContactClass::Rest,
+        ),
+        &[
+            (Coord::Slide(TargetAxis::X), len(x)),
+            (Coord::Slide(TargetAxis::Y), len(y)),
+            (Coord::Spin(TargetAxis::Z), ang(0.0)),
+        ],
+    );
+    let opts = p.opts();
+    let (lo, hi) = narrow(0.05);
+    let poses = editor_core::mate::solve_document_at::<Interval>(
+        &doc,
+        &boxed(&doc, &opts, drift(), lo, hi),
+        Tol::witness(),
+    );
+    assert!(poses.fault(bolt).is_none(), "{:?}", poses.fault(bolt));
+    let map = poses
+        .relative_map(mate.placement)
+        .expect("posed over the box");
+    let widest = [map.linear.c0, map.linear.c1, map.linear.c2, map.translation]
+        .into_iter()
+        .flat_map(|c| [c.x, c.y, c.z])
+        .map(|e| e.hi() - e.lo())
+        .fold(0.0_f64, f64::max);
+    assert!(
+        widest <= 1e-13,
+        "the drift's box, {} wide, widens the placed map to {widest}",
+        hi - lo
+    );
+    let at = |v: f64| {
+        solve(&set_value(doc.clone(), drift(), v), &opts, Tol::witness())
+            .relative(bolt)
+            .expect("posed at f64")
+            .affine::<f64>()
+    };
+    let nominal = at(0.0);
+    for v in [lo, hi, 1.0] {
+        let moved = at(v);
+        let gap = (moved.translation - nominal.translation).norm();
+        assert!(gap <= 1e-12, "a drift of {v} moves the bolt by {gap}");
+    }
+}
+
+/// **A box on a tilted standoff widens the placed map by the box
+/// alone**: a bolt rests on the turned slab's top lifted `gap` along its
+/// normal, its origin set by its two slides. Over a box on `gap` the
+/// placed translation is `x·X + y·Y + d·depth`, so each component is
+/// as wide as the box's share of it along the slab's normal `d`, and
+/// the linear part is as thin as the evaluation's rounding.
+///
+/// *Breaks if* the slides are set as differences of the folded map's
+/// translation with itself, which on a chart off the axes carries the
+/// depth's width into the slid components twice.
+#[test]
+fn a_box_on_a_tilted_standoff_widens_the_map_by_the_box_alone() {
+    use geom_core::Bounds;
+    let p = parts("msolve14-tilted-gap");
+    let (doc, slab) = turned_slab(&p, "msolve14-tilted-gap");
+    let doc = declare(doc, gap(), GAP, Dimension::Length);
+    let (doc, bolt) = insert(doc, fixture::mated_instance(p.bolt));
+    let (x, y) = seat_on_the_pinned_slab(0.25, 2.0);
+    let (doc, mate) = seat(
+        doc,
+        bolt,
+        p.bolt_foot(bolt),
+        p.slab_top(slab),
+        named(gap(), Dimension::Length),
+        at(x, y, 0.0),
+    );
+    let opts = p.opts();
+    let (lo, hi) = narrow(0.05);
+    let poses = editor_core::mate::solve_document_at::<Interval>(
+        &doc,
+        &boxed(&doc, &opts, gap(), lo, hi),
+        Tol::witness(),
+    );
+    assert!(poses.fault(bolt).is_none(), "{:?}", poses.fault(bolt));
+    let map = poses
+        .relative_map(mate.placement)
+        .expect("posed over the box");
+    let width = |e: Interval| e.hi() - e.lo();
+    let linear = [map.linear.c0, map.linear.c1, map.linear.c2]
+        .into_iter()
+        .flat_map(|c| [c.x, c.y, c.z])
+        .map(width)
+        .fold(0.0_f64, f64::max);
+    assert!(
+        linear <= 1e-13,
+        "the box on the standoff turns the map: {linear}"
+    );
+    // The slab's normal `Rz(0.25)·Rx(0.3)·z`.
+    let (s3, c3) = (0.3_f64.sin(), 0.3_f64.cos());
+    let (st, ct) = (0.25_f64.sin(), 0.25_f64.cos());
+    let d = [st * s3, -ct * s3, c3];
+    let t = map.translation;
+    for (k, (e, n)) in [t.x, t.y, t.z].into_iter().zip(d).enumerate() {
+        let share = (hi - lo) * n.abs();
+        assert!(
+            width(e) <= share + 1e-13,
+            "translation component {k} is {} wide, its share of the box {share}",
+            width(e)
         );
     }
 }
