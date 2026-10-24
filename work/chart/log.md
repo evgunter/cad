@@ -238,3 +238,10 @@ This was not a crossover, because only one designer moved, so reconciliation end
 
   The two lanes meet only at the region doors' public entry points, which the skeleton lane keeps stable.
 - 2026-10-24 — **PR 5673 (cell verdict): concurrent dual dispatched at 16:34Z** on frozen `54b5ab0bbf`. R1 is `session_01B1gnGAgkNUJmNnyscKVYNN` and R2 is `session_01NaowF8MD6eEXk3YKeuRA3N`. The briefs are identical modulo the label (template sha256 `06a7b6317ecdab11…`).
+- 2026-10-24 — **PR 5671 FULL review** (`session_01J532Ys65dyiV7cKHhAuvX7`): mergeable. The reviewer's own differential, about 2.27M records against base with extra probe points, matched byte for byte. One MINOR: the sphere ray loop's divergence would move a refusal (`Escalated` against `RayExhausted`), not just an order, and it had no `work/` item. The fix pass:
+  - Scaffolding pins on the sphere and the torus;
+  - the second leg built lazily again;
+  - the inline `turn` and the `Fault` alias;
+  - docs and a stale gate citation;
+  - the ruled `Carrier` rename;
+  - the residual skeleton duplication (the sphere ray, `Legs` under `Paths`, the circle-leg place written three times, the two `along`s, three restricted-curve spellings) filed as one P1 row.
