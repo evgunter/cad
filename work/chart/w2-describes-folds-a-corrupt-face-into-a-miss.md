@@ -2,7 +2,8 @@
 id: w2-describes-folds-a-corrupt-face-into-a-miss
 kind: issue
 title: ChartCache::describes reads every chart_boundary Err, Stale and MissingCache included, as 'does not describe', so a corrupt face reads as a W2 miss rather than a kernel defect
-status: open
+status: review
+pr: 5657
 opened: 2026-10-24
 priority: P3
 cost: E
