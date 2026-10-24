@@ -60,3 +60,18 @@ Closed: `stage4-i-deletes-the-mate-mint-and-must-keep-the-records`,
 `the-contact-recourse-names-a-class-nobody-can-declare`,
 `separation-quiets-only-first-rung-rows`. `the-at-rest-census-is-a-check`
 stays stage 5 C.
+
+Fix pass after review 1:
+- Six slow-set id pins re-pinned (`lib_g16_corpus_name_digests`,
+  `edit_placement_corpus_bits`, `m10_p_fence` f64 and interval,
+  `perf2_name_keying_differential`, `name_words_corpus`). Exactly the 17
+  mate-bearing corpus documents moved; the ids-masked fence held.
+- The first rung has one home (`coincide::first_rung`), shared by
+  `prove` and `first_rung_proves`. `asm_r2b_assembly`'s
+  `a_mate_proves_its_faces_only_in_the_sense_it_states` pins the sense
+  check: it goes red under the reviewer's mutant.
+- Filed `two-copies-filling-one-volume-certify-at-rest` (P1) and
+  `a-declared-contacts-class-admits-continuation`. The contact recourse
+  row records why its rewording waits on a ruling.
+- `persist/kernel_wire.rs` deleted. `test_validate`'s record row
+  re-stated. Tour comment and `at_rest` doc fixed. Archaeology swept.
