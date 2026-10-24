@@ -6796,7 +6796,7 @@ mod rect_extent_rows {
 /// body**, on a sphere zone sheet whose boundary certifies a side.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod sphere_rect_rows {
+pub(crate) mod sphere_rect_rows {
     use geom::{Curve3, Surface};
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::{Band, Point3, Tol, Vec3};
@@ -6811,7 +6811,7 @@ mod sphere_rect_rows {
     /// The unit sphere's zone over azimuths `[u0, u1]` and heights
     /// `[h0, h1]`: two latitude rims and two meridian arcs, each on its
     /// exact circle, described as the sphere cut by the circle's plane.
-    fn sphere_zone_sheet(
+    pub(crate) fn sphere_zone_sheet(
         (u0, u1): (f64, f64),
         (h0, h1): (f64, f64),
         tol: Tol,

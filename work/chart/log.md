@@ -245,3 +245,4 @@ This was not a crossover, because only one designer moved, so reconciliation end
   - docs and a stale gate citation;
   - the ruled `Carrier` rename;
   - the residual skeleton duplication (the sphere ray, `Legs` under `Paths`, the circle-leg place written three times, the two `along`s, three restricted-curve spellings) filed as one P1 row.
+- 2026-10-24 — **PR 5671 merged** (`702feaba18`). The region doors share one skeleton in `region.rs`.
