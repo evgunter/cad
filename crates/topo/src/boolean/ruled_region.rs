@@ -131,8 +131,7 @@ use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRows, first_harmonic_roots_in_band, near_span,
 };
 use super::region::{
-    Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, found, in_band, side_at_closest, span,
-    turn,
+    Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, found, in_band, side_at_closest, span, turn,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -409,20 +408,12 @@ impl<T: Decide> Leg<T> {
     /// Where `y`, a point of the leg's line or circle, lies along it:
     /// `Some(place)` ahead of the start, `None` behind it (a ruling's
     /// back half).
-    fn place(
-        &self,
-        y: Point3<T>,
-        band: Band,
-    ) -> Result<Option<T>, RayFault<RegionRefusal>> {
+    fn place(&self, y: Point3<T>, band: Band) -> Result<Option<T>, RayFault<RegionRefusal>> {
         match self.shape {
             LegShape::Parallel { radius, .. } => {
                 let s = self.angle(y);
-                ray_walk::apart(
-                    "bool_ruled_region_at",
-                    Margin::of((radius * s).abs()),
-                    band,
-                )
-                .map_err(|f| f.map(RegionRefusal::Escalated))?;
+                ray_walk::apart("bool_ruled_region_at", Margin::of((radius * s).abs()), band)
+                    .map_err(|f| f.map(RegionRefusal::Escalated))?;
                 Ok(Some(radius * turn(s)))
             }
             LegShape::Ruling { dir, .. } => {
@@ -622,12 +613,13 @@ impl<T: Decide> RuledFaceRegion<T> {
                 false
             }
             Ruled::Cone { apex, .. } => {
-                match decide("bool_ruled_region_frame", Margin::of((p - apex).norm()), band)
-                    .map_err(esc)?
-                {
-                    Sign::Zero => true,
-                    _ => false,
-                }
+                decide(
+                    "bool_ruled_region_frame",
+                    Margin::of((p - apex).norm()),
+                    band,
+                )
+                .map_err(esc)?
+                    == Sign::Zero
             }
         };
         if at_apex {
@@ -664,18 +656,27 @@ impl<T: Decide> RuledFaceRegion<T> {
         .map(Some)
     }
 
+    /// The face's scale: the cylinder's radius, or the farthest its
+    /// boundary reaches from the cone's apex.
+    pub(crate) fn reach(&self) -> T {
+        self.scale
+    }
+
     /// A point of the face the side-at-infinity reader may aim at: the
     /// mean of the boundary's middle points, carried onto the surface
     /// along its parallel. It need not lie in the face; it only steers.
     pub(crate) fn aim(&self) -> Point3<T> {
-        let n = T::from_computed(self.edges.len() as f64).max(T::one());
         let base = self.surface.base();
-        let mean = self
+        let (sum, n) = self
             .edges
             .iter()
-            .map(|e| e.at(geom::mid_param(e.t0, e.t1)) - base)
-            .fold(Vec3::zero(), |acc, w| acc + w)
-            / n;
+            .fold((Vec3::zero(), T::zero()), |(sum, n), e| {
+                (
+                    sum + (e.at(geom::mid_param(e.t0, e.t1)) - base),
+                    n + T::one(),
+                )
+            });
+        let mean = sum / n;
         let axis = self.surface.axis();
         let h = mean.dot(axis);
         let radial = mean - axis * h;
@@ -870,8 +871,7 @@ impl<T: Decide> RuledFaceRegion<T> {
                 let (first, corner) = if parallel_first {
                     let (rho_p, h_p, _) = self.polar(p);
                     let (_, _, radial_t) = self.polar(target);
-                    let corner =
-                        self.surface.base() + self.surface.axis() * h_p + radial_t * rho_p;
+                    let corner = self.surface.base() + self.surface.axis() * h_p + radial_t * rho_p;
                     let mut first = self.parallel(p, first_forward);
                     first.end = Some(rho_p * turn(first.angle(corner)));
                     (first, corner)
@@ -889,12 +889,8 @@ impl<T: Decide> RuledFaceRegion<T> {
                             (apex + (p - apex) * (rt / rp), rt - rp)
                         }
                     };
-                    let outward = match decide(
-                        "bool_ruled_region_corner",
-                        Margin::of(gap),
-                        band,
-                    )
-                    .map_err(in_band)?
+                    let outward = match decide("bool_ruled_region_corner", Margin::of(gap), band)
+                        .map_err(in_band)?
                     {
                         Sign::Positive => true,
                         Sign::Negative => false,
@@ -983,12 +979,22 @@ impl<T: Decide> RuledFaceRegion<T> {
         band: Band,
     ) -> Result<Vec<(Point3<T>, T, bool)>, RayFault<RegionRefusal>> {
         let row = |name, m: T| decide(name, Margin::of(m), band).map_err(in_band);
-        let span = |t: T, lever: T| span("bool_ruled_region_span", t, (edge.t0, edge.t1), lever, band);
+        let span =
+            |t: T, lever: T| span("bool_ruled_region_span", t, (edge.t0, edge.t1), lever, band);
         let axis = self.surface.axis();
         let base = self.surface.base();
         let mut out = Vec::new();
         match (edge.carrier(), leg.shape) {
-            (Carrier::Conic(conic), LegShape::Parallel { center, radius, normal, e1, .. }) => {
+            (
+                Carrier::Conic(conic),
+                LegShape::Parallel {
+                    center,
+                    radius,
+                    normal,
+                    e1,
+                    ..
+                },
+            ) => {
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::circle_off_plane(
                         (center, normal, radius, e1),
@@ -1022,12 +1028,7 @@ impl<T: Decide> RuledFaceRegion<T> {
                     out.push((origin + dir * t, t, sideless));
                 }
             }
-            (
-                Carrier::Conic(conic),
-                LegShape::Ruling {
-                    radial, nappe, ..
-                },
-            ) => {
+            (Carrier::Conic(conic), LegShape::Ruling { radial, nappe, .. }) => {
                 let normal = axis.cross(radial);
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::conic_off_plane(
@@ -1127,9 +1128,7 @@ impl<T: Decide> RuledFaceRegion<T> {
             let Some(end) = leg.end else {
                 return Err(RayFault::Graze);
             };
-            match decide("bool_ruled_region_corner", Margin::of(end - s), band)
-                .map_err(in_band)?
-            {
+            match decide("bool_ruled_region_corner", Margin::of(end - s), band).map_err(in_band)? {
                 Sign::Negative => past += 1,
                 Sign::Positive | Sign::Zero => return Err(RayFault::Graze),
             }

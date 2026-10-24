@@ -2878,8 +2878,6 @@ fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
 /// [`face_azimuth_window`] folds.
 #[derive(Clone, Debug)]
 pub(crate) struct AzimuthImage<T: geom_core::Real> {
-    /// The half-edge.
-    pub(crate) he: HalfEdgeKey,
     /// The azimuth at its start vertex.
     pub(crate) entry: T,
     /// The azimuth at its end vertex.
@@ -2960,9 +2958,6 @@ pub(crate) enum ApexClosure<T: Real> {
     Clear,
     /// One apex visit and no ring: the lifted loop, closed at the apex.
     Closed {
-        /// The lift's images, starting at the half-edge that leaves the
-        /// apex.
-        images: Vec<AzimuthImage<T>>,
         /// The azimuth hull of the lift.
         window: (T, T),
         /// The farthest boundary vertex from the apex, in metres: the
@@ -3053,11 +3048,7 @@ pub(crate) fn cone_apex_closure<T: Decide>(
         .collect();
     let images = run_azimuth_images(body, surface, face, &lifted, band)?;
     Ok(match azimuth_hull(&images) {
-        Some(window) => ApexClosure::Closed {
-            images,
-            window,
-            reach,
-        },
+        Some(window) => ApexClosure::Closed { window, reach },
         None => ApexClosure::Open,
     })
 }
@@ -3223,7 +3214,6 @@ fn run_azimuth_images<T: Decide>(
             })?;
         let exit = pcurve.eval(exit_t).x;
         images.push(AzimuthImage {
-            he,
             entry: pcurve.eval(entry_t).x,
             exit,
             range: (lo, hi),

@@ -135,8 +135,7 @@ use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band, near_span,
 };
 use super::region::{
-    Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, found, in_band, side_at_closest, span,
-    turn,
+    Hit, RegionRefusal, TARGET_SHARES, circle_edge_hit, found, in_band, side_at_closest, span, turn,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;

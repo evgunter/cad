@@ -127,8 +127,8 @@ pub use refusal_routes::{
     WallRung,
 };
 pub(crate) mod region;
-pub(crate) mod ruled_region;
 mod rim_wedge;
+pub(crate) mod ruled_region;
 pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
@@ -339,18 +339,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
-        | "bool_curved_contain_period"
-        | "bool_wall_trim"
-        | "bool_wall_junction"
         | "bool_wall_outline_reach"
-        | "bool_wall_piece_span"
-        | "bool_wall_rim_level"
         | "bool_wrap_rim"
-        | "bool_wall_section_tilt"
-        | "bool_wall_trim_period"
-        | "bool_wall_iso_meridian"
-        | "bool_wall_iso_rim"
-        | "bool_wall_section_seat"
         | "bool_sphere_iso_meridian"
         | "bool_sphere_iso_rim"
         | "bool_sphere_trim_antipode"
@@ -388,13 +378,22 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_torus_region_spiric_on"
         | "bool_torus_region_spiric_leaf"
         | "bool_torus_frame_radius"
-        | "bool_cone_chart_box"
-        | "bool_cone_group_slant"
-        | "bool_cone_trim"
-        | "bool_cone_trim_nappe"
-        | "bool_cone_trim_period"
-        | "bool_cone_trim_side"
-        | "bool_ray_cone_apex"
+        | "bool_ruled_region_frame"
+        | "bool_ruled_region_nappe"
+        | "bool_ruled_region_component"
+        | "bool_ruled_region_span"
+        | "bool_ruled_region_at"
+        | "bool_ruled_region_corner"
+        | "bool_ruled_region_order"
+        | "bool_ruled_region_cross"
+        | "bool_ruled_region_roots_noise"
+        | "bool_ruled_region_roots_coaxial"
+        | "bool_ruled_region_roots_extreme"
+        | "bool_ruled_region_roots_slack"
+        | "bool_ruled_region_arc_span"
+        | "bool_ruled_region_arc_straddle"
+        | "bool_ruled_region_edge_length"
+        | "bool_ruled_region_edge"
         | "bool_ray_cone_nappe"
         | "bool_cone_partial_reach"
         | "point_in_loop_segment"

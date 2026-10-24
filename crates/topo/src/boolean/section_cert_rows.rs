@@ -2454,19 +2454,13 @@ fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
 }
 
 /// **The smallest notch the builders mint pins the arms' direction.**
-/// A notch `1.5·K·ε` on a side, on the cone at its top rim (the azimuth
-/// arm is that rim's radius; slant is exact). The notch's inner sides
-/// are then `1.5·K·ε` from the box's in metres, past the band, so the
-/// TRIM refuses definitely (`PartialConeFace`). An arm that understated
-/// its rate would bring that margin into the band (an escalation) or
-/// under it (a window), and this row reads either as a failure. The
-/// torus rides along at the outer equator, where its region reads the
-/// notch on its edges' own carriers. The face door at either notch's
-/// centre, `0.75·K·ε` from the face, may escalate on that graze; it
-/// must never answer `In`.
+/// A notch `1.5·K·ε` on a side, on the cone at its top rim and on the
+/// torus at its outer equator, where each region reads the notch on its
+/// edges' own carriers. The face door at either notch's centre,
+/// `0.75·K·ε` from the face, may escalate on that graze; it must never
+/// answer `In`.
 #[test]
 fn the_smallest_notch_refuses_definitely() {
-    use super::super::solid_contain::{PointInSolidError, cone_face_trim};
     let tol = Tol::witness();
     let s = 1.5 * tol.k() * tol.eps();
     let mut bad = Vec::new();
@@ -2476,7 +2470,6 @@ fn the_smallest_notch_refuses_definitely() {
                 bad.push(format!("{what}: the door answers In"));
             }
         };
-    let mut trims = Vec::new();
     for ring in RINGS {
         let (du, dv) = (s / (ring.0 + ring.1), s / ring.1);
         let (w, a) = (PI / 2.0, PI / 4.0);
@@ -2511,19 +2504,7 @@ fn the_smallest_notch_refuses_definitely() {
             format!("frustum {h0}..{h1}"),
             door(&body, face, cone_at(h1 - 0.5 * dh, w - 0.5 * dt)),
         );
-        let got = cone_face_trim(
-            &body,
-            face,
-            p(0.0, 0.0, 0.0),
-            Vec3::unit_z(),
-            PI / 4.0,
-            band(),
-        );
-        if !matches!(got, Err(PointInSolidError::PartialConeFace { .. })) {
-            trims.push(format!("frustum {h0}..{h1}: the trim answers {got:?}"));
-        }
     }
-    bad.extend(trims);
     assert!(
         bad.is_empty(),
         "notch {s:e} m at ε {:e}:\n{}",

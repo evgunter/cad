@@ -262,13 +262,13 @@ type Aim<T> = (Point3<T>, Vec3<T>);
 /// the edges it passes, however near ([`ray_crossings`]). Another planar
 /// face aims at a point certified strictly inside it
 /// ([`crate::stands::planar_interior_point`]), and offers none where no
-/// candidate certifies. A cylinder, cone or torus face aims at its
-/// chart's point at the middle of its window (a full turn's middle where
-/// it wraps), and a closed sphere at a fixed point of its chart; none of
-/// these needs to lie inside the face: the ray's start lies beyond every
-/// face whatever it aims at, so its count reads the side wherever it
-/// lands, and an aim off the face only steers it. A trimmed sphere, a
-/// cone this door cannot trim and a spline offer none.
+/// candidate certifies. A cylinder or cone face aims at its region's own
+/// aim (its boundary's middle points carried onto the surface), a torus
+/// and a closed sphere at a fixed point of their charts; none of these
+/// needs to lie inside the face: the ray's start lies beyond every face
+/// whatever it aims at, so its count reads the side wherever it lands,
+/// and an aim off the face only steers it. A trimmed sphere, a cylinder
+/// or cone face whose region cannot be read and a spline offer none.
 ///
 /// # Errors
 ///
@@ -292,21 +292,18 @@ fn aim_at<T: Decide>(
         Err(PointInSolidError::KindUnsupported { .. }) => {}
         Err(e) => return Err(e),
     }
-    let mid = |(lo, hi): (T, T)| (lo + hi) * T::from_f64(0.5);
-    let (u, v) = match *geo {
-        FaceGeo::Cylinder { az, h, .. } => (mid(az), mid(h)),
-        FaceGeo::Cone { az, v, .. } => (az.map_or_else(T::pi, mid), mid(v)),
-        // A torus face, whole or trimmed, is aimed at one point of its
-        // surface: the ray starts beyond every face whatever it aims at.
-        FaceGeo::Torus { .. } | FaceGeo::TorusPatch { .. } => (T::pi(), T::pi()),
-        FaceGeo::Sphere { .. } => (T::from_f64(1.0), T::from_f64(0.3)),
-        _ => return Ok(None),
-    };
-    let aim = body
+    let surface = body
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface))
-        .ok_or(PointInSolidError::CorruptFace { face })?
-        .eval(u, v);
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let aim = match *geo {
+        FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => region.aim(),
+        // A torus face, whole or trimmed, is aimed at one point of its
+        // surface: the ray starts beyond every face whatever it aims at.
+        FaceGeo::Torus { .. } | FaceGeo::TorusPatch { .. } => surface.eval(T::pi(), T::pi()),
+        FaceGeo::Sphere { .. } => surface.eval(T::from_f64(1.0), T::from_f64(0.3)),
+        _ => return Ok(None),
+    };
     // A normal the face's own reader cannot give (an in-band residual,
     // an apex) leaves no incidence to aim at: the face offers none.
     Ok(
@@ -574,7 +571,7 @@ fn cast_aims<T: Decide>(
     // is cast, and the volume reads with that face as the limit.
     let mut geos = Vec::with_capacity(faces.len());
     for &face in faces {
-        match face_geo(body, face, &sel.charts, band) {
+        match face_geo(body, face, &sel.charts) {
             Ok(geo) => geos.push((face, geo)),
             Err(e) => {
                 return Ok(Rays::Unread {
@@ -754,7 +751,7 @@ mod pre_filter_tests {
         // The limit is the one a ray meets at that face, from anywhere:
         // the face's geometry refuses.
         assert!(
-            matches!(face_geo(&body, spline, &sel.charts, band), Err(e) if e == want),
+            matches!(face_geo(&body, spline, &sel.charts), Err(e) if e == want),
             "a ray meets the same refusal"
         );
     }
