@@ -92,3 +92,33 @@ Set `active`. Triage at `c4318c38`:
   ground; `plan.md` says why.
 - Plan: designer pairs on the P0 and on the doors row, concurrently;
   an implementer on the `rewritten` set with the orphan-render row.
+
+## 2026-10-24 — two forks weighed (OFFSET orchestrator)
+
+**Conic carrier (P0).** Both designers recommend exact
+`Curve3::Hyperbola` and `Curve3::Parabola` kinds, plane×cone total at
+rung 2, the axial door taking the moved pair's own section, and C1's R1
+sentence ("outside the inventory by decision") replaced by the
+closed-form principle. Both traced R1 to M5's scheduling fence, hardened
+by later agent text; Ev's OQ1 and spiric rulings point the other way,
+#908 the one note for fitted NURBS. Both corrected the framing: the gap
+is the conic set's, not the offset lane's (booleans' `GermSectionOutsideInventory`,
+the general offset door, draft, STEP import). They agreed on the first
+round; `[ev]` PR 5652 carries it (fork-log row 193). Off-question from
+both: STEP import has no `HYPERBOLA`/`PARABOLA` arm; `offset_general` and
+`offset_axial` describe the same edge differently. Both ride the build if
+Ev says yes.
+
+**Doors' whole-body tier 1 (P1).** Both recommend against a scoped tier
+1. Agreement on the final state: one tier-1 derivation per staging door
+end (`closed_by_tier`, both contracts from one walk), and scope-driven
+walks with SHELF's solids unit. One designer additionally measured a
+large single-solid offset as quadratic in its scope (237 ms at a 1024-gon,
+tier 1 under 1%), from the attach setter's per-key orphan scans, and
+`shell_open`'s per-solid staging as quadratic in solids. Not a fork for
+Ev (no ratified decision moves), so decided here: the row closes, re-cut
+into `a-staging-doors-end-derives-tier1-once-and-its-orphan-sweep-is-batched`
+(P1 M, this slate), a note on SHELF's solids unit, and SHELL's
+`shell-open-stages-a-door-per-solid` (P2 M). The other designer would have
+banded the remainder P3; the quadratic is why the unit stays P1. Not a
+design-fork row: the population is forks that go to Ev.
