@@ -4,6 +4,8 @@ kind: issue
 title: ChartRegionError::ArmUnbounded carries its chart kind as a hand-written string beside geom_brep::SurfaceKind
 status: open
 opened: 2026-10-01
+priority: P4
+cost: E
 ---
 
 

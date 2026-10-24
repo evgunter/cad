@@ -5,10 +5,10 @@
 //! and every question that is that fact asks it:
 //!
 //! - a shell's role, outer or cavity ([`crate::props`]'s
-//!   `shell_role`), which check 10 ([`crate::validate`]), the pieces
+//!   `shell_role`), which check 10 ([`fn@crate::validate`]), the pieces
 //!   sort ([`crate::pieces`]), the cavity read of `shell`, the census's
 //!   role gate ([`crate::census`]) and `classify_shells` read;
-//! - a solid's orientation, check 7 ([`crate::validate`]);
+//! - a solid's orientation, check 7 ([`fn@crate::validate`]);
 //! - the side of a point no schedule ray reaches, point containment's
 //!   missed-ray side ([`crate::boolean::solid_contain`]).
 //!

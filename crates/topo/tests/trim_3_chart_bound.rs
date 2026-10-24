@@ -20,10 +20,9 @@ use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, Period, SurfacePair};
+use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeDescriptionSpec, Period, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, SpanLocate, SupSpeed, Tol, Vec3};
-use topo::pcurves::ChartArm;
 use topo::{
     Body, ChartBound, ChartEdge, ChartLoop, FaceSurface, LoopBoundary, MefSite, MetredRect,
     MevSite, PcurveMintError, chart_boundary,
@@ -81,7 +80,7 @@ fn l_bound() -> topo::MetredBound<Interval> {
         polygon(&L_SHAPE, false),
         Vec::new(),
         None,
-        ChartArm::Rate(SupSpeed::new(Interval::one())),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect("an aperiodic chart has no span premise to violate")
@@ -188,7 +187,7 @@ fn t8_a_centre_grazing_both_axes_is_answered_by_the_oblique_members() {
         polygon(&verts, false),
         Vec::new(),
         None,
-        ChartArm::Rate(SupSpeed::new(Interval::one())),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect("aperiodic")
@@ -252,7 +251,7 @@ fn t5_a_realizable_ring_is_lifted_and_the_lifts_are_inert_inside_the_outer() {
         outer,
         vec![ring],
         Some(Period::new(Interval::tau())),
-        ChartArm::Angular(Interval::one()),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect("an outer spanning 6.2 < τ satisfies the lift premise");
@@ -314,7 +313,7 @@ fn t5b_an_outer_wider_than_the_period_refuses() {
         outer,
         vec![ring],
         Some(Period::new(Interval::tau())),
-        ChartArm::Angular(Interval::one()),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect_err("an outer spanning three periods has no periodic region");
@@ -329,11 +328,80 @@ fn t5b_an_outer_wider_than_the_period_refuses() {
             polygon(&[(0.0, 0.0), (wide, 0.0), (wide, 2.0), (0.0, 2.0)], false),
             Vec::new(),
             None,
-            ChartArm::Rate(SupSpeed::new(Interval::one())),
+            SupSpeed::new(Interval::one()),
             band(),
         )
         .is_ok(),
         "a plane chart has no period to exceed"
+    );
+}
+
+/// **T5c** — the span premise is decided at a POINT scalar too. At
+/// `f64` an envelope's `image` is the poison a hull of two point
+/// results is, so a premise read off it could never refuse; this edge's
+/// `reach` carries it past the period while every vertex stays inside
+/// one unit.
+/// Kills: the span read off `image` (poison stands), the span read off
+/// the chord polygon alone (the bulge is lost), and a poisoned span
+/// read as "stand".
+#[test]
+fn t5c_an_envelope_reaching_past_the_period_refuses_at_f64() {
+    let tau = core::f64::consts::TAU;
+    let p = |u: f64, v: f64| Point2::new(u, v);
+    let outer = |reach_u: f64| ChartLoop {
+        edges: vec![
+            ChartEdge::Segment {
+                a: p(0.0, 0.0),
+                b: p(1.0, 0.0),
+            },
+            ChartEdge::Envelope {
+                a: p(1.0, 0.0),
+                b: p(1.0, 1.0),
+                reach: ChartWindow {
+                    u_min: 1.0,
+                    u_max: reach_u,
+                    v_min: 0.0,
+                    v_max: 1.0,
+                },
+                image: None,
+                slack: 0.0,
+            },
+            ChartEdge::Segment {
+                a: p(1.0, 1.0),
+                b: p(0.0, 1.0),
+            },
+            ChartEdge::Segment {
+                a: p(0.0, 1.0),
+                b: p(0.0, 0.0),
+            },
+        ],
+        ring: false,
+    };
+    let assemble = |reach_u: f64| {
+        ChartBound::assembled(
+            outer(reach_u),
+            Vec::new(),
+            Some(Period::new(tau)),
+            SupSpeed::new(1.0),
+            band(),
+        )
+    };
+    let err = assemble(tau + 1.0).expect_err("an image reaching past a period refuses at f64");
+    assert!(
+        matches!(err, PcurveMintError::OuterSpansPeriod),
+        "the refusal must name the premise it is about: {err}"
+    );
+    assert!(
+        assemble(2.0).is_ok(),
+        "an image well inside a period is described at f64"
+    );
+    // A poisoned reach (a projected row that locates no piece answers
+    // one) leaves the span unmeasured, and that refuses too: the
+    // description licenses W2's premise.
+    let err = assemble(f64::NAN).expect_err("a poisoned span refuses at f64");
+    assert!(
+        matches!(err, PcurveMintError::OuterSpanPoisoned { .. }),
+        "a poisoned span refuses under its own name: {err}"
     );
 }
 
@@ -358,10 +426,13 @@ fn t6_an_envelope_box_is_widened_by_its_certificate_slack() {
             ChartEdge::Envelope {
                 a: p2(2.0, 0.0),
                 b: p2(2.0, 2.0),
-                image: Point2::new(
-                    iv(2.0).enclosure_hull(iv(2.1)),
-                    iv(0.0).enclosure_hull(iv(2.0)),
-                ),
+                reach: ChartWindow {
+                    u_min: iv(2.0),
+                    u_max: iv(2.1),
+                    v_min: iv(0.0),
+                    v_max: iv(2.0),
+                },
+                image: None,
                 slack: iv(slack),
             },
             ChartEdge::Segment {
@@ -382,7 +453,7 @@ fn t6_an_envelope_box_is_widened_by_its_certificate_slack() {
         outer,
         Vec::new(),
         Some(Period::new(Interval::tau())),
-        ChartArm::Angular(iv(2.0)),
+        SupSpeed::new(iv(2.0)),
         band(),
     )
     .expect("a 2 x 2 outer does not span a period")
@@ -778,9 +849,10 @@ fn t9c_a_projected_edge_on_part_of_its_net_reads_the_tighter_box() {
         .iter()
         .find(|e| !matches!(e, ChartEdge::Segment { .. }))
         .expect("the spline edge is an envelope");
-    let ChartEdge::Envelope { a, b, image, .. } = spline else {
+    let ChartEdge::Envelope { a, b, .. } = spline else {
         panic!("an envelope edge: {spline:?}")
     };
+    let image = &spline.image().expect("an envelope has an image");
     let mid = |x: Interval| 0.5 * (x.lo() + x.hi());
     let (a, b) = ((mid(a.x), mid(a.y)), (mid(b.x), mid(b.y)));
     let d = (b.0 - a.0, b.1 - a.1);
@@ -848,7 +920,7 @@ fn t10_a_long_edge_guards_the_dimensional_claim() {
         polygon(&[(0.0, 0.0), (long, 0.0), (long, -5.0), (0.0, -5.0)], false),
         Vec::new(),
         None,
-        ChartArm::Rate(SupSpeed::new(Interval::one())),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect("aperiodic")
@@ -899,10 +971,13 @@ fn t11_the_metred_hull_is_widened_by_every_envelope_slack() {
             ChartEdge::Envelope {
                 a: p2(2.0, 0.0),
                 b: p2(2.0, 2.0),
-                image: Point2::new(
-                    iv(2.0).enclosure_hull(iv(2.1)),
-                    iv(0.0).enclosure_hull(iv(2.0)),
-                ),
+                reach: ChartWindow {
+                    u_min: iv(2.0),
+                    u_max: iv(2.1),
+                    v_min: iv(0.0),
+                    v_max: iv(2.0),
+                },
+                image: None,
                 slack: iv(slack),
             },
             ChartEdge::Segment {
@@ -920,7 +995,7 @@ fn t11_the_metred_hull_is_widened_by_every_envelope_slack() {
         outer,
         Vec::new(),
         Some(Period::new(Interval::tau())),
-        ChartArm::Angular(iv(2.0)),
+        SupSpeed::new(iv(2.0)),
         band(),
     )
     .expect("a 2.1 x 2 outer does not span a period at arm 2");

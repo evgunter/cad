@@ -285,8 +285,7 @@ fn tally(
     for (k, (a, b)) in p0.iter().zip(p1).take(common).enumerate() {
         found.compared += 1;
         // A NaN margin is a domain violation, which no session
-        // discharges (`chart_bound_outer_span` decides one:
-        // `work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+        // discharges.
         if a.sign.is_none() && !a.value.is_some_and(f64::is_nan) {
             found.escalated += 1;
         }

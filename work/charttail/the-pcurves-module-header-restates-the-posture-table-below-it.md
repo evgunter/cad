@@ -5,6 +5,8 @@ title: pcurves.rs opens with 264 doc lines that restate the posture table twenty
 status: open
 opened: 2026-09-14
 refs: [pcurve-posture-guard-is-blind-to-body-producing-doors, 2594]
+priority: P4
+cost: E
 ---
 
 

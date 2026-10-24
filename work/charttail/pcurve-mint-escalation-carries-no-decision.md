@@ -4,6 +4,8 @@ kind: issue
 title: topo::pcurves: PcurveMintError::Escalated carries no closed decision, so its at-rest ending cannot name a lever or a tolerance
 status: open
 opened: 2026-09-29
+priority: P3
+cost: M
 ---
 
 

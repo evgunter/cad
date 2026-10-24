@@ -4,6 +4,8 @@ kind: issue
 title: chart_region mints Indeterminates by hand after a definite sign, at three sites
 status: open
 opened: 2026-10-01
+priority: P3
+cost: E
 ---
 
 
