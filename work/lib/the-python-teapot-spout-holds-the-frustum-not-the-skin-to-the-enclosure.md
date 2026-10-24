@@ -36,3 +36,15 @@ the Rust scene's 1e-12 reading does not open. It does now.
 The binding may need a door to a face's NURBS jet to say this
 naturally. If it has none, that is a binding-coverage finding of its
 own.
+
+## The binding has no door to the reference (ISO, 2026-10-24)
+
+The Rust scenes now share the skin quadrature,
+`demos/tour/src/oracles.rs`'s `skin_quadrature`, which also integrates
+the planar caps from the patches' boundary isolines. That function
+reads each face's surface (`Body::get_surface`), a NURBS patch's knots
+and its jet (`NurbsSurface::ders`). `crates/pncad-py/src` exposes
+none of these to Python: no surface accessor on a face, and no control
+net, knot vector or evaluator for a patch. Fixing this test therefore
+first needs a binding door to a face's NURBS jet, which is that
+binding-coverage finding. ISO left the test as it was.
