@@ -202,3 +202,12 @@ This was not a crossover, because only one designer moved, so reconciliation end
   - collapse the `fidelity` and `azimuth_lever` copies of the arm table.
 
   The remaining table copies are to be filed as one row. The PR's base was retargeted to main; it had been opened against `chart/orchestrator`.
+- 2026-10-24 — **PR 5659's FULL review** (`session_015ZzSwmgjsRsL6pYhWj45EQ`).
+  - **M1, MAJOR, executed:** at a wide band, a wide cone (α > 45°) mirror-nappe point near the apex reads the antipode with `singular = false`. The nappe is decided on h while ρ is decided, and step-import reads at that band.
+  - **m1:** the cone's `v = h/cos α` is the only arm that is not projection-consistent. The pcert row filed as "undecided" has a wrong side.
+  - **Fix pass:** v becomes the ruling foot, the nappe is decided on its sign, and an undecided foot reads singular. Also:
+    - `Chart` stops re-matching kinds beside the reading;
+    - off-surface and wide-cone test rows are added;
+    - the ellipse pcurve's moved values are pinned;
+    - the goldens are re-described as a tie-break (no quality change), and the diagonal fragility goes to TESS;
+    - the CI change filter's skip of step-import and interval is checked.
