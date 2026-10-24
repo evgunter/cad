@@ -185,17 +185,18 @@ const FINE_GAP: f64 = 5e-4;
 /// boss. Returns the body and its relative gap to [`coil_volume`].
 ///
 /// Round wire is the natural section, and it is wall 1: the swept
-/// `circle_split` wire builds, and at the default ε and finer its
-/// volume refuses `QuadratureBudget`, an enclosure 3.98e-4 m wide
-/// against the 1024·ε target
-/// (`work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
-/// At ε = 1e-6 the wall is RETIRED, kept live: the enclosure was
-/// 3.59e-3 m when the wall was pinned (2026-10-06) and has tightened
-/// about 9x since, under the 1.024e-3 target, so the volume decides
-/// there (`work/quad/main-red-projectbox-wall-1-no-longer-refuses-at-eps-1e-6`).
-/// It measures the coil it should: `volume ± volume_pad` contains
-/// [`coil_volume`]`(π WIRE_H²)`, the slab gap inside [`COIL_GAP`] as
-/// the square wire's is.
+/// `circle_split` wire builds, and finer than the default ε its volume
+/// refuses `QuadratureBudget` (at ε = 1e-12, an enclosure 2.74e-8 m
+/// wide against the 1024·ε target, after 7 rounds;
+/// `work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
+/// At the default ε and looser the wall is RETIRED, kept live: the
+/// volume decides, 0.01036012 ± 1.9e-7 at the default ε, and its
+/// bracket holds the body's volume as an independent quadrature of the
+/// same patches measures it, 0.010360121170117. Neither bracket holds
+/// [`coil_volume`]`(π WIRE_H²)`, the continuum tube's: the body is a
+/// stack of slabs, as the square wire's is, and the retired wall
+/// asserts the same slab gap against it, inside [`COIL_GAP`]
+/// (measured −4.40e-3).
 fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     let round: Vec<ConstructedLoop<f64>> = vec![
         circle_split(p2(0.0, 0.0), WIRE_H, 4, 0.0, tol)
@@ -217,19 +218,18 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
             })
             .expect("the round-wire coil passes tier 3 or cannot be measured")),
     };
-    if tol.eps() > pncad::tolerance::DEFAULT_EPS {
+    if tol.eps() >= pncad::tolerance::DEFAULT_EPS {
         let props = round_props.unwrap_or_else(|e| {
             panic!(
                 "wall 1 (measure the round-wire spring's volume) refuses at ε = {:e}, \
-                 looser than the default, where it was retired: {e:?} — the wall MOVED; \
-                 re-derive it",
+                 where it was retired: {e:?} — the wall MOVED; re-derive it",
                 tol.eps()
             )
         });
         let want = coil_volume(core::f64::consts::PI * WIRE_H * WIRE_H);
         let gap = (props.volume - want) / want;
         assert!(
-            (props.volume - want).abs() <= props.volume_pad && (-COIL_GAP..0.0).contains(&gap),
+            (-COIL_GAP..0.0).contains(&gap),
             "the round-wire coil's volume {} ± {:.1e} against A·L = {want}: relative gap \
              {gap:.3e}",
             props.volume,
@@ -237,7 +237,7 @@ fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
         );
         println!(
             "   wall 1 RETIRED at ε = {:e} — the round-wire spring's volume {} ± {:.1e} \
-             (A·L = {want})",
+             (A·L = {want}, gap {gap:.3e})",
             tol.eps(),
             props.volume,
             props.volume_pad
