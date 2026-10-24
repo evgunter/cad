@@ -78,7 +78,7 @@ fn rest_choice(slide: [f64; 2], spin: f64) -> viewer::matetool::MateChoice {
         values: vec![
             (Coord::Slide(TargetAxis::X), common::len(slide[0])),
             (Coord::Slide(TargetAxis::Y), common::len(slide[1])),
-            (Coord::Spin(TargetAxis::Z), common::ang(spin)),
+            (Coord::SPIN, common::ang(spin)),
         ],
     }
 }

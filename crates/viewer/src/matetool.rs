@@ -38,14 +38,16 @@
 //! # What the mate leaves
 //!
 //! Values set the freedoms the mate's kind leaves, on the target
-//! space's axes swung onto the mated direction: a plane mate slides
-//! along `x` and `y` and spins about `z`, an axis mate slides along
-//! and spins about `z`. A value the kind does not leave is refused here
+//! space's axes carried onto the mated direction by the least turn from
+//! where the mate's orientation puts the copy's: a plane mate leaves two
+//! slides and the spin about the mated direction, an axis mate one slide
+//! and the spin. A value the kind does not leave is refused here
 //! ([`MateToolError::NotAFreedom`], [`MateFreedom::left_by`]), before
 //! any edit exists. The mate goes in through the bundle door, which
-//! rewrites the placement's bundle whole: the values the new mate
-//! fixes leave it, each freedom it leaves keeps its value, and a
-//! freedom left unset is written `0`.
+//! rewrites the placement's bundle whole; the gesture then writes the
+//! orientation nearest where the copy stands and the values that stand
+//! it where the snap puts it, so a freshly mated copy moves only by the
+//! snap, and the values the person named over them.
 //!
 //! # What the class admits
 //!
@@ -106,8 +108,8 @@ pub const MATE_KINDS: [(VarKind, &str); 2] = [(VarKind::Plane, "plane"), (VarKin
 
 vocabulary! {
     /// **A freedom a mate's value can set**, as the mate panel offers
-    /// it: a slide along the chart's `x`, `y` or `z`, or the spin about
-    /// the mated direction. Which of them a mate leaves is its kind's
+    /// it: a slide along the chart's (carried) `x`, `y` or `z`, or the
+    /// spin about the mated direction. Which of them a mate leaves is its kind's
     /// ([`Self::left_by`]), and the panel offers those alone. It mirrors
     /// the kernel's [`Coord`] both ways, by two exhaustive matches
     /// ([`Self::coord`], [`Self::of`]), so a freedom the kernel grows
@@ -121,7 +123,7 @@ vocabulary! {
         SlideX,
         /// A slide along the chart's `y`.
         SlideY,
-        /// A slide along the chart's `z`: the mated direction.
+        /// A slide along the chart's `z`.
         SlideZ,
         /// The spin about the mated direction.
         Spin,
@@ -139,7 +141,7 @@ impl MateFreedom {
             Self::SlideX => Coord::Slide(TargetAxis::X),
             Self::SlideY => Coord::Slide(TargetAxis::Y),
             Self::SlideZ => Coord::Slide(TargetAxis::Z),
-            Self::Spin => Coord::Spin(TargetAxis::Z),
+            Self::Spin => Coord::SPIN,
         }
     }
 
@@ -151,22 +153,32 @@ impl MateFreedom {
             Coord::Slide(TargetAxis::X) => Some(Self::SlideX),
             Coord::Slide(TargetAxis::Y) => Some(Self::SlideY),
             Coord::Slide(TargetAxis::Z) => Some(Self::SlideZ),
-            Coord::Spin(TargetAxis::Z) => Some(Self::Spin),
-            Coord::Spin(TargetAxis::X | TargetAxis::Y) => None,
+            Coord::Spin(None) => Some(Self::Spin),
+            Coord::Spin(Some(_)) => None,
         }
     }
 
-    /// **Whether a mate of `kind` leaves this freedom**: a plane slides
-    /// along the chart's `x` and `y` and spins about `z`; an axis
-    /// slides along and spins about `z`. A kind no face pick reads
-    /// ([`MATE_KINDS`]) leaves nothing the panel offers.
+    /// **Whether a mate of `kind` leaves this freedom**: a plane two of
+    /// the carried slides and the spin, an axis one slide and the spin.
+    /// Which slides is the copy's geometry's to say (the slide the least
+    /// turn carries onto the mated direction is the one a plane fixes and
+    /// an axis leaves), so the panel offers each, and the evaluation
+    /// refuses slides that do not span what the mate leaves. A kind no
+    /// face pick reads ([`MATE_KINDS`]) leaves nothing the panel offers.
     #[must_use]
     pub fn left_by(self, kind: VarKind) -> bool {
-        matches!(
-            (kind, self),
-            (VarKind::Plane, Self::SlideX | Self::SlideY | Self::Spin)
-                | (VarKind::Axis, Self::SlideZ | Self::Spin)
-        )
+        matches!(kind, VarKind::Plane | VarKind::Axis)
+    }
+
+    /// **How many slides a mate of `kind` leaves**: two beside a plane,
+    /// one beside an axis.
+    #[must_use]
+    pub fn slides_left_by(kind: VarKind) -> usize {
+        match kind {
+            VarKind::Plane => 2,
+            VarKind::Axis => 1,
+            _ => 0,
+        }
     }
 }
 
@@ -276,8 +288,9 @@ pub enum MateToolError {
         /// The refused class.
         class: ContactClass,
     },
-    /// A value sets a freedom the mate's kind does not leave
-    /// ([`MateFreedom::left_by`]).
+    /// A value sets a freedom the mate's kind does not leave, or a slide
+    /// past as many as it leaves ([`MateFreedom::left_by`],
+    /// [`MateFreedom::slides_left_by`]).
     NotAFreedom {
         /// The freedom.
         coord: Coord,
@@ -692,8 +705,14 @@ impl MateTool {
         if !MATE_KINDS.iter().any(|(kind, _)| *kind == choice.kind) {
             return Err(MateToolError::KindNotOffered { kind: choice.kind });
         }
+        let mut slides = 0;
         for (coord, _) in &choice.values {
-            if !MateFreedom::of(*coord).is_some_and(|f| f.left_by(choice.kind)) {
+            if matches!(coord, Coord::Slide(_)) {
+                slides += 1;
+            }
+            if !MateFreedom::of(*coord).is_some_and(|f| f.left_by(choice.kind))
+                || slides > MateFreedom::slides_left_by(choice.kind)
+            {
                 return Err(MateToolError::NotAFreedom {
                     coord: *coord,
                     kind: choice.kind,
@@ -756,6 +775,9 @@ impl MateTool {
                 on: pose_of(choice.kind, &on_face),
                 to: target,
                 class: choice.class,
+                // The commit writes the orientation nearest where the
+                // copy stands ([`SessionOp::AddMate`]).
+                orient: pncad::document::Orientation::IDENTITY,
             },
             on: on_face,
             to: picked_to,

@@ -154,9 +154,9 @@ fn a_revolve_stands_by_the_identity_bundle_whatever_its_axis_reads() {
             Some(Coord::Slide(TargetAxis::X)),
             Some(Coord::Slide(TargetAxis::Y)),
             Some(Coord::Slide(TargetAxis::Z)),
-            Some(Coord::Spin(TargetAxis::X)),
-            Some(Coord::Spin(TargetAxis::Y)),
-            Some(Coord::Spin(TargetAxis::Z)),
+            Some(Coord::Spin(Some(TargetAxis::X))),
+            Some(Coord::Spin(Some(TargetAxis::Y))),
+            Some(Coord::Spin(Some(TargetAxis::Z))),
         ],
         "six values and no mate: {bundle:?}"
     );
@@ -253,9 +253,9 @@ fn a_creation_gesture_places_what_it_made_in_one_action() {
                 Some(Coord::Slide(TargetAxis::X)),
                 Some(Coord::Slide(TargetAxis::Y)),
                 Some(Coord::Slide(TargetAxis::Z)),
-                Some(Coord::Spin(TargetAxis::X)),
-                Some(Coord::Spin(TargetAxis::Y)),
-                Some(Coord::Spin(TargetAxis::Z)),
+                Some(Coord::Spin(Some(TargetAxis::X))),
+                Some(Coord::Spin(Some(TargetAxis::Y))),
+                Some(Coord::Spin(Some(TargetAxis::Z))),
             ],
             "the identity bundle: every freedom, no mate"
         );

@@ -201,7 +201,7 @@ pub(crate) fn seat_edits(
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+            (Coord::SPIN, ang(0.0)),
         ],
     };
     let edits = fixture::bundle_edits(&doc, placement, placed.bundle());
@@ -238,7 +238,7 @@ pub(crate) fn seat_turned(
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),
-            (Coord::Spin(TargetAxis::Z), ang(turn)),
+            (Coord::SPIN, ang(turn)),
         ],
     };
     let (doc, ids) = fixture::write_bundle(doc, placement, placed.bundle());
@@ -481,7 +481,7 @@ fn an_inserted_instance_sits_at_the_origin_and_a_constraint_places_a_loose_one_r
         .chain(
             TargetAxis::ALL
                 .into_iter()
-                .map(|axis| (Coord::Spin(axis), ang(0.0))),
+                .map(|axis| (Coord::Spin(Some(axis)), ang(0.0))),
         )
         .collect();
     let pin = editor_core::Placed::of(&doc, Vec::new(), typed).write(base);
@@ -611,12 +611,7 @@ fn removing_a_value_writes_its_freedom_zero() {
             Coord::Slide(TargetAxis::Y),
             [0.0, 0.0, 0.0],
         ),
-        (
-            "the seat's spin",
-            top,
-            Coord::Spin(TargetAxis::Z),
-            [1.0, 1.0, BASE_HEIGHT],
-        ),
+        ("the seat's spin", top, Coord::SPIN, [1.0, 1.0, BASE_HEIGHT]),
     ] {
         let removed = apply(
             &doc,

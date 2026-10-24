@@ -467,15 +467,23 @@ coset of the kind's `Subgroup` (A11 (1)).
 
 A `Value { coord, by }` names no mate: it is a coordinate of the
 target space, setting one freedom the bundle's mates leave to a
-`Length` or an `Angle` (`Coord::Slide(X | Y | Z)`, `Coord::Spin(X | Y |
-Z)`): a plane mate's `Slide(X)`, `Slide(Y)` and `Spin(Z)`, an axis
-mate's `Slide(Z)` and `Spin(Z)`, a direction mate's three slides and
-`Spin(Z)`. Where a mate fixes a direction it is charted on the target
-space's axes swung onto that direction by the shortest turn
-(`reference_about`), and the copy's own axes likewise: a slide is the
-copy's origin measured from the target space's along the swung axis, a
-spin the angle about the mated direction from the swung `x` to the
-copy's. The chart reads no body a pose is read off, so a value edit
+`Length` or an `Angle` (`Coord::Slide(X | Y | Z)`, `Coord::Spin(None)`
+beside a mate fixing a direction, `Coord::Spin(Some(X | Y | Z))` for a
+chain): a plane mate's two slides and its spin, an axis mate's one
+slide and its spin, a direction mate's three slides and its spin.
+Where a mate fixes a direction `d`, the mate's `orient` (an
+`Orientation`, one of the 24 ways the copy's axes lie along the target
+space's, the identity unless written) puts the copy's mated direction
+`d_c` at `n = O·d_c`, and the least turn `S` carries `n` onto `d`; the
+copy's turn is `rot(d, θ)·S·O`. A slide is the copy's origin measured
+from the target space's along a target axis as `S` carries it, and the
+spin `θ` is the turn left about `d` (`mate/value.rs`, `Chart`). Where
+`n` is a target axis, the slide `S` carries onto `d` is the one a plane
+mate fixes and an axis mate leaves; otherwise the written slides are
+admitted only where they span what the mate leaves
+(`NoChartWhy::SlidesDoNotSpan`). The one pole, `n = −d`, is the
+orientation written backwards: inside the band about it the chart
+refuses `MateFault::Backwards`, naming the orientation to write. The chart reads no body a pose is read off, so a value edit
 never rides with one. Where no mate fixes a direction (no mate, or a
 lone point mate), the rotation is a chain of at most three spins about
 the target space's own axes, through the mated point for a point mate,

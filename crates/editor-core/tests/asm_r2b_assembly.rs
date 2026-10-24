@@ -152,7 +152,7 @@ fn seat(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDoc, Ma
         &[
             (Coord::Slide(TargetAxis::X), len(seat.slide[0])),
             (Coord::Slide(TargetAxis::Y), len(seat.slide[1])),
-            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     );
     (doc, mate)

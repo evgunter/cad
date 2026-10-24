@@ -282,7 +282,7 @@ fn a1_a_value_is_admitted_by_its_bundle() {
     );
     let mut bundle = lone(ball);
     for (at, axis) in (2..).zip(TargetAxis::ALL) {
-        bundle.push(value_at(at, Coord::Spin(axis), ang(0.1)));
+        bundle.push(value_at(at, Coord::Spin(Some(axis)), ang(0.1)));
     }
     whole_door(&doc, ids[2], bundle).expect("a ball's chain of spins pins it");
 
@@ -298,11 +298,7 @@ fn a1_a_value_is_admitted_by_its_bundle() {
         ContactClass::Rest,
     ));
     bundle.push(value_at(2, Coord::Slide(TargetAxis::Z), len(0.0)));
-    bundle.push(value_at(
-        3,
-        Coord::Spin(editor_core::TargetAxis::Z),
-        ang(0.1),
-    ));
+    bundle.push(value_at(3, Coord::SPIN, ang(0.1)));
     whole_door(&doc, lines[2], bundle).expect("a target over two bodies has one chart");
 }
 
@@ -559,7 +555,7 @@ fn corpus() -> Vec<Row> {
             doc,
             ids[1],
             mate(body, ids[0], ids[1]),
-            &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.3))],
+            &[(Coord::SPIN, ang(0.3))],
         );
         ("msolve10-corpus-value", doc, opts)
     });

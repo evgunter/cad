@@ -280,7 +280,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), x),
             (Coord::Slide(TargetAxis::Y), y),
-            (Coord::Spin(editor_core::TargetAxis::Z), spin),
+            (Coord::SPIN, spin),
         ],
     )
 }
@@ -388,8 +388,8 @@ fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
     let plus = |a: Formula, b: Formula| Formula::add(a, b).expect("a sum");
     let (c3, s3) = (0.3_f64.cos(), 0.3_f64.sin());
     let values = vec![
-        (Coord::Spin(TargetAxis::X), ang(0.3)),
-        (Coord::Spin(TargetAxis::Z), named(turn(), Dimension::Angle)),
+        (Coord::Spin(Some(TargetAxis::X)), ang(0.3)),
+        (Coord::Spin(Some(TargetAxis::Z)), named(turn(), Dimension::Angle)),
         (
             Coord::Slide(TargetAxis::X),
             plus(metres(5.0, cos()), metres(-s3, sin())),
@@ -627,7 +627,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         ),
         &[
             (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.3)),
+            (Coord::SPIN, ang(0.3)),
         ],
     );
     out.push(("coaxial-slide-spin", doc, p.opts()));
@@ -1730,7 +1730,7 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
         &[
             (Coord::Slide(TargetAxis::X), len(x)),
             (Coord::Slide(TargetAxis::Y), len(y)),
-            (Coord::Spin(TargetAxis::Z), ang(0.0)),
+            (Coord::SPIN, ang(0.0)),
         ],
     );
     let opts = p.opts();

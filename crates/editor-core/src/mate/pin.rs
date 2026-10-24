@@ -44,8 +44,9 @@ impl Placed {
     /// **The bundle its caller wrote** (the helpers ruling): `mates`,
     /// then `moves` in the order written, then the constant `0` on each
     /// freedom the mates leave that no move names — a slide along each
-    /// of the target space's (swung) axes the mates leave, and the spin
-    /// about the mated direction, or, where no direction is fixed, the
+    /// of the target space's (carried) `x`, `y` and `z` until the slides
+    /// are as many as the mates leave, and the spin about the mated
+    /// direction, or, where no direction is fixed, the
     /// chain's missing turns about the target space's `x`, `y` and `z`
     /// appended until it turns three times. The freedoms the mates
     /// leave are read off their kinds in the recipe of `doc`, nothing
@@ -132,23 +133,28 @@ pub(crate) fn residual(families: impl IntoIterator<Item = SubgroupFamily>) -> Su
 }
 
 /// **The freedoms of `left` that `written` leaves unnamed**, in
-/// canonical order: each slide along a (swung) axis the residual
-/// leaves, and the spin about the mated direction, that no value
-/// writes; or, where no direction is fixed, the chain's missing turns
+/// canonical order: a slide along each of `x`, `y` and `z` no value
+/// writes until the slides are as many as the residual frees, and the
+/// spin about the mated direction where no value writes it; or, where no direction is fixed, the chain's missing turns
 /// about `x`, `y` and `z`, appended until it turns three times.
 pub(crate) fn unnamed(left: SubgroupFamily, written: &[Coord]) -> Vec<Coord> {
     let mut out = Vec::new();
+    let mut slides = TargetAxis::ALL
+        .into_iter()
+        .filter(|&a| written.contains(&Coord::Slide(a)))
+        .count();
     for axis in TargetAxis::ALL {
         let coord = Coord::Slide(axis);
-        if super::solve::leaves(left, coord) && !written.contains(&coord) {
+        if slides < super::solve::slides_left(left) && !written.contains(&coord) {
             out.push(coord);
+            slides += 1;
         }
     }
     if super::solve::chained(left) {
         let chain: Vec<TargetAxis> = written
             .iter()
             .filter_map(|c| match c {
-                Coord::Spin(axis) => Some(*axis),
+                Coord::Spin(axis) => *axis,
                 Coord::Slide(_) => None,
             })
             .collect();
@@ -159,12 +165,12 @@ pub(crate) fn unnamed(left: SubgroupFamily, written: &[Coord]) -> Vec<Coord> {
             .count();
         for axis in TargetAxis::ALL {
             if turns < 3 && !chain.contains(&axis) {
-                out.push(Coord::Spin(axis));
+                out.push(Coord::Spin(Some(axis)));
                 turns += 1;
             }
         }
     } else {
-        let spin = Coord::Spin(TargetAxis::Z);
+        let spin = Coord::SPIN;
         if super::solve::leaves(left, spin) && !written.contains(&spin) {
             out.push(spin);
         }
@@ -174,7 +180,8 @@ pub(crate) fn unnamed(left: SubgroupFamily, written: &[Coord]) -> Vec<Coord> {
 
 /// **Which of a bundle's values a new residual keeps**, in the order
 /// written: a value whose freedom `left` leaves, the first of each
-/// freedom, and, where no direction is fixed, each spin of the chain
+/// freedom, the slides along the first axes in `x`, `y`, `z` order up to
+/// as many as `left` frees, and, where no direction is fixed, each spin of the chain
 /// that turns from the one before it, up to three turns. What a mate
 /// added or taken away leaves of the values ([`crate::DocEdit::AddConstraint`],
 /// [`crate::DocEdit::RemoveConstraint`]); [`unnamed`] then writes the
@@ -184,6 +191,13 @@ pub(crate) fn kept(left: SubgroupFamily, written: &[Coord]) -> Vec<bool> {
     let mut seen: Vec<Coord> = Vec::new();
     let mut last: Option<TargetAxis> = None;
     let mut turns = 0;
+    // The slides kept are the first the residual leaves in axis order,
+    // as [`unnamed`] writes them.
+    let slid: Vec<TargetAxis> = TargetAxis::ALL
+        .into_iter()
+        .filter(|&a| written.contains(&Coord::Slide(a)))
+        .take(super::solve::slides_left(left))
+        .collect();
     written
         .iter()
         .map(|&coord| {
@@ -191,7 +205,7 @@ pub(crate) fn kept(left: SubgroupFamily, written: &[Coord]) -> Vec<bool> {
                 return false;
             }
             match coord {
-                Coord::Spin(axis) if chained => {
+                Coord::Spin(Some(axis)) if chained => {
                     if last == Some(axis) || turns == 3 {
                         return false;
                     }
@@ -200,6 +214,7 @@ pub(crate) fn kept(left: SubgroupFamily, written: &[Coord]) -> Vec<bool> {
                     true
                 }
                 _ if seen.contains(&coord) => false,
+                Coord::Slide(a) if !slid.contains(&a) => false,
                 _ => {
                     seen.push(coord);
                     true

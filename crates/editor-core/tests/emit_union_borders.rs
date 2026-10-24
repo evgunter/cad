@@ -37,14 +37,11 @@ use editor_core::{
 use geom_core::Tol;
 
 /// `doc` with the placement `placed` slid to `to` along `axis` of its
-/// target's own frame. The values are charted on the target's flipped
-/// start cap, whose `y` runs along the target's `−y`.
+/// target's own frame: a slide is a coordinate on the target's own axes,
+/// its start cap where the identity orientation puts the copy's.
 fn moved(doc: ProfileDoc, placed: RecipeNodeId, axis: TargetAxis, to: f64) -> ProfileDoc {
     let slot = value_slot(&doc, placed, Coord::Slide(axis));
-    let by = match axis {
-        TargetAxis::Y => -to,
-        _ => to,
-    };
+    let by = to;
     step(
         doc,
         DocEdit::SetParam {

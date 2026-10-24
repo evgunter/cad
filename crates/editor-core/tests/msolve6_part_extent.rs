@@ -891,12 +891,13 @@ fn a6_a_mate_chained_to_a_refused_one_removes_like_any_other() {
         on: fixture::plane(fixture::head(in_part(b, body, CapEnd::Start))),
         to: fixture::flip(to),
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     // A floor's top, and a second turned `0.25` about the world's `x`.
     let (doc, level, _) = fixture::floor(doc, Vec::new());
     let (doc, tilted, _) = fixture::floor(
         doc,
-        vec![(Coord::Spin(editor_core::TargetAxis::X), ang(0.25))],
+        vec![(Coord::Spin(Some(editor_core::TargetAxis::X)), ang(0.25))],
     );
     let (doc, _) = fixture::constrain_at(doc, b, rest_on(level));
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(

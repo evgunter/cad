@@ -80,13 +80,14 @@
 //!   say where on the top it stands, so a thicker shelf lifts it and
 //!   shorter posts lower it, and the gate certifies both
 //!   (`update_door`).
-//! - **A seat on a downward face charts its `y` backwards.** A value
-//!   is measured on the world's axes swung onto the mated direction by
-//!   the shortest turn, and a direction pointing straight down has
-//!   none, so its chart is the half turn about `x`: a seat whose chart
-//!   is that one writes its `y` slide negated, and nothing an author
-//!   reads at the seat says so short of `reference_about`'s
-//!   documentation (`stand_doc`).
+//! - **A seat's spin turns about the mated direction.** A value is
+//!   measured on the world's axes, carried onto the mated direction by
+//!   the least turn from where the mate's orientation puts the copy's,
+//!   and the spin is the turn left about the mated direction — the
+//!   flipped normal of the face the copy rests on. A seat on an upward
+//!   face is mated along the world's `-z`, so a turn about the world's
+//!   vertical is written negated there, and a seat under a downward
+//!   face writes it as it is (`stand_doc`).
 //!
 //! The declared direction's frontier — a mated assembly's gate can
 //! neither certify nor refute — is not new here; it is the census
@@ -106,7 +107,8 @@ use pncad::document::{
     Assembly, AssemblyError, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord,
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
     FreeVar, InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal,
-    NO_AT_REST_RECORD_RECOURSE, Node, OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect,
+    NO_AT_REST_RECORD_RECOURSE, Node, OVERCONSTRAINED_RECOURSE, Operand, Orientation, PartResolver,
+    PartSelect,
     PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis,
     UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate,
     inline, load, mixed_pins, parse_formula, product_named, run_checks, save, solve_document,
@@ -265,6 +267,7 @@ fn rest(on: Operand, against: Operand, class: ContactClass) -> Mate<Formula> {
         on,
         to: flipped(against),
         class,
+        orient: Orientation::IDENTITY,
     }
 }
 
@@ -326,12 +329,12 @@ fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<Profi
 }
 
 /// A plane mate's three freedoms set: the slides along its chart's `x`
-/// and `y` and the spin about its normal.
+/// and `y` and the spin about the mated direction.
 fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
     [
         (Coord::Slide(TargetAxis::X), x),
         (Coord::Slide(TargetAxis::Y), y),
-        (Coord::Spin(TargetAxis::Z), spin),
+        (Coord::SPIN, spin),
     ]
 }
 
@@ -686,7 +689,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
     // turn about +y leaves where it was, so each copy is placed at the
     // same pose.
     let lying = || {
-        let mut values = vec![(Coord::Spin(TargetAxis::Y), crate::world::turn(4, true))];
+        let mut values = vec![(Coord::Spin(Some(TargetAxis::Y)), crate::world::turn(4, true))];
         values.extend(crate::world::slides([
             FLAT_PACK_GAP + POST_HEIGHT,
             0.0,
@@ -814,7 +817,7 @@ fn swung(spot: [f64; 2], scope: &BTreeMap<VarName, Dimension>) -> [Formula; 2] {
 fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Placed {
     let [x, y] = swung([spot[0], spot[1]], scope);
     Placed::unmated(vec![
-        (Coord::Spin(TargetAxis::Z), pe("swing", scope)),
+        (Coord::Spin(Some(TargetAxis::Z)), pe("swing", scope)),
         (Coord::Slide(TargetAxis::X), x),
         (Coord::Slide(TargetAxis::Y), y),
         (Coord::Slide(TargetAxis::Z), length(spot[2])),
@@ -825,13 +828,11 @@ fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Pla
 ///
 /// The seats' values are where the posts meet the shelf, [`SEAT_A`]
 /// and [`SEAT_B`]: each copy's origin at swing zero, turned about the
-/// pivot by the swing ([`swung`]), on the world's axes swung onto the
-/// mated direction, and its spin the swing. The shelf's seat reads the
-/// near post's top, which faces up, so its chart is the world's own;
-/// the far post's reads the shelf's underside, which faces DOWN, and
-/// the chart of a downward direction is the world's axes turned half
-/// about `x`, so its `y` runs along the world's `-y` and its spin
-/// turns the other way.
+/// pivot by the swing ([`swung`]), on the world's axes, and its spin the
+/// swing about the mated direction. The shelf's seat reads the near
+/// post's top, which faces up, so the shelf is mated along the world's
+/// `-z` and its spin turns the other way; the far post's reads the
+/// shelf's underside, which faces down, so it is mated along `+z`.
 fn stand_doc(parts: &Parts, seating: Seating, tol: Tol) -> Stand {
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
@@ -864,20 +865,15 @@ fn stand_doc(parts: &Parts, seating: Seating, tol: Tol) -> Stand {
         shelf_at[0] + SEAT_B[0] - half,
         shelf_at[1] + SEAT_B[1] - half,
     ];
+    // A seat on an upward face is mated along the world's `-z`: a turn
+    // about the world's `+z` is a spin of the negated swing.
     let on_top = |at: [f64; 2]| {
         let [x, y] = swung(at, &scope);
-        seated_at(x, y, pe("swing", &scope))
+        seated_at(x, y, pe("-swing", &scope))
     };
-    // A seat under a downward face charts on the world's axes turned
-    // half about `x`: its `y` is the world's `-y`, and a turn about the
-    // world's `+z` is a spin about its `-z`.
     let under = |at: [f64; 2]| {
         let [x, y] = swung(at, &scope);
-        seated_at(
-            x,
-            Formula::neg(y).expect("a length negates"),
-            pe("-swing", &scope),
-        )
+        seated_at(x, y, pe("swing", &scope))
     };
     let mate_1 = constrain(
         &mut doc,

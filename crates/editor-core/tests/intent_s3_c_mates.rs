@@ -23,7 +23,7 @@ use editor_core::mate::coset::{Coset, Subgroup, intersect};
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
     BodyRead, ContactClass, Coord, DocEdit, EditError, EvalOptions, Formula, Mate, MateFault, Node,
-    NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
+    NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
 };
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
@@ -295,7 +295,7 @@ fn placed(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
 fn floor_facing_down(doc: ProfileDoc) -> (ProfileDoc, Operand) {
     let (doc, top, _) = fixture::floor(
         doc,
-        vec![(Coord::Spin(TargetAxis::X), ang(std::f64::consts::PI))],
+        vec![(Coord::Spin(Some(TargetAxis::X)), ang(std::f64::consts::PI))],
     );
     (doc, top)
 }
@@ -334,7 +334,7 @@ fn seat(
 fn number(coord: Coord, v: f64) -> Formula {
     match coord {
         Coord::Slide(_) => len(v),
-        Coord::Spin(editor_core::TargetAxis::Z) | Coord::Spin(_) => ang(v),
+        Coord::SPIN | Coord::Spin(_) => ang(v),
     }
 }
 
@@ -381,11 +381,12 @@ fn box_resting_on(
         on: plane_of(on_body(body, bottom)),
         to: fixture::flip(top),
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     let coords = [
         Coord::Slide(TargetAxis::X),
         Coord::Slide(TargetAxis::Y),
-        Coord::Spin(editor_core::TargetAxis::Z),
+        Coord::SPIN,
     ];
     let doc = seat(
         doc,
@@ -396,18 +397,19 @@ fn box_resting_on(
     (doc, placement)
 }
 
-/// **Row 9 — a plane mate leaves two slides and a spin, charted on the
-/// two bodies' own frames.** A box rests on the world floor by its
-/// bottom face (a rest carries a flip on the target; the chart
-/// normalises it to the copy's side, so both swung frames are their
-/// own). At zero values the box's own coordinates agree with the
-/// world's; at `(3, 4, 30°)` its origin stands at `(3, 4, 0)` turned
-/// 30° about `z`. Every order of the three values places it alike.
+/// **Row 9 — a plane mate leaves two slides and a spin.** A box rests
+/// on the world floor by its bottom face (a rest carries a flip on the
+/// target, so the mated direction is the floor's flipped normal `−z`,
+/// where the identity orientation puts the box's bottom: the least turn
+/// is the identity). At zero values the box's own coordinates agree with
+/// the world's; at `(3, 4, 30°)` its origin stands at `(3, 4, 0)` turned
+/// 30° about the mated direction `−z`. Every order of the three values
+/// places it alike.
 ///
 /// *Breaks if* a slide is charted along the other slide's moved axis
-/// (order-dependent), the spin is measured from the copy's own axis
-/// rather than the target's swung `x`, or the flip is read on the
-/// target's side (the frames would swing through the antipode).
+/// (order-dependent), the spin is measured about another axis than the
+/// mated direction, or the least turn is not the identity where the
+/// orientation puts the face on the floor.
 #[test]
 fn a_plane_mate_leaves_two_slides_and_a_spin_in_any_order() {
     let orders = [
@@ -427,14 +429,14 @@ fn a_plane_mate_leaves_two_slides_and_a_spin_in_any_order() {
         );
     }
     let turn = 30.0_f64.to_radians();
-    let expected = Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), turn);
+    let expected = Mat3::rotation_about(Vec3::new(0.0, 0.0, -1.0), turn);
     let mut first: Option<Affine3<f64>> = None;
     for order in orders {
         let (doc, p) = box_on_the_floor([3.0, 4.0, turn], order);
         let at = solved(&doc, p);
         assert!(
             turn_between(at.linear, expected) < 1e-12,
-            "{order:?}: turned by the spin about z: {at:?}"
+            "{order:?}: turned by the spin about −z: {at:?}"
         );
         assert!(
             (at.translation - Vec3::new(3.0, 4.0, 0.0)).norm() < 1e-12,
@@ -462,8 +464,8 @@ fn a_plane_mate_leaves_two_slides_and_a_spin_in_any_order() {
 #[test]
 fn every_order_places_the_copy_to_the_bit_on_a_tilted_target() {
     let tilted = vec![
-        (Coord::Spin(TargetAxis::X), ang(0.3)),
-        (Coord::Spin(TargetAxis::Z), ang(0.7)),
+        (Coord::Spin(Some(TargetAxis::X)), ang(0.3)),
+        (Coord::Spin(Some(TargetAxis::Z)), ang(0.7)),
     ];
     let orders = [
         [0, 1, 2],
@@ -504,6 +506,7 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
         on: plane_of(on_body(body, bottom)),
         to: floor,
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     let twice = editor_core::Placed {
         mates: vec![written],
@@ -553,7 +556,7 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
     let (doc, wall, _) = fixture::floor(
         doc,
         vec![(
-            Coord::Spin(TargetAxis::Y),
+            Coord::Spin(Some(TargetAxis::Y)),
             Formula::turn_over(4).expect("a quarter turn"),
         )],
     );
@@ -561,19 +564,18 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
         on: face,
         to: wall,
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     let doc = doc;
     let doc = seat(
         doc,
         placement,
         written,
+        // The wall faces `+x`, which the mate takes: the slides across it.
         [
-            (Coord::Slide(TargetAxis::X), len(0.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (
-                Coord::Spin(editor_core::TargetAxis::Z),
-                ang(30.0_f64.to_radians()),
-            ),
+            (Coord::Slide(TargetAxis::Z), len(0.0)),
+            (Coord::SPIN, ang(30.0_f64.to_radians())),
         ],
     );
     solved(&doc, placement)
@@ -627,64 +629,16 @@ fn a_prisms_flat_through_zero_turns_by_its_angle() {
     }
 }
 
-/// **Ruling C-1 — the antipode is decided, not banded.** The swing of
-/// the body's own `z` onto `−z` exactly takes the half-turn about `x`
-/// (`x` stays); a normal at a rounding-level tilt from `−z` is decided
-/// the antipode too, and stays `x` bit for bit; a tilt the band cannot
-/// tell from it refuses `PoseDegenerate { Chart }`; one well clear of
-/// it takes the shortest turn.
+/// **A cap facing `−z` placed on a floor facing `−z`.** The identity
+/// orientation puts the cap where the mate does, so the least turn is
+/// the identity: the box's own `x` meets the world's, and zero values put
+/// it where it is. The cap read at a rounding-level tilt (spun by
+/// `sin π`, a half-revolve's end-face rounding) is a rounding-level least
+/// turn, never refused: `−z` is no pole of the chart.
 ///
-/// *Breaks if* the antipode reads through `1/(1+c)` (a rounding-level
-/// tilt turns `x` by an arbitrary angle), or a tilt in the band is
-/// picked rather than refused.
-#[test]
-fn the_antipode_is_decided_exactly_and_the_band_refuses() {
-    let band = band();
-    let x = Vec3::new(1.0, 0.0, 0.0);
-    let unit = |v: Vec3<f64>| UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).unwrap();
-    let exact = editor_core::reference_about(unit(Vec3::new(0.0, 0.0, -1.0)), 1.0, band)
-        .expect("the antipode decides");
-    assert_eq!(
-        exact.to_array(),
-        x.to_array(),
-        "the half-turn about x keeps x"
-    );
-    let rounding = (std::f64::consts::PI).sin(); // 1.2e-16
-    let tilted = unit(Vec3::new(0.0, rounding, -1.0));
-    let at = editor_core::reference_about(tilted, 1.0, band).expect("decided the antipode");
-    assert_eq!(
-        at.to_array(),
-        x.to_array(),
-        "a rounding-level tilt is the antipode"
-    );
-    // A chord inside the band: the band's zero is ε; a chord of 1.5ε at
-    // a unit arm sits between ε and K·ε.
-    let chord = 1.5 * band.zero();
-    let in_band = unit(Vec3::new(chord, 0.0, -1.0));
-    assert!(
-        matches!(
-            editor_core::reference_about(in_band, 1.0, band),
-            Err(NodeErrorKind::PoseDegenerate {
-                construction: editor_core::pose::PoseConstruction::Chart
-            })
-        ),
-        "a chord the band cannot decide refuses"
-    );
-    let clear = unit(Vec3::new(0.6, 0.0, -0.8));
-    let at = editor_core::reference_about(clear, 1.0, band).expect("well clear of the antipode");
-    // The shortest turn carrying z to (0.6, 0, −0.8) turns x to
-    // (1 − a²/(1+c), −ab/(1+c), −a) = (1 − 0.36/0.2, 0, −0.6).
-    assert!((at - Vec3::new(-0.8, 0.0, -0.6)).norm() < 1e-12, "{at:?}");
-}
-
-/// **Ruling C-1 end to end — a cap facing `−z` placed on a floor facing
-/// `−z`.** Both swung frames sit at the antipode, decided exactly: the
-/// box's own `x` meets the world's, and zero values put it where it is.
-/// The same holds for the cap read at a rounding-level tilt (spun by
-/// `sin π`, a half-revolve's end-face rounding).
-///
-/// *Breaks if* the antipode is banded rather than decided (the
-/// evaluation refuses), or read through `1/(1+c)` (the copy turns).
+/// *Breaks if* the chart has a pole short of the orientation written
+/// backwards (the evaluation refuses), or the least turn is not the
+/// identity where `n = d` (the copy turns).
 #[test]
 fn a_cap_at_the_antipode_places_without_a_turn() {
     let (doc, body) = a_box("s3c_cap", 1.0);
@@ -695,6 +649,7 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         on: plane_of(on_body(body, bottom)),
         to: down,
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     let doc = seat(
         doc,
@@ -703,14 +658,14 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         [
             Coord::Slide(TargetAxis::X),
             Coord::Slide(TargetAxis::Y),
-            Coord::Spin(editor_core::TargetAxis::Z),
+            Coord::SPIN,
         ]
         .map(|coord| (coord, number(coord, 0.0))),
     );
     let at = solved(&doc, placement);
     assert!(
         turn_between(at.linear, Mat3::identity()) < 1e-12 && at.translation.norm() < 1e-12,
-        "the antipode keeps x, and zero values put the box where it is: {at:?}"
+        "the identity least turn keeps x, and zero values put the box where it is: {at:?}"
     );
 
     // The same cap read at a rounding-level tilt: spun about the foot
@@ -732,17 +687,13 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         on: tilted,
         to: down,
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
-    let doc = seat(
-        doc,
-        placement,
-        written,
-        [(Coord::Spin(editor_core::TargetAxis::Z), ang(0.0))],
-    );
+    let doc = seat(doc, placement, written, [(Coord::SPIN, ang(0.0))]);
     let ev = fixture::run(&doc, &EvalOptions::default());
     assert!(
         !matches!(ev.result(placement), Some(NodeResult::Failed(_))),
-        "the antipode at a rounding-level tilt is decided, never refused: {:?}",
+        "a rounding-level tilt is a rounding-level least turn, never refused: {:?}",
         ev.result(placement)
     );
 }
@@ -750,8 +701,9 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
 /// **A mate taken out frees what it fixed, and a value taken out is
 /// its freedom written back to `0`** (`DocEdit::RemoveConstraint`, the
 /// bundle written whole again): the box on the floor loses its plane
-/// mate and keeps its two slides and its spin, now on the world's axes,
-/// the lift and the two tilts written the constant `0`; a value taken
+/// mate and keeps its two slides, now on the world's axes, the lift and
+/// the chain's three turns written the constant `0` — its spin was the
+/// turn about the mated direction, which no chain link is; a value taken
 /// out leaves the mate and the other two, and the constant `0` in its
 /// place. Either way the copy stays pinned.
 ///
@@ -794,12 +746,12 @@ fn a_constraint_taken_out_leaves_its_bundle_pinned() {
     assert_eq!(
         coords(&freed),
         [
-            Coord::Spin(Z),
             Coord::Slide(X),
             Coord::Slide(Y),
             Coord::Slide(Z),
-            Coord::Spin(X),
-            Coord::Spin(Y),
+            Coord::Spin(Some(X)),
+            Coord::Spin(Some(Y)),
+            Coord::Spin(Some(Z)),
         ],
         "the values it left are kept, and 0 on the rest"
     );
@@ -1024,6 +976,7 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
         on: plane_of(on_body(body, bottom)),
         to: floor,
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     let slide = Formula::named(
         editor_core::VarName::new("s").expect("a name"),
@@ -1036,7 +989,7 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
         [
             (Coord::Slide(TargetAxis::X), slide),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+            (Coord::SPIN, ang(0.0)),
         ],
     );
     let seeded = EvalOptions {
@@ -1109,7 +1062,7 @@ fn only_the_identity_bundle_is_placed_by_no_map_in_every_lane() {
         .chain(
             TargetAxis::ALL
                 .into_iter()
-                .map(|axis| (Coord::Spin(axis), ang(0.0))),
+                .map(|axis| (Coord::Spin(Some(axis)), ang(0.0))),
         )
         .collect();
     let pinned = fixture::written(
@@ -1168,7 +1121,8 @@ fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
 /// turn: it is no identity bundle, so every lane runs its map
 /// (FORK-REST), the `f64` lane's the identity to rounding. A dual run seeded at `t` places it by a map whose value
 /// channel is the `f64` lane's bits and whose tangent is the spin's:
-/// the turn about `z` moves the copy's `x` along `y` at unit rate.
+/// the turn about the mated direction, the flipped floor's `−z`, moves
+/// the copy's `x` along `−y` at unit rate.
 ///
 /// *Breaks if* a lane drops the map (the value lane's would be no map,
 /// the dual's tangent lost), or the dual's value channel rounds off
@@ -1193,6 +1147,7 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         on: plane_of(on_body(body, bottom)),
         to: floor,
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     let turn = Formula::named(
         editor_core::VarName::new("t").expect("a name"),
@@ -1205,7 +1160,7 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         [
             (Coord::Slide(TargetAxis::X), len(0.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), turn),
+            (Coord::SPIN, turn),
         ],
     );
     let value_lane = motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement)
@@ -1233,8 +1188,8 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         }
     }
     assert!(
-        (entries[0][1].deriv - 1.0).abs() < 1e-12 && (entries[1][0].deriv + 1.0).abs() < 1e-12,
-        "the turn's tangent moves x along y: {map:?}"
+        (entries[0][1].deriv + 1.0).abs() < 1e-12 && (entries[1][0].deriv - 1.0).abs() < 1e-12,
+        "the turn's tangent moves x along −y: {map:?}"
     );
 }
 
@@ -1273,6 +1228,7 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
         on: plane_of(on_body(body, bottom)),
         to: floor,
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     let turn = Formula::named(
         editor_core::VarName::new("t").expect("a name"),
@@ -1285,7 +1241,7 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
         [
             (Coord::Slide(TargetAxis::X), len(0.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), turn),
+            (Coord::SPIN, turn),
         ],
     );
     let t = doc.var_named("t").expect("declared");

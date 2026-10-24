@@ -86,7 +86,11 @@ impl MateSide {
 ///
 /// `class_` is the declared contact class (trailing underscore:
 /// `class` is a Python keyword); `class_admission` says how far each
-/// class gets.
+/// class gets. `orient` is the mate's `Orientation`, where the copy's
+/// axes lie along the target space's: the identity unless written, and
+/// read only beside a mate fixing a direction (a plane, an axis, a
+/// direction) — a point or a frame mate written with any other refuses
+/// `mate_unoriented`.
 ///
 /// Where it is added, the door refuses an `on` that does not read the
 /// copy (`mate_not_on_the_copy`) and poses of two kinds
@@ -100,16 +104,19 @@ pub(crate) struct Mate(pub(crate) d::Mate<d::Formula>);
 #[pymethods]
 impl Mate {
     #[new]
+    #[pyo3(signature = (on, to, class_, *, orient=None))]
     fn new(
         py: Python<'_>,
         on: super::doc::OperandArg,
         to: super::doc::OperandArg,
         class_: super::contact::ContactClass,
+        orient: Option<Orientation>,
     ) -> PyResult<Self> {
         Ok(Self(d::Mate {
             on: on.read(),
             to: to.read(),
             class: class_.to_kernel(py)?,
+            orient: orient.map_or(d::Orientation::IDENTITY, |o| o.0),
         }))
     }
 
@@ -135,32 +142,124 @@ impl Mate {
         super::contact::contact_class(py, self.0.class)
     }
 
-    /// BIT-exact equality: the same poses, the same class.
+    /// The orientation, as written.
+    #[getter]
+    fn orient(&self) -> Orientation {
+        Orientation(self.0.orient)
+    }
+
+    /// BIT-exact equality: the same poses, the same class, the same
+    /// orientation.
     fn __eq__(&self, other: &Self) -> bool {
         self.0.bit_eq(&other.0)
     }
 
     fn __repr__(&self) -> String {
         format!(
-            "Mate(on={}, to={}, class_={:?})",
-            self.0.on, self.0.to, self.0.class
+            "Mate(on={}, to={}, class_={:?}, orient={})",
+            self.0.on,
+            self.0.to,
+            self.0.class,
+            Orientation(self.0.orient).__repr__()
         )
     }
 }
 
+/// **An orientation**: one of the 24 ways the copy's axes lie along the
+/// target space's, by where its `x` and its `z` lie — `Orientation("+x",
+/// "-z")` puts the copy's `x` along the target's `+x` and its `z` along
+/// `-z` (its `y` is `z × x`). A mate fixing a direction carries one; the
+/// value chart's least turn carries where it puts the copy's mated
+/// direction onto the mated direction, and the spin is what is left.
+/// Raises ValueError for two axes of one letter, or a word that is no
+/// signed axis.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Orientation(pub(crate) d::Orientation);
+
+#[pymethods]
+impl Orientation {
+    #[new]
+    fn new(x: &str, z: &str) -> PyResult<Self> {
+        d::Orientation::new(signed_axis(x)?, signed_axis(z)?)
+            .map(Self)
+            .ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "an orientation's x and z lie along two axes, not {x:?} and {z:?}"
+                ))
+            })
+    }
+
+    /// The copy's axes along the target's own.
+    #[staticmethod]
+    fn identity() -> Self {
+        Self(d::Orientation::IDENTITY)
+    }
+
+    /// Where the copy's `x` lies: `"+x"` … `"-z"`.
+    #[getter]
+    fn x(&self) -> &'static str {
+        self.0.x().name()
+    }
+
+    /// Where the copy's `y` lies.
+    #[getter]
+    fn y(&self) -> &'static str {
+        self.0.y().name()
+    }
+
+    /// Where the copy's `z` lies.
+    #[getter]
+    fn z(&self) -> &'static str {
+        self.0.z().name()
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self == other
+    }
+
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.0.hash(&mut h);
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Orientation({:?}, {:?})", self.0.x().name(), self.0.z().name())
+    }
+}
+
+/// A signed axis by its word: `"+x"`, `"-x"`, … `"-z"`.
+fn signed_axis(word: &str) -> PyResult<d::SignedAxis> {
+    d::SignedAxis::ALL
+        .into_iter()
+        .find(|a| a.name() == word)
+        .ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "not a signed axis: {word:?} — one of \"+x\", \"-x\", \"+y\", \"-y\", \"+z\" or \"-z\""
+            ))
+        })
+}
+
 /// **Which freedom a value sets**: `Coord.slide("x")`, `"y"` or
-/// `"z"`, a slide along the chart's axis, or `Coord.spin("x")`, `"y"`
-/// or `"z"`, a turn about it.
+/// `"z"`, a slide along the chart's axis; `Coord.spin()`, the spin about
+/// the mated direction beside a mate fixing one; or `Coord.spin("x")`,
+/// `"y"` or `"z"`, a link of a chain of turns about the target space's
+/// axis where none is fixed.
 ///
-/// The chart is the target space's own axes, swung by the shortest
-/// turn onto the one direction the bundle's mates fix, where they fix
-/// one (`z` that direction). A plane mate leaves the slides along `x`
-/// and `y` and the spin about `z`; an axis mate the slide along and
-/// the spin about `z`; a direction mate the three slides and the spin
-/// about `z`; a point mate its rotation, a chain of spins about the
-/// target space's axes through the mated point; a frame mate nothing.
-/// A bundle with no mate leaves the three slides and a chain of spins
-/// about the target space's axes, in the order written.
+/// Beside a mate fixing a direction, the chart is the target space's
+/// own axes carried by the least turn from where the mate's
+/// `Orientation` puts the copy's mated direction onto the mated one, and
+/// the spin is the turn left about it. A plane mate leaves two slides
+/// and the spin, an axis mate one slide and the spin, a direction mate
+/// the three slides and the spin: where the copy's mated direction lies
+/// on one of its axes, the slide the least turn carries onto the mated
+/// direction is the one a plane fixes and an axis leaves. A point mate
+/// leaves its rotation, a chain of spins about the target space's axes
+/// through the mated point; a frame mate nothing. A bundle with no mate
+/// leaves the three slides and a chain of spins about the target
+/// space's axes, in the order written.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) struct Coord(pub(crate) d::Coord);
@@ -173,14 +272,16 @@ impl Coord {
         Ok(Self(d::Coord::Slide(target_axis(axis)?)))
     }
 
-    /// The spin about the chart's `axis`: `"x"`, `"y"` or `"z"`.
+    /// The spin about the mated direction, with no `axis`; or about the
+    /// target space's `axis`, `"x"`, `"y"` or `"z"`, a link of a chain.
     #[staticmethod]
-    fn spin(axis: &str) -> PyResult<Self> {
-        Ok(Self(d::Coord::Spin(target_axis(axis)?)))
+    #[pyo3(signature = (axis=None))]
+    fn spin(axis: Option<&str>) -> PyResult<Self> {
+        Ok(Self(d::Coord::Spin(axis.map(target_axis).transpose()?)))
     }
 
-    /// The stable word: `slide_x`, `slide_y`, `slide_z`, `spin_x`,
-    /// `spin_y` or `spin_z`.
+    /// The stable word: `slide_x`, `slide_y`, `slide_z`, `spin`,
+    /// `spin_x`, `spin_y` or `spin_z`.
     #[getter]
     fn variant(&self) -> &'static str {
         coord_tag(self.0)
@@ -198,16 +299,16 @@ impl Coord {
     }
 
     fn __repr__(&self) -> String {
-        let (kind, axis) = match self.0 {
-            d::Coord::Slide(axis) => ("slide", axis),
-            d::Coord::Spin(axis) => ("spin", axis),
-        };
-        let axis = match axis {
+        let word = |axis| match axis {
             d::TargetAxis::X => "x",
             d::TargetAxis::Y => "y",
             d::TargetAxis::Z => "z",
         };
-        format!("Coord.{kind}({axis:?})")
+        match self.0 {
+            d::Coord::Slide(axis) => format!("Coord.slide({:?})", word(axis)),
+            d::Coord::Spin(Some(axis)) => format!("Coord.spin({:?})", word(axis)),
+            d::Coord::Spin(None) => "Coord.spin()".to_string(),
+        }
     }
 }
 
@@ -228,11 +329,13 @@ fn target_axis(axis: &str) -> PyResult<d::TargetAxis> {
 /// constant zero). A value names no mate: the mates of its bundle
 /// together leave its freedom.
 ///
-/// It is charted on the target space's own axes, swung by the shortest
-/// turn onto the one direction the mates fix: a slide is the copy's
-/// origin measured along the chart's axis, a spin the angle about it.
-/// Zero says the copy's own coordinates agree with the target space's
-/// as far as the mates allow.
+/// Beside a mate fixing a direction it is charted on the target space's
+/// own axes carried by the least turn from where the mate's orientation
+/// puts the copy's mated direction onto the mated one: a slide is the
+/// copy's origin measured along a carried axis, the spin the turn left
+/// about the mated direction. Zero says the copy's own coordinates agree
+/// with the target space's, up to the orientation, as far as the mates
+/// allow.
 ///
 /// A bundle is written whole (`Doc.place`, `Doc.set_constraints`,
 /// `Placed`); the door refuses a freedom the mates do not leave, or
@@ -744,10 +847,23 @@ impl MateFault {
     }
 
     /// Why a value's freedom has no chart (`mate_no_chart`):
-    /// `"slide_turns_a_ball"`.
+    /// `"slide_turns_a_ball"` or `"slides_do_not_span"`.
     #[getter]
     fn why(&self) -> Option<&'static str> {
         self.payload().why.map(no_chart_why_tag)
+    }
+
+    /// The orientation a mate was written with, where the mated direction
+    /// lies opposite to where it puts the copy's (`mate_backwards`).
+    #[getter]
+    fn orient(&self) -> Option<Orientation> {
+        self.payload().orient.map(Orientation)
+    }
+
+    /// The orientation to write in its place (`mate_backwards`).
+    #[getter]
+    fn write(&self) -> Option<Orientation> {
+        self.payload().write.map(Orientation)
     }
 
     /// What a lever's unbounded face is, in its own words.
@@ -1070,6 +1186,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MateSide>()?;
     m.add_class::<Coord>()?;
     m.add_class::<MateValue>()?;
+    m.add_class::<Orientation>()?;
     m.add_class::<Placed>()?;
     m.add_class::<ConstraintId>()?;
     m.add_class::<MateRef>()?;

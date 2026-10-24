@@ -550,7 +550,7 @@ fn spin_z(n: u64, turn: f64) -> editor_core::Constraint<Formula> {
     value(
         n,
         editor_core::Value {
-            coord: editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+            coord: editor_core::Coord::SPIN,
             by: ang(turn),
         },
     )

@@ -108,7 +108,7 @@ fn seat(
         &[
             (Coord::Slide(TargetAxis::X), len(slide[0])),
             (Coord::Slide(TargetAxis::Y), len(slide[1])),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+            (Coord::SPIN, ang(0.0)),
         ],
     );
     (doc, mate)

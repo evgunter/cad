@@ -629,6 +629,7 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
         on: cap.clone(),
         to: cap,
         class: editor_core::ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     match editor_core::apply(
         &part_doc,

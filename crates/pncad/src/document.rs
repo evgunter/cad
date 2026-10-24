@@ -401,11 +401,13 @@ pub use editor_core::{
 // Mates: a placement's constraints (`Constraint`, addressed by a
 // `MateRef`), each a `Mate` of two poses of one kind — `on` read off
 // the copy's geometry, `to` a pose of the space the placement places
-// into — or a `Value` setting one freedom (`Coord`: a slide along, or
-// a spin about, one of the target space's axes as `TargetAxis` names
-// it), which names no mate: the bundle's mates together leave it, and
-// it charts on the target space's axes swung onto the one mated
-// direction. The solve's outcome (`SolvedPoses`, each copy's target
+// into, with the `Orientation` a mate fixing a direction carries — or
+// a `Value` setting one freedom (`Coord`: a slide along one of the
+// target space's axes as `TargetAxis` names it, the spin about the
+// mated direction, or a spin about an axis of a chain), which names no
+// mate: the bundle's mates together leave it, and it charts on the
+// target space's axes carried onto the one mated direction by the least
+// turn from where the orientation puts the copy's. The solve's outcome (`SolvedPoses`, each copy's target
 // space and motion; a pose kind's symmetry `Subgroup` and its
 // `SubgroupFamily`, whose meeting decides a bundle), and `MateFault` —
 // the typed refusal every door carries. A placement's bundle is a
@@ -442,10 +444,10 @@ pub use editor_core::{
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Constraint, ConstraintKind, Coord, FrameMove, Mate, MateFault, MateRef, MateSide, Member,
-    NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing, PoseRefusal, PoseSymmetry,
-    ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis, UNPINNED_RECOURSE,
-    Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of, member_of,
-    member_reading, moved_frame, reference_about, relative_freedom_components, solve_document,
+    NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal, Placed, Placing, PoseRefusal,
+    PoseSymmetry, ReachRefusal, SignedAxis, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis,
+    UNPINNED_RECOURSE, Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of,
+    member_of, member_reading, moved_frame, relative_freedom_components, solve_document,
     stand, unobservable,
 };
 

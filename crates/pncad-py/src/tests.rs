@@ -2149,6 +2149,8 @@ fn node_error_tags_are_the_published_words() {
         MateKindsDiffer => "mate_kinds_differ",
         MateSideUnevaluated => "mate_side_unevaluated",
         MateNoChart => "mate_no_chart",
+        MateBackwards => "mate_backwards",
+        MateUnoriented => "mate_unoriented",
         CrossingUnverified => "crossing_unverified",
         SpaceMismatch => "space_mismatch",
         MeasureRefUnreadable => "measure_ref_unreadable",
@@ -4692,7 +4694,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "coord_tag",
         values: &[
-            "slide_x", "slide_y", "slide_z", "spin_x", "spin_y", "spin_z",
+            "slide_x", "slide_y", "slide_z", "spin", "spin_x", "spin_y", "spin_z",
         ],
         delegates: &[],
     },
@@ -5235,7 +5237,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "no_chart_why_tag",
-        values: &["slide_turns_a_ball"],
+        values: &["slide_turns_a_ball", "slides_do_not_span"],
         delegates: &[],
     },
     TagEntry {
@@ -5263,6 +5265,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "full_range_step",
             "instance_out_of_range",
             "loft",
+            "mate_backwards",
             "mate_class_not_admitted",
             "mate_kinds_differ",
             "mate_no_chart",
@@ -5271,6 +5274,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_poses_of_another_document",
             "mate_side_unevaluated",
             "mate_unleverable",
+            "mate_unoriented",
             "mate_unpinned",
             "measure_clearance_refused",
             "measure_non_finite",

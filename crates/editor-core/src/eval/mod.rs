@@ -4416,6 +4416,7 @@ mod tag {
             SPIN_X = 5,
             SPIN_Y = 6,
             SPIN_Z = 7,
+            SPIN = 8,
         }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
@@ -5821,9 +5822,10 @@ fn feed_bundle(
                     Coord::Slide(TargetAxis::X) => tag::value_coord::SLIDE_X,
                     Coord::Slide(TargetAxis::Y) => tag::value_coord::SLIDE_Y,
                     Coord::Slide(TargetAxis::Z) => tag::value_coord::SLIDE_Z,
-                    Coord::Spin(TargetAxis::X) => tag::value_coord::SPIN_X,
-                    Coord::Spin(TargetAxis::Y) => tag::value_coord::SPIN_Y,
-                    Coord::Spin(TargetAxis::Z) => tag::value_coord::SPIN_Z,
+                    Coord::Spin(None) => tag::value_coord::SPIN,
+                    Coord::Spin(Some(TargetAxis::X)) => tag::value_coord::SPIN_X,
+                    Coord::Spin(Some(TargetAxis::Y)) => tag::value_coord::SPIN_Y,
+                    Coord::Spin(Some(TargetAxis::Z)) => tag::value_coord::SPIN_Z,
                 });
                 h.write_tag(if crate::mate::solve::written_as_zero(defs, value.by) {
                     tag::value_form::ZERO
@@ -5837,7 +5839,17 @@ fn feed_bundle(
         // The class's word is `ContactClass::content_tag` — the one
         // spelling the crossing record and the constraint both write.
         h.write_u64(mate.class.content_tag());
+        // The orientation, by where the copy's x and z lie.
+        for axis in [mate.orient.x(), mate.orient.z()] {
+            h.write_tag(axis_word(axis));
+        }
     }
+}
+
+/// A signed axis as a content key's word: its letter and its sense.
+fn axis_word(axis: crate::mate::SignedAxis) -> u8 {
+    let index = u8::try_from(axis.index()).unwrap_or(u8::MAX);
+    2 * index + u8::from(axis.negative())
 }
 
 /// The names the selection `var` holds, as a content key feeds them:
@@ -6798,6 +6810,7 @@ mod bundle_key {
                 on: ON,
                 to,
                 class: crate::mate::ContactClass::Rest,
+                orient: crate::Orientation::IDENTITY,
             },
         )
     }
@@ -6824,8 +6837,8 @@ mod bundle_key {
         let with = |v: Constraint| key(&[mate(TO), v]);
         let keys = [
             key(&[mate(TO)]),
-            with(value(Coord::Spin(TargetAxis::Z))),
-            with(value(Coord::Spin(TargetAxis::X))),
+            with(value(Coord::SPIN)),
+            with(value(Coord::Spin(Some(TargetAxis::X)))),
             with(value(Coord::Slide(TargetAxis::X))),
             with(value(Coord::Slide(TargetAxis::Y))),
         ];
@@ -6843,7 +6856,7 @@ mod bundle_key {
     fn a_values_constant_zero_form_moves_the_key() {
         let zero = crate::expr::Expr::zero(crate::expr::Dimension::Angle);
         let defined = |var| (var == BY).then_some(&zero);
-        let bundle = [value(Coord::Spin(TargetAxis::Z))];
+        let bundle = [value(Coord::SPIN)];
         assert_ne!(
             key_over(&defined, &bundle),
             key(&bundle),

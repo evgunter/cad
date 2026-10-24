@@ -333,7 +333,7 @@ pub fn document() -> CorpusDoc {
             FrameMove::Slide(TargetAxis::Y, len(h)),
         ],
     );
-    let pip = r.on_axis(ball, pole, len(PIP_C));
+    let pip = r.on_axis(ball, pole, len(PIP_C), crate::fixture::meridian_up());
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: pip.into(),

@@ -3957,7 +3957,7 @@ fn asm_r2a_mated_assembly(
         (Coord::Slide(TargetAxis::X), length(30.0)),
         (Coord::Slide(TargetAxis::Y), length(0.0)),
         (
-            Coord::Spin(TargetAxis::Z),
+            Coord::SPIN,
             Formula::zero(pncad::document::Dimension::Angle),
         ),
     ];
@@ -3968,6 +3968,7 @@ fn asm_r2a_mated_assembly(
             on: plane(name(ids[1])),
             to: plane(name(ids[0])),
             class: ContactClass::Rest,
+            orient: pncad::document::Orientation::IDENTITY,
         },
         values,
     );

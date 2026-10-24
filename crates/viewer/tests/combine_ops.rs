@@ -728,7 +728,7 @@ fn the_transform_door_places_a_body_with_values() {
     // `z` the rotation axis names, and the three slides.
     for (coord, dim) in [
         (
-            pncad::document::Coord::Spin(pncad::document::TargetAxis::Z),
+            pncad::document::Coord::Spin(Some(pncad::document::TargetAxis::Z)),
             Dimension::Angle,
         ),
         (

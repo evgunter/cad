@@ -234,8 +234,8 @@ class WorldPins(unittest.TestCase):
     def test_a_seat_charts_on_the_space_not_on_the_body_it_rests_on(self):
         """Against an independent 4x4 composition: a post pinned to the
         world at a turned pose, and the shelf seated on its top. The
-        seat's values chart on the world's axes swung onto the mated
-        normal, never on the post's own frame, so turning and sliding
+        seat's values chart on the world's axes carried onto the mated
+        normal by the least turn, never on the post's own frame, so turning and sliding
         the post moves the shelf only along that normal — by the
         post's rise — and the shelf's pose is the seat it has on a post
         standing at the identity, lifted."""

@@ -3,9 +3,9 @@
 //! §5′.2, tests 21 and 24, and the flatten edit).
 //!
 //! No space has roles a mate can read: a value names no mate and is a
-//! coordinate of the target space, its axes swung onto the one mated
-//! direction, so a value edit never rides with the body a pose was read
-//! off. Inline is one rule — the part's nodes land in a `new_space()`
+//! coordinate of the target space, its axes carried onto the one mated
+//! direction by the least turn, so a value edit never rides with the
+//! body a pose was read off. Inline is one rule — the part's nodes land in a `new_space()`
 //! verbatim and the instance becomes a placement of their copies under
 //! its own bundle — and flatten folds such a placement, at the
 //! identity, back into its target.
@@ -80,7 +80,7 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
     let (doc, b) = fixture::in_world_by(
         doc,
         plate,
-        Placed::unmated(vec![(Coord::Spin(TargetAxis::Z), fixture::ang(turn))]).values,
+        Placed::unmated(vec![(Coord::Spin(Some(TargetAxis::Z)), fixture::ang(turn))]).values,
     );
     let (doc, target) = if through_union {
         let (doc, c) = fixture::in_world_by(
@@ -104,7 +104,7 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
         values: vec![
             (Coord::Slide(TargetAxis::X), len(10.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
@@ -117,10 +117,12 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
 
 /// **Test 24 (D′2): a value charts on the target space.** A boss rests
 /// on a side face of plate copy `B`, `B` turned 30° in the world, and
-/// `Slide(X) = 10`. The slide is measured from the world's origin along
-/// its `x` swung onto the face's outward normal `n = (cos θ, sin θ, 0)`
-/// by the shortest turn — `x' = (sin² θ, −sin θ cos θ, −cos θ)` — so the
-/// boss's origin stands at `10 x' + 20 n`, on the face. Turning `B` to
+/// `Slide(X) = 10`. The identity orientation puts the boss's bottom at
+/// `−z`, and the mated direction is the face's flipped outward normal
+/// `−n`, `n = (cos θ, sin θ, 0)`; the slide is measured from the world's
+/// origin along the world's `x` as the least turn from `−z` onto `−n`
+/// carries it — `x' = (sin² θ, −sin θ cos θ, −cos θ)` — so the boss's
+/// origin stands at `10 x' + 20 n`, on the face. Turning `B` to
 /// 40° moves the boss across the face to the same formula's point, not
 /// with `B`; and the same face read off `B ∪ C` places the same copy,
 /// bit for bit.
@@ -220,7 +222,7 @@ fn inline_keeps_a_variable_driving() {
         host,
         instance,
         Placed::unmated(vec![(
-            Coord::Spin(TargetAxis::Z),
+            Coord::Spin(Some(TargetAxis::Z)),
             editor_core::Formula::turn_over(4).expect("a quarter turn"),
         )]),
     );
@@ -482,11 +484,12 @@ fn a_slide_value_sets_its_translation_with_no_width() {
             on: fixture::plane(head(start)),
             to: fixture::flip(top),
             class: ContactClass::Rest,
+            orient: editor_core::Orientation::IDENTITY,
         }],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(3.0)),
             (Coord::Slide(TargetAxis::Y), len(2.0)),
-            (Coord::Spin(TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
@@ -529,7 +532,7 @@ fn chain(zero: Option<usize>) -> Vec<(Coord, editor_core::Formula)> {
         .enumerate()
         .map(|(k, (axis, a))| {
             let a = if zero == Some(k) { 0.0 } else { a };
-            (Coord::Spin(axis), fixture::ang(a))
+            (Coord::Spin(Some(axis)), fixture::ang(a))
         })
         .collect();
     out.push((Coord::Slide(TargetAxis::X), len(3.0)));
@@ -600,12 +603,12 @@ fn removing_a_chain_link_writes_zero_in_its_place() {
 
 /// **A mate added over written values reports each value it drops.**
 /// A rest on the floor's top fixes the block's `z` slide and its turns
-/// off the floor's normal. Of the chain `Z(0.1), X(tilt), Z(0.3)` the
-/// door keeps the first `z` link, now the spin about the mated normal,
-/// and drops the `x` link (which read the named `tilt`, still declared)
-/// and the second `z` link, a repeat of the kept spin; and the `z`
-/// slide. Each drop is a `ValueDropped` row naming its freedom and the
-/// variable it read.
+/// off the floor's normal. The chain `Z(0.1), X(tilt), Z(0.3)` turns
+/// about the world's axes, and no link of it is the spin about the mated
+/// direction, so the door drops all three (the `x` link read the named
+/// `tilt`, still declared) and writes `0` on the spin; and it drops the
+/// `z` slide. Each drop is a `ValueDropped` row naming its freedom and
+/// the variable it read.
 ///
 /// *Breaks if* a value goes with no row, or a row names a value the
 /// bundle kept.
@@ -658,13 +661,14 @@ fn a_mate_reports_each_value_it_drops() {
     assert_eq!(
         coords,
         [
-            Coord::Spin(TargetAxis::X),
-            Coord::Spin(TargetAxis::Z),
+            Coord::Spin(Some(TargetAxis::Z)),
+            Coord::Spin(Some(TargetAxis::X)),
+            Coord::Spin(Some(TargetAxis::Z)),
             Coord::Slide(TargetAxis::Z),
         ],
-        "the x link, the repeated z link and the z slide go, each reported"
+        "the three links and the z slide go, each reported"
     );
-    assert_eq!(dropped[0].1, tilt, "the x link's row names `tilt`");
+    assert_eq!(dropped[1].1, tilt, "the x link's row names `tilt`");
     assert!(
         applied.doc.var_named("tilt").is_some(),
         "the named variable stays declared"
@@ -676,11 +680,10 @@ fn a_mate_reports_each_value_it_drops() {
     assert_eq!(
         kept,
         [
-            Coord::Spin(TargetAxis::Z),
             Coord::Slide(TargetAxis::X),
             Coord::Slide(TargetAxis::Y),
+            Coord::SPIN,
         ],
-        "the first z link is kept as the spin about the normal, then the x slide, \
-         then the 0 on the y slide"
+        "the x slide, then the 0 on the y slide and on the spin"
     );
 }

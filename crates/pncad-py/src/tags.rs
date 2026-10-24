@@ -1001,6 +1001,8 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::MateKindsDiffer => "mate_kinds_differ",
         C::MateSideUnevaluated => "mate_side_unevaluated",
         C::MateNoChart => "mate_no_chart",
+        C::MateBackwards => "mate_backwards",
+        C::MateUnoriented => "mate_unoriented",
         C::CrossingUnverified => "crossing_unverified",
         // A node reading two spaces: its reads, or a placement's mate
         // outside its target.
@@ -1890,9 +1892,10 @@ pub fn coord_tag(coord: Coord) -> &'static str {
         Coord::Slide(TargetAxis::X) => "slide_x",
         Coord::Slide(TargetAxis::Y) => "slide_y",
         Coord::Slide(TargetAxis::Z) => "slide_z",
-        Coord::Spin(TargetAxis::X) => "spin_x",
-        Coord::Spin(TargetAxis::Y) => "spin_y",
-        Coord::Spin(TargetAxis::Z) => "spin_z",
+        Coord::Spin(None) => "spin",
+        Coord::Spin(Some(TargetAxis::X)) => "spin_x",
+        Coord::Spin(Some(TargetAxis::Y)) => "spin_y",
+        Coord::Spin(Some(TargetAxis::Z)) => "spin_z",
     }
 }
 
@@ -1901,6 +1904,7 @@ pub fn coord_tag(coord: Coord) -> &'static str {
 pub fn no_chart_why_tag(why: NoChartWhy) -> &'static str {
     match why {
         NoChartWhy::SlideTurnsABall => "slide_turns_a_ball",
+        NoChartWhy::SlidesDoNotSpan { .. } => "slides_do_not_span",
     }
 }
 

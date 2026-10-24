@@ -143,10 +143,7 @@ fn at_rest() -> Vec<(editor_core::Coord, Formula)> {
             Coord::Slide(TargetAxis::Y),
             Formula::zero(Dimension::Length),
         ),
-        (
-            Coord::Spin(editor_core::TargetAxis::Z),
-            Formula::zero(Dimension::Angle),
-        ),
+        (Coord::SPIN, Formula::zero(Dimension::Angle)),
     ]
 }
 
@@ -175,6 +172,7 @@ fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> Rec
             on: cap_plane(body, body, CapEnd::Start),
             to,
             class: editor_core::ContactClass::Rest,
+            orient: editor_core::Orientation::IDENTITY,
         },
         at_rest(),
     );

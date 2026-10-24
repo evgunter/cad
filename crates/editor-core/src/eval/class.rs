@@ -204,6 +204,10 @@ pub enum NodeErrorClass {
     MateSideUnevaluated,
     /// [`NodeErrorKind::Mate`] carrying [`MateFault::NoChart`].
     MateNoChart,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Backwards`].
+    MateBackwards,
+    /// [`NodeErrorKind::Mate`] carrying [`MateFault::Unoriented`].
+    MateUnoriented,
     /// [`NodeErrorKind::SpaceMismatch`].
     SpaceMismatch,
     /// [`NodeErrorKind::CrossingUnverified`].
@@ -348,6 +352,8 @@ impl NodeErrorClass {
             MateFault::KindsDiffer { .. } => Self::MateKindsDiffer,
             MateFault::SideUnevaluated { .. } => Self::MateSideUnevaluated,
             MateFault::NoChart { .. } => Self::MateNoChart,
+            MateFault::Backwards { .. } => Self::MateBackwards,
+            MateFault::Unoriented { .. } => Self::MateUnoriented,
         }
     }
 }
@@ -465,6 +471,8 @@ mod tests {
         MateKindsDiffer,
         MateSideUnevaluated,
         MateNoChart,
+        MateBackwards,
+        MateUnoriented,
         SpaceMismatch,
         CrossingUnverified,
         MeasureRefUnreadable,
@@ -824,6 +832,13 @@ mod tests {
                 value: m(9),
                 why: crate::mate::NoChartWhy::SlideTurnsABall,
             }),
+            C::MateBackwards => mate(crate::MateFault::Backwards {
+                mate: m(9),
+                orient: crate::Orientation::IDENTITY,
+                write: crate::Orientation::new(crate::SignedAxis::PlusX, crate::SignedAxis::MinusZ)
+                    .expect("x and z lie along two axes"),
+            }),
+            C::MateUnoriented => mate(crate::MateFault::Unoriented { mate: m(9) }),
             C::SpaceMismatch => K::SpaceMismatch {
                 a: crate::VarId::WORLD,
                 b: crate::VarId::new(0, test_utils::refusal::tagged(6)),

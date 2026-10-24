@@ -683,7 +683,7 @@ where
     let params = env.lane.params;
     let mut mates = Vec::with_capacity(constraints.len());
     let mut values = Vec::new();
-    // Each mate's two poses and its target's sense: what the chart of the
+    // Each mate's two poses and its orientation: what the chart of the
     // one mate fixing a direction reads.
     let mut charted = Vec::new();
     for c in constraints {
@@ -737,8 +737,7 @@ where
         )
         .map_err(|kind| unevaluated(MateSide::To, kind))?;
         let to = crate::mate::solve::tightened(to);
-        let flipped = crate::mate::solve::target_flipped(doc, m.to);
-        charted.push((on.clone(), to.clone(), flipped));
+        charted.push((mate, on.clone(), to.clone(), m.orient));
         mates.push(crate::mate::solve::ReadMate { mate, on, to });
     }
     let equations = crate::mate::solve::equations_of(doc, constraints);
@@ -759,8 +758,8 @@ where
             })
         })?;
         let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
-        for (on, to, flipped) in charted.iter().filter(|_| !values.is_empty()) {
-            if let Some(found) = crate::mate::value::Chart::of(on, to, *flipped, arm, b)? {
+        for (mate, on, to, orient) in charted.iter().filter(|_| !values.is_empty()) {
+            if let Some(found) = crate::mate::value::Chart::of(*mate, on, to, *orient, arm, b)? {
                 chart = Some(found);
                 break;
             }

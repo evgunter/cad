@@ -58,7 +58,8 @@ use pncad::topo::Body;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
-use pncad::geom_core::Tol;
+use pncad::document::Orientation;
+use pncad::geom_core::{Tol, Vec3};
 
 /// The die's side, shared by both dice (`diechamfer` closes its volume
 /// form over it).
@@ -121,10 +122,21 @@ struct Placement {
 }
 
 impl Placement {
-    /// How far along the pole the centre stands from the cube's own
-    /// origin: its coordinate along the normal.
-    fn along(&self) -> f64 {
-        (0..3).map(|i| self.centre[i] * self.normal[i]).sum()
+    /// The slide along the pole: the cube's axis the normal lies along,
+    /// and the centre's coordinate on it.
+    fn slide(&self) -> (TargetAxis, Formula) {
+        let k = (0..3)
+            .find(|&i| self.normal[i] != 0.0)
+            .expect("a normal lies along an axis");
+        (TargetAxis::ALL[k], len(self.centre[k]))
+    }
+
+    /// The ball's orientation: its axis, the meridian's `+y`, along the
+    /// face's normal, its other axes as near the cube's own as that
+    /// allows.
+    fn orient(&self) -> Orientation {
+        let [x, y, z] = self.normal;
+        Orientation::IDENTITY.toward(Vec3::new(0.0, 1.0, 0.0), Vec3::new(x, y, z))
     }
 
     /// The pole's line in the cube's own frame: turned about `axis`,
@@ -340,7 +352,7 @@ fn pipped_node(a: &mut Author, cube: RecipeNodeId, tol: Tol) -> RecipeNodeId {
         .into_iter()
         .map(|p| {
             let frame = moved_frame(own.clone(), &p.moves());
-            let placed = crate::world::on_axis(&a.doc, ball, frame, len(p.along()), tol);
+            let placed = crate::world::on_axis(&a.doc, ball, frame, p.slide(), p.orient(), tol);
             a.placed(placed)
         })
         .collect();

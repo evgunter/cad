@@ -64,6 +64,7 @@ fn on_the_world(body: RecipeNodeId) -> editor_core::Mate<Formula> {
         ))),
         to: moved(body, len(0.3)),
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     }
 }
 

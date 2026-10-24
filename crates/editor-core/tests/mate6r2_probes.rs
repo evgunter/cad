@@ -136,7 +136,7 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
         &[
             (Coord::Slide(TargetAxis::X), len(seat.apart)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     );
     (doc, m)

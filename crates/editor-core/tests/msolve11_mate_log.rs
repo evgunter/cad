@@ -228,7 +228,7 @@ impl Scene {
             ),
             &[
                 (Coord::Slide(TargetAxis::Z), len(BLOCK_HEIGHT)),
-                (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+                (Coord::SPIN, ang(0.0)),
             ],
         );
     }
@@ -242,7 +242,7 @@ impl Scene {
             &[
                 (Coord::Slide(TargetAxis::X), len(x)),
                 (Coord::Slide(TargetAxis::Y), len(y)),
-                (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+                (Coord::SPIN, ang(0.0)),
             ],
         )
     }
@@ -287,7 +287,7 @@ const PATTERN_RULE: [&str; 2] = ["eval_direction_norm", "pattern_spacing"];
 /// `Part` that projects it) and its slide and spin, and the other
 /// block, held by a rest and three values against the base.
 ///
-/// - Each placement's chart (`mate_chart_reference_antipode`) is on its
+/// - Each placement's chart (`mate_chart_pole`) is on its
 ///   own log.
 /// - Neither placement's slides decide anything: each moves along its
 ///   chart's own axis (`value::settle`), so no line between two slides
@@ -310,7 +310,7 @@ fn each_decision_is_on_the_log_of_the_node_that_made_it() {
     let on = |got: &[&str], p: &str| got.contains(&p);
     for (what, got) in [("cap", &cap_log), ("other block", &other_log)] {
         assert!(
-            on(got, "mate_chart_reference_antipode"),
+            on(got, "mate_chart_pole"),
             "the {what} charts its values on its own log: {got:?}"
         );
     }
@@ -369,7 +369,7 @@ fn a_reused_placement_carries_the_log_a_fresh_one_does() {
     assert!(
         fresh_log
             .iter()
-            .any(|v| v.predicate == "mate_chart_reference_antipode"),
+            .any(|v| v.predicate == "mate_chart_pole"),
         "the fold charts the cap's values: {fresh_log:?}"
     );
     assert_eq!(
@@ -402,6 +402,7 @@ fn on_the_world(s: &mut Scene, h: f64) -> Mate<Formula> {
         on: fixture::plane(s.bottom(s.other)),
         to: fixture::flip(top),
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     }
 }
 

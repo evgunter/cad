@@ -67,8 +67,9 @@ own coordinates (D10), so a sketch on a face is a placement: the
 construction placed against the face's body by a `Plane` mate from its
 own start cap, flipped to look up its own `z` (`Flip`), to the pose
 `Plane { face }` (`pose.rs`), and values setting the freedoms the mate
-leaves — the slides along the face's swung axes and the spin about its
-normal. `face` reads a `Face` selection: its body read is the DAG edge
+leaves — the slides along the target space's axes as the least turn
+carries them onto the face's normal, and the spin about it, under the
+orientation the gesture writes nearest the face. `face` reads a `Face` selection: its body read is the DAG edge
 to the body whose value the face is read out of, and its one name is
 frozen and resolved through that value's name table under the N5 ladder.
 It is the `SitedRef` shape applied to a mate's target. The plane is the

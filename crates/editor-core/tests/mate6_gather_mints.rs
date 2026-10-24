@@ -129,7 +129,7 @@ fn seated_at(doc: ProfileDoc, placement: RecipeNodeId, seat: Seat) -> (ProfileDo
         &[
             (Coord::Slide(TargetAxis::X), len(seat.apart)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
-            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+            (Coord::SPIN, fixture::ang(0.0)),
         ],
     );
     (doc, m)
@@ -1165,6 +1165,7 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
         on: fixture::plane(fixture::head(on)),
         to: fixture::plane(fixture::head(to)),
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     let standoff = |on: StableName, to: StableName| {
         use editor_core::pose::{PoseDef, PoseRole, RoleRead};
@@ -1177,6 +1178,7 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
                 by: len(0.0),
             })),
             class: ContactClass::Rest,
+            orient: editor_core::Orientation::IDENTITY,
         }
     };
     type Writes<'a> = &'a dyn Fn(StableName, StableName) -> editor_core::Mate<Formula>;
@@ -1484,6 +1486,7 @@ fn a_mates_wall_states_the_rim_on_it_and_a_standoff_states_nothing() {
                     on: fixture::plane(fixture::head(on)),
                     to: standoff(to),
                     class: ContactClass::Rest,
+                    orient: editor_core::Orientation::IDENTITY,
                 }
             }
         });

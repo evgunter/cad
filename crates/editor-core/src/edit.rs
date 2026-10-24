@@ -6268,7 +6268,10 @@ impl Recording<'_, crate::ProfileProgram> {
     /// mate from its start cap, flipped to look up its own `z`, to the
     /// face's plane, with the copy's origin over the face body's own
     /// (the two slides the constant `0`) and turned `spin` about the
-    /// face's normal — and the face's body and the copy fused.
+    /// face's normal — and the face's body and the copy fused. `orient`
+    /// is the mate's orientation: where the profile's axes lie among the
+    /// target space's, which a gesture writes nearest the face so its
+    /// `z` is not put opposite the face's normal.
     ///
     /// # Errors
     ///
@@ -6280,6 +6283,7 @@ impl Recording<'_, crate::ProfileProgram> {
         profile: crate::ProfileProgram<Formula>,
         distance: Formula,
         spin: Formula,
+        orient: crate::Orientation,
     ) -> Result<SketchedOnFace, EditError> {
         use crate::pose::{PoseDef, RoleRead};
         let profile = self.insert(Node::Profile(profile))?;
@@ -6312,6 +6316,7 @@ impl Recording<'_, crate::ProfileProgram> {
                 on,
                 to: plane(body.clone(), face),
                 class: crate::ContactClass::Rest,
+                orient,
             }],
             values: vec![
                 (
@@ -6322,7 +6327,7 @@ impl Recording<'_, crate::ProfileProgram> {
                     crate::Coord::Slide(crate::TargetAxis::Y),
                     Formula::zero(crate::expr::Dimension::Length),
                 ),
-                (crate::Coord::Spin(crate::TargetAxis::Z), spin),
+                (crate::Coord::SPIN, spin),
             ],
         };
         let placement = self.insert(Node::place(
@@ -6370,6 +6375,7 @@ pub struct SketchOutcome {
 /// # Errors
 ///
 /// The first door's refusal; the document is untouched.
+#[allow(clippy::too_many_arguments)] // the gesture and its document
 pub fn sketch_on_face(
     doc: &Doc<crate::ProfileProgram>,
     body: crate::Operand,
@@ -6377,10 +6383,11 @@ pub fn sketch_on_face(
     profile: crate::ProfileProgram<Formula>,
     distance: Formula,
     spin: Formula,
+    orient: crate::Orientation,
     tol: Tol,
 ) -> Result<SketchOutcome, EditError> {
     let mut action = Recording::start(doc, tol);
-    let sketched = action.sketch_on_face(body, face, profile, distance, spin)?;
+    let sketched = action.sketch_on_face(body, face, profile, distance, spin, orient)?;
     let Recorded {
         doc,
         edits,
@@ -6958,6 +6965,7 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
                 on: crate::Operand::Var(m.on),
                 to: crate::Operand::Var(m.to),
                 class: m.class,
+                orient: m.orient,
             }),
         })
     });
@@ -8445,6 +8453,7 @@ mod tests {
             on: plane(crate::node::RecipeNodeId::new(0, 3)),
             to: plane(crate::node::RecipeNodeId::new(0, 2)),
             class: crate::mate::ContactClass::Rest,
+            orient: crate::Orientation::IDENTITY,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
         let writing: [DocEdit<ProfileProgram>; 3] = [

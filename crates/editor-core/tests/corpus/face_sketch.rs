@@ -84,6 +84,7 @@ pub fn document() -> CorpusDoc {
             on,
             to: plane(cap(cube, CapEnd::End)),
             class: ContactClass::Rest,
+            orient: editor_core::Orientation::IDENTITY,
         },
         vec![
             (
@@ -94,7 +95,7 @@ pub fn document() -> CorpusDoc {
                 Coord::Slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
-            (Coord::Spin(editor_core::TargetAxis::Z), ang(SPIN)),
+            (Coord::SPIN, ang(SPIN)),
         ],
     );
     let whole = r.insert(Node::Union {

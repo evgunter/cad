@@ -134,8 +134,10 @@ pub fn frame_on(
 /// `frame`** — a frame read off the body it joins and stated by exact
 /// moves ([`pncad::document::moved_frame`]), so a quarter turn is
 /// `turn/4` and the axis is exactly where it is meant: an `Axis` mate
-/// from the revolve's own axis, slid `along` it (on the target space's
-/// axes swung onto it), its spin about it the constant `0`.
+/// from the revolve's own axis, under the orientation `orient` that puts
+/// that axis on the frame's `z`, slid along it by `slide` — the target
+/// axis the orientation puts the revolve's axis on, and its coordinate
+/// there — its spin about it the constant `0`.
 ///
 /// # Panics
 ///
@@ -144,7 +146,8 @@ pub fn on_axis(
     doc: &Doc<ProfileProgram>,
     revolve: RecipeNodeId,
     frame: Operand,
-    along: Formula,
+    slide: (TargetAxis, Formula),
+    orient: pncad::document::Orientation,
     tol: Tol,
 ) -> Placed {
     use pncad::prelude::ContactClass;
@@ -161,9 +164,10 @@ pub fn on_axis(
         },
         to,
         class: ContactClass::Rest,
+        orient,
     };
     // The slide an axis mate leaves, written; its spin is the constant 0.
-    let placed = Answer::of(doc, vec![mate], vec![(Coord::Slide(TargetAxis::Z), along)]);
+    let placed = Answer::of(doc, vec![mate], vec![(Coord::Slide(slide.0), slide.1)]);
     written(doc, Operand::output(revolve, 0), space, placed, tol)
 }
 

@@ -329,12 +329,12 @@ pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
         Some(chain) => chain
             .into_iter()
             .filter(|&(_, k)| k != 0)
-            .map(|(axis, k)| (Coord::Spin(axis), turn(k)))
+            .map(|(axis, k)| (Coord::Spin(Some(axis)), turn(k)))
             .collect(),
         None => euler_turns(&at.columns)
             .into_iter()
             .filter(|&(_, angle)| angle != 0.0)
-            .map(|(axis, angle)| (Coord::Spin(axis), ang(angle)))
+            .map(|(axis, angle)| (Coord::Spin(Some(axis)), ang(angle)))
             .collect(),
     };
     slides.chain(spins).collect()
@@ -524,12 +524,15 @@ pub fn placed_against_in(
             pose: RoleRead::plain(on),
         }))
     };
-    // The chart of a mate along the target's ±z: the target space's x
-    // kept, its y `d × x`; the copy's x where `at` turns it, measured
-    // about `d` in quarter turns where it lies on an axis.
+    // The orientation nearest where `at` turns the copy, which puts its
+    // face's normal on the target's: the least turn is the identity, the
+    // slides are the target's own coordinates, and the spin is what is
+    // left about `d`, in quarter turns where it is one.
     let d = target_z;
-    let (sx, sy) = (placed.translation.x, d * placed.translation.y);
-    let xc = placed.linear * geom_core::linalg::Vec3::new(1.0, 0.0, 0.0);
+    let orient = crate::Orientation::nearest(&placed.linear);
+    let (sx, sy) = (placed.translation.x, placed.translation.y);
+    let left = placed.linear * orient.matrix::<f64>().transpose();
+    let xc = left * geom_core::linalg::Vec3::new(1.0, 0.0, 0.0);
     let spin = match (xc.x, d * xc.y) {
         (1.0, 0.0) => Formula::zero(Dimension::Angle),
         (0.0, 1.0) => Formula::turn_over(4).expect("a quarter turn"),
@@ -551,11 +554,12 @@ pub fn placed_against_in(
             on,
             to,
             class: crate::ContactClass::Rest,
+            orient,
         }],
         values: vec![
             (Coord::Slide(TargetAxis::X), slide(sx)),
             (Coord::Slide(TargetAxis::Y), slide(sy)),
-            (Coord::Spin(TargetAxis::Z), spin),
+            (Coord::SPIN, spin),
         ],
     }
 }
@@ -1282,7 +1286,7 @@ mod tests {
         ] {
             assert_eq!(
                 spins(axes_at([0.0; 3], x, y)),
-                vec![(Coord::Spin(axis), quarter.clone())],
+                vec![(Coord::Spin(Some(axis)), quarter.clone())],
                 "a quarter turn about {axis:?}"
             );
         }
@@ -1290,8 +1294,8 @@ mod tests {
         assert_eq!(
             spins(axes_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])),
             vec![
-                (Coord::Spin(TargetAxis::X), quarter.clone()),
-                (Coord::Spin(TargetAxis::Z), quarter),
+                (Coord::Spin(Some(TargetAxis::X)), quarter.clone()),
+                (Coord::Spin(Some(TargetAxis::Z)), quarter),
             ],
         );
     }

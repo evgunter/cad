@@ -3965,6 +3965,7 @@ class Doc:
         distance: _LengthArg,
         spin: Optional[_AngleArg] = None,
         *,
+        orient: Optional[Orientation] = None,
         label: Optional[str] = None,
     ) -> SketchedOnFace:
         """"Sketch on this face": `outline` drawn on its own plane and
@@ -3973,8 +3974,12 @@ class Doc:
         looking out along the outward normal, its origin over the face
         body's own, turned `spin` about the normal; zero when `None`),
         and `body` and the copy fused. `face` is opaque name text from
-        `Evaluation.all_faces` / `select`. One action; `label=` labels
-        the union."""
+        `Evaluation.all_faces` / `select`. `orient=` is the mate's
+        `Orientation`, the identity when `None`: a face looking down its
+        space's `-z` takes one putting the profile's `z` there,
+        `Orientation("+x", "-z")`, since the identity is then written
+        backwards (`mate_backwards`). One action; `label=` labels the
+        union."""
 
     @property
     def node_count(self) -> int: ...
@@ -5656,7 +5661,11 @@ class Mate:
 
     `class_` is the declared contact class; ask `class_admission`
     BEFORE authoring, because a class the solve folds may still mint
-    nothing at the at-rest gate.
+    nothing at the at-rest gate. `orient=` is the mate's `Orientation`
+    (the identity when `None`): where the copy's axes lie along the
+    target space's, read beside a mate fixing a direction (a plane, an
+    axis, a direction); a point or a frame mate written with any other
+    refuses `mate_unoriented`.
 
     Where it is added, the door refuses an `on` that does not read the
     copy (`mate_not_on_the_copy`) and poses of two kinds
@@ -5669,6 +5678,8 @@ class Mate:
         on: _Operand,
         to: _Operand,
         class_: ContactClass,
+        *,
+        orient: Optional[Orientation] = None,
     ) -> None: ...
     @property
     def on(self) -> PoseDef:
@@ -5679,34 +5690,70 @@ class Mate:
     @property
     def class_(self) -> ContactClass:
         """The declared contact class."""
+    @property
+    def orient(self) -> Orientation:
+        """The orientation, as written."""
     def __eq__(self, other: object) -> bool:
-        """BIT-exact: the same poses, the same class."""
+        """BIT-exact: the same poses, the same class, the same
+        orientation."""
+
+_SignedAxis = Literal["+x", "-x", "+y", "-y", "+z", "-z"]
+
+class Orientation:
+    """An orientation: one of the 24 ways the copy's axes lie along the
+    target space's, by where its `x` and its `z` lie —
+    `Orientation("+x", "-z")` puts the copy's `x` along the target's
+    `+x` and its `z` along `-z` (its `y` is `z × x`). A mate fixing a
+    direction carries one; the value chart's least turn carries where
+    it puts the copy's mated direction onto the mated direction, and
+    the spin is what is left. Raises ValueError for two axes of one
+    letter or a word that is no signed axis."""
+
+    def __init__(self, x: _SignedAxis, z: _SignedAxis) -> None: ...
+    @staticmethod
+    def identity() -> Orientation:
+        """The copy's axes along the target's own."""
+    @property
+    def x(self) -> _SignedAxis: ...
+    @property
+    def y(self) -> _SignedAxis: ...
+    @property
+    def z(self) -> _SignedAxis: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
 
 class Coord:
     """Which freedom a value sets: `Coord.slide("x")`, `"y"` or `"z"`,
-    a slide along the chart's axis, or `Coord.spin("x")`, `"y"` or
-    `"z"`, a turn about it.
+    a slide along the chart's axis; `Coord.spin()`, the spin about the
+    mated direction beside a mate fixing one; or `Coord.spin("x")`,
+    `"y"` or `"z"`, a link of a chain of turns about the target space's
+    axis where none is fixed.
 
-    The chart is the target space's own axes, swung by the shortest
-    turn onto the one direction the bundle's mates fix, where they fix
-    one (`z` that direction). A plane mate leaves the slides along `x`
-    and `y` and the spin about `z`; an axis mate the slide along and
-    the spin about `z`; a direction mate the three slides and the spin
-    about `z`; a point mate its rotation, a chain of spins about the
-    target space's axes through the mated point; a frame mate nothing.
-    A bundle with no mate leaves the three slides and a chain of spins
-    about the target space's axes, in the order written."""
+    Beside a mate fixing a direction, the chart is the target space's
+    own axes carried by the least turn from where the mate's
+    `Orientation` puts the copy's mated direction onto the mated one,
+    and the spin is the turn left about it. A plane mate leaves two
+    slides and the spin, an axis mate one slide and the spin, a
+    direction mate the three slides and the spin: where the copy's
+    mated direction lies on one of its axes, the slide the least turn
+    carries onto the mated direction is the one a plane fixes and an
+    axis leaves. A point mate leaves its rotation, a chain of spins
+    about the target space's axes through the mated point; a frame mate
+    nothing. A bundle with no mate leaves the three slides and a chain
+    of spins about the target space's axes, in the order written."""
 
     @staticmethod
     def slide(axis: Literal["x", "y", "z"]) -> Coord:
         """Raises ValueError for any other axis word."""
     @staticmethod
-    def spin(axis: Literal["x", "y", "z"]) -> Coord:
-        """Raises ValueError for any other axis word."""
+    def spin(axis: Optional[Literal["x", "y", "z"]] = None) -> Coord:
+        """The spin about the mated direction with no `axis`, a chain
+        link about `axis` with one. Raises ValueError for any other
+        axis word."""
     @property
     def variant(
         self,
-    ) -> Literal["slide_x", "slide_y", "slide_z", "spin_x", "spin_y", "spin_z"]: ...
+    ) -> Literal["slide_x", "slide_y", "slide_z", "spin", "spin_x", "spin_y", "spin_z"]: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
 
@@ -5716,10 +5763,12 @@ class MateValue:
     constant zero). A value names no mate: the mates of its bundle
     together leave its freedom.
 
-    It is charted on the target space's own axes, swung by the shortest
-    turn onto the one direction the mates fix: a slide is the copy's
-    origin measured along the chart's axis, a spin the angle about it.
-    Zero says the copy's own coordinates agree with the target space's
+    Beside a mate fixing a direction it is charted on the target
+    space's own axes carried by the least turn from where the mate's
+    orientation puts the copy's mated direction onto the mated one: a
+    slide is the copy's origin measured along a carried axis, the spin
+    the turn left about the mated direction. Zero says the copy's own
+    coordinates agree with the target space's, up to the orientation,
     as far as the mates allow.
 
     A bundle is written whole (`Doc.place`, `Doc.set_constraints`,
@@ -5880,7 +5929,11 @@ class MateFault:
     `on` does not read its copy; `mate_kinds_differ` the `mate` and its
     `on_kind` and `to_kind`; `mate_side_unevaluated` the `mate`, the
     `side` and the pose's own `error`. `mate_no_chart` names the value
-    as `value_ref`, and `why` (`slide_turns_a_ball`)."""
+    as `value_ref`, and `why` (`slide_turns_a_ball`, or
+    `slides_do_not_span` where the written slides do not span what the
+    mate leaves). `mate_backwards` names the `mate`, the orientation it
+    was written with (`orient`) and the one to `write`; `mate_unoriented`
+    the `mate`, a point or a frame mate written with an orientation."""
 
     @property
     def variant(self) -> str: ...
@@ -5915,7 +5968,11 @@ class MateFault:
     @property
     def value_ref(self) -> Optional[MateRef]: ...
     @property
-    def why(self) -> Optional[Literal["slide_turns_a_ball"]]: ...
+    def why(self) -> Optional[Literal["slide_turns_a_ball", "slides_do_not_span"]]: ...
+    @property
+    def orient(self) -> Optional[Orientation]: ...
+    @property
+    def write(self) -> Optional[Orientation]: ...
     @property
     def what(self) -> Optional[str]:
         """What a lever's unbounded face is, in its own words."""

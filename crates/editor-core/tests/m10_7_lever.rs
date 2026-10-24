@@ -181,6 +181,7 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
             on: fixture::plane(bottom),
             to: tilted,
             class: editor_core::ContactClass::Rest,
+            orient: editor_core::Orientation::IDENTITY,
         },
         vec![
             (
@@ -192,7 +193,7 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
                 editor_core::Formula::zero(editor_core::Dimension::Length),
             ),
             (
-                editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+                editor_core::Coord::SPIN,
                 editor_core::Formula::zero(editor_core::Dimension::Angle),
             ),
         ],

@@ -161,10 +161,10 @@ pub use label::{Label, LabelFault};
 pub use mate::{
     CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset, FrameMove,
     LeverRefusal, Mate, MateFault, MateRef, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
-    NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing, PoseRefusal, PoseSymmetry,
-    ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis, UNPINNED_RECOURSE,
-    Unobservable, Value, class_admission, corner_frame, corner_frame_in, head_face, head_of,
-    member_of, member_reading, moved_frame, reference_about, relative_freedom_components,
+    NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal, Placed, Placing, PoseRefusal,
+    PoseSymmetry, ReachRefusal, SignedAxis, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis,
+    UNPINNED_RECOURSE, Unobservable, Value, class_admission, corner_frame, corner_frame_in,
+    head_face, head_of, member_of, member_reading, moved_frame, relative_freedom_components,
     solve_document, stand, unobservable,
 };
 pub use mc::{

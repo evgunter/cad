@@ -786,6 +786,8 @@ mod glue_on_zero_rows;
 mod intent_dprime1_target_space;
 #[path = "intent_dprime2_mates_read_geometry.rs"]
 mod intent_dprime2_mates_read_geometry;
+#[path = "intent_value_chart_orientation.rs"]
+mod intent_value_chart_orientation;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]

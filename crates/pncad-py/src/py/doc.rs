@@ -1653,13 +1653,19 @@ impl Doc {
     /// looking out along the face's outward normal, its origin over the
     /// face body's own and turned `spin` about the normal — and the
     /// face's body and the copy fused. `face` is one of the opaque
-    /// texts `Evaluation.all_faces` / `select` answered with.
+    /// texts `Evaluation.all_faces` / `select` answered with. `orient=`
+    /// is the mate's `Orientation`, the identity unless written: where
+    /// the profile's axes lie among the face body's space's, so a face
+    /// whose outward normal is that space's `-z` takes one putting the
+    /// profile's `z` along `-z` (`Orientation("+x", "-z")`), since the
+    /// identity there is the orientation written backwards
+    /// (`mate_backwards`).
     ///
     /// One action: the four nodes, the mate and its values all land or
     /// none does, and the first door that refuses raises its
     /// `EditError`. Answers the four ids as a `SketchedOnFace`;
     /// `label=` labels the union, the body the gesture leaves.
-    #[pyo3(signature = (body, face, outline, distance, spin=None, *, label=None))]
+    #[pyo3(signature = (body, face, outline, distance, spin=None, *, orient=None, label=None))]
     #[allow(clippy::too_many_arguments)] // the gesture's own arguments, each a seat
     fn sketch_on_face(
         &mut self,
@@ -1669,6 +1675,7 @@ impl Doc {
         outline: &Bound<'_, PyAny>,
         distance: super::expr::SlotArg,
         spin: Option<super::expr::SlotArg>,
+        orient: Option<super::mate::Orientation>,
         label: Option<&str>,
     ) -> PyResult<SketchedOnFace> {
         let label = label.map(|text| label_from_text(py, text)).transpose()?;
@@ -1686,7 +1693,14 @@ impl Doc {
         let mut action = d::Recording::start(&self.inner, tol);
         let edit_failed = |err: d::EditError| edit_err(py, &err);
         let sketched = action
-            .sketch_on_face(body.read(), face, profile, distance, spin)
+            .sketch_on_face(
+                body.read(),
+                face,
+                profile,
+                distance,
+                spin,
+                orient.map_or(d::Orientation::IDENTITY, |o| o.0),
+            )
             .map_err(edit_failed)?;
         if let Some(label) = label {
             action

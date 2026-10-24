@@ -332,9 +332,10 @@ pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
 }
 
 /// [`seat_values`] under a shelf standing unturned at `shelf_at` in its
-/// space: the post's origin from the space's, on the space's axes swung
-/// onto the underside's outward normal, the space's `−z` — the
-/// half-turn about its `x`, so the chart's `y` is the space's `−y`.
+/// space: the post's origin from the space's, on the space's own axes —
+/// the mated direction is the underside's flipped normal, the space's
+/// `+z`, where the identity orientation puts the post's top, so the least
+/// turn is the identity.
 pub fn seat_values_at(b_x: f64, shelf_at: [f64; 3]) -> Vec<(Coord, pncad::document::Formula)> {
     vec![
         (
@@ -343,9 +344,9 @@ pub fn seat_values_at(b_x: f64, shelf_at: [f64; 3]) -> Vec<(Coord, pncad::docume
         ),
         (
             Coord::Slide(TargetAxis::Y),
-            len(POST_SECTION / 2.0 - SHELF_DEPTH / 2.0 - shelf_at[1]),
+            len(shelf_at[1] + SHELF_DEPTH / 2.0 - POST_SECTION / 2.0),
         ),
-        (Coord::Spin(TargetAxis::Z), ang(0.0)),
+        (Coord::SPIN, ang(0.0)),
     ]
 }
 

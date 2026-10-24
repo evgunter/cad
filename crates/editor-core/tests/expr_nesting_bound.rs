@@ -165,6 +165,7 @@ fn deepest_pose_document(levels: usize) -> Recorder {
             on: cap(editor_core::CapEnd::Start),
             to: fixture::flip(to),
             class: ContactClass::Rest,
+            orient: editor_core::Orientation::IDENTITY,
         }],
         Vec::new(),
     );

@@ -615,6 +615,7 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
         on: cap.clone(),
         to: cap,
         class: ContactClass::Rest,
+        orient: editor_core::Orientation::IDENTITY,
     };
     match apply(
         &doc,

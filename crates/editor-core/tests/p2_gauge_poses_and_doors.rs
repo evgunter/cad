@@ -203,9 +203,9 @@ fn pinned_chain(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
     let ay = plus(at(1.0, sin()), at(2.0, cos()));
     let (c, s) = (0.3_f64.cos(), 0.3_f64.sin());
     let values = vec![
-        (Coord::Spin(TargetAxis::Y), ang(0.2)),
-        (Coord::Spin(TargetAxis::Z), spin()),
-        (Coord::Spin(TargetAxis::X), ang(0.3)),
+        (Coord::Spin(Some(TargetAxis::Y)), ang(0.2)),
+        (Coord::Spin(Some(TargetAxis::Z)), spin()),
+        (Coord::Spin(Some(TargetAxis::X)), ang(0.3)),
         (Coord::Slide(TargetAxis::X), plus(len(5.0), ax)),
         (
             Coord::Slide(TargetAxis::Y),
