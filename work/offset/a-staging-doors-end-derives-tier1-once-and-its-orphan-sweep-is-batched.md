@@ -2,11 +2,14 @@
 id: a-staging-doors-end-derives-tier1-once-and-its-orphan-sweep-is-batched
 kind: unit
 title: A staging door's end derives tier 1 once, not two or three times, and the attach setter's orphan sweep is one batched pass, not a whole-arena scan per removed key
-status: open
+status: closed
 opened: 2026-10-24
 priority: P1
 cost: M
 refs: [doors-still-read-the-whole-body-for-tier1, offset-doors-take-solids-and-a-per-chart-rule]
+closed: 2026-10-24
+pr: 5661
+branch: offset/door-end-tier1-once
 ---
 
 
@@ -84,3 +87,24 @@ null-scaffold curve. Record the hit list.
 
 Review tier: single FULL (a gate's two contracts merge into one walk;
 the panic/typed split is the claim to falsify).
+
+## Closed (2026-10-24, PR 5661)
+
+`Surgery::close_gated` derives tier 1 once at a staging door's end (a
+tier-1 finding panics naming the door, tier 2 comes back typed); the
+three simultaneous offset doors and the merge close with it, and
+`structural_gate` lost its extra `validate`. The attach setter's orphan
+pass is one batched reference count per call, its walks are driven by
+the moved faces, and `attach::tests::orphan_sweep_scales_with_the_writes`
+counts it (7n+2 arena visits). The n-gon prism offset went from 2.04 /
+17.2 / 224 ms to 1.15 / 6.0 / 49 ms at n = 64 / 256 / 1024.
+
+Residue, each in its own file:
+`staging-doors-gated-at-tier-3-still-derive-tier-1-twice` (the boolean,
+shell, split and STEP import gate at tier 3),
+`wedge-reach-folds-a-faces-whole-boundary-per-edge`, SHELF's
+`offset-charts-staged-corner-solve-walks-the-edge-arena-per-group`,
+TOPO's `set-edge-curve-scans-the-edge-arena-per-call`,
+`an-offset-doors-trailing-join-sweeps-tier-1-per-kill`. The merge door
+closes gated but still derives tier 1 twice (its re-description scope),
+recorded in the tier-3 row.

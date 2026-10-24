@@ -233,6 +233,7 @@
 
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
+use slotmap::SecondaryMap;
 
 use crate::attach::KillMove;
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
@@ -1776,6 +1777,55 @@ impl<T: Decide> Body<T> {
             halves.extend(cycle);
         }
         halves
+    }
+
+    /// [`Body::face_cycles`] of each face of `faces`, in order, under
+    /// ONE whole-arena pass for all of them: the half-edge arena is read
+    /// once for every face's loops, where a face at a time reads it once
+    /// per loop. The same proofs, the same panics.
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::face_cycles`].
+    #[track_caller]
+    pub(crate) fn faces_cycles(
+        &self,
+        faces: impl IntoIterator<Item = FaceKey>,
+    ) -> Vec<Vec<HalfEdgeKey>> {
+        let mut loops: SecondaryMap<LoopKey, ()> = SecondaryMap::new();
+        let mut members: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
+        let mut out = Vec::new();
+        for face in faces {
+            let mut halves = Vec::new();
+            for (r#loop, cycle) in crate::pcurves::face_loop_walks(self, face) {
+                // `require_run_of`'s member proof, without the set it
+                // builds per loop.
+                for &member in &cycle {
+                    assert!(
+                        self.claims(member, r#loop),
+                        "{member:?}, walked as a member of loop {:?}'s cycle, does not claim \
+                         it: {CYCLES_ARE_CLAIMANTS}",
+                        r#loop
+                    );
+                    members.insert(member, ());
+                }
+                loops.insert(r#loop, ());
+                halves.extend(cycle);
+            }
+            out.push(halves);
+        }
+        if let Some((stray, data)) = self
+            .half_edges
+            .iter()
+            .find(|&(he, data)| loops.contains_key(data.parent_loop) && !members.contains_key(he))
+        {
+            unreachable!(
+                "{stray:?} claims loop {:?} and its cycle walk does not reach it: \
+                 {CYCLES_ARE_CLAIMANTS}",
+                data.parent_loop
+            );
+        }
+        out
     }
 
     /// [`Body::face_cycles`] without the whole-loop proof: the members of

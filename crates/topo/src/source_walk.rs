@@ -510,7 +510,10 @@ impl MutationDoor {
         if !(self.names("begin_surgery") || self.names("enter_surgery")) {
             return SurgeryPosture::NoScope;
         }
-        if self.names("sweep_and_close") || self.names("leave_surgery_and_sweep") {
+        if self.names("sweep_and_close")
+            || self.names("close_gated")
+            || self.names("leave_surgery_and_sweep")
+        {
             SurgeryPosture::ClosedWithSweep
         } else if self.names("close_already_checked") || self.names("leave_surgery") {
             SurgeryPosture::ClosedUnderOwnAssertion
@@ -534,7 +537,8 @@ pub(crate) enum SurgeryPosture {
     /// The door opens no surgery scope.
     NoScope,
     /// It opens one and closes it with the tier-1 sweep — the door's
-    /// postcondition.
+    /// postcondition — alone or inside the door's tier-2 gate
+    /// (`Surgery::close_gated`).
     ClosedWithSweep,
     /// It opens one and closes it without a sweep, which claims a
     /// debug assertion of tier 1 or stronger in the door's own body.
@@ -741,7 +745,7 @@ pub fn not_a_door(&self) {}
         );
     }
 
-    /// **The surgery posture, read off four doors that differ only in
+    /// **The surgery posture, read off doors that differ only in
     /// which calls they make.**
     ///
     /// [`MutationDoor::surgery_posture`] is what stands between
@@ -756,6 +760,7 @@ pub fn not_a_door(&self) {}
     fn the_walk_tells_a_closed_surgery_scope_from_one_left_open() {
         let src = "
 pub fn swept(&mut self) { let s = self.begin_surgery(); s.sweep_and_close(); }
+pub fn gated(&mut self) { let s = self.begin_surgery(); s.close_gated(door).map_err(E)?; }
 pub fn guardless(&mut self) { self.enter_surgery(); self.leave_surgery_and_sweep(); }
 pub fn own_assert(&mut self) { self.enter_surgery(); self.leave_surgery(); }
 pub fn left_open(&mut self) { let s = self.begin_surgery(); s.take(); }
@@ -779,6 +784,7 @@ pub fn unbacked(&mut self) { let s = self.begin_surgery(); s.close_already_check
             postures,
             vec![
                 ("swept", SurgeryPosture::ClosedWithSweep),
+                ("gated", SurgeryPosture::ClosedWithSweep),
                 ("guardless", SurgeryPosture::ClosedWithSweep),
                 ("own_assert", SurgeryPosture::ClosedUnderOwnAssertion),
                 ("left_open", SurgeryPosture::LeftOpen),
