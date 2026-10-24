@@ -902,9 +902,10 @@ pub mod test_support {
             .collect())
     }
 
-    /// Does `face` describe for the section certificate's W2 — its
-    /// `chart_boundary` answers, or, on a cone face, its apex closure
-    /// closes? The verdict the certificate reads per face.
+    /// Does `face` lift to one sheet for the section certificate's W2
+    /// (`boolean::ops::ChartCache::describes` answers `Sheet::One`)?
+    /// The verdict the certificate reads per face; a torn face, or one
+    /// whose walk is unread, answers `false`.
     pub fn face_describes<T: crate::props::AtRestPolicy>(
         body: &Body<T>,
         face: crate::FaceKey,
@@ -916,12 +917,15 @@ pub mod test_support {
         else {
             return false;
         };
-        crate::boolean::ChartCache::default().describes(
-            crate::Operand::A,
-            body,
-            face,
-            &surface.clone(),
-            band,
+        matches!(
+            crate::boolean::ChartCache::default().describes(
+                crate::Operand::A,
+                body,
+                face,
+                &surface.clone(),
+                band,
+            ),
+            Ok(crate::boolean::section_cert::Sheet::One)
         )
     }
 

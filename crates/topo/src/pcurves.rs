@@ -5054,6 +5054,115 @@ pub(crate) fn chart_period<T: AtRestPolicy>(chart: &Surface<T>, band: Band) -> O
     }
 }
 
+/// One loop of a face as [`loop_windings`] reads it off the walk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct LoopWinding {
+    /// The loop.
+    pub(crate) r#loop: LoopKey,
+    /// Some joint of the loop lies on the chart's singular set (a
+    /// sphere pole, a cone apex), decided as 3-D incidence
+    /// ([`singular_at`]). Such a loop has no first-channel winding to
+    /// read, and its `zero` is `false`.
+    pub(crate) singular: bool,
+    /// The loop's joints compose to the identity deck element, in both
+    /// channels ([`Winding::is_zero`]): its lift closes on its start.
+    pub(crate) zero: bool,
+}
+
+/// **How each loop of `face` winds in `chart`**, read off the loop walk,
+/// for a reader that asks only whether loops wind and never draws a
+/// polygon: the section certificate's W2
+/// (`boolean::ops::ChartCache::describes`).
+///
+/// The reading is [`chart_boundary`]'s up to its winding check, with
+/// the singular-joint fence turned into a reading. A loop with a joint
+/// on the singular set is reported `singular` and nothing else of it
+/// is read. Every other loop has each closed-form row certified
+/// against `chart`, and each joint's room decided ([`joint_has_room`]),
+/// before its winding is read, because a joint without room may read
+/// an integer a step off. Loops come outer first; an empty loop is
+/// absent.
+///
+/// # Errors
+///
+/// [`PcurveMintError::Stale`] when `face` does not resolve, and
+/// [`PcurveMintError::PlaceholderChart`] when `chart` is the mvfs
+/// placeholder; the loop walk's own refusals ([`walk_loop`]);
+/// [`PcurveMintError::Escalated`] for a joint whose incidence on the
+/// singular set is undecided; and, on a loop off that set,
+/// [`PcurveMintError::Certify`] for a row that does not certify against
+/// `chart` and [`PcurveMintError::JointWithoutRoom`] for a joint without
+/// room.
+pub(crate) fn loop_windings<T: AtRestPolicy>(
+    body: &Body<T>,
+    face: FaceKey,
+    chart: &Surface<T>,
+    band: Band,
+) -> Result<Vec<LoopWinding>, PcurveMintError> {
+    let face_data = body.get_face(face).ok_or(PcurveMintError::Stale {
+        role: "face",
+        key: EntityId::Face(face),
+    })?;
+    let described = DescribedChart::of(chart).ok_or(PcurveMintError::PlaceholderChart { face })?;
+    let period = ChartPeriods::of(chart, band).u();
+    let mut out = Vec::new();
+    for lp in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
+        let mut walked: Vec<Walked<T>> = Vec::new();
+        walk_loop(body, face, lp, described, band, &mut walked)?;
+        if walked.is_empty() {
+            continue;
+        }
+        let mut singular = false;
+        for w in &walked {
+            match singular_at(described, entry_vertex(body, w.key), band) {
+                Singular::Off => {}
+                Singular::On => singular = true,
+                Singular::Undecided(cause) => {
+                    return Err(PcurveMintError::Escalated {
+                        half_edge: w.key,
+                        cause,
+                    });
+                }
+            }
+        }
+        if singular {
+            out.push(LoopWinding {
+                r#loop: lp,
+                singular,
+                zero: false,
+            });
+            continue;
+        }
+        for w in &walked {
+            if !matches!(w.pcurve, Pcurve::Fitted(_) | Pcurve::General(_)) {
+                PcurveCache::certify(w.pcurve.clone(), w.t0, w.t1, &w.carrier, chart, band)
+                    .map_err(|error| PcurveMintError::Certify {
+                        half_edge: w.key,
+                        error,
+                    })?;
+            }
+            let orbit = Orbit::of(chart, &w.pcurve);
+            if !joint_has_room(described, entry_vertex(body, w.key), period, orbit, band) {
+                return Err(PcurveMintError::JointWithoutRoom {
+                    face,
+                    r#loop: lp,
+                    half_edge: w.key,
+                });
+            }
+        }
+        let elements = walked.iter().map(|w| {
+            w.element
+                .unwrap_or_else(|| unreachable!("a closed walk decides every joint"))
+        });
+        out.push(LoopWinding {
+            r#loop: lp,
+            singular,
+            zero: Winding::of(elements).is_zero(),
+        });
+    }
+    Ok(out)
+}
+
 /// **The face's boundary in a chart the CALLER names** — the certified
 /// outer description a subdivision consumer intersects its carrier
 /// window with, and tests its cells against

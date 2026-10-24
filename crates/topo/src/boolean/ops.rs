@@ -120,6 +120,7 @@ use super::finish::setopfinish;
 use super::join::bool_connect;
 use super::reduce::PendingRow;
 use super::section_cert::Refusal as SectionRefusal;
+use super::section_cert::Sheet;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
@@ -1345,28 +1346,62 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
 }
 
-/// **`chart_boundary`'s verdict per face, asked once.** Keyed by the
-/// operand as well as the face: the two operands' arenas mint their
-/// keys independently, so A's face and B's face can share a key. (The
-/// map keys the operand as "is B", `Operand` carrying no order.)
+/// **W2's verdict per face, asked once.** Keyed by the operand as well
+/// as the face: the two operands' arenas mint their keys independently,
+/// so A's face and B's face can share a key. (The map keys the operand
+/// as "is B", `Operand` carrying no order.)
 #[derive(Default)]
-pub(crate) struct ChartCache(BTreeMap<(bool, FaceKey), bool>);
+pub(crate) struct ChartCache(BTreeMap<(bool, FaceKey), Sheet>);
 
 impl ChartCache {
-    /// Does `operand`'s `face` of `body` describe — does every closed
-    /// curve in its interior lift to a closed curve with zero winding
-    /// (W2's premise)? Yes when [`crate::pcurves::chart_boundary`]
-    /// answers `Ok`, and on a cone face also when the apex closure
-    /// closes ([`crate::chord_join::cone_apex_closure`]: one apex
-    /// visit, no ring) on a window at most a period wide.
+    /// Does `operand`'s `face` of `body` lift to one sheet — does every
+    /// closed curve in its interior lift to a closed curve with zero
+    /// winding (W2's premise)? Read off the loop walk
+    /// ([`crate::pcurves::loop_windings`]): [`Sheet::One`] when
     ///
-    /// The cone clause is sound although `chart_boundary` refuses the
-    /// apex as a singular joint. The apex lies on `∂F`, so `int F`
-    /// excludes it, and `int F` maps homeomorphically onto the interior
-    /// of the lifted region: a bounded region of one sheet of the
-    /// punctured nappe's universal cover, at most a period wide. Every
-    /// closed curve in `int F` therefore lifts to a closed curve with
-    /// zero winding, and no essential component lies in `int F`.
+    /// 1. every loop off the chart's singular set winds the identity,
+    /// 2. at most one loop meets that set, and
+    /// 3. no singular point lies in `int F`: on a sphere each pole is
+    ///    placed by the face's own point door, and lies `Out`, or on a
+    ///    vertex; on a cone the face's corners lie on one nappe
+    ///    ([`crate::offset_nappe::face_nappe`]).
+    ///
+    /// **Why that is enough.** `int F` is the face less its edges, seams
+    /// included: an event marks a section crossing any of them (L1). On
+    /// a plane, cylinder, cone or sphere, a closed curve `γ` off the
+    /// singular set winds by its class in the first homology of the
+    /// carrier less that set (less the apex, less the poles), and `γ`
+    /// in `int F` is homologous there to a sum over every boundary
+    /// circle of `F` but one, and over a small circle about each
+    /// singular point `int F` holds: `F` is planar, since its interior
+    /// lies on a planar carrier. Each loop off the singular set lies
+    /// off it, so its term is its winding, zero by (1); the loop that
+    /// meets the set, if any, is the one left out (2); and (3) leaves no
+    /// singular point in `int F`. On a cone (3)'s apex term is also
+    /// implied: an apex in `int F` sits on no loop, and the sum over
+    /// all of them is then ±1. The nappe clause excludes a loop that
+    /// crosses the apex inside an edge, whose term is not its walk's
+    /// winding; on a sphere a pole inside an edge places `OnEdge`, and
+    /// does not describe. A pinched face (two sectors meeting at an
+    /// apex) reads the same of each sector. A torus has no singular
+    /// set, and (1) is enough while its face is planar, as a face its
+    /// seams cut open is.
+    ///
+    /// A plane winds nothing and is [`Sheet::One`] unread. A spline or
+    /// approximated chart is [`Sheet::Not`]: no point door places its
+    /// collapsed rows, and no section arm marks a component essential
+    /// on one.
+    ///
+    /// A walk that refuses for a numerical or unbuilt reason, or a
+    /// point door with no verdict, is [`Sheet::Unread`], never `Not`.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::ClassificationInvariant`] for a torn face: a
+    /// key that does not resolve, an edge with no carrier, a missing or
+    /// misstated row, or a loop whose walk does not close. Each is a
+    /// state the at-rest pass refuses, so an operand reaches here
+    /// without it.
     pub(crate) fn describes<T: crate::props::AtRestPolicy>(
         &mut self,
         operand: Operand,
@@ -1374,42 +1409,84 @@ impl ChartCache {
         face: FaceKey,
         surface: &geom::Surface<T>,
         band: Band,
-    ) -> bool {
-        *self
-            .0
-            .entry((operand == Operand::B, face))
-            .or_insert_with(|| {
-                crate::pcurves::chart_boundary(body, face, surface, band).is_ok()
-                    || apex_closure_describes(body, face, surface, band)
-            })
+    ) -> Result<Sheet, BooleanError> {
+        let key = (operand == Operand::B, face);
+        if let Some(&sheet) = self.0.get(&key) {
+            return Ok(sheet);
+        }
+        let sheet = one_sheet(body, face, surface, band)?;
+        self.0.insert(key, sheet);
+        Ok(sheet)
     }
 }
 
-/// The cone clause of [`ChartCache::describes`]: the apex closure
-/// closes, on a window not definitely wider than a period.
-fn apex_closure_describes<T: Decide>(
+/// [`ChartCache::describes`]'s reading, uncached.
+fn one_sheet<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     surface: &geom::Surface<T>,
     band: Band,
-) -> bool {
-    use crate::chord_join::ApexClosure;
-    if !matches!(surface, geom::Surface::Cone { .. }) {
-        return false;
+) -> Result<Sheet, BooleanError> {
+    use crate::pcurves::PcurveMintError as M;
+    use geom::Surface as S;
+    match surface {
+        S::Plane { .. } => return Ok(Sheet::One),
+        S::Nurbs(_) | S::Approx(_) => return Ok(Sheet::Not),
+        S::Cylinder { .. } | S::Cone { .. } | S::Sphere { .. } | S::Torus { .. } => {}
     }
-    let Ok(ApexClosure::Closed { window, reach, .. }) =
-        crate::chord_join::cone_apex_closure(body, surface, face, band)
-    else {
-        return false;
+    let loops = match crate::pcurves::loop_windings(body, face, surface, band) {
+        Ok(loops) => loops,
+        Err(
+            M::Stale { .. }
+            | M::NoCarrier { .. }
+            | M::MissingCache { .. }
+            | M::Unminted { .. }
+            | M::RowInterval { .. }
+            | M::LoopDiscontinuity { .. }
+            | M::LoopNotClosed { .. },
+        ) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "an operand face's loop walk reads it torn (a stale key, an edge with no \
+                       carrier, a missing or misstated row, or a walk that does not close), \
+                       which the at-rest pass refuses",
+            });
+        }
+        Err(_) => return Ok(Sheet::Unread),
     };
-    matches!(
-        crate::validate::decide(
-            "bool_cone_closure_period",
-            Margin::levered(T::tau() - (window.1 - window.0), reach),
-            band,
-        ),
-        Ok(Sign::Positive | Sign::Zero)
-    )
+    if !loops_lift(&loops) {
+        return Ok(Sheet::Not);
+    }
+    match *surface {
+        S::Sphere {
+            center,
+            radius,
+            axis,
+            ..
+        } => {
+            for pole in [center + axis * radius, center - axis * radius] {
+                match place_witness(body, face, pole, band) {
+                    Some(FaceContainment::Out | FaceContainment::OnVertex(_)) => {}
+                    Some(FaceContainment::In | FaceContainment::OnEdge(_)) => {
+                        return Ok(Sheet::Not);
+                    }
+                    None => return Ok(Sheet::Unread),
+                }
+            }
+        }
+        S::Cone { .. } => match crate::offset_nappe::face_nappe(body, face, band) {
+            Ok(_) => {}
+            Err(crate::ReplaceFaceError::NappeStraddles { .. }) => return Ok(Sheet::Not),
+            Err(_) => return Ok(Sheet::Unread),
+        },
+        _ => {}
+    }
+    Ok(Sheet::One)
+}
+
+/// Clauses (1) and (2) of [`ChartCache::describes`]: every loop off the
+/// singular set winds the identity, and at most one loop meets it.
+pub(crate) fn loops_lift(loops: &[crate::pcurves::LoopWinding]) -> bool {
+    loops.iter().filter(|l| l.singular).count() <= 1 && loops.iter().all(|l| l.singular || l.zero)
 }
 
 /// Which path a section scan serves; the two differ in which pairs
@@ -1602,20 +1679,25 @@ fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::sectio
 /// pair's refusal. The reach — the ball about the two boxes' overlap,
 /// which pivots and levers the angular margins — is built here
 /// ([`super::section_cert`]'s module docs).
+///
+/// # Errors
+///
+/// [`ChartCache::describes`]'s, for a torn face.
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (a, fa): (&Body<T>, &FaceRow<T>),
     (b, fb): (&Body<T>, &FaceRow<T>),
     band: Band,
     evented: bool,
     charts: &mut ChartCache,
-) -> Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal> {
-    use super::section_cert::{Refusal, Side, certify, classify};
+) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
+    use super::section_cert::{Side, certify, classify};
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
-        return Err(Refusal::LoneVertex);
+        return Ok(Err(SectionRefusal::LoneVertex));
     }
     let reach = overlap_reach(&fa.bbox, &fb.bbox);
     let section = classify(&fa.surface, &fb.surface, reach, band);
-    certify(
+    let mut torn = None;
+    let verdict = certify(
         &section,
         evented,
         |side| {
@@ -1623,7 +1705,12 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Side::F => (Operand::A, a, fa),
                 Side::G => (Operand::B, b, fb),
             };
-            charts.describes(operand, body, row.face, &row.surface, band)
+            charts
+                .describes(operand, body, row.face, &row.surface, band)
+                .unwrap_or_else(|e| {
+                    torn = Some(e);
+                    Sheet::Unread
+                })
         },
         |p| {
             [
@@ -1631,7 +1718,11 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 place_witness(b, fb.face, p, band),
             ]
         },
-    )
+    );
+    match torn {
+        Some(e) => Err(e),
+        None => Ok(verdict),
+    }
 }
 
 /// **Whether a boundary edge of `face` may meet `circle`**: some edge of
@@ -1682,6 +1773,10 @@ fn face_boundary_meets<T: Decide + Bounds>(
 /// the reduction recorded an event on the pair `(A face, B face)`;
 /// `named` says whether A's face is the one a refusal names. With
 /// `stop` the walk returns at the first refusing pair.
+///
+/// # Errors
+///
+/// [`pair_verdict`]'s.
 #[allow(clippy::too_many_arguments)]
 fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     (a, a_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
@@ -1693,7 +1788,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     named: impl Fn(&geom::Surface<T>) -> bool,
     stop: bool,
     axes: &super::separating::OperandAxes<T>,
-) -> Vec<PairVerdict> {
+) -> Result<Vec<PairVerdict>, BooleanError> {
     let b_rows: Vec<&FaceRow<T>> = b_rows.into_iter().collect();
     let pad = boxes::sweep_pad(band);
     let mut out = Vec::new();
@@ -1713,7 +1808,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             ) {
                 continue;
             }
-            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts);
+            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts)?;
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: fa.face,
@@ -1724,24 +1819,25 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
                 verdict,
             });
             if stop && refused {
-                return out;
+                return Ok(out);
             }
         }
     }
-    out
+    Ok(out)
 }
 
 /// **The section certificate over every in-scope pair** of `a` × `b`
 /// whose certified boxes overlap, which the narrow phase does not part
 /// and which `exempt` does not answer, in arena order ([`walk_pairs`]). `evented` says whether the reduction
 /// recorded an event on the pair `(A face, B face)`. With `stop` the
-/// scan returns at the first refusing pair. `chart_boundary` is asked
-/// once per face and cached.
+/// scan returns at the first refusing pair. W2's question is asked once
+/// per face and cached ([`ChartCache`]).
 ///
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] for a face whose surface
-/// or loops do not resolve, and the box builder's own errors.
+/// or loops do not resolve, or whose loop walk reads it torn
+/// ([`ChartCache::describes`]), and the box builder's own errors.
 pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
@@ -1752,7 +1848,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     stop: bool,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let (a_rows, b_rows) = (face_rows(a, band)?, face_rows(b, band)?);
-    Ok(walk_pairs(
+    walk_pairs(
         (a, &a_rows),
         (b, &b_rows),
         band,
@@ -1762,7 +1858,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         |s| path.names(s),
         stop,
         &super::separating::OperandAxes::new(boxes::axis_key),
-    ))
+    )
 }
 
 /// **The pairs a section walk answers without their section**, one per
@@ -5942,7 +6038,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             match ball_against_plane(center, radius, origin, normal, band) {
                                 Ok(read) => read,
                                 Err(diag) => {
-                                    if faces().is_some() {
+                                    if faces()?.is_some() {
                                         return Err(esc(SphereQuestion::AgainstPlane)(diag));
                                     }
                                     continue;
@@ -5960,7 +6056,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // refused, with its reason.
                                 let held = match group {
                                     Some(_) => None,
-                                    None => match faces() {
+                                    None => match faces()? {
                                         None => continue,
                                         held => held,
                                     },
@@ -6086,7 +6182,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         ) {
                             Ok(gap) => gap,
                             Err(diag) => {
-                                if faces().is_some() {
+                                if faces()?.is_some() {
                                     return Err(esc(SphereQuestion::Apart)(diag));
                                 }
                                 continue;
@@ -6132,7 +6228,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 match Refused::of(nested, band) {
                                     None => {}
                                     Some(verdict @ Refused::Zero(_)) => {
-                                        if faces().is_some() {
+                                        if faces()?.is_some() {
                                             return Err(BooleanError::SpheresMeet {
                                                 operand: x_is,
                                                 face,
@@ -6141,7 +6237,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         }
                                         continue;
                                     }
-                                    Some(Refused::Negative { .. }) => match faces() {
+                                    Some(Refused::Negative { .. }) => match faces()? {
                                         None => {}
                                         Some((holder, SectionRefusal::Loop)) => {
                                             let cut = sphere_pair_cut(
@@ -6418,6 +6514,10 @@ fn ball_may_reach<T: Decide>(
 /// touches: the section certificate's walk ([`walk_pairs`]) over those
 /// pairs on the no-event path. `None` when every pair clears, else the
 /// first refusing pair's face of `x` and its refusal, which is the cause.
+///
+/// # Errors
+///
+/// [`walk_pairs`]'.
 fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (x_is, x, x_rows): (Operand, &Body<T>, &[FaceRow<T>]),
     surface: SurfaceKey,
@@ -6425,7 +6525,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     charts: &mut ChartCache,
     axes: &super::separating::OperandAxes<T>,
-) -> Option<(FaceKey, SectionRefusal)> {
+) -> Result<Option<(FaceKey, SectionRefusal)>, BooleanError> {
     let on_sphere = x_rows.iter().filter(|r| r.key == surface);
     let pairs = match x_is {
         Operand::A => walk_pairs(
@@ -6438,7 +6538,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_| true,
             true,
             axes,
-        ),
+        )?,
         Operand::B => walk_pairs(
             (y, [y_row]),
             (x, on_sphere),
@@ -6449,15 +6549,15 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_| true,
             true,
             axes,
-        ),
+        )?,
     };
-    pairs.into_iter().find_map(|p| {
+    Ok(pairs.into_iter().find_map(|p| {
         let held = match x_is {
             Operand::A => p.a_face,
             Operand::B => p.b_face,
         };
         p.verdict.err().map(|refusal| (held, refusal))
-    })
+    }))
 }
 
 /// **Whether a re-cut sphere's polar axis leans off the escape normal**
