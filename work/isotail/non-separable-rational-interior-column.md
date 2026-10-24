@@ -5,7 +5,7 @@ title: An interior column of a chart whose weight net varies along both paramete
 status: open
 opened: 2026-09-04
 priority: P3
-cost: H
+cost: M
 ---
 
 
@@ -92,3 +92,5 @@ widening of the iso hull inside `seam_envelope`, not a new statement.
 The extractor's doc claimed every arc-profile loft wall is separable. That is false
 for lofts whose arcs differ per section, and is corrected in the same commit as this
 note.
+
+Re-priced H → M in the same change: the slack widening above is one term in an existing hull, not a new certificate statement.
