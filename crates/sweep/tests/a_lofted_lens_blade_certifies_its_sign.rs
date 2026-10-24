@@ -205,10 +205,20 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
                 door.map(|_| ()),
                 "the continuation refuses as the door does"
             );
+            // The bracket a budget refusal keeps is the walls' last
+            // round's, run on past where the sign settled: strictly
+            // narrower than the gate's, so a tighter ε never reads a
+            // wider answer
+            // (`work/quad/measure-holds-a-budget-refused-faces-bracket-at-the-round-its-sign-settled`).
             let b = bracket;
             assert!(
                 b.volume_lo > 0.0
-                    && b.volume_hi - b.volume_lo <= enclosure.volume_hi - enclosure.volume_lo
+                    && b.volume_hi - b.volume_lo < enclosure.volume_hi - enclosure.volume_lo,
+                "the continuation's bracket [{}, {}] is narrower than the gate's [{}, {}]",
+                b.volume_lo,
+                b.volume_hi,
+                enclosure.volume_lo,
+                enclosure.volume_hi
             );
         }
         Ok(p) => panic!("the continuation measured the tube: {p:?}"),
