@@ -536,16 +536,12 @@ pub mod test_support {
     /// **The measurement door** ([`crate::props::measure_to`]) over every
     /// face of `body`, measured and certified through the certified lane,
     /// under `settle`: why it stopped and the enclosure it reached, or the
-    /// refusal's text. The door is crate-private until unit C makes it
-    /// every caller's; this is the one a suite drives it through.
+    /// refusal's text: [`crate::mass_properties`] over a body tier 3 has
+    /// not admitted, read as its stop and volume enclosure.
     ///
     /// # Errors
     ///
     /// The door's refusal, as text, or a tolerance that forms no band.
-    ///
-    /// # Panics
-    ///
-    /// On a resolution finer than ε, as the door does.
     pub fn measure_to(
         body: &Body<f64>,
         settle: crate::Settle<f64>,
@@ -1107,11 +1103,11 @@ pub use pcurves::{
     PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
 };
 pub use props::{
-    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, RelOp, RoleNames,
-    Settle, ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor, ShellRole,
-    SignCertificate, SignLimit, SignNames, Stop, TargetUnreached, Verdict, VolumeEnclosure,
-    VolumeReading, classify_shells, classify_shells_of, classify_shells_structural,
-    mass_properties, mass_properties_structural,
+    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, Measured, QuadLane, RelOp,
+    RoleNames, Settle, ShellClassification, ShellClassifyError, ShellClassifyPayload, ShellDoor,
+    ShellRole, SignCertificate, SignLimit, SignNames, Stop, Verdict, VolumeEnclosure,
+    classify_shells, classify_shells_of, classify_shells_structural, mass_properties,
+    mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;

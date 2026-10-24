@@ -767,11 +767,6 @@ fn props_errors() -> Vec<PropsError> {
             cause: diag(),
             check: geom_brep::props::PropsCheck::Inventory,
         },
-        PropsError::QuadratureBudget {
-            width_len: 1e-6,
-            target_len: 1e-9,
-            rounds: 12,
-        },
         PropsError::QuadratureUnsupported {
             what: "a NURBS face",
         },
@@ -792,6 +787,11 @@ fn mass_props_errors() -> Vec<MassPropsError> {
         MassPropsError::NullScaffoldEdge {
             edge: EdgeKey::default(),
         },
+        MassPropsError::ResolutionFinerThanEps {
+            resolution: 1e-10,
+            eps: 1e-9,
+        },
+        MassPropsError::Poisoned { cause: diag() },
     ]);
     v.extend(
         props_errors()

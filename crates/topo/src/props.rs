@@ -270,6 +270,21 @@ pub enum MassPropsError {
         /// The scaffolding edge.
         edge: crate::entity::EdgeKey,
     },
+    /// The caller's [`Settle::Resolution`] is finer than ε: the model
+    /// defines its measures only to ε of boundary displacement, so no
+    /// finer resolution is offered.
+    ResolutionFinerThanEps {
+        /// The resolution asked for (m).
+        resolution: f64,
+        /// The run's ε (m).
+        eps: f64,
+    },
+    /// A deciding predicate's margin was poisoned: no enclosure decides
+    /// it.
+    Poisoned {
+        /// The poisoned decision.
+        cause: Indeterminate,
+    },
 }
 
 impl fmt::Display for MassPropsError {
@@ -301,6 +316,15 @@ impl fmt::Display for MassPropsError {
                  body at rest never carries. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
+            Self::ResolutionFinerThanEps { resolution, eps } => write!(
+                f,
+                "a measurement was asked for to {resolution:e} m, finer than the model's \
+                 tolerance of {eps:e} m, which is the most it defines a measure to. Recourse: \
+                 ask for a resolution of at least the tolerance"
+            ),
+            Self::Poisoned { cause } => {
+                write!(f, "the measurement's question could not be decided: {cause}")
+            }
         }
     }
 }
@@ -366,8 +390,9 @@ impl std::error::Error for MassPropsError {}
 pub fn mass_properties<T: Decide + geom_core::CertifiedBounds>(
     body: &crate::AtRestBody<T>,
     tol: Tol,
-) -> Result<MassProperties<T>, MassPropsError> {
-    measure_body(body, tol)
+    settle: Settle<T>,
+) -> Result<Measured<T>, MassPropsError> {
+    measure_body(body, tol, settle)
 }
 
 pub(crate) use raw_door::{
@@ -398,9 +423,10 @@ pub(crate) mod raw_door {
     pub fn measure_body<T: Decide + geom_core::CertifiedBounds>(
         body: &Body<T>,
         tol: Tol,
-    ) -> Result<MassProperties<T>, MassPropsError> {
+        settle: Settle<T>,
+    ) -> Result<Measured<T>, MassPropsError> {
         let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
-        mass_properties_with(body, band, tol, Some(QuadLane::certified()))
+        mass_properties_with(body, band, tol, Some(QuadLane::certified()), settle)
     }
 
     /// [`mass_properties_structural`]'s closed-form walk over any body
@@ -488,51 +514,66 @@ pub fn mass_properties_structural<T: Decide>(
 }
 
 /// [`mass_properties`] against a caller-built band and the caller's
-/// quadrature lane, over the whole face arena in arena order: every face
-/// to the reporting resolution in one entry per face.
+/// quadrature lane, over the whole face arena in arena order, through
+/// the door ([`measure_to`]) under `settle`, the lane measuring and
+/// certifying.
+///
+/// # Errors
+///
+/// As [`mass_properties`].
 pub(crate) fn mass_properties_with<T: Decide>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<QuadLane<T>>,
-) -> Result<MassProperties<T>, MassPropsError> {
+    settle: Settle<T>,
+) -> Result<Measured<T>, MassPropsError> {
     let faces = crate::query::all_faces(body);
-    mass_properties_impl(body, &faces, band, quad, tol)
+    let (stop, certificate) = measure_to(body, &faces, band, tol, (quad, quad), settle)?;
+    Ok(Measured {
+        enclosure: certificate.props(),
+        stop,
+    })
 }
 
-/// **INTERIM: the resolution the public number doors read at**, until
-/// each takes its caller's [`Settle`]: `QUAD_TARGET_LEN_FACTOR·ε` of mean
-/// boundary displacement, today's reporting target.
-fn interim_resolution(tol: Tol) -> f64 {
-    geom_brep::props::quad::QUAD_TARGET_LEN_FACTOR * tol.eps()
+/// **A resolution the model defines**: `len` meters, refused typed where
+/// it is finer than ε, the most the model defines a measure to.
+fn resolution_len(len: Length, tol: Tol) -> Result<f64, MassPropsError> {
+    let len = len.meters();
+    if len >= tol.eps() {
+        Ok(len)
+    } else {
+        Err(MassPropsError::ResolutionFinerThanEps {
+            resolution: len,
+            eps: tol.eps(),
+        })
+    }
 }
 
-/// **INTERIM: a face its resolution `len` left unmet, as the number
-/// doors refuse it** until they hand back the bracket:
-/// [`PropsError::QuadratureBudget`], carrying the kept enclosure's width
-/// and the rounds the lane ran. `None` for a face that met it, or whose
-/// lane can still refine.
-fn interim_budget<T>(run: &FaceRun<T>, len: f64) -> Option<PropsError> {
-    let FaceState::Quad {
-        ran,
-        stop: FaceStop::Lane(stop),
-        ..
-    } = run.state
-    else {
-        return None;
-    };
-    if stop == LaneStop::Refinable {
-        return None;
+/// **A resolution's stop over the faces as they stand**: [`Stop::Met`]
+/// where every face meets `len`; else the first face, in the runs'
+/// order, that a later round refused outright or whose kept enclosure
+/// has no width to meter ([`FaceRun::width_len`]) is the refusal; else
+/// why the rest could refine no further ([`SignCertificate::ran_out`]).
+fn resolution_stop<T: Decide>(
+    certificate: &SignCertificate<'_, T>,
+    len: f64,
+) -> Result<Stop, MassPropsError> {
+    if certificate.runs.iter().all(|run| run.meets(len)) {
+        return Ok(Stop::Met);
     }
-    match run.width_len() {
-        Ok(width_len) if width_len <= len => None,
-        Ok(width_len) => Some(PropsError::QuadratureBudget {
-            width_len,
-            target_len: len,
-            rounds: ran + 1,
-        }),
-        Err(refusal) => Some(refusal),
+    if let Some(refusal) = certificate.held_refusal() {
+        return Err(refusal);
     }
+    if let Some((face, Err(source))) = certificate
+        .runs
+        .iter()
+        .map(|run| (run.face, run.width_len()))
+        .find(|(_, width)| width.is_err())
+    {
+        return Err(MassPropsError::Face { face, source });
+    }
+    Ok(certificate.ran_out())
 }
 
 /// **The hook, one home**: the lane the caller holds, entered over
@@ -588,10 +629,6 @@ fn round_hook<T: Decide>(
 /// displacement is at most `len`, or at its own stop, keeping its
 /// narrowest round. A face left short of `len` is no refusal: its
 /// enclosure is sound, and the sum keeps it.
-///
-/// # Panics
-///
-/// On a resolution finer than ε: the model defines no measure finer.
 fn resolution_runs<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -600,14 +637,6 @@ fn resolution_runs<T: Decide>(
     quad: Option<QuadLane<T>>,
     len: f64,
 ) -> Result<Vec<FaceRun<T>>, MassPropsError> {
-    // INTERIM: a panic while the only resolutions are the number doors'
-    // own, which are never finer than ε. Unit C, where the caller states
-    // the resolution, makes it a typed refusal.
-    assert!(
-        len >= tol.eps(),
-        "a resolution of {len} m, finer than ε = {} m: the model defines no measure that fine",
-        tol.eps()
-    );
     let hook = round_hook(quad);
     let refs = References::of(body, faces.iter().copied(), band);
     decide_faces(faces, |&face_key| {
@@ -637,21 +666,13 @@ fn resolution_runs<T: Decide>(
 ///   face that did not reached its work wall, and [`Stop::Floor`].
 /// - A deciding predicate is over the whole: round 0 for every face, then
 ///   every face its lane can refine a round further at a time
-///   ([`walk_set`]), until the predicate settles ([`Stop::Settled`]) or the
-///   enclosure lies wholly in its band ([`Stop::Band`]), or no face can
-///   refine ([`Stop::Wall`] or [`Stop::Floor`], by the stops the faces
-///   reached). [`Settle::Sign`] is [`role_walk`]'s, certified through
-///   `certify`.
+///   ([`SignCertificate::settle_on`]).
 ///
 /// # Errors
 ///
-/// [`MassPropsError`] where a face has no enclosure at all, or a
-/// predicate's margin is poisoned.
-///
-/// # Panics
-///
-/// On a resolution finer than ε: the model defines no measure finer, and
-/// the door offers none.
+/// [`MassPropsError`] where a face has no enclosure at all, a
+/// predicate's margin is poisoned, or a resolution is finer than ε,
+/// which the model defines no measure to.
 pub(crate) fn measure_to<'b, T: Decide>(
     body: &'b Body<T>,
     faces: &[FaceKey],
@@ -659,79 +680,21 @@ pub(crate) fn measure_to<'b, T: Decide>(
     tol: Tol,
     (measure, certify): (Option<QuadLane<T>>, Option<QuadLane<T>>),
     settle: Settle<T>,
-) -> Result<(Stop, SignCertificate<'b, T>), MeasureRefusal> {
-    match settle {
-        Settle::Resolution(len) => {
-            let len = len.meters();
-            let runs = resolution_runs(body, faces, band, tol, measure, len)?;
-            let certificate = SignCertificate::of_runs(body, band, tol, measure, runs);
-            let stop = if certificate.runs.iter().all(|run| run.meets(len)) {
-                Stop::Met
-            } else {
-                certificate.ran_out()
-            };
-            Ok((stop, certificate))
-        }
-        Settle::Sign(names) => {
-            let (role, certificate) = role_walk(body, faces, band, tol, measure, certify, names)?;
-            let stop = match role {
-                Ok(role) => Stop::Settled(Verdict::Sign(role)),
-                Err(RoleWalkRefusal::Refused(refusal)) => return Err(refusal.into()),
-                Err(RoleWalkRefusal::Poisoned(last)) => {
-                    let Some(cause) = last.escalation() else {
-                        unreachable!("a poisoned reading holds an escalation")
-                    };
-                    return Err(MeasureRefusal::Poisoned(cause));
-                }
-                Err(RoleWalkRefusal::Unread { in_band: true, .. }) => Stop::Band,
-                Err(RoleWalkRefusal::Unread { .. }) => certificate.ran_out(),
-            };
-            Ok((stop, certificate))
-        }
-        Settle::Relation { op, bound, name } => {
-            deciding_walk(body, faces, band, tol, (measure, certify), |e| {
-                settle::relation_step(e, op, bound, name, band)
-            })
-        }
-        Settle::Contains { lo, hi, name } => {
-            deciding_walk(body, faces, band, tol, (measure, certify), |e| {
-                settle::contains_step(e, lo, hi, name, band)
-            })
-        }
+) -> Result<(Stop, SignCertificate<'b, T>), MassPropsError> {
+    if let Settle::Resolution(len) = settle {
+        let len = resolution_len(len, tol)?;
+        let runs = resolution_runs(body, faces, band, tol, measure, len)?;
+        let certificate = SignCertificate::of_runs(body, band, tol, measure, runs);
+        return Ok((resolution_stop(&certificate, len)?, certificate));
     }
+    let mut certificate =
+        SignCertificate::at_round_zero(body, faces, band, tol, measure, FaceWalk::Mapped)?;
+    let stop = certificate.settle_on(certify, settle)?;
+    Ok((stop, certificate))
 }
 
-/// **Why the measurement door refused**: a face with no enclosure, or a
-/// deciding predicate's margin poisoned, which no enclosure decides.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum MeasureRefusal {
-    /// The property layer's refusal.
-    Props(MassPropsError),
-    /// The predicate's margin was poisoned.
-    Poisoned(Indeterminate),
-}
-
-impl From<MassPropsError> for MeasureRefusal {
-    fn from(refusal: MassPropsError) -> Self {
-        Self::Props(refusal)
-    }
-}
-
-impl MeasureRefusal {
-    /// A [`Settle::Resolution`] walk's refusal: a resolution decides
-    /// nothing, so no margin of it can be poisoned.
-    fn of_resolution(self) -> MassPropsError {
-        match self {
-            Self::Props(refusal) => refusal,
-            Self::Poisoned(cause) => {
-                unreachable!("a resolution decides nothing, yet a margin was poisoned: {cause:?}")
-            }
-        }
-    }
-}
-
-/// [`measure_to`]'s walk for a predicate read off the volume enclosure
-/// ([`Settle::Relation`], [`Settle::Contains`]): round 0, then every
+/// [`SignCertificate::settle_on`]'s walk for a predicate read off the
+/// volume enclosure ([`Settle::Relation`], [`Settle::Contains`]): every
 /// refinable face a round further at a time, until `step` settles or
 /// stops in the band, or no face can refine.
 ///
@@ -745,20 +708,15 @@ impl MeasureRefusal {
 ///
 /// # Errors
 ///
-/// [`MeasureRefusal`] where a face has no enclosure at round 0, the
-/// re-derivation refuses a face, the predicate's margin is poisoned, or
-/// the walk runs out undecided on a face a later round refused outright.
-fn deciding_walk<'b, T: Decide>(
-    body: &'b Body<T>,
-    faces: &[FaceKey],
-    band: Band,
-    tol: Tol,
-    (measure, certify): (Option<QuadLane<T>>, Option<QuadLane<T>>),
+/// [`MassPropsError`] where the re-derivation refuses a face, the
+/// predicate's margin is poisoned, or the walk runs out undecided on a
+/// face a later round refused outright.
+fn deciding_walk<T: Decide>(
+    certificate: &mut SignCertificate<'_, T>,
+    certify: Option<QuadLane<T>>,
     step: impl Fn(VolumeEnclosure<T>) -> settle::Step,
-) -> Result<(Stop, SignCertificate<'b, T>), MeasureRefusal> {
-    let mut certificate =
-        SignCertificate::at_round_zero(body, faces, band, tol, measure, FaceWalk::Mapped)?;
-    let walked = walk_set(&mut [&mut certificate], certify, |rounds| {
+) -> Result<Stop, MassPropsError> {
+    let walked = walk_set(&mut [&mut *certificate], certify, |rounds| {
         let round = &rounds[0];
         let read = match step(round.props().enclosure()) {
             settle::Step::Settled(_) => match round.interval_volume() {
@@ -767,7 +725,7 @@ fn deciding_walk<'b, T: Decide>(
                     volume_hi: T::from_computed(volume.hi()),
                     surface_area: T::from_computed(area.hi()),
                 }),
-                Some(Err(source)) => return Ask::Decided(Err(MeasureRefusal::Props(source))),
+                Some(Err(source)) => return Ask::Decided(Err(source)),
                 None => step(round.props().enclosure()),
             },
             read => read,
@@ -775,18 +733,17 @@ fn deciding_walk<'b, T: Decide>(
         match read {
             settle::Step::Settled(holds) => Ask::Decided(Ok(Stop::Settled(Verdict::Holds(holds)))),
             settle::Step::Band => Ask::Decided(Ok(Stop::Band)),
-            settle::Step::Poisoned(cause) => Ask::Decided(Err(MeasureRefusal::Poisoned(cause))),
+            settle::Step::Poisoned(cause) => Ask::Decided(Err(MassPropsError::Poisoned { cause })),
             settle::Step::Refine => Ask::Refine(vec![true]),
         }
     });
-    let stop = match walked {
-        Walked::Decided(stop) => stop?,
+    match walked {
+        Walked::Decided(stop) => stop,
         Walked::Exhausted { refused } => match refused.into_iter().next() {
-            Some((_, refusal)) => return Err(MeasureRefusal::Props(refusal)),
-            None => certificate.ran_out(),
+            Some((_, refusal)) => Err(refusal),
+            None => Ok(certificate.ran_out()),
         },
-    };
-    Ok((stop, certificate))
+    }
 }
 
 /// **What a set walk's question answers at a round** ([`walk_set`]).
@@ -893,7 +850,6 @@ pub(crate) fn walk_set<'b, T: Decide, V>(
             for (&(slot, _, _), run) in open.iter().zip(decided) {
                 member.runs[slot].advance(run);
             }
-            member.refresh();
         }
         if !moved {
             let refused = members
@@ -924,8 +880,9 @@ pub(crate) enum FaceWalk {
 /// The level is the TYPE (D9 row 0): there is no volume number to
 /// read here, because a quadrature stopped at the round its caller's
 /// certification was complete has not computed one. A caller that
-/// wants the number asks for it — [`Self::refine_to_target`] — and
-/// pays only the rounds that were not already run.
+/// wants the number asks for it under its own predicate —
+/// [`Self::measure`] — and pays only the rounds that were not already
+/// run.
 ///
 /// **Its faces stand where the deciding walk left them, which is not
 /// where the number would.** The walk takes every face its lane can
@@ -938,22 +895,21 @@ pub(crate) enum FaceWalk {
 ///
 /// # The refusal rule, stated once
 ///
-/// **A reading of this certificate refuses as the number walk does**,
-/// and the two doors must agree. A face refused outright (a degenerate
-/// lever, an unsupported chart, a poisoned bracket) at round 0 leaves no
-/// enclosure and no certificate; one refused at a later round stands at
-/// the enclosure it held ([`FaceStop::Refused`]), and a reading that
-/// needs it refuses, the first such face in arena order. A face whose
-/// lane stopped short of the number still has a sound enclosure, so it is
-/// read as data and every other face is still taken; only where no face
-/// was refused outright is the first such face in arena order the
-/// refusal. Every site below points here rather than restating it.
+/// **A reading of this certificate refuses as the door does**, and the
+/// two must agree. A face refused outright (a degenerate lever, an
+/// unsupported chart, a poisoned bracket) at round 0 leaves no enclosure
+/// and no certificate; one refused at a later round stands at the
+/// enclosure it held ([`FaceStop::Refused`]), and a reading that needs it
+/// refuses, the first such face in arena order. A face whose lane stopped
+/// short of a resolution still has a sound enclosure: it is read as data,
+/// and the measurement's [`Stop`] says the resolution went unmet. Every
+/// site below points here rather than restating it.
 ///
 /// # The lane rides with it
 ///
 /// A certificate is continued through the lane it was derived through
 /// — [`QuadLane::certified`] from a certified door, `None` from a
-/// `_structural` one — so [`Self::refine_to_target`] reads the same
+/// `_structural` one — so [`Self::measure`] reads the same
 /// quadrature the check read, at whatever scalar the door was called
 /// at. A certificate derived with no lane has no round left open (every
 /// face is closed-form, finished at round 0), so its continuation is
@@ -964,9 +920,6 @@ pub struct SignCertificate<'b, T: Decide> {
     tol: Tol,
     quad: Option<QuadLane<T>>,
     runs: Vec<FaceRun<T>>,
-    /// INTERIM: the first face in the runs' order a number door reading
-    /// the certificate as it stands refuses ([`interim_budget`]).
-    refused: Option<(FaceKey, PropsError)>,
 }
 
 impl<'b, T: Decide> SignCertificate<'b, T> {
@@ -1014,36 +967,13 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         quad: Option<QuadLane<T>>,
         runs: Vec<FaceRun<T>>,
     ) -> Self {
-        let mut certificate = Self {
+        Self {
             body,
             band,
             tol,
             quad,
             runs,
-            refused: None,
-        };
-        certificate.refresh();
-        certificate
-    }
-
-    /// Re-reads the interim refusal off the runs as they stand.
-    fn refresh(&mut self) {
-        // INTERIM: the number doors' resolution, until C.
-        let len = interim_resolution(self.tol);
-        self.refused = self
-            .runs
-            .iter()
-            .find_map(|run| interim_budget(run, len).map(|refusal| (run.face, refusal)));
-    }
-
-    /// [`Self::target_refusal`] as the face's refusal.
-    fn target_refusal_at_face(&self) -> Option<MassPropsError> {
-        self.refused
-            .as_ref()
-            .map(|(face, source)| MassPropsError::Face {
-                face: *face,
-                source: source.clone(),
-            })
+        }
     }
 
     /// The first face, in the runs' order, that a later round refused
@@ -1072,6 +1002,59 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
             )
         });
         if walled { Stop::Wall } else { Stop::Floor }
+    }
+
+    /// **A deciding predicate over this certificate's faces**, walked on
+    /// from where they stand: every face its lane can refine a round
+    /// further at a time ([`walk_set`]), until the predicate settles
+    /// ([`Stop::Settled`]) or the enclosure lies wholly in its band
+    /// ([`Stop::Band`]), or no face can refine ([`Stop::Wall`] or
+    /// [`Stop::Floor`], by the stops the faces reached). [`Settle::Sign`]
+    /// is [`role_walk_set`]'s, certified through `certify`.
+    ///
+    /// # Errors
+    ///
+    /// [`MassPropsError`] where a predicate's margin is poisoned, or a
+    /// face the decision needs refused.
+    ///
+    /// # Panics
+    ///
+    /// On [`Settle::Resolution`], which decides nothing and is no walk's
+    /// question: its callers size the faces instead.
+    pub(crate) fn settle_on(
+        &mut self,
+        certify: Option<QuadLane<T>>,
+        settle: Settle<T>,
+    ) -> Result<Stop, MassPropsError> {
+        let band = self.band;
+        match settle {
+            Settle::Resolution(len) => {
+                unreachable!("a resolution of {len:?} sizes faces; it is no walk's question")
+            }
+            Settle::Sign(names) => {
+                let Some(role) = role_walk_set(&mut [&mut *self], certify, names).pop() else {
+                    unreachable!("a role walk over one member reads one role")
+                };
+                match role {
+                    Ok(role) => Ok(Stop::Settled(Verdict::Sign(role))),
+                    Err(RoleWalkRefusal::Refused(refusal)) => Err(refusal),
+                    Err(RoleWalkRefusal::Poisoned(last)) => {
+                        let Some(cause) = last.escalation() else {
+                            unreachable!("a poisoned reading holds an escalation")
+                        };
+                        Err(MassPropsError::Poisoned { cause })
+                    }
+                    Err(RoleWalkRefusal::Unread { in_band: true, .. }) => Ok(Stop::Band),
+                    Err(RoleWalkRefusal::Unread { .. }) => Ok(self.ran_out()),
+                }
+            }
+            Settle::Relation { op, bound, name } => deciding_walk(self, certify, |e| {
+                settle::relation_step(e, op, bound, name, band)
+            }),
+            Settle::Contains { lo, hi, name } => deciding_walk(self, certify, |e| {
+                settle::contains_step(e, lo, hi, name, band)
+            }),
+        }
     }
 }
 
@@ -1984,62 +1967,18 @@ fn corner_of<T: Decide>(
 }
 
 impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
-    /// The certificate, not the body it reads: the bracket, the rounds
-    /// its faces reached, and whether a number is still refused.
-    ///
-    /// # Why this does not render in braced struct shape
-    ///
-    /// **Not one of the four things below is a field of this type, and
-    /// not one of this type's six fields is rendered under its own
-    /// name.** The bracket and the surface area are folded out of
-    /// `runs`, the open round is a maximum over a field of `FaceRun`,
-    /// and the refusal comes through [`Self::target_refusal`]. So the
-    /// question a braced shape raises — what happens to this render
-    /// when a field is added — has no useful answer: `Type { a: …, b:
-    /// … }` is what `derive(Debug)` and `debug_struct(…).finish()`
-    /// emit, and `finish_non_exhaustive` exists to say when such a
-    /// dump is partial, so the braces tell a reader these ARE the
-    /// fields. That is already false of every element here, and a
-    /// seventh field could not make it any falser. The braces are what
-    /// goes, and a reading of the certificate is what this says it is.
-    ///
-    /// # The correspondence that IS here, and is tied
-    ///
-    /// An earlier draft of this comment said there was "no
-    /// correspondence to be short of". **That was false and a style
-    /// review executed it.** [`Self::enclosure`] returns a
-    /// [`VolumeEnclosure`], which declares exactly three fields, and
-    /// all three are rendered below under their own names and nothing
-    /// else of it is. So the render is a field list — that type's —
-    /// and a fourth field on it compiled clean while this comment
-    /// argued no such list existed.
-    ///
-    /// Both patterns below are the tie. [`VolumeEnclosure`] is
-    /// destructured for the same reason `Self` is: a field added to
-    /// either is an E0027 here and has to be given a rendering or a
-    /// reason. What stays untied is `FaceRun::open_at`, read through
-    /// `runs.iter().filter_map(…)` — a field reached through an
-    /// iterator adaptor, which no pattern here can bind and which
-    /// `componentwise-equality-of-the-linear-types-is-hand-listed`'s
-    /// sibling question covers.
+    /// The certificate, not the body it reads: the bracket and the rounds
+    /// its faces can still run. Both patterns tie the render to the
+    /// fields: one added to either type is an E0027 here.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self {
-            // The body is what the certificate READS; rendering it
-            // here would be a dump of the model, not of this.
+            // What the certificate reads and was derived against, not
+            // what it holds.
             body: _,
-            // The bracket below is the answer these two settled; the
-            // settings themselves are the caller's, not the
-            // certificate's.
             band: _,
             tol: _,
-            // The lane the continuation reads with — the door's, not
-            // a property of the enclosure below.
             quad: _,
             runs,
-            // Rendered through `Self::target_refusal`, which is where
-            // the rule for reading it — first refusing face in arena
-            // order — is stated.
-            refused: _,
         } = self;
         let VolumeEnclosure {
             volume_lo,
@@ -2048,18 +1987,11 @@ impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
         } = self.enclosure();
         write!(
             f,
-            "SignCertificate: volume in [{:?}, {:?}], surface area {:?}, \
-             rounds still open {:?}, target refusal {:?}",
-            volume_lo,
-            volume_hi,
-            surface_area,
-            // The rounds that REMAIN, not the rounds run: `None` here
-            // is a finished walk (every face converged, exhausted its
-            // schedule, or is closed-form), which is what a certificate
-            // stopped at round 0 looks like and must not read as "no
-            // rounds".
+            "SignCertificate: volume in [{volume_lo:?}, {volume_hi:?}], surface area \
+             {surface_area:?}, rounds still open {:?}",
+            // The rounds that REMAIN: `None` is a finished walk, which is
+            // what a certificate stopped at round 0 looks like too.
             runs.iter().filter_map(FaceRun::open_at).max(),
-            self.target_refusal(),
         )
     }
 }
@@ -2071,7 +2003,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     ///
     /// Arena order is the vocabulary every claim on this type is stated
     /// in: [`SignCertificate`]'s refusal rule names the first refusing
-    /// face in it, and [`Self::refine_to_target`]'s bit-identity with
+    /// face in it, and [`Self::measure`]'s bit-identity with
     /// [`mass_properties`] is identity of the same terms summed in it.
     /// So the parts are re-ordered rather than concatenated, and a
     /// single part covering the whole arena — which is what a body
@@ -2152,91 +2084,90 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         fold_runs(&self.runs).enclosure()
     }
 
-    /// **The number, continued from here** — the same quadrature run
-    /// on to the reporting resolution, reusing every round already taken.
+    /// **The measurement, continued from here** — the door
+    /// ([`crate::mass_properties`]) under `settle`, over the faces as the
+    /// certificate holds them, reusing every round already taken.
     ///
-    /// A face left short of the resolution at round `k` resumes at
-    /// `k + 1`, a face whose enclosure already meets it is not touched,
-    /// and the sum is over the same terms in the same arena order. Where
-    /// the walk stopped before a face met the resolution, the face's
-    /// enclosure and its piece evaluations are [`crate::mass_properties`]'s,
-    /// so a certificate whose sign settled before any face met it
+    /// Under [`Settle::Resolution`] a face short of the resolution at
+    /// round `k` resumes at `k + 1`, a face whose enclosure already meets
+    /// it is not touched, and the sum is over the same terms in the same
+    /// arena order. Where the walk stopped before a face met the
+    /// resolution, the face's enclosure and its piece evaluations are the
+    /// door's, so a certificate whose sign settled before any face met it
     /// continues bit-identical to that door. A face the walk had refined
-    /// past the resolution keeps its narrower enclosure.
+    /// past the resolution keeps its narrower enclosure. A deciding
+    /// predicate walks on from where the faces stand
+    /// ([`Self::settle_on`]), certified through the certificate's lane.
     ///
-    /// **The `Err` is the same refusal too** — [`SignCertificate`]'s
-    /// refusal rule, which this walk keeps whatever width it runs at:
-    /// the open faces are resumed by an indexed parallel map into one
-    /// slot per face in arena order (D9's addendum idiom 1, through
-    /// [`geom_core::k_stats::map_detached`], each resumption under a K-funnel frame
-    /// of its own) and the walk over those slots is sequential in that
-    /// order (idiom 2). So the verdict log, the escalation log and the
-    /// `probe` sample population are the serial continuation's at any
-    /// thread count: every recording up to and including the refusing
-    /// face spliced in order, every one after it dropped with the
-    /// resumption it came with. Under a symbolic session the
+    /// **Its refusal is the door's too** — [`SignCertificate`]'s refusal
+    /// rule: the open faces are resumed by an indexed parallel map into
+    /// one slot per face in arena order (D9's addendum idiom 1, through
+    /// [`geom_core::k_stats::map_detached`], each resumption under a
+    /// K-funnel frame of its own) and the walk over those slots is
+    /// sequential in that order (idiom 2), so the verdict log, the
+    /// escalation log and the `probe` sample population are the serial
+    /// continuation's at any thread count. Under a symbolic session the
     /// continuation is the SERIAL walk instead, for
     /// [`decide_faces_serially`]'s reason.
-    ///
-    /// **What the failure path costs**: the rounds of the open faces
-    /// between the first one and the refusing one, run and thrown
-    /// away. It is bounded by the faces a certificate leaves open
-    /// BEFORE its first outstanding refusal — the map never reaches
-    /// past that face, because the walk does not — so it is the
-    /// latency of a REFUSAL and never of an answer.
     ///
     /// **What the continuation costs against one measurement.** The
     /// piece evaluations compose exactly, but each entry into a face's
     /// lane re-derives that face's round-independent SETUP — the
-    /// derivative grids, the block hulls — because a `RoundWindow` enters the
-    /// lane at its front door. **What that costs depends on whether the
-    /// sign settled early**, which is a property of the body rather
-    /// than of this call: a certificate whose `settle` ran the schedule
-    /// to its end leaves no face open, so the continuation re-enters no
-    /// lane at all and pays neither the setup nor a pool round trip; a
-    /// certificate that stopped part-way pays the setup again for every
-    /// face it left open. The map above divides that term by the pool
-    /// width; removing it is `work/perf/`'s
-    /// `quadrature-setup-is-re-derived-per-round-window`, which carries
-    /// the measurements.
+    /// derivative grids, the block hulls — because a `RoundWindow` enters
+    /// the lane at its front door. A certificate whose walk ran every face
+    /// to its own stop re-enters no lane; one that stopped part-way pays
+    /// the setup again for every face it left open. Removing it is
+    /// `work/perf/`'s `quadrature-setup-is-re-derived-per-round-window`,
+    /// which carries the measurements.
     ///
     /// # Errors
     ///
     /// [`MassPropsError`], as [`crate::mass_properties`].
-    pub fn refine_to_target(self) -> Result<MassProperties<T>, MassPropsError> {
-        self.continue_to_target()
-            .map_err(|unreached| unreached.refusal)
+    pub fn measure(mut self, settle: Settle<T>) -> Result<Measured<T>, MassPropsError> {
+        let stop = match settle {
+            Settle::Resolution(len) => {
+                let len = resolution_len(len, self.tol)?;
+                self.resume_to(len);
+                resolution_stop(&self, len)?
+            }
+            settle => self.settle_on(self.quad, settle)?,
+        };
+        Ok(Measured {
+            enclosure: self.props(),
+            stop,
+        })
     }
 
-    /// [`Self::refine_to_target`]'s walk, with what it HELD when it
-    /// refused: the fold of every face's run at the point the walk
-    /// returned ([`ContinuationRefusal::held`]).
-    fn continue_to_target(self) -> Result<MassProperties<T>, ContinuationRefusal<T>> {
+    /// Every face short of `len` whose lane can refine, resumed at its
+    /// next round over the rest of its schedule.
+    fn resume_to(&mut self, len: f64) {
         let Self {
             body,
             band,
             tol,
             quad,
-            mut runs,
-            ..
+            runs,
         } = self;
-        // INTERIM: the number doors' resolution, until it is the caller's.
-        let len = interim_resolution(tol);
-        let hook = round_hook(quad);
-        // The faces the continuation resumes ([`FaceRun::resumes_to`]).
-        // A face it never reads need not resolve. Round 0 read their seam
-        // regions, and a face its region refuses is never open: the
+        let (body, band, tol) = (*body, *band, *tol);
+        let hook = round_hook(*quad);
+        // One slot per face in ARENA order, holding that face's
+        // resumption ([`decide_each`]: every resumption decided, its
+        // recording spliced in arena order). Round 0 read these faces'
+        // seam regions, and a face its region refuses is never open: the
         // points alone.
-        let refs = References::points(
-            body,
-            runs.iter()
-                .filter(|r| r.resumes_to(len).is_some())
-                .map(|r| r.face),
-        );
-        let resume = |face, first| {
+        let wanted: Vec<(usize, usize)> = runs
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, run)| run.resumes_to(len).map(|first| (slot, first)))
+            .collect();
+        if wanted.is_empty() {
+            return;
+        }
+        let refs = References::points(body, wanted.iter().map(|&(slot, _)| runs[slot].face));
+        let resumed = decide_each(&wanted, |&(slot, first)| {
             face_flux(
                 body,
-                face,
+                runs[slot].face,
                 band,
                 &hook,
                 tol,
@@ -2247,210 +2178,10 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
                 &refs,
                 Some(len),
             )
-        };
-        // One slot per face in ARENA order, holding that face's
-        // resumption, or nothing for a face that needs no round
-        // ([`decide_each`]: every resumption decided, its recording spliced
-        // in arena order, on the caller's thread under a symbolic session).
-        let wanted: Vec<(usize, usize)> = runs
-            .iter()
-            .enumerate()
-            .filter_map(|(slot, run)| run.resumes_to(len).map(|first| (slot, first)))
-            .collect();
-        if !wanted.is_empty() {
-            let resumed = decide_each(&wanted, |&(slot, first)| resume(runs[slot].face, first));
-            for (&(slot, _), resumed) in wanted.iter().zip(resumed) {
-                runs[slot].advance(resumed);
-            }
+        });
+        for (&(slot, _), resumed) in wanted.iter().zip(resumed) {
+            runs[slot].advance(resumed);
         }
-        // [`SignCertificate`]'s refusal rule: the first face in arena order
-        // a round refused outright, then the first its lane stopped short
-        // of `len`. **What a refusal here HOLDS** is the fold of every face
-        // at the enclosure it kept: each is sound at whatever round it was
-        // taken — a face a round refused outright keeps the one it held
-        // ([`FaceStop::Refused`]) — and the fold is the sum a sign walk
-        // already takes over faces left at different rounds, so the held
-        // fold is as sound as the certificate's own.
-        let refusal = runs
-            .iter()
-            .find_map(|run| run.refused().cloned())
-            .or_else(|| {
-                runs.iter().find_map(|run| {
-                    interim_budget(run, len).map(|source| MassPropsError::Face {
-                        face: run.face,
-                        source,
-                    })
-                })
-            });
-        if let Some(refusal) = refusal {
-            return Err(ContinuationRefusal {
-                refusal,
-                held: fold_runs(&runs),
-            });
-        }
-        Ok(fold_runs(&runs))
-    }
-
-    /// The refusal a target-level reading of this body earns, if any —
-    /// the first face in arena order whose quadrature has run out of
-    /// schedule. A `Some` here with a definite sign above it is
-    /// exactly the case this certificate exists for: the body's
-    /// orientation is decided and its volume is not measurable at this
-    /// ε.
-    #[must_use]
-    pub fn target_refusal(&self) -> Option<&PropsError> {
-        self.refused.as_ref().map(|(_, e)| e)
-    }
-
-    /// **The number, or what is left when there is none** —
-    /// [`Self::refine_to_target`], with its refusal CLASSIFIED and the
-    /// bracket kept where one exists.
-    ///
-    /// A continuation refuses in two ways that a consumer must tell
-    /// apart. The schedule running out (a face's
-    /// [`PropsError::QuadratureBudget`]) is the case this certificate
-    /// exists for: the sign was decided, the body is valid, and its
-    /// volume is not measurable at this ε — so a bracket is the whole
-    /// of what the quadrature is entitled to say, and it comes back in
-    /// [`TargetUnreached::bracket`]. Every other refusal (an escalated
-    /// decision, a poisoned bound, a degenerate lever — met in a round
-    /// the check never needed) is a face the kernel could not measure at
-    /// that round; the face keeps the enclosure it held, so the bracket
-    /// is still sound, and [`VolumeReading::of`] reads it as the refusal.
-    ///
-    /// **The bracket is the narrower of the two this call held**: the
-    /// certificate's own ([`Self::enclosure`]), and the fold the
-    /// continuation held when it refused — every face at the enclosure
-    /// it kept, a face a round refused outright at the one it held
-    /// before. Both are sums of per-face enclosures each sound at the
-    /// round it was taken, so either is a sound bracket of the same
-    /// volume, and "narrower" is read on the half-width both carry
-    /// (`MassProperties::volume_pad`). A tie keeps the certificate's.
-    ///
-    /// This is the one home of that classification: the import reader,
-    /// the Python measurement door and the tour ask it here rather than
-    /// each matching `geom_brep`'s refusal vocabulary two crates down.
-    ///
-    /// # Errors
-    ///
-    /// [`TargetUnreached`], carrying [`Self::refine_to_target`]'s
-    /// refusal verbatim.
-    pub fn measure(self) -> Result<MassProperties<T>, TargetUnreached<T>> {
-        let sign_level = fold_runs(&self.runs);
-        self.continue_to_target()
-            .map_err(|ContinuationRefusal { refusal, held }| {
-                let narrowest = if held.volume_pad < sign_level.volume_pad {
-                    held
-                } else {
-                    sign_level
-                };
-                TargetUnreached {
-                    refusal,
-                    bracket: narrowest.enclosure(),
-                }
-            })
-    }
-}
-
-/// [`SignCertificate::continue_to_target`]'s refusal: the refusal
-/// [`SignCertificate::refine_to_target`] reports, and the fold of every
-/// run as the walk left it.
-struct ContinuationRefusal<T: Real> {
-    refusal: MassPropsError,
-    held: MassProperties<T>,
-}
-
-/// **A volume the continuation could not reach**
-/// ([`SignCertificate::measure`]): the refusal, and — exactly when the
-/// refusal is the schedule running out — the narrowest bracket the
-/// certificate or its continuation held.
-#[derive(Clone, Debug)]
-pub struct TargetUnreached<T: Real> {
-    /// The refusal the reporting door makes on the same body, verbatim.
-    pub refusal: MassPropsError,
-    /// The narrower of the bracket the certificate held before the
-    /// continuation ran ([`SignCertificate::enclosure`]) and the one the
-    /// continuation held when it refused — so never wider than the
-    /// first, and narrower wherever the continuation refined a face
-    /// before it stopped ([`SignCertificate::measure`] says how it is
-    /// read). Every face of it is sound at the round it was kept, a face
-    /// a round refused outright included (it keeps the enclosure it
-    /// held), so the volume lies in this bracket whatever `refusal` is.
-    /// Where `refusal` is a face's [`PropsError::QuadratureBudget`] it is
-    /// the whole of what the quadrature is entitled to say
-    /// ([`VolumeReading::of`]).
-    pub bracket: VolumeEnclosure<T>,
-}
-
-/// **What a continued measurement is entitled to say about the
-/// volume**: the reporting-level number, or — where the schedule
-/// cannot reach the reporting target at this ε — the bracket
-/// [`TargetUnreached::bracket`] keeps. The one reading of
-/// [`SignCertificate::measure`]'s result that every consumer which
-/// accepts a bracket shares.
-#[derive(Clone, Copy, Debug)]
-pub enum VolumeReading<T: Real> {
-    /// The reporting-level reading: volume, area, and their pads.
-    Number(MassProperties<T>),
-    /// The narrowest bracket the certificate or its continuation held:
-    /// two ends and the area lever, with no volume number in it.
-    Bracket(VolumeEnclosure<T>),
-}
-
-impl<T: Real> VolumeReading<T> {
-    /// Classifies a continuation's result: a number, a bracket where
-    /// the refusal is the schedule running out, and otherwise the
-    /// refusal itself — a face the kernel could not measure.
-    ///
-    /// # Errors
-    ///
-    /// The refusal of a [`TargetUnreached`] that is not a face's
-    /// [`PropsError::QuadratureBudget`].
-    pub fn of(
-        measured: Result<MassProperties<T>, TargetUnreached<T>>,
-    ) -> Result<Self, MassPropsError> {
-        match measured {
-            Ok(props) => Ok(Self::Number(props)),
-            Err(TargetUnreached {
-                refusal:
-                    MassPropsError::Face {
-                        source: PropsError::QuadratureBudget { .. },
-                        ..
-                    },
-                bracket,
-            }) => Ok(Self::Bracket(bracket)),
-            Err(TargetUnreached { refusal, .. }) => Err(refusal),
-        }
-    }
-
-    /// The volume enclosure either reading carries: a number's
-    /// `volume ± volume_pad` ([`MassProperties::enclosure`]), or the
-    /// bracket.
-    #[must_use]
-    pub fn enclosure(&self) -> VolumeEnclosure<T> {
-        match self {
-            Self::Number(props) => props.enclosure(),
-            Self::Bracket(bracket) => *bracket,
-        }
-    }
-}
-
-impl<T: Real> fmt::Display for TargetUnreached<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // The bracket is a field, not prose: its ends are the scalar's
-        // own values, which this impl has no `Display` for, and a
-        // caller that wants them reads `bracket`.
-        fmt::Display::fmt(&self.refusal, f)?;
-        if matches!(
-            self.refusal,
-            MassPropsError::Face {
-                source: PropsError::QuadratureBudget { .. },
-                ..
-            }
-        ) {
-            f.write_str(" (the volume's sign is decided; its bracket is kept)")?;
-        }
-        Ok(())
     }
 }
 
@@ -2484,7 +2215,10 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, faces, band, None, tol)
+    // No lane refines, so the resolution is ε's, which every closed form
+    // meets.
+    let runs = resolution_runs(body, faces, band, tol, None, tol.eps())?;
+    Ok(fold_runs(&runs))
 }
 
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
@@ -3306,27 +3040,6 @@ mod measure_door_rows {
     }
 }
 
-/// The shared face walk at the number level: every face's lane run to
-/// the reporting resolution or its typed refusal, one slot per face in
-/// arena order, the accumulation order fixed (D9).
-///
-/// **Idiom 1 then idiom 2** (D9's parallelism addendum): the per-face
-/// lanes are an indexed parallel map into arena-order slots
-/// ([`decide_faces`]) and every combination after it is sequential in
-/// that order — the recordings spliced by [`splice_in_arena_order`],
-/// the fluxes summed by [`fold_runs`]. Nothing is combined
-/// arithmetically across slots in parallel, so the schedule reaches
-/// neither the bits nor the logs.
-fn mass_properties_impl<T: Decide>(
-    body: &Body<T>,
-    faces: &[FaceKey],
-    band: Band,
-    quad: Option<QuadLane<T>>,
-    tol: Tol,
-) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_runs(body, faces, band, quad, tol).map(|certificate| certificate.props())
-}
-
 /// One face's flux term about its shell's reference ([`shell_reference`])
 /// and its half-width, keyed by the face.
 #[cfg(any(test, feature = "test-support"))]
@@ -3383,11 +3096,16 @@ pub fn fold_order_bound(terms: &[FaceTerm]) -> (f64, f64) {
 pub fn mass_properties_with_face_terms(
     body: &Body<f64>,
     tol: Tol,
-) -> Result<(MassProperties<f64>, Vec<FaceTerm>), MassPropsError> {
+    settle: Settle<f64>,
+) -> Result<(Measured<f64>, Vec<FaceTerm>), MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
-    let certificate = mass_properties_runs(body, &faces, band, Some(QuadLane::certified()), tol)?;
-    let props = certificate.props();
+    let lane = Some(QuadLane::certified());
+    let (stop, certificate) = measure_to(body, &faces, band, tol, (lane, lane), settle)?;
+    let props = Measured {
+        enclosure: certificate.props(),
+        stop,
+    };
     let terms = certificate
         .runs
         .iter()
@@ -3401,23 +3119,25 @@ pub fn mass_properties_with_face_terms(
 /// WITHOUT the door's seam-region reads ([`seam_refusals`]): what each
 /// face's arm measures of a body the door refuses as a whole, such as a
 /// sphere seam region whose members' bits disagree. Test vocabulary: the
-/// rows that pin how one face's arm reads its own bit.
+/// rows that pin how one face's arm reads its own bit, each face run to
+/// `resolution` or its own stop.
 ///
 /// # Errors
 ///
-/// A face's own refusal, as [`mass_properties`] reports it.
+/// A face's own refusal, as [`mass_properties`] reports it, or a
+/// resolution finer than ε.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub fn face_flux_terms(
     body: &Body<f64>,
     tol: Tol,
+    resolution: Length,
 ) -> Result<Vec<(FaceKey, f64, f64)>, MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = round_hook(Some(QuadLane::certified()));
     let refs = References::points(body, faces.iter().copied());
-    // INTERIM: the number doors' resolution and refusal (`mass_properties_runs`).
-    let len = interim_resolution(tol);
+    let len = resolution_len(resolution, tol)?;
     faces
         .iter()
         .map(|&face| {
@@ -3431,9 +3151,6 @@ pub fn face_flux_terms(
                 &refs,
                 Some(len),
             )?;
-            if let Some(source) = interim_budget(&run, len) {
-                return Err(MassPropsError::Face { face, source });
-            }
             Ok((face, run.contribution.flux, run.contribution.area))
         })
         .collect()
@@ -3452,7 +3169,7 @@ pub fn shell_references(body: &Body<f64>) -> Vec<(ShellKey, Point3<f64>)> {
 }
 
 /// Every quadrature face of `body` with the first round its lane meets
-/// the reporting target at, each read alone at that round about the
+/// `resolution` at, each read alone at that round about the
 /// face's shell's reference ([`shell_reference`]) as [`mass_properties`] reads it:
 /// `(face, its surface's kind, round)`, `None` where no round of the
 /// schedule meets it. Test vocabulary: two poses of one body compare their faces'
@@ -3460,19 +3177,20 @@ pub fn shell_references(body: &Body<f64>) -> Vec<(ShellKey, Point3<f64>)> {
 ///
 /// # Errors
 ///
-/// As [`mass_properties`], for a face refused outright.
+/// As [`mass_properties`], for a face refused outright, or a resolution
+/// finer than ε.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub fn quadrature_rounds(
     body: &Body<f64>,
     tol: Tol,
+    resolution: Length,
 ) -> Result<Vec<(FaceKey, geom::SurfaceKind, Option<usize>)>, MassPropsError> {
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = round_hook(Some(QuadLane::certified()));
     let refs = References::of(body, faces.iter().copied(), band);
-    // INTERIM: the number doors' resolution (`mass_properties_runs`).
-    let len = interim_resolution(tol);
+    let len = resolution_len(resolution, tol)?;
     let mut rounds = Vec::new();
     for &face in &faces {
         let (mut met, mut quadrature) = (None, false);
@@ -3500,29 +3218,6 @@ pub fn quadrature_rounds(
         }
     }
     Ok(rounds)
-}
-
-/// The number walk: every face to the reporting resolution through the
-/// door ([`measure_to`]). A face refused outright refuses the walk, the
-/// first in arena order; failing that, the first face in arena order its
-/// lane stopped short of the resolution.
-fn mass_properties_runs<'b, T: Decide>(
-    body: &'b Body<T>,
-    faces: &[FaceKey],
-    band: Band,
-    quad: Option<QuadLane<T>>,
-    tol: Tol,
-) -> Result<SignCertificate<'b, T>, MassPropsError> {
-    // INTERIM: the number doors' resolution, and the refusal a face short
-    // of it earns, until each door takes its caller's resolution and
-    // hands back the bracket.
-    let resolution = Settle::Resolution(Length::from_meters(interim_resolution(tol)));
-    let (stop, certificate) = measure_to(body, faces, band, tol, (quad, None), resolution)
-        .map_err(MeasureRefusal::of_resolution)?;
-    match (stop, certificate.target_refusal_at_face()) {
-        (Stop::Met, _) | (_, None) => Ok(certificate),
-        (_, Some(refusal)) => Err(refusal),
-    }
 }
 
 /// The face walk's sum.
@@ -3616,7 +3311,7 @@ enum FaceStop {
     /// A later round refused outright. The face stands at the enclosure
     /// it held, which is sound, and refines no further; the refusal
     /// surfaces only where a reading cannot be made without the face
-    /// ([`walk_set`], [`SignCertificate::continue_to_target`]).
+    /// ([`walk_set`], [`SignCertificate::measure`]).
     Refused(MassPropsError),
 }
 
@@ -3840,7 +3535,7 @@ fn shell_reference<T: Decide>(body: &Body<T>, shell: ShellKey) -> Point3<T> {
 /// for it per face would read a shell of no quadrature face once per
 /// face. With them, what each sphere seam region the faces reach says of
 /// its members ([`seam_refusals`]), read once per door call, by its first
-/// walk; a continuation of that walk (`refine`, `continue_to_target`)
+/// walk; a continuation of that walk (`refine`, `resume_to`)
 /// takes the points alone ([`References::points`]).
 struct References<T: Decide> {
     shells: std::collections::BTreeMap<ShellKey, Point3<T>>,
@@ -4549,39 +4244,24 @@ impl ShellRole {
     }
 }
 
-/// One shell's flux-derived properties and its decided role.
-///
-/// `volume` is the shell's SIGNED enclosed volume (divergence theorem
-/// over exactly this shell's faces — the same per-face closed forms the
-/// whole-body [`mass_properties`] sums, so on a body of closed-form
-/// faces the per-shell volumes sum to its body volume). A quadrature
-/// face contributes the enclosure the role's read reached, not a number:
-/// its sign walk's, where the role was read off the volume, and round 0
-/// otherwise, so its bracket `± volume_pad` ([`MassProperties`]'
-/// convention) is sound and may be wide. A caller that wants a shell's
-/// number measures it.
+/// One shell's decided role, and the enclosure its read reached.
 #[derive(Clone, Copy, Debug)]
 pub struct ShellClassification<T: Real> {
     /// The classified shell.
     pub shell: ShellKey,
     /// The solid owning it ([`crate::entity::Shell::solid`]).
     pub solid: SolidKey,
-    /// The midpoint of the shell's signed volume enclosure as the role's
-    /// read left it: the sign walk's where the role was read off the
-    /// volume, round 0's otherwise. An enclosure, not a measured volume.
-    pub volume: T,
-    /// Half-width of that enclosure (m³); `0.0` when every face of the
-    /// shell took a closed form, which states nothing of the value's
-    /// rounding ([`MassProperties`]).
-    pub volume_pad: f64,
-    /// The midpoint of the shell's surface-area enclosure, from the same
-    /// read as `volume`.
-    pub surface_area: T,
-    /// Certified half-width of that area enclosure (m²).
-    pub area_pad: f64,
+    /// The shell's SIGNED volume and its area, as the role's read left
+    /// their enclosures: the divergence theorem over exactly this shell's
+    /// faces (on a body of closed-form faces the shells' volumes sum to
+    /// the body's), each quadrature face at its sign walk's round where
+    /// the role was read off the volume, and at round 0 otherwise. Sound
+    /// and possibly wide: a caller that wants a shell's number measures
+    /// it.
+    pub enclosure: MassProperties<T>,
     /// The decided role. A solid's only shell is `Outer` by arity, not
     /// by a reading of its orientation: on an unvalidated body it is
-    /// `Outer` beside a negative `volume` where that shell is wound
+    /// `Outer` beside a negative volume where that shell is wound
     /// inside out, which the at-rest gate (check 7) refuses and this
     /// door does not check.
     pub role: ShellRole,
@@ -4980,14 +4660,10 @@ pub(crate) fn classify_shells_through<T: Decide>(
         let role = shell_role_reading(body, shell_key, band, || {
             shell_volume_role_of(shell_key, &mut certificate, quad)
         })?;
-        let sums = certificate.props();
         out.push(ShellClassification {
             shell: shell_key,
             solid: shell.solid,
-            volume: sums.volume,
-            volume_pad: sums.volume_pad,
-            surface_area: sums.surface_area,
-            area_pad: sums.area_pad,
+            enclosure: certificate.props(),
             role,
         });
     }
@@ -5146,9 +4822,6 @@ pub(crate) enum RoleWalkRefusal {
         /// enclosure holds zero at the body's own rounding
         /// ([`Certified::Open`]).
         limit: Option<SignLimit>,
-        /// The walk's refusal to measure further, where the schedule
-        /// stopped on one rather than running out.
-        measuring: Option<MassPropsError>,
         /// Whether the walk stopped because the reading lies wholly in the
         /// sign's band (both ends read zero, [`RoleUnread::reads_zero`]),
         /// where no narrower enclosure decides it, rather than because
@@ -5174,7 +4847,7 @@ pub(crate) enum RoleWalkRefusal {
 ///   names, and also the certificate the walk leaves, the
 ///   open/unresolved split ([`RoleWalkRefusal::Unread`]'s `limit`, which
 ///   tells `VolumeSignUnresolved` from an undecided orientation) and the
-///   walk's measuring refusal (`VolumeUncomputable`);
+///   walk's refusal of a face it needed (`VolumeUncomputable`);
 /// - point containment's side at infinity (`boolean::solid_contain`'s
 ///   `at_infinity_side`): the selection's faces, measured in closed form
 ///   only and certified through the scalar's own lane, under its own
@@ -5243,7 +4916,6 @@ pub(crate) fn role_walk_set<'b, T: Decide>(
                 read[m] = Some(Err(RoleWalkRefusal::Unread {
                     last: Box::new(*unread),
                     limit: *limit,
-                    measuring: None,
                     in_band: true,
                 }));
             }
@@ -5267,14 +4939,12 @@ pub(crate) fn role_walk_set<'b, T: Decide>(
     read.into_iter()
         .zip(last)
         .zip(held)
-        .zip(members.iter())
-        .map(|(((read, last), held), member)| {
+        .map(|((read, last), held)| {
             read.unwrap_or_else(|| match (held, last) {
                 (Some(source), _) => Err(RoleWalkRefusal::Refused(source)),
                 (None, Some((unread, limit))) => Err(RoleWalkRefusal::Unread {
                     last: Box::new(unread),
                     limit,
-                    measuring: member.target_refusal_at_face(),
                     in_band: false,
                 }),
                 (None, None) => unreachable!("a sign walk reads every member it asks"),
@@ -6778,7 +6448,7 @@ mod at_rest_policy_tests {
 /// module owns everything that needs half-edges and vertex points.
 mod quad_lane;
 pub(crate) mod settle;
-pub use settle::{RelOp, Settle, SignNames, Stop, Verdict};
+pub use settle::{Measured, RelOp, Settle, SignNames, Stop, Verdict};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

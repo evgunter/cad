@@ -13,7 +13,7 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign};
 use quantity::Length;
 
-use super::{RoleNames, ShellRole, VolumeEnclosure};
+use super::{MassProperties, RoleNames, ShellRole, VolumeEnclosure};
 
 /// **What a measurement is asked**, at the door
 /// ([`super::measure_to`]). There is no default: every caller states
@@ -96,6 +96,21 @@ pub enum Stop {
     /// The enclosure lies wholly in the band of a deciding predicate's
     /// threshold, where no narrower enclosure decides it.
     Band,
+}
+
+/// **What a measurement reached** (`[tolerance.measure]`): the
+/// narrowest enclosure each face reached, summed, and why the
+/// measurement stopped. A number is a [`Settle::Resolution`]'s
+/// enclosure, read with its stop: [`Stop::Met`] is the resolution
+/// reached, and [`Stop::Floor`] or [`Stop::Wall`] the bracket where it
+/// went unmet, at the width the enclosure states.
+#[derive(Clone, Copy, Debug)]
+pub struct Measured<T: Real> {
+    /// The volume and area enclosures: midpoints and half-widths
+    /// ([`MassProperties`]).
+    pub enclosure: MassProperties<T>,
+    /// Why the measurement stopped.
+    pub stop: Stop,
 }
 
 /// **One round's answer to a deciding predicate** over a volume

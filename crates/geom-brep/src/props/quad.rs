@@ -956,8 +956,7 @@ fn refinable(cause: &geom_core::Indeterminate) -> bool {
 /// **mean boundary displacement** it corresponds to,
 /// `width(flux)/(3·area)` (module docs), with the area enclosure's
 /// midpoint as the lever arm. `pub` because its readers are the
-/// callers' questions: `topo` compares it with a resolution and sizes
-/// [`PropsError::QuadratureBudget`]'s payload from here.
+/// callers' questions: `topo` compares it with a resolution.
 ///
 /// INVARIANT: the returned length is FINITE and non-negative — so a
 /// budget refusal carries a number the caller can act on *by
@@ -2574,8 +2573,8 @@ pub fn boundary_chord_perimeter_lo(
 /// is why this is a `debug_assert` of the D2 addendum's ROW-5
 /// BOUNDARY class (expensive checks whose failure PROBABLY indicates
 /// a bug), not a refusal: no typed behaviour rides on it, an
-/// input-reachable width still takes its own row-1/2/3 disposition
-/// through [`PropsError::QuadratureBudget`], and the honest answer to
+/// input-reachable width is reported with the measurement's stop, and
+/// the honest answer to
 /// a wide-but-sound bracket is that it is sound (S-CERT Q1, ruled
 /// 2026-08-29: no always-on area metering, no funnel target).
 ///
@@ -9094,8 +9093,7 @@ mod tests {
     /// work wall, holding its closed form.** A caller that accepts no
     /// round runs the composite arm until the next round would pass
     /// `FACE_WORK_WALL`; the round it hands back is the narrowest, still
-    /// an enclosure (the reporting adapter refuses it as
-    /// `QuadratureBudget`).
+    /// an enclosure, which the door hands back as its bracket.
     #[test]
     fn q15_a_composite_face_short_of_its_caller_stops_at_the_wall() {
         let (ku, kvv, control, w, truth) = cubic_by_quadratic(CUBIC_HEIGHTS);

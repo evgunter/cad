@@ -3435,6 +3435,16 @@ pub(crate) fn classify_mass_props(e: &crate::props::MassPropsError) -> MassProps
         M::Corrupt { .. } | M::NullScaffoldEdge { .. } => {
             reading("its structure is incomplete", DEFECT.into(), true)
         }
+        M::ResolutionFinerThanEps { .. } => reading(
+            "a measurement was asked for finer than the tolerance",
+            "Recourse: ask for a resolution of at least the tolerance".into(),
+            false,
+        ),
+        M::Poisoned { cause } => reading(
+            "the measurement's question could not be decided",
+            cause.to_string().into(),
+            false,
+        ),
     }
 }
 
@@ -6059,10 +6069,6 @@ fn plus_v_verdict(
         Ok(ShellRole::Void) => PlusVVerdict::Refuse,
         Err(
             RoleWalkRefusal::Refused(source)
-            | RoleWalkRefusal::Unread {
-                measuring: Some(source),
-                ..
-            },
         ) => PlusVVerdict::Uncomputable(source),
         Err(RoleWalkRefusal::Unread {
             limit: Some(limit), ..
