@@ -59,4 +59,8 @@ change here rather than in a unit of its own. It also deletes
 `covers_its_solids`, whose `seen.contains` is quadratic. The tier-1 and
 attach costs are OFFSET's
 `a-staging-doors-end-derives-tier1-once-and-its-orphan-sweep-is-batched`.
+That unit's sweep (PR 5661) also leaves two more linear lookups to this
+rebuild: `Scope`'s `solids` is a `Vec`, so `holds_face` /
+`holds_edge` / `holds_vertex` and `faces_in_scope` run a
+`solids.contains` per entity (`offset_together.rs`).
 (OFFSET orchestrator)

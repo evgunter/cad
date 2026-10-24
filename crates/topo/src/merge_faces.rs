@@ -2146,6 +2146,16 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // One surgery scope over `work` for the whole run: the ring
         // surgery inside every `merge_group` is this door's, and the
         // closing gate is what certifies the run's result.
+        //
+        // The accepted mid-sequence cost of one scope: tier 1 is not
+        // re-derived between groups, so a tier-1 tear a kernel bug
+        // leaves in group k is not caught before group k + 1. If a
+        // later group then refuses typed (`group_contract(..)?`,
+        // `merge_group(..)?`), the scope drops unswept and that bug
+        // surfaces as the typed refusal, not as the panic a per-group
+        // sweep used to raise. The body is untouched either way (the
+        // run is staged on `work`); a run that reaches the closing
+        // gate still panics on the tear there.
         let mut work = self.clone();
         let mut surgery = work.begin_surgery();
         for (seed, members) in groups {
@@ -2209,7 +2219,12 @@ impl<T: crate::props::AtRestPolicy> Body<T> {
         // and their descriptions still name the absorbed face's
         // surface: each is described again from the two faces it lies
         // between. After the gate, so a torn result reports its tier-2
-        // errors, never a walk the describer could not make.
+        // errors, never a walk the describer could not make. That
+        // ordering is why this is a second scope, and a second tier-1
+        // derivation, rather than more work inside the gated one: the
+        // describer needs the gate's verdict before it runs, and the
+        // descriptions it writes need the sweep after
+        // (`work/offset/staging-doors-gated-at-tier-3-still-derive-tier-1-twice`).
         if !outcome.groups.is_empty() {
             let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
             let Some(boundary) =

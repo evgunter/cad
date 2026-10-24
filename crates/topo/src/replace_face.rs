@@ -1570,23 +1570,16 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
              (TogetherFaceRepeated for one face named twice, SharedSurfaceKey for two faces of one surface split across moves)"
         );
     }
-    let mut boundary: Vec<EdgeKey> = Vec::new();
-    let mut planned = std::collections::BTreeSet::new();
-    for chart in &charts {
-        for edge in group_boundary(body, chart.faces) {
-            if planned.insert(edge) {
-                boundary.push(edge);
-            }
-        }
-    }
+    let boundary = charts_boundary(body, &charts);
     let walls = wall_charts::<T>(body, charts.len());
+    let slots = chart_slots(&charts);
     boundary
         .into_iter()
         .map(|edge| {
             let plan = plan_edge(
                 body,
                 edge,
-                &charts,
+                (&charts, &slots),
                 band,
                 tol,
                 (T::section_lane(), walls.as_ref()),
@@ -1638,13 +1631,15 @@ pub fn offset_corner_arms_for_tests<T: Decide + crate::props::AtRestPolicy>(
     };
     let boundary = group_boundary(body, &faces);
     let walls = wall_charts::<T>(body, 1);
+    let charts = core::slice::from_ref(&chart);
+    let slots = chart_slots(charts);
     let plans: Vec<EdgePlan<T>> = boundary
         .iter()
         .map(|&edge| {
             plan_edge(
                 body,
                 edge,
-                core::slice::from_ref(&chart),
+                (charts, &slots),
                 band,
                 tol,
                 (T::section_lane(), walls.as_ref()),
@@ -1801,6 +1796,36 @@ fn moved_of<'c, 'a, T: Real>(
     key: SurfaceKey,
 ) -> Option<&'c MovedChart<'a, T>> {
     charts.iter().find(|c| c.old_key == key)
+}
+
+/// Each moved chart's slot among the operation's charts, by the key it
+/// wears — [`moved_of`] and the slot lookup as one index, built once
+/// per call. The first chart on a key keeps it, as `find` would; the
+/// doors refuse two moves on one key before this is built.
+type ChartSlots = BTreeMap<SurfaceKey, usize>;
+
+fn chart_slots<T: Real>(charts: &[MovedChart<'_, T>]) -> ChartSlots {
+    let mut slots = ChartSlots::new();
+    for (slot, chart) in charts.iter().enumerate() {
+        slots.entry(chart.old_key).or_insert(slot);
+    }
+    slots
+}
+
+/// Every moved chart's boundary edges, each once, in chart order and
+/// then each group's own walk order ([`group_boundary`]): the edges the
+/// door plans.
+fn charts_boundary<T: Decide>(body: &Body<T>, charts: &[MovedChart<'_, T>]) -> Vec<EdgeKey> {
+    let mut boundary: Vec<EdgeKey> = Vec::new();
+    let mut planned = std::collections::BTreeSet::new();
+    for chart in charts {
+        for edge in group_boundary(body, chart.faces) {
+            if planned.insert(edge) {
+                boundary.push(edge);
+            }
+        }
+    }
+    boundary
 }
 
 /// **The offset door's one body**: every chart `moves` names — its
@@ -1965,25 +1990,18 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         });
     }
     // ---- Decide: the boundary plan. ----
-    let mut boundary: Vec<EdgeKey> = Vec::new();
-    let mut planned = std::collections::BTreeSet::new();
-    for chart in &charts {
-        for edge in group_boundary(body, chart.faces) {
-            if planned.insert(edge) {
-                boundary.push(edge);
-            }
-        }
-    }
+    let boundary = charts_boundary(body, &charts);
     let mut plans: Vec<EdgePlan<T>> = Vec::with_capacity(boundary.len());
     {
         // Each wall's chart is minted at most once for all its edges, and
         // the slots are dropped before anything is written.
         let walls = wall_charts::<T>(body, charts.len());
+        let slots = chart_slots(&charts);
         for &edge in &boundary {
             plans.push(plan_edge(
                 body,
                 edge,
-                &charts,
+                (&charts, &slots),
                 band,
                 tol,
                 (T::section_lane(), walls.as_ref()),
@@ -2001,12 +2019,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         tol,
         T::section_lane(),
     )?;
-    let mut moved: BTreeMap<VertexKey, Point3<T>> = BTreeMap::new();
-    for (group, point) in &corners.groups {
-        for &v in group {
-            moved.entry(v).or_insert(*point);
-        }
-    }
+    let moved = corners.moved_points();
     let vertex_groups = corners.groups.clone();
     for plan in &mut plans {
         if let Some(refused) = plan.refused.take() {
@@ -2403,7 +2416,7 @@ fn iso_image_row<T: Decide>(
 fn plan_edge<'s, T: Decide>(
     body: &'s Body<T>,
     edge: EdgeKey,
-    charts: &'s [MovedChart<'_, T>],
+    (charts, slots): (&'s [MovedChart<'_, T>], &ChartSlots),
     band: Band,
     tol: Tol,
     (section_lane, walls): (
@@ -2412,9 +2425,8 @@ fn plan_edge<'s, T: Decide>(
     ),
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     // A moved chart's slot is its place among the operation's charts.
-    let moved_slot = |key: SurfaceKey| {
-        walls.and_then(|w| w.moved(charts.iter().position(|c| c.old_key == key)?))
-    };
+    let moved_slot = |key: SurfaceKey| walls.and_then(|w| w.moved(*slots.get(&key)?));
+    let moved_of = |key: SurfaceKey| slots.get(&key).and_then(|&slot| charts.get(slot));
     let edge_data = proven(&body.edges, edge, EntityId::Edge);
     let sides = edge_side_keys(body, edge, edge_data);
     let he_plus = edge_data.he_plus;
@@ -2433,7 +2445,7 @@ fn plan_edge<'s, T: Decide>(
             what: "it has no curve to move",
         });
     };
-    let mover = match (moved_of(charts, sides[0]), moved_of(charts, sides[1])) {
+    let mover = match (moved_of(sides[0]), moved_of(sides[1])) {
         (Some(a), Some(b)) if a.old_key != b.old_key => {
             return plan_between_moved(
                 (edge, start, end, sides),
@@ -3594,12 +3606,7 @@ fn plan_reanchors<T: Decide>(
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<T>>,
 ) -> Result<Vec<Reanchored<T>>, ReplaceFaceError<T>> {
-    let mut moved: BTreeMap<VertexKey, Point3<T>> = BTreeMap::new();
-    for (group, point) in &corners.groups {
-        for &v in group {
-            moved.entry(v).or_insert(*point);
-        }
-    }
+    let moved = corners.moved_points();
     let on_boundary: std::collections::BTreeSet<EdgeKey> = boundary.iter().copied().collect();
     let solved = &corners.solved;
     let mut out = Vec::new();
@@ -3920,6 +3927,20 @@ struct Corners<T: Real> {
     solved: Vec<(EdgeKey, bool, T, T)>,
     /// The corners placed by roots rather than by the transports.
     rooted: Vec<VertexKey>,
+}
+
+impl<T: Real> Corners<T> {
+    /// Where each moved vertex lands, by key: the first group naming
+    /// it decides, as a `find` over [`Corners::groups`] would.
+    fn moved_points(&self) -> BTreeMap<VertexKey, Point3<T>> {
+        let mut moved = BTreeMap::new();
+        for (group, point) in &self.groups {
+            for &v in group {
+                moved.entry(v).or_insert(*point);
+            }
+        }
+        moved
+    }
 }
 
 /// One edge meeting a moved corner, as the corner solve reads it.

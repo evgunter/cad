@@ -104,4 +104,7 @@ Residue, each in its own file:
 shell, split and STEP import gate at tier 3),
 `wedge-reach-folds-a-faces-whole-boundary-per-edge`, SHELF's
 `offset-charts-staged-corner-solve-walks-the-edge-arena-per-group`,
-TOPO's `set-edge-curve-scans-the-edge-arena-per-call`.
+TOPO's `set-edge-curve-scans-the-edge-arena-per-call`,
+`an-offset-doors-trailing-join-sweeps-tier-1-per-kill`. The merge door
+closes gated but still derives tier 1 twice (its re-description scope),
+recorded in the tier-3 row.

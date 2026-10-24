@@ -773,6 +773,13 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 ///   restriction of them that is the same check narrowed rather than a
 ///   different one. Built with the `per-op-postcondition` feature,
 ///   every setter sweeps the whole body as well.
+/// - **One more tier-1 walk per joined vertex**, where the door joins
+///   (`join` set, as every public door does). The join
+///   (`replace_face::staged_join` → [`Body::join_edges_within`]) runs
+///   on the staged body after the scope has closed, outside any scope,
+///   so each of its kills (`kev_describing`) runs its own whole-body
+///   tier-1 postcondition: k joins are k more walks
+///   (`work/offset/an-offset-doors-trailing-join-sweeps-tier-1-per-kill`).
 /// - **Three whole-arena iterations in each door's decide phase**,
 ///   filtered by `holds_face` / `holds_vertex` / `holds_edge`: the
 ///   plane (or chart) sweep, the corner walk and the edge walk visit

@@ -602,7 +602,8 @@ impl<T: Decide> Body<T> {
     }
 
     /// Every edge with a half on a face `faces` move, once each, in
-    /// edge-arena order: the only edges [`Body::rechart_edges`] does not
+    /// edge-arena order (counted by
+    /// `tests::the_recharts_edge_walk_scales_with_the_moved_faces`): the only edges [`Body::rechart_edges`] does not
     /// skip under that move, so walking these is walking the arena.
     fn moved_edges(&self, faces: &[MovedFace]) -> Vec<EdgeKey> {
         let mut edges: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
@@ -816,6 +817,8 @@ impl<T: Decide> Body<T> {
     ) -> RechartEdges {
         let mut out = RechartEdges::default();
         for edge_key in edges {
+            #[cfg(test)]
+            RECHART_EDGE_VISITS.with(|n| n.set(n.get() + 1));
             let edge = proven(&self.edges, edge_key, EntityId::Edge);
             let named = Named::of(self.edge_curve_linked(edge_key, edge));
             if matches!(named, Named::Nothing) {
@@ -2426,6 +2429,13 @@ impl Named {
             Self::Nothing => true,
         }
     }
+}
+
+#[cfg(test)]
+std::thread_local! {
+    /// Edges `Body::rechart_edges` has visited on this thread
+    /// (`tests::the_recharts_edge_walk_scales_with_the_moved_faces`).
+    static RECHART_EDGE_VISITS: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
 }
 
 #[cfg(test)]
@@ -4891,6 +4901,61 @@ mod tests {
         )
         .unwrap();
         crate::body::ORPHAN_PASS_VISITS.with(core::cell::Cell::get)
+    }
+
+    /// Edges [`Body::rechart_edges`] visits while
+    /// [`Body::carried_redescriptions`] and [`Body::stranded_by`] read a
+    /// re-chart of one side face of an `n`-gon prism onto a parallel
+    /// plane.
+    fn rechart_visits_moving_one_side_of_an_ngon_prism(n: usize) -> usize {
+        let profile: Vec<(f64, f64)> = (0..n)
+            .map(|k| {
+                let t = core::f64::consts::TAU * k as f64 / n as f64;
+                (t.cos(), t.sin())
+            })
+            .collect();
+        let body = crate::test_support_fixtures::prism::<f64>(&profile, 1.0, tol()).body;
+        let side = body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|&f| body.face_cycles_linked(f).len() == 4)
+            .expect("a prism has quadrilateral sides");
+        let Some(&Surface::Plane { normal, .. }) = body.get_surface(surf(&body, side)) else {
+            panic!("a prism's side is a plane")
+        };
+        let charts = vec![Rechart::new(
+            plane_moved(&body, side, normal * 0.01),
+            side,
+            sense(&body, side),
+        )];
+        super::RECHART_EDGE_VISITS.with(|v| v.set(0));
+        let carried = body.carried_redescriptions(&charts).unwrap();
+        let stranded = body.stranded_by(&charts).unwrap();
+        assert!(
+            !carried.is_empty() || !stranded.is_empty(),
+            "the side's edges are read"
+        );
+        super::RECHART_EDGE_VISITS.with(core::cell::Cell::get)
+    }
+
+    /// **The re-chart's edge walks are driven by the moved faces, not
+    /// by the edge arena.** `carried_redescriptions` and `stranded`
+    /// walk only the edges with a half on a moved face
+    /// (`Body::moved_edges`). Moving one quadrilateral side visits its
+    /// four edges in each walk, whatever the prism's size; a walk over
+    /// `self.edges.keys()` would visit 3n edges in each and grow
+    /// fourfold here.
+    #[test]
+    fn the_recharts_edge_walk_scales_with_the_moved_faces() {
+        let small = rechart_visits_moving_one_side_of_an_ngon_prism(16);
+        let large = rechart_visits_moving_one_side_of_an_ngon_prism(64);
+        println!("re-chart edge visits: n = 16 -> {small}, n = 64 -> {large}");
+        assert_eq!(small, 8, "two walks over the side's four edges");
+        assert_eq!(
+            large, small,
+            "a prism four times as large visits {large} edges in the re-chart walks against \
+             {small}: the walks read the arena, not the moved faces"
+        );
     }
 
     /// **The orphan pass is driven by the writes, not by writes × body.**

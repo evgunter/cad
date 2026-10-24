@@ -1,9 +1,14 @@
 //! **How one simultaneous offset's cost grows with its own scope.**
 //! Every face of one n-gon prism is offset outward by
 //! [`topo::offset_planes_together`], and the call is timed per `n`; the
-//! result is checked closed. The door's cost is meant to be linear in
-//! the faces it moves: its writes drive its walks, and tier 1 is
-//! derived once at its end.
+//! result is checked closed. The door's cost is superlinear in the
+//! faces it moves: its writes drive its walks and tier 1 is derived
+//! once at its end, but `WedgeReach::reach` folds a cap's whole
+//! n-point boundary for each rim edge, O(n²) over the call
+//! (`work/offset/wedge-reach-folds-a-faces-whole-boundary-per-edge`).
+//! The prism leaves nothing to join, so the per-kill sweep of
+//! `work/offset/an-offset-doors-trailing-join-sweeps-tier-1-per-kill`
+//! does not show here.
 //!
 //! Evidence, not a gate (timings on a shared box are shape only):
 //! `cargo nextest run -p topo --release --test all ngon_prism_offset_scaling
