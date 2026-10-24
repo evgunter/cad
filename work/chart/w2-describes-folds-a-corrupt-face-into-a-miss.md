@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-24
 priority: P3
 cost: E
+rides_with: w2-reads-a-one-sheet-predicate-off-the-walk
 ---
 
 

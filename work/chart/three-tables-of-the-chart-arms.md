@@ -5,8 +5,7 @@ title: Three tables of the chart metring arms in three crates, two of them copie
 status: open
 opened: 2026-09-14
 priority: P1
-cost: M
-design: true
+cost: E
 ---
 
 
@@ -53,3 +52,14 @@ someone is there.
 
 TRIM filed it from the copy site; the edit is `topo`'s and
 `chart_region.rs` is Track Q's ground.
+
+## Re-scoped (2026-10-24)
+
+Under `clearance-cells-are-decided-in-model-space`, `clearance::chart_arms`
+is deleted with `chart_bound`, so this row shrinks to renaming
+`geom_brep::chart_arms_at` to say `sup`. A designer also corrected the
+angular row's premise. On an azimuth chart `u` IS the radian, so "metres per
+radian is not metres per parameter unit" is false. The distinction that
+carves at the joint is a local exact lever against a bound over a window.
+The two typing rows (`angular-arms-…`, `certified-arms-…`) stand as typing
+work on `chart_region` and `pcurves`. (CHART orchestrator)
