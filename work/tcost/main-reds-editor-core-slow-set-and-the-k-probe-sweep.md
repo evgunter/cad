@@ -81,3 +81,25 @@ suspected merge is #5542. The rows are still red on 2026-10-23 (run
 fails the same on `chart/ringed-curved-doors`, whose product body for
 `cut_cylinder` is bit-identical to the base's: the same counts, the same
 points in the same arena order, the same faces and senses.
+
+## 2026-10-24 — still red (INTENT nightly triage)
+
+Nightly run 40066431545 (main `3dfb96b91c`) still reds 22 of the 24
+rows at every ε, with the same panics: `docm9_range` ×5,
+`m10_3_driver_interval`, `m10_3_r2_probes_interval`,
+`m10_6_ci_rows_interval`, `m10_9_pins_interval` ×2,
+`m10_sym_profile_interval` ×2, `revalue_corpus` ×7,
+`sym11_exact_channel_rows`, `sym_9_retry_interval` ×2. The two
+`m10_bulge_interval` rows pass tonight. Some receipt counts have
+drifted since 10-23, though each row fails the same way:
+`m10_9_the_pad_at_both_rule_f_dials` read `(1546, 1252, 3048)` on 10-23
+and reads `(1546, 1251, 2420)` tonight, against the pin
+`(1546, 1260, 3026)`. `sym_9_the_drive_writes_the_ladders_receipt`
+went from `[1421, 1378, 34]` to `[1421, 1377, 34]`, against
+`[1421, 1386, 34]`. So when a fix lands, re-derive the receipts on the
+day. Do not take them from this file.
+
+`k-lint (dev-probe)` still stops on
+`ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`:
+`predicates whose margins do not scale with the model:
+["curve_foot_branch: 6 pairs off, e.g. 9.990e2"]`.

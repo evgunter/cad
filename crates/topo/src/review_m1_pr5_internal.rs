@@ -561,7 +561,7 @@ fn every_public_mutation_path_preserves_tier1() {
          {left_open:?}. Every operator run on that body afterwards skips D1's tier-1 \
          postcondition and nothing at runtime says so. Close it — \
          `Surgery::sweep_and_close` / `Body::leave_surgery_and_sweep` is the door's \
-         postcondition, `close_already_checked` / `leave_surgery` the spelling for a door \
+         postcondition (`Surgery::close_gated` with the door's tier-2 gate in one walk), `close_already_checked` / `leave_surgery` the spelling for a door \
          that debug-asserts a stronger tier itself.",
     );
     assert!(
@@ -601,7 +601,7 @@ fn every_public_mutation_path_preserves_tier1() {
          stopped asserting — a finding — or the source read lost the call.",
     );
     // The second needle's own pin, for the same reason: a lexing gap
-    // that erased `sweep_and_close` from every scoped door would move
+    // that erased the sweeping close from every scoped door would move
     // them all to `unlisted` and red — but one that erased
     // `begin_surgery` too would move them to `asserting`/`unlisted`
     // silently. The merge is the door whose scope composes tens of ring
@@ -613,7 +613,7 @@ fn every_public_mutation_path_preserves_tier1() {
     assert!(
         staged
             .as_deref()
-            .is_some_and(|b| b.contains("begin_surgery") && b.contains("sweep_and_close")),
+            .is_some_and(|b| b.contains("begin_surgery") && b.contains("close_gated")),
         "`merge_coplanar_faces_staged` no longer reads as opening and closing a surgery \
          scope. Either the door stopped scoping — a finding, it composes tens of ring \
          surgeries — or the source read lost the calls.",

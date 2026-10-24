@@ -64,7 +64,7 @@
 //! # The boundary first
 //!
 //! Before any path, `p` is read against every edge on its own carrier
-//! ([`ConicArc::hit`] for a circle, [`SpiricArc::contact`] for an oval):
+//! ([`ConicArc::hit`](crate::splitting::containment::ConicArc::hit) for a circle, [`SpiricArc::contact`] for an oval):
 //! on an edge, or within the band of one of its ends, is the point on
 //! the boundary ([`None`]); in the band of one refuses.
 //!

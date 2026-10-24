@@ -136,3 +136,61 @@ into `a-staging-doors-end-derives-tier1-once-and-its-orphan-sweep-is-batched`
 `shell-open-stages-a-door-per-solid` (P2 M). The other designer would have
 banded the remainder P3; the quadratic is why the unit stays P1. Not a
 design-fork row: the population is forks that go to Ev.
+
+## 2026-10-24 — one tier-1 walk per offset door end (OFFSET orchestrator)
+
+PR 5661 (`offset/door-end-tier1-once`) closes
+`a-staging-doors-end-derives-tier1-once-and-its-orphan-sweep-is-batched`.
+Tier: single FULL review (the panic/typed split of a gate merged into one
+walk). Verdict MERGEABLE-WITH-FIXES, no MAJOR. The reviewer's executed
+differentials: `close_gated` panics at depth 1 and returns typed at depth
+2; the batched reaper against the per-key sequence over the whole topo lib
+suite (zero diffs, free-list order included) and a 3000-trial fuzz (one
+divergence, the claimed dangling-surface fix); the orphan counter goes red
+with the per-key calls restored.
+
+- `Surgery::close_gated` derives tier 1 once via `closed_by_tier`, through
+  one postcondition helper shared with the sweeping closes (the first draft
+  spelled the assertion twice; the reviewer caught it). "Once per door end"
+  holds for the three simultaneous offset doors; merge, the boolean,
+  `shell`, the split and STEP import still derive twice
+  (`staging-doors-gated-at-tier-3-still-derive-tier-1-twice`, P3).
+- The orphan sweep is one batched pass; the setter's edge walks follow the
+  moved faces. Two deterministic counters pin both halves (each shown to
+  bite). Every face of an n-gon prism offset: 224 → 49 ms at n = 1024
+  (release, debug assertions on). `WedgeReach` keeps it superlinear
+  (`wedge-reach-folds-a-faces-whole-boundary-per-edge`).
+- The merge door's run is one scope now; a tear in one group followed by a
+  typed refusal in a later group comes back typed, stated at the loop as
+  the accepted cost.
+- Filed by the lane: `an-offset-doors-trailing-join-sweeps-tier-1-per-kill`
+  (P2 E), the two above, SHELF's
+  `offset-charts-staged-corner-solve-walks-the-edge-arena-per-group`, and
+  TOPO's `set-edge-curve-scans-the-edge-arena-per-call`. Twin corner-solve
+  setup in `offset_together.rs`/`offset_axial.rs` noted on SHELF's
+  one-door row.
+- Main stopped compiling mid-unit (CHART #5656 + #5657, a missing
+  `walk_refusal` arm); CHART's #5662 one-line fix was ported onto the
+  branch.
+- Process: the lane's worktree and the main checkout both had the branch
+  checked out, so the lane's commit moved the main checkout's HEAD under a
+  stale index that would have reverted the fix pass. Do not check out a
+  lane's branch in the main checkout while the lane works on it.
+
+## 2026-10-24 — a join sweeps tier 1 once (OFFSET orchestrator)
+
+PR 5666 (`offset/trailing-join-one-sweep`) closes
+`an-offset-doors-trailing-join-sweeps-tier-1-per-kill`, the follow-up the
+tier-1-once unit's own trace found. Tier: orchestrator's read (a scope
+around an existing loop). The fix sits in the join, not in each door:
+`Body::join_edges_within` and the public `Body::join_edges` run their kills
+under one surgery scope closed by `sweep_and_close`, which covers the four
+offset doors, `shell`, the blend, the merge, the split's halves and STEP
+import. Pinned by `validate::TIER1_DERIVATIONS` (`cfg(test)`): constant in
+k, where the reverted code paid about 2k. Filed by the lane:
+`offset-surfaces-together-leaves-joinable-vertices-at-rest` (P2 E,
+pre-existing: `offset_charts_staged` offers the join only the rewritten
+edges' ends). Correction to the 2026-10-24 tier-1-once entry: the lane
+banded `staging-doors-gated-at-tier-3-still-derive-tier-1-twice` P2, not P3.
+Friction: the box's disk was nearly full from finished lanes' target dirs
+(about 25 GB of OFFSET's own), now removed.

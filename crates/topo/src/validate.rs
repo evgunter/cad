@@ -9931,8 +9931,18 @@ fn edge_endpoints<T: Real>(
     Some((p_start, p_end))
 }
 
+#[cfg(test)]
+std::thread_local! {
+    /// Whole-body tier-1 derivations run on this thread, counted under
+    /// `cfg(test)` (`edge_join::join_door::a_join_sweeps_tier_1_once_however_many_it_joins`).
+    pub(crate) static TIER1_DERIVATIONS: core::cell::Cell<usize> =
+        const { core::cell::Cell::new(0) };
+}
+
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).
 fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
+    #[cfg(test)]
+    TIER1_DERIVATIONS.with(|n| n.set(n.get() + 1));
     let mut errors = Vec::new();
 
     // Reference/ownership counters, filled by pass 1 and consumed by the
@@ -10650,19 +10660,24 @@ fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
     // records name) are intentionally not tier-1 checks: Euler
     // surgery legitimately rewires neighborhoods mid-sequence, and
     // tier 2 refuses null entities at rest regardless.
-    for (curve_key, entry) in body.curves.iter() {
-        if matches!(entry, CurveGeom::NullScaffold(_)) {
-            let referers = body
-                .edges
-                .values()
-                .filter(|edge| edge.curve == curve_key)
-                .count();
-            if referers >= 2 {
-                errors.push(ValidationError::NullScaffoldShared {
-                    curve: curve_key,
-                    edges: referers,
-                });
-            }
+    let mut referers: SecondaryMap<CurveKey, usize> = body
+        .curves
+        .iter()
+        .filter(|(_, entry)| matches!(entry, CurveGeom::NullScaffold(_)))
+        .map(|(curve_key, _)| (curve_key, 0))
+        .collect();
+    for edge in body.edges.values() {
+        if let Some(n) = referers.get_mut(edge.curve) {
+            *n += 1;
+        }
+    }
+    // A secondary map iterates in slot order: curve-arena order.
+    for (curve_key, &edges) in &referers {
+        if edges >= 2 {
+            errors.push(ValidationError::NullScaffoldShared {
+                curve: curve_key,
+                edges,
+            });
         }
     }
     for (face_key, record) in body.null_faces.iter() {
