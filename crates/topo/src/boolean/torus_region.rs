@@ -642,7 +642,7 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         first_forward: bool,
         then_forward: bool,
         _: Band,
-    ) -> Result<(Leg<T>, T, Leg<T>), Fault> {
+    ) -> Result<(Leg<T>, T, impl FnOnce() -> Leg<T>), Fault> {
         let (rho_p, h_p, radial_p) = self.polar(p);
         let (rho_t, h_t, radial_t) = self.polar(target);
         let (mut first, corner) = if parallel_first {
@@ -658,10 +658,12 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
         };
         let to_corner = turn(first.round.angle(corner));
         first.corner = Some(to_corner);
-        let then = if parallel_first {
-            self.meridian(corner, then_forward)
-        } else {
-            self.parallel(corner, then_forward)
+        let then = move || {
+            if parallel_first {
+                self.meridian(corner, then_forward)
+            } else {
+                self.parallel(corner, then_forward)
+            }
         };
         Ok((first, first.round.radius * to_corner, then))
     }
@@ -1371,15 +1373,17 @@ mod tests {
         let (body, face) = wall();
         let (mut nulled, nulled_face) = wall();
         super::region::with_null_edge(&mut nulled, nulled_face);
-        let plain = torus_face_region(&body, face).unwrap().expect("the wall's region");
-        let held = torus_face_region(&nulled, nulled_face)
-            .unwrap()
-            .expect("the region with the null edge stepped over");
+        let plain = torus_face_region(&body, face).unwrap().unwrap();
+        // The null edge stepped over, not refused.
+        let held = torus_face_region(&nulled, nulled_face).unwrap().unwrap();
         assert_eq!(held.edges.len(), plain.edges.len(), "the same boundary");
         let b = Band::new(1e-9, 1e-8).unwrap();
         for (u, v) in [(1.0, 0.0), (1.0, 1.5), (2.5, 0.0)] {
             let got = held.contains(at(u, v), b);
-            assert!(matches!(got, Ok(Some(_))), "a definite reading at ({u}, {v})");
+            assert!(
+                matches!(got, Ok(Some(_))),
+                "a definite reading at ({u}, {v})"
+            );
             assert_eq!(got, plain.contains(at(u, v), b), "at ({u}, {v})");
         }
     }

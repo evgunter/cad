@@ -2,11 +2,13 @@
 //! [`super::torus_region`] and [`super::ruled_region`] read a trimmed
 //! curved face with, each door supplying only its surface's legs and
 //! landings —
-//! the boundary gather ([`boundary`]: every edge of every loop, null
-//! scaffolding and seams left out, an uncertified edge refused), the
-//! boundary pre-pass ([`Region::on_boundary`]), the path roster and its
-//! walk ([`walk`], over a [`Paths`] door's legs), the crossing offer
-//! ([`read_leg`]) and the leaves under them:
+//! the boundary gather ([`boundary`]: every edge of every loop, seams
+//! left out, an uncertified edge refused, null scaffolding stepped over
+//! or refused as the door says), the boundary pre-pass
+//! ([`Region::on_boundary`]), the path roster and its walk ([`walk`], over
+//! a [`Paths`] door's legs), a path's reading ([`read_path`],
+//! [`read_leg`]) and its crossing offer (`offer`), and the leaves under
+//! them:
 //! the one refusal they answer ([`RegionRefusal`]), the targets their aimed
 //! paths take ([`targets`], at [`TARGET_SHARES`]), the boundary reading of
 //! a circle edge on its own carrier ([`circle_edge_hit`]), a root against
@@ -108,8 +110,11 @@ pub(crate) fn circle_edge_hit<T: Decide>(
     }
 }
 
+/// A path's reason to be set aside.
+pub(crate) type Fault = RayFault<RegionRefusal>;
+
 /// An in-band margin about one path, setting it aside.
-pub(crate) fn in_band(diag: Indeterminate) -> RayFault<RegionRefusal> {
+pub(crate) fn in_band(diag: Indeterminate) -> Fault {
     RayFault::InBand(RegionRefusal::Escalated(diag))
 }
 
@@ -127,7 +132,7 @@ pub(crate) fn span<T: Decide>(
     (t0, t1): (T, T),
     lever: T,
     band: Band,
-) -> Result<Option<bool>, RayFault<RegionRefusal>> {
+) -> Result<Option<bool>, Fault> {
     let start = decide(row, Margin::of(lever * (t - t0)), band).map_err(in_band)?;
     let end = decide(row, Margin::of(lever * (t1 - t)), band).map_err(in_band)?;
     Ok((start != Sign::Negative && end != Sign::Negative)
@@ -156,7 +161,7 @@ pub(crate) fn side_at_closest<T: Decide>(
     (order, cross): (&'static str, &'static str),
     lever: T,
     band: Band,
-) -> Result<bool, RayFault<RegionRefusal>> {
+) -> Result<bool, Fault> {
     let hit = crossings
         .closest(order, band, |diag, _, _| RegionRefusal::Escalated(diag))?
         .ok_or(RayFault::Unread)?;
@@ -182,7 +187,7 @@ pub(crate) fn turn<T: Decide>(s: T) -> T {
 /// in the leg's plane or a tangency grazes.
 pub(crate) fn found<T: Decide>(
     roots: Result<FirstHarmonicRoots<T>, RootRefusal>,
-) -> Result<Vec<T>, RayFault<RegionRefusal>> {
+) -> Result<Vec<T>, Fault> {
     match roots {
         Ok(Roots::Miss) => Ok(Vec::new()),
         Ok(Roots::Certified(found)) => Ok(found.roots().to_vec()),
@@ -190,9 +195,6 @@ pub(crate) fn found<T: Decide>(
         Err(RootRefusal::Escalated(diag)) => Err(in_band(diag)),
     }
 }
-
-/// A path's reason to be set aside.
-pub(crate) type Fault = RayFault<RegionRefusal>;
 
 /// Where a leg crosses an edge: the crossing's point, the edge's
 /// parameter there, and whether it lies within the band of an end of the
@@ -426,7 +428,8 @@ pub(crate) trait Paths<T: Decide>: Region<T> {
 
     /// An aimed path's legs ([`Path::Aimed`]): the first, ending at its
     /// corner; the corner's place along the path, where the second
-    /// starts; and the second.
+    /// starts; and the second, built only where the first leg leaves the
+    /// path undecided.
     ///
     /// # Errors
     ///
@@ -440,10 +443,9 @@ pub(crate) trait Paths<T: Decide>: Region<T> {
         first_forward: bool,
         then_forward: bool,
         band: Band,
-    ) -> Result<(Self::Leg, T, Self::Leg), Fault>;
+    ) -> Result<(Self::Leg, T, impl FnOnce() -> Self::Leg), Fault>;
 
-    /// Where `leg` meets `edge`'s carrier, every landing read before any
-    /// is placed along the leg.
+    /// Where `leg` meets `edge`'s carrier.
     ///
     /// # Errors
     ///
@@ -529,7 +531,7 @@ pub(crate) fn read_path<T: Decide, D: Paths<T>>(
             // second leg lies beyond it, decided apart from the corner by
             // its own rows.
             if !offer(door, &first, T::zero(), &mut crossings, band)? {
-                offer(door, &then, corner, &mut crossings, band)?;
+                offer(door, &then(), corner, &mut crossings, band)?;
             }
             side(door, crossings, band)
         }
@@ -559,7 +561,9 @@ fn side<T: Decide, D: Paths<T>>(
 
 /// **The crossing offer**: every crossing of `leg` with the boundary,
 /// edge by edge, at `offset` plus its place along the leg
-/// ([`Paths::place`]). Whether one was offered.
+/// ([`Paths::place`]). Each edge's landings are all read
+/// ([`Paths::landings`]) before any of them is placed. Whether one was
+/// offered.
 fn offer<T: Decide, D: Paths<T>>(
     door: &D,
     leg: &D::Leg,

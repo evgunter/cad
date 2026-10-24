@@ -282,22 +282,22 @@ impl<T: Decide> Conic<T> {
 
 /// An edge's carrier, as the crossings read it.
 #[derive(Clone, Copy)]
-enum Carrier<T: geom_core::Real> {
+enum Reading<T: geom_core::Real> {
     Line { origin: Point3<T>, dir: Vec3<T> },
     Conic(Conic<T>),
 }
 
 impl<T: Decide> Edge<T> {
     /// The edge's carrier, as the crossings read it.
-    fn reading(&self) -> Carrier<T> {
+    fn reading(&self) -> Reading<T> {
         match self.carrier {
-            geom::Curve3::Line { origin, dir } => Carrier::Line { origin, dir },
+            geom::Curve3::Line { origin, dir } => Reading::Line { origin, dir },
             geom::Curve3::Circle {
                 center,
                 axis,
                 radius,
                 u_ref,
-            } => Carrier::Conic(Conic {
+            } => Reading::Conic(Conic {
                 center,
                 axis,
                 a: radius,
@@ -310,7 +310,7 @@ impl<T: Decide> Edge<T> {
                 semi_u,
                 semi_v,
                 u_ref,
-            } => Carrier::Conic(Conic {
+            } => Reading::Conic(Conic {
                 center,
                 axis,
                 a: semi_u,
@@ -484,8 +484,8 @@ fn reach_bound<T: Decide>(surface: &Ruled<T>, edges: &[Edge<T>]) -> T {
         Ruled::Cone { apex, .. } => edges
             .iter()
             .map(|e| match e.reading() {
-                Carrier::Line { .. } => (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm()),
-                Carrier::Conic(c) => (c.center - apex).norm() + c.a.max(c.b),
+                Reading::Line { .. } => (e.at(e.t0) - apex).norm().max((e.at(e.t1) - apex).norm()),
+                Reading::Conic(c) => (c.center - apex).norm() + c.a.max(c.b),
             })
             .fold(T::zero(), T::max),
     }
@@ -593,8 +593,8 @@ impl<T: Decide> RuledFaceRegion<T> {
         let own = self.nappe(p, band)?;
         for edge in &self.edges {
             let (points, at_apex_says_nothing) = match edge.reading() {
-                Carrier::Line { .. } => (vec![edge.at(edge.t0), edge.at(edge.t1)], true),
-                Carrier::Conic(_) => (vec![edge.at(geom::mid_param(edge.t0, edge.t1))], false),
+                Reading::Line { .. } => (vec![edge.at(edge.t0), edge.at(edge.t1)], true),
+                Reading::Conic(_) => (vec![edge.at(geom::mid_param(edge.t0, edge.t1))], false),
             };
             for y in points {
                 match decide(
@@ -768,7 +768,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
         first_forward: bool,
         then_forward: bool,
         band: Band,
-    ) -> Result<(Leg<T>, T, Leg<T>), Fault> {
+    ) -> Result<(Leg<T>, T, impl FnOnce() -> Leg<T>), Fault> {
         // Both corners lie on `p`'s nappe (on its parallel, or on
         // its generator at the target's reach), so the path does
         // too, wherever the target lies: it only steers.
@@ -810,10 +810,12 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
             first.end = Some(gap.abs());
             (first, corner)
         };
-        let then = if parallel_first {
-            self.ruling(corner, nappe, then_forward)
-        } else {
-            self.parallel(corner, then_forward)
+        let then = move || {
+            if parallel_first {
+                self.ruling(corner, nappe, then_forward)
+            } else {
+                self.parallel(corner, then_forward)
+            }
         };
         Ok((first, first.end.unwrap_or_else(T::zero), then))
     }
@@ -830,7 +832,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
         let base = self.surface.base();
         let mut out = Vec::new();
         match (edge.reading(), leg.shape) {
-            (Carrier::Conic(conic), LegShape::Parallel(round)) => {
+            (Reading::Conic(conic), LegShape::Parallel(round)) => {
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::circle_off_plane(
                         (round.center, round.normal, round.radius, round.e1),
@@ -856,7 +858,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
                     }
                 }
             }
-            (Carrier::Line { origin, dir }, LegShape::Parallel(Round { center, .. })) => {
+            (Reading::Line { origin, dir }, LegShape::Parallel(Round { center, .. })) => {
                 // A ruling crosses the parallel's plane once, at the
                 // parallel's one point on it.
                 let t = (center - origin).dot(axis) / dir.dot(axis);
@@ -864,7 +866,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
                     out.push((origin + dir * t, t, sideless));
                 }
             }
-            (Carrier::Conic(conic), LegShape::Ruling { radial, nappe, .. }) => {
+            (Reading::Conic(conic), LegShape::Ruling { radial, nappe, .. }) => {
                 let normal = axis.cross(radial);
                 let roots = first_harmonic_roots_in_band(
                     &FirstHarmonic::conic_off_plane(
@@ -901,7 +903,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
                     }
                 }
             }
-            (Carrier::Line { .. }, LegShape::Ruling { dir, .. }) => {
+            (Reading::Line { .. }, LegShape::Ruling { dir, .. }) => {
                 let ends = [edge.at(edge.t0), edge.at(edge.t1)];
                 let off_line = |y: Point3<T>| {
                     let w = y - leg.start;
@@ -946,12 +948,7 @@ impl<T: Decide> RuledFaceRegion<T> {
     /// circle, and of its line from its start to its end; neither end of
     /// the edge is the leg's start, which the boundary pre-pass placed off
     /// the edge.
-    fn along(
-        &self,
-        edge: &Edge<T>,
-        leg: &Leg<T>,
-        band: Band,
-    ) -> Result<(), RayFault<RegionRefusal>> {
+    fn along(&self, edge: &Edge<T>, leg: &Leg<T>, band: Band) -> Result<(), Fault> {
         let mut behind = 0;
         let mut past = 0;
         for t in [edge.t0, edge.t1] {

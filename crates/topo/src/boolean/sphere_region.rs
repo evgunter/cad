@@ -97,8 +97,8 @@ use super::circle_roots::{
     FirstHarmonic, FirstHarmonicRoots, FirstHarmonicRows, first_harmonic_roots_in_band,
 };
 use super::region::{
-    self, EdgeCarrier, Hit, Region, RegionEdge, RegionRefusal, Scaffolding, circle_edge_hit,
-    in_band, side_at_closest, span, targets,
+    self, EdgeCarrier, Fault, Hit, Region, RegionEdge, RegionRefusal, Scaffolding, circle_edge_hit,
+    in_band, side_at_closest, span, targets, turn,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -275,7 +275,7 @@ impl<T: Decide> SphereFaceRegion<T> {
 
     /// The ray from `a` along the unit tangent `t` (module docs): whether
     /// `p` is in the face.
-    fn ray(&self, a: Vec3<T>, t: Vec3<T>, band: Band) -> Result<bool, RayFault<RegionRefusal>> {
+    fn ray(&self, a: Vec3<T>, t: Vec3<T>, band: Band) -> Result<bool, Fault> {
         let r = self.radius;
         let g = a.cross(t);
         let mut crossings = Crossings::new();
@@ -306,7 +306,7 @@ impl<T: Decide> SphereFaceRegion<T> {
                 let s = y.dot(t).atan2(y.dot(a));
                 ray_walk::apart("bool_sphere_region_at", Margin::of((r * s).abs()), band)
                     .map_err(|f| f.map(RegionRefusal::Escalated))?;
-                let s = (T::zero() - s).select_le_zero(s, s + T::tau());
+                let s = turn(s);
                 let y = y / y.norm();
                 let outward = geom_brep::OutwardNormal::from_chart(y, self.sense).vec();
                 let hit = Hit {
