@@ -247,3 +247,12 @@ This was not a crossover, because only one designer moved, so reconciliation end
   - the residual skeleton duplication (the sphere ray, `Legs` under `Paths`, the circle-leg place written three times, the two `along`s, three restricted-curve spellings) filed as one P1 row.
 - 2026-10-24 — **PR 5671 merged** (`702feaba18`). The region doors share one skeleton in `region.rs`.
 - 2026-10-24 — I pushed `f5a9002319` with conflict markers in this item file: I committed during a merge that had not finished. Fixed in the next commit. From now on the rule INTENT logged applies here too: `git merge --no-commit`, grep for markers, then commit.
+- 2026-10-24 — **PR 5673 dual delivered** (R2 at 17:22Z, R1 at 19:04Z). Both say APPROVE-WITH-FIXES with no MAJOR, about 350k decided cells and 0 contradictions. The UNION fix list went to the lane:
+  - kill the ellipse and spline-ball mutants with fixtures;
+  - one reading for the line, mid-param, ellipse-arc, arc-guard and edge-vs-ball questions (`carrier_touch` has a drifted copy);
+  - the vacuous `windows().1`;
+  - anti-vacuity floors;
+  - links and stale prose;
+  - K names (`chart_bound_joint_room`, the pooled `cell_region_gap`);
+  - the apex premise made structural;
+  - the item scope stated honestly.
