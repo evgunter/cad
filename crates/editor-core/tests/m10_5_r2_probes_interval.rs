@@ -691,22 +691,24 @@ fn a_violation_witness_cannot_land_where_the_face_is_not() {
     assert!(
         r.splits > 0 && r.discharged > r.outside,
         "the notch cells were proven empty of face and the REST was subdivided and \
-         discharged at the funnel — a description that dropped everything would report \
+         discharged at the funnel — a drop rule that dropped everything would report \
          splits = 0 and discharged == outside: {}",
         report.serialize()
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (6, 18, 12, 6),
-        "the measured receipt, pinned so a description that drops more or fewer cells \
-         than the notch's says so: {}",
+        (6, 30, 24, 18),
+        "the measured receipt, pinned so a drop rule that drops more or fewer cells than \
+         the notch's says so. RE-BASELINED from (6, 18, 12, 6) when cells came to be \
+         decided off the face's edges in model space: a notch cell drops once the ball \
+         about its centre clears the L's edges, which takes a split more than the \
+         rectangle did: {}",
         report.serialize()
     );
     assert_eq!(
         report.windows().1,
         0,
-        "every window in this query is a planar one the description covers, so none is \
-         left loose: {}",
+        "every window of the bound question is decided cell by cell: {}",
         report.serialize()
     );
 }
