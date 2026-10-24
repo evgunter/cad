@@ -808,3 +808,11 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - **D′3 row content.** Arm concurrent, letter H, dispatched together at 00:59Z. R1's report is 3/6/5; R2's is 3/3/5. The coder found 15 bilateral; unilateral A: m4, m5, m6, doc and dead arms; unilateral B: n4, s6, s7, the roots doc. Fair: one brief file modulo the lane label, no glimpses, neither interrupted.
   - **Teapot 1e-12 red on main:** fixed by ISO's #5642.
   - **Filed:** ciw `a-diff-that-moves-corpus-ids-runs-none-of-the-slow-set-id-pins` (#5643), the third instance in two days.
+- 2026-10-24 — **The antipode fork closes on Ev's F** (PR 5621, "F makes sense if it's reasonable"; merged). `[placement.values]` now reads:
+  - a written orientation beside a direction-fixing mate;
+  - slides carried by the least turn;
+  - the spin as the residual;
+  - one pole refusing;
+  - `Flip` kept.
+
+  Row 192: match is round 2's D. Designers archived. The implementation `the-value-chart-reads-a-written-orientation` (P1) is dispatched to `session_01ReeWyLMjbS8q7pwdH5Tpwo` on `intent/value-chart-orientation`. Tier: dual (letter M, arm byte at review). Briefed to run the whole slow set before green. `flag-and-pivot-pose-kinds` waits on it.
