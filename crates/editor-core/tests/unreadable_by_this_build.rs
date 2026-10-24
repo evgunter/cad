@@ -312,3 +312,14 @@ fn a_document_from_before_the_extrude_side_refuses_unreadable() {
     );
     assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
 }
+
+/// R2 probe (review of PR 5637): base's committed `die_tool.pncad`, whose
+/// mate writes `"class": "rest"`, loaded by this build.
+#[test]
+fn r2_probe_an_old_mate_wire_refuses_typed() {
+    let text = std::fs::read_to_string("/home/user/r2-logs/old_die_tool.pncad").unwrap();
+    match load(&text, Tol::witness()) {
+        Ok(_) => panic!("R2: an old mate wire with `class` LOADED"),
+        Err(e) => eprintln!("R2 refusal: {e:?}\nR2 said: {e}"),
+    }
+}

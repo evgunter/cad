@@ -1450,3 +1450,90 @@ fn a_mate_proves_its_faces_only_in_the_sense_it_states() {
         "the mate does not prove its caps on the same side"
     );
 }
+
+/// R2 probe (review of PR 5637): every seat offset's rows, their door
+/// proofs, the checks and the gate, printed.
+#[test]
+fn r2_probe_rows_proofs_and_findings_by_seat() {
+    let flip_off = |m: &mut Mate<Formula>| {
+        if let Operand::Pose(p) = &m.to {
+            if let PoseDef::Flip { pose } = &**p {
+                m.to = pose.read.clone();
+            }
+        }
+    };
+    let cases: Vec<(&str, [f64; 3], bool)> = vec![
+        ("flush", [0.0, 0.0, 1.0], false),
+        ("half", [0.5, 0.5, 1.0], false),
+        ("edge", [1.0, 0.0, 1.0], false),
+        ("corner", [1.0, 1.0, 1.0], false),
+        ("clear", [3.0, 0.0, 1.0], false),
+        ("standoff", [0.0, 0.0, 1.5], false),
+        ("wrong-flush", [0.0, 0.0, 1.0], true),
+        ("wrong-half", [0.5, 0.5, 1.0], true),
+        ("wrong-edge", [1.0, 0.0, 1.0], true),
+    ];
+    for (label, origin, wrong) in cases {
+        let (doc, ids, _mate, store, _) = stacked_as(&format!("r2-{label}"), origin, |m| {
+            if wrong {
+                flip_off(m)
+            }
+        });
+        let o = with_resolver(store);
+        let ev = run(&doc, &o);
+        let product = match product_recorded(&doc, &ev, Tol::witness()) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("R2 {label}: gather refused: {e}");
+                continue;
+            }
+        };
+        let rows: Vec<_> = product.coincidences.iter().map(|r| r.row.clone()).collect();
+        let proofs = editor_core::coincide::prove(
+            &doc,
+            &[(ids[1], &rows[..])],
+            ev.resolver(),
+            Tol::witness(),
+            &editor_core::CancelToken::new(),
+        )
+        .expect("not canceled");
+        eprintln!(
+            "R2 {label}: rows {} records {} census {}",
+            rows.len(),
+            product.contacts.rows().len(),
+            product.census.len()
+        );
+        for (r, p) in rows.iter().zip(&proofs[0]) {
+            let kinds: Vec<_> = r
+                .cells
+                .iter()
+                .map(|c| match c {
+                    editor_core::NamedCell::Entity { name, .. } => format!("{:?}", name.kind),
+                    _ => "other".into(),
+                })
+                .collect();
+            eprintln!("R2   row {:?} {:?} -> {:?}", r.relation, kinds, p);
+        }
+        for c in &product.census {
+            eprintln!("R2   census {c}");
+        }
+        let report = editor_core::run_checks(
+            &doc,
+            &ev,
+            &editor_core::ChecksConfig::default(),
+            Tol::witness(),
+        )
+        .expect("checks run");
+        for f in &report.findings {
+            eprintln!("R2   finding {:?}", f.check);
+        }
+        match assemble(&doc, &ev, Tol::witness()) {
+            Ok(a) => eprintln!(
+                "R2   assembled; interference {} contacts {}",
+                a.interference.len(),
+                a.contacts.rows().len()
+            ),
+            Err(e) => eprintln!("R2   refused: {e}"),
+        }
+    }
+}
