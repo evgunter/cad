@@ -21,7 +21,7 @@ A rim edge of an n-gon prism lies on a cap with n boundary points, and
 there are 2n rim edges, so the call costs O(n²) for that fold alone:
 callgrind, release, `ngon_prism_offset_scaling` at n = 64 / 256 / 1024,
 about 0.9 G of the door's 1.8 G instructions, and the reason the door
-is 1.0 / 6.5 / 56 ms rather than linear.
+is 1.15 / 6.0 / 49 ms rather than linear.
 
 The fold is exact and order-free (a max), so a bound that answers in
 less than O(boundary) per edge has to give the same number, or the
