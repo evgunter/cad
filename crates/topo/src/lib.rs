@@ -328,7 +328,7 @@ pub mod test_support {
     /// # Errors
     ///
     /// As [`crate::mass_properties`].
-    pub use crate::props::raw_door::measure_body as measure_unvalidated;
+    #[track_caller] pub fn measure_unvalidated<T: geom_core::Decide + geom_core::CertifiedBounds + crate::AtRestPolicy>(body: &crate::Body<T>, tol: geom_core::Tol) -> Result<crate::MassProperties<T>, crate::MassPropsError> { rawlog(body, tol, "measure"); crate::props::raw_door::measure_body(body, tol) }
 
     /// **The raw classification door**: [`crate::classify_shells`] over a
     /// body that has not passed tier 3, as [`measure_unvalidated`] is to
@@ -337,7 +337,7 @@ pub mod test_support {
     /// # Errors
     ///
     /// As [`crate::classify_shells`].
-    pub use crate::props::raw_door::classify_body as classify_unvalidated;
+    #[track_caller] pub fn classify_unvalidated<T: geom_core::Decide + geom_core::CertifiedBounds + crate::AtRestPolicy>(body: &crate::Body<T>, tol: geom_core::Tol) -> Result<Vec<crate::ShellClassification<T>>, crate::ShellClassifyError> { rawlog(body, tol, "classify"); crate::props::raw_door::classify_body(body, tol) }
 
     /// **The raw closed-form measurement door**:
     /// [`crate::mass_properties_structural`] over a body that has not
@@ -347,7 +347,7 @@ pub mod test_support {
     /// # Errors
     ///
     /// As [`crate::mass_properties_structural`].
-    pub use crate::props::raw_door::measure_body_structural as measure_unvalidated_structural;
+    #[track_caller] pub fn measure_unvalidated_structural<T: geom_core::Decide + crate::AtRestPolicy>(body: &crate::Body<T>, tol: geom_core::Tol) -> Result<crate::MassProperties<T>, crate::MassPropsError> { rawlog(body, tol, "measure_s"); crate::props::raw_door::measure_body_structural(body, tol) }
 
     /// **The raw closed-form classification door**:
     /// [`crate::classify_shells_structural`] over a body that has not
@@ -356,7 +356,7 @@ pub mod test_support {
     /// # Errors
     ///
     /// As [`crate::classify_shells_structural`].
-    pub use crate::props::raw_door::classify_body_structural as classify_unvalidated_structural;
+    #[track_caller] pub fn classify_unvalidated_structural<T: geom_core::Decide + crate::AtRestPolicy>(body: &crate::Body<T>, tol: geom_core::Tol) -> Result<Vec<crate::ShellClassification<T>>, crate::ShellClassifyError> { rawlog(body, tol, "classify_s"); crate::props::raw_door::classify_body_structural(body, tol) }
 
     /// **The raw restricted classification door**:
     /// [`crate::classify_shells_of`] over a body that has not passed
@@ -365,7 +365,20 @@ pub mod test_support {
     /// # Errors
     ///
     /// As [`crate::classify_shells_of`].
-    pub use crate::props::raw_door::classify_body_of as classify_unvalidated_of;
+    #[track_caller] pub fn classify_unvalidated_of<T: geom_core::Decide + geom_core::CertifiedBounds + crate::AtRestPolicy>(body: &crate::Body<T>, shells: &[crate::ShellKey], tol: geom_core::Tol) -> Result<Vec<crate::ShellClassification<T>>, crate::ShellClassifyError> { rawlog(body, tol, "classify_of"); crate::props::raw_door::classify_body_of(body, shells, tol) }
+    #[track_caller]
+    #[allow(clippy::all)]
+    fn rawlog<T: crate::AtRestPolicy>(body: &crate::Body<T>, tol: geom_core::Tol, door: &str) {
+        let Some(path) = std::env::var_os("CAD_RAWDOOR_LOG") else { return };
+        let loc = core::panic::Location::caller();
+        let b = body.clone();
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| T::gate_at_rest_kept(b, tol).map(|_| ()).map_err(|e| format!("{:?}", e.iter().map(|x| { let s = format!("{x:?}"); s.split(|c: char| !c.is_alphanumeric()).next().unwrap_or("").to_string() }).collect::<Vec<_>>()))));
+        let v = match r { Ok(Ok(())) => "PASS".to_string(), Ok(Err(e)) => format!("REFUSE {e}"), Err(_) => "PANIC".to_string() };
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let _ = writeln!(f, "{}:{} {} {} {}", loc.file(), loc.line(), door, core::any::type_name::<T>(), v);
+        }
+    }
 
     /// Every shell's stored face list rotated left by `k` (modulo its
     /// length): the same solid stored in another face order, which the

@@ -445,6 +445,7 @@ fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
         Ok(m) => Ok((m.volume, m.surface_area, m.volume_pad, m.area_pad)),
         Err(e) => Err(format!("{e}")),
     };
+    eprintln!("OFFC-PROBE {:?} {:?}", read(&body), read(&moved));
     match (read(&body), read(&moved)) {
         (Ok((v0, a0, vp0, ap0)), Ok((v1, a1, vp1, ap1))) => {
             // The invariance row, if the lane ever answers here: the

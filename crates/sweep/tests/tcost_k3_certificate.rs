@@ -286,7 +286,9 @@ fn the_gates_certificate_is_the_measurement_and_costs_one_quadrature() {
     let body = topo::test_support::finished("body", prism(), tol);
 
     let mut measured = None;
-    let one = quad_verdicts(|| measured = Some(topo::mass_properties(&body, tol)));
+    let one = if std::env::var("PROBE_MODE").as_deref() == Ok("inside") {
+        quad_verdicts(|| measured = Some(topo::mass_properties(&topo::test_support::finished("b", topo::Body::clone(&body), tol), tol)))
+    } else { quad_verdicts(|| measured = Some(topo::mass_properties(&body, tol))) };
     let measured = measured.expect("the closure ran").expect(
         "IDENTITY: the fixture is scaled to 1e5·ε so that it certifies at EVERY ε row — \
          a refusal here is a moved schedule or a moved fixture, not an ε this row may \

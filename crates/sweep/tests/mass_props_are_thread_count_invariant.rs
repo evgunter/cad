@@ -294,15 +294,20 @@ fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receip
                 // counts are taken, so its receipt is the door's own, off the
                 // end. The validation door reads the body as built: a gate run
                 // first would freeze the forms its own receipt counts.
-                let finished = (door == "mass_properties").then(|| {
+                let mode = std::env::var("PROBE_MODE").unwrap_or_default();
+                let finished = (door == "mass_properties" || mode == "both").then(|| {
                     topo::test_support::finished("the built body", body.clone(), Tol::witness())
                 });
                 let built = geom_core::sym::session_counts().expect("a session is installed");
                 geom_core::sym::report::start_shape_report();
-                let refused = match &finished {
-                    Some(finished) => topo::mass_properties(finished, Tol::witness()).is_err(),
+                let refused = if mode == "inside" && door == "mass_properties" {
+                    let f = topo::test_support::finished("the built body", body.clone(), Tol::witness());
+                    topo::mass_properties(&f, Tol::witness()).is_err()
+                } else { match &finished {
+                    Some(finished) if door == "mass_properties" => topo::mass_properties(finished, Tol::witness()).is_err(),
+                    Some(finished) => topo::validate_geometric(finished, Tol::witness()).is_err(),
                     None => topo::validate_geometric(&body, Tol::witness()).is_err(),
-                };
+                } };
                 (refused, built)
             });
             let shapes = geom_core::sym::report::take_shape_report().len();
