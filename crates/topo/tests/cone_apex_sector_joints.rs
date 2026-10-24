@@ -232,8 +232,8 @@ fn truncated<T: Real + AtRestPolicy>(alpha: f64, inner: f64) -> Result<Body<T>, 
     Ok(body)
 }
 
-/// **Near a narrow cone's apex, the face description refuses before it
-/// reads a winding it cannot trust.** On a cone of half-angle 0.1 a
+/// **Near a narrow cone's apex, the loop windings refuse before they
+/// read a winding they cannot trust.** On a cone of half-angle 0.1 a
 /// sector's inner rim at `1.1·K·ε` from the axis (a radius the rim's own
 /// certificate decides) is ten times that off the apex (`singular_at`
 /// reads `Off`), and the walk decides its joints there: the half-period
@@ -241,9 +241,9 @@ fn truncated<T: Real + AtRestPolicy>(alpha: f64, inner: f64) -> Result<Body<T>, 
 /// chord two of the joint's chart ends would span half a period apart,
 /// `2·(1.1·K·ε − 2ε)`, is not past four times the band's escalation, so
 /// the room is not shown past the joint bound, and a mark there may have
-/// named another period, and `chart_boundary` refuses for want of room
+/// named another period, and `loop_windings` refuses for want of room
 /// rather than read the loop's winding. At `3·K·ε` the room is past it
-/// and the sector describes. The body reads clean at rest in both.
+/// and the sector's windings read. The body reads clean at rest in both.
 fn near_the_apex<T: Real + AtRestPolicy>(lane: &str) {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
@@ -258,7 +258,7 @@ fn near_the_apex<T: Real + AtRestPolicy>(lane: &str) {
         );
         for (face, record) in body.faces() {
             let chart = body.get_surface(record.surface).unwrap().clone();
-            let read = topo::pcurves::chart_boundary(&body, face, &chart, band);
+            let read = topo::pcurves::loop_windings(&body, face, &chart, band);
             let refused = matches!(read, Err(topo::PcurveMintError::JointWithoutRoom { .. }));
             assert_eq!(
                 refused,
@@ -271,7 +271,7 @@ fn near_the_apex<T: Real + AtRestPolicy>(lane: &str) {
 }
 
 #[test]
-fn near_a_narrow_apex_the_description_refuses_before_the_winding() {
+fn near_a_narrow_apex_the_windings_refuse_before_the_winding() {
     near_the_apex::<f64>("f64");
     near_the_apex::<geom_core::Interval>("Interval");
 }

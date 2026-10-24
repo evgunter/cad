@@ -157,8 +157,8 @@
 //!   L1 on its own: `F` surrounds its lone vertex on every side, so the
 //!   vertex is a relative boundary point of `γ ∩ F ∩ G` only where it
 //!   also lies on `∂G`, whose edges the sweep does examine; and
-//!   `chart_boundary` reads the face's region as its cycles bound it, so
-//!   W2 covers the vertex too. What the sweep cannot see is a component
+//!   W2 reads the face's region as its cycles bound it, so it covers
+//!   the vertex too. What the sweep cannot see is a component
 //!   in `F ∩ G` whose only boundary point is the lone vertex. That is an
 //!   interior loop to every witness here except that it touches a
 //!   vertex; the no-event decision would refuse it anyway, but nothing

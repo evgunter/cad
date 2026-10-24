@@ -594,7 +594,7 @@ which is what actually moves the number.
 | merge_faces.rs:924 | bool_ring_run_winding | (n̂ · Newell sum) / loop perimeter | m | FIXED (F4) |
 | pcurves.rs (`spline_gap_closes`: `chart_u_arm`, `v_meter`) | pcurve_loop_continuity | a SPLINE chart's (`Nurbs`/`Approx`) joint gap, on the sheet lifted by the joint's `u` and `v` periods where the net closes in each: Δu × `chart_u_arm` and Δv × `v_meter`, `geom_brep::chart_stretch_sup`'s `(sup \|S_u\|, sup \|S_v\|)`, the chart's own metre stretch | m | OK (`metered_sup` door: an escape metred through a certified upper bound can only refuse) |
 | pcurves.rs (`near_pole_gap_closes`: `joint_arm`) | pcurve_loop_pole_gap | at a joint whose orbit marks missed (undecided, or the gap on one) at a band-sized lever (`lever_periods`; a vertex near a pole, or off a narrow cone's apex by more than the band with its lever `|p − apex|·sin α` under it): (gap − m·step) × the vertex's own distance from the axis, for the offsets m of the joint's `Orbit` (`Periods`: 0, ±1 whole periods; `HalfPeriodsWithTwin` where the image has a sphere twin: 0, ±1, ±2 half periods), then the two branches astride the mark the marks' walk stopped on (`Period::decide`), each a lift of the one point. Zero takes m; an offset in band, where none closes, escalates over the marks' decided on-mark miss | m | OK (`metered_sup` door; the rate is the vertex's own distance from the axis, exact there, so an escape it admits is ≤ ε in metres at that vertex) |
-| pcurves.rs (`joint_has_room`: `axis_distance`) | chart_bound_joint_room | `chart_boundary`'s room fence, per joint off the singular set: a quarter of the chord two of the joint's chart ends would span half the orbit's step apart, `sin(step/4)/2` (`sin(π/4)/2` on a sphere, `1/2` on a cylinder, cone or torus) × the ends' least distance from the axis, `d − 2ε` at the vertex's own `d` | m | OK (levered door). It is an escape claim on the conservative side: only a definite `Positive` admits, so the chord `2·(d − 2ε)·sin(step/4)` is past four times the band's escalation, `4·K·ε > 4ε`, the joint bound, at every `K > 1`: no two chart ends of the joint lie half a step apart, and the decided integer is the joint's own. A spline chart is exempt: its joints decided their lifted chart-space gap |
+| pcurves.rs (`joint_has_room`: `axis_distance`) | loop_windings_joint_room | `loop_windings`' room fence, per joint off the singular set: a quarter of the chord two of the joint's chart ends would span half the orbit's step apart, `sin(step/4)/2` (`sin(π/4)/2` on a sphere, `1/2` on a cylinder, cone or torus) × the ends' least distance from the axis, `d − 2ε` at the vertex's own `d` | m | OK (levered door). It is an escape claim on the conservative side: only a definite `Positive` admits, so the chord `2·(d − 2ε)·sin(step/4)` is past four times the band's escalation, `4·K·ε > 4ε`, the joint bound, at every `K > 1`: no two chart ends of the joint lie half a step apart, and the decided integer is the joint's own. A spline chart is exempt: its joints decided their lifted chart-space gap |
 | pcurves.rs (`turn_element`) | pcurve_turn_closes | a killed half's two vertex points' 3-D distance: whether its carrier is closed, so the kill crosses it by a turn | m | OK (`Margin::of` a distance; only a decided `Zero` reads the ends as one point, and the turn is then decided at that point by the walk's own joint decision, which takes the coincidence as given) |
 | pcurves.rs (`decide_joint`: `joint_arm`) | pcurve_loop_branch | (gap − (m+½)·step) × the joint vertex's distance from the chart axis (analytic; `step` the orbit's: half a period on a sphere, whose twin sits half a period over, a whole one elsewhere) or `chart_u_arm` (spline); the second channel where the chart closes in it: (gap − (k+½)·τ) × its polar radius on a sphere or torus, (gap − (k+½)·p_v) × `v_meter` (the net's `sup \|S_v\|`) on a net closed in `v`, `p_v` its knot domain's length | m | OK (`metered_sup` door, both channels: the analytic charts' exact vertex lever and polar radius serve as both members of the pair, a net's stretch as its sup). NOT by the escape argument: a mark decision is not an escape claim, and a larger arm decides marks more readily. It is sound because the arm is positive, so a decided sign is the sign of `gap − mark` itself, and the cell between two decided marks holds exactly one orbit point; the arm's size only sets how near a mark a gap may sit and still decide. Where the margin `step/2 × lever` exceeds the joint bound (the chart ends `≤ 4ε` apart in metres, `decide_joint`'s docs), the decided integer is the joint's true deck element. It does not everywhere the incidence reads `Off`: `Off` only puts the vertex `K·ε` from the singular set, so near a pole at a small `K` the lever is about `K·ε`, and near a narrow cone's apex it is `p·sin α`, small even at `K = 10`. There a mark may decide a different orbit point, but only one equally near the joint; every orbit point lifts the same 3-D point, so the lift stays continuous in metres to the joint bound. Where a mark misses there, the near-pole read (`pcurve_loop_pole_gap`) tries the orbit's offsets about the image and the two branches astride the mark the walk stopped on, and takes one the gap meets within ε at the lever; one in band escalates; only a gap decided off every offset it tries refuses (on a mark): with both branches astride the mark decided off, `π·lever ≥ escalate` and every other orbit point is at least `3π·lever − ε` off, so none is within the band, at any `K > 1`. No decided integer names a different point |
 | pcurves.rs | pcurve_loop_pole_joint | the joint vertex's distance to the chart's singular set (a sphere's nearer pole, a cone's apex), or a spline net's `u` reach (`net_reach`): its `u` knot domain's length × `sup \|S_u\|` (`Margin::metered_sup`), the metres a whole `u` sweep moves a point at most; the stretch alone is a rate (m per parameter unit) and is not compared with the band | m | OK |
@@ -694,12 +694,11 @@ which is what actually moves the number.
 | chart_region.rs (M9-2) | chart_region_orientation / chart_region_area | signed loop shoelace 2A (m²) / perimeter — the loop's (resp. intersection region's) mean width, through the same `Margin::over_lever` door as `split_section_area` two dimensions up (separate accumulators — the reasons are at `chart_region.rs`'s area margin) | m | OK (new in M9-2) |
 | chart_region.rs | chart_region_arm_inf | a chart lever arm — metres per chart unit, gated as a length (the collapsed-arm idiom, `pcurve_interval_meter`'s shape) | m | OK. The arm is a certified LOWER stretch bound (`certified_arms`), which is the side a positive-extent claim needs: an over-stated arm would inflate the metred region and certify a sliver, so the sup bounds (`geom_brep::chart_stretch_sup`) are deliberately not reachable from this lane. Definite-positive walks on; a collapsed arm is `ArmUnbounded`; an in-band arm escalates |
 | chart_region.rs (M9-2) | chart_region_seam_span | azimuth-span excess over one period (rad) × the chart's azimuth arm r | m | OK (new in M9-2) |
-| chart_bound.rs (TRIM-3) | chart_bound_gap | the separating-axis gap between a metred cell and a boundary edge, five axes under one name: the cell's four side axes take a coordinate difference of METRED chart quantities (`Margin::of`), and the segment's own normal axis takes the corner's signed offset `n·(c−A)` — an area (m²) — over `|n|`, the perpendicular distance the corner stands off the segment's line (`Margin::over_lever`) | m | OK (new in TRIM-3). One name, one population by construction: the five axes ask the same question (metres of clear space between a cell and one edge) and a positive on ANY of them separates, so splitting them would meter one decision as five |
-| chart_bound.rs (TRIM-3) | chart_bound_outer_span | the outer loop's own chart `u`-extent minus the chart's period — a chart-unit quantity (radians on an azimuth chart, knot units on a spline chart) through a sup of the chart's FIRST-channel rate over the outer's window (`geom_brep::chart_sup_arms_at`, `Margin::metered_sup`), so the margin is the metre excess by which the face wraps its own chart | m | OK (new in TRIM-3). Refusal-only and one-sided: a DEFINITE positive refuses the description (`OuterSpansPeriod`), and so does a poisoned margin (`OuterSpanPoisoned`), because a description licenses W2's premise at every scalar (the boolean's `ChartCache::describes`). `Zero` and in-band let it stand, and an over-stated rate can only refuse. The extent is the outer loop's `hull`, read off each envelope's `reach` (its pcurve's `chart_box`) and never its stored `image`, so the margin is a number at every scalar |
-| ray_walk.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_segment | a metred chord's own length — the degeneracy gate, through the `Margin::norm2` door | m | OK (new in TRIM-3) |
-| ray_walk.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_boundary | the cell centre's distance to a closed metred chord — perpendicular at an interior foot, endpoint otherwise | m | OK (new in TRIM-3) |
-| ray_walk.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_side | a polygon vertex's signed offset from the ray line, in metred chart coordinates | m | OK (new in TRIM-3) |
-| ray_walk.rs (via `chart_bound.rs`'s `ROWS`) | chart_bound_advance | a straddling chord's crossing advance along the ray: a 2×2 determinant (m²) over the straddle height (m) | m | OK (new in TRIM-3) |
+| cell_region.rs (CHART) | cell_region_vertex_gap | the distance from the station to one vertex of the face, less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
+| cell_region.rs (CHART) | cell_region_segment_gap | the distance from the station to a line edge's closed segment (`sector_shape::point_segment_distance`), less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
+| cell_region.rs (CHART) | cell_region_conic_gap | a lower bound on the distance from the station to a circular or elliptic edge: its whole annulus between the semi-axes, then its arc's floor (`ring_path::Conic::distance_floor`), each asked under this name, either clearing, less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
+| cell_region.rs (CHART) | cell_region_ball_gap | the distance from the station to the ball a spiric or spline edge's arc lies in (`splitting::containment::carrier_ball`), less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
+| cell_region.rs (CHART) | cell_region_singular_gap | the distance from the station to the carrier's singular set: a cone's apex, a torus's axis, less the radius of the ball about the cell's centre station that holds the cell's patch enclosure | m | OK (new in CHART). Only a definite `Positive` clears; `Zero`, in-band and poison keep the cell |
 | census.rs (M9-2 PR-2 fix pass) | census_backstop_gap | per-axis gap between two faces' SOUND reach boxes (plane hull ⊕ boundary-arc radius; cylinder axial span ⊕ radius; sphere ball — coordinate differences and radii, metres); only a DEFINITE positive clears the pair | m | OK (new in the union fix; boxes tightened to the face_box construction in the delta) |
 | census/depth_gap.rs (RESTREAD) | census_backstop_depth_gap | one face's least depth (distance from an axis line, a centre or a circle) less the other's greatest, less both faces' pads: closed-form norms and radii of the faces' covering rings and segments (metres); only a DEFINITE positive clears the pair | m | OK (new) |
 | census/depth_gap.rs (RESTREAD) | census_backstop_depth_foot | the depth's least point on a planar face's plane (an axis's pierce, a centre's foot) against the plane, `(q − o)·n̂`, the point placement's on-plane read before it places the point; only a placement `Out` gives the face a least depth | m | OK (new) |
@@ -1126,52 +1125,12 @@ Flagged, NOT fixed here (dispositions):
   records no `expr_non_finite` K sample.
 
 - **F19** (added by TRIM-3, the chart-boundary outside test)
-  `topo/src/chart_bound.rs` `certifies_outside` and `assembled`: the
-  six rows above.
-  Every comparand is metres by construction, because the value they
-  decide on is a `MetredBound` — the description scaled by the chart's
-  arms (plane `(1, 1)`, cylinder `(r, 1)`, both exact) BEFORE any
-  predicate runs, so no chart-space quantity ever reaches the funnel.
-  Honest metres throughout, so **no site is flagged** and
-  `LEDGER_FLAGGED_SITES` does not move; this row is the disposition,
-  written here because the five names are new in the K roster and a
-  reader asking "what dimension is a chart-boundary cell margin"
-  should find the answer in the ledger.
 
-  **The claim has a guard, which is what a construction-based claim
-  owes.** "Metres by construction" rested on `metred` running before
-  any predicate and on `Margin::over_lever(n·(c−A), |n|)` dividing the
-  segment-normal area by the normal's length. The second half is the
-  fragile one: replacing that door with `Margin::of` decides a signed
-  AREA against the linear band and changes no verdict on any short
-  edge, so nothing stood against it. `t10_a_long_edge_guards_the_dimensional_claim`
-  is what does — a 10³ m edge and a gap of half the
-  coincidence threshold, where the honest margin is `ε/2` and the area
-  is `500·ε`, so the two doors disagree about dropping a cell that
-  meets the boundary.
-
-  Two readings of a definite `Sign::Zero` are deliberately the SAME
-  here, which is why the six names are not six questions but two.
-  `chart_bound_gap` and the four parity rows all read `Zero` as *not
-  certified* — the cell is kept — and that is the invariant
-  `certifies_outside` states: a drop needs a definite sign at `≥ K·ε`,
-  so `Zero`, an in-band margin and poison are one outcome. There is
-  therefore no strict/non-strict split of the F17 kind to name, and
-  the names exist only to keep their populations (a cell-to-edge gap,
-  a chord length, a point-to-chord distance, a side offset, a crossing
-  advance, and — asked once per description rather than once per cell
-  — an outer loop's period excess) from pooling.
-
-  **No `pcurves.rs` row takes a second call site under this unit.**
-  `chart_boundary` excludes the closure the walk's `±1` winding
-  deliberately admits by reading the walk's own joint elements: their
-  composition once around must be the identity (`Winding::is_zero`),
-  an integer comparison that decides nothing. Its singular fence is the
-  walk's `pcurve_loop_pole_joint` row, asked of every joint's vertex
-  again, and its room fence is the one new row,
-  `chart_bound_joint_room`, which keeps that integer comparison off the
-  joints whose integer was decided with too little room to be the
-  joint's own.
+  **Retired (2026-10-24, `clearance-cells-are-decided-in-model-space`).**
+  `topo/src/chart_bound.rs` left the tree with its six rows: a cell is
+  decided off its face's edges in model space (the `cell_region_*` rows above), so no chart quantity is metred and no
+  chord polygon is walked. `loop_windings_joint_room` stays, as the room
+  fence of `pcurves::loop_windings`.
 
 - **F20** (added by PCERT's incidence-and-fidelity unit, PR 3812)
   `geom-brep/src/pcurve_cache.rs` `schedule_residuals` under

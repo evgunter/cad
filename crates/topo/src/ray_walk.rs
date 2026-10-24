@@ -34,9 +34,8 @@
 //!   count proper crossings of a closed planar boundary; odd ⇒ inside.
 //!   Orientation-blind, which the chord join's ring re-homing and
 //!   validation's ring nesting rely on. Served to a planar loop in
-//!   3-space (`splitting::containment`), a chart-space polygon
-//!   (`chart_region`) and a chart polygon under its own rows
-//!   (`chart_bound`).
+//!   3-space (`splitting::containment`) and a chart-space polygon
+//!   (`chart_region`).
 //! - **The closest crossing** ([`Crossings`], [`advance`]): keep the
 //!   crossing nearest `q` and read the material side from the ray's
 //!   heading there — the 3-D sweep (`boolean::solid_contain`) and a

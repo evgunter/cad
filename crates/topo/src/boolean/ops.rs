@@ -1474,8 +1474,7 @@ enum WalkRefusal {
     /// A numerical or unbuilt refusal: W2 reads nothing of the face.
     Unread,
     /// A refusal [`crate::pcurves::loop_windings`] never returns: only
-    /// the chart description ([`crate::pcurves::chart_boundary`]) or the
-    /// at-rest pass raises it.
+    /// the at-rest pass raises it.
     NotRaised,
 }
 
@@ -1500,14 +1499,8 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         M::Escalated { .. }
         | M::NetStretchUndecided { .. }
         | M::JointWithoutRoom { .. }
-        | M::UncertifiedImage { .. }
         | M::Band(_) => WalkRefusal::Unread,
-        M::EmptyOuter { .. }
-        | M::SingularChartJoint { .. }
-        | M::OuterSpansPeriod
-        | M::OuterSpanPoisoned { .. }
-        | M::LoopWraps { .. }
-        | M::Unminted { .. } => WalkRefusal::NotRaised,
+        M::Unminted { .. } => WalkRefusal::NotRaised,
         M::Certify { error, .. } => match error {
             C::PlaceholderChart
             | C::CarrierOffChart { .. }

@@ -368,7 +368,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
         }
         if face_projected {
             let chart = f.body.get_surface(face.surface).unwrap().clone();
-            if let Err(e) = topo::pcurves::chart_boundary(&f.body, corner, &chart, band) {
+            if let Err(e) = topo::pcurves::loop_windings(&f.body, corner, &chart, band) {
                 assert!(
                     !matches!(e, topo::pcurves::PcurveMintError::Certify { .. }),
                     "corner face {corner:?}'s boundary refused at the derivation: {e:?}"
