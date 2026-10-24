@@ -4288,7 +4288,10 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v19: a value names no mate, and a spin's word is the
+            /// v20: a mate writes its orientation, by where the copy's
+            /// `x` and `z` lie, and a spin beside a mate fixing a
+            /// direction is its own word (`value_coord::SPIN`), the turn
+            /// about the mated direction. v19: a value names no mate, and a spin's word is the
             /// axis it turns about; a mate's `to` is a pose read, with
             /// no target word and no world read. v18: a placement reads the space it places into, which
             /// it does not key (its copy's value is its source moved by
@@ -4318,7 +4321,7 @@ mod tag {
             /// operation. v9: an extrude writes its side. v8: a mate
             /// frame writes its arm word before its payload, and a mate
             /// writes the parts its face frames resolve against.)
-            VERSION = 19,
+            VERSION = 20,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.

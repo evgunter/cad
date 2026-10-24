@@ -2375,8 +2375,11 @@ pub mod pr4;
 /// stood on a target's `z`**: its `x` kept, its `y` on `+z` (so its `z`
 /// on `−y`), a quarter turn about `x`.
 pub fn meridian_up() -> editor_core::Orientation {
-    editor_core::Orientation::new(editor_core::SignedAxis::PlusX, editor_core::SignedAxis::MinusY)
-        .expect("x and z lie along two axes")
+    editor_core::Orientation::new(
+        editor_core::SignedAxis::PlusX,
+        editor_core::SignedAxis::MinusY,
+    )
+    .expect("x and z lie along two axes")
 }
 
 /// **The witness tolerance a suite decides under** — `Tol::witness()`

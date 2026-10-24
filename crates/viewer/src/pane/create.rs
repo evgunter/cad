@@ -298,8 +298,7 @@ const MATE_NOUN: &str = "Mate";
 /// What the mate tool writes for a freedom left unticked: every bundle
 /// pins its copy, so an unset freedom is written where the copy stands,
 /// snapped onto the mate, never left free.
-pub(crate) const MATE_UNSET_SNAPS: &str =
-    "Every bundle pins its copy: a freedom left unticked is written where the copy stands, \
+pub(crate) const MATE_UNSET_SNAPS: &str = "Every bundle pins its copy: a freedom left unticked is written where the copy stands, \
      snapped onto the mate.";
 pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 

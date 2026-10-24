@@ -1774,7 +1774,8 @@ impl DocSession {
                         &opts,
                         tol,
                     );
-                    let before = pncad::document::SolvedPoses::of(run.doc(), &ev).relative(placement);
+                    let before =
+                        pncad::document::SolvedPoses::of(run.doc(), &ev).relative(placement);
                     // The door writes the bundle whole with the mate in it;
                     // the gesture then writes the orientation and the values
                     // that stand the copy where the snap puts it, so it moves

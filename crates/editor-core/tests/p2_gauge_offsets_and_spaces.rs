@@ -261,8 +261,10 @@ fn seat_rel(p: &Parts) -> M4 {
 
 /// **Where a copy seated on a placed base stands, by D′2's chart**
 /// (`docs/INTENT-STAGE3-SPEC.md` §5′.2), written out independently of
-/// the solve: the target space's axes swung onto the base's upper cap's
-/// normal `n = (a, b, c)` by the shortest turn, `x' = (1 − a²/(1 + c),
+/// the solve: the target space's axes carried by the least turn from
+/// the copy's mated `−z` onto the mated direction, the base's upper
+/// cap's normal `n = (a, b, c)` reversed — the turn of `z` onto `n`,
+/// `x' = (1 − a²/(1 + c),
 /// −ab/(1 + c), −a)` and `y' = n × x'`; the copy's own axes land on
 /// them (its start cap on the base's upper cap, no spin), its origin
 /// `at` along `x'` and `y'` from the space's origin and on the cap's
@@ -401,8 +403,8 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
             &of_frame(&gin_frame),
         );
         let w_base = mul(&g, &of_frame(&off_frame));
-        // Each seat's values chart on the world, swung onto the tilted
-        // cap: a seat does not ride with its base in the cap's plane.
+        // Each seat's values chart on the world, carried by the least
+        // turn onto the tilted cap: a seat does not ride with its base in the cap's plane.
         let w_moved = space_seat(&w_base, BASE_HEIGHT, [0.0, 0.0]);
         let w_top = space_seat(&w_base, BASE_HEIGHT, [1.0, 1.0]);
         (w_base, w_moved, w_top)

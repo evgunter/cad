@@ -1199,12 +1199,13 @@ fn a_mate_states_its_own_seat_and_no_other_row() {
         ("mate6-states-standoff", &standoff, Unreplayed::Numeric),
     ];
     for (label, writes, want) in cases {
-        let (doc, ids, mate) = stand_by(label, part, &store, [TargetAxis::X, TargetAxis::Y], |ids| {
-            writes(
-                in_part(ids[1], body, CapEnd::Start),
-                in_part(ids[0], body, CapEnd::End),
-            )
-        });
+        let (doc, ids, mate) =
+            stand_by(label, part, &store, [TargetAxis::X, TargetAxis::Y], |ids| {
+                writes(
+                    in_part(ids[1], body, CapEnd::Start),
+                    in_part(ids[0], body, CapEnd::End),
+                )
+            });
         let ev = run(&doc, &with_resolver(store.clone()));
         let row = at_rest_row(
             vec![
@@ -1487,22 +1488,23 @@ fn a_mates_wall_states_the_rim_on_it_and_a_standoff_states_nothing() {
     };
     for (label, stated) in [("mate6-wall-rest", true), ("mate6-wall-standoff", false)] {
         // The walls face `±x`, which the mate takes: the slides across it.
-        let (doc, ids, mate) = stand_by(label, part, &store, [TargetAxis::Y, TargetAxis::Z], |ids| {
-            let (on, to) = (
-                in_part_entity(ids[1], body, EntityKind::Face, west.clone()),
-                in_part_entity(ids[0], body, EntityKind::Face, east.clone()),
-            );
-            if stated {
-                fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
-            } else {
-                editor_core::Mate {
-                    on: fixture::plane(fixture::head(on)),
-                    to: standoff(to),
-                    class: ContactClass::Rest,
-                    orient: editor_core::Orientation::IDENTITY,
+        let (doc, ids, mate) =
+            stand_by(label, part, &store, [TargetAxis::Y, TargetAxis::Z], |ids| {
+                let (on, to) = (
+                    in_part_entity(ids[1], body, EntityKind::Face, west.clone()),
+                    in_part_entity(ids[0], body, EntityKind::Face, east.clone()),
+                );
+                if stated {
+                    fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
+                } else {
+                    editor_core::Mate {
+                        on: fixture::plane(fixture::head(on)),
+                        to: standoff(to),
+                        class: ContactClass::Rest,
+                        orient: editor_core::Orientation::IDENTITY,
+                    }
                 }
-            }
-        });
+            });
         let ev = run(&doc, &with_resolver(store.clone()));
         let cell = |instance: RecipeNodeId, kind, seg: RoleSeg| {
             let input = doc

@@ -413,8 +413,7 @@ fn a2_a_part_and_its_pattern_naming_one_copy_are_one_member() {
         "A2: one placement, one member"
     );
     let (_, by_part) = seated_through(&s, doc.clone(), head_at(part, copy1.clone()), [0.0, 5.0]);
-    let (by_pattern_doc, by_pattern) =
-        seated_through(&s, doc, head_at(pattern, copy1), [0.0, 5.0]);
+    let (by_pattern_doc, by_pattern) = seated_through(&s, doc, head_at(pattern, copy1), [0.0, 5.0]);
     assert!(
         near(&by_part, &by_pattern),
         "A2: the two spellings seat the slab alike: {by_part:?} vs {by_pattern:?}"

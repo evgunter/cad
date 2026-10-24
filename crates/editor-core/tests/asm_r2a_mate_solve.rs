@@ -1181,7 +1181,6 @@ fn times(a: [[f64; 3]; 3], b: [[f64; 3]; 3]) -> [[f64; 3]; 3] {
     std::array::from_fn(|i| std::array::from_fn(|j| (0..3).map(|k| a[i][k] * b[k][j]).sum()))
 }
 
-
 /// **An orientation on a point mate refuses at the door.** A point mate
 /// fixes no one direction, so it carries no orientation: the bundle with
 /// the identity is admitted, the same bundle with any other refuses
@@ -1199,9 +1198,7 @@ fn an_orientation_on_a_point_mate_refuses_at_the_door() {
         ContactClass::Rest,
     );
     let write = |mate: editor_core::Mate<Formula>| {
-        let values = [X, Y, Z]
-            .map(|a| (Coord::Spin(Some(a)), ang(0.0)))
-            .to_vec();
+        let values = [X, Y, Z].map(|a| (Coord::Spin(Some(a)), ang(0.0))).to_vec();
         apply(
             &doc,
             &editor_core::Placed {

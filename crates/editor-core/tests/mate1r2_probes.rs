@@ -565,7 +565,9 @@ fn r2_plain_document_pose_bits() {
     assert_eq!((m0.placement, m1.placement), (ib, ic));
     let poses = solve(&doc, &o, Tol::witness());
     for id in [ia, ib, ic] {
-        let f = poses.relative(id).unwrap_or_else(|| panic!("a pose: {:?}", poses.fault(id)));
+        let f = poses
+            .relative(id)
+            .unwrap_or_else(|| panic!("a pose: {:?}", poses.fault(id)));
         let bits: Vec<u64> = f
             .columns
             .iter()

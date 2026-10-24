@@ -739,6 +739,13 @@ fn every_standing_door_in_the_viewer_reads_the_trees_answer() {
         ),
         (
             "session.rs",
+            "face_frame(",
+            "\"sketch on this face\" reads the face's outward normal only to pick the \
+             orientation it writes; a face that does not read draws nothing here, and the \
+             sketch's placement carries its standing on its own row",
+        ),
+        (
+            "session.rs",
             "run_checks_at_rest_on(",
             "the registry's refusal is dropped (`.ok()`), never drawn",
         ),
@@ -1191,7 +1198,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
                 "constraint 1: Rest mate",
                 "constraint 2: slide along x value",
                 "constraint 3: slide along y value",
-                "constraint 4: spin about z value",
+                "constraint 4: spin value",
             ])
             .map(|(mate, said)| ConstraintRow {
                 mate,

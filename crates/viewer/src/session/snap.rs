@@ -13,13 +13,13 @@
 //! `[placement.values]`).
 
 use editor_core::{Coord, Formula, Orientation, TargetAxis};
-use pncad::geom_core::linalg::{Mat3, Point3, Vec3};
 use pncad::document::pose::{PoseValue, RoleRead};
 use pncad::document::{
     Constraint, ConstraintKind, Dimension, Doc, Evaluation, Frame, OperandSlot, ProfileProgram,
     RecipeNodeId,
 };
 use pncad::geom_core::Tol;
+use pncad::geom_core::linalg::{Mat3, Point3, Vec3};
 
 /// The least turn carrying the unit `from` onto the unit `to`; a half
 /// turn about an axis across `from` where the two are opposite.
@@ -34,10 +34,18 @@ fn least_turn(from: Vec3<f64>, to: Vec3<f64>) -> Mat3<f64> {
         let a = (e - from * e.dot(from)).normalize();
         // A half turn about `a`: `2 a aᵀ − I`.
         let col = |e: Vec3<f64>| a * (2.0 * a.dot(e)) - e;
-        return Mat3::from_cols(col(Vec3::unit_x()), col(Vec3::unit_y()), col(Vec3::unit_z()));
+        return Mat3::from_cols(
+            col(Vec3::unit_x()),
+            col(Vec3::unit_y()),
+            col(Vec3::unit_z()),
+        );
     }
     let col = |e: Vec3<f64>| e * c + k.cross(e) + k * (k.dot(e) / (1.0 + c));
-    Mat3::from_cols(col(Vec3::unit_x()), col(Vec3::unit_y()), col(Vec3::unit_z()))
+    Mat3::from_cols(
+        col(Vec3::unit_x()),
+        col(Vec3::unit_y()),
+        col(Vec3::unit_z()),
+    )
 }
 
 /// A frame's linear part and origin as a matrix and a vector.
@@ -137,17 +145,11 @@ fn seat_of(on: &PoseValue<f64>, to: &PoseValue<f64>) -> Option<Seat> {
 
 /// `pose`, read in the target space where the copy stands at `(r, t)`,
 /// carried back into the copy's own coordinates.
-fn unplaced(
-    pose: PoseValue<f64>,
-    r: Mat3<f64>,
-    t: Vec3<f64>,
-    tol: Tol,
-) -> Option<PoseValue<f64>> {
+fn unplaced(pose: PoseValue<f64>, r: Mat3<f64>, t: Vec3<f64>, tol: Tol) -> Option<PoseValue<f64>> {
     let back = r.transpose();
     let band = pncad::geom_core::Band::linear(tol).ok()?;
-    let unit = |v: Vec3<f64>| {
-        pncad::geom_core::UnitVec3::new(back * v, "viewer_snap_unplaced", band).ok()
-    };
+    let unit =
+        |v: Vec3<f64>| pncad::geom_core::UnitVec3::new(back * v, "viewer_snap_unplaced", band).ok();
     Some(match pose {
         PoseValue::Plane { normal, offset } => PoseValue::Plane {
             normal: unit(normal.get())?,

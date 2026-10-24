@@ -208,12 +208,10 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
         },
         MateFault::ClassNotAdmitted { mate }
         | MateFault::NotOnTheCopy { mate }
-        | MateFault::Unoriented { mate } => {
-            MateFaultPayload {
-                mate: Some(*mate),
-                ..none
-            }
-        }
+        | MateFault::Unoriented { mate } => MateFaultPayload {
+            mate: Some(*mate),
+            ..none
+        },
         // No lever could be formed. A reach not in hand names the
         // instance or the copied shape it is about beside the refusal's
         // word, and a face that cannot be bounded names its kind in

@@ -391,7 +391,10 @@ fn turned_slab(p: &Parts, label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (c3, s3) = (0.3_f64.cos(), 0.3_f64.sin());
     let values = vec![
         (Coord::Spin(Some(TargetAxis::X)), ang(0.3)),
-        (Coord::Spin(Some(TargetAxis::Z)), named(turn(), Dimension::Angle)),
+        (
+            Coord::Spin(Some(TargetAxis::Z)),
+            named(turn(), Dimension::Angle),
+        ),
         (
             Coord::Slide(TargetAxis::X),
             plus(metres(5.0, cos()), metres(-s3, sin())),

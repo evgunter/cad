@@ -226,7 +226,11 @@ impl Orientation {
     }
 
     fn __repr__(&self) -> String {
-        format!("Orientation({:?}, {:?})", self.0.x().name(), self.0.z().name())
+        format!(
+            "Orientation({:?}, {:?})",
+            self.0.x().name(),
+            self.0.z().name()
+        )
     }
 }
 

@@ -447,8 +447,8 @@ pub use editor_core::{
     NoChartWhy, OVERCONSTRAINED_RECOURSE, Orientation, PinRefusal, Placed, Placing, PoseRefusal,
     PoseSymmetry, ReachRefusal, SignedAxis, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis,
     UNPINNED_RECOURSE, Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of,
-    member_of, member_reading, moved_frame, relative_freedom_components, solve_document,
-    stand, unobservable,
+    member_of, member_reading, moved_frame, relative_freedom_components, solve_document, stand,
+    unobservable,
 };
 
 // The class-admission table (`ClassAdmission`, read through

@@ -367,9 +367,7 @@ fn a_reused_placement_carries_the_log_a_fresh_one_does() {
     );
     let fresh_log = log(&fresh, s.cap);
     assert!(
-        fresh_log
-            .iter()
-            .any(|v| v.predicate == "mate_chart_pole"),
+        fresh_log.iter().any(|v| v.predicate == "mate_chart_pole"),
         "the fold charts the cap's values: {fresh_log:?}"
     );
     assert_eq!(

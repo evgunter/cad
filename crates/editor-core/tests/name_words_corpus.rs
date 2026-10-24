@@ -328,7 +328,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
 /// seam face plainly, so its node tags moved too; the words that moved
 /// are the node tags.
-const SAID_DIGEST: u64 = 0x7ad5_6d1b_cd48_fe0b;
+const SAID_DIGEST: u64 = 0xf486_7d2c_7a01_b820;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

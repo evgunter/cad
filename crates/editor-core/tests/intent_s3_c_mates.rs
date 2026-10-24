@@ -583,10 +583,9 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
 
 /// **Ruling C-1 — the chart is continuous where a face is drafted.** A
 /// box's wall facing `+x`, drafted by 0°, 1° and −1°, mated to the
-/// world's `+x` plane under a held spin of 30°: each body's frame is
-/// swung onto the wall's normal by the shortest turn, so the copy turns
-/// by about the draft and no more — no flip, no jump through the
-/// antipode.
+/// world's `+x` plane under a held spin of 30°: the least turn carries
+/// the copy's oriented mated direction onto the wall's normal, so the
+/// copy turns by about the draft and no more — no flip, no jump.
 ///
 /// *Breaks if* the reference is a projection that changes branch at
 /// zero draft (a target `x` projected, a `y` taken when parallel): the
@@ -611,7 +610,7 @@ fn a_drafted_wall_under_a_held_spin_turns_by_its_draft() {
 /// flat's own and the spin re-measured about the turned normal),
 /// continuously through 0.
 ///
-/// *Breaks if* the swung reference has a branch at `φ = 0` (the
+/// *Breaks if* the chart has a branch at `φ = 0` (the
 /// projection fork's), where the copy would jump.
 #[test]
 fn a_prisms_flat_through_zero_turns_by_its_angle() {

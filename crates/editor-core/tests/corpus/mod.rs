@@ -113,7 +113,10 @@ pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
                 Coord::Spin(Some(TargetAxis::Y)),
                 Formula::zero(Dimension::Angle),
             ),
-            (Coord::Spin(Some(TargetAxis::Z)), Formula::zero(Dimension::Angle)),
+            (
+                Coord::Spin(Some(TargetAxis::Z)),
+                Formula::zero(Dimension::Angle),
+            ),
         ])
         .collect()
 }

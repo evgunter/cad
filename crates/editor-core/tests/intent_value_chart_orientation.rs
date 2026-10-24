@@ -62,6 +62,18 @@ type Hung = Result<Frame, MateFault>;
 /// direction, its flip, is `B`'s `+z`), under `orient`, with
 /// `Slide(X) = 10` and the other slide and the spin `0`.
 fn hung(tilt: f64, about: TargetAxis, orient: Orientation) -> Hung {
+    let (doc, placement) = hung_doc(tilt, about, orient);
+    let poses = solve(&doc, &EvalOptions::default(), Tol::witness());
+    match poses.fault(placement) {
+        Some(fault) => Err(fault.clone()),
+        None => Ok(poses
+            .placement(&doc, placement)
+            .expect("the boss is placed")),
+    }
+}
+
+/// The document [`hung`] solves, and the boss's placement.
+fn hung_doc(tilt: f64, about: TargetAxis, orient: Orientation) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive("value-chart-hung"), Tol::witness());
     let (doc, plate) = block(doc, 20.0, 10.0, 2.0);
     let (doc, boss) = block(doc, 1.0, 1.0, 1.0);
@@ -87,13 +99,7 @@ fn hung(tilt: f64, about: TargetAxis, orient: Orientation) -> Hung {
         ],
     };
     let (doc, _) = fixture::write_bundle(doc, placement, placed.bundle());
-    let poses = solve(&doc, &EvalOptions::default(), Tol::witness());
-    match poses.fault(placement) {
-        Some(fault) => Err(fault.clone()),
-        None => Ok(poses
-            .placement(&doc, placement)
-            .expect("the boss is placed")),
-    }
+    (doc, placement)
 }
 
 /// The orientation putting the copy's `x` along `x` and its `z` along
@@ -109,8 +115,8 @@ fn oriented(x: SignedAxis, z: SignedAxis) -> Orientation {
 /// `O(tilt)` of the untilted one's, on both sides.
 ///
 /// *Breaks if* the chart has a pole short of the orientation written
-/// backwards: the swing of the target's `+z` onto a mated direction near
-/// its `−z` put the boss at `x ≈ −10` for a tilt of 1e-9.
+/// backwards: a chart turning the target's `+z` onto a mated direction
+/// near its `−z` puts the boss at `x ≈ −10` for a tilt of 1e-9.
 #[test]
 fn a_boss_hung_under_a_tilted_plate_stays_within_its_tilt_of_its_place() {
     let level = hung(0.0, TargetAxis::Y, Orientation::IDENTITY).expect("the boss hangs level");
@@ -164,20 +170,33 @@ fn the_pole_band_refuses_naming_the_orientation_to_write() {
         match hung(tilt, TargetAxis::Y, backwards) {
             Err(MateFault::Backwards { orient, write, .. }) => {
                 assert_eq!(orient, backwards, "{tilt:e}: names the orientation written");
-                assert_eq!(write, Orientation::IDENTITY, "{tilt:e}: names the one to write");
+                assert_eq!(
+                    write,
+                    Orientation::IDENTITY,
+                    "{tilt:e}: names the one to write"
+                );
                 let said = MateFault::Backwards {
-                    mate: editor_core::MateRef::new(RecipeNodeId::WORLD, editor_core::ConstraintId::placeholder(1)),
+                    mate: editor_core::MateRef::new(
+                        RecipeNodeId::WORLD,
+                        editor_core::ConstraintId::placeholder(1),
+                    ),
                     orient,
                     write,
                 }
                 .to_string();
-                assert!(said.contains("x: +x, z: +z"), "{tilt:e}: the sentence names it: {said}");
+                assert!(
+                    said.contains("x: +x, z: +z"),
+                    "{tilt:e}: the sentence names it: {said}"
+                );
             }
             other => panic!("{tilt:e}: the pole band refuses Backwards, got {other:?}"),
         }
     }
     let clear = hung(0.1, TargetAxis::Y, backwards);
-    assert!(clear.is_ok(), "a tilt clear of the band is placed: {clear:?}");
+    assert!(
+        clear.is_ok(),
+        "a tilt clear of the band is placed: {clear:?}"
+    );
 }
 
 /// **A floor swept through a quarter turn moves its copy continuously.**
@@ -228,12 +247,13 @@ fn a_floor_swept_through_a_quarter_turn_moves_its_copy_continuously() {
     let mut last = at(0.0);
     for degree in 1..=90 {
         let now = at(f64::from(degree));
-        let moved = (0..3)
-            .map(|i| (now.translation[i] - last.translation[i]).abs())
-            .chain((0..3).flat_map(|c| {
-                (0..3).map(move |r| (now.columns[c][r] - last.columns[c][r]).abs())
-            }))
-            .fold(0.0_f64, f64::max);
+        let moved =
+            (0..3)
+                .map(|i| (now.translation[i] - last.translation[i]).abs())
+                .chain((0..3).flat_map(|c| {
+                    (0..3).map(move |r| (now.columns[c][r] - last.columns[c][r]).abs())
+                }))
+                .fold(0.0_f64, f64::max);
         // The origin sits at most five units from the floor's axis, so a
         // degree of the floor moves it by at most 5·step, and an axis by
         // at most 2·step.
@@ -242,5 +262,52 @@ fn a_floor_swept_through_a_quarter_turn_moves_its_copy_continuously() {
             "{degree}°: the copy moved {moved:e} for one degree of the floor"
         );
         last = now;
+    }
+}
+
+/// **A document written before a mate carried its orientation refuses
+/// at load, naming it.** The hung boss's document saved, and every
+/// `orient` taken off its mates — the shape a build before the
+/// orientation wrote: the load refuses `Unreadable`, its detail naming
+/// the missing field, its recourse once.
+///
+/// *Breaks if* a mate without its orientation loads as the identity,
+/// silently placing an older document's copies by a chart it was not
+/// written for.
+#[test]
+fn a_document_whose_mates_carry_no_orientation_refuses_naming_it() {
+    use editor_core::{PersistError, REGENERATE_RECOURSE, load, save};
+    fn strip(v: &mut serde_json::Value) -> usize {
+        match v {
+            serde_json::Value::Object(map) => {
+                let here = usize::from(map.remove("orient").is_some());
+                here + map.values_mut().map(strip).sum::<usize>()
+            }
+            serde_json::Value::Array(items) => items.iter_mut().map(strip).sum(),
+            _ => 0,
+        }
+    }
+    let (doc, _) = hung_doc(0.0, TargetAxis::Y, Orientation::IDENTITY);
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let (header, body) = text.split_once('\n').expect("a header line");
+    let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    assert!(strip(&mut v) > 0, "the save carries the mate's orientation");
+    let older = format!(
+        "{header}\n{}",
+        serde_json::to_string_pretty(&v).expect("writes")
+    );
+    match load(&older, Tol::witness()) {
+        Err(err @ PersistError::Unreadable { .. }) => {
+            let msg = err.to_string();
+            assert_eq!(msg.matches(REGENERATE_RECOURSE).count(), 1, "{msg}");
+            let PersistError::Unreadable { detail, .. } = err else {
+                unreachable!()
+            };
+            assert!(
+                detail.contains("missing field `orient`"),
+                "the refusal names the field: {detail}"
+            );
+        }
+        other => panic!("a mate with no orientation refuses unreadable, got {other:?}"),
     }
 }

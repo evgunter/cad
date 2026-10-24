@@ -633,7 +633,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x20c2_ac2e_50fe_a899,
+        got, 0xd519_2e6b_f98a_b709,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }
