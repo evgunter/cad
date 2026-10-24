@@ -190,6 +190,12 @@ pub(crate) struct Study {
 /// pad 1546/1324 -> 1546/1260. `symbolic` holds. Measured identical with
 /// a written fraction of a turn read as its rounded radian, so exact
 /// turns move none of these.
+///
+/// The value chart reading a written orientation takes the swing's two
+/// `mate_chart_reference_antipode` theorems off each mated placement:
+/// the plate and the bracket (two placements each) 1253 -> 1249 and
+/// 1625 -> 1621, the annulus and the pad (one each) 632 -> 630 and
+/// 1546 -> 1544; the link holds at 924.
 pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
     [
         Study {
@@ -203,7 +209,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // the door, and the plate refuses nowhere the bisection
             // reaches.
             without_the_registry: None,
-            symbolic: [1253, 1253, 1253],
+            symbolic: [1249, 1249, 1249],
             at: Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0),
         },
         Study {
@@ -214,7 +220,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // As the plate: the circles' stored carrier makes every rim
             // decision a theorem.
             without_the_registry: None,
-            symbolic: [632, 632, 632],
+            symbolic: [630, 630, 630],
             at: Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
         },
         Study {
@@ -260,7 +266,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // How many the tier reaches depends on the order the
             // variables' symbols sort in
             // (`work/rules/sym-tier-reach-depends-on-symbol-order`).
-            symbolic: [1625, 1625, 1625],
+            symbolic: [1621, 1621, 1621],
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -282,7 +288,7 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // Three are the fillet run outs read against their arrival
             // carriers (`path_run_out_carrier`), margins the tier proves
             // zero.
-            symbolic: [1546, 1546, 1546],
+            symbolic: [1544, 1544, 1544],
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
