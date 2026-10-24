@@ -57,7 +57,7 @@
 //!   engines in this file — `patch_flux_exact` with its composite
 //!   rounds for a polynomial patch, and `rational_patch_face`'s
 //!   quotient composite (with the `w`-uniform-in-v exact arm) for a
-//!   patch with non-unit weights — not this Green-form boundary
+//!   patch whose weights are not one constant — not this Green-form boundary
 //!   integral. The consumer that would use it is
 //!   the fitted-boundary Green lane, blocked on a construction that
 //!   mints a fitted pcurve on an analytic chart at rest — the blocker
@@ -156,7 +156,7 @@ use geom_core::spline::net::TensorNet;
 use geom_core::spline::{
     AxisCut, CellAxis, CellBlock, CellMeasureQuotients, CoeffWindow, Derived, KnotVector,
     LooseKnots, Param, ParamRange, QuotientPiece, RingRefinement, SplineCoeffs, SplineCoeffsBuf,
-    TensorChannels, cell_measure_quotients, diagonal_in_span, restrict_segment,
+    TensorChannels, cell_measure_quotients, constant_weight, diagonal_in_span, restrict_segment,
 };
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
@@ -1876,9 +1876,13 @@ impl PatchNet<'_> {
         f(w.net().as_flat())
     }
 
-    /// Whether any weight is not `1.0` (exact `f64` structure, C6).
+    /// Whether the weights are not one constant ([`constant_weight`],
+    /// on exact `f64` structure, C6).
     fn is_rational(&self) -> bool {
-        self.with_weights(|ws| ws.iter().any(|w| w.lo() != 1.0))
+        self.with_weights(|ws| {
+            let values: Vec<f64> = ws.iter().map(|w| w.lo()).collect();
+            constant_weight(&values).is_none()
+        })
     }
 
     /// The three channels of `f` over the net's vectors, `f` read at
@@ -3762,8 +3766,8 @@ fn rational_patch_face<T: Decide>(
 /// shared [`area_midpoint_taylor`] rule (midpoint + Lipschitz pad on
 /// the same knot-aligned cells) — sound at every
 /// resolution and O(h), because the +V gate meters `V/A` and needs an
-/// honest denominator. A patch with non-unit weights
-/// routes to [`rational_patch_face`] (M8-3), which certifies the same
+/// honest denominator. A patch whose weights are not one constant
+/// ([`constant_weight`]) routes to [`rational_patch_face`] (M8-3), which certifies the same
 /// two numbers through the quotient statement.
 ///
 /// Honesty pads (both directions accounted): `boundary_defect` is the
@@ -4103,8 +4107,9 @@ type RPt2 = (Interval, Interval);
 ///
 /// Non-rational by construction: `general_image_lane` interpolates its
 /// foot samples with unit weights, and the piece boxes below are the
-/// POLYNOMIAL convex-hull fact. A net carrying a non-unit weight
-/// refuses typed rather than reading the hull of a quotient.
+/// POLYNOMIAL convex-hull fact. A net whose weights are not one
+/// constant ([`constant_weight`]) refuses typed rather than reading the
+/// hull of a quotient.
 #[derive(Clone, Debug)]
 pub struct TrimPiece {
     knots: KnotVector,
@@ -4230,8 +4235,8 @@ fn bezier_bisect(block: &[RPt2]) -> (Vec<RPt2>, Vec<RPt2>) {
 /// Why [`bezier_blocks`] refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum BlockRefusal {
-    /// A weight is not `1.0`: the blocks' hulls would not be the
-    /// polynomial convex-hull fact.
+    /// The weights are not one constant: the blocks' hulls would not be
+    /// the polynomial convex-hull fact.
     Rational,
     /// A zero degree, or a refusing knot algebra.
     Malformed,
@@ -4245,9 +4250,9 @@ enum BlockRefusal {
 /// convex-hull property). Knot insertion is exact in ℝ, so a block is
 /// a statement about the same arc.
 ///
-/// The net's weights must all be `1.0`: that makes each axis its own
-/// homogeneous channel below, and the blocks' hulls the polynomial
-/// convex-hull fact. A rational net refuses
+/// The net's weights must be one constant ([`constant_weight`]): that
+/// makes each axis its own polynomial channel below, and the blocks'
+/// hulls the polynomial convex-hull fact. A rational net refuses
 /// ([`BlockRefusal::Rational`]), as does a malformed one: a zero
 /// degree, or a knot algebra that refuses ([`BlockRefusal::Malformed`]).
 fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefusal> {
@@ -4256,7 +4261,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefus
     if p == 0 {
         return Err(BlockRefusal::Malformed);
     }
-    if img.weights.iter().any(|w| *w != 1.0) {
+    if constant_weight(&img.weights).is_none() {
         return Err(BlockRefusal::Rational);
     }
     let mut breaks: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
@@ -4273,7 +4278,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefus
             add.push(*b);
         }
     }
-    // Unit weights make the chart net its own homogeneous form, so
+    // A constant weight makes the chart net its own polynomial form, so
     // each axis refines as a channel in the certification ring.
     let refinement = RingRefinement::new(kv, &add).map_err(|_| BlockRefusal::Malformed)?;
     let cu: Vec<Interval> = img.control.iter().map(|q| q.0).collect();
@@ -8596,6 +8601,55 @@ mod tests {
         encloses(b.area, g_int, "Q7 area");
     }
 
+    /// **A constant weight is the polynomial lanes'.** The curved chart
+    /// with every weight one constant (`2`, `3`, `0.1`) is the polynomial
+    /// patch on its net ([`constant_weight`]), so the rectangle lane and
+    /// the trimmed lane each answer it as the unit-weight chart, to the
+    /// bit (neither reads a weight on its polynomial arm); a chart whose
+    /// weights vary is rational, and the trimmed lane refuses it by name.
+    #[test]
+    fn a_constant_weight_chart_is_measured_as_its_polynomial() {
+        let (ku, kvv, control, unit) = curved_chart(2, 2);
+        let bits = |b: FaceCutBounds| {
+            [b.flux.lo(), b.flux.hi(), b.area.lo(), b.area.hi()].map(f64::to_bits)
+        };
+        let loop_ = vec![
+            iso((0.0, 0.0), (1.0, 0.0)),
+            iso((1.0, 0.0), (1.0, 1.0)),
+            general(&[(1.0, 1.0), (0.0, 0.0)], 0.0),
+        ];
+        let run = |w: &[f64]| {
+            trimmed(
+                &patch(&ku, &kvv, &control, w),
+                &loop_,
+                RoundWindow::SCHEDULE,
+            )
+        };
+        let rect_unit = bits(rectangle(&patch(&ku, &kvv, &control, &unit)));
+        let trim_unit = bits(bounds_of(&run(&unit).expect("the unit chart")));
+        for c in [2.0, 3.0, 0.1] {
+            let w = vec![c; unit.len()];
+            assert_eq!(
+                bits(rectangle(&patch(&ku, &kvv, &control, &w))),
+                rect_unit,
+                "the rectangle lane on weights {c}"
+            );
+            assert_eq!(
+                bits(bounds_of(&run(&w).expect("a constant chart is polynomial"))),
+                trim_unit,
+                "the trimmed lane on weights {c}"
+            );
+        }
+        let mut varying = unit.clone();
+        varying[4] = 2.0;
+        match run(&varying) {
+            Err(PropsError::QuadratureUnsupported { what }) => {
+                assert!(what.contains("RATIONAL chart"), "{what}");
+            }
+            other => panic!("a varying weight vector is rational: {other:?}"),
+        }
+    }
+
     /// **Q8 — a CURVED chart's area agrees with the rectangle lane's.**
     ///
     /// The headline row of the fix pass. Q1–Q7 all live on the flat
@@ -9686,10 +9740,11 @@ mod tests {
         }
     }
 
-    /// `bezier_blocks` holds its unit-weight invariant itself: an image
-    /// with a non-unit weight refuses as `Rational`, whoever calls it.
-    /// A weight list or a control polygon of the wrong length never
-    /// becomes an image at all.
+    /// `bezier_blocks` holds its constant-weight invariant itself: an
+    /// image whose weights vary refuses as `Rational`, whoever calls it,
+    /// and one whose weights are one constant (`2`, `3`, `0.1`) is the
+    /// unit image, block for block. A weight list or a control polygon
+    /// of the wrong length never becomes an image at all.
     #[test]
     fn bezier_blocks_refuses_a_rational_image_by_name() {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
@@ -9705,6 +9760,18 @@ mod tests {
             TrimPiece::new(kv.clone(), control[..2].to_vec(), vec![1.0; 2]).is_err(),
             "a short control polygon"
         );
+        let bits = |blocks: &[Vec<RPt2>]| -> Vec<[u64; 4]> {
+            blocks
+                .iter()
+                .flatten()
+                .map(|q| [q.0.lo(), q.0.hi(), q.1.lo(), q.1.hi()].map(f64::to_bits))
+                .collect()
+        };
+        let unit = bits(&bezier_blocks(&img(vec![1.0; 3]).unwrap(), 4).expect("unit"));
+        for c in [2.0, 3.0, 0.1] {
+            let blocks = bezier_blocks(&img(vec![c; 3]).unwrap(), 4).expect("a constant weight");
+            assert_eq!(bits(&blocks), unit, "weights {c}: the unit image's blocks");
+        }
     }
 
     /// `bezier_blocks`' breaks are the DISTINCT interior knots: a

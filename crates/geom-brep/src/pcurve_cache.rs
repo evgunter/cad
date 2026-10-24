@@ -178,7 +178,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::{KnotVector, SpanLocate, SplineError};
+use geom_core::spline::{KnotVector, SpanLocate, SplineError, constant_weight};
 use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
@@ -7350,6 +7350,16 @@ struct ArcRimWeight<T> {
     margin: T,
 }
 
+/// **The arc pattern's interior weight at unit end weight**: `w₁/w₀`
+/// on the column's held weights. A rational curve is invariant under
+/// one positive scale of all its weights, so a column `c, c·w, c, …`
+/// is the arc `1, w, 1, …`, and the ratio is the `w` the pattern
+/// states. `None` for a column with fewer than two weights.
+fn arc_rim_ratio<T: Real>(column: &NurbsCurve3<T>) -> Option<T> {
+    let w = column.weights();
+    Some(*w.get(1)? / *w.first()?)
+}
+
 fn arc_rim_weight<T: SpanLocate>(
     column: &NurbsCurve3<T>,
     angle: T,
@@ -7358,8 +7368,8 @@ fn arc_rim_weight<T: SpanLocate>(
     #[allow(clippy::cast_precision_loss)]
     let h = angle / T::from_f64(spans as f64);
     let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
-    let margin = match column.weights().get(1) {
-        Some(&w) => w - cos_half,
+    let margin = match arc_rim_ratio(column) {
+        Some(w) => w - cos_half,
         None => T::from_f64(f64::NAN),
     };
     ArcRimWeight {
@@ -7380,7 +7390,7 @@ pub(crate) fn arc_rim_turn<T: Decide>(
     spans: usize,
     band: Band,
 ) -> Option<T> {
-    let w = *column.weights().get(1)?;
+    let w = arc_rim_ratio(column)?;
     match decide("pcurve_iso_arc_weight", Margin::of(T::one() - w), band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) | Err(_) => return None,
@@ -7642,24 +7652,29 @@ fn run_iso_arc_checks<T: Decide>(
     }
     let slack_knots = stretch_u.to_meters(knot_dev);
     let bw = b.weights_f64_interim();
-    if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
+    if bw.len() != 2 * spans + 1 {
         return Err(bad(
             "an arc rim whose chart column weights are not the arc pattern",
         ));
     }
-    // The pattern is read on the weights' value channel. Its interior
-    // equalities `wᵢ = w₁` are value identities, decided here at the
-    // witness only (`work/intent/held-value-equalities-decided-on-the-value-channel.md`);
-    // the margin below reads the column's held `w₁`.
-    let half_w = bw.get(1).copied().unwrap_or(f64::NAN);
-    for (i, w) in bw.iter().enumerate() {
-        let want = if i % 2 == 0 { 1.0 } else { half_w };
-        if *w != want {
-            return Err(bad(
-                "an arc rim whose chart column weights are not `1, w, 1, …` with ONE \
-                 interior weight — the uniform sub-arc construction",
-            ));
-        }
+    // The pattern is `c, c·w, c, …, c` for one positive scale `c`: one
+    // scale leaves the rational basis unchanged, so the column is the
+    // arc `1, w, 1, …`, and `Ĉ` below, built at unit end weight, shares
+    // its basis. Each half of the pattern is one constant, compared on
+    // the bits as every constancy is (`constant_weight`). It reads the
+    // weights' VALUE channel, not their plain constants: a held arc's
+    // interior weight is `cos(h/2)` in the scalar, no plain constant at
+    // `Sym`, and the pattern's equalities are value identities decided
+    // at the witness only
+    // (`work/intent/held-value-equalities-decided-on-the-value-channel.md`);
+    // the margin below reads the column's held `w₁/w₀`.
+    let ends: Vec<f64> = bw.iter().step_by(2).copied().collect();
+    let interior: Vec<f64> = bw.iter().skip(1).step_by(2).copied().collect();
+    if constant_weight(&ends).is_none() || constant_weight(&interior).is_none() {
+        return Err(bad(
+            "an arc rim whose chart column weights are not `c, c·w, c, …` with ONE \
+             interior ratio — the uniform sub-arc construction",
+        ));
     }
     // --- The one decided margin: `w = cos(h/2)`. ---
     let ArcRimWeight {
@@ -7821,21 +7836,13 @@ fn side_of<T: Decide>(
     Ok(None)
 }
 
-/// Whether every entry of a weight vector is the same `f64` bit for
-/// bit — a constant weight vector cancels out of the rational basis,
-/// so two curves over one knot vector with constant weights share a
-/// spline space whatever the two constants are.
-fn constant_weights(w: &[f64]) -> bool {
-    w.windows(2).all(|pair| pair[0] == pair[1])
-}
-
 /// **The iso lane's four checks** (M6-3), same fixed order as the
 /// closed-form lane's. What differs: check 1 admits any described-NURBS
 /// chart — the blanket non-rational gate it used to carry came off in
 /// M8-3, which moved the rationality hypothesis into the class arms of
 /// check 4, where it is load-bearing per class (the seam class needs
-/// strictly positive weights and one shared spline space; the rim class
-/// still needs weights of exactly 1, for linear precision). Check 4's
+/// strictly positive weights and one shared spline space; its LINE limb
+/// needs one constant weight, for linear precision). Check 4's
 /// sup bound is the traversed row's control-difference hull
 /// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
 /// axis/side/domain snap slacks folded in — the harmonic lane's
@@ -8067,7 +8074,7 @@ fn seam_envelope<T: Decide>(
     // upstream (D7 curve recognition) claims the same
     // boundary column a spline seam claims, and the bound is
     // a linear-precision hull. With `B` the traversed
-    // column (weights 1, gated below), `t(v)` the
+    // column (constant weights, gated below), `t(v)` the
     // affine inverse of the image's `v(t)`, and
     // `M(v) := C(t(v))` — affine in `v`, a line composed
     // with an affine map — the B-spline basis reproduces `M`
@@ -8077,12 +8084,12 @@ fn seam_envelope<T: Decide>(
     //                 ≤ maxᵢ |bᵢ − M(ξᵢ)|   (the hull),
     // and sup |S(P(t)) − C(t)| ≤ slack_u + hull + the banded
     // domain-excursion fold — each term an inequality, no
-    // sampling. A RATIONAL column refuses typed: linear
-    // precision is a polynomial-basis fact.
+    // sampling. A RATIONAL column (`constant_weight` answers `None`)
+    // refuses typed: linear precision is a polynomial-basis fact.
     if let Curve3::Line { origin, dir } = carrier {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
-        if b.weights_f64_interim().iter().any(|w| *w != 1.0) {
+        if b.constant_weight().is_none() {
             return Err(PcurveCertifyError::IsoUnsupported {
                 what: "a LINE seam on a RATIONAL chart column: the Greville hull \
                            is a linear-precision fact and the rational basis has none \
@@ -8199,15 +8206,14 @@ fn seam_envelope<T: Decide>(
     // rebuilt in `f64` is not that space); and the weights, read
     // the same way, either bitwise (a boundary row's, or a collapsed
     // row's with the net's weights constant along `u`) or both
-    // constant (a collapsed row wrapped polynomial, whose carrier's
-    // constant cancels the same way).
+    // constant (`constant_weight`: each is its own polynomial).
     let row_weights: Vec<f64> = if backward {
         b.weights_f64_interim().iter().rev().copied().collect()
     } else {
         b.weights_f64_interim().to_vec()
     };
     let shared_weights = row_weights == c.weights_f64_interim()
-        || (constant_weights(b.weights_f64_interim()) && constant_weights(c.weights_f64_interim()));
+        || (b.constant_weight().is_some() && c.constant_weight().is_some());
     let shared_knots = if backward {
         b.knots_f64_interim()
             .is_reflection_of(c.knots_f64_interim())
@@ -12105,28 +12111,38 @@ mod tests {
         );
     }
 
-    /// The rational gate holds, typed: a column with non-unit weights
-    /// is outside the Greville hull's linear-precision hypothesis and
-    /// refuses naming that, exactly as the cap class does. The two
-    /// weights are EQUAL (a constant weight scales out of the rational
-    /// basis), so the column's locus and parameterization are the
-    /// exact ruling and the pointwise schedule passes — the weight
-    /// gate is the deciding check, not a residual.
+    /// The rational gate asks constancy, typed: a column whose two
+    /// weights are one constant `2` is the polynomial ruling and
+    /// certifies with
+    /// the unit column's envelope, to the bit; a column whose weights
+    /// differ by one ulp is outside the Greville hull's linear-precision
+    /// hypothesis and refuses naming that. The ulp keeps the column's
+    /// locus and parameterization the exact ruling to the schedule, so
+    /// the weight gate is the deciding check, not a residual.
     #[test]
-    fn a_rational_column_refuses_typed() {
+    fn a_constant_weight_column_certifies_and_a_rational_one_refuses_typed() {
         let w = core::f64::consts::FRAC_1_SQRT_2;
-        let got = PcurveCache::certify(
-            Pcurve::IsoLine {
-                p0: Point2::new(0.0, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-            },
-            0.0,
-            1.0,
-            &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
-            &ruled_wall_with([0.7, 0.7, w, w, 1.0, 1.0]),
-            band(),
+        let certify = |weights: [f64; 6]| {
+            PcurveCache::certify(
+                Pcurve::IsoLine {
+                    p0: Point2::new(0.0, 0.0),
+                    pl: Vec2::new(0.0, 1.0),
+                },
+                0.0,
+                1.0,
+                &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+                &ruled_wall_with(weights),
+                band(),
+            )
+        };
+        let unit = certify([1.0, 1.0, w, w, 1.0, 1.0]).expect("the unit column certifies");
+        let twos = certify([2.0, 2.0, w, w, 1.0, 1.0]).expect("a constant column certifies");
+        assert_eq!(
+            twos.certificate().envelope.to_bits(),
+            unit.certificate().envelope.to_bits(),
+            "the constant column's envelope is the unit column's"
         );
-        match got {
+        match certify([1.0, 1.0f64.next_up(), w, w, 1.0, 1.0]) {
             Err(PcurveCertifyError::IsoUnsupported { what }) => {
                 assert!(what.contains("RATIONAL chart column"), "{what}");
             }

@@ -48,3 +48,21 @@ draw. The recourse names a split the user has no verb for.
 integral arm and degree-1 creases still refuse. No live row held that
 residue. Whether the fix is the crease as a CDT constraint, as there,
 or the loft splitting its walls at the sections, is for the taking unit.
+
+## The integral arm refuses degree-≥ 2 creases too (ISO, 2026-10-24, PR 5635)
+
+This gap is wider than degree 1. `patch_bound::patch_cells_across_creases`
+admits a C⁰ crease only on its rational arm. The integral arm
+differences the whole net and keeps `check_direction`'s
+`PatchBoundError::Crease` at every degree. PR 5635 moved the arm choice
+to `NurbsSurface::constant_weight`, so a creased net with one constant
+weight `c ≠ 1` now refuses there as well, as the unit net already did.
+The PR 5635 reviewer's witness is the half cylinder of
+`a_rational_crease_reads_as_two_patches`
+(`crates/geom-brep/src/patch_bound.rs`): two quarter arcs at degree 2
+joined at a double knot, with weights `[2; 10]`. The rational arm used
+to admit it; the integral arm now refuses it `Crease`. The same test
+pins it at `c ∈ {1, 2}`. No shipped construction mints a constant
+non-unit creased net, so this is disclosure. The fix this row takes
+(per-span reading on the integral arm, or the crease as a constraint)
+should cover both degrees.

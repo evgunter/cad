@@ -571,6 +571,9 @@ impl<'a> Writer<'a> {
         let points = refs(&points);
         let degree = knots.degree();
         let (mults, values) = run_length_knots(knots, "b-spline curve knot")?;
+        // Unit weights, not constant ones: the plain entity carries no
+        // weights and reads back as `1`, so a constant `c ≠ 1` is written
+        // rational to keep the description the file round-trips.
         if weights.iter().all(|w| *w == 1.0) {
             Ok(self.emit(&format!(
                 "B_SPLINE_CURVE_WITH_KNOTS('', {degree}, ({points}), .UNSPECIFIED., .U., .U., \
@@ -641,6 +644,7 @@ impl<'a> Writer<'a> {
             run_length_knots(surface.knots_u_f64_interim(), "b-spline surface u-knot")?;
         let (v_mults, v_values) =
             run_length_knots(surface.knots_v_f64_interim(), "b-spline surface v-knot")?;
+        // Unit weights, as the curve's entity choice reads them.
         if surface.weights().iter().all(|w| *w == 1.0) {
             Ok(self.emit(&format!(
                 "B_SPLINE_SURFACE_WITH_KNOTS('', {du}, {dv}, ({points}), .UNSPECIFIED., .U., \
