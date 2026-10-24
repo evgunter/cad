@@ -714,6 +714,12 @@ impl<T: Decide> Round<T> {
         let w = y - self.center;
         w.dot(self.e2).atan2(w.dot(self.e1))
     }
+
+    /// The arc length from the start round to `y`, a point of the
+    /// circle, in `[0, 2π·radius)`.
+    pub(crate) fn arc(&self, y: Point3<T>) -> T {
+        self.radius * turn(self.angle(y))
+    }
 }
 
 /// Places round the circle are arc lengths in `[0, 2π·radius)`: a
@@ -729,7 +735,7 @@ impl<T: Decide> Course<T> for Round<T> {
     }
 
     fn reach(&self, y: Point3<T>, _: &'static str, _: Band) -> Result<Option<T>, Fault> {
-        Ok(Some(self.radius * turn(self.angle(y))))
+        Ok(Some(self.arc(y)))
     }
 
     fn heading(&self, y: Point3<T>) -> Vec3<T> {

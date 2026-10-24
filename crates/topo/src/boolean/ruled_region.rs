@@ -136,7 +136,7 @@ use super::circle_roots::{
 };
 use super::region::{
     self, End, Fault, Landing, Legs, Line, Paths, Region, RegionEdge, RegionRefusal, Round,
-    Scaffolding, circle_edge_hit, found, in_band, span, targets, turn,
+    Scaffolding, circle_edge_hit, found, in_band, span, targets,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -733,8 +733,7 @@ impl<T: Decide> Paths<T> for RuledFaceRegion<T> {
             let corner = self.surface.base() + self.surface.axis() * h_p + radial_t * rho_p;
             let round =
                 region::parallel(self.surface.base(), self.surface.axis(), p, first_forward);
-            let end = rho_p * turn(round.angle(corner));
-            (LegShape::Parallel(round), end, corner)
+            (LegShape::Parallel(round), round.arc(corner), corner)
         } else {
             // Along `p`'s ruling to `target`'s parallel: the side
             // it lies is decided, and a target on `p`'s own

@@ -136,7 +136,7 @@ use super::circle_roots::{
 };
 use super::region::{
     self, End, Fault, Landing, Legs, Paths, Region, RegionEdge, RegionRefusal, Round, Scaffolding,
-    circle_edge_hit, found, in_band, span, turn,
+    circle_edge_hit, found, in_band, span,
 };
 use super::solid_contain::PointInSolidError;
 use crate::body::Body;
@@ -545,9 +545,8 @@ impl<T: Decide> Paths<T> for TorusFaceRegion<T> {
                 self.center + self.axis * h_t + radial_p * rho_t,
             )
         };
-        let round = first.course.round;
         let end = End {
-            place: round.radius * turn(round.angle(corner)),
+            place: first.course.round.arc(corner),
             row: CORNER,
         };
         let then = move || {
