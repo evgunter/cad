@@ -237,3 +237,4 @@ This was not a crossover, because only one designer moved, so reconciliation end
   - `clearance-cells-are-decided-in-model-space`: `session_016hzZhTuVbKsWEjqw1UCw4H`, branch `chart/clearance-cells`, DUAL concurrent review (letter H). It lands the clearance sweep's half. `LowerBoundOnly` still waits on CLEAR's lane-split row.
 
   The two lanes meet only at the region doors' public entry points, which the skeleton lane keeps stable.
+- 2026-10-24 — **PR 5673 (cell verdict): concurrent dual dispatched at 16:34Z** on frozen `54b5ab0bbf`. R1 is `session_01B1gnGAgkNUJmNnyscKVYNN` and R2 is `session_01NaowF8MD6eEXk3YKeuRA3N`. The briefs are identical modulo the label (template sha256 `06a7b6317ecdab11…`).
