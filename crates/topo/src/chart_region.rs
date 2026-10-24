@@ -144,7 +144,10 @@
 
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
-use geom_core::{Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2};
+use geom_core::{
+    Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2,
+    is_finite_length,
+};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
@@ -336,6 +339,12 @@ pub enum ChartRegionError {
         /// Cell centres probed before the walk stopped: the cap.
         cells: usize,
     },
+    /// A trim edge's metred chart length is not a finite number: its
+    /// squared components overflowed, so `|edge|` is `∞` (or poison)
+    /// and every rung levered by it would read a finite height as an
+    /// exact zero ([`geom_core::is_finite_length`]). Recourse is the
+    /// model's scale, not ε.
+    NonFiniteEdge,
     /// The topology could not be walked, or the crossing walk
     /// contradicted itself (fail-loud kernel-invariant class).
     Corrupt,
@@ -455,6 +464,12 @@ impl core::fmt::Display for ChartRegionError {
                  the overlap is neither certified nor ruled out; simplify the \
                  pair's trims, or read it on a chart whose boundaries meet in fewer \
                  places"
+            ),
+            Self::NonFiniteEdge => write!(
+                f,
+                "chart-region: a trim edge's chart length overflowed the number \
+                 format, so no height across it can be measured. Model the part at \
+                 a scale whose lengths are finite numbers"
             ),
             Self::Corrupt => write!(
                 f,
@@ -3116,13 +3131,23 @@ fn proper_crossings<T: Decide>(
     band: Band,
 ) -> Result<Vec<Crossing<T>>, ChartRegionError> {
     let escalate = ChartRegionError::Escalated;
+    // Every rung below levers by an edge length, and an overflowed
+    // `|edge| = ∞` divides a finite height to an exact Zero.
+    let finite_norm = |v: Vec2<T>| {
+        let len = v.norm();
+        is_finite_length(len)
+            .then_some(len)
+            .ok_or(ChartRegionError::NonFiniteEdge)
+    };
     let mut out = Vec::new();
     for ai in 0..a.len() {
         let p = a[ai];
         let r = a[(ai + 1) % a.len()] - p;
+        let r_len = finite_norm(r)?;
         for bi in 0..b.len() {
             let q = b[bi];
             let s = b[(bi + 1) % b.len()] - q;
+            let s_len = finite_norm(s)?;
             let qp = q - p;
             let denom = r.perp_dot(s);
             // ARGUMENT-ORDER INVARIANT (#1063 fix pass): both levers
@@ -3134,7 +3159,7 @@ fn proper_crossings<T: Decide>(
             // margin is bit-identical in both orders. A one-sided
             // `|r|` lever is what made the SAME pair certify one way
             // and escalate the other.
-            let lever = r.norm().min(s.norm());
+            let lever = r_len.min(s_len);
             let d_sign = decide(
                 "chart_region_parallel",
                 Margin::over_lever(denom, lever),
@@ -3158,8 +3183,8 @@ fn proper_crossings<T: Decide>(
                 // `Margin::of` is its door (the `carrier_agreement`
                 // precedent).
                 let pq = Vec2::new(T::zero() - qp.x, T::zero() - qp.y);
-                let off_a = (r.perp_dot(qp) / r.norm()).abs();
-                let off_b = (s.perp_dot(pq) / s.norm()).abs();
+                let off_a = (r.perp_dot(qp) / r_len).abs();
+                let off_b = (s.perp_dot(pq) / s_len).abs();
                 match decide(
                     "chart_region_collinear_offset",
                     Margin::of(off_a.max(off_b)),
@@ -3173,7 +3198,7 @@ fn proper_crossings<T: Decide>(
                         let s0 = qp.dot(rhat);
                         let s1 = (b[(bi + 1) % b.len()] - p).dot(rhat);
                         let (lo, hi) = (s0.min(s1), s0.max(s1));
-                        let overlap = hi.min(r.norm()) - lo.max(T::zero());
+                        let overlap = hi.min(r_len) - lo.max(T::zero());
                         match decide("chart_region_collinear_overlap", Margin::of(overlap), band)
                             .map_err(escalate)?
                         {
@@ -3188,12 +3213,7 @@ fn proper_crossings<T: Decide>(
             let t = qp.perp_dot(s) / denom;
             let u = qp.perp_dot(r) / denom;
             let one = T::one();
-            let spans = [
-                (t, r.norm()),
-                (one - t, r.norm()),
-                (u, s.norm()),
-                (one - u, s.norm()),
-            ];
+            let spans = [(t, r_len), (one - t, r_len), (u, s_len), (one - u, s_len)];
             // All four clearances are decided BEFORE any verdict: a
             // definite Negative anywhere means the line intersection
             // lies definitely off a segment — no crossing and no
@@ -4086,6 +4106,58 @@ mod tests {
         let (a2, p) = loop_measures(&pieces[0]);
         assert!((a2 - 0.5).abs() < 1e-12, "2A of the 0.5×0.5 overlap");
         assert!((p - 2.0).abs() < 1e-12, "perimeter of the overlap");
+    }
+
+    /// Two collinear segments sharing a span are never read as
+    /// disjoint: they refuse as touching while their lengths are
+    /// numbers, and refuse the overflowed length past that. Scaled by
+    /// 1e199 this pair once returned `Ok(0 crossings)` — the collinear
+    /// lane's `r̂` collapsed to zero and so did the overlap.
+    #[test]
+    fn a_shared_collinear_span_is_never_read_as_disjoint() {
+        for (k, overflowed) in [(1.0, false), (1e150, false), (1e199, true), (1e300, true)] {
+            let a = vec![Point2::new(0.0, 0.0), Point2::new(2.0 * k, 0.0)];
+            let b = vec![Point2::new(1.0 * k, 0.0), Point2::new(3.0 * k, 0.0)];
+            let got = proper_crossings(&a, &b, band()).map(|c| c.len());
+            let want = if overflowed {
+                ChartRegionError::NonFiniteEdge
+            } else {
+                ChartRegionError::TouchingBoundary
+            };
+            assert!(
+                matches!(&got, Err(e) if *e == want),
+                "scale {k:e}: want Err({want:?}), got {got:?}"
+            );
+        }
+    }
+
+    /// An edge whose length overflows refuses before any rung levers by
+    /// it: an `∞` lever divides a finite height to an exact Zero, which
+    /// read a pair 1 m apart, and a pair crossing at a shallow angle, as
+    /// collinear and overlapping. At 1e150 the same shapes decide.
+    #[test]
+    fn an_overflowed_edge_refuses_rather_than_zeroing_its_heights() {
+        let shapes = |k: f64| {
+            let a = vec![Point2::new(0.0, 0.0), Point2::new(2.0 * k, 0.0)];
+            let apart = vec![Point2::new(1.0 * k, 1.0), Point2::new(3.0 * k, 1.0)];
+            let shallow = vec![Point2::new(0.5 * k, -1.0), Point2::new(2.5 * k, 1.0)];
+            [
+                ("1 m apart", a.clone(), apart, 0),
+                ("shallow crossing", a, shallow, 4),
+            ]
+        };
+        for (what, a, b, crossings) in shapes(1e150) {
+            let got = proper_crossings(&a, &b, band()).map(|c| c.len());
+            assert_eq!(got, Ok(crossings), "{what} at 1e150 decides");
+        }
+        for (what, a, b, _) in shapes(1e199) {
+            let got = proper_crossings(&a, &b, band()).map(|c| c.len());
+            assert_eq!(
+                got,
+                Err(ChartRegionError::NonFiniteEdge),
+                "{what} at 1e199 refuses the overflowed length"
+            );
+        }
     }
 
     #[test]

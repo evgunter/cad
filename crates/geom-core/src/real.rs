@@ -907,7 +907,11 @@ pub const fn pow2(e: i32) -> f64 {
 ///   propagates `NaN` but not infinity, so a `min` hides an
 ///   OVERFLOWED chord behind a finite one;
 /// - `profile`'s two 2-D director doors (`unit_from_components`,
-///   `arc_fillet::carrier_tangent`).
+///   `arc_fillet::carrier_tangent`);
+/// - `topo`'s `chart_region::proper_crossings`, which decides no
+///   length but levers every rung by its edges' lengths, so it asks
+///   this of each edge before the first rung: an `∞` lever divides a
+///   finite height to an exact zero.
 ///
 /// Each refuses with its own typed arm, naming the recourse its own
 /// caller can reach: the question is one question, but what a caller
@@ -916,8 +920,8 @@ pub const fn pow2(e: i32) -> f64 {
 /// is not.
 ///
 /// **This roster is hand-kept and nothing enforces it.** It is a
-/// five-door cross-crate claim living in a leaf crate that cannot see
-/// four of them, so it is exactly as current as the last person to
+/// six-door cross-crate claim living in a leaf crate that cannot see
+/// five of them, so it is exactly as current as the last person to
 /// edit it. Treat it as a reading aid, not as a census; the census
 /// that is checked is `docs/K-REPORT.md`'s, and it is about decided
 /// names rather than about this question.
@@ -925,13 +929,16 @@ pub const fn pow2(e: i32) -> f64 {
 /// **The declined half of the family: normalize-without-deciding.**
 /// A site that normalizes a vector whose length it never decides at
 /// all is a different shape — there is no sign question in front of
-/// it to put this one before — and closing it is not this predicate's
-/// job as things stand. Known instances, and the count is a floor
-/// rather than a total because nothing sweeps for them:
-/// `geom-brep`'s `enters::enters_material`, which decides a
-/// caller-supplied arm and then normalizes a `dir` whose own length is
-/// never asked about — a `pub` door. Filed as
-/// `work/fix/normalize-without-the-length-question-two-more-sites`.
+/// it to put this one before — and it needs none while the length is
+/// read nowhere else: [`Vec3::normalize`](crate::Vec3::normalize)
+/// prescales, so a finite vector yields its direction at every
+/// magnitude and an infinite one yields poison. `geom-brep`'s
+/// `enters::enters_material` is that case, and its tests pin it. The
+/// shape is a defect where the un-asked length is ALSO read — as a
+/// lever, a denominator, a span — or where the normalization is
+/// spelled `v / v.norm()`, which the prescale never sees. Known
+/// instances, a floor rather than a total: those listed in
+/// `work/issues/two-step-normalize-and-unasked-lengths`.
 /// `profile`'s `path::chord_director` is one by design: a leg's length
 /// is decided by the gates that read it as a lever and as a segment, so
 /// the chord door decides none and refuses nothing. It asks this of the
