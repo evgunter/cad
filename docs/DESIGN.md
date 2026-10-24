@@ -972,7 +972,7 @@ gives compile-time exhaustiveness, so adding an analytic kind means
 adding a variant and letting the compiler enumerate every dispatch
 site. The `Nurbs` variant is the universal fallback: any exotic surface
 is at minimum representable. Same design for curves (line / circle /
-ellipse / spiric / NURBS — the spiric is the axis-parallel plane×torus
+ellipse / hyperbola / parabola / spiric / NURBS — the spiric is the axis-parallel plane×torus
 section, one oval, in the torus's own minor angle).
 
 ### Import `[import]`
