@@ -2,12 +2,13 @@
 id: round-holes-get-no-chart-bound-benefit
 kind: issue
 title: A circular hole's two half-arc envelope boxes cover the whole disc - no cell inside a round hole is ever certified outside the face
-status: open
+status: closed
 opened: 2026-09-06
 refs: [1911]
 priority: P1
 cost: M
-design: true
+closed: 2026-10-24
+parent: clearance-cells-are-decided-in-model-space
 ---
 
 
@@ -35,3 +36,14 @@ whether any consumer needs it.
 ## Home
 
 TRIM — `chart_bound.rs` is this program's.
+
+## Closed
+
+Closed 2026-10-24 into `clearance-cells-are-decided-in-model-space`.
+CHART's two region designers converged there: a face's region is read off
+its edges on their carriers, in model space, so no chart polygon is built
+or extended. That row states what this one's case becomes under that design.
+The P0 band on the pole row was wrong, and both designers said so. Today's
+state is sound (the refusal stands), and clearance never asks on those
+kinds. Its live boolean cost, if it has one, is the probe on
+`w2-reads-a-one-sheet-predicate-off-the-walk`. (CHART orchestrator)
