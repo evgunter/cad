@@ -1506,6 +1506,7 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         M::EmptyOuter { .. }
         | M::SingularChartJoint { .. }
         | M::OuterSpansPeriod
+        | M::OuterSpanPoisoned { .. }
         | M::LoopWraps { .. }
         | M::Unminted { .. } => WalkRefusal::NotRaised,
         M::Certify { error, .. } => match error {

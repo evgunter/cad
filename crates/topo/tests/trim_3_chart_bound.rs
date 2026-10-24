@@ -23,7 +23,6 @@ use geom::{Curve3, NurbsCurve3, Surface};
 use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeDescriptionSpec, Period, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, SpanLocate, SupSpeed, Tol, Vec3};
-use topo::pcurves::ChartArm;
 use topo::{
     Body, ChartBound, ChartEdge, ChartLoop, FaceSurface, LoopBoundary, MefSite, MetredRect,
     MevSite, PcurveMintError, chart_boundary,
@@ -81,7 +80,7 @@ fn l_bound() -> topo::MetredBound<Interval> {
         polygon(&L_SHAPE, false),
         Vec::new(),
         None,
-        ChartArm::Rate(SupSpeed::new(Interval::one())),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect("an aperiodic chart has no span premise to violate")
@@ -188,7 +187,7 @@ fn t8_a_centre_grazing_both_axes_is_answered_by_the_oblique_members() {
         polygon(&verts, false),
         Vec::new(),
         None,
-        ChartArm::Rate(SupSpeed::new(Interval::one())),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect("aperiodic")
@@ -252,7 +251,7 @@ fn t5_a_realizable_ring_is_lifted_and_the_lifts_are_inert_inside_the_outer() {
         outer,
         vec![ring],
         Some(Period::new(Interval::tau())),
-        ChartArm::Angular(Interval::one()),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect("an outer spanning 6.2 < τ satisfies the lift premise");
@@ -314,7 +313,7 @@ fn t5b_an_outer_wider_than_the_period_refuses() {
         outer,
         vec![ring],
         Some(Period::new(Interval::tau())),
-        ChartArm::Angular(Interval::one()),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect_err("an outer spanning three periods has no periodic region");
@@ -329,7 +328,7 @@ fn t5b_an_outer_wider_than_the_period_refuses() {
             polygon(&[(0.0, 0.0), (wide, 0.0), (wide, 2.0), (0.0, 2.0)], false),
             Vec::new(),
             None,
-            ChartArm::Rate(SupSpeed::new(Interval::one())),
+            SupSpeed::new(Interval::one()),
             band(),
         )
         .is_ok(),
@@ -383,7 +382,7 @@ fn t5c_an_envelope_reaching_past_the_period_refuses_at_f64() {
             outer(reach_u),
             Vec::new(),
             Some(Period::new(tau)),
-            ChartArm::Angular(1.0),
+            SupSpeed::new(1.0),
             band(),
         )
     };
@@ -454,7 +453,7 @@ fn t6_an_envelope_box_is_widened_by_its_certificate_slack() {
         outer,
         Vec::new(),
         Some(Period::new(Interval::tau())),
-        ChartArm::Angular(iv(2.0)),
+        SupSpeed::new(iv(2.0)),
         band(),
     )
     .expect("a 2 x 2 outer does not span a period")
@@ -921,7 +920,7 @@ fn t10_a_long_edge_guards_the_dimensional_claim() {
         polygon(&[(0.0, 0.0), (long, 0.0), (long, -5.0), (0.0, -5.0)], false),
         Vec::new(),
         None,
-        ChartArm::Rate(SupSpeed::new(Interval::one())),
+        SupSpeed::new(Interval::one()),
         band(),
     )
     .expect("aperiodic")
@@ -996,7 +995,7 @@ fn t11_the_metred_hull_is_widened_by_every_envelope_slack() {
         outer,
         Vec::new(),
         Some(Period::new(Interval::tau())),
-        ChartArm::Angular(iv(2.0)),
+        SupSpeed::new(iv(2.0)),
         band(),
     )
     .expect("a 2.1 x 2 outer does not span a period at arm 2");
