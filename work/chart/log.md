@@ -212,3 +212,13 @@ This was not a crossover, because only one designer moved, so reconciliation end
     - the goldens are re-described as a tie-break (no quality change), and the diagonal fragility goes to TESS;
     - the CI change filter's skip of step-import and interval is checked.
 - 2026-10-24 — **PR 5654 merged** (normalize, `7d17b38b3f`). Its row is closed.
+- 2026-10-24 — **PR 5657's FULL review** (`session_01LWuVeXsbgBbP9SrdM19vfM`): no MAJOR. `Sheet::One` is sound, re-derived by separation. The torus gap is shared with main and was not reachable: a genus-1 STEP face refuses at import with `CurvedSenseInverted`. **Ruling: W2 keeps no outer-span bound** (the reviewer's proof agrees with the lane). PR 5656 is re-justified on the ring lifts' premise.
+
+  The fix pass:
+  - one walk rather than a fork of `chart_boundary`'s;
+  - an exhaustive passenger match;
+  - a nappe type of its own;
+  - R-unread visible on the crossings path;
+  - stale refusal lists;
+  - an octant row that can fail;
+  - the torus issue's evidence.
