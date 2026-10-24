@@ -31,3 +31,22 @@ in the full suite from the 2026-10-23 nightly (run 39906156937, main
 `be9b907694`), its first after #5588; the only file that moved is
 `crates/geom-brep/src/props/quad.rs`, measured `(10, 4)` against the
 pinned `(7, 2)`.
+
+## 2026-10-24 — the count grew again (INTENT nightly triage)
+
+Nightly run 40066431545 (main `3dfb96b91c`) reads `props/quad.rs` at
+`(17, 7)` against the pinned `(7, 2)`. On 10-23 it read `(10, 4)`.
+The census reads source, so one test binary built at `3dfb96b91c` was
+run over each merge's tree:
+
+| tree | `props/quad.rs` |
+|---|---|
+| `be9b9076` (10-23 nightly) | (10, 4) |
+| `2300efe8` (#5589) | (10, 4) |
+| `c8b398d2` (#5611, `quad/patch-doors-one-net`) | (14, 6) |
+| `0ca666f4` (#5634, `iso/trimmed-composite-rounds`) | (17, 7) |
+| `9180a67d`, `3dfb96b91c`, `7bfb66fc` | (17, 7) |
+
+So #5611 (QUAD) added 4 reads (2 dispositioned) and #5634 (ISO) added
+3 (1 dispositioned). Each new read still owes the census's question:
+does it ask `is_certified()` by name, or is it argued safe at the site?

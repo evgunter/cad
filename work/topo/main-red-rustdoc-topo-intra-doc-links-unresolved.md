@@ -1,11 +1,12 @@
 ---
 id: main-red-rustdoc-topo-intra-doc-links-unresolved
 kind: issue
-title: "Main red (nightly rustdoc gate): 22 unresolved intra-doc links across topo"
-status: open
+title: Main red (nightly rustdoc gate): 22 unresolved intra-doc links across topo
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: E
+closed: 2026-10-24
 ---
 
 
@@ -53,3 +54,20 @@ moved. The `wedge_reach` and `validate` errors are ambiguity, not
 absence (`crate::wedge_reach` and `crate::validate` are each a function
 and a module; `mod@` or `()` settles each). INTENT's triage PR fixes the
 editor-core, pncad-py and viewer links the same job reported.
+
+## Closed (2026-10-24, INTENT nightly triage)
+
+Nightly run 40066431545 (main `3dfb96b91c`) still listed the family:
+`attach.rs`, `boolean/{mod,node,rim_wedge,solid_contain,sphere_region,torus_region}.rs`,
+`census.rs`, `euler.rs`, `offset_restate.rs`, `policy_lane.rs`,
+`side_reader.rs` and `split.rs`. Each is now pathed the way the code
+names its item. `crate::wedge_reach` and `crate::validate` become
+`fn@…`, each naming a function that shares its name with a module.
+`Coincide` becomes `super::Coincide`, and `census::line_passes` becomes
+`crate::census::line_passes`. `ConicArc::hit` links to
+`crate::splitting::containment::ConicArc::hit`. In `census.rs`'s `metric`
+and `rest` submodules, `face_piece` and `Sector::place` link through
+`super::`. The same PR fixed geom-brep's `props/spiric.rs` (five links
+to `#[cfg(test)]` helpers, now plain code spans) and editor-core's
+`mate/corner.rs` (`super::pin::moved_frame`).
+`scripts/doc-gate.sh` passes locally over every root. Docs only.

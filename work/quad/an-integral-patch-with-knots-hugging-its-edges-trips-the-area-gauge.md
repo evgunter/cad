@@ -32,3 +32,20 @@ reads `[1.13, 3.72]` through the quotient statement's hulls per block.
 Wide is not wrong. The A2 tripwire still says a certified return this
 wide means the area pass lost the geometry, so the lane should refuse
 typed, or tighten, before the tripwire is reached.
+
+## 2026-10-24 — now red on main at every ε (INTENT nightly triage)
+
+Nightly run 40066431545 (main `3dfb96b91c`) reds
+`cert5_r1_patch_probes::knots_hugging_the_trim_edges_stay_sound` at
+default, 1e-6 and 1e-12, with this row's panic: `ARM: perimeter. Width
+20009765.101737916 on a face whose perimeter is at least 8`. The
+2026-10-23 nightly passed it.
+
+The row's net has weights 2 (constant). ISO's PR 5635
+(`iso/one-polynomial-weight-test`, merge `9180a67d`) routes a
+constant-weight net to the integral arm
+(`geom_core::spline::constant_weight`; `props/quad.rs`
+`nurbs_patch_face_rounds`). So this net now takes the unit-weight path
+this row describes, where before it took the rational quotient lane.
+5635 did not cause the defect. It routed a probe row onto it, and the
+probe is now the main red. The fix stays this row's.
