@@ -21,8 +21,7 @@
 //! disposes, and a band's spelling belongs to the crate that owns the
 //! band.
 //!
-//! `f64` alone, for the reason [`crate::chart`] gives: these are
-//! float-path facts about `f64` coordinates.
+//! `f64` alone: both consumers read `f64` bodies.
 
 use geom::Curve3;
 
@@ -41,7 +40,7 @@ pub enum TravKind {
     },
     /// A u = const boundary; carries the raw column azimuth.
     Meridian {
-        /// Raw u ∈ (−π, π], from the chart inversion at the edge's
+        /// Raw u in the angle window, from the chart inversion at the edge's
         /// mid-point.
         u_raw: f64,
     },

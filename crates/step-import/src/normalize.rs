@@ -244,29 +244,34 @@ fn split_at_param(
 }
 
 /// Whether traversing `carrier` in its increasing parameter raises the
-/// chart coordinate selected by `pick` — the file's own winding, read
-/// off the geometry rather than assumed from a flag.
+/// chart u — the file's own winding, read off the geometry rather than
+/// assumed from a flag.
 ///
-/// Sampled a quarter and a fifth of the way along the interval: far
-/// enough from both ends that the sample sits mid-quadrant, and clear
-/// of the chart's own wrap (the seam at |u| = π and the inner equator
-/// at |v| = π), where a finite difference would read a jump as a
-/// direction. `None` when the samples do not invert onto the chart, or
-/// when the step is too small to have a sign — an undecidable winding
-/// is refused by the caller, never guessed.
+/// Sampled a quarter and three tenths of the way along the interval,
+/// far enough from both ends that the samples sit mid-quadrant, and the
+/// step between them read modulo a turn, so the window's cut falling
+/// between them is no direction. `None` when the samples do not invert
+/// onto the chart, or when the step is too small to have a sign — an
+/// undecidable winding is refused by the caller, never guessed.
 fn chart_direction(
     surface: &Surface<f64>,
     carrier: &Curve3<f64>,
     t0: f64,
     t1: f64,
-    pick: fn(geom_core::Point2<f64>) -> f64,
+    chart_band: Option<geom_core::Band>,
 ) -> Option<bool> {
     let span = t1 - t0;
-    let at = |f: f64| crate::chart::uv_of(surface, carrier.eval(t0 + span * f)).map(pick);
+    let at = |f: f64| {
+        crate::chart::uv_of(surface, carrier.eval(t0 + span * f), chart_band).map(|uv| uv.x)
+    };
     let (lo, hi) = (at(0.25)?, at(0.30)?);
-    // The step covers 5% of a full period, i.e. ~0.31 rad; anything
-    // materially smaller than that is not a reading.
-    ((hi - lo).abs() > 0.1).then_some(hi > lo)
+    // The step, brought into (−π, π] so a window's cut between the two
+    // samples reads as the step it is. It covers 5% of a full period,
+    // i.e. ~0.31 rad; anything materially smaller than that is not a
+    // reading.
+    let (sin, cos) = (hi - lo).sin_cos();
+    let step = sin.atan2(cos);
+    (step.abs() > 0.1).then_some(step > 0.0)
 }
 
 /// Runs the shell normalizations (module docs). `eps_in` is the
@@ -276,12 +281,13 @@ fn chart_direction(
 pub(crate) fn normalize_shell(
     solid: &mut SolidSpec,
     eps_in: f64,
+    chart_band: Option<geom_core::Band>,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
-    band_seam(solid, eps_in, mint, sink)?;
-    apex_cone(solid, mint, sink)?;
-    wall_inversion(solid)
+    band_seam(solid, eps_in, chart_band, mint, sink)?;
+    apex_cone(solid, chart_band, mint, sink)?;
+    wall_inversion(solid, chart_band)
 }
 
 /// **The seamless periodic band** (M7-5): a cylinder/torus face whose
@@ -334,12 +340,13 @@ pub(crate) fn normalize_shell(
 fn band_seam(
     solid: &mut SolidSpec,
     eps_in: f64,
+    chart_band: Option<geom_core::Band>,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
     for fi in 0..solid.faces.len() {
         if solid.faces[fi].band {
-            mint_band(solid, fi, eps_in, mint, sink)?;
+            mint_band(solid, fi, eps_in, chart_band, mint, sink)?;
             solid.faces[fi].band = false;
         }
     }
@@ -373,6 +380,7 @@ fn mint_band(
     solid: &mut SolidSpec,
     fi: usize,
     eps_in: f64,
+    chart_band: Option<geom_core::Band>,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
@@ -483,7 +491,9 @@ fn mint_band(
         let raises = raises.ok_or_else(undecidable)?;
         let use0 = lp.uses[0];
         let p0 = solid.vertices[&use_start(solid, use0)];
-        let v = crate::chart::uv_of(&surface, p0).ok_or_else(undecidable)?.y;
+        let v = crate::chart::uv_of(&surface, p0, chart_band)
+            .ok_or_else(undecidable)?
+            .y;
         rim.push((raises, v));
     }
     if rim[0].0 == rim[1].0 {
@@ -526,7 +536,16 @@ fn mint_band(
     let mut splits = 0usize;
     let mut seam_v = [0u64; 2];
     for li in [ls, le] {
-        seam_v[li] = seam_vertex_on_loop(solid, fi, li, &surface, eps_in, mint, &mut splits)?;
+        seam_v[li] = seam_vertex_on_loop(
+            solid,
+            fi,
+            li,
+            &surface,
+            eps_in,
+            chart_band,
+            mint,
+            &mut splits,
+        )?;
     }
     let (p_start, p_end) = (solid.vertices[&seam_v[ls]], solid.vertices[&seam_v[le]]);
     if (p_end - p_start).norm() <= eps_in {
@@ -627,12 +646,14 @@ fn mint_band(
 /// half-plane within ε_in (spec D1: the file's own interpretation
 /// budget), else minted by splitting the rim arc that crosses the
 /// azimuth, propagating the split to every sharing face.
+#[allow(clippy::too_many_arguments)] // one parameter per named quantity
 fn seam_vertex_on_loop(
     solid: &mut SolidSpec,
     fi: usize,
     li: usize,
     surface: &Surface<f64>,
     eps_in: f64,
+    chart_band: Option<geom_core::Band>,
     mint: &mut dyn FnMut() -> u64,
     splits: &mut usize,
 ) -> Result<u64, StepImportError> {
@@ -654,7 +675,7 @@ fn seam_vertex_on_loop(
     for u in &solid.faces[fi].loops[li].uses {
         let vid = use_start(solid, *u);
         let p = solid.vertices[&vid];
-        if let Some(uv) = crate::chart::uv_of(surface, p)
+        if let Some(uv) = crate::chart::uv_of(surface, p, chart_band)
             && (surface.eval(0.0, uv.y) - p).norm() <= eps_in
         {
             return Ok(vid);
@@ -768,7 +789,10 @@ fn seam_vertex_on_loop(
 /// flips import and certify green today (executed on the
 /// tilted-section cylinder; closes with the ellipse-rim material-side
 /// encoding).
-fn wall_inversion(solid: &SolidSpec) -> Result<(), StepImportError> {
+fn wall_inversion(
+    solid: &SolidSpec,
+    chart_band: Option<geom_core::Band>,
+) -> Result<(), StepImportError> {
     for face in &solid.faces {
         let (Surface::Cylinder { axis, .. } | Surface::Cone { axis, .. }) = face.surface else {
             continue;
@@ -789,12 +813,14 @@ fn wall_inversion(solid: &SolidSpec) -> Result<(), StepImportError> {
                 continue;
             }
             let Some(p) =
-                chart_direction(&face.surface, &spec.carrier, spec.t0, spec.t1, |uv| uv.x)
+                chart_direction(&face.surface, &spec.carrier, spec.t0, spec.t1, chart_band)
             else {
                 readable = false;
                 break;
             };
-            let Some(uv) = crate::chart::uv_of(&face.surface, spec.carrier.eval(spec.t0)) else {
+            let Some(uv) =
+                crate::chart::uv_of(&face.surface, spec.carrier.eval(spec.t0), chart_band)
+            else {
                 readable = false;
                 break;
             };
@@ -838,6 +864,7 @@ fn wall_inversion(solid: &SolidSpec) -> Result<(), StepImportError> {
 /// half-circles.
 fn apex_cone(
     solid: &mut SolidSpec,
+    chart_band: Option<geom_core::Band>,
     mint: &mut dyn FnMut() -> u64,
     sink: &mut Vec<StructureNormalization>,
 ) -> Result<(), StepImportError> {
@@ -934,9 +961,10 @@ fn apex_cone(
             &circle_spec.carrier,
             circle_spec.t0,
             circle_spec.t1,
-            |uv| uv.x,
+            chart_band,
         );
-        let v_b = crate::chart::uv_of(&face.surface, solid.vertices[&base_v]).map(|uv| uv.y);
+        let v_b =
+            crate::chart::uv_of(&face.surface, solid.vertices[&base_v], chart_band).map(|uv| uv.y);
         if let (Some(p), Some(v_b)) = (p, v_b)
             && v_b != 0.0
         {
@@ -1161,6 +1189,7 @@ mod tests {
         let mut sink = Vec::new();
         apex_cone(
             &mut solid,
+            crate::chart::file_band(1e-9, geom_core::Tol::witness()),
             &mut || {
                 minted += 1;
                 1000 + minted
