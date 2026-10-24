@@ -54,14 +54,13 @@ and the exact quartic `Curve3::Spiric` (the axis-parallel plane×torus
 section, one oval in the torus's own minor angle — minted by
 `plane_torus_section`'s axis-parallel arm, which the offset-axial
 door's rim mint calls; a plane through the axis cuts the more exact
-`Circle`, and `Curve3::spiric` refuses it), whose residuals are zero by
-construction because the kernel derived them from their pair; rung 3,
+`Circle`, and `Curve3::spiric` refuses it); rung 3,
 a pair with no closed form (a spline operand), whose carrier is
 evidence of any kind — a fitted cubic `Curve3::Nurbs` where the kernel
 marched it, a closed form where a file stated one or recognition
-promoted one — carrying the C2 certificate. A closed form is zero by
-construction only on rungs 1–2; declared on a rung-3 pair, it is
-checked like any other carrier. The kind inventory is closed at the
+promoted one — carrying the C2 certificate. The rung is the pair's, read off the C5
+table, never the carrier's: what a carrier owes (C2) depends on its
+pair's pose and not on its kind or on who minted it. The kind inventory is closed at the
 kinds above: a section that has a closed form and no kind is minted
 exactly into the NURBS container. A plane×cone parabola or hyperbola is
 such a section, minted from the pair in closed form as a
@@ -70,7 +69,16 @@ rational-quadratic arc (weights `(1, w, 1)`, `w = 1` the parabola,
 carriers stay kinds; they round-trip to rational-quadratic NURBS only as
 an export/tessellation form. There is no polyline rung.
 
-**C2 — The certificate of a carrier the kernel did not derive has three limbs, all mandatory.**
+**C2 — The certificate of an `Intersection` carrier has three limbs.**
+Limbs 1 and 2 are owed by every carrier, of every kind, however it was
+minted. Limb 3 is owed unless the pair's section function, for this
+pose, states the two numbers the tube would prove: a lower bound on the
+sine of the surfaces' crossing angle over the carrier's stretch of the
+section, and the clearance of the ε over that sine around the stretch
+from every other piece of the two surfaces' ε-overlap (the section's
+other components, and any near-miss region where the surfaces approach
+without crossing). Limb 2 within ε of both surfaces then puts the
+carrier on the named component, which the witness mid-pin identifies.
 (1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
 in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 `|C(t) − S(u*,v*)|` at the projected foot point; any point of the
