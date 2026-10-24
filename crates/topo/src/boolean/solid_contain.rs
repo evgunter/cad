@@ -4650,7 +4650,7 @@ struct PlaneCross<T: geom_core::Real> {
 }
 
 /// **The line edges a ray meets**: each line edge between two planar
-/// faces whose planes it crosses ([`census::line_passes`], the
+/// faces whose planes it crosses ([`crate::census::line_passes`], the
 /// census's closest read of two lines) is decided once, for both faces.
 /// `met` holds each edge it passes within the band of, with its advance;
 /// `read` every edge decided, met or not; `marks` where along the ray it

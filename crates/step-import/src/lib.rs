@@ -740,7 +740,7 @@ pub fn import_step(
         return Err(StepImportError::InvalidEpsOverride { value: eps });
     }
     let file = parse::parse_file(text)?;
-    let model = entities::resolve(&file, options.eps_in)?;
+    let model = entities::resolve(&file, options.eps_in, tol)?;
     let eps_in = options.eps_in.unwrap_or(model.uncertainty_m);
     match model.shape {
         entities::Shape::Solids(ref solids) => {

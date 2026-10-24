@@ -5454,6 +5454,7 @@ fn sweep_conformal_patches<T: Decide>(
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
                         | ChartRegionError::RayExhausted
+                        | ChartRegionError::EdgeScale
                         | ChartRegionError::WitnessSegmentCapExceeded { .. }
                         | ChartRegionError::WitnessCellCapExceeded { .. }
                         | ChartRegionError::Corrupt),
@@ -6517,7 +6518,7 @@ mod metric {
     /// point within the slack of the one read, so no sector's offset
     /// can flip it; a Zero stays the band's coincidence, the slack being
     /// within it. `None` where the reading is about the sector's own
-    /// apex ([`face_piece`]), so nothing is moved and the one read is
+    /// apex ([`face_piece`](super::face_piece)), so nothing is moved and the one read is
     /// the reading.
     #[derive(Clone, Copy)]
     pub(super) struct Reading<T> {
@@ -8284,7 +8285,7 @@ mod rest {
     /// Whether the piece `c0`–`c1` crosses a face of `other` along a ray
     /// inside both: its ends decidedly on opposite sides of the face's
     /// plane, and the point between them on the plane inside the face's
-    /// sector ([`Sector::place`]: strictly inside a wedge, or on a ray two
+    /// sector ([`Sector::place`](super::Sector::place): strictly inside a wedge, or on a ray two
     /// of its wedges share) and on none of the `rays` of either link that
     /// lie on the face — a cut, where another face of one link reaches
     /// the ray and neither material is a half-space there. Only the
@@ -10725,6 +10726,7 @@ fn confirm_patch<T: Decide>(
             | ChartRegionError::TouchingBoundary
             | ChartRegionError::DegenerateLoop { .. }
             | ChartRegionError::RayExhausted
+            | ChartRegionError::EdgeScale
             | ChartRegionError::WitnessSegmentCapExceeded { .. }
             | ChartRegionError::WitnessCellCapExceeded { .. }
             | ChartRegionError::Corrupt),

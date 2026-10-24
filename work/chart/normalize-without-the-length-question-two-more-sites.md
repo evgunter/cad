@@ -2,10 +2,13 @@
 id: normalize-without-the-length-question-two-more-sites
 kind: issue
 title: two sites normalize a vector whose length no door asked to be finite — the shapes the director-doors sweep found and did not take
-status: open
+status: closed
 opened: 2026-09-11
 priority: P1
 cost: E
+branch: chart/normalize-length
+pr: 5654
+closed: 2026-10-24
 ---
 
 
@@ -186,3 +189,46 @@ no longer collapses: its margin is the right one for a finite `dir`
 of any size. Site 1's `rhat` is likewise the right direction; what
 remains there is the decided offset margin, whose infinite `|r|`
 still makes it a spurious definite Zero.
+
+## Taken 2026-10-24 (CHART, `chart/normalize-length`) — what executed, and what changed
+
+**Site 1, executed.** The reviewer's reproduction is pinned as
+`chart_region::tests::a_shared_collinear_span_touches_or_refuses_its_scale` (first landed as `…_is_never_read_as_disjoint`)
+(a shared span at scales 1, 1e150, 1e199 and 1e300). It is red at 1e199,
+`Ok(0)`, under the pre-prescale `Vec2::normalize` (`self / self.norm()`).
+It is green on main, because FRAME's prescale already gives the right
+`r̂`. What still fired is the residue the 2026-10-21 note names. An
+overflowed `|r|` levers every rung, so a finite height divides to an
+exact zero. A pair 1 m apart, and a pair crossing at a shallow angle,
+both read as collinear and overlapping at 1e199, and both refused
+`TouchingBoundary`, a claim that is false
+(`an_overflowed_edge_refuses_rather_than_zeroing_its_heights`; at 1e150
+the same shapes decide `Ok(0)` and `Ok(4)`). `proper_crossings` now
+asks each edge's length before the first rung (`edge_lengths`). It must
+be bounded (`Real::is_bounded`, which also refuses an interval reaching
+`∞`) and not underflowed (`is_underflowed_length`, a point-scalar
+question). Otherwise it refuses a new typed arm,
+`ChartRegionError::EdgeScale`, which carries the census's `ChordScale`
+recourse with its bounds. The census and `validate` classify it like
+every other arm. The pins run at `f64` and at `Interval`
+(`a_shared_collinear_span_touches_or_refuses_its_scale`). With the gate
+in place they stay green under the pre-prescale `normalize`, and with
+it removed they go red: this site no longer leans on the prescale.
+
+**Site 2, executed, no code change.** `enters_material` reads `dir`'s
+direction only, never its length. With the prescale, a finite `dir`
+classifies by direction at every magnitude from 1e-310 to 1e307. An
+infinite `dir` escalates `enters_material`
+(`dir_classifies_by_direction_at_every_finite_magnitude`; red at 1e-310
+under the pre-prescale `Vec3::normalize`). Asking it the length question
+would refuse answers that are now right. `is_finite_length`'s docs say
+so, and no longer count it as a defect.
+
+**The sweep's residue** is filed as
+`work/issues/two-step-normalize-and-unasked-lengths`: `v / v.norm()`
+spellings that the prescale never sees, and un-asked lengths that are
+read as levers.
+
+## Closed
+
+Closed 2026-10-24 by PR 5654 (FULL review; fix pass taken in full). The residue is filed as `work/issues/two-step-normalize-and-unasked-lengths` and `work/atrest/edge-length-scale-question-has-no-shared-helper`. (CHART orchestrator)

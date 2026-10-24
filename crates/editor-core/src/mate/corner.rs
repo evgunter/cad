@@ -164,7 +164,7 @@ pub(crate) fn read_of(
 /// where the evaluation puts it exactly, in the body's own coordinates.
 /// Where a box's edges run along its own axes this is its own frame,
 /// read with no number, so a frame stated from it by exact moves
-/// ([`super::moved_frame`]) stands exactly where it is meant — a frame a
+/// ([`super::pin::moved_frame`]) stands exactly where it is meant — a frame a
 /// caller means as axis-aligned, written as one.
 ///
 /// # Errors

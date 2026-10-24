@@ -150,7 +150,7 @@ impl ByPolicy {
 }
 
 /// [`EdgeCurve::certify_via`] with `T`'s lane, the wedge levered at
-/// `reach` ([`crate::wedge_reach`]).
+/// `reach` ([`fn@crate::wedge_reach`]).
 pub(crate) fn certify<T: AtRestPolicy>(
     origin: Origin,
     spec: EdgeCurveSpec<T>,
@@ -165,7 +165,7 @@ pub(crate) fn certify<T: AtRestPolicy>(
 
 /// [`EdgeCurve::certify_via_stated`] with `T`'s lane: `stated` is a chart
 /// image the body already holds for the edge on one of its surfaces, and
-/// the wedge is levered at `reach` ([`crate::wedge_reach`]).
+/// the wedge is levered at `reach` ([`fn@crate::wedge_reach`]).
 #[allow(clippy::too_many_arguments)] // `certify`'s, plus the stated image
 pub(crate) fn certify_stated<T: AtRestPolicy>(
     origin: Origin,
@@ -224,7 +224,7 @@ fn certify_via_stated<T: Decide>(
 }
 
 /// [`EdgeCurve::recertify_via`] with `T`'s lane, the wedge levered at
-/// `reach` ([`crate::wedge_reach`]).
+/// `reach` ([`fn@crate::wedge_reach`]).
 pub(crate) fn recertify<T: AtRestPolicy>(
     origin: Origin,
     curve: &EdgeCurve<T>,

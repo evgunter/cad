@@ -2963,11 +2963,6 @@ pub(crate) enum ApexClosure<T: Real> {
         /// The lift's images, starting at the half-edge that leaves the
         /// apex.
         images: Vec<AzimuthImage<T>>,
-        /// The azimuth hull of the lift.
-        window: (T, T),
-        /// The farthest boundary vertex from the apex, in metres: the
-        /// lever for an angle read off the window.
-        reach: T,
     },
     /// Two or more apex visits, or one on a ringed face: no single lift
     /// describes the face.
@@ -3017,13 +3012,11 @@ pub(crate) fn cone_apex_closure<T: Decide>(
         return Ok(ApexClosure::Open);
     };
     let mut leaving = Vec::new();
-    let mut reach = T::zero();
     let mut nappes = [false; 2];
     for (i, &he) in halves.iter().enumerate() {
         let v = proven(&body.half_edges, he, EntityId::HalfEdge).start;
         let q = vertex_point(body, v) - apex;
         let d = q.norm();
-        reach = reach.max(d);
         if decide("bool_cone_apex_visit", Margin::of(d), band).map_err(esc)? == Sign::Zero {
             leaving.push(i);
             continue;
@@ -3053,11 +3046,7 @@ pub(crate) fn cone_apex_closure<T: Decide>(
         .collect();
     let images = run_azimuth_images(body, surface, face, &lifted, band)?;
     Ok(match azimuth_hull(&images) {
-        Some(window) => ApexClosure::Closed {
-            images,
-            window,
-            reach,
-        },
+        Some(_) => ApexClosure::Closed { images },
         None => ApexClosure::Open,
     })
 }
@@ -5274,12 +5263,8 @@ fn chart_ring_side<T: Decide>(
     ring: LoopKey,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let WallChart {
-        origin: centre,
-        axis,
-        radius,
-        u_ref,
-    } = wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
+    let WallChart { radius, .. } =
+        wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
     let tau = T::tau();
     let invariant = |what| SplitJoinError::SectionInvariant { face: newf, what };
     let images = face_azimuth_images(body, surface, newf, band)?.ok_or(invariant(
@@ -5314,10 +5299,14 @@ fn chart_ring_side<T: Decide>(
     let n = images.len();
     let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
         let decide_r = |name, margin| decide(name, margin, band);
-        let w = vertex_point(body, v) - centre;
-        // The chart's one azimuth read (`geom_brep::Azimuth::principal`),
-        // lifted onto the run's window below by `periodic_branch`.
-        let raw = geom_brep::Azimuth::of(w.dot(axis.cross(u_ref)), w.dot(u_ref)).principal(band);
+        // The vertex's chart coordinates (`geom::Surface::chart_point`),
+        // its azimuth lifted onto the run's window below by
+        // `periodic_branch`.
+        let at = surface
+            .chart_point(vertex_point(body, v), band)
+            .map_err(|_| ring_island_unread(newf, surface))?
+            .uv;
+        let raw = at.x;
         // The vertex on the branch of the window's middle, in
         // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
         // own branch. One at the seam of a whole-period window lands on
@@ -5326,7 +5315,7 @@ fn chart_ring_side<T: Decide>(
         // `Sym` the crossings read `u_p` numerically, against image ends
         // of another provenance, never as an identity.
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
-        let v_p = w.dot(axis);
+        let v_p = at.y;
         let mut crossings = 0usize;
         for (i, image) in images.iter().enumerate() {
             let next = &images[(i + 1) % n];

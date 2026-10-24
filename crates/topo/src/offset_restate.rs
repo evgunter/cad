@@ -108,7 +108,7 @@ pub(crate) fn restate<T: Real>(
 /// `surfaces` are the pair's two surfaces after the door, each with the
 /// key the edge's description names, and `carrier` over `(t0, t1)` is
 /// the edge after it, its wedge levered at `reach`, its faces' extent as
-/// the body stands before the door moves them ([`crate::wedge_reach`]).
+/// the body stands before the door moves them ([`fn@crate::wedge_reach`]).
 /// `declared`
 /// is the edge's declaration as the
 /// door transports it, asked only where the rule reads the pair
@@ -144,7 +144,7 @@ pub(crate) fn re_ask_on_pair<T: Decide>(
 /// **A chart image an offset door keeps, re-asked the must-carry rule**
 /// ([`geom_brep::reask_chart`]) between `surfaces`, the edge's two sides
 /// after the door, over `carrier` on `(t0, t1)` levered at `reach`
-/// ([`crate::wedge_reach`]): `Some` is the intrinsic
+/// ([`fn@crate::wedge_reach`]): `Some` is the intrinsic
 /// description the rule now demands, `None` keeps the image.
 ///
 /// # Errors

@@ -292,6 +292,7 @@ use crate::live::{linked, proven};
 use crate::offset_restate::chart_moves;
 use crate::offset_together::{ChartMove, unmoved_in_scope, unplaced_in_scope};
 use crate::replace_face::ReplaceFaceError;
+use slotmap::SecondaryMap;
 
 /// The revolution axis every accepted surface shares, with the scope's
 /// own radial extent — the length that levers every direction test
@@ -445,8 +446,8 @@ impl<T: Decide> Profile<T> {
 /// is not written.
 ///
 /// **What it READS is not as tight as what it writes**, and the whole
-/// account — which two reads are scope-sized, which four are still
-/// linear in the body, and what that costs — is [`crate::offset_together::Scope`]'s, stated
+/// account — which reads are scope-sized and which still read the whole
+/// body — is [`crate::offset_together::Scope`]'s, stated
 /// there once for both doors.
 ///
 /// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
@@ -543,7 +544,13 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             ));
         }
     }
-    let chart_of = |face: FaceKey| charts.iter().find(|(k, _)| *k == face).map(|(_, c)| c);
+    // `well_formed` refused a face named twice, so each face has one row.
+    let chart_row: SecondaryMap<FaceKey, usize> = charts
+        .iter()
+        .enumerate()
+        .map(|(i, (face, _))| (*face, i))
+        .collect();
+    let chart_of = |face: FaceKey| chart_row.get(face).map(|&i| &charts[i].1);
 
     // ---- Decide: every corner, before anything is written. ----
     //
@@ -576,11 +583,23 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             position.push((*vertex, *here));
         }
     }
+    let corner_row: SecondaryMap<VertexKey, usize> = at_vertex
+        .iter()
+        .enumerate()
+        .map(|(i, (v, ..))| (*v, i))
+        .collect();
     let solve = |group: &[VertexKey]| {
         let mut at: Vec<&MovedChart<T>> = Vec::new();
         let mut arms: Vec<T> = Vec::new();
         let mut here = None;
-        for (vertex, at_here, charts) in at_vertex.iter().filter(|(v, ..)| group.contains(v)) {
+        // The group's corners in vertex-arena order, as `at_vertex` holds them.
+        let mut rows: Vec<usize> = group
+            .iter()
+            .filter_map(|&v| corner_row.get(v).copied())
+            .collect();
+        rows.sort_unstable();
+        rows.dedup();
+        for (vertex, at_here, charts) in rows.into_iter().map(|i| &at_vertex[i]) {
             for c in charts {
                 if !at.iter().any(|q| q.old_key == c.old_key) {
                     at.push(c);
@@ -622,7 +641,14 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         position.extend(group.iter().map(|&v| (v, point)));
         moved.push((group, point));
     }
-    let point_at = |v: VertexKey| position.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
+    let mut placed: SecondaryMap<VertexKey, Point3<T>> = SecondaryMap::new();
+    for &(v, p) in &position {
+        if let Some(entry) = placed.entry(v) {
+            entry.or_insert(p);
+        }
+    }
+    let point_at = |v: VertexKey| placed.get(v).copied();
+    let asked_at: SecondaryMap<VertexKey, ()> = asked.iter().map(|&v| (v, ())).collect();
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
@@ -685,7 +711,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         // corner solves agreeing about the edge between them is the
         // claim this door makes about every edge, and it is checked.
         let read = |t_old: T, v: VertexKey, q: Point3<T>, p: Point3<T>| {
-            if held && !asked.contains(&v) {
+            if held && !asked_at.contains_key(v) {
                 // Nothing moved under this end: its parameter stands.
                 Ok(t_old)
             } else {
@@ -811,13 +837,10 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
             source: source.for_driver(),
         }
     })?;
-    // Tier 2 over the WHOLE clone, deliberately, and one of the four
-    // reads that stay linear in the body (`Scope`'s docs carry the
-    // account and the reason for each).
-    work.sweep_and_close();
-    if let Err(errors) = crate::validate::validate_closed(&staged) {
-        return Err(ReplaceFaceError::ResultNotClosed { errors });
-    }
+    // Tiers 1 and 2 over the WHOLE clone, in one walk (`Scope`'s docs
+    // carry the account of what stays linear in the body).
+    work.close_gated("offset_charts_together")
+        .map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
     let joins =
         crate::replace_face::staged_join(&mut staged, join, tol, &|v| scope.holds_vertex(v))?;
     body.adopt(staged);

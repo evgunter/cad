@@ -882,7 +882,16 @@ fn every_walk_fixed_image_is_geometrically_fixed() {
         vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)],
         vec![(1.0, 1.0), (1.0, 2.0), (2.0, 2.0), (2.0, 1.0)],
     ];
-    let nearer = vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (1e-7, 1.0)];
+    // A hundred ε off the line: inside the near-collinear row, clear of
+    // the band, so the junction still turns at every ε row.
+    let nearer_off = 100.0 * Tol::witness().get().eps;
+    let nearer = vec![
+        (0.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 2.0),
+        (0.0, 2.0),
+        (nearer_off, 1.0),
+    ];
     let near_collinear = vec![(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0), (1e-3, 1.0)];
     for (what, loops) in [
         ("L", vec![l.clone()]),
