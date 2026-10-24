@@ -2,12 +2,13 @@
 id: curved-face-containment-answers-none-on-a-ringed-face
 kind: unit
 title: curved_face_containment answers None on a face that carries rings, so a holed curved face gets no point-in-face verdict
-status: review
+status: closed
 opened: 2026-10-24
 priority: P1
 cost: H
 branch: chart/ringed-curved-doors
 pr: 5664
+closed: 2026-10-24
 ---
 
 
@@ -39,3 +40,7 @@ section. The cone's apex is then a point like any other. `cone_apex_closure`
 stays the boolean's lift; it is not a region reading. The ray lane and the
 pierce arm share these doors, so this is a boolean unit as much as a
 clearance one. Announce the seam on CLEAVE's log. (CHART orchestrator)
+
+## Closed
+
+Closed 2026-10-24 by PR 5664. A concurrent dual review (letter H, `docs/dual-review-log/rows/PR-5664.md`) found no MAJOR, and the fix pass took the union. The cylinder and cone point-in-face doors read the face's region from its edges (`topo::boolean::ruled_region`), and the chart-trim inventory is deleted. (CHART orchestrator)

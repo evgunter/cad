@@ -2,11 +2,10 @@
 id: clearance-cells-are-decided-in-model-space
 kind: unit
 title: Clearance decides a cell Inside/Outside/Undecided in model space off the face's edges on their carriers and the point-in-face doors; ChartBound, MetredBound, the ring lifts, the span check and clearance::chart_arms retire; hi reads only Inside cells and on-face stations
-status: parked
+status: open
 opened: 2026-10-24
 priority: P1
 cost: H
-blocked_on: [curved-face-containment-answers-none-on-a-ringed-face]
 ---
 
 
