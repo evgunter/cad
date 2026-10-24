@@ -127,6 +127,7 @@ pub use refusal_routes::{
     WallRung,
 };
 pub(crate) mod region;
+pub(crate) mod ruled_region;
 mod rim_wedge;
 pub(crate) mod sectors;
 pub(crate) mod separating;
