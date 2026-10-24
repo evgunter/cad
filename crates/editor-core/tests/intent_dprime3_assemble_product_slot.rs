@@ -363,16 +363,10 @@ fn a_splits_halves_assembled_record_the_cut_and_unioned_glue_it() {
     assert!(report.findings.is_empty(), "the cut is proved: {report}");
 }
 
-/// **`(bolt ⊔ plate) ∪ bead` keeps the `⊔`'s pieces**: a bead against
-/// the bolt alone fuses with it and leaves the plate a piece of its
-/// own, the bolt–plate meeting not decided again. A bead bridging bolt
-/// and plate makes one solid touching itself where they met, which the
-/// union refuses, typed by the kernel. The `⊔`'s record cited through
-/// the union, and a refusal naming the bridged pair, are
-/// `work/intent/a-boolean-over-an-assemble-cites-none-of-its-meetings.md`.
-#[test]
-fn a_seat_unioned_with_a_bead_keeps_its_pieces() {
-    let doc = doc("dprime3-bead");
+/// A bolt standing on a plate, `bolt ⊔ plate`: two pieces that meet
+/// over the bolt's foot.
+fn seat(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let doc = doc(label);
     let (doc, plate) = block(doc, [0.0; 2], 1.0, 0.2);
     let (doc, bolt) = beside(doc, plate, [0.0, 0.0, 0.2], 0.2, 1.0);
     let (doc, seat) = put(
@@ -381,6 +375,201 @@ fn a_seat_unioned_with_a_bead_keeps_its_pieces() {
             members: spelled(&[bolt, plate]),
         },
     );
+    (doc, seat, bolt, plate)
+}
+
+/// The reads `node`'s value holds pieces by, in order.
+fn piece_reads(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<VarId> {
+    ev.value(node)
+        .and_then(|v| v.pieces.as_ref())
+        .map(|p| p.pieces.iter().map(|piece| piece.read).collect())
+        .unwrap_or_default()
+}
+
+/// The boolean refusal `node` failed with, by its kind.
+fn refused(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<topo::BooleanErrorKind> {
+    match ev.node_error(node).map(|e| &e.kind) {
+        Some(editor_core::NodeErrorKind::Boolean(e)) => Some(e.kind()),
+        _ => None,
+    }
+}
+
+/// **A cut through a seat cuts each piece and keeps both**: a pin down
+/// through the bolt and the plate, through the face they meet over,
+/// makes `(bolt − pin) ⊔ (plate − pin)`. Its pieces are keyed by the
+/// reads the `⊔` read them through, and its names carry each piece's
+/// names keyed by that read. The same cut of the `⊔` read whole is the
+/// kernel's `VertexReadTwice`: a pin vertex pierces the bolt's foot and
+/// the plate's top, two faces the boolean reads apart. A placement of
+/// the seat is cut the same way where it stands.
+///
+/// *Breaks if* a cut re-decides the meeting inside the `⊔` it reads.
+#[test]
+fn a_cut_through_a_seat_cuts_each_piece_and_keeps_both() {
+    let (doc, seat, bolt, plate) = seat("dprime3-seat-cut");
+    let (doc, pin) = beside(doc, plate, [0.0, 0.0, -0.5], 0.1, 2.0);
+    let (doc, cut) = put(
+        doc,
+        Node::Subtract {
+            from: seat.into(),
+            tool: pin.into(),
+        },
+    );
+    let (doc, placed) = in_world(doc, seat);
+    let (doc, pin_placed) = in_world(doc, pin);
+    let (doc, cut_placed) = put(
+        doc,
+        Node::Subtract {
+            from: placed.into(),
+            tool: pin_placed.into(),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    let reads = [bolt, plate].map(|n| doc.output(n, 0).unwrap());
+    for node in [cut, cut_placed] {
+        let body = body_of(&ev, node);
+        assert_eq!(solids(&body), 2, "the bolt and the plate, each holed");
+        assert!(
+            near(bounds(&body), ([-1.0, -1.0, 0.0], [1.0, 1.0, 1.2])),
+            "{:?}",
+            bounds(&body)
+        );
+        assert_eq!(piece_reads(&ev, node), reads, "keyed by the `⊔`'s reads");
+        let table = ev
+            .table(doc.output(node, 0).unwrap())
+            .expect("the cut is named");
+        for read in reads {
+            assert!(
+                table.iter().any(|(name, _)| matches!(
+                    name.path.as_slice(),
+                    [RoleSeg::From { read: r, .. }] if *r == read
+                )),
+                "a name keyed by {read:?}"
+            );
+        }
+    }
+}
+
+/// **A cut that empties a piece drops it, and one that empties every
+/// piece is the empty result**: `(p ⊔ q) − t` with `t` swallowing `q`
+/// keeps `p` alone, and with `t` swallowing both keeps nothing.
+#[test]
+fn a_cut_drops_the_pieces_it_empties() {
+    let doc = doc("dprime3-cut-empties");
+    let (doc, p) = block(doc, [0.0; 2], 0.5, 1.0);
+    let (doc, q) = beside(doc, p, [2.0, 0.0, 0.0], 0.5, 1.0);
+    let (doc, both) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(&[p, q]),
+        },
+    );
+    let (doc, over_q) = beside(doc, p, [2.0, 0.0, -1.0], 1.0, 3.0);
+    let (doc, over_all) = beside(doc, p, [1.0, 0.0, -1.0], 3.0, 3.0);
+    let (doc, one) = put(
+        doc,
+        Node::Subtract {
+            from: both.into(),
+            tool: over_q.into(),
+        },
+    );
+    let (doc, none) = put(
+        doc,
+        Node::Subtract {
+            from: both.into(),
+            tool: over_all.into(),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    assert_eq!(solids(&body_of(&ev, one)), 1);
+    assert_eq!(piece_reads(&ev, one), [doc.output(p, 0).unwrap()]);
+    assert!(
+        matches!(
+            ev.value(none).map(|v| &v.payload),
+            Some(ValuePayload::Boolean(editor_core::BooleanValue::Empty))
+        ),
+        "{:?}",
+        ev.result(none)
+    );
+}
+
+/// **`∩` distributes over `⊔` on either side**: `(bolt ⊔ plate) ∩ t`
+/// and `t ∩ (bolt ⊔ plate)`, `t` a post standing through the bolt's
+/// foot, keep the part of each piece inside `t`, two pieces, where the
+/// `⊔` read whole is the kernel's `VertexReadTwice`.
+#[test]
+fn a_meet_with_a_seat_meets_each_piece() {
+    let (doc, seat, bolt, plate) = seat("dprime3-seat-meet");
+    let (doc, t) = beside(doc, plate, [0.0, 0.0, 0.1], 0.1, 0.3);
+    let (doc, after) = put(
+        doc,
+        Node::Intersect {
+            members: spelled(&[seat, t]),
+        },
+    );
+    let (doc, before) = put(
+        doc,
+        Node::Intersect {
+            members: spelled(&[t, seat]),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    let reads = [bolt, plate].map(|n| doc.output(n, 0).unwrap());
+    for node in [after, before] {
+        let body = body_of(&ev, node);
+        assert_eq!(solids(&body), 2, "{:?}", ev.result(node));
+        assert!(
+            near(bounds(&body), ([-0.1, -0.1, 0.1], [0.1, 0.1, 0.4])),
+            "{:?}",
+            bounds(&body)
+        );
+        assert_eq!(piece_reads(&ev, node), reads);
+    }
+}
+
+/// **A `⊔` read as a cut's tool is cut by whole, today**: `t − (bolt ⊔
+/// plate)`, `t` a post standing through the bolt's foot, refuses as the
+/// kernel's `VertexReadTwice`.
+/// `t − (a ⊔ b)` is `(t − a) − b`, a fold of cuts rather than a cut per
+/// piece; it lands with the kernel reading a declared seat as one
+/// interface
+/// (`work/cleave/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`),
+/// when this row builds.
+#[test]
+fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
+    let (doc, seat, _, plate) = seat("dprime3-seat-tool");
+    let (doc, t) = beside(doc, plate, [0.0, 0.0, 0.1], 0.1, 0.3);
+    let (doc, cut) = put(
+        doc,
+        Node::Subtract {
+            from: t.into(),
+            tool: seat.into(),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    assert_eq!(
+        refused(&ev, cut),
+        Some(topo::BooleanErrorKind::VertexReadTwice),
+        "{:?}",
+        ev.result(cut)
+    );
+}
+
+/// **`(bolt ⊔ plate) ∪ bead` keeps the `⊔`'s pieces**: a bead against
+/// the bolt alone fuses with it and leaves the plate a piece of its
+/// own, the bolt–plate meeting not decided again.
+///
+/// A bead bridging bolt and plate makes one solid touching itself where
+/// they met. Today the union refuses where the kernel reads the bolt's
+/// foot and the plate's top apart: `VertexReadTwice`, a bead vertex
+/// piercing both. When the kernel reads a declared seat as one
+/// interface
+/// (`work/cleave/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`)
+/// this row's bridged union is the typed self-touch refusal naming the
+/// seat's pair, and its assert says so.
+#[test]
+fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice() {
+    let (doc, seat, _, plate) = seat("dprime3-bead");
     let (doc, side) = beside(doc, plate, [0.25, 0.0, 0.6], 0.1, 0.2);
     let (doc, bridge) = beside(doc, plate, [0.25, 0.0, 0.1], 0.1, 0.3);
     let (doc, kept) = put(
@@ -401,12 +590,10 @@ fn a_seat_unioned_with_a_bead_keeps_its_pieces() {
         2,
         "the bolt and its bead, and the plate"
     );
-    assert!(
-        matches!(
-            ev.node_error(fused).map(|e| &e.kind),
-            Some(editor_core::NodeErrorKind::Boolean(_))
-        ),
-        "a bridged seat refuses, typed: {:?}",
+    assert_eq!(
+        refused(&ev, fused),
+        Some(topo::BooleanErrorKind::VertexReadTwice),
+        "a bridged seat refuses where the kernel reads the seat's two faces apart: {:?}",
         ev.node_error(fused)
     );
 }

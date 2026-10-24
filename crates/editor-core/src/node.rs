@@ -1960,14 +1960,20 @@ pub enum Node<P, S: Slot = crate::VarId> {
     },
     /// **The intersect** (DM4): the material in every member, over the
     /// kernel's intersection verb, judged and folded as [`Node::Union`]
-    /// is. An empty fold step is the typed empty result.
+    /// is. An empty fold step is the typed empty result. A member that
+    /// holds pieces (a [`Node::Assemble`], or a copy of one) is met
+    /// piece by piece, and the result holds each piece's meet as a
+    /// piece.
     Intersect {
         /// The members, in fold order.
         members: Bodies<crate::BodyRead<S>>,
     },
     /// **The subtract** (DM4): `from` cut by `tool`, the one pair node,
     /// since difference neither commutes nor associates. Several tools
-    /// are `Subtract { from, tool: Union([tools…]) }`.
+    /// are `Subtract { from, tool: Union([tools…]) }`. A `from` that
+    /// holds pieces (a [`Node::Assemble`], or a copy of one) is cut
+    /// piece by piece, and the result holds each piece's cut as a
+    /// piece; a piece the cut empties drops out.
     Subtract {
         /// The body cut.
         from: crate::BodyRead<S>,
@@ -1980,7 +1986,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// at-rest census over the pieces, one arrival per member, and
     /// carries every member's own records unchanged, so a meeting inside
     /// a member is that member's. Its result is an ordinary operand: a
-    /// boolean reading it cuts or joins every piece.
+    /// subtract or an intersect reading it acts on each piece and keeps
+    /// what it made as pieces (`(p ⊔ q) − t = (p − t) ⊔ (q − t)`), and a
+    /// union fuses its other members with the pieces they meet.
     Assemble {
         /// The members, in graft order.
         members: Bodies<crate::BodyRead<S>>,

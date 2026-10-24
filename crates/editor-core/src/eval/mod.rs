@@ -1236,6 +1236,10 @@ pub enum BooleanValue<T: Decide> {
 /// cut apart.
 #[derive(Debug, Clone)]
 pub struct Pieces<T: Decide> {
+    /// The node whose names key them: each piece's names are spelled in
+    /// the holder's table under this node, keyed by the piece's read
+    /// ([`crate::names::RoleSeg::From`]).
+    pub by: RecipeNodeId,
     /// The pieces, in member order.
     pub pieces: Vec<Piece<T>>,
 }

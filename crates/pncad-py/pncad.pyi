@@ -2354,7 +2354,11 @@ class Node:
         """The ASSEMBLE (`⊔`): the members side by side as the pieces of
         one body, none decided against another. Its door runs the
         at-rest census over the pieces, one arrival per member.
-        Inserting it is `Doc.assemble`."""
+        Inserting it is `Doc.assemble`.
+
+        Its result reads like any body. A `subtract` cutting it, or an
+        `intersect` meeting it, acts on each piece and keeps what it
+        made as pieces: `(p ⊔ q) − t` is `(p − t) ⊔ (q − t)`."""
 
     @staticmethod
     def space() -> Node:
@@ -2404,7 +2408,9 @@ class Node:
         member is that body, none is the typed empty body, and
         `[a, a]` is `a`. A fold step whose members share no material
         is the typed empty body, not a refusal. `DocEdit.set_members`
-        rewrites the list on the live node."""
+        rewrites the list on the live node. A member that is an
+        `assemble`, or a copy of one, is met piece by piece, and the
+        result keeps each piece's meet as a piece."""
 
     @staticmethod
     def subtract(from_: _BodyArg, tool: _BodyArg) -> Node:
@@ -2416,7 +2422,9 @@ class Node:
         `tool` (slot word `cut`). Several tools are one subtract of
         their union, `Node.subtract(body, Node.union([t1, t2]))`. A
         body cut by itself, `Node.subtract(a, a)`, is the typed empty
-        body."""
+        body. A `from_` that is an `assemble`, or a copy of one, is cut
+        piece by piece, and the result keeps each piece's cut as a
+        piece; a piece the cut empties drops out."""
 
     @staticmethod
     def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
