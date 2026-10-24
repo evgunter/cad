@@ -2,11 +2,12 @@
 id: the-sphere-ray-and-the-circle-leg-stand-outside-the-region-skeleton
 kind: issue
 title: The sphere ray and the circle leg stand outside the region skeleton
-status: open
+status: dispatched
 priority: P1
 cost: M
 refs: [the-region-doors-share-one-skeleton-three-times, sphere-region-refuses-null-scaffolding-the-torus-and-ruled-doors-step-over]
 opened: 2026-10-24
+branch: chart/region-skeleton-2
 ---
 
 ## What
