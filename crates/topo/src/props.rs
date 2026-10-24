@@ -7172,8 +7172,22 @@ mod shell_reference_rows {
             })
             .unwrap();
             let about_first = fold_runs(&runs).0;
-            // Raw door: this row walks bodies with and without construction scaffolding alike, and tier 3 refuses the scaffolded ones and those with a loop flipped against its role (ScaffoldAtRest, LoopRoleInverted).
-            let walked = crate::test_support::measure_unvalidated(body, tol).unwrap();
+            let walked = match crate::AtRestBody::validate(body.clone(), tol) {
+                Ok(finished) => mass_properties(&finished, tol),
+                Err(errors) => {
+                    assert!(
+                        errors.iter().all(|e| matches!(
+                            e,
+                            ValidationError::ScaffoldAtRest { .. }
+                                | ValidationError::LoopRoleInverted { .. }
+                        )),
+                        "{name}: tier 3 refuses the body for more than its scaffolding: {errors:?}"
+                    );
+                    // Raw door: a body still carrying construction scaffolding or a loop flipped against its role, which tier 3 refuses (ScaffoldAtRest, LoopRoleInverted), as the assert above admits.
+                    crate::test_support::measure_unvalidated(body, tol)
+                }
+            }
+            .unwrap();
             assert_eq!(
                 (walked.volume.to_bits(), walked.surface_area.to_bits()),
                 (

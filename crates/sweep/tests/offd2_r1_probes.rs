@@ -68,15 +68,8 @@ fn probe_overthick_box_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "overthick box returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::mass_properties(
-                &topo::test_support::finished(
-                    "the measured body",
-                    topo::Body::clone(&body),
-                    Tol::witness()
-                ),
-                Tol::witness()
-            )
-            .map(|p| p.volume)
+            // Raw door: a failure message, reading the body the shell should have refused whatever tier 3 says of it.
+            topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|p| p.volume)
         ),
     }
 }
@@ -95,15 +88,8 @@ fn probe_overhalf_slab_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "over-half slab returned Ok — silent wrong answer; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::mass_properties(
-                &topo::test_support::finished(
-                    "the measured body",
-                    topo::Body::clone(&body),
-                    Tol::witness()
-                ),
-                Tol::witness()
-            )
-            .map(|p| p.volume)
+            // Raw door: a failure message, reading the body the shell should have refused whatever tier 3 says of it.
+            topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|p| p.volume)
         ),
     }
 }
@@ -121,15 +107,8 @@ fn probe_exact_half_slab_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "exact-half slab returned Ok — degenerate cavity; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::mass_properties(
-                &topo::test_support::finished(
-                    "the measured body",
-                    topo::Body::clone(&body),
-                    Tol::witness()
-                ),
-                Tol::witness()
-            )
-            .map(|p| p.volume)
+            // Raw door: a failure message, reading the body the shell should have refused whatever tier 3 says of it.
+            topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|p| p.volume)
         ),
     }
 }
@@ -161,15 +140,8 @@ fn probe_lshape_colliding_cavity_fails_loud() {
         Ok(topo::Shelled { body, .. }) => panic!(
             "L-shape returned Ok — colliding cavity; shells = {}, volume = {:?}",
             body.shells().count(),
-            topo::mass_properties(
-                &topo::test_support::finished(
-                    "the measured body",
-                    topo::Body::clone(&body),
-                    Tol::witness()
-                ),
-                Tol::witness()
-            )
-            .map(|p| p.volume)
+            // Raw door: a failure message, reading the body the shell should have refused whatever tier 3 says of it.
+            topo::test_support::measure_unvalidated(&body, Tol::witness()).map(|p| p.volume)
         ),
     }
 }

@@ -14,6 +14,28 @@ use crate::common::cert_corpus::corpus;
 use geom_core::{Bounds, Sym, Tol};
 use topo::{Body, ContactRecords};
 
+/// `body` finished, or `None` for one of the corpus's inside-out
+/// `~reverted` twins, the one refusal (`NegativeVolume`) it holds. A
+/// finished body reads the typed doors; a twin reads the raw ones.
+fn finish<T>(name: &str, body: &Body<T>, tol: Tol) -> Option<topo::AtRestBody<T>>
+where
+    T: geom_core::Decide + geom_core::CertifiedBounds + topo::AtRestPolicy,
+{
+    match topo::AtRestBody::validate(Body::clone(body), tol) {
+        Ok(finished) => Some(finished),
+        Err(errors) => {
+            assert!(
+                name.ends_with("~reverted")
+                    && errors
+                        .iter()
+                        .all(|e| matches!(e, topo::ValidationError::NegativeVolume { .. })),
+                "{name}: tier 3 refuses a corpus body that is not an inside-out twin: {errors:?}"
+            );
+            None
+        }
+    }
+}
+
 /// **The shell door's split, body by body.** On every closed-form body
 /// the two doors classify identically (same shells, same roles, same
 /// volume bits); on the oblique-cut cylinder, whose ellipse-trimmed face
@@ -26,9 +48,18 @@ fn classify_shells_structural_is_the_closed_form_and_refuses_where_the_lane_woul
     let tol = Tol::witness();
     let mut refused = Vec::new();
     for (name, body) in corpus::<f64>() {
-        // Raw door: the corpus holds valid and inside-out bodies alike, and tier 3 refuses the inside-out ones (NegativeVolume); both lanes read each.
-        let certified = topo::test_support::classify_unvalidated(&body, tol);
-        let structural = topo::test_support::classify_unvalidated_structural(&body, tol);
+        let (certified, structural) = match finish(&name, &body, tol) {
+            Some(finished) => (
+                topo::classify_shells(&finished, tol),
+                topo::classify_shells_structural(&finished, tol),
+            ),
+            // Raw door: an inside-out `~reverted` twin, which tier 3 refuses (NegativeVolume); both lanes read it.
+            None => (
+                topo::test_support::classify_unvalidated(&body, tol),
+                // Raw door: the structural lane over the same inside-out twin.
+                topo::test_support::classify_unvalidated_structural(&body, tol),
+            ),
+        };
         match (&certified, &structural) {
             (Ok(c), Ok(s)) => {
                 assert_eq!(c.len(), s.len(), "{name}: shell count");
@@ -87,9 +118,30 @@ fn the_certified_doors_form_at_the_symbolic_tier_and_answer_the_base_bits() {
             topo::contact_marks(s, tol).is_ok(),
             "{name}: marks verdict"
         );
-        // Raw door: the corpus holds valid and inside-out bodies alike, and tier 3 refuses the inside-out ones (NegativeVolume); both scalars read each.
-        let mp_base = topo::test_support::measure_unvalidated(b, tol);
-        let mp_sym = topo::test_support::measure_unvalidated(s, tol);
+        let (fb, fs) = (finish(name, b, tol), finish(name, s, tol));
+        assert_eq!(
+            fb.is_some(),
+            fs.is_some(),
+            "{name}: tier 3's verdict at both scalars"
+        );
+        let (mp_base, mp_sym, cs_base, cs_sym) = match (&fb, &fs) {
+            (Some(fb), Some(fs)) => (
+                topo::mass_properties(fb, tol),
+                topo::mass_properties(fs, tol),
+                topo::classify_shells(fb, tol).is_ok(),
+                topo::classify_shells(fs, tol).is_ok(),
+            ),
+            // Raw door: an inside-out `~reverted` twin at both scalars, which tier 3 refuses (NegativeVolume).
+            _ => (
+                topo::test_support::measure_unvalidated(b, tol),
+                // Raw door: the symbolic twin of the same inside-out body.
+                topo::test_support::measure_unvalidated(s, tol),
+                // Raw door: the same inside-out body at f64.
+                topo::test_support::classify_unvalidated(b, tol).is_ok(),
+                // Raw door: the same inside-out body at the symbolic tier.
+                topo::test_support::classify_unvalidated(s, tol).is_ok(),
+            ),
+        };
         match (mp_base, mp_sym) {
             (Ok(x), Ok(y)) => assert_eq!(
                 x.volume.to_bits(),
@@ -103,10 +155,7 @@ fn the_certified_doors_form_at_the_symbolic_tier_and_answer_the_base_bits() {
                 y.is_ok()
             ),
         }
-        // Raw door: as the measurement above, over the same mixed corpus.
-        let cs_base = topo::test_support::classify_unvalidated(b, tol);
-        let cs_sym = topo::test_support::classify_unvalidated(s, tol);
-        assert_eq!(cs_base.is_ok(), cs_sym.is_ok(), "{name}: shell verdict");
+        assert_eq!(cs_base, cs_sym, "{name}: shell verdict");
     }
     let _: Option<&Body<Sym<f64>>> = sym.first().map(|(_, b)| b);
 }

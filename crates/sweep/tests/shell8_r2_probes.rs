@@ -970,8 +970,12 @@ fn opposed_pair() -> (Body<f64>, SolidKey, SolidKey, FaceKey, FaceKey) {
 
 /// `body`'s volume is `want` to the exact-volume pad.
 fn assert_volume(body: &Body<f64>, want: f64, what: &str) {
-    // Raw door: the measured body is a solid filed with two outer shells, which tier 3 refuses (SolidOuterShells).
-    let props = topo::test_support::measure_unvalidated(body, tol()).unwrap();
+    let props = topo::mass_properties(&finished(what, Body::clone(body), tol()), tol()).unwrap();
+    assert_near_volume(&props, want, what);
+}
+
+/// [`assert_volume`] over measured `props`.
+fn assert_near_volume(props: &topo::MassProperties<f64>, want: f64, what: &str) {
     assert!(
         (props.volume - want).abs() <= 1e-9 + props.volume_pad,
         "{what}: volume {} want {want}",
@@ -1204,12 +1208,20 @@ fn r2_replace_faces_offset_scopes_to_the_solid_across_shells_and_solids() {
         matches!(e, topo::ReplaceFaceError::SharedSurfaceKey { .. }),
         "one shell's wearer of the solid's chart: {e}"
     );
-    let before = volume(&one);
+    // Raw door: `one` files two pieces under one solid, which tier 3 refuses (SolidOuterShells).
+    let before = topo::test_support::measure_unvalidated(&one, tol())
+        .unwrap()
+        .volume;
     topo::replace_faces_offset(&mut one, &tops, -0.1, tol()).expect("both of the solid's wearers");
     // Two pieces under one solid is tier 3's refusal by count; tiers 1
     // and 2 hold.
     assert_eq!(topo::validate_closed(&one), Ok(()));
-    assert_volume(&one, before - 2.0 * 2.5 * 0.1, "one solid, both tops");
+    assert_near_volume(
+        // Raw door: `one`, offset, still files two pieces under one solid (SolidOuterShells).
+        &topo::test_support::measure_unvalidated(&one, tol()).unwrap(),
+        before - 2.0 * 2.5 * 0.1,
+        "one solid, both tops",
+    );
 
     let mut two = split_slab(true);
     let solids: Vec<SolidKey> = two.solids().map(|(k, _)| k).collect();

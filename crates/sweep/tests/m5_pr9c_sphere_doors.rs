@@ -217,7 +217,6 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     let before: Vec<bool> = body.faces().map(|(_, f)| f.sense).collect();
     let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
 
-    // Raw door: `rev` is an inside-out body, which tier 3 refuses (NegativeVolume).
     let rev = body.revert().unwrap();
     let after: Vec<bool> = rev.faces().map(|(_, f)| f.sense).collect();
     assert_eq!(after, before.iter().map(|s| !s).collect::<Vec<_>>());
@@ -244,6 +243,7 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
         }])
     );
     assert_eq!(
+        // Raw door: `rev` is an inside-out body, which tier 3 refuses (NegativeVolume).
         topo::test_support::measure_unvalidated(&rev, Tol::witness())
             .unwrap()
             .volume

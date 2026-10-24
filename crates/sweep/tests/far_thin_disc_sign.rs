@@ -99,8 +99,12 @@ fn far_thin_discs_are_read_by_their_exact_volume() {
                 check7,
                 "{what}, {name}: check 7"
             );
-            // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-            let roles: Vec<ShellRole> = topo::test_support::classify_unvalidated(body, tol)
+            let classified = match &check7 {
+                Ok(()) => topo::classify_shells(&finished(name, topo::Body::clone(body), tol), tol),
+                // Raw door: the inside-out twin, which tier 3 refuses (NegativeVolume), as check 7 above asserts.
+                Err(_) => topo::test_support::classify_unvalidated(body, tol),
+            };
+            let roles: Vec<ShellRole> = classified
                 .unwrap_or_else(|e| panic!("{what}, {name}: the shell classifies: {e}"))
                 .iter()
                 .map(|c| c.role)
@@ -288,8 +292,14 @@ fn far_tilted_cut_discs_are_read_by_their_exact_volume() {
                             check7,
                             "{what}, {name}: check 7"
                         );
-                        // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
-                        let classified = topo::test_support::classify_unvalidated(body, tol);
+                        let classified = match &check7 {
+                            Ok(()) => topo::classify_shells(
+                                &finished(name, topo::Body::clone(body), tol),
+                                tol,
+                            ),
+                            // Raw door: the inside-out twin, which tier 3 refuses (NegativeVolume), as check 7 above asserts.
+                            Err(_) => topo::test_support::classify_unvalidated(body, tol),
+                        };
                         if runs_out_of_budget(h, tilt, d, angle, tol) {
                             assert_runs_out_of_budget(&classified, &format!("{what}, {name}"));
                             continue;

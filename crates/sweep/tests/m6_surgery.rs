@@ -311,8 +311,9 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     // `decide` as the surgery runs) and taken straight after, so the
     // certification battery below runs unlogged exactly as it did.
     let bracket = Bracket::open();
-    let die = topo::test_support::finished("die", composed_die(), Tol::witness());
+    let built = composed_die();
     let log = bracket.finish().verdicts;
+    let die = topo::test_support::finished("die", built, Tol::witness());
     assert!(
         log.iter().any(|v| v.predicate == "fillet3_ring_clearance"),
         "K-FUNNEL: fillet3_ring_clearance never reached the funnel"

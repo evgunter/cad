@@ -81,15 +81,16 @@ fn dump(label: &str, body: &Body<f64>) {
             p
         );
     }
-    match topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
-        tol(),
-    ) {
-        Ok(p) => println!(
-            "[dump] {label}: volume={:?} pad={:?} area={:?}",
-            p.volume, p.volume_pad, p.surface_area
-        ),
-        Err(e) => println!("[dump] {label}: props Err {e:?}"),
+    // A body tier 3 refuses prints its refusal and is not measured.
+    match topo::AtRestBody::validate(topo::Body::clone(body), tol()) {
+        Err(errors) => println!("[dump] {label}: not at rest {errors:?}"),
+        Ok(finished) => match topo::mass_properties(&finished, tol()) {
+            Ok(p) => println!(
+                "[dump] {label}: volume={:?} pad={:?} area={:?}",
+                p.volume, p.volume_pad, p.surface_area
+            ),
+            Err(e) => println!("[dump] {label}: props Err {e:?}"),
+        },
     }
     println!(
         "[dump] {label}: tier3={:?}",

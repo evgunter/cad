@@ -277,7 +277,6 @@ fn revert_extruded_prism_posture() {
     let original = format!("{:?}", *body);
     let vol = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     assert!(vol > 0.0);
-    // Raw door: `reverted` is an inside-out body, which tier 3 refuses (NegativeVolume).
     let reverted = body.revert().unwrap();
     assert_eq!(
         format!("{:?}", *body),
@@ -292,6 +291,7 @@ fn revert_extruded_prism_posture() {
         }]),
         "tier 3 on a reverted prism must be exactly NegativeVolume"
     );
+    // Raw door: `reverted` is an inside-out body, which tier 3 refuses (NegativeVolume).
     let rvol = topo::test_support::measure_unvalidated(&reverted, Tol::witness())
         .unwrap()
         .volume;
@@ -343,7 +343,6 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         .collect();
     assert!(!curved.is_empty(), "the D-body has a cylinder wall");
 
-    // Raw door: `reverted` is an inside-out body, which tier 3 refuses (NegativeVolume).
     let reverted = body.revert().unwrap();
     assert_eq!(format!("{:?}", *body), before, "revert mutated its operand");
     // Exactly the curved faces flipped, and they flipped from their
@@ -364,6 +363,7 @@ fn revert_curved_body_reverts_via_the_sense_bit() {
         }]),
         "tier 3 on a reverted curved body must be exactly NegativeVolume"
     );
+    // Raw door: `reverted` is an inside-out body, which tier 3 refuses (NegativeVolume).
     let rvol = topo::test_support::measure_unvalidated(&reverted, Tol::witness())
         .unwrap()
         .volume;

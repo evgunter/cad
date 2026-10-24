@@ -74,7 +74,6 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(dimple.len(), 2, "the dimple is two half-faces on one seam");
-    // Raw door: `flipped` is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
     let flipped = dimple.iter().fold(topo::Body::clone(&body), |b, &k| {
         b.flipped_face_sense_for_tests(k).expect("the face")
     });
@@ -99,6 +98,7 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
     );
     assert!(
         matches!(
+            // Raw door: `flipped` is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
             topo::test_support::measure_unvalidated(&flipped, tol),
             Err(topo::MassPropsError::Face {
                 face,

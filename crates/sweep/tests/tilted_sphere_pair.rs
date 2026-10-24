@@ -326,7 +326,6 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             if on_b_only && !on_b {
                 continue;
             }
-            // Raw door: `inverted` is a body with a curved face flipped, which tier 3 refuses (CurvedSenseInverted).
             let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
             assert_eq!(
                 topo::validate_geometric(&inverted, Tol::witness()),
@@ -335,6 +334,7 @@ fn a_flipped_tilted_face_is_refused_by_name() {
             );
             assert!(
                 matches!(
+                    // Raw door: `inverted` is a body with a curved face flipped, which tier 3 refuses (CurvedSenseInverted).
                     topo::test_support::measure_unvalidated(&inverted, Tol::witness()),
                     Err(topo::MassPropsError::Face {
                         face,
@@ -386,7 +386,6 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
             continue;
         }
         encoded += 1;
-        // Raw door: `inverted` is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
         let inverted = body.flipped_face_sense_for_tests(k).expect("the face");
         let errors = topo::validate_geometric(&inverted, tol).expect_err("tier 3 refuses");
         assert!(
@@ -395,6 +394,7 @@ fn a_flipped_remnant_with_a_pole_off_its_loop_is_refused_by_name() {
         );
         assert!(
             matches!(
+                // Raw door: `inverted` is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
                 topo::test_support::measure_unvalidated(&inverted, tol),
                 Err(topo::MassPropsError::Face {
                     face,

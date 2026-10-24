@@ -126,16 +126,12 @@ fn roster() -> Vec<(String, Body<f64>)> {
 /// One body's line: the reading (bits, or the typed refusal — which is
 /// where the refusing FACE is named) and both recorded channels.
 fn line(name: &str, body: &Body<f64>) -> String {
-    // Finished outside the bracket: the line is the measurement's own
-    // readings. A body tier 3 refuses is read through the raw door, as
-    // its pinned line reads the measurement's refusal.
-    let at_rest = topo::AtRestBody::validate(topo::Body::clone(body), Tol::witness());
+    // Finished outside the bracket, so the line is the measurement's own
+    // readings. Every body here finishes at every ε, and one that did not
+    // would panic here rather than reach the pinned line.
+    let at_rest = topo::test_support::finished(name, topo::Body::clone(body), Tol::witness());
     let bracket = Bracket::open();
-    let read = match match &at_rest {
-        Ok(body) => topo::mass_properties(body, Tol::witness()),
-        // Raw door: a body tier 3 refuses, whose measurement refusal the line pins.
-        Err(_) => topo::test_support::measure_unvalidated(body, Tol::witness()),
-    } {
+    let read = match topo::mass_properties(&at_rest, Tol::witness()) {
         Ok(m) => format!(
             "v={:016x} a={:016x} vpad={:016x} apad={:016x}",
             m.volume.to_bits(),

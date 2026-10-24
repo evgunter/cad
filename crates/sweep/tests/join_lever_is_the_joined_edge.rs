@@ -156,9 +156,9 @@ fn a_station_on_the_line_edge_builds_either_side_of_k_eps_and_joins_back() {
         let exact = theta - sin * c;
         for frac in [0.95, 1.05] {
             let what = format!("sin θ = {sin}, sin θ · s = {frac} Kε");
-            // Raw door: `cut` is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
             let cut = station(sin, frac * k / sin)
                 .unwrap_or_else(|e| panic!("{what}: the cut builds, got {e:?}"));
+            // Raw door: `cut` is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
             let v = topo::test_support::measure_unvalidated(&cut, tol())
                 .unwrap()
                 .volume;

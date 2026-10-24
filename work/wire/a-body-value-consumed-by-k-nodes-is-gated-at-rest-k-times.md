@@ -1,7 +1,7 @@
 ---
 id: a-body-value-consumed-by-k-nodes-is-gated-at-rest-k-times
 kind: issue
-title: a body value consumed by k nodes is gated at rest k times, and ops that produced an AtRestBody drop the verdict into Arc<Body>
+title: a body value consumed by k nodes is gated at rest k times, and the Boolean, the split and the instance union drop the AtRestBody they produced into Arc<Body>
 status: open
 opened: 2026-10-22
 priority: P3
@@ -21,17 +21,32 @@ holds no verdict. The producers (extrude, revolve, loft, the sweeps) do not
 run tier 3, and the caller re-validates at rest (`sweep/src/extrude.rs`'s
 door doc). Each consumer gates on its own:
 
-- `eval/wire.rs:1199`, `finished_operand`: once per operand per
+- `eval/wire.rs:1111`, `finished_operand`: once per operand per
   consuming node.
-- `eval/wire.rs:3306`: each instance member.
-- `checks.rs:1623`: the connectedness check, per root subject.
-- `product.rs:1093`: the gathered aggregate (a new body, so not a repeat).
+- `eval/wire.rs:3259`: each instance member.
+- `checks.rs:1624`: the connectedness check, per root subject.
+- `product.rs:1102`: the gathered aggregate (a new body, so not a repeat).
 - `checks/at_rest.rs:556` and `:925`.
 
-Booleans, split, shell and blends already produce an `AtRestBody`, and
-`wire.rs:2550` (`SplitPart::Body(b) => SplitSide::Body(Arc::new(b.into_body()))`)
-and the other op arms drop it into `Arc<Body>`. Their consumer then gates
-the same body again.
+Three ops already produce an `AtRestBody`, and their wiring drops it into
+`Arc<Body>`, so their consumer gates the same body again:
+
+- the Boolean: `wire.rs:2951` (`out.body.into_body()`);
+- the split: `wire.rs:2462`
+  (`SplitPart::Body(b) => SplitSide::Body(Arc::new(b.into_body()))`);
+- the instance union fold: `wire.rs:3606` holds each step's Boolean output
+  as `Arc<AtRestBody>`, and `:3623` and `:3718` (`lone_member`) unwrap it.
+
+Shell and blends do not produce one:
+
+- `Shelled.body` (`crates/topo/src/shell.rs:918`) is a plain `Body`.
+  `topo::shell` runs tier 3 as its last act (`shell.rs:2190`) and drops
+  the verdict there (`work/flux/an-op-output-validated-at-its-last-act-drops-its-verdict.md`),
+  and `wire_shell` (`wire.rs:1991`) wraps that `Body`.
+- `Blended.body` (`crates/sweep/src/blend/build.rs:90`) is a plain `Body`,
+  and the blends never run tier 3: `wire_blend` (`wire.rs:1941`) hands
+  out a body nothing has validated, as the sweeps do (`wire_swept`,
+  `:1697`).
 
 **Cost on the editor-core corpus** (29 documents, `corpus::documents()`;
 `evaluate::<f64>` plus `run_checks` at the default config; release build;
@@ -53,8 +68,10 @@ repeated consumers (0.1%).
 
 - **(A) Recommended: a memoized verdict per value.** The payload holds the
   `Body` with a once-cell for its `AtRestBody` or refusal.
-  - An op that produced an `AtRestBody` (boolean, split, shell, blends)
-    fills the cell at construction.
+  - An op that produced an `AtRestBody` fills the cell at construction:
+    today the Boolean, the split and the instance union fold. Shell joins
+    them once `Shelled.body` carries its verdict (the FLUX row above).
+    Blends and the sweeps produce no verdict, so their cell starts empty.
   - Every consumer reads it through one `finished(tol)` accessor, so tier
     3 runs at most once per value.
   - No node's error behaviour changes: refusals surface where they do

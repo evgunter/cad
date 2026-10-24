@@ -415,20 +415,10 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
     }
 }
 
-/// **The props lane's verdict is the same either side of the map.**
-///
-/// The claim this row wanted to make is that volume and area are rigid
-/// invariants, read as enclosures. It cannot be made on this body: the
-/// quadrature refuses a spline face whose half-edges carry no stored
-/// pcurve cache, and this fixture's `Approx` cap carries none — the iso
-/// lane has no construction for its straight seam-class carriers (see
-/// [`box_with_approx_cap`]). The body that DOES carry those caches is
-/// the loft, which no rigid map can move at all while its wall seams
-/// are `Curve3::Nurbs`.
-///
-/// So what is measured is the difference: the props lane answers the
-/// image exactly as it answers the operand. A map that had disturbed
-/// the geometry would not.
+/// **Volume and area are rigid invariants, read as enclosures.** The
+/// image's volume and area brackets overlap the operand's, up to the map's
+/// own rounding. Both bodies finish and both measure, so a map that
+/// disturbed the geometry would move the brackets apart.
 #[test]
 fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
     let (body, _) = box_with_approx_cap(0.05, MINT_TARGET);
@@ -438,33 +428,28 @@ fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
         Tol::witness(),
     )
     .expect("the body moves");
-    let read = |b: &Body<f64>| match topo::mass_properties(
-        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
-        Tol::witness(),
-    ) {
-        Ok(m) => Ok((m.volume, m.surface_area, m.volume_pad, m.area_pad)),
-        Err(e) => Err(format!("{e}")),
+    let read = |b: &Body<f64>| {
+        let m = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(b),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("the props lane measures the body");
+        (m.volume, m.surface_area, m.volume_pad, m.area_pad)
     };
-    match (read(&body), read(&moved)) {
-        (Ok((v0, a0, vp0, ap0)), Ok((v1, a1, vp1, ap1))) => {
-            // The invariance row, if the lane ever answers here: the
-            // two brackets must overlap, plus the map's own rounding.
-            let dust = 1e-12;
-            assert!(
-                (v1 - v0).abs() <= vp0 + vp1 + dust,
-                "volume is a rigid invariant: {v1} vs {v0} (pads {vp0} and {vp1})"
-            );
-            assert!(
-                (a1 - a0).abs() <= ap0 + ap1 + dust,
-                "area is a rigid invariant: {a1} vs {a0} (pads {ap0} and {ap1})"
-            );
-        }
-        (Err(here), Err(there)) => assert_eq!(
-            here, there,
-            "the map changed what the props lane can compute"
-        ),
-        (here, there) => panic!("the map changed the props lane's verdict: {here:?} vs {there:?}"),
-    }
+    let ((v0, a0, vp0, ap0), (v1, a1, vp1, ap1)) = (read(&body), read(&moved));
+    let dust = 1e-12;
+    assert!(
+        (v1 - v0).abs() <= vp0 + vp1 + dust,
+        "volume is a rigid invariant: {v1} vs {v0} (pads {vp0} and {vp1})"
+    );
+    assert!(
+        (a1 - a0).abs() <= ap0 + ap1 + dust,
+        "area is a rigid invariant: {a1} vs {a0} (pads {ap0} and {ap1})"
+    );
 }
 
 /// **Composition, read off the body.**

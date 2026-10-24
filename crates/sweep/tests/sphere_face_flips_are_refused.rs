@@ -171,9 +171,13 @@ fn every_sphere_face_flip_is_refused_and_named() {
         split_faces_at_equator(&mut cover, tol);
         for (name, body) in [("split ball", &control), ("split double cover", &cover)] {
             total += flips(name, body, &mut failures) + 1;
-            let tier3 = topo::validate_geometric(body, tol).is_ok();
-            // Raw door: the subject is the door's parity with tier 3 over a split ball and a double cover tier 3 refuses.
-            let door = topo::test_support::measure_unvalidated(body, tol).is_ok();
+            let at_rest = topo::AtRestBody::validate(topo::Body::clone(body), tol);
+            let tier3 = at_rest.is_ok();
+            let door = match &at_rest {
+                Ok(finished) => topo::mass_properties(finished, tol).is_ok(),
+                // Raw door: the subject is the door's parity with tier 3, here over the double cover tier 3 refuses.
+                Err(_) => topo::test_support::measure_unvalidated(body, tol).is_ok(),
+            };
             if tier3 != door {
                 failures.push(format!(
                     "{name}: tier 3 passes = {tier3}, the door measures = {door}"

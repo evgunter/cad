@@ -359,8 +359,12 @@ fn row4_translated_arc_prism() {
     println!("ROW4 debug_assertions = {}", cfg!(debug_assertions));
     for metres in [0.0, 0.04, 0.4, 4.0, 40.0, 400.0, 4000.0] {
         let dx = metres / s;
-        let body = topo::test_support::finished("body", arc_prism_at(s, dx), tol());
-        let r = std::panic::catch_unwind(|| topo::mass_properties(&body, tol()));
+        let body = arc_prism_at(s, dx);
+        // The finish inside the catch, as the measurement is: a tier-3
+        // refusal at a far placement prints as the row's PANIC line.
+        let r = std::panic::catch_unwind(|| {
+            topo::mass_properties(&topo::test_support::finished("body", body, tol()), tol())
+        });
         match r {
             Ok(Ok(mp)) => println!(
                 "ROW4 eps={eps:e} s={s:e} at {metres} m: volume {:.6e} pad {:.3e} area {:.6e} pad {:.3e}",
