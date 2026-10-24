@@ -848,10 +848,6 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             },
         ),
         (
-            "ClassNotAdmitted",
-            MateFault::ClassNotAdmitted { mate: r(9) },
-        ),
-        (
             "Overconstrained",
             MateFault::Overconstrained {
                 placement: n(7),

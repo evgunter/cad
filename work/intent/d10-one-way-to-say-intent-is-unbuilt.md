@@ -7,7 +7,7 @@ opened: 2026-10-03
 priority: P0
 cost: H
 refs: [one-way-to-say-dependency-and-intent]
-blocked_on: [intent-stage3-is-built, intent-stage4-is-built, the-at-rest-census-is-a-check]
+blocked_on: [intent-stage3-is-built, the-at-rest-census-is-a-check]
 ---
 
 

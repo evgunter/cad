@@ -17,7 +17,7 @@ use crate::forms::{
     UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateToolState, admitted_classes};
+use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateToolState};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
@@ -488,37 +488,6 @@ impl ViewerBehavior<'_> {
         };
         crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
         mate_picks_row(ui, tool.state(), self.session.doc(), &self.theme);
-        // The class choice, offered THROUGH the kernel's admission
-        // table: each class is shown with its verdict, and the
-        // deferral (Fit and every future class) is a sentence here
-        // rather than a button — the tool never offers what the doors
-        // will not execute.
-        let classes = admitted_classes();
-        ui.horizontal(|ui| {
-            for (ix, entry) in classes.iter().enumerate() {
-                ui.radio_value(&mut self.drafts.mate_class, ix, entry.class.name());
-            }
-        });
-        if let Some(entry) = classes.get(self.drafts.mate_class) {
-            // The verdict in the table's own words: a minting class
-            // says so; a class with no at-rest record shows the
-            // table's reason, never a Debug dump of it.
-            crate::widgets::message_toned(
-                ui,
-                format!(
-                    "admission: {}",
-                    match entry.admission {
-                        pncad::document::ClassAdmission::Mints => "mints an at-rest record",
-                        caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
-                        | pncad::document::ClassAdmission::NotAdmitted) => {
-                            caveat.no_record_reason()
-                        }
-                    }
-                ),
-                &self.theme,
-                Tone::Advisory,
-            );
-        }
         ui.horizontal(|ui| {
             for (ix, (_, label)) in MATE_KINDS.iter().enumerate() {
                 ui.radio_value(&mut self.drafts.mate_kind, ix, *label);
@@ -568,18 +537,13 @@ impl ViewerBehavior<'_> {
                         .map(|by| (coord, by))
                     })
                     .collect();
-                match (
-                    classes.get(self.drafts.mate_class),
-                    values,
-                    self.session.landed_pair(),
-                ) {
-                    (_, Err(error), _) => {
+                match (values, self.session.landed_pair()) {
+                    (Err(error), _) => {
                         self.notices
                             .push(frame::tool_news(&ToolKind::Mate.refuses(&error)));
                     }
-                    (Some(entry), Ok(values), Some((doc, _))) => {
+                    (Ok(values), Some((doc, _))) => {
                         let choice = MateChoice {
-                            class: entry.class,
                             kind,
                             flip: self.drafts.mate_flip,
                             values,

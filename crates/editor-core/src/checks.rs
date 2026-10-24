@@ -565,8 +565,7 @@ pub struct CheckFinding {
 /// node that decided the row, root or not, which denotes no one body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FindingSubject {
-    /// A root output, attributed as `(root, output_ix)` (the
-    /// [`crate::AtRestFinding`]/`Attribution` rhyme), which
+    /// A root output, named as `(root, output_ix)`, which
     /// [`subject_body`] resolves.
     Output {
         /// The root whose value carries the subject body.
@@ -1387,7 +1386,7 @@ pub fn run_checks_at_rest_on<
             refusal: refusal.clone(),
         });
     } else {
-        separation(&subject, tol, &mut report);
+        separation(doc, &subject, tol, &mut report);
     }
     Ok((report, door))
 }
@@ -1459,8 +1458,7 @@ type DoorRows = (
 /// product and on each `new_space()` it carries
 /// ([`crate::Product::spaces`]), in their order; each
 /// under the subject it is reported against — the node that decided it,
-/// the mate whose pair the census decided, or the two copies it found
-/// in contact.
+/// or the two copies the census found in contact.
 fn door_rows<P, T: Decide>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
@@ -1483,11 +1481,9 @@ fn door_rows<P, T: Decide>(
     // A row of two copies is proved at the first copy's placement, which
     // is no decision the replay retakes: the door reads a census row off
     // the replay's copies.
-    let at_rest_node = |by: &crate::assembly::AtRestBy| match *by {
-        crate::assembly::AtRestBy::Mate(mate) => mate.placement,
-        crate::assembly::AtRestBy::Copies(a, _) => doc
-            .operation_of(a.var)
-            .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output")),
+    let at_rest_node = |a: crate::checks::at_rest::CopyRef| {
+        doc.operation_of(a.var)
+            .unwrap_or_else(|| unreachable!("a gathered copy is a live placement's output"))
     };
     ev.order
         .iter()
@@ -1498,11 +1494,12 @@ fn door_rows<P, T: Decide>(
         .filter(|(_, rows)| !rows.is_empty())
         .map(|(node, rows)| (FindingSubject::Node(node), node, rows))
         .chain(at_rest.into_iter().map(|r| {
-            let subject = match r.by {
-                crate::assembly::AtRestBy::Mate(mate) => FindingSubject::Node(mate.placement),
-                crate::assembly::AtRestBy::Copies(a, b) => FindingSubject::Copies { a, b },
-            };
-            (subject, at_rest_node(&r.by), vec![r.row.clone()])
+            let (a, b) = r.copies;
+            (
+                FindingSubject::Copies { a, b },
+                at_rest_node(a),
+                vec![r.row.clone()],
+            )
         }))
         .collect()
 }
@@ -1803,16 +1800,19 @@ fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
 /// `Bvh` over the per-solid hulls, queried instead of the `S²` loop.
 /// Not built, because nothing has measured it as the bottleneck.
 ///
-/// # Declared contact suppresses
+/// # A mated contact suppresses
 ///
-/// A pair whose contact the product DECLARES is not reported: a mate
-/// that says two faces rest on each other has said the solids touch,
-/// and the assembly door ([`crate::assemble`]) is where that
-/// declaration is certified against the geometry. Reporting it here
-/// too would make a correctly-mated assembly noisy about the thing it
-/// got right. The suppression reads the declarations only — it never
-/// blesses a contact from discovery (F1).
-fn separation<T: Decide + CertifiedBounds>(
+/// A pair a mate rests on each other is not reported: the census
+/// recorded the touch, and the coincidence door proves it by the mate.
+/// Reporting it here too would make a correctly-mated assembly noisy
+/// about the thing it got right. The suppression keys on the door's
+/// first rung ([`mated_pairs`]), and between two copies only a mate
+/// proves there: the rung's other two arms need both cells read
+/// through one chain of maps to one minting node, and each copy reads
+/// its cells through its own placement. So a touch no mate states is
+/// not suppressed (F1).
+fn separation<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
+    doc: &Doc<P>,
     subject: &Subject<'_, T>,
     tol: Tol,
     report: &mut ChecksReport,
@@ -1847,7 +1847,7 @@ fn separation<T: Decide + CertifiedBounds>(
             return;
         }
     };
-    let declared = declared_pairs(gathered);
+    let mated = mated_pairs(doc, gathered, tol);
     for (j, later) in gathered.solid_copies.iter().enumerate() {
         for earlier in &gathered.solid_copies[..j] {
             if (earlier.node, earlier.output) == (later.node, later.output) {
@@ -1861,7 +1861,7 @@ fn separation<T: Decide + CertifiedBounds>(
             } else {
                 (later.solid, earlier.solid)
             };
-            if declared.contains(&pair) {
+            if mated.contains(&pair) {
                 continue;
             }
             report.findings.push(CheckFinding {
@@ -1879,42 +1879,31 @@ fn separation<T: Decide + CertifiedBounds>(
     }
 }
 
-/// Which solid pairs are DECLARED to touch, keyed as an ordered pair
-/// of solid keys.
+/// Which solid pairs rest on each other structurally, keyed as an
+/// ordered pair of solid keys: those of each record citing an at-rest
+/// row the coincidence door's first rung proves ([`crate::coincide`]),
+/// such as the two faces a mate rests on each other.
 ///
-/// Every record kind that names two entities contributes the pair of
-/// solids those entities live in. A record whose entity the aggregate
-/// cannot resolve contributes nothing — the strict direction: an
-/// unresolvable declaration suppresses no finding, so a broken record
-/// can only make this check louder, never quieter.
-fn declared_pairs<T: Decide>(
+/// A record whose entity the aggregate cannot resolve contributes
+/// nothing — the strict direction: a broken record can only make this
+/// check louder, never quieter.
+fn mated_pairs<P: crate::ProfilePayload, T: Decide>(
+    doc: &Doc<P>,
     gathered: &product::Product<T>,
+    tol: Tol,
 ) -> std::collections::BTreeSet<(topo::SolidKey, topo::SolidKey)> {
-    // The gather's own record set is the whole answer: it holds the
-    // records that rode UP from the source bodies AND this document's
-    // mate-minted declarations, because minting is the gather's act.
-    // Re-minting here would be a second opinion about what a mate
-    // declares, and a duplicate record besides.
-    //
-    // A mate the gather could not mint declares nothing and so
-    // suppresses nothing — `gathered.unminted` is not consulted, and
-    // the honest reading is that a broken declaration makes this
-    // resident LOUDER about the pair it named, never quieter. The
-    // unresolvable-ENTITY direction is `note`'s doing below.
-    //
-    // A record the census minted between two copies no mate relates
-    // suppresses nothing: it backs a contact the `unproven-coincidence`
-    // check reports, and quieting the separation finding beside it would
-    // let a touch nobody stated read as clean twice over. A record
-    // counts here only where it cites a row a mate's pair decided. One
-    // that rode up from a source relates two solids of that one copy,
-    // a pair this resident never examines.
+    // A record citing a row the first rung leaves suppresses nothing: it
+    // backs a contact the `unproven-coincidence` check reports, and
+    // quieting the separation finding beside it would let a touch
+    // nothing states read as clean twice over. One that rode up
+    // from a source relates two solids of that one copy, a pair this
+    // resident never examines.
     let mated = |cites: &topo::Cites| {
         cites.iter().any(|backing| match backing {
             topo::Backing::Decided(k) => gathered
                 .coincidences
                 .get(k as usize)
-                .is_some_and(|row| matches!(row.by, crate::assembly::AtRestBy::Mate(_))),
+                .is_some_and(|row| crate::coincide::first_rung_proves(doc, &row.row, tol)),
             topo::Backing::Carried { .. } => false,
         })
     };

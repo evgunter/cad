@@ -2,11 +2,10 @@
 id: the-at-rest-census-is-a-check
 kind: issue
 title: D10 stage 5 PR C: the at-rest census is a check resident reporting interference and could-not-look; at-rest contacts go to the unproven-coincidence lint; nothing at rest refuses; A5's gate, assemble and Separation retire
-status: parked
+status: open
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [mates-declare-no-contact]
 ---
 
 INTENT stage 5, PR C. Ev approved the design in PR 4320 (fork log row

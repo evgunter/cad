@@ -22,26 +22,8 @@
 //! subgroup, the target pose's own symmetry, carried onto the copy's
 //! pose ([`mate_coset`]), and the mates of one placement fold by exact
 //! coset intersection — [`coset`], whose table is the spec's binding
-//! one.
-//!
-//! # v1's admitted classes
-//!
-//! `class` is the KERNEL [`ContactClass`] (M9-1), re-exported rather
-//! than re-minted, so a mate's declaration is already the currency the
-//! boolean wrapper's records speak.
-//!
-//! **Which classes v1 admits is [`class_admission`], not a sentence
-//! here.** A class passes TWO doors — the solve, which folds cosets,
-//! and the assembly gate's mint, which needs a kernel record type to
-//! carry the declaration at rest — and the two do not admit the same
-//! set. The table is one function both doors read, so a class can
-//! never be admitted at one and refused at the other without saying
-//! so: `Rest` clears both, `Tangent` solves and then refuses typed at
-//! the mint door (the at-rest census decides no tangent locus for its
-//! face–face record to cite — [`crate::MintRefusal::NoAtRestRecord`]), and
-//! every later class — `Fit { gap }` when it lands — refuses at the
-//! solve door, because a declared clearance changes what "coincide"
-//! means and this unit solves coincidence only.
+//! one. A mate declares no contact: where the copies it places touch
+//! is the at-rest census's to record ([`crate::assemble`]).
 
 use crate::eval::NodeRefusal;
 use crate::node::RecipeNodeId;
@@ -65,10 +47,6 @@ pub use solve::{
     solve_document, solve_document_at,
 };
 pub use unobservable::{Unobservable, unobservable};
-
-/// The kernel's contact vocabulary, re-exported (M9-1 PR-1: one enum,
-/// defined lowest). A mate's class IS a contact declaration.
-pub use topo::ContactClass;
 
 /// Which side of a mate a diagnostic is about.
 #[derive(
@@ -94,9 +72,9 @@ impl MateSide {
 
 /// **A mate** (D10, FORK-S3M, `[placement.mates]`): two poses of one
 /// kind, `on` read off the copied shapes' geometry and `to` off a body
-/// in the target space, with the contact class it declares. A mate
-/// reads only geometry, holds no number, and is a constraint of the
-/// placement that holds it, never a node.
+/// in the target space. A mate reads only geometry, holds no number,
+/// declares no contact, and is a constraint of the placement that holds
+/// it, never a node.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, bound = "")]
 pub struct Mate<S: crate::Slot = crate::VarId> {
@@ -105,10 +83,6 @@ pub struct Mate<S: crate::Slot = crate::VarId> {
     /// The pose the copy's is equated with, read off a body in the
     /// target space.
     pub to: S::Read,
-    /// The declared contact class, the kernel vocabulary
-    /// ([`class_admission`] says how far each gets).
-    #[serde(with = "crate::persist::kernel_wire::contact_class")]
-    pub class: ContactClass,
 }
 
 impl<S: crate::Slot> Mate<S> {
@@ -132,7 +106,6 @@ impl<S: crate::Slot> Mate<S> {
         Ok(Mate {
             on: read(MateSide::On, &self.on)?,
             to: read(MateSide::To, &self.to)?,
-            class: self.class,
         })
     }
 }
@@ -619,97 +592,6 @@ pub const UNPINNED_RECOURSE: &str = "write each freedom the mates leave as a val
      where the two spaces agree — with no mate, a slide along each of the target's x, y and z and \
      a chain of three spins about its axes, no two in a row about one axis — or mate the copy";
 
-/// **The v1 class restriction, named.** `Fit` is specified and not
-/// built; a mate cannot declare a designed clearance until the kernel
-/// variant lands with its first consumer, and AQ6 is where the
-/// cross-document detail is still open.
-pub const CLASS_DEFERRAL: &str = "v1 mates SOLVE Rest and Tangent and ASSEMBLE Rest alone; the \
-                                  cross-document detail of a designed clearance is undischarged";
-
-/// **The recourse a [`crate::MintRefusal::NoAtRestRecord`] ends on**:
-/// what an author does about a class that solves and has no record to
-/// be verified by at rest.
-///
-/// The arm already quotes the table's reason for THIS class; this is
-/// the repair, and it names the rung the way [`CLASS_DEFERRAL`] does —
-/// `Rest` is the one class v1 carries all the way to the gate, and a
-/// curved contact verified at rest is outside v1 rather than a
-/// tolerance away.
-pub const NO_AT_REST_RECORD_RECOURSE: &str = "declare the contact as a Rest, the one class v1 \
-                                              mints and verifies at rest; a curved contact \
-                                              verified at rest is outside v1 and is not built";
-
-/// **How far a contact class gets in v1** — the whole class policy as
-/// a value, read by both doors that enforce it.
-///
-/// The two doors want different things of a class: the solve needs a
-/// coset the alignment table can fold, the assembly gate's mint needs
-/// a KERNEL RECORD TYPE that can carry the declaration at rest. A
-/// class can satisfy the first and not the second, so the admitted
-/// sets differ — and the gap is stated here, once, rather than
-/// asserted separately by each door's own match (which is how they
-/// drift apart, and how a door comes to advertise what it cannot
-/// execute).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ClassAdmission {
-    /// Both doors: the solve folds it, and [`crate::assemble`] mints
-    /// it into the product's record set as the kernel's own record
-    /// type. Whether the census then CERTIFIES that record is the
-    /// census's verdict, not this table's.
-    Mints,
-    /// The solve door only. No kernel record carries this class at
-    /// rest, so [`crate::assemble`] refuses with a
-    /// [`crate::MintRefusal::NoAtRestRecord`] row naming the mate — a
-    /// solved placement that cannot be verified at rest, never a
-    /// record minted with an invented witness.
-    NoAtRestRecord {
-        /// Why THIS class has none, in its own terms. Carried here so
-        /// the mint door's message is the table's, never one class's
-        /// reason rendered confidently over another's refusal.
-        why: &'static str,
-    },
-    /// Neither: outside v1's vocabulary, so the solve door refuses
-    /// [`MateFault::ClassNotAdmitted`]. Reaching the mint door means a
-    /// mate of this class was live, which the solve door does not
-    /// permit — so the mint refuses it too, with the deferral, rather
-    /// than assuming the chain held.
-    NotAdmitted,
-}
-
-impl ClassAdmission {
-    /// Why the assembly gate carries nothing at rest for this class.
-    ///
-    /// Total, so the mint door never has to choose a sentence: a class
-    /// that mints has no such reason and says so.
-    pub fn no_record_reason(self) -> &'static str {
-        match self {
-            Self::Mints => "the class mints at rest",
-            Self::NoAtRestRecord { why } => why,
-            Self::NotAdmitted => CLASS_DEFERRAL,
-        }
-    }
-}
-
-/// The class table itself ([`ClassAdmission`]).
-///
-/// INVARIANT: every door that ENFORCES the class policy reads it
-/// here, so the admitted sets cannot drift apart.
-/// `ContactClass` is `#[non_exhaustive]`, so a class the kernel grows
-/// arrives in the wildcard arm as [`ClassAdmission::NotAdmitted`] —
-/// deferred by default, admitted only by an edit HERE that both doors
-/// then obey.
-pub fn class_admission(class: ContactClass) -> ClassAdmission {
-    match class {
-        // A rest between two placed faces IS a face–face record.
-        ContactClass::Rest => ClassAdmission::Mints,
-        ContactClass::Tangent => ClassAdmission::NoAtRestRecord {
-            why: "a tangency between placed faces is a face-face record on two carriers, and \
-                  the census at rest decides nothing along their locus for the record to cite",
-        },
-        _ => ClassAdmission::NotAdmitted,
-    }
-}
-
 /// Why a lever could not be formed for a mate: one of its parts' reach
 /// is not in hand, the member stands on no
 /// instance, or the lever the two parts form is out of the format's
@@ -829,15 +711,6 @@ pub enum MateFault {
         found: crate::ident::DocumentId,
     },
 
-    /// A class outside v1's admitted vocabulary — `Fit { gap }` today,
-    /// any later addition tomorrow. The message carries the kernel's
-    /// own deferral sentence VERBATIM ([`topo::FIT_DEFERRAL`]) rather
-    /// than a paraphrase of it.
-    ClassNotAdmitted {
-        /// The mate that declared it.
-        mate: MateRef,
-    },
-
     /// **A constraint any of whose equations the rest of its bundle
     /// already fixes** (D10; FORK-S3O): a mate places and never checks,
     /// so none is verified and kept. Decided by subgroup algebra over
@@ -945,7 +818,6 @@ impl MateFault {
         match self {
             Self::SideUnevaluated { refusal, mate, .. } => Some((mate.placement, refusal)),
             Self::PosesOfAnotherDocument { .. }
-            | Self::ClassNotAdmitted { .. }
             | Self::Overconstrained { .. }
             | Self::Unpinned { .. }
             | Self::NotOnTheCopy { .. }
@@ -1047,13 +919,6 @@ impl crate::spoken::Say for MateFault {
                 "a placement was asked of a solve of another document than the one it was \
                  asked for, so no frame is read. Recourse: solve the document whose placement \
                  is asked for, and read it off that solve",
-            ),
-            Self::ClassNotAdmitted { mate } => write!(
-                f,
-                "{}'s contact class is not admitted in v1 — {}. Recourse: delete the \
-                 mate, and insert it again declaring a Rest",
-                mate_(*mate),
-                topo::FIT_DEFERRAL
             ),
             Self::Overconstrained {
                 placement,

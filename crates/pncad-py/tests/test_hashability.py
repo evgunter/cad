@@ -176,7 +176,7 @@ class TestEveryMirrorIsAKey(unittest.TestCase):
         self.mirrors = enum_mirrors()
         # A probe that found nothing would pass every row below in
         # silence. It has to find the surface it is measuring.
-        self.assertGreaterEqual(len(self.mirrors), 19)
+        self.assertGreaterEqual(len(self.mirrors), 18)
 
     def test_every_member_of_every_mirror_hashes(self):
         unhashable = sorted(
