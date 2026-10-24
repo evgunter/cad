@@ -998,8 +998,7 @@ pub fn skin_on<T: SpanLocate>(
                 .iter()
                 .map(|s| s.weights_f64_interim()[i])
                 .collect();
-            let c = ws[0];
-            ws.iter().all(|w| *w == c).then(|| {
+            geom_core::spline::constant_weight(&ws).map(|c| {
                 if c == 1.0 {
                     T::one()
                 } else {

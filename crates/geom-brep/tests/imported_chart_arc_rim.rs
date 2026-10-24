@@ -27,6 +27,17 @@ const H: f64 = 0.01;
 /// patch, degree 2 × 1, `u ∈ [0, 3√3]` with the file's own rounded
 /// interior knots, `v ∈ [0, 1]`.
 fn imported_wall() -> Surface<f64> {
+    scaled_wall(1.0)
+}
+
+/// [`imported_wall`] with every weight multiplied by `c`: the same
+/// surface, its arc column `c, c/2, c, …`.
+fn scaled_wall(c: f64) -> Surface<f64> {
+    weighted_wall(|k| if k % 2 == 0 { c } else { 0.5 * c })
+}
+
+/// [`imported_wall`]'s net with the weight `w(k)` on control row `k`.
+fn weighted_wall(w: impl Fn(usize) -> f64) -> Surface<f64> {
     let tau = core::f64::consts::TAU;
     let mut control = Vec::new();
     let mut weights = Vec::new();
@@ -34,10 +45,9 @@ fn imported_wall() -> Surface<f64> {
         let on = k % 2 == 0;
         let theta = tau * (k as f64) / 6.0;
         let rr = if on { R } else { 2.0 * R };
-        let w = if on { 1.0 } else { 0.5 };
         for v in [0.0, H] {
             control.push(Point3::new(rr * theta.cos(), rr * theta.sin(), v));
-            weights.push(w);
+            weights.push(w(k));
         }
     }
     // The file's printed knots, each rounded independently — NOT exact
@@ -216,4 +226,60 @@ fn a_seam_column_certifies_on_a_non_unit_chart() {
         ),
         "the refusal is the schedule residual at the first sample: {refusal:?}"
     );
+}
+
+/// **The arc pattern is a ratio, not an end weight of `1`.** The same
+/// wall with every weight scaled by `2` is the same surface, its column
+/// `2, 1, 2, …`, and
+/// certifies with the unit wall's envelope to the bit; scaled by `3`
+/// (`3, 1.5, 3, …`, whose ratio is still exactly `1/2`) it certifies
+/// too. A column with one even row's weight an ulp off the end weight
+/// is not one scale of the pattern and refuses typed at it: the ulp
+/// keeps its locus within the schedule, so the pattern is the deciding
+/// check.
+#[test]
+fn a_scaled_arc_column_certifies_and_a_broken_pattern_refuses() {
+    let tau = core::f64::consts::TAU;
+    let certify = |wall: &Surface<f64>| {
+        PcurveCache::certify(
+            Pcurve::IsoArc {
+                p0: Point2::new(0.0, 0.0),
+                pd: Vec2::new(5.1961524227066, 0.0),
+                t0: 0.0,
+                angle: tau,
+                breaks: breaks(),
+            },
+            0.0,
+            tau,
+            &rim(1.0),
+            wall,
+            band(),
+        )
+    };
+    let unit = certify(&imported_wall()).expect("the unit wall certifies");
+    let twice = certify(&scaled_wall(2.0)).expect("a wall scaled by 2 is the same arc");
+    assert_eq!(
+        twice.certificate().envelope.to_bits(),
+        unit.certificate().envelope.to_bits(),
+        "scaled by 2: envelope {:e}, the unit wall's {:e}",
+        twice.certificate().envelope,
+        unit.certificate().envelope
+    );
+    let thrice = certify(&scaled_wall(3.0)).expect("a wall scaled by 3 is the same arc");
+    assert!(
+        thrice.certificate().envelope < 1e-9,
+        "scaled by 3: envelope {:e}",
+        thrice.certificate().envelope
+    );
+    let broken = weighted_wall(|k| match k {
+        2 => 1.0f64.next_up(),
+        k if k % 2 == 0 => 1.0,
+        _ => 0.5,
+    });
+    match certify(&broken) {
+        Err(geom_brep::PcurveCertifyError::IsoUnsupported { what }) => {
+            assert!(what.contains("interior ratio"), "{what}");
+        }
+        other => panic!("an end weight off the pattern must refuse typed: {other:?}"),
+    }
 }
