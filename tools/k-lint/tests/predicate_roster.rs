@@ -731,7 +731,8 @@ fn the_pin_reads_a_mint_a_respelling_and_a_missing_name_red_it() {
         "the short fixture",
     );
     let names: Vec<&str> = minted.iter().map(|m| m.name.as_str()).collect();
-    let complaints = unminted_roster_names(&ERA_EPS_COUPLED_PREDICATES, &names, "the short fixture");
+    let complaints =
+        unminted_roster_names(&ERA_EPS_COUPLED_PREDICATES, &names, "the short fixture");
     assert_eq!(complaints.len(), 1, "one rostered name is unminted here");
     assert!(
         complaints[0].contains("props_quad_converged")

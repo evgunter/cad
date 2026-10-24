@@ -654,3 +654,49 @@ fn a_relation_refines_a_quadrature_face_and_settles_or_stops_in_the_band() {
          where the walk refined"
     );
 }
+
+/// **A SHELL'S ROLE READ OFF ITS VOLUME WALKS PAST ROUND 0.** A brick
+/// holding [`the_sign_walks_narrower_bracket_holds_the_closed_form`]'s
+/// strip as a void: the void's walls are splines, which the ray reader
+/// has no arm for, so its role is read off the sign of its volume
+/// (`side_at_infinity`'s fallback), and that sign straddles zero at
+/// round 0 exactly as the upright strip's does. The shell classification
+/// reads it `Void` only by refining its walls past round 0, so a
+/// classification that read round 0 alone would refuse it.
+#[test]
+fn a_void_read_off_its_volume_is_refined_past_round_zero() {
+    let tol = Tol::witness();
+    let s = 1.0e6 * tol.get().eps;
+    let mut body: Body<f64> = sweep::test_support::brick(
+        (-10.0 * s, 10.0 * s),
+        (-10.0 * s, 10.0 * s),
+        (-10.0 * s, 10.0 * s),
+        tol,
+    );
+    let solid = body.solids().next().expect("one solid").0;
+    let cavity = strip_loft(s, 1.0e-4 * s, false).expect("the strip lofts");
+    let evidence = topo::boolean::VoidEvidence {
+        shells: cavity
+            .shells()
+            .map(|(k, _)| {
+                (
+                    k,
+                    topo::boolean::VoidContainment::Carried {
+                        sign: geom_core::Sign::Positive,
+                    },
+                )
+            })
+            .collect(),
+    };
+    topo::boolean::insert_void(&mut body, solid, cavity, &evidence)
+        .expect("the strip is strictly inside the brick");
+    let finished = topo::test_support::finished("the hollowed brick", body, tol);
+    let roles = topo::classify_shells(&finished, tol)
+        .unwrap_or_else(|e| panic!("the shell classification reads both shells: {e:?}"));
+    assert_eq!(roles.len(), 2, "the brick and its void");
+    let voids = roles
+        .iter()
+        .filter(|r| r.role == topo::ShellRole::Void)
+        .count();
+    assert_eq!(voids, 1, "the strip's shell is the void: {roles:?}");
+}

@@ -3093,6 +3093,83 @@ mod continuation_refusal_order_tests {
             .expect_err("no face meets the resolution, so the continuation cannot answer")
     }
 
+    /// **A face a later round refuses outright stands at the enclosure it
+    /// held, and the walk decides on it** (the set walk's rule, as
+    /// `PastTarget::refine` had it): the skeletal face holds a round-0
+    /// enclosure and refuses when resumed at round 1. A question the held
+    /// enclosure answers is decided there, the refusal never surfacing; a
+    /// question it cannot answer runs out naming the refusal; and the
+    /// measurement keeps the held bracket beside it.
+    #[test]
+    fn a_later_rounds_outright_refusal_keeps_the_held_enclosure() {
+        let mut body = Body::<f64>::new();
+        let skeletal = body
+            .mvfs(Point3::new(0.0, 0.0, 0.0), true)
+            .expect("the skeletal body builds")
+            .face;
+        let held = run_of(skeletal, LaneStop::Refinable);
+        let width = |c: &SignCertificate<'_, f64>| {
+            let e = c.props().enclosure();
+            e.volume_hi - e.volume_lo
+        };
+
+        let mut decided = certificate(&body, vec![held.clone()]);
+        let before = width(&decided);
+        let mut asked = 0;
+        let walked = walk_set(&mut [&mut decided], None, |rounds| {
+            asked += 1;
+            if asked == 1 {
+                Ask::Refine(vec![true])
+            } else {
+                Ask::Decided(rounds[0].props().enclosure())
+            }
+        });
+        let Walked::Decided(at) = walked else {
+            panic!("the held enclosure answers the second ask: {walked:?}")
+        };
+        assert_eq!(
+            asked, 2,
+            "asked at round 0, and again on what the face held"
+        );
+        assert_eq!(
+            at.volume_hi - at.volume_lo,
+            before,
+            "the face keeps the enclosure it held"
+        );
+        assert!(
+            decided.runs[0].refused().is_some() && decided.runs[0].next_round().is_none(),
+            "the face stands on its refusal and refines no further"
+        );
+
+        let mut open = certificate(&body, vec![held.clone()]);
+        let walked = walk_set(&mut [&mut open], None, |_| Ask::<()>::Refine(vec![true]));
+        let Walked::Exhausted { refused } = walked else {
+            panic!("a question nothing answers runs out: {walked:?}")
+        };
+        assert_eq!(refused.len(), 1, "the one member names its face's refusal");
+        assert_eq!(Some(&refused[0].1), open.runs[0].refused());
+
+        let unreached = certificate(&body, vec![held])
+            .measure()
+            .expect_err("the skeletal face has no number");
+        assert!(
+            !matches!(
+                unreached.refusal,
+                MassPropsError::Face {
+                    source: PropsError::QuadratureBudget { .. },
+                    ..
+                }
+            ),
+            "the refusal is the face's own, outright: {:?}",
+            unreached.refusal
+        );
+        assert_eq!(
+            unreached.bracket.volume_hi - unreached.bracket.volume_lo,
+            before,
+            "the measurement keeps the bracket the face held"
+        );
+    }
+
     /// **A face refused outright outranks one left short of the
     /// resolution**, wherever it stands: the short face's enclosure is
     /// sound and its sum is kept, while the refused face has none.

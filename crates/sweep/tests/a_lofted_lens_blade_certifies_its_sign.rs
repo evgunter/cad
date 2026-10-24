@@ -216,11 +216,13 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
 }
 
 /// **The backstop pays a refused face once per body it reads.** The
-/// volume backstop reads each body to its reporting target, so it runs
-/// the tube's first refusing wall to its stop and no further, as the
-/// reporting door does: reading the tube twice (`A` and the planted
-/// result) costs exactly twice the door's quadrature readings. Counted,
-/// not timed: a round a refused face ran again would be another reading.
+/// volume backstop reads each body from round 0 and refines it while an
+/// inequality straddles. Here the planted result is the tube itself, so
+/// `vol(A ∪ B) ≥ vol(A)` straddles at every round, and the walk takes
+/// both bodies' walls to their own stop and no further, as the reporting
+/// door does: reading the tube twice (`A` and the planted result) costs
+/// exactly twice the door's quadrature readings. Counted, not timed: a
+/// round a refused face ran again would be another reading.
 #[test]
 fn the_volume_backstop_reads_a_refused_face_once_per_body() {
     let tol = Tol::witness();
