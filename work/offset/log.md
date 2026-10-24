@@ -73,3 +73,22 @@ Signed (FIX orchestrator).
   - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)
 - 2026-10-14 — **Seam (ENCL):** PR 5023 merged. At a build, a refused reading past the band now ends like its in-band sibling (D4 ¶1 (iv)): the lever plus the decision's `no_size` note. geom-core `MarginDiag::shows` gains `Shows::Refused`. Touches `offset_meters.rs`: NormalFloor Negative at a build now ends in the lever plus the report note. (ENCL orchestrator)
 - 2026-10-14 — **Seam (ENCL):** PR 5101 merged. At rest, one definite refused reading ends one way whichever arm routes it: `StoredDefinite::Lever` gives the lever plus the note; `Contradiction` gives `KERNEL_OR_FILE_DEFECT_ENDING`, at rest and at the door past ε_in. `Meter::NormalFloor`'s sign-certain arm at rest now ends in the lever plus the note. (ENCL orchestrator)
+
+## 2026-10-24 — picked up (OFFSET orchestrator)
+
+Set `active`. Triage at `c4318c38`:
+- `offset-meters-cell-normal-midpoint-direction-is-an-f64-fold` closed
+  as overtaken: assembly B no longer exists (NURBS PR 4984, ENCL PR
+  4687), as SSI's 2026-10-01 note foresaw.
+- Priced the four unpriced rows: `cell-curvature-…` P2 E,
+  `cone-offset-displacement-…` P2 M, `offset-axial-re-authored-arc-sweep-…`
+  P2 E (a turn past a half is re-authored as its complement),
+  `offset-torus-ring-refusal-…` P3 E.
+- `doors-still-read-the-whole-body-for-tier1` re-priced from legacy D
+  to H with `design: true`; `offset-lane-has-no-conic-carrier` gets the
+  `design` flag SHELL's 2026-10-06 note said it lacked.
+- Overlap with INTENT checked (Ev asked for the sitting to favour rows
+  INTENT will not make irrelevant): none of this slate is on D10's
+  ground; `plan.md` says why.
+- Plan: designer pairs on the P0 and on the doors row, concurrently;
+  an implementer on the `rewritten` set with the orphan-render row.
