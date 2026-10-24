@@ -346,7 +346,11 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
 /// bounds the one-sided partials of its own side exactly. The integral
 /// arm differences the whole net first, and a derivative across a knot
 /// of multiplicity `p` is discontinuous there, which no clamped vector
-/// describes; it keeps [`check_direction`]'s refusal.
+/// describes; it keeps [`check_direction`]'s refusal. Which arm reads
+/// a net is [`NurbsSurface::constant_weight`]'s, so a creased net of one
+/// constant weight `c`, `1` or any other, is the integral arm's and
+/// refuses: the polynomial patch it is has the same crease the unit net
+/// does.
 ///
 /// **What the caller owns.** Every cell bounds its own span; no bound
 /// holds for a region that crosses a crease, so the max over cells on
@@ -704,18 +708,20 @@ fn centre(vectors: &[[Interval; 3]]) -> [Interval; 3] {
     })
 }
 
-/// The INTEGRAL arm (all weights one constant, which cancels): the
-/// plain hull assembly on the spatial nets — no quotient rule intervenes, so the
-/// enclosure IS the coefficient hull.
+/// The INTEGRAL arm (one constant weight,
+/// [`NurbsSurface::constant_weight`]): the plain hull assembly on the
+/// spatial nets — no quotient rule intervenes, so the enclosure IS the
+/// coefficient hull.
 fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
     integral_cells_on(&comp_nets(n))
 }
 
 /// [`integral_cells`] after refining every nonempty span into `splits`
-/// equal pieces, IN INTERVAL ARITHMETIC: an integral net's constant weight
-/// cancels, so its spatial net is the polynomial patch itself and
-/// [`refine_split`]'s schedule applies to it directly. The cells therefore enclose the described patch, where an
-/// `f64` refinement would have them enclose the refined-`f64` one.
+/// equal pieces, IN INTERVAL ARITHMETIC: an integral net's spatial net
+/// is the polynomial patch itself ([`NurbsSurface::constant_weight`]),
+/// so [`refine_split`]'s schedule applies to it directly. The cells
+/// therefore enclose the described patch, where an `f64` refinement
+/// would have them enclose the refined-`f64` one.
 ///
 /// # Errors
 ///
@@ -1049,15 +1055,21 @@ pub(crate) mod tests {
             read(patch_cells_across_creases(&whole).expect("whole")),
             halves
         );
-        let integral = patch(
-            vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0],
-            &arc,
-            &[1.0; 5],
-        );
-        assert!(matches!(
-            patch_cells_across_creases(&integral),
-            Err(PatchBoundError::Crease)
-        ));
+        // A constant weight is the integral arm's, `1` or not.
+        for c in [1.0, 2.0] {
+            let integral = patch(
+                vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0],
+                &arc,
+                &[c; 5],
+            );
+            assert!(
+                matches!(
+                    patch_cells_across_creases(&integral),
+                    Err(PatchBoundError::Crease)
+                ),
+                "weights {c}"
+            );
+        }
     }
 
     /// **The degree ceilings are the statement's, and each arm meets its

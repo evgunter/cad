@@ -212,22 +212,9 @@ fn nurbs_chord_count(
     delta_s: f64,
     ek: EdgeKey,
 ) -> Result<usize, TessellateError> {
-    let rational = n.constant_weight().is_none();
-    // The convex-combination licence (the surface arm's rule): every
-    // hull fact below needs strictly positive finite weights.
-    if rational
-        && !n
-            .weights()
-            .iter()
-            .all(|w| geom_core::spline::weight_in_regime(*w))
-    {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "rational B-spline carrier with a non-positive or non-finite weight — \
-                   an illegal rational description: the convex-combination licence \
-                   every hull fact rests on requires strictly positive weights",
-        });
-    }
+    // Every weight is strictly positive and finite: the door's own
+    // condition, and the convex-combination licence each hull fact below
+    // reads. Which arm bounds `C″` is the second-derivative door's.
     let kv = n.knots_f64_interim();
     let p = kv.degree();
     if p < 2 {
@@ -1189,9 +1176,8 @@ mod tests {
 
     /// The refusal row the flip keeps: an ILLEGAL rational carrier
     /// (non-positive weight) cannot even be described —
-    /// `NurbsCurve3::new` refuses at the door, so
-    /// [`nurbs_chord_count`]'s own licence check is a defensive
-    /// backstop rather than a reachable lane.
+    /// `NurbsCurve3::new` refuses at the door, which is why
+    /// [`nurbs_chord_count`] carries no licence check of its own.
     #[test]
     fn illegal_rational_carrier_weight_refuses_at_the_door() {
         let n = wiggle();
