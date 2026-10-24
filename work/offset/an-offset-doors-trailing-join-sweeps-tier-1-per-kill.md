@@ -2,10 +2,13 @@
 id: an-offset-doors-trailing-join-sweeps-tier-1-per-kill
 kind: issue
 title: An offset door's trailing join runs outside its surgery scope, so each kill sweeps tier 1 over the whole body
-status: open
+status: closed
 opened: 2026-10-24
 priority: P2
 cost: E
+closed: 2026-10-24
+pr: 5666
+branch: offset/trailing-join-one-sweep
 ---
 
 Found while tracing `Scope`'s O(body) account for
@@ -42,3 +45,16 @@ gate reads (a refused join over a torn body), so weigh it before
 taking it. The same shape probably applies to the split's halves,
 `shell` and the blend, which also call `join_edges_within` on bodies
 they staged; check whether their joins run inside a scope.
+
+## Closed
+
+PR 5666. `Body::join_edges_within` runs its kills and re-mint under
+one surgery scope closed with `sweep_and_close`, so a join derives
+tier 1 once (none where it joins nothing). Every caller is covered:
+the offset doors through `staged_join`, `shell` and the blend.
+`Body::join_edges` does the same on its staged clone, which covers the
+merge, the split's halves and STEP import.
+`edge_join::join_door::a_join_sweeps_tier_1_once_however_many_it_joins`
+pins it with `validate::TIER1_DERIVATIONS`, constant in k. Residue
+found on the way:
+`offset-surfaces-together-leaves-joinable-vertices-at-rest`.
