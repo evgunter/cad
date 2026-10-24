@@ -76,3 +76,7 @@ the design.
 `chart_bound.rs` goes, the premise needs a new home. The obvious one is the
 walk predicate of `w2-reads-a-one-sheet-predicate-off-the-walk`. Don't delete
 the check until both of those cites read the new home.
+Also deleted with `chart_bound.rs`: PR 5656's `ChartEdge::Envelope::reach`
+and its tests (`t5c_…_refuses_at_f64`, `an_arc_walls_envelopes_reach_finitely_at_f64`).
+That PR's span check refuses on a poisoned margin. Whatever takes over the
+premise must refuse on poison too.

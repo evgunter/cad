@@ -183,3 +183,11 @@ This was not a crossover, because only one designer moved, so reconciliation end
   - The issue file's ownership list and sites are incomplete.
 
   Class finding, filed by the lane: the edge-length scale question is asked per door with no shared home.
+- 2026-10-24 — **PR 5656's FULL review** (`session_012KfN3uK7rd77NmmhzR6yCJ`): mergeable as an interim, with no MAJOR. C1 confirmed a latent soundness hole on main: at f64 a NaN span margin let `chart_boundary` return `Ok`, which licensed W2. The fix pass:
+  - S5: refuse on a poisoned margin (`matches!(Ok(Positive))` read poison as "stand"), with the audit row updated;
+  - a bulge-containment test that kills M4;
+  - one hull, not one NaN and one finite;
+  - `image` derived from `reach`, not kept in step by hand;
+  - the stale `revalue_corpus` citation;
+  - the comment that was false for the span premise;
+  - the Interval change stated.
