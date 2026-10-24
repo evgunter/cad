@@ -30,3 +30,13 @@ Nothing refuses. The `mate_chart_reference_antipode` decision returns Zero insid
 - accepting the jump and recording why.
 
 Test 24 turns `B` only about z, so it cannot reach this case. The answer's row is the probe above.
+
+## 2026-10-24 — redirected: the swing retires
+
+Ev, on PR 5621: "stop doing the swing thing and just make people specify the connection between the original coordinates in a better way". Two fresh designers (rounds 2–4, `docs/DESIGN-FORK-LOG.md` row 192) converged on the core, which Ev approved on the PR ("that plan makes sense!"):
+- beside a direction-fixing mate the placement writes an orientation, one of the 24 axis correspondences (default the identity; the gesture writes the nearest);
+- the spin is the angle about the mated direction left after the least turn from the orientation's prediction;
+- the one pole is the orientation written backwards, which refuses in its band, naming the orientation;
+- `Flip` stays, and nothing refuses short of the pole band.
+
+They crossed on slides, then both leaned to target coordinates that the mate solves. Carried axes are the alternative. That choice is Ev's on the PR, and `[placement.values]` states the lean. Retiring under either: `reference_about`, `mate_chart_reference_antipode`, the `copy_x` swing, the half-turn at −z. Also absorbed: `a-lone-slide-refuses-the-chart-it-never-reads`, and the viewer's `AddMate` re-reading kept values on the swung chart (`viewer/src/session.rs`).
