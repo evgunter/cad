@@ -73,3 +73,18 @@ Signed (FIX orchestrator).
   - **Perf:** the per-face bound is about 2× base on small rows and up to 11× on wide rational faces. Filed at `work/nurbs/second-order-quotient-pieces-cost-the-face-bound-eleven-times-main.md`. — (NURBS orchestrator)
 - 2026-10-14 — **Seam (ENCL):** PR 5023 merged. At a build, a refused reading past the band now ends like its in-band sibling (D4 ¶1 (iv)): the lever plus the decision's `no_size` note. geom-core `MarginDiag::shows` gains `Shows::Refused`. Touches `offset_meters.rs`: NormalFloor Negative at a build now ends in the lever plus the report note. (ENCL orchestrator)
 - 2026-10-14 — **Seam (ENCL):** PR 5101 merged. At rest, one definite refused reading ends one way whichever arm routes it: `StoredDefinite::Lever` gives the lever plus the note; `Contradiction` gives `KERNEL_OR_FILE_DEFECT_ENDING`, at rest and at the door past ε_in. `Meter::NormalFloor`'s sign-certain arm at rest now ends in the lever plus the note. (ENCL orchestrator)
+
+## 2026-10-24 — the `rewritten` set (OFFSET orchestrator)
+
+PR 5651 (`offset/transform-rewritten-secondary-map`) closes
+`topo-transform-rewritten-is-a-hashset-the-crate-doc-argues-against` and
+the riding `transform-corrupt-renders-an-orphan-entry-as-a-missing-reference`.
+Tier: orchestrator's read (mechanical). `rewritten` is a `SecondaryMap`;
+the sweep found a second production `HashMap` the crate doc never named
+(`wedge_reach.rs`'s `WedgeReach::points`) plus three in tests, all
+converted, so `lib.rs`'s D9 paragraph now states the rule with no
+exception. `TransformError::Corrupt` carries a whole clause (`found`), so
+the orphan entry reads as unreferenced; a test pins it. The first CI run
+missed an `E::Corrupt` alias in `editor-core`'s concision test; the lane's
+sweep grepped the qualified name only, which is the blind spot it now
+reports. The charter's sentences on the closed rows are rewritten.
