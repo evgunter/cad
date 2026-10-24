@@ -441,7 +441,7 @@ pub enum PcurveMintError {
     /// than the joint bound: half the step to the next point of the
     /// joint's orbit, as the chord it spans at the vertex's own distance
     /// from the axis less the ends' `2ε`, is not definitely past the
-    /// band's escalation four times over (`chart_bound_joint_room`).
+    /// band's escalation four times over (`loop_windings_joint_room`).
     /// There a mark may name an orbit point other than the joint's own
     /// (both lifts of the one 3-D point), so the loop's winding may read
     /// zero while the loop truly winds. Raised by [`loop_windings`] alone,
@@ -601,9 +601,9 @@ impl PcurveMintError {
                 f,
                 "loop {lp:?} of face {face:?} passes so near a sphere pole or cone apex at \
                  half-edge {half_edge:?} that its azimuth period is decided with less room than \
-                 the joint bound, so no face description is built; there is nothing in the \
-                 body to repair. Recourse: ask for the description of a face whose loops keep \
-                 farther from the pole or apex, or describe it at a smaller ε"
+                 the joint bound, so its winding is not read; there is nothing in the body to \
+                 repair. Recourse: ask about a face whose loops keep farther from the pole or \
+                 apex, or ask at a smaller ε"
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
@@ -4686,7 +4686,7 @@ fn spline_gap_closes<T: Decide>(
 /// joint bound `4ε` no such pair exists, and the integer is the
 /// joint's own. So the fence decides the chord in the same quantity
 /// as the bound: a quarter of it, `(d − 2ε)·sin(step/4)/2`, must
-/// decide definitely past the band's escalation (`chart_bound_joint_room`),
+/// decide definitely past the band's escalation (`loop_windings_joint_room`),
 /// which puts the chord past `4·K·ε > 4ε` at every admitted `K > 1`.
 /// Anything else refuses — the conservative side. On a sphere that
 /// admits `d > 2ε + 2√2·K·ε`; on a cylinder, cone or torus,
@@ -4718,7 +4718,7 @@ fn joint_has_room<T: Decide>(
     let quarter_chord = (step * T::from_f64(0.25)).sin() * T::from_f64(0.5);
     matches!(
         decide(
-            "chart_bound_joint_room",
+            "loop_windings_joint_room",
             Margin::levered(quarter_chord, lever),
             band,
         ),
@@ -4788,8 +4788,8 @@ struct ReadLoop {
 /// Off the singular set each closed-form row is certified against
 /// `chart` as the row it is: the joint bound rests on each row's
 /// envelope (check 4), and these rows are fresh derivations in the
-/// CALLER's chart, which no mint certified; a fitted or general one
-/// reads its stored certificate ([`chart_edge`]). Then THE ROOM FENCE:
+/// CALLER's chart, which no mint certified; a fitted or general one is
+/// not re-certified here. Then THE ROOM FENCE:
 /// the walk decided each joint's azimuth integer with half the step to
 /// the next orbit point as room, at the vertex's own lever, and where
 /// that room is not past the joint bound a mark may have named an orbit

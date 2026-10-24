@@ -810,7 +810,9 @@ fn an_l_extrude_is_sound_on_every_face() {
 
 #[test]
 fn a_slab_with_two_holes_is_sound_on_every_face() {
-    assert_sound(&run_extrude("slab2holes", &slab_with_holes(), 1.0));
+    let g = run_extrude("slab2holes", &slab_with_holes(), 1.0);
+    assert_sound(&g);
+    assert_decides(&g, "plane");
 }
 
 #[test]
@@ -822,12 +824,18 @@ fn a_bumped_block_is_sound_on_every_face() {
 
 #[test]
 fn a_notched_block_is_sound_on_every_face() {
-    assert_sound(&run_extrude("notched", &notched_block(), 1.0));
+    let g = run_extrude("notched", &notched_block(), 1.0);
+    assert_sound(&g);
+    assert_decides(&g, "plane");
+    assert_decides(&g, "cylinder");
 }
 
 #[test]
 fn a_disc_is_sound() {
-    assert_sound(&run_extrude("disc", &disc(), 1.0));
+    let g = run_extrude("disc", &disc(), 1.0);
+    assert_sound(&g);
+    assert_decides(&g, "plane");
+    assert_decides(&g, "cylinder");
 }
 
 /// **A plate with a round hole drops the cells inside the hole.** The
@@ -904,12 +912,17 @@ fn a_quarter_annulus_revolved_either_way_is_sound() {
 
 #[test]
 fn a_full_revolve_is_sound() {
-    assert_sound(&run_revolve(
-        "annulus-full",
-        &annulus_rect(),
-        Revolution::Full,
-        None,
-    ));
+    let g = run_revolve("annulus-full", &annulus_rect(), Revolution::Full, None);
+    assert_sound(&g);
+    // The whole-turn walls have only their rims for a boundary, which
+    // the window's padding stays too near to clear: they decide inside.
+    assert!(
+        g.iter()
+            .filter(|f| f.kind == "cylinder")
+            .all(|f| f.stats.inside > 0),
+        "every whole-turn wall decides cells inside"
+    );
+    assert_decides(&g, "plane");
 }
 
 /// **A cone face decides cells**: the frustum's slanted wall, a quarter
@@ -925,6 +938,51 @@ fn a_cone_wall_decides_its_cells() {
     );
     assert_sound(&g);
     assert_decides(&g, "cone");
+}
+
+/// **A cell that reaches a cone's apex is kept.** The double cone is
+/// connected only through its apex, so a patch round the apex can be
+/// boundary-free and still hold points of the face and of the other
+/// nappe. On the frustum's wall, which keeps clear of its apex, a cell
+/// round the apex meets no edge, and its station lies off the face: a
+/// door that skipped the apex would call it `Outside` from that one
+/// station. It reads `Undecided`; the same cell moved off the axis
+/// decides.
+#[test]
+fn a_cell_reaching_a_cone_apex_is_kept() {
+    let vp = profile_of(&frustum_section());
+    let axis = RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
+    };
+    let t = revolve(&vp, axis, Revolution::Partial(iv(PI / 2.0)), Tol::witness()).unwrap();
+    let (face, _) = t
+        .body
+        .faces()
+        .find(|(f, _)| matches!(face_surface(&t.body, *f), Surface::Cone { .. }))
+        .expect("the frustum has a cone wall");
+    let s = surface_f64(&face_surface(&t.body, face));
+    let Surface::Cone { apex, .. } = s else {
+        unreachable!("a cone")
+    };
+    // A cell straddling the slant origin, at the far side of the turn
+    // from the wall's quarter: the apex is its only feature.
+    let at_apex = cell_region(&t.body, face, (PI, PI + 0.4), (-0.2, 0.2), band());
+    assert!(
+        s.eval(PI + 0.2, 0.0).distance(apex) < 1e-9,
+        "the cell holds the apex"
+    );
+    assert_eq!(
+        at_apex,
+        CellRegion::Undecided,
+        "a cell round the apex is kept"
+    );
+    let off = cell_region(&t.body, face, (PI, PI + 0.4), (0.6, 1.0), band());
+    assert_eq!(
+        off,
+        CellRegion::Outside,
+        "the same azimuths off the apex, away from the wall, drop"
+    );
 }
 
 /// **A sphere face decides cells**, both poles on its loops. Only the
@@ -976,4 +1034,156 @@ fn a_sphere_octant_touching_the_pole_is_sound() {
     );
     assert_sound(&g);
     assert_decides(&g, "sphere");
+}
+
+// ------------------------------------------------------------------ //
+// Section curves: faces bounded by ellipses and spiric ovals
+// ------------------------------------------------------------------ //
+
+/// A constraint of a half, `≤ 0` inside, in metres near its zero.
+type Constraint = Box<dyn Fn(Point3<f64>) -> f64>;
+
+/// The oracle on a face of a split half: a point of the face's carrier
+/// is in the face when it satisfies every OTHER constraint of the half
+/// (each face of these halves is its carrier's whole meeting with the
+/// closed half), and not judged within the skin of any.
+fn section_oracle(constraints: Vec<Constraint>, own: usize) -> Oracle {
+    Box::new(move |p| {
+        let mut near = false;
+        for (k, c) in constraints.iter().enumerate() {
+            if k == own {
+                continue;
+            }
+            let g = c(p);
+            if g > DELTA {
+                return Cls::Out;
+            }
+            if g > -DELTA {
+                near = true;
+            }
+        }
+        if near { Cls::Near } else { Cls::In }
+    })
+}
+
+/// The halves of `body` split by the plane through `origin` normal to
+/// `normal`, each with the sign of its side of the plane.
+fn split_halves(
+    body: Body<Interval>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> Vec<(Body<Interval>, f64)> {
+    let tol = Tol::witness();
+    let at_rest = topo::test_support::finished("the operand", body, tol);
+    let pt = |a: [f64; 3]| Point3::new(iv(a[0]), iv(a[1]), iv(a[2]));
+    let plane = topo::test_support::split_plane(
+        pt(origin),
+        geom_core::Vec3::new(iv(normal[0]), iv(normal[1]), iv(normal[2])),
+        tol,
+    );
+    let split = topo::split(&at_rest, &plane, tol).expect("the split builds at Interval");
+    [(split.above, 1.0), (split.below, -1.0)]
+        .into_iter()
+        .filter_map(|(part, side)| match part {
+            topo::SplitPart::Body(b) => Some((b.into_body(), side)),
+            topo::SplitPart::Empty => None,
+        })
+        .collect()
+}
+
+/// Whether some edge of `face` lies on a carrier `pick` names.
+fn bounded_by(
+    body: &Body<Interval>,
+    face: FaceKey,
+    pick: fn(&geom::Curve3<Interval>) -> bool,
+) -> bool {
+    let f = body.get_face(face).unwrap();
+    core::iter::once(f.outer)
+        .chain(f.rings.iter().copied())
+        .filter_map(|l| match body.get_loop(l).unwrap().boundary {
+            LoopBoundary::Cycle { first } => body.loop_cycle(first),
+            LoopBoundary::Empty { .. } => None,
+        })
+        .flatten()
+        .any(|he| {
+            let e = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+            body.get_curve_geom(e.curve)
+                .unwrap()
+                .certified()
+                .is_some_and(|c| pick(c.carrier()))
+        })
+}
+
+/// **An oblique section of a cylinder.** The unit cylinder `z ∈ [0, 2]`
+/// split by the plane through `(0, 0, 1)` normal to `(1, 0, 2)`: each
+/// half's cut face is a plane bounded by an ellipse, and its wall is
+/// bounded by an elliptic arc. Both decide cells both ways against the
+/// oracle, cells beside the ellipse included: a door that called every
+/// elliptic edge clear would decide the cells it straddles from one
+/// station, and one that read the conic's annulus too narrow would drop
+/// a cell the ellipse passes through.
+#[test]
+fn an_oblique_cylinder_section_decides_beside_its_ellipse() {
+    let tol = Tol::witness();
+    let circle = profile::RawLoop::new([(
+        p2(1.0, 0.0),
+        profile::Segment::Arc(geom_core::Arc2 {
+            centre: p2(0.0, 0.0),
+            radius: iv(1.0),
+            sweep: iv(TAU),
+        }),
+    )]);
+    let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![circle])
+        .validate(tol)
+        .unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: iv(2.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap();
+    let (origin, normal) = ([0.0, 0.0, 1.0], [1.0, 0.0, 2.0]);
+    let mut faces = 0usize;
+    for (half, side) in split_halves(t.body, origin, normal) {
+        for (face, _) in half.faces() {
+            if !bounded_by(&half, face, |c| matches!(c, geom::Curve3::Ellipse { .. })) {
+                continue;
+            }
+            faces += 1;
+            let own = match surface_f64(&face_surface(&half, face)) {
+                Surface::Cylinder { .. } => 0,
+                Surface::Plane { .. } => 3,
+                ref other => panic!("an ellipse on a {other:?}"),
+            };
+            let constraints: Vec<Constraint> = vec![
+                Box::new(|p| p.x.hypot(p.y) - 1.0),
+                Box::new(|p| -p.z),
+                Box::new(|p| p.z - 2.0),
+                Box::new(move |p| {
+                    -side * ((p.x - origin[0]) * normal[0] + (p.z - origin[2]) * normal[2])
+                        / 5f64.sqrt()
+                }),
+            ];
+            let oracle = section_oracle(constraints, own);
+            let label = format!("oblique-section/{face:?}");
+            let st = grid(&half, face, 32, &oracle, &label);
+            assert_eq!(
+                st.violations, 0,
+                "{label}: a decided cell contradicts the oracle"
+            );
+            assert!(
+                st.inside > 0 && st.outside > 0,
+                "{label}: the face decides cells both ways: inside={} outside={}",
+                st.inside,
+                st.outside
+            );
+        }
+    }
+    assert_eq!(
+        faces, 4,
+        "each half's cut face and wall are bounded by the ellipse"
+    );
 }

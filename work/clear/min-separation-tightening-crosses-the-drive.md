@@ -136,8 +136,7 @@ and `pcurves::chart_boundary` left the tree, and clearance decides a cell
 off its face's edges in model space (`topo::cell_region`: `Inside`,
 `Outside` or `Undecided`) and places a station with the face's point door
 (`topo::cell_region::station_region`). So the rows a tightened
-`min_separation` would record are now `cell_region_gap`,
-`cell_region_arc_trim` and the point doors' own (`bool_contact_*`, the
+`min_separation` would record are now the `cell_region_*` gap rows and the point doors' own (`bool_contact_*`, the
 region readings'), not the `pcurve_loop_*` walk rows measured above. The
 lane split is untouched: the `f64` lane still answers `None` and records
 none of them, so any decision inside `min_separation` still crosses the

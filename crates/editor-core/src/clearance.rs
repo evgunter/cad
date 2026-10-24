@@ -35,9 +35,10 @@
 //! recomputation does not confirm is never reported as one: the engine
 //! refuses [`ClearanceRefusal::WitnessUnverified`] instead.
 //!
-//! What a witness IS, precisely: a pair of points, one on each face's
-//! carrier, whose `f64` separation the same funnel site calls a
-//! violation. It is the closest pair the rebuild's station lattice
+//! What a witness IS, precisely: a pair of points, one on each FACE —
+//! stations the faces' point doors place `In`, `OnEdge` or `OnVertex`
+//! ([`topo::cell_region::station_region`]) — whose `f64` separation the
+//! same funnel site calls a violation. It is the closest pair the rebuild's station lattice
 //! FOUND, not the infimum over the two cells — on a flat pair the
 //! lattice attains the true closest approach, on a curved one it
 //! returns a near pair. For the strictly-positive question the witness
@@ -105,17 +106,18 @@
 //! a pair of face points. What a `Holds` still covers beyond the faces
 //! is the cells the door cannot decide: a band around each boundary
 //! that shrinks with the cells, and the cells of a face whose point
-//! door does not read its region. [`ClearanceReport::windows`] counts
-//! the windows whose cells the door was asked about.
+//! door does not read its region. [`ClearanceReport::decided`] counts
+//! the cells and witness stations the doors decided.
 //!
-//! # No ε here, and two funnelled compares
+//! # No ε here, and two funnelled compares of its own
 //!
 //! Every decision goes through the one `k_stats` funnel at a named
-//! predicate with a [`Margin`] door, and there are exactly two:
+//! predicate with a [`Margin`] door. This module decides exactly two:
 //! [`CLEARANCE_MARGIN`] (`d − c`, metres minus metres) and
 //! [`SELF_INTERSECTION_GAP`] (`d`, the separation a non-adjacent face
-//! pair must classify strictly positive). Both carry a row in
-//! `docs/predicate-dimension-audit.md`. No DECISION here compares a
+//! pair must classify strictly positive). The cell and station verdicts
+//! it asks for decide on `topo`'s rows, inside those doors. All carry a
+//! row in `docs/predicate-dimension-audit.md`. No DECISION here compares a
 //! float raw, mints a tolerance, or reads a width as evidence.
 //!
 //! One raw compare survives, and it is not a decision: the proximity
@@ -999,7 +1001,7 @@ pub struct ClearanceReport {
     verdict: ClearanceVerdict,
     receipt: CellReceipt,
     widths: DischargeWidths,
-    windows: (usize, usize),
+    decided: usize,
 }
 
 impl ClearanceReport {
@@ -1018,18 +1020,14 @@ impl ClearanceReport {
         self.widths
     }
 
-    /// **How many of the query's carrier windows have their cells
-    /// decided against the face's region, and how many do not** —
-    /// `(decided, loose)`, one count per window HANDED to the sweep,
-    /// both sides, so a query against itself counts each face twice.
-    ///
-    /// Handed to, not run over: a query whose every pair the proximity
-    /// tree prunes still reports the full pair of counts against
-    /// `candidates = 0`. Every window the bound question builds is
-    /// decided; a loose one is a window built with no band, which only
-    /// [`min_separation`] builds.
-    pub fn windows(&self) -> (usize, usize) {
-        self.windows
+    /// **How many readings of the faces' regions the answer rests on**:
+    /// distinct (window, cell) pairs [`topo::cell_region`] read as
+    /// `Inside` or `Outside`, whichever partner they were paired with,
+    /// and distinct witness stations a face's point door placed
+    /// ([`topo::cell_region::station_region`]). Zero says the faces'
+    /// regions were never read into the answer.
+    pub fn decided(&self) -> usize {
+        self.decided
     }
 
     /// The report's goldening form: a deterministic, float-exact text
@@ -1095,8 +1093,7 @@ impl ClearanceReport {
             render(self.widths.narrowest),
             self.widths.deepest
         );
-        let (tightened, loose) = self.windows;
-        let _ = writeln!(s, "windows tightened={tightened} loose={loose}");
+        let _ = writeln!(s, "regions decided={}", self.decided);
         s
     }
 
@@ -1149,11 +1146,10 @@ impl ClearanceReport {
              {} violated, {} refused, {} split, {} abandoned",
             r.candidates, r.discharged, r.outside, r.violated, r.refused, r.splits, r.abandoned
         );
-        let (tightened, loose) = self.windows;
         let _ = writeln!(
             s,
-            "  {tightened} of {} carrier window(s) decided cell by cell against the face's region",
-            tightened + loose
+            "  {} reading(s) of the faces' regions decided (cells and witness stations)",
+            self.decided
         );
         let w = self.widths;
         let _ = writeln!(
@@ -1174,7 +1170,7 @@ impl ClearanceReport {
             verdict: ClearanceVerdict::Refused(refusal),
             receipt: CellReceipt::default(),
             widths: DischargeWidths::empty(),
-            windows: (0, 0),
+            decided: 0,
         }
     }
 }
@@ -1337,7 +1333,7 @@ pub fn clearance_over(
         verdict: ClearanceVerdict::Holds,
         receipt: CellReceipt::default(),
         widths: DischargeWidths::empty(),
-        windows: (0, 0),
+        decided: 0,
         leaves: Vec::new(),
         mass: ClearanceMass::empty(verdict.accounting()),
         drive_accounting: verdict.accounting().clone(),
@@ -1355,8 +1351,7 @@ pub fn clearance_over(
         fold.mass.price(&report.verdict, mass);
         fold.receipt.add(report.receipt);
         fold.widths.fold(report.widths);
-        fold.windows.0 += report.windows.0;
-        fold.windows.1 += report.windows.1;
+        fold.decided += report.decided;
         fold.verdict = combine(fold.verdict, report.verdict.clone());
         fold.leaves.push(LeafAnswer {
             box_: box_.clone(),
@@ -1454,9 +1449,9 @@ pub struct LeafFold {
     pub receipt: CellReceipt,
     /// The measured limit, folded.
     pub widths: DischargeWidths,
-    /// The summed window counts
-    /// ([`ClearanceReport::windows`]) over every leaf.
-    pub windows: (usize, usize),
+    /// The summed decided-cell counts
+    /// ([`ClearanceReport::decided`]) over every leaf.
+    pub decided: usize,
     /// Every certified leaf's own answer, in the drive's order.
     pub leaves: Vec<LeafAnswer>,
     /// Where the certified mass went once this question was asked.
@@ -2048,7 +2043,7 @@ impl LeafFold {
                 verdict: self.verdict.clone(),
                 receipt: self.receipt,
                 widths: self.widths,
-                windows: self.windows,
+                decided: self.decided,
             }
             .serialize()
         );
@@ -2081,7 +2076,7 @@ impl LeafFold {
             verdict: self.verdict.clone(),
             receipt: self.receipt,
             widths: self.widths,
-            windows: self.windows,
+            decided: self.decided,
         }
         .render();
         let m = &self.mass;
@@ -2195,6 +2190,9 @@ struct Window<'e> {
 #[derive(Default)]
 struct RegionMemo {
     seen: BTreeMap<(bool, usize, u64, u64, u64, u64), CellRegion>,
+    /// The witness stations the point doors were asked to place, by the
+    /// same bitwise key, and where they placed them.
+    stations: BTreeMap<(bool, usize, u64, u64), Option<FaceContainment>>,
 }
 
 impl RegionMemo {
@@ -2214,6 +2212,35 @@ impl RegionMemo {
             .seen
             .entry(key)
             .or_insert_with(|| cell_region(body, w.face, c.u, c.v, band))
+    }
+
+    /// Where the face's point door places the station `(u, v)` of
+    /// window `index` ([`station_region`]); `None` for a window built
+    /// with no band.
+    fn station(
+        &mut self,
+        side_b: bool,
+        index: usize,
+        w: &Window<'_>,
+        (u, v): (f64, f64),
+    ) -> Option<FaceContainment> {
+        let (body, band) = w.region?;
+        *self
+            .stations
+            .entry((side_b, index, u.to_bits(), v.to_bits()))
+            .or_insert_with(|| station_region(body, w.face, (u, v), band))
+    }
+
+    /// How many readings of a face's region the answer rests on: cells
+    /// decided `Inside` or `Outside`, and witness stations a point door
+    /// placed.
+    fn decided(&self) -> usize {
+        let cells = self
+            .seen
+            .values()
+            .filter(|&&r| r != CellRegion::Undecided)
+            .count();
+        cells + self.stations.values().filter(|p| p.is_some()).count()
     }
 }
 
@@ -2719,6 +2746,7 @@ impl Sweep {
                             doc,
                             leaf,
                             (x, pair.a, y, pair.b),
+                            (&mut region, task.i, task.j),
                             self.bound,
                             self.band,
                             self.resolver.as_ref(),
@@ -2765,6 +2793,7 @@ impl Sweep {
                                 doc,
                                 leaf,
                                 (x, pair.a, y, pair.b),
+                                (&mut region, task.i, task.j),
                                 self.bound,
                                 self.band,
                                 self.resolver.as_ref(),
@@ -2853,8 +2882,7 @@ impl Sweep {
         // One count per window the sweep ran over, both sides: a query
         // against itself was handed two copies of one list and counts
         // each face twice, which is what "per window" means here.
-        let tightened = wa.iter().chain(wb).filter(|w| w.region.is_some()).count();
-        let windows = (tightened, wa.len() + wb.len() - tightened);
+        let decided = region.decided();
 
         let verdict = match (violation, first_refusal) {
             (Some(geometry), _) => ClearanceVerdict::Violated(Box::new(Violation {
@@ -2869,7 +2897,7 @@ impl Sweep {
             verdict,
             receipt,
             widths,
-            windows,
+            decided,
         }
     }
 }
@@ -3007,10 +3035,12 @@ fn witness_point(leaf: &ParamBox) -> ParamWitness {
 /// # Errors
 ///
 /// The prose of what the rebuild could not confirm.
+#[allow(clippy::too_many_arguments)]
 fn verify_witness(
     doc: &Doc<ProfileProgram>,
     leaf: &ParamBox,
     at: (&Window<'_>, Cell, &Window<'_>, Cell),
+    (region, ia, ib): (&mut RegionMemo, usize, usize),
     bound: ClearanceBound,
     band: Band,
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
@@ -3083,27 +3113,26 @@ fn verify_witness(
     // pairs, so asking it inside would ask the second side's nine
     // questions once per admitted station of the first.
     let stations = |span: (f64, f64)| [span.0, mid_of(span), span.1];
-    let admitted = |w: &Window<'_>, c: Cell| -> Vec<(f64, f64)> {
+    let mut admitted = |side_b: bool, index: usize, w: &Window<'_>, c: Cell| -> Vec<(f64, f64)> {
         let mut out = Vec::with_capacity(9);
         for u in stations(c.u) {
             for v in stations(c.v) {
-                if let Some((body, band)) = w.region
-                    && matches!(
-                        station_region(body, w.face, (u, v), band),
-                        Some(
-                            FaceContainment::In
-                                | FaceContainment::OnEdge(_)
-                                | FaceContainment::OnVertex(_)
-                        )
+                if matches!(
+                    region.station(side_b, index, w, (u, v)),
+                    Some(
+                        FaceContainment::In
+                            | FaceContainment::OnEdge(_)
+                            | FaceContainment::OnVertex(_)
                     )
-                {
+                ) {
                     out.push((u, v));
                 }
             }
         }
         out
     };
-    let (lattice_a, lattice_b) = (admitted(x, ca), admitted(y, cb));
+    let lattice_a = admitted(false, ia, x, ca);
+    let lattice_b = admitted(true, ib, y, cb);
     let mut best: Option<Station> = None;
     for &(au, av) in &lattice_a {
         {

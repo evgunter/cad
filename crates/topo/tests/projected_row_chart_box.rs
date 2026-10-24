@@ -220,3 +220,71 @@ fn a_projected_edge_on_part_of_its_net_reads_the_tighter_box() {
          {evaluated:?} / {boxed:?}"
     );
 }
+
+/// **The cell door beside a spline edge.** The unit prism's bottom face
+/// with its first edge's carrier swapped for a degree-1 net along the
+/// same chord: the face is still the unit square, and the spline edge is
+/// read as the ball its control net lies in (`cell_region`'s ball row).
+/// Every cell of a grid over the square and its surround the door
+/// decides agrees with the square.
+///
+/// The decided counts are pinned, and that pin is what stands against
+/// the ball row: `contfp` holds an uncrossable edge as a ball too and
+/// refuses a station inside it, so a door that called every spline
+/// edge clear never decides a cell the edge straddles here, and the
+/// soundness assertion cannot see it. It decides ten more cells inside,
+/// near the edge, and the count goes red.
+#[test]
+fn the_cell_door_reads_a_spline_edge_as_its_ball() {
+    use topo::cell_region::{CellRegion, cell_region};
+    let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+    let built = common::prism::<Interval>(&square, 1.0, geom_core::Tol::witness());
+    let mut body = built.body;
+    let face = built.bottom_face;
+    swap_first_edge_for_a_chord_net(&mut body, face, (0.0, 1.0));
+    let chart = face_chart(&body, face).map_scalar(|x| 0.5 * (x.lo() + x.hi()));
+    let n = 24;
+    // Offset from the square's edges, so cells straddle them.
+    let (lo, hi) = (-0.52, 1.48);
+    let step = |i: usize| lo + (hi - lo) * (i as f64) / (n as f64);
+    let (mut inside, mut outside, mut wrong) = (0, 0, 0);
+    for i in 0..n {
+        for j in 0..n {
+            let (cu, cv) = ((step(i), step(i + 1)), (step(j), step(j + 1)));
+            let verdict = cell_region(&body, face, cu, cv, band());
+            let (mut any_in, mut any_out) = (false, false);
+            for p in 0..5 {
+                for q in 0..5 {
+                    let u = cu.0 + (0.1 + 0.2 * p as f64) * (cu.1 - cu.0);
+                    let v = cv.0 + (0.1 + 0.2 * q as f64) * (cv.1 - cv.0);
+                    let x = chart.eval(u, v);
+                    let skin = 1e-7;
+                    let margin = x.x.min(1.0 - x.x).min(x.y).min(1.0 - x.y);
+                    if margin > skin {
+                        any_in = true;
+                    } else if margin < -skin {
+                        any_out = true;
+                    }
+                }
+            }
+            match verdict {
+                CellRegion::Inside => {
+                    inside += 1;
+                    wrong += usize::from(any_out);
+                }
+                CellRegion::Outside => {
+                    outside += 1;
+                    wrong += usize::from(any_in);
+                }
+                CellRegion::Undecided => {}
+            }
+        }
+    }
+    eprintln!("spline-edged square: inside={inside} outside={outside} wrong={wrong}");
+    assert_eq!(wrong, 0, "a decided cell contradicts the square");
+    assert_eq!(
+        (inside, outside),
+        (65, 407),
+        "the cells the door decides beside the spline edge, pinned"
+    );
+}

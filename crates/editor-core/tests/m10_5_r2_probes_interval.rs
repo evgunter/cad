@@ -650,7 +650,7 @@ fn self_intersection_over_a_sound_body_examines_nothing_r2_finding() {
 /// whose `(u, v)` lands where the body has no material) was fixed by
 /// TRIM-3 PR-2; the receipt pinned below is the row's grip on WHY,
 /// because a `Holds` bought by a smaller budget, a pruned candidate or
-/// a description that dropped the whole window would look the same.
+/// a drop rule that dropped the whole window would look the same.
 #[test]
 fn a_violation_witness_cannot_land_where_the_face_is_not() {
     let (doc, ell, block_node) = ell_with_a_block_in_the_notch();
@@ -664,8 +664,8 @@ fn a_violation_witness_cannot_land_where_the_face_is_not() {
         &at_least(0.3, cfg(65_536, 40)),
     );
     println!(
-        "[r2 D3] L cap vs the block in the notch at c = 0.3: windows {:?}, {}",
-        report.windows(),
+        "[r2 D3] L cap vs the block in the notch at c = 0.3: decided {:?}, {}",
+        report.decided(),
         report.serialize()
     );
     assert_eq!(
@@ -676,7 +676,7 @@ fn a_violation_witness_cannot_land_where_the_face_is_not() {
     );
     assert!(report.receipt().holds());
     // **`outside > 0` was the wrong pin and this is why.** It is
-    // monotone the wrong way: a description with its parity inverted
+    // monotone the wrong way: a region reading with its sides inverted
     // certifies the MATERIAL outside, drops the straddling root pair
     // vacuously, and reports `candidates=6 discharged=6 outside=6
     // splits=0` — also `Holds`, also `outside > 0`. What separates
@@ -705,10 +705,9 @@ fn a_violation_witness_cannot_land_where_the_face_is_not() {
          rectangle did: {}",
         report.serialize()
     );
-    assert_eq!(
-        report.windows().1,
-        0,
-        "every window of the bound question is decided cell by cell: {}",
+    assert!(
+        report.decided() > 0,
+        "the faces' regions were read: some cell was decided against its face: {}",
         report.serialize()
     );
 }

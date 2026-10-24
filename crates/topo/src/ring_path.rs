@@ -1359,7 +1359,7 @@ impl<T: Decide> Conic<T> {
     /// circle's at the same parameter. The circle arc's nearest point is
     /// at `x`'s direction clamped to the span: on the span's branch the
     /// end on `x`'s side is the nearer.
-    fn distance_floor(&self, x: Point3<T>) -> T {
+    pub(crate) fn distance_floor(&self, x: Point3<T>) -> T {
         let w = x - self.centre;
         let s = branch(w.dot(self.v_ref()).atan2(w.dot(self.u_ref)), self.span);
         let s = s.max(self.span.0).min(self.span.1);

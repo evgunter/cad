@@ -264,8 +264,8 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// block straddles the cap's plane, so the true face-to-face distance
 /// is 0.05. A bound of 0.3 is violated, and it must still be reported.
 ///
-/// **What this row kills, measured.** An inverted parity: the
-/// description would certify the MATERIAL outside, drop the cells that
+/// **What this row kills, measured.** An inverted region reading would
+/// certify the MATERIAL outside, drop the cells that
 /// hold the real approach, and leave `Holds`. That is the one mutant
 /// the v6 dual reproduced here, on both arms.
 ///
@@ -273,22 +273,21 @@ fn ell_with_a_planted_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// PR that landed it claimed otherwise. *Drop-on-indeterminate* — a
 /// separating-axis test that lets `Zero`, an in-band margin or poison
 /// count as separating — leaves this row green; so does *a
-/// description tight by `≥ 0.05`* (cells eroded by that much). The
+/// region reading tight by `≥ 0.05`* (cells eroded by that much). The
 /// one-sided assertion that used to be credited with catching the
-/// second was monotone the wrong way, since a tighter description
+/// second was monotone the wrong way, since a tighter reading
 /// pushes the cap witness to SMALLER x, and the two-sided pin below
 /// replaces it — but the honest result of re-running both mutants
 /// against it is that **this row still does not catch either**.
 ///
-/// What catches them, measured in the same pass: `topo`'s own T4/T6/T10
-/// rows on hand-built descriptions, and — e2e, newly — the pinned
-/// receipts on
+/// What catches them is the pinned receipts on
 /// `m10_5_r1_probes_interval::an_l_shaped_face_holds_where_it_has_no_material`
 /// and `::e2e_channel_slider_over_an_epsilon_box`, whose discharge and
-/// split counts move when the drop rule changes at all. A description
-/// that moves the cap witness still reds the pin below; a description
-/// that changes which cells are dropped without moving it reds those
-/// two.
+/// split counts move when the drop rule changes at all, and `sweep`'s
+/// `cell_region_bodies`, which checks every decided cell against an
+/// independent oracle. A drop rule that moves the cap witness reds the
+/// pin below; one that changes which cells are dropped without moving
+/// it reds those.
 #[test]
 fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     let (doc, ell, block_node) = ell_with_a_planted_block();
@@ -330,8 +329,8 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     // and not pulled back off it either. The lattice station the
     // search lands on is `x = 0.375`: the cell corner one split inside
     // the wall, which is where the nine-point lattice of the cell that
-    // survives the description puts its nearest point. Pinned on both
-    // sides at the funnel's own width, so a description that moved the
+    // survives the drop rule puts its nearest point. Pinned on both
+    // sides at the funnel's own width, so a drop rule that moved the
     // boundary by a hair in EITHER direction reds this row.
     let p = v.geometry.a_point;
     assert!(
@@ -341,13 +340,13 @@ fn a_planted_approach_to_the_notch_wall_is_still_violated() {
     assert!(
         (p.x - 0.375).abs() <= k_eps(),
         "and it is the measured station x = 0.375, not merely somewhere behind the wall — \
-         a description tightened or loosened at this scale moves it: {p:?}"
+         a drop rule tightened or loosened at this scale moves it: {p:?}"
     );
     println!(
-        "[E4] witness {:?} -> {:?} d = {d}, windows {:?}",
+        "[E4] witness {:?} -> {:?} d = {d}, decided {:?}",
         p,
         v.geometry.b_point,
-        report.windows()
+        report.decided()
     );
 }
 
@@ -432,18 +431,17 @@ fn a_cylinder_band_answers_on_its_whole_turn_window() {
     let sp = Selection::body_of(probe);
     let report = clearance(&doc, &box_of(&doc, "place"), &ss, &sp, 1.0, Tol::witness());
     println!(
-        "[E7] scalloped block vs the probe in the scallop at c = 1.0: windows {:?}, {}",
-        report.windows(),
+        "[E7] scalloped block vs the probe in the scallop at c = 1.0: decided {:?}, {}",
+        report.decided(),
         report.serialize()
     );
     assert!(report.receipt().holds(), "{:?}", report.receipt());
     if let ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) = report.verdict() {
         panic!("the scalloped block did not build at the interval scalar: {s}");
     }
-    assert_eq!(
-        report.windows().1,
-        0,
-        "every window of the bound question is decided cell by cell: {}",
+    assert!(
+        report.decided() > 0,
+        "the faces' regions were read: some cell was decided against its face: {}",
         report.serialize()
     );
     let ClearanceVerdict::Violated(v) = report.verdict() else {
@@ -561,18 +559,17 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
         Tol::witness(),
     );
     println!(
-        "[E7b] split peg wall 3 vs a block at +7π/8, c = 0.3: windows {:?}, {}",
-        report.windows(),
+        "[E7b] split peg wall 3 vs a block at +7π/8, c = 0.3: decided {:?}, {}",
+        report.decided(),
         report.serialize()
     );
     assert!(report.receipt().holds(), "{:?}", report.receipt());
     if let ClearanceVerdict::Refused(ClearanceRefusal::Selection(s)) = report.verdict() {
         panic!("the split peg did not build at the interval scalar: {s}");
     }
-    assert_eq!(
-        report.windows().1,
-        0,
-        "every window of the bound question is decided cell by cell: {}",
+    assert!(
+        report.decided() > 0,
+        "the faces' regions were read: some cell was decided against its face: {}",
         report.serialize()
     );
     let ClearanceVerdict::Violated(v) = report.verdict() else {
@@ -653,9 +650,9 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
         Tol::witness(),
     );
     println!(
-        "[E8] y-axis quarter annulus, verdict {} windows {:?}: {}",
+        "[E8] y-axis quarter annulus, verdict {} decided {:?}: {}",
         report.verdict().label(),
-        report.windows(),
+        report.decided(),
         report.serialize()
     );
     assert!(report.receipt().holds(), "{:?}", report.receipt());
@@ -665,10 +662,9 @@ fn a_revolved_quarter_band_is_windowed_and_holds() {
         "the block clears the quarter annulus by more than the window comes within: {}",
         report.serialize()
     );
-    let (tightened, loose) = report.windows();
     assert!(
-        tightened > 0 && loose == 0,
-        "every window of the revolved band is decided cell by cell: {}",
+        report.decided() > 0,
+        "the revolved band's region was read: some cell was decided against its face: {}",
         report.serialize()
     );
 }

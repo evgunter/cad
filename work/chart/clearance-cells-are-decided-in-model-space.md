@@ -81,3 +81,31 @@ Also deleted with `chart_bound.rs`: PR 5656's `ChartEdge::Envelope::reach`
 and its tests (`t5c_…_refuses_at_f64`, `an_arc_walls_envelopes_reach_finitely_at_f64`).
 That PR's span check refuses on a poisoned margin. Whatever takes over the
 premise must refuse on poison too.
+
+## Closed
+
+What landed (PR 5673) is the clearance SWEEP's half of the decision.
+
+- `topo::cell_region` decides a cell `Inside`, `Outside` or `Undecided`
+  off its face's edges on their own carriers
+  (`splitting::containment::arc_distance_floor`, the one reading the
+  boolean's touch gate shares), its carrier's singular set, and the
+  face's point door; `topo::cell_region::station_region` places one
+  station.
+- The sweep drops `Outside` cells, and a `Violated` witness admits only
+  stations placed `In`, `OnEdge` or `OnVertex`: a witness is a pair of
+  face points.
+- `ChartBound`, `MetredBound`, the ring lifts, the span check,
+  `chart_boundary`, `chart_edge`, `clearance::chart_arms` and the root
+  cut are deleted; `loop_windings` is the loop walk's public reading.
+
+What waits on `min-separation-tightening-crosses-the-drive` (CLEAR): the
+measure's half. `Inside` has no production consumer yet; `hi` reading
+only `Inside` cells and placed stations lands in `min_separation` once
+its decisions no longer cross the drive on one lane, and
+`Certified::LowerBoundOnly` retires then. That row's note says so.
+
+Residue: `cell-region-reads-an-ellipse-arc-as-its-whole-conic` is closed
+by this PR's review pass (an elliptic edge is read through its arc's
+floor); the per-cell costs are in the PR body.
+

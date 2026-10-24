@@ -285,9 +285,9 @@ fn l_plate_and_floating_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Reci
 /// than classified. Both bounds now read `Holds`, which is the truth
 /// at both.
 ///
-/// A box-only description would not do it: the L's bounding box IS
-/// this window, so a `Holds` here is evidence that the POLYGON, not
-/// the box, is what the engine reads.
+/// A box-only reading would not do it: the L's bounding box IS this
+/// window, so a `Holds` here is evidence that the face's region, not
+/// its box, is what the engine reads.
 #[test]
 fn an_l_shaped_face_holds_where_it_has_no_material() {
     let (doc, plate, block, floated) = l_plate_and_floating_block();
@@ -316,8 +316,8 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
 
     let tight = clearance(&doc, &leaf, &top, &bottom, 0.52, Tol::witness());
     println!(
-        "[r1] L-plate vs floating block at c = 0.52: windows {:?}, {}",
-        tight.windows(),
+        "[r1] L-plate vs floating block at c = 0.52: decided {:?}, {}",
+        tight.decided(),
         tight.serialize()
     );
     assert!(tight.receipt().holds(), "{:?}", tight.receipt());
@@ -347,7 +347,7 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
         (r.candidates, r.discharged, r.splits, r.outside),
         (1, 626, 625, 228),
         "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
-         a drop rule that lets an in-band or poison margin separate, or a description \
+         a drop rule that lets an in-band or poison margin separate, or a region reading \
          tightened at the 0.05 scale, changes these counts while leaving every verdict \
          in the suite alone (measured, TRIM-3 PR-2's fix pass). Stable across the three \
          eps rows. RE-BASELINED from (1, 610, 609, 224) by PROPS's sign-hull unit: the \
@@ -443,9 +443,9 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         panic!("the bumped block did not build at the interval scalar: {s}");
     }
     println!(
-        "[r1] bumped block candidates = {}, windows = {:?}",
+        "[r1] bumped block candidates = {}, decided = {:?}",
         r.candidates,
-        report.windows()
+        report.decided()
     );
     assert_eq!(
         (r.candidates, r.outside > 0),
@@ -460,10 +460,9 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
          at separation zero: {}",
         report.serialize()
     );
-    assert_eq!(
-        report.windows().1,
-        0,
-        "every window of the bound question is decided cell by cell: {}",
+    assert!(
+        report.decided() > 0,
+        "the faces' regions were read: some cell was decided against its face: {}",
         report.serialize()
     );
 }
@@ -615,7 +614,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         report.serialize()
     );
     assert!(report.receipt().holds());
-    println!("[r1] z-axis windows = {:?}", report.windows());
+    println!("[r1] z-axis decided = {:?}", report.decided());
     if let ClearanceVerdict::Violated(v) = report.verdict() {
         println!(
             "[r1] z-axis phantom-turn witness d = {}: {:?} -> {:?}",
@@ -903,7 +902,7 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 /// clearance question at all.
 ///
 /// **FLIPPED by TRIM-3 PR-2**: a coplanar pair whose windows overlap
-/// is exactly the case the boundary description settles, because the
+/// is exactly the case deciding cells against the faces settles, because the
 /// overlap is in cells neither face occupies. The whole-body question
 /// holds at 0.3, which is the truth — the slider clears the channel by
 /// 0.5 on every side.
@@ -919,8 +918,8 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     let leaf = box_of(&doc, "place");
     let whole = clearance(&doc, &leaf, &sc, &ss, 0.3, Tol::witness());
     println!(
-        "[r1 e2e] whole-body c = 0.3: windows {:?}, {}",
-        whole.windows(),
+        "[r1 e2e] whole-body c = 0.3: decided {:?}, {}",
+        whole.decided(),
         whole.serialize()
     );
     assert!(whole.receipt().holds());
