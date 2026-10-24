@@ -2,12 +2,13 @@
 id: trimmed-quadrature-composite-rounds
 kind: issue
 title: The trimmed quadrature fences the Newton-Cotes window at p_u + p_v <= 4; the composite fallback is unbuilt
-status: review
+status: closed
 opened: 2026-09-13
 priority: P1
 cost: H
 branch: iso/trimmed-composite-rounds
 pr: 5634
+closed: 2026-10-24
 ---
 
 
@@ -78,3 +79,16 @@ tier 3's check 7 refuses the cap's volume at `TRIM_NC_WINDOW`
 (`crates/geom-brep/src/props/quad.rs:4246`), pinned by
 `encl_curved_loft_shell::a_moved_plane_meets_a_fitted_cap_along_their_certified_section`.
 Filed as `work/quad/a-fitted-face-trimmed-by-a-section-has-no-volume-rule.md`.
+
+## Closed (2026-10-24, PR 5634)
+
+A chart past the exact rule's window now takes a composite MIDPOINT
+outer rule per sub-chord. Its remainder `h³/24·φ''`
+(`φ'' = G_uu + 2ℓ′f_u + ℓ′²f_v`) is enclosed on the located span
+polynomials at each piece's brackets, and the rule narrows at third
+order. The exact rule stays for in-window charts, and the two arms
+share one chord scaffold. A dual review found it sound against two
+independent references. The fix pass added `q16` (containment across
+interior knots against an independent Duffy/Gauss–Legendre reference)
+and `q17` (the closure gap's column pad). Residue:
+`trimmed-lane-inner-rule-has-no-composite-arm` (P3).
