@@ -2,10 +2,11 @@
 id: angular-arms-are-an-untagged-lever-beside-a-typed-rate
 kind: issue
 title: The angular chart arms are untagged metres-per-radian levers beside a typed rate pair
-status: open
+status: dispatched
 opened: 2026-09-15
 priority: P1
 cost: E
+branch: chart/arms-typing
 ---
 
 
