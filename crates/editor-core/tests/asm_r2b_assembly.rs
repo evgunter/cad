@@ -1398,3 +1398,75 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
          the gather's: {report}"
     );
 }
+
+/// R1 probe (review of PR 5637): a seating mate whose sense is wrong —
+/// `to` read without its flip, so the copy is turned over and sunk into
+/// the base, sharing the base's top plane with the same outward normal.
+/// Whatever the census reads there, the separation resident must not be
+/// quieted for an interpenetrating pair, and no row may be proved by the
+/// mate in a sense the geometry does not have.
+#[test]
+fn r1_probe_a_wrong_sense_mate_quiets_nothing() {
+    for origin in [[0.5, 0.5, 1.0], [0.0, 0.0, 1.0], [1.0, 0.0, 1.0]] {
+        let (doc, _ids, _mate, store, _) = stacked_as("r1-probe-sink", origin, |m| {
+            if let Operand::Pose(p) = &m.to {
+                if let PoseDef::Flip { pose } = &**p {
+                    m.to = pose.read.clone();
+                }
+            }
+        });
+        let o = with_resolver(store);
+        let ev = run(&doc, &o);
+        let product = match product_recorded(&doc, &ev, Tol::witness()) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("R1 {origin:?}: gather refused: {e}");
+                continue;
+            }
+        };
+        eprintln!("R1 {origin:?}: rows {}", product.coincidences.len());
+        for r in &product.coincidences {
+            eprintln!("R1   row {:?} {:?}", r.row.relation, r.row.cells);
+        }
+        for c in &product.census {
+            eprintln!("R1   census {c}");
+        }
+        let report = editor_core::run_checks(
+            &doc,
+            &ev,
+            &editor_core::ChecksConfig::default(),
+            Tol::witness(),
+        )
+        .expect("checks run");
+        for f in &report.findings {
+            eprintln!("R1   finding {:?}: {}", f.check, f);
+        }
+        let result = assemble(&doc, &ev, Tol::witness());
+        match &result {
+            Ok(a) => eprintln!("R1   assembled; interference {}", a.interference.len()),
+            Err(e) => eprintln!("R1   refused: {e}"),
+        }
+    }
+}
+
+/// R1 probe 2: the wrong-sense seat at the identity, its mate replaced
+/// by a pin where it solved — two unmated copies filling one volume.
+#[test]
+fn r1_probe_two_unmated_copies_filling_one_volume() {
+    let (doc, _ids, _mate, store, _) = stacked_as("r1-probe-twin", [0.0, 0.0, 1.0], |m| {
+        if let Operand::Pose(p) = &m.to {
+            if let PoseDef::Flip { pose } = &**p {
+                m.to = pose.read.clone();
+            }
+        }
+    });
+    let o = with_resolver(store);
+    let doc = pinned_where_solved(doc, &o);
+    let ev = run(&doc, &o);
+    let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
+    eprintln!("R1P2 rows {} census {}", product.coincidences.len(), product.census.len());
+    match assemble(&doc, &ev, Tol::witness()) {
+        Ok(a) => eprintln!("R1P2 assembled; interference {}", a.interference.len()),
+        Err(e) => eprintln!("R1P2 refused: {e}"),
+    }
+}
