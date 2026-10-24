@@ -30,8 +30,8 @@
 //! `OffsetFitError::PatchBound`'s and `OffsetFitError::Band`'s; the
 //! other four `OffsetFitError` wrappers carry one value each.
 //!
-//! Where a raise site fills a field with prose — a `what`, a `detail`,
-//! a steer — the sample carries the prose a real run renders, and a
+//! Where a raise site fills a field with prose — a `what` or a `detail`
+//! — the sample carries the prose a real run renders, and a
 //! field with several real values is sampled at each one this module
 //! names. Arena keys are the default (null) keys.
 #![allow(clippy::expect_used)] // one fixed band, well-formed by construction
@@ -49,9 +49,7 @@ use strum::IntoEnumIterator as _;
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{
-    ContactClass, ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
-};
+use crate::contact::{ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, GlueClass};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -177,11 +175,9 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     let mut v = vec![
         ContactRefusal::Contradicted {
             diag: contradiction_margin("contact_rest_senses_opposed"),
-            steer: None,
         },
         ContactRefusal::Contradicted {
             diag: contradiction_margin("carrier_cyl_radius"),
-            steer: Some(FIT_DEFERRAL),
         },
         ContactRefusal::Escalated { diag: diag() },
         ContactRefusal::Undeclared { diag: diag() },
@@ -962,7 +958,7 @@ fn census_contacts() -> Vec<CensusContact> {
                 pair: DeclaredContact {
                     a: face,
                     b: face,
-                    class: ContactClass::Tangent,
+                    class: GlueClass::Tangent,
                 },
                 verdict: ContactVerdict::Definite,
             },
@@ -972,7 +968,7 @@ fn census_contacts() -> Vec<CensusContact> {
                 pair: DeclaredContact {
                     a: face,
                     b: face,
-                    class: ContactClass::Rest,
+                    class: GlueClass::Rest,
                 },
                 verdict: ContactVerdict::Definite,
             },
@@ -1580,38 +1576,31 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     // Door 1's whole-surface verdict (a Rest record) and the tangent
     // line of a face-face record on two carriers (a Tangent record),
-    // each with and without the designed-clearance steer.
+    // each.
     for (class, witness, predicate) in [
         (
-            ContactClass::Rest,
+            GlueClass::Rest,
             crate::census::CARRIER_COMPARISON_WITNESS,
             "carrier_sphere_radius",
         ),
         (
-            ContactClass::Tangent,
+            GlueClass::Tangent,
             crate::census::TANGENT_LOCUS_WITNESS,
             "contact_tangent_opposed",
         ),
     ] {
-        for steer in [None, Some(FIT_DEFERRAL)] {
-            s.push((
-                format!(
-                    "ContactContradicted/{}{}",
-                    class.name(),
-                    if steer.is_some() { "/steered" } else { "" }
-                ),
-                ValidationError::ContactContradicted {
-                    declaration: DeclaredContact {
-                        a: face,
-                        b: face,
-                        class,
-                    },
-                    witness: witness.to_owned(),
-                    margin: contradiction_margin(predicate),
-                    steer,
+        s.push((
+            format!("ContactContradicted/{}", class.name()),
+            ValidationError::ContactContradicted {
+                declaration: DeclaredContact {
+                    a: face,
+                    b: face,
+                    class,
                 },
-            ));
-        }
+                witness: witness.to_owned(),
+                margin: contradiction_margin(predicate),
+            },
+        ));
     }
     let mut causes: Vec<(String, CensusUnsupportedCause)> = Vec::new();
     for e in chart_region_errors() {

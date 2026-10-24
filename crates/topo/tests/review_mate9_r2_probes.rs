@@ -30,7 +30,7 @@
 //!
 //! 3. **`pair_region_verified` was unguarded.** Bypassing the entire
 //!    verified-interface half of the rung (Door 1
-//!    `contact_pair_verdict(Rest)` + Door 2 `declared_overlap`, MATE-8's
+//!    `rest_pair_verdict` + Door 2 `declared_overlap`, MATE-8's
 //!    witness rung included) left the whole topo suite AND the viewer
 //!    windmill story green at the frozen head. Probe 3 is the
 //!    conjunction control (a verified-but-remote pair backs nothing)
@@ -286,7 +286,7 @@ fn r2_the_side_question_is_order_free_and_never_duplicated() {
 /// **Probe 3 — the coverage row `pair_region_verified` does not have.**
 ///
 /// Replacing the whole `pair_region_verified(..)` call with `true` (the
-/// two doors, `contact_pair_verdict(Rest)` + `declared_overlap` with
+/// two doors, `rest_pair_verdict` + `declared_overlap` with
 /// MATE-8's witness rung, deleted) leaves `cargo test -p topo` at
 /// 445/445 and the viewer windmill story green — measured at this
 /// head. Nothing in the tree goes red when the verified-interface half

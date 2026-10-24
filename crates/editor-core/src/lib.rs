@@ -107,9 +107,8 @@ pub use appearance::{
     AppearanceResolution, Attr, AttrKind, AttrSet, Rgba8,
 };
 pub use assembly::{
-    Assembly, AssemblyError, AtRestBy, AtRestFinding, AtRestRow, Attribution, CarriedAtRestFinding,
-    CarriedDeclaration, CarriedDeclarations, CarriedInterference, CarriedRefusal, MintRefusal,
-    MintedDeclaration, RefusedRef, Relation, Route, assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, AtRestRow, CarriedAtRestFinding, CarriedFindings,
+    CarriedInterference, Route, assemble, assemble_gathered,
 };
 pub use checks::at_rest::{CopyRef, FaceSite, InterferenceFinding, Overlap, Unlocalized};
 pub use checks::{
@@ -159,11 +158,10 @@ pub use formula::{Formula, FreshFault, LowerFault, NameFault};
 pub use ident::{ContentPin, DocRef, DocumentId, Mispaired};
 pub use label::{Label, LabelFault};
 pub use mate::{
-    CLASS_DEFERRAL, ClassAdmission, Constraint, ConstraintKind, Coord, Coset, FrameMove,
-    LeverRefusal, Mate, MateFault, MateRef, MateSide, Member, NO_AT_REST_RECORD_RECOURSE,
-    NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing, PoseRefusal, PoseSymmetry,
-    ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis, UNPINNED_RECOURSE,
-    Unobservable, Value, class_admission, corner_frame, corner_frame_in, head_face, head_of,
+    Constraint, ConstraintKind, Coord, Coset, FrameMove, LeverRefusal, Mate, MateFault, MateRef,
+    MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing,
+    PoseRefusal, PoseSymmetry, ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis,
+    UNPINNED_RECOURSE, Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of,
     member_of, member_reading, moved_frame, reference_about, relative_freedom_components,
     solve_document, stand, unobservable,
 };
@@ -179,18 +177,17 @@ pub use measure::{
 pub use meta::{MetaError, MetaInt, MetaValue, MetaVersionError, from_value, to_value};
 pub use mint::{Mint, MintId, Minted};
 pub use names::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
-    CrossingSensesShape, CurveKind, CurveKindSet, DeclaredContact, Denotation, DisagreeShape,
-    DuplicateName, EntityKey, EntityKind, EntityNamed, EntityRef, Entry, FIT_DEFERRAL, FaceName,
-    FragmentGroups, GeomPred, InterrogateError, JoinShape, KindMismatch, LeafRole, MeridianEnd,
-    NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup,
-    PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
-    RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE, SeamSidesShape, SeamVertexShape,
-    SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, ShortTie, Side,
-    SplitHalf, StableName, SurfaceKindSet, TagPat, UnionNameShape, WayShape, all_bodies, all_edges,
-    all_faces, all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, denotation,
-    edge_carrier_kind, edge_frame, face_carrier_kind, face_frame, leaf_role, meridian_vertex,
-    role_leaf, select, select_where, vertex_position,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactRefusal, ContactVerdict, CrossingSensesShape, CurveKind,
+    CurveKindSet, DeclaredContact, Denotation, DisagreeShape, DuplicateName, EntityKey, EntityKind,
+    EntityNamed, EntityRef, Entry, FaceName, FragmentGroups, GeomPred, InterrogateError, JoinShape,
+    KindMismatch, LeafRole, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NameTextError,
+    NamingError, NotAFaceName, OpGroup, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
+    Qualifier, RimShare, RimSupport, RolePath, RoleSeg, RunLine, SEL_PLANE_DISTANCE,
+    SeamSidesShape, SeamVertexShape, SeatingRefusal, SectionCircle, SegPat, SegTag, SelectRefusal,
+    Selector, Sense, ShortTie, Side, SplitHalf, StableName, SurfaceKindSet, TagPat, UnionNameShape,
+    WayShape, all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
+    band_rim_pi, carried, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
+    leaf_role, meridian_vertex, role_leaf, select, select_where, vertex_position,
 };
 pub use node::{
     AuthoredNode, Axis3, ConstraintId, CountMismatch, InputFault, InterfaceCrossing,
