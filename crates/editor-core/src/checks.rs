@@ -1876,10 +1876,10 @@ fn separation<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
     }
 }
 
-/// Which solid pairs a mate rests on each other, keyed as an ordered
-/// pair of solid keys: those of each record citing an at-rest row the
-/// coincidence door's first rung proves ([`crate::coincide`]), the two
-/// faces a mate rests on each other.
+/// Which solid pairs rest on each other structurally, keyed as an
+/// ordered pair of solid keys: those of each record citing an at-rest
+/// row the coincidence door's first rung proves ([`crate::coincide`]),
+/// such as the two faces a mate rests on each other.
 ///
 /// A record whose entity the aggregate cannot resolve contributes
 /// nothing — the strict direction: a broken record can only make this
@@ -1889,10 +1889,10 @@ fn mated_pairs<P: crate::ProfilePayload, T: Decide>(
     gathered: &product::Product<T>,
     tol: Tol,
 ) -> std::collections::BTreeSet<(topo::SolidKey, topo::SolidKey)> {
-    // A record the census minted for a touch no mate states suppresses
-    // nothing: it backs a contact the `unproven-coincidence` check
-    // reports, and quieting the separation finding beside it would let a
-    // touch nobody stated read as clean twice over. One that rode up
+    // A record citing a row the first rung leaves suppresses nothing: it
+    // backs a contact the `unproven-coincidence` check reports, and
+    // quieting the separation finding beside it would let a touch
+    // nothing states read as clean twice over. One that rode up
     // from a source relates two solids of that one copy, a pair this
     // resident never examines.
     let mated = |cites: &topo::Cites| {

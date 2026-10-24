@@ -1128,11 +1128,11 @@ mod tests {
             constraints: vec![
                 tree::ConstraintRow {
                     mate: constraint(8),
-                    said: "constraint 1: world mate".to_owned(),
+                    said: "constraint 1: mate".to_owned(),
                 },
                 tree::ConstraintRow {
                     mate: constraint(9),
-                    said: "constraint 2: on-side mate".to_owned(),
+                    said: "constraint 2: mate".to_owned(),
                 },
             ],
             ..placer_refused_row(None)
@@ -1141,22 +1141,22 @@ mod tests {
             feature_row_drawn(ui, &row, theme)
         });
         let kind = find(&painted, "Mate 000000000007");
-        let pin = find(&painted, "constraint 1: world mate");
-        let mate = find(&painted, "constraint 2: on-side mate");
+        let pin = find(&painted, "constraint 1: mate");
+        let mate = find(&painted, "constraint 2: mate");
         assert_under(kind, pin);
         assert_under(pin, mate);
         assert_eq!(
             texts(&painted),
             vec![
                 "Mate 000000000007",
-                "constraint 1: world mate",
+                "constraint 1: mate",
                 super::REMOVE_CONSTRAINT,
-                "constraint 2: on-side mate",
+                "constraint 2: mate",
                 super::REMOVE_CONSTRAINT,
             ],
             "the row, its constraints with their buttons, and no badge"
         );
-        let clicks = row_clicked(&row, "constraint 2: on-side mate", false);
+        let clicks = row_clicked(&row, "constraint 2: mate", false);
         assert_eq!(clicks.remove, None, "a constraint's words remove nothing");
         for (nth, expected) in [(0, constraint(8)), (1, constraint(9))] {
             let remove = core::cell::Cell::new(None);

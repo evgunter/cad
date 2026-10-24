@@ -31,3 +31,24 @@ the op should have recorded. The sentence and its pins move together.
 the `StaleContactDeclaration` arm of `ValidationError`'s `Display`)
 said "the mate named with it, where one is"; stage 4 I dropped that
 clause, since no mate is named with a record any more.
+
+## 2026-10-24 — why PR 5637 does not reword it
+
+Review 1 of PR 5637 asked for the rewording here unless it needs a
+design decision. It does:
+
+- `CONTACT_RECOURSE` is SELECT-DESIGN §3d's two-arm menu, verbatim
+  (its doc, `contact.rs`; DESIGN.md's companion table lists §3d as
+  ratified).
+- `docs/INTENT-STAGE4-SPEC.md` §7 put "SELECT-DESIGN §3d's refusal
+  menu" on PR F's docs list, but names no replacement. F landed with
+  the sentence unchanged.
+- Dropping the first arm leaves "move the geometry" as the only
+  recourse for a contact refused inside one op's result (D1 (iii)).
+  The alternative is a second arm DESIGN's `[intent.checked]` /
+  `[assertions]` would supply (an assertion at the site). Choosing
+  between them rewrites a ratified recourse, and that is Ev's call.
+
+The sentence reaches users on every unrecorded-contact finding: the
+gathered-body refusal in Python (`test_validate.py` pins it) and any
+census finding inside one copy.

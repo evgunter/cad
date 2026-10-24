@@ -341,8 +341,7 @@ straddle-hull treatment). Built as the document layer's
 `crates/editor-core/src/eval/measure.rs`), argument order the mating
 role, authored rather than inferred.
 
-**C6 — Interference fits.** No class states a fit: `Fit` as a contact
-class retired with a mate's class (INTENT stage 4), and what an
+**C6 — Interference fits.** No class states a fit; what an
 interference fit asserts is stage 5's question.
 
 The backstop's containment arm decides the nested-instance class by a

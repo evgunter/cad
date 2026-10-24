@@ -610,10 +610,10 @@ caps, which the gather records as rows of the two copies.
 - **AQ4 — per-instance arguments.** Not implemented. Intended form:
   `InstantiatePart { …, args }` applying the pinned recipe at `args`.
 - **AQ5 — in-context capture semantics.** Open.
-- **AQ6 — cross-document `Rest` verification.** Retired with a mate's
-  contact class (INTENT stage 4 I): a mate declares no contact, and a
-  touch between copies is a census row the coincidence door proves.
-  C6's interference fits are stage 5's question.
+- **AQ6 — cross-document `Rest` verification.** Not a question: a mate
+  declares no contact, and a touch between copies is a census row the
+  coincidence door proves. C6's interference fits are stage 5's
+  question.
 - **AQ8 — the crossing record's reachability.** A kept constraint whose
   target is a cut copy crosses the cut, and populates `InterfaceRecord`,
   so no conversion door is needed. **Only a mate both of whose sides

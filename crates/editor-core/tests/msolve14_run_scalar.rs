@@ -859,10 +859,6 @@ fn run_at<T: editor_core::EvalScalar>(
 /// hashing it — moved, and the part's names reach an instance under its
 /// placement's copy. The id-free rows held.
 ///
-/// And again for INTENT stage 4 I (all three rows): a mate writes no
-/// class, so every id after a mate moved, and its content key moved
-/// with the key's `VERSION`. The id-free rows held.
-///
 /// And again for INTENT stage 4 E (all three rows): the bodies this
 /// digest feeds carry no provenance side tables, and a node error is
 /// the value-decided refusal or the glued build. The id-free rows held.
@@ -991,11 +987,6 @@ fn run_at<T: editor_core::EvalScalar>(
 /// translation entry by at most one ulp (8.9e-16 m) and every rotation
 /// entry bit-identical; every other solved pose of the corpus is main's
 /// bit for bit (each map dumped on main and on the branch).
-///
-/// And for INTENT stage 4 I (a mate declares no contact, all three
-/// rows): a mate's wire lost its class, so every mate's edit preimage
-/// and every id minted after one moved; the solve reads no class, so no
-/// pose moved for it. Re-blessed at all three ε.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
     (1e-9, 0xf0e5_fe83_906b_f0d0),
     (1e-6, 0xaae3_bcde_b879_7471),

@@ -595,11 +595,6 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// bundle is spelled in the new vocabulary and the content key's
 /// `VERSION` moved, so its ids and the names under them moved. Every
 /// node's kind and vertex bits are main's (`be9b907694`).
-///
-/// RE-BLESSED for stage 4 I (a mate declares no contact): the second
-/// operand's mate writes no class and the content key's `VERSION`
-/// moved, so its ids, the names under them and the value tokens moved.
-/// No point moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();

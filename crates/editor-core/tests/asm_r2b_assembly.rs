@@ -1398,3 +1398,55 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
          the gather's: {report}"
     );
 }
+
+/// **A mate proves a row only in the sense it states.** The seated
+/// pair's census records the two mated caps resting on each other,
+/// opposed, and the door's first rung proves that row from the mate
+/// alone (`Rung::SameConstruction`, no replay). The same cells read as
+/// a same-side pair are not what the mate states, whose flip says the
+/// caps face each other: the first rung leaves that row, whatever the
+/// replay then answers.
+///
+/// Red if `stated_by_a_mate` stops comparing a row's sense with the
+/// mate's flip.
+#[test]
+fn a_mate_proves_its_faces_only_in_the_sense_it_states() {
+    let (doc, ids, _mate, store, _) = stacked_as("sense", [0.5, 0.5, 1.0], |_| {});
+    let o = with_resolver(store);
+    let ev = run(&doc, &o);
+    let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
+    let caps = product
+        .coincidences
+        .iter()
+        .map(|r| &r.row)
+        .find(|row| {
+            row.relation == topo::Relation::SameOpposite
+                && row.cells.iter().all(|cell| {
+                    matches!(cell, editor_core::NamedCell::Entity { name, .. }
+                        if name.kind == EntityKind::Face)
+                })
+        })
+        .expect("the census records the mated caps resting on each other")
+        .clone();
+    let same_side = editor_core::NamedCoincidence {
+        relation: topo::Relation::SameOriented,
+        ..caps.clone()
+    };
+    let proofs = editor_core::coincide::prove(
+        &doc,
+        &[(ids[1], &[caps, same_side][..])],
+        ev.resolver(),
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("not canceled");
+    let first_rung = editor_core::Proof::Structural(editor_core::Rung::SameConstruction);
+    assert_eq!(
+        proofs[0][0], first_rung,
+        "the mate proves the caps it rests"
+    );
+    assert_ne!(
+        proofs[0][1], first_rung,
+        "the mate does not prove its caps on the same side"
+    );
+}

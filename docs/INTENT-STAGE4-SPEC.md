@@ -492,7 +492,7 @@ D1's profile-tangency paragraph is already ratified for this: "a junction decide
   - Python: `ContactClass`, `mate(class_=)`, `class_admission`, and the tags `class_admission_tag` (`tags.rs:2523`), `mate_class_not_admitted` (`:1072`), `no_at_rest_record` (`:2499`) and `unattributed` (`:2558`).
   - Viewer: `matetool.rs:104–137`, `:261`, `:453`, `:473`; `session/op.rs:24`, `:456`; `pane/features.rs:1036`.
   - Tour: `assembly.rs:694`, `:715`, `:764`, `:1465`, `:1532`.
-- **Goldens.** The perf12 census goldens (`editor-core/tests/golden/perf12_census_{1e-6,1e-9,1e-12}.txt`, 473 `UndeclaredContact` lines each) are re-blessed as rows. The census's own findings are unchanged; only their spelling moves.
+- **Goldens.** The perf12 census goldens (`editor-core/tests/golden/perf12_census_{1e-6,1e-9,1e-12}.txt`) hold no `UndeclaredContact` line: J already records a contact between copies as a row, and their 459 `UnrecordedContact` lines each are findings inside one copy. I re-blesses them for the ids after a mate and the rows' spelling of their two copies. The census's own findings are unchanged.
 - **Docs.**
   - ASSEMBLY A3 ("`class` is the kernel `topo::ContactClass`" and the `class_admission` paragraph) and A5 (the hard-error sentence and *Attribution*).
   - CONTACT-DESIGN C4's `ContactClass` list and C6 (`Fit` as a class). C6's interference fits are stage 5's question.

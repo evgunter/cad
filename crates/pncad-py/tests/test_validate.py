@@ -248,14 +248,20 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
         self.assertEqual(caught.exception.door, "validate_pseudomanifold")
         self.assertGreater(caught.exception.failure_count, 0)
 
-    def test_the_records_the_census_minted_are_what_the_body_carries(self):
-        """The census over the stand records its two seats, and
-        reaching an `Assembly` at all means the kernel's at-rest gate
-        already passed over the body and those records."""
+    def test_the_body_carries_one_record_per_seat(self):
+        """The stand's two mated seats are two touches between copies,
+        and the census records each as one face pair. Without the
+        records the gathered body refuses on exactly those two pairs,
+        and carrying them the at-rest body passes: so the records the
+        body carries are one per seat, no more and no fewer."""
         doc, ev = self.evaluated("stand")
-        assembly = assemble(doc, ev)
-        # The same verdict re-taken.
-        assembly.body.validate_pseudomanifold()
+        with self.assertRaises(ValidationError) as caught:
+            product(doc, ev).validate_pseudomanifold()
+        self.assertEqual(
+            [(f.variant, f.contact_kind) for f in caught.exception.findings],
+            [("unrecorded_contact", "conformal_patch")] * 2,
+        )
+        assemble(doc, ev).body.validate_pseudomanifold()
 
     def test_a_mate_less_assembly_is_the_control(self):
         """The flat-pack layout: same doors, no mates, no touches —

@@ -471,7 +471,7 @@ const VALUE_KEYS: [&str; 2] = ["coord", "by"];
 /// in the format's own arm for a field this build lacks, naming the
 /// field: on the mate, on the value, and spelled with a word another
 /// object of the wire owns (`coord` is the value's, not the mate's;
-/// `on` is the mate's, not the value's), and a mate's retired `class`.
+/// `on` is the mate's, not the value's), and `class` on the mate.
 ///
 /// *Breaks if* either object drops a field it does not know.
 #[test]

@@ -2,11 +2,12 @@
 id: the-teapot-spout-volume-leaves-its-enclosure-at-1e-12
 kind: issue
 title: demo-tour's tour_runs_green_at_eps_1e_12 is red on main at the teapot: the spout's measured volume lies 1.16e-10 m^3 off the straightened frustum's, outside its 8.1e-12 half-width
-status: open
+status: closed
 opened: 2026-10-23
 refs: [demo-tour-wall-8-no-longer-refuses-at-1e-12, 5637]
 priority: P1
 cost: E
+closed: 2026-10-24
 ---
 
 
@@ -34,3 +35,9 @@ caught it.
 Decide which half moved: the spout's certified enclosure (its
 `volume_pad` at 1e-12) or the measured volume itself, and either fix
 the measure or restate the scene's comparison.
+
+## Closed
+
+2026-10-24: the same finding as
+`work/iso/the-teapot-spouts-frustum-oracle-misses-its-measured-volume-at-1e-12.md`,
+filed in parallel and closed by ISO's PR 5642 (the spout's oracle).

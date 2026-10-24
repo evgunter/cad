@@ -75,10 +75,6 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// the content key's `VERSION` moved, so every mint id's digest moved
 /// with it. Every row's Debug spelling, ordinals included, is main's
 /// with the mint digests masked: a spelling change.
-///
-/// **Re-pinned for stage 4 I** (a mate declares no contact): a mate
-/// writes no class and the content key's `VERSION` moved, so every mint
-/// id's digest after the slab's mate moved with it: a spelling change.
 const DIAGNOSIS_DIGEST: u64 = 0xec87_4211_ef99_5654;
 
 #[test]

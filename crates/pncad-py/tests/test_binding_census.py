@@ -1881,16 +1881,14 @@ FAMILIES: dict[str, str] = {
 #: four a caller must be able to spell, because a window is an
 #: argument and `full()` is a choice, not an omission.
 #: **G18 is CLOSED and no longer a `gap` id here** (LIB-G18b). It
-#: held six families and 43 names: the pin-update door
+#: held six families and 38 names: the pin-update door
 #: (`update_references`, `UpdateError`, `mixed_pins`,
 #: `PinMultiplicity`, `PinSites`), the at-rest gate (`assemble`,
-#: `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`,
-#: `MintedDeclaration`, `RefusedRef`), mates and the solve
+#: `Assembly`, `AssemblyError`, `AtRestFinding`), mates and the solve
 #: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateSide`,
 #: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
 #: `Maintenance`, `reading_edges`,
-#: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
-#: `class_admission`), instantiated parts (`PlacementRuleFault`),
+#: `relative_freedom_components`, `solve_document`), instantiated parts (`PlacementRuleFault`),
 #: split and inline (`split`, `inline`, `SplitOutcome`,
 #: `InlineOutcome`, `SplitError`, `InlineError`, `NodeMap`,
 #: `InterfaceRecord`, `InterfaceCrossing`) and the product
@@ -3313,7 +3311,7 @@ NOT_BOUND = {
     # this file accounts whole. The positive form is
     # `tests/test_measures.py`.
     # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six
-    # families held 43 names — the pin-update door, the at-rest gate,
+    # families held 38 names — the pin-update door, the at-rest gate,
     # mates and the solve, instantiated parts, split/inline, the
     # product — and every one of them is accounted for: name-for-name
     # in `pncad.pyi`, or in `BOUND_AS` because their Python shape

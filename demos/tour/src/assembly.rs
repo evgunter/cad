@@ -1441,9 +1441,9 @@ struct AtRest {
     contacts: pncad::topo::ContactRecords,
 }
 
-/// Runs the A5 gate, which certifies the stand: a finding against it
-/// means the seats do not hold, which the update walk deliberately
-/// provokes.
+/// Runs the A5 gate over a stand the scene means to certify, and panics
+/// on any refusal: every caller (the stand, the instanced stand, and the
+/// updated bench the update walk re-seats) asserts it is at rest.
 fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
     match assemble(doc, ev, tol) {
         Ok(Assembly { body, contacts, .. }) => AtRest { body, contacts },
@@ -1517,7 +1517,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     );
     println!("   (2) overconstrained, at the door: {fault}");
 
-    // (3) A REFERENCE PINNING THE WRONG VERSION.    // (4) A REFERENCE PINNING THE WRONG VERSION. An assembly is a
+    // (3) A REFERENCE PINNING THE WRONG VERSION. An assembly is a
     // self-contained reproducible value: a part that changed on disk
     // does not retarget it. Asking the store for a version it no
     // longer holds is the typed pin refusal, and its recourse names
