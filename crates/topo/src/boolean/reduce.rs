@@ -71,7 +71,7 @@ use crate::body::Body;
 use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
-use crate::replace_face::ReplaceFaceError;
+use crate::offset_nappe::NappeRefusal;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
@@ -3567,24 +3567,19 @@ fn wall_crossing<T: Decide + Bounds>(
             axis,
             half_angle,
             ..
-        } => match crate::offset_nappe::face_nappe(y, face, band) {
+        } => match crate::offset_nappe::face_nappe_reading(y, face, band) {
             Ok(nappe) => Some((apex, axis, half_angle, nappe)),
-            Err(ReplaceFaceError::NappeStraddles { .. }) => None,
-            Err(ReplaceFaceError::Escalated { source }) => {
+            Err(NappeRefusal::Straddles { .. }) => None,
+            Err(NappeRefusal::Escalated(source)) => {
                 return Err(BooleanError::Escalated {
                     decision: BooleanDecision::CONTAINMENT_UNNAMED,
                     diag: source,
                 });
             }
-            Err(ReplaceFaceError::StaleFace { .. }) => {
+            Err(NappeRefusal::Stale) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "the crossing layer read the nappe of a cone face the sweep holds, and \
                            the face did not resolve",
-                });
-            }
-            Err(_) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a cone face's nappe reading answered a refusal it does not give",
                 });
             }
         },

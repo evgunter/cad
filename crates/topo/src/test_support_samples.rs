@@ -163,6 +163,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             segments: crate::chart_region::WITNESS_SEGMENT_CAP,
             cells: crate::chart_region::WITNESS_CELL_CAP,
         },
+        ChartRegionError::EdgeScale,
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {
@@ -707,6 +708,7 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             half_edge,
         },
         PcurveMintError::OuterSpansPeriod,
+        PcurveMintError::OuterSpanPoisoned { cause: diag() },
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
         PcurveMintError::Unminted { face },

@@ -68,3 +68,15 @@ it. `[one-way.readings]` rules out keeping the chord polygon as a fallback.
 The per-cell cost of the sphere and torus doors at clearance's cell counts
 is unmeasured. The unit measures it and reports it; the cost does not change
 the design.
+
+## Owed at the deletion (from PR 5656's lane)
+
+`chart_bound`'s outer-span check (`OuterSpansPeriod`) is the premise of the
+chord polygon's ring lifts (`RING_SHIFTS`), and `ring_path`'s argument cites
+it. W2 does not need it: its own predicate keeps no span bound, by the ruling
+on PR 5657. Before deleting the check, give `ring_path`'s cite a new home, or
+show that the argument it supports no longer needs it.
+Also deleted with `chart_bound.rs`: PR 5656's `ChartEdge::Envelope::reach`
+and its tests (`t5c_…_refuses_at_f64`, `an_arc_walls_envelopes_reach_finitely_at_f64`).
+That PR's span check refuses on a poisoned margin. Whatever takes over the
+premise must refuse on poison too.

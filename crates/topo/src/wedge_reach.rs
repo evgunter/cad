@@ -37,11 +37,11 @@
 //! for at every margin the lever enters.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use geom::Curve3;
 use geom_core::{Decide, Point3};
+use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey};
@@ -88,7 +88,7 @@ pub fn edge_wedge_reach<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<T> {
 /// body is borrowed, so it cannot change under the cache.
 pub struct WedgeReach<'a, T: Decide> {
     body: &'a Body<T>,
-    points: RefCell<HashMap<FaceKey, Rc<[Point3<T>]>>>,
+    points: RefCell<SecondaryMap<FaceKey, Rc<[Point3<T>]>>>,
 }
 
 impl<'a, T: Decide> WedgeReach<'a, T> {
@@ -97,7 +97,7 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
     pub fn new(body: &'a Body<T>) -> Self {
         Self {
             body,
-            points: RefCell::new(HashMap::new()),
+            points: RefCell::new(SecondaryMap::new()),
         }
     }
 
@@ -144,7 +144,7 @@ impl<'a, T: Decide> WedgeReach<'a, T> {
     /// `face`'s boundary points (module docs): every loop's vertices, a
     /// lone vertex included. Collected on first ask.
     fn face_points(&self, face: FaceKey) -> Rc<[Point3<T>]> {
-        if let Some(points) = self.points.borrow().get(&face) {
+        if let Some(points) = self.points.borrow().get(face) {
             return Rc::clone(points);
         }
         let body = self.body;

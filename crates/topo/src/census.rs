@@ -5462,6 +5462,7 @@ fn sweep_conformal_patches<T: Decide>(
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
                         | ChartRegionError::RayExhausted
+                        | ChartRegionError::EdgeScale
                         | ChartRegionError::WitnessSegmentCapExceeded { .. }
                         | ChartRegionError::WitnessCellCapExceeded { .. }
                         | ChartRegionError::Corrupt),
@@ -10725,6 +10726,7 @@ fn confirm_patch<T: Decide>(
             | ChartRegionError::TouchingBoundary
             | ChartRegionError::DegenerateLoop { .. }
             | ChartRegionError::RayExhausted
+            | ChartRegionError::EdgeScale
             | ChartRegionError::WitnessSegmentCapExceeded { .. }
             | ChartRegionError::WitnessCellCapExceeded { .. }
             | ChartRegionError::Corrupt),

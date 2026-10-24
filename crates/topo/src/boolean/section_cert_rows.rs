@@ -1063,7 +1063,7 @@ fn a_touch_clears_only_out_of_a_face_on_a_silent_pair() {
     });
     let tan = Err(Refusal::Tangent("section_sphere_plane_reach"));
     let rule = |evented: bool, place: [Option<FaceContainment>; 2]| {
-        certify(&s, evented, |_| false, |_| place)
+        certify(&s, evented, |_| Sheet::Not, |_| place)
     };
     assert_eq!(rule(false, [OUT, IN]), Ok(vec![Cleared::TouchOut(Side::F)]));
     assert_eq!(rule(false, [IN, OUT]), Ok(vec![Cleared::TouchOut(Side::G)]));
@@ -1105,7 +1105,7 @@ pub(super) const OUT: Option<FaceContainment> = Some(FaceContainment::Out);
 #[test]
 fn the_no_event_decision_reads_one_point() {
     let s = lone_at(p(0.0, 0.0, 0.0));
-    let ok = |r| certify(&s, false, |_| false, r);
+    let ok = |r| certify(&s, false, |_| Sheet::Not, r);
     assert_eq!(ok(at(OUT, IN)), Ok(vec![Cleared::Out(Side::F)]));
     assert_eq!(ok(at(IN, OUT)), Ok(vec![Cleared::Out(Side::G)]));
     assert_eq!(ok(at(IN, IN)), Err(Refusal::Loop));
@@ -1129,7 +1129,7 @@ fn the_no_event_decision_reads_one_point() {
 fn w4_clears_only_a_certified_single_component() {
     let s = lone_at(p(0.0, 0.0, 0.0));
     assert_eq!(
-        certify(&s, true, |_| false, at(IN, IN)),
+        certify(&s, true, |_| Sheet::Not, at(IN, IN)),
         Ok(vec![Cleared::LoneEvented])
     );
     let c = Component {
@@ -1143,7 +1143,7 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&two, true, |_| false, at(IN, IN)),
+        certify(&two, true, |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
     let uncounted = Section::Components {
@@ -1151,26 +1151,46 @@ fn w4_clears_only_a_certified_single_component() {
         single: false,
     };
     assert_eq!(
-        certify(&uncounted, true, |_| false, at(IN, IN)),
+        certify(&uncounted, true, |_| Sheet::Not, at(IN, IN)),
         Err(Refusal::Undecided)
     );
 }
 
 /// **W2 asks the face, and only for the side the component is
-/// essential on.**
+/// essential on.** A face whose walk is unread refuses under its own
+/// name, R-unread, not R-undec (mutant: folding `Unread` into `Not`).
 #[test]
 fn w2_clears_only_where_the_face_describes() {
     let s = classify(
         &cylinder(p(0.0, 0.0, 0.0), Vec3::unit_z(), 1.0),
         &plane(p(0.0, 0.0, 0.5), v(0.2, 0.0, 1.0)),
     );
+    let only = |on: Side, other: Sheet| move |side| if side == on { Sheet::One } else { other };
     assert_eq!(
-        certify(&s, false, |side| side == Side::F, at(None, None)),
+        certify(&s, false, only(Side::F, Sheet::Not), at(None, None)),
         Ok(vec![Cleared::Essential(Side::F)])
     );
     assert_eq!(
-        certify(&s, false, |side| side == Side::G, at(None, None)),
+        certify(&s, false, only(Side::G, Sheet::Not), at(None, None)),
         Err(Refusal::Undecided)
+    );
+    assert_eq!(
+        certify(&s, false, only(Side::G, Sheet::Unread), at(None, None)),
+        Err(Refusal::Unread)
+    );
+    let witnessed = Section::Components {
+        parts: vec![Component {
+            unbounded: false,
+            essential_f: true,
+            essential_g: false,
+            witness: Some(p(1.0, 0.0, 0.5)),
+        }],
+        single: false,
+    };
+    assert_eq!(
+        certify(&witnessed, false, |_| Sheet::Unread, at(None, OUT)),
+        Ok(vec![Cleared::Out(Side::G)]),
+        "an unread face leaves W3 to clear the component"
     );
 }
 
@@ -1542,20 +1562,131 @@ fn the_chart_cache_does_not_share_a_key_across_operands() {
             .clone()
     };
     let mut cache = ops::ChartCache::default();
-    assert!(cache.describes(
-        Operand::A,
-        &wall_body,
-        band_face,
-        &surface(&wall_body, band_face),
-        band()
+    assert!(matches!(
+        cache.describes(
+            Operand::A,
+            &wall_body,
+            band_face,
+            &surface(&wall_body, band_face),
+            band()
+        ),
+        Ok(Sheet::One)
     ));
-    assert!(!cache.describes(
-        Operand::B,
-        &band_body,
-        band_face,
-        &surface(&band_body, band_face),
-        band()
+    assert!(matches!(
+        cache.describes(
+            Operand::B,
+            &band_body,
+            band_face,
+            &surface(&band_body, band_face),
+            band()
+        ),
+        Ok(Sheet::Not)
     ));
+}
+
+/// The unit sphere cut into two faces along the circle the plane through
+/// `c`, normal to the unit `k`, meets it in: the seed face and the face
+/// the cut splits off, both on the sphere, and the sphere.
+fn sphere_cut(c: Point3<f64>, k: Vec3<f64>) -> (Body<f64>, [FaceKey; 2], Surface<f64>) {
+    let tol = Tol::witness();
+    let surface = sphere(p(0.0, 0.0, 0.0), 1.0);
+    let (u_ref, _) = k.orthonormal_basis();
+    let rho = (1.0 - (c - p(0.0, 0.0, 0.0)).norm_squared()).sqrt();
+    let start = c + u_ref * rho;
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(start, true).unwrap();
+    let key = body
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: surface.clone(),
+                sense: true,
+            },
+        )
+        .unwrap();
+    let cut_plane = body.add_surface(plane(c, k));
+    let rim = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            pair: SurfacePair::new(key, cut_plane),
+            witness: c - u_ref * rho,
+        },
+        carrier: Curve3::Circle {
+            center: c,
+            axis: k,
+            radius: rho,
+            u_ref,
+        },
+        param_start: 0.0,
+        param_end: TAU,
+    };
+    let other = body
+        .mef(
+            MefSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            rim,
+            FaceSurface::Shared { key, sense: true },
+            tol,
+        )
+        .unwrap();
+    (body, [seed.face, other.face], surface)
+}
+
+/// **W2 is not asked of a face on which no arm marks a component
+/// essential.** A sphere face (the unit sphere cut along `z = 0.5`),
+/// and a face asked in a plane chart, are each a kernel defect to ask,
+/// not a face that does or does not lift: S² is simply connected, so a
+/// latitude winding round the axis is null there, and the walk's
+/// windings would not say which side holds the poles. The mutant that
+/// reads a sphere face's walk lifts the small side of a cut away from
+/// the poles and the polar cap alike.
+#[test]
+fn w2_asked_of_a_sphere_or_a_plane_face_is_a_defect() {
+    let (body, faces, surface) = sphere_cut(p(0.0, 0.0, 0.5), Vec3::unit_z());
+    for face in faces {
+        assert!(
+            matches!(
+                ops::ChartCache::default().describes(Operand::A, &body, face, &surface, band()),
+                Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
+            ),
+            "sphere face {face:?}"
+        );
+    }
+    let flat = plane(p(0.0, 0.0, 0.5), Vec3::unit_z());
+    assert!(matches!(
+        ops::ChartCache::default().describes(Operand::A, &body, faces[0], &flat, band()),
+        Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
+    ));
+}
+
+/// **W2's loop clauses, row by row**: a loop off the singular set lifts
+/// only when it winds nothing, and one loop at most may meet the set:
+/// two loops through the apex leave neither out of the homology sum.
+/// The mutant that drops the count lifts such a face.
+#[test]
+fn at_most_one_loop_meets_the_singular_set() {
+    use crate::pcurves::LoopWinding;
+    let off = |zero| LoopWinding {
+        r#loop: crate::LoopKey::default(),
+        singular: false,
+        zero,
+    };
+    let on = LoopWinding {
+        r#loop: crate::LoopKey::default(),
+        singular: true,
+        zero: false,
+    };
+    for (loops, lifts) in [
+        (vec![], true),
+        (vec![off(true)], true),
+        (vec![off(false)], false),
+        (vec![on], true),
+        (vec![on, off(true), off(true)], true),
+        (vec![on, off(false)], false),
+        (vec![on, on], false),
+    ] {
+        assert_eq!(ops::loops_lift(&loops), lifts, "{loops:?}");
+    }
 }
 
 /// **A witness placed OFF a face's carrier is no verdict, never `Out`.**
@@ -1769,14 +1900,13 @@ fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
     (body, seed.face, sector)
 }
 
-/// **A face through the apex twice has no single lift, and does not
-/// describe.** Its two sectors' gap lies between them on the cone, and
-/// no one window can exclude it. A single sector cut from the same
-/// sheet does describe. The mutant that relaxes "exactly one apex
-/// visit" lifts the bow-tie from its first visit and clears W2 on it.
+/// **A face through the apex twice lifts to one sheet.** The face is two
+/// sectors meeting at the apex, each a disc off it, so no closed curve
+/// in its interior winds. A single sector cut
+/// from the same sheet lifts too. The mutant that reads a loop through
+/// the apex as winding refuses both.
 #[test]
-fn a_bow_tie_through_the_apex_twice_does_not_describe() {
-    use crate::chord_join::{ApexClosure, cone_apex_closure};
+fn a_bow_tie_through_the_apex_twice_lifts_to_one_sheet() {
     let (body, bow_tie, sector) = cone_bow_tie();
     let cone = unit_cone();
     let crate::LoopBoundary::Cycle { first } = body
@@ -1799,25 +1929,20 @@ fn a_bow_tie_through_the_apex_twice_does_not_describe() {
         apex_visits, 2,
         "the fixture's outline visits the apex twice"
     );
-    assert!(matches!(
-        cone_apex_closure(&body, &cone, bow_tie, band()).unwrap(),
-        ApexClosure::Open
-    ));
     let mut charts = ops::ChartCache::default();
     assert!(
-        !charts.describes(Operand::A, &body, bow_tie, &cone, band()),
-        "the bow-tie must not describe"
+        matches!(
+            charts.describes(Operand::A, &body, bow_tie, &cone, band()),
+            Ok(Sheet::One)
+        ),
+        "the bow-tie lifts to one sheet"
     );
     assert!(
         matches!(
-            cone_apex_closure(&body, &cone, sector, band()).unwrap(),
-            ApexClosure::Closed { .. }
+            charts.describes(Operand::A, &body, sector, &cone, band()),
+            Ok(Sheet::One)
         ),
-        "one sector visits the apex once"
-    );
-    assert!(
-        charts.describes(Operand::A, &body, sector, &cone, band()),
-        "a single sector describes"
+        "a single sector lifts to one sheet"
     );
 }
 
@@ -2526,20 +2651,17 @@ fn the_smallest_notch_never_reads_in() {
     );
 }
 
-/// **A ringed apex-closed face has no single lift.** The quarter sector
-/// with a lone-vertex ring closes `Open`; without the ring it closes.
+/// **A ringed apex-closed face still lifts to one sheet.** W2 reads the
+/// quarter sector's lone-vertex ring as a point off the apex, about
+/// which no circle winds. The pair refuses on the ring
+/// before W2 is asked (`Refusal::LoneVertex`).
 #[test]
-fn a_ringed_apex_face_does_not_close() {
-    use crate::chord_join::{ApexClosure, cone_apex_closure};
+fn a_ringed_apex_face_lifts_to_one_sheet() {
     let (mut body, face) = cone_sheet(
         p(0.0, 0.0, 0.0),
         &[Step::Line(cone_at(1.0, 0.0)), Step::Arc(1.0, 0.0, PI / 2.0)],
     );
     let cone = unit_cone();
-    assert!(matches!(
-        cone_apex_closure(&body, &cone, face, band()).unwrap(),
-        ApexClosure::Closed { .. }
-    ));
     let crate::LoopBoundary::Cycle { first } = body
         .get_loop(body.get_face(face).unwrap().outer)
         .unwrap()
@@ -2563,20 +2685,19 @@ fn a_ringed_apex_face_does_not_close() {
         "the kill leaves a ring"
     );
     assert!(matches!(
-        cone_apex_closure(&body, &cone, face, band()).unwrap(),
-        ApexClosure::Open
+        ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()),
+        Ok(Sheet::One)
     ));
-    assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
 }
 
-/// **An apex face reaching both nappes has no single lift.** Its
+/// **An apex face reaching both nappes does not lift to one sheet.** Its
 /// outline leaves the apex on the upper nappe, crosses to the mirror
 /// nappe along one straight line through the apex (no vertex there), and
-/// returns: one apex visit, vertices on both nappes. It closes `Open`
-/// and does not describe.
+/// returns: one apex visit, vertices on both nappes. W2 does not clear
+/// it: the line crosses the apex inside an edge,
+/// so its loop's winding is not a winding about the apex.
 #[test]
-fn an_apex_face_on_both_nappes_does_not_close() {
-    use crate::chord_join::{ApexClosure, cone_apex_closure};
+fn an_apex_face_on_both_nappes_does_not_lift() {
     let (body, face) = cone_sheet(
         p(0.0, 0.0, 0.0),
         &[
@@ -2588,18 +2709,17 @@ fn an_apex_face_on_both_nappes_does_not_close() {
     );
     let cone = unit_cone();
     assert!(matches!(
-        cone_apex_closure(&body, &cone, face, band()).unwrap(),
-        ApexClosure::Open
+        ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()),
+        Ok(Sheet::Not)
     ));
-    assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
 }
 
-/// **A face wound past a full turn does not describe.** Its rim runs
-/// `[0, 5π/2]` in two arcs, so the closure lifts it to a window wider
-/// than a period: `describes` refuses it (`bool_cone_closure_period`).
+/// **A face wound past a full turn lifts to one sheet.** Its rim runs
+/// `[0, 5π/2]` in two arcs, a sector that overlaps itself. Its interior
+/// less its edges is two sectors, so no closed curve in it winds. It is
+/// no face a region reading serves, so no containment is pinned here.
 #[test]
-fn an_apex_face_wound_past_a_turn_does_not_describe() {
-    use crate::chord_join::{ApexClosure, cone_apex_closure};
+fn an_apex_face_wound_past_a_turn_lifts_to_one_sheet() {
     let (body, face) = cone_sheet(
         p(0.0, 0.0, 0.0),
         &[
@@ -2609,12 +2729,10 @@ fn an_apex_face_wound_past_a_turn_does_not_describe() {
         ],
     );
     let cone = unit_cone();
-    let ApexClosure::Closed { window, .. } = cone_apex_closure(&body, &cone, face, band()).unwrap()
-    else {
-        panic!("one apex visit, no ring: the closure lifts it");
-    };
-    assert!(window.1 - window.0 > TAU, "{window:?}");
-    assert!(!ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()));
+    assert!(matches!(
+        ops::ChartCache::default().describes(Operand::A, &body, face, &cone, band()),
+        Ok(Sheet::One)
+    ));
 }
 
 // -------------------------------------------------------------------

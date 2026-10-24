@@ -37,15 +37,18 @@
 //! - **W0, apart**: the classification returns no component.
 //! - **W1, unbounded**: faces are compact, so `γ ⊄ F`.
 //! - **W2, essential**: `γ` is essential on the carrier of `X` (it winds
-//!   about the axis, or around the tube) and `chart_boundary(X)` returns
-//!   `Ok`: `X`'s loops lift into one sheet of the chart's cover, so every
-//!   closed curve in `int X` lifts to a closed curve with zero winding in
-//!   every periodic channel, and `γ ⊄ int X`. (A section curve that is
-//!   not closed — a ruling — is not inside a compact face at all.) That
-//!   is all the certificate needs: a `γ` that meets `F ∩ G` and is not
-//!   inside `int F ∩ int G` carries an event (L1). This is checked per FACE, never
-//!   assumed of a kind: a seamless periodic band — one face closing on
-//!   itself with no meridian edge — fails the check and loses W2.
+//!   about the axis, or around the tube) and `X` reads [`Sheet::One`]:
+//!   every closed curve in `int X` lifts to a closed curve with zero
+//!   winding in every periodic channel, read off `X`'s loop walk
+//!   (`ops::ChartCache::describes`), so `γ ⊄ int X`. (A section curve
+//!   that is not closed — a ruling — is not inside a compact face at
+//!   all.) That is all the certificate needs: a `γ` that meets `F ∩ G`
+//!   and is not inside `int F ∩ int G` carries an event (L1). This is
+//!   checked per FACE, never assumed of a kind: a seamless periodic
+//!   band — one face closing on itself with no meridian edge — has two
+//!   loops that each wind, and loses W2. A face whose walk refuses
+//!   reads [`Sheet::Unread`], and a component nothing else clears
+//!   refuses R-unread rather than R-undec.
 //! - **W3, a witness point `Out`**: one closed-form point of `γ`,
 //!   certified outside `F` or outside `G` (by the face's region on a
 //!   curved face, by `contfp` on a plane), so `γ ⊄ F ∩ G`.
@@ -93,6 +96,8 @@
 //!   carriers cross there, but which side it falls on decides how the
 //!   folds pair.
 //! - **R-loop** and **R-undec**: the no-event decision, above.
+//! - **R-unread**: as R-undec, on a component W2 would have cleared had
+//!   the face's walk read.
 //! - **Lone-vertex loops** refuse per pair (below).
 //!
 //! # A touch
@@ -410,6 +415,8 @@ pub(crate) enum Cleared {
 
 /// Why a pair refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// The roster the refusal censuses read (test builds only).
+#[cfg_attr(test, derive(strum::EnumIter))]
 pub(crate) enum Refusal {
     /// R-reach: no arm.
     Reach,
@@ -424,6 +431,27 @@ pub(crate) enum Refusal {
     Undecided,
     /// A face of the pair carries a lone-vertex loop.
     LoneVertex,
+    /// R-unread: a component essential on a face whose loop walk
+    /// refused for a numerical or unbuilt reason ([`Sheet::Unread`]),
+    /// and no other witness cleared it.
+    Unread,
+}
+
+/// **W2's answer about one face**: whether every closed curve in its
+/// interior lifts to a closed curve with zero winding
+/// (`ops::ChartCache::describes`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Sheet {
+    /// It does: W2 clears a component essential on the face.
+    One,
+    /// The walk read the face and cannot certify it: a loop winds, two
+    /// loops meet the apex, or a cone face spans both nappes. W2 does
+    /// not clear.
+    Not,
+    /// The walk refused before reading it, for a numerical or unbuilt
+    /// reason. W2 does not clear, and a component nothing else clears
+    /// refuses [`Refusal::Unread`].
+    Unread,
 }
 
 impl Refusal {
@@ -460,6 +488,13 @@ impl Refusal {
             Self::LoneVertex => {
                 "a face of the pair carries a lone-vertex loop, which the crossing layer does \
                  not examine"
+            }
+            Self::Unread => {
+                "a curved face's section with a face of the other solid has a component that \
+                 winds about the face's surface, and no crossing layer saw an event on it; the \
+                 face's boundary, which would show the component leaves it, could not be read, \
+                 most often because a vertex of it stands too near the surface's axis or apex \
+                 (moving that vertex away lets it be read)"
             }
         }
     }
@@ -2652,7 +2687,7 @@ fn sphere_cylinder<T: Decide>(
 /// **The per-pair rule** over a classified section.
 ///
 /// `evented` says whether the reduction recorded an event on this pair;
-/// `describes` asks `chart_boundary` of a face (cached by the caller);
+/// `describes` asks W2's question of a face (cached by the caller);
 /// `place` places a witness point in `[F, G]`, `None` for no verdict.
 ///
 /// # Errors
@@ -2661,7 +2696,7 @@ fn sphere_cylinder<T: Decide>(
 pub(crate) fn certify<T: Decide>(
     section: &Section<T>,
     evented: bool,
-    mut describes: impl FnMut(Side) -> bool,
+    mut describes: impl FnMut(Side) -> Sheet,
     mut place: impl FnMut(Point3<T>) -> [Option<FaceContainment>; 2],
 ) -> Result<Vec<Cleared>, Refusal> {
     let (parts, single) = match section {
@@ -2686,20 +2721,36 @@ pub(crate) fn certify<T: Decide>(
             out.push(Cleared::Unbounded);
             continue;
         }
-        if c.essential_f && describes(Side::F) {
+        let mut unread = false;
+        let mut essential = |on: bool, side: Side| {
+            on && match describes(side) {
+                Sheet::One => true,
+                Sheet::Not => false,
+                Sheet::Unread => {
+                    unread = true;
+                    false
+                }
+            }
+        };
+        if essential(c.essential_f, Side::F) {
             out.push(Cleared::Essential(Side::F));
             continue;
         }
-        if c.essential_g && describes(Side::G) {
+        if essential(c.essential_g, Side::G) {
             out.push(Cleared::Essential(Side::G));
             continue;
         }
+        let undecided = if unread {
+            Refusal::Unread
+        } else {
+            Refusal::Undecided
+        };
         if single && evented {
             out.push(Cleared::LoneEvented);
             continue;
         }
         let Some(p) = c.witness else {
-            return Err(Refusal::Undecided);
+            return Err(undecided);
         };
         let [at_f, at_g] = place(p);
         if at_f == Some(FaceContainment::Out) {
@@ -2713,7 +2764,7 @@ pub(crate) fn certify<T: Decide>(
         if !evented && at_f == Some(FaceContainment::In) && at_g == Some(FaceContainment::In) {
             return Err(Refusal::Loop);
         }
-        return Err(Refusal::Undecided);
+        return Err(undecided);
     }
     Ok(out)
 }

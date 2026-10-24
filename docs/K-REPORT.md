@@ -3237,6 +3237,20 @@ name and so the same at main (`curve_pair_pose_parallel`, `curve_pair_pose_clear
 demo/tiltedcut), and the nightly's sweep stops before it in the
 plain-suite prelude, so these figures are a local reading.
 
+## CHART addendum (2026-10-24): `chart_bound_outer_span` decides at Probe
+
+The outer-span margin is now read off each envelope's `reach` (the
+pcurve's `chart_box`, finite at every scalar), not off its `image`,
+which is poison at a point scalar
+(`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+Measured at ε = 1e-9 with the Band 4 corpus and the tour scenes, main
+against the branch: all 41 `chart_bound_outer_span` samples move from
+`invalid`/`NaN` to `negative`, with margins between −0.236 m and
+−29.1 m, far outside the band. The sample count (3,437,597) is
+identical, no other row differs, and rule 1 falls from 43 to 2 (the
+two `props_quad_converged` indeterminates).
+
+
 **Roster change (CHART, 2026-10-24): a cylinder or cone face's region.**
 Sixteen names from `topo/src/boolean/ruled_region.rs`, which replaces the
 cylinder and cone chart trims. `bool_wall_trim`, `bool_wall_trim_period`,

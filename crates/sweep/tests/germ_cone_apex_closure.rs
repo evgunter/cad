@@ -263,7 +263,8 @@ fn the_three_quarter_cone_face_holds_its_window() {
 
 /// **W2 on apex-closed faces.** The preview cone's merged face, each
 /// half-band of the unmerged full cone, and the partial sectors at
-/// every width describe: the apex closure closes on each.
+/// every width lift to one sheet: each has one loop through the apex,
+/// every other loop winds nothing, and its corners lie on one nappe.
 #[test]
 fn apex_closed_faces_describe() {
     let mut bodies = vec![("merged full cone", cone(None))];

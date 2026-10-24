@@ -6,6 +6,7 @@ status: review
 opened: 2026-10-24
 priority: P1
 cost: H
+branch: chart/ringed-curved-doors
 pr: 5664
 ---
 

@@ -2871,7 +2871,12 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "ApproxLaneUnsupported",
             E::ApproxLaneUnsupported { scalar: "interval" },
         ),
-        ("Corrupt", E::Corrupt { what: "face" }),
+        (
+            "Corrupt",
+            E::Corrupt {
+                found: "a vertex references a missing point",
+            },
+        ),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))

@@ -425,8 +425,8 @@ pub enum SplitJoinError {
     /// A cone face's chart window would be read across its APEX, where
     /// every azimuth maps to one point and no branch pin carries: the
     /// walk reached the apex, or the face meets it in a way no single
-    /// chart lift closes (twice, from both nappes, or around a ring —
-    /// [`cone_apex_closure`]'s `Open`). A window guessed there reads
+    /// chart lift closes (twice, from both nappes, or around a ring). A
+    /// window guessed there reads
     /// the face's complement without any later check seeing it.
     ApexUnlifted {
         /// The cone face whose window was read.
@@ -2950,110 +2950,7 @@ fn outer_cycle<T: Decide>(
     Ok(Some(body.loop_walk(first).closed("loop", first)))
 }
 
-/// What the apex closure makes of a cone face's outer cycle.
-#[derive(Clone, Debug)]
-pub(crate) enum ApexClosure<T: Real> {
-    /// The cycle never reaches the apex; every junction is a chart
-    /// point, where the nearest-branch walk is exact.
-    Clear,
-    /// One apex visit and no ring: the lifted loop, closed at the apex.
-    Closed {
-        /// The azimuth hull of the lift.
-        window: (T, T),
-        /// The farthest boundary vertex from the apex, in metres: the
-        /// lever for an angle read off the window.
-        reach: T,
-    },
-    /// Two or more apex visits, or one on a ringed face: no single lift
-    /// describes the face.
-    Open,
-}
-
-/// **The apex closure of a cone face's outer cycle.**
-///
-/// The apex is not a chart point: every azimuth maps to it, so the
-/// nearest-branch pin carries no information across it, and an
-/// apex-closed sector wider than π reads there as a full period. The
-/// face's chart region lies in the lifted half-strip `v ∈ (0, V]` (or
-/// its mirror), and its closure meets `v = 0` — the apex blown up — in
-/// the segment between the incoming and outgoing azimuths. The lifted
-/// boundary is a closed curve, so its net azimuth change is zero, and
-/// the jump at a single apex visit is `J = −Σ Δθ(non-apex edges)`
-/// exactly. The walk realises that by starting at the half-edge that
-/// leaves the apex: every junction it crosses is then a chart point,
-/// pinned by nearest-branch continuity as everywhere else, and the one
-/// junction it does not cross is the apex, whose jump the closure
-/// supplies.
-///
-/// The preconditions are the rule's own: exactly one apex visit (a
-/// cycle through the apex twice bounds two sectors, whose gap no hull
-/// of a single lift can exclude), no ring, and every other boundary
-/// vertex on one nappe.
-///
-/// # Errors
-///
-/// As [`face_azimuth_window`], and
-/// [`SplitJoinError::SectionInvariant`] when `surface` is not a cone.
-pub(crate) fn cone_apex_closure<T: Decide>(
-    body: &Body<T>,
-    surface: &geom::Surface<T>,
-    face: FaceKey,
-    band: Band,
-) -> Result<ApexClosure<T>, SplitJoinError> {
-    let geom::Surface::Cone { apex, axis, .. } = *surface else {
-        return Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "the apex closure was asked of a face that is not on a cone",
-        });
-    };
-    let esc = |diag| SplitJoinError::Escalated { face, diag };
-    let fd = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let Some(halves) = outer_cycle(body, face)? else {
-        return Ok(ApexClosure::Open);
-    };
-    let mut leaving = Vec::new();
-    let mut reach = T::zero();
-    let mut nappes = [false; 2];
-    for (i, &he) in halves.iter().enumerate() {
-        let v = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-        let q = vertex_point(body, v) - apex;
-        let d = q.norm();
-        reach = reach.max(d);
-        if decide("bool_cone_apex_visit", Margin::of(d), band).map_err(esc)? == Sign::Zero {
-            leaving.push(i);
-            continue;
-        }
-        match decide("bool_cone_apex_nappe", Margin::of(q.dot(axis)), band).map_err(esc)? {
-            Sign::Positive => nappes[0] = true,
-            Sign::Negative => nappes[1] = true,
-            Sign::Zero => {}
-        }
-    }
-    let [start] = leaving[..] else {
-        return Ok(if leaving.is_empty() {
-            ApexClosure::Clear
-        } else {
-            ApexClosure::Open
-        });
-    };
-    // A boundary on both nappes meets the apex from two sheets: no one
-    // lift describes it.
-    if !fd.rings.is_empty() || nappes == [true, true] {
-        return Ok(ApexClosure::Open);
-    }
-    let lifted: Vec<HalfEdgeKey> = halves[start..]
-        .iter()
-        .chain(&halves[..start])
-        .copied()
-        .collect();
-    let images = run_azimuth_images(body, surface, face, &lifted, band)?;
-    Ok(match azimuth_hull(&images) {
-        Some(window) => ApexClosure::Closed { window, reach },
-        None => ApexClosure::Open,
-    })
-}
-
-/// The walk behind [`face_azimuth_images`] and [`cone_apex_closure`]:
+/// The walk behind [`face_azimuth_images`]:
 /// each charted half-edge's image, its branch pinned to the previous
 /// edge's exit.
 ///
@@ -3114,9 +3011,9 @@ fn run_azimuth_images<T: Decide>(
                 let mut pole_k = None;
                 // A cone APEX junction carries no azimuth at all, and
                 // unlike a sphere pole no orientation bit recovers it:
-                // the jump there is the whole lift's
-                // ([`cone_apex_closure`]), which never pins across it.
-                // A walk that would is refused rather than pinned.
+                // the jump there is the whole lift's, which no pin
+                // crosses. A walk that would is refused rather than
+                // pinned.
                 if let geom::Surface::Cone { apex, .. } = surface {
                     let entry_v = he_data.start;
                     let p = vertex_point(body, entry_v);
@@ -5264,12 +5161,8 @@ fn chart_ring_side<T: Decide>(
     ring: LoopKey,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let WallChart {
-        origin: centre,
-        axis,
-        radius,
-        u_ref,
-    } = wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
+    let WallChart { radius, .. } =
+        wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
     let tau = T::tau();
     let invariant = |what| SplitJoinError::SectionInvariant { face: newf, what };
     let images = face_azimuth_images(body, surface, newf, band)?.ok_or(invariant(
@@ -5304,10 +5197,14 @@ fn chart_ring_side<T: Decide>(
     let n = images.len();
     let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
         let decide_r = |name, margin| decide(name, margin, band);
-        let w = vertex_point(body, v) - centre;
-        // The chart's one azimuth read (`geom_brep::Azimuth::principal`),
-        // lifted onto the run's window below by `periodic_branch`.
-        let raw = geom_brep::Azimuth::of(w.dot(axis.cross(u_ref)), w.dot(u_ref)).principal(band);
+        // The vertex's chart coordinates (`geom::Surface::chart_point`),
+        // its azimuth lifted onto the run's window below by
+        // `periodic_branch`.
+        let at = surface
+            .chart_point(vertex_point(body, v), band)
+            .map_err(|_| ring_island_unread(newf, surface))?
+            .uv;
+        let raw = at.x;
         // The vertex on the branch of the window's middle, in
         // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
         // own branch. One at the seam of a whole-period window lands on
@@ -5316,7 +5213,7 @@ fn chart_ring_side<T: Decide>(
         // `Sym` the crossings read `u_p` numerically, against image ends
         // of another provenance, never as an identity.
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
-        let v_p = w.dot(axis);
+        let v_p = at.y;
         let mut crossings = 0usize;
         for (i, image) in images.iter().enumerate() {
             let next = &images[(i + 1) % n];

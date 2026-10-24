@@ -243,13 +243,16 @@ fn a_ball_on_the_lateral_face_is_one_null_loop() {
             w.z * side > 0.0,
             "the loop's witness {w:?} is on the ball's nappe"
         );
-        assert_eq!(certify(&s, false, |_| true, at(IN, IN)), Err(Refusal::Loop));
         assert_eq!(
-            certify(&s, true, |_| true, at(IN, IN)),
+            certify(&s, false, |_| Sheet::One, at(IN, IN)),
+            Err(Refusal::Loop)
+        );
+        assert_eq!(
+            certify(&s, true, |_| Sheet::One, at(IN, IN)),
             Ok(vec![Cleared::LoneEvented])
         );
         assert_eq!(
-            certify(&s, false, |_| true, at(OUT, IN)),
+            certify(&s, false, |_| Sheet::One, at(OUT, IN)),
             Ok(vec![Cleared::Out(Side::F)])
         );
     }
@@ -524,12 +527,14 @@ fn scan_with(
     .collect()
 }
 
-fn describes(body: &Body<f64>, face: FaceKey) -> bool {
+fn describes(body: &Body<f64>, face: FaceKey) -> Sheet {
     let surface = body
         .get_surface(body.get_face(face).unwrap().surface)
         .unwrap()
         .clone();
-    ops::ChartCache::default().describes(crate::Operand::A, body, face, &surface, band())
+    ops::ChartCache::default()
+        .describes(crate::Operand::A, body, face, &surface, band())
+        .unwrap()
 }
 
 /// **W2: the ellipse clears on a cone face that describes** — a
@@ -558,7 +563,7 @@ fn the_ellipse_clears_by_w2_on_a_describing_cone_face() {
         ),
     ];
     for (i, (body, face)) in sheets.iter().enumerate() {
-        assert!(describes(body, *face), "sheet {i} describes");
+        assert_eq!(describes(body, *face), Sheet::One, "sheet {i} describes");
         let verdicts = scan_with(body, *face, &slab, false);
         assert!(
             verdicts.contains(&Ok(vec![Cleared::Essential(Side::F)])),
@@ -582,8 +587,9 @@ fn the_ellipse_clears_by_w2_on_a_describing_cone_face() {
 #[test]
 fn the_ellipse_on_a_seamless_band_is_w4_with_an_event_and_a_loop_without() {
     let (band_body, face) = seamless_cone_band(0.5, 1.5);
-    assert!(
-        !describes(&band_body, face),
+    assert_eq!(
+        describes(&band_body, face),
+        Sheet::Not,
         "the seamless band does not describe"
     );
     let slab = slab(1.0, 0.2);

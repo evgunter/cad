@@ -111,9 +111,11 @@ use geom_brep::{
 use geom_core::Tol;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Affine3, Decide, Point3, Real, RigidMotion, Vec3};
+use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::entity::EdgeKey;
+use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
 
 /// Typed failure of [`transform_rigid`] (closed enum, D4 ¶3).
@@ -188,11 +190,12 @@ pub enum TransformError {
         /// The fit door's typed refusal, unaltered.
         source: geom_brep::OffsetFitError,
     },
-    /// The body's topology references a missing arena entry — a
-    /// corrupt body (the validators would refuse it too).
+    /// The body is corrupt (the validators would refuse it too): a
+    /// reference that does not resolve, an arena entry nothing
+    /// references, or an image no door builds.
     Corrupt {
-        /// What was missing, for the log.
-        what: &'static str,
+        /// What the walk found, as a clause.
+        found: &'static str,
     },
 }
 
@@ -245,10 +248,7 @@ impl TransformError {
                 "a spline (NURBS) surface or carrier cannot be transformed yet. {}",
                 geom_core::NOT_YET_ENDING
             ),
-            Self::Corrupt { what } => format!(
-                "the body references a missing {what} (a corrupt body). {}",
-                defect
-            ),
+            Self::Corrupt { found } => format!("the body is corrupt: {found}. {defect}"),
         }
     }
 }
@@ -665,12 +665,12 @@ fn reflected_image<T: Real>(
                 v: geom_brep::AxisMap::identity(),
             })
             .map_err(|refusal| TransformError::Corrupt {
-                what: match refusal {
+                found: match refusal {
                     geom_brep::ChartMapRefusal::WindingUnnegatable => {
-                        "a chart image whose winding count has no negation"
+                        "a chart image's winding count has no negation"
                     }
                     geom_brep::ChartMapRefusal::WallReflected => {
-                        "a spiric wall image the reflection did not restate"
+                        "a spiric wall image reached a reflection that cannot restate it"
                     }
                 },
             }),
@@ -747,11 +747,11 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
     // which curve keys were rewritten so an orphaned curve entry —
     // which the walk would silently leave UNMAPPED — is refused as
     // corruption instead.
-    let mut rewritten = std::collections::HashSet::new();
+    let mut rewritten: SecondaryMap<CurveKey, ()> = SecondaryMap::new();
     let edge_keys: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for ek in edge_keys {
         let edge = out.edges.get(ek).ok_or(TransformError::Corrupt {
-            what: "edge key vanished mid-walk",
+            found: "an edge vanished mid-walk",
         })?;
         let curve_key = edge.curve;
         let he_plus = edge.he_plus;
@@ -762,7 +762,7 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             }
             None => {
                 return Err(TransformError::Corrupt {
-                    what: "edge references a missing curve",
+                    found: "an edge references a missing curve",
                 });
             }
         };
@@ -809,7 +809,7 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
                     .get(c.surface)
                     .map(OrientationClass::of)
                     .ok_or(TransformError::Corrupt {
-                        what: "chart image on a missing surface",
+                        found: "a chart image lies on a missing surface",
                     })?;
                 let image = match hand {
                     Hand::Proper => c.pcurve.clone(),
@@ -859,16 +859,16 @@ pub(crate) fn map_isometry<T: Decide + crate::props::AtRestPolicy>(
             }
         })?;
         out.curves[curve_key] = CurveGeom::Certified(mapped);
-        rewritten.insert(curve_key);
+        rewritten.insert(curve_key, ());
     }
     if let Some(_orphan) = out
         .curves
         .iter()
         .map(|(k, _)| k)
-        .find(|k| !rewritten.contains(k))
+        .find(|&k| !rewritten.contains_key(k))
     {
         return Err(TransformError::Corrupt {
-            what: "curve entry referenced by no edge (left unmapped)",
+            found: "a curve entry is referenced by no edge",
         });
     }
 
@@ -898,24 +898,24 @@ fn endpoint<T: Real>(
 ) -> Result<Point3<T>, TransformError> {
     let vk = if end {
         body.half_edge_end(he_plus).ok_or(TransformError::Corrupt {
-            what: "he_plus has no end vertex",
+            found: "an edge's primary half-edge has no end vertex",
         })?
     } else {
         body.half_edges
             .get(he_plus)
             .ok_or(TransformError::Corrupt {
-                what: "edge references a missing half-edge",
+                found: "an edge references a missing half-edge",
             })?
             .start
     };
     let v = body.vertices.get(vk).ok_or(TransformError::Corrupt {
-        what: "half-edge references a missing vertex",
+        found: "a half-edge references a missing vertex",
     })?;
     body.points
         .get(v.point)
         .copied()
         .ok_or(TransformError::Corrupt {
-            what: "vertex references a missing point",
+            found: "a vertex references a missing point",
         })
 }
 
@@ -1090,6 +1090,25 @@ mod tests {
         let mut described: Body<f64> = Body::new();
         described.add_surface(described_surface());
         assert!(transform_rigid(&described, &aside_motion(), Tol::witness()).is_ok());
+    }
+
+    /// A curve entry no edge names is refused, and the refusal says the
+    /// entry is unreferenced rather than that a reference dangles.
+    #[test]
+    fn an_orphan_curve_entry_reads_as_unreferenced() {
+        let mut orphaned: Body<f64> = Body::new();
+        orphaned.add_null_curve(crate::null::NullEdge {
+            below_end: crate::VertexKey::default(),
+            above_end: crate::VertexKey::default(),
+        });
+        let err = transform_rigid(&orphaned, &aside_motion(), Tol::witness())
+            .expect_err("an orphan curve entry is corruption");
+        let shown = err.to_string();
+        assert!(
+            shown.starts_with("the body is corrupt: a curve entry is referenced by no edge."),
+            "{shown}"
+        );
+        assert!(!shown.contains("missing"), "{shown}");
     }
 }
 

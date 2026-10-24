@@ -2,11 +2,13 @@
 id: chart-bound-outer-span-decides-a-poisoned-margin
 kind: issue
 title: chart_bound_outer_span poses a check that is structurally unanswerable at a point scalar, and the K sweep records the poison (9 rule-1 flags per eps row)
-status: dispatched
+status: closed
 opened: 2026-09-29
 priority: P1
 cost: M
 branch: chart/outer-span-poison
+pr: 5656
+closed: 2026-10-24
 ---
 
 ## What fires
@@ -117,3 +119,79 @@ projectbox_cutaway 16, tiltedcut 10, lily_walls 6, lily 3, bossplate 3,
 boss_union 3 — not the nine above. The boolean door's tier-3 gate
 (`boolean-door-adopts-the-finished-body-type`) leaves them identical
 (`k-lint-reads-the-boolean-doors-tier-3-at-probe` (REACH, closed)).
+
+## Phase 1 (2026-10-24)
+
+**Count on main** (`c4318c38`, ε = 1e-9, Band 4 corpus + tour scenes,
+3,437,597 samples): 41 `chart_bound_outer_span` rows, every one
+`invalid`/`NaN` — projectbox_cutaway 16, tiltedcut 10, lily_walls 6,
+lily 3, bossplate 3, boss_union 3, the 2026-10-03 shapes and counts
+unchanged. The predicate had **no decided sample at all**: every outer
+loop that reaches it carries an envelope. They were the sweep's only
+NaN margins. (The nightly's dev-probe row at `be9b9076` died before
+the sweep, on `parts_entered_before_the_map::a_mated_parts_samples_lead_every_node`,
+so this was a local run.)
+
+**Reading 1 is right; 2 and 3 are not.**
+
+- *What it guards.* The `RING_SHIFTS` premise. It has a consumer at a
+  point scalar: the boolean's `ChartCache::describes` (`boolean/ops.rs`)
+  calls `chart_boundary` at `T`, f64 included, and reads `is_ok()` as
+  W2's premise, and `ring_path.rs`'s module docs cite the
+  `OuterSpansPeriod` refusal as part of its parity argument. The outside
+  test itself is interval-only (`editor-core/src/clearance.rs`).
+- *Is it posed at the recording scalar?* Yes. That is the same call
+  that `describes` makes at f64, not a probe artefact, so reading 3
+  (do not pose it at a point scalar) would leave the f64 lane's
+  premise unchecked.
+- *Is "poison lets it stand" safe there?* Not for `describes`. There
+  `Ok` licenses W2, so a check that cannot refuse is the unsafe
+  direction. That rules out reading 2.
+- *The f64 answer exists.* `Pcurve::chart_box` is a conservative box
+  "at every scalar", and the kernel already decides on it at f64
+  (`pcurve_focal_section_*`'s lever via `v_reach`). Only the envelope's
+  `image`, which is a single enclosure, is poison at a point scalar.
+
+**Does the same poison reach a recorded predicate that survives
+`chart_bound.rs`'s retirement? No.**
+
+- *Static.* The only `enclosure_hull` calls at a point scalar in kernel
+  source are `chart_edge`'s three (`pcurves.rs`), and all three feed
+  `ChartEdge::Envelope::image`. That goes with `chart_bound.rs`.
+- *The rest.* Every other `enclosure_hull` in `crates/*/src` is one
+  of two kinds:
+  - gated by a multi-span `locate_spans`, which never happens at a
+    point scalar: `pcurve_cache.rs`'s span accumulator,
+    `projected.rs`'s eval, and the `geom` NURBS evaluators;
+  - typed `Interval`: `carrier_net.rs`.
+- *`chart_region.rs`.* It hulls nothing. It takes straight chart
+  segments only, and a curved image is refused rather than boxed.
+- *`pcurves`' walk rows.* Their extents come from `chart_box`, which
+  is finite at every scalar.
+- *Dynamic.* The 41 rows were the sweep's only NaN margins. The probe
+  records nothing else fed by this hull.
+
+Blind spot: paths the corpus and tour do not exercise. The static pass
+covers them for the `enclosure_hull` shape, but not for some other
+construction of point-scalar poison.
+
+**Phase 2: an interim fix, PR #5656.** `reach` and these tests retire
+with `chart_bound.rs` (`work/chart/clearance-cells-are-decided-in-model-space.md`).
+What it changes:
+- `ChartEdge::Envelope` carries `reach` (the pcurve's `chart_box`
+  over the span).
+- The outer `hull`, and the span check that reads it, are taken off
+  `reach`, so both are finite at every scalar.
+- `image` is stored only where it is tighter: the closed forms'
+  interval natural extension. On the fitted, general and projected
+  arms it is derived from `reach`.
+- A poisoned span margin now refuses, typed as `OuterSpanPoisoned`.
+- The outside test's boxes are unchanged.
+
+Effect at ε = 1e-9: the 41 rows decide `negative`, with margins from
+−0.236 m to −29.1 m. No other row in the CSV changes. k-lint's rule 1
+goes from 43 to 2 (both `props_quad_converged`, unrelated).
+
+## Closed
+
+Closed 2026-10-24 by PR 5656 (FULL review, fix pass taken). An interim fix: `reach` and `OuterSpanPoisoned` retire with `chart_bound.rs` (`clearance-cells-are-decided-in-model-space`). With PR 5657 W2 no longer reads this premise, which is now the ring lifts' alone. (CHART orchestrator)
