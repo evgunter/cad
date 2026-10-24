@@ -1980,12 +1980,13 @@ struct Composite {
     y: [PatchSpans; 3],
     /// `D = Ẽ · M̃`, the sign witness of `E·n`.
     dd: PatchSpans,
-    /// The BASE's weight channel `w` (a positive constant `1` patch
-    /// when the base is non-rational). `M̃ = w³·m` is scaled by this
+    /// The BASE's weight channel `w` (the constant `1` patch when the
+    /// base's weights are one constant, which the spatial form reads as
+    /// `1`). `M̃ = w³·m` is scaled by this
     /// one alone, because `m` is the base's own.
     w: PatchSpans,
     /// `w̃ = w·w_fit`, the weight `Ẽ` is homogeneous in. Equal to `w`
-    /// exactly when the fit carries unit weights.
+    /// exactly when the fit's weights are one constant.
     wt: PatchSpans,
     /// `Ẽ = w̃·E` itself, kept so the residual's normal component can
     /// divide by a DIRECT lower bound on `‖E‖` (module docs, "the
@@ -2063,9 +2064,8 @@ fn weight_net(n: &NurbsSurface<f64>) -> TensorCoeffs<'_> {
 /// a bare `true` at a call site does not say which was meant.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum NetForm {
-    /// `P − c`. Correct only where the weights are one constant, which
-    /// cancels: the spatial net is then the homogeneous one at weight
-    /// `1`, and the arithmetic reads every weight as `1`.
+    /// `P − c`, every weight read as `1`. Correct only where the
+    /// weights are one constant (`NurbsSurface::constant_weight`).
     Spatial,
     /// `w·(P − c)`, the homogeneous net.
     Homogeneous,
@@ -2189,10 +2189,9 @@ impl Composite {
         extra_v.extend(fit.knots_v_f64_interim().interior_knots().map(|(t, _)| t));
         let dec = |grid: &TensorCoeffs<'_>| PatchSpans::decompose(grid, &extra_u, &extra_v);
         // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
-        // channel. On a constant-weight fit the constant cancels, the
-        // spatial net IS the homogeneous one at `w_fit ≡ 1`, and `wf` is
-        // not formed: the identity product would widen the enclosure
-        // for nothing.
+        // channel. On a constant-weight fit the spatial net IS the
+        // homogeneous one at `w_fit ≡ 1`, and `wf` is not formed: the
+        // identity product would widen the enclosure for nothing.
         // The one recentring origin every net below is built against.
         let ctr = recentre_origin(base);
         let fc = |c: usize| channel(fit, c, fit_form, &ctr);
@@ -3300,10 +3299,10 @@ mod tests {
     /// bound is the unit pair's to the bit.
     ///
     /// **A constant weight is the polynomial arm's.** The same control
-    /// net with every weight `2` is the polynomial surface on that net,
-    /// so it takes the spatial form, and every cell bound is the
-    /// unit-weight net's to the bit, at every scale — `2⁻¹`, `2⁻³⁰⁰` and
-    /// `2³⁰⁰` as at `2¹`. Red where a constant weight is read as
+    /// net with every weight one constant is the polynomial surface on
+    /// that net, so it takes the spatial form, and every cell bound is
+    /// the unit-weight net's to the bit: at `3` and `0.1`, and at every
+    /// power-of-two scale — `2⁻¹`, `2⁻³⁰⁰` and `2³⁰⁰` as at `2¹`. Red where a constant weight is read as
     /// rational: the homogeneous arm's sup on this net is
     /// `1.018_060_029_513_912e-1`.
     #[test]
@@ -3346,6 +3345,11 @@ mod tests {
         for k in [-2, -301, 299] {
             let got = cell_bound_bits(&weights_times_pow2(&twos, k), &fit, d);
             assert_eq!(got, want, "weights 2^{}: a cell bound moved", k + 1);
+        }
+        for c in [3.0, 0.1] {
+            let net = constant(c);
+            let got = cell_bound_bits(&net, &radially_scaled(&net, 1.0 + d), d);
+            assert_eq!(got, want, "weights {c}: a cell bound moved");
         }
     }
 

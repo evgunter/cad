@@ -1238,10 +1238,9 @@ macro_rules! nurbs_curve {
 
             /// **Whether this carrier is polynomial**: the one plain
             /// constant every weight is, or `None`
-            /// ([`Weights::constant`]). A constant cancels out of the
-            /// rational basis, so on `Some(c)` the curve is the
-            /// polynomial on [`Self::control`] read as Cartesian, for
-            /// every `c`.
+            /// ([`Weights::constant`]; [`spline::constant_weight`] says
+            /// why `Some(c)` is the polynomial on [`Self::control`] for
+            /// every `c`).
             pub fn constant_weight(&self) -> Option<f64> {
                 self.weights.constant()
             }

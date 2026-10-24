@@ -156,8 +156,8 @@ fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
 }
 
 /// `(1/2)∫_{t0}^{t1} (P(t) − ref)×P′(t) dt` for a **non-rational**
-/// B-spline carrier (one constant weight, which cancels), exact (module docs of [`loop_vector_area`]: the
-/// per-span polynomial integrand meets the fixed `k`-point Gauss rule
+/// B-spline carrier ([`NurbsCurve3::constant_weight`]), exact (module
+/// docs of [`loop_vector_area`]: the per-span polynomial integrand meets the fixed `k`-point Gauss rule
 /// that integrates its degree exactly).
 ///
 /// Span walking is generic-scalar sound: the covered span range comes
@@ -258,8 +258,11 @@ mod tests {
     /// **A constant weight is the polynomial arm's**: the cubic on one
     /// net with every weight `2` integrates to the unit-weight curve's
     /// area to the bit (a power of two scales the homogeneous
-    /// evaluation exactly), and a net whose weights vary refuses as the
-    /// rational carrier this arm does not integrate.
+    /// evaluation exactly). At `3` and `0.1` it agrees to a few ulps
+    /// and no closer: the arm evaluates through the rational
+    /// evaluator, whose `Σ Nᵢ·c·Pᵢ / Σ Nᵢ·c` rounds once more than the
+    /// unit net's. A net whose weights vary refuses as the rational
+    /// carrier this arm does not integrate.
     #[test]
     fn a_constant_weight_carrier_integrates_as_its_polynomial() {
         use geom_core::spline::KnotVector;
@@ -280,6 +283,15 @@ mod tests {
             [unit.x, unit.y, unit.z].map(f64::to_bits),
             "weights 2: {twos:?}, unit: {unit:?}"
         );
+        for c in [3.0, 0.1] {
+            let got = area(vec![c; 4]).unwrap();
+            assert!(
+                got.x == 0.0
+                    && got.y == 0.0
+                    && (got.z - unit.z).abs() <= 16.0 * f64::EPSILON * unit.z.abs(),
+                "weights {c}: {got:?}, unit: {unit:?}"
+            );
+        }
         assert!(
             matches!(
                 area(vec![1.0, 2.0, 2.0, 1.0]),

@@ -1208,11 +1208,11 @@ pub(crate) mod tests {
     }
 
     /// **A constant weight is the integral arm's.** The quarter
-    /// cylinder's net with every weight `2` (or `3`) is the polynomial
-    /// patch on that net: a constant cancels out of the rational basis.
-    /// Its cells, plain and refined, are the unit-weight net's to the
-    /// bit, since that arm reads the control net alone; the rational
-    /// arm would cut each span into its own pieces.
+    /// cylinder's net with every weight one constant (`2`, `3`, `0.1`) is
+    /// the polynomial patch on that net (`constant_weight`). Its cells,
+    /// plain and refined, are the unit-weight net's to the bit, since
+    /// that arm reads the control net alone; the rational arm would cut
+    /// each span into its own pieces.
     #[test]
     fn a_constant_weight_takes_the_integral_arm() {
         let cylinder = quarter_cylinder();
@@ -1228,7 +1228,7 @@ pub(crate) mod tests {
         let unit = constant(1.0);
         let want = format!("{:?}", patch_cells(&unit).expect("unit"));
         let want_refined = format!("{:?}", patch_cells_refined(&unit, 4).expect("unit"));
-        for w in [2.0, 3.0] {
+        for w in [2.0, 3.0, 0.1] {
             let net = constant(w);
             assert_eq!(
                 format!("{:?}", patch_cells(&net).expect("constant")),

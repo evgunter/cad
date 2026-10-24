@@ -982,25 +982,33 @@ mod tests {
     }
 
     /// **A constant weight is the integral arm's.** The wiggle's net
-    /// with every weight `2` is the same polynomial curve, so its chord
+    /// with every weight one constant (`2`, `3`, `0.1`) is the same
+    /// polynomial curve, so its chord
     /// count is the unit-weight curve's at every target (the control
     /// hull reads the net alone); the rational arm's quotient bound on
     /// the same curve is its own, and looser.
     #[test]
     fn a_constant_weight_carrier_counts_as_its_polynomial() {
         let unit = wiggle();
-        let twos = NurbsCurve3::new(
-            unit.knot_values().clone(),
-            unit.control().to_vec(),
-            vec![2.0; unit.control().len()],
-        )
-        .unwrap();
         let (d0, d1) = unit.domain();
-        for delta_s in [1e-2, 1e-4, 1e-6] {
-            let count = |n: &NurbsCurve3<f64>| {
-                nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default()).expect("in inventory")
-            };
-            assert_eq!(count(&twos), count(&unit), "δ_s = {delta_s:e}");
+        for c in [2.0, 3.0, 0.1] {
+            let constant = NurbsCurve3::new(
+                unit.knot_values().clone(),
+                unit.control().to_vec(),
+                vec![c; unit.control().len()],
+            )
+            .unwrap();
+            for delta_s in [1e-2, 1e-4, 1e-6] {
+                let count = |n: &NurbsCurve3<f64>| {
+                    nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default())
+                        .expect("in inventory")
+                };
+                assert_eq!(
+                    count(&constant),
+                    count(&unit),
+                    "weights {c}, δ_s = {delta_s:e}"
+                );
+            }
         }
     }
 

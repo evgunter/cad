@@ -635,10 +635,9 @@ impl<T: SpanLocate> NurbsSurface<T> {
     }
 
     /// **Whether this patch is polynomial**: the one plain constant
-    /// every weight is, or `None` ([`Weights::constant`]). A constant
-    /// cancels out of the rational basis, so on `Some(c)` the patch is
-    /// the tensor polynomial on [`Self::control`] read as Cartesian,
-    /// for every `c`.
+    /// every weight is, or `None` ([`Weights::constant`];
+    /// [`geom_core::spline::constant_weight`] says why `Some(c)` is the
+    /// tensor polynomial on [`Self::control`] for every `c`).
     pub fn constant_weight(&self) -> Option<f64> {
         self.weights.constant()
     }

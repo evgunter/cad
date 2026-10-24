@@ -57,7 +57,7 @@
 //!   engines in this file — `patch_flux_exact` with its composite
 //!   rounds for a polynomial patch, and `rational_patch_face`'s
 //!   quotient composite (with the `w`-uniform-in-v exact arm) for a
-//!   patch with non-unit weights — not this Green-form boundary
+//!   patch whose weights are not one constant — not this Green-form boundary
 //!   integral. The consumer that would use it is
 //!   the fitted-boundary Green lane, blocked on a construction that
 //!   mints a fitted pcurve on an analytic chart at rest — the blocker
@@ -3766,8 +3766,8 @@ fn rational_patch_face<T: Decide>(
 /// shared [`area_midpoint_taylor`] rule (midpoint + Lipschitz pad on
 /// the same knot-aligned cells) — sound at every
 /// resolution and O(h), because the +V gate meters `V/A` and needs an
-/// honest denominator. A patch with non-unit weights
-/// routes to [`rational_patch_face`] (M8-3), which certifies the same
+/// honest denominator. A patch whose weights are not one constant
+/// ([`constant_weight`]) routes to [`rational_patch_face`] (M8-3), which certifies the same
 /// two numbers through the quotient statement.
 ///
 /// Honesty pads (both directions accounted): `boundary_defect` is the
@@ -4107,8 +4107,9 @@ type RPt2 = (Interval, Interval);
 ///
 /// Non-rational by construction: `general_image_lane` interpolates its
 /// foot samples with unit weights, and the piece boxes below are the
-/// POLYNOMIAL convex-hull fact. A net carrying a non-unit weight
-/// refuses typed rather than reading the hull of a quotient.
+/// POLYNOMIAL convex-hull fact. A net whose weights are not one
+/// constant ([`constant_weight`]) refuses typed rather than reading the
+/// hull of a quotient.
 #[derive(Clone, Debug)]
 pub struct TrimPiece {
     knots: KnotVector,
@@ -4249,9 +4250,9 @@ enum BlockRefusal {
 /// convex-hull property). Knot insertion is exact in ℝ, so a block is
 /// a statement about the same arc.
 ///
-/// The net's weights must be one constant, which cancels: that makes
-/// each axis its own polynomial channel below, and the blocks' hulls the polynomial
-/// convex-hull fact. A rational net refuses
+/// The net's weights must be one constant ([`constant_weight`]): that
+/// makes each axis its own polynomial channel below, and the blocks'
+/// hulls the polynomial convex-hull fact. A rational net refuses
 /// ([`BlockRefusal::Rational`]), as does a malformed one: a zero
 /// degree, or a knot algebra that refuses ([`BlockRefusal::Malformed`]).
 fn bezier_blocks(img: &TrimPiece, m: usize) -> Result<Vec<Vec<RPt2>>, BlockRefusal> {

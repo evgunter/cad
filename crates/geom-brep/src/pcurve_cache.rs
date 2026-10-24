@@ -178,7 +178,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::{KnotVector, SpanLocate, SplineError};
+use geom_core::spline::{KnotVector, SpanLocate, SplineError, constant_weight};
 use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
@@ -7657,23 +7657,24 @@ fn run_iso_arc_checks<T: Decide>(
             "an arc rim whose chart column weights are not the arc pattern",
         ));
     }
-    // The pattern is `c, c·w, c, …, c` for one positive scale `c`: the
-    // scale cancels out of the rational basis, so the column is the
+    // The pattern is `c, c·w, c, …, c` for one positive scale `c`: one
+    // scale leaves the rational basis unchanged, so the column is the
     // arc `1, w, 1, …`, and `Ĉ` below, built at unit end weight, shares
-    // its basis. It is read on the weights' value channel, and its
-    // equalities to the two weights `w₀` and `w₁` are value identities,
-    // decided here at the witness only
+    // its basis. Each half of the pattern is one constant, compared on
+    // the bits as every constancy is (`constant_weight`). It reads the
+    // weights' VALUE channel, not their plain constants: a held arc's
+    // interior weight is `cos(h/2)` in the scalar, no plain constant at
+    // `Sym`, and the pattern's equalities are value identities decided
+    // at the witness only
     // (`work/intent/held-value-equalities-decided-on-the-value-channel.md`);
     // the margin below reads the column's held `w₁/w₀`.
-    let (end_w, half_w) = (bw[0], bw[1]);
-    for (i, w) in bw.iter().enumerate() {
-        let want = if i % 2 == 0 { end_w } else { half_w };
-        if *w != want {
-            return Err(bad(
-                "an arc rim whose chart column weights are not `c, c·w, c, …` with ONE \
-                 interior ratio — the uniform sub-arc construction",
-            ));
-        }
+    let ends: Vec<f64> = bw.iter().step_by(2).copied().collect();
+    let interior: Vec<f64> = bw.iter().skip(1).step_by(2).copied().collect();
+    if constant_weight(&ends).is_none() || constant_weight(&interior).is_none() {
+        return Err(bad(
+            "an arc rim whose chart column weights are not `c, c·w, c, …` with ONE \
+             interior ratio — the uniform sub-arc construction",
+        ));
     }
     // --- The one decided margin: `w = cos(h/2)`. ---
     let ArcRimWeight {
@@ -8083,9 +8084,8 @@ fn seam_envelope<T: Decide>(
     //                 ≤ maxᵢ |bᵢ − M(ξᵢ)|   (the hull),
     // and sup |S(P(t)) − C(t)| ≤ slack_u + hull + the banded
     // domain-excursion fold — each term an inequality, no
-    // sampling. A RATIONAL column refuses typed: linear
-    // precision is a polynomial-basis fact, and a constant weight
-    // cancels to that basis.
+    // sampling. A RATIONAL column (`constant_weight` answers `None`)
+    // refuses typed: linear precision is a polynomial-basis fact.
     if let Curve3::Line { origin, dir } = carrier {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
@@ -8206,15 +8206,12 @@ fn seam_envelope<T: Decide>(
     // rebuilt in `f64` is not that space); and the weights, read
     // the same way, either bitwise (a boundary row's, or a collapsed
     // row's with the net's weights constant along `u`) or both
-    // constant (a collapsed row wrapped polynomial, whose carrier's
-    // constant cancels the same way).
+    // constant (`constant_weight`: each is its own polynomial).
     let row_weights: Vec<f64> = if backward {
         b.weights_f64_interim().iter().rev().copied().collect()
     } else {
         b.weights_f64_interim().to_vec()
     };
-    // Two constant vectors share the space whatever the two constants
-    // are: each cancels out of its own rational basis.
     let shared_weights = row_weights == c.weights_f64_interim()
         || (b.constant_weight().is_some() && c.constant_weight().is_some());
     let shared_knots = if backward {
@@ -12115,8 +12112,8 @@ mod tests {
     }
 
     /// The rational gate asks constancy, typed: a column whose two
-    /// weights are one constant `2` is the polynomial ruling (the
-    /// constant cancels out of the rational basis) and certifies with
+    /// weights are one constant `2` is the polynomial ruling and
+    /// certifies with
     /// the unit column's envelope, to the bit; a column whose weights
     /// differ by one ulp is outside the Greville hull's linear-precision
     /// hypothesis and refuses naming that. The ulp keeps the column's

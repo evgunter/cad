@@ -2983,15 +2983,15 @@ pub(crate) mod tests {
 
     /// **A uniform weight is the integral arm's** (the
     /// `planar_bilinear_bounds_collapse` class): a bilinear patch with
-    /// UNIFORM weight `1/2` is the polynomial bilinear on its net (a
-    /// constant weight cancels out of the rational basis), so it takes
+    /// UNIFORM weight (`1/2`, `3`, `0.1`) is the polynomial bilinear on
+    /// its net (`NurbsSurface::constant_weight`), so it takes
     /// the integral arm and its bound is the unit-weight patch's to the
     /// bit. On the flat net with zero twist every second-partial sup is
     /// the exact zero; on the twisted net (`z` lifted at one corner) the
     /// pair agreeing is what goes red where a uniform weight is read as
     /// rational, whose arm bounds the same patch through the quotient.
     #[test]
-    fn rational_uniform_weight_bilinear_dust() {
+    fn a_uniform_weight_bilinear_bounds_as_its_unit_twin() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let net = |z: f64| {
             vec![
@@ -3007,12 +3007,15 @@ pub(crate) mod tests {
         };
         let bits = |b: &NurbsFaceBound| [b.muu, b.muv, b.mvv, b.mu1, b.mv1].map(f64::to_bits);
         for z in [0.0, 0.7] {
-            let (b, unit) = (bound(z, 0.5), bound(z, 1.0));
-            assert_eq!(
-                bits(&b),
-                bits(&unit),
-                "z = {z}: weight 1/2 ({b:?}) is not the unit-weight patch's bound ({unit:?})"
-            );
+            let unit = bound(z, 1.0);
+            for c in [0.5, 3.0, 0.1] {
+                let b = bound(z, c);
+                assert_eq!(
+                    bits(&b),
+                    bits(&unit),
+                    "z = {z}: weight {c} ({b:?}) is not the unit-weight patch's bound ({unit:?})"
+                );
+            }
         }
         let b = bound(0.0, 0.5);
         assert!(

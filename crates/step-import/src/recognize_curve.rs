@@ -83,7 +83,7 @@
 //!   `C(t)` against its description pointwise, so a promotion that
 //!   kept the locus but re-timed the interior would strand the edge
 //!   at adoption (measured: a nonuniform loft's straight seam, whose
-//!   affine `Line` no iso image can reproduce). With unit weights the
+//!   affine `Line` no iso image can reproduce). With one constant weight the
 //!   polynomial basis reproduces affine functions of the parameter on
 //!   the Greville abscissae `ξᵢ` (linear precision), so with `ℓ` the
 //!   affine map taking the knot domain onto the chord,
@@ -348,6 +348,11 @@ fn try_line(curve: &NurbsCurve3<f64>, eps_in: f64) -> Option<(Curve3<f64>, f64)>
             return None;
         }
         hull = hull.max(dev);
+    }
+    // `f64::max` drops a NaN, so a refused composite refuses here,
+    // before the fold could read it as a zero.
+    if delta_line.is_nan() {
+        return None;
     }
     let residual = delta_line.max(hull);
     if !(residual <= eps_in) {
@@ -1111,12 +1116,20 @@ mod tests {
     /// ([1, ½, 1]). The gate is the hypothesis of the Greville hull,
     /// not a residual: without it the hull reads 0 for both (their
     /// CONTROLS sit at the affine positions where the rational CURVE
-    /// does not) and they would promote unsoundly. A CONSTANT weight
-    /// ([2, 2, 2]) is the exact affine chord (the constant cancels out
-    /// of the rational basis), so it promotes to the unit carrier's
-    /// line with its residual, to the bit.
+    /// does not) and they would promote unsoundly.
+    ///
+    /// A CONSTANT weight is the exact affine chord
+    /// (`NurbsCurve3::constant_weight`), so it promotes to the unit
+    /// carrier's line. At `2` the residual is the unit carrier's to the
+    /// bit (a power of two scales the composite exactly). At `3` and
+    /// `0.1` the line is the same to the bit, but the residual is not:
+    /// it is the square root of the zero-radius composite's rounding
+    /// width, which the weight's bits enter (`3.44e-8` at `1`, `1.16e-7`
+    /// at `0.1`), so it is pinned inside the budget only. At `1e-300`
+    /// the composite's weight powers underflow and it refuses, and the
+    /// carrier stays NURBS rather than reading the refusal as a zero.
     #[test]
-    fn a_rational_straight_carrier_refuses_the_map_certificate() {
+    fn a_varying_weight_straight_carrier_refuses_and_a_constant_one_promotes() {
         let carrier = |w1: f64, w: f64| {
             let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
             NurbsCurve3::new(
@@ -1145,12 +1158,34 @@ mod tests {
                     curve: Curve3::Line { origin, dir },
                     residual,
                     ..
-                } => {
-                    [origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, residual].map(f64::to_bits)
-                }
+                } => (
+                    [origin.x, origin.y, origin.z, dir.x, dir.y, dir.z].map(f64::to_bits),
+                    residual,
+                ),
                 other => panic!("weights [{w}; 3] at ε = {eps:e} must promote: {other:?}"),
             };
-            assert_eq!(line(2.0), line(1.0), "weights [2; 3] at ε = {eps:e}");
+            let unit = line(1.0);
+            let twos = line(2.0);
+            assert_eq!(
+                (twos.0, twos.1.to_bits()),
+                (unit.0, unit.1.to_bits()),
+                "weights [2; 3] at ε = {eps:e}"
+            );
+            for c in [3.0, 0.1] {
+                let (got, residual) = line(c);
+                assert_eq!(got, unit.0, "weights [{c}; 3] at ε = {eps:e}: the line");
+                assert!(
+                    residual <= eps,
+                    "weights [{c}; 3] at ε = {eps:e}: residual {residual:e}"
+                );
+            }
+            assert!(
+                matches!(
+                    recognize(&carrier(1e-300, 1e-300), eps),
+                    CurveRecognition::StaysNurbs
+                ),
+                "weights [1e-300; 3] at ε = {eps:e}: a refused composite is no zero"
+            );
         }
     }
 

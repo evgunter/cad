@@ -229,8 +229,8 @@ fn a_seam_column_certifies_on_a_non_unit_chart() {
 }
 
 /// **The arc pattern is a ratio, not an end weight of `1`.** The same
-/// wall with every weight scaled by `2` is the same surface (one scale
-/// cancels out of the rational basis), its column `2, 1, 2, …`, and
+/// wall with every weight scaled by `2` is the same surface, its column
+/// `2, 1, 2, …`, and
 /// certifies with the unit wall's envelope to the bit; scaled by `3`
 /// (`3, 1.5, 3, …`, whose ratio is still exactly `1/2`) it certifies
 /// too. A column with one even row's weight an ulp off the end weight

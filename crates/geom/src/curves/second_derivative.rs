@@ -25,8 +25,7 @@ use crate::curves::NurbsCurve3;
 /// refusal is only as good as the reason it can quote. Rational curves
 /// are NOT this door's: their `C″ = M/W³` is the quotient statement's
 /// ([`crate::NurbsCurve3::accel_upper_bound`]), so weights that are not
-/// one constant refuse here ([`NurbsCurve3::constant_weight`]: a
-/// constant cancels, and the control net is the polynomial's).
+/// one constant refuse here ([`NurbsCurve3::constant_weight`]).
 ///
 /// # Errors
 ///
@@ -102,8 +101,8 @@ mod tests {
     use geom_core::spline::KnotVector;
 
     /// **A constant weight is this door's**: the cubic with every weight
-    /// `2` is the polynomial on its net, and its bound is the
-    /// unit-weight curve's to the bit (the hull reads the control net
+    /// `2`, `0.5`, `3` or `0.1` is the polynomial on its net, and its
+    /// bound is the unit-weight curve's to the bit (the hull reads the control net
     /// alone); a varying weight vector refuses as rational.
     #[test]
     fn a_constant_weight_bounds_as_its_polynomial_and_a_varying_one_refuses() {
@@ -123,8 +122,13 @@ mod tests {
             nonrational_second_derivative_sup(&curve)
         };
         let unit = sup(vec![1.0; 5]).unwrap();
-        assert_eq!(sup(vec![2.0; 5]).unwrap().to_bits(), unit.to_bits());
-        assert_eq!(sup(vec![0.5; 5]).unwrap().to_bits(), unit.to_bits());
+        for c in [2.0, 0.5, 3.0, 0.1] {
+            assert_eq!(
+                sup(vec![c; 5]).unwrap().to_bits(),
+                unit.to_bits(),
+                "weights {c}"
+            );
+        }
         assert_eq!(
             sup(vec![1.0, 1.0, 2.0, 1.0, 1.0]),
             Err(SecondDerivativeUnbounded::Rational)
