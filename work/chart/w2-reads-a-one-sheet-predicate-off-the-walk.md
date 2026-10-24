@@ -2,7 +2,8 @@
 id: w2-reads-a-one-sheet-predicate-off-the-walk
 kind: unit
 title: W2 reads its own predicate off the loop walk (every loop's winding the identity, no singular interior joint) instead of chart_boundary(..).is_ok(); the cone-apex clause folds in and the sphere pole gets its twin
-status: open
+status: review
+pr: 5657
 opened: 2026-10-24
 priority: P1
 cost: M
