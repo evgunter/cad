@@ -72,6 +72,8 @@ mod mate7a_r2_probes;
 mod mcchain;
 mod mcplate;
 mod oracles;
+#[cfg(test)]
+mod patch_quadrature;
 mod plate;
 #[cfg(feature = "probe")]
 mod probe;

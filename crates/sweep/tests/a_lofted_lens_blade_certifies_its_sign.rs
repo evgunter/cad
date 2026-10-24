@@ -106,7 +106,10 @@ fn round_tube(tol: Tol) -> topo::Body<f64> {
 /// The blade certifies: tier 3 admits it on a positive enclosure, the
 /// reporting door measures it at the default ε and looser, and the
 /// number sits in the gate's bracket. At ε = 1e-9:
-/// `0.034605949150085524 ± 4.64e-7` m³.
+/// `0.03460594915008527 ± 4.64e-7` m³, which holds the body's volume
+/// as an independent quadrature of its two walls measures it (its own
+/// rational de Boor and Gauss–Legendre per knot span, about a point on
+/// both caps' planes), `0.0346059453481`.
 #[test]
 fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
     let tol = Tol::witness();
@@ -135,8 +138,8 @@ fn a_lofted_lens_blade_certifies_its_sign_and_its_number() {
                 assert_eq!(
                     (measured.volume.to_bits(), measured.volume_pad.to_bits()),
                     (
-                        0.034_605_949_150_085_524_f64.to_bits(),
-                        4.641_116_114_016_224e-7_f64.to_bits()
+                        0.034_605_949_150_085_27_f64.to_bits(),
+                        4.641_116_041_851_727e-7_f64.to_bits()
                     ),
                     "the blade's bits at the default ε: {measured:?}"
                 );
