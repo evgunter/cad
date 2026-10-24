@@ -494,6 +494,13 @@ pub enum PcurveMintError {
     /// not periodic within its own outer — the premise every ring lift
     /// rests on (`chart_bound::RING_SHIFTS`).
     OuterSpansPeriod,
+    /// The outer loop's span against the chart's period could not be
+    /// measured: its margin is poisoned. Refused, because a face that
+    /// describes licenses W2's premise.
+    OuterSpanPoisoned {
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
     /// A loop's chart walk closed only by a whole period of the chart
     /// (or, on a sphere chart, through the involution): the walk is a
     /// LIFT, not a closed chart polygon, so it bounds no chart region
@@ -700,6 +707,12 @@ impl PcurveMintError {
                 "the outer loop spans more than one period of its chart, so the face wraps \
                  onto itself and has no description. Recourse: describe it as pieces within \
                  one period (a revolve's angle headroom holds this)"
+            ),
+            Self::OuterSpanPoisoned { cause } => write!(
+                f,
+                "the outer loop's span against its chart's period could not be measured \
+                 (its margin is poisoned), so the face has no description: {cause}. Recourse: \
+                 report the face and the operation that built it"
             ),
             Self::LoopWraps { face, r#loop: lp } => write!(
                 f,
@@ -4984,14 +4997,11 @@ fn chart_edge<T: Decide>(
             } else {
                 PcurveMintError::UncertifiedImage { half_edge }
             })?;
-            let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
             Ok(ChartEdge::Envelope {
                 a,
                 b,
-                image: Point2::new(
-                    hull.u_min.enclosure_hull(hull.u_max),
-                    hull.v_min.enclosure_hull(hull.v_max),
-                ),
+                reach: walked.pcurve.chart_box(walked.t0, walked.t1),
+                image: None,
                 slack: cache.certificate().envelope,
             })
         }
@@ -5011,28 +5021,23 @@ fn chart_edge<T: Decide>(
         // the whole pieces the sub-range meets: looser than the image by
         // the pieces' overhang, and on `t9c_…`'s net still several times
         // tighter than eval's finite enclosure there.
-        Pcurve::Projected(_) => {
-            let hull = walked.pcurve.chart_box(walked.t0, walked.t1);
-            Ok(ChartEdge::Envelope {
-                a,
-                b,
-                image: Point2::new(
-                    hull.u_min.enclosure_hull(hull.u_max),
-                    hull.v_min.enclosure_hull(hull.v_max),
-                ),
-                slack: T::zero(),
-            })
-        }
+        Pcurve::Projected(_) => Ok(ChartEdge::Envelope {
+            a,
+            b,
+            reach: walked.pcurve.chart_box(walked.t0, walked.t1),
+            image: None,
+            slack: T::zero(),
+        }),
         // The closed-form image is exact in its family, so the slack is
-        // zero and the image's enclosure is the image evaluated over
-        // the span's enclosure — the interval natural extension, not
-        // `chart_box`. At a POINT scalar the span hull is poison, the
-        // enclosure is poison, and the outside test certifies nothing
-        // against it — which is the safe direction.
+        // zero, and it also stores the image evaluated over the span's
+        // enclosure (the interval natural extension) for the outside
+        // test. At a point scalar that enclosure is poison, and the
+        // outside test certifies nothing against it.
         _ => Ok(ChartEdge::Envelope {
             a,
             b,
-            image: walked.pcurve.eval(walked.t0.enclosure_hull(walked.t1)),
+            reach: walked.pcurve.chart_box(walked.t0, walked.t1),
+            image: Some(walked.pcurve.eval(walked.t0.enclosure_hull(walked.t1))),
             slack: T::zero(),
         }),
     }
@@ -6899,6 +6904,12 @@ mod recourse_tests {
                 half_edge: HalfEdgeKey::default(),
             },
             PcurveMintError::OuterSpansPeriod,
+            PcurveMintError::OuterSpanPoisoned {
+                cause: Indeterminate {
+                    margin: MarginDiag::INVALID,
+                    ..cause
+                },
+            },
             PcurveMintError::LoopWraps {
                 face: FaceKey::default(),
                 r#loop: LoopKey::default(),
@@ -6924,7 +6935,7 @@ mod recourse_tests {
                 face: FaceKey::default(),
             },
         ];
-        assert_eq!(arms.len(), 17, "an arm was added without a row here");
+        assert_eq!(arms.len(), 18, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             match arm {
