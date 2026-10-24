@@ -217,49 +217,38 @@
 //!    scene used before the spout bent. The same cancellation runs
 //!    over the lateral area, where `∮(1 − κ r cosθ) dθ = 2π`.
 //!
-//!    So the closed form survives the bend, and what the comparison
-//!    can then measure is the LOFT FIT: a cubic skin through
-//!    [`SPOUT_STATIONS`] stations against the swept tube it
-//!    interpolates. The skin's volume sits 2.10e-6 above the frustum's,
-//!    relative, and its area 2.2e-5 above it.
+//!    So the closed form survives the bend, but it is the closed form
+//!    of the swept tube, and the body is a cubic skin through
+//!    [`SPOUT_STATIONS`] stations that INTERPOLATES that tube. **On the
+//!    volume the two differ by the LOFT FIT, 2.1e-6 of it**, inside the
+//!    cubic's own error scale `2·(5/384)·Δ⁴` = 7.6e-6 at the stations'
+//!    angular step `Δ`. On the area they differ by 2.2e-5, which is not
+//!    a fit measurement, and the scene reports it rather than gating it.
 //!
-//!    **The sections are ROUND, so the walls are QUADRATURE faces.** A
+//!    **So the scene keeps two references apart.** The skin's OWN
+//!    volume and area, integrated over the body's own surfaces by a
+//!    dense Gauss–Legendre rule (`patch_quadrature`), are what the
+//!    kernel's certified enclosure must hold. The frustum is held to
+//!    that reference at the fit's scale. The fit's miss is some
+//!    fourteen thousand of the enclosure's half-widths at ε = 1e-12, so
+//!    an enclosure asked to hold the frustum is asked to hold the wrong
+//!    body.
+//!
+//!    **The sections are ROUND, so the volume is an ENCLOSURE.** A
 //!    circle is RATIONAL, so these lateral walls are rational patches,
-//!    and a rational patch's volume and area come back as a certified
-//!    ENCLOSURE chased to a reporting target derived from ε, where
-//!    every analytic body on this page publishes a pad of exactly 0.
-//!    The enclosure belongs to the fitted body, not to the frustum: at
-//!    ε = 1e-12 the volume's half-width is 8.1e-12 m³, some fourteen
-//!    times narrower than the fit's gap. So the scene holds the bracket
-//!    to the BODY's own volume and area, [`SPOUT_V`] and [`SPOUT_A`],
-//!    from an independent quadrature of its patches, and reports the
-//!    frustum's gap beside it.
-//!
-//!    **Tier 3 admits the body on the enclosure's SIGN**, which it
-//!    decides before the chase reaches the reporting target — the
-//!    tier's own docs say deciding that sign "is an act of
-//!    certification rather than a measurement". So where the chase
-//!    stops short of the target, the body is still certified, and the
-//!    spout's probe measures through the same door — the certificate
-//!    tier 3 hands back, continued by `measure` — reporting the
-//!    narrowest bracket the certificate or its continuation held, and
-//!    holding the body's volume to it.
-//!
-//!    This scene was briefly re-authored with OCTAGONAL sections,
-//!    which had a volume number at every ε: a polygon's sides are
-//!    straight, so its walls are polynomial and take the integral
-//!    lane's exact per-span rule. That is reverted. The shape a potter
-//!    draws is round, and a demo bent around the kernel's reporting
-//!    floor hides the floor —
-//!    `memories/demo-purpose.md` says awkwardness is a LIBRARY
-//!    FINDING, never hidden. What the octagon bought is kept as
-//!    knowledge and stated where it belongs: the integral lane has an
-//!    exact per-span rule the rational lane has none of, which is why
-//!    `twisted_tube` next door can be a loft and a solid at every ε.
-//!
-//!    So what the comparison measures is the BRACKET: the body's own
-//!    volume and area inside the kernel's certified enclosure, which
-//!    self-calibrates with ε, and the frustum's gap as the fit's.
+//!    and a rational patch is a QUADRATURE face whose certified
+//!    enclosure is chased to a reporting target derived from ε. Every
+//!    ε the tour runs meets that target: at ε = 1e-12 the volume's
+//!    half-width is 8.1e-12 m³. Where a tighter ε refuses
+//!    `QuadratureBudget`, tier 3 still certifies the body on the
+//!    enclosure's SIGN — the tier's own docs say deciding that sign "is
+//!    an act of certification rather than a measurement" — and the
+//!    scene measures through the certificate the tier hands back, so it
+//!    holds the skin's reference to the narrowest bracket the
+//!    certificate or its continuation kept. A polygon's sides are
+//!    straight, so octagonal sections would make polynomial walls with
+//!    the integral lane's exact per-span rule, the one `twisted_tube`
+//!    next door takes; the shape a potter draws is round.
 //!
 //! # What this scene deliberately does NOT do
 //!
@@ -390,22 +379,6 @@ const SPOUT_R1: f64 = 3.0 / 256.0;
 /// constant absolute thickness would move the centroid off the spine
 /// as the section shrank, and the closed form would go with it.
 const SPOUT_BORE: f64 = 3.0 / 4.0;
-
-/// The spout BODY's volume (m³) and area (m²): the fitted skin's own,
-/// not the straightened frustum's, as an independent quadrature of its
-/// patches measures them
-/// (`spout_oracle::the_spout_bodys_own_quadrature_is_the_pinned_oracle`
-/// re-derives both from the body on every test run). The kernel's
-/// certified bracket is held to these at every ε.
-const SPOUT_V: f64 = 5.505_264_881_074_554e-5;
-const SPOUT_A: f64 = 0.025_190_601_787_085;
-
-/// How far the fitted skin's volume sits from the straightened
-/// frustum's, relative: a cubic skin through [`SPOUT_STATIONS`]
-/// stations bulges past the swept tube between them, so the body is
-/// LARGER, measured `2.10e-6`. The cap stands at five times that.
-#[cfg(test)]
-const SPOUT_FIT_GAP: f64 = 1e-5;
 /// How many sections the spout's skin is fitted through.
 const SPOUT_STATIONS: usize = 7;
 // The stop's `ops` line is a `&'static str` and spells this count.
@@ -420,27 +393,15 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`,
 /// and `CircleSplit(4)` is the door through it.
 ///
-/// **The sections are ROUND, so the walls are QUADRATURE faces.** A
-/// circle is RATIONAL, so these lateral walls are rational patches,
-/// and a rational patch's certified enclosure is chased to
-/// `QUAD_TARGET_LEN_FACTOR·ε`. The body measures at every ε row, and
-/// the scene holds that enclosure to the body's own [`SPOUT_V`] and
-/// [`SPOUT_A`].
-///
-/// **Tier 3 certifies the body on the enclosure's SIGN**, which it can
-/// decide short of the reporting target — the tier's own docs say
-/// deciding that sign "is an act of certification rather than a
-/// measurement". So a chase that stops short of the target costs a
-/// number and not a certificate, and the tour's ribbon reports the
-/// certified bracket rather than dying on it.
-///
-/// This scene was briefly re-authored with OCTAGONAL sections to get
-/// a number at every ε, and that worked — a polygon's sides are
-/// straight, so its walls are polynomial and take the integral lane's
-/// exact per-span rule. It is reverted here because the shape a potter
-/// draws is round, and because a demo bent around the kernel's
-/// reporting floor hides the floor. `memories/demo-purpose.md` is the
-/// rule: awkwardness is a LIBRARY FINDING, never hidden.
+/// **The sections are ROUND, so this body's volume is an ENCLOSURE.**
+/// A circle is RATIONAL, so these lateral walls are rational patches,
+/// and a rational patch is a QUADRATURE face whose certified enclosure
+/// is chased to `QUAD_TARGET_LEN_FACTOR·ε`. Every ε the tour runs meets
+/// that target, and the scene holds the enclosure to the skin's own
+/// integrated volume (`patch_quadrature`). Where a tighter ε refuses
+/// `QuadratureBudget`, tier 3 still certifies the body on the
+/// enclosure's SIGN, and the scene holds the same reference to the
+/// bracket the certificate keeps.
 const SPOUT_ARCS: u32 = 4;
 /// **The spout's total bend**, root tangent to tip tangent: half a
 /// right angle. The canal leaves the belly on [`SPOUT_DIR`] and
@@ -1304,6 +1265,99 @@ fn annulus(ro: f64, ri: f64) -> f64 {
     PI * (ro * ro - ri * ri)
 }
 
+/// The `n`-point Gauss–Legendre rule on `[-1, 1]`, as `(node, weight)`:
+/// Newton on the three-term recurrence from Tricomi's initial guess.
+fn gauss_legendre(n: usize) -> Vec<(f64, f64)> {
+    let nf = n as f64;
+    (1..=n)
+        .map(|k| {
+            let mut x = (PI * (k as f64 - 0.25) / (nf + 0.5)).cos();
+            let mut dp = 0.0;
+            for _ in 0..100 {
+                let (mut p0, mut p1) = (1.0, x);
+                for j in 2..=n {
+                    let jf = j as f64;
+                    (p0, p1) = (p1, ((2.0 * jf - 1.0) * x * p1 - (jf - 1.0) * p0) / jf);
+                }
+                dp = nf * (x * p1 - p0) / (x * x - 1.0);
+                let dx = p1 / dp;
+                x -= dx;
+                if dx.abs() <= 1e-16 {
+                    break;
+                }
+            }
+            (x, 2.0 / ((1.0 - x * x) * dp * dp))
+        })
+        .collect()
+}
+
+/// **The volume of a body whose faces are two planes and any number of
+/// NURBS patches, and the area of its patches**, integrated over the
+/// body's OWN surfaces with an `order`-point Gauss–Legendre rule on
+/// every knot span: the reference a fitted skin has where it has no
+/// closed form.
+///
+/// The volume is the divergence theorem, `V = ⅓ ∮ (x − p)·n dA`, with
+/// `p` a point on BOTH planes: `(x − p)·n` vanishes on each, so the
+/// caps contribute nothing and only the patches are integrated. Every
+/// span of a patch is a smooth rational piece, where the rule converges
+/// geometrically in `order`.
+fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
+    let rule = gauss_legendre(order);
+    let planes: Vec<(Point3<f64>, Vec3<f64>)> = body
+        .faces()
+        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
+            _ => None,
+        })
+        .collect();
+    let [(o1, n1), (o2, n2)] = planes[..] else {
+        panic!("a quadrature over two caps, got {} planes", planes.len())
+    };
+    // The point of the two planes' common line nearest the origin.
+    let (c, d1, d2) = (
+        n1.dot(n2),
+        n1.dot(o1 - Point3::origin()),
+        n2.dot(o2 - Point3::origin()),
+    );
+    let p = Point3::origin()
+        + n1 * ((d1 - c * d2) / (1.0 - c * c))
+        + n2 * ((d2 - c * d1) / (1.0 - c * c));
+    let breaks = |knots: &[f64]| {
+        let mut b = knots.to_vec();
+        b.dedup();
+        b
+    };
+    let (mut flux, mut area) = (0.0, 0.0);
+    for (_, f) in body.faces() {
+        let n = match body.get_surface(f.surface) {
+            Some(Surface::Plane { .. }) => continue,
+            Some(Surface::Nurbs(n)) => n,
+            other => panic!("a quadrature over planes and NURBS, got {other:?}"),
+        };
+        let sense = if f.sense { 1.0 } else { -1.0 };
+        let (bu, bv) = (
+            breaks(n.knot_values_u().values()),
+            breaks(n.knot_values_v().values()),
+        );
+        for u in bu.windows(2) {
+            for v in bv.windows(2) {
+                let (hu, hv) = (0.5 * (u[1] - u[0]), 0.5 * (v[1] - v[0]));
+                for &(xu, wu) in &rule {
+                    for &(xv, wv) in &rule {
+                        let jet = n.ders(u[0] + hu * (1.0 + xu), v[0] + hv * (1.0 + xv));
+                        let normal = jet.du.cross(jet.dv) * sense;
+                        let w = wu * wv * hu * hv;
+                        flux += w * (jet.point - p).dot(normal);
+                        area += w * normal.norm();
+                    }
+                }
+            }
+        }
+    }
+    (flux / 3.0, area)
+}
+
 /// The station where the foot cylinder meets the belly sphere, at
 /// inward offset `d`: the sphere shrinks concentrically and the
 /// cylinder shrinks radially, so their meeting slides ALONG the
@@ -2107,8 +2161,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (sin_t, cos_t) = spout_turn().sin_cos();
     let spout = body_at(&ev, r.spout);
 
-    // **The closed form a BENT tube still has, and what it costs to
-    // ask for it on a fitted skin.**
+    // **Two references, and only one of them is this body's.**
     //
     // There is no elementary volume for a cubic skin through seven
     // annuli. There IS one for the thing that skin approximates, and
@@ -2118,15 +2171,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // `(1 − κ·x) dA ds` with `x` toward the curvature centre, and
     // `∫x dA` over a centred section is zero — so the curvature term
     // integrates away and what is left is `∫A ds`, the STRAIGHTENED
-    // tube's volume. The same cancellation runs over the lateral area,
-    // where `∮(1 − κ r cosθ) dθ = 2π`. So the closed form is the straight
-    // frustum, said in the canal's own three numbers: outer radii
-    // `R0 → R1`, a bore that is `SPOUT_BORE` of each, and the SPINE
-    // LENGTH as the height.
-    //
-    // The sections are circles, so the frustum forms this scene
-    // already uses for its lid stand unchanged, with the bore's
-    // FRACTION doing the hollowing.
+    // tube's volume. So the closed form is the straight frustum, said
+    // in the canal's own three numbers: outer radii `R0 → R1`, a bore
+    // that is `SPOUT_BORE` of each, and the SPINE LENGTH as the height.
     let bore = SPOUT_BORE;
     let v_spout = (1.0 - bore * bore) * frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN);
     let a_spout = frustum_lateral(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
@@ -2134,61 +2181,65 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         + annulus(SPOUT_R0, bore * SPOUT_R0)
         + annulus(SPOUT_R1, bore * SPOUT_R1);
 
-    // **AND HERE IS WHAT THIS SCENE NOW EXHIBITS RATHER THAN AVOIDS.**
-    //
+    // The skin's OWN volume is what a certified enclosure of this body
+    // must hold, and the frustum is not it: the two differ by the LOFT
+    // FIT. So the skin's reference is integrated over its own surfaces
+    // ([`patch_quadrature`]) at two orders, and their difference is the
+    // reference's error estimate. The caps are the authored annuli.
+    let (v_lo, a_lo) = patch_quadrature(&spout, 12);
+    let (v_skin, a_walls) = patch_quadrature(&spout, 24);
+    let a_skin = a_walls + annulus(SPOUT_R0, bore * SPOUT_R0) + annulus(SPOUT_R1, bore * SPOUT_R1);
+    let (v_err, a_err) = ((v_skin - v_lo).abs(), (a_walls - a_lo).abs());
+
+    // **The frustum is held to the skin at the FIT's scale.** A cubic
+    // spline through stations `Δ` apart in the bend's angle misses a
+    // smooth curve by `(5/384)·Δ⁴` of its own scale, and a section's
+    // area is quadratic in its scale, so the volume misses by about
+    // twice that. That is a property of the geometry, and holds at
+    // every ε.
+    let fit_step = SPOUT_BEND / (SPOUT_STATIONS - 1) as f64;
+    let fit_scale = 2.0 * (5.0 / 384.0) * fit_step.powi(4);
+    let v_fit = ((v_skin - v_spout) / v_spout).abs();
+    assert!(
+        v_fit <= fit_scale,
+        "the skin's V = {v_skin} misses the straightened frustum's {v_spout} by {v_fit:e} of \
+         it, past the cubic fit's scale {fit_scale:e}"
+    );
+    let a_fit = ((a_skin - a_spout) / a_spout).abs();
+
     // These walls are RATIONAL — [`SPOUT_ARCS`] carries why, and why
     // that is the honest authoring — so they are QUADRATURE faces.
     // `mass_properties` publishes a certified ENCLOSURE rather than a
     // number, where every analytic body on this page publishes a pad
-    // of exactly 0. That enclosure is chased to a REPORTING target
-    // derived from ε, and it encloses the FITTED body: at ε = 1e-12 it
-    // is fourteen times narrower than the skin's gap to the frustum.
-    // So the oracle it is held to is the body's own volume and area,
-    // [`SPOUT_V`] and [`SPOUT_A`], and the frustum's gap is reported
-    // beside it as the fit's.
-    //
-    // Tier 3 admits the body on the SIGN of this enclosure, which it
-    // can decide short of the reporting target, so a chase that stops
-    // short is a missing NUMBER and not a missing certificate.
-    //
-    // So the scene measures THROUGH that certificate: the gate hands
-    // it back, and `measure` continues it to the reporting target. On
-    // the budget refusal, the answer carries the narrowest bracket the
-    // certificate or its continuation held, and the probe reports it;
-    // any other refusal is a body with no volume at all, and stays
-    // fail-loud.
-    //
-    // What is asserted is the bracket either way: the body's own
-    // volume lies inside the kernel's certified enclosure — the
-    // reporting-target one where the target is met, and the narrowest
-    // bracket the certificate or its continuation held where it is
-    // not. That claim self-calibrates with ε: a looser tolerance buys
-    // a wider bracket, and the claim stays exactly as strong as the
-    // certificate.
+    // of exactly 0, and that enclosure is chased to a REPORTING target
+    // derived from ε. The scene measures through the certificate tier
+    // 3 hands back, continued by `measure`. Where the target is met
+    // the enclosure must hold the skin's own reference; where it is
+    // refused on budget, the narrowest bracket the certificate or its
+    // continuation held must; any other refusal is a body with no
+    // volume at all, and stays fail-loud.
     let spout_certificate = pncad::topo::validate_geometric_certificate(&spout, tol)
         .unwrap_or_else(|e| panic!("the spout's tier 3 refused: {e:?}"));
     let spout_gated = spout_certificate.enclosure();
     let spout_measured = spout_certificate.measure();
     let spout_reading = match spout_measured {
         Ok(p) => {
-            let v_off = (p.volume - SPOUT_V).abs();
-            let a_off = (p.surface_area - SPOUT_A).abs();
+            let v_gap = (p.volume - v_skin).abs();
+            let a_gap = (p.surface_area - a_skin).abs();
             assert!(
-                v_off <= p.volume_pad,
-                "the canal's V = {} vs the body's own {SPOUT_V}: they differ by {v_off:e} \
-                 m^3, OUTSIDE the certified enclosure's own half-width {:e}",
+                v_gap <= p.volume_pad + v_err,
+                "the canal's V = {} vs its own skin's {v_skin} (± {v_err:e}): they differ by \
+                 {v_gap:e} m^3, OUTSIDE the certified enclosure's own half-width {:e}",
                 p.volume,
                 p.volume_pad
             );
             assert!(
-                a_off <= p.area_pad,
-                "the canal's A = {} vs the body's own {SPOUT_A}: they differ by {a_off:e} \
-                 m^2, OUTSIDE the certified enclosure's own half-width {:e}",
+                a_gap <= p.area_pad + a_err,
+                "the canal's A = {} vs its own skin's {a_skin} (± {a_err:e}): they differ by \
+                 {a_gap:e} m^2, OUTSIDE the certified enclosure's own half-width {:e}",
                 p.surface_area,
                 p.area_pad
             );
-            let v_gap = (p.volume - v_spout) / v_spout;
-            let a_gap = (p.surface_area - a_spout) / a_spout;
             // The pads are not vacuous, and saying so is what makes
             // the bracket a test: an analytic body publishes 0, so a
             // bracket claim on THIS body is a claim only because these
@@ -2200,11 +2251,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 p.area_pad
             );
             format!(
-                "V = {:.9} m^3, a half-width of {:e}, holding the body's own {SPOUT_V:.9} \
-                 ({v_off:e} off), and {v_gap:.2e} relative off the straightened frustum's \
-                 {v_spout:.9}; A = {:.9}, a half-width of {:e}, holding the body's own \
-                 {SPOUT_A:.9} ({a_off:e} off), and {a_gap:.2e} relative off the frustum's \
-                 {a_spout:.9}",
+                "V = {:.9} m^3 against the skin's own {v_skin:.9} — inside the kernel's \
+                 own certified enclosure, {v_gap:.1e} against a half-width of {:.1e}; A = {:.9} \
+                 against {a_skin:.9}, {a_gap:.1e} against {:.1e}. The straightened frustum's \
+                 V = {v_spout:.9} sits {v_fit:.1e} of itself off the skin's, which is the loft \
+                 FIT, inside the cubic's {fit_scale:.1e}; its A = {a_spout:.9} sits {a_fit:.1e} off",
                 p.volume, p.volume_pad, p.surface_area, p.area_pad
             )
         }
@@ -2227,25 +2278,22 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             );
             let half = 0.5 * (b.volume_hi - b.volume_lo);
             assert!(
-                b.volume_lo <= SPOUT_V && SPOUT_V <= b.volume_hi,
-                "the body's own V = {SPOUT_V} lies OUTSIDE the canal's certified bracket \
-                 [{}, {}]",
+                b.volume_lo <= v_skin - v_err && v_skin + v_err <= b.volume_hi,
+                "the skin's own V = {v_skin} (± {v_err:e}) lies OUTSIDE the canal's certified \
+                 bracket [{}, {}]",
                 b.volume_lo,
                 b.volume_hi
             );
             format!(
                 "mass properties REFUSED TYPED at this tolerance — {refusal} — so there is no \
-                 volume NUMBER to compare. These walls are RATIONAL, so they are QUADRATURE \
-                 faces whose enclosure is chased to a REPORTING width derived from eps, and \
-                 at a tight enough eps that chase stops at its work wall short of it. What \
-                 is missing is a number and not a certificate: tier 3 admitted this body at \
-                 this same eps on the SIGN of the enclosure, and the certificate it handed \
-                 back, continued as far as the schedule reaches, keeps a bracket through the \
-                 refusal — V in [{:.9}, {:.9}] m^3, whose \
-                 lower end clears zero by {:.1e} half-widths, and which holds the \
-                 body's own V = {SPOUT_V:.9} (the straightened frustum's is {v_spout:.9}). \
-                 The body's A = {SPOUT_A:.9} m^2 has no bracket to sit in here: the \
-                 certificate's area is the +V check's lever, not an enclosure",
+                 volume NUMBER to compare. What is missing is a number and not a certificate: \
+                 tier 3 admitted this body at this same eps on the SIGN of the enclosure, and \
+                 the certificate it handed back, continued as far as the schedule reaches, \
+                 keeps a bracket through the refusal — V in [{:.9}, {:.9}] m^3, whose lower \
+                 end clears zero by {:.1e} half-widths, and which holds the skin's own \
+                 V = {v_skin:.9}. The straightened frustum's V = {v_spout:.9} sits {v_fit:.1e} \
+                 of itself off the skin's, which is the loft FIT, inside the cubic's \
+                 {fit_scale:.1e}",
                 b.volume_lo,
                 b.volume_hi,
                 b.volume_lo / half,
@@ -2486,22 +2534,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              spine through the sections' own centres is VOLUME-NEUTRAL, because the \
              curvature term of the volume element weighs the section's first moment and \
              a centred section's is zero. The same cancellation runs over the lateral \
-             area. So the closed form is the STRAIGHTENED tube — outer radii R0 → R1, a bore \
-             {SPOUT_BORE} of each, the spine length as the height. That tube is what the \
-             skin APPROXIMATES, not the skin: the fitted body's own volume and area come \
-             from an independent quadrature of its patches, and THOSE are what the \
-             kernel's certified enclosure is held to, with the frustum's gap reported as \
-             the fit's: {spout_reading}. THE SECTIONS ARE ROUND, so these lateral walls \
-             are rational patches, and a rational patch is a QUADRATURE face whose \
-             enclosure is chased to a REPORTING target derived from eps. TIER 3 admits \
-             the body on the SIGN of that enclosure, which it can decide short of the \
-             target, so where the chase stops short the scene still certifies and the \
-             reading above reports the certificate's bracket instead of a number. An \
-             OCTAGONAL authoring had a number at every eps -- straight sides make \
-             polynomial walls, which take the integral lane's exact per-span rule, the \
-             same reason `twisted_tube` next door can be a loft and a solid at every eps \
-             -- and it is reverted, because the shape a potter draws is round and a demo \
-             bent around the kernel's reporting floor hides the floor. The handle checks by \
+             area. So the CLOSED FORM is the STRAIGHTENED tube — outer radii R0 → R1, a \
+             bore {SPOUT_BORE} of each, the spine length as the height — but the body is \
+             a cubic skin that INTERPOLATES that tube, and the two differ by the loft \
+             fit. So the canal is held, INSIDE THE KERNEL'S OWN CERTIFIED ENCLOSURE, to \
+             its own skin's volume integrated over its own surfaces, and the frustum is \
+             held to that at the fit's scale: {spout_reading}. THE SECTIONS ARE ROUND, SO \
+             THE VOLUME IS AN ENCLOSURE. A circle is RATIONAL, so these lateral walls are \
+             rational patches, and a rational patch is a QUADRATURE face whose enclosure \
+             is chased to a REPORTING target derived from eps; where a tight enough eps \
+             refuses that target on budget, tier 3 still certifies the body on the \
+             enclosure's SIGN, and the reading holds the skin's volume to the bracket the \
+             certificate keeps. The handle checks by \
              Pappus on its own disc. The document says a placement in AXIS-ANGLE and the \
              3-4-5 turn is not a binary-exact angle, so what that costs is MEASURED off \
              the PLACED BODY: the TIP cap, a whole spine-length off the turn's fixed \
@@ -2612,55 +2656,5 @@ mod wall_probes_run_here {
     fn every_teapot_wall_is_attempted_by_the_suite() {
         let (r, ev) = evaluated(Tol::witness());
         wall_probes(&ev, &r);
-    }
-}
-
-#[cfg(test)]
-mod spout_oracle {
-    //! The spout BODY's own volume and area, from an independent
-    //! quadrature of its patches ([`crate::patch_quadrature`]), against
-    //! the [`SPOUT_V`] and [`SPOUT_A`] the scene holds the kernel's
-    //! certified bracket to at every ε.
-
-    use super::*;
-
-    #[test]
-    fn the_spout_bodys_own_quadrature_is_the_pinned_oracle() {
-        let tol = Tol::witness();
-        let (r, ev) = evaluated(tol);
-        let spout = body_at(&ev, r.spout);
-        // The root cap faces SPOUT_DIR; the tip cap is the other one.
-        let cap = |_o: [f64; 3], n: [f64; 3]| {
-            let root = (n[0] * SPOUT_DIR.x + n[1] * SPOUT_DIR.y + n[2] * SPOUT_DIR.z).abs() > 0.999;
-            let outer = if root { SPOUT_R0 } else { SPOUT_R1 };
-            PI * outer * outer * (1.0 - SPOUT_BORE * SPOUT_BORE)
-        };
-        let about = [
-            [0.0; 3],
-            [SPOUT_ROOT.x + 0.3, SPOUT_ROOT.y - 0.2, SPOUT_ROOT.z + 0.5],
-        ];
-        let coarse = crate::patch_quadrature::measure(&spout, 24, &about, cap);
-        let fine = crate::patch_quadrature::measure(&spout, 32, &about, cap);
-        println!("spout oracle: coarse {coarse:?}, fine {fine:?}");
-        let rel = |a: f64, b: f64| (a - b).abs() / b.abs();
-        assert!(
-            rel(coarse.volume[0], fine.volume[0]) <= 1e-12
-                && rel(coarse.area, fine.area) <= 1e-12
-                && rel(fine.volume[0], fine.volume[1]) <= 1e-12,
-            "the oracle converges and its shell closes: {coarse:?} vs {fine:?}"
-        );
-        assert!(
-            rel(fine.volume[0], SPOUT_V) <= 1e-12 && rel(fine.area, SPOUT_A) <= 1e-12,
-            "the spout body measures V = {:e}, A = {:e} against the pinned {SPOUT_V:e}, {SPOUT_A:e}",
-            fine.volume[0],
-            fine.area
-        );
-        let v_frustum =
-            (1.0 - SPOUT_BORE * SPOUT_BORE) * frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN);
-        let gap = (fine.volume[0] - v_frustum) / v_frustum;
-        assert!(
-            0.0 < gap && gap <= SPOUT_FIT_GAP,
-            "the fitted skin sits {gap:.3e} off the straightened frustum's V = {v_frustum:e}"
-        );
     }
 }
