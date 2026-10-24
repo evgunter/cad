@@ -1,0 +1,29 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+use crate::fixture;
+use editor_core::{BodyRead, DocEdit, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId};
+use fixture::{len, on_frame, run, square};
+use geom_core::Tol;
+
+fn put(doc: ProfileDoc, node: editor_core::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, minted) = fixture::step(doc, DocEdit::InsertNode { node: Box::new(node), fresh: Vec::new() });
+    (doc, minted.unwrap())
+}
+fn block(doc: ProfileDoc, [x, y]: [f64; 2], half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![square(x, y, half)]);
+    put(doc, Node::Extrude { profile: profile.into(), distance: len(height) })
+}
+
+#[test]
+fn r1_main_list_placed_seat() {
+    let d = ProfileDoc::empty(DocumentId::derive("r1-placed-seat"), Tol::witness());
+    let (d, plate) = block(d, [0.0; 2], 1.0, 0.2);
+    let (d, bolt) = block(d, [0.0; 2], 0.2, 1.0);
+    let (d, bolt) = fixture::slid(d, plate, bolt, [0.0, 0.0, 0.2]);
+    let (d, _placed) = put(d, fixture::stood(vec![BodyRead::from(bolt), BodyRead::from(plate)]));
+    let ev = run(&d, &EvalOptions::default());
+    let res = editor_core::assemble(&d, &ev, Tol::witness());
+    eprintln!("MAIN LIST SEAT assemble: {:?}", res.as_ref().err().map(|e| format!("{e:?}").chars().take(700).collect::<String>()));
+    let r = editor_core::run_checks(&d, &ev, &editor_core::ChecksConfig::default(), Tol::witness()).unwrap();
+    eprintln!("MAIN LIST SEAT checks: {r}");
+    assert!(res.is_ok());
+}
