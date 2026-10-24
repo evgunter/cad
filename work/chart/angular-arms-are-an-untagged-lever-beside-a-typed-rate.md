@@ -60,30 +60,24 @@ winding. The cone arm's `SupSpeed` minted and `.get()`-stripped at
 `pcurve_azimuth_period` is still there, in `pcurve_cache/projected.rs`'s
 check 2, which is now that gate's only site.
 
-## Open: which door carries an angle × an exact radius (PR 5655 fix pass)
+## Resolved: an angle × an exact radius crosses through the rate pair (PR 5655)
 
-The STYLE review asked for one rule, stated in both `Margin::levered`'s
-and the rate pair's docs, and applied to both channels of
-`decide_joint`. The existing docs give the case two homes.
-`Margin::levered`'s doc admits "an angle or angular difference in
-radians" times "a radius". `InfSpeed`'s doc mints an exact closed-form
-rate, "a circle's radius" (metres per radian), through the rate pair,
-and `param_rate` does so. A rule that follows from both cannot be
-written, so this is a fork for the orchestrator:
+The review asked which door carries "an angle in radians × a radius":
+`Margin::levered`'s doc named the case, and `InfSpeed`'s doc and
+`param_rate` mint a circle's exact radius through the rate pair. CHART's
+orchestrator ruled (b), from `docs/DESIGN.md`'s margin dimensional
+convention (`[tolerance.margins]`) clause (iii): "Parameter-space values
+cross to model space only through per-kind metric doors." A chart's
+azimuth `u` or polar `v` is a parameter, radians or not, so a span or
+gap in it crosses through `metered`/`metered_sup`. `levered` keeps
+dimensionless quantities that are not parameters: a cosine, a ratio, an
+angle between directions.
 
-- **(a) Pointwise exact → `levered`; a bound over a window → the rate
-  pair.** `joint_arm` splits back into an exact-lever arm and a sup arm,
-  and the `u` marks join the `v` marks on `levered`. `InfSpeed`'s
-  circle-radius sentence and `param_rate`'s closed forms then contradict
-  it.
-- **(b) Every parameter span crosses through the rate pair, radians
-  included; `levered` keeps dimensionless quantities that are not
-  spans** (sines, residues, κ·L). `levered`'s doc narrows, and the
-  angle × radius sites move: the `v` marks, `chart_region`'s seam and
-  span sites, the boolean sphere-cut spans, `pcurve_azimuth_period`'s
-  tube gate, and others.
-
-Under either answer, the mark decision (`Period::decide`) is neither an
-escape nor a separation claim, as the audit's `pcurve_loop_branch` row
-says. The PR currently carries the `u` marks on `metered_sup` and the
-`v` marks on `levered`.
+PR 5655 writes that sentence into both doors' docs. It moves both
+channels of `decide_joint` onto `metered_sup`, so one predicate has one
+door. For a mark decision the door's argument is stated at each site:
+a positive rate keeps the sign of `gap − mark`, the exact lever serves
+as both members, and a net's stretch serves as its sup. The audit's
+`pcurve_loop_branch` row now says the same. The other sites the ruling
+moves are filed as
+`work/hone/parameter-spans-cross-through-levered-not-the-rate-pair.md`.

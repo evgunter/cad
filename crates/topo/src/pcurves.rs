@@ -1719,7 +1719,7 @@ fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<Period<
 /// The kind of period it is ([`VPeriod`]) is what levers its marks
 /// ([`decide_joint`]).
 fn chart_v_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<VPeriod<T>> {
-    if let Some(polar) = polar_arm(surface) {
+    if let Some(polar) = polar_arm(surface).map(SupSpeed::new) {
         return Some(VPeriod::Angle {
             period: Period::new(T::tau()),
             polar,
@@ -1821,13 +1821,13 @@ pub(crate) struct ChartPeriods<T> {
 /// net closed in `v`.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum VPeriod<T> {
-    /// `v` is an angle (sphere, torus): `τ`, levered by the polar radius
+    /// `v` is an angle (sphere, torus): `τ`, metered by the polar radius
     /// ([`polar_arm`]).
     Angle {
         /// `τ`.
         period: Period<T>,
-        /// The polar radius.
-        polar: T,
+        /// The polar radius, metres per radian: exact, so a sup.
+        polar: SupSpeed<T>,
     },
     /// A spline net closed in `v`: its `v` knot domain's length.
     Net(Period<T>),
@@ -1883,7 +1883,7 @@ impl<T: Decide> ChartPeriods<T> {
             }
             (_, None) => Some(Period::new(T::tau())),
         };
-        let v = match (polar_arm(surface), net) {
+        let v = match (polar_arm(surface).map(SupSpeed::new), net) {
             (Some(polar), _) => Some(VPeriod::Angle {
                 period: Period::new(T::tau()),
                 polar,
@@ -4389,17 +4389,21 @@ fn decide_joint<T: Decide>(
         _ => image.clone(),
     };
     // The second channel's periods, on the chosen sheet, in the period
-    // the chart owns for it (C4): `τ` levered by the polar radius where
+    // the chart owns for it (C4): `τ` metered by the polar radius where
     // `v` is an angle, the knot length metred by the net's `sup |S_v|`
     // ([`v_meter`]) on a net closed in `v`. A shift of the first channel
     // moves no second-channel value.
     let gap_v = prev.y - sheet.eval(entry_t).y;
     let kv = match periods.v {
+        // A mark decides the sign of `gap − mark`, which any positive
+        // rate keeps, so the rate's direction only sizes the band about
+        // the mark: the exact polar radius serves as both members, and
+        // the net's sup as the escape side.
         Some(VPeriod::Angle { period, polar }) => period
             .decide(
                 "pcurve_loop_branch",
                 gap_v,
-                |g| Margin::levered(g, polar),
+                |g| Margin::metered_sup(g, polar),
                 band,
             )
             .map_err(|stop| PinMiss::from(stop.miss))?,
@@ -4708,6 +4712,9 @@ pub(crate) fn lever_periods<T: Decide>(
     orbit: Orbit,
     band: Band,
 ) -> Result<i32, BranchMiss> {
+    // A mark decides the sign of `gap − mark`, which any positive rate
+    // keeps; the exact vertex lever serves as both members, the spline
+    // chart's sup as the escape side.
     match orbit
         .step(period)
         .decide(name, gap, |g| Margin::metered_sup(g, arm), band)
