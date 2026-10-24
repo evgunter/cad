@@ -7,6 +7,7 @@ opened: 2026-09-11
 priority: P1
 cost: E
 branch: chart/normalize-length
+pr: 5654
 ---
 
 
