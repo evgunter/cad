@@ -434,6 +434,7 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
                 ChartRegionError::RayExhausted => "RayExhausted",
                 ChartRegionError::WitnessSegmentCapExceeded { .. } => "WitnessSegmentCapExceeded",
                 ChartRegionError::WitnessCellCapExceeded { .. } => "WitnessCellCapExceeded",
+                ChartRegionError::EdgeScale => "EdgeScale",
                 ChartRegionError::Corrupt => "Corrupt",
                 ChartRegionError::Escalated(_) => unreachable!("handled above"),
             }

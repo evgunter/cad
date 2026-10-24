@@ -3811,6 +3811,10 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
             "a face's boundary encloses no definite area at this tolerance (a sliver)",
             "Recourse: widen the face well past the tolerance",
         ),
+        ChartRegionError::EdgeScale => (
+            crate::chart_region::EDGE_SCALE_REASON,
+            crate::chart_region::EDGE_SCALE_RECOURSE,
+        ),
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)
         }
