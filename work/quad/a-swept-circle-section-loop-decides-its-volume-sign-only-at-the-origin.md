@@ -191,3 +191,43 @@ the widths themselves, and their dependence on knot structure, degree
 and position; the quartered bodies' bracket-less continuation at 1e-6;
 and the helix (`projectbox` wall 1), which refuses at
 `mass_properties`, a number caller.
+
+## 2026-10-24 — the helix certifies at the default ε (PR 5629)
+
+`projectbox` wall 1, the six-turn round-wire spring, now decides its
+volume at the default ε. Main went red on it at `debb2a604e`: the tour
+panicked because the wall "NO LONGER REFUSES". The change is PR 5629
+(`67006526`, ISO's `iso/loft-seam-per-row-lane`). A probe on the
+scene's body refuses at its first parent `72a76e0a` (`QuadratureBudget
+{ width_len: 7.84e-5, target_len: 1.024e-6, rounds: 7 }`) and decides
+at `67006526`. PR 5630 (`3b7dd866`, arc-rim pcurves) changes nothing
+here: the same number before and after it.
+
+**The number is sound.** An independent oracle gives the body's
+volume as 0.010360121170117. It is the divergence integral over the
+four wall patches, using its own Cox–de Boor rational evaluation and
+Gauss–Legendre quadrature per knot span, plus the two planar caps. It
+converges to 1e-16 by 16 points a span, and it reads the same about
+two reference points, so the shell closes. The oracle is the same at
+both commits: the body did not change, its measurement did.
+
+| ε | kernel | holds the oracle |
+|---|---|---|
+| 1e-6 | 0.010359821 ± 4.87e-5 | yes (off by 3.0e-7) |
+| 1e-9 (default) | 0.010360120 ± 1.90e-7 | yes (off by 1.2e-9) |
+| 1e-12 | refuses `QuadratureBudget { width_len: 2.74e-8, target_len: 1.024e-9, rounds: 7 }` | — |
+
+Neither bracket holds `coil_volume(π·WIRE_H²)` = 0.010405854, the
+continuum tube's volume. That value is not this body's: the body is a
+stack of skinned slabs, 4.40e-3 short of it, as the square wire is
+3.6e-3 short. The 1e-6 retirement (PR 5548) asserted that the bracket
+holds the closed form. That held only because the 1e-6 pad, 4.87e-5,
+happened to exceed the 4.6e-5 slab gap. The retired wall now asserts
+the slab gap alone, inside `COIL_GAP`, the way the square wire's does.
+
+Wall 1 is retired, kept live, at the default ε and looser, and stays
+pinned finer than the default. The scene still ships the square wire,
+because at 1e-12 the round wire still refuses. So this row's helix
+witness now stands at ε < 1e-9 only. The rest of the REPORTING half is
+untouched: the loft widths' dependence on knot structure and degree,
+and the quartered bodies' bracket-less continuation at 1e-6.
