@@ -160,3 +160,10 @@ This was not a crossover, because only one designer moved, so reconciliation end
 - `Certified::LowerBoundOnly` still waits on CLEAR's lane-split row, under either design.
 - The outer-span lane is narrowed to Phase 1: its check is deleted with `chart_bound.rs`, so it reports whether the poison reaches a surviving predicate.
 - `w2-torus-v-winding-is-unverified` (CLEAVE) is closed, checked.
+
+## 2026-10-24 — dispatched (05:25Z)
+
+- `w2-reads-a-one-sheet-predicate-off-the-walk`, with its passenger: `session_01DScnVgqrsdRV3qkW1hn4Qc`, branch `chart/w2-one-sheet`. It measures the sphere-octant boolean first. Tier: single FULL, on W2's soundness.
+- `curved-face-containment-answers-none-on-a-ringed-face`: `session_01ASbZAvowuj7eiwTjedp2hN`, branch `chart/ringed-curved-doors`. Tier: DUAL, because these doors decide booleans (the ray lane, the pierce arm) and a third point-in-face reading may need unifying.
+- The three arms rows as one PR: `session_017S6REdqJJkQ1SwVnS3RsvZ`, branch `chart/arms-typing`. Tier: single STYLE.
+- Designers A and B are done; their sessions stay unarchived until this decision has been read back.
