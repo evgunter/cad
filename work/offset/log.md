@@ -176,3 +176,21 @@ with the per-key calls restored.
   checked out, so the lane's commit moved the main checkout's HEAD under a
   stale index that would have reverted the fix pass. Do not check out a
   lane's branch in the main checkout while the lane works on it.
+
+## 2026-10-24 — a join sweeps tier 1 once (OFFSET orchestrator)
+
+PR 5666 (`offset/trailing-join-one-sweep`) closes
+`an-offset-doors-trailing-join-sweeps-tier-1-per-kill`, the follow-up the
+tier-1-once unit's own trace found. Tier: orchestrator's read (a scope
+around an existing loop). The fix sits in the join, not in each door:
+`Body::join_edges_within` and the public `Body::join_edges` run their kills
+under one surgery scope closed by `sweep_and_close`, which covers the four
+offset doors, `shell`, the blend, the merge, the split's halves and STEP
+import. Pinned by `validate::TIER1_DERIVATIONS` (`cfg(test)`): constant in
+k, where the reverted code paid about 2k. Filed by the lane:
+`offset-surfaces-together-leaves-joinable-vertices-at-rest` (P2 E,
+pre-existing: `offset_charts_staged` offers the join only the rewritten
+edges' ends). Correction to the 2026-10-24 tier-1-once entry: the lane
+banded `staging-doors-gated-at-tier-3-still-derive-tier-1-twice` P2, not P3.
+Friction: the box's disk was nearly full from finished lanes' target dirs
+(about 25 GB of OFFSET's own), now removed.

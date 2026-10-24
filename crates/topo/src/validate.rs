@@ -9956,8 +9956,18 @@ fn edge_endpoints<T: Real>(
     Some((p_start, p_end))
 }
 
+#[cfg(test)]
+std::thread_local! {
+    /// Whole-body tier-1 derivations run on this thread, counted under
+    /// `cfg(test)` (`edge_join::join_door::a_join_sweeps_tier_1_once_however_many_it_joins`).
+    pub(crate) static TIER1_DERIVATIONS: core::cell::Cell<usize> =
+        const { core::cell::Cell::new(0) };
+}
+
 /// The tier-1 pass pipeline (see [`validate`] and the module docs).
 fn tier1<T: Real>(body: &Body<T>) -> Tier1Report {
+    #[cfg(test)]
+    TIER1_DERIVATIONS.with(|n| n.set(n.get() + 1));
     let mut errors = Vec::new();
 
     // Reference/ownership counters, filled by pass 1 and consumed by the
