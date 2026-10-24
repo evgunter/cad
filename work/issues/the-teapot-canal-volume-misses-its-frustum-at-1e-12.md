@@ -2,8 +2,9 @@
 id: the-teapot-canal-volume-misses-its-frustum-at-1e-12
 kind: issue
 title: The teapot's canal volume misses its straightened frustum at eps 1e-12
-status: open
+status: closed
 opened: 2026-10-23
+closed: 2026-10-24
 ---
 
 
@@ -31,3 +32,6 @@ as the likely cause, unverified. PR 5640 reads it the same way: the
 canal used to refuse at 1e-12, it now decides, and the comparator is
 the continuum tube, not the fitted body. Whichever lands second closes
 its copy into the other.
+
+Fixed on main by ISO's PR 5642 (merged at `5589ff6605`), which closed
+its own twin of this row. D′3's branch has merged it.
