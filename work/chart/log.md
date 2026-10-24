@@ -160,3 +160,26 @@ This was not a crossover, because only one designer moved, so reconciliation end
 - `Certified::LowerBoundOnly` still waits on CLEAR's lane-split row, under either design.
 - The outer-span lane is narrowed to Phase 1: its check is deleted with `chart_bound.rs`, so it reports whether the poison reaches a surviving predicate.
 - `w2-torus-v-winding-is-unverified` (CLEAVE) is closed, checked.
+
+## 2026-10-24 — dispatched (05:25Z)
+
+- `w2-reads-a-one-sheet-predicate-off-the-walk`, with its passenger: `session_01DScnVgqrsdRV3qkW1hn4Qc`, branch `chart/w2-one-sheet`. It measures the sphere-octant boolean first. Tier: single FULL, on W2's soundness.
+- `curved-face-containment-answers-none-on-a-ringed-face`: `session_01ASbZAvowuj7eiwTjedp2hN`, branch `chart/ringed-curved-doors`. Tier: DUAL, because these doors decide booleans (the ray lane, the pierce arm) and a third point-in-face reading may need unifying.
+- The three arms rows as one PR: `session_017S6REdqJJkQ1SwVnS3RsvZ`, branch `chart/arms-typing`. Tier: single STYLE.
+- Designers A and B are done; their sessions stay unarchived until this decision has been read back.
+
+- 2026-10-24 — W2 lane Phase 1: **not P0.** A sphere octant (with its pole as a vertex) against six boxes under ∖, ∪ and ∩ returns a body in all 18 cases, and `describes` is never called. No classify arm marks a sphere component essential, which is correct: S² is simply connected. Steer for Phase 2: no unreachable sphere clause. W2 is asked of no simply connected carrier, so on a sphere either the predicate is a typed kernel defect or its arm answers by the carrier's topology. The same test goes for every arm the classifier cannot reach.
+
+- 2026-10-24 — **Outer-span lane (PR 5656, gate green).** The lane built the fix before my Phase-1-only redirect reached it. Its finding makes the fix worth landing as an interim. The span check guards the OuterSpansPeriod premise that W2 reads at f64 through `describes`, so reading 1 is right and the NaN was not a probe artefact. The fix: `ChartEdge::Envelope` gains a finite `reach` box (`chart_box`), and the span check reads its hull. All 41 rows now decide, and k-lint rule 1 goes from 43 to 2. It is in single FULL review (`session_012KfN3uK7rd77NmmhzR6yCJ`); claim 1 asks whether the NaN let `Ok` stand, which would have been a live soundness hole. The W2 lane has been told to keep the premise in its walk predicate. The red nightly the lane found is on INTENT's ground; it is noted on INTENT's log.
+- 2026-10-24 — Normalize lane: PR 5654 is gate green, and its FULL review is `session_01SMmWH32k3EX7PLZ2uB46jH`.
+
+- 2026-10-24 — **PR 5654's FULL review** (`session_01SMmWH32k3EX7PLZ2uB46jH`): not mergeable as it stands; the rest is sound. Adjudicated, all to the fix pass:
+  - The arm-census test `every_chart_region_arm_names_a_recourse` compares a hand list against a literal, so it could not go red when `NonFiniteEdge` was added. This is the fix minting a fresh instance of its own class; it is to become an exhaustive match.
+  - The recourse is not followable and has three wordings.
+  - The underflow half is not asked.
+  - The Interval lane never fires the gate (it escalates instead).
+  - The shared-span test no longer guards the prescale.
+  - The roster heading and its membership disagree.
+  - The issue file's ownership list and sites are incomplete.
+
+  Class finding, filed by the lane: the edge-length scale question is asked per door with no shared home.

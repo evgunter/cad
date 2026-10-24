@@ -8,6 +8,7 @@ opened: 2026-09-15
 refs: [three-tables-of-the-chart-arms]
 priority: P1
 cost: E
+branch: chart/arms-typing
 ---
 
 

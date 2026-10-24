@@ -2,10 +2,11 @@
 id: curved-face-containment-answers-none-on-a-ringed-face
 kind: unit
 title: curved_face_containment answers None on a face that carries rings, so a holed curved face gets no point-in-face verdict
-status: open
+status: dispatched
 opened: 2026-10-24
 priority: P1
 cost: H
+branch: chart/ringed-curved-doors
 ---
 
 
