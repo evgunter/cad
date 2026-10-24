@@ -25,3 +25,4 @@
   - **tang:** 6 rows, five of them P1.
   - Two more rows drop it from their `blocked_on`: `d10-one-way-to-say-intent-is-unbuilt` keeps stage 3 and stage 5 C, and the torus seam-graze row keeps its span-bound blocker.
   - **Released by I itself:** `the-at-rest-census-is-a-check` (stage 5 C, P0, ATREST's next) and wirehold's `opout-contacts-body-zero-invariant-is-held-by-prose` open.
+- 2026-10-24 — Sequencing (orchestrator's call): `the-at-rest-census-is-a-check` (stage 5 C, P0, now open) waits for D′3 (#5636) to merge before dispatch. D′3 is moving the at-rest census onto each ⊔'s door, and stage 5 C turns that census into a check resident (`CheckId::AtRest`) and retires `assemble`'s gate. Running both at once would rewrite one path twice. The alternative, dispatching now and merging on top, is rejected: the census's home is exactly what D′3 decides.
