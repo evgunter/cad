@@ -3606,7 +3606,7 @@ pub(super) enum PieceRead {
     /// its own names.
     NotIn,
     /// The read failed: the containment door's refusal, or `None` where
-    /// the curved chart trim gives no verdict.
+    /// a curved face's region gives no verdict.
     Unread(Option<ContainError>),
 }
 

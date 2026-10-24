@@ -1,14 +1,18 @@
-//! **What the region readings share**: the pieces [`super::sphere_region`]
-//! and [`super::torus_region`] both read a trimmed curved face with —
+//! **What the region readings share**: the pieces [`super::sphere_region`],
+//! [`super::torus_region`] and [`super::ruled_region`] read a trimmed
+//! curved face with —
 //! the one refusal they answer ([`RegionRefusal`]), the targets their aimed
 //! paths take ([`TARGET_SHARES`]), the boundary reading of a circle edge
 //! on its own carrier ([`circle_edge_hit`]), a root against its edge's span
 //! ([`span`]), and the verdict read at a path's closest crossing
-//! ([`side_at_closest`]). Each reader keeps its own rows, its paths and
-//! its crossing arithmetic.
+//! ([`side_at_closest`]), and a leg's turn and root answer ([`turn`],
+//! [`found`]). Each reader keeps its own rows, its paths and its crossing
+//! arithmetic.
 
+use geom_brep::roots::{RootRefusal, Roots};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
+use super::circle_roots::FirstHarmonicRoots;
 use super::solid_contain::PointInSolidError;
 use crate::entity::{FaceKey, LoopKey};
 use crate::ray_walk::{Crossings, RayFault};
@@ -159,5 +163,23 @@ pub(crate) fn side_at_closest<T: Decide>(
         Sign::Negative => Ok(true),
         Sign::Positive => Ok(false),
         Sign::Zero => Err(RayFault::Graze),
+    }
+}
+
+/// An angle in `(−π, π]` as a turn in `[0, 2π)`.
+pub(crate) fn turn<T: Decide>(s: T) -> T {
+    (T::zero() - s).select_le_zero(s, s + T::tau())
+}
+
+/// A first-harmonic root door's answer on one leg: its roots, none for a miss; an edge
+/// in the leg's plane or a tangency grazes.
+pub(crate) fn found<T: Decide>(
+    roots: Result<FirstHarmonicRoots<T>, RootRefusal>,
+) -> Result<Vec<T>, RayFault<RegionRefusal>> {
+    match roots {
+        Ok(Roots::Miss) => Ok(Vec::new()),
+        Ok(Roots::Certified(found)) => Ok(found.roots().to_vec()),
+        Ok(Roots::On(_)) | Err(RootRefusal::Unsettled(_)) => Err(RayFault::Graze),
+        Err(RootRefusal::Escalated(diag)) => Err(in_band(diag)),
     }
 }

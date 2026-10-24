@@ -573,15 +573,10 @@ which is what actually moves the number.
 | boolean/sectors.rs (`wedge_classes`) | bool_corner_one_plane | the chord `\|n̂ − n̂′\|` between two faces' unit outward normals at the vertex × the farthest reach the reading classes (the classed edges' reaches and the corner's sectors' spans, m): how far apart the two planes stand there, opposed normals two apart; a Zero lets a bound On or in band of that plane vote nothing on the corner's convexity, and anything else reads the corner as a polygon cone | m | OK |
 | boolean/sectors.rs (`side_code`) | bool_chord_side / enters_material / bool_pierce_sector_side_curved | a LINE bound: its far vertex's signed distance from the plane through the base vertex (`sector_shape::plane_offset`); a curved bound: cos × its own extent; a bisector: cos × its sector's arm; the curvature charge: the bound's tangent RAY's least separation from the face past the sagitta, `slope·l − l²/lever` at `l = min(slope·lever/2, reach)`, where it peaks within the bound's own reach (a statement about the ray for every reach kind, not a point of a curved edge or a bisector) | m | FIXED (CONTACT-9; every bound was cos × the shorter sector arm, so a long line edge read On while its far end stood hundreds of bands off) |
 | geom-brep/src/conic_bend.rs (`conic_bend_side`; the boolean's `sectors::conic_side` and the splitting lane's `neighborhood` both read it) | conic_flat / conic_bend / conic_bend_side | a conic bound tied with a plane at first order: the whole edge's height bound `|t̂·n̂|·reach + |N̂·n̂|·rise` (sines × the carrier's point-set radius from the vertex and its rise off the tangent line there); the bend's certified lift less the first-order residue, `|N̂·n̂|·2·sin²(κ_min·l/2)/κ_min − |t̂·n̂|·l` at `l = min(max(extent, arc), lifts_to)` (`arc` a lower bound on the edge's arc length; `lifts_to` a half turn on a circle, a quarter turn at `κ_max` on an ellipse); and its side, that signed lift | m | OK |
-| boolean/solid_contain.rs:438 | bool_wall_trim_period | (τ−width)·radius | m | OK |
-| boolean/solid_contain.rs:462 | bool_wall_trim (cone term) | (cosΔ−cos h)·radius — effective arm sin(h)·r, collapses for narrow windows | m | FLAG F8 |
-| boolean/solid_contain.rs (`wall_outline`) | bool_wall_iso_meridian / bool_wall_iso_rim / bool_wall_section_tilt | sin or cos of unit vectors × radius; radius and off-axis differences | m | OK |
-| boolean/solid_contain.rs (`wall_outline`) | bool_wall_section_seat | off-axis distance; `minor − r`; `major·|n̂·â| − r`; the major axis's minor-direction component × `(major − minor)`, the displacement a rotation in the plane causes | m | OK |
-| boolean/solid_contain.rs (`wall_outline`) | bool_wall_piece_span | azimuth extent × radius | m | OK |
-| boolean/solid_contain.rs (`rim_levels`) | bool_wall_rim_level | offset of one rim plane from another along the axis | m | OK |
-| boolean/solid_contain.rs (`point_on_chart_wall`) | bool_wall_trim (piece side) | perpendicular distance from a unit-normal plane | m | OK |
-| boolean/solid_contain.rs (`point_on_chart_wall`) | bool_wall_junction | cos and sin of the angle between two unit radial directions × radius | m | OK |
-| boolean/solid_contain.rs (`wall_hit_outside_reach`) | bool_wall_outline_reach | distance to the ball's centre − its radius | m | OK |
+| boolean/solid_contain.rs (`FaceGeo::PartialWall`, `FaceGeo::PartialCone`) | bool_wall_outline_reach / bool_cone_partial_reach | distance to the ball's centre − its radius | m | OK |
+| boolean/ruled_region.rs (`RuledFaceRegion::contains`'s boundary pass, through `splitting::containment::ConicArc::hit` on a circle or ellipse edge and `ray_walk::on_segment` on a line edge) | bool_ruled_region_arc_span / bool_ruled_region_edge_length / bool_ruled_region_edge | `(τ − w)` levered by the smaller semi-axis; a segment's length; a point's distance from a closed segment | m | OK |
+| boolean/ruled_region.rs (the paths) | bool_ruled_region_frame / bool_ruled_region_nappe / bool_ruled_region_component / bool_ruled_region_collinear / bool_ruled_region_span / bool_ruled_region_at / bool_ruled_region_end / bool_ruled_region_corner / bool_ruled_region_order / bool_ruled_region_cross | the point's distance from a cylinder's axis or a cone's apex; a point's height over the apex along the axis; a root's offset from the axis along the leg's radial (`2ρ` from the meridian plane's other point); a line edge's ends' larger distance from the leg's line; a root's parameter less a span end × the conic's smaller semi-axis or the line's unit speed; a crossing's place along its leg (arc length on a parallel, metres on a ruling) against the leg's start, its end, or another crossing; an aimed ruling's run to its corner; the heading's sine against the face side × the face's scale (the radius, or a bound on the cone face's reach from its apex, never under it) | m | OK |
+| boolean/ruled_region.rs (`landings`, through `circle_roots::first_harmonic_roots_in_band`) | bool_ruled_region_roots_noise / _coaxial / _extreme / _slack | the first-harmonic door's rows: a parallel leg's signed distance off an edge's plane in the leg's parameter, or a conic edge's off a ruling leg's meridian plane in its own; its rounding charge, its extremes, and a root's arc slack at the leg's radius or the conic's larger semi-axis | m | OK |
 | boolean/solid_contain.rs:538/562/587 | bool_point_in_solid_plane | plane residual; /2r linearizations | m | OK |
 | boolean/solid_contain.rs:645/655 | bool_point_in_solid_advance/order | ray parameters (m, unit dir) | m | OK |
 | boolean/solid_contain.rs (`cast_ray`, plane arm) | bool_point_in_solid_denom (plane) | cos(unit,unit) levered by the selection's reach (`selection_reach`): the ray's rise off the plane over every length at which it could meet the face | m | FIXED (F2) |
@@ -945,13 +940,14 @@ Flagged, NOT fixed here (dispositions):
   what D4's ε classifies. The collapsed-arm idiom keeps the two
   failure modes distinct: a collapsed or poison meter is `Invalid`,
   a backwards span is `IntervalNotForward`.
-- **F8** window/cosine family: `bool_wall_trim` cone term (cosΔ−cos h,
-  quadratic near narrow/full windows, conservative direction). Its two
+- **F8** window/cosine family — **RETIRED**. `bool_wall_trim`'s cone
+  term (cosΔ−cos h, quadratic near narrow/full windows) left with the
+  cylinder and cone chart trims: those faces are read from their
+  boundary edges (`boolean::ruled_region`), with no window. Its two
   chord-side members, `bool_between_arc_window` and the sphere-wall
   `split_arc_window` arm (R vs local parallel radius R·cos lat —
   over-generous near poles), are retired with the window selection: a
-  chord takes the arc its pairing leaves along. One fix shape
-  (linearized angular margin × honest local arm); own unit.
+  chord takes the arc its pairing leaves along.
 - **F9** `ssi_closure_tangent` (march.rs:484): cos × whole-branch arc
   length — an unbounded arm (nothing folds in `ctx.extent`).
   Arm-policy question for the design conversation.

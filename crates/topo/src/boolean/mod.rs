@@ -128,6 +128,7 @@ pub use refusal_routes::{
 };
 pub(crate) mod region;
 mod rim_wedge;
+pub(crate) mod ruled_region;
 pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
@@ -338,18 +339,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
-        | "bool_curved_contain_period"
-        | "bool_wall_trim"
-        | "bool_wall_junction"
         | "bool_wall_outline_reach"
-        | "bool_wall_piece_span"
-        | "bool_wall_rim_level"
         | "bool_wrap_rim"
-        | "bool_wall_section_tilt"
-        | "bool_wall_trim_period"
-        | "bool_wall_iso_meridian"
-        | "bool_wall_iso_rim"
-        | "bool_wall_section_seat"
         | "bool_sphere_iso_meridian"
         | "bool_sphere_iso_rim"
         | "bool_sphere_trim_antipode"
@@ -387,13 +378,24 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_torus_region_spiric_on"
         | "bool_torus_region_spiric_leaf"
         | "bool_torus_frame_radius"
-        | "bool_cone_chart_box"
-        | "bool_cone_group_slant"
-        | "bool_cone_trim"
-        | "bool_cone_trim_nappe"
-        | "bool_cone_trim_period"
-        | "bool_cone_trim_side"
-        | "bool_ray_cone_apex"
+        | "bool_ruled_region_frame"
+        | "bool_ruled_region_nappe"
+        | "bool_ruled_region_component"
+        | "bool_ruled_region_collinear"
+        | "bool_ruled_region_span"
+        | "bool_ruled_region_at"
+        | "bool_ruled_region_end"
+        | "bool_ruled_region_corner"
+        | "bool_ruled_region_order"
+        | "bool_ruled_region_cross"
+        | "bool_ruled_region_roots_noise"
+        | "bool_ruled_region_roots_coaxial"
+        | "bool_ruled_region_roots_extreme"
+        | "bool_ruled_region_roots_slack"
+        | "bool_ruled_region_arc_span"
+        | "bool_ruled_region_arc_straddle"
+        | "bool_ruled_region_edge_length"
+        | "bool_ruled_region_edge"
         | "bool_ray_cone_nappe"
         | "bool_cone_partial_reach"
         | "point_in_loop_segment"
@@ -2633,7 +2635,7 @@ pub enum BooleanError {
     /// whose
     /// crossing parameters come from the certified root lanes (the line
     /// quadratics and quartic, and `boolean::circle_roots`' doors) and
-    /// whose landing point the chart trim
+    /// whose landing point the face's region
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a line parallel to a cone's
     /// generator, an undeclared on-carrier
@@ -3492,8 +3494,8 @@ pub enum BooleanError {
     RestPieceUnread {
         /// The piece, in result keys.
         face: FaceKey,
-        /// The containment door's refusal; `None` where the curved
-        /// chart trim gives no verdict for this face.
+        /// The containment door's refusal; `None` where a curved face's
+        /// region gives no verdict for this face.
         refusal: Option<ContainError>,
     },
     /// **A record the op carries, or found, could not be placed on the
@@ -8076,6 +8078,7 @@ mod tests {
                 u_ref,
             };
             let face = cyl_wall_sheet(&mut body, frame, u, (0.0, 1.0), tol);
+            crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
             (body, face)
         };
         let near = (1.0, 2.1);
