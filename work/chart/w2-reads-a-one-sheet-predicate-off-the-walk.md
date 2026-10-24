@@ -2,12 +2,13 @@
 id: w2-reads-a-one-sheet-predicate-off-the-walk
 kind: unit
 title: W2 reads its own predicate off the loop walk (every loop's winding the identity, no singular interior joint) instead of chart_boundary(..).is_ok(); the cone-apex clause folds in and the sphere pole gets its twin
-status: review
+status: closed
 pr: 5657
 opened: 2026-10-24
 priority: P1
 cost: M
 branch: chart/w2-one-sheet
+closed: 2026-10-24
 ---
 
 
@@ -46,3 +47,7 @@ before building.
 
 Ground: `crates/topo/src/boolean/ops.rs` and `section_cert.rs` are CLEAVE's,
 HONE's and ORBIT's, by announced seam. The walk is in `pcurves.rs`.
+
+## Closed
+
+Closed 2026-10-24 by PR 5657 (FULL review, fix pass taken). (CHART orchestrator)

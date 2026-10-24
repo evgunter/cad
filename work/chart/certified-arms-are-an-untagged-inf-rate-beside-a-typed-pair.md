@@ -2,13 +2,14 @@
 id: certified-arms-are-an-untagged-inf-rate-beside-a-typed-pair
 kind: issue
 title: chart_region::certified_arms is an inf rate per kind with no InfSpeed tag, the rate pair's next member
-status: review
+status: closed
 pr: 5655
 opened: 2026-09-15
 refs: [three-tables-of-the-chart-arms]
 priority: P1
 cost: E
 branch: chart/arms-typing
+closed: 2026-10-24
 ---
 
 
@@ -119,3 +120,7 @@ to read it. `chart_region.rs` sits in no program's `paths:`; TRIM
 already carries `three-tables-of-the-chart-arms` on the same function
 from the same direction, so this lands beside it rather than opening a
 second home for one file.
+
+## Closed
+
+Closed 2026-10-24 by PR 5655 (STYLE review, fix pass taken, with the door ruling under `[tolerance.margins]` clause (iii)). The remaining table copies are filed as `work/pcert/chart-arm-tables-beside-the-one-sup-door.md`, and the remaining parameter spans as `work/hone/parameter-spans-cross-through-levered-not-the-rate-pair.md`. (CHART orchestrator)

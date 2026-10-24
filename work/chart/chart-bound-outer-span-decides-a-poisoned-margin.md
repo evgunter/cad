@@ -2,12 +2,13 @@
 id: chart-bound-outer-span-decides-a-poisoned-margin
 kind: issue
 title: chart_bound_outer_span poses a check that is structurally unanswerable at a point scalar, and the K sweep records the poison (9 rule-1 flags per eps row)
-status: review
+status: closed
 opened: 2026-09-29
 priority: P1
 cost: M
 branch: chart/outer-span-poison
 pr: 5656
+closed: 2026-10-24
 ---
 
 ## What fires
@@ -190,3 +191,7 @@ What it changes:
 Effect at ε = 1e-9: the 41 rows decide `negative`, with margins from
 −0.236 m to −29.1 m. No other row in the CSV changes. k-lint's rule 1
 goes from 43 to 2 (both `props_quad_converged`, unrelated).
+
+## Closed
+
+Closed 2026-10-24 by PR 5656 (FULL review, fix pass taken). An interim fix: `reach` and `OuterSpanPoisoned` retire with `chart_bound.rs` (`clearance-cells-are-decided-in-model-space`). With PR 5657 W2 no longer reads this premise, which is now the ring lifts' alone. (CHART orchestrator)

@@ -2,12 +2,13 @@
 id: w2-describes-folds-a-corrupt-face-into-a-miss
 kind: issue
 title: ChartCache::describes reads every chart_boundary Err, Stale and MissingCache included, as 'does not describe', so a corrupt face reads as a W2 miss rather than a kernel defect
-status: review
+status: closed
 pr: 5657
 opened: 2026-10-24
 priority: P3
 cost: E
 rides_with: w2-reads-a-one-sheet-predicate-off-the-walk
+closed: 2026-10-24
 ---
 
 
@@ -25,3 +26,7 @@ grounds. D9's taxonomy wants a kernel defect there instead.
 Found by CHART's region-description designers (2026-10-24) while reading W2 as
 `chart_boundary`'s second consumer. Not reproduced. The fix is to match the error
 kinds and raise the torn ones as the defect they are. (CHART orchestrator)
+
+## Closed
+
+Closed 2026-10-24 by PR 5657 (FULL review, fix pass taken). (CHART orchestrator)

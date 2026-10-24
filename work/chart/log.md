@@ -183,3 +183,49 @@ This was not a crossover, because only one designer moved, so reconciliation end
   - The issue file's ownership list and sites are incomplete.
 
   Class finding, filed by the lane: the edge-length scale question is asked per door with no shared home.
+- 2026-10-24 — **PR 5656's FULL review** (`session_012KfN3uK7rd77NmmhzR6yCJ`): mergeable as an interim, with no MAJOR. C1 confirmed a latent soundness hole on main: at f64 a NaN span margin let `chart_boundary` return `Ok`, which licensed W2. The fix pass:
+  - S5: refuse on a poisoned margin (`matches!(Ok(Positive))` read poison as "stand"), with the audit row updated;
+  - a bulge-containment test that kills M4;
+  - one hull, not one NaN and one finite;
+  - `image` derived from `reach`, not kept in step by hand;
+  - the stale `revalue_corpus` citation;
+  - the comment that was false for the span premise;
+  - the Interval change stated.
+- 2026-10-24 — **PR 5655's STYLE review** (`session_01KkcHsNioVQk1Kp4YikBjsP`): the typing is right and bit-identical, but the fix mints two instances of its own class:
+  - S2: a pointwise lever is tagged as a span sup in `assembled`;
+  - S1/S9/S10: radians × radius crosses through `metered_sup` in u and `levered` in v in the same predicate, and neither door's doc states the rule.
+
+  The fix pass:
+  - separate pointwise from window sup in the types;
+  - one rule written into both doors (the lane stops if the rule is a fork);
+  - restore fail-loud in `projected_envelope`;
+  - collapse the `fidelity` and `azimuth_lever` copies of the arm table.
+
+  The remaining table copies are to be filed as one row. The PR's base was retargeted to main; it had been opened against `chart/orchestrator`.
+- 2026-10-24 — **PR 5659's FULL review** (`session_015ZzSwmgjsRsL6pYhWj45EQ`).
+  - **M1, MAJOR, executed:** at a wide band, a wide cone (α > 45°) mirror-nappe point near the apex reads the antipode with `singular = false`. The nappe is decided on h while ρ is decided, and step-import reads at that band.
+  - **m1:** the cone's `v = h/cos α` is the only arm that is not projection-consistent. The pcert row filed as "undecided" has a wrong side.
+  - **Fix pass:** v becomes the ruling foot, the nappe is decided on its sign, and an undecided foot reads singular. Also:
+    - `Chart` stops re-matching kinds beside the reading;
+    - off-surface and wide-cone test rows are added;
+    - the ellipse pcurve's moved values are pinned;
+    - the goldens are re-described as a tie-break (no quality change), and the diagonal fragility goes to TESS;
+    - the CI change filter's skip of step-import and interval is checked.
+- 2026-10-24 — **PR 5654 merged** (normalize, `7d17b38b3f`). Its row is closed.
+- 2026-10-24 — **PR 5657's FULL review** (`session_01LWuVeXsbgBbP9SrdM19vfM`): no MAJOR. `Sheet::One` is sound, re-derived by separation. The torus gap is shared with main and was not reachable: a genus-1 STEP face refuses at import with `CurvedSenseInverted`. **Ruling: W2 keeps no outer-span bound** (the reviewer's proof agrees with the lane). PR 5656 is re-justified on the ring lifts' premise.
+
+  The fix pass:
+  - one walk rather than a fork of `chart_boundary`'s;
+  - an exhaustive passenger match;
+  - a nappe type of its own;
+  - R-unread visible on the crossings path;
+  - stale refusal lists;
+  - an octant row that can fail;
+  - the torus issue's evidence.
+- 2026-10-24 — **Ruling, the arms lane's door fork (PR 5655 item 2):** "an angle × an exact radius" crosses through the rate pair when the angle is a chart's or curve's PARAMETER. That follows `[tolerance.margins]` clause (iii), "parameter-space values cross to model space only through per-kind metric doors". `Margin::levered` is for dimensionless quantities that are not parameters, such as an angle between directions. The ruling elaborates ratified text, so it was taken here, not as an `[ev]` fork. The alternative was (a): pointwise exact → `levered`, window bound → the rate pair. It was declined because it contradicts clause (iii) and `InfSpeed`'s own circle-radius sentence. In 5655: `decide_joint`'s v marks join the u marks on the rate pair, and both door docs carry the rule. The remaining `levered`-over-a-parameter sites are filed as one row.
+- 2026-10-24 — **PR 5656 merged** (`7bfb66fc59`). The merge order was flipped because 5655 is still in its fix pass, and 5655 takes the conflict. The `revalue_corpus` `segment_gap` reds the lane reported are already TCOST's `main-reds-editor-core-slow-set-and-the-k-probe-sweep`.
+- 2026-10-24 — **PR 5657 merged** (`6045ce5ff4`). W2 reads its own one-sheet predicate, `chart_boundary` and `loop_windings` share one walk (`read_loop`), and walk refusals are routed exhaustively. W2 no longer depends on `chart_boundary`'s refusals, so the cell-verdict unit can change them freely.
+- 2026-10-24 — **I broke main** (`topo` E0004). Merging 5656 and then 5657 back to back combined a new `PcurveMintError` variant with an exhaustive match written before it existed. Each PR was green against a main that lacked the other, and GitHub's `mergeable: clean` cannot see a semantic conflict. The fix is PR 5662, one line: the variant is `NotRaised` in `walk_refusal`. **Orchestrator lesson:** once a PR has merged since another PR's last green run, and the two touch the same enum or type, that other PR merges only after main has been merged into it and CI has re-run.
+- 2026-10-24 — **PR 5655 merged** (`40ea8d2114`), after main (including 5657) was merged in and CI re-ran. The three arms rows are closed.
+- 2026-10-24 — The DUAL review for `curved-face-containment-answers-none-on-a-ringed-face` uses difficulty letter **H**, the row's cost, and so per `docs/DUAL-REVIEW-PROTOCOL.md` rule 1 the arm is CONCURRENT: two Opus reviewers on one frozen head once the PR is green.
+- 2026-10-24 — **PR 5659 merged** (`8a6d97e661`). A point's chart coordinates are one reading, `geom::ChartInverse`; the cone reads the ruling foot.
