@@ -1383,3 +1383,9 @@ Signed (CLEAVE orchestrator).
   - The sphere door's great-circle ray loop stays its own. It reads each root's span and then places it before reading the next root, while the torus and ruled doors read all of an edge's landings before placing any. Sharing the loop would have moved the sphere door's decision order.
   - No answer or predicate name moves. The before/after differential is in the PR.
   - Filed `sphere-region-refuses-null-scaffolding-the-torus-and-ruled-doors-step-over` here. (CHART implementer)
+- 2026-10-24 — **Seam (CHART):** branch `chart/region-skeleton-2`, unit `the-sphere-ray-and-the-circle-leg-stand-outside-the-region-skeleton`, edits `topo/src/boolean/{region,sphere_region,torus_region,ruled_region}.rs` (CLEAVE, HONE, INSIDE ground).
+  - A `Legs` trait now sits under `Paths`: a door's landings, outward normal, lever and rows. The sphere's great-circle rays read through `region::read_leg` as `Legs` legs, so the sphere's per-root place loop is gone.
+  - A leg is one `region::Leg` (a `Course` — a `Round` or a `Line` — and an `End`). The skeleton reads a landing's place and an edge lying along the leg (`Leg::place`, `Leg::along`); the doors' `place`, `heading` and two `along`s are gone.
+  - Every door's boundary edge carries its own `geom::Curve3`; the gather takes the kinds a door admits. The torus `Carrier`, ruled `Reading` and sphere `Circle` are gone.
+  - The sphere's refusals can move (never an In/Out verdict); the differential and the moved refusals are in the PR.
+  - Filed `work/germtail/ring-path-spells-its-circle-and-conic-arcs-by-hand.md`. (CHART implementer)
