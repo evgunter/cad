@@ -566,9 +566,11 @@ pub use topo::{
 // the curated-type rule (the `coherence` note below) says a caller
 // able to hold the answer must be able to spell its vocabulary;
 // `VolumeReading` is that answer read as a number or a bracket.
+// `Settle` is what a measurement is asked (`[tolerance.measure]`), with
+// the vocabulary its variants carry.
 pub use topo::{
-    MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, VolumeReading,
-    mass_properties,
+    MassProperties, MassPropsError, RelOp, RoleNames, Settle, SignNames, TargetUnreached,
+    VolumeEnclosure, VolumeReading, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------

@@ -205,10 +205,20 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
                 door.map(|_| ()),
                 "the continuation refuses as the door does"
             );
-            let b = bracket.expect("a budget refusal keeps a bracket");
+            // The bracket a budget refusal keeps is the walls' last
+            // round's, run on past where the sign settled: strictly
+            // narrower than the gate's, so a tighter ε never reads a
+            // wider answer
+            // (`work/quad/measure-holds-a-budget-refused-faces-bracket-at-the-round-its-sign-settled`).
+            let b = bracket;
             assert!(
                 b.volume_lo > 0.0
-                    && b.volume_hi - b.volume_lo <= enclosure.volume_hi - enclosure.volume_lo
+                    && b.volume_hi - b.volume_lo < enclosure.volume_hi - enclosure.volume_lo,
+                "the continuation's bracket [{}, {}] is narrower than the gate's [{}, {}]",
+                b.volume_lo,
+                b.volume_hi,
+                enclosure.volume_lo,
+                enclosure.volume_hi
             );
         }
         Ok(p) => panic!("the continuation measured the tube: {p:?}"),
@@ -216,20 +226,22 @@ fn a_round_tube_certifies_its_sign_while_its_number_is_refused() {
 }
 
 /// **The backstop pays a refused face once per body it reads.** The
-/// volume backstop reads each body to its reporting target, so it runs
-/// the tube's first refusing wall to its stop and no further, as the
-/// reporting door does: reading the tube twice (`A` and the planted
-/// result) costs exactly twice the door's quadrature readings. Counted,
-/// not timed: a round a refused face ran again would be another reading.
+/// volume backstop reads each body from round 0 and refines it while an
+/// inequality straddles. Here the planted result is the tube itself, so
+/// `vol(A ∪ B) ≥ vol(A)` straddles at every round, and the walk takes
+/// both bodies' walls to their own stop and no further, as the reporting
+/// door does: reading the tube twice (`A` and the planted result) costs
+/// exactly twice the door's quadrature readings. Counted, not timed: a
+/// round a refused face ran again would be another reading.
 #[test]
 fn the_volume_backstop_reads_a_refused_face_once_per_body() {
     let tol = Tol::witness();
     let body = topo::test_support::finished("the round tube", round_tube(tol), tol);
     let brick = crate::common::square_prism();
-    let reporting = crate::common::quad_verdicts(|| {
+    let reporting = crate::common::quad_rounds(|| {
         topo::mass_properties(&body, tol).expect_err("the reporting door refuses the tube");
     });
-    let backstop = crate::common::quad_verdicts(|| {
+    let backstop = crate::common::quad_rounds(|| {
         topo::test_support::volume_backstop(topo::BooleanOp::Union, &body, &brick, &body, tol)
             .expect_err("the backstop refuses a body it cannot measure");
     });

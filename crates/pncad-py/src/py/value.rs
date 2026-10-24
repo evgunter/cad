@@ -403,7 +403,14 @@ fn measurement_err(
 /// refusal because no other refusal has one. The classification is the
 /// kernel's ([`topo::TargetUnreached::bracket`]); this only spells it.
 fn unreached_err(py: Python<'_>, unreached: &topo::TargetUnreached<f64>) -> PyErr {
-    let bracket = unreached.bracket;
+    let bracket = matches!(
+        unreached.refusal,
+        topo::MassPropsError::Face {
+            source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+            ..
+        }
+    )
+    .then_some(unreached.bracket);
     measurement_err(
         py,
         &unreached.refusal,

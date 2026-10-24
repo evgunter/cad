@@ -837,6 +837,23 @@ minted it with, and a face that meets the target records the same
 samples; a face that cannot now records one at every round to its
 lane's stop, where the budget exit ended it after round 0.
 
+**Retirement (2026-10-23): `props_quad_converged`, and rule (4)'s
+roster with it.** The reporting target is now a resolution
+(`[tolerance.measure]`, `docs/QUAD-MEASURE-SPEC.md` unit B): a face's
+width is compared with it, and a sizing is not recorded, so `topo`'s
+interim adapter and its mint are gone and nothing mints the name.
+`k_lint::EPS_COUPLED_PREDICATES` is empty, `predicate_roster`'s
+`MINT_SOURCES` reads `props/quad.rs` alone (it still rules on any mint
+there whose margin derives from `target_len`), and rule (4) stays
+specified for the next family. The committed eras still carry the
+family's rows, and the constants above were cut against them as
+ε-coupled, so their provenance reads them through
+`k_lint::ERA_EPS_COUPLED_PREDICATES` (`lint_sample_under`), not through
+the live roster. A fresh sweep records no `props_quad_converged` row:
+that is a removed population, not a threshold move. A deciding
+measurement now records its own predicate instead, under its call
+site's names, every round it is asked.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_walk::ParityRows` value, the carrier this document already

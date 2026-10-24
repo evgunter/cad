@@ -28,7 +28,7 @@
 //!
 //! Same discipline as `m8_3_rational_volume.rs`: the schedule is fixed
 //! (D9), so a body that certifies at one ε honestly may refuse at a
-//! tighter one, and every row pins all three honest outcomes rather
+//! tighter one, and every row pins both honest outcomes rather
 //! than widening a target. What is asserted UNCONDITIONALLY is the
 //! structure — the knots really are interior and really are off-grid —
 //! because that is the hypothesis of the row, and a fixture that
@@ -91,12 +91,11 @@ fn blade(n: usize, v_degree: usize) -> sweep::Lofted<f64> {
     loft_body::<f64>(&sections, &places, v_degree, Tol::witness()).expect("the blade lofts")
 }
 
-/// The three honest outcomes, as `m8_3_rational_volume.rs` names them.
+/// The two honest outcomes, as `m8_3_rational_volume.rs` names them.
 #[derive(Debug, PartialEq, Eq)]
 enum EpsPosture {
     Certified,
     Budget,
-    Escalated,
 }
 
 fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) -> EpsPosture {
@@ -123,17 +122,6 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
                  {target_len:e} vs {target:e}"
             );
             EpsPosture::Budget
-        }
-        Err(MassPropsError::Face {
-            source: PropsError::Escalated { cause, .. },
-            ..
-        }) => {
-            assert_eq!(
-                cause.predicate,
-                Some("props_quad_converged"),
-                "{row}: only the convergence predicate may escalate here: {cause:?}"
-            );
-            EpsPosture::Escalated
         }
         Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
     }

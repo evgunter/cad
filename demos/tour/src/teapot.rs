@@ -2260,8 +2260,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             )
         }
         Err(pncad::topo::TargetUnreached {
-            bracket: Some(b),
-            refusal,
+            bracket: b,
+            refusal:
+                refusal @ pncad::topo::MassPropsError::Face {
+                    source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+                    ..
+                },
         }) => {
             // The gate settles the sign with the faces
             // whose schedule can still meet the target left open; the

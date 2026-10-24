@@ -2,10 +2,12 @@
 id: measure-holds-a-budget-refused-faces-bracket-at-the-round-its-sign-settled
 kind: issue
 title: measure()'s bracket stays at the round the sign settled on a budget-refused face, so a tighter ε reads a wider bracket
-status: open
+status: closed
 opened: 2026-10-21
 priority: P2
 cost: M
+closed: 2026-10-24
+pr: 5628
 ---
 
 
@@ -45,3 +47,20 @@ bracket.
 `measure`'s bracket on a budget-refused face is the last round's (or
 the round a stated budget allows), with a row that pins it narrower
 than the round-0 bracket on one of the bodies above.
+
+
+## Closed by measure door unit B (PR 5628)
+
+The continuation (`SignCertificate::continue_to_target`) resumes every
+face still short of the resolution (`FaceRun::resumes_to`) over the rest
+of its schedule, to the face's own floor or work wall, and keeps each
+face's narrowest round (`FaceRun::advance`). It no longer stops at the
+first budget-short face. So the bracket `measure` hands back on a
+budget refusal is the walls' last round's. A face a later round refuses
+outright keeps the enclosure it held (`FaceStop::Refused`).
+
+Pinned by `sweep`'s
+`a_lofted_lens_blade_certifies_its_sign::a_round_tube_certifies_its_sign_while_its_number_is_refused`.
+There, the gate stops each wall where the sign settles, and `measure`'s
+budget-refusal bracket is strictly narrower than the gate's at all
+three ε.

@@ -29,12 +29,12 @@
 //!
 //! The convergence target is `1024·ε` against a **fixed** schedule
 //! (D9), so a body that certifies at one ε honestly may not at a
-//! tighter one. The row below therefore pins all three honest
-//! outcomes and never widens a target: `Certified` (the enclosure must CONTAIN
-//! the oracle and respect its pad ceiling), `Budget` (a typed
+//! tighter one. The row below therefore pins both honest outcomes and
+//! never widens a target: `Certified` (the enclosure must CONTAIN the
+//! oracle and respect its pad ceiling) and `Budget` (a typed
 //! `QuadratureBudget` whose width really missed a target that really
-//! is `1024·ε`), `Escalated` (only `props_quad_converged` may
-//! escalate). Anything else panics.
+//! is `1024·ε`). The resolution is compared, not decided, so no
+//! convergence predicate can escalate. Anything else panics.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{arc_section, stacked};
@@ -50,7 +50,7 @@ use topo::{MassProperties, MassPropsError};
 /// refusal's own `target_len` equals this times the run's ε).
 const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
-/// The three honest outcomes of a certified quadrature at a given ε.
+/// The two honest outcomes of a certified quadrature at a given ε.
 #[derive(Debug, PartialEq, Eq)]
 enum EpsPosture {
     /// Bounds returned; the caller pins accuracy and the pad ceiling.
@@ -58,12 +58,10 @@ enum EpsPosture {
     /// The fixed schedule ran out before `1024·ε` — typed, with the
     /// measured width.
     Budget,
-    /// The convergence predicate could not be decided in-band.
-    Escalated,
 }
 
 /// Classify a body-level mass-properties outcome, asserting each
-/// posture's own invariants. Anything outside the three is a real
+/// posture's own invariants. Anything outside the two is a real
 /// failure and panics.
 fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) -> EpsPosture {
     let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
@@ -89,17 +87,6 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
                  {target_len:e} vs {target:e}"
             );
             EpsPosture::Budget
-        }
-        Err(MassPropsError::Face {
-            source: PropsError::Escalated { cause, .. },
-            ..
-        }) => {
-            assert_eq!(
-                cause.predicate,
-                Some("props_quad_converged"),
-                "{row}: only the convergence predicate may escalate here: {cause:?}"
-            );
-            EpsPosture::Escalated
         }
         Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
     }

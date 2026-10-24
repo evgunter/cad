@@ -46,3 +46,11 @@ is a neighbour with a different trigger.
 
 GERM's U-T4 PR lists this as a stop past the join; its rows do not
 pin it (the lens row runs `w = 0.1` and `0.3`).
+
+## Update 2026-10-24 (QUAD unit B, PR 5628)
+
+The Boolean no longer refuses. Unit B's volume backstop decides its inequalities from each body's round-0 enclosure, refining only while a bound straddles, so no reporting walk runs inside the op. At ε = 1e-12 all six ops of the fat torus `(1, 0.6)` against `corner_bar(1, 0.6, 0.05)` build. On main at `debb2a60`, `T ∩ P`, `P ∩ T` and `P ∖ T` refuse `VolumeUnmeasured { Face { QuadratureBudget { width_len: 1.551e-9, target_len: 1.024e-9, rounds: 7 } } }`, narrower than the 2.13e-9 at round 13 measured above.
+
+The bodies check against the closed forms. V(P) = 7.979321e-3 and V(T) = 7.106115169. The certificate enclosures of P ∩ T and P ∖ T sum to [7.976439e-3, 7.982204e-3], and those of T ∖ P and T ∩ P sum to [7.106112287, 7.106118051].
+
+What this row describes is still open, at the number door. `mass_properties` and `SignCertificate::measure` on `T ∩ P`, `P ∩ T` and `P ∖ T` refuse `QuadratureBudget` with the same 1.551e-9 width after 7 rounds.
