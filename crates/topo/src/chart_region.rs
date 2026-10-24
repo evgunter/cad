@@ -106,8 +106,8 @@
 //! `geom_brep::chart_stretch_sup`'s documented over-statement (`sup`
 //! stretch bounds) is safe for escape-metering and UNSAFE here — an
 //! over-stated arm inflates the margin and would certify a
-//! model-space sliver as definitely positive. The two bounds are
-//! separate doors so the wrong one cannot be reached by accident.
+//! model-space sliver as definitely positive. The arms are
+//! [`InfSpeed`]s, so a sup cannot be handed in their place.
 //!
 //! Plane `(1, 1)` and cylinder `(r, 1)` arms are EXACT constants, not
 //! bounds. Every other kind takes a certified inf — sphere and cone
@@ -145,7 +145,7 @@
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{
-    Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2,
+    Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Margin, Point2, Sign, Vec2,
     is_underflowed_length,
 };
 
@@ -2611,10 +2611,9 @@ fn extract_face_uv<T: Decide + Bounds>(
 /// the scaled polygon's. Every error is therefore in the refusing
 /// direction — for `PositiveArea` a shrunk region has a smaller mean
 /// width and misses the band sooner, and for `Empty` a shrunk
-/// separation is harder to call definite. Reading
-/// `geom_brep::chart_stretch_sup` here would invert exactly that and
-/// certify a model-space sliver as definitely positive, which is why
-/// the two bounds are separate functions with separate names.
+/// separation is harder to call definite. A sup arm would invert
+/// exactly that and certify a model-space sliver as definitely
+/// positive, which is why the arms are [`InfSpeed`]s.
 ///
 /// # The arms, per chart kind
 ///
@@ -2658,7 +2657,7 @@ fn certified_arms<T: Decide + Bounds>(
     v_lo: T,
     v_hi: T,
     band: Band,
-) -> Result<(T, T), ChartRegionError> {
+) -> Result<(InfSpeed<T>, InfSpeed<T>), ChartRegionError> {
     // The arm gate: a lever arm is a metre RATE, gated as a length
     // (the collapsed-arm idiom). Definite-positive walks on; a zero
     // or negative arm is the chart having no certified extent in that
@@ -2684,11 +2683,11 @@ fn certified_arms<T: Decide + Bounds>(
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };
-    match *surface {
+    let (arm_u, arm_v) = match *surface {
         // A plane chart's coordinates ARE metres (unit u_ref frame).
-        Surface::Plane { .. } => Ok((T::one(), T::one())),
+        Surface::Plane { .. } => (T::one(), T::one()),
         // Azimuth radians lever by exactly r everywhere; v is metres.
-        Surface::Cylinder { radius, .. } => Ok((radius, T::one())),
+        Surface::Cylinder { radius, .. } => (radius, T::one()),
         Surface::Sphere { radius, .. } => {
             let v_abs = v_lo.abs().max(v_hi.abs());
             // **`cos` is monotone only on `[0, π/2]`, and the window
@@ -2705,21 +2704,21 @@ fn certified_arms<T: Decide + Bounds>(
             if v_abs.hi() > core::f64::consts::FRAC_PI_2 || v_abs.hi().is_nan() {
                 return Err(ChartRegionError::ArmUnbounded { chart: "sphere" });
             }
-            Ok((gate(radius * v_abs.cos(), "sphere")?, radius))
+            (gate(radius * v_abs.cos(), "sphere")?, radius)
         }
         Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => Ok((
+        } => (
             gate(major_radius - minor_radius, "torus")?,
             gate(minor_radius, "torus")?,
-        )),
+        ),
         Surface::Cone { half_angle, .. } => {
             // Branch-free `min |v|` over the window, zero exactly when
             // the window straddles the apex.
             let v_inf = v_lo.max(T::zero() - v_hi).max(T::zero());
-            Ok((gate(v_inf * half_angle.sin(), "cone")?, T::one()))
+            (gate(v_inf * half_angle.sin(), "cone")?, T::one())
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             let chart = if matches!(*surface, Surface::Nurbs(_)) {
@@ -2760,9 +2759,19 @@ fn certified_arms<T: Decide + Bounds>(
             let rho = (det_inf * T::from_f64(2.0) / (trace_sup + root))
                 .sqrt()
                 .min(T::one());
-            Ok((gate(inf_u * rho, chart)?, gate(inf_v * rho, chart)?))
+            (gate(inf_u * rho, chart)?, gate(inf_v * rho, chart)?)
         }
-    }
+    };
+    Ok((InfSpeed::new(arm_u), InfSpeed::new(arm_v)))
+}
+
+/// [`certified_arms`]' two rates read back as numbers, for a test's
+/// comparison.
+#[cfg(test)]
+fn arm_values<T: geom_core::Real, E>(
+    arms: Result<(InfSpeed<T>, InfSpeed<T>), E>,
+) -> Result<(T, T), E> {
+    arms.map(|(u, v)| (u.get(), v.get()))
 }
 
 /// The `v` reach of a pair's extracted loops — the window the
@@ -2870,14 +2879,14 @@ impl<T: Decide + Bounds> ScaledFace<T> {
         body: &Body<T>,
         face: FaceKey,
         uv: &FaceUv<T>,
-        arm_u: T,
-        arm_v: T,
+        arm_u: InfSpeed<T>,
+        arm_v: InfSpeed<T>,
         band: Band,
     ) -> Result<Self, ChartRegionError> {
         let face_data = body.get_face(face).ok_or(ChartRegionError::Corrupt)?;
         let scale = |poly: &[Point2<T>]| -> Vec<Point2<T>> {
             poly.iter()
-                .map(|p| Point2::new(p.x * arm_u, p.y * arm_v))
+                .map(|p| Point2::new(arm_u.to_meters(p.x), arm_v.to_meters(p.y)))
                 .collect()
         };
         // Orientation trilean per loop. Margin: `over_lever(2A, P)` is
@@ -4760,11 +4769,11 @@ mod tests {
         // pair's window — never a sup-arm pseudo-certificate — and
         // refuses typed exactly where that inf collapses.
         assert_eq!(
-            certified_arms(&xy_plane(), -1.0, 1.0, band()).unwrap(),
+            arm_values(certified_arms(&xy_plane(), -1.0, 1.0, band())).unwrap(),
             (1.0, 1.0)
         );
         assert_eq!(
-            certified_arms(&cyl_surface(0.25), -1.0, 1.0, band()).unwrap(),
+            arm_values(certified_arms(&cyl_surface(0.25), -1.0, 1.0, band())).unwrap(),
             (0.25, 1.0)
         );
         let sphere = Surface::Sphere {
@@ -4774,7 +4783,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         // A window clear of the poles certifies `r·cos v_max`.
-        let (arm_u, arm_v) = certified_arms(&sphere, -0.5, 0.5, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&sphere, -0.5, 0.5, band())).unwrap();
         assert!((arm_u - 0.5_f64.cos()).abs() < 1e-15, "got {arm_u}");
         assert_eq!(arm_v, 1.0);
         // A pole-reaching window, and a payload with no net at all,
@@ -4783,7 +4792,7 @@ mod tests {
             (sphere, core::f64::consts::FRAC_PI_2, "sphere"),
             (Surface::nurbs_placeholder(), 0.5, "NURBS"),
         ] {
-            match certified_arms(&surface, -0.5, v_hi, band()) {
+            match arm_values(certified_arms(&surface, -0.5, v_hi, band())) {
                 Err(ChartRegionError::ArmUnbounded { chart: c }) => assert_eq!(c, chart),
                 other => panic!("{chart} must refuse the arm gate, got {other:?}"),
             }
@@ -5127,7 +5136,9 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod inf_arms {
     use super::tests::{band, rect, sheet, uv, xy_plane};
-    use super::{ChartOverlap, ChartRegionError, certified_arms, overlap_of_uv, v_window};
+    use super::{
+        ChartOverlap, ChartRegionError, arm_values, certified_arms, overlap_of_uv, v_window,
+    };
     use crate::body::Body;
     use crate::euler::FaceSurface;
     use geom::{NurbsSurface, Surface};
@@ -5219,7 +5230,7 @@ mod inf_arms {
     /// polar arm is exactly `r`.
     #[test]
     fn a_sphere_window_certifies_its_inf_arms() {
-        let (arm_u, arm_v) = certified_arms(&sphere(2.0), -0.3, 0.3, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&sphere(2.0), -0.3, 0.3, band())).unwrap();
         let expect_u = 2.0 * 0.3_f64.cos();
         assert!(
             (arm_u - expect_u).abs() < 1e-15,
@@ -5238,7 +5249,7 @@ mod inf_arms {
         for (lo, hi) in [(0.0, 6.5), (-6.5, 0.0), (0.0, 3.5), (2.0, 2.5)] {
             assert!(
                 matches!(
-                    certified_arms(&sphere(2.0), lo, hi, band()),
+                    arm_values(certified_arms(&sphere(2.0), lo, hi, band())),
                     Err(ChartRegionError::ArmUnbounded { chart: "sphere" })
                 ),
                 "window [{lo}, {hi}] must refuse"
@@ -5246,13 +5257,18 @@ mod inf_arms {
         }
         // And the monotone range itself still certifies, right up to
         // the edge where the arm collapses.
-        assert!(certified_arms(&sphere(2.0), -1.5, 1.5, band()).is_ok());
+        assert!(arm_values(certified_arms(&sphere(2.0), -1.5, 1.5, band())).is_ok());
     }
 
     /// A sphere window reaching a POLE has inf 0 and keeps refusing.
     #[test]
     fn a_pole_reaching_sphere_window_still_refuses() {
-        let e = certified_arms(&sphere(2.0), -0.3, core::f64::consts::FRAC_PI_2, band());
+        let e = arm_values(certified_arms(
+            &sphere(2.0),
+            -0.3,
+            core::f64::consts::FRAC_PI_2,
+            band(),
+        ));
         assert!(matches!(
             e,
             Err(ChartRegionError::ArmUnbounded { chart: "sphere" })
@@ -5264,11 +5280,11 @@ mod inf_arms {
     #[test]
     fn a_cone_window_certifies_off_the_apex_and_refuses_across_it() {
         let alpha = 0.4_f64;
-        let (arm_u, arm_v) = certified_arms(&cone(alpha), 3.0, 5.0, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&cone(alpha), 3.0, 5.0, band())).unwrap();
         assert!((arm_u - 3.0 * alpha.sin()).abs() < 1e-15);
         assert_eq!(arm_v, 1.0, "the cone's v is a length along the ruling");
         assert!(matches!(
-            certified_arms(&cone(alpha), -1.0, 5.0, band()),
+            arm_values(certified_arms(&cone(alpha), -1.0, 5.0, band())),
             Err(ChartRegionError::ArmUnbounded { chart: "cone" })
         ));
     }
@@ -5276,11 +5292,12 @@ mod inf_arms {
     /// A ring torus certifies `R − r`; a degenerate one refuses.
     #[test]
     fn a_ring_torus_certifies_and_a_degenerate_one_refuses() {
-        let (arm_u, arm_v) = certified_arms(&torus(5.0, 1.0), -3.0, 3.0, band()).unwrap();
+        let (arm_u, arm_v) =
+            arm_values(certified_arms(&torus(5.0, 1.0), -3.0, 3.0, band())).unwrap();
         assert_eq!(arm_u, 4.0);
         assert_eq!(arm_v, 1.0);
         assert!(matches!(
-            certified_arms(&torus(1.0, 1.0), -3.0, 3.0, band()),
+            arm_values(certified_arms(&torus(1.0, 1.0), -3.0, 3.0, band())),
             Err(ChartRegionError::ArmUnbounded { chart: "torus" })
         ));
     }
@@ -5291,7 +5308,8 @@ mod inf_arms {
     /// the per-axis infs.
     #[test]
     fn an_orthogonal_nurbs_chart_certifies_its_per_axis_infs() {
-        let (arm_u, arm_v) = certified_arms(&flat_chart(4.0, 1.0), 0.0, 1.0, band()).unwrap();
+        let (arm_u, arm_v) =
+            arm_values(certified_arms(&flat_chart(4.0, 1.0), 0.0, 1.0, band())).unwrap();
         assert!((arm_u - 4.0).abs() < 1e-14, "inf |S_u| = 4, got {arm_u}");
         assert!((arm_v - 1.0).abs() < 1e-14, "inf |S_v| = 1, got {arm_v}");
     }
@@ -5302,7 +5320,7 @@ mod inf_arms {
     #[test]
     fn a_folded_nurbs_net_still_refuses_typed() {
         assert!(matches!(
-            certified_arms(&folded_chart(), 0.0, 1.0, band()),
+            arm_values(certified_arms(&folded_chart(), 0.0, 1.0, band())),
             Err(ChartRegionError::ArmUnbounded { chart: "NURBS" })
         ));
     }
@@ -5360,7 +5378,7 @@ mod inf_arms {
         // `ρ = √(2/(257 + √(257²−4))) ≈ 0.062378`, so
         // `arm_u = 0.5·ρ ≈ 0.031189`. A sup-read assembly is 16×
         // larger and misses this by four orders of the tolerance.
-        let (arm_u, arm_v) = certified_arms(&s, 0.0, 1.0, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&s, 0.0, 1.0, band())).unwrap();
         let t = (sup_u / inf_u).powi(2) + 1.0;
         let rho = (2.0 / (t + (t * t - 4.0).sqrt())).sqrt();
         assert!(
@@ -5427,7 +5445,7 @@ mod inf_arms {
             inf.sup_u,
             inf.inf_u
         );
-        let (arm_u, arm_v) = certified_arms(&s, 0.0, 1.0, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&s, 0.0, 1.0, band())).unwrap();
         // The metred unit square reads a mean width of `2A/P` on a
         // near-square `arm_u x arm_v` box; the honest transfer factor
         // to the MODEL region's mean width is `ρ/√T`, and here that
@@ -5492,7 +5510,7 @@ mod inf_arms {
         // The honest window is the v reach [-0.30, -0.05].
         let (v_lo, v_hi) = v_window(&uv_a, &uv_b).unwrap();
         assert_eq!((v_lo, v_hi), (-0.30, -0.05), "the SECOND channel");
-        let (arm_u, arm_v) = certified_arms(&s, v_lo, v_hi, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&s, v_lo, v_hi, band())).unwrap();
         assert!((arm_u - 2.0 * 0.30_f64.cos()).abs() < 1e-15);
         assert_eq!(arm_v, 2.0);
         // Driven through the pipeline stage that does the wiring.
@@ -5503,7 +5521,7 @@ mod inf_arms {
         // The axis the mutation would read is pole-crossing, and the
         // gate says so — this is the verdict the swap produces.
         assert!(matches!(
-            certified_arms(&s, 1.40, 1.65, band()),
+            arm_values(certified_arms(&s, 1.40, 1.65, band())),
             Err(ChartRegionError::ArmUnbounded { chart: "sphere" })
         ));
     }
@@ -5513,7 +5531,7 @@ mod inf_arms {
     #[test]
     fn the_exact_constant_arms_do_not_move() {
         assert_eq!(
-            certified_arms(&xy_plane(), -5.0, 5.0, band()).unwrap(),
+            arm_values(certified_arms(&xy_plane(), -5.0, 5.0, band())).unwrap(),
             (1.0, 1.0)
         );
         let c: Surface<f64> = Surface::Cylinder {
@@ -5522,7 +5540,10 @@ mod inf_arms {
             radius: 3.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        assert_eq!(certified_arms(&c, -5.0, 5.0, band()).unwrap(), (3.0, 1.0));
+        assert_eq!(
+            arm_values(certified_arms(&c, -5.0, 5.0, band())).unwrap(),
+            (3.0, 1.0)
+        );
     }
 }
 
@@ -5549,9 +5570,9 @@ mod inf_arms {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod inf_arms_interval {
-    use super::certified_arms;
     use super::inf_arms::flat_chart;
     use super::tests::band;
+    use super::{arm_values, certified_arms};
     use geom::{NurbsSurface, Surface};
     use geom_core::k_stats::decide;
     use geom_core::spline::KnotVector;
@@ -5574,8 +5595,13 @@ mod inf_arms_interval {
         );
         assert!(i.inf_v.lo() > 0.999_999_999 && i.inf_v.hi() <= 1.0 + 1e-9);
         assert!(i.area_inf.lo() > 3.999_999_999, "the area floor is 4");
-        let (arm_u, arm_v) =
-            certified_arms(&s, Interval::from_f64(0.0), Interval::from_f64(1.0), band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(
+            &s,
+            Interval::from_f64(0.0),
+            Interval::from_f64(1.0),
+            band(),
+        ))
+        .unwrap();
         // An orthogonal chart of constant stretch: ρ = 1, so the arms
         // are the per-axis infs, and both floors are POSITIVE — which
         // is the only property a positive-area claim may use.
@@ -5621,7 +5647,7 @@ mod inf_arms_interval {
         let i = geom_brep::chart_stretch_inf(&s);
         assert_eq!(i.inf_u.lo(), 0.0, "no positive floor on a folded net");
         assert!(matches!(
-            certified_arms(&s, f(0.0), f(1.0), band()),
+            arm_values(certified_arms(&s, f(0.0), f(1.0), band())),
             Err(super::ChartRegionError::ArmUnbounded { chart: "NURBS" })
         ));
     }

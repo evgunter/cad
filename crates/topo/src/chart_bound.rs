@@ -37,9 +37,8 @@
 //! directions, because the grazing configurations those obliques
 //! answer are the same ones here.
 
-use crate::pcurves::ChartArm;
 use geom_brep::{ChartWindow, Period};
-use geom_core::{Band, Decide, Margin, Point2, Real, Sign, SpanLocate, Vec2};
+use geom_core::{Band, Decide, Margin, Point2, Real, Sign, SpanLocate, SupSpeed, Vec2};
 
 use crate::chart_region::SCHEDULE_2D;
 use crate::pcurves::PcurveMintError;
@@ -212,7 +211,7 @@ fn envelope_image<T: SpanLocate>(reach: ChartWindow<T>, image: Option<Point2<T>>
 impl<T: Real> ChartLoop<T> {
     /// The loop's own chart box, over its vertices and envelope
     /// `reach`es.
-    fn window(&self) -> Option<ChartWindow<T>> {
+    pub(crate) fn window(&self) -> Option<ChartWindow<T>> {
         self.edges
             .iter()
             .map(ChartEdge::window)
@@ -307,20 +306,16 @@ impl<T: Decide> ChartBound<T> {
     /// face's region is then not periodic within its own outer, the
     /// lifts are not lifts of anything, and there is no honest
     /// description to return.
-    /// `u_arm` is the chart's FIRST-channel arm — what turns the span
-    /// excess into a length, and which of the two crossings that is
-    /// ([`ChartArm`]): metres per radian on an azimuth chart, metres
-    /// per chart-`u` unit on a plane or spline chart, where the excess
-    /// it meters is a parameter span and the arm is a certified rate.
-    /// It is a chart constant on the two charts a consumer meters
-    /// exactly (plane `1`, cylinder `r`); on a torus it is the local
-    /// lever, and an over- or under-stated arm can only move where the
-    /// refusal fires, never what a surviving description certifies.
+    /// `u_arm` is a sup of the chart's FIRST-channel rate over the
+    /// outer loop's window — what turns the span excess into a length
+    /// (metres per radian on an azimuth chart, whose `u` IS the
+    /// radian). Only a definite excess refuses, so an over-stated rate
+    /// can only refuse.
     pub fn assembled(
         outer: ChartLoop<T>,
         rings: Vec<ChartLoop<T>>,
         period: Option<Period<T>>,
-        u_arm: ChartArm<T>,
+        u_arm: SupSpeed<T>,
         band: Band,
     ) -> Result<Self, PcurveMintError> {
         // An outer loop with no edges bounds nothing. The INVERTED
@@ -345,7 +340,7 @@ impl<T: Decide> ChartBound<T> {
             // rounding into a lost description.
             match decide(
                 SPAN,
-                u_arm.meter(hull.u_max - hull.u_min - p.length()),
+                Margin::metered_sup(hull.u_max - hull.u_min - p.length(), u_arm),
                 band,
             ) {
                 Ok(Sign::Positive) => return Err(PcurveMintError::OuterSpansPeriod),
@@ -748,7 +743,7 @@ mod from_computed_rows {
     #![allow(clippy::unwrap_used)]
     use super::*;
     use crate::revalue_pin::{Revalued, S, revalued};
-    use geom_core::{SupSpeed, Tol};
+    use geom_core::Tol;
 
     /// The cell enters as a computed value: built at `Sym<f64>` over the
     /// triangle `(0, 0), (x, 0), (0, x)` with `x` the parameter, and cells
@@ -775,15 +770,9 @@ mod from_computed_rows {
                 ring: false,
             };
             let one = S::one();
-            let bound = ChartBound::assembled(
-                outer,
-                Vec::new(),
-                None,
-                ChartArm::Rate(SupSpeed::new(one)),
-                band,
-            )
-            .unwrap()
-            .metred((one, one));
+            let bound = ChartBound::assembled(outer, Vec::new(), None, SupSpeed::new(one), band)
+                .unwrap()
+                .metred((one, one));
             let (near, far) = (0.25 * p, 0.5 * p);
             for (name, cell) in [
                 ("right", MetredRect::new(p + 0.25, p + 0.5, near, far)),

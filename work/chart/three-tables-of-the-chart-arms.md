@@ -2,7 +2,8 @@
 id: three-tables-of-the-chart-arms
 kind: issue
 title: Three tables of the chart metring arms in three crates, two of them copies
-status: dispatched
+status: review
+pr: 5655
 opened: 2026-09-14
 priority: P1
 cost: E

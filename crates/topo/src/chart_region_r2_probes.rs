@@ -144,12 +144,12 @@ fn probe_cone_and_torus_arms_are_inf_side_and_refuse_at_the_degeneracy() {
     };
     // Clear of the apex: the inf arm is `v_inf·sin α`, strictly under
     // the sup arm `v_sup·sin α` that the escape lane would quote.
-    let (arm_u, arm_v) = certified_arms(&cone, 1.0, 3.0, band()).unwrap();
+    let (arm_u, arm_v) = arm_values(certified_arms(&cone, 1.0, 3.0, band())).unwrap();
     assert!((arm_u - 1.0 * 0.4_f64.sin()).abs() < 1e-15, "got {arm_u}");
     assert_eq!(arm_v, 1.0);
     assert!(arm_u < 3.0 * 0.4_f64.sin(), "the sup arm is the other side");
     // Straddling the apex: the azimuth extent honestly collapses.
-    match certified_arms(&cone, -1.0, 3.0, band()) {
+    match arm_values(certified_arms(&cone, -1.0, 3.0, band())) {
         Err(ChartRegionError::ArmUnbounded { chart }) => assert_eq!(chart, "cone"),
         other => panic!("an apex-straddling window must refuse, got {other:?}"),
     }
@@ -163,10 +163,10 @@ fn probe_cone_and_torus_arms_are_inf_side_and_refuse_at_the_degeneracy() {
     // A ring torus certifies `R − r` in azimuth and `r` in the
     // meridian; a degenerate one (R = r, the horn torus) refuses.
     assert_eq!(
-        certified_arms(&torus(2.0), -3.0, 3.0, band()).unwrap(),
+        arm_values(certified_arms(&torus(2.0), -3.0, 3.0, band())).unwrap(),
         (1.5, 0.5)
     );
-    match certified_arms(&torus(0.5), -3.0, 3.0, band()) {
+    match arm_values(certified_arms(&torus(0.5), -3.0, 3.0, band())) {
         Err(ChartRegionError::ArmUnbounded { chart }) => assert_eq!(chart, "torus"),
         other => panic!("a horn torus must refuse, got {other:?}"),
     }
