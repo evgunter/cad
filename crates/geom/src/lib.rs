@@ -161,7 +161,7 @@ pub mod surfaces;
 pub mod test_support;
 
 pub use azimuth::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Window};
-pub use chart_point::{ChartInverse, ChartPoint, NoClosedInverse};
+pub use chart_point::{ChartArm, ChartInverse, ChartPoint, NoClosedInverse};
 pub use convention::{
     ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame, square_frame,
 };

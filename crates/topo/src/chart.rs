@@ -32,21 +32,14 @@
 //! executed reconciliation of the band (`Eps` is `mesh`-local by
 //! MESH-4's ruling and has no accessor).
 
-use geom::{ChartInverse, Surface};
+use geom::{ChartArm, ChartInverse, Surface};
 use geom_core::predicate::Band;
-use geom_core::{Decide, Point3, Real, Vec3};
+use geom_core::{Decide, Point2, Point3, Real, Vec3};
 
 /// A curved surface's chart (everything but the plane, which takes the
-/// planar path).
+/// planar path): geom's inversion, and the kind data its levers and
+/// poles read.
 pub struct Chart<T: Real = f64> {
-    /// The revolution/extrusion axis.
-    pub axis: Vec3<T>,
-    /// The seam direction (u = 0).
-    pub u_ref: Vec3<T>,
-    /// `axis × u_ref` (the frame convention).
-    pub v_ref: Vec3<T>,
-    /// A point on the axis (apex/center/origin).
-    pub anchor: Point3<T>,
     /// Kind-specific data.
     pub kind: ChartKind<T>,
     inverse: ChartInverse<T>,
@@ -79,56 +72,40 @@ pub enum ChartKind<T: Real = f64> {
 }
 
 impl<T: Real> Chart<T> {
-    /// The chart of a curved surface. `None`
-    /// for the plane, and for a kind with no closed inversion
-    /// ([`geom::NoClosedInverse`]): the tessellator meshes a spline
-    /// through its own net, not through an analytic chart.
+    /// The chart of a curved surface. `None` for the plane, and for a
+    /// kind with no closed inversion ([`geom::NoClosedInverse`]): the
+    /// tessellator meshes a spline through its own net, not through an
+    /// analytic chart.
     pub fn of(surface: &Surface<T>) -> Option<Self> {
         let inverse = ChartInverse::of(surface).ok()?;
-        let (anchor, axis, u_ref, kind) = match *surface {
-            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => (origin, axis, u_ref, ChartKind::Cylinder { r: radius }),
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => (apex, axis, u_ref, ChartKind::Cone { half_angle }),
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => (center, axis, u_ref, ChartKind::Sphere { r: radius }),
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            } => (
-                center,
-                axis,
-                u_ref,
-                ChartKind::Torus {
-                    major: major_radius,
-                    minor: minor_radius,
-                },
-            ),
+        let kind = match inverse.arm() {
+            ChartArm::Plane => return None,
+            ChartArm::Cylinder { radius } => ChartKind::Cylinder { r: radius },
+            ChartArm::Cone { half_angle } => ChartKind::Cone { half_angle },
+            ChartArm::Sphere { radius } => ChartKind::Sphere { r: radius },
+            ChartArm::Torus { major, minor } => ChartKind::Torus { major, minor },
         };
-        Some(Self {
-            axis,
-            u_ref,
-            v_ref: axis.cross(u_ref),
-            anchor,
-            kind,
-            inverse,
-        })
+        Some(Self { kind, inverse })
+    }
+
+    /// The revolution/extrusion axis.
+    pub fn axis(&self) -> Vec3<T> {
+        self.inverse.axis()
+    }
+
+    /// The seam direction (u = 0).
+    pub fn u_ref(&self) -> Vec3<T> {
+        self.inverse.u_ref()
+    }
+
+    /// `axis × u_ref` (the frame convention).
+    pub fn v_ref(&self) -> Vec3<T> {
+        self.inverse.v_ref()
+    }
+
+    /// A point on the axis (apex/center/origin).
+    pub fn anchor(&self) -> Point3<T> {
+        self.inverse.anchor()
     }
 
     /// Distance of a point from the chart axis — the lever arm that
@@ -141,8 +118,8 @@ impl<T: Real> Chart<T> {
     /// `v·sin α` rather than sitting in `ChartKind` — needs no special
     /// case, and a point on the axis correctly reports 0.
     pub fn radial(&self, p: Point3<T>) -> T {
-        let w = p - self.anchor;
-        (w.dot(self.u_ref).powi(2) + w.dot(self.v_ref).powi(2)).sqrt()
+        let w = p - self.anchor();
+        (w.dot(self.u_ref()).powi(2) + w.dot(self.v_ref()).powi(2)).sqrt()
     }
 
     /// The v counterpart of [`Self::radial`]: `|∂S/∂v|`, the length
@@ -173,14 +150,19 @@ impl<T: Real> Chart<T> {
 }
 
 impl<T: Decide> Chart<T> {
-    /// The chart u of a point ([`geom::ChartInverse::point`]).
-    pub fn u_of(&self, p: Point3<T>) -> T {
-        self.inverse.point(p, Band::least()).uv.x
+    /// The chart coordinates of a point ([`geom::ChartInverse::point`]).
+    pub fn uv_of(&self, p: Point3<T>) -> Point2<T> {
+        self.inverse.point(p, Band::least()).uv
     }
 
-    /// The chart v of a point ([`geom::ChartInverse::point`]).
+    /// The chart u of a point: [`Self::uv_of`]'s first coordinate.
+    pub fn u_of(&self, p: Point3<T>) -> T {
+        self.uv_of(p).x
+    }
+
+    /// The chart v of a point: [`Self::uv_of`]'s second coordinate.
     pub fn v_of(&self, p: Point3<T>) -> T {
-        self.inverse.point(p, Band::least()).uv.y
+        self.uv_of(p).y
     }
 
     /// The v of a rim from its carrier circle's center and radius: the
@@ -196,8 +178,8 @@ impl<T: Decide> Chart<T> {
     /// [`crate::coherence`] measures the value that discards, and
     /// `mesh`'s walk is what discards it.
     pub fn rim_v(&self, center: Point3<T>, radius: T) -> T {
-        let h = (center - self.anchor).dot(self.axis);
-        self.v_of(self.anchor + self.axis * h + self.u_ref * radius)
+        let h = (center - self.anchor()).dot(self.axis());
+        self.v_of(self.anchor() + self.axis() * h + self.u_ref() * radius)
     }
 }
 
@@ -207,10 +189,16 @@ impl Chart<f64> {
     pub fn poles(&self) -> Vec<(Point3<f64>, f64)> {
         match self.kind {
             ChartKind::Sphere { r } => vec![
-                (self.anchor + self.axis * r, core::f64::consts::FRAC_PI_2),
-                (self.anchor - self.axis * r, -core::f64::consts::FRAC_PI_2),
+                (
+                    self.anchor() + self.axis() * r,
+                    core::f64::consts::FRAC_PI_2,
+                ),
+                (
+                    self.anchor() - self.axis() * r,
+                    -core::f64::consts::FRAC_PI_2,
+                ),
             ],
-            ChartKind::Cone { .. } => vec![(self.anchor, 0.0)],
+            ChartKind::Cone { .. } => vec![(self.anchor(), 0.0)],
             ChartKind::Cylinder { .. } | ChartKind::Torus { .. } => Vec::new(),
         }
     }

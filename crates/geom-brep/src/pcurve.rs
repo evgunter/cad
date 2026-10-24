@@ -242,11 +242,12 @@ pub fn ellipse_pcurve_on_cylinder(
     if span > core::f64::consts::TAU {
         return Err(PcurveError::SpanExceedsPeriod);
     }
-    // The chart coordinates of a carrier point (`Surface::chart_point`;
-    // the least band, since its decisions here only pick which name of
-    // the azimuth a sample reads), unwrapped continuously from the
-    // previous sample — the graph is monotone in θ, steps < π by the
-    // schedule.
+    // The chart coordinates of a carrier point (`Surface::chart_point`
+    // at the least band: its decisions here only pick which name of the
+    // azimuth a sample reads). The first sample's azimuth is named in
+    // the angle window (C4); each later one is unwrapped onto the branch
+    // of the sample before it, the graph being monotone in θ with steps
+    // under π on the schedule.
     let mut points = Vec::with_capacity(PCURVE_FIT_SAMPLES as usize);
     let mut prev_u = 0.0f64;
     for i in 0..PCURVE_FIT_SAMPLES {
@@ -258,8 +259,6 @@ pub fn ellipse_pcurve_on_cylinder(
             })?
             .uv;
         if i > 0 {
-            // Unwrap: shift by whole periods to land within (−π, π]
-            // of the previous sample.
             let tau = core::f64::consts::TAU;
             u += ((prev_u - u) / tau).round() * tau;
         }

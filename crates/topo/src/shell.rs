@@ -3624,8 +3624,11 @@ fn chart_read<T: Decide>(
     let mut reference: Option<T> = None;
     for run in runs {
         let mut us: Vec<T> = Vec::with_capacity(run.len());
+        let mut vs: Vec<T> = Vec::with_capacity(run.len());
         for &p in *run {
-            let raw = chart.u_of(p);
+            let uv = chart.uv_of(p);
+            vs.push(uv.y);
+            let raw = uv.x;
             us.push(match us.last() {
                 // The step from the previous point, brought into (−π, π].
                 Some(&prev) => {
@@ -3659,10 +3662,10 @@ fn chart_read<T: Decide>(
             // `Sym`, never as an identity.
             Some(at) => tau * ((at - mean) / tau + T::from_f64(0.5)).floor(),
         };
-        for (&p, u) in run.iter().zip(us) {
+        for (u, v) in us.into_iter().zip(vs) {
             out.push(geom_core::Point3::new(
                 (u + shift) * lever,
-                chart.v_of(p) * v_lever,
+                v * v_lever,
                 T::zero(),
             ));
         }

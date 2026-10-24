@@ -99,7 +99,7 @@ pub fn classify_kind(chart: &Chart, curve: &geom_brep::EdgeCurve<f64>) -> Option
             radius,
             ..
         } => {
-            if axis.dot(chart.axis).abs() > 0.5 {
+            if axis.dot(chart.axis()).abs() > 0.5 {
                 Some(TravKind::Rim {
                     v_raw: chart.rim_v(center, radius),
                 })
