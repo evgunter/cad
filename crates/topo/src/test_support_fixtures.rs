@@ -1447,9 +1447,7 @@ pub fn set_sheet_sense<T: geom_core::Decide + crate::props::AtRestPolicy>(
         _ => None,
     };
     if encoded == Some(!sense) {
-        let LoopBoundary::Cycle { first } = body.get_loop(outer).expect("the loop").boundary else {
-            panic!("the face's loop is a cycle");
-        };
+        let first = cycle_first(body, outer).expect("the face's loop is a cycle");
         let mate = body.mate(first).expect("the face's half-edge has a mate");
         let twin_loop = body.get_half_edge(mate).expect("the mate").parent_loop;
         let twin = body.get_loop(twin_loop).expect("the twin's loop").face;
@@ -1457,10 +1455,7 @@ pub fn set_sheet_sense<T: geom_core::Decide + crate::props::AtRestPolicy>(
         let halves: Vec<_> = [outer, twin_loop]
             .into_iter()
             .flat_map(|l| {
-                let LoopBoundary::Cycle { first } = body.get_loop(l).expect("a loop").boundary
-                else {
-                    panic!("a sheet's loops are cycles");
-                };
+                let first = cycle_first(body, l).expect("a sheet's loops are cycles");
                 body.loop_cycle(first).expect("a cycle")
             })
             .collect();
@@ -1478,6 +1473,14 @@ pub fn set_sheet_sense<T: geom_core::Decide + crate::props::AtRestPolicy>(
         }
     }
     body.get_face_mut(face).expect("the face").sense = sense;
+}
+
+/// The first half-edge of `lk`'s cycle; `None` for a lone vertex.
+fn cycle_first<T: Real>(body: &Body<T>, lk: crate::LoopKey) -> Option<crate::HalfEdgeKey> {
+    match body.get_loop(lk).expect("the loop").boundary {
+        LoopBoundary::Cycle { first } => Some(first),
+        LoopBoundary::Empty { .. } => None,
+    }
 }
 
 /// The canonical unit cylinder's wall sheet over `[u0, u1] x [z0, z1]`

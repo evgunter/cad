@@ -897,7 +897,11 @@ impl<T: Decide> RuledFaceRegion<T> {
                         Sign::Zero => return Err(RayFault::Unread),
                     };
                     let mut first = self.ruling(p, nappe, outward);
+                    // The corner lies short of the apex: the leg ends there.
                     first.end = Some(gap.abs());
+                    if let LegShape::Ruling { to_apex, .. } = &mut first.shape {
+                        *to_apex = false;
+                    }
                     (first, corner)
                 };
                 let kept = self.leg_crossings(&first, T::zero(), &mut crossings, band)?;
