@@ -4156,12 +4156,13 @@ struct ChartWindings {
 }
 
 /// The azimuth lever arm of a chart, in metres per radian — the safe
-/// OVER-statement per kind (module docs' sphere note): cylinder `r`,
-/// sphere `r` (true arm `r·cos v ≤ r`), torus `R + r` (the outer
-/// equator's), cone `v_sup·sin α` — the cone has no surface-level
-/// constant, so the caller supplies the pcurve box's own `|v|` sup,
-/// which dominates the local arm `v·sin α` everywhere the object being
-/// metered lives.
+/// OVER-statement per kind (module docs' sphere note), and the one home
+/// of [`chart_stretch_sup`]'s azimuth column: cylinder `r`, sphere `r`
+/// (true arm `r·cos v ≤ r`), torus `R + r` (the outer equator's), cone
+/// `v_sup·sin α` — the cone has no surface-level constant, so the
+/// caller supplies the pcurve box's own `|v|` sup, which dominates the
+/// local arm `v·sin α` everywhere the object being metered lives.
+/// `v_sup` is read on the cone only.
 fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
     match *surface {
         Surface::Cylinder { radius, .. } | Surface::Sphere { radius, .. } => radius,
@@ -4173,7 +4174,7 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
         Surface::Cone { half_angle, .. } => v_sup * half_angle.sin(),
         // Non-periodic charts have no azimuth, so there is no lever to
         // answer — not even 1. Every caller asks on a periodic chart
-        // only: `chart_arms_at` on the cone arm, and the harmonic lane's
+        // only: `chart_sup_arms_at` on the cone arm, and the harmonic lane's
         // fidelity term and the focal and spiric lanes behind their own
         // non-periodic exclusion.
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
@@ -5932,16 +5933,7 @@ fn placement_terms<T: Decide>(
     if period_u.is_none() && period_v.is_none() {
         return Ok((T::zero(), T::zero()));
     }
-    let (arm_u, arm_v) = match chart_stretch_sup(surface) {
-        Ok((u, v)) => (u.get(), v.get()),
-        // `S(u, v) = apex + v·g(u)`: the azimuth's metre rate is the
-        // slant's, read at the stored image's farthest slant.
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => (
-            azimuth_lever(surface, stored.chart_box(t0, t1).v_reach()),
-            T::one(),
-        ),
-        Err(NoChartSup::Placeholder) => return Err(PcurveCertifyError::PlaceholderChart),
-    };
+    let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1))?;
     let derived = chart_pcurve_over(carrier, t0, t1, surface, band)?;
     let at = stored.eval(t0);
     let past_half = |d: T, period: Option<Period<T>>| match period {
@@ -5969,7 +5961,7 @@ fn placement_terms<T: Decide>(
         }
     };
     let (du, dv) = offsets(&named);
-    Ok((du * arm_u, dv * arm_v))
+    Ok((arm_u.to_meters(du), arm_v.to_meters(dv)))
 }
 
 /// **Check 4's verdict**, the one spelling every lane decides its
@@ -6051,23 +6043,15 @@ fn fidelity<T: Decide>(
     // cos θ)`, which is `≥ 0` when the two slants share a nappe (`v₁`
     // the nearer, so `v₁·(v₂ − v₁) ≥ 0`).
     terms.1 = FidelityLegs::of(surface);
-    let (arm_u, arm_v) = match chart_stretch_sup(surface) {
-        Ok(arms) => arms,
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => {
-            // `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
-            // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
-            // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant
-            // levers the azimuth, and the nearer one's is enough.
-            let v_sup = harmonic_span_box(p0, pa, pb, pl, t0, t1)
-                .v_reach()
-                .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach());
-            (
-                SupSpeed::new(azimuth_lever(surface, v_sup)),
-                SupSpeed::new(T::one()),
-            )
-        }
-        Err(NoChartSup::Placeholder) => return Err(PcurveCertifyError::PlaceholderChart),
-    };
+    // On a cone, `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
+    // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
+    // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant levers the
+    // azimuth, and the nearer one's is enough.
+    let (arm_u, arm_v) = chart_sup_arms_over(surface, || {
+        harmonic_span_box(p0, pa, pb, pl, t0, t1)
+            .v_reach()
+            .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach())
+    })?;
     // The stored row is placed as its derivation is (C4: the mint and
     // check 4 place one image over one span, `Placement`), so its
     // constants ARE the derived ones, or on a sphere those of the
@@ -6868,7 +6852,7 @@ pub enum NoChartSup {
     /// A cone's azimuth stretch is `|v·sin α|`, which grows without
     /// bound down the ruling: no surface-level constant dominates it,
     /// so no `u` component exists to mint. The arm is a function of
-    /// the caller's own `v` reach, which is what [`chart_arms_at`]
+    /// the caller's own `v` reach, which is what [`chart_sup_arms_at`]
     /// supplies (`v_sup·sin α`). The `v` channel still has an exact
     /// answer and [`chart_stretch_sup_v`] is the door for it.
     ConeAzimuthGrowsWithV,
@@ -6894,7 +6878,7 @@ pub enum NoChartSup {
 /// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number, and the
 /// placeholder has no locus at all and answers
 /// [`NoChartSup::Placeholder`]. A cone
-/// caller goes through [`chart_arms_at`], which supplies
+/// caller goes through [`chart_sup_arms_at`], which supplies
 /// `v_sup·sin α` from the row's own box, or through
 /// [`chart_stretch_sup_v`] for the `v` channel alone, which is exact
 /// on every kind.
@@ -6928,22 +6912,18 @@ pub fn chart_stretch_sup<T: Real>(
     if surface.is_placeholder_chart() {
         return Err(NoChartSup::Placeholder);
     }
+    // [`azimuth_lever`] reads no `v` reach off a cylinder, sphere or
+    // torus, the kinds that ask it here.
+    let azimuth = || SupSpeed::new(azimuth_lever(surface, T::zero()));
     match *surface {
         // The cone's azimuth arm is the caller's to supply; its `v`
         // channel is answered by [`chart_stretch_sup_v`].
         Surface::Cone { .. } => Err(NoChartSup::ConeAzimuthGrowsWithV),
-        Surface::Cylinder { radius, .. } => Ok((SupSpeed::new(radius), SupSpeed::new(T::one()))),
+        Surface::Cylinder { .. } => Ok((azimuth(), SupSpeed::new(T::one()))),
         // The sphere/torus second parameter IS an angle (M6-3): its
         // arm is the polar / meridional radius.
-        Surface::Sphere { radius, .. } => Ok((SupSpeed::new(radius), SupSpeed::new(radius))),
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => Ok((
-            SupSpeed::new(major_radius + minor_radius),
-            SupSpeed::new(minor_radius),
-        )),
+        Surface::Sphere { radius, .. } => Ok((azimuth(), SupSpeed::new(radius))),
+        Surface::Torus { minor_radius, .. } => Ok((azimuth(), SupSpeed::new(minor_radius))),
         // A described NURBS chart's honest arms are its derivative-net
         // stretch bounds (`sup |S_u|`, `sup |S_v|`) — over-statements
         // of the local stretch, the safe direction exactly as the
@@ -6998,29 +6978,36 @@ pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>,
     }
 }
 
-/// [`chart_stretch_sup`] with the row's own chart box in hand — the
-/// caller that can answer the refusal the surface-level door cannot:
-/// the cone's azimuth arm becomes `v_sup·sin α`, with `v_sup` the
-/// box's `|v|` reach (dominating the local arm everywhere the row
-/// lives — the safe direction); every other kind answers as
-/// [`chart_stretch_sup`].
+/// [`chart_stretch_sup`] over a chart window — the door that can answer
+/// the refusal the surface-level one cannot: the cone's azimuth arm
+/// becomes `v_sup·sin α`, with `v_sup` the window's `|v|` reach
+/// (dominating the local arm everywhere in the window — the safe
+/// direction); every other kind answers as [`chart_stretch_sup`], a
+/// sup over the whole chart and so over any window of it.
 ///
-/// The placeholder has arms nowhere, and refuses as
-/// [`PcurveCertifyError::PlaceholderChart`] — the same refusal every
-/// lane's check 1 answers for it before this is reached.
-fn chart_arms_at<T: Real>(
+/// # Errors
+///
+/// [`PcurveCertifyError::PlaceholderChart`] for the placeholder chart,
+/// which has arms nowhere, and nothing else.
+pub fn chart_sup_arms_at<T: Real>(
     surface: &Surface<T>,
-    boxed: &ChartWindow<T>,
+    window: &ChartWindow<T>,
+) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
+    chart_sup_arms_over(surface, || window.v_reach())
+}
+
+/// [`chart_sup_arms_at`] for a caller whose `|v|` sup is not one
+/// window's reach; `v_sup` is read on a cone only.
+fn chart_sup_arms_over<T: Real>(
+    surface: &Surface<T>,
+    v_sup: impl FnOnce() -> T,
 ) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
     match chart_stretch_sup(surface) {
         Ok(pair) => Ok(pair),
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => {
-            let v_sup = boxed.v_reach();
-            Ok((
-                SupSpeed::new(azimuth_lever(surface, v_sup)),
-                SupSpeed::new(T::one()),
-            ))
-        }
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok((
+            SupSpeed::new(azimuth_lever(surface, v_sup())),
+            SupSpeed::new(T::one()),
+        )),
         Err(NoChartSup::Placeholder) => Err(PcurveCertifyError::PlaceholderChart),
     }
 }
@@ -11858,7 +11845,7 @@ mod tests {
             v_min: -3.0,
             v_max: 1.5,
         };
-        let (arm, v_arm) = chart_arms_at(&cone, &boxed).unwrap();
+        let (arm, v_arm) = chart_sup_arms_at(&cone, &boxed).unwrap();
         let (arm, v_arm) = (arm.get(), v_arm.get());
         assert!(
             (v_arm - 1.0).abs() < 1e-15,
@@ -12317,8 +12304,8 @@ mod cone_azimuth_sup {
 #[cfg(test)]
 mod placeholder_sup {
     use super::{
-        ChartWindow, NoChartSup, PcurveCertifyError, chart_arms_at, chart_stretch_inf,
-        chart_stretch_sup, chart_stretch_sup_v,
+        ChartWindow, NoChartSup, PcurveCertifyError, chart_stretch_inf, chart_stretch_sup,
+        chart_stretch_sup_v, chart_sup_arms_at,
     };
     use geom::{NurbsSurface, Surface};
     use std::sync::Arc;
@@ -12344,7 +12331,7 @@ mod placeholder_sup {
             v_max: 1.0,
         };
         assert_eq!(
-            chart_arms_at(&ph, &unit).err(),
+            chart_sup_arms_at(&ph, &unit).err(),
             Some(PcurveCertifyError::PlaceholderChart),
             "the boxed door, which the azimuth headroom reads"
         );
