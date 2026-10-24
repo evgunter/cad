@@ -689,11 +689,12 @@ fn kev_mirror_has_no_single_op_remake() {
 /// its lone vertex. Components are maximal under "shares a vertex, edge,
 /// or face".
 fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<ShellComponent> {
-    use std::collections::{HashMap, HashSet, VecDeque};
+    use slotmap::SecondaryMap;
+    use std::collections::VecDeque;
     let shell_data = body.get_shell(shell).unwrap();
     let faces: Vec<FaceKey> = shell_data.faces.clone();
     // face -> vertices it touches
-    let mut face_vertices: HashMap<FaceKey, Vec<VertexKey>> = HashMap::new();
+    let mut face_vertices: SecondaryMap<FaceKey, Vec<VertexKey>> = SecondaryMap::new();
     for &face in &faces {
         let face_data = body.get_face(face).unwrap();
         let mut vs = Vec::new();
@@ -710,35 +711,39 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
         face_vertices.insert(face, vs);
     }
     // vertex -> faces
-    let mut vertex_faces: HashMap<VertexKey, Vec<FaceKey>> = HashMap::new();
-    for (&face, vs) in &face_vertices {
+    let mut vertex_faces: SecondaryMap<VertexKey, Vec<FaceKey>> = SecondaryMap::new();
+    for (face, vs) in &face_vertices {
         for &v in vs {
-            vertex_faces.entry(v).or_default().push(face);
+            vertex_faces
+                .entry(v)
+                .expect("a live vertex key")
+                .or_default()
+                .push(face);
         }
     }
-    let mut seen: HashSet<FaceKey> = HashSet::new();
+    let mut seen: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
     let mut components = Vec::new();
     for &start in &faces {
-        if seen.contains(&start) {
+        if seen.contains_key(start) {
             continue;
         }
-        let mut comp_faces: HashSet<FaceKey> = HashSet::new();
-        let mut comp_vertices: HashSet<VertexKey> = HashSet::new();
+        let mut comp_faces: Vec<FaceKey> = Vec::new();
+        let mut comp_vertices: SecondaryMap<VertexKey, ()> = SecondaryMap::new();
         let mut queue = VecDeque::from([start]);
-        seen.insert(start);
+        seen.insert(start, ());
         while let Some(face) = queue.pop_front() {
-            comp_faces.insert(face);
-            for &v in &face_vertices[&face] {
-                comp_vertices.insert(v);
-                for &next_face in &vertex_faces[&v] {
-                    if seen.insert(next_face) {
+            comp_faces.push(face);
+            for &v in &face_vertices[face] {
+                comp_vertices.insert(v, ());
+                for &next_face in &vertex_faces[v] {
+                    if seen.insert(next_face, ()).is_none() {
                         queue.push_back(next_face);
                     }
                 }
             }
         }
         // Count v, e, f, r inside the component.
-        let mut comp_edges: HashSet<crate::entity::EdgeKey> = HashSet::new();
+        let mut comp_edges: SecondaryMap<crate::entity::EdgeKey, ()> = SecondaryMap::new();
         let mut rings = 0usize;
         for &face in &comp_faces {
             let face_data = body.get_face(face).unwrap();
@@ -746,7 +751,7 @@ fn shell_components(body: &Body<f64>, shell: crate::entity::ShellKey) -> Vec<She
             for l in core::iter::once(face_data.outer).chain(face_data.rings.iter().copied()) {
                 if let LoopBoundary::Cycle { first } = body.get_loop(l).unwrap().boundary {
                     for he in body.loop_cycle(first).unwrap() {
-                        comp_edges.insert(body.get_half_edge(he).unwrap().edge);
+                        comp_edges.insert(body.get_half_edge(he).unwrap().edge, ());
                     }
                 }
             }
