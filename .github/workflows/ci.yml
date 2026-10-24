@@ -175,7 +175,7 @@ jobs:
             flag demos "touched '^demos/'"
             # k-lint's predicate roster reads its MINT_SOURCES as text, so an
             # edit there is the roster's own subject too.
-            flag tools "touched '^(tools/|crates/geom-brep/src/props/quad\.rs$)'"
+            flag tools "touched '^(tools/|crates/geom-brep/src/props/quad\.rs$|crates/topo/src/props/quad_lane\.rs$)'"
             # THE EXTRA EPS ROWS: scripts/ci-filter.py's EPS_EXTRA (whole
             # crates, and the rows of the test files this diff changes).
             # Every row runs at every eps nightly.

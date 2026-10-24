@@ -1589,11 +1589,11 @@ examines the meetings between that operator's operands pairwise, and
 nothing it finds refuses. An **arrival** is one operand of an operator
 at one value of its indices. Between two arrivals the
 census decides each pair, once, at the highest-dimensional cells that
-touch: two faces meeting over an area are one pair, and the census
-asks nothing of a cell bounding one of them against a cell bounding
-the other, since wherever such cells meet is inside that area's
-closure and leaves the same contact, and any further coincidence such
-a meeting implies is a face pair of its own. Two faces on one carrier,
+touch: two faces meeting over an area are one pair, and a touch of a
+cell bounding one of them against a cell bounding the other is part
+of that pair where it lies in the closure of their overlap, and leaves
+the same contact; elsewhere it is a pair of its own. Any further
+coincidence such a meeting implies is a face pair of its own. Two faces on one carrier,
 facing the same way, whose boundaries meet while their interiors do
 not are a flush pair: no contact, but a coincidence the census infers
 from values, so a finding unless established, by a flag mate or by

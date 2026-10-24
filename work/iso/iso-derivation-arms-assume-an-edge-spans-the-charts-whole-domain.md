@@ -2,10 +2,13 @@
 id: iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain
 kind: issue
 title: nurbs_iso_derive's rim arms map an edge's whole interval onto the chart's whole u domain, so mint_pcurves refuses on any body whose spline-chart wall edge has been split
-status: open
+status: closed
 opened: 2026-09-14
 priority: P1
 cost: H
+branch: iso/arc-rim-sub-arc
+pr: 5630
+closed: 2026-10-23
 ---
 
 Found by PR 2531's fix pass (TOPO, `split-edge-children-lack-pcurve-rows-on-curved-charts`)
@@ -101,3 +104,41 @@ whole domain) are a second spelling of `iso_schedule`'s closed-form
 step, and the arc rim has no measured-map step after it: a rim that
 spans part of the chart's `u` has nowhere to go but the refusal. That
 fall-back is this item's IsoArc half.
+
+## The arc half moved (2026-10-23)
+
+`iso/arc-rim-sub-arc`. What a sub-edge's chart image IS was already
+settled by `split_edge`'s carry: a child keeps the parent's `IsoArc`, the
+row over the parent's arc `[t0, t0 + angle]`, and evaluates it over its
+own span inside that arc; tier 3 certified those children. So the fix
+is a derivation of that image, not a new map, and `breaks` keeps the
+row's uniform sub-arcs (they locate `g` on the image's own arc, which is
+still the whole row). `geom_brep::pick_arc_rim` now has the boundary-iso
+schedule's shape: the closed form (`arc_rim_candidates`, the edge's
+interval onto the whole row) and then a measured step
+(`arc_rim_measured`), each judged by the same probe. The measured image
+reads its arc off the row and the circle: `angle = m·2·acos(w)` from the
+row's interior weight, `at0` the carrier's angle at the image's start
+corner (an `Azimuth`), moved onto the branch nearest the middle of the
+arcs that could hold the edge. The certificate checks it: it rebuilds
+the circle's form from `at0` and `angle` against the row's control net,
+and now decides the edge's span lies in the arc
+(`pcurve_iso_arc_span`, closing
+`work/select/an-iso-arc-certificate-never-checks-the-edge-span-lies-in-its-arc.md`).
+
+A whole rim still takes the closed form, bit for bit. `mint_pcurves`
+re-derives a split bulged prism (both halves, an off-centre split, a
+double split, a rim against the chart's `u`), and tier 3 passes:
+`sweep`'s `a_rim_covering_part_of_its_row_re_mints_the_rows_arc`. The
+mesher's chord schedule still refuses such a child, filed as
+`work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`.
+
+## Closed (2026-10-23, PR 5630)
+
+Both halves of the premise are gone.
+- **The arc-rim arm** now has a measured step after its closed-form candidates. A rim covering part of its row takes the row's own `IsoArc` (the parent's arc), evaluated over the edge's span. The certificate decides that the span lies inside the arc (`pcurve_iso_arc_span`).
+- **One judge for every iso arm:** each arm, line and arc, now judges its candidates by `geom_brep::probe_pick` at both ends of the span and a quarter in. A closed-form image whose ends sit on the domain's ends therefore cannot win on an edge covering part of it by passing through the carrier at one point.
+
+Pinned by `sweep`'s `a_rim_covering_part_of_its_row_re_mints_the_rows_arc` suite, including the quarter-point families for both arms. Residues filed:
+- `work/tess/a-split-arc-rim-meshes-no-chord-point-on-its-sub-arc-joints.md`;
+- `work/topo/the-describing-door-refuses-a-wall-re-charted-reversed-in-u.md`.

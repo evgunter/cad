@@ -229,16 +229,16 @@
 //!    volume NUMBER rather than a certificate.** A circle is RATIONAL,
 //!    so these lateral walls are rational patches, and a rational
 //!    patch is a QUADRATURE face whose enclosure is chased to a
-//!    reporting target derived from ε. At ε = 1e-12 the schedule's
-//!    own last-round bound proves that target unreachable, so
-//!    `mass_properties` refuses `QuadratureBudget` after round 0
-//!    (`rounds: 1`, no work spent).
+//!    reporting target derived from ε. At ε = 1e-12 the walls' lane
+//!    stops at the face work wall after 8 rounds (the composite arm's
+//!    round 7), 1.244e-9 m wide against the 1.024e-9 m target, so
+//!    `mass_properties` refuses `QuadratureBudget` there.
 //!
 //!    **Tier 3 admits the body anyway.** Its +V check consumes only
 //!    the SIGN of the volume enclosure — the tier's own docs say
 //!    deciding that sign "is an act of certification rather than a
 //!    measurement" — and this body's enclosure excludes zero at the
-//!    very round the chase stops on, its lower end some 270 of its
+//!    very round the chase stops on, its lower end some 450 of its
 //!    own half-widths clear at ε = 1e-12.
 //!    So the scene certifies at every ε, and where it has no number
 //!    to print the tour's ribbon prints the certified bracket
@@ -248,10 +248,9 @@
 //!    certificate or its continuation held, and holds the closed form
 //!    to it.
 //!
-//!    More budget is not the fix, and that is measured: at
-//!    `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early exit stops firing, so
-//!    the bound is hull-dominated rather than floor-dominated — and
-//!    the face then runs for over half an hour without finishing.
+//!    More budget is not the fix: the wall sits at the costliest face
+//!    the retired round caps admitted, and one more round would cost
+//!    this face about three times the work it has already spent.
 //!
 //!    This scene was briefly re-authored with OCTAGONAL sections,
 //!    which had a volume number at every ε: a polygon's sides are
@@ -283,9 +282,10 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    Axis3, Bodies, CancelToken, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula, Frame,
+    Axis3, Bodies, CancelToken, Coord, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
     LoftSection, LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, StationMove, TubeWindow, ValuePayload, apply, evaluate,
+    ProgramTarget, RecipeNodeId, StationMove, TargetAxis, TubeWindow, ValuePayload, apply,
+    evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -417,26 +417,25 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// its volume NUMBER.** A circle is RATIONAL, so these lateral walls
 /// are rational patches, and a rational patch is a QUADRATURE face
 /// whose certified enclosure is chased to `QUAD_TARGET_LEN_FACTOR·ε`.
-/// At ε = 1e-12 that target is 1.024e-9, and the schedule's own
-/// last-round bound proves it unreachable, so `mass_properties`
-/// refuses `QuadratureBudget` after round 0 — `rounds: 1`, no work
-/// spent.
+/// At ε = 1e-12 that target is 1.024e-9, and the walls' lane stops
+/// at the face work wall after 8 rounds, 1.244e-9 m wide, so
+/// `mass_properties` refuses `QuadratureBudget` there.
 ///
 /// **Tier 3 certifies the body all the same, which is why this
 /// authoring is the honest one.** Its +V check consumes only the SIGN
 /// of the volume enclosure — the tier's own docs say deciding that
 /// sign "is an act of certification rather than a measurement" — and
 /// this body's enclosure excludes zero at the round the chase stops
-/// on, its lower end some 270 of its own half-widths clear at
+/// on, its lower end some 450 of its own half-widths clear at
 /// ε = 1e-12. So the solid is certified at every ε and what it lacks
 /// at 1e-12 is a number, which the tour's ribbon reports as the
 /// certified bracket rather than dying on.
 ///
-/// Raising the round cap does not fix it either, measured: at
-/// `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early-exit stops firing (so the
-/// bound is hull-dominated, not floor-dominated) and the face then
-/// runs for over half an hour without finishing. More budget is not
-/// the answer; not demanding the precision is.
+/// Raising the wall does not fix it either: the wall sits at the
+/// costliest face the retired round caps admitted, and one more round
+/// would cost this face about three times the work it has already
+/// spent. More budget is not the answer; not demanding the precision
+/// is.
 ///
 /// This scene was briefly re-authored with OCTAGONAL sections to get
 /// a number at every ε, and that worked — a polygon's sides are
@@ -666,7 +665,7 @@ const LID_RIMS: [(u32, f64, f64, &str); 3] = [
 /// `a`'s plane stands at `(r(1 − cos a), r sin a, 0)` with axes
 /// `u = +z` and `v = (cos a, −sin a, 0)`, whose normal `u × v` is
 /// `(sin a, cos a, 0)` — the tangent at station `a`. The first section
-/// is drawn on the spout's own `xy` ([`SPOUT_ROOT_FRAME`] is where the
+/// is drawn on the spout's own `xy` ([`spout_values`] turns it to where the
 /// first plane stands); a later one's station is that plane in the
 /// first's own axes — a spin of `−a` about its `x`, then slides of
 /// `r(1 − cos a)` along its `y` and `r sin a` along its `z` — so a
@@ -704,14 +703,6 @@ fn spout_stations() -> Vec<(Vec<StationMove<Formula>>, f64)> {
         })
         .collect()
 }
-
-/// **Where the spout's first section stands in the bent frame the
-/// spine is described in**: `u = +z`, `v = +x`, normal `+y` — the
-/// tangent at station 0.
-const SPOUT_ROOT_FRAME: Frame = Frame {
-    columns: [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
-    translation: [0.0; 3],
-};
 
 /// **The spout, as one `Node::Loft` through those sections.**
 ///
@@ -770,25 +761,29 @@ fn spout_loft(
     )
 }
 
-/// **The spout's own frame in the pot's coordinates**: the bent frame
-/// turned by [`spout_turn`] about `+z` and slid to [`SPOUT_ROOT`], with
-/// the first section standing at [`SPOUT_ROOT_FRAME`] in it.
-fn spout_pose(tol: Tol) -> Frame {
-    let band = pncad::geom_core::Band::linear(tol).expect("the witnessed band");
-    Frame::rotate_then_translate(
-        [0.0, 0.0, 1.0],
-        spout_turn(),
-        [SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z],
-        band,
-    )
-    .expect("+z has a direction")
-    .compose(&SPOUT_ROOT_FRAME)
+/// **The spout's values on the pot's axes**: the spout's own axes
+/// turned into the bent frame its spine is described in (`x` onto `+z`,
+/// `y` onto `+x`, `z` onto `+y`: a quarter turn back about `x`, then
+/// one back about `y`), that frame turned by [`spout_turn`] about `+z`,
+/// and slid to [`SPOUT_ROOT`].
+fn spout_values() -> Vec<(Coord, Formula)> {
+    let mut values = vec![
+        (Coord::Spin(TargetAxis::X), crate::world::turn(4, true)),
+        (Coord::Spin(TargetAxis::Y), crate::world::turn(4, true)),
+        (Coord::Spin(TargetAxis::Z), ang(spout_turn())),
+    ];
+    values.extend(crate::world::slides([
+        SPOUT_ROOT.x,
+        SPOUT_ROOT.y,
+        SPOUT_ROOT.z,
+    ]));
+    values
 }
 
-/// **The handle's own frame in the pot's coordinates**: its spine
-/// centre on the belly wall, its axes the pot's.
-fn handle_pose() -> Frame {
-    Frame::translation([HANDLE_C.x, HANDLE_C.y, HANDLE_C.z])
+/// **The handle's values on the pot's axes**: its spine centre slid onto
+/// the belly wall, its axes the pot's.
+fn handle_values() -> Vec<(Coord, Formula)> {
+    crate::world::slides([HANDLE_C.x, HANDLE_C.y, HANDLE_C.z])
 }
 
 /// **The turn that takes the spout's own `+y` axis onto
@@ -981,7 +976,7 @@ fn build_doc(tol: Tol) -> Recipe {
         &doc,
         pncad::document::Operand::output(bellied, 0),
         spout_body,
-        &spout_pose(tol),
+        spout_values(),
         tol,
     );
     doc = placed.doc;
@@ -1003,31 +998,13 @@ fn build_doc(tol: Tol) -> Recipe {
         },
         tol,
     );
-    // A windowed tube's own axis is its torus's: the spine is mated by
-    // it to the pot.
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    let spine_face = ev
-        .table_at(handle_body)
-        .expect("the handle evaluates")
-        .iter()
-        .map(|(name, _)| name.clone())
-        .find(|name| {
-            name.kind == EntityKind::Face
-                && face_carrier_kind(&ev, handle_body, name) == Ok(SurfaceKind::Torus)
-        })
-        .expect("a tube has a torus face");
-    let placed = crate::world::against_on_axis(
+    // Placed into the pot's space with its own frame at the handle's
+    // pose there.
+    let placed = crate::world::against(
         &doc,
         pncad::document::Operand::output(bellied, 0),
         handle_body,
-        spine_face,
-        &handle_pose(),
+        handle_values(),
         tol,
     );
     doc = placed.doc;
@@ -1120,14 +1097,14 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
                 .doc
         });
     [
-        (r.handle_body, handle_pose()),
-        (r.lid, Frame::IDENTITY),
-        (r.cup, Frame::IDENTITY),
-        (r.spout_body, spout_pose(tol)),
+        (r.handle_body, handle_values()),
+        (r.lid, Vec::new()),
+        (r.cup, Vec::new()),
+        (r.spout_body, spout_values()),
     ]
     .into_iter()
-    .fold(tidied, |doc, (body, at)| {
-        crate::world::in_world(&doc, body, &at, tol).doc
+    .fold(tidied, |doc, (body, values)| {
+        crate::world::in_world_by(&doc, body, values, tol).doc
     })
 }
 
@@ -2035,7 +2012,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // this scene used to hand `transform_rigid` and is independent of
     // the angle the document stores.
     // The spout's own point `p` in the bent frame its spine is
-    // described in ([`SPOUT_ROOT_FRAME`]), turned.
+    // described in ([`spout_values`]), turned.
     let turn = |p: Vec3<f64>| {
         Vec3::new(SPOUT_DIR.y, -SPOUT_DIR.x, 0.0) * p.x + SPOUT_DIR * p.y + Vec3::unit_z() * p.z
     };
@@ -2167,13 +2144,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // `mass_properties` publishes a certified ENCLOSURE rather than a
     // number, where every analytic body on this page publishes a pad
     // of exactly 0. That enclosure is chased to a REPORTING target
-    // derived from ε, and **at ε = 1e-12 it is not reachable**: the
-    // schedule's own last-round bound proves it after round 0, so this
-    // reading refuses `QuadratureBudget`.
+    // derived from ε, and **at ε = 1e-12 it is not reached**: the
+    // walls' lane stops at the face work wall after 8 rounds, 1.244e-9 m
+    // against 1.024e-9 m, so this reading refuses `QuadratureBudget`.
     //
     // Tier 3 admits the body regardless — its +V check consumes only
     // the SIGN of this enclosure, decided at the very round the chase
-    // stops on, with the lower end some 270 half-widths clear of zero
+    // stops on, with the lower end some 450 half-widths clear of zero
     // at 1e-12 — so the refusal here is a missing NUMBER and not a
     // missing certificate.
     //
@@ -2261,7 +2238,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 "mass properties REFUSED TYPED at this tolerance — {refusal} — so there is no \
                  volume NUMBER to compare. These walls are RATIONAL, so they are QUADRATURE \
                  faces whose enclosure is chased to a REPORTING width derived from eps, and \
-                 at a tight enough eps that chase is proven unreachable after round 0. What \
+                 at a tight enough eps that chase stops at its work wall short of it. What \
                  is missing is a number and not a certificate: tier 3 admitted this body at \
                  this same eps on the SIGN of the enclosure, and the certificate it handed \
                  back, continued as far as the schedule reaches, keeps a bracket through the \
@@ -2517,18 +2494,19 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              COSTS AT A TIGHT EPS IS A VOLUME NUMBER RATHER THAN A CERTIFICATE. A circle \
              is RATIONAL, so these lateral walls are rational patches, and a rational \
              patch is a QUADRATURE face whose enclosure is chased to a REPORTING target \
-             derived from eps. At eps = 1e-12 the schedule's own last-round bound proves \
-             that target unreachable, so mass_properties refuses QuadratureBudget after \
-             round 0 -- rounds: 1, no work spent. TIER 3 ADMITS THE BODY ANYWAY, which is \
+             derived from eps. At eps = 1e-12 the walls' lane stops at the face work wall \
+             after 8 rounds, 1.244e-9 m wide against the 1.024e-9 m target, so \
+             mass_properties refuses QuadratureBudget there. TIER 3 ADMITS THE BODY ANYWAY, which is \
              what makes this authoring the honest one: its +V check consumes only the \
              SIGN of that enclosure, and the enclosure excludes zero at the very round \
              the chase stops on -- at eps = 1e-12 by the margin the reading above \
              prints -- so the scene certifies at every eps and the volume ribbon prints \
              the certified bracket where it has no number to print. The reading above measures through the certificate the \
              tier hands back, so where the number is refused it reports that same \
-             bracket and holds the frustum to it. More budget would not \
-             buy the number back and that is measured: at one more round the early exit \
-             stops firing and the face then runs over half an hour without finishing. An \
+             bracket and holds the frustum to it. More budget is not \
+             the fix: the wall sits at the costliest face the retired round caps \
+             admitted, and one more round would cost this face about three times the work \
+             it has already spent. An \
              OCTAGONAL authoring had a number at every eps -- straight sides make \
              polynomial walls, which take the integral lane's exact per-span rule, the \
              same reason `twisted_tube` next door can be a loft and a solid at every eps \

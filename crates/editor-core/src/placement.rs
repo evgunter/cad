@@ -268,9 +268,7 @@ impl Frame {
     }
 
     /// The composition `self ∘ inner`: the frame that places by
-    /// `inner` first, then by `self` — inline's rule (ASM-4 D-3: the
-    /// instance's group frame composed onto the part's placements),
-    /// by [`Motion::compose`] at `f64`.
+    /// `inner` first, then by `self`, by [`Motion::compose`] at `f64`.
     #[must_use]
     pub fn compose(&self, inner: &Frame) -> Frame {
         Frame::from_motion(self.motion::<f64>().compose(inner.motion()))

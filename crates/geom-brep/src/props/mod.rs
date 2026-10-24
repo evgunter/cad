@@ -507,38 +507,32 @@ pub enum PropsError {
         /// which stays routing a developer reads in `Debug`.
         check: PropsCheck,
     },
-    /// The certified quadrature's enclosure would not tighten to its
-    /// target within the refinement budget (M5 PR 11; the
-    /// [`quad`] module docs give the rule and the target's metering).
+    /// The certified quadrature's enclosure did not tighten to the
+    /// reporting target before its lane stopped, at its floor or at the
+    /// work wall (M5 PR 11; the [`quad`] module docs give the rule and
+    /// the stop, and `topo`'s reporting adapter the target's metering).
     /// Certified bounds or typed refusal — never a silently wide
     /// answer. Both payloads are LENGTHS (mean boundary displacement),
     /// the same metering as tier 3's volume check.
     ///
     /// Two-tolerance shape, stated: the in-band twin of this refusal is
     /// [`PropsError::Escalated`] on `props_quad_converged` (a margin
-    /// close to the target escalates through the funnel before the
-    /// budget can run out); this arm is the *definite* "the enclosure
-    /// floor sits above the target" outcome. The recourse is the ε
-    /// knob: the target scales with the run's ε.
+    /// close to the target at the round the lane stops escalates
+    /// through the funnel); this arm is the *definite* "the enclosure
+    /// sits above the target" outcome. The recourse is the ε knob: the
+    /// target scales with the run's ε.
     QuadratureBudget {
-        /// The enclosure width the schedule reached, as a length (m):
-        /// the last round's own when the schedule ran out, or — when a
-        /// round proved that the last round could not certify either
-        /// and the loop refused without running it — the lower bound
-        /// every remaining round's width was proven to exceed, which
-        /// is the last round's width to within the midpoint sum's own
-        /// rounding width ([`quad`]'s `last_round_width_lo` says what
-        /// the bound omits and why it is a bound). Either way a width
-        /// that really missed: strictly above `target_len`.
+        /// The width of the narrowest enclosure the lane reached, as a
+        /// length (m). The narrowest round is chosen by flux width, so
+        /// this is not necessarily the last round's width, nor
+        /// necessarily over `target_len` in the area lever this length
+        /// is metered by.
         width_len: f64,
         /// The convergence target, as a length (m).
         target_len: f64,
-        /// The refinement rounds the loop ran before refusing: the
-        /// schedule's full count when it ran out; `1` when the
-        /// last-round bound refused the face after round 0; `0` on the
-        /// exact arm, which has no composite round. A receipt for what
-        /// the refusal cost, and the witness that the early exit fired
-        /// — a width alone cannot tell the two apart.
+        /// The refinement rounds the lane ran before it stopped: `0` on
+        /// the exact arm, which has no composite round. A receipt for
+        /// what the refusal cost.
         rounds: usize,
     },
     /// A quadrature input is outside the lane's certified inventory
@@ -623,8 +617,8 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
 ///
 /// **"Simplify the trim" is not a lever this refusal has**, and it is
 /// gone. Nothing in the payload is about the trim; the refusal is
-/// raised on the exact arm and on the last round's proven lower bound,
-/// where no trim complexity is implicated; and D4 ¶1 (i) names a
+/// raised where the lane stopped, at its floor or its work wall, where
+/// no trim complexity is implicated; and D4 ¶1 (i) names a
 /// quadrature budget spent as its own example of a refusal that would
 /// otherwise name no recourse at all, which is what licenses naming
 /// loosening here and nowhere a geometry lever exists.
@@ -781,8 +775,9 @@ impl core::fmt::Display for PropsError {
                 rounds,
             } => write!(
                 f,
-                "a face's certified contribution stayed {width_len:.3e} m wide after {rounds} \
-                 refinement round(s), above the {target_len:.3e} m this tolerance targets. {}",
+                "a face's quadrature stopped after {rounds} refinement round(s) without its \
+                 certified contribution meeting the {target_len:.3e} m this tolerance targets; \
+                 its narrowest enclosure is {width_len:.3e} m wide. {}",
                 quadrature_budget_recourse(*width_len)
             ),
             Self::QuadratureUnsupported { what } => write!(

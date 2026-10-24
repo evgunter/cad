@@ -2,11 +2,12 @@
 id: a-value-charted-on-the-target-reads-frame-carries-the-datum-chain
 kind: issue
 title: A value charted on the target read's moved frame would carry every datum chain verbatim and retire ValueOnAMovedWorld
-status: open
+status: closed
 opened: 2026-10-18
 priority: P2
 cost: M
 parent: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
+closed: 2026-10-23
 ---
 
 
@@ -23,3 +24,7 @@ D charts a value from the target BODY's own frame swung onto the mated direction
 Raised by the orchestrator's (A)/(B) ruling on PR D. `needs_ev` once someone picks it up.
 
 - 2026-10-18: superseded by the placement pivot (fork-log row 162, PR 5312). `stand` becomes an unmated placement whose values are the datum chain or six zeros, and `Anchors`, the in-plane/out-of-plane split and the moved-landing refusal retire with it. This closes with that unit, whichever PR carries it.
+
+## Closed
+
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). A value names no mate and charts on the target space's axes, swung onto the mated direction; `Target::World` and `ValueOnAMovedWorld` are gone, so a datum chain carries verbatim. Row: `intent_dprime2_mates_read_geometry::a_value_charts_on_the_target_space` (spec test 24).

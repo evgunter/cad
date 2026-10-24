@@ -105,15 +105,13 @@ const CARVED_STATES: usize = 22;
 /// riding in the action that caused it: five extrudes each placed into
 /// the world, the placement inserted with its identity bundle as one
 /// edit (5); the chamfer re-pointing the plinth's placement (1); five
-/// moves, each placement inserted with its mate and values as its own
-/// edit, four of them re-pointing the world placement of what they
-/// moved (4); five booleans each placing its moved second operand into
-/// the plinth's space where it stands — its bundle written as the
-/// identity, the placement re-targeted, and its mate and values written
-/// whole (15); four of them re-pointing their first operand's placement
-/// and deleting the second's (8); and the last, whose second operand
-/// nothing places, re-pointing only (1).
-const WORLD_EDITS: usize = 34;
+/// moves, each placement inserted with its values as its own edit, four
+/// of them re-pointing the world placement of what they moved (4); five
+/// booleans each re-targeting its moved second operand into the
+/// plinth's space, its values as written (5); four of them re-pointing
+/// their first operand's placement and deleting the second's (8); and
+/// the last, whose second operand nothing places, re-pointing only (1).
+const WORLD_EDITS: usize = 24;
 /// Edits on the FINAL saved path: the twenty-two carving actions'
 /// own edits (`CARVED_STATES` less the root), the world's edits among
 /// them, and the taller-drum edit — edits, where `CARVED_STATES`

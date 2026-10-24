@@ -317,10 +317,12 @@ fn r2_coplanar_plus_overlap_detected() {
 
 /// Identical coincident faces (full flush overlap, all-vv skeleton):
 /// two unit cubes stacked flush at z = 1 as one two-shell body.
-/// (a) Undeclared: must be LOUD. (b) With the four corner vv pairs
-/// fabricated as declarations: does 3′ CERTIFY a full face-on-face
-/// area contact from 4 vertex records alone? Executed answer feeds
-/// the report (the PR calls skeleton-certification deliberate).
+/// (a) Undeclared: must be LOUD, and it is one face pair, the area
+/// contact. (b) With the four corner vv pairs fabricated as
+/// declarations (read off the structural twin, which confirms no pair
+/// and so reports the corners): 3′ does not certify a full face-on-face
+/// area contact from four vertex records, since the contact is the face
+/// pair, which no vertex record names.
 #[test]
 fn r2_flush_stack_full_overlap() {
     let mut body = mapped_cube(Point3::new, Tol::witness());
@@ -329,19 +331,23 @@ fn r2_flush_stack_full_overlap() {
         |x, y, z| Point3::new(x, y, 1.0 + z),
         Tol::witness(),
     );
+    let face_pair = |errors: &[ValidationError]| {
+        matches!(
+            errors,
+            [ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::ConformalPatch { .. },
+                ..
+            }]
+        )
+    };
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
-    assert!(!errors.is_empty(), "flush stack must not pass undeclared");
-    assert!(
-        errors
-            .iter()
-            .all(|e| matches!(e, ValidationError::UnrecordedContact { .. })),
-        "{errors:?}"
-    );
-    // Fabricate the 4 corner vv declarations from the census's own
-    // findings and re-validate.
+    assert!(face_pair(&errors), "{errors:?}");
+    let corners =
+        topo::validate_pseudomanifold_structural(&body, &ContactRecords::default(), Tol::witness())
+            .unwrap_err();
     let mut contacts = ContactRecords::default();
-    for e in &errors {
+    for e in &corners {
         if let ValidationError::UnrecordedContact {
             contact: topo::CensusContact::VertexVertex { a, b },
             ..
@@ -358,22 +364,18 @@ fn r2_flush_stack_full_overlap() {
         4,
         "expected the 4 corner kisses"
     );
-    let verdict = validate_pseudomanifold(&body, &contacts, Tol::witness());
-    // Executed outcome recorded in the report: if Ok, a full-area
-    // flush contact is certifiable from 4 vv records (skeleton
-    // posture, per PR body); if Err, list what still fires.
-    match verdict {
-        Ok(()) => eprintln!("R2: flush stack CERTIFIES from 4 vv records"),
-        Err(errs) => eprintln!("R2: flush stack still refuses: {errs:?}"),
-    }
+    let verdict =
+        validate_pseudomanifold(&body, &contacts, Tol::witness()).expect_err("still loud");
+    assert!(face_pair(&verdict), "{verdict:?}");
 }
 
 /// Containment with vertices exactly ON the boundary: a diamond prism
 /// balanced on a cube's top face with its 4 base vertices resting on
 /// the top face's EDGE interiors (region containment, no interior
-/// vertex, no boundary crossing). Expect LOUD via the VertexOnEdge
-/// lane: nothing here is declared, and that lane's only backing path
-/// is a declared face pair holding the vertex and the edge.
+/// vertex, no boundary crossing). LOUD: the diamond's base lies on the
+/// top over an area, one face pair; read where no pair is confirmed
+/// (the structural twin), the VertexOnEdge lane fires, since nothing
+/// here is declared.
 #[test]
 fn r2_inscribed_diamond_vertices_on_edges() {
     let mut body = mapped_cube(
@@ -387,8 +389,21 @@ fn r2_inscribed_diamond_vertices_on_edges() {
         |x, y, z| Point3::new(1.0 + x - y, x + y, 2.0 + z),
         Tol::witness(),
     );
-    let errors =
+    let certified =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
+    assert!(
+        matches!(
+            certified[..],
+            [ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::ConformalPatch { .. },
+                ..
+            }]
+        ),
+        "{certified:?}"
+    );
+    let errors =
+        topo::validate_pseudomanifold_structural(&body, &ContactRecords::default(), Tol::witness())
+            .unwrap_err();
     assert!(
         errors.iter().any(|e| matches!(
             e,

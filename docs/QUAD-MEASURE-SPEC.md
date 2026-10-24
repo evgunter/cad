@@ -42,9 +42,14 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
   the predicate's question, asked in topo. `props_quad_face_extent` stays: it
   is a gate on the face, not a stop.
 - **R2. "Stops paying" is `Floor`, defined per lane** as the removable part
-  of the width (the rule remainder) falling below the irremovable part (the
-  pads, and arithmetic). Each lane already computes the two apart. The
-  stall rule is the backstop for a lane that cannot split them.
+  of the width (the rule remainder) falling to at most 2⁻¹⁰ of the width
+  (`removable·1024 ≤ width`); the rest is the irremovable part (the pads,
+  and arithmetic). Each lane computes the two apart. The stall rule is the
+  backstop for a lane that cannot split them.
+  - Evidence for 2⁻¹⁰ over "removable below irremovable": PR 5589's
+    `verbs_germarms::a_thin_bar_turned_about_two_axes_gets_through_the_join`,
+    a cylinder face stopped at round 4 with 23% of its width still
+    removable, which main certifies one round later.
 - **R3. The work unit.**
   - One constant, `FACE_WORK_WALL`, in weighted cell-evaluations,
     **cumulative** over a face's rounds (`crate::descent::Work`), not per
@@ -53,8 +58,16 @@ Line numbers cite main at `9f7f131` and drift. Each unit's lane re-greps.
     calibrated once, measured on this box and recorded with the
     measurement, so that one unit costs roughly the same in every lane:
     designer B measured a v-exact cell at about 30× a composite cell.
-  - The wall sits at today's worst admitted face, a composite-arm round 7,
-    so no face gets slower than it is today.
+  - The wall sits at the worst face in the corpus that converges under
+    today's caps, measured: the tour's `lily_leaf_a`, a knot-cut
+    composite wall at round 7, 14,243,680, rounded up to 14,250,000. It
+    bounds work, not rounds. A face costlier per round than that one
+    (more knots, chords, edges or spirics) gets fewer rounds than its
+    cap gave it, and stops at `Wall` with a sound bracket. No finite
+    work bound keeps every face the caps certified.
+  - Witnesses (PR 5589's DUAL review): review_r1's quarter torus at 12×
+    on 9×9 conic spans (main r7, here `Wall` after r6), and a flat chart
+    trimmed by a regular hexagon of curved arcs (`Wall` at r4).
   - `QUAD_MAX_ROUNDS`, `QUAD2_MAX_ROUNDS`, `QUAD2_RATIONAL_MAX_ROUNDS`,
     `TRIM_MAX_ROUNDS` and `LAST_ROUND_EVERY_LANE_RUNS` go.
 - **R4. Narrowest, never last.** Each face keeps the narrowest sound
@@ -176,8 +189,8 @@ Each lands green. None lands half a representation change.
    `Resolution(` with an ε-derived literal outside tests that state why.
 3. Check 7, shell roles, the backstop and connectedness pass a deciding
    predicate.
-4. A face that converges today returns its bits unchanged under
-   `Resolution(1024·ε)`.
+4. A face that converges within the wall today returns its bits
+   unchanged under `Resolution(1024·ε)`.
 5. The quarter torus at the default ε returns a bracket under
    `Resolution(1.024e-6)`, never a refusal, and its `stop` says `Wall` or
    `Met`.

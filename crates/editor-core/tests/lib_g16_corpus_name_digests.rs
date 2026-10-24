@@ -258,7 +258,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// `die_tool` moved again when its master ball came to stand on the
 /// cube's corner frame (`corner_frame`) by an axis mate whose slide and
-/// spin are the constant `0`, where `place_against` had placed it by a
+/// spin are the constant `0`, where the retired place-against helper had placed it by a
 /// read-back frame that minted 42 more ids, and its explicit rule's
 /// frames came to be built from the fraction of a turn each is. Every
 /// other document held.
@@ -273,7 +273,7 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 ///
 /// Re-pinned, `die` alone, when its pips came to stand on frames stated
 /// from the cube's corner by whole quarter turns and dyadic slides (a
-/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
 /// written `atan2`'s rounded turns: the die's world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
 /// placements, their ids and the names under them are new.
@@ -282,37 +282,45 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// construction defines its space beside its body and every bundle is
 /// written whole, so ids, and the names spelled with them, moved in
 /// every document; `m10_p_fence`'s ids-masked geometry fence held.
+///
+/// **Re-pinned for PR 5616** (a mirror's seam is the plane's face read
+/// twice), taken merged over D′2 (PR 5613, mates read geometry), which
+/// left this row red on main: D′2 moved every corpus document's ids,
+/// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
+/// seam face plainly, so its ids moved too. Ids only:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held unmoved.
 const PINNED: &[(&str, u64)] = &[
-    ("die", 0xae173bd56bade011),
-    ("corner_table", 0xeae10ef820aff2cc),
-    ("heat_sink", 0xbbb0d878d987c4e4),
-    ("crossing_slots", 0x7717d7d79880723b),
-    ("nested_islands_105", 0xc18e24174c699174),
-    ("nested_islands_106_depth1", 0x26a91e6250b5443a),
-    ("nested_islands_106_depth2", 0x9fc2c6953d1a48da),
-    ("declared_tangency", 0xacc967fb022f7a5a),
-    ("kitchen_sink", 0x4d55f187c80463ab),
-    ("cut_cylinder", 0x67bc245355134c76),
-    ("measured_web", 0x34b0e7341cc19a4b),
-    ("boss_union", 0xffd42535a0df45e9),
-    ("die_fillet", 0x191d1fd70df99ebe),
-    ("die_chamfer", 0x8411def100b5da50),
-    ("die_pips", 0x68760f02f3aa8a86),
-    ("heat_sink_fins", 0x3071e077055656a2),
-    ("die_tool", 0xd8f504768e20978a),
-    ("face_sketch", 0xe543d89eb08f1acd),
-    ("part_select", 0xbda1a33c5b6a29b7),
-    ("symmetric_plate", 0x57332760b19770e0),
-    ("loft_prism", 0x1f0fee3e463521f8),
-    ("die_composed", 0x7407f992e7d4c371),
-    ("die_composed_tour", 0x79928ebab17faae1),
-    ("plate_param", 0xfe408d5a96dc222d),
-    ("kiss_carry", 0x0228c93ffd36f718),
-    ("tube_ring", 0x427d0884b35a65fd),
-    ("tube_arc", 0x9eaa4618e028bbb9),
-    ("hollow_tube_elbow", 0xfb925dda63c66ebb),
-    ("hollow_tube_ring", 0x44db9a45d4ce351f),
-    ("reshaped_rod", 0xadb8ae2d7a1bc592),
+    ("die", 0xf7e8cf70cf74d723),
+    ("corner_table", 0xfd7f08bd78e23376),
+    ("heat_sink", 0xe5513cb44dc62a59),
+    ("crossing_slots", 0x6c06d8dbd1ceb960),
+    ("nested_islands_105", 0x5a4a9585a52d3a28),
+    ("nested_islands_106_depth1", 0xe4febd3a3094f8a1),
+    ("nested_islands_106_depth2", 0xa3cee463a44d3f89),
+    ("declared_tangency", 0xd108b6ffec69bb96),
+    ("kitchen_sink", 0x5feda664c2f39bbc),
+    ("cut_cylinder", 0x3a27171be80eccde),
+    ("measured_web", 0xbbc4a7c3addbb622),
+    ("boss_union", 0xbb45b318c251ada2),
+    ("die_fillet", 0xd89b04ca6c904f1c),
+    ("die_chamfer", 0x49a6149b72216e24),
+    ("die_pips", 0xcc227276b199e759),
+    ("heat_sink_fins", 0x5c769a19b5aa51be),
+    ("die_tool", 0x9d3e30a037debbc8),
+    ("face_sketch", 0xa22edcc747cc36d4),
+    ("part_select", 0x331a8218fc53644d),
+    ("symmetric_plate", 0x15fcb81f3d14e60e),
+    ("loft_prism", 0xd755086b63c1b1e0),
+    ("die_composed", 0x1357333121878a00),
+    ("die_composed_tour", 0x7468e41c9b427895),
+    ("plate_param", 0x8173695246049701),
+    ("kiss_carry", 0x4ab4e2e7eae06157),
+    ("tube_ring", 0x07f65493eee0fb77),
+    ("tube_arc", 0x7293a2e365d4a2ed),
+    ("hollow_tube_elbow", 0x9c6883bdccf7ae3b),
+    ("hollow_tube_ring", 0xe817d8288e9fe883),
+    ("reshaped_rod", 0x0781ced259e5848e),
 ];
 
 #[test]

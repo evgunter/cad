@@ -96,8 +96,7 @@ pub mod select;
 pub use author::{BooleanSpec, PartSelectSpec, PatternRuleSpec, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{
-    CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome, PlaceReport, SessionOp,
-    ValueGestureName,
+    CancelDoor, Creation, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName,
 };
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
@@ -1757,20 +1756,24 @@ impl DocSession {
                 values,
                 into_target_space,
             } => self.commit_run(|run| {
-                let space = mate_space(run.doc(), &mate);
-                let moves = into_target_space
-                    && space.is_some()
-                    && space != run.doc().node_space(placement);
-                let held = if moves {
-                    // The bundle it held reads the space it leaves.
-                    Vec::new()
-                } else {
-                    held_bundle(run.doc(), placement)
-                };
-                let bundle = mate_bundle(held, *mate, values);
-                if let (true, Some(space)) = (moves, space) {
+                let space = run.doc().operand_space(&mate.to);
+                if let Some(space) = space.filter(|&space| {
+                    into_target_space && Some(space) != run.doc().node_space(placement)
+                }) {
                     into_space(run, placement, space)?;
                 }
+                // The door writes the bundle whole with the mate in it:
+                // the values whose freedoms the mate fixes go, each
+                // freedom it leaves keeps its value or is written `0`.
+                run.apply(DocEdit::AddConstraint {
+                    placement,
+                    mate,
+                    fresh: Vec::new(),
+                })?;
+                if values.is_empty() {
+                    return Ok(());
+                }
+                let bundle = valued(held_bundle(run.doc(), placement), values);
                 write_bundle(run, placement, bundle)
             }),
             SessionOp::RemoveConstraint { mate } => self.remove_constraint(mate),
@@ -1779,6 +1782,9 @@ impl DocSession {
                 let Some(&space) = run.doc().outputs(node).first() else {
                     unreachable!("a `new_space()` defines its one output")
                 };
+                // The copy stands at the identity of its new space,
+                // whatever values placed it in the one it leaves.
+                write_bundle(run, placement, editor_core::stand().bundle())?;
                 into_space(run, placement, space)
             }),
             SessionOp::NewDocument { name } => self.new_document(&name),
@@ -2012,18 +2018,13 @@ impl DocSession {
         };
         // A creation: the instance, which is a placement, placed into
         // the world at the identity over its own copies.
-        self.commit_placing(|run| {
-            let placed = pncad::document::stand();
-            let by = placed.by;
-            let instance = run.insert(Node::instantiate_part(
+        self.commit_run(|run| {
+            run.insert(Node::instantiate_part(
                 DocRef { id, pin },
                 Operand::Var(VarId::WORLD),
-                placed.bundle(),
-            ))?;
-            Ok(vec![PlaceReport {
-                placement: instance,
-                by: Ok(by),
-            }])
+                pncad::document::stand().bundle(),
+            ))
+            .map(drop)
         })
     }
 
@@ -2941,9 +2942,8 @@ impl DocSession {
         // A node spelled twice is not refused: a repeated read glues
         // (A∪A = A∩A = A, A−A the typed empty body), so it is a
         // document like any other.
-        let (opts, tol) = (self.eval_options(), self.tol);
         let staged = self.stage_run(|run| {
-            let operands = in_one_space(run, &spec.operands(), &opts, tol)?;
+            let operands = in_one_space(run, &spec.operands())?;
             let node = run.insert(spec.with_operands(operands).node())?;
             combine_in_world(run, &spec.operands(), node)?;
             Ok(node)
@@ -2958,8 +2958,7 @@ impl DocSession {
     /// Insert one split of an existing body ([`SessionOp::AddSplit`]):
     /// its tool the plane through `origin` with normal `normal` in the
     /// target's own coordinates, read off the target's geometry
-    /// ([`pncad::document::frame_at`] through its `xy`) at the numbers'
-    /// nominal values.
+    /// ([`frame_off`] through its `xy`) at the numbers' nominal values.
     fn add_split(
         &mut self,
         target: Operand,
@@ -3009,7 +3008,7 @@ impl DocSession {
             })
             .map(|root| body_of(doc, root));
         let body = root.as_ref().unwrap_or(body);
-        // `frame_at` takes a placed copy's frame in the copy's own
+        // `frame_off` takes a placed copy's frame in the copy's own
         // coordinates and carries it by the copy's motion; the numbers
         // are in its space's, so they are carried back first.
         let opts = self.eval_options();
@@ -3019,22 +3018,24 @@ impl DocSession {
             Some(pose) => Frame::from_affine(pose.affine().inverse() * at.affine()),
             None => at,
         };
-        let frame = pncad::document::frame_at(doc, body, &at, &opts, self.tol)
+        let ev: Evaluation<f64> = pncad::document::evaluate(
+            doc,
+            None,
+            &pncad::document::CancelToken::new(),
+            &opts,
+            self.tol,
+        );
+        let frame = frame_off(doc, &ev, body, &at, self.tol)
             .map_err(|refusal| Refusal::Frame(Box::new(GestureFrameFault::Geometry(refusal))))?;
         Ok(RoleRead::through(frame, role))
     }
 
     /// Insert one rigid move of an existing body
-    /// ([`SessionOp::AddTransform`]): a placement of `input` against its
-    /// own geometry ([`pncad::document::place_against`]) at the frame
-    /// the gesture's numbers make — rotated by `rotation_angle` about
-    /// `rotation_axis` through `input`'s own origin, then translated —
-    /// its mate and values written in the same action, and the body's
-    /// world placements re-pointed to it (A10, Ev's residue 1). The
-    /// numbers are taken at their nominal values; the placement's
-    /// values carry them afterwards. A copy the door cannot place
-    /// stands where its body stands, by the identity bundle, and the
-    /// outcome says so ([`OpOutcome::placed`]).
+    /// ([`SessionOp::AddTransform`]): a placement of `input` into the
+    /// space it is in, by values on that space's axes ([`gesture_moves`])
+    /// — rotated by `rotation_angle` about `rotation_axis` through
+    /// `input`'s own origin, then translated — and the body's world
+    /// placements re-pointed to it (A10, Ev's residue 1), in one action.
     fn add_transform(
         &mut self,
         input: Operand,
@@ -3050,33 +3051,24 @@ impl DocSession {
             Ok(at) => at,
             Err(refusal) => return OpOutcome::refused(refusal),
         };
+        let moves = match gesture_moves(doc, translation, rotation_axis, rotation_angle, &at) {
+            Ok(moves) => moves,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
         let over = self.placements_of(&input);
-        let (opts, tol) = (self.eval_options(), self.tol);
         let staged = self.stage_run(|run| {
-            let placed = pncad::document::place_against(run.doc(), &input, &input, &at, &opts, tol);
-            // Into the space the body is in: the mate reads its geometry.
-            // A copy the door cannot place stands where its body stands,
-            // the identity bundle, and the outcome says so.
+            // Into the space the body is in, on that space's axes.
             let target = run.doc().operand_space(&input).unwrap_or(VarId::WORLD);
-            let (bundle, by) = match placed {
-                Ok(placed) => {
-                    let by = placed.by;
-                    (placed.bundle(), Ok(by))
-                }
-                Err(refusal) => (pncad::document::stand().bundle(), Err(refusal)),
-            };
             let placement = run.insert(Node::place(
                 vec![pncad::document::BodyRead::plain(input.clone())],
                 Operand::Var(target),
-                bundle,
+                pncad::document::Placed::unmated(moves).bundle(),
             ))?;
-            let report = PlaceReport { placement, by };
             let copies = repoint(run, over, placement)?;
-            Ok((vec![report], Renamed::through(copies, placement)))
+            Ok(Renamed::through(copies, placement))
         });
         match staged {
-            Ok((staged, (placed, renamed))) => OpOutcome {
-                placed,
+            Ok((staged, renamed)) => OpOutcome {
                 renamed,
                 ..self.record_run(staged)
             },
@@ -3172,13 +3164,13 @@ impl DocSession {
             Ok(kind) => combine::pattern_node(input, combine::DUPLICATE_COUNT, kind),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
-        self.commit_placing(|run| {
+        self.commit_run(|run| {
             let pattern = run.insert(pattern)?;
             let copy = run.insert(combine::part_node(
                 pattern,
                 PartSelectSpec::Instance(combine::DUPLICATE_COUNT - 1),
             ))?;
-            Ok(vec![place_in_world(run, copy.into())?])
+            place_in_world(run, copy.into()).map(drop)
         })
     }
 
@@ -3244,10 +3236,10 @@ impl DocSession {
     /// What is placed is the made node's first `Body` output: a revolve
     /// defines its body and its axis, and naming it alone reads neither.
     fn create_placed(&mut self, node: AuthoredNode) -> OpOutcome {
-        self.commit_placing(|run| {
+        self.commit_run(|run| {
             let made = run.insert(node)?;
             let body = body_of(run.doc(), made);
-            Ok(vec![place_in_world(run, body)?])
+            place_in_world(run, body).map(drop)
         })
     }
 
@@ -3408,8 +3400,6 @@ impl DocSession {
             // A placement's bundle gaining or losing a constraint is
             // structure: where a copy stands, not a panel field's value.
             | DocEdit::AddConstraint { .. }
-            | DocEdit::AddValue { .. }
-            | DocEdit::AddValues { .. }
             | DocEdit::RemoveConstraint { .. }
             | DocEdit::RemoveConstraints { .. }
             | DocEdit::SetConstraints { .. }
@@ -3554,45 +3544,19 @@ impl DocSession {
         }
     }
 
-    /// [`Self::commit_run`] of a place gesture: the action answers how
-    /// it placed each copy it made, which the outcome carries
-    /// ([`OpOutcome::placed`]).
-    fn commit_placing(
-        &mut self,
-        action: impl FnOnce(&mut Recording<'_, ProfileProgram>) -> Result<Vec<PlaceReport>, EditError>,
-    ) -> OpOutcome {
-        match self.stage_run(action) {
-            Ok((staged, placed)) => OpOutcome {
-                placed,
-                ..self.record_run(staged)
-            },
-            Err(refusal) => OpOutcome::refused(refusal),
-        }
-    }
-
     /// **One constraint removed** ([`SessionOp::RemoveConstraint`]):
-    /// for a mate, each value naming it first, then the mate, as one
-    /// action.
+    /// the bundle written whole again without it, by the door's rule
+    /// ([`DocEdit::RemoveConstraint`]) — a mate taken away frees what it
+    /// fixed, and each freedom left unnamed is written `0`, so the copy
+    /// stays pinned.
     fn remove_constraint(&mut self, mate: pncad::document::MateRef) -> OpOutcome {
-        let held = held_bundle(self.committed_doc(), mate.placement);
-        if !held.iter().any(|c| c.id == mate.id) {
-            // No such constraint (or no placement): the raw edit refuses
-            // it in its words.
-            return self.commit_run(|run| {
-                run.apply(DocEdit::RemoveConstraint {
-                    placement: mate.placement,
-                    constraint: mate.id,
-                })
-                .map(|_| ())
-            });
-        }
-        // The bundle whole without the constraint and, for a mate, the
-        // values naming it.
-        let kept: Vec<_> = held
-            .into_iter()
-            .filter(|c| c.id != mate.id && c.value().is_none_or(|v| v.mate != Some(mate.id)))
-            .collect();
-        self.commit_run(|run| write_bundle(run, mate.placement, kept))
+        self.commit_run(|run| {
+            run.apply(DocEdit::RemoveConstraint {
+                placement: mate.placement,
+                constraint: mate.id,
+            })
+            .map(drop)
+        })
     }
 
     /// **An action's edits, applied and not yet recorded**, beside what
@@ -3743,23 +3707,20 @@ fn body_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Operand {
 
 /// **A combine's operands, in the first one's space** (D10
 /// `[placement.spaces]`): each operand after the first that lives in
-/// another space is placed into the first's — at the identity, where
-/// the first is in the world or a `new_space()`, and against the body
-/// of the construction whose space it is otherwise.
+/// another space is placed into the first's, at the identity of its
+/// axes.
 ///
 /// A construction is placed into the first's space and read through
-/// that placement. A copy placed into its own body's space (the
-/// transform gesture's) is placed again in place: re-targeted into the
-/// first's space, with the bundle that stands it there at the pose it
-/// held in its body's own coordinates, so it reads where it stood
-/// relative to its body. An operand the door cannot place, or one in no
-/// space, is read as it is: the combine then refuses `SpaceMismatch` at
-/// the edit door, in the kernel's words.
+/// that placement. A copy placed into its own body's space by values
+/// alone (the transform gesture's) is re-targeted into the first's
+/// space with its values as written, so it stands on the first's axes
+/// as it stood on its body's and every variable keeps driving it. An
+/// operand in no space, or a copy whose bundle holds a mate (which
+/// reads its body's space), is read as it is: the combine then refuses
+/// `SpaceMismatch` at the edit door, in the kernel's words.
 fn in_one_space(
     run: &mut Recording<'_, ProfileProgram>,
     operands: &[Operand],
-    opts: &EvalOptions,
-    tol: Tol,
 ) -> Result<Vec<Operand>, EditError> {
     let Some((first, rest)) = operands.split_first() else {
         return Ok(Vec::new());
@@ -3767,22 +3728,6 @@ fn in_one_space(
     let Some(home) = run.doc().operand_space(first) else {
         return Ok(operands.to_vec());
     };
-    // The body a pose in `home` is read off: the construction whose
-    // space it is. The world and a `new_space()` have none.
-    let home_body = run
-        .doc()
-        .defined_by(home)
-        .map(|(node, _)| node)
-        .filter(|&node| !matches!(run.doc().node(node), Some(Node::World | Node::Space)))
-        .map(|node| body_of(run.doc(), node));
-    let ev: Evaluation<f64> = pncad::document::evaluate(
-        run.doc(),
-        None,
-        &pncad::document::CancelToken::new(),
-        opts,
-        tol,
-    );
-    let poses = pncad::document::solve_document(run.doc(), opts, tol);
     let node_of = |doc: &Doc<ProfileProgram>, read: &Operand| {
         crate::world::read_output(doc, read).map(|(node, _)| node)
     };
@@ -3796,65 +3741,35 @@ fn in_one_space(
             read.push(operand.clone());
             continue;
         }
-        // A copy placed into its own body's space: re-placed in place,
-        // at the pose it holds in that space.
+        // A copy placed into its own body's space.
         let self_placed = match run.doc().node(node) {
             Some(Node::Place { shapes, .. }) => match shapes.as_slice() {
-                [shape] => {
-                    let body = Operand::Var(shape.read);
-                    (run.doc().space_of(shape.read) == run.doc().node_space(node)).then_some(body)
-                }
-                _ => None,
+                [shape] => run.doc().space_of(shape.read) == run.doc().node_space(node),
+                _ => false,
             },
-            _ => None,
+            _ => false,
         };
-        let (body, at, replaced) = match self_placed {
-            Some(body) => match poses.relative(node) {
-                Some(at) => (body, at, true),
-                None => {
-                    read.push(operand.clone());
-                    continue;
-                }
-            },
-            None => (operand.clone(), Frame::IDENTITY, false),
-        };
-        // A body never placed stands where it stands (the identity
-        // bundle); a copy re-placed keeps the pose it holds.
-        let placed = match (&home_body, replaced) {
-            (Some(target), _) => {
-                pncad::document::place_against_in(run.doc(), &ev, target, &body, &at, tol)
+        if self_placed {
+            if held_bundle(run.doc(), node)
+                .iter()
+                .any(|c| c.mate().is_some())
+            {
+                read.push(operand.clone());
+                continue;
             }
-            (None, false) => Ok(pncad::document::stand()),
-            (None, true) => pncad::document::place_at_in(run.doc(), &ev, &body, &at, tol),
-        };
-        let Ok(placed) = placed else {
-            read.push(operand.clone());
-            continue;
-        };
-        if replaced {
-            if run.doc().node_space(node) != Some(home) {
-                // The identity first, which reads nothing: the copy's
-                // own mate reads its body's space, which the re-target
-                // leaves.
-                run.apply(DocEdit::SetConstraints {
-                    placement: node,
-                    constraints: editor_core::stand().bundle(),
-                    fresh: Vec::new(),
-                })?;
-                run.apply(DocEdit::SetParam {
-                    node,
-                    slot: SlotId::Operand(pncad::document::OperandSlot::Space),
-                    value: pncad::document::SlotValue::Read(Operand::Var(home)),
-                    fresh: Vec::new(),
-                })?;
-            }
-            constrain(run, node, placed)?;
+            run.apply(DocEdit::SetParam {
+                node,
+                slot: SlotId::Operand(pncad::document::OperandSlot::Space),
+                value: pncad::document::SlotValue::Read(Operand::Var(home)),
+                fresh: Vec::new(),
+            })?;
             read.push(operand.clone());
         } else {
+            // A body never placed stands where it stands.
             let placement = run.insert(Node::place(
-                vec![pncad::document::BodyRead::plain(body)],
+                vec![pncad::document::BodyRead::plain(operand.clone())],
                 Operand::Var(home),
-                placed.bundle(),
+                pncad::document::stand().bundle(),
             ))?;
             read.push(placement.into());
         }
@@ -3895,65 +3810,41 @@ fn combine_in_world(
     Ok(())
 }
 
-/// **The bundle the mate tool writes onto its copy**, whole: `mate`
-/// and its values naming it, each freedom the mate leaves that `values`
-/// does not set written as the constant `0`, since every bundle pins its
-/// copy (D10 `[placement.values]`). `held` is what of the bundle stays
-/// ([`held_bundle`]): a bundle with no mate — the identity the place
-/// gestures write — is the copy's standing values, which the mate
-/// replaces; a bundle with mates keeps them and gains this one, so a
-/// mate beyond one that already pins is refused by the door,
-/// overconstrained, rather than dropped or swapped in silence.
-pub(crate) fn mate_bundle(
+/// **`held` with the mate panel's `values` written over it**: each
+/// value of `held` on a freedom `values` sets takes that number, keeping
+/// its id; a freedom `values` sets that `held` holds no value on is
+/// appended, for the door to refuse as the bundle's own
+/// ([`pncad::document::MateFault::Overconstrained`]).
+pub(crate) fn valued(
     held: Vec<pncad::document::Constraint<Formula>>,
-    mate: pncad::document::Mate<Formula>,
     values: Vec<(pncad::document::Coord, Formula)>,
 ) -> Vec<pncad::document::Constraint<Formula>> {
-    use pncad::document::{Constraint, ConstraintId, Coord, TargetAxis, Value};
-    let held: Vec<Constraint<Formula>> = if held.iter().any(|c| c.mate().is_some()) {
-        held
-    } else {
-        Vec::new()
-    };
-    let freedoms: &[Coord] = match &mate.on {
-        Operand::Pose(def) => match **def {
-            pncad::document::pose::PoseDef::Plane { .. } => &[
-                Coord::Slide(TargetAxis::X),
-                Coord::Slide(TargetAxis::Y),
-                Coord::Spin,
-            ],
-            pncad::document::pose::PoseDef::Axis { .. } => {
-                &[Coord::Slide(TargetAxis::Z), Coord::Spin]
-            }
-            _ => &[],
-        },
-        _ => &[],
-    };
+    use pncad::document::{Constraint, ConstraintId, Value};
     let mut values = values;
-    for &coord in freedoms {
-        if !values.iter().any(|(at, _)| *at == coord) {
-            values.push((coord, Formula::zero(coord.dimension())));
-        }
-    }
-    let at = ConstraintId::placeholder(1);
-    held.into_iter()
-        .chain([Constraint::of_mate(at, mate)])
-        .chain((2..).zip(values).map(|(i, (coord, by))| {
-            Constraint::of_value(
-                ConstraintId::placeholder(i),
-                Value {
-                    mate: Some(at),
-                    coord,
-                    by,
-                },
-            )
-        }))
-        .collect()
+    let mut bundle: Vec<Constraint<Formula>> = held
+        .into_iter()
+        .map(|c| {
+            let set = c
+                .value()
+                .and_then(|v| values.iter().position(|(coord, _)| *coord == v.coord));
+            match set {
+                Some(at) => {
+                    let (coord, by) = values.remove(at);
+                    Constraint::of_value(c.id, Value { coord, by })
+                }
+                None => c,
+            }
+        })
+        .collect();
+    bundle.extend((1..).zip(values).map(|(i, (coord, by))| {
+        Constraint::of_value(ConstraintId::placeholder(i), Value { coord, by })
+    }));
+    bundle
 }
 
-/// **What of `placement`'s bundle a new mate writes beside**: the
-/// bundle as authored (each constraint re-authored, so a value keeps
-/// reading its variable by id). Empty for a node that is no placement.
+/// **`placement`'s bundle as authored**: each constraint re-authored,
+/// so a value keeps reading its variable by id. Empty for a node that
+/// is no placement.
 pub(crate) fn held_bundle(
     doc: &Doc<ProfileProgram>,
     placement: RecipeNodeId,
@@ -4008,25 +3899,6 @@ fn into_space(
         fresh: Vec::new(),
     })?;
     Ok(())
-}
-
-/// **The space `mate`'s `to` reads**: the world for a world read.
-fn mate_space(doc: &Doc<ProfileProgram>, mate: &pncad::document::Mate<Formula>) -> Option<VarId> {
-    match &mate.to {
-        pncad::document::Target::World(_) => Some(VarId::WORLD),
-        pncad::document::Target::Pose(to) => doc.operand_space(to),
-    }
-}
-
-/// **What a placing door answers, written onto `placement`** whole
-/// ([`write_bundle`]): the mate and each value naming it, or the values
-/// of a bundle with no mate.
-fn constrain(
-    run: &mut Recording<'_, ProfileProgram>,
-    placement: RecipeNodeId,
-    placed: editor_core::Placed,
-) -> Result<(), EditError> {
-    write_bundle(run, placement, placed.bundle())
 }
 
 /// **A gesture's numbers at their nominal values** in `doc`: each
@@ -4129,6 +4001,214 @@ fn frame_along(
     })
 }
 
+/// **The transform gesture's values** on the axes of the space its body
+/// is in: the slides its translation writes, as written, and the spin
+/// its rotation writes — about the space's own axis, by the angle as
+/// written, where the rotation axis is one of the three, else the chain
+/// of turns about `x`, `y` and `z` that `at` (the frame the gesture's
+/// numbers make, [`gesture_frame`]) turns by ([`moves_of`]).
+fn gesture_moves(
+    doc: &Doc<ProfileProgram>,
+    translation: &[Formula; 3],
+    axis: &[Formula; 3],
+    angle: &Formula,
+    at: &Frame,
+) -> Result<Vec<(pncad::document::Coord, Formula)>, Refusal> {
+    use pncad::document::{Coord, TargetAxis};
+    let about = nominals(doc, "rotation axis", axis, Dimension::Scalar)?;
+    let lone = TargetAxis::ALL
+        .into_iter()
+        .zip(about)
+        .filter(|&(_, c)| c != 0.0);
+    let spins = match lone.collect::<Vec<_>>().as_slice() {
+        [(axis, sense)] => {
+            let by = if *sense > 0.0 {
+                angle.clone()
+            } else {
+                Formula::neg(angle.clone())
+                    .unwrap_or_else(|_| unreachable!("an angle negates to an angle"))
+            };
+            vec![(Coord::Spin(*axis), by)]
+        }
+        _ => moves_of(&Frame {
+            columns: at.columns,
+            translation: [0.0; 3],
+        }),
+    };
+    let slides = TargetAxis::ALL
+        .into_iter()
+        .zip(translation.iter().cloned())
+        .map(|(axis, by)| (Coord::Slide(axis), by));
+    Ok(spins.into_iter().chain(slides).collect())
+}
+
+/// **The values standing a copy at `at`** on its target space's axes:
+/// the chain of turns about `x`, `y` and `z` its axes make — each a
+/// quarter turn written exactly (`turn/4`) where they are a signed
+/// permutation of the space's, else the angles `atan2` takes off them
+/// (`linear = Rz(γ)·Ry(β)·Rx(α)`) — and the slides its origin makes,
+/// each turn and slide that is not zero.
+fn moves_of(at: &Frame) -> Vec<(pncad::document::Coord, Formula)> {
+    use pncad::document::{Coord, TargetAxis};
+    // Entry `r(i, j)`: row `i` of column `j`.
+    let r = |i: usize, j: usize| at.columns[j][i];
+    let exact = (0..3).all(|j| {
+        let column = at.columns[j];
+        column.iter().filter(|&&c| c != 0.0).count() == 1
+            && column.iter().all(|&c| c == 0.0 || c.abs() == 1.0)
+    });
+    let quarter = |angle: f64| -> Formula {
+        let quarters = (angle / std::f64::consts::FRAC_PI_2).round();
+        let turn =
+            |den| Formula::turn_over(den).unwrap_or_else(|_| unreachable!("a turn is an angle"));
+        match quarters as i64 {
+            1 => turn(4),
+            2 | -2 => turn(2),
+            _ => Formula::neg(turn(4)).unwrap_or_else(|_| unreachable!("an angle negates")),
+        }
+    };
+    let cos_beta = r(0, 0).hypot(r(1, 0));
+    let beta = (-r(2, 0)).atan2(cos_beta);
+    let (alpha, gamma) = if cos_beta > f64::EPSILON.sqrt() {
+        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
+    } else {
+        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
+    };
+    let spins = [
+        (TargetAxis::X, alpha),
+        (TargetAxis::Y, beta),
+        (TargetAxis::Z, gamma),
+    ]
+    .into_iter()
+    .filter(|&(_, angle)| angle != 0.0)
+    .map(|(axis, angle)| {
+        let by = if exact {
+            quarter(angle)
+        } else {
+            Formula::literal(angle, Dimension::Angle)
+                .unwrap_or_else(|_| unreachable!("a finite angle is a literal"))
+        };
+        (Coord::Spin(axis), by)
+    });
+    let slides = TargetAxis::ALL
+        .into_iter()
+        .zip(at.translation)
+        .filter(|&(_, by)| by != 0.0)
+        .map(|(axis, by)| {
+            let by = Formula::literal(by, Dimension::Length)
+                .unwrap_or_else(|_| unreachable!("a finite length is a literal"));
+            (Coord::Slide(axis), by)
+        });
+    spins.chain(slides).collect()
+}
+
+/// **A frame read off `body`'s own geometry, standing at `at` in its
+/// own coordinates**: `Through` the first edge by id with an axis and
+/// the first vertex by id off its line, moved to `at` by the moves its
+/// axes and origin make there ([`moves_of`],
+/// [`pncad::document::moved_frame`]). A copy placed into its body's
+/// space is read through its body, `at` carried by the copy's motion.
+///
+/// # Errors
+///
+/// [`pncad::document::PinRefusal`]: `body` reads no node, or one that
+/// did not evaluate to a body, or a body with no such edge and vertex.
+fn frame_off(
+    doc: &Doc<ProfileProgram>,
+    ev: &Evaluation<f64>,
+    body: &Operand,
+    at: &Frame,
+    tol: Tol,
+) -> Result<Operand, pncad::document::PinRefusal> {
+    use editor_core::names::{EntityKey, EntityRef};
+    use pncad::document::{FrameMove, NodeResult, PinRefusal, ValuePayload};
+    use pncad::geom_core::UnitVec3;
+    use pncad::topo::readback;
+    let node = match body {
+        Operand::Output { node, .. } | Operand::Node(node) => *node,
+        Operand::Var(var) => doc.operation_of(*var).ok_or(PinRefusal::NoNode)?,
+        _ => return Err(PinRefusal::NoNode),
+    };
+    let Some(NodeResult::Ok(value)) = ev.result(node) else {
+        return Err(PinRefusal::Unevaluated { node });
+    };
+    let solid = match &value.payload {
+        ValuePayload::Body(b)
+        | ValuePayload::Boolean(pncad::document::BooleanValue::Body { body: b, .. }) => {
+            std::sync::Arc::clone(b)
+        }
+        ValuePayload::Copies(copies) => copies
+            .bodies
+            .first()
+            .cloned()
+            .ok_or(PinRefusal::NotABody { node })?,
+        _ => return Err(PinRefusal::NotABody { node }),
+    };
+    let var = match body {
+        Operand::Var(var) => Some(*var),
+        Operand::Output { node, port } => doc.output(*node, *port),
+        _ => doc.output(node, 0),
+    };
+    let table = var
+        .and_then(|var| ev.table(var))
+        .ok_or(PinRefusal::NotABody { node })?;
+    let band = pncad::geom_core::Band::linear(tol)
+        .unwrap_or_else(|_| unreachable!("the session's tolerance is a band"));
+    let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
+    let picked = solid.edges().find_map(|(edge, _)| {
+        let kind = readback::edge_carrier_kind(&solid, edge).ok()?;
+        matches!(
+            kind,
+            pncad::geom::CurveKind::Line
+                | pncad::geom::CurveKind::Circle
+                | pncad::geom::CurveKind::Ellipse
+        )
+        .then_some(())?;
+        let line = readback::edge_pose(&solid, edge).ok()?;
+        let dir = UnitVec3::new(line.axis, pncad::topo::query::POSE_UNIT_NORM, band).ok()?;
+        let edge_name = name(EntityKey::Edge(edge))?;
+        solid.vertices().find_map(|(vertex, _)| {
+            let point = readback::vertex_point(&solid, vertex).ok()?;
+            let off = point - line.origin;
+            let across = off - dir.get() * off.dot(dir.get());
+            UnitVec3::new(across, "frame_vertex_off_the_line", band).ok()?;
+            let vertex_name = name(EntityKey::Vertex(vertex))?;
+            let foot = line.origin + dir.get() * off.dot(dir.get());
+            let frame = pncad::geom_core::RigidMotion::from_aim_and_reference(
+                foot,
+                dir,
+                off,
+                pncad::topo::query::POSE_UNIT_NORM,
+                band,
+            )
+            .ok()?;
+            Some((edge_name.clone(), vertex_name, frame))
+        })
+    });
+    let (edge_name, vertex_name, frame) = picked.ok_or(PinRefusal::NoFrame { node })?;
+    let at = value
+        .motion
+        .map_or_else(|| at.affine(), |m| m.to_affine() * at.affine());
+    use pncad::document::pose::PoseDef;
+    let read = |def: PoseDef<Operand, Formula>| RoleRead::plain(Operand::Pose(Box::new(def)));
+    let base = Operand::Pose(Box::new(PoseDef::Through {
+        axis: read(PoseDef::Axis {
+            of: Operand::select(body.clone(), vec![edge_name]),
+        }),
+        point: read(PoseDef::Point {
+            of: Operand::select(body.clone(), vec![vertex_name]),
+        }),
+    }));
+    let moves = moves_of(&Frame::from_affine(frame.to_affine().inverse() * at))
+        .into_iter()
+        .map(|(coord, by)| match coord {
+            pncad::document::Coord::Spin(axis) => FrameMove::Spin(axis, by),
+            pncad::document::Coord::Slide(axis) => FrameMove::Slide(axis, by),
+        })
+        .collect::<Vec<_>>();
+    Ok(pncad::document::moved_frame(base, &moves))
+}
+
 /// [`DocSession::space_evaluation`], over the two session fields it
 /// reads: the shown document is the scratch while a value gesture
 /// previews, the committed one otherwise ([`DocSession::doc`]).
@@ -4139,28 +4219,18 @@ fn space_evaluation<'a>(derived: &'a Derived, history: &History) -> Option<&'a E
     (*run.doc == *committed || *run.doc == *shown).then(|| run.evaluation.as_ref())
 }
 
-/// **The "place where authored" gesture** ([`editor_core::stand`]):
-/// the identity bundle, no mate and the constant `0` on every freedom,
-/// written onto `placement`'s bundle, so the copy stands where its body
-/// stands at every value.
 /// **`body` placed in the world**: a `Place` of it into the world,
 /// standing where its body stands ([`editor_core::stand`], the identity
 /// bundle).
 fn place_in_world(
     run: &mut Recording<'_, ProfileProgram>,
     body: Operand,
-) -> Result<PlaceReport, EditError> {
-    let placed = editor_core::stand();
-    let by = placed.by;
-    let placement = run.insert(Node::place(
+) -> Result<RecipeNodeId, EditError> {
+    run.insert(Node::place(
         vec![pncad::document::BodyRead::plain(body)],
         Operand::Var(VarId::WORLD),
-        placed.bundle(),
-    ))?;
-    Ok(PlaceReport {
-        placement,
-        by: Ok(by),
-    })
+        editor_core::stand().bundle(),
+    ))
 }
 
 /// **Whether `node`'s value is a placement's copies**: a placement or

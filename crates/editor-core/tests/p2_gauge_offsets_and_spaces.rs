@@ -15,11 +15,10 @@ use std::sync::Arc;
 use crate::fixture;
 use crate::p2_gauges::{body_of, pinned, seat, seat_on, set_pin};
 
-use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
-    FreeValue, FreeVar, Node, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, StableName, Target,
-    VarName, WorldRead, evaluate,
+    FreeValue, FreeVar, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, StableName, VarName,
+    evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, run, solve, step};
@@ -260,6 +259,39 @@ fn seat_rel(p: &Parts) -> M4 {
     of_frame(&poses.placement(&doc, t).unwrap())
 }
 
+/// **Where a copy seated on a placed base stands, by D′2's chart**
+/// (`docs/INTENT-STAGE3-SPEC.md` §5′.2), written out independently of
+/// the solve: the target space's axes swung onto the base's upper cap's
+/// normal `n = (a, b, c)` by the shortest turn, `x' = (1 − a²/(1 + c),
+/// −ab/(1 + c), −a)` and `y' = n × x'`; the copy's own axes land on
+/// them (its start cap on the base's upper cap, no spin), its origin
+/// `at` along `x'` and `y'` from the space's origin and on the cap's
+/// plane along `n`.
+fn space_seat(w_base: &M4, height: f64, at: [f64; 2]) -> M4 {
+    let n = [w_base[0][2], w_base[1][2], w_base[2][2]];
+    let on_cap: [f64; 3] = std::array::from_fn(|i| w_base[i][2] * height + w_base[i][3]);
+    let (a, b, c) = (n[0], n[1], n[2]);
+    let one_plus_c = if c < 0.0 {
+        (a * a + b * b) / (1.0 - c)
+    } else {
+        1.0 + c
+    };
+    let x = [1.0 - a * a / one_plus_c, -a * b / one_plus_c, -a];
+    let y = [
+        n[1] * x[2] - n[2] * x[1],
+        n[2] * x[0] - n[0] * x[2],
+        n[0] * x[1] - n[1] * x[0],
+    ];
+    let along: f64 = (0..3).map(|i| on_cap[i] * n[i]).sum();
+    let t: [f64; 3] = std::array::from_fn(|i| at[0] * x[i] + at[1] * y[i] + along * n[i]);
+    [
+        [x[0], y[0], n[0], t[0]],
+        [x[1], y[1], n[1], t[1]],
+        [x[2], y[2], n[2], t[2]],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
+}
+
 fn band() -> geom_core::Band {
     fixture::band()
 }
@@ -277,26 +309,41 @@ fn pin_lifted(
     then: &Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let copy = Operand::Var(
-        doc.output(placement, 0)
-            .expect("an instance defines its copies"),
-    );
-    let mut pin = editor_core::pin_at(&doc, &copy, then, o, Tol::witness())
-        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    let Target::World(world) = pin.to else {
-        unreachable!("a pin reads the world")
-    };
-    let world = if angle == 0.0 {
-        world
-    } else {
-        world.spin(WorldRead::through(PoseRole::Z), ang(angle))
-    };
-    let along = [PoseRole::X, PoseRole::Y, PoseRole::Z][index];
-    pin.to = Target::World(world.slide(
-        WorldRead::through(along),
-        Formula::named(lift(), Dimension::Length),
-    ));
-    fixture::constrain_at(doc, placement, pin).0
+    use editor_core::{Coord, TargetAxis};
+    let _ = o;
+    // `then` spun `angle` about the world's z, then lifted along the
+    // axis `index`: the chain of `then`'s spins and that one, and its
+    // origin turned with it, the lift written as the variable.
+    let (c, s) = (angle.cos(), angle.sin());
+    let [x, y, z] = then.translation;
+    let origin = [c * x - s * y, s * x + c * y, z];
+    let mut spins: Vec<(Coord, Formula)> = editor_core::test_support::moves_at(then)
+        .into_iter()
+        .filter(|(coord, _)| matches!(coord, Coord::Spin(_)))
+        .collect();
+    if angle != 0.0 {
+        match spins.last_mut() {
+            Some((Coord::Spin(TargetAxis::Z), by)) => {
+                *by = Formula::add(by.clone(), ang(angle)).expect("two angles add");
+            }
+            _ => spins.push((Coord::Spin(TargetAxis::Z), ang(angle))),
+        }
+    }
+    let slides = TargetAxis::ALL.into_iter().enumerate().map(|(k, axis)| {
+        let at = if origin[k] == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(origin[k])
+        };
+        let by = if k == index {
+            Formula::add(at, Formula::named(lift(), Dimension::Length)).expect("two lengths add")
+        } else {
+            at
+        };
+        (Coord::Slide(axis), by)
+    });
+    let placed = editor_core::Placed::unmated(spins.into_iter().chain(slides).collect());
+    fixture::written(doc, placement, placed)
 }
 
 /// [`pin_lifted`] over a new instance of `part`.
@@ -312,9 +359,11 @@ fn pinned_lifted(
     (pin_lifted(doc, id, index, angle, then, o), id)
 }
 
-/// **A seat under a world mate whose pose composes a parametric lift, a
-/// fixed turn and a rotated offset**, against an independent 4x4 composition in f64 and in the
-/// interval lane at two values of the driving parameter.
+/// **A seat under a pin whose pose composes a parametric lift, a fixed
+/// turn and a rotated offset**, against an independent 4x4 composition
+/// in f64 and in the interval lane at two values of the driving
+/// parameter: the base by its composed values, each seat on it by the
+/// chart of the space it is placed into ([`space_seat`]).
 #[test]
 fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
     let p = parts("r1-afb");
@@ -340,15 +389,23 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
         body_of(&part_top, p.top_body),
     );
 
+    // The control's seat is the chart's at a base standing at the
+    // identity.
+    assert!(
+        gap(&rel, &space_seat(&ident(), BASE_HEIGHT, [1.0, 1.0])) <= 1e-12,
+        "the control seats by the chart"
+    );
     let expect = |liftv: f64| -> (M4, M4, M4) {
         let g = mul(
             &rigid([0.0, 0.0, liftv], [0.0, 0.0, 1.0], 0.25),
             &of_frame(&gin_frame),
         );
         let w_base = mul(&g, &of_frame(&off_frame));
-        let t_p = rigid([0.0, 0.0, BASE_HEIGHT], [0.0, 0.0, 1.0], 0.0);
-        let w_top = mul(&w_base, &rel);
-        (w_base, mul(&w_base, &t_p), w_top)
+        // Each seat's values chart on the world, swung onto the tilted
+        // cap: a seat does not ride with its base in the cap's plane.
+        let w_moved = space_seat(&w_base, BASE_HEIGHT, [0.0, 0.0]);
+        let w_top = space_seat(&w_base, BASE_HEIGHT, [1.0, 1.0]);
+        (w_base, w_moved, w_top)
     };
 
     for liftv in [2.0, 7.0] {
@@ -683,14 +740,7 @@ fn the_memo_moves_instances_when_their_pin_or_their_target_moves() {
         (minz(&ev2, top) - (t0 + 5.0)).abs() < 1e-9,
         "the mated instance moved"
     );
-    let shifted = pin_lifted(
-        set_pin(doc, base, None, &o),
-        base,
-        2,
-        0.0,
-        &Frame::translation([0.0, 0.0, 3.0]),
-        &o,
-    );
+    let shifted = pin_lifted(doc, base, 2, 0.0, &Frame::translation([0.0, 0.0, 3.0]), &o);
     let ev3 = evaluate::<f64>(
         &shifted,
         Some(&ev),
@@ -725,14 +775,14 @@ fn inline_at_a_pose_over_plain_geometry_moves_nothing() {
     same_bounds(before, after, "nothing moved");
 }
 
-/// **`InlineError::UnplaceablePart`'s recourse, followed, inlines**: a
-/// top mated onto a base is placed by its mate, and its part is no one
-/// instance at the identity that could take that bundle, so inline
-/// refuses naming the instance, with a recourse. The base sits where
-/// the seat puts the top at the world origin; following the recourse —
-/// pin the top where it is shown — inlines with nothing moved.
+/// **A mate-placed instance inlines in place** (A4, one rule): a top
+/// mated onto a base is placed by its mate, and its inline places the
+/// part's world under that bundle, so nothing moves. The base sits where
+/// the seat puts the top at the world origin.
+///
+/// *Breaks if* inline refuses an instance for how its bundle places it.
 #[test]
-fn the_unplaceable_part_recourse_followed_inlines_in_place() {
+fn a_mate_placed_instance_inlines_in_place() {
     let p = parts("r1-mateplaced");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-mateplaced"), Tol::witness());
@@ -740,21 +790,9 @@ fn the_unplaceable_part_recourse_followed_inlines_in_place() {
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(p.store.clone());
-    match editor_core::inline(&doc, top, &resolver, Tol::witness()) {
-        Err(e @ editor_core::InlineError::UnplaceablePart { .. }) => {
-            assert!(e.to_string().contains("Recourse:"), "{e}");
-            let editor_core::InlineError::UnplaceablePart { instance, .. } = e else {
-                unreachable!()
-            };
-            assert_eq!(instance.id(), top);
-        }
-        other => panic!("a mate-placed instance refuses typed: {other:?}"),
-    }
     let before = world_bounds(&doc, &run(&doc, &o));
-    let doc = fixture::pinned_where_solved(doc, &o);
-    assert!(fixture::offset_of(&doc, top).is_some(), "the top is pinned");
     let out = editor_core::inline(&doc, top, &resolver, Tol::witness())
-        .expect("the recourse followed, inline admits it");
+        .expect("a mate-placed instance inlines");
     let after = world_bounds(&out.doc, &run(&out.doc, &o));
     same_bounds(before, after, "nothing moved");
 }

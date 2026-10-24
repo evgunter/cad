@@ -46,7 +46,7 @@ from pncad import (
     mm,
 )
 
-from placing import plane_on
+from placing import placed, plane_on
 from spoken import tag
 
 #: The chordal budget every index in this file is built at. A cube's
@@ -245,7 +245,7 @@ class TestNearestAndTheCertifiedTie(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         lower = doc.place(cube, doc.world)
-        upper = doc.place(cube, doc.world, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
+        upper = placed(doc, cube, Frame.translation((0 * m, 0 * m, 2 * m)))
         ev = evaluate(doc)
         picks = [
             NodePick.build(ev, lower, 0, DELTA),
@@ -548,7 +548,7 @@ class TestThePickRefusesTyped(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         before = evaluate(doc)
-        later_node = doc.place(cube, doc.world, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
+        later_node = placed(doc, cube, Frame.translation((0 * m, 0 * m, 2 * m)))
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
         with self.assertRaises(HitTestError) as caught:
@@ -569,7 +569,7 @@ class TestThePickRefusesTyped(unittest.TestCase):
         doc = Doc()
         cube = unit_cube(doc)
         before = evaluate(doc)
-        later_node = doc.place(cube, doc.world, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
+        later_node = placed(doc, cube, Frame.translation((0 * m, 0 * m, 2 * m)))
         after = evaluate(doc)
         stale = NodePick.build(after, later_node, 0, DELTA)
         with self.assertRaises(HitTestError):

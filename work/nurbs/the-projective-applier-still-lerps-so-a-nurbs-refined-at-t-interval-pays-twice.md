@@ -153,7 +153,7 @@ compile errors, and each now says what it refines:
   at the same schedule in the ring (`wall_grid`), and limb 2 reads the
   described wall. Dropping the refinement outright collapsed the pads on
   a wall with weights over decades and lost rulings at `Interval`
-  (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
+  (`work/isotail/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
 - `ssi/certify::refined` is gone: limb 2 cuts the described carrier at
   the same grid in the ring (`CurveCertData::with_breaks`), and the box
   chain refines its homogeneous channels with `apply_certified`.

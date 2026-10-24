@@ -14,11 +14,10 @@
 
 use crate::fixture;
 use crate::wire::{doctored, wire_body};
-use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName,
-    InterfaceCrossing, InterfaceRecord, Mate, Node, PersistError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, StableName, Target, WorldRead, apply, load, save,
+    InterfaceCrossing, InterfaceRecord, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedFace, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -88,7 +87,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
     };
     // Related to the world by a mate, as a split's instance is: its
     // start cap rests on the world's xy plane.
-    let host = push(
+    push(
         &host,
         Box::new(Node::instantiate_part_with(
             doc_ref,
@@ -96,18 +95,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
             editor_core::Operand::Var(editor_core::VarId::WORLD),
             editor_core::stand().bundle(),
         )),
-    );
-    let instance = *host.ids().last().expect("the record's instance is live");
-    fixture::constrain_at(
-        host,
-        instance,
-        Mate {
-            on: fixture::plane(sited(instance, CapEnd::Start)),
-            to: Target::World(WorldRead::through(PoseRole::Xy)),
-            class: ContactClass::Rest,
-        },
     )
-    .0
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was

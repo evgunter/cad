@@ -2,10 +2,11 @@
 id: drawing-on-a-picked-face-is-a-two-form-trip
 kind: issue
 title: Drawing a profile on a picked face takes two forms: mint the face frame in add-datum, then pick it in add-profile
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+closed: 2026-10-23
 ---
 
 Found at AUTHOR's exit sweep: a residue whose carrier closed without
@@ -41,3 +42,15 @@ unit minted such a copy). AUTH-1's spec weighed and kept the two forms
 apart on the old "one submit, one committed edit" premise, which
 `commit_action` retired ("one submit, one undo" is the invariant);
 recover it with `git show 29b8874a1:docs/AUTH-1-SPEC.md`.
+
+## Closed (2026-10-23)
+
+Fixed by `e58fec1fb5` (2026-10-18, "sketch on a face is one gesture",
+landed with PR 5506). The add-profile form has an "on the picked face"
+checkbox (`crates/viewer/src/pane/create.rs:725-728`, `sketch_face_rows`
+at `:881`). `Drafts::profile_op` emits one `SessionOp::SketchOnFace`
+(`crates/viewer/src/drafts.rs:951-960`, `session/op.rs:560`), which
+records the profile, the extrude, a copy placed against the face and the
+union as one action and one undo. The two-form route's pieces
+(`ProfilePlane`, `NewXy`, `Datum::FaceFrame`, the add-datum form) no
+longer exist under `crates/viewer/src`.

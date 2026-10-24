@@ -148,11 +148,11 @@ fn split_record<T: Decide>(record: VerbRecord<T>) -> Option<SplitNaming> {
 /// takes, and its sense says which half is above.
 fn plane_of<T: Decide>(pose: &PoseValue<T>) -> Option<SplitPlane<T>> {
     match pose {
-        PoseValue::Plane { origin, normal } => Some(SplitPlane {
-            origin: *origin,
+        PoseValue::Plane { normal, offset } => Some(SplitPlane {
+            origin: PoseValue::plane_foot(*normal, *offset),
             normal: *normal,
         }),
-        PoseValue::Axis { .. }
+        PoseValue::Axis(_)
         | PoseValue::Point { .. }
         | PoseValue::Direction { .. }
         | PoseValue::Frame { .. } => None,
@@ -214,12 +214,12 @@ mod tests {
         let up = UnitVec3::new(Vec3::new(0.0, 0.0, 1.0), POSE_UNIT_NORM, band)
             .expect("a unit direction");
         let origin = Point3::new(0.0, 0.0, 0.5);
-        let plane = (corr.tool)(&PoseValue::Plane { origin, normal: up })
+        let plane = (corr.tool)(&PoseValue::plane_through(origin, up))
             .expect("a plane pose is a parting plane");
         assert_eq!(plane.normal.get().z, 1.0);
         assert_eq!(plane.origin.z, 0.5);
         assert!(
-            (corr.tool)(&PoseValue::Axis { origin, dir: up }).is_none(),
+            (corr.tool)(&PoseValue::axis_through(origin, up)).is_none(),
             "an axis was read as a parting plane"
         );
         assert!(

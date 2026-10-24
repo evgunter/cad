@@ -2937,6 +2937,7 @@ test_utils::f6_variants! {
         StrandedAppearance,
         StrandedRead,
         StrandedSpace,
+        ValueDropped,
         AnonymousVarRemoved,
     ];
 }
@@ -3020,6 +3021,17 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Union 000000000005 reads the world and the space #0:0000000000070000",
                 "this edit left in two spaces",
                 "refuses until its reads are in one space",
+            ],
+        ),
+        (
+            Maintenance::ValueDropped {
+                placement: held(5, "Place"),
+                coord: editor_core::Coord::Spin(editor_core::TargetAxis::X),
+                by: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+            },
+            vec![
+                "Place 000000000005's spin about x read #0:0000000000070000",
+                "this edit dropped the value",
             ],
         ),
         (
@@ -3420,32 +3432,6 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         (
             "InlineError::VarNameConflict",
             InlineError::VarNameConflict { name: name.clone() }.to_string(),
-        ),
-        (
-            "InlineError::InstanceOutputUncarried (bodies)",
-            InlineError::InstanceOutputUncarried {
-                name: name.clone(),
-                why: editor_core::Uncarried::Bodies { count: 2 },
-            }
-            .to_string(),
-        ),
-        (
-            "InlineError::InstanceOutputUncarried (named heir)",
-            InlineError::InstanceOutputUncarried {
-                name: name.clone(),
-                why: editor_core::Uncarried::HeirNamed { held: name.clone() },
-            }
-            .to_string(),
-        ),
-        (
-            "InlineError::InstanceOutputUncarried (posed)",
-            InlineError::InstanceOutputUncarried {
-                name: name.clone(),
-                why: editor_core::Uncarried::Posed {
-                    placement: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
-                },
-            }
-            .to_string(),
         ),
         (
             "SeedError::UnknownVar",

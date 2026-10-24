@@ -1274,7 +1274,7 @@ impl CarriedRow for CarriedAtRestFinding {
 }
 
 /// **A carried census finding with the pin of the document it is of**,
-/// the body of a part's census row ([`crate::eval`]'s `PartValue`): which
+/// the body of a part's census row ([`mod@crate::eval`]'s `PartValue`): which
 /// version of `of` found it, which a [`Route`] does not say.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Pinned<F> {
@@ -1463,7 +1463,7 @@ fn verdict<T: crate::checks::at_rest::LocalizeLane>(
 }
 
 /// **A part's own at-rest verdict, as it crosses the seam**
-/// ([`crate::eval`]'s part store): what the census over the part's
+/// ([`mod@crate::eval`]'s part store): what the census over the part's
 /// product found, judged as the part's own gate judges it, so the
 /// document instantiating the part reports each finding once, as the
 /// part's.
@@ -1710,8 +1710,9 @@ pub(crate) fn mint<'k, P: crate::ProfilePayload, T: Decide>(
 }
 
 /// **One at-rest census decision** ([`crate::Product::coincidences`]):
-/// a mated pair's, which the mate's record cites, or a contact between
-/// two copies that no record backs.
+/// a mated pair's, which the mate's record cites, a contact between
+/// two copies that no record backs, or a flush pair between two copies,
+/// which no record cites (`topo::AtRestPolicy::flush_at_rest`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtRestRow {
     /// Whose pair the census decided.
@@ -1727,7 +1728,7 @@ pub enum AtRestBy {
     /// The constraint whose two faces the census read as one carrier.
     Mate(crate::mate::MateRef),
     /// Two copies the census found in contact where no record backs it
-    /// (D1 (iii)): earlier in gather order first.
+    /// (D1 (iii)), or flush: earlier in gather order first.
     Copies(
         crate::checks::at_rest::CopyRef,
         crate::checks::at_rest::CopyRef,

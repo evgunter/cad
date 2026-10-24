@@ -47,6 +47,8 @@ from pncad import (
     rad,
 )
 
+from placing import against
+
 ORIGIN = (0 * m, 0 * m)
 
 
@@ -598,7 +600,7 @@ class TestTheProfileNode(unittest.TestCase):
                 Formula.length_in(1, m),
             )
         )
-        boss = doc.place_against(plate, boss, Frame.translation((0 * m, 0 * m, 0.5 * m)))
+        boss = against(doc, plate, boss, Frame.translation((0 * m, 0 * m, 0.5 * m)))
         fused = doc.insert(Node.union([plate, boss]))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(fused))

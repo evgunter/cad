@@ -2,11 +2,14 @@
 id: a-fitted-face-trimmed-by-a-section-has-no-volume-rule
 kind: issue
 title: A fitted face trimmed by a plane x fit section is past the trimmed exact lane's Newton-Cotes window, so tier 3 refuses its volume (VolumeUncomputable)
-status: open
+status: closed
 opened: 2026-10-09
 priority: P3
 refs: [a-fitted-wall-has-no-section-with-a-moved-cap, trimmed-quadrature-composite-rounds]
 cost: M
+rides_with: trimmed-quadrature-composite-rounds
+pr: 5634
+closed: 2026-10-24
 ---
 
 Found by SHELL's plane × `Approx` unit. `crates/sweep/tests/common/approx.rs`'s
@@ -26,3 +29,9 @@ The rule this face needs is the composite fallback
 `work/iso/trimmed-quadrature-composite-rounds.md` (P1) scopes; that item
 fenced it on "no fixture reaches it", which this fixture falsifies, and a
 dated note there says so. Building that unit closes this item.
+
+## Closed (2026-10-24, PR 5634)
+
+The fitted cap certifies through the composite outer rule. The fixture
+passes tier 3 and holds the closed-form volume 3.9, with its pad
+bounded at ≤ 1e-12 (measured 3.7e-14).

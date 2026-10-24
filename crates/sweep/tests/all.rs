@@ -96,6 +96,8 @@ mod a_plane_moved_to_a_cone_apex;
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
+#[path = "a_rim_covering_part_of_its_row_re_mints_the_rows_arc.rs"]
+mod a_rim_covering_part_of_its_row_re_mints_the_rows_arc;
 #[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]
 mod a_rim_in_a_face_beside_a_resting_ridge;
 #[path = "a_ring_on_a_cone_face.rs"]
@@ -136,6 +138,8 @@ mod a_vertex_on_a_grazing_plane;
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
+mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
 mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]

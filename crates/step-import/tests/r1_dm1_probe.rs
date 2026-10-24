@@ -30,9 +30,10 @@
 //!
 //!    It refused at the SHARED AT-REST GATE until tier 3's check 7
 //!    began certifying a SIGN. That gate was chasing a PRECISION: the
-//!    rational cylinder wall's enclosure is inside a factor of two of
-//!    the ambient `1024·ε` target when the fixed round budget runs
-//!    out, and at a coarse band lands just under it and escalates.
+//!    rational cylinder wall's enclosure was inside a factor of two of
+//!    the ambient `1024·ε` target when the round cap that preceded the
+//!    work wall ran out, and at a coarse band landed just under it and
+//!    escalated.
 //!    Neither is a statement about the body's orientation, which is
 //!    what check 7 reads, and dm1's enclosure excludes zero at round 0
 //!    at every band. This probe pins where the frontier actually is,

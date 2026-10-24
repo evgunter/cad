@@ -138,12 +138,11 @@ fn place_pip(
         .map(|(at, by)| (Coord::Slide(at), len(*by)));
     let spins = axes.into_iter().zip(axis).map(|(at, k)| {
         let by = if *k == 0.0 { 0.0 } else { k * a };
-        (Coord::SpinAbout(at), ang(by))
+        (Coord::Spin(at), ang(by))
     });
     let placed = editor_core::Placed {
-        mate: None,
+        mates: Vec::new(),
         values: slides.chain(spins).collect(),
-        by: editor_core::PlacedBy::Identity,
     };
     let (doc, placement) = step(
         doc,
@@ -369,16 +368,6 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
             },
             editor_core::SlotId::ValueSpin { constraint } => editor_core::SlotId::ValueSpin {
                 constraint: cmap[&constraint],
-            },
-            editor_core::SlotId::WorldSlide { constraint, step } => {
-                editor_core::SlotId::WorldSlide {
-                    constraint: cmap[&constraint],
-                    step,
-                }
-            }
-            editor_core::SlotId::WorldSpin { constraint, step } => editor_core::SlotId::WorldSpin {
-                constraint: cmap[&constraint],
-                step,
             },
             other => other,
         };

@@ -35,7 +35,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::props::quad::{self, RoundOutcome, RoundWindow};
+use geom_brep::props::quad::RoundWindow;
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face_loops, planar_face,
 };
@@ -43,6 +43,7 @@ use geom_brep::recourse::{Classified, Reading, RefusedArm, RefusedSide, SizedDec
 use geom_core::interval::{self, Interval};
 use geom_core::k_stats::Detached;
 use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign, Tol};
+use quad_lane::RoundOutcome;
 use slotmap::Key;
 
 use crate::body::Body;
@@ -142,8 +143,7 @@ impl<T: Real> MassProperties<T> {
     /// size wherever it sits, whenever the walk holds a lane; these ends
     /// decide only a walk holding none
     /// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`),
-    /// and give a refusal its words. (The same shape of argument is
-    /// written out at `geom-brep`'s `last_round_width_lo`.)
+    /// and give a refusal its words.
     ///
     /// The UPPER end's arithmetic is untouched and deliberately so:
     /// it is the end the +V refusal has always read, its rounding is
@@ -500,7 +500,7 @@ pub(crate) fn mass_properties_with<T: Decide>(
 
 /// **The hook at the REPORTING level**: [`round_hook`] entered once
 /// over the whole schedule and read at the target
-/// ([`RoundOutcome::into_target`]), so its answer is always `Converged`
+/// ([`RoundOutcome::at_target`]), so its answer is always `Converged`
 /// — a reporting read has no window to stop in — or `Ok(None)` when
 /// the caller holds no lane. The whole-body walk
 /// ([`mass_properties_with`]) and the per-shell walk
@@ -532,7 +532,7 @@ fn reporting_hook<T: Decide>(
             RoundWindow::SCHEDULE,
             about,
         )?
-        .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
+        .map(RoundOutcome::at_target)
         .transpose()
     }
 }
@@ -616,13 +616,11 @@ fn round_hook<T: Decide>(
 /// round it happens. A face that refuses on BUDGET is different — it
 /// has an enclosure, and the sum keeps it — so the refusal rides on
 /// the certificate, and whether it is REPORTED is the caller's
-/// decision, taken by `last_word` below. Nor does a budget refusal end
-/// the face's rounds: it says the schedule cannot meet the reporting
-/// target, a question this walk does not ask, so a face carrying one
-/// refines with the rest while rounds remain. Those are rounds the
-/// reporting walk never runs, so a hard refusal met in one of them is
-/// not the reporting door's: the face stops at its last enclosure,
-/// keeping its budget refusal.
+/// decision, taken by `last_word` below. A face earns one only where its
+/// lane stopped short of the target, at its floor or its work wall, so
+/// it has no round left to refine; until then a face that has not met
+/// the target is simply open, and the walk does not know whether it
+/// will.
 ///
 /// **The verdict is decided once, inside the loop.** `settle` is the
 /// only reading of the enclosure, and the round it accepts is the
@@ -768,9 +766,9 @@ fn walk<'b, T: Decide, V>(
             // The schedule has nothing further to offer and `settle`
             // did not accept: the caller says what that means, with
             // the refusal a target-level reading of this body earns
-            // in hand. A face refused at the budget exit carries round
-            // 0's payload (`rounds: 1`) whatever rounds this walk ran on
-            // it after: it is the reporting door's refusal, verbatim.
+            // in hand — the reporting door's, verbatim, since each
+            // face's rounds and its narrowest enclosure are the ones
+            // that door's whole-schedule call reaches.
             None if exhausted => Some(last_word(refused.as_ref().map(|(face, source)| {
                 MassPropsError::Face {
                     face: *face,
@@ -923,12 +921,17 @@ impl<T: Decide> PastTarget<'_, T> {
     }
 
     /// **One round further** on every face that met the target at a
-    /// round below [`quad::LAST_ROUND_EVERY_LANE_RUNS`]. A face's
-    /// rounds are independent recomputations, so each later round's
-    /// enclosure is as sound as the reporting one and, until interval
-    /// rounding floors it, narrower. Answers whether any face moved:
-    /// `false` is the end of the refinement. A round that refuses
-    /// leaves every face as it was and ends the refinement — the
+    /// round its lane can refine past ([`FaceRun::refinable`]): to its
+    /// own floor or work wall. A face's rounds are independent
+    /// recomputations, so each later round's enclosure is as sound as
+    /// the reporting one, and the face keeps the narrower of the two
+    /// ([`FaceRun::advance`]). Answers whether any face moved:
+    /// `false` is the end of the refinement. A face whose next round
+    /// stops short of the target (its floor or its work wall) keeps its
+    /// narrower held enclosure and the number it met the target with,
+    /// and refines no further (`converged_at` is the new round's,
+    /// `None`). A round that fails outright (an error from the walk)
+    /// leaves every face as it was and ends the refinement. The
     /// enclosures held are sound either way.
     pub(crate) fn refine(&mut self) -> bool {
         let walk = &mut self.walk;
@@ -938,7 +941,7 @@ impl<T: Decide> PastTarget<'_, T> {
             .enumerate()
             .filter_map(|(slot, run)| {
                 run.converged_at
-                    .filter(|&round| round < quad::LAST_ROUND_EVERY_LANE_RUNS)
+                    .filter(|_| run.refinable)
                     .map(|round| (slot, run.face, round + 1))
             })
             .collect();
@@ -955,7 +958,7 @@ impl<T: Decide> PastTarget<'_, T> {
         }) {
             Ok(runs) => {
                 for ((slot, _, _), run) in next.iter().zip(runs) {
-                    walk.runs[*slot] = run;
+                    walk.runs[*slot].advance(run);
                 }
                 true
             }
@@ -1619,9 +1622,10 @@ fn rederive_faces<T: Decide>(
                 };
                 quadrature = true;
                 match rerun {
-                    Ok(RoundOutcome::Converged(b) | RoundOutcome::Open { bounds: b, .. }) => {
-                        (b.flux, b.area)
-                    }
+                    Ok(
+                        RoundOutcome::Converged { bounds: b, .. }
+                        | RoundOutcome::Open { bounds: b, .. },
+                    ) => (b.flux, b.area),
                     Err(_) => enclosure,
                 }
             }
@@ -2053,8 +2057,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// **What the continuation costs against one measurement.** The
     /// piece evaluations compose exactly, but each entry into a face's
     /// lane re-derives that face's round-independent SETUP — the
-    /// derivative grids, the block hulls, the last round's cut lists
-    /// and the bound read off them — because a `RoundWindow` enters the
+    /// derivative grids, the block hulls — because a `RoundWindow` enters the
     /// lane at its front door. **What that costs depends on whether the
     /// sign settled early**, which is a property of the body rather
     /// than of this call: a certificate whose `settle` ran the schedule
@@ -2560,6 +2563,7 @@ mod face_walk_composition_tests {
             },
             open_at: None,
             converged_at: None,
+            refinable: false,
             taken_at: None,
             refusal: None,
         }
@@ -2586,6 +2590,115 @@ mod face_walk_composition_tests {
     }
 
     const NAMES: [&str; 4] = ["walk_slot_a", "walk_slot_b", "walk_slot_c", "walk_slot_d"];
+
+    /// A face's round `round` with flux enclosure `[-w/2, w/2] + 10`
+    /// and a unit-ish area, carrying `refusal` and `met` (whether the
+    /// round met the reporting target).
+    fn round_run(round: usize, w: f64, refusal: Option<PropsError>, met: bool) -> FaceRun<f64> {
+        let flux = Interval::from_bounds(10.0 - 0.5 * w, 10.0 + 0.5 * w);
+        let area = Interval::from_bounds(3.0, 3.0);
+        FaceRun {
+            face: FaceKey::null(),
+            contribution: FaceFlux {
+                flux: 10.0,
+                area: 3.0,
+                flux_pad: 0.5 * w,
+                area_pad: 0.0,
+                enclosure: Some((flux, area)),
+            },
+            open_at: (refusal.is_none() && !met).then_some(round),
+            converged_at: met.then_some(round),
+            refinable: met,
+            taken_at: Some(round),
+            refusal,
+        }
+    }
+
+    fn budget(width_len: f64, rounds: usize) -> Option<PropsError> {
+        Some(PropsError::QuadratureBudget {
+            width_len,
+            target_len: 1e-9,
+            rounds,
+        })
+    }
+
+    fn width(run: &FaceRun<f64>) -> f64 {
+        use geom_core::interval::certification::Certification;
+        run.contribution
+            .enclosure
+            .expect("a quadrature face")
+            .0
+            .width()
+    }
+
+    /// **A face walked one round at a time ends where the whole-schedule
+    /// call does**: the lane answers its narrowest round, so the walk
+    /// keeps the narrowest enclosure it has held, including when a later
+    /// round is wider. Rounds of widths 4, 1, 3 and 2 end on the round of
+    /// width 1, with the last round's place to resume.
+    #[test]
+    fn a_face_walked_round_by_round_keeps_its_narrowest_enclosure() {
+        let mut run = round_run(0, 4.0, None, false);
+        for (round, w) in [(1, 1.0), (2, 3.0), (3, 2.0)] {
+            run.advance(round_run(round, w, None, false));
+        }
+        assert!(
+            (width(&run) - 1.0).abs() < 1e-12,
+            "the walk dropped its narrowest round: width {}",
+            width(&run)
+        );
+        assert_eq!(run.taken_at, Some(1), "the kept round is named");
+        assert_eq!(
+            run.open_at,
+            Some(3),
+            "where it goes next is the last round's"
+        );
+    }
+
+    /// **The refusal is the kept enclosure's.** A wider round that stops
+    /// short carries its budget refusal, but its width is rewritten to
+    /// the narrower held enclosure's, so the reporting door's payload is
+    /// that enclosure's.
+    #[test]
+    fn a_kept_enclosures_refusal_carries_its_own_width() {
+        let mut run = round_run(4, 1.0, None, false);
+        run.advance(round_run(5, 2.0, budget(9.0, 6), false));
+        let want = geom_brep::props::quad::mean_boundary_displacement(
+            Interval::from_bounds(9.5, 10.5),
+            Interval::from_bounds(3.0, 3.0),
+        )
+        .expect("a lever");
+        match run.refusal {
+            Some(PropsError::QuadratureBudget {
+                width_len, rounds, ..
+            }) => {
+                assert_eq!(width_len, want, "the payload is the held round's width");
+                assert_eq!(rounds, 6, "the receipt is the rounds run");
+            }
+            other => panic!("the stopped face refuses on budget: {other:?}"),
+        }
+        assert_eq!(run.taken_at, Some(4));
+    }
+
+    /// **A round that met the target keeps its number** when the next,
+    /// wider round stops short: the face refuses nothing, and refines
+    /// no further (`PastTarget::refine`'s case).
+    #[test]
+    fn a_met_round_keeps_its_number_past_a_round_that_stops_short() {
+        let mut run = round_run(3, 1.0, None, true);
+        run.advance(round_run(4, 2.0, budget(9.0, 5), false));
+        assert!(
+            run.refusal.is_none(),
+            "the met round's number stands: {:?}",
+            run.refusal
+        );
+        assert_eq!(run.converged_at, None, "and the face refines no further");
+        assert_eq!(run.taken_at, Some(3));
+        // A narrower round that met the target replaces a wider held one.
+        let mut run = round_run(3, 2.0, None, true);
+        run.advance(round_run(4, 1.0, None, true));
+        assert_eq!((run.taken_at, run.converged_at), (Some(4), Some(4)));
+    }
 
     #[test]
     fn every_recording_splices_in_arena_order_when_no_face_refuses() {
@@ -2718,6 +2831,7 @@ mod fold_pad_rows {
             },
             open_at: None,
             converged_at: None,
+            refinable: false,
             taken_at: None,
             refusal: None,
         }
@@ -2826,6 +2940,7 @@ mod continuation_refusal_order_tests {
             },
             open_at,
             converged_at: None,
+            refinable: false,
             taken_at: None,
             refusal,
         }
@@ -3239,17 +3354,17 @@ struct FaceRun<T> {
     contribution: FaceFlux<T>,
     /// The round its quadrature reached, when rounds remain. `None`
     /// for a closed-form face, for one that met the reporting target,
-    /// and for one whose schedule has nothing further to offer — in
-    /// every case there is no round to resume at. A face can be open
-    /// and carry a [`Self::refusal`]: its schedule cannot meet the
-    /// reporting target, and its later rounds still narrow the
-    /// enclosure a sign walk sums.
+    /// and for one whose lane stopped (its floor or its work wall) — in
+    /// every case there is no round to resume at.
     open_at: Option<usize>,
     /// The round a single-round window met the reporting target at —
-    /// where [`PastTarget::refine`] resumes. `None`
-    /// for a closed-form face, for one that has not met the target, and
-    /// for one read through the whole schedule at once.
+    /// where [`PastTarget::refine`] resumes, when [`Self::refinable`].
+    /// `None` for a closed-form face, for one that has not met the
+    /// target, and for one read through the whole schedule at once.
     converged_at: Option<usize>,
+    /// Whether the lane can refine past the round the face met the
+    /// target at: a later round is narrower and fits in its work wall.
+    refinable: bool,
     /// The round its quadrature enclosure was taken at, where a window
     /// names it — the round [`rederive`] reads again. `None` for a
     /// closed-form face and for one read through the whole schedule
@@ -3262,17 +3377,42 @@ struct FaceRun<T> {
 }
 
 impl<T> FaceRun<T> {
-    /// This face's next round, `run`, in place — keeping the refusal
-    /// this run already carries. The lane answers the reporting
-    /// question once, at round 0 ([`RoundWindow::first`]), so a later
-    /// round comes back without it; the refusal a target-level reading
-    /// earns is still the one round 0 raised, the reporting walk's
-    /// verbatim.
+    /// This face's next round, `run`, in place — keeping the narrower
+    /// enclosure, always, by its flux width, as the lane keeps it within
+    /// one call: a face walked one round at a time ends where a
+    /// whole-schedule call does.
+    ///
+    /// Two kinds of field, and they come from different rounds:
+    ///
+    /// - **Where the run goes next** (`open_at`, `converged_at`,
+    ///   `refinable`) is always the new round's: it is the round the
+    ///   lane just ran, and a resumption follows it.
+    /// - **The answer** (`contribution`, `taken_at`, `refusal`) is the
+    ///   kept enclosure's. When the held round is narrower it stays,
+    ///   and the refusal is made to match it: a held round that met the
+    ///   reporting target keeps its number, so a later round that
+    ///   stopped short refuses nothing; otherwise the new round's
+    ///   budget refusal carries the held enclosure's width, so the
+    ///   reporting door's payload is the kept enclosure's.
     fn advance(&mut self, run: Self) {
-        let carried = self.refusal.take();
-        *self = run;
-        if carried.is_some() {
-            self.refusal = carried;
+        let held = core::mem::replace(self, run);
+        let (Some((was, was_area)), Some((now, _))) =
+            (held.contribution.enclosure, self.contribution.enclosure)
+        else {
+            return;
+        };
+        if !geom_brep::props::quad::narrower(was, now) {
+            return;
+        }
+        let held_met = held.refusal.is_none() && held.converged_at.is_some();
+        self.contribution = held.contribution;
+        self.taken_at = held.taken_at;
+        if held_met {
+            self.refusal = None;
+        } else if let Some(PropsError::QuadratureBudget { width_len, .. }) = &mut self.refusal
+            && let Ok(w) = geom_brep::props::quad::mean_boundary_displacement(was, was_area)
+        {
+            *width_len = w;
         }
     }
 
@@ -3871,6 +4011,7 @@ fn face_flux_about<T: Decide>(
     let mut open_at = None;
     let mut converged_at = None;
     let mut taken_at = None;
+    let mut refinable = false;
     let mut refusal = None;
     let plane_loops = match surface {
         Surface::Plane { .. } => Some(face_loops(body, face)?),
@@ -3930,12 +4071,16 @@ fn face_flux_about<T: Decide>(
             match quad_out {
                 Some(outcome) => {
                     let bounds = match outcome {
-                        RoundOutcome::Converged(bounds) => {
+                        RoundOutcome::Converged {
+                            bounds,
+                            refinable: further,
+                        } => {
                             // A window of one round returns at that
-                            // round: the lane tests convergence before
+                            // round: the lane asks the target before
                             // it would end the window.
                             converged_at = (window.first == window.last).then_some(window.first);
                             taken_at = converged_at;
+                            refinable = further;
                             bounds
                         }
                         RoundOutcome::Open { bounds, round, end } => {
@@ -3976,6 +4121,7 @@ fn face_flux_about<T: Decide>(
         },
         open_at,
         converged_at,
+        refinable,
         taken_at,
         refusal,
     })
@@ -5416,6 +5562,16 @@ pub trait AtRestPolicy: Decide {
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>>;
 
+    /// The flush pairs between the groups `group` partitions a body at
+    /// rest into ([`crate::census::flush_at_rest`]), through this
+    /// scalar's region doors, at the scalars that run the at-rest gate;
+    /// nothing where the gate does not run.
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest;
+
     /// The boolean engine's volume backstop over an op's two operands
     /// and its result (`crate::boolean::volume_backstop`, measuring
     /// through [`QuadLane::certified`], at certifying scalars; absent at
@@ -5504,6 +5660,14 @@ impl AtRestPolicy for f64 {
             .map(|()| AtRestOutcome::Validated)
     }
 
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest {
+        crate::census::flush_at_rest(body, group, band, Self::region_lane())
+    }
+
     fn gate_volume_backstop(
         op: crate::BooleanOp,
         a: &Body<Self>,
@@ -5580,6 +5744,14 @@ impl AtRestPolicy for geom_core::Probe {
             .map(|()| AtRestOutcome::Validated)
     }
 
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest {
+        crate::census::flush_at_rest(body, group, band, Self::region_lane())
+    }
+
     fn gate_volume_backstop(
         op: crate::BooleanOp,
         a: &Body<Self>,
@@ -5650,6 +5822,14 @@ impl AtRestPolicy for geom_core::interval::Interval {
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest {
+        crate::census::flush_at_rest(body, group, band, Self::region_lane())
     }
 
     fn gate_volume_backstop(
@@ -5735,6 +5915,14 @@ where
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
+    }
+
+    fn flush_at_rest(
+        body: &Body<Self>,
+        group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        band: Band,
+    ) -> crate::FlushAtRest {
+        crate::census::flush_at_rest(body, group, band, Self::region_lane())
     }
 
     fn gate_volume_backstop(
@@ -5827,6 +6015,14 @@ where
         _tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
         Ok(AtRestOutcome::NotRunAtThisScalar)
+    }
+
+    fn flush_at_rest(
+        _body: &Body<Self>,
+        _group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+        _band: Band,
+    ) -> crate::FlushAtRest {
+        crate::FlushAtRest::default()
     }
 
     /// The backstop is a validation of the result, and the quadrature

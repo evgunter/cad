@@ -120,7 +120,7 @@ and pcurve certificates gained the NURBS × NURBS lane
 
 Measured after it: at ε = 1e-6 every wall–wall seam of the shelled
 twisted loft derives, and the shell stops at a top rim's at-rest plane ×
-fit certificate (`work/iso/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`);
+fit certificate (`work/isotail/a-moved-lofts-top-rim-refuses-its-at-rest-certificate.md`);
 past that, tier 3's volume refuses
 (`work/quad/a-fitted-cap-cut-by-planes-has-a-sub-range-trim-image.md`).
 Left for later units: the plane × NURBS door's handle
@@ -133,4 +133,4 @@ the pass's cost beside a near-coincident side row
 (`work/ssiedge/the-nurbs-pair-all-exhausts-its-cell-budget-on-a-small-loop.md`),
 the ℝ⁴ walk's duplication of r3's
 (`work/ssiedge/the-r4-one-arc-walk-duplicates-r3s.md`), and the M8-4
-mint with a non-plane pair (`work/iso/the-m8-4-mint-with-a-non-plane-pair-is-untested.md`).
+mint with a non-plane pair (`work/isotail/the-m8-4-mint-with-a-non-plane-pair-is-untested.md`).
