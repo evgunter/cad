@@ -5,6 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use super::*;
+use crate::entity::EdgeKey;
 use core::f64::consts::{PI, TAU};
 use slotmap::KeyData;
 
@@ -24,10 +25,11 @@ fn key(k: u64) -> EdgeKey {
     EdgeKey::from(KeyData::from_ffi(k))
 }
 
-fn edge(k: u64, curve: geom::Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -> RegionEdge<f64> {
+fn edge(k: u64, curve: geom::Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -> Edge<f64> {
     RegionEdge {
         edge: key(k),
-        curve,
+        r#loop: LoopKey::default(),
+        carrier: curve,
         t0,
         t1,
         forward,
@@ -35,7 +37,7 @@ fn edge(k: u64, curve: geom::Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -
 }
 
 /// The parallel of radius `r` at height `z`, over `span`.
-fn rim(k: u64, z: f64, r: f64, span: (f64, f64), forward: bool) -> RegionEdge<f64> {
+fn rim(k: u64, z: f64, r: f64, span: (f64, f64), forward: bool) -> Edge<f64> {
     edge(
         k,
         geom::Curve3::Circle {
@@ -50,7 +52,7 @@ fn rim(k: u64, z: f64, r: f64, span: (f64, f64), forward: bool) -> RegionEdge<f6
 }
 
 /// The segment from `a` to `b`, run from `a`.
-fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> RegionEdge<f64> {
+fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> Edge<f64> {
     let d = b - a;
     let len = d.norm();
     edge(
@@ -64,7 +66,7 @@ fn segment(k: u64, a: Point3<f64>, b: Point3<f64>) -> RegionEdge<f64> {
     )
 }
 
-fn cylinder(edges: Vec<RegionEdge<f64>>) -> RuledFaceRegion<f64> {
+fn cylinder(edges: Vec<Edge<f64>>) -> RuledFaceRegion<f64> {
     RuledFaceRegion {
         surface: Ruled::Cylinder {
             origin: Point3::origin(),
@@ -153,7 +155,7 @@ fn a_band_reads_its_height_window() {
 
 /// The loop of the window `us × zs` on the unit cylinder, the face to
 /// its left (`hole: false`) or the window a hole in it.
-fn window(k: u64, (u0, u1): (f64, f64), (z0, z1): (f64, f64), hole: bool) -> Vec<RegionEdge<f64>> {
+fn window(k: u64, (u0, u1): (f64, f64), (z0, z1): (f64, f64), hole: bool) -> Vec<Edge<f64>> {
     if hole {
         vec![
             rim(k, z0, 1.0, (u0, u1), false),
@@ -235,7 +237,7 @@ fn a_wall_under_a_tilted_section_reads_its_region() {
     );
 }
 
-fn cone(edges: Vec<RegionEdge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
+fn cone(edges: Vec<Edge<f64>>, scale: f64) -> RuledFaceRegion<f64> {
     RuledFaceRegion {
         surface: Ruled::Cone {
             apex: Point3::origin(),
@@ -259,7 +261,7 @@ fn on_cone(u: f64, v: f64) -> Point3<f64> {
 }
 
 /// The cone's parallel at slant `v > 0`, over `span`.
-fn cone_rim(k: u64, v: f64, span: (f64, f64), forward: bool) -> RegionEdge<f64> {
+fn cone_rim(k: u64, v: f64, span: (f64, f64), forward: bool) -> Edge<f64> {
     rim(k, v * ALPHA.cos(), v * ALPHA.sin(), span, forward)
 }
 
@@ -527,12 +529,28 @@ fn a_generator_meets_no_conic_on_the_mirror_nappe() {
 fn a_leg_along_an_edge_grazes() {
     let line = cylinder(vec![segment(1, wall(0.0, 0.0), wall(0.0, 2.0))]);
     assert!(matches!(
-        line.path(wall(0.0, -0.5), PathSpec::Ruling { outward: true }, b()),
+        region::read_path(
+            &line,
+            wall(0.0, -0.5),
+            region::Path::Single {
+                parallel: false,
+                forward: true
+            },
+            b()
+        ),
         Err(RayFault::Graze)
     ));
     let arc = cylinder(vec![rim(1, 0.0, 1.0, (0.0, 1.0), true)]);
     assert!(matches!(
-        arc.path(wall(2.0, 0.0), PathSpec::Parallel { forward: true }, b()),
+        region::read_path(
+            &arc,
+            wall(2.0, 0.0),
+            region::Path::Single {
+                parallel: true,
+                forward: true
+            },
+            b()
+        ),
         Err(RayFault::Graze)
     ));
 }
@@ -549,13 +567,16 @@ fn an_aimed_paths_first_leg_ends_at_its_corner() {
         rim(1, 1.5, 1.0, (0.0, 1.0), true),
         segment(2, wall(1.2, 0.5), wall(1.2, 1.2)),
     ]);
-    let spec = PathSpec::Aimed {
+    let spec = region::Path::Aimed {
         target: wall(1.5, 1.0),
         parallel_first: false,
         first_forward: true,
         then_forward: true,
     };
-    assert!(matches!(region.path(wall(0.5, 0.0), spec, b()), Ok(true)));
+    assert!(matches!(
+        region::read_path(&region, wall(0.5, 0.0), spec, b()),
+        Ok(true)
+    ));
 }
 
 fn cone_surface() -> Ruled<f64> {

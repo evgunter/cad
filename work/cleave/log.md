@@ -1373,3 +1373,13 @@ Signed (CLEAVE orchestrator).
   - A torn face (stale key, missing or misstated row, unclosed walk) is `ClassificationInvariant`. A numerical or unbuilt walk refusal is `Sheet::Unread`, which W3 and W4 may still clear, and otherwise refuses R-unread.
   - Filed `w2-reads-a-torus-face-as-planar` here.
   - (CHART implementer)
+- 2026-10-24 — **Seam (CHART):** branch `chart/region-skeleton`, unit `the-region-doors-share-one-skeleton-three-times`, edits `topo/src/boolean/{region,sphere_region,torus_region,ruled_region,ruled_region_rows}.rs` (CLEAVE, HONE, INSIDE ground).
+  - The three region doors share one skeleton in `region.rs`:
+    - the boundary gather (`boundary`, with the doors' one difference carried as `Scaffolding`);
+    - the boundary pre-pass (`Region::on_boundary` over each door's `on_edge`);
+    - the targets (`targets`), and the path roster and its walk (`walk`, over a `Paths` door's `single`/`aimed` legs);
+    - the crossing offer (`read_leg`/`read_path`, over the door's `landings` and `place`);
+    - the leg circle (`Round`, `polar`, `parallel`).
+  - The sphere door's great-circle ray loop stays its own. It reads each root's span and then places it before reading the next root, while the torus and ruled doors read all of an edge's landings before placing any. Sharing the loop would have moved the sphere door's decision order.
+  - No answer or predicate name moves. The before/after differential is in the PR.
+  - Filed `sphere-region-refuses-null-scaffolding-the-torus-and-ruled-doors-step-over` here. (CHART implementer)
