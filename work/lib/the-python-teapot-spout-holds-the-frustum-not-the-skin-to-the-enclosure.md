@@ -36,3 +36,13 @@ the Rust scene's 1e-12 reading does not open. It does now.
 The binding may need a door to a face's NURBS jet to say this
 naturally. If it has none, that is a binding-coverage finding of its
 own.
+
+## The binding has no door to the reference (ISO, 2026-10-24)
+
+The Rust scenes' reference is `demos/tour/src/patch_quadrature.rs`.
+It reads each face's surface, and a NURBS patch's knots, weights and
+control net. `crates/pncad-py/src` exposes none of these to Python:
+there is no surface accessor on a face, and no control net, knot
+vector or evaluator for a patch. Fixing this test therefore first
+needs a binding door to a face's NURBS data, which is that
+binding-coverage finding. ISO left the test as it was.
