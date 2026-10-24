@@ -211,3 +211,4 @@ This was not a crossover, because only one designer moved, so reconciliation end
     - the ellipse pcurve's moved values are pinned;
     - the goldens are re-described as a tie-break (no quality change), and the diagonal fragility goes to TESS;
     - the CI change filter's skip of step-import and interval is checked.
+- 2026-10-24 — **PR 5654 merged** (normalize, `7d17b38b3f`). Its row is closed.

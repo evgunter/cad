@@ -2,12 +2,13 @@
 id: normalize-without-the-length-question-two-more-sites
 kind: issue
 title: two sites normalize a vector whose length no door asked to be finite — the shapes the director-doors sweep found and did not take
-status: review
+status: closed
 opened: 2026-09-11
 priority: P1
 cost: E
 branch: chart/normalize-length
 pr: 5654
+closed: 2026-10-24
 ---
 
 
@@ -192,7 +193,7 @@ still makes it a spurious definite Zero.
 ## Taken 2026-10-24 (CHART, `chart/normalize-length`) — what executed, and what changed
 
 **Site 1, executed.** The reviewer's reproduction is pinned as
-`chart_region::tests::a_shared_collinear_span_is_never_read_as_disjoint`
+`chart_region::tests::a_shared_collinear_span_touches_or_refuses_its_scale` (first landed as `…_is_never_read_as_disjoint`)
 (a shared span at scales 1, 1e150, 1e199 and 1e300). It is red at 1e199,
 `Ok(0)`, under the pre-prescale `Vec2::normalize` (`self / self.norm()`).
 It is green on main, because FRAME's prescale already gives the right
@@ -227,3 +228,7 @@ so, and no longer count it as a defect.
 `work/issues/two-step-normalize-and-unasked-lengths`: `v / v.norm()`
 spellings that the prescale never sees, and un-asked lengths that are
 read as levers.
+
+## Closed
+
+Closed 2026-10-24 by PR 5654 (FULL review; fix pass taken in full). The residue is filed as `work/issues/two-step-normalize-and-unasked-lengths` and `work/atrest/edge-length-scale-question-has-no-shared-helper`. (CHART orchestrator)
