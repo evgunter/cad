@@ -2963,11 +2963,6 @@ pub(crate) enum ApexClosure<T: Real> {
         /// The lift's images, starting at the half-edge that leaves the
         /// apex.
         images: Vec<AzimuthImage<T>>,
-        /// The azimuth hull of the lift.
-        window: (T, T),
-        /// The farthest boundary vertex from the apex, in metres: the
-        /// lever for an angle read off the window.
-        reach: T,
     },
     /// Two or more apex visits, or one on a ringed face: no single lift
     /// describes the face.
@@ -3017,13 +3012,11 @@ pub(crate) fn cone_apex_closure<T: Decide>(
         return Ok(ApexClosure::Open);
     };
     let mut leaving = Vec::new();
-    let mut reach = T::zero();
     let mut nappes = [false; 2];
     for (i, &he) in halves.iter().enumerate() {
         let v = proven(&body.half_edges, he, EntityId::HalfEdge).start;
         let q = vertex_point(body, v) - apex;
         let d = q.norm();
-        reach = reach.max(d);
         if decide("bool_cone_apex_visit", Margin::of(d), band).map_err(esc)? == Sign::Zero {
             leaving.push(i);
             continue;
@@ -3053,11 +3046,7 @@ pub(crate) fn cone_apex_closure<T: Decide>(
         .collect();
     let images = run_azimuth_images(body, surface, face, &lifted, band)?;
     Ok(match azimuth_hull(&images) {
-        Some(window) => ApexClosure::Closed {
-            images,
-            window,
-            reach,
-        },
+        Some(_) => ApexClosure::Closed { images },
         None => ApexClosure::Open,
     })
 }
