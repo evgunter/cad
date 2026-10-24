@@ -3462,7 +3462,9 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         ),
         // A net closed in `v` whose `v` sections sit in the band's sliver
         // of collapsing: an undecided reading, read as one.
-        M::Escalated { cause, .. } | M::NetStretchUndecided { cause, .. } => {
+        M::Escalated { cause, .. }
+        | M::NetStretchUndecided { cause, .. }
+        | M::OuterSpanPoisoned { cause } => {
             return (
                 CLOSE,
                 geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
@@ -3810,6 +3812,10 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
         ChartRegionError::DegenerateLoop { .. } => (
             "a face's boundary encloses no definite area at this tolerance (a sliver)",
             "Recourse: widen the face well past the tolerance",
+        ),
+        ChartRegionError::EdgeScale => (
+            crate::chart_region::EDGE_SCALE_REASON,
+            crate::chart_region::EDGE_SCALE_RECOURSE,
         ),
         ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
             ("a face's stored boundary is incomplete", DEFECT)

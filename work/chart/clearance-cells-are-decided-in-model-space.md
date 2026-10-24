@@ -68,3 +68,11 @@ it. `[one-way.readings]` rules out keeping the chord polygon as a fallback.
 The per-cell cost of the sphere and torus doors at clearance's cell counts
 is unmeasured. The unit measures it and reports it; the cost does not change
 the design.
+
+## Owed at the deletion (from PR 5656's lane)
+
+`chart_bound`'s outer-span check (`OuterSpansPeriod`) is a premise that W2
+(through `describes`) and `ring_path`'s argument both cite. When
+`chart_bound.rs` goes, the premise needs a new home. The obvious one is the
+walk predicate of `w2-reads-a-one-sheet-predicate-off-the-walk`. Don't delete
+the check until both of those cites read the new home.
