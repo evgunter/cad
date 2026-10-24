@@ -3293,3 +3293,21 @@ no ray through the segment. `bool_cone_apex_nappe` left the tree with
 
 They pool with nothing: the region is read by the point doors at points
 on a cylinder or a cone.
+
+## CHART addendum (2026-10-24): clearance cells are decided in model space
+
+**Roster change.** The seven `chart_bound_*` names leave the roster:
+the six of the TRIM-3 roster addition (`chart_bound_gap`,
+`chart_bound_outer_span` and the four `ParityRows` fields) with
+`topo/src/chart_bound.rs`, and `chart_bound_joint_room`, the loop
+walk's room fence, renamed `loop_windings_joint_room` for the door it
+now serves (`pcurves::loop_windings`). Five arrive from
+`topo/src/cell_region.rs`, each a named `const &str` (escape route 3):
+`cell_region_vertex_gap`, `cell_region_segment_gap`,
+`cell_region_conic_gap`, `cell_region_ball_gap` and
+`cell_region_singular_gap`, a cell's clearance of one kind of boundary
+feature of its face, or of its carrier's singular set. Their dimensions
+are `docs/predicate-dimension-audit.md`'s rows of the same names. They
+are asked by the clearance sweep per (window, cell), so their
+populations are the sweep's cells times each face's features; they
+pool with nothing, and with each other not at all.

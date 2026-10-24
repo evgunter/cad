@@ -3439,7 +3439,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     let (why, recourse) = match e {
         M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
-        | M::SingularChartJoint { .. }
         | M::MissingCache { .. }
         | M::RowInterval { .. } => (WRONG, DEFECT),
         // Every row derives and certifies; the producer did not mint.
@@ -3447,27 +3446,15 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "a curved face stores no certified boundary description",
             DEFECT,
         ),
-        // A face that stores no rows has no certificate for a fitted
-        // or general image: unminted, or uncovered by every lane yet.
-        M::UncertifiedImage { .. } => (
-            "a face's boundary has no certified description yet",
-            NOT_YET_ENDING,
-        ),
-        M::OuterSpansPeriod | M::LoopWraps { .. } => (
-            "the face wraps all the way round its surface, which the kernel cannot yet map",
-            NOT_YET_ENDING,
-        ),
         // A net closed in `v` whose `v` sections sit in the band's sliver
         // of collapsing: an undecided reading, read as one.
-        M::Escalated { cause, .. }
-        | M::NetStretchUndecided { cause, .. }
-        | M::OuterSpanPoisoned { cause } => {
+        M::Escalated { cause, .. } | M::NetStretchUndecided { cause, .. } => {
             return (
                 CLOSE,
                 geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
             );
         }
-        // Never produced at rest: only the face description raises it.
+        // Never produced at rest: only the loop windings raise it.
         M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
@@ -3476,16 +3463,11 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         // Never produced at rest: the pass takes no key from a caller,
         // so a key it named that did not resolve would be its own.
         M::Stale { .. } => ("a key the boundary names does not resolve", DEFECT),
-        // Never produced at rest (the pass skips a placeholder face, and
-        // describes no face's boundary); classified as its Display
-        // states it.
+        // Never produced at rest (the pass skips a placeholder face);
+        // classified as its Display states it.
         M::PlaceholderChart { .. } => (
             geom::PLACEHOLDER_SURFACE,
             crate::pcurves::PLACEHOLDER_RECOURSE,
-        ),
-        M::EmptyOuter { .. } => (
-            "the face's outline is a lone vertex, so it bounds no region",
-            crate::pcurves::EMPTY_OUTER_RECOURSE,
         ),
         M::Certify { error, .. } => {
             // A decision's refused arm ends as its check's routing gives

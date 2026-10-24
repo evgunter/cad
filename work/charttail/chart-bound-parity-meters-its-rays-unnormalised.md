@@ -2,10 +2,11 @@
 id: chart-bound-parity-meters-its-rays-unnormalised
 kind: issue
 title: chart_bound::parity casts SCHEDULE_2D's members unnormalised, so its side and advance margins read up to 1.25x the metres they claim
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: E
+closed: 2026-10-24
 ---
 
 
@@ -29,3 +30,10 @@ a ray line can read definitely off it.
 each member first (`r.map(T::from_f64).normalize()`); the fix is the
 same line here. The cell test drops a cell only on a definite verdict,
 so the overstatement can drop one a sound margin would have kept.
+
+## Closed
+
+Closed 2026-10-24 by `clearance-cells-are-decided-in-model-space`
+(CHART): `topo/src/chart_bound.rs` and `pcurves::chart_boundary` left the
+tree, and clearance decides its cells off each face's edges in model
+space (`topo::cell_region`). The code this row is about no longer exists.
