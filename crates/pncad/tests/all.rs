@@ -4913,8 +4913,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///
 ///   **The A5 gate used to be in this family and was wrong to be.**
 ///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
-///   `AtRestFinding`, `Attribution`, `MintedDeclaration`,
-///   `RefusedRef`) had no curated door of their own and were not
+///   `AtRestFinding`) had no curated door of their own and were not
 ///   machinery behind one: they ARE the door that answers whether an
 ///   assembly is valid at rest, and the façade carried the whole
 ///   authoring vocabulary that constructs one. A consumer could build
@@ -4929,20 +4928,13 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   cannot serve that one — a caller who cannot name `Product`
 ///   cannot hold one.
 ///
-///   **`MintRefusal` and `CarriedRefusal` came with them**, and the
-///   reason is what the gate's two mint arms now answer with: each
-///   raises EVERY row it holds, so `AssemblyError::Mint` is a
-///   `Vec<MintRefusal>` and `AssemblyError::CarriedMintRefusal` a
-///   `Vec<CarriedRefusal>`. They were held out while each arm was one
-///   refusal flattened into the enum's own fields — the gate's answer
-///   then named no row type, so a consumer matching it never had to,
-///   and a consumer who cannot name a row cannot read the answer.
-///   `CarriedDeclaration`, `CarriedDeclarations`, `Route` and
-///   `Relation` ARE carried,
-///   because nothing else states them: the first is what
-///   `Product::carried` and `Assembly::carried` hold, and the last two
-///   are fields of `Attribution::Carried`, which a consumer matching
-///   the gate's answer must name.
+///   **`CarriedAtRestFinding`, `CarriedFindings` and `Route` came with
+///   them**, because nothing else states them: the gate's
+///   `AssemblyError::CarriedAtRest` raises EVERY finding a part's own
+///   gate refused, each a `CarriedAtRestFinding` with the `Route` it
+///   arrived by, and a consumer who cannot name a row cannot read the
+///   answer. `CarriedFindings` is what an instantiated value carries
+///   up.
 ///   **The hit-test service's NAMED half left this list at GUI-2**
 ///   (`NodePick`, `NodePickError`, `PickHit`, `PickTarget`,
 ///   `pick_face`, `HitTestError`, and `Ray` — a `bvh` re-export riding

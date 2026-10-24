@@ -87,18 +87,17 @@
 //!
 //! **What does need saying is the opposite case**: two maps a caller
 //! reads ONE fact from, which must therefore agree word for word.
-//! Two are pinned against each other in `src/tests.rs` and each says
-//! which pin holds it — [`entity_kind_tag`] with [`entity_id_tag`]
-//! where both layers speak of one entity, and [`edit_error_tag`] with [`snapshot_error_tag`] over the four
+//! One pair is pinned against each other in `src/tests.rs`, and says
+//! which pin holds it: [`edit_error_tag`] with [`snapshot_error_tag`] over the four
 //! param-ref words, where both doors raise one fault at one address.
 //! **That is not
 //! the whole set of pairs that owe a pin**, only the set these maps
 //! have been read for: [`ring_contact_tag`], [`census_contact_tag`]
 //! and [`stale_declaration_tag`] share contact words by prose alone,
-//! and the entity-kind vocabulary has a THIRD Python-visible spelling
+//! and the entity vocabulary has a second Python-visible spelling
 //! outside this file — `py::select::EntityKind`'s member names, held
-//! against `pncad.pyi` by `tests/test_stubs.py` and against these
-//! words by nothing. `work/census/` carries the contact family as a
+//! against `pncad.pyi` by `tests/test_stubs.py` and against
+//! [`entity_id_tag`]'s words by nothing. `work/census/` carries the contact family as a
 //! row.
 //!
 //! **This file is READ as data.** The exhaustive matches guard the
@@ -144,10 +143,9 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    CrossingSensesShape, DisagreeShape, EntityKind, HitTestError, InterrogateError, JoinShape,
-    MeshPickError, NameLookupError, NamingError, NodePickError, ReadbackError, Resolution,
-    ResolveError, ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape,
-    WayShape,
+    CrossingSensesShape, DisagreeShape, HitTestError, InterrogateError, JoinShape, MeshPickError,
+    NameLookupError, NamingError, NodePickError, ReadbackError, Resolution, ResolveError,
+    ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape, WayShape,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -3157,37 +3155,6 @@ pub fn entity_id_tag(entity: &EntityId) -> &'static str {
         EntityId::HalfEdge(_) => "half_edge",
         EntityId::Edge(_) => "edge",
         EntityId::Vertex(_) => "vertex",
-    }
-}
-
-/// The stable tag for an entity KIND — what a document-layer name
-/// denotes, one rung above the arena reference [`entity_id_tag`]
-/// spells.
-///
-/// The two maps are two layers' vocabularies, not one map written
-/// twice: this one is total over what a NAME can denote, and the
-/// other over what the arena can hold, so `solid`, `shell`, `loop`
-/// and `half_edge` exist only there and `body` only here. Where both
-/// layers speak of one entity — a face, an edge, a vertex — the word
-/// is the same word, because a caller resolving a name and a caller
-/// reading a census subject are reading one concept.
-/// `the_entity_kind_and_entity_id_maps_agree_where_both_speak` is
-/// what holds that true.
-///
-/// A THIRD spelling of this vocabulary reaches Python, and it is held
-/// somewhere else: `py::select::EntityKind` is a fieldless
-/// `#[pyclass]` mirror whose member names pyo3 mints from Rust
-/// identifiers, so `pncad.EntityKind.Face` is the capitalised twin of
-/// this map's `face` with no literal anywhere. Nothing ties it to
-/// these words — but `tests/test_stubs.py` compares every stub
-/// class's attributes against the compiled class name for name, so a
-/// rename there reds against `pncad.pyi` rather than passing.
-pub fn entity_kind_tag(kind: EntityKind) -> &'static str {
-    match kind {
-        EntityKind::Face => "face",
-        EntityKind::Edge => "edge",
-        EntityKind::Vertex => "vertex",
-        EntityKind::Body => "body",
     }
 }
 

@@ -18,7 +18,7 @@ use geom_core::Tol;
 
 /// A document carrying a mate round-trips through the persistence
 /// door bit for bit — a world read, a flip and a standoff among its
-/// poses — and the mate's class rides its stable spelling.
+/// poses.
 #[test]
 fn a_mate_bearing_document_round_trips() {
     let doc_ref = DocRef {

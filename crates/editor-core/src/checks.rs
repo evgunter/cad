@@ -565,8 +565,7 @@ pub struct CheckFinding {
 /// node that decided the row, root or not, which denotes no one body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum FindingSubject {
-    /// A root output, attributed as `(root, output_ix)` (the
-    /// [`crate::AtRestFinding`]/`Attribution` rhyme), which
+    /// A root output, named as `(root, output_ix)`, which
     /// [`subject_body`] resolves.
     Output {
         /// The root whose value carries the subject body.
@@ -1806,8 +1805,12 @@ fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
 /// A pair a mate rests on each other is not reported: the census
 /// recorded the touch, and the coincidence door proves it by the mate.
 /// Reporting it here too would make a correctly-mated assembly noisy
-/// about the thing it got right. A touch no mate states is not
-/// suppressed (F1).
+/// about the thing it got right. The suppression keys on the door's
+/// first rung ([`mated_pairs`]), and between two copies only a mate
+/// proves there: the rung's other two arms need both cells read
+/// through one chain of maps to one minting node, and each copy reads
+/// its cells through its own placement. So a touch no mate states is
+/// not suppressed (F1).
 fn separation<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
     doc: &Doc<P>,
     subject: &Subject<'_, T>,

@@ -608,8 +608,8 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
     let findings = match err {
         // Each row carries its own route: `of` is the document to open
         // and `via` the instances this document reached it through. The
-        // gate's own `of`/`via`/`through` stay `None`, because a list of
-        // rows has no single route.
+        // gate's own `through` stays `None`, because a list of rows has
+        // no single route.
         E::CarriedAtRest { findings } => obj(findings
             .iter()
             .map(|f| CarriedAtRestFinding(f.clone(), from.clone()))
@@ -619,7 +619,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
         E::Product(inner) => {
             let (node, through, name) = product_fields(py, inner);
             // The gather's payload rides under the gather's own
-            // attribute names; the gate's five stay `None`, so a
+            // attribute names; the gate's `findings` stays `None`, so a
             // caller who branched on `variant` reads the fields that
             // tag actually carries.
             return typed_err(
@@ -635,8 +635,6 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
                     ),
                     ("node", node),
                     ("through", through),
-                    ("of", none()),
-                    ("via", none()),
                     ("name", name),
                     ("findings", none()),
                 ],
@@ -665,8 +663,6 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError, doc: Arc<d::ProfileDoc>)
             ),
             ("node", node),
             ("through", none()),
-            ("of", none()),
-            ("via", none()),
             ("name", none()),
             ("findings", findings),
         ],

@@ -699,8 +699,6 @@ class AssemblyError(PncadError):
     findings: Optional[list[AtRestFinding] | list[CarriedAtRestFinding]]
     name: Optional[str]
     node: Optional[NodeId]
-    of: Optional[str]
-    via: Optional[list[NodeId]]
     through: Optional[NodeId]
 
 class ProductError(PncadError):

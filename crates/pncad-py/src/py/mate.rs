@@ -56,8 +56,8 @@ impl MateSide {
 
 // ---- The authored payload ----
 
-/// **A mate**: two poses of one kind equated, with the contact class it
-/// declares. A mate is a constraint of the placement that holds it
+/// **A mate**: two poses of one kind equated.
+/// A mate is a constraint of the placement that holds it
 /// (`Doc.constrain`, `Doc.place(shapes, constraints)`), never a node:
 /// this is its payload as a value.
 ///

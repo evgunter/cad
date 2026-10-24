@@ -4172,64 +4172,6 @@ fn every_validation_refusal_writes_the_attribute_it_is_committed_to() {
     );
 }
 
-/// **Two layers spell one entity the same way.**
-///
-/// [`crate::tags::entity_kind_tag`] is total over what a document
-/// NAME can denote; [`crate::tags::entity_id_tag`] is total over what
-/// the arena can hold. They are two vocabularies and neither
-/// contains the other — but where both speak of one entity, a caller
-/// resolving a name and a caller reading a census subject are reading
-/// one concept, and learning two spellings for it would be a fact
-/// about this crate rather than about the model.
-///
-/// The three shared words are pinned by CONSTRUCTION, which pins the
-/// mapping and not just the vocabulary; the fourth is pinned as a
-/// divergence, because `body` is a document node and `solid` is an
-/// arena lump, and the day a kind is added to either side this row
-/// asks whether the other gained one too.
-#[test]
-fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
-    use crate::tags::{entity_id_tag, entity_kind_tag};
-    use pncad::select::EntityKind;
-    use pncad::topo::{EdgeKey, EntityId};
-
-    for (kind, entity) in [
-        (EntityKind::Face, EntityId::Face(FaceKey::default())),
-        (EntityKind::Edge, EntityId::Edge(EdgeKey::default())),
-        (EntityKind::Vertex, EntityId::Vertex(VertexKey::default())),
-    ] {
-        assert_eq!(
-            entity_kind_tag(kind),
-            entity_id_tag(&entity),
-            "the name layer and the arena layer have drifted apart on one entity"
-        );
-    }
-
-    // Derived from the committed rows rather than from a roster
-    // written here: whatever the two maps mint, `body` is the only
-    // word the kind side speaks that the arena side does not.
-    let kinds = TAG_INVENTORY
-        .iter()
-        .find(|entry| entry.function == "entity_kind_tag")
-        .expect("the inventory carries the entity-kind alphabet");
-    let ids = TAG_INVENTORY
-        .iter()
-        .find(|entry| entry.function == "entity_id_tag")
-        .expect("the inventory carries the entity-id alphabet");
-    let unshared: Vec<&str> = kinds
-        .values
-        .iter()
-        .copied()
-        .filter(|word| !ids.values.contains(word))
-        .collect();
-    assert_eq!(
-        unshared,
-        ["body"],
-        "the two entity alphabets diverge somewhere new — a document `body` is not \
-         an arena `solid`, and any other difference is a spelling to settle"
-    );
-}
-
 /// **Two doors spell one variable-read fault the same way.**
 ///
 /// The kernel names the variable-read refusal arms under one
@@ -4810,11 +4752,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "solid",
             "vertex",
         ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "entity_kind_tag",
-        values: &["body", "edge", "face", "vertex"],
         delegates: &[],
     },
     TagEntry {
@@ -6209,7 +6146,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
     ("band", 17),
-    ("body", 2),
     ("cap_plane", 3),
     ("certify", 2),
     // One fact: a ring meeting its outer loop and a ring meeting
@@ -6248,7 +6184,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // them different is what made the three-door divergence in
     // `PersistError`'s `EditReplay` projection invisible.
     ("dimension", 3),
-    ("edge", 2),
     // One fact, as `circle_circle`.
     ("edge_along_edge", 2),
     // One fact, as `circle_circle`.
@@ -6265,7 +6200,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("evaluation_of_another_document", 5),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
     // the seat that reads one face, the entity's own word.
-    ("face", 4),
+    ("face", 3),
     // One fact (INTENT-LITERALS C) at the edit door and outside it: a
     // formula reads a fresh-table entry its edit does not hold, or at
     // another kind.
@@ -6392,7 +6327,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // the evaluator of a stored reader alike —
     // `expression_evaluation_tags_are_stable` pins both.
     ("var_kind_mismatch", 2),
-    ("vertex", 2),
     // One fact: the census's finding and the stale record name one
     // contact kind, the cell pair (vertex, edge); the two ring words
     // are the same shape on a face's own loops.
