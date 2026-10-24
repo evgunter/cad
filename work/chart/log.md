@@ -167,3 +167,5 @@ This was not a crossover, because only one designer moved, so reconciliation end
 - `curved-face-containment-answers-none-on-a-ringed-face`: `session_01ASbZAvowuj7eiwTjedp2hN`, branch `chart/ringed-curved-doors`. Tier: DUAL, because these doors decide booleans (the ray lane, the pierce arm) and a third point-in-face reading may need unifying.
 - The three arms rows as one PR: `session_017S6REdqJJkQ1SwVnS3RsvZ`, branch `chart/arms-typing`. Tier: single STYLE.
 - Designers A and B are done; their sessions stay unarchived until this decision has been read back.
+
+- 2026-10-24 — W2 lane Phase 1: **not P0.** A sphere octant (with its pole as a vertex) against six boxes under ∖, ∪ and ∩ returns a body in all 18 cases, and `describes` is never called. No classify arm marks a sphere component essential, which is correct: S² is simply connected. Steer for Phase 2: no unreachable sphere clause. W2 is asked of no simply connected carrier, so on a sphere either the predicate is a typed kernel defect or its arm answers by the carrier's topology. The same test goes for every arm the classifier cannot reach.
