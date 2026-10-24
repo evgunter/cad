@@ -181,7 +181,13 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
             on: fixture::plane(bottom),
             to: tilted,
             class: editor_core::ContactClass::Rest,
-            orient: editor_core::Orientation::IDENTITY,
+            // The bottom cap faces the frame's `xy` normal unflipped:
+            // the upper plate stands upended, its `z` along `−z`.
+            orient: editor_core::Orientation::new(
+                editor_core::SignedAxis::PlusX,
+                editor_core::SignedAxis::MinusZ,
+            )
+            .expect("x and z lie along two axes"),
         },
         vec![
             (

@@ -323,10 +323,10 @@ fn pin_lifted(
         .collect();
     if angle != 0.0 {
         match spins.last_mut() {
-            Some((Coord::SPIN, by)) => {
+            Some((Coord::Spin(Some(TargetAxis::Z)), by)) => {
                 *by = Formula::add(by.clone(), ang(angle)).expect("two angles add");
             }
-            _ => spins.push((Coord::SPIN, ang(angle))),
+            _ => spins.push((Coord::Spin(Some(TargetAxis::Z)), ang(angle))),
         }
     }
     let slides = TargetAxis::ALL.into_iter().enumerate().map(|(k, axis)| {

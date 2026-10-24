@@ -1255,7 +1255,7 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
         the pattern's count and spacing, the shelf's offset."""
         layout = self.body_of("layout_doc")
         placed = re.search(
-            r"Coord::Spin\(TargetAxis::(\w)\),\s*crate::world::turn\((\d+),\s*(true|false)\)\)\];"
+            r"Coord::Spin\(Some\(TargetAxis::(\w)\)\),\s*crate::world::turn\((\d+),\s*(true|false)\),?\s*\)\];"
             r"\s*values\.extend\(crate::world::slides\((\[[^\]]*\])\)\)",
             layout,
         )

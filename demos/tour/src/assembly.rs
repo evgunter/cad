@@ -108,11 +108,10 @@ use pncad::document::{
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
     FreeVar, InlineError, LoopProgram, Mate, MateFault, MateRef, MintRefusal,
     NO_AT_REST_RECORD_RECOURSE, Node, OVERCONSTRAINED_RECOURSE, Operand, Orientation, PartResolver,
-    PartSelect,
-    PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, TargetAxis,
-    UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin, evaluate,
-    inline, load, mixed_pins, parse_formula, product_named, run_checks, save, solve_document,
-    split, stand,
+    PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace,
+    TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble, content_pin,
+    evaluate, inline, load, mixed_pins, parse_formula, product_named, run_checks, save,
+    solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -689,7 +688,10 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
     // turn about +y leaves where it was, so each copy is placed at the
     // same pose.
     let lying = || {
-        let mut values = vec![(Coord::Spin(Some(TargetAxis::Y)), crate::world::turn(4, true))];
+        let mut values = vec![(
+            Coord::Spin(Some(TargetAxis::Y)),
+            crate::world::turn(4, true),
+        )];
         values.extend(crate::world::slides([
             FLAT_PACK_GAP + POST_HEIGHT,
             0.0,

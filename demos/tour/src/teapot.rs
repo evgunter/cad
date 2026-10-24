@@ -726,8 +726,14 @@ fn spout_loft(
 /// and slid to [`SPOUT_ROOT`].
 fn spout_values() -> Vec<(Coord, Formula)> {
     let mut values = vec![
-        (Coord::Spin(Some(TargetAxis::X)), crate::world::turn(4, true)),
-        (Coord::Spin(Some(TargetAxis::Y)), crate::world::turn(4, true)),
+        (
+            Coord::Spin(Some(TargetAxis::X)),
+            crate::world::turn(4, true),
+        ),
+        (
+            Coord::Spin(Some(TargetAxis::Y)),
+            crate::world::turn(4, true),
+        ),
         (Coord::Spin(Some(TargetAxis::Z)), ang(spout_turn())),
     ];
     values.extend(crate::world::slides([

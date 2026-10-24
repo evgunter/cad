@@ -908,8 +908,8 @@ fn c5_every_tracked_document_loads_on_this_wire_and_re_saves_identically() {
                 .map(|o| o.keys().cloned().collect())
                 .unwrap_or_default();
             assert!(
-                keys == ["class", "on", "to"],
-                "{}: a mate is two poses and a class: {mate}",
+                keys == ["class", "on", "orient", "to"],
+                "{}: a mate is two poses, a class and an orientation: {mate}",
                 path.display()
             );
             seen += 1;

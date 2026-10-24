@@ -172,7 +172,13 @@ fn seated(r: &mut Recorder, body: RecipeNodeId, to: editor_core::Operand) -> Rec
             on: cap_plane(body, body, CapEnd::Start),
             to,
             class: editor_core::ContactClass::Rest,
-            orient: editor_core::Orientation::IDENTITY,
+            // The start cap faces the plane's normal unflipped: the copy
+            // stands upended, its `z` along `−z`.
+            orient: editor_core::Orientation::new(
+                editor_core::SignedAxis::PlusX,
+                editor_core::SignedAxis::MinusZ,
+            )
+            .expect("x and z lie along two axes"),
         },
         at_rest(),
     );

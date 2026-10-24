@@ -258,8 +258,9 @@ impl Parts {
 
 /// **A seat**: `mover`'s bottom cap resting on `onto`'s top cap,
 /// `by` above it, and the mover's origin at `(x, y)` on the target
-/// space's axes swung onto the cap's normal, turned `spin` about it — the rest and its three
-/// values, in `mover`'s bundle. Answers the rest's address.
+/// space's axes as the least turn onto the mated direction carries
+/// them, turned `spin` about that direction (the cap's normal
+/// reversed) — the rest and its three values, in `mover`'s bundle. Answers the rest's address.
 #[allow(clippy::too_many_arguments)]
 fn seat(
     doc: ProfileDoc,
@@ -289,8 +290,9 @@ fn seat(
 /// corner along its own sides**: that point, `U + R·(1, 1, 0)` with the
 /// corner `U = Rz(turn)·(5, 0, lift)` and the slab's turn
 /// `R = Rz(turn)·Rx(0.3)`, read on the seat's chart — the world's `x`
-/// and `y` swung onto the slab's normal `n = R·z` by the shortest turn,
-/// from the world's origin.
+/// and `y` carried by the least turn from the bolt's mated `−z` onto
+/// the mated direction `−n`, the slab's normal `n = R·z` reversed (the
+/// same turn as `z` onto `n`), from the world's origin.
 fn seat_on_the_pinned_slab(turn: f64, lift: f64) -> (f64, f64) {
     let (ct, st, c3, s3) = (turn.cos(), turn.sin(), 0.3_f64.cos(), 0.3_f64.sin());
     let rz = |v: [f64; 3]| [ct * v[0] - st * v[1], st * v[0] + ct * v[1], v[2]];
@@ -608,7 +610,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
         p.bolt_foot(bolts[1]),
         p.slab_top(slab),
         len(0.0),
-        at(5.0, 1.0, 0.3),
+        at(5.0, 1.0, -0.3),
     );
     out.push(("seats", doc, p.opts()));
 
@@ -701,8 +703,9 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     // and a seat on that: a chain of bundles back to the world.
     let p = parts("msolve14-c-pin");
     let (doc, slab) = turned_slab(&p, "msolve14-c-pin");
-    // A seat's values are charted on the world's axes swung onto the
-    // slab's normal `n = Rz(turn)·Rx(0.3)·z`, from the world's origin
+    // A seat's values are charted on the world's axes carried by the
+    // least turn onto the mated direction, the slab's normal
+    // `n = Rz(turn)·Rx(0.3)·z` reversed, from the world's origin
     // (§5′.2). The bolt is meant to stand `(1, 1)` along the slab's own
     // sides from its upper corner, so its values are that point read on
     // the chart at the parameters' nominal values (`turn = 0.25`,
@@ -1000,10 +1003,23 @@ fn run_at<T: editor_core::EvalScalar>(
 /// translation entry by at most one ulp (8.9e-16 m) and every rotation
 /// entry bit-identical; every other solved pose of the corpus is main's
 /// bit for bit (each map dumped on main and on the branch).
+///
+/// And when the value chart came to read a written orientation (all
+/// three rows, `work/intent/the-value-chart-reads-a-written-orientation.md`):
+/// every mate carries its orientation, which the content key and the
+/// minting edits' bytes hold, so every id minted after a mate moved; and
+/// a seat's spin turns about the mated direction rather than the
+/// target's normal, so the second seat's turn is written `−0.3` about
+/// the mated `−z`, the turn `0.3` about `z` it was. The slides' chart
+/// is the least turn from the bolt's mated `−z` onto the mated
+/// direction, the same turn the swing of `z` onto the slab's normal
+/// was. Re-blessed at all three ε, the fence's poses and seats checked
+/// by [`each_seat_stands_on_what_it_is_seated_on`]; not compared id-free
+/// against main.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0xb2a4_c6af_68c0_eabf),
-    (1e-6, 0xf1ee_344a_2a63_4bd7),
-    (1e-12, 0xc404_5ce6_ff18_2ef7),
+    (1e-9, 0x2e98_dc2b_5c86_271d),
+    (1e-6, 0x51e0_0f2e_e25c_3a45),
+    (1e-12, 0x47ae_e56e_91b9_658b),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

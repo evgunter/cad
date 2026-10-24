@@ -807,7 +807,8 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     // The control's seat, `(1, 1)` on the base and square to it, on the
     // world's axes: the base turned a quarter radian, so the slides are
-    // `(1, 1)` turned with it and the spin is the base's.
+    // `(1, 1)` turned with it and the spin is the base's, about the
+    // mated direction, the world's `−z`.
     let (s, c) = 0.25_f64.sin_cos();
     let (doc, mate) = seat_turned(
         doc,
@@ -815,7 +816,7 @@ fn a_seat_under_a_parametric_pin_poses_alike_in_every_lane() {
         head(p.top_cap(top)),
         head(p.base_cap(base)),
         [c - s, s + c],
-        0.25,
+        -0.25,
     );
     let (doc, lifted) = stacked(doc, p.top, p.top_body, head(p.top_upper_cap(top)));
     let poses = solve(&doc, &o, Tol::witness());
