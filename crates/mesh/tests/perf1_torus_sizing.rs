@@ -86,7 +86,10 @@ fn count(span: f64, h: f64) -> usize {
 /// chart and unwrapped onto one branch about the first corner (both
 /// coordinates are periodic on a torus).
 fn triangle_uv(chart: &Chart, tri: [Point3<f64>; 3]) -> [[f64; 2]; 3] {
-    let raw = tri.map(|p| [chart.u_of(p), chart.v_of(p)]);
+    let raw = tri.map(|p| {
+        let uv = chart.uv_of(p);
+        [uv.x, uv.y]
+    });
     [
         raw[0],
         [
