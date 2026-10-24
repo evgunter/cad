@@ -1,0 +1,23 @@
+diff --git a/crates/sweep/tests/m5_pr9c_sphere_doors.rs b/crates/sweep/tests/m5_pr9c_sphere_doors.rs
+index 9a15b11..8b6c26c 100644
+--- a/crates/sweep/tests/m5_pr9c_sphere_doors.rs
++++ b/crates/sweep/tests/m5_pr9c_sphere_doors.rs
+@@ -220,6 +220,7 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
+     // Raw door: `rev` is an inside-out body, which tier 3 refuses (NegativeVolume).
+     let rev = body.revert().unwrap();
+     let after: Vec<bool> = rev.faces().map(|(_, f)| f.sense).collect();
++    let _unreasoned = topo::test_support::classify_unvalidated(&*body, Tol::witness());
+     assert_eq!(after, before.iter().map(|s| !s).collect::<Vec<_>>());
+     // The sphere CHART is untouched — no negative radius anywhere near
+     // this, which is exactly what the parity finding demanded.
+diff --git a/scripts/gates/raw-measure-door-sites.counts b/scripts/gates/raw-measure-door-sites.counts
+index 3373f2d..7b331a7 100644
+--- a/scripts/gates/raw-measure-door-sites.counts
++++ b/scripts/gates/raw-measure-door-sites.counts
+@@ -4,5 +4,5 @@
+ crates/mesh 18
+ crates/step-export 5
+ crates/step-import 2
+-crates/sweep 64
++crates/sweep 65
+ crates/topo 34

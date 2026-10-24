@@ -1,0 +1,63 @@
+      1 crates/sweep/tests/a_flipped_shallow_dimple.rs:102 REFUSE CurvedSenseInverted,SeamRegionOvercovered
+      1 crates/sweep/tests/a_move_through_a_neighbour_inverts_the_body.rs:56 PASS 
+      2 crates/sweep/tests/a_move_through_a_neighbour_inverts_the_body.rs:56 REFUSE RingOutsideOuter
+      2 crates/sweep/tests/a_seam_region_carrying_both_poles.rs:46 REFUSE SeamRegionOvercovered
+      1 crates/sweep/tests/a_seam_region_covering_the_sphere_twice.rs:103 REFUSE SeamRegionOvercovered
+      1 crates/sweep/tests/a_seam_region_covering_the_sphere_twice.rs:44 REFUSE SeamRegionOvercovered
+      2 crates/sweep/tests/bool5r1_probes.rs:60 PASS 
+      2 crates/sweep/tests/bool5r1_probes.rs:60 REFUSE VolumeUncomputable
+      1 crates/sweep/tests/bool5r2_wedge_reach.rs:151 REFUSE VolumeUncomputable
+      7 crates/sweep/tests/cert_m2r1_passes.rs:169 PASS 
+      7 crates/sweep/tests/cert_m2r1_passes.rs:169 REFUSE NegativeVolume
+     14 crates/sweep/tests/cert_m2r1_passes.rs:172 NONF64 geom_core::dual::Dual<f64>
+      6 crates/sweep/tests/far_thin_disc_sign.rs:103 PASS 
+      6 crates/sweep/tests/far_thin_disc_sign.rs:103 REFUSE NegativeVolume
+      4 crates/sweep/tests/fillet_h5_r2_probes.rs:454 REFUSE JoinableVertexAtRest
+      6 crates/sweep/tests/join_lever_is_the_joined_edge.rs:162 REFUSE JoinableVertexAtRest
+     14 crates/sweep/tests/lane1_r2_probes.rs:30 PASS 
+     14 crates/sweep/tests/lane1_r2_probes.rs:30 REFUSE NegativeVolume
+      7 crates/sweep/tests/lane1_r2_probes.rs:31 PASS 
+      7 crates/sweep/tests/lane1_r2_probes.rs:31 REFUSE NegativeVolume
+      1 crates/sweep/tests/m5_pr9c_sphere_doors.rs:247 REFUSE NegativeVolume
+      3 crates/sweep/tests/m5_s10_face_sense.rs:106 REFUSE LaminaWedge
+     17 crates/sweep/tests/m5_s12_curved_ops.rs:68 PASS 
+      1 crates/sweep/tests/m5_s12_curved_ops.rs:68 REFUSE NegativeVolume
+      4 crates/sweep/tests/offset_axial_door_reads_charts_not_material.rs:43 PASS 
+      2 crates/sweep/tests/offset_axial_door_reads_charts_not_material.rs:43 REFUSE NegativeVolume
+      1 crates/sweep/tests/r1_area_gauge_probes.rs:115 NONF64 geom_core::interval::Interval
+      1 crates/sweep/tests/review_m2_pr7.rs:352 REFUSE Pcurve,ScaffoldAtRest
+      1 crates/sweep/tests/review_m3_pr1_sweep.rs:295 REFUSE NegativeVolume
+      1 crates/sweep/tests/review_m3_pr1_sweep.rs:367 REFUSE NegativeVolume
+      1 crates/sweep/tests/review_m3_pr1_sweep.rs:423 REFUSE JoinableVertexAtRest
+      1 crates/sweep/tests/review_m3_pr1_sweep.rs:441 REFUSE NullEdgeAtRest,ScaffoldingStrutVertex
+      1 crates/sweep/tests/review_m5_pr9_base_props_probe.rs:80 REFUSE JoinableVertexAtRest
+     13 crates/sweep/tests/review_s12_adv.rs:39 PASS 
+      1 crates/sweep/tests/review_s12_adv.rs:39 REFUSE NegativeVolume
+     20 crates/sweep/tests/seam_region_common/mod.rs:129 REFUSE CurvedSenseInverted,LaminaWedge
+      8 crates/sweep/tests/seam_region_common/mod.rs:129 REFUSE CurvedSenseInverted,SeamRegionOvercovered
+     12 crates/sweep/tests/seam_region_common/mod.rs:192 PASS 
+      4 crates/sweep/tests/seam_region_common/mod.rs:192 REFUSE SeamRegionOvercovered
+      4 crates/sweep/tests/seam_region_common/mod.rs:228 REFUSE SeamRegionOvercovered
+      1 crates/sweep/tests/seam_region_cover_census.rs:134 REFUSE CurvedSenseInverted
+      2 crates/sweep/tests/seam_region_cover_census.rs:61 REFUSE LaminaWedge
+      2 crates/sweep/tests/shell5_r2_probes.rs:444 REFUSE NegativeVolume
+     59 crates/sweep/tests/shell8_common.rs:56 PASS 
+      1 crates/sweep/tests/shell8_common.rs:56 REFUSE SolidOuterShells
+     13 crates/sweep/tests/shell8_r2_probes.rs:974 PASS 
+      1 crates/sweep/tests/shell8_r2_probes.rs:974 REFUSE SolidOuterShells
+      2 crates/sweep/tests/shell_winding_curved.rs:45 REFUSE SolidOuterShells
+      2 crates/sweep/tests/shell_winding_curved.rs:69 REFUSE ShellWinding
+      2 crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs:298 REFUSE SeamRegionOvercovered
+     10 crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs:358 REFUSE DanglingTopology,HalfEdgeUnclaimed,LeakedProvenance,OrphanGeometry
+     16 crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs:358 REFUSE DanglingTopology,LeakedProvenance
+      4 crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs:358 REFUSE DanglingTopology,LeakedProvenance,OrphanEntity
+      8 crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs:358 REFUSE DanglingTopology,LeakedProvenance,ScaffoldingStrutVertex
+      1 crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs:413 REFUSE NegativeVolume
+      1 crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs:413 REFUSE SolidOuterShells
+      1 crates/sweep/tests/the_door_reads_seam_regions_as_tier_3_does.rs:452 REFUSE CurvedSenseInverted,SeamRegionOvercovered
+      3 crates/sweep/tests/tilted_sphere_pair.rs:338 REFUSE CurvedSenseInverted
+      4 crates/sweep/tests/tilted_sphere_pair.rs:398 REFUSE CurvedSenseInverted,LaminaWedge
+      2 crates/sweep/tests/verbs_tubewall_r1_probes.rs:119 REFUSE VolumeUncomputable
+      1 crates/sweep/tests/verbs_tubewall_r1_probes.rs:166 REFUSE VolumeUncomputable
+      1 crates/sweep/tests/verbs_tubewall_r1_probes.rs:172 REFUSE VolumeUncomputable
+      4 crates/sweep/tests/verbs_tubewall_r1_probes.rs:422 NONF64 geom_core::interval::Interval

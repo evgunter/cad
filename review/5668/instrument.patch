@@ -1,0 +1,113 @@
+diff --git a/crates/sweep/Cargo.toml b/crates/sweep/Cargo.toml
+index 987036a..0dd28c3 100644
+--- a/crates/sweep/Cargo.toml
++++ b/crates/sweep/Cargo.toml
+@@ -114,3 +114,7 @@ rayon = { workspace = true }
+ [[test]]
+ name = "all"
+ path = "tests/all.rs"
++
++[[test]]
++name = "review5668"
++path = "tests/review_5668.rs"
+diff --git a/crates/topo/src/props.rs b/crates/topo/src/props.rs
+index cd1a110..ff14523 100644
+--- a/crates/topo/src/props.rs
++++ b/crates/topo/src/props.rs
+@@ -385,6 +385,30 @@ pub(crate) use raw_door::{
+ pub(crate) mod raw_door {
+     use super::*;
+ 
++    #[track_caller]
++    #[allow(missing_docs, clippy::all, clippy::pedantic, unreachable_pub)]
++    pub fn rawdoor_probe_log<T: Real>(body: &Body<T>, tol: Tol, door: &str) {
++        let Some(path) = std::env::var_os("RAWDOOR_LOG") else { return };
++        let loc = core::panic::Location::caller();
++        let verdict = if let Some(b) = (body as &dyn core::any::Any).downcast_ref::<Body<f64>>() {
++            match crate::validate_geometric(b, tol) {
++                Ok(()) => "PASS".to_string(),
++                Err(e) => {
++                    let mut v: Vec<String> = e.iter().map(|x| { let s = format!("{x:?}"); s.split(|c| c == ' ' || c == '{' || c == '(').next().unwrap_or("").to_string() }).collect();
++                    v.sort(); v.dedup();
++                    format!("REFUSE {}", v.join(","))
++                }
++            }
++        } else {
++            format!("NONF64 {}", core::any::type_name::<T>())
++        };
++        let eps = std::env::var("CAD_TOLERANCE_EPS").unwrap_or_default();
++        use std::io::Write;
++        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++            let _ = writeln!(f, "{}:{} {} eps={} {}", loc.file(), loc.line(), door, eps, verdict);
++        }
++    }
++
+     /// [`mass_properties`]' walk over any body, finished or not: the
+     /// raw door (`topo::test_support::measure_unvalidated`) a test
+     /// measures a body tier 3 refuses through.
+@@ -393,10 +417,12 @@ pub(crate) mod raw_door {
+     ///
+     /// As [`mass_properties`].
+     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
++    #[track_caller]
+     pub fn measure_body<T: Decide + geom_core::CertifiedBounds>(
+         body: &Body<T>,
+         tol: Tol,
+     ) -> Result<MassProperties<T>, MassPropsError> {
++        rawdoor_probe_log(body, tol, "measure");
+         let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+         mass_properties_with(body, band, tol, Some(QuadLane::certified()))
+     }
+@@ -408,10 +434,12 @@ pub(crate) mod raw_door {
+     ///
+     /// As [`mass_properties_structural`].
+     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
++    #[track_caller]
+     pub fn measure_body_structural<T: Decide>(
+         body: &Body<T>,
+         tol: Tol,
+     ) -> Result<MassProperties<T>, MassPropsError> {
++        rawdoor_probe_log(body, tol, "measure_structural");
+         let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+         mass_properties_closed_form(body, band, tol)
+     }
+@@ -423,10 +451,12 @@ pub(crate) mod raw_door {
+     ///
+     /// As [`classify_shells`].
+     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
++    #[track_caller]
+     pub fn classify_body<T: Decide + geom_core::CertifiedBounds>(
+         body: &Body<T>,
+         tol: Tol,
+     ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
++        rawdoor_probe_log(body, tol, "classify");
+         let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
+         classify_body_of(body, &every, tol)
+     }
+@@ -438,11 +468,13 @@ pub(crate) mod raw_door {
+     ///
+     /// As [`classify_shells_of`].
+     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
++    #[track_caller]
+     pub fn classify_body_of<T: Decide + geom_core::CertifiedBounds>(
+         body: &Body<T>,
+         shells: &[ShellKey],
+         tol: Tol,
+     ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
++        rawdoor_probe_log(body, tol, "classify_of");
+         classify_shells_through(body, shells, tol, Some(QuadLane::certified()))
+     }
+ 
+@@ -453,10 +485,12 @@ pub(crate) mod raw_door {
+     ///
+     /// As [`classify_shells_structural`].
+     #[cfg_attr(not(any(test, feature = "test-support")), allow(unreachable_pub))]
++    #[track_caller]
+     pub fn classify_body_structural<T: Decide>(
+         body: &Body<T>,
+         tol: Tol,
+     ) -> Result<Vec<ShellClassification<T>>, ShellClassifyError> {
++        rawdoor_probe_log(body, tol, "classify_structural");
+         let every: Vec<ShellKey> = body.shells.iter().map(|(k, _)| k).collect();
+         classify_shells_through(body, &every, tol, None)
+     }
