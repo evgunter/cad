@@ -20,7 +20,7 @@ use geom_core::spline::Knots;
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, Period, SurfacePair};
+use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeDescriptionSpec, Period, SurfacePair};
 use geom_core::spline::KnotVector;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, SpanLocate, SupSpeed, Tol, Vec3};
 use topo::pcurves::ChartArm;
@@ -337,6 +337,66 @@ fn t5b_an_outer_wider_than_the_period_refuses() {
     );
 }
 
+/// **T5c** — the span premise is decided at a POINT scalar too. At
+/// `f64` an envelope's `image` is the poison a hull of two point
+/// results is, so a premise read off it could never refuse; this edge's
+/// `reach` carries it past the period while every vertex stays inside
+/// one unit.
+/// Kills: the span read off `image` (poison stands), and the span read
+/// off the chord polygon alone (the bulge is lost).
+#[test]
+fn t5c_an_envelope_reaching_past_the_period_refuses_at_f64() {
+    let tau = core::f64::consts::TAU;
+    let p = |u: f64, v: f64| Point2::new(u, v);
+    let outer = |reach_u: f64| ChartLoop {
+        edges: vec![
+            ChartEdge::Segment {
+                a: p(0.0, 0.0),
+                b: p(1.0, 0.0),
+            },
+            ChartEdge::Envelope {
+                a: p(1.0, 0.0),
+                b: p(1.0, 1.0),
+                image: Point2::new(1.0_f64.enclosure_hull(reach_u), 0.0_f64.enclosure_hull(1.0)),
+                slack: 0.0,
+                reach: ChartWindow {
+                    u_min: 1.0,
+                    u_max: reach_u,
+                    v_min: 0.0,
+                    v_max: 1.0,
+                },
+            },
+            ChartEdge::Segment {
+                a: p(1.0, 1.0),
+                b: p(0.0, 1.0),
+            },
+            ChartEdge::Segment {
+                a: p(0.0, 1.0),
+                b: p(0.0, 0.0),
+            },
+        ],
+        ring: false,
+    };
+    let assemble = |reach_u: f64| {
+        ChartBound::assembled(
+            outer(reach_u),
+            Vec::new(),
+            Some(Period::new(tau)),
+            ChartArm::Angular(1.0),
+            band(),
+        )
+    };
+    let err = assemble(tau + 1.0).expect_err("an image reaching past a period refuses at f64");
+    assert!(
+        matches!(err, PcurveMintError::OuterSpansPeriod),
+        "the refusal must name the premise it is about: {err}"
+    );
+    assert!(
+        assemble(2.0).is_ok(),
+        "an image well inside a period is described at f64"
+    );
+}
+
 // ---------------------------------------------------------------- //
 // T6 — the envelope's slack
 // ---------------------------------------------------------------- //
@@ -363,6 +423,12 @@ fn t6_an_envelope_box_is_widened_by_its_certificate_slack() {
                     iv(0.0).enclosure_hull(iv(2.0)),
                 ),
                 slack: iv(slack),
+                reach: ChartWindow {
+                    u_min: iv(2.0),
+                    u_max: iv(2.1),
+                    v_min: iv(0.0),
+                    v_max: iv(2.0),
+                },
             },
             ChartEdge::Segment {
                 a: p2(2.0, 2.0),
@@ -904,6 +970,12 @@ fn t11_the_metred_hull_is_widened_by_every_envelope_slack() {
                     iv(0.0).enclosure_hull(iv(2.0)),
                 ),
                 slack: iv(slack),
+                reach: ChartWindow {
+                    u_min: iv(2.0),
+                    u_max: iv(2.1),
+                    v_min: iv(0.0),
+                    v_max: iv(2.0),
+                },
             },
             ChartEdge::Segment {
                 a: p2(2.0, 2.0),

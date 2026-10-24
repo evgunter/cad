@@ -104,6 +104,12 @@ pub enum ChartEdge<T: Real> {
         /// the box by it. Zero for a closed-form image, which is
         /// exact in its family.
         slack: T,
+        /// A conservative box around the image over the span that is
+        /// NOT poison at a point scalar — the pcurve's own
+        /// `chart_box` — which the outer-span premise reads
+        /// ([`ChartBound::assembled`]), so that premise is decided at
+        /// every scalar. Like `image`, not widened by `slack`.
+        reach: ChartWindow<T>,
     },
 }
 
@@ -122,16 +128,21 @@ impl<T: Real> ChartEdge<T> {
         }
     }
 
-    /// The chart box this edge's image is known to lie in: the chord's
-    /// own box, hulled with the envelope box where there is one.
-    fn window(&self) -> ChartWindow<T> {
+    /// The chord's own box.
+    fn chord(&self) -> ChartWindow<T> {
         let (a, b) = (self.a(), self.b());
-        let chord = ChartWindow {
+        ChartWindow {
             u_min: a.x.min(b.x),
             u_max: a.x.max(b.x),
             v_min: a.y.min(b.y),
             v_max: a.y.max(b.y),
-        };
+        }
+    }
+
+    /// The chart box this edge's image is known to lie in: the chord's
+    /// own box, hulled with the envelope box where there is one.
+    fn window(&self) -> ChartWindow<T> {
+        let chord = self.chord();
         match *self {
             ChartEdge::Segment { .. } => chord,
             ChartEdge::Envelope { image, .. } => chord.hull(ChartWindow {
@@ -143,17 +154,38 @@ impl<T: Real> ChartEdge<T> {
         }
     }
 
+    /// The chart box this edge's image is known to lie in, read off
+    /// `reach` rather than `image`: finite at every scalar.
+    fn reach(&self) -> ChartWindow<T> {
+        let chord = self.chord();
+        match *self {
+            ChartEdge::Segment { .. } => chord,
+            ChartEdge::Envelope { reach, .. } => chord.hull(reach),
+        }
+    }
+
     /// This edge shifted by `du` along the chart's first parameter —
     /// the whole-period lift a ring copy is.
     fn shifted(&self, du: T) -> Self {
         let sh = |p: Point2<T>| Point2::new(p.x + du, p.y);
         match *self {
             ChartEdge::Segment { a, b } => ChartEdge::Segment { a: sh(a), b: sh(b) },
-            ChartEdge::Envelope { a, b, image, slack } => ChartEdge::Envelope {
+            ChartEdge::Envelope {
+                a,
+                b,
+                image,
+                slack,
+                reach,
+            } => ChartEdge::Envelope {
                 a: sh(a),
                 b: sh(b),
                 image: sh(image),
                 slack,
+                reach: ChartWindow {
+                    u_min: reach.u_min + du,
+                    u_max: reach.u_max + du,
+                    ..reach
+                },
             },
         }
     }
@@ -176,6 +208,16 @@ impl<T: Real> ChartLoop<T> {
         self.edges
             .iter()
             .map(ChartEdge::window)
+            .reduce(ChartWindow::hull)
+    }
+
+    /// The loop's own chart box over its vertices and envelope
+    /// `reach`es — [`ChartLoop::window`]'s twin that is finite at a
+    /// point scalar.
+    fn reach(&self) -> Option<ChartWindow<T>> {
+        self.edges
+            .iter()
+            .map(ChartEdge::reach)
             .reduce(ChartWindow::hull)
     }
 
@@ -282,19 +324,24 @@ impl<T: Decide> ChartBound<T> {
         u_arm: ChartArm<T>,
         band: Band,
     ) -> Result<Self, PcurveMintError> {
-        let hull = outer.window().unwrap_or(ChartWindow {
-            // An outer loop with no edges bounds nothing. The INVERTED
-            // box is the honest value for that: it contains no point,
-            // so nothing reads it as a claim about where the face is,
-            // and `certifies_outside` separates every cell from it —
-            // which then fails the parity stage, because a polygon of
-            // fewer than three vertices answers nothing.
+        // An outer loop with no edges bounds nothing. The INVERTED
+        // box is the honest value for that: it contains no point,
+        // so nothing reads it as a claim about where the face is,
+        // and `certifies_outside` separates every cell from it —
+        // which then fails the parity stage, because a polygon of
+        // fewer than three vertices answers nothing.
+        let inverted = ChartWindow {
             u_min: T::one(),
             u_max: -T::one(),
             v_min: T::one(),
             v_max: -T::one(),
-        });
+        };
+        let hull = outer.window().unwrap_or(inverted);
         if let Some(p) = period {
+            // Read off the edges' `reach`, not `hull`: an envelope's
+            // `image` is poison at a point scalar, and the premise has
+            // consumers there.
+            let reach = outer.reach().unwrap_or(inverted);
             // The span check, in the direction the premise needs: only
             // a DEFINITE excess refuses. A span within `K·ε` of the
             // period, or one whose enclosure straddles it, is not a
@@ -303,7 +350,7 @@ impl<T: Decide> ChartBound<T> {
             if matches!(
                 decide(
                     SPAN,
-                    u_arm.meter(hull.u_max - hull.u_min - p.length()),
+                    u_arm.meter(reach.u_max - reach.u_min - p.length()),
                     band
                 ),
                 Ok(Sign::Positive)
@@ -354,7 +401,9 @@ impl<T: Real> ChartBound<T> {
                             a: scale(a),
                             b: scale(b),
                         },
-                        ChartEdge::Envelope { a, b, image, slack } => {
+                        ChartEdge::Envelope {
+                            a, b, image, slack, ..
+                        } => {
                             let m = scale(image);
                             let (ma, mb) = (scale(a), scale(b));
                             // The chord's own box is folded in, so

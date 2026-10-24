@@ -117,3 +117,43 @@ projectbox_cutaway 16, tiltedcut 10, lily_walls 6, lily 3, bossplate 3,
 boss_union 3 — not the nine above. The boolean door's tier-3 gate
 (`boolean-door-adopts-the-finished-body-type`) leaves them identical
 (`k-lint-reads-the-boolean-doors-tier-3-at-probe` (REACH, closed)).
+
+## 2026-10-24 — re-measured, decided, fixed (CHART)
+
+**Count on main** (`c4318c38`, ε = 1e-9, Band 4 corpus + tour scenes,
+3,437,597 samples): 41 `chart_bound_outer_span` rows, every one
+`invalid`/`NaN` — projectbox_cutaway 16, tiltedcut 10, lily_walls 6,
+lily 3, bossplate 3, boss_union 3, the 2026-10-03 shapes and counts
+unchanged. The predicate had **no decided sample at all**: every outer
+loop that reaches it carries an envelope. They were the sweep's only
+NaN margins. (The nightly's dev-probe row at `be9b9076` died before
+the sweep, on `parts_entered_before_the_map::a_mated_parts_samples_lead_every_node`,
+so this was a local run.)
+
+**Reading 1 is right; 2 and 3 are not.**
+
+- *What it guards.* The `RING_SHIFTS` premise. It has a consumer at a
+  point scalar: the boolean's `ChartCache::describes` (`boolean/ops.rs`)
+  calls `chart_boundary` at `T`, f64 included, and reads `is_ok()` as
+  W2's premise, and `ring_path.rs`'s module docs cite the
+  `OuterSpansPeriod` refusal as part of its parity argument. The outside
+  test itself is interval-only (`editor-core/src/clearance.rs`).
+- *Is it posed at the recording scalar?* Yes. That is the same call
+  that `describes` makes at f64, not a probe artefact, so reading 3
+  (do not pose it at a point scalar) would leave the f64 lane's
+  premise unchecked.
+- *Is "poison lets it stand" safe there?* Not for `describes`. There
+  `Ok` licenses W2, so a check that cannot refuse is the unsafe
+  direction. That rules out reading 2.
+- *The f64 answer exists.* `Pcurve::chart_box` is a conservative box
+  "at every scalar", and the kernel already decides on it at f64
+  (`pcurve_focal_section_*`'s lever via `v_reach`). Only the envelope's
+  `image`, which is a single enclosure, is poison at a point scalar.
+
+**Fix.** `ChartEdge::Envelope` carries `reach` (the pcurve's
+`chart_box` over the span), and the span check reads the outer's
+`reach` hull instead of `hull`. `image`, `hull` and the outside test
+are unchanged at every scalar. After the fix, at ε = 1e-9 the 41 rows
+decide `negative`, with margins from −0.236 m to −29.1 m. No other
+row in the CSV changes. k-lint's rule 1 goes from 43 to 2 (both
+`props_quad_converged`, unrelated).

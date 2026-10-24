@@ -4993,6 +4993,7 @@ fn chart_edge<T: Decide>(
                     hull.v_min.enclosure_hull(hull.v_max),
                 ),
                 slack: cache.certificate().envelope,
+                reach: hull,
             })
         }
         // A projected image is the chart's inverse of its carrier, exact
@@ -5021,19 +5022,21 @@ fn chart_edge<T: Decide>(
                     hull.v_min.enclosure_hull(hull.v_max),
                 ),
                 slack: T::zero(),
+                reach: hull,
             })
         }
         // The closed-form image is exact in its family, so the slack is
         // zero and the image's enclosure is the image evaluated over
         // the span's enclosure — the interval natural extension, not
-        // `chart_box`. At a POINT scalar the span hull is poison, the
-        // enclosure is poison, and the outside test certifies nothing
-        // against it — which is the safe direction.
+        // `chart_box`, which is its `reach`. At a POINT scalar the span
+        // hull is poison, the enclosure is poison, and the outside test
+        // certifies nothing against it — which is the safe direction.
         _ => Ok(ChartEdge::Envelope {
             a,
             b,
             image: walked.pcurve.eval(walked.t0.enclosure_hull(walked.t1)),
             slack: T::zero(),
+            reach: walked.pcurve.chart_box(walked.t0, walked.t1),
         }),
     }
 }

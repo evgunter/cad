@@ -38,6 +38,7 @@ use sweep::ExtrudeSide;
 use crate::common::approx::band;
 use crate::common::interval::{iv, p2, v2};
 use geom::Surface;
+use geom_brep::ChartWindow;
 use geom_core::{Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -1013,12 +1014,8 @@ fn p13_off_branch_cells_of_a_cylinder_face_are_certified_outside() {
 // ------------------------------------------------------------------ //
 
 fn widen(b: &ChartBound<Interval>, w: f64) -> ChartBound<Interval> {
-    let wp = |p: Point2<Interval>| {
-        Point2::new(
-            Interval::from_bounds(p.x.lo() - w, p.x.hi() + w),
-            Interval::from_bounds(p.y.lo() - w, p.y.hi() + w),
-        )
-    };
+    let wi = |x: Interval| Interval::from_bounds(x.lo() - w, x.hi() + w);
+    let wp = |p: Point2<Interval>| Point2::new(wi(p.x), wi(p.y));
     ChartBound {
         loops: b
             .loops
@@ -1030,11 +1027,23 @@ fn widen(b: &ChartBound<Interval>, w: f64) -> ChartBound<Interval> {
                     .iter()
                     .map(|e| match *e {
                         ChartEdge::Segment { a, b } => ChartEdge::Segment { a: wp(a), b: wp(b) },
-                        ChartEdge::Envelope { a, b, image, slack } => ChartEdge::Envelope {
+                        ChartEdge::Envelope {
+                            a,
+                            b,
+                            image,
+                            slack,
+                            reach,
+                        } => ChartEdge::Envelope {
                             a: wp(a),
                             b: wp(b),
                             image: wp(image),
                             slack,
+                            reach: ChartWindow {
+                                u_min: wi(reach.u_min),
+                                u_max: wi(reach.u_max),
+                                v_min: wi(reach.v_min),
+                                v_max: wi(reach.v_max),
+                            },
                         },
                     })
                     .collect(),
@@ -1331,4 +1340,68 @@ fn r2_a_vertical_planar_wall_describes_on_its_stored_chart() {
     );
     // Sound on every face, stored chart and re-chart alike.
     assert_sound(&run_extrude("L-rechart", &loops, 1.5));
+}
+
+/// **The mint's `reach` at a point scalar.** An extruded arc's wall is a
+/// cylinder face whose rims are envelopes; at `f64` their `image` is
+/// poison by design, and their `reach` — what the outer-span premise
+/// reads — must be finite and hold the rim's two ends, or the premise
+/// is decided on nothing at every point scalar.
+/// Kills: a `reach` minted through the span hull (poison at `f64`) or
+/// minted from a box that misses the edge.
+#[test]
+fn an_arc_walls_envelopes_reach_finitely_at_f64() {
+    let lps: Vec<ProfileLoop<f64>> = bumped_block()
+        .iter()
+        .map(|l| bulge_loop(l.iter().map(|(p, b)| (Point2::new(p.0, p.1), *b)).collect()))
+        .collect();
+    let vp = Profile::new(SketchPlane::<f64>::xy(), lps)
+        .validate(Tol::witness())
+        .unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
+    let mut envelopes = 0;
+    for (face, data) in t.body.faces() {
+        let chart = t.body.get_surface(data.surface).unwrap().clone();
+        if !matches!(chart, Surface::Cylinder { .. }) {
+            continue;
+        }
+        let bound = chart_boundary(&t.body, face, &chart, band())
+            .unwrap_or_else(|e| panic!("the arc wall {face:?} describes at f64: {e}"));
+        for e in &bound.loops[0].edges {
+            let ChartEdge::Envelope { a, b, reach, .. } = *e else {
+                continue;
+            };
+            envelopes += 1;
+            let slop = 1e-12;
+            for (name, x) in [
+                ("u_min", reach.u_min),
+                ("u_max", reach.u_max),
+                ("v_min", reach.v_min),
+                ("v_max", reach.v_max),
+            ] {
+                assert!(x.is_finite(), "{face:?}: reach.{name} is {x} at f64");
+            }
+            for end in [a, b] {
+                assert!(
+                    reach.u_min - slop <= end.x
+                        && end.x <= reach.u_max + slop
+                        && reach.v_min - slop <= end.y
+                        && end.y <= reach.v_max + slop,
+                    "{face:?}: reach {reach:?} misses the edge end {end:?}"
+                );
+            }
+        }
+    }
+    assert!(
+        envelopes > 0,
+        "the arc wall's rims are envelopes on its cylinder chart"
+    );
 }
