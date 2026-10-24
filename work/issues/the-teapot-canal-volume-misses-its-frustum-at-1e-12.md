@@ -23,3 +23,11 @@ row's at-1e-12 enclosure is ~8e-12 m³ while the two volumes differ by
 ~1.2e-10 m³, so either the canal's enclosure is not the canal's volume
 at this ε or the frustum comparison's expectation is not the canal's.
 Not diagnosed further.
+
+**The same red, filed twice.** PR 5635 (open) files it as
+`work/iso/the-teapot-spouts-frustum-oracle-misses-its-measured-volume-at-1e-12.md`
+and names PR 5629 (the per-row Cartesian lane in `sweep/src/skin.rs`)
+as the likely cause, unverified. PR 5640 reads it the same way: the
+canal used to refuse at 1e-12, it now decides, and the comparator is
+the continuum tube, not the fitted body. Whichever lands second closes
+its copy into the other.
