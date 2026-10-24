@@ -215,6 +215,7 @@
 //! ([`crate::ValidationError::RingOutsideOuter`];
 //! `crates/sweep/tests/a_move_through_a_neighbour_inverts_the_body.rs`).
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom::SurfaceKind;
@@ -990,8 +991,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::ResultNotClosed { errors } => write!(
                 f,
-                "the offset body is not a closed solid ({}), so it is discarded: the body \
-                 offset was not closed either, or this is a kernel defect; report it",
+                "the offset body is not a closed solid ({}), so it is discarded. Recourse: \
+                 offset a closed solid; one that reaches this is a kernel defect, so report it",
                 error_count(errors.len())
             ),
         }
@@ -1570,9 +1571,10 @@ fn planned_charts<T: Decide + crate::props::AtRestPolicy>(
         );
     }
     let mut boundary: Vec<EdgeKey> = Vec::new();
+    let mut planned = std::collections::BTreeSet::new();
     for chart in &charts {
         for edge in group_boundary(body, chart.faces) {
-            if !boundary.contains(&edge) {
+            if planned.insert(edge) {
                 boundary.push(edge);
             }
         }
@@ -1964,9 +1966,10 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     }
     // ---- Decide: the boundary plan. ----
     let mut boundary: Vec<EdgeKey> = Vec::new();
+    let mut planned = std::collections::BTreeSet::new();
     for chart in &charts {
         for edge in group_boundary(body, chart.faces) {
-            if !boundary.contains(&edge) {
+            if planned.insert(edge) {
                 boundary.push(edge);
             }
         }
@@ -1998,11 +2001,12 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
         tol,
         T::section_lane(),
     )?;
-    let moved: Vec<(VertexKey, Point3<T>)> = corners
-        .groups
-        .iter()
-        .flat_map(|(group, point)| group.iter().map(|&v| (v, *point)))
-        .collect();
+    let mut moved: BTreeMap<VertexKey, Point3<T>> = BTreeMap::new();
+    for (group, point) in &corners.groups {
+        for &v in group {
+            moved.entry(v).or_insert(*point);
+        }
+    }
     let vertex_groups = corners.groups.clone();
     for plan in &mut plans {
         if let Some(refused) = plan.refused.take() {
@@ -2123,7 +2127,7 @@ pub(crate) fn offset_charts_staged<T: Decide + crate::props::AtRestPolicy>(
     let staled: Vec<_> = work
         .half_edges
         .values()
-        .filter(|h| moved.iter().any(|&(v, _)| v == h.start))
+        .filter(|h| moved.contains_key(&h.start))
         .flat_map(|h| {
             let edge = proven(&work.edges, h.edge, EntityId::Edge);
             [edge.he_plus, edge.he_minus]
@@ -3487,15 +3491,20 @@ pub(crate) fn group_by_point<T: Real>(
     body: &Body<T>,
     vertices: impl IntoIterator<Item = VertexKey>,
 ) -> Vec<Vec<VertexKey>> {
-    let mut groups: Vec<(crate::PointKey, Vec<VertexKey>)> = Vec::new();
+    let mut groups: Vec<Vec<VertexKey>> = Vec::new();
+    let mut group_of: std::collections::BTreeMap<crate::PointKey, usize> =
+        std::collections::BTreeMap::new();
     for vertex in vertices {
         let point = proven(&body.vertices, vertex, EntityId::Vertex).point;
-        match groups.iter_mut().find(|(k, _)| *k == point) {
-            Some((_, group)) => group.push(vertex),
-            None => groups.push((point, vec![vertex])),
+        match group_of.entry(point) {
+            std::collections::btree_map::Entry::Occupied(at) => groups[*at.get()].push(vertex),
+            std::collections::btree_map::Entry::Vacant(at) => {
+                at.insert(groups.len());
+                groups.push(vec![vertex]);
+            }
         }
     }
-    groups.into_iter().map(|(_, group)| group).collect()
+    groups
 }
 
 /// `group`, parted by the solid each vertex lies in, in `group`'s order:
@@ -3585,16 +3594,18 @@ fn plan_reanchors<T: Decide>(
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<T>>,
 ) -> Result<Vec<Reanchored<T>>, ReplaceFaceError<T>> {
-    let moved: Vec<(VertexKey, Point3<T>)> = corners
-        .groups
-        .iter()
-        .flat_map(|(group, point)| group.iter().map(|&v| (v, *point)))
-        .collect();
+    let mut moved: BTreeMap<VertexKey, Point3<T>> = BTreeMap::new();
+    for (group, point) in &corners.groups {
+        for &v in group {
+            moved.entry(v).or_insert(*point);
+        }
+    }
+    let on_boundary: std::collections::BTreeSet<EdgeKey> = boundary.iter().copied().collect();
     let solved = &corners.solved;
     let mut out = Vec::new();
     let keys: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for edge in keys {
-        if boundary.contains(&edge) {
+        if on_boundary.contains(&edge) {
             continue;
         }
         let edge_data = proven(&body.edges, edge, EntityId::Edge);
@@ -3608,7 +3619,7 @@ fn plan_reanchors<T: Decide>(
         )
         .start;
         let end = body.proven_half_edge_end(he_plus);
-        let at = |v: VertexKey| moved.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
+        let at = |v: VertexKey| moved.get(&v).copied();
         let (new_start, new_end) = (at(start), at(end));
         if new_start.is_none() && new_end.is_none() {
             continue;
@@ -4482,7 +4493,7 @@ fn incident_edges<T: Decide>(
 /// within ε, or the corner and the edge disagree.
 fn read_ends<T: Decide>(
     plan: &mut EdgePlan<T>,
-    moved: &[(VertexKey, Point3<T>)],
+    moved: &BTreeMap<VertexKey, Point3<T>>,
     seeds: Option<(T, T)>,
     band: Band,
     tol: Tol,
@@ -4491,9 +4502,8 @@ fn read_ends<T: Decide>(
     let edge = plan.edge;
     let at = |v: VertexKey| {
         moved
-            .iter()
-            .find(|(k, _)| *k == v)
-            .map(|(_, p)| *p)
+            .get(&v)
+            .copied()
             .unwrap_or_else(|| unreachable!("{v:?} ends a boundary edge, so it moved"))
     };
     let (p_start, p_end) = (at(plan.start), at(plan.end));
@@ -5250,7 +5260,7 @@ mod read_ends_rows {
         let mut p = plan(line.clone());
         let got = read_ends(
             &mut p,
-            &[(VertexKey::default(), off)],
+            &std::collections::BTreeMap::from([(VertexKey::default(), off)]),
             None,
             band,
             tol,
@@ -5266,8 +5276,15 @@ mod read_ends_rows {
         // On the carrier, the same read places both ends there.
         let on = Point3::new(0.5, 0.0, 0.0);
         let mut p = plan(line);
-        read_ends(&mut p, &[(VertexKey::default(), on)], None, band, tol, None)
-            .expect("a corner on the carrier reads");
+        read_ends(
+            &mut p,
+            &std::collections::BTreeMap::from([(VertexKey::default(), on)]),
+            None,
+            band,
+            tol,
+            None,
+        )
+        .expect("a corner on the carrier reads");
         assert_eq!((p.spec.param_start, p.spec.param_end), (0.5, 0.5));
     }
 }

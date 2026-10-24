@@ -4083,9 +4083,10 @@ impl<T: Decide> Body<T> {
     #[track_caller]
     pub(crate) fn run_edges(&self, run: &[HalfEdgeKey]) -> Vec<EdgeKey> {
         let mut edges: Vec<EdgeKey> = Vec::with_capacity(run.len());
+        let mut seen = std::collections::BTreeSet::new();
         for &moved in run {
             let edge = proven(&self.half_edges, moved, EntityId::HalfEdge).edge;
-            if !edges.contains(&edge) {
+            if seen.insert(edge) {
                 edges.push(edge);
             }
         }

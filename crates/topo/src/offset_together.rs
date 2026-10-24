@@ -224,7 +224,13 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         }
     }
     covers_its_solids(body, &scope, &seen)?;
-    let plane_of = |face: FaceKey| planes.iter().find(|(k, _)| *k == face).map(|(_, p)| p);
+    // `well_formed` refused a face named twice, so each face has one row.
+    let plane_row: SecondaryMap<FaceKey, usize> = planes
+        .iter()
+        .enumerate()
+        .map(|(i, &(face, _))| (face, i))
+        .collect();
+    let plane_of = |face: FaceKey| plane_row.get(face).map(|&i| &planes[i].1);
 
     // ---- Decide: every corner, before anything is written. ----
     //
@@ -261,10 +267,22 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
             position.push((*vertex, *here));
         }
     }
+    let corner_row: SecondaryMap<VertexKey, usize> = at_vertex
+        .iter()
+        .enumerate()
+        .map(|(i, &(v, ..))| (v, i))
+        .collect();
     let solve = |group: &[VertexKey]| {
         let mut at: Vec<&MovedPlane<T>> = Vec::new();
         let mut arms: Vec<T> = Vec::new();
-        for (vertex, here, planes) in at_vertex.iter().filter(|(v, ..)| group.contains(v)) {
+        // The group's corners in vertex-arena order, as `at_vertex` holds them.
+        let mut rows: Vec<usize> = group
+            .iter()
+            .filter_map(|&v| corner_row.get(v).copied())
+            .collect();
+        rows.sort_unstable();
+        rows.dedup();
+        for (vertex, here, planes) in rows.into_iter().map(|i| &at_vertex[i]) {
             for p in planes {
                 if !at.iter().any(|q| q.old_key == p.old_key) {
                     at.push(p);
@@ -297,7 +315,13 @@ pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPoli
         position.extend(group.iter().map(|&v| (v, point)));
         moved.push((group, point));
     }
-    let point_at = |v: VertexKey| position.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
+    let mut placed: SecondaryMap<VertexKey, Point3<T>> = SecondaryMap::new();
+    for &(v, p) in &position {
+        if let Some(entry) = placed.entry(v) {
+            entry.or_insert(p);
+        }
+    }
+    let point_at = |v: VertexKey| placed.get(v).copied();
 
     // ---- Decide: every edge's carrier and description. ----
     let mut specs: Vec<(EdgeKey, EdgeCurveSpec<T>)> = Vec::new();
@@ -762,7 +786,7 @@ pub(crate) fn unplaced_in_scope(vertex: VertexKey) -> ! {
 /// failures are this call's — not the asymptotics. Nothing pins the
 /// whole-body cost; what does pin is that the WRITE side is driven by
 /// the writes (`attach`'s orphan pass, counted by
-/// `attach::orphan_sweep_scales_with_the_writes`).
+/// `attach::tests::orphan_sweep_scales_with_the_writes`).
 ///
 /// **Tier 2 is the whole contract on the result, and it is tier 2
 /// only.** A door returns `Ok` on a body that then fails

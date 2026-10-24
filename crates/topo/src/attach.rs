@@ -74,6 +74,7 @@ use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Arg, linked, lookup, proven, require_key};
 use crate::pcurves::{SiteCarriers, SiteHalf, SiteRows};
 use geom_core::Tol;
+use slotmap::SecondaryMap;
 
 impl<T: Decide> Body<T> {
     /// Replaces `face`'s surface per the [`FaceSurface`] spec,
@@ -392,19 +393,22 @@ impl<T: Decide> Body<T> {
             error: CertifyError::Band(e),
         })?;
         let faces = self.plan_recharts(&charts)?;
-        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(&faces, f);
+        let slots = moved_slots(&faces);
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| slots.get(f).copied();
         let (body, planned) = (&*self, &charts);
         let resolve = |sides: Sides| {
             move |k: SurfaceKey| body.slot_surface(planned, sides.repoint(k)).cloned()
         };
+        // One reader for every listed edge, so a face's boundary is
+        // collected once however many of its edges are listed.
+        let wedges = crate::wedge_reach::WedgeReach::new(self);
 
         // ---- The listed edges. ----
-        let mut written: Vec<(EdgeKey, Sides, EdgeCurve<T>)> =
-            Vec::with_capacity(redescriptions.len());
+        let mut written: Written<T> = Written::with_capacity(redescriptions.len());
         for (edge, spec) in redescriptions {
             let edge = *edge;
             let edge_data = lookup(&self.edges, edge, EntityId::Edge, Arg("redescriptions"))?;
-            if written.iter().any(|&(e, ..)| e == edge) {
+            if written.holds(edge) {
                 return Err(EulerOpError::DuplicateRedescription { edge });
             }
             let curve_key = edge_data.curve;
@@ -420,8 +424,7 @@ impl<T: Decide> Body<T> {
                 return Err(EulerOpError::DescriptionNotAdjacent { edge: Some(edge) });
             }
             let (p_start, p_end) = self.edge_endpoints(edge);
-            let reach = crate::wedge_reach(
-                self,
+            let reach = wedges.reach(
                 crate::edge_faces(self, edge),
                 &spec.carrier,
                 (spec.param_start, spec.param_end),
@@ -455,7 +458,7 @@ impl<T: Decide> Body<T> {
         let undescribed: Vec<EdgeKey> = self
             .stranded(&faces)
             .into_iter()
-            .filter(|e| !written.iter().any(|(w, ..)| w == e))
+            .filter(|&e| !written.holds(e))
             .collect();
         if !undescribed.is_empty() {
             return Err(EulerOpError::RechartUndescribed {
@@ -483,13 +486,20 @@ impl<T: Decide> Body<T> {
                 });
             }
         }
-        let dropped = faces
-            .iter()
-            .filter(|m| !m.on_parent_chart)
-            .map(|m| self.face_cycles(m.face))
-            .collect::<Vec<_>>();
+        let dropped =
+            self.faces_cycles(faces.iter().filter(|m| !m.on_parent_chart).map(|m| m.face));
 
         // ---- Mutation (infallible from here on). ----
+        //
+        // One orphan pass for the whole call ([`Body::orphan_reaper`]):
+        // the curves the writes release, then the surfaces the moved
+        // faces leave.
+        let released: Vec<CurveKey> = written
+            .rows
+            .iter()
+            .map(|&(edge, ..)| proven(&self.edges, edge, EntityId::Edge).curve)
+            .collect();
+        let mut reaper = self.orphan_reaper(&released);
         let keys: Vec<SurfaceKey> = charts
             .into_iter()
             .map(|chart| match chart.surface {
@@ -512,15 +522,15 @@ impl<T: Decide> Body<T> {
             f.sense = m.sense;
         }
         self.drop_rows(dropped.into_iter().flatten());
-        for (edge, sides, curve) in written {
+        for (edge, sides, curve) in written.rows {
             let Some(rekeyed) = curve.with_remapped_surfaces(|k| key_of(sides.repoint(k))) else {
                 unreachable!("set_face_surfaces_describing: every moved chart was minted")
             };
-            self.replace_edge_curve(edge, rekeyed);
+            let (_, old) = self.swap_edge_curve(edge, rekeyed);
+            self.release_curve(&mut reaper, old);
         }
-        for m in &faces {
-            self.remove_surface_if_orphaned(m.old);
-        }
+        let left: Vec<SurfaceKey> = faces.iter().map(|m| m.old).collect();
+        self.reap_surfaces(reaper, &left);
 
         #[cfg(debug_assertions)]
         self.assert_tier1_postcondition("set_face_surfaces_describing");
@@ -554,10 +564,11 @@ impl<T: Decide> Body<T> {
         charts: &[Rechart<T>],
     ) -> Result<Vec<(EdgeKey, EdgeCurveSpec<T>)>, EulerOpError> {
         let faces = self.plan_recharts(charts)?;
-        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(&faces, f);
+        let slots = moved_slots(&faces);
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| slots.get(f).copied();
         let mut out = Vec::new();
         for (edge, sides) in self
-            .rechart_edges(self.edges.keys(), moved, Spelling::Listed)
+            .rechart_edges(self.moved_edges(&faces), moved, Spelling::Listed)
             .carried
         {
             out.push((edge, self.carried_spec(edge, sides, charts)));
@@ -581,12 +592,27 @@ impl<T: Decide> Body<T> {
 
     /// [`Body::stranded_by`] over planned faces.
     fn stranded(&self, faces: &[MovedFace]) -> Vec<EdgeKey> {
-        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| moved_slot(faces, f);
-        self.rechart_edges(self.edges.keys(), moved, Spelling::Stored)
+        let slots = moved_slots(faces);
+        let moved = |_: HalfEdgeKey, _: LoopKey, f: FaceKey| slots.get(f).copied();
+        self.rechart_edges(self.moved_edges(faces), moved, Spelling::Stored)
             .stranded
             .into_iter()
             .map(|(e, _)| e)
             .collect()
+    }
+
+    /// Every edge with a half on a face `faces` move, once each, in
+    /// edge-arena order: the only edges [`Body::rechart_edges`] does not
+    /// skip under that move, so walking these is walking the arena.
+    fn moved_edges(&self, faces: &[MovedFace]) -> Vec<EdgeKey> {
+        let mut edges: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
+        for m in faces {
+            for he in self.face_cycles_linked(m.face) {
+                edges.insert(proven(&self.half_edges, he, EntityId::HalfEdge).edge, ());
+            }
+        }
+        // A secondary map iterates in slot order, which is the arena's.
+        edges.keys().collect()
     }
 
     /// The faces `charts` move, each resolved once with its moved sense,
@@ -594,11 +620,12 @@ impl<T: Decide> Body<T> {
     /// per-face preconditions. Pure.
     fn plan_recharts(&self, charts: &[Rechart<T>]) -> Result<Vec<MovedFace>, EulerOpError> {
         let mut faces: Vec<MovedFace> = Vec::new();
+        let mut seen: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
         for (index, chart) in charts.iter().enumerate() {
             for wearer in &chart.faces {
                 let face = wearer.face;
                 let face_data = lookup(&self.faces, face, EntityId::Face, Arg("charts"))?;
-                if faces.iter().any(|m| m.face == face) {
+                if seen.insert(face, ()).is_some() {
                     return Err(EulerOpError::FaceMovedTwice { face });
                 }
                 let old = face_data.surface;
@@ -673,8 +700,8 @@ impl<T: Decide> Body<T> {
         let mut out = Vec::new();
         for edge in edges {
             let data = proven(&self.edges, edge, EntityId::Edge);
-            let (spelling, curve) = match reading.written().iter().find(|(e, ..)| *e == edge) {
-                Some((.., curve)) => (Spelling::Listed, Some(curve)),
+            let (spelling, curve) = match reading.written(edge) {
+                Some(curve) => (Spelling::Listed, Some(curve)),
                 None => (
                     Spelling::Stored,
                     self.edge_curve_linked(edge, data).certified(),
@@ -943,12 +970,11 @@ impl<T: Decide> Body<T> {
         };
         let landing = self.landing_on(old, onto);
         let moved = |he, l, f| moves(he, l, f).then_some(landing.after);
-        let mut written: Vec<(EdgeKey, Sides, EdgeCurve<T>)> =
-            Vec::with_capacity(redescriptions.len());
+        let mut written: Written<T> = Written::with_capacity(redescriptions.len());
         for (edge, description) in redescriptions {
             let edge = *edge;
             require_key(&self.edges, edge, EntityId::Edge, Arg("redescriptions"))?;
-            if written.iter().any(|&(e, ..)| e == edge) {
+            if written.holds(edge) {
                 return Err(EulerOpError::DuplicateRedescription { edge });
             }
             if !edges.contains(&edge) {
@@ -991,7 +1017,7 @@ impl<T: Decide> Body<T> {
                 .stranded
                 .into_iter()
                 .map(|(e, _)| e)
-                .filter(|e| !written.iter().any(|(w, ..)| w == e))
+                .filter(|&e| !written.holds(e))
                 .collect();
             if !undescribed.is_empty() {
                 return Err(EulerOpError::RechartUndescribed {
@@ -1033,6 +1059,7 @@ impl<T: Decide> Body<T> {
             }
         }
         Ok(written
+            .rows
             .into_iter()
             .map(|(edge, sides, curve)| {
                 let Some(rekeyed) = curve.with_remapped_surfaces(|k| match sides.repoint(k) {
@@ -1820,6 +1847,15 @@ impl<T: Decide> Body<T> {
         edge: EdgeKey,
         certified: EdgeCurve<T>,
     ) -> CurveKey {
+        let (new, old) = self.swap_edge_curve(edge, certified);
+        self.remove_curve_if_orphaned(old);
+        new
+    }
+
+    /// [`Body::replace_edge_curve`] without the reap: inserts the
+    /// curve, points `edge` at it, and returns `(new, old)` for a
+    /// batched orphan pass ([`Body::release_curve`]) to reap.
+    fn swap_edge_curve(&mut self, edge: EdgeKey, certified: EdgeCurve<T>) -> (CurveKey, CurveKey) {
         let new = self.add_curve(certified);
         let Some(e) = self.get_edge_mut(edge) else {
             unreachable!(
@@ -1827,9 +1863,7 @@ impl<T: Decide> Body<T> {
                  between that plan and this write removes it"
             )
         };
-        let old = core::mem::replace(&mut e.curve, new);
-        self.remove_curve_if_orphaned(old);
-        new
+        (new, core::mem::replace(&mut e.curve, new))
     }
 
     /// [`require_description_adjacent`] for a spec about to describe
@@ -1988,17 +2022,48 @@ enum Reading<'a, T: Real> {
         door: RechartDoor,
         band: Band,
         charts: &'a [Rechart<T>],
-        written: &'a [(EdgeKey, Sides, EdgeCurve<T>)],
+        written: &'a Written<T>,
     },
 }
 
 impl<T: Real> Reading<'_, T> {
-    /// The re-descriptions the door writes, none for a keys-only door.
-    fn written(&self) -> &[(EdgeKey, Sides, EdgeCurve<T>)] {
+    /// The re-description the door writes for `edge`, none for a
+    /// keys-only door.
+    fn written(&self, edge: EdgeKey) -> Option<&EdgeCurve<T>> {
         match self {
-            Self::Keys => &[],
-            Self::Residuals { written, .. } => written,
+            Self::Keys => None,
+            Self::Residuals { written, .. } => written.curve(edge),
         }
+    }
+}
+
+/// A describing door's certified re-descriptions, in list order, with
+/// each edge's position: a listed edge is found by key, not by a walk
+/// of the list.
+struct Written<T: Real> {
+    rows: Vec<(EdgeKey, Sides, EdgeCurve<T>)>,
+    at: std::collections::BTreeMap<EdgeKey, usize>,
+}
+
+impl<T: Real> Written<T> {
+    fn with_capacity(n: usize) -> Self {
+        Self {
+            rows: Vec::with_capacity(n),
+            at: std::collections::BTreeMap::new(),
+        }
+    }
+
+    fn holds(&self, edge: EdgeKey) -> bool {
+        self.at.contains_key(&edge)
+    }
+
+    fn curve(&self, edge: EdgeKey) -> Option<&EdgeCurve<T>> {
+        self.at.get(&edge).map(|&i| &self.rows[i].2)
+    }
+
+    fn push(&mut self, row: (EdgeKey, Sides, EdgeCurve<T>)) {
+        self.at.insert(row.0, self.rows.len());
+        self.rows.push(row);
     }
 }
 
@@ -2032,9 +2097,10 @@ struct MovedFace {
     on_parent_chart: bool,
 }
 
-/// The surface `face` wears once `faces` have moved, if it moves.
-fn moved_slot(faces: &[MovedFace], face: FaceKey) -> Option<Slot> {
-    faces.iter().find(|m| m.face == face).map(|m| m.after)
+/// The surface each face of `faces` wears once they have moved, by
+/// face.
+fn moved_slots(faces: &[MovedFace]) -> SecondaryMap<FaceKey, Slot> {
+    faces.iter().map(|m| (m.face, m.after)).collect()
 }
 
 /// [`Body::rechart_edges`]' answer.
@@ -4797,5 +4863,55 @@ mod tests {
                 "{door:?}: {text}"
             );
         }
+    }
+
+    /// Arena entries every orphan pass visits across one door call that
+    /// offsets each face of an `n`-gon prism together.
+    fn orphan_visits_offsetting_an_ngon_prism(n: usize) -> usize {
+        let profile: Vec<(f64, f64)> = (0..n)
+            .map(|k| {
+                let t = core::f64::consts::TAU * k as f64 / n as f64;
+                (t.cos(), t.sin())
+            })
+            .collect();
+        let mut body = crate::test_support_fixtures::prism::<f64>(&profile, 1.0, tol()).body;
+        let moves: Vec<crate::ChartMove<f64>> = body
+            .faces()
+            .map(|(f, _)| crate::ChartMove {
+                faces: vec![f],
+                distance: 0.01,
+            })
+            .collect();
+        crate::body::ORPHAN_PASS_VISITS.with(|v| v.set(0));
+        crate::offset_planes_together(
+            &mut body,
+            &moves,
+            geom_core::Band::linear(tol()).unwrap(),
+            tol(),
+        )
+        .unwrap();
+        crate::body::ORPHAN_PASS_VISITS.with(core::cell::Cell::get)
+    }
+
+    /// **The orphan pass is driven by the writes, not by writes × body.**
+    /// Offsetting every face of a prism re-describes every edge and
+    /// re-charts every face, so a pass that scanned the arenas once per
+    /// released key would visit about 4² = 16 times the entries on a
+    /// prism four times as large; one batched pass per setter call
+    /// visits about 4 times as many. Counted, not timed: the counter is
+    /// every arena entry `Body::remove_*_if_orphaned` and the batched
+    /// pass read.
+    #[test]
+    fn orphan_sweep_scales_with_the_writes() {
+        let small = orphan_visits_offsetting_an_ngon_prism(16);
+        let large = orphan_visits_offsetting_an_ngon_prism(64);
+        println!("orphan-pass arena visits: n = 16 -> {small}, n = 64 -> {large}");
+        assert!(small > 0, "the door runs an orphan pass");
+        assert!(
+            large * 10 <= small * 45,
+            "a prism four times as large visits {large} arena entries in its orphan passes \
+             against {small}: more than 4.5 times as many, so the pass grows faster than the \
+             writes"
+        );
     }
 }

@@ -507,7 +507,11 @@ impl<T: Real> Surgery<'_, T> {
         let _ = door;
         let mut errors = broken;
         errors.extend(scaffolding);
-        if errors.is_empty() { Ok(()) } else { Err(errors) }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
     }
 
     /// **Closes the scope without sweeping**, for a door whose own
