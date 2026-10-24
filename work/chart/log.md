@@ -123,3 +123,10 @@ The three rows that are not that question run as lanes in parallel. The
 alternative was to build the round-hole lune first, which is cheaper. It
 was declined because the region question would decide whether the lune
 survives.
+
+## 2026-10-24 — dispatched (05:07Z)
+
+- **The region-description designer pair**, concurrent and independent, with the same problem statement and no candidate solutions: A `session_01G7XGGxV8D3yfuSM8RdL4R8` and B `session_01XG7Nq1pHzPyv3Eeweqzqzc`. It covers the pole, round-hole, exact-region and cone/sphere/torus-window rows, together with the three arms rows.
+- **`normalize-without-the-length-question-two-more-sites`**: `session_01BEinSjRAhefi8FBtveZTva`, branch `chart/normalize-length`. Tier: single FULL. The fix is to a silent loss of a touching boundary, so correctness carries the review.
+- **`chart-inversion-is-spelled-three-times`**: `session_01Y3MbonGyom32v6Vp4QGBzt`, branch `chart/chart-inversion-one-reading`. Tier: single FULL, because it unifies a reading across three crates. The lane stops if D3 leaves a fork.
+- **`chart-bound-outer-span-decides-a-poisoned-margin`**: `session_013ALUU1XvFKmRJjbgmBe3B9`, branch `chart/outer-span-poison`. It measures first, and stops if the right reading changes what k-lint may ask. Tier: single FULL if built.
