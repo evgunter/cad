@@ -639,7 +639,7 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
                                  f"{gate}. Name the item instead of the number, then the rule reads it directly")
             # A blocker inherits the band of what waits on it (work/README.md,
             # Priority): the part of it that stands in the way is that band's
-            # work, and a sitting that stops at P1 never reaches a P2 blocker.
+            # work, or the parked row is dispatched in its blocker's turn.
             # A naming errors and a `github:` inference warns, as above; a
             # program carries no band, and a band-less row has none to lend.
             if str(it.get("priority")) in PRIORITIES:

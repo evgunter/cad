@@ -198,9 +198,8 @@ band is not a forecast of effort — `cost` carries that, separately,
 because the two are independent and collapsing them hides both.
 
 **A blocker does inherit the band of what waits on it.** A row parked
-on another cannot move until that row closes, and a sitting ends when
-its track's P0 and P1 rows are done (`memories/orchestration-model.md`),
-so a P0 parked on a P2 never moves at all. The part of the blocker that
+on another cannot move until that row closes, so a P0 parked on a P2
+is dispatched in P2's turn, not P0's. The part of the blocker that
 stands in the way is work of the parked row's band. That is not the
 guard case above: a guard sits on P0 ground without standing between
 anyone and P0 work. So lint refuses a `parked` row that names a live
