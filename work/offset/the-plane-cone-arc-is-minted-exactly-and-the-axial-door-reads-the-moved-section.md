@@ -2,12 +2,11 @@
 id: the-plane-cone-arc-is-minted-exactly-and-the-axial-door-reads-the-moved-section
 kind: unit
 title: Conic build unit 2: plane_cone_section mints a parabola or hyperbola as an exact rational-quadratic arc through a window-taking door, and the axial door reads the moved pair's section for every axis-parallel-plane edge
-status: parked
+status: open
 opened: 2026-10-25
 priority: P0
 cost: H
 parent: offset-lane-has-no-conic-carrier
-blocked_on: [closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them]
 ---
 
 
@@ -39,3 +38,13 @@ C1 of `crates/geom-brep/README.md`.
 Un-parks SHELF's `partial-cone-frustum-three-quarter-turn-refuses-edge-disagreement`
 once unit 3 lands. A boolean cutting a cone with a flat still needs a
 NURBS crossing layer (not this unit).
+
+## Un-parked (2026-10-25, OFFSET orchestrator)
+
+It was parked on unit 1 by mistake. The arc is a `Curve3::Nurbs`
+carrier, so it already owes limbs 2 and 3 through the existing NURBS path
+(`edge_nurbs::analytic_rung3`), whatever unit 1 decides for the
+closed-form kinds. Unit 1 is now parked on its own fork
+(`a-lane-less-door-refusing-closed-form-carriers-refuses-every-dual-evaluation`).
+Like every NURBS carrier today, the arc refuses at a `Dual64`
+(`NurbsLaneUnsupported`). That is existing behaviour, not this unit's.
