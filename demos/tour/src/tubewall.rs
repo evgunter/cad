@@ -43,12 +43,11 @@
 //!
 //! # The standing gate the torus scene declares
 //!
-//! **The full-period hollow tube cannot leave as STEP.** It is a
-//! multi-shell CURVED solid, and the writer's outward/void shell
-//! classifier has closed forms for planar faces only, so it refuses
-//! `CurvedShellClassification` — the known standing gate of
-//! OFFSET-DESIGN O6's demo-gates list, which the hollow ring hits at
-//! export and which `docs/KERNEL-VERBS.md` says this shape "joins".
+//! **The full-period hollow tube cannot leave as STEP.** The writer
+//! reads its cavity as the void it is and refuses it,
+//! `VoidShellUnsupported`, because it does not write `BREP_WITH_VOIDS`
+//! yet — the gate the hollow ring hits at export and which
+//! `docs/KERNEL-VERBS.md` says this shape "joins".
 //! Until this scene, that sentence was an EXPECTATION: nothing in the
 //! tree ran a hollow tube through the STEP writer. The scene declares
 //! the frontier at the body (`SceneBody::step_at_frontier`), which runs
@@ -450,9 +449,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              Drawn see-through at 45 because a cavity cannot be read from an opaque \
              render at any camera — the elbow panel next door is the same wall with the \
              ends OPEN, which is why that one needs no transparency. Its remaining wall \
-             is STEP: a multi-shell CURVED solid refuses CurvedShellClassification, \
-             which docs/KERNEL-VERBS.md predicted for this shape and this scene now \
-             PROBES on every pass. δ = {DELTA_TORUS} rather than the elbow's \
+             is STEP: the writer reads the cavity as a void and refuses it \
+             (VoidShellUnsupported: no BREP_WITH_VOIDS yet), which docs/KERNEL-VERBS.md \
+             predicted for this shape and this scene now PROBES on every pass. δ = {DELTA_TORUS} rather than the elbow's \
              {DELTA_ELBOW}: the full period sweeps 2π of spine where the window sweeps \
              {theta}, so the same chord budget would cost 4.2x the mesh",
             props_t.volume, props_t.surface_area, voids[0].volume
@@ -472,16 +471,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     |e| {
                         matches!(
                             e,
-                            pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                            pncad::step_export::StepExportError::VoidShellUnsupported { .. }
                         )
                     },
-                    "the writer's outward/void classifier has grown a curved arm. Say so \
+                    "the writer writes BREP_WITH_VOIDS now. Say so \
                      in klein's findings entry 7 and in docs/KERNEL-VERBS.md's hollow-ring \
                      STEP row, and retire ALL FOUR probes of this one gate together: \
                      klein's WALL 6, the `ring` scene's `step_at_frontier`, \
                      `torusvessel`'s, and this one — the ring is the profile door's \
                      shape, this is the parameter door's, the vessel is `shell`'s, and a \
-                     widened classifier retires all of them",
+                     void-writing exporter retires all of them",
                 ),
         ],
     });

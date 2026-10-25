@@ -2,11 +2,12 @@
 id: full-revolve-builds-a-cavity-per-axis-gap
 kind: unit
 title: The full revolve builds one cavity per gap between axis runs: MultipleAxisRuns retires (S116p, Ev on PR 5680)
-status: open
+status: dispatched
 opened: 2026-10-25
 priority: P1
 cost: M
 refs: [S116p]
+branch: pred/full-revolve-cavity-per-axis-gap
 ---
 
 Ruled by Ev on PR 5680 (2026-10-25). The design and the rows owed are

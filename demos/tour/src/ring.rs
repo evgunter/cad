@@ -56,10 +56,10 @@
 //!
 //! # The standing gate this scene declares
 //!
-//! **The ring cannot leave as STEP.** The writer's outward/void shell
-//! classifier has closed forms for planar faces only, so a multi-shell
-//! CURVED solid refuses `CurvedShellClassification` — the known
-//! standing gate of OFFSET-DESIGN O6's demo-gates list, pinned as
+//! **The ring cannot leave as STEP.** The writer reads the bore as the
+//! void it is and refuses it, `VoidShellUnsupported`, because it does
+//! not write `BREP_WITH_VOIDS` yet
+//! (`work/export/step-export-refuses-every-hollow-body.md`) — pinned as
 //! klein's wall 6. This scene is the first tour body to reach it while
 //! being RENDERED, so it declares the frontier at the scene
 //! (`SceneBody::step_at_frontier`), which runs the export every pass
@@ -387,9 +387,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              inner wall. Both at zero enclosure pad. Drawn see-through at 45 for the same \
              reason the bottle's loop tubes are: a cavity cannot be read from an opaque \
              render at any camera. The shape's remaining wall is its STEP export — the \
-             writer's outward/void classifier has closed forms for planar faces only, so \
-             this multi-shell CURVED solid refuses CurvedShellClassification, declared at \
-             the scene and probed every pass. The SAME ring built as a two-node recipe \
+             writer reads the bore as a void and refuses it (VoidShellUnsupported: no \
+             BREP_WITH_VOIDS yet), declared at the scene and probed every pass. The SAME ring built as a two-node recipe \
              — one profile whose loop list is [Circle(rₒ), Circle(rᵢ)], and \
              Revolve(2π) — comes back with the same shells, the same {v}/{e}/{f} and a \
              bit-equal volume, so the hole reaches the verb through the document too",
@@ -409,7 +408,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     |e| {
                         matches!(
                             e,
-                            pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                            pncad::step_export::StepExportError::VoidShellUnsupported { .. }
                         )
                     },
                     "say so in klein's findings entry 7 and retire the other three probes \
