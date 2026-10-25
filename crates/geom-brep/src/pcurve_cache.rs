@@ -2141,7 +2141,9 @@ impl core::fmt::Display for PcurveCertifyError {
                 f,
                 "pcurve certification: the {} carrier is on the {} chart but is none of its own \
                  curves, and its general (projected) image does not yet cover this pose: piece \
-                 {piece}'s {}",
+                 {piece}'s {}. Recourse: a carrier through a pole, the cone's apex or the \
+                 torus's core has no one-branch image there; split the edge at it, or re-aim the \
+                 chart's axis away from it",
                 carrier.name(),
                 chart.name(),
                 channel.describe()
