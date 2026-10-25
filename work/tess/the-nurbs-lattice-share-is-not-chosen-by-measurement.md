@@ -23,7 +23,10 @@ written. Every share on that curve meets the rule's "worst triangle at
 grow as `√b`) against more bands whose rows `band_schedule` raises
 (smaller `a²`). The unit kept `LATTICE_SHARE = ½`, which is the value
 the retired `sizing::sizing_target` gave this lane, so the NURBS output
-did not move; nothing measured that ½ is the cheapest point.
+did not move; nothing measured that ½ is the cheapest point. The tour's
+68 NURBS faces (tess-budget sweep at PR 5717's head) reach a sampled
+deviation of at most 0.061 δ, so the lane sits far under δ wherever no
+sliver binds.
 
 **What would settle it.** The tess-budget sweep's NURBS rows
 (`scripts/tess_budget_sweep.sh`) at shares ½, ¾ and 1, comparing
