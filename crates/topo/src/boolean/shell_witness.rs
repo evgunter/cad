@@ -126,6 +126,9 @@ pub(super) fn complex_side<T: Decide + crate::props::AtRestPolicy>(
             .as_ref()
             .map_err(Clone::clone)
             .and_then(|sel| point_in_solid_faces(other, sel, q, band, tol));
+        if std::env::var_os("CAD_SEAM_PROBE").is_some() {
+            eprintln!("SEAMPROBE witness q={q:?} read={read:?}");
+        }
         Ok(
             match Witness::of(read).map_err(|e| match e {
                 PointInSolidError::InsideOut => {

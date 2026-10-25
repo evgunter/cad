@@ -5036,10 +5036,11 @@ fn seam_germ_side<T: Decide>(
             .and_then(|vd| body.get_point(vd.point).copied())
             .ok_or(desync("section vertex has no point"))
     };
-    for ch in body
+    let cyc = body
         .loop_cycle(first)
-        .ok_or(desync("completed section loop not walkable"))?
-    {
+        .ok_or(desync("completed section loop not walkable"))?;
+    let mut first: Option<SideCode> = None;
+    for ch in cyc {
         let mate = body.mate(ch).ok_or(desync("section half has no mate"))?;
         let m = body
             .get_half_edge(mate)
@@ -5064,13 +5065,23 @@ fn seam_germ_side<T: Decide>(
         let Some(n_f) = holding_face_normal(other, mid, band) else {
             continue;
         };
-        match decide(SEAM_GERM_SIDE, Margin::of(into_region.dot(n_f) * len), band) {
-            Ok(Sign::Positive) => return Ok(Some(SideCode::Out)),
-            Ok(Sign::Negative) => return Ok(Some(SideCode::In)),
-            Ok(Sign::Zero) | Err(_) => {}
+        let mg = into_region.dot(n_f) * len;
+        let d = decide(SEAM_GERM_SIDE, Margin::of(mg), band);
+        eprintln!("SEAMGERM chord region={region:?} len={len:?} margin={mg:?} -> {:?}", d.as_ref().ok());
+        let s = match d {
+            Ok(Sign::Positive) => Some(SideCode::Out),
+            Ok(Sign::Negative) => Some(SideCode::In),
+            Ok(Sign::Zero) | Err(_) => None,
+        };
+        if let Some(s) = s {
+            if let Some(f) = first {
+                assert_eq!(f, s, "REVIEW: seam_germ_side chords disagree");
+            }
+            first.get_or_insert(s);
         }
     }
-    Ok(None)
+    eprintln!("SEAMGERM loop -> {first:?}");
+    Ok(first)
 }
 
 /// [`seam_germ_side`]'s sign of a region's germ against a face.

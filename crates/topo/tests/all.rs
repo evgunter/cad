@@ -231,6 +231,8 @@ mod missed_ray_side;
 mod narrow_needle_containment;
 #[path = "needle_cavity_probe.rs"]
 mod needle_cavity_probe;
+#[path = "needle_cavity_review.rs"]
+mod needle_cavity_review;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
 #[path = "ngon_prism_offset_scaling.rs"]
