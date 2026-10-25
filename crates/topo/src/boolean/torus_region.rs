@@ -468,18 +468,14 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
     /// ([`SpiricArc::contact`]).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         match edge.carrier {
-            geom::Curve3::Circle { .. } => {
-                let span = (edge.t0, edge.t1);
-                circle_edge_hit(
-                    &edge.carrier,
-                    span,
-                    edge.extent,
-                    BOUNDARY,
-                    p,
-                    self.outer,
-                    band,
-                )
-            }
+            geom::Curve3::Circle { .. } => circle_edge_hit(
+                &edge.carrier,
+                edge.turn.as_ref(),
+                BOUNDARY,
+                p,
+                self.outer,
+                band,
+            ),
             geom::Curve3::Spiric {
                 center,
                 axis,
@@ -770,7 +766,7 @@ mod tests {
             },
             t0: 0.0,
             t1: TAU,
-            extent: crate::boolean::region::fixture_extent(0.0, TAU),
+            turn: crate::boolean::region::fixture_turn(0.0, TAU),
             forward,
         }
     }
@@ -846,7 +842,7 @@ mod tests {
             },
             t0: 0.0,
             t1: TAU,
-            extent: crate::boolean::region::fixture_extent(0.0, TAU),
+            turn: crate::boolean::region::fixture_turn(0.0, TAU),
             forward,
         };
         TorusFaceRegion {
@@ -985,7 +981,7 @@ mod tests {
                 },
                 t0: 0.0,
                 t1: TAU,
-                extent: crate::boolean::region::fixture_extent(0.0, TAU),
+                turn: crate::boolean::region::fixture_turn(0.0, TAU),
                 forward,
             };
             let point = |phi: f64, t: f64| {
@@ -1088,7 +1084,7 @@ mod tests {
             },
             t0,
             t1,
-            extent: crate::boolean::region::fixture_extent(t0, t1),
+            turn: crate::boolean::region::fixture_turn(t0, t1),
             forward: true,
         }
     }
@@ -1161,7 +1157,7 @@ mod tests {
             },
             t0: -2.5,
             t1: 2.5,
-            extent: crate::boolean::region::fixture_extent(-2.5, 2.5),
+            turn: crate::boolean::region::fixture_turn(-2.5, 2.5),
             forward: true,
         };
         let region = holding(oval.clone());

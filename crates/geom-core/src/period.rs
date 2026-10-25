@@ -36,20 +36,32 @@
 //! # The extent cannot be reversed
 //!
 //! The extent enters as an [`Extent`], whose constructors each say why
-//! it is not negative: [`Extent::forward`] decides `0 < t1 − t0`,
-//! [`Extent::width`] is a hull's width, [`Extent::decide_signed`] reads a
-//! signed net quantity's magnitude after deciding its sign, and a
-//! certified edge's comes from its certificate. There is no constructor
-//! from a bare value: the magnitude of a reversed difference is a span
-//! running the other way, not a short one.
+//! it is not negative: [`Extent::forward`] decides `0 < t1 − t0` at a
+//! positive rate, [`Extent::hull`] folds a hull's least and greatest
+//! itself, [`Extent::decide_signed`] reads a signed net quantity's
+//! magnitude after deciding its sign, and a certified edge's comes from
+//! its certificate; a sum of extents is one. The field is private, and
+//! the rule reads only a headroom it forms itself ([`Headroom`]), so no
+//! bare value reaches it:
 //!
 //! ```compile_fail,E0423
 //! let _ = geom_core::period::Extent(1.0_f64);
 //! ```
 //!
+//! ```compile_fail,E0423
+//! use geom_core::period::{Exact, Headroom, TurnRate as _, TurnRows};
+//! let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+//! let _ = Exact::new(1.0_f64).read(TurnRows::exact("t"), Headroom(7.0), band);
 //! ```
-//! use geom_core::period::Extent;
-//! let _ = Extent::width(0.0_f64, 1.0);
+//!
+//! Their twins, through the doors, compile:
+//!
+//! ```
+//! use geom_core::period::{Exact, Extent, Period, TurnRows};
+//! let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+//! let extent = Extent::hull([1.0_f64, 0.0]).unwrap();
+//! assert_eq!(extent.get(), 1.0);
+//! let _ = Period::new(7.0_f64).turn(TurnRows::exact("t"), extent, Exact::new(1.0), band);
 //! ```
 
 use crate::k_stats::{NonzeroSign, decide, decide_nonzero_reported, decide_reported, straddle};
@@ -289,7 +301,7 @@ impl<T: Decide> Period<T> {
         rate: R,
         band: Band,
     ) -> Result<Turn, TurnUndecided> {
-        rate.read(rows, self.length - extent.0, band)
+        rate.read(rows, Headroom(self.length - extent.0), band)
     }
 }
 
@@ -311,23 +323,35 @@ pub enum NotForward {
 }
 
 impl<T: Real> Extent<T> {
-    /// The width of a hull: `hi − lo`, where `lo` and `hi` are the least
-    /// and the greatest of a set (a `min` and a `max` fold). A span's two
-    /// ends are not a hull; they enter through [`Extent::forward`].
-    pub fn width(lo: T, hi: T) -> Self {
-        Self(hi - lo)
+    /// The width of the hull of `values`: their greatest less their
+    /// least, folded here so that no caller hands in a pair in the wrong
+    /// order. `None` for no values. Poison propagates
+    /// ([`Real::max`], [`Real::min`]). A span's two ends are not a hull;
+    /// they enter through [`Extent::forward`].
+    pub fn hull(values: impl IntoIterator<Item = T>) -> Option<Self> {
+        let mut values = values.into_iter();
+        let first = values.next()?;
+        let (lo, hi) = values.fold((first, first), |(lo, hi), x| (lo.min(x), hi.max(x)));
+        Some(Self(hi - lo))
     }
 
     /// The extent, in the channel's parameter units.
     pub fn get(self) -> T {
         self.0
     }
+
+    /// A fixture's extent, unchecked: this module's rows only.
+    #[cfg(test)]
+    pub(crate) fn fixture(x: T) -> Self {
+        Self(x)
+    }
 }
 
 impl<T: Decide> Extent<T> {
     /// A span `t1 − t0` decided forward under `name`: its length at
     /// `rate`, the "definitely apart" door ([`Margin::metered`]), must be
-    /// definitely positive.
+    /// definitely positive. At a rate that is not positive no span is
+    /// forward (it reads as its magnitude against that rate).
     ///
     /// # Errors
     ///
@@ -341,7 +365,11 @@ impl<T: Decide> Extent<T> {
         band: Band,
     ) -> Result<Self, NotForward> {
         let span = t1 - t0;
-        match decide_reported(name, Margin::metered(span, rate), band) {
+        // A rate that is not positive decides every span not forward: the
+        // span's magnitude against it, never a reversed span's product
+        // with a negative rate.
+        let read = rate.get().select_le_zero(span.abs(), span);
+        match decide_reported(name, Margin::metered(read, rate), band) {
             Ok(Decided {
                 sign: Sign::Positive,
                 ..
@@ -439,7 +467,10 @@ impl Turn {
 /// **The rows a caller decides a turn under**: its own, so each site's
 /// population stays separable in the telemetry. `straddle` is `()` at an
 /// [`Exact`] rate, which cannot straddle, and the straddle row's name at
-/// a [`Bounded`] one.
+/// a [`Bounded`] one. At a `Bounded` rate `turn` carries both readings
+/// of the headroom, the inf's and (where it is read) the sup's: they are
+/// two bounds on one quantity, so one row holds them, as the site's own
+/// spelling did.
 #[derive(Clone, Copy, Debug)]
 pub struct TurnRows<S> {
     /// The headroom's row, `(period − extent)` at the rate.
@@ -482,6 +513,8 @@ pub struct TurnUndecided {
     /// The row it is named by.
     pub on: TurnRow,
     /// Whether the sup reading is definitely negative. Where it is not,
+    /// and the sup is a true upper bound on the speed over the stretch
+    /// the headroom measures (the caller's premise, [`Bounded::new`]),
     /// any overlap past a turn is within the escalation band along the
     /// channel, and a "not over" reading may take the extent as one
     /// that is not over.
@@ -491,18 +524,50 @@ pub struct TurnUndecided {
 /// An exact rate: the speed at every point of the extent, so its inf and
 /// its sup are one (a circle's radius, an authored angle on its arm).
 #[derive(Clone, Copy, Debug)]
-pub struct Exact<T>(pub T);
+pub struct Exact<T>(T);
+
+impl<T: Real> Exact<T> {
+    /// The rate `r`, as a speed: its magnitude, so no rate the rule reads
+    /// is negative (a negative one would flip `Over` and `Short`).
+    pub fn new(r: T) -> Self {
+        Self(r.abs())
+    }
+}
 
 /// A rate known only between bounds: the least speed over the extent,
 /// and the greatest over the stretch the headroom measures (an ellipse,
 /// a spiric, a chart image).
 #[derive(Clone, Copy, Debug)]
 pub struct Bounded<T> {
-    /// A lower bound on the speed.
-    pub inf: InfSpeed<T>,
-    /// An upper bound on the speed over the headroom's stretch.
-    pub sup: SupSpeed<T>,
+    inf: InfSpeed<T>,
+    sup: SupSpeed<T>,
 }
+
+impl<T: Real> Bounded<T> {
+    /// A lower bound `inf` on the speed over the extent and an upper
+    /// bound `sup` over the headroom's stretch — the caller's premise,
+    /// which the rule's soundness rests on. Both are read as speeds: the
+    /// inf's magnitude, and the sup never below it (the larger of an
+    /// upper and a lower bound on one speed is still an upper bound), so
+    /// a pair with `sup < inf` is not representable.
+    pub fn new(inf: InfSpeed<T>, sup: SupSpeed<T>) -> Self {
+        let inf = inf.get().abs();
+        Self {
+            inf: InfSpeed::new(inf),
+            sup: SupSpeed::new(sup.get().max(inf)),
+        }
+    }
+
+    /// The upper bound.
+    pub fn sup(self) -> SupSpeed<T> {
+        self.sup
+    }
+}
+
+/// The headroom `period − extent` the rule reads, formed only by
+/// [`Period::turn`]: no caller hands the rule a bare value.
+#[derive(Clone, Copy, Debug)]
+pub struct Headroom<T>(T);
 
 mod sealed {
     pub trait Sealed {}
@@ -520,12 +585,12 @@ pub trait TurnRate<T: Decide>: sealed::Sealed + Copy {
     /// The lower bound, the rate an extent's forward decision reads at.
     fn inf(self) -> InfSpeed<T>;
 
-    /// The rule at this rate, on the headroom `h`.
+    /// The rule at this rate, on the headroom [`Period::turn`] formed.
     #[doc(hidden)]
     fn read(
         self,
         rows: TurnRows<Self::Straddle>,
-        headroom: T,
+        headroom: Headroom<T>,
         band: Band,
     ) -> Result<Turn, TurnUndecided>;
 }
@@ -537,7 +602,12 @@ impl<T: Decide> TurnRate<T> for Exact<T> {
         InfSpeed::new(self.0)
     }
 
-    fn read(self, rows: TurnRows<()>, headroom: T, band: Band) -> Result<Turn, TurnUndecided> {
+    fn read(
+        self,
+        rows: TurnRows<()>,
+        Headroom(headroom): Headroom<T>,
+        band: Band,
+    ) -> Result<Turn, TurnUndecided> {
         decide_reported(rows.turn, Margin::metered(headroom, self.inf()), band)
             .map(Turn::of)
             .map_err(|diag| TurnUndecided {
@@ -558,7 +628,7 @@ impl<T: Decide> TurnRate<T> for Bounded<T> {
     fn read(
         self,
         rows: TurnRows<&'static str>,
-        headroom: T,
+        Headroom(headroom): Headroom<T>,
         band: Band,
     ) -> Result<Turn, TurnUndecided> {
         let low = decide_reported(rows.turn, Margin::metered(headroom, self.inf), band);
@@ -927,20 +997,17 @@ mod turn_rows {
     /// The extent `τ − h` of a fixture whose headroom is `h` parameter
     /// units: a hull from zero, so a negative `h` is an extent past a turn.
     fn past(h: f64) -> Extent<f64> {
-        Extent::width(0.0, f64::tau() - h)
+        Extent::fixture(f64::tau() - h)
     }
 
     fn exact(h: f64) -> Result<Turn, TurnUndecided> {
-        one_turn().turn(TurnRows::exact("t_turn"), past(h), Exact(1.0), band())
+        one_turn().turn(TurnRows::exact("t_turn"), past(h), Exact::new(1.0), band())
     }
 
     /// The rule at an inf of 1 and a sup of 20, with what it recorded.
     fn bounded(h: f64) -> (Result<Turn, TurnUndecided>, crate::k_stats::Recorded) {
         let bracket = Bracket::open();
-        let rate = Bounded {
-            inf: InfSpeed::new(1.0),
-            sup: SupSpeed::new(20.0),
-        };
+        let rate = Bounded::new(InfSpeed::new(1.0), SupSpeed::new(20.0));
         let got = one_turn().turn(ROWS, past(h), rate, band());
         (got, bracket.finish())
     }
@@ -1084,21 +1151,55 @@ mod turn_rows {
         let (sign, extent) = Extent::decide_signed("t_net", -2.0, rate, band()).unwrap();
         assert_eq!((sign, extent.get()), (NonzeroSign::Negative, 2.0));
         assert!(Extent::decide_signed("t_net", 0.0, rate, band()).is_err());
-        assert_eq!(Extent::width(-1.0, 2.0).get(), 3.0);
+        assert_eq!(Extent::hull([2.0, -1.0, 0.5]).map(Extent::get), Some(3.0));
         assert_eq!(
-            (Extent::width(0.0, 1.0) + Extent::width(0.0, 2.0)).get(),
-            3.0
+            Extent::hull([1.0, 0.0]).map(Extent::get),
+            Some(1.0),
+            "either order"
         );
+        assert!(Extent::hull(core::iter::empty::<f64>()).is_none());
+        assert_eq!((Extent::fixture(1.0) + Extent::fixture(2.0)).get(), 3.0);
         let hull = one_turn().turn(
             TurnRows::exact("t_turn"),
-            Extent::width(1.0, 1.0),
-            Exact(1.0),
+            Extent::hull([1.0]).unwrap(),
+            Exact::new(1.0),
             band(),
         );
         assert!(
             matches!(hull, Ok(Turn::Short(_))),
             "a zero-width hull: {hull:?}"
         );
+    }
+
+    /// **No public door yields a negative extent or a rate the rule would
+    /// read backwards** (the holes the review executed): at a negative
+    /// rate a reversed span is not forward, and neither is a forward one;
+    /// a negative exact rate reads as its magnitude, so an extent over a
+    /// turn is still over; a bounded pair whose sup is below its inf is
+    /// read with the sup lifted to the inf.
+    #[test]
+    fn no_door_yields_a_reversed_extent_or_rate() {
+        let negative = InfSpeed::new(-1.0);
+        for (t0, t1) in [(3.0, 1.0), (1.0, 3.0)] {
+            assert!(
+                matches!(
+                    Extent::forward("t_fwd", t0, t1, negative, band()),
+                    Err(NotForward::Reversed(_))
+                ),
+                "({t0}, {t1}) at a negative rate"
+            );
+        }
+        let over = one_turn().turn(
+            TurnRows::exact("t_turn"),
+            past(-20.0 * EPS),
+            Exact::new(-1.0),
+            band(),
+        );
+        assert!(matches!(over, Ok(Turn::Over(_))), "{over:?}");
+        let odd = Bounded::new(InfSpeed::new(2.0), SupSpeed::new(1.0));
+        assert_eq!(odd.sup().get(), 2.0, "the sup is lifted to the inf");
+        let whole = one_turn().turn(ROWS, past(0.25 * EPS), odd, band());
+        assert!(matches!(whole, Ok(Turn::Whole(_))), "{whole:?}");
     }
 
     /// `Turn::within` is the turn a certificate keeps, and `Over` keeps none.

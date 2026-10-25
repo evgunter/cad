@@ -33,3 +33,20 @@ decision keeps the global floor, since it reads the whole span.
 Whether to take it is a call on admission. The cases are rare: a gap
 within ε/b of a whole turn, which is a sliver at the vertex. The
 escalation they get is sound, so nothing is wrong today. P3.
+
+## The sup side, from the dual review (PR 5686)
+
+The spiric arm's sup is also global and not tight:
+`geom::carrier_speed::speed_range`'s `spiric_period_rate_bounds`,
+over the whole period. Near tangency it loosens badly:
+- at `d = R − r − 1e-6` it is about ×354 the sampled speed;
+- a whole oval at `d = R − r − 1e-12` with ε = 1e-12 now escalates
+  where it used to certify, because `h·sup` leaves the zero band on a
+  rounding-sized `h`.
+
+At the tangent limit `d = R − r` the sup is infinite. A whole oval there
+escalates with an `Invalid` margin (pinned in
+`crates/geom/tests/r2_turn_probes.rs`).
+
+A local sup over the defect, as the conic has, would fix both. It is the
+same refinement as the local inf above, on the other bound.

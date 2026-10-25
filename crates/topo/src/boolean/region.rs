@@ -7,7 +7,6 @@
 //! landings, and its own rows and crossing arithmetic.
 
 use geom_brep::roots::{RootRefusal, Roots};
-use geom_core::period::Extent;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::FirstHarmonicRoots;
@@ -77,17 +76,13 @@ impl RegionRefusal {
 /// this does not arise; were it to, no path starts from `p`).
 pub(crate) fn circle_edge_hit<T: Decide>(
     circle: &geom::Curve3<T>,
-    span: (T, T),
-    extent: Option<Extent<T>>,
+    turn: Option<&geom_brep::CertifiedTurn<T>>,
     rows: ConicRows,
     p: Point3<T>,
     outer: LoopKey,
     band: Band,
 ) -> Result<bool, RegionRefusal> {
-    let arc = extent.map_or(Ok(None), |extent| {
-        ConicArc::of(circle, span, extent, rows, band)
-    });
-    let k = match arc {
+    let k = match ConicArc::of(circle, turn, rows, band) {
         Ok(Some(k)) => k,
         Err(ConicArcError::Escalated(e)) => return Err(RegionRefusal::Escalated(e.diag)),
         Ok(None) | Err(ConicArcError::WoundPastPeriod) => {
@@ -205,9 +200,10 @@ pub(crate) struct RegionEdge<T: geom_core::Real> {
     pub(crate) carrier: geom::Curve3<T>,
     pub(crate) t0: T,
     pub(crate) t1: T,
-    /// The certified extent of `[t0, t1]` on a periodic carrier
-    /// ([`geom_brep::CertifiedTurn::extent`]); `None` on a line.
-    pub(crate) extent: Option<Extent<T>>,
+    /// The certified turn of `[t0, t1]` on a periodic carrier
+    /// ([`geom_brep::CertifiedTurn`]), the interval and extent a conic
+    /// reading reads; `None` on a line.
+    pub(crate) turn: Option<geom_brep::CertifiedTurn<T>>,
     /// Whether the loop runs `t0 → t1` (its `he_plus`).
     pub(crate) forward: bool,
 }
@@ -297,7 +293,7 @@ pub(crate) fn boundary<T: Decide>(
                 carrier: curve.carrier().clone(),
                 t0,
                 t1,
-                extent: curve.certificate().turn.map(|turn| turn.extent()),
+                turn: curve.certificate().turn,
                 forward: he == edge.he_plus,
             });
         }
@@ -812,18 +808,24 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
     .unwrap();
 }
 
-/// A fixture edge's extent, as certification would decide it forward.
+/// A fixture edge's turn over `(t0, t1)`: a unit circle's arc over that
+/// interval, certified, whose interval and extent are what a conic
+/// reading of the fixture reads (its own carrier supplies the rest).
 #[cfg(test)]
-pub(crate) fn fixture_extent(t0: f64, t1: f64) -> Option<Extent<f64>> {
+pub(crate) fn fixture_turn(t0: f64, t1: f64) -> Option<geom_brep::CertifiedTurn<f64>> {
     let band = Band::new(1e-9, 1e-8).ok()?;
-    Extent::forward(
-        "test_region_extent",
-        t0,
-        t1,
-        geom_core::InfSpeed::new(1.0),
-        band,
-    )
-    .ok()
+    let circle = geom::Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1)?;
+    let (start, end) = (circle.eval(t0), circle.eval(t1));
+    geom_brep::EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
+        .ok()?
+        .certificate()
+        .turn
 }
 
 #[cfg(test)]
@@ -857,7 +859,7 @@ mod tests {
             carrier,
             t0,
             t1,
-            extent: fixture_extent(t0, t1),
+            turn: fixture_turn(t0, t1),
             forward: true,
         }
     }

@@ -684,8 +684,7 @@ impl<T: Decide> Region<T> for RuledFaceRegion<T> {
             }
             _ => circle_edge_hit(
                 &edge.carrier,
-                (edge.t0, edge.t1),
-                edge.extent,
+                edge.turn.as_ref(),
                 BOUNDARY,
                 p,
                 self.outer,

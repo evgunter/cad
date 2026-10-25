@@ -252,11 +252,9 @@ impl<T: Decide> Region<T> for SphereFaceRegion<T> {
     }
 
     fn on_edge(&self, arc: &Arc<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
-        let span = (arc.t0, arc.t1);
         circle_edge_hit(
             &arc.carrier,
-            span,
-            arc.extent,
+            arc.turn.as_ref(),
             BOUNDARY,
             p,
             self.outer,
@@ -354,7 +352,7 @@ mod tests {
                 },
                 t0: 0.0,
                 t1: core::f64::consts::TAU,
-                extent: crate::boolean::region::fixture_extent(0.0, core::f64::consts::TAU),
+                turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::TAU),
                 forward,
             }],
         }
@@ -423,7 +421,7 @@ mod tests {
             },
             t0: 0.0,
             t1: core::f64::consts::PI,
-            extent: crate::boolean::region::fixture_extent(0.0, core::f64::consts::PI),
+            turn: crate::boolean::region::fixture_turn(0.0, core::f64::consts::PI),
             forward,
         };
         SphereFaceRegion {

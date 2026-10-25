@@ -181,7 +181,7 @@ fn new_winding(
 /// case moves between certified and over; the circle does not move.
 #[test]
 fn certification_agrees_with_the_old_winding_check() {
-    let band = Band::new(1e-9, 1e-8).unwrap();
+    let band = Band::linear(geom_core::Tol::witness()).unwrap();
     let eps = band.zero();
     let fixture = steep(16.0);
     let circle = Curve3::Circle {
@@ -257,4 +257,58 @@ fn certification_agrees_with_the_old_winding_check() {
         }
     }
     assert_eq!(seen, deltas.len(), "every listed delta is a case");
+}
+
+/// **A certified edge's turn is read off its own interval**: the stored
+/// interval is `params()` and the stored extent `param_end − param_start`,
+/// bit for bit, on an ellipse arc and a whole circle — and the two maps
+/// that carry a certificate without a run carry them unchanged.
+#[test]
+fn the_stored_turn_is_the_edges_own_interval() {
+    let band = Band::linear(geom_core::Tol::witness()).unwrap();
+    let fixture = steep(16.0);
+    let circle = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let whole = EdgeCurveSpec::arc_of_circle(circle.clone(), 0.3, 0.3 + TAU).unwrap();
+    let edges = [
+        fixture.certify(0.2, 0.2 + HALF_PI, band).unwrap(),
+        EdgeCurve::certify(
+            whole,
+            circle.eval(0.3),
+            circle.eval(0.3 + TAU),
+            |_| None,
+            1.0,
+            band,
+        )
+        .unwrap(),
+    ];
+    for edge in edges {
+        let mapped = [
+            edge.clone(),
+            edge.with_remapped_surfaces(Some).unwrap(),
+            edge.with_chart_v_mirrored().unwrap(),
+        ];
+        for e in mapped {
+            let (p0, p1) = e.params();
+            let turn = e
+                .certificate()
+                .turn
+                .expect("a periodic carrier keeps its turn");
+            let (s0, s1) = turn.params();
+            assert_eq!(
+                (s0.to_bits(), s1.to_bits()),
+                (p0.to_bits(), p1.to_bits()),
+                "the stored interval is the edge's"
+            );
+            assert_eq!(
+                turn.extent().get().to_bits(),
+                (p1 - p0).to_bits(),
+                "the stored extent is the edge's span"
+            );
+        }
+    }
 }

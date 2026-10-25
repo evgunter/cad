@@ -6,6 +6,7 @@
 //! the conics alone, `None` for a spiric or spline carrier, which their
 //! callers read as a door that stays.
 
+use geom_core::period::Extent;
 use geom_core::{InfSpeed, Real, SpanLocate, SupSpeed, Vec3};
 
 /// The speed `|C′(t)|` at `t`: a line's `|dir|`, a conic's
@@ -44,19 +45,39 @@ pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, S
     Kind::of(carrier).range()
 }
 
-/// A sup on `|C′|` over a window's **turn defect**: the stretch between
-/// its start `t0` and its end one period on, a gap where `gap = τ − (t1 −
-/// t0)` is positive and an overlap where it is negative. On a conic it
-/// is the speed at the stretch's middle `t0 − gap/2` plus the larger
-/// semi-axis (a bound on `|C″|`) times half its width — never less than
-/// the speed anywhere on it, and tight as it shrinks; on every other
-/// kind, [`speed_range`]'s sup.
+/// **The speed floor a span on a periodic carrier is decided at**, the
+/// one spelling certification's check 2 and the conic readers share: a
+/// circle's radius, an ellipse's `min(|semi_u|, semi_v)` (either stored
+/// order, its smaller magnitude; a non-positive `semi_v` keeps the floor
+/// non-positive, so no span is forward at it), a spiric's minor radius
+/// (`|C′|² = r²(1 + (d/f)²·sin²v)`). `None` on a line or a spline, which
+/// have no period.
+pub fn speed_floor<T: Real>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
+    match *carrier {
+        crate::Curve3::Circle { radius, .. } => Some(InfSpeed::new(radius)),
+        crate::Curve3::Ellipse { semi_u, semi_v, .. } => {
+            Some(InfSpeed::new(semi_u.abs().min(semi_v)))
+        }
+        crate::Curve3::Spiric { minor_radius, .. } => Some(InfSpeed::new(minor_radius)),
+        crate::Curve3::Line { .. } | crate::Curve3::Nurbs(_) => None,
+    }
+}
+
+/// A sup on `|C′|` over the **turn defect** of the window that starts at
+/// `t0` and spans `extent`: the stretch between its end and its start one
+/// period on, a gap where the headroom `h = τ − extent` is positive and
+/// an overlap where it is negative. On a conic it is the speed at the
+/// stretch's middle `t0 − h/2` plus the larger semi-axis (a bound on
+/// `|C″|`) times half its width — never less than the speed anywhere on
+/// it, and tight as it shrinks; on every other kind, [`speed_range`]'s
+/// sup.
 pub fn turn_defect_speed_hi<T: SpanLocate>(
     carrier: &crate::Curve3<T>,
     t0: T,
-    gap: T,
+    extent: Extent<T>,
 ) -> SupSpeed<T> {
     let half = T::from_f64(0.5);
+    let gap = T::tau() - extent.get();
     match Kind::of(carrier) {
         Kind::Conic(c) => {
             SupSpeed::new(c.speed_at(t0 - gap * half) + c.speed_hi() * gap.abs() * half)
