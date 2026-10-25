@@ -76,7 +76,7 @@ named through the boolean. Today only unit rows reach
 
 ## The klein bottle is refused for edges nowhere near its contact (2026-10-25)
 
-Measured on main at `20658b1d` (Ev asked, in chat, whether the bottle's
+Measured on main at `20658b1d` (asked in chat whether the bottle's
 join really needs a spline edge). `klein::bottle` at `Tol::witness()`:
 the loop (`lofted_loop`, the union's operand B) has 12 edges: **8 are
 `Curve3::Circle`**, the inner and outer rims of its two annular caps

@@ -91,9 +91,9 @@ frame through a door) is now what stands between the scene and
 `exact_spine`, which would let the scene put its caps flat on the rims
 without any kernel change.
 
-## Raised to P0 (Ev, in chat, 2026-10-25)
+## Raised to P0 (on request in chat, 2026-10-25)
 
-Ev made this P0: a planar half-turn is an ordinary sweep path, and the
+Raised to P0: a planar half-turn is an ordinary sweep path, and the
 klein scene's loft through stated frames is a workaround for this
 refusal, not a construction anyone should have to write. The scene's
 comments and `demos/README.md` now say so, and wall 9's retirement
