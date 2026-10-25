@@ -42,7 +42,9 @@
 //! designed here: overlap iff some bound of one lies strictly within
 //! the other, or the two sectors' bounds are pairwise parallel (the
 //! identical / identical-reversed region cases); touch-only sharing of
-//! a single bound is NOT overlap.
+//! a single bound is NOT overlap. Where the shared bound is a conic, the
+//! two can overlap one order down, in a crescent from the vertex, which
+//! a union of two plane faces refuses (`crescent_refusal`).
 
 #[cfg(test)]
 use geom_brep::enters_material;
@@ -1830,6 +1832,125 @@ fn sector_overlap<T: Decide>(
     let crossed =
         parallel_same(a.start, b.end, arm, band)? && parallel_same(a.end, b.start, arm, band)?;
     Ok(straight || crossed)
+}
+
+/// A bound's curvature vector at the base vertex, where the sector
+/// reads one, with the bound's reach: a conic's, and a line edge's zero.
+fn bound_bend<T: Decide>(reach: Reach<T>) -> Option<(Vec3<T>, T)> {
+    match reach {
+        Reach::Conic { extent, bend } => Some((bend.curvature, extent)),
+        Reach::Chord { .. } => Some((Vec3::new(T::zero(), T::zero(), T::zero()), reach.length())),
+        Reach::Extent(_) | Reach::Bisector(_) => None,
+    }
+}
+
+/// **A crescent the union cannot build**: two plane faces, one of each
+/// operand, lying on each other with opposed normals at a vertex pair,
+/// whose sectors there share one bound direction and lie on opposite
+/// sides of it, so that at first order they only touch
+/// ([`sector_overlap`]), while one order down they overlap
+/// ([`crescent`]). The union glues the two faces over the crescent, a
+/// region of the plane that narrows to the vertex between two curves
+/// tangent there, and no germ of the sector passes runs along a region
+/// of zero angle, so the section cannot reach it. The intersection and
+/// the differences keep neither face or one face whole there.
+pub(super) fn crescent_refusal<T: Decide>(
+    bodies: [&Body<T>; 2],
+    sectors: [&[BoolSector<T>]; 2],
+    op: super::BooleanOp,
+    band: Band,
+) -> Result<(), BooleanError> {
+    if op != super::BooleanOp::Union {
+        return Ok(());
+    }
+    let plane = |body: &Body<T>, face| {
+        crate::readback::face_carrier_kind(body, face)
+            .map(|kind| FaceShape::of_kind(kind) == FaceShape::Plane)
+            .map_err(|_| BooleanError::ClassificationInvariant {
+                what: "a sector's face has no carrier",
+            })
+    };
+    for sa in sectors[0] {
+        if !plane(bodies[0], sa.face)? {
+            continue;
+        }
+        for sb in sectors[1] {
+            if !plane(bodies[1], sb.face)? {
+                continue;
+            }
+            let arm = sa.arm.min(sb.arm);
+            let (na, nb) = (sa.normal.vec(), sb.normal.vec());
+            let parallel = geom_core::k_stats::decide_magnitude(
+                "bool_faces_parallel",
+                Margin::levered(na.cross(nb).norm(), arm),
+                band,
+            )
+            .map_err(|diag| {
+                BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag)
+            })?;
+            if parallel == Magnitude::Zero
+                && !direction_sense(na, nb, arm, band)?
+                && crescent(sa, sb, band)?
+            {
+                return Err(BooleanError::TangentCrescentUnsupported {
+                    a_face: sa.face,
+                    b_face: sb.face,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+/// **Whether two coplanar sectors that share one bound direction, on
+/// opposite sides of it, overlap past it one order down**: the crescent
+/// between two curves tangent at the vertex. Let `d̂` be the shared
+/// direction and `û` the unit in-plane direction square to it into `a`.
+/// At arc length `s` along `d̂`, `a`'s bound stands `κ_a·û·s²/2` toward
+/// `û` and `b`'s `κ_b·û·s²/2`, `a` lying beyond its bound and `b` short
+/// of its own; so the two overlap from the vertex iff
+/// `(κ_b − κ_a)·û > 0`, read as the sagitta that opens over the shorter
+/// bound's reach. A line edge bends by zero, so two line edges read
+/// none; a fitted edge or a bisector reads no bend, and a pair holding
+/// one reads no crescent. Equal bends (one circle bounding both) read
+/// none.
+fn crescent<T: Decide>(
+    a: &BoolSector<T>,
+    b: &BoolSector<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let arm = a.arm.min(b.arm);
+    let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
+    for (da, ra) in [(a.start, a.start_reach), (a.end, a.end_reach)] {
+        for (db, rb) in [(b.start, b.start_reach), (b.end, b.end_reach)] {
+            let (Some((ka, la)), Some((kb, lb))) = (bound_bend(ra), bound_bend(rb)) else {
+                continue;
+            };
+            if !matches!(ra, Reach::Conic { .. }) && !matches!(rb, Reach::Conic { .. }) {
+                continue;
+            }
+            if !parallel_same(da, db, arm, band)? {
+                continue;
+            }
+            let d = da.normalize();
+            let square = |v: Vec3<T>| v - d * v.dot(d);
+            let u = square(a.middle()).normalize();
+            let across = Margin::levered(square(b.middle()).normalize().dot(u), arm);
+            if decide("bool_sector_crescent_across", across, band).map_err(escalate)?
+                != Sign::Negative
+            {
+                continue;
+            }
+            let l = la.min(lb);
+            let opened = (kb - ka).dot(u) * l * l / (T::one() + T::one());
+            if decide("bool_sector_crescent", Margin::of(opened), band).map_err(escalate)?
+                == Sign::Positive
+            {
+                return Ok(true);
+            }
+        }
+    }
+    Ok(false)
 }
 
 /// A sector bound's side code against a face's PLANE ([`side_code`]
