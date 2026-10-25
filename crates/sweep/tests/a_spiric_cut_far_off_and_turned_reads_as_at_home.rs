@@ -408,6 +408,7 @@ fn every_door_reads_a_carried_region_about_its_own_point() {
     });
     check("mass_properties", &reads);
     let (_, reads) = topo::test_support::read_points::recorded(&body, || {
+        // Raw door: the door itself is the subject, on a body tier 3 passes: it reads one point per region as the typed door does.
         topo::test_support::measure_unvalidated(&body, tol).unwrap()
     });
     check("the raw measurement door", &reads);

@@ -3824,8 +3824,8 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
         }
         i
     }
-    for i in 0..quadrature.len() {
-        for &he in &quadrature[i].1 {
+    for (i, (_, hes)) in quadrature.iter().enumerate() {
+        for &he in hes {
             let Some(j) = body
                 .mate(he)
                 .and_then(|m| body.face_of_half_edge(m))
@@ -3838,11 +3838,11 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
         }
     }
     let mut regions: Vec<(usize, Vec<FaceKey>)> = Vec::new();
-    for i in 0..quadrature.len() {
+    for (i, &(face, _)) in quadrature.iter().enumerate() {
         let r = root(&mut parent, i);
         match regions.iter_mut().find(|(k, _)| *k == r) {
-            Some((_, faces)) => faces.push(quadrature[i].0),
-            None => regions.push((r, vec![quadrature[i].0])),
+            Some((_, faces)) => faces.push(face),
+            None => regions.push((r, vec![face])),
         }
     }
     regions.into_iter().map(|(_, faces)| faces).collect()
