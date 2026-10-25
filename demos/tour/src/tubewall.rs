@@ -85,7 +85,7 @@ use core::f64::consts::PI;
 
 use pncad::geom::Surface;
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::sweep::{TubeWindow, tube_along_arc, tube_along_arc_hollow};
+use pncad::sweep::{CavityOrigin, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
@@ -352,16 +352,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "outer boundary + the cavity, in ONE solid"
     );
     assert_eq!(torus.cavities.len(), 1, "one cavity per hole loop");
-    assert_ne!(
-        torus.cavities[0], torus.shell,
-        "the cavity is not the outer"
-    );
+    let bore = torus
+        .cavity(CavityOrigin::Hole { loop_index: 1 })
+        .expect("the bore's cavity");
+    assert_ne!(bore, torus.shell, "the cavity is not the outer");
     assert_eq!(
-        torus
-            .body
-            .get_shell(torus.cavities[0])
-            .expect("the cavity shell")
-            .solid,
+        torus.body.get_shell(bore).expect("the cavity shell").solid,
         torus.solid,
         "the cavity belongs to the tube's own solid"
     );
@@ -398,10 +394,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
         .collect();
     assert_eq!(voids.len(), 1, "one cavity, one Void shell");
-    assert_eq!(
-        voids[0].shell, torus.cavities[0],
-        "the Void shell is the named cavity"
-    );
+    assert_eq!(voids[0].shell, bore, "the Void shell is the named cavity");
     let v_bore_t = 2.0 * PI * PI * R * INNER * INNER;
     assert!(
         ((voids[0].volume + v_bore_t) / v_bore_t).abs() < 1e-12,
