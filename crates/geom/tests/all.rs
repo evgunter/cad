@@ -67,6 +67,8 @@ mod curves {
 }
 
 // ---- curves ----
+#[path = "curves/arc_window_adversarial.rs"]
+mod curves_arc_window_adversarial;
 #[path = "curves/boxes.rs"]
 mod curves_boxes;
 #[path = "curves/compose.rs"]
@@ -75,6 +77,8 @@ mod curves_compose;
 mod curves_curvo_oracle;
 #[path = "curves/decoration_certified_coords.rs"]
 mod curves_decoration_certified_coords;
+#[path = "curves/directional_extent.rs"]
+mod curves_directional_extent;
 #[path = "curves/domain_door.rs"]
 mod curves_domain_door;
 #[path = "curves/elevation_conditioning.rs"]

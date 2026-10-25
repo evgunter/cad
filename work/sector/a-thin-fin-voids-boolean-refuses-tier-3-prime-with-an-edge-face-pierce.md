@@ -26,3 +26,20 @@ Two things, neither settled:
 - or whether the census reads the near-coincident fin faces as a pierce.
 
 `crates/topo/tests/a_vertex_read_by_two_sector_passes.rs` (`three_prime`) would admit this scene as a matrix row once it is settled. Today the fin is a row only of the naming oracle (`a_vertex_read_again_classes_every_edge`).
+
+## Measured: the input pierces itself (FLUSH, PR 5534)
+
+Both witnesses are the fin crown's own self-crossings. On its old bottom
+`(0, 0.2, −0.6)` the bottom fan's face on the fin's long edge `c0 c1`
+passes through the far fin face and the top face beyond it. The census
+over the crown alone refuses it with two `EdgeFacePierce` at every pose,
+and the at-rest gate, which runs no census, passes it
+(`work/flush/a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass.md`).
+Through this row's op, at rest and ε 1e-9, the old crown still gives the
+two pierces at `(1.87741, 1.00000066, 1.0)` and `(1.501, 1.000013, …)`.
+
+The fixture moved: `meeting::posed_fin_crown` closes the slit with a lid
+and fans its bottom to the ring without the slit's inner corner. On it,
+`subtract(block − fin crown, over)` builds and passes
+`validate_pseudomanifold` against its own contacts at all five poses,
+ε 1e-9. Closing this row is SECTOR's call.

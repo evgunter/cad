@@ -248,15 +248,22 @@ pub fn read_output(
 /// **The placements reading the body `read` names**: a node
 /// named alone reads its one output, a port the output it names.
 pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<RecipeNodeId> {
-    let var = match read {
+    read_var(doc, read)
+        .map(|var| placements_of_var(doc, var))
+        .unwrap_or_default()
+}
+
+/// **The body variable `read` names**: a node named alone reads its
+/// one output, a port the output it names. `None` for a selection or
+/// a pose, and for a read the document does not define.
+pub fn read_var(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<VarId> {
+    match read {
         Operand::Node(node) => doc.read_of_node(*node),
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
         Operand::Select { .. } | Operand::Pose(_) => None,
-    };
-    var.map(|var| placements_of_var(doc, var))
-        .unwrap_or_default()
+    }
 }
 
 /// **The node a creation made**, out of the ids its action minted: the

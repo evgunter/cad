@@ -319,6 +319,13 @@ fn witnessed_curve<T: Decide>(
         .certified())
 }
 
+/// The direction into a face from a half-edge of it running along `t`,
+/// about the face's outward `normal`: a face's interior lies to the left
+/// of each of its half-edges.
+pub(crate) fn inward<T: Decide>(normal: Vec3<T>, t: Vec3<T>) -> Vec3<T> {
+    normal.cross(t)
+}
+
 /// Face-interior candidates that need no vertex (module docs, rung 3).
 /// From each edge's midpoint `m` ([`geom_brep::EdgeCurve::mid_point`])
 /// runs the line along the inward in-plane normal `w = normal × t`,
@@ -359,7 +366,7 @@ fn across_edges<T: Decide>(
         carriers.push(curve.carrier());
         let (t0, t1) = curve.params();
         let t = curve.carrier().deriv(geom::mid_param(t0, t1));
-        let w = normal.cross(if plus { t } else { -t }).normalize();
+        let w = inward(normal, if plus { t } else { -t }).normalize();
         if [w.x, w.y, w.z].iter().all(|c| !c.is_poison()) {
             feet.push((curve.mid_point(), w));
         }

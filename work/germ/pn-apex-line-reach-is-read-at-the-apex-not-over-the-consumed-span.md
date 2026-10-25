@@ -98,3 +98,5 @@ is not P0, because nothing wrong is served and every pose is
 near-coincident (an in-band offset, or a rounding gap through the apex).
 
 **2026-10-12, closed (PR 4646, SEQUENTIAL with a second review).** `plane_cone_section` takes a `Reach`, and the pair is bounded over the window the consumer consumes, `min(|δ|/D, Σ) + R`, with each nappe named only where the gap and the axis component clear their own rounding (the first review's MAJOR). The union of a frustum wedge with a flush half-space now builds at every ε. The remaining rounding assumption (an orthonormal cone frame) is filed separately.
+
+**2026-10-25, renamed (PR 5692).** `GermSectionOutsideInventory` above is now `BooleanError::GermSectionOpenConic { conic }`, with no `SectionError` field: `plane_cone_section` mints the parabola and hyperbola as an exact rational-quadratic NURBS arc (`crates/geom-brep/README.md` C1), and the Boolean refuses it because it has no crossing layer for a NURBS carrier. `offset_derive`'s `NeighborPoseUnroutable` above is now `EdgeSection { verdict: OpenConic }`.

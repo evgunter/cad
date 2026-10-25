@@ -510,3 +510,36 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 - 2026-10-20 — **Dispatched the fin crown** (`a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass`, P1 M, branch `flush/fin-crown-winding`). The work: find the step that winds the crown's faces against each other at the slit's mouth, and have check 7 read every deciding aim, as ratified: "definitely inside-out by any reading is invalid". Tier: one review (the M arm).
 — (FLUSH orchestrator)
 - 2026-10-21 — **Seam (CLEAVE):** CLEAVE dispatched `cleave/fate-cut-ends-at-a-slit-tip` for its `a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line`. The mechanism is the one FLUSH's `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab` names: the coincident fate cut (`boolean::fate`) ending at a slit's tip in the dropped flush face. The lane is briefed to build or type FLUSH's row's cells too and to put "the slab inside ∪ slit" back into the pin it names; its PR announces the seam and FLUSH closes its own row. (CLEAVE orchestrator)
+- 2026-10-21 — **The every-aim design fork converged; check 7 stays as it is.** PR 5520's first cut of the fin crown read every aim in check 7. That made the gate quadratic in faces (5.7 s at 1026 faces) and ran `docm5_subject` out of memory at the symbolic tier (13 GB against 2.9 GB). Two designers (byte 94: A = Opus, B = Fable) converged in round 1:
+  - On an embedded, coherent boundary one ray reads what every aim reads, so check 7's "definitely inside-out by any reading" means the aimed ray or the certified volume.
+  - What every aim caught (the fin crown, FLUX's witness A) is self-intersection, which tier 3 does not certify.
+  - No ratified text changes, so there is no `[ev]` fork and no fork-log row. PR 5520 closed unmerged; the cost row closed.
+  - **My brief was wrong:** it called "any reading" Ev's wording. It was agent-worded and approved in a batch. Both designers corrected it.
+— (FLUSH orchestrator)
+- 2026-10-21 — **PR 5534 closes `a-fin-crown-at-rest-holds-a-region-winding-minus-one-that-check-7-and-the-census-pass`.** The region was the fixture's: the old bottom fan crossed the fin's faces. No kernel path changes.
+  - **Tier:** single FULL review.
+  - **The review** (NOT-MERGEABLE-AS-IS) raised two MAJORs:
+    - every single-apex bottom leaves the crown in band of itself at ε 1e-9, where the census refuses it;
+    - the embedding row blamed the census, which in fact catches the old crown; the at-rest gate runs tier 3 alone.
+  - **The fix pass:**
+    - the lidded `posed_fin_crown`, which the census passes at 1e-9 and 1e-12;
+    - the gate's gap filed on RESTFRONT as `a-finished-body-is-gated-at-tier-3-alone-so-a-body-the-census-refuses-finishes`. My ruling is P2: its only witness is a fixture, and it rises to P1 on the first verb-built witness;
+    - the census-misses row dropped, because check 6 refuses FLUX's witnesses since PR 5516.
+  - **The check** (the same reviewer, on frozen `4c8b4abcfd`): APPROVE. The census and an exact pair test pass the lidded crown at every pose at 1e-9 and 1e-12; the probes meet the same faces at MEET as before; 300 cells match a manifold3d oracle. NOTE: the winding probe's 1e-3 bound misses a deleted 2.5e-7 face (7.8e-5 against 3.5e-5 intact), which the census and the exact test cover.
+  - **The battery:** probes 2 and 4's fin unions build 30 of 30 (main refused 5). Nothing else moves.
+— (FLUSH orchestrator)
+- 2026-10-25 — **Dispatched two units side by side:**
+  - **The curved half of the edge-meeting ray** (`a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim`, P2 H, branch `flush/curved-edge-ray`). The rest of D10's edge-meeting ray after PR 5422's planar half: a seam split shares one root comparison; an edge between two carriers is read once, by one signed offset; a carrier pair that cannot give it refuses typed. It retires or re-prices the parked `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`. "Wedge" keeps PR 5422's planar meaning while FLUSHTAIL's D10 design row waits on Ev. **Tier: dual review**, letter H (a concurrent pair). Seam: QUAD's open PR 5628 touches `solid_contain.rs`.
+  - **The needle cavity at the join's section loop** (`a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read`, P2 M, branch `flush/needle-cavity-section-loop`). Find the comparison that refuses a 10.5–15ε cavity before any read, classify it (a real pair, a forbidden tie, or an in-face walk), and fix it at the join. **Tier: one FULL review**, because the change is one margin in the join, readable against the ratified text. Seam: CLEAVE's open PR 5545 touches `join.rs`.
+  - **Both briefs** carry INTENT's PRs 5555 and 5605 (contact records), and a rule from PR 5534: every new fixture passes the census.
+— (FLUSH orchestrator)
+- 2026-10-25 — **PR 5694 closes `a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read`.**
+  - **The defect.** A section loop whose every witness lies in band of the other boundary (a channel under 2Kε, flush on five faces) refused `SectionLoopUndecided` before any read. This was not a pair and not a tie: a point read near a loop's boundary.
+  - **The fix.** `join.rs` `seam_germ_side` reads the side at a chord of the loop through `contain::face_placement`. In band reads nothing, and chords that disagree refuse `ClassificationInvariant`. No body main built changes, and the batteries are byte-identical.
+  - **Tier: single FULL.**
+    - The review was APPROVE-WITH-FIXES, with no MAJOR: the volume check was vacuous, two poses were unpinned, and there was no within-loop agreement.
+    - The fix-pass check by the same reviewer was APPROVE. Its two leftovers (a HONE row's reach, and a sub-0.5 s test in the slow set) are fixed in the last commit.
+  - **Filed on their owners:** GERMCERT (a sector direction's rounding on a needle's short run); HONE (the subtract backstop on flush operands; a vertex read against a tilted face's carrier); `work/issues` (the witness ladder's one interior candidate per face).
+— (FLUSH orchestrator)
+- 2026-10-25 — **Dispatched the containment fallback's rows** (`a-containment-fallback-substitutes-a-partly-held-dropped-face-whole`, P2 M, branch `flush/fallback-partial-rows`). The fallback writes a dropped face larger than its holder as substituted whole, and records no discards, so the two operand orders disagree on discards. The fix makes the fallback's rows the shape of the section path's (`fate::cut`, `discard.rs`) and tightens the swap comparators. **Tier: one FULL review**: it changes rows, not bodies, in one module family. Seams: CLEAVE 5545 (`fate.rs`); QUAD 5628, CLEAVE 5544/5546, WIRE 5535 and RESTREAD 5529 (`ops.rs`).
+— (FLUSH orchestrator)
