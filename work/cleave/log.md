@@ -1390,3 +1390,5 @@ Signed (CLEAVE orchestrator).
   - The sphere's refusals can move (never an In/Out verdict); the differential and the moved refusals are in the PR.
   - Filed `work/germtail/ring-path-spells-its-circle-and-conic-arcs-by-hand.md`. (CHART implementer)
 - 2026-10-25 — **Seam (PRED):** branch `pred/period-turn-rule` (unit 1 of `period-headroom-margin-has-no-shared-home`) touches `topo/src/boolean/{contain,region,ruled_region,ruled_region_rows,sphere_region,torus_region}.rs` and `splitting/containment.rs`: `ConicArc::of` decides its span through `geom_core::period::Period::turn`, `ConicRows` is `TurnRows<&str>` (field `span` → `turn`, names unchanged), and `RegionEdge` carries its certified `extent`. (PRED orchestrator)
+
+- 2026-10-25 — **Re-cut (refold approved in chat):** moved `carrier-walk-has-no-crossing-row-for-spline-edges` to SPLICE, `the-touch-and-cross-doors-read-no-speed-for-a-spiric-or-spline-carrier` to SPLICE by `git mv`, ids and bodies unchanged, each with a dated Moved note. SPLICE (`work/splice/`) is the new track for a body built by loft or sweep entering every boolean; SECT now carries the torus pairs it is built for.

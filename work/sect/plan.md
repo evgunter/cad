@@ -44,25 +44,25 @@ zip. PR 4364 merged 2026-10-09T21:06Z.
 
 ## The slate
 
-**31 budget points** of dispatchable work against a ceiling of 31
-(`work/sect/program.md` states why it is not 30).
+**36 budget points** of dispatchable work against a ceiling of 36
+(`work/sect/program.md` states why). Re-cut 2026-10-25 in a refold
+approved in chat: the torus × torus certificate arm came from ORBIT and
+the C5 plane × torus and cone × cylinder arms from GERM, beside the
+torus frame; the P2/P3 rows went to SECTTAIL; step 1's lane is P0
+because every P0 here is built on the object it introduces.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P1 | `cylinder-sphere-germ-pair-has-no-join-lane` | H +design | cylinder × sphere: a space-quartic section with a frame and no join lane |
-| P1 | `skew-cylinder-germ-pair-has-no-section-frame` | M | two cylinders with skew axes: no section frame |
-| P1 | `torus-germ-pairs-have-no-section-frame` | H +design | a torus against a sphere, a cylinder or a torus: no section frame |
-| P1 | `closed-in-face-section-loop-has-one-site` | H | a closed operand conic lying in the partner's face: a one-site section loop |
-| P1 | `cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times` | M | cylinder × sphere tangency decided at two sites, the axis offset computed three times |
-| P1 | `the-walk-order-is-spelled-twice` | M | the order along a section conic, spelled by the partner ranking and by the split's `conic_pairs` |
-| P2 | `a-bar-through-a-ball-refuses-at-a-door-that-moves-with-scale` | M | the nearest-facing rank reads chord length in metres, so the refusing door moves with scale |
-| P3 | `along-edge-ring-on-a-curved-face-has-no-join-arm` | M | a segment along an edge of both solids closing a ring on a curved face: no join arm |
-| P3 | `in-band-axis-offset-is-noarm-at-one-arm-and-escalates-at-another` | E +design | an in-band axis offset: `NoArm` at the cylinder × sphere frame, escalated at the parallel-cylinder arm |
-| P3 | `the-travel-slack-could-be-read-away-near-the-site` | M | the travel margin's `2ε cot ψ` slack |
-
-`the-walk-order-is-spelled-twice` and `a-bar-through-a-ball-…` were
-unpriced on JOIN and are priced here (P1 M, two spellings of one order;
-P2 M, a margin read in absolute metres).
+| P0 | `cylinder-sphere-germ-pair-has-no-join-lane` | H +design | A transverse cylinder wall x sphere germ pair has its section frame and no chord lane at the join (CurvedBooleanUnsuppor |
+| P0 | `the-lilys-stem-and-arch-walls-have-no-certificate-arm` | M | The lily's stem glue builds through the join and refuses at the interior-loop guard: two tori with parallel axes apart h |
+| P0 | `torus-germ-pairs-have-no-section-frame` | H +design | A torus wall against a sphere, a cylinder or another torus reaches the join and refuses GermFrameUnsupported: no frame n |
+| P1 | `a-closed-edge-lying-in-a-cone-cylinder-or-torus-face-has-no-join-arm` | H | A closed edge lying in a cone, cylinder or torus face refuses at the crossing layer, and the one-site join has no arm to |
+| P1 | `c5-plane-torus-cone-cylinder-arms` | H +design | C5 table - plane x torus and cone x cylinder section arms (blocking the Klein wall-pair debt) |
+| P1 | `cone-germ-pairs-against-a-curved-face-have-no-section-frame` | H +design | A cone wall crossing an oblique cylinder or another cone reaches the join and refuses GermFrameUnsupported: no frame nam |
+| P1 | `cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times` | M | The cylinder x sphere walls' tangency is decided at two sites under two names and two radius conventions, and the axis-t |
+| P1 | `in-band-axis-offset-is-noarm-at-one-arm-and-escalates-at-another` | E +design | An axis offset in the band folds to NoArm at the cylinder × sphere frame and escalates at the parallel cylinder arm |
+| P1 | `skew-cylinder-germ-pair-has-no-section-frame` | M | Two cylinder walls with skew axes reach the join and refuse GermFrameUnsupported: their quartic section has no frame |
+| P1 | `the-walk-order-is-spelled-twice` | M | The order along a section conic is spelled twice: the boolean's partner ranking reads the side of an axis plane, the spl |
 
 ## Order
 
@@ -99,7 +99,21 @@ So:
    `the-walk-order-is-spelled-twice`, `a-bar-through-a-ball-…` and
    `the-travel-slack-…` are read again then: each may close by
    retirement, and the ones that do not are built.
-4. **`closed-in-face-section-loop-has-one-site`** is not D10-gated (its
+   (`along-edge-ring-…`, `a-bar-through-a-ball-…` and the two
+   travel-slack rows are on SECTTAIL since 2026-10-25; this step is
+   where SECTTAIL reads them again.)
+4. **The torus pairs, the reason this track is P0.** Teapot wall 2
+   (sphere × torus) waits on `torus-germ-pairs-have-no-section-frame`
+   and lily wall 1 (torus × torus) on
+   `the-lilys-stem-and-arch-walls-have-no-certificate-arm`. Both are
+   built on the section object, and the torus pairs refuse at C5 until
+   `c5-plane-torus-cone-cylinder-arms` and the torus frame row give C5
+   its torus arms. Steps 1–3 are therefore the critical path, not a
+   prelude: dispatch the C5 arms' design read alongside step 1 so the
+   torus rows are not waiting on it when step 3 lands. SPLICE's klein
+   wall 3 and teapot wall 3 also need the object's rung-3 arm (a NURBS
+   face against a curved face); say so in the step that builds it.
+5. **`closed-in-face-section-loop-has-one-site`** is not D10-gated (its
    fixture is undeclared, and the missing self-loop arm is the join's
    topology; released from the hold on 2026-10-08). Its transverse
    cases landed in PR 4345. It is built on the section object, in

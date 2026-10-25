@@ -45,7 +45,7 @@ support it mostly by converting the stretched surfaces to NURBS.
 What surface a revolved ellipse arc becomes: a new exact spheroid kind
 (every face-pair table then owes it a row), or the rational NURBS
 surface of revolution (which the boolean meets as `Nurbs`, behind the
-operand edge gate `orbit/delete-the-boolean-operand-edge-gate`).
+operand edge gate `splice/delete-the-boolean-operand-edge-gate`).
 
 ## Done when
 

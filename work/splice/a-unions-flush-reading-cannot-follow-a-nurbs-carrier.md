@@ -4,7 +4,7 @@ kind: issue
 title: A union's flush reading cannot follow a NURBS carrier: such an edge is a line of its own and covers nothing, whatever lies flush with it
 status: open
 opened: 2026-10-14
-priority: P3
+priority: P1
 cost: M
 refs: [a-flush-reading-finds-no-point-on-a-nurbs-member-edge]
 ---
@@ -41,3 +41,7 @@ projection (or a certified distance to the piece), as
 subtract, and read it as `EdgeCarrier::Curved`. A fixture: two lofts
 sharing a wavy edge, crossed by a plate through it, in every member
 order.
+
+## Moved to SPLICE (2026-10-25)
+
+From SEAMRANK. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: a union's flush and rest readings on a lofted operand (lily wall 8's sheath on its blade) read these NURBS edges.

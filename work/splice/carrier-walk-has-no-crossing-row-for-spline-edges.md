@@ -4,7 +4,7 @@ kind: issue
 title: The in-plane carrier walk has no crossing row for a spline edge, so a planar face bounded by one refuses containment inside its control hull's ball
 status: open
 opened: 2026-10-03
-priority: P3
+priority: P1
 cost: M
 ---
 
@@ -37,3 +37,7 @@ ray, as `SpiricArc::crossings` does.
 bounded by a `Nurbs` edge: loft's NURBS edges are its seam struts, on
 the walls. A plane × NURBS-surface section through a boolean would make
 one; nobody has run that probe.
+
+## Moved to SPLICE (2026-10-25)
+
+From CLEAVE (taken on request in chat; CLEAVE would not start a P3). Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: a link the spline operand's path runs through.

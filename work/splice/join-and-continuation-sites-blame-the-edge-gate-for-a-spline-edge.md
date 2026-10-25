@@ -4,7 +4,7 @@ kind: issue
 title: the join's germ frame and ring run and the continuation scan answer a spline or spiric edge as a kernel invariant that blames the operand gate
 status: open
 opened: 2026-10-03
-priority: P2
+priority: P0
 cost: M
 refs: [delete-the-boolean-operand-edge-gate]
 ---
@@ -50,3 +50,7 @@ above when driven directly.
 Type each at its own site, naming the edge and the face (the attempt's
 `EdgeCarrierSite::{GermFrame, RingRun, FaceExtent}`), each with a row
 that reds without it. Part of `delete-the-boolean-operand-edge-gate`.
+
+## Moved to SPLICE (2026-10-25)
+
+From ROOTS. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P2 → P0: these are the sites `delete-the-boolean-operand-edge-gate` (P0) waits on, so the P0 cannot land before this row.

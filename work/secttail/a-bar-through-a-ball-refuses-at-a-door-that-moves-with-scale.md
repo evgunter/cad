@@ -102,3 +102,7 @@ This row's own poses are curved. The steep-ellipse `k = 10` pose (the
 carries it as `work/flush/conic-germs-pair-order-is-unargued.md`.
 Everywhere else the order is still read in absolute metres, so this
 row's scale question stands.
+
+## Moved to SECTTAIL (2026-10-25)
+
+From SECT, cut on its priority seam (SECT measured 46 budget points against 31) in a chat-approved refold. Read SECT's step 3 first: SECT's plan says several of these may close by retirement then.

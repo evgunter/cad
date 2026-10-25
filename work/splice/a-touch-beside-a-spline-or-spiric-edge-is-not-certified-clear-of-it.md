@@ -4,7 +4,7 @@ kind: issue
 title: A carrier touch whose ball a spline or spiric boundary edge's box reaches is never certified clear of that edge, so it keeps the pierce door
 status: open
 opened: 2026-10-06
-priority: P3
+priority: P1
 cost: M
 refs: [4128]
 ---
@@ -25,3 +25,7 @@ one refuses where the geometry is clear. A per-piece distance bound
 along the edge — the same bisection `carrier_touch::clusters` runs
 along a span, over the edge's own certified boxes — would decide it.
 Unmeasured: no fixture in the tree poses a touch beside such an edge.
+
+## Moved to SPLICE (2026-10-25)
+
+From APEX. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: with the gate gone, a lofted operand's spline edges reach this touch every time.
