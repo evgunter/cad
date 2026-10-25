@@ -99,7 +99,9 @@ the offset fit's `OffsetFitLane::recertify`, the fitted pcurves'
 `FittedLane` — the door their certificate is derived through, which
 no `Dual` can hold, so the pcurve mint and the tier-3 pcurve pass
 refuse typed at the check that asks for it — the hollowing verb's
-`ShellDoor`, the census door) runs
+`ShellDoor`, the census door, and the lane-owned limbs of the edge
+certificate at every door that certifies an edge, the Euler attach gate
+included, which take the scalar's `EdgeLimbs` policy) runs
 at scalars with certification rights (f64's decide-with-escalation
 lane and `Interval`), and is
 structurally absent at `Dual`. This

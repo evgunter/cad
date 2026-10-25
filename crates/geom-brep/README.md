@@ -128,9 +128,12 @@ distance from that surface over the edge's interval, whatever faces
 store pcurve rows (a planar face stores none), which implies limb 1;
 and the tube over the same interval, or over the whole carrier where
 the carrier is rational with unequal weights (no piece of it has `f64`
-weights at an enclosure scalar). A door that holds no lane certifies
-no such edge: it refuses `CertifyError::NurbsLaneNotSupplied`, as it
-refuses a plane × NURBS one. An edge with an operand outside the
+weights at an enclosure scalar). Every door takes its scalar's limbs
+policy (`EdgeLimbs`), never an optional lane: at a scalar with
+certification rights it is the lane, and the limbs run; at a
+tangent-transport scalar (DUAL-DESIGN DL3) the lane-owned decisions are
+not run, and the edge's certificate is the `f64` anchor's. There is no
+lane-less door. An edge with an operand outside the
 tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`) refuses
 the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`)
 once limb 2 holds. Each box, cut to the wall's knot rectangle (and to the

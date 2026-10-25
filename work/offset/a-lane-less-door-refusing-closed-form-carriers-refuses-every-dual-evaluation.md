@@ -8,6 +8,7 @@ priority: P0
 cost: M
 parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
 design: true
+needs_ev: true
 ---
 
 Found by the unit's implementer lane (branch
