@@ -319,6 +319,11 @@ pub struct BooleanNaming {
     /// ([`OperandKeys::Absent`]), so no key of the result names it. A
     /// path that never classifies (disjoint boxes) has none.
     pub substituted: Vec<super::SubstitutedFace>,
+    /// Every dropped coincident face a containment fallback could not
+    /// divide where the region its kept face holds ends, with why
+    /// ([`super::UncutFace`]); sorted by operand, face and holder. Empty
+    /// on the section path, whose cut refuses the boolean instead.
+    pub uncut: Vec<super::UncutFace>,
     /// Every operand edge piece the classification read beside a vertex,
     /// with its side of the other operand
     /// ([`EdgePieceClass`](super::EdgePieceClass)), sorted: the vertex in
@@ -398,6 +403,7 @@ impl Default for BooleanNaming {
             reduction_contacts: Default::default(),
             discards: Default::default(),
             substituted: Default::default(),
+            uncut: Default::default(),
             edge_classes: Default::default(),
             unread_partners: Default::default(),
             chart_cuts: Default::default(),
@@ -1052,6 +1058,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         discards,
         carved_lineage: fin.carved_lineage,
         substituted,
+        uncut: Vec::new(),
         edge_classes,
         unread_partners,
         chart_cuts: [Vec::new(), Vec::new()],
@@ -7496,6 +7503,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let body = gate(body, band, tol)?;
             let FallbackFates {
                 substituted,
+                uncut,
                 mut discards,
                 divisions: [_, face_fragments_b],
             } = fallback_fates(
@@ -7532,6 +7540,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
                 substituted,
+                uncut,
                 edge_classes: red.edge_classes.clone(),
                 unread_partners: red.unread_partners.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
@@ -7571,6 +7580,7 @@ fn faces_outside<T: Real>(clone: &Body<T>, keep: &[ShellKey]) -> BTreeSet<FaceKe
 /// divisions, A's then B's.
 struct FallbackFates {
     substituted: Vec<super::SubstitutedFace>,
+    uncut: Vec<super::UncutFace>,
     discards: Vec<super::DiscardRow>,
     divisions: [crate::lineage::FaceDivisions; 2],
 }
@@ -7643,11 +7653,64 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
     red.fates.corners = corners;
     let fresh = || crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
     let mut divisions = [fresh(), fresh()];
+    // The clones as they stand, for a cut that refuses part way.
+    let before = (red.a.clone(), red.b.clone());
     red.enter_join_surgery();
     let [div_a, div_b] = &mut divisions;
     let cuts = super::fate::cut(red, [div_a, div_b], band, tol);
     red.leave_join_surgery(cuts.is_ok());
-    let cuts = cuts?;
+    let (cuts, uncut) = match cuts {
+        Ok(cuts) => (cuts, Vec::new()),
+        // The result is built and holds nothing of the dropped clone, so
+        // a refusal here is the naming's alone: each dropped face a fate
+        // edge lies in is left whole and recorded with why; a face held
+        // wholly needs no cut, and is held as it stands.
+        Err(e) => {
+            (red.a, red.b) = before;
+            divisions = [fresh(), fresh()];
+            let partial: BTreeSet<(Operand, FaceKey)> = red
+                .fates
+                .edges
+                .iter()
+                .map(|fe| (fe.holder.other(), fe.face))
+                .collect();
+            let mut uncut: Vec<super::UncutFace> = red
+                .fates
+                .edges
+                .iter()
+                .map(|fe| super::UncutFace {
+                    operand: fe.holder.other(),
+                    face: fe.face,
+                    by: fe.kept,
+                    kind: e.kind(),
+                    what: e.to_string(),
+                })
+                .collect();
+            uncut.sort_by_key(|u| (u.operand, u.face, u.by));
+            uncut.dedup();
+            let mut substituted: Vec<super::SubstitutedFace> = red
+                .fates
+                .corners
+                .iter()
+                .filter(|fc| !partial.contains(&(fc.holder.other(), fc.dropped.face)))
+                .map(|fc| super::SubstitutedFace {
+                    operand: fc.holder.other(),
+                    face: fc.dropped.face,
+                    by: match fc.kept {
+                        super::fate::KeptAt::Sector(s) => s.face,
+                        super::fate::KeptAt::Pierced(f, ..) => f,
+                    },
+                })
+                .collect();
+            substituted.sort();
+            substituted.dedup();
+            let cuts = super::fate::FateCuts {
+                substituted,
+                chords: Vec::new(),
+            };
+            (cuts, uncut)
+        }
+    };
     let refuse = |_: crate::entity::HalfEdgeKey,
                   _: VertexKey,
                   _: VertexKey|
@@ -7687,6 +7750,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
     }
     Ok(FallbackFates {
         substituted: cuts.substituted,
+        uncut,
         discards,
         divisions,
     })
@@ -7764,6 +7828,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     };
     let FallbackFates {
         substituted,
+        uncut,
         discards,
         divisions: [face_fragments_a, face_fragments_b],
     } = fallback_fates(red, [&discarded[0], &discarded[1]], kept, band, tol)?;
@@ -7783,6 +7848,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             substituted,
+            uncut,
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
@@ -7802,6 +7868,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             substituted,
+            uncut,
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),

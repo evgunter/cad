@@ -139,6 +139,28 @@ pub struct SubstitutedFace {
     pub by: FaceKey,
 }
 
+/// **A dropped coincident face a containment fallback could not divide**
+/// (`BooleanNaming::uncut`): a kept face holds part of it, and the cut
+/// that would divide it where the held region ends refused, so no
+/// [`SubstitutedFace`] row names it and its whole face is a discard.
+/// The fallback keeps or drops whole shells, so the refusal moves no
+/// body; the row says why the naming holds no fragment. Clone keys, as
+/// [`SubstitutedFace`]'s.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UncutFace {
+    /// The dropped copy's operand.
+    pub operand: Operand,
+    /// The dropped face, whole.
+    pub face: FaceKey,
+    /// The kept face holding part of it, in the other operand's clone
+    /// keys.
+    pub by: FaceKey,
+    /// The cut's refusal.
+    pub kind: super::BooleanErrorKind,
+    /// Its words.
+    pub what: String,
+}
+
 /// A one-sided chord and the kept edge it runs along.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Chord {
@@ -597,6 +619,18 @@ fn end_at<T: geom_core::Real>(
         })
 }
 
+/// The faces divided from `root`, null faces aside.
+fn pieces<T: geom_core::Real>(
+    body: &Body<T>,
+    root: FaceKey,
+    divisions: &FaceDivisions,
+) -> Vec<FaceKey> {
+    body.faces()
+        .map(|(f, _)| f)
+        .filter(|&f| divisions.root(f) == root && body.null_face_pair(f).is_none())
+        .collect()
+}
+
 /// The face divided from `root` that holds `p` inside it.
 fn fragment_at<T: Decide>(
     body: &Body<T>,
@@ -605,11 +639,7 @@ fn fragment_at<T: Decide>(
     p: Point3<T>,
     band: Band,
 ) -> Result<FaceKey, BooleanError> {
-    let pieces: Vec<FaceKey> = body
-        .faces()
-        .map(|(f, _)| f)
-        .filter(|&f| divisions.root(f) == root && body.null_face_pair(f).is_none())
-        .collect();
+    let pieces = pieces(body, root, divisions);
     if let [one] = pieces.as_slice() {
         return Ok(*one);
     }
@@ -737,12 +767,13 @@ fn rehome<T: Decide>(
 
 /// The kept edge's `curve` as a chord's spec, run in its own sense
 /// (`along`) or back: a line or a circle as the scaffold the join mints
-/// its chords on, any other carrier as an image in `chart`, the dropped
-/// face's surface, which the kept one coincides with.
+/// its chords on, any other carrier, or a closed one (a whole-turn
+/// scaffold circle reads as a null edge's), as an image in `chart`, the
+/// dropped face's surface, which the kept one coincides with.
 fn along_spec<T: Decide>(
     curve: &geom_brep::EdgeCurve<T>,
     chart: crate::geometry::SurfaceKey,
-    along: bool,
+    (along, closed): (bool, bool),
 ) -> Result<geom_brep::EdgeCurveSpec<T>, BooleanError> {
     let refuse = || BooleanError::ClassificationInvariant {
         what: "a fate cut's kept edge does not restate as a chord on the dropped face's surface",
@@ -759,7 +790,9 @@ fn along_spec<T: Decide>(
     };
     match carrier {
         geom::Curve3::Line { .. } => geom_brep::EdgeCurveSpec::segment_of_line(carrier, t0, t1),
-        geom::Curve3::Circle { .. } => geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1),
+        geom::Curve3::Circle { .. } if !closed => {
+            geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1)
+        }
         _ => Some(geom_brep::EdgeCurveSpec {
             description: own.description,
             carrier,
@@ -820,14 +853,50 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
         .get_face(face)
         .map(|f| f.surface)
         .ok_or_else(|| desync("a fate cut's face no longer resolves"))?;
-    let run = |v: VertexKey| along_spec(curve, chart, forward == (v == u));
+    let run = |v: VertexKey| along_spec(curve, chart, (forward == (v == u), false));
     let outer = body
         .get_face(face)
         .map(|f| f.outer)
         .ok_or_else(|| desync("a fate cut's face no longer resolves"))?;
     if u == w {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "a fate cut along a closed kept edge has both ends at one vertex of the dropped face",
+        // A closed kept edge, both of whose ends are one vertex of the
+        // face: a circular edge there (Fig. 9.8b), in one corner of it or
+        // lone, or, leaving and returning through two corners of the
+        // outer loop, a chord splitting that loop.
+        let (site, along) = match (from, to) {
+            (Place::Lone(l, _), Place::Lone(m, _)) if l == m => (
+                MefSite::Lone { r#loop: l },
+                circular(body, face, curve, band)?,
+            ),
+            (Place::Corner(h0), Place::Corner(h1)) if h0 == h1 => (
+                MefSite::Chords { he1: h0, he2: h0 },
+                circular(body, face, curve, band)?,
+            ),
+            (Place::Corner(h0), Place::Corner(h1))
+                if loop_of(body, h0)? == outer && loop_of(body, h1)? == outer =>
+            {
+                (MefSite::Chords { he1: h0, he2: h1 }, forward)
+            }
+            _ => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a fate cut along a closed kept edge has both ends at one vertex of the dropped face",
+                });
+            }
+        };
+        let made = body.mef(
+            site,
+            along_spec(curve, chart, (along, true))?,
+            FaceSurface::Inherit,
+            tol,
+        )?;
+        divisions.push((made.face, face))?;
+        let remainder = loop_of(body, made.he_plus)?;
+        rehome(body, (face, remainder), made.face, band)?;
+        // The half run in the kept edge's own sense along `forward`.
+        return Ok(if along == forward {
+            made.he_plus
+        } else {
+            made.he_minus
         });
     }
     let made = match (from, to) {
@@ -920,8 +989,37 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
         .ok_or_else(|| desync("a fate cut's chord does not start at its end"))
 }
 
+/// The sense, the kept edge's own (`true`) or back, in which a circular
+/// edge along closed `curve` runs in plane `face`: its minus half bounds
+/// the new face's outer loop, which winds counterclockwise, so the plus
+/// half runs the way the curve winds clockwise.
+fn circular<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    curve: &geom_brep::EdgeCurve<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let normal = crate::face_normal::face_outward_normal(body, face).ok_or(
+        BooleanError::ClassificationInvariant {
+            what: "a fate cut closes a circular edge on a curved face",
+        },
+    )?;
+    let points: Vec<Point3<T>> = (0..8)
+        .map(|i| curve.carrier().eval(curve.sample_param(i)))
+        .collect();
+    let (area, len) = winding(&points, normal.vec());
+    match crate::validate::decide("bool_fate_ring", Margin::of(area / len), band) {
+        Ok(Sign::Negative) => Ok(true),
+        Ok(Sign::Positive) => Ok(false),
+        Ok(Sign::Zero) | Err(_) => Err(BooleanError::ClassificationInvariant {
+            what: "a fate cut closes a ring of no area",
+        }),
+    }
+}
+
 /// The piece of the sector's face, as divided since, that holds the
-/// sector's direction at its vertex ([`place`]).
+/// sector's direction at its vertex ([`place`]); the face itself where
+/// it is one piece.
 ///
 /// # Errors
 ///
@@ -935,6 +1033,9 @@ fn sector_piece<T: Decide>(
     band: Band,
 ) -> Result<FaceKey, BooleanError> {
     let (he, face, d) = (s.he, s.face, s.dir);
+    if let [one] = pieces(body, divisions.root(face), divisions).as_slice() {
+        return Ok(*one);
+    }
     let v = body
         .get_half_edge(he)
         .ok_or(BooleanError::JoinDesync {
@@ -1228,10 +1329,12 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             KeptAt::Sector(s) => sector_piece(kept_body, s, (div_k, &copies[1]), band)?,
             KeptAt::Pierced(f, at, d) => {
                 let root = div_k.root(f);
+                let whole = pieces(kept_body, root, div_k);
                 let ring = red.pierce_rings.iter().find(|r| {
                     r.operand == fc.holder && div_k.root(r.face) == root && r.pierces.contains(&at)
                 });
                 match ring {
+                    _ if whole.len() == 1 => whole[0],
                     Some(ring) => {
                         let copies =
                             NullCopies::of_operand(&red.null_edges, fc.holder).of(ring.ring_vertex);
