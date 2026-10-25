@@ -13,11 +13,7 @@ keep_out: [this program claims NO paths - its rows sit on PROPS' and CURVED's an
 ---
 
 The class the 2026-08 scan named and nobody owned: **one numeric fact,
-decided in several places, each with its own margin.** The period
-headroom margin at eighteen sites, the cone nappe in five predicates,
-the iso-rectangle test in two crates, the folded lever arm in six
-hand-rolled siblings, six certified derivations that duplicate one, and
-a conic extent computed by sampling where a closed form exists. Plus the
-four rulings that gate the ones that are really policy questions
-(`S65`, `S82`, `S116p`, and `S29`'s sizing policy). Ten of eleven rows
-are `H`. Charter and unit order: `work/pred/plan.md`.
+decided in several places, each with its own margin.** A predicate that
+gets a shared home gets an agreement test in the same PR. The slate, its
+re-census of 2026-10-25 and the order are in `work/pred/plan.md`. The P3
+and P4 rows are PREDTAIL's.

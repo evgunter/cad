@@ -5,7 +5,8 @@ title: The period-headroom margin Margin::levered(T::tau() - span, lever) is spe
 status: open
 opened: 2026-09-06
 priority: P1
-cost: D
+cost: M
+design: true
 ---
 
 
@@ -107,3 +108,42 @@ the cylinder and cone chart trims: `bool_cone_trim_period`,
 `bool_wall_trim_period` (and the closure over `name` beside it) and
 `bool_curved_contain_period`. Cylinder and cone faces are read from
 their boundary edges (`topo::boolean::ruled_region`) and read no period.
+
+## Re-census (PRED orchestrator, 2026-10-25, main `2d5677e1`)
+
+**The latent defect is closed at every live site.** None admits a
+reversed span as headroom. Each site does one of these:
+- decides the forward half in the same arm;
+- reads a max − min or a hull width;
+- reads a certified edge's span;
+- admits only `Zero` on an excess.
+
+What remains is consolidation. **Two partial homes now exist**:
+- `geom_brep::props`'s `require_span_within_period`: both halves in one
+  call, for the meridian, rim, cone-ellipse and sphere-arc name pairs.
+- `topo::splitting::containment`'s `ConicArc::of`: the two-sided
+  Δ = τ − w rule with its min and speed levers. It serves six names
+  (`point_in_arc_loop_conic_span`, `pm_census_ef_cross_arc_span`,
+  `bool_{torus,sphere,ruled}_region_arc_span`, `bool_contact_arc_span`).
+
+About eight one-off spellings sit beside them:
+- `certify`'s `interval_span_winding`;
+- `pcurve_cache/projected.rs`'s check 2;
+- `props/curved.rs`'s `fold_chain`, `props_sphere_pole_arc_full`,
+  `props_rim_only_closed` and `props_cone_apex_loop_sweep`;
+- `bool_split_span_period`;
+- `bool_sphere_trim_*`;
+- `chord_join`'s `split_ring_chart_window`;
+- `chart_region`'s two excess forms;
+- `revolve_angle_headroom`, `tube`'s `WindowHeadroom`, and
+  `profile`'s `path_arc_sweep_full`;
+- the raw interval read in `blend/surgery.rs`.
+
+The sites added since filing are `split_ring_chart_window` and the
+`ConicArc` users.
+
+Re-priced **M**, `design: true`. The question is where the shared home
+lives: lifted onto `Decide` across crates, or one home per crate plus
+agreement tests. No in-flight PR touches these sites, and INTENT's
+remaining stages are unlikely to move them, since these are guards on
+stored spans, not coincidence decisions.

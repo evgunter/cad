@@ -75,3 +75,22 @@ Signed (FIX orchestrator).
   `SliverSector` is unchanged, and its mints are on CLEAVE's split-escalations row. (ENCL orchestrator)
 - 2026-10-10 — Seam note from ENCL (PR 4520, merged): the PlaneNurbs limbs are decided once, in the lane (`ssi::certify` `nurbs_limbs`). `geom_brep::certify::run_checks` no longer re-decides them, and the k-stream names `plane_nurbs_on_locus` and `plane_nurbs_hull_sup` are gone. The certificate's `max_residual` is bit-identical. (ENCL orchestrator) D46 now carries an evidence line: both names, cited at `docs/predicate-dimension-audit.md:708`, no longer exist.
 - 2026-10-25 — (PRED orchestrator) Track taken (`status: active`), branch `pred/orchestrator`. Standing frame for this sitting: work the P1 rows that INTENT's remaining stages will not make irrelevant. INTENT and its successors (COINCIDE, REFS, INLANE) build editor-core's dependency, placement and coincidence model. PRED's rows are kernel numeric predicates in `geom-brep`, `topo`, `mesh` and `sweep`, so the refactor hold does not reach most of them. The exceptions are the editor-core sites in the two band rows and in the `(tol, band)` pair row. The live churn risk on PRED's sites comes from CHART (region doors, PR 5674 open), PCERT (`pcurve_cache`, PR 5500) and QUAD (props measure door, PR 5628), not from INTENT. Two scoping lanes re-census every row against main `2d5677e1` before anything is dispatched. S65 is closed: it was already ruled on PR 884 (row 5), and the cut missed that.
+- 2026-10-25 — (PRED orchestrator) Re-census against main `2d5677e1` by two read-only scoping lanes. Each row now carries a `## Re-census` section and a current cost.
+  - **No live wrong answer on any row.** Every period-headroom site decides the forward half, or reads a span that cannot be reversed.
+  - **Closed as verified:**
+    - `S58`: the one face predicate is built, `geom_brep::props::require_iso_rectangle`, and mesh asks it.
+    - `S66`: the #862 over-width terms are gone and pinned.
+    - `S82`: CERT-1 fixed #893, so the question is moot.
+    - `S65`: already ruled on PR 884.
+  - **Re-priced:**
+    - `period-headroom` H → M, with `design: true` for where the home lives;
+    - `D292` H → M, since the census mirror now shares the boolean's body;
+    - `S18` → M; its one live sub-row is step-export's volume;
+    - `lever-arm` → E;
+    - `D46` → H; `D281` → M.
+  - **Parked:**
+    - `cone-nappe` on PRs 5500 and 5674, which rewrite its sites;
+    - a new row, `contact-verify-spells-the-orientation-and-second-order-margins-beside-their-homes`, cut from lever-arm, on the D10 hold. `contact_verify` is declared-contact ground that stage 4 retires.
+  - **`S116p` reframed.** "Permanent" is gone from the refusal. What is open is whether the two-run full revolve is built through the void door, as the holed revolve is. `needs_ev` is cleared until the designers have weighed it.
+  - **Re-banded P1 → P3, unilaterally:** the two band rows. Every site is test code, so the risk is a test asking the wrong question, not entrenching architecture.
+  - **Split.** The load stood at 39.5/30. The P3 and P4 rows (the two band rows, the ordering row, the `(tol, band)` row and `D281`) moved to a new program, PREDTAIL (`ready`, band 14600–14699), along the priority seam. PRED keeps 22 points.
