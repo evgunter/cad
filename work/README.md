@@ -197,6 +197,33 @@ a guard that cannot go red, not P0 for sitting on P0 ground. And a
 band is not a forecast of effort — `cost` carries that, separately,
 because the two are independent and collapsing them hides both.
 
+**A blocker does inherit the band of what waits on it.** A row parked
+on another cannot move until that row closes, and a sitting ends when
+its track's P0 and P1 rows are done (`memories/orchestration-model.md`),
+so a P0 parked on a P2 never moves at all. The part of the blocker that
+stands in the way is work of the parked row's band. That is not the
+guard case above: a guard sits on P0 ground without standing between
+anyone and P0 work. So lint refuses a `parked` row that names a live
+blocker of a lower band — an ERROR — and there are three ways to clear
+it:
+
+- **re-band the blocker**, when fixing it as described is what
+  unblocks the parked row;
+- **split it**, when only part of the fix does: the unblocking part is
+  filed as its own row at the parked row's band, the parked row is
+  re-parked on that row, and the remainder keeps its own band;
+- **open the parked row**, when it was waiting on the blocker for
+  convenience rather than need.
+
+A chain settles one link at a time: a blocker re-banded upward brings
+its own blockers under the rule. A number in `blocked_on` reaches the
+rule only through `github:` and only as a warning, for the reason the
+fired-trigger rule gives (Rules, below). A program carries no band, so
+naming one as a blocker is not checked. Like the fired-trigger error,
+this one can red `main` from a PR on another program — raising a parked
+row's band — and the answer is the same: fix the blocker's band, do not
+soften the check.
+
 **A band is absolute across the tracker, never relative to its
 program.** The definitions above say what a row IS, wherever it sits:
 the most important row in a quiet program is not P0 for being that
