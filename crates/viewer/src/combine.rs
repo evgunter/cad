@@ -31,7 +31,9 @@ use pncad::prelude::StableName;
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
-use crate::seats::{Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line};
+use crate::seats::{
+    FaceRole, Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line,
+};
 use crate::session::refuse::one_body;
 use crate::session::{BooleanSpec, FaceSelection, PartSelectSpec, PatternRuleSpec, SessionOp};
 use crate::vocab::vocabulary;
@@ -400,10 +402,6 @@ impl Default for MirrorTool {
     }
 }
 
-/// **What the mirror tool calls its plane**, in sentences: the panel
-/// line's role and the drop notice's.
-pub const MIRROR_PLANE: &str = "mirror plane";
-
 impl MirrorTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
@@ -440,7 +438,7 @@ impl MirrorTool {
         if self.seats.is_empty() {
             self.seats.pick_at(doc, face.node, Some(face.body));
         }
-        self.plane_said = Some(doc.spoken(face.node));
+        self.plane_said = Some(doc.spoken(plane_node(doc, &face)));
         self.plane = Some(face);
     }
 
@@ -479,7 +477,7 @@ impl MirrorTool {
         let node = self
             .plane_said
             .take()
-            .unwrap_or_else(|| doc.spoken(face.node));
+            .unwrap_or_else(|| doc.spoken(plane_node(doc, &face)));
         Some(MirrorEvent::PlaneLost {
             node,
             resolution: Box::new(verdict),
@@ -507,8 +505,11 @@ impl MirrorTool {
         let plane = self
             .plane
             .as_ref()
-            .map(|face| crate::matetool::face_of(&doc.spoken(face.node)));
-        picks_line([(Seat::MirrorBody.name(), body), (MIRROR_PLANE, plane)])
+            .map(|face| crate::matetool::face_of(&doc.spoken(plane_node(doc, face))));
+        picks_line([
+            (Seat::MirrorBody.name(), body),
+            (FaceRole::MirrorPlane.name(), plane),
+        ])
     }
 
     /// **The one committed edit**: the body mirrored across the held
@@ -520,12 +521,18 @@ impl MirrorTool {
     /// plane until a face is.
     pub fn op(&self) -> Result<SessionOp, SeatError> {
         let body = self.seats.require_read(0)?;
-        let plane = self
-            .plane
-            .clone()
-            .ok_or(SeatError::NoFace { role: MIRROR_PLANE })?;
+        let plane = self.plane.clone().ok_or(SeatError::NoFace {
+            role: FaceRole::MirrorPlane,
+        })?;
         Ok(SessionOp::AddMirror { body, plane })
     }
+}
+
+/// **The node a held plane is said by**: the body the face is on, as
+/// a body seat says a pick on a copy ([`crate::world::on_body`]), so
+/// one click is named by one node in both of the tool's items.
+fn plane_node(doc: &Doc<ProfileProgram>, face: &FaceSelection) -> RecipeNodeId {
+    crate::world::on_body(doc, face.node, face.body, &face.name).0
 }
 
 /// A typed mirror-tool event the chrome renders: the plane's drop. The
@@ -545,12 +552,24 @@ pub enum MirrorEvent {
 impl core::fmt::Display for MirrorEvent {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PlaneLost { node, .. } => write!(
-                f,
-                "the {MIRROR_PLANE} pick (a {}) no longer resolves; the tool dropped it",
-                crate::matetool::face_of(node)
-            ),
+            Self::PlaneLost { node, .. } => {
+                crate::matetool::face_lost(f, FaceRole::MirrorPlane.name(), node)
+            }
         }
+    }
+}
+
+/// **Where a mirror's image arrives in the world**: where its source
+/// does. `copies` are the source's world placements; the image takes
+/// the one the plane was picked on, when it is one of them — the copy
+/// the person saw the face on — and otherwise every one, so a source
+/// drawn twice is mirrored twice and a source nothing places leaves
+/// its image unplaced.
+pub fn mirror_arrivals(copies: &[RecipeNodeId], plane: &FaceSelection) -> Vec<RecipeNodeId> {
+    if copies.contains(&plane.node) {
+        vec![plane.node]
+    } else {
+        copies.to_vec()
     }
 }
 

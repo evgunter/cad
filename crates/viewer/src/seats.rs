@@ -188,6 +188,23 @@ impl Seat {
     }
 }
 
+/// **What a face a tool holds beside its seats is for** — the role a
+/// held FACE plays, as [`Seat`] names a held node's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FaceRole {
+    /// The face whose plane a mirror reflects across.
+    MirrorPlane,
+}
+
+impl FaceRole {
+    /// The role's name, for sentences.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::MirrorPlane => "mirror plane",
+        }
+    }
+}
+
 /// A typed seated-tool refusal (closed enum, D4 ¶3).
 #[derive(Debug)]
 pub enum SeatError {
@@ -201,7 +218,7 @@ pub enum SeatError {
     /// it.
     NoFace {
         /// The face's role.
-        role: &'static str,
+        role: FaceRole,
     },
     /// A seat holds a split picked in the tree, and which of its two
     /// halves it reads is not chosen yet.
@@ -215,7 +232,7 @@ impl core::fmt::Display for SeatError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Empty { seat } => write!(f, "no {} picked yet", seat.name()),
-            Self::NoFace { role } => write!(f, "no {role} picked yet"),
+            Self::NoFace { role } => write!(f, "no {} picked yet", role.name()),
             Self::HalfUnchosen { seat } => {
                 write!(
                     f,

@@ -704,16 +704,18 @@ pub enum SessionOp {
         normal: [Formula; 3],
     },
     /// Insert the mirror image of an existing body across the plane of
-    /// a picked face — the mirror tool's one committed edit, the image
-    /// placed in the world beside its source. The plane is the face's
-    /// own, read where it was picked: a pick on a copy is read on the
-    /// body the copy places (`crate::world::on_body`), so the plane
-    /// reads the geometry of the body's space as a mirror's plane must.
+    /// a picked face — the mirror tool's one committed edit. The plane
+    /// is the face's own, read where it was picked: a pick on a copy is
+    /// read on the body the copy places (`crate::world::on_body`), so
+    /// the plane reads the geometry of the body's space, as a mirror's
+    /// plane must. The image is a body in that space and arrives in the
+    /// world where its source does (`crate::combine::mirror_arrivals`).
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
-    /// a face of another space refuses at the insert door
-    /// (`EditError::SpaceMismatch`). Whether the face is planar is the
-    /// mirror's own refusal where it evaluates.
+    /// a face read in another space — another construction's, or its
+    /// image's — refuses at the insert door (`EditError::SpaceMismatch`).
+    /// Whether the face is planar is the mirror's own refusal where it
+    /// evaluates.
     AddMirror {
         /// The body reflected.
         body: Operand,

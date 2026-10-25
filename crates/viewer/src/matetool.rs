@@ -356,6 +356,21 @@ pub(crate) fn face_of(node: &SpokenNode) -> String {
     format!("face of {node}")
 }
 
+/// **The sentence a dropped face pick is said in**: its role, and the
+/// face as [`face_of`] says it — the mate tool's drop and the mirror
+/// tool's (`crate::combine::MirrorEvent`).
+pub(crate) fn face_lost(
+    f: &mut core::fmt::Formatter<'_>,
+    role: impl core::fmt::Display,
+    node: &SpokenNode,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "the {role} pick (a {}) no longer resolves; the tool dropped it",
+        face_of(node)
+    )
+}
+
 /// A typed tool event the chrome renders — every state change that
 /// was not the direct echo of an op.
 #[derive(Debug)]
@@ -382,12 +397,7 @@ impl core::fmt::Display for MateToolEvent {
     /// full in the value; this is what a person reads.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { side, node, .. } => write!(
-                f,
-                "the {} pick (a {}) no longer resolves; the tool dropped it",
-                side.name(),
-                face_of(node)
-            ),
+            Self::PickLost { side, node, .. } => face_lost(f, side.name(), node),
         }
     }
 }

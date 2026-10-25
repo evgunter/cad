@@ -2980,15 +2980,29 @@ impl DocSession {
     }
 
     /// Insert the mirror image of a body across the plane of a picked
-    /// face ([`SessionOp::AddMirror`]), placed in the world beside it.
+    /// face ([`SessionOp::AddMirror`]), and place it where its source
+    /// arrives ([`combine::mirror_arrivals`]): each copy taking the
+    /// placement that copy of the source has.
     fn add_mirror(&mut self, body: Operand, plane: &FaceSelection) -> OpOutcome {
         if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
         let doc = self.committed_doc();
-        let (at, _, face) = crate::world::on_body(doc, plane.node, plane.body, &plane.name);
-        let node = combine::mirror_node(body, body_of(doc, at), face);
-        self.create_placed(node)
+        let (at, port, face) = crate::world::on_body(doc, plane.node, plane.body, &plane.name);
+        let on = match crate::world::seat_read(doc, at, Some(port)) {
+            (at, Some(port)) => Operand::output(at, port),
+            (at, None) => body_of(doc, at),
+        };
+        let arrivals = combine::mirror_arrivals(&self.placements_of(&body), plane);
+        let node = combine::mirror_node(body, on, face);
+        self.commit_run(|run| {
+            let image = run.insert(node)?;
+            let image = body_of(run.doc(), image);
+            for copy in arrivals {
+                beside(run, image.clone(), copy)?;
+            }
+            Ok(())
+        })
     }
 
     /// **A pose read off the geometry of `body`'s space**: the frame
@@ -4232,6 +4246,40 @@ fn space_evaluation<'a>(derived: &'a Derived, history: &History) -> Option<&'a E
 /// **`body` placed in the world**: a `Place` of it into the world,
 /// standing where its body stands ([`editor_core::stand`], the identity
 /// bundle).
+/// **`body` placed as the placement `copy` places its shapes**: into
+/// `copy`'s target, by `copy`'s bundle as written (`Node::written`), so
+/// the copy stands where `copy`'s does. The bundle's values are written
+/// afresh, each an expression of what `copy`'s reads; a mate in it reads
+/// a face of what `copy` copies, which the new placement's copy is not,
+/// and the door refuses it (`MateFault::NotOnTheCopy`).
+fn beside(
+    run: &mut Recording<'_, ProfileProgram>,
+    body: Operand,
+    copy: RecipeNodeId,
+) -> Result<RecipeNodeId, EditError> {
+    let doc = run.doc();
+    let (target, constraints) = match doc.node(copy).map(|node| node.written(doc)) {
+        Some(
+            Node::Place {
+                target,
+                constraints,
+                ..
+            }
+            | Node::InstantiatePart {
+                target,
+                constraints,
+                ..
+            },
+        ) => (target, constraints),
+        _ => return place_in_world(run, body),
+    };
+    run.insert(Node::place(
+        vec![pncad::document::BodyRead::plain(body)],
+        target,
+        constraints,
+    ))
+}
+
 fn place_in_world(
     run: &mut Recording<'_, ProfileProgram>,
     body: Operand,

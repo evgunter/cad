@@ -26,4 +26,10 @@ The viewer's mirror tool (`crates/viewer/src/combine.rs` `MirrorTool`, the sessi
 - The symmetric part through the boolean tool, the block picked first: the geometry is right (volume `2 × 8e-6 m³`), but `in_one_space` (`crates/viewer/src/session.rs`) reads the image's `None` as "a body never placed" and inserts an extra `Place` of the image into the block's space at the identity. So the union's second member is a copy of the image where the image itself already reads the block's space. That is a superfluous node in every symmetric part authored this way, and it would place the image wrongly if the stand bundle and the space's axes ever disagreed.
 - The image picked first: no extra placement, the right volume, and the union's `operand_space` is `None` (the union's space is its first member's).
 
-`crates/viewer/tests/mirror_authoring.rs` `a_body_and_its_image_union_to_the_symmetric_part_in_either_order` asserts the volume and the world in both orders. It does not pin the extra placement. Once the `Mirror` arm is in the walk, the block-first case should insert no `Place`, and that row can assert it.
+## Repaired (PR 5683, AUTHTAIL)
+
+`SpaceWalk::node` now has the arm `Node::Mirror { body, .. } => self.var(body.read)`, beside `Split`'s. Rows:
+
+- `crates/editor-core/tests/a_mirror_is_a_construction.rs` `a_mirrors_image_and_a_union_it_leads_are_in_the_sources_space` (the L-plate probe): the image's body, the mirror node, and `Union { members: [image, plate] }` are all in the plate's space.
+- `crates/viewer/tests/mirror_authoring.rs` `a_moved_symmetric_part_is_drawn_in_one_place_in_either_order`: block-first and image-first unions of a translated block insert the union alone, with no extra `Place`, and are drawn over the same span.
+- `a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body`: a plane on another space's image now refuses `SpaceMismatch`. Before the arm, its space was `None`.
