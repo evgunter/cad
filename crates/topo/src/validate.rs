@@ -1657,8 +1657,8 @@ pub enum ValidationError {
     /// inside its face's outer loop could not be certified: no vertex
     /// of the ring was placed either way, and at least one query
     /// escalated (a margin of the parity walk), exhausted that walk's
-    /// schedule, met topology it could not read, or found no ray past
-    /// an outer edge the walk cannot cross. On an arc-bearing
+    /// schedule, met topology it could not read, or could not place a
+    /// query against a spiric or spline outer edge. On an arc-bearing
     /// outer loop only the walk's point-level rows escalate — its
     /// ray-level ones retry the next ray — so most undecided pairs there
     /// arrive as an exhausted schedule, which names no predicate; on a
@@ -3615,8 +3615,8 @@ fn close_to_boundary(
 // cause is the check's, and no redrawing is prescribed.
 fn uncrossable(u: &crate::splitting::Uncrossable) -> Cow<'static, str> {
     format!(
-        "every test ray from a point the check asked about could meet a {} edge of the \
-         boundary, which the check cannot yet cross",
+        "the check could not place a point it asked about against a {} edge of the \
+         boundary: cutting the edge into pieces ran out before the point was clear of it",
         u.carrier.word()
     )
     .into()
@@ -9207,13 +9207,12 @@ enum RingNestingVerdict {
 /// disc-class rows here and in `topo_ring_nesting`.
 ///
 /// **What the walk cannot read**, and what that costs. An outer edge on
-/// a spline carrier has no crossing row: the walk answers only along
-/// rays that definitely miss a ball holding that edge (a spiric edge,
-/// only along rays whose crossings of it its pieces settle), and
-/// refuses ([`crate::splitting::PointInLoopError::Uncrossable`]) a
-/// query from which none does. That refusal is read like an
-/// escalation: it settles nothing at its vertex, and a ring no vertex
-/// of which was placed is [`RingNestingVerdict::Undecided`].
+/// a spiric or spline carrier is read piece by piece, and where its
+/// pieces run out before the query is placed against it the walk
+/// refuses ([`crate::splitting::PointInLoopError::Uncrossable`]). That
+/// refusal is read like an escalation: it settles nothing at its
+/// vertex, and a ring no vertex of which was placed is
+/// [`RingNestingVerdict::Undecided`].
 ///
 /// **One vertex speaks for the whole ring, and the premise that makes
 /// it so is that the two loops do not CROSS.** A ring disjoint from

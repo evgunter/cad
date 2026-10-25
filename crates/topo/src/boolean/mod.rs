@@ -421,7 +421,14 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spiric_leaf"
         | "point_in_arc_loop_spiric_side"
         | "point_in_arc_loop_spiric_turn"
-        | "point_in_arc_loop_spiric_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
+        | "point_in_arc_loop_spiric_advance"
+        | "point_in_arc_loop_spline_end"
+        | "point_in_arc_loop_spline_clear"
+        | "point_in_arc_loop_spline_on"
+        | "point_in_arc_loop_spline_leaf"
+        | "point_in_arc_loop_spline_side"
+        | "point_in_arc_loop_spline_turn"
+        | "point_in_arc_loop_spline_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
         _ => return None,
     })
 }
