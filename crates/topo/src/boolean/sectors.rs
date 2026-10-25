@@ -1942,7 +1942,7 @@ fn crescent<T: Decide>(
                 continue;
             }
             let l = la.min(lb);
-            let opened = (kb - ka).dot(u) * l * l / (T::one() + T::one());
+            let opened = (kb - ka).dot(u) * l.powi(2) / (T::one() + T::one());
             if decide("bool_sector_crescent", Margin::of(opened), band).map_err(escalate)?
                 == Sign::Positive
             {
