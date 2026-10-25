@@ -4,7 +4,7 @@ kind: issue
 title: edge_extent levers a NURBS edge by its chord, 4-10x short of the point-set diameter on a steep hyperbolic arc, which can turn a Positive verdict into a definite Zero once such an arc rests
 status: open
 opened: 2026-10-25
-priority: P1
+priority: P0
 ---
 
 

@@ -1,7 +1,7 @@
 # GERM plane × torus — the boolean join's germ frame for a plane × torus pair (unit spec)
 
 This spec carries what GERM still owes on
-`work/germ/c5-plane-torus-cone-cylinder-arms.md` (P1, H): the germ frame
+`work/sect/c5-plane-torus-cone-cylinder-arms.md` (P1, H): the germ frame
 for a plane × torus germ pair, which `boolean::join`'s
 `pair_section_frame_at` refuses as
 `GermFrameUnsupported { Plane, Torus }`. It measures the chain of doors

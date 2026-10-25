@@ -255,6 +255,46 @@ pub(super) fn curved_interiors_meet<T: Decide>(
     reads_meet(body, &ra, &rb, band, errors)
 }
 
+/// **An edge's span as these lanes read it**: its certified curve over
+/// its span, with no ends where it is closed on a conventional vertex
+/// ([`span`]). The ray's edge read (`boolean::solid_contain`) reads a
+/// point against an edge through it, so the census and the ray read one
+/// span.
+pub(crate) struct EdgeSpan<T: Real> {
+    read: Read<T>,
+    endless: bool,
+}
+
+impl<T: Decide> EdgeSpan<T> {
+    /// The edge's carrier.
+    pub(crate) fn carrier(&self) -> &Curve3<T> {
+        &self.read.curve
+    }
+
+    /// Its span's middle parameter.
+    pub(crate) fn middle(&self) -> T {
+        geom::mid_param(self.read.span.0, self.read.span.1)
+    }
+
+    /// Its span, read as the census reads it.
+    pub(crate) fn span(&self) -> Span<'_, T> {
+        let span = Span::new(&self.read.curve, self.read.span);
+        if self.endless { span.endless() } else { span }
+    }
+}
+
+/// `edge`'s [`EdgeSpan`], `None` where the census's read of it refuses
+/// (no certified curve, or a speed bound that meters no length).
+pub(crate) fn edge_span<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    band: Band,
+) -> Option<EdgeSpan<T>> {
+    let read = read(body, edge, band, &mut Vec::new())?;
+    let endless = on_conventional_vertex(body, &read);
+    Some(EdgeSpan { read, endless })
+}
+
 /// `r`'s span, with no ends where its edge is closed on a conventional
 /// vertex: that vertex has no identity of its own, so its point is the
 /// edge's interior too.

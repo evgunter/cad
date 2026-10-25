@@ -16,7 +16,7 @@ Re-scoped 2026-09-20 by EXCH's priority-seam cut
 | P1 | `step-import-circle-promotion-has-no-map-obligation` | D | the circle limb certifies locus and closure, not the map: a re-timed closed carrier promotes on locus alone |
 | P1 | `step-import-eps-in-ambient-two-dial-strand` | D | recognition promotes at eps_in while selection and certify run at ambient: a column bent between the dials strands its edge |
 | P3 | `arc-rim-gate-reports-a-degenerate-carrier-as-an-infinite-residual` | E | step-import RimOffWallBoundary's residual is a measurement type carrying a non-measurement sentinel |
-| P3 | `import-normalizes-the-rim-only-cap` | D | STEP import re-mints a rim-only sphere cap into the seamed form, as a reported normalization |
+| P0 | `import-normalizes-the-rim-only-cap` | M | STEP import re-mints a rim-only sphere cap into the seamed form, as a reported normalization |
 | P3 | `step-import-curve-recognition-named-exclusions` | H | step-import stage-1 curve recognition — the NAMED EXCLUSIONS (open arcs, ellipse, helix) and the surjectivity certificate |
 | P3 | `step-scaffold-strut-offset-is-absolute-in-a-unit-free-format` | D | step-import mints its scaffold strut at a fixed 1.0 offset, in a format whose coordinates carry no unit contract |
 | P4 | `chart-review-fuzz-frame-hand-rolls-the-helper-axis-cone` | E | chart_review_fuzz's frame() hand-rolls the |x| < 0.9 helper-axis cone instead of calling Vec3::orthonormal_basis |

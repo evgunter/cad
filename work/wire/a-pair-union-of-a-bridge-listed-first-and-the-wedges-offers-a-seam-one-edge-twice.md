@@ -2,7 +2,7 @@
 id: a-pair-union-of-a-bridge-listed-first-and-the-wedges-offers-a-seam-one-edge-twice
 kind: issue
 title: A pair union of a low bridge listed first and the union of the wedges it spans refuses Naming(EntityNamed): a seam is offered one edge twice
-status: open
+status: dispatched
 priority: P2
 cost: M
 opened: 2026-10-20

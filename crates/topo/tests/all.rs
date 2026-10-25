@@ -229,6 +229,8 @@ mod mesh8_coherence;
 mod missed_ray_side;
 #[path = "narrow_needle_containment.rs"]
 mod narrow_needle_containment;
+#[path = "needle_cavity_probe.rs"]
+mod needle_cavity_probe;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
 #[path = "ngon_prism_offset_scaling.rs"]

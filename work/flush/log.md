@@ -533,3 +533,32 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - **The needle cavity at the join's section loop** (`a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read`, P2 M, branch `flush/needle-cavity-section-loop`). Find the comparison that refuses a 10.5–15ε cavity before any read, classify it (a real pair, a forbidden tie, or an in-face walk), and fix it at the join. **Tier: one FULL review**, because the change is one margin in the join, readable against the ratified text. Seam: CLEAVE's open PR 5545 touches `join.rs`.
   - **Both briefs** carry INTENT's PRs 5555 and 5605 (contact records), and a rule from PR 5534: every new fixture passes the census.
 — (FLUSH orchestrator)
+- 2026-10-25 — **PR 5694 closes `a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read`.**
+  - **The defect.** A section loop whose every witness lies in band of the other boundary (a channel under 2Kε, flush on five faces) refused `SectionLoopUndecided` before any read. This was not a pair and not a tie: a point read near a loop's boundary.
+  - **The fix.** `join.rs` `seam_germ_side` reads the side at a chord of the loop through `contain::face_placement`. In band reads nothing, and chords that disagree refuse `ClassificationInvariant`. No body main built changes, and the batteries are byte-identical.
+  - **Tier: single FULL.**
+    - The review was APPROVE-WITH-FIXES, with no MAJOR: the volume check was vacuous, two poses were unpinned, and there was no within-loop agreement.
+    - The fix-pass check by the same reviewer was APPROVE. Its two leftovers (a HONE row's reach, and a sub-0.5 s test in the slow set) are fixed in the last commit.
+  - **Filed on their owners:** GERMCERT (a sector direction's rounding on a needle's short run); HONE (the subtract backstop on flush operands; a vertex read against a tilted face's carrier); `work/issues` (the witness ladder's one interior candidate per face).
+— (FLUSH orchestrator)
+- 2026-10-25 — **Dispatched the containment fallback's rows** (`a-containment-fallback-substitutes-a-partly-held-dropped-face-whole`, P2 M, branch `flush/fallback-partial-rows`). The fallback writes a dropped face larger than its holder as substituted whole, and records no discards, so the two operand orders disagree on discards. The fix makes the fallback's rows the shape of the section path's (`fate::cut`, `discard.rs`) and tightens the swap comparators. **Tier: one FULL review**: it changes rows, not bodies, in one module family. Seams: CLEAVE 5545 (`fate.rs`); QUAD 5628, CLEAVE 5544/5546, WIRE 5535 and RESTREAD 5529 (`ops.rs`).
+— (FLUSH orchestrator)
+- 2026-10-25 — **PR 5697 closes `a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim`**, the curved half of D10's edge-meeting ray.
+  - **What it does.** Every edge between two faces that read their own carrier crossings is now met once, for both faces, through the census's own reads. A seam split's faces share one root, keyed by (surface, ordinal). A met edge stands only for a crossing near the passage or held by the face. Ray faults are ranked, so the ray's fault does not depend on face order, and a `Fatal` always propagates.
+  - **Tier: dual review**, letter H, concurrent. The blind coding (byte 18, A = R1) found the pair fair, and the tally is **+2 for R1**. R1 found two wrong-side readings that R2's corpus did not reach:
+    - a plane's half read outside the face (a kinked bore, 140 of 3042 rays);
+    - a shared root counted twice (the 30ε disc).
+
+    Both reviewers got one identical addendum mid-review (a region-reader probe and a higher fuzz effort).
+  - **Fix pass and delta checks** (both reviewers, concurrent): R1 APPROVE-WITH-FIXES, R2 APPROVE. A last short pass fixed four things:
+    - the swapped kinked-bore account;
+    - a `Fatal` swallowed in the shared-root loop;
+    - order-dependent fault kinds;
+    - the `face_edges` sweep.
+  - **The pins** now read every crossing of a ray against an analytic truth. They go red on the first head at every ε.
+  - **My slow-set call** moved MAJOR 2's pin to the fast set at 0.481 s; CI then timed it at 0.507 s. It is now split into a fast counterexample pin and a slow seed sweep.
+  - **Not retired:** the aims' exact ties (`cut_cylinder` 62 exact zeros), unparked at P2 H.
+  - **Filed:** two P3 rows, moved to FLUSHTAIL (26.5 of 30).
+— (FLUSH orchestrator)
+- 2026-10-25 — **Dispatched the trimmed-sphere and spline aims** (`the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`, P2 M, branch `flush/sphere-spline-aims`). The side reader offers no aim on a trimmed sphere or a spline, so a shell made only of those falls to its volume. The fix aims through the sphere region's own interior read and the spline chart's window middle; the untrimmable cone keeps the volume. **Tier: one FULL review**: one reader's aims, readable against the ratified "an aim only steers". It runs after PR 5697 so it does not share `solid_contain.rs` with the curved ray. The aims' ties (P2 H, same file) follow it. Seams: PRED 5710 and QUAD 5628 (`solid_contain.rs`).
+— (FLUSH orchestrator)
