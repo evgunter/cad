@@ -403,6 +403,31 @@ pub mod test_support {
     }
 
     pub use crate::side_reader::EdgeFrame;
+    /// Review probe: point containment's reading of one ray.
+    pub fn review_cast(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        q: geom_core::Point3<f64>,
+        d: geom_core::Vec3<f64>,
+        band: geom_core::Band,
+    ) -> String {
+        crate::boolean::solid_contain::review_cast(body, face, q, d, band)
+    }
+
+    /// Review probe: every crossing of a ray with the solid holding
+    /// `face`, faces permuted.
+    pub fn review_ray_counts(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        q: geom_core::Point3<f64>,
+        d: geom_core::Vec3<f64>,
+        band: geom_core::Band,
+        rot: usize,
+        rev: bool,
+    ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
+        crate::side_reader::review_ray_counts(body, face, q, d, band, rot, rev)
+    }
+
 
     /// Each edge's frames on each of its faces, at each fraction of
     /// `fractions` along it (`side_reader`): the probes aim at and about

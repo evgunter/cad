@@ -897,6 +897,45 @@ pub(crate) fn ray_at_report<T: Decide>(
     }
 }
 
+/// Review probe: every crossing of the ray `q + s d` with the solid
+/// holding `face`, the selection's faces rotated by `rot` (an order
+/// permutation), as `(lo, hi, count, sideless)`, or the fault.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn review_ray_counts(
+    body: &Body<f64>,
+    face: FaceKey,
+    q: Point3<f64>,
+    d: Vec3<f64>,
+    band: Band,
+    rot: usize,
+    rev: bool,
+) -> Result<Vec<(f64, f64, i32, bool)>, String> {
+    let solid = body
+        .get_face(face)
+        .and_then(|f| body.get_shell(f.shell))
+        .map(|sh| sh.solid)
+        .ok_or("no solid")?;
+    let sel = SolidFaces::of(body, solid).map_err(|e| format!("{e:?}"))?;
+    let mut geos: Vec<_> = sel
+        .faces()
+        .iter()
+        .map(|&f| face_geo(body, f, &sel.charts).map(|g| (f, g)))
+        .collect::<Result<_, _>>()
+        .map_err(|e| format!("{e:?}"))?;
+    if rev {
+        geos.reverse();
+    }
+    let n = geos.len();
+    geos.rotate_left(rot % n.max(1));
+    let reach = selection_reach(body, sel.faces(), q).map_err(|e| format!("{e:?}"))?;
+    let c = ray_crossings(body, &geos, q, d, reach, band, AIMED_ROWS)
+        .map_err(|e| format!("fault {e:?}").chars().take(200).collect::<String>())?;
+    Ok(c.review_all()
+        .into_iter()
+        .map(|((lo, hi), h, s)| (lo, hi, h.count(), s || h.mark.is_some()))
+        .collect())
+}
+
 #[cfg(test)]
 mod pre_filter_tests {
     #![allow(clippy::expect_used, clippy::panic)]

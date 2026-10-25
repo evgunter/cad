@@ -350,6 +350,19 @@ impl<T: Decide, H> Crossings<T, H> {
         self.spans.push((from, to));
     }
 
+    /// Review probe: every crossing's span, hit and sideless flag.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn review_all(&self) -> Vec<((T, T), &H, bool)>
+    where
+        T: Copy,
+    {
+        self.ahead
+            .iter()
+            .zip(&self.spans)
+            .map(|((_, h, s), sp)| (*sp, h, *s))
+            .collect()
+    }
+
     /// The closest crossing's hit, `None` when the ray met nothing.
     ///
     /// The closest is the least by the caller's `order` row. Every other

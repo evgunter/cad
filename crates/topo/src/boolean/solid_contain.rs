@@ -2730,6 +2730,43 @@ fn cast_ray<T: Decide>(
     Ok(side.map(side_before))
 }
 
+/// Review probe: point containment's own reading of one ray from `q`
+/// along `d` through the solid holding `face`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn review_cast(
+    body: &Body<f64>,
+    face: FaceKey,
+    q: Point3<f64>,
+    d: Vec3<f64>,
+    band: Band,
+) -> String {
+    let Some(solid) = body
+        .get_face(face)
+        .and_then(|f| body.get_shell(f.shell))
+        .map(|sh| sh.solid)
+    else {
+        return "no solid".to_owned();
+    };
+    let Ok(sel) = SolidFaces::of(body, solid) else {
+        return "no selection".to_owned();
+    };
+    let geos: Result<Vec<_>, _> = sel
+        .faces()
+        .iter()
+        .map(|&f| face_geo(body, f, &sel.charts).map(|g| (f, g)))
+        .collect();
+    let Ok(geos) = geos else {
+        return "no geometry".to_owned();
+    };
+    let Ok(reach) = selection_reach(body, sel.faces(), q) else {
+        return "no reach".to_owned();
+    };
+    format!("{:?}", cast_ray(body, &geos, q, d, reach, band))
+        .chars()
+        .take(160)
+        .collect()
+}
+
 /// The side of a ray's start read off the sign of its first nonzero
 /// running count: a count that rises leaves material (`d·n > 0`), so
 /// the start is `In`.
@@ -3675,6 +3712,29 @@ pub(crate) fn ray_crossings<T: Decide>(
             Cross::Plane => None,
         })
         .collect();
+    if std::env::var("R1_TRACE").is_ok() {
+        for m in &meets.met {
+            std::eprintln!("R1T met {:?} faces {:?} at {:?} cross {:?}", m.edge, m.faces, m.at, m.cross);
+            for f in m.faces {
+                if let Some(fc) = body.get_face(f) {
+                    for l in core::iter::once(fc.outer).chain(fc.rings.iter().copied()) {
+                        if let Some(LoopBoundary::Cycle { first }) = body.get_loop(l).map(|lp| lp.boundary) {
+                            for h in body.loop_walk(first).closed("loop", first) {
+                                if let Some(he) = body.get_half_edge(h) {
+                                    if !meets.read.contains(&he.edge) {
+                                        std::eprintln!("R1T   face {f:?} unread edge {:?}", he.edge);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for mk in &meets.marks {
+            std::eprintln!("R1T mark {:?} {:?} at {:?}", mk.face, mk.other, mk.at);
+        }
+    }
     for &k in &attributed {
         let face = roots[k].face;
         if !every_edge_read(body, face, &meets.read) {
