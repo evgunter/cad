@@ -173,16 +173,21 @@ pub(crate) fn holds_to_the_truth(
     meet_is_the_monte_carlo(pose, t, p, meet, within);
     for ((label, r), &(_, op, swap)) in six(&t.body, &p.body).into_iter().zip(&SIX) {
         let r = r.unwrap_or_else(|e| panic!("{pose}, {label}: refused {e:?}"));
-        let b = &r
-            .body()
-            .unwrap_or_else(|| panic!("{pose}, {label}: empty"))
-            .body;
+        let b = topo::test_support::finished(
+            "b",
+            topo::Body::clone(
+                &r.body()
+                    .unwrap_or_else(|| panic!("{pose}, {label}: empty"))
+                    .body,
+            ),
+            Tol::witness(),
+        );
         body_holds(
             &format!("{pose}, {label}"),
             (op, swap),
             (t, p),
             meet,
-            b,
+            &b,
             within,
         );
     }
@@ -252,9 +257,12 @@ pub(crate) fn volume_and_points(
         Ok(()),
         "{what}: tier 3"
     );
-    let v = topo::test_support::unmigrated_measure(b, Tol::witness())
-        .unwrap_or_else(|e| panic!("{what}: the volume: {e:?}"))
-        .volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: the volume: {e:?}"))
+    .volume;
     assert!(
         (v - want).abs() <= volume_tol(want),
         "{what}: volume {v} against the truth {want}"

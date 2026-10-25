@@ -232,8 +232,11 @@ fn band_torus(body: &Body<f64>, face: FaceKey) -> (Point3<f64>, f64, f64) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let props =
-        topo::test_support::unmigrated_measure(body, tol()).expect("mass properties must compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("mass properties must compute");
     assert_eq!(
         props.volume_pad, 0.0,
         "every face of a lantern carve is closed-form"
@@ -442,8 +445,11 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
     assert_eq!(bands, 3, "one band per rim");
     validate_geometric(&body, tol())
         .unwrap_or_else(|e| panic!("the thrice-filleted lantern is tier-3 valid, got {e:?}"));
-    let props =
-        topo::test_support::unmigrated_measure(&body, tol()).expect("mass properties must compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
+        tol(),
+    )
+    .expect("mass properties must compute");
     assert_eq!(props.volume_pad, 0.0, "every face stays closed-form");
     assert!(
         props.volume < volume(&lantern()),

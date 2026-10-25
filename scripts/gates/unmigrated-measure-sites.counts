@@ -1,5 +1,0 @@
-# The transitional measurement alias (topo::test_support::unmigrated_measure / unmigrated_classify):
-# call sites per crate (scripts/gates/unmigrated-measure-sites.sh). A ratchet: lower a count when
-# F2 migrates a site; F2 deletes this file with the alias.
-crates/editor-core 109
-crates/sweep 523

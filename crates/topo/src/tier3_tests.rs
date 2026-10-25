@@ -3584,11 +3584,17 @@ fn a_sign_is_read_off_the_exact_volume_not_its_rounding() {
     );
     // A solid's only shell is outer by arity, however it is wound: its
     // orientation is check 7's.
-    for body in [&upright, &inverted] {
-        // Raw door: the upright slab and its inside-out twin are read alike, and tier 3 refuses the twin (NegativeVolume).
+    let classes = [
+        crate::classify_shells(
+            &crate::test_support::finished("the upright slab", upright.clone(), tol),
+            tol,
+        ),
+        // Raw door: the inside-out twin, which tier 3 refuses (NegativeVolume), as check 7 above asserts.
+        crate::test_support::classify_unvalidated(&inverted, tol),
+    ];
+    for classified in classes {
         assert_eq!(
-            crate::test_support::classify_unvalidated(body, tol).expect("the shell classifies")[0]
-                .role,
+            classified.expect("the shell classifies")[0].role,
             Outer,
             "the classification reads a lone shell by arity"
         );
@@ -3640,10 +3646,17 @@ fn the_census_gate_reads_a_shell_role_as_the_classification_does() {
         "read with no lane, the upright slab's rounded sum decides no role"
     );
     let inverted = upright.revert().unwrap();
-    for (body, want) in [(&upright, Outer), (&inverted, Outer)] {
-        // Raw door: the upright slab and its inside-out twin are read alike, and tier 3 refuses the twin (NegativeVolume).
-        let classified = crate::test_support::classify_unvalidated(body, tol)
-            .expect("the shell classifies")[0]
+    for (body, want, finishes) in [(&upright, Outer, true), (&inverted, Outer, false)] {
+        let classified = if finishes {
+            crate::classify_shells(
+                &crate::test_support::finished("the upright slab", body.clone(), tol),
+                tol,
+            )
+        } else {
+            // Raw door: the inside-out twin, which tier 3 refuses (NegativeVolume).
+            crate::test_support::classify_unvalidated(body, tol)
+        }
+        .expect("the shell classifies")[0]
             .role;
         let gate = crate::census::gate_role(body, shell, band, tol);
         assert_eq!(

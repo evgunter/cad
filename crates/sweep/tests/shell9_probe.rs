@@ -221,7 +221,11 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
         Ok(()),
         "the re-mint restores tier 3"
     );
-    let props = topo::test_support::unmigrated_measure(&out, tol()).expect("props");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out), tol()),
+        tol(),
+    )
+    .expect("props");
     let want = 4.0 / 3.0 * PI * (r * r * r - (r - t) * (r - t) * (r - t));
     assert!(
         (props.volume - want).abs() <= 1e-9 + props.volume_pad,

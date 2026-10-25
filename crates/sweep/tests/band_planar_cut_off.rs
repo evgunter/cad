@@ -37,7 +37,11 @@ pub(crate) fn tol() -> Tol {
 }
 
 pub(crate) fn volume(body: &Body<f64>) -> f64 {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("closed-form props");
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }
@@ -118,8 +122,14 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// quadrature lane's pad (zero on a closed-form `f64` inventory, the
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
-pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds>(body: &Body<T>) -> (f64, f64) {
-    let p = topo::test_support::unmigrated_measure(body, tol()).expect("certified props");
+pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    body: &Body<T>,
+) -> (f64, f64) {
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("certified props");
     let (lo, hi) = (p.volume.lo(), p.volume.hi());
     (0.5 * (lo + hi), 0.5 * (hi - lo) + p.volume_pad)
 }

@@ -66,13 +66,16 @@ fn only_solid(body: &Body<f64>) -> SolidKey {
 /// `body`'s shells of `role` under `solid`, read off their own signed
 /// volumes — the premise each row asserts before it asserts a verdict.
 fn shells_of(body: &Body<f64>, solid: SolidKey, role: ShellRole) -> Vec<ShellKey> {
-    // Raw door: this helper reads every row's body, and tier 3 refuses most of them (SolidOuterShells, ShellWinding).
-    topo::test_support::classify_unvalidated(body, tol())
-        .expect("every shell classifies")
-        .into_iter()
-        .filter(|c| c.solid == solid && c.role == role)
-        .map(|c| c.shell)
-        .collect()
+    match topo::AtRestBody::validate(body.clone(), tol()) {
+        Ok(finished) => topo::classify_shells(&finished, tol()),
+        // Raw door: a row's body that tier 3 refuses (SolidOuterShells, ShellWinding, NegativeVolume); the row asserts that verdict after this premise.
+        Err(_) => topo::test_support::classify_unvalidated(body, tol()),
+    }
+    .expect("every shell classifies")
+    .into_iter()
+    .filter(|c| c.solid == solid && c.role == role)
+    .map(|c| c.shell)
+    .collect()
 }
 
 /// Grafts every solid of `src` into `dst` and files every shell under

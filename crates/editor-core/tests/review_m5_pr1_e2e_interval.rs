@@ -115,9 +115,16 @@ fn rotated_cutter_boolean_at_interval_certifies_end_to_end() {
     };
     assert_eq!(validate(body), Ok(()));
     assert_eq!(validate_closed(body), Ok(()));
-    let vol = topo::test_support::unmigrated_measure(body, Tol::witness())
-        .unwrap()
-        .volume;
+    let vol = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&**body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     // Interior rotated cuboid 0.5 x 0.5 x 1.0 => volume exactly 8 - 0.25.
     let oracle = 8.0 - 0.25;
     assert!(

@@ -1,7 +1,6 @@
 """The measurement doors' test-only names, counted per crate.
 
-Shared by `unmigrated-measure-sites.sh` (the transitional alias) and
-`raw-measure-door-sites.sh` (the raw doors). Reads `gate_rust_code`'s
+Read by `raw-measure-door-sites.sh` (the raw doors). Reads `gate_rust_code`'s
 `path:line:code` records on stdin (comments and string literals already
 stripped) and counts every REFERENCE to one of the names: a call, a
 turbofish, a fn pointer, a `(path)(…)` call and a `use … as` rename
@@ -15,8 +14,12 @@ Prints `ROSE key: was -> now` / `FELL key: was -> now` per key that
 moved, then `TOTAL n`. With `--reasons`, also prints `UNREASONED
 path:line` for each reference with no `// Raw door:` comment on its own
 line or above it in the same statement (read from the file itself, since
-the records carry no comments), stopping at a blank line, a `fn` or an
-attribute.
+the records carry no comments). The walk up from a reference passes
+comment-only lines and the lines of its own statement, and stops at the
+first line that ends another one: a blank line, a `fn` or an attribute,
+code ending in `;`, `{` or `}`, or a match arm ending in `,`. So a
+reason covers the statement it heads, and never a later statement, a
+later arm or another fn.
 """
 import re
 import sys
@@ -63,13 +66,23 @@ for key in sorted(set(counts) | set(base)):
 
 if reasons:
     cache = {}
-    stop = re.compile(r'^\s*($|(pub(\([^)]*\))?\s+)?fn\s|#\[)')
+    stop = re.compile(r'^\s*($|(pub(\([^)]*\))?\s+)?((const|async|unsafe|extern\s+"[^"]*")\s+)*fn\s|#!?\[)')
+
+    def ends_a_statement(line):
+        code = line.split('//', 1)[0].rstrip()
+        if not code:
+            return False
+        return code[-1] in ';{}' or (code[-1] == ',' and '=>' in code)
+
     for path, ln in refs:
         lines = cache.setdefault(path, open(path, encoding='utf-8').read().split('\n'))
         ok = '// Raw door:' in lines[ln - 1]
         k = ln - 2
         while not ok and k >= 0 and not stop.match(lines[k]):
-            ok = '// Raw door:' in lines[k]
+            if '// Raw door:' in lines[k]:
+                ok = True
+            elif ends_a_statement(lines[k]):
+                break
             k -= 1
         if not ok:
             print(f'UNREASONED {path}:{ln}')

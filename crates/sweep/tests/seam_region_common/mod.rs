@@ -112,7 +112,8 @@ pub(crate) fn assert_refused(
         .unwrap_or_else(|| {
             panic!(
                 "{label}: flipping {set:?} passes tier 3 (measures {:?})",
-                topo::test_support::unmigrated_measure(&flipped, tol).map(|m| m.volume)
+                // Raw door: a failure message, measuring the flip only where tier 3 passed it.
+                topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume)
             )
         });
     for &face in named {
@@ -125,7 +126,8 @@ pub(crate) fn assert_refused(
     }
     // The door reads the same seam regions, so it refuses the same flips
     // without tier 3.
-    let door = topo::test_support::unmigrated_measure(&flipped, tol);
+    // Raw door: the subject is the door's parity with tier 3 over a flip this helper asserts tier 3 refuses.
+    let door = topo::test_support::measure_unvalidated(&flipped, tol);
     assert!(
         door.is_err(),
         "{label}: flipping {set:?}: tier 3 refuses, the door measures {:?}",
@@ -186,15 +188,16 @@ pub(crate) fn split_at_meridian(body: &mut Body<f64>, key: FaceKey, dir: Vec3<f6
 
 // Splits of the review of PR 5516 (R2), lifted into rows.
 
+/// `body`'s volume through the typed door, or `None` where tier 3 refuses
+/// it (an over-cover) or the measurement does.
 pub(crate) fn volume(body: &Body<f64>, tol: Tol) -> Option<f64> {
-    topo::test_support::unmigrated_measure(body, tol)
-        .ok()
-        .map(|m| m.volume)
+    let finished = topo::AtRestBody::validate(Body::clone(body), tol).ok()?;
+    topo::mass_properties(&finished, tol).ok().map(|m| m.volume)
 }
 
 /// Splits the face of `body` that a meridian in direction `dir` passes
-/// through INSIDE it (the split that keeps the volume), returning
-/// whether one did.
+/// through INSIDE it (the split that keeps the volume, and so leaves a
+/// body tier 3 finishes), returning whether one did.
 pub(crate) fn split_inside(body: &mut Body<f64>, dir: Vec3<f64>, tol: Tol) -> bool {
     let before = volume(body, tol).unwrap();
     for f in sphere_faces(body) {
@@ -222,7 +225,8 @@ pub(crate) fn split_outside(body: &mut Body<f64>, dir: Vec3<f64>, tol: Tol) -> b
             split_at_meridian(&mut b, f, dir, tol)
         }))
         .is_ok();
-        let moved = match topo::test_support::unmigrated_measure(&b, tol) {
+        // Raw door: the measured body is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
+        let moved = match topo::test_support::measure_unvalidated(&b, tol) {
             Ok(m) => (m.volume - before).abs() > 1e-6 * before.abs(),
             Err(topo::MassPropsError::Face {
                 source: geom_brep::props::PropsError::SeamRegionOvercovered { .. },
