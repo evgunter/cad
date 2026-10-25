@@ -2,8 +2,9 @@
 id: a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read
 kind: issue
 title: A needle cavity 10.5–15ε across refuses SectionLoopUndecided at the join before any side or role is read
-status: review
+status: closed
 pr: 5694
+closed: 2026-10-25
 opened: 2026-10-19
 priority: P2
 cost: M
@@ -104,7 +105,7 @@ case).
   reads `|sin θ|`, not a side.
 - No tie-break is represented, and no thinness enters.
 
-**Pins** (slow set; ε 1e-9 and 1e-6; every operand and every built body
+**Pins** (ε 1e-9 and 1e-6, the first in the slow set; every operand and every built body
 passes `validate_pseudomanifold` with no contacts):
 - `shell_role_reader::a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void`:
   10.5, 12, 15, 21 and 30ε; poses aligned, turned (corners turned) and
@@ -142,3 +143,26 @@ The row's "from 21ε up … builds" holds axis-aligned only.
 its germ in band and nothing. It and `F` are then a face pair whose
 angle over the chord lies in band, which is the carrier-pair verdict's
 to refuse, not the join's.
+
+## Resolution
+
+Closed by PR 5694 (2026-10-25). A section loop that no witness reads,
+because every probe lies in band of the other boundary, now reads its
+side at a chord of the loop through `seam_germ_side`. That read uses the
+census's own containment ask (`contain::face_placement`). An in-band
+margin, a flush region or a curved chord reads nothing, and two definite
+chords that disagree refuse `ClassificationInvariant`. The cavity builds
+and reads `[Outer, Void]` at 10.5–30ε in every pinned pose where main
+refused `SectionLoopUndecided`. No body main built changes. The five
+batteries are byte-identical to base.
+
+A single FULL review (APPROVE-WITH-FIXES, no MAJOR) and its fix-pass check
+(APPROVE) found the volume check vacuous (now the cavity's own shell
+volume, shown able to fail), two unpinned poses (now pinned), and no
+within-loop agreement (now refused on disagreement).
+
+Main's refusals the pins assert as they stand, filed:
+- GERMCERT `a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w`;
+- HONE `the-subtract-volume-backstop-holds-flush-operands-bit-exact-and-refuses-a-correct-bar`;
+- HONE `a-vertex-near-a-tilted-faces-carrier-but-w-from-its-face-refuses-vertex-on-face`;
+- `work/issues/the-witness-ladder-reads-one-interior-candidate-per-face-so-one-in-band-hides-a-definite-one`.
