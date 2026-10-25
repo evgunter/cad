@@ -150,7 +150,7 @@ use pncad::geom_core::{
 };
 use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
-use pncad::sweep::blend::{BlendError, fillet_edges};
+use pncad::sweep::blend::fillet_edges;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
@@ -490,9 +490,14 @@ fn roll_the_mouth<S: Scalar>(
         2,
         "the lantern's mouth is one circle, two half-arcs either side of the seam"
     );
-    fillet_edges(&finished("the sharp lantern", sharp.clone(), tol), &mouth, S::from_f64(roll), tol)
-        .unwrap_or_else(|e| panic!("the lantern's mouth rolls at r = {roll}: {:?}", e.error))
-        .body
+    fillet_edges(
+        &finished("the sharp lantern", sharp.clone(), tol),
+        &mouth,
+        S::from_f64(roll),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the lantern's mouth rolls at r = {roll}: {:?}", e.error))
+    .body
 }
 
 /// The **corm**: the swollen underground stem-base a *Calochortus*
@@ -2209,9 +2214,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    the band: one torus face, coaxial with the flower.
     let bands = lant
         .faces()
-        .filter(|(_, f)| {
-            lant.get_surface(f.surface).map(|g| g.kind()) == Some(SurfaceKind::Torus)
-        })
+        .filter(|(_, f)| lant.get_surface(f.surface).map(|g| g.kind()) == Some(SurfaceKind::Torus))
         .count();
     assert_eq!(bands, 1, "the lantern's rolled mouth is one torus band");
     println!(
@@ -3018,13 +3021,12 @@ mod review_probes {
             centre.1 * globe / (globe + roll),
         );
         let on_pucker = (centre.0 - n.0 * roll, centre.1 - n.1 * roll);
-        let line = |p: (f64, f64), q: (f64, f64)| {
-            (q.1 - p.1) * (p.0 * p.0 + p.0 * q.0 + q.0 * q.0) / 3.0
-        };
+        let line =
+            |p: (f64, f64), q: (f64, f64)| (q.1 - p.1) * (p.0 * p.0 + p.0 * q.0 + q.0 * q.0) / 3.0;
         (PI * (line(m, on_pucker)
             + crate::snowman::arc_rho2_dy(centre, roll, on_pucker, on_globe)
             + crate::snowman::arc_rho2_dy((0.0, 0.0), globe, on_globe, m)))
-            .abs()
+        .abs()
     }
 
     /// Finding 13 re-measured: one chord budget spends wildly
@@ -3065,8 +3067,11 @@ mod review_probes {
             // sweeps the lantern's two planar caps whole, and each cap
             // as one disc meshes two triangles fewer than as two
             // half-discs — 1_084 -> 1_080 and 2_560 -> 2_556.
-            ("lily_lantern", 5e-3, 1_080),
-            ("lily_lantern", 2e-3, 2_556),
+            // RE-BASELINED (wall 6 retired): the mouth's torus band,
+            // sized per curvature like any torus, adds its own cells —
+            // 1_080 -> 1_220 and 2_556 -> 3_038.
+            ("lily_lantern", 5e-3, 1_220),
+            ("lily_lantern", 2e-3, 3_038),
             // RE-BASELINED: the swept leaves are fitted at the cubic
             // degree along the path (wall 15 retired) — 6_468 -> 5_576
             // and 5_992 -> 5_164. RE-BASELINED again (PR 4984, one
@@ -3129,7 +3134,10 @@ mod review_probes {
             })
             .collect();
         println!("lantern volume error, measured: {rels:?}");
-        for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0120, 0.0130), (0.0050, 0.0056)]) {
+        // RE-BASELINED (wall 6 retired): the rolled lantern measures
+        // 0.012769 and 0.0050019; the 2e-3 floor moves 0.0050 -> 0.0049
+        // so it does not sit 2e-6 under the new reading.
+        for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0120, 0.0130), (0.0049, 0.0056)]) {
             assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
         }
         // A swept blade has no analytic wall to compare against, but it
