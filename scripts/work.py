@@ -637,6 +637,25 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
                     warns.append(f"{it.path}: parked on {_say_fired(inferred, resolves)}, which is closed — "
                                  f"the number resolves through that item's `github:` and its trigger has fired; "
                                  f"{gate}. Name the item instead of the number, then the rule reads it directly")
+            # A blocker inherits the band of what waits on it (work/README.md,
+            # Priority): the part of it that stands in the way is that band's
+            # work, and a sitting that stops at P1 never reaches a P2 blocker.
+            # A naming errors and a `github:` inference warns, as above; a
+            # program carries no band, and a band-less row has none to lend.
+            if str(it.get("priority")) in PRIORITIES:
+                for v in _listed(it, "blocked_on"):
+                    named_ref = isinstance(v, str) and v in by_id
+                    inferred_ref = isinstance(v, int) and not isinstance(v, bool) and v in resolves
+                    if not (named_ref or inferred_ref):
+                        continue
+                    b = by_id[v] if named_ref else resolves[v]
+                    if b.status == "closed" or b.kind == "program" or _prio_key(b) <= _prio_key(it):
+                        continue
+                    msg = (f"{it.path}: {it.get('priority')} row parked on {_say_fired([v], resolves)}, "
+                           f"which is {b.get('priority') or 'unbanded'} — a blocker inherits the band of what "
+                           f"waits on it: re-band the blocker, split off the part that unblocks at "
+                           f"{it.get('priority')} and re-park on that, or open this row")
+                    (errors if named_ref else warns).append(msg)
         # references
         for key in ("parent", "rides_with"):
             v = it.get(key)
@@ -1213,6 +1232,29 @@ def selftest() -> int:
             expect(name, lint(root, warns) + warns, needle)
             _write(root, rel, original)
         expect("restored fixture", lint(root))
+
+        # A blocker inherits the band of what waits on it: a naming of a
+        # lower-banded live blocker errors, a `github:` inference only warns,
+        # and a blocker at the parked row's band or above passes.
+        m1, m2 = (os.path.join(root, f"work/mesh/MESH-{n}.md") for n in (1, 2))
+        with open(m1, encoding="utf-8") as f:
+            orig1 = f.read()
+        with open(m2, encoding="utf-8") as f:
+            orig2 = f.read()
+        parked_p0 = orig1.replace("status: review", "status: parked\npriority: P0")
+        _write(root, "work/mesh/MESH-2.md", orig2.replace("status: open", "status: open\npriority: P2\ngithub: 1601"))
+        _write(root, "work/mesh/MESH-1.md", parked_p0.replace("[MESH-2, 1601]", "[MESH-2]"))
+        expect("a P0 parked on a P2 errors", lint(root), "a blocker inherits the band")
+        _write(root, "work/mesh/MESH-1.md", parked_p0.replace("[MESH-2, 1601]", "[1601]"))
+        warns = []
+        expect("a P0 parked on a P2 by number warns", lint(root, warns))
+        expect("  ... and the warning names the band", warns, "a blocker inherits the band")
+        _write(root, "work/mesh/MESH-2.md", orig2.replace("status: open", "status: open\npriority: P0"))
+        _write(root, "work/mesh/MESH-1.md", parked_p0.replace("[MESH-2, 1601]", "[MESH-2]"))
+        expect("a P0 parked on a P0 passes", lint(root))
+        _write(root, "work/mesh/MESH-1.md", orig1)
+        _write(root, "work/mesh/MESH-2.md", orig2)
+        expect("restored fixture after the band rule", lint(root))
         o2 = open(os.path.join(root, "work/mesh/MESH-2.md"), encoding="utf-8").read()
         _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: D"))
         expect("legacy D on a row opened before the cut is clean", lint(root))
@@ -1234,6 +1276,9 @@ def selftest() -> int:
         _write(root, "work/topo/T-2.md",
                "---\nid: T-2\nkind: issue\ntitle: tail\nstatus: open\nopened: 2026-09-02\npriority: P1\n---\n")
         _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: parked\nblocked_on: [MESH-1]\npriority: P0"))
+        # Its blocker carries its band, as the band rule above requires.
+        o1 = open(os.path.join(root, "work/mesh/MESH-1.md"), encoding="utf-8").read()
+        _write(root, "work/mesh/MESH-1.md", o1.replace("status: review", "status: review\npriority: P0"))
         expect("board-order fixture", lint(root))
         if board_order() != ["topo", "mesh"]:
             failures.append(f"board order: a dispatchable P1 should lead a parked P0, got {board_order()}")
@@ -1241,6 +1286,7 @@ def selftest() -> int:
             failures.append("render: `top` is not the best dispatchable band")
         os.remove(os.path.join(root, "work/topo/T-2.md"))
         _write(root, "work/mesh/MESH-2.md", o2)
+        _write(root, "work/mesh/MESH-1.md", o1)
 
         # THE PROGRAM'S OWN STATUS. `active` is unfalsifiable from the tree,
         # so the two checkable halves are the ones tested: a blocked track with
