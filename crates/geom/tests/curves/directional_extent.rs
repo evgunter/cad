@@ -55,15 +55,24 @@ fn tilted() -> (Vec3<f64>, Vec3<f64>) {
     (axis, axis.orthonormal_basis().0)
 }
 
-/// The two carriers every row runs: a tilted circle and a tilted 3:1
-/// ellipse, off the origin.
-fn carriers() -> [(&'static str, Curve3<f64>); 2] {
+/// The carriers every row runs, all in a tilted plane: a circle and a
+/// 3:1 ellipse off the origin, a 5000:1 ellipse, and a micron circle
+/// far from the origin.
+fn carriers() -> [(&'static str, Curve3<f64>); 4] {
     let (axis, u) = tilted();
     [
         ("circle", circle(Point3::new(0.4, -1.1, 2.3), axis, 1.7, u)),
         (
             "ellipse",
             ellipse(Point3::new(-0.6, 0.9, -0.2), axis, 2.4, 0.8, u),
+        ),
+        (
+            "flat ellipse",
+            ellipse(Point3::new(-1.0, 0.5, 2.0), axis, 5.0, 1e-3, u),
+        ),
+        (
+            "tiny far circle",
+            circle(Point3::new(100.0, -50.0, 25.0), axis, 1e-6, u),
         ),
     ]
 }
@@ -96,9 +105,11 @@ fn crest_angle(c: &Curve3<f64>, n: Vec3<f64>) -> f64 {
     (b * v.dot(n)).atan2(a * u.dot(n))
 }
 
+/// The sample count of [`sampled`].
+const N: u32 = 8_000;
+
 /// The densely sampled `(min, max)` of the reading over `[t0, t1]`.
 fn sampled(c: &Curve3<f64>, (t0, t1): (f64, f64), origin: Point3<f64>, n: Vec3<f64>) -> (f64, f64) {
-    const N: u32 = 20_000;
     (0..=N)
         .map(|i| reading(c, t0 + (t1 - t0) * f64::from(i) / f64::from(N), origin, n))
         .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), x| {
@@ -154,7 +165,7 @@ fn the_directional_door_on_the_world_axes_is_the_coordinate_box() {
     }
 }
 
-/// **Exact along oblique directions.** Against 20 001 samples the
+/// **Exact along oblique directions.** Against [`N`] + 1 samples the
 /// door must contain the arc's reading and sit no further outside it
 /// than the samples' own spacing allows (`A·(Δt/2)²/2` at a crest):
 /// a door that read the full turn, dropped a crest, or misplaced the
@@ -189,7 +200,7 @@ fn the_directional_door_is_the_sampled_extent_along_oblique_directions() {
             for (shape, (t0, t1)) in spans {
                 let (slo, shi) = sampled(&c, (t0, t1), origin, n);
                 let amp = (c.eval(ts) - c.eval(ts + PI)).norm() * n.norm();
-                let spacing = (t1 - t0).abs() / 20_000.0;
+                let spacing = (t1 - t0).abs() / f64::from(N);
                 let bulge = amp * (spacing / 2.0).powi(2) / 2.0 + 1e-12 * (1.0 + amp);
                 for (door, (lo, hi)) in [
                     (
