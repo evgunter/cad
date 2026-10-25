@@ -1248,3 +1248,9 @@ mod a_revolved_wall_arc_join_reads_its_reach;
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
+#[path = "review_5697_r2_corpus.rs"]
+mod review_5697_r2_corpus;
+#[path = "review_5697_r2_points.rs"]
+mod review_5697_r2_points;
+#[path = "review_5697_r2_rays.rs"]
+mod review_5697_r2_rays;
