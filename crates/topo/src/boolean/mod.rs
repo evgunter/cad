@@ -3386,13 +3386,13 @@ pub enum BooleanError {
         /// Its kind — the B half of the germ pair.
         b_kind: geom::SurfaceKind,
     },
-    /// **A germ pair whose section is a conic outside the inventory by
-    /// decision**: a plane cutting a cone face in a parabola (parallel to
-    /// a generator) or a hyperbola (meeting both nappes). Neither curve is
-    /// in the conic inventory (`geom_brep`'s C1/C5, ruling R1), so the
-    /// pair is refused, not missing an arm: `section` is the table's own
-    /// refusal, naming the conic.
-    GermSectionOutsideInventory {
+    /// **A germ pair whose section is an open conic**: a plane cutting a
+    /// cone face in a parabola (parallel to a generator) or a hyperbola
+    /// (meeting both nappes). The section table serves either in closed
+    /// form, its arcs minted per window as rational-quadratic NURBS
+    /// (`geom_brep`'s C1), and the Boolean has no crossing layer for a
+    /// NURBS carrier, so the pair is refused at its frame.
+    GermSectionOpenConic {
         /// The A-side germ face.
         a_face: FaceKey,
         /// Its kind.
@@ -3402,9 +3402,7 @@ pub enum BooleanError {
         /// Its kind.
         b_kind: geom::SurfaceKind,
         /// The conic.
-        conic: geom_brep::OutsideConic,
-        /// The section table's refusal, naming the conic.
-        section: geom_brep::SectionError,
+        conic: geom_brep::OpenConic,
     },
     /// **A germ pair whose plane cuts a torus face in a general spiric
     /// quartic**: a plane neither through the torus's axis, nor square to
@@ -3950,8 +3948,8 @@ pub enum BooleanErrorKind {
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
     GermFrameUnsupported,
-    /// [`BooleanError::GermSectionOutsideInventory`].
-    GermSectionOutsideInventory,
+    /// [`BooleanError::GermSectionOpenConic`].
+    GermSectionOpenConic,
     /// [`BooleanError::GermSectionSpiric`].
     GermSectionSpiric,
     /// [`BooleanError::NodeUnbuilt`].
@@ -4198,9 +4196,7 @@ impl BooleanError {
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
-            Self::GermSectionOutsideInventory { .. } => {
-                BooleanErrorKind::GermSectionOutsideInventory
-            }
+            Self::GermSectionOpenConic { .. } => BooleanErrorKind::GermSectionOpenConic,
             Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::NodeUnbuilt { .. } => BooleanErrorKind::NodeUnbuilt,
             Self::Euler(_) => BooleanErrorKind::Euler,
@@ -4549,16 +4545,13 @@ impl core::fmt::Display for BooleanError {
                 kind_word(*b_kind),
                 meeting_recourse(kind_word(*a_kind)),
             ),
-            Self::GermSectionOutsideInventory { conic, .. } => write!(
+            Self::GermSectionOpenConic { conic, .. } => write!(
                 f,
                 "a flat face of one part cuts a cone face of the other along a curve \
-                 that never closes ({}), which the Boolean does not build. Recourse: \
-                 tilt the parts so the flat face cuts the cone all the way round, or \
-                 keep it clear of the cone face",
-                match conic {
-                    geom_brep::OutsideConic::Parabola => "a parabola",
-                    geom_brep::OutsideConic::Hyperbola => "a hyperbola",
-                },
+                 that never closes ({}), which the Boolean cannot yet cross with other \
+                 edges. Recourse: tilt the parts so the flat face cuts the cone all the \
+                 way round, or keep it clear of the cone face",
+                conic.named(),
             ),
             Self::GermSectionSpiric { loops, .. } => write!(
                 f,
@@ -8898,16 +8891,12 @@ mod tests {
                 b_face: face,
                 b_kind: geom::SurfaceKind::Torus,
             },
-            BooleanError::GermSectionOutsideInventory {
+            BooleanError::GermSectionOpenConic {
                 a_face: face,
                 a_kind: geom::SurfaceKind::Plane,
                 b_face: face,
                 b_kind: geom::SurfaceKind::Cone,
-                conic: geom_brep::OutsideConic::Hyperbola,
-                section: geom_brep::SectionError::RoutesToGeneralRung {
-                    pair: "plane×cone",
-                    why: "a hyperbola",
-                },
+                conic: geom_brep::OpenConic::Hyperbola,
             },
             BooleanError::GermSectionSpiric {
                 a_face: face,
@@ -9101,7 +9090,7 @@ mod tests {
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
-                BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
+                BooleanErrorKind::GermSectionOpenConic => "GermSectionOpenConic",
                 BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::NodeUnbuilt => "NodeUnbuilt",
                 BooleanErrorKind::Euler => "Euler",

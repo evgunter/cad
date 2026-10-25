@@ -68,3 +68,5 @@ pair's bound holds, the asymptote offset `|δ|·sin α/√(D·M)` is at most
 `ε·sin α`, so it needs no row of its own.
 
 **2026-10-11, closed (PR 4592, DR-157, HOLDOUT pair).** Both apex line outcomes are served only where the section they imply starts in the band: the pair is bounded by the far nappe's start `|δ|/D`, the tangent by the near start `|δ|/M`, and past the band the off-apex lane refuses the hyperbola or the parabola typed. The √ε asymptote offset is inside the band whenever the pair is served. The conservatism this costs (right bodies lost at near-coincident union and frame poses) is filed as `pn-apex-line-reach-is-read-at-the-apex-not-over-the-consumed-span` (P1).
+
+**2026-10-25 (PR 5692).** The off-apex lane no longer refuses the hyperbola or the parabola: `plane_cone_section` serves either as `PlaneConeSection::OpenConic`, minted per window as an exact rational-quadratic NURBS arc (`crates/geom-brep/README.md` C1), and each consumer that cannot certify that arc yet refuses typed, naming the conic.

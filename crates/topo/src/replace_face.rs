@@ -161,14 +161,16 @@
 //! description nothing can certify. A pair that routes is then asked
 //! about its POSE (`geom_brep::route_pose`): the arms are
 //! configuration-scoped, and an offset can carry the moved surface out
-//! of the configuration its arm serves — a wedge cap through a cone's
-//! apex, moved off it, cuts a hyperbola — so the door refuses that
-//! pose by the arm's own grounds rather than admitting it on the kind
-//! pair's. A served pose whose section the door does not derive, has
-//! no branch near the edge or is a tangency there refuses by the
-//! section's own verdict ([`ReplaceFaceError::EdgeSection`]), and an
-//! edge still scaffolded that the move tilts against a distinct
-//! neighbour refuses by name ([`ReplaceFaceError::DeclaredEdgeTilted`]).
+//! of the configuration its arm serves, so the door refuses that pose
+//! by the arm's own grounds rather than admitting it on the kind pair's.
+//! A wedge cap through a cone's apex, moved off it, cuts a hyperbola:
+//! a served pose whose arc has no certificate on a cone yet, refused by
+//! the section's verdict (`SectionVerdict::OpenConic`). A served pose
+//! whose section the door does not derive, has no branch near the edge
+//! or is a tangency there refuses by the section's own verdict
+//! ([`ReplaceFaceError::EdgeSection`]), and an edge still scaffolded
+//! that the move tilts against a distinct neighbour refuses by name
+//! ([`ReplaceFaceError::DeclaredEdgeTilted`]).
 //! A fitted face routes as its fit: a row of its fit whose sides both
 //! move with it is extracted from the new fit, its other edges with a
 //! distinct surface are their sections (a plane's derived, any other
@@ -684,6 +686,18 @@ pub enum ReplaceFaceError<T: Real> {
         /// Which shape it is.
         what: &'static str,
     },
+    /// **An edge the axial door would carry along an open conic.** A cone
+    /// wall's section with a plane parallel to the axis that stands off
+    /// the moved apex is a hyperbola, minted as a rational-quadratic
+    /// NURBS arc (`geom_brep`'s C1) whose uniqueness tube has no cone
+    /// enclosure yet, so no body carrying it certifies. Refused at the
+    /// door's gate, before any corner is solved.
+    TogetherConicArc {
+        /// The edge.
+        edge: EdgeKey,
+        /// The conic.
+        conic: geom_brep::OpenConic,
+    },
     /// A torus the edge's section reads is not shown inside its ring
     /// convention `R > r > 0` (D3), in band or decided: the section arm
     /// refuses the shape before it reads any pose, in the half's own
@@ -928,6 +942,13 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::TogetherAxialEdge { what, .. } => write!(
                 f,
                 "an edge of the body cannot follow the offset: {what}. {NOT_YET_ENDING}"
+            ),
+            Self::TogetherConicArc { conic, .. } => write!(
+                f,
+                "an edge of the body would follow the offset along {}, where the moved flat \
+                 face cuts the cone off its axis, and that arc cannot yet be certified on a \
+                 cone. {NOT_YET_ENDING}",
+                conic.named()
             ),
             Self::DegenerateTorus { refusal, .. } => refusal.fmt(f),
             Self::Escalated { source } => write!(
@@ -3268,6 +3289,10 @@ fn derive_edge<'w, 's, T: Decide>(
     };
     let (carrier, refused) = match section {
         Ok(carrier) => (carrier, None),
+        // The moved pair meets in an arc no door certifies: a fact about
+        // the pose, not about where the corners land, so no corner solve
+        // could name it better.
+        Err(verdict @ SectionVerdict::OpenConic { .. }) => return Err(refused(verdict)),
         Err(verdict) => (old.clone(), Some(refused(verdict))),
     };
     // The plane×cone arm serves a line only as the pair through the apex,
@@ -4622,6 +4647,11 @@ fn pair_over_its_span<T: Decide>(
     };
     match geom_brep::plane_cone_section(&plane, &cone, &reach, band) {
         Ok(geom_brep::PlaneConeSection::ApexLinePair { .. }) => Ok(()),
+        Ok(geom_brep::PlaneConeSection::OpenConic(section)) => {
+            Err(refused(crate::offset_derive::SectionVerdict::OpenConic {
+                conic: section.conic(),
+            }))
+        }
         Ok(_) => Err(refused(crate::offset_derive::SectionVerdict::Unsupported {
             what: "the plane meets the cone in a line pair over the old edge but not over \
                    the new one",
@@ -5316,7 +5346,7 @@ mod read_ends_rows {
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod pair_over_its_span_rows {
     use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, OutsideConic, SurfacePair};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, OpenConic, SurfacePair};
     use geom_core::{Band, Point3, Tol, Vec3};
 
     use super::{EdgePlan, ReplaceFaceError, pair_over_its_span};
@@ -5391,11 +5421,14 @@ mod pair_over_its_span_rows {
                 (Ok(()), true) => {}
                 (
                     Err(ReplaceFaceError::EdgeSection {
-                        verdict: SectionVerdict::Closed(e),
+                        verdict:
+                            SectionVerdict::OpenConic {
+                                conic: OpenConic::Hyperbola,
+                            },
                         ..
                     }),
                     false,
-                ) if e.outside_conic() == Some(OutsideConic::Hyperbola) => {}
+                ) => {}
                 _ => panic!("{label}: kept {kept}, got {got:?}"),
             }
         }
@@ -5467,11 +5500,14 @@ mod pair_over_its_span_rows {
                 (Ok(()), true) => {}
                 (
                     Err(ReplaceFaceError::EdgeSection {
-                        verdict: SectionVerdict::Closed(e),
+                        verdict:
+                            SectionVerdict::OpenConic {
+                                conic: OpenConic::Hyperbola,
+                            },
                         ..
                     }),
                     false,
-                ) if e.outside_conic() == Some(OutsideConic::Hyperbola) => {}
+                ) => {}
                 _ => panic!("δ = {delta:e}: kept {kept}, got {got:?}"),
             }
         }
