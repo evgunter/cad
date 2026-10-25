@@ -833,3 +833,208 @@ fn a_line_touch_through_the_point_reads_as_its_line() {
         }
     }
 }
+
+// ---- Review R2 probes (PR 5704). Not for merge.
+
+/// The cube and parallelepipeds cornered at the origin, one solid, each
+/// corner sharing the cube's key there.
+fn cube_and_corners(parts: &[([f64; 3], [f64; 3], [f64; 3])]) -> Body<f64> {
+    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let here = |body: &Body<f64>, v: VertexKey| (at(body, v) - P::origin()).norm() < 1e-12;
+    let origin = body.vertices.keys().find(|&v| here(&body, v)).unwrap();
+    let keep = census_entity_solid(&body, EntityId::Vertex(origin)).unwrap();
+    for &(a, b, c) in parts {
+        let part = crate::test_support_fixtures::mapped_cube::<f64>(
+            move |u, v, w| {
+                let k = |i: usize| u * a[i] + v * b[i] + w * c[i];
+                P::new(k(0), k(1), k(2))
+            },
+            tol(),
+        );
+        let before: BTreeSet<VertexKey> = body.vertices.keys().collect();
+        let gone = crate::instance::graft_disjoint(&mut body, &part).unwrap();
+        for sh in body.solids.remove(gone).unwrap().shells {
+            body.shells[sh].solid = keep;
+            body.solids[keep].shells.push(sh);
+        }
+        body.solid_provenance.remove(gone);
+        let corner = body
+            .vertices
+            .keys()
+            .find(|v| !before.contains(v) && here(&body, *v))
+            .unwrap();
+        let (old, key) = (body.vertices[corner].point, body.vertices[origin].point);
+        body.vertices[corner].point = key;
+        body.points.remove(old);
+    }
+    body
+}
+
+/// Every unrecorded contact a finding names, as a record.
+fn record_all(errors: &[ValidationError]) -> ContactRecords {
+    use crate::Cell as C;
+    errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::UnrecordedContact { contact, .. } => {
+                let (x, y) = match contact {
+                    CensusContact::VertexVertex { a, b } => (C::Vertex(*a), C::Vertex(*b)),
+                    CensusContact::VertexOnFace { vertex, face } => {
+                        (C::Vertex(*vertex), C::Face(*face))
+                    }
+                    CensusContact::VertexOnEdge { vertex, edge } => {
+                        (C::Vertex(*vertex), C::Edge(*edge))
+                    }
+                    CensusContact::EdgeFaceOverlap { edge, face } => {
+                        (C::Edge(*edge), C::Face(*face))
+                    }
+                    CensusContact::EdgeEdgeOverlap { a, b } => (C::Edge(*a), C::Edge(*b)),
+                    _ => return None,
+                };
+                Some(crate::Cited::new(
+                    crate::Contact::of(x, y).unwrap(),
+                    crate::Cites::decided(0),
+                ))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+fn census_twice(body: &Body<f64>) -> (Vec<ValidationError>, Vec<ValidationError>) {
+    let first = census_and_certify(body, &ContactRecords::default(), band(), tol(), None);
+    let records = record_all(&first);
+    let second = census_and_certify(body, &records, band(), tol(), None);
+    (first, second)
+}
+
+/// **R2 probe: a line touch at the point hides a nested corner.** The
+/// cube, a parallelepiped cornered inside it at the origin (winding 2
+/// there, refused alone), and a second parallelepiped outside the cube
+/// whose edge from the origin lies in the cube's face `y = 0`.
+#[test]
+fn r2_a_line_touch_at_the_point_hides_a_nested_corner() {
+    let into = ([0.5, 0.1, 0.1], [0.1, 0.5, 0.1], [0.1, 0.1, 0.5]);
+    let lean = ([0.5, 0.0, 0.5], [0.0, -0.3, 0.4], [0.1, -0.5, 0.0]);
+    for (what, parts) in [
+        ("nested alone", vec![into]),
+        ("leaning alone", vec![lean]),
+        ("nested and leaning", vec![into, lean]),
+    ] {
+        let body = cube_and_corners(&parts);
+        let (first, second) = census_twice(&body);
+        eprintln!("R2 {what}: unrecorded census: {first:?}");
+        eprintln!("R2 {what}: recorded census: {second:?}");
+    }
+    let (_, second) = census_twice(&cube_and_corners(&[into, lean]));
+    assert!(
+        second
+            .iter()
+            .any(|e| matches!(e, ValidationError::BoundaryCrossesItself { .. })),
+        "R2: the nested corner passes once a line touch reaches the point: {second:?}"
+    );
+}
+
+/// **R2 probe: bare links.**
+#[test]
+fn r2_bare_links() {
+    let up = || square(0.5, 1.0);
+    // A disc in the plane x = y: through the rays to (0.5, 0.5, 1) and
+    // (-0.5, -0.5, 1), two opposite edges of the cone.
+    let diag = |flip: bool| {
+        let mut verts = vec![
+            P::new(-1.0, -1.0, -1.0),
+            P::new(1.0, 1.0, -1.0),
+            P::new(1.0, 1.0, 1.0),
+            P::new(-1.0, -1.0, 1.0),
+        ];
+        let mut m = Vec3::new(1.0, -1.0, 0.0).normalize();
+        if flip {
+            m = -m;
+            verts.reverse();
+        }
+        synthetic(
+            P::origin(),
+            At::Face,
+            verts,
+            &[(m, vec![vec![0, 1, 2, 3]])],
+            &[],
+            band(),
+        )
+        .unwrap()
+    };
+    for flip in [false, true] {
+        for inside in [false, true] {
+            let got = rest::one_material(&whole(vec![cone(&up(), inside), diag(flip)]), band());
+            eprintln!("R2 sheet through cut rays flip={flip} inside={inside}: {got:?}");
+            assert!(!got.is_rest(), "sheet through cut rays: {got:?}");
+        }
+    }
+    for t in [1e-2, 1e-4, 1e-6, 1e-8, 1e-10, 1e-12, 1e-14] {
+        let n = Vec3::new(0.0, -t, 1.0).normalize();
+        let verts = vec![
+            P::new(-2.0, -2.0, -2.0 * t),
+            P::new(2.0, -2.0, -2.0 * t),
+            P::new(2.0, 2.0, 2.0 * t),
+            P::new(-2.0, 2.0, 2.0 * t),
+        ];
+        let tilted = synthetic(
+            P::origin(),
+            At::Face,
+            verts,
+            &[(n, vec![vec![0, 1, 2, 3]])],
+            &[],
+            band(),
+        )
+        .unwrap();
+        let got = rest::one_material(&whole(vec![floor(true), tilted]), band());
+        eprintln!("R2 near-coplanar t={t}: {got:?}");
+        assert!(!got.is_rest(), "near-coplanar t={t}: {got:?}");
+    }
+    let side = [
+        [1.0, 0.3, 0.3],
+        [1.0, -0.3, 0.3],
+        [1.0, -0.3, -0.3],
+        [1.0, 0.3, -0.3],
+    ];
+    let got = rest::one_material(
+        &whole(vec![
+            cone(&square(0.3, 1.0), true),
+            cone(&square(0.3, -1.0), true),
+            cone(&side, true),
+        ]),
+        band(),
+    );
+    assert!(got.is_rest(), "triple pinch: {got:?}");
+    let got = rest::one_material(
+        &whole(vec![
+            cone(&square(1.0, 1.0), true),
+            cone(&square(0.3, 1.0), true),
+        ]),
+        band(),
+    );
+    assert_eq!(got, TouchVerdict::Crossing, "nested cones");
+    // A floor, material above (1); a pit in it (0); a needle in the pit
+    // (1); a pit in the needle (0): one material.
+    let got = rest::one_material(
+        &whole(vec![
+            floor(false),
+            cone(&square(1.0, 1.0), false),
+            cone(&square(0.5, 1.0), true),
+            cone(&square(0.2, 1.0), false),
+        ]),
+        band(),
+    );
+    assert!(got.is_rest(), "pit, needle, pit: {got:?}");
+    // The same with the innermost a needle (2 inside it).
+    let got = rest::one_material(
+        &whole(vec![
+            floor(false),
+            cone(&square(1.0, 1.0), false),
+            cone(&square(0.5, 1.0), true),
+            cone(&square(0.2, 1.0), true),
+        ]),
+        band(),
+    );
+    assert_eq!(got, TouchVerdict::Crossing, "pit, needle, needle");
+}
