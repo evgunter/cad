@@ -268,31 +268,34 @@ fn two_tori_on_a_bar() -> topo::Body<f64> {
         .into_body()
 }
 
-/// **Known: a shell's pad still depends on which quadrature face it
-/// stores first.** The torus at home and a small torus 900 m down one
-/// bar are one shell whose quadrature faces lie a kilometre apart: read
-/// about the first quadrature face's start, a rotation of the stored face
-/// list moves that point from one torus to the other, and the other's
-/// walls are read across the bar. Measured across the 12 rotations: pads
-/// 2.58× apart at 1e-9, 2.71× at 1e-12 and 90.2× at 1e-6, where about the
-/// world origin they do not move. Pinned as known, from a floor the fix
-/// clears to twice the measure, so the fix
-/// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`)
-/// turns this red on purpose: then assert the rotations within 2×. The
-/// cut far off and turned (`P ∖ T`, one shell, 10 rotations) moves too,
-/// within its quadrature faces' extent: 1.36×, 1.51× and 1.88×, each
-/// pinned with headroom.
+/// **A shell's pad reads alike whichever quadrature face it stores
+/// first.** The torus at home and a small torus 900 m down one bar are one
+/// shell with two quadrature regions, each torus's walls and the bar's
+/// end cap they cut, joined only through the bar's closed-form sides.
+/// Read about one point per shell, a rotation of the stored face list
+/// moved that point from one torus to the other and read the other's
+/// faces across the bar: pads 2.58× apart across the 12 rotations at 1e-9,
+/// 2.71× at 1e-12 and 90.2× at 1e-6, from 2.28e-5, 2.14e-8 and 4.14e-5 at
+/// best (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`).
+/// Each region read about its own point and carried to the shell's by its
+/// boundary's vector area (`topo::props`' `References`), the pads are
+/// 4.10e-6, 3.69e-9 – 3.74e-9 and 4.10e-6, within 1.02× across the
+/// rotations at every ε: pinned within 1.1×, and each below 1.1× its
+/// measure, so a carry that brought the width back would turn it red. The
+/// cut far off and turned (`P ∖ T`, one shell of one region, 10 rotations)
+/// moves within its quadrature faces' extent, as before: 1.36×, 1.51× and
+/// 1.88×, each pinned with headroom.
 #[test]
-fn a_shells_pad_moves_with_which_quadrature_face_it_stores_first_as_known() {
+fn a_shells_pad_reads_alike_whichever_quadrature_face_it_stores_first() {
     let tol = Tol::witness();
-    let ((floor, tori), turned) = match tol.eps() {
-        1e-6 => ((30.0, 90.2), 2.15),
-        1e-9 => ((2.0, 2.58), 1.6),
-        1e-12 => ((2.0, 2.71), 1.75),
+    let (pin, turned) = match tol.eps() {
+        1e-6 => (4.52e-6, 2.15),
+        1e-9 => (4.52e-6, 1.6),
+        1e-12 => (4.12e-9, 1.75),
         _ => {
             test_utils::vacuity::stood_down(
                 "non-matrix eps",
-                "the ratios are measured at the matrix rows",
+                "the pads are measured at the matrix rows",
             );
             return;
         }
@@ -301,10 +304,12 @@ fn a_shells_pad_moves_with_which_quadrature_face_it_stores_first_as_known() {
         pads.iter().copied().fold(0.0, f64::max)
             / pads.iter().copied().fold(f64::INFINITY, f64::min)
     };
-    let got = ratio(&pads_over_rotations(&two_tori_on_a_bar()));
+    let pads = pads_over_rotations(&two_tori_on_a_bar());
+    let widest = pads.iter().copied().fold(0.0, f64::max);
     assert!(
-        (floor..2.0 * tori).contains(&got),
-        "two tori a kilometre apart: pads {got} apart across rotations, known at {tori}"
+        ratio(&pads) <= 1.1 && widest <= pin,
+        "two tori a kilometre apart: pads {pads:?}, {}× apart, past {pin}",
+        ratio(&pads)
     );
     let (t, p) = posed(100.0);
     let cut = topo::subtract(&p, &t, tol)
@@ -319,6 +324,146 @@ fn a_shells_pad_moves_with_which_quadrature_face_it_stores_first_as_known() {
         got <= turned,
         "the cut far off and turned: pads {got} apart across rotations, past {turned}"
     );
+}
+
+/// The two tori on a bar's one shell, its two quadrature regions, and the
+/// far one's carry.
+fn far_region(body: &topo::Body<f64>) -> (Vec<topo::FaceKey>, geom_core::Interval) {
+    let regions = topo::test_support::region_carries_of(body);
+    let [(_, regions)] = &regions[..] else {
+        panic!("the two tori on a bar are one shell: {regions:?}");
+    };
+    let [(_, None), (far, Some((_, carry)))] = &regions[..] else {
+        panic!("one shell of two regions, the second carried: {regions:?}");
+    };
+    (far.clone(), *carry)
+}
+
+/// **A region's carry moves the volume by what it says, with its sign.**
+/// The far torus's region is read about its own point and carried to the
+/// shell's by `(c_g − c)·A⃗(∂g)`, `∂g` the far end cap's square: about
+/// `−900.6 × −144 ≈ 1.3e5`, the bar's whole volume three times over. Read
+/// with every face about the shell's one point instead
+/// (`mass_properties_one_point`), the same body's volume agrees within the
+/// two readings' pads, so a carry of the wrong sign, which would move the
+/// volume by two thirds of it, cannot hold.
+#[test]
+fn a_regions_carry_moves_the_volume_by_what_it_says_with_its_sign() {
+    use geom_core::Bounds as _;
+    let tol = Tol::witness();
+    let body = two_tori_on_a_bar();
+    let (_, carry) = far_region(&body);
+    let carried = topo::mass_properties(&finished("the tori", body.clone(), tol), tol).unwrap();
+    let one = topo::test_support::mass_properties_one_point(&body, tol).unwrap();
+    let slack = carried.volume_pad + one.volume_pad;
+    assert!(
+        (carried.volume - one.volume).abs() <= slack,
+        "carried {} ± {} against one point's {} ± {}",
+        carried.volume,
+        carried.volume_pad,
+        one.volume,
+        one.volume_pad
+    );
+    let moved = 2.0 * carry.lo().abs().min(carry.hi().abs()) / 3.0;
+    assert!(
+        moved > 1e6 * slack,
+        "a carry of the wrong sign moves the volume by {moved}, against {slack} of pads"
+    );
+}
+
+/// **Every door reads a carried region about its own point.** Each walk a
+/// door enters on the two tori on a bar — the reporting walk, the target
+/// walk and its continuation, the sign walk refined past the target and
+/// its interval re-derivation, each shell's role walk
+/// (`topo::test_support::every_door`), and the doors themselves
+/// (`mass_properties`, the raw measurement door, tier 3) — reads every
+/// face of the far region about the region's point and every other face
+/// about the shell's, and their enclosures overlap.
+#[test]
+fn every_door_reads_a_carried_region_about_its_own_point() {
+    let tol = Tol::witness();
+    let body = two_tori_on_a_bar();
+    let (far, _) = far_region(&body);
+    let at_rest = finished("the tori", body.clone(), tol);
+    let check = |door: &str, reads: &[(topo::FaceKey, bool)]| {
+        assert!(!reads.is_empty(), "{door} read no face");
+        for &(face, regional) in reads {
+            assert_eq!(
+                regional,
+                far.contains(&face),
+                "{door}: {face:?} read about the wrong point"
+            );
+        }
+        for face in &far {
+            assert!(
+                reads.iter().any(|(f, _)| f == face),
+                "{door} never read the far region's {face:?}"
+            );
+        }
+    };
+    let (_, reads) = topo::test_support::read_points::recorded(&at_rest, || {
+        topo::mass_properties(&at_rest, tol).unwrap()
+    });
+    check("mass_properties", &reads);
+    let (_, reads) = topo::test_support::read_points::recorded(&body, || {
+        topo::test_support::measure_unvalidated(&body, tol).unwrap()
+    });
+    check("the raw measurement door", &reads);
+    let (_, reads) = topo::test_support::read_points::recorded(&body, || {
+        topo::validate_geometric(&body, tol).unwrap()
+    });
+    check("tier 3", &reads);
+    let (doors, reads) = topo::test_support::read_points::recorded(&body, || {
+        topo::test_support::every_door(&body, tol).unwrap()
+    });
+    check("every walk", &reads);
+    let spans: Vec<(&str, (f64, f64))> = doors
+        .into_iter()
+        .filter_map(|(door, span)| span.map(|s| (door, s)))
+        .collect();
+    for (a, (alo, ahi)) in &spans {
+        for (b, (blo, bhi)) in &spans {
+            assert!(
+                alo <= bhi && blo <= ahi,
+                "{a} [{alo}, {ahi}] and {b} [{blo}, {bhi}] do not overlap"
+            );
+        }
+    }
+}
+
+/// **A shell of one quadrature region reads as about one point, bit for
+/// bit**: its region's point is the shell's, so it carries nothing. Each op
+/// on the torus and the half-space far off and turned, and their union at
+/// home, measures to the bits the one-point reading gives.
+#[test]
+fn a_shell_of_one_quadrature_region_reads_as_about_one_point_bit_for_bit() {
+    let tol = Tol::witness();
+    let home = topo::union(
+        &torus(2.0, 0.5),
+        &half(Point3::new(0.3, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0)).body,
+        tol,
+    )
+    .unwrap()
+    .body()
+    .unwrap()
+    .body
+    .clone();
+    for (label, body) in built(100.0).into_iter().chain([("T ∪ P at home", home)]) {
+        for (_, regions) in topo::test_support::region_carries_of(&body) {
+            assert!(
+                regions.len() <= 1,
+                "{label}: a shell of {} regions",
+                regions.len()
+            );
+        }
+        let carried = topo::mass_properties(&body, tol).unwrap();
+        let one = topo::test_support::mass_properties_one_point(&body, tol).unwrap();
+        assert_eq!(
+            [carried.volume, carried.volume_pad].map(f64::to_bits),
+            [one.volume, one.volume_pad].map(f64::to_bits),
+            "{label}"
+        );
+    }
 }
 
 /// **The reference is the first face the dispatch sends to the

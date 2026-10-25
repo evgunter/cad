@@ -2932,6 +2932,97 @@ mod fold_order_rows {
 }
 
 #[cfg(test)]
+mod region_carry_tests {
+    #![allow(clippy::expect_used)]
+
+    use super::*;
+    use geom_core::Bounds as _;
+    use geom_core::interval::certification::Certification as _;
+
+    fn iv(p: Point3<f64>) -> Point3<Interval> {
+        Point3::new(
+            Interval::from_f64(p.x),
+            Interval::from_f64(p.y),
+            Interval::from_f64(p.z),
+        )
+    }
+
+    /// The unit square in `z = 0`, counter-clockwise seen from `+z`, or
+    /// clockwise: its vector area is `±ẑ`.
+    fn square(counter: bool) -> Vec<LoopEdge<Interval>> {
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let corners = [p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)];
+        (0..4u32)
+            .map(|i| {
+                let (a, b) = (corners[i as usize], corners[((i + 1) % 4) as usize]);
+                LoopEdge::hand_built(
+                    geom::Curve3::Line {
+                        origin: iv(a),
+                        dir: iv(Point3::origin() + (b - a)) - Point3::origin(),
+                    },
+                    Interval::from_f64(0.0),
+                    Interval::from_f64(1.0),
+                    counter,
+                    i,
+                    (i + 1) % 4,
+                )
+            })
+            .collect()
+    }
+
+    /// **The carry is `(c_g − c)·A⃗(∂g)`, with its sign**: a region bounded
+    /// by the unit square, read about a corner of it and carried to a point
+    /// 5 below, carries `5`; the same square traversed the other way, the
+    /// boundary of the region on its other side, carries `−5`. Each is
+    /// exact but for rounding.
+    #[test]
+    fn a_squares_carry_is_its_lever_along_its_vector_area_with_its_sign() {
+        let c_g = iv(Point3::new(0.0, 0.0, 0.0));
+        let c = iv(Point3::new(0.3, -0.2, -5.0));
+        for (counter, truth) in [(true, 5.0), (false, -5.0)] {
+            let carry = carry_of(&square(counter), c_g, c).expect("a square's carry reads");
+            assert!(
+                carry.lo() <= truth && truth <= carry.hi() && carry.width() < 1e-14,
+                "counter-clockwise {counter}: {carry:?} must hold {truth}"
+            );
+        }
+    }
+
+    /// **A boundary whose vector area does not read is not carried**: a
+    /// spiric arc on it (a cone's, say, whose own closed form refuses it
+    /// too) leaves the region uncarried, so its faces are read about the
+    /// shell's point, as before regions.
+    #[test]
+    fn a_boundary_whose_vector_area_does_not_read_carries_nothing() {
+        let mut edges = square(true);
+        edges.push(LoopEdge::hand_built(
+            geom::Curve3::Spiric {
+                center: iv(Point3::origin()),
+                axis: iv(Point3::new(0.0, 0.0, 1.0)) - Point3::origin(),
+                u_ref: iv(Point3::new(1.0, 0.0, 0.0)) - Point3::origin(),
+                major_radius: Interval::from_f64(2.0),
+                minor_radius: Interval::from_f64(1.0),
+                offset: Interval::from_f64(0.5),
+            },
+            Interval::from_f64(-0.5),
+            Interval::from_f64(0.5),
+            true,
+            4,
+            5,
+        ));
+        assert!(
+            carry_of(
+                &edges,
+                iv(Point3::origin()),
+                iv(Point3::new(0.0, 0.0, -5.0))
+            )
+            .is_none(),
+            "a spiric on the boundary leaves the region uncarried"
+        );
+    }
+}
+
+#[cfg(test)]
 mod continuation_refusal_order_tests {
     #![allow(clippy::expect_used, clippy::panic)]
 
@@ -3214,6 +3305,130 @@ pub fn face_flux_terms(
         .map(|&face| {
             let run = face_flux(body, face, band, &hook, tol, RoundWindow::SCHEDULE, &refs)?;
             Ok((face, run.contribution.flux, run.contribution.area))
+        })
+        .collect()
+}
+
+/// [`mass_properties`]' reporting walk with every face read about its
+/// shell's reference and no region carried ([`References`]): the one
+/// point per shell the walk read before regions. Test vocabulary: the
+/// rows that weigh a region's carry against that reading.
+///
+/// # Errors
+///
+/// As [`mass_properties`].
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn mass_properties_one_point(
+    body: &Body<f64>,
+    tol: Tol,
+) -> Result<MassProperties<f64>, MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let hook = reporting_hook(Some(QuadLane::certified()));
+    let refs = References::of(body, faces.iter().copied(), band, None);
+    let runs = decide_faces(&faces, |&face| {
+        face_flux(body, face, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
+    })?;
+    let (props, refused) = fold_runs(&runs);
+    match refused {
+        Some((face, source)) => Err(MassPropsError::Face { face, source }),
+        None => Ok(props),
+    }
+}
+
+/// **Every walk a door enters, on `body`**, each through the certified
+/// lane over the whole face arena, with what it reads: the reporting
+/// walk ([`mass_properties`]'s), the target walk and its continuation
+/// ([`SignCertificate::refine_to_target`]), the sign walk taken past the
+/// target ([`PastTarget::refine`]) with its interval re-derivation
+/// ([`PastTarget::interval_volume`]), and each shell's role walk
+/// ([`shell_volume_role`]: its target-level read and its role walk).
+/// Each named door's volume enclosure, `(lo, hi)`, or `None` for a read
+/// that answers a role. Test vocabulary: with [`read_points`], the rows
+/// that pin every door to one point per region.
+///
+/// # Errors
+///
+/// A walk's refusal, as [`mass_properties`] reports it.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[allow(clippy::type_complexity)]
+pub fn every_door(
+    body: &Body<f64>,
+    tol: Tol,
+) -> Result<Vec<(&'static str, Option<(f64, f64)>)>, MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let lane = Some(QuadLane::certified());
+    let span = |p: &MassProperties<f64>| {
+        let e = p.enclosure();
+        Some((e.volume_lo, e.volume_hi))
+    };
+    let mut out = Vec::new();
+    let reported = mass_properties_with(body, band, tol, lane)?;
+    out.push(("the reporting walk", span(&reported)));
+    let (_, certificate) = target_walk(body, &faces, band, tol, lane)?;
+    out.push((
+        "the target walk's continuation",
+        span(&certificate.refine_to_target()?),
+    ));
+    let (_, certificate) = sign_walk(body, &faces, band, tol, lane, lane, |_| None, |_| ())?;
+    let mut past = certificate.past_target();
+    while past.refine() {}
+    out.push(("the sign walk refined past the target", span(&past.props())));
+    let interval = past
+        .interval_volume()
+        .ok_or(MassPropsError::Corrupt {
+            what: "a certified walk holds a lane",
+        })??
+        .0;
+    out.push((
+        "its interval re-derivation",
+        Some((
+            geom_core::Bounds::lo(interval),
+            geom_core::Bounds::hi(interval),
+        )),
+    ));
+    for (shell, _) in body.shells.iter() {
+        let _ = shell_volume_role(body, shell, band, tol, lane);
+        out.push(("a shell's role walk", None));
+    }
+    Ok(out)
+}
+
+/// Every shell's quadrature regions ([`quadrature_regions`]), in arena
+/// order, with each carried region's point and carry
+/// ([`References`]; `None` for the first region, which is not carried,
+/// and for one that is not carried at all). Test vocabulary.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[must_use]
+#[allow(clippy::type_complexity)]
+pub fn region_carries_of(
+    body: &Body<f64>,
+) -> Vec<(
+    ShellKey,
+    Vec<(Vec<FaceKey>, Option<(Point3<f64>, Interval)>)>,
+)> {
+    let held: std::collections::BTreeSet<FaceKey> =
+        crate::query::all_faces(body).into_iter().collect();
+    body.shells
+        .iter()
+        .map(|(shell, _)| {
+            let c = shell_reference(body, shell);
+            let carried = region_carries(body, shell, c, &held, QuadLane::certified());
+            let regions = quadrature_regions(body, shell)
+                .into_iter()
+                .map(|faces| {
+                    let carry = carried
+                        .iter()
+                        .find(|r| r.faces == faces)
+                        .map(|r| (r.point, r.carry));
+                    (faces, carry)
+                })
+                .collect();
+            (shell, regions)
         })
         .collect()
 }
@@ -3764,7 +3979,11 @@ impl<T: Decide> References<T> {
         let mut regions = std::collections::BTreeMap::new();
         let mut carries = std::collections::BTreeMap::new();
         for &key in &held {
-            let shell = resolve_face(body, key).0.shell;
+            // A face that does not resolve is one the caller never reads:
+            // reading it is what refuses it, at [`References::at`].
+            let Some(shell) = body.get_face(key).map(|face| face.shell) else {
+                continue;
+            };
             if shells.contains_key(&shell) {
                 continue;
             }
@@ -3851,14 +4070,9 @@ fn region_carries<T: Decide>(
             })
             .collect();
         let point = face_start(body, faces[0]);
-        let at = lift(point);
-        let Ok(va) = geom_brep::props::loop_vector_area(&edges, at) else {
+        let Some(carry) = carry_of(&edges, lift(point), lift(c)) else {
             continue;
         };
-        let carry = (at - lift(c)).dot(va);
-        if !carry.is_certified() {
-            continue;
-        }
         out.push(RegionCarry {
             faces,
             point,
@@ -3866,6 +4080,20 @@ fn region_carries<T: Decide>(
         });
     }
     out
+}
+
+/// **A region's carry** `(c_g − c)·A⃗(∂g)` over its lifted boundary
+/// `edges`, its vector area read about `c_g` ([`References`]); `None`
+/// where the boundary's vector area does not read or the carry does not
+/// certify, so the region is read about `c`.
+fn carry_of(
+    edges: &[LoopEdge<Interval>],
+    c_g: Point3<Interval>,
+    c: Point3<Interval>,
+) -> Option<Interval> {
+    let va = geom_brep::props::loop_vector_area(edges, c_g).ok()?;
+    let carry = (c_g - c).dot(va);
+    carry.is_certified().then_some(carry)
 }
 
 /// A region's boundary `∂g`: the loop edges of its faces whose half-edge's
@@ -4244,6 +4472,63 @@ fn trims<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     }
 }
 
+/// **Which point each face read was taken about**, as a test reads it:
+/// [`face_flux`] notes every face it reads, the body it reads it on, and
+/// whether it read it about its carried region's point ([`References`]),
+/// while a [`read_points::recorded`] call is open; the recording keeps the
+/// reads of the body it names, so it sees its own door's reads and no
+/// other test's. Test vocabulary: the rows that pin every door to one
+/// point per region.
+#[cfg(any(test, feature = "test-support"))]
+pub mod read_points {
+    use crate::entity::FaceKey;
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static OPEN: AtomicUsize = AtomicUsize::new(0);
+    static READS: Mutex<Vec<(usize, FaceKey, bool)>> = Mutex::new(Vec::new());
+    static GATE: Mutex<()> = Mutex::new(());
+
+    pub(super) fn note<T: geom_core::Real>(body: &crate::Body<T>, face: FaceKey, regional: bool) {
+        if OPEN.load(Ordering::Acquire) > 0 {
+            READS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push((core::ptr::from_ref(body).addr(), face, regional));
+        }
+    }
+
+    /// `door` run with every face read it made of `body`: the face and
+    /// whether it was read about its carried region's point, in the order
+    /// the reads were noted.
+    pub fn recorded<T: geom_core::Real, R>(
+        body: &crate::Body<T>,
+        door: impl FnOnce() -> R,
+    ) -> (R, Vec<(FaceKey, bool)>) {
+        let _gate = GATE
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        READS
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
+        OPEN.fetch_add(1, Ordering::AcqRel);
+        let out = door();
+        OPEN.fetch_sub(1, Ordering::AcqRel);
+        let at = core::ptr::from_ref(body).addr();
+        let reads = core::mem::take(
+            &mut *READS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        )
+        .into_iter()
+        .filter(|&(on, _, _)| on == at)
+        .map(|(_, face, regional)| (face, regional))
+        .collect();
+        (out, reads)
+    }
+}
+
 /// The per-face body of the flux walk (module docs), about the face's
 /// shell's reference, as `refs` holds it.
 fn face_flux<T: Decide>(
@@ -4258,6 +4543,8 @@ fn face_flux<T: Decide>(
     let about = refs.at(body, face_key)?;
     let mut run = face_flux_about(body, face_key, band, quad, tol, window, about)?;
     run.regional = refs.regional(face_key);
+    #[cfg(any(test, feature = "test-support"))]
+    read_points::note(body, face_key, run.regional);
     Ok(match refs.carry(face_key) {
         Some(carry) => run.carried(carry),
         None => run,
