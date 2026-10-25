@@ -707,6 +707,8 @@ mod review_s6_probe;
 mod review_verbs_rim_lever_probes;
 #[path = "revolve_axis_gaps.rs"]
 mod revolve_axis_gaps;
+#[path = "revolve_axis_gaps_review_probes.rs"]
+mod revolve_axis_gaps_review_probes;
 #[path = "revolve_ball.rs"]
 mod revolve_ball;
 #[path = "revolve_cone.rs"]
