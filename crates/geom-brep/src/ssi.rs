@@ -280,6 +280,9 @@ impl PointLever {
 /// decision reads its arm here: the march's states, the Hermite's ends,
 /// refinement's chord midpoint ([`march::decide_transversality`]) and
 /// the at-rest plane × NURBS check ([`crate::plane_nurbs_limbs`]).
+/// It is not [`crate::folded_lever_arm`], whose arms are each carrier
+/// kind's own length scale and poison on a NURBS carrier; the two agree
+/// where that scale is `1/κ`, on a plane, a sphere or a cylinder.
 pub(crate) fn point_arm<T: Real>(kappa: T, extent: T) -> (T, T) {
     let reach = kappa * extent;
     (extent / T::one().max(reach), reach)
@@ -3236,6 +3239,67 @@ mod ending_tests {
             .to_string();
             assert!(shown.contains(words), "{lever:?}: {shown}");
         }
+    }
+
+    /// **The point arm and the folded arm agree where both read `1/κ`.**
+    /// On a plane, a sphere or a cylinder the carrier's own length scale
+    /// is its curvature radius, so `E / max(1, κE)` and the fold
+    /// `min(r, E)` are one number to rounding: flat (`κ = 0`), on either
+    /// side of `κE = 1` and at it, and at a collapsed radius (`κ = ∞`).
+    /// Poison in either input stays poison in both. A NURBS carrier is
+    /// where they part: the fold has no length scale to read there.
+    #[test]
+    fn the_point_arm_agrees_with_the_folded_arm_where_both_read_the_radius() {
+        use crate::ssi::point_arm;
+        use geom::Surface;
+        use geom_core::{Point3, Vec3};
+        let o = Point3::origin();
+        let plane = Surface::Plane {
+            origin: o,
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let sphere = |radius| Surface::Sphere {
+            center: o,
+            radius,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let cylinder = |radius| Surface::Cylinder {
+            origin: o,
+            axis: Vec3::unit_z(),
+            radius,
+            u_ref: Vec3::unit_x(),
+        };
+        let e = 0.3;
+        let mut rows = vec![("plane", plane.clone(), 0.0)];
+        for r in [0.0, 0.1, e * (1.0 - 1e-15), e, e * (1.0 + 1e-15), 2.0] {
+            rows.push(("sphere", sphere(r), 1.0 / r));
+            rows.push(("cylinder", cylinder(r), 1.0 / r));
+        }
+        for (kind, s, kappa) in rows {
+            let (point, _) = point_arm(kappa, e);
+            let folded = crate::folded_lever_arm(&s, &plane, o, e);
+            assert!(
+                (point - folded).abs() <= 4.0 * f64::EPSILON * folded,
+                "{kind}, κ = {kappa:e}: point arm {point:e}, folded arm {folded:e}"
+            );
+        }
+        let (poison_kappa, _) = point_arm(f64::NAN, e);
+        let (poison_extent, _) = point_arm(1.0, f64::NAN);
+        assert!(
+            poison_kappa.is_nan(),
+            "point arm, κ poison: {poison_kappa:e}"
+        );
+        assert!(
+            poison_extent.is_nan(),
+            "point arm, E poison: {poison_extent:e}"
+        );
+        let folded = crate::folded_lever_arm(&sphere(0.1), &plane, o, f64::NAN);
+        assert!(folded.is_nan(), "folded arm, E poison: {folded:e}");
+        let nurbs = Surface::nurbs_placeholder();
+        let folded = crate::folded_lever_arm(&nurbs, &plane, o, e);
+        assert!(folded.is_nan(), "folded arm on a NURBS carrier: {folded:e}");
     }
 
     /// The transversality decision's one lever, read at every door.
