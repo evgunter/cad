@@ -1483,7 +1483,7 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, at: impl Into<ReadAt>) ->
         (Ending::Residual(residual), ReadAt::File(file)) => residual.residual_in_file(arm, file),
         (Ending::Unsized(no_size) | Ending::Residual(no_size), at) => no_size.recourse(arm, at),
         (Ending::Undefined(recourse), _) => geom_core::lever_recourse(recourse, None),
-        (Ending::NotYet, at) => crate::recourse::not_yet(arm, at.reading()),
+        (Ending::NotYet, at) => crate::recourse::not_yet(arm, at),
     }
 }
 
@@ -8462,13 +8462,15 @@ mod tests {
         NoSize(Unsized),
         Miss(Unsized),
         Undefined,
+        /// A lane choice's lever-only "not yet" ([`Ending::NotYet`]).
+        NotYet,
     }
 
     /// **Every decision's class, written out by hand** in taxonomy
     /// order: the one place a check's refused side is spelled for the
     /// tests, so they read it here rather than restate it.
     fn class_table() -> Vec<(CertCheck, Class)> {
-        use Class::{Miss, NoSize, Undefined};
+        use Class::{Miss, NoSize, NotYet, Undefined};
         use RefusedSide::{Lever, StoredContradiction, Unminted};
         use SizedPass::{NonNegative, Positive};
         vec![
@@ -8543,7 +8545,7 @@ mod tests {
     /// decision `ending()` misfiles fails here.
     #[test]
     fn each_decision_is_classified_as_the_table_says() {
-        use Class::{Miss, NoSize, Undefined};
+        use Class::{Miss, NoSize, NotYet, Undefined};
         let table = class_table();
         assert_eq!(table.len(), all_checks().len());
         for check in all_checks() {

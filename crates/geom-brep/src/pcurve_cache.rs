@@ -10461,6 +10461,9 @@ mod tests {
             | PcurveCheck::Envelope
             | PcurveCheck::EnvelopeTerm(_)
             | PcurveCheck::ChartWinding
+            | PcurveCheck::ChartClass
+            | PcurveCheck::GeneralLane
+            | PcurveCheck::ImageIdentity
             | PcurveCheck::ChartIncidence
             | PcurveCheck::Sector => None,
         };
@@ -10488,8 +10491,8 @@ mod tests {
             }};
         }
         let checks = every_check!(
-            ParamSpan, MapResidual, Envelope, ChartWinding, AzimuthPeriod, TubePeriod,
-            ChartIncidence, Sector;
+            ParamSpan, MapResidual, Envelope, ChartWinding, ChartClass, GeneralLane,
+            ImageIdentity, AzimuthPeriod, TubePeriod, ChartIncidence, Sector;
             Frame, Centre, Radius, Line, Drift, FidelityU, FidelityV, Incidence, Fidelity
         );
         for check in checks {
@@ -10502,7 +10505,7 @@ mod tests {
                     );
                     Some(decision.side)
                 }
-                Routing::Unsized(_) => None,
+                Routing::Unsized(_) | Routing::NotYet => None,
             };
             assert_eq!(side, want(check), "{check:?}");
         }
