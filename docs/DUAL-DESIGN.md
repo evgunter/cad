@@ -105,8 +105,14 @@ door mints and never checks) runs
 at scalars with certification rights (f64's decide-with-escalation
 lane and `Interval`), and is
 structurally absent at `Dual` — absent by type, not by a runtime value:
-a dual's edges carry the `f64` anchor's certificate as a type the scalar
-names, and nothing a dual instantiates is bounded on a certifying trait. This
+nothing a dual instantiates is bounded on a certifying trait. The dual is
+a transient scalar of the build, never a stored object. The build computes
+values as forward mode must, and each node first finds its anchor in the
+certified `f64` evaluation by content key, refusing typed where there is
+none. What it stores is a map from the anchor's stored coordinates to their
+tangents; each value it discards is checked bit for bit against the
+anchor's. Values live in the anchor alone, and the anchor is the dual's
+certificate. This
 is sound because the sensitivity is OF THE AS-BUILT BODY: the
 dual's value channel is bit-identical to the f64 build (D9), which
 was already validated in the f64 evaluation E4 rides beside;
