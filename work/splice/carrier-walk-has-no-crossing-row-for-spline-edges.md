@@ -7,6 +7,7 @@ opened: 2026-10-03
 priority: P1
 cost: M
 branch: splice/carrier-walk-spline
+pr: 5719
 closed: 2026-10-25
 ---
 
