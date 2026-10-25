@@ -4,7 +4,7 @@ kind: issue
 title: Tier 3′ cannot read the side of an edge with a curved face lying in a face of its own solid, and refuses it undecided
 status: open
 opened: 2026-10-20
-priority: P2
+priority: P1
 cost: M
 ---
 
