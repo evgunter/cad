@@ -883,6 +883,30 @@ fn one_solid<T: Decide>(body: &Body<T>) -> Result<std::borrow::Cow<'_, Body<T>>,
     Ok(std::borrow::Cow::Owned(flat))
 }
 
+/// The seam edges surviving a boolean's zips, each once, in the order
+/// first reported: an edge two zips each glue one of its half-edges
+/// along is one edge of the result.
+#[derive(Default)]
+struct SeamEdges {
+    listed: Vec<EdgeKey>,
+    held: BTreeSet<EdgeKey>,
+}
+
+impl SeamEdges {
+    fn extend(&mut self, edges: impl IntoIterator<Item = EdgeKey>) {
+        for e in edges {
+            if self.held.insert(e) {
+                self.listed.push(e);
+            }
+        }
+    }
+
+    fn retain(&mut self, keep: impl Fn(&EdgeKey) -> bool) {
+        self.listed.retain(&keep);
+        self.held.retain(keep);
+    }
+}
+
 /// The pipeline behind the front door, parameterized on whether the
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
@@ -930,7 +954,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     // scope by dropping it.
     let mut finished = fin.body;
     let mut body = finished.begin_surgery();
-    let mut seam_edges = Vec::new();
+    let mut seam_edges = SeamEdges::default();
     // Each operand's face divisions: the join's chord-mef rows.
     let fragments = [connected.a_fragments.clone(), connected.b_fragments.clone()];
     let mut desc = Descendants::default()
@@ -953,13 +977,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
             } => zip_split(&mut body, (a_faces, b_faces), edges, tol)?,
         };
         desc.absorb_zip(&rep)?;
-        // An edge two zips each glue one of its half-edges along
-        // survives once: the record lists it once.
-        for e in rep.seam_edges {
-            if !seam_edges.contains(&e) {
-                seam_edges.push(e);
-            }
-        }
+        seam_edges.extend(rep.seam_edges);
         vertex_map = fused_through(&vertex_map, &rep.vertex_merges);
     }
     super::zip::share_points(&mut body, &points)?;
@@ -996,7 +1014,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         &mut body,
         &mut desc,
         &declared_pairs,
-        &seam_edges,
+        &seam_edges.listed,
         &recorded,
         band,
         tol,
@@ -1025,11 +1043,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
             .map_err(|source| BooleanError::Pcurves { source })?;
     }
     // Each parted edge now bounds a face of each operand, as a seam does.
-    for e in parted.iter().flat_map(|p| [p.kept, p.minted]) {
-        if !seam_edges.contains(&e) {
-            seam_edges.push(e);
-        }
-    }
+    seam_edges.extend(parted.iter().flat_map(|p| [p.kept, p.minted]));
     body.sweep_and_close();
     let body = gate(finished, band, tol)?;
     interior_loops?;
@@ -1051,7 +1065,7 @@ pub(super) fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         graft_edges,
         graft_dead_edges,
         graft_faces,
-        seam_edges,
+        seam_edges: seam_edges.listed,
         vertex_merges,
         merge_groups: merge_rows(&merged, &output)?,
         substitutions: output.clone(),

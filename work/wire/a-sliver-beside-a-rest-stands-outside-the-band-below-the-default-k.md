@@ -1,8 +1,10 @@
 ---
 id: a-sliver-beside-a-rest-stands-outside-the-band-below-the-default-k
 kind: issue
-title: The corpus's sliver beside a rest stands 2ε off, outside the band at K = 1.5, so the_corpus_reaches_its_classes reds below the default K
+title: The corpus's sliver beside a rest stands 2ε off, outside the band at K = 1.5, so the_corpus_reaches_its_classes reds at every K ≤ 2
 status: open
+priority: P3
+cost: E
 opened: 2026-10-21
 ---
 
@@ -24,7 +26,7 @@ past it, so the union is decided and builds:
 
 That is the correct behaviour: a gap outside the band is decided. The
 fixture is sized for the default K only, so the class test goes red
-for every K below 2 that `Tolerance` accepts. The rest of the selection
+for every K ≤ 2 that `Tolerance` accepts (the band is open at Kε). The rest of the selection
 (`name_invariance::an_operand_order_moves_no_name`, the bridge rows in
 `union_pinch_member_order`) is green at K = 1.5 and at
 `CAD_TOLERANCE_EPS=1e-6`.
