@@ -963,6 +963,9 @@ impl PartTool {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateTool {
     seats: Seats,
+    /// The drawn copy the pick landed on, when it landed on one: the
+    /// copy the duplicate is placed beside.
+    beside: Option<RecipeNodeId>,
 }
 
 impl Default for DuplicateTool {
@@ -976,6 +979,7 @@ impl DuplicateTool {
     pub const fn new() -> Self {
         Self {
             seats: Seats::one(Seat::DuplicateBody),
+            beside: None,
         }
     }
 
@@ -994,12 +998,20 @@ impl DuplicateTool {
     /// tool having only the one seat. `doc` routes it, and does not
     /// judge it.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
-        self.seats.pick(doc, node);
+        self.pick_at(doc, node, None);
     }
 
-    /// [`Self::pick`] of the output `body` a viewport pick hit.
+    /// [`Self::pick`] of the output `body` a viewport pick hit. A pick
+    /// on a drawn copy also holds that copy, which the duplicate is
+    /// placed beside.
     pub fn pick_at(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId, body: Option<u32>) {
         self.seats.pick_at(doc, node, body);
+        self.beside = crate::world::placed_var(doc, node).map(|_| node);
+    }
+
+    /// The drawn copy the held pick landed on, if it landed on one.
+    pub fn beside(&self) -> Option<RecipeNodeId> {
+        self.beside
     }
 
     /// The half seat `i` reads, when it holds a split picked alone
@@ -1011,11 +1023,21 @@ impl DuplicateTool {
     /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
+        self.beside = None;
     }
 
-    /// The survival step ([`crate::seats`]).
+    /// The survival step ([`crate::seats`]). The held copy survives
+    /// while it is still a drawn copy of the held body; otherwise the
+    /// duplicate is placed as a pick of the body places it
+    /// ([`SessionOp::Duplicate`]).
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
-        self.seats.reconcile(doc)
+        let events = self.seats.reconcile(doc);
+        let held = self.seats.read(0);
+        self.beside = self.beside.filter(|copy| {
+            held.as_ref()
+                .is_some_and(|read| crate::world::placements_of_read(doc, read).contains(copy))
+        });
+        events
     }
 
     /// The held picks spoken again from `doc` ([`Seats::respeak`]).
@@ -1031,12 +1053,15 @@ impl DuplicateTool {
     pub fn op(&self) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::Duplicate {
             input: self.seats.require_read(0)?,
+            beside: self.beside,
         })
     }
 }
 
-/// **Which way a stepped copy goes by default**: world +x,
-/// unnormalized as every direction slot in this vocabulary is.
+/// **Which way a stepped copy goes by default**: +x of the space the
+/// body is in, unnormalized as every direction slot in this vocabulary
+/// is. A duplicate is placed at its original copy's pose, so it lands
+/// along that copy's own +x.
 ///
 /// ONE home for the two gestures that step a copy along a line: the
 /// duplicate tool commits it, and the pattern form's direction field
@@ -1133,6 +1158,14 @@ pub enum DuplicateFault {
         /// The node picked, as the landed document held it.
         input: SpokenNode,
     },
+    /// The copy the duplicate is to stand beside is not a drawn copy
+    /// of the body duplicated.
+    NotACopy {
+        /// The copy named, as the landed document held it.
+        copy: SpokenNode,
+        /// The body duplicated, as the landed document held it.
+        input: SpokenNode,
+    },
 }
 
 impl core::fmt::Display for DuplicateFault {
@@ -1168,6 +1201,11 @@ impl core::fmt::Display for DuplicateFault {
             Self::NoExtent { input } => {
                 write!(f, "{input}'s body has no width to step a copy by")
             }
+            Self::NotACopy { copy, input } => write!(
+                f,
+                "{copy} is not a drawn copy of {input}, so there is no copy to place the \
+                 duplicate beside"
+            ),
         }
     }
 }
@@ -1295,6 +1333,10 @@ impl DuplicateFault {
             Self::NoExtent { input } => Self::NoExtent {
                 input: again(input),
             },
+            Self::NotACopy { copy, input } => Self::NotACopy {
+                copy: again(copy),
+                input: again(input),
+            },
             unspoken @ (Self::NotLanded | Self::Stale) => unspoken,
         }
     }
@@ -1333,6 +1375,30 @@ pub fn duplicate_rule(step: f64) -> Result<PatternKind<Formula>, pncad::document
         direction: [scalar(x)?, scalar(y)?, scalar(z)?],
         spacing: Formula::literal(step, Dimension::Length)?,
     })
+}
+
+/// **Where the drawn copy `copy` stands in its space**: its
+/// placement's motion as `eval` solved it, the identity for a copy the
+/// identity bundle places.
+///
+/// # Errors
+///
+/// [`DuplicateFault::NoValue`] for a copy `eval` holds no value for.
+pub fn copy_motion(
+    doc: &Doc<ProfileProgram>,
+    eval: &Evaluation<f64>,
+    copy: RecipeNodeId,
+) -> Result<pncad::document::Frame, DuplicateFault> {
+    let value = eval.usable(copy).map_err(|standing| {
+        let standing = crate::tree::standing_as_drawn(standing, eval);
+        let held = held_by(&standing, doc);
+        DuplicateFault::NoValue { standing, held }
+    })?;
+    Ok(value
+        .motion
+        .map_or(pncad::document::Frame::IDENTITY, |motion| {
+            pncad::document::Frame::from_affine(motion.to_affine())
+        }))
 }
 
 /// **How many bodies a duplicate's pattern holds**: the original and

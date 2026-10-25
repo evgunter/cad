@@ -86,8 +86,8 @@ pub(crate) fn part_selector_rows(ui: &mut egui::Ui, theme: &Theme, instance: &mu
 pub(crate) fn duplicate_note() -> String {
     let [x, y, z] = STEP_DIRECTION.map(render_number);
     format!(
-        "the copy lands along ({x}, {y}, {z}), clear of the original by at least {}% of the \
-         body's width — more for a body thin that way — measured off the body as it now is; \
+        "the copy lands beside the original along its own ({x}, {y}, {z}), clear of it by at \
+         least {}% of the body's width — more for a body thin that way — measured off the body as it now is; \
          every slot is editable afterwards",
         render_number(DUPLICATE_GAP * 100.0),
     )
@@ -1831,7 +1831,10 @@ mod tests {
     #[test]
     fn the_duplicate_note_says_how_the_step_is_chosen() {
         let note = duplicate_note();
-        assert!(note.contains("(1, 0, 0)"), "along world +x: {note}");
+        assert!(
+            note.contains("along its own (1, 0, 0)"),
+            "along the original's own +x: {note}"
+        );
         assert!(
             note.contains("at least 25% of the body's width"),
             "a quarter of the body's width, as a floor: {note}"

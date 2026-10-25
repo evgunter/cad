@@ -910,9 +910,9 @@ pub enum SessionOp {
     /// **A duplicate is a pattern of two, its copy projected and
     /// placed** — a `Node::Pattern` of count
     /// [`crate::combine::DUPLICATE_COUNT`] over the body, a `Node::Part`
-    /// picking its second instance, and that projection's identity
-    /// world placement (A10). Three inserts, one action, one undo. The
-    /// original's placements are untouched. The copy is a body of its
+    /// picking its second instance, and a placement of that projection
+    /// beside the original as it is drawn (A10). One action, one undo.
+    /// The original's placements are untouched. The copy is a body of its
     /// own rather than a second placement of the original, because a
     /// feature gesture re-points every placement of its target body
     /// (`work/chrome/a-feature-gesture-re-points-every-copy-of-its-target.md`).
@@ -929,9 +929,19 @@ pub enum SessionOp {
     /// which a pattern of two would index in place, adding nothing.
     /// Both numbers land in the pattern's ordinary slots and are edited
     /// in the property panel afterwards.
+    ///
+    /// **Where the copy is drawn**: beside the drawn copy `beside`, or
+    /// beside each drawn copy of `input` when the pick named the body
+    /// itself; at the identity of the world for a body nothing draws.
+    /// Each placement is written by values on every freedom at that
+    /// copy's evaluated motion, into the copy's space, with no mate, so
+    /// the duplicate stands where the person sees the original, stepped
+    /// along the original's own `x`, and does not follow it.
     Duplicate {
         /// The body duplicated.
         input: Operand,
+        /// The drawn copy of `input` the pick landed on, if any.
+        beside: Option<RecipeNodeId>,
     },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second

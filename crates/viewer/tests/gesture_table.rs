@@ -314,7 +314,10 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             of: node,
             select: PartSelectSpec::Instance(1),
         },
-        SessionOp::Duplicate { input: node.into() },
+        SessionOp::Duplicate {
+            input: node.into(),
+            beside: None,
+        },
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },

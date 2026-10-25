@@ -15,6 +15,7 @@
 
 use crate::common;
 
+use common::drawn::{self, assert_drawn, corners};
 use common::{along_x, displayed_face_at, plate_index, session_insert};
 use pncad::document::SlotId;
 use pncad::document::pose::PoseDef;
@@ -23,7 +24,6 @@ use pncad::document::{
     Operand, RecipeNodeId,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::ValuePayload;
 use viewer::combine::MirrorEvent;
 use viewer::seats::SeatError;
 use viewer::session::{DocSession, FaceSelection, Refusal, Selection, SessionOp};
@@ -51,21 +51,6 @@ fn block(tol: Tol) -> (DocSession, RecipeNodeId) {
 fn face_toward(session: &DocSession, sense: f64) -> FaceSelection {
     let index = plate_index(session);
     displayed_face_at(session, &index, &along_x(sense, 0.0, MID_Z))
-}
-
-/// `node`'s evaluated body's points, sorted.
-fn corners(session: &mut DocSession, node: RecipeNodeId) -> Vec<[f64; 3]> {
-    session.pump();
-    let eval = session.evaluation().expect("the inline seam landed");
-    let value = eval
-        .value(node)
-        .unwrap_or_else(|| panic!("{node:?} evaluated: {:?}", eval.node_error(node)));
-    let ValuePayload::Body(body) = &value.payload else {
-        panic!("{node:?} is a body, not {:?}", value.payload)
-    };
-    let mut points: Vec<[f64; 3]> = body.points().map(|(_, p)| p.to_array()).collect();
-    points.sort_by(|a, b| a.partial_cmp(b).expect("finite points"));
-    points
 }
 
 /// `points` reflected across the plane `x = at`, sorted.
@@ -144,68 +129,11 @@ fn mirror_in(session: &mut DocSession, op: SessionOp) -> (RecipeNodeId, Option<R
     (image, part)
 }
 
-/// The least and greatest corner of `points`.
-fn bounds(points: &[[f64; 3]]) -> ([f64; 3], [f64; 3]) {
-    points.iter().fold(
-        ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
-        |(lo, hi), p| {
-            (
-                [lo[0].min(p[0]), lo[1].min(p[1]), lo[2].min(p[2])],
-                [hi[0].max(p[0]), hi[1].max(p[1]), hi[2].max(p[2])],
-            )
-        },
-    )
-}
-
-/// **What the drawn copy `copy` shows is the box `lo`..`hi` of volume
-/// `volume`**: its extent to 1e-12 m, its volume to one part in 10⁹.
-fn assert_drawn(
-    session: &mut DocSession,
-    copy: RecipeNodeId,
-    lo: [f64; 3],
-    hi: [f64; 3],
-    volume: f64,
-    what: &str,
-) {
-    let (got_lo, got_hi) = bounds(&corners(session, copy));
-    let near = |a: [f64; 3], b: [f64; 3]| a.iter().zip(&b).all(|(x, y)| (x - y).abs() <= 1e-12);
-    assert!(
-        near(got_lo, lo) && near(got_hi, hi),
-        "{what}: drawn over {got_lo:?}..{got_hi:?}, want {lo:?}..{hi:?}"
-    );
-    let got = common::body_volume(session, copy, Tol::witness());
-    assert!(
-        common::near(got, volume),
-        "{what}: drawn volume {got}, want {volume}"
-    );
-}
-
-/// `doc` with `placement` pinned at the translation `at`.
-fn pinned(
-    doc: Doc<pncad::document::ProfileProgram>,
-    placement: RecipeNodeId,
-    at: [f64; 3],
-) -> Doc<pncad::document::ProfileProgram> {
-    let pose = pncad::document::Frame {
-        translation: at,
-        ..pncad::document::Frame::IDENTITY
-    };
-    crate::fixture::pin(
-        doc,
-        placement,
-        &pose,
-        &pncad::document::EvalOptions::default(),
-    )
-}
-
 /// The block's world copy pinned at the translation `at`: the session,
 /// the block and its copy.
 fn moved_block(tol: Tol, at: [f64; 3]) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let (session, block) = block(tol);
-    let doc = session.committed_doc().clone();
-    let copy = common::copy_of(&doc, block);
-    let mut session = common::inline_without_door(pinned(doc, copy, at), tol);
-    session.pump();
+    let (session, copy) = drawn::moved_copy(&session, block, &drawn::translated(at), tol);
     (session, block, copy)
 }
 
@@ -424,7 +352,10 @@ fn a_body_drawn_twice_is_its_symmetric_part_at_both_copies() {
             pncad::document::stand().bundle(),
         ),
     );
-    let mut session = common::inline_without_door(pinned(doc, second, [0.0, 0.1, 0.0]), tol);
+    let mut session = common::inline_without_door(
+        drawn::pinned(doc, second, &drawn::translated([0.0, 0.1, 0.0])),
+        tol,
+    );
     session.pump();
     let wall = face_toward(&session, 1.0);
     assert_eq!(wall.node, first, "the ray met the first copy");
@@ -469,7 +400,10 @@ fn a_mated_copy_becomes_its_symmetric_part_where_the_mate_seats_it() {
     let small = common::xy_box_in(&mut session, SMALL);
     let doc = session.committed_doc().clone();
     let small_copy = common::copy_of(&doc, small);
-    let mut session = common::inline_without_door(pinned(doc, small_copy, [0.1, 0.0, 0.0]), tol);
+    let mut session = common::inline_without_door(
+        drawn::pinned(doc, small_copy, &drawn::translated([0.1, 0.0, 0.0])),
+        tol,
+    );
     session.pump();
     let index = plate_index(&session);
     let underside = displayed_face_at(&session, &index, &common::up_at(0.1, 0.0));
@@ -480,21 +414,7 @@ fn a_mated_copy_becomes_its_symmetric_part_where_the_mate_seats_it() {
         common::copy_of(session.committed_doc(), base),
         "the block's top"
     );
-    let mut mate = viewer::matetool::MateTool::new();
-    mate.pick(session.doc(), underside);
-    mate.pick(session.doc(), top);
-    let (doc, _) = session.landed_pair().expect("landed");
-    let proposal = mate
-        .proposal(
-            doc,
-            viewer::matetool::MateChoice {
-                kind: pncad::document::VarKind::Plane,
-                flip: true,
-                values: Vec::new(),
-            },
-        )
-        .expect("a rest proposes");
-    common::commit_mate(&mut session, proposal.op());
+    drawn::rest_on(&mut session, underside, top);
     let (x, y, z) = (SMALL[0] / 2.0, SMALL[1] / 2.0, BLOCK[2]);
     assert_drawn(
         &mut session,
@@ -582,6 +502,7 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
     let (mut session, block) = block(tol);
     let duplicated = session.perform(SessionOp::Duplicate {
         input: block.into(),
+        beside: None,
     });
     assert!(duplicated.refusal.is_none(), "{:?}", duplicated.refusal);
     session.pump();
@@ -774,7 +695,10 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
     let b = common::xy_box_in(&mut session, BLOCK);
     let doc = session.committed_doc().clone();
     let b_copy = common::copy_of(&doc, b);
-    let mut session = common::inline_without_door(pinned(doc, b_copy, [0.0, 0.1, 0.0]), tol);
+    let mut session = common::inline_without_door(
+        drawn::pinned(doc, b_copy, &drawn::translated([0.0, 0.1, 0.0])),
+        tol,
+    );
     session.pump();
     let (image_b, _) = mirror_in(
         &mut session,
@@ -880,30 +804,15 @@ fn a_click_on_a_copy_names_the_body_and_the_plane_by_one_node() {
 #[test]
 fn a_face_on_a_splits_lower_half_reads_that_half() {
     let tol = Tol::witness();
-    let (mut session, block) = block(tol);
-    let split = session_insert(
-        &mut session,
-        SessionOp::AddSplit {
-            target: block.into(),
-            origin: common::len3([0.0, 0.0, MID_Z]),
-            normal: common::scl3([0.0, 0.0, 1.0]),
-        },
-    );
+    let (session, block, split) = drawn::split_box(BLOCK, tol);
     let below = pncad::select::SplitHalf::Below;
-    let (doc, half) = crate::fixture::insert(
-        session.committed_doc().clone(),
-        Node::place(
-            vec![pncad::document::BodyRead::plain(Operand::output(
-                split,
-                below.port(),
-            ))],
-            Operand::Var(pncad::document::VarId::WORLD),
-            pncad::document::stand().bundle(),
-        ),
+    let (mut session, half) = drawn::halves_placed(
+        &session,
+        split,
+        &[below],
+        &drawn::translated([0.1, 0.0, 0.0]),
+        tol,
     );
-    let doc = pinned(doc, half, [0.1, 0.0, 0.0]);
-    let mut session = common::inline_without_door(doc, tol);
-    session.pump();
     let index = plate_index(&session);
     let floor = displayed_face_at(&session, &index, &common::up_at(0.1, 0.0));
     assert_eq!(floor.node, half, "the ray met the lower half's copy");
