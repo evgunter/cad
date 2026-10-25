@@ -377,20 +377,15 @@ fn wedge_caps(body: &Body<f64>) -> Vec<FaceKey> {
     )
 }
 
-/// **An offset wedge cap leaves the pose its arm serves, and the gate
+/// **An offset wedge cap cuts its cone in a hyperbola, and the door
 /// says so.** Each cap passes through the apex, which the plane×cone
 /// arm serves (the generator pair); moved by `±0.05` it stands off the
 /// apex and parallel to the axis, and cuts the cone in a hyperbola,
-/// which is outside the conic inventory (R1). The door refuses at the
-/// C5 gate by the arm's own grounds, naming the conic, before any
-/// corner is re-anchored, and the body is untouched.
-///
-/// Red before the gate asked about the pose: the kind pair passed and
-/// the refusal was a corner gap on the generator edge (a refusal
-/// since retired), `0.0354` m of corner error — a pose admitted as served and caught by the
-/// next gate down.
+/// whose arc is a rational-quadratic NURBS carrier that has no
+/// certificate on a cone yet. The edge's section refuses naming the
+/// conic, before any corner is re-anchored, and the body is untouched.
 #[test]
-fn an_offset_wedge_cap_refuses_at_the_pose_gate() {
+fn an_offset_wedge_cap_refuses_naming_the_hyperbola() {
     let body = quarter_cone();
     let caps = wedge_caps(&body);
     assert_eq!(caps.len(), 2);
@@ -400,20 +395,28 @@ fn an_offset_wedge_cap_refuses_at_the_pose_gate() {
             let before = format!("{work:?}");
             let e = topo::replace_face_offset(&mut work, cap, d, Tol::witness())
                 .expect_err("the moved cap cuts a hyperbola");
-            let ReplaceFaceError::NeighborPoseUnroutable {
+            let ReplaceFaceError::EdgeSection {
                 kind,
                 other_kind,
-                why,
+                verdict,
                 ..
             } = e
             else {
-                panic!("cap {cap:?}, d {d}: expected the pose refusal, got {e}");
+                panic!("cap {cap:?}, d {d}: expected the section refusal, got {e}");
             };
             assert_eq!(
                 (kind, other_kind),
                 (geom::SurfaceKind::Plane, geom::SurfaceKind::Cone)
             );
-            assert!(why.contains("HYPERBOLA"), "{why}");
+            assert!(
+                matches!(
+                    verdict,
+                    topo::SectionVerdict::OpenConic {
+                        conic: geom_brep::OpenConic::Hyperbola
+                    }
+                ),
+                "{verdict}"
+            );
             assert_eq!(before, format!("{work:?}"), "body moved across an Err");
         }
     }

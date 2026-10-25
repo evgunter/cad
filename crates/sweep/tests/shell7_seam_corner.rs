@@ -785,30 +785,33 @@ fn a_partial_two_arc_torus_hollows_to_its_measured_volume() {
     );
 }
 
-/// **A three-quarter-turn cone frustum refuses `TogetherEdgeDisagreement`**
-/// (R1's finding, `work/shell/partial-cone-frustum-three-quarter-turn-
-/// refuses-edge-disagreement.md`): `sf2b_axial` only turns the frustum
-/// a quarter, and at three quarters the wall/cap generator's two ends
-/// disagree by more than a millimetre — pinned here so the standing
-/// refusal is visible, with its measured gap.
+/// **A three-quarter-turn cone frustum refuses at the axial door's
+/// gate** (`work/shelf/partial-cone-frustum-three-quarter-turn-
+/// refuses-edge-disagreement.md`): the cavity moves the meridian caps
+/// off the axis, so each wall/cap edge's moved section is a hyperbola,
+/// a NURBS arc on a cone no tube certifies yet. The door names the
+/// conic before any corner is solved, where the generator's two ends
+/// used to disagree by more than a millimetre.
 #[test]
-fn a_three_quarter_turn_cone_frustum_refuses_edge_disagreement() {
+fn a_three_quarter_turn_cone_frustum_refuses_at_the_gate() {
     let body = polyline(
         &[(0.0, 0.0), (1.0, 0.0), (0.5, 2.0), (0.0, 2.0)],
         Revolution::Partial(3.0 * FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
     let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
-        .expect_err("measured: refuses");
+        .expect_err("the moved caps cut the cone in a hyperbola");
     let ShellError::Face { error, .. } = &e else {
         panic!("expected the axial door's refusal, got {e}");
     };
-    let ReplaceFaceError::TogetherEdgeDisagreement { gap, .. } = **error else {
-        panic!("expected TogetherEdgeDisagreement, got {error}");
-    };
-    println!("[measured] three-quarter frustum: edge disagreement gap = {gap}");
     assert!(
-        (1.0e-3..2.0e-3).contains(&gap),
-        "the measured millimetre-scale gap, got {gap}"
+        matches!(
+            **error,
+            ReplaceFaceError::TogetherConicArc {
+                conic: geom_brep::OpenConic::Hyperbola,
+                ..
+            }
+        ),
+        "expected the gate's hyperbola refusal, got {error}"
     );
 }

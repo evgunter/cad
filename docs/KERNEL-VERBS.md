@@ -619,9 +619,10 @@ quadrature lane), not in the body.
   containment verdict a curved boundary can defeat. The wired germ join
   arms are a plane against a plane, cylinder, sphere or cone, and two
   spheres or two parallel cylinders along their radical plane
-  (`boolean::join`'s dispatch); a plane cuts a cone in a parabola or a
-  hyperbola only outside the conic inventory, and that pair refuses
-  naming the conic. Cone and torus operands answer where their face
+  (`boolean::join`'s dispatch); where a plane cuts a cone in a parabola
+  or a hyperbola, the section's arcs are rational-quadratic NURBS the
+  Boolean has no crossing layer for, and that pair refuses naming the
+  conic. Cone and torus operands answer where their face
   pairs are certified with no event on them; every other curved pair
   with an event on it refuses typed at its section frame or at the
   join. The curved

@@ -29,10 +29,10 @@ land next:
 
 - where the new cone meets a drafted plane neighbor at generic tilt,
   `plane_cone_section` builds the exact `Ellipse` (Ev, 2026-10-01:
-  "exact ellipses are certainly allowed there") and refuses a
-  parabolic or hyperbolic section typed — "parabola and hyperbola are
-  outside the conic inventory **by decision, not by omission**" (R1).
-  Cone SSI coverage is otherwise zero (cyl×cone, cone×cone, cone×sphere all
+  "exact ellipses are certainly allowed there"), and serves a
+  parabolic or hyperbolic section in closed form, its arcs minted per
+  window as exact rational-quadratic NURBS (`crates/geom-brep/README.md`
+  C1) that no consumer certifies on a cone yet. Cone SSI coverage is otherwise zero (cyl×cone, cone×cone, cone×sphere all
   unimplemented in the C5 table).
 - a cone face joins a plane in the boolean where their section is an
   ellipse or a circle (the plane × cone germ lane), and fillet's cone

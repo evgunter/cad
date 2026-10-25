@@ -2,12 +2,11 @@
 id: a-classified-pairs-section-states-the-bounds-that-retire-the-tube
 kind: unit
 title: Conic build unit 3: a classified pair's section function states the crossing-angle floor and the overlap clearance for its pose, and the certificate owes no tube where it does
-status: parked
+status: open
 opened: 2026-10-25
 priority: P1
 cost: M
 parent: offset-lane-has-no-conic-carrier
-blocked_on: [the-plane-cone-arc-is-minted-exactly-and-the-axial-door-reads-the-moved-section]
 ---
 
 

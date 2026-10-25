@@ -1000,7 +1000,8 @@ mod kernel {
             OrderEscalated, Escalated, DegenerateSection, CurvedSlitTrace, RingHoming,
             RingHomingAmbiguous, UnpairedLooseEnds, SingleSiteSectionLoop,
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
-            Band, Euler, SectionEndEscalated, SectionUnresolved, Section, ApexUnlifted,
+            Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
+            ApexUnlifted,
             PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RingIslandUnread,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings,
@@ -1041,7 +1042,8 @@ mod kernel {
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
             TogetherPartialSet, TogetherCorner, TogetherChartMixed,
             TogetherFaceRepeated, TogetherEdgeDisagreement, TogetherAxialUnsupported,
-            TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, DegenerateTorus,
+            TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, TogetherConicArc,
+            DegenerateTorus,
             Escalated, Op, Pcurve, Join, ResultNotClosed,
         ];
     }
@@ -2637,6 +2639,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     source: geom_brep::SectionError::Carrier(geom::EllipseInvalid::Escalated(
                         payloads::named("ellipse_minor_positive"),
                     )),
+                },
+            ),
+            (
+                "OpenConicChord",
+                J::OpenConicChord {
+                    face,
+                    conic: geom_brep::OpenConic::Hyperbola,
                 },
             ),
             ("ApexUnlifted", J::ApexUnlifted { face }),
@@ -5779,6 +5788,13 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                     what: "a rim whose moved cap stands at or past the torus wall's inner equator, \
                            or out of its reach — the section there is a node, one folded loop or \
                            nothing, not two ovals",
+                },
+            ),
+            (
+                "TogetherConicArc",
+                R::TogetherConicArc {
+                    edge,
+                    conic: geom_brep::OpenConic::Hyperbola,
                 },
             ),
             (

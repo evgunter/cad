@@ -18,7 +18,7 @@ use super::join::{
     pair_section_frame, pair_section_frame_at,
 };
 use crate::entity::FaceKey;
-use geom_brep::{OutsideConic, SectionError};
+use geom_brep::OpenConic;
 use geom_core::{Band, Point3, Tol, Vec3};
 
 type Frame = Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>;
@@ -101,9 +101,7 @@ fn shape(frame: &Frame) -> String {
         Ok(None) => "straight".into(),
         Err(FrameError::Escalated { diag: d, .. }) => format!("escalated {:?}", d.predicate),
         Err(FrameError::Desync(what)) => format!("desync {what}"),
-        Err(FrameError::OutsideInventory { conic, section }) => {
-            format!("outside {conic:?} {section}")
-        }
+        Err(FrameError::OpenConic { conic }) => format!("open conic {conic:?}"),
         Err(FrameError::NoArm) => "no arm".into(),
         Err(FrameError::Spiric { loops, .. }) => format!("spiric {loops:?}"),
         Err(FrameError::DegenerateTorus { convention, .. }) => {
@@ -199,22 +197,24 @@ fn a_plane_through_the_apex_cuts_two_generators_and_is_straight() {
     );
 }
 
-/// **A parabola or a hyperbola refuses by decision, naming the conic.**
+/// **A parabola or a hyperbola refuses at the frame, naming the conic.**
 /// C2's plane `x = 0.3` and B1's faces `z = 0.2` and `x = 0.6` run along
 /// the axis; C4's runs 20° off it; each meets both nappes, a hyperbola.
 /// C3's plane is parallel to a generator, a parabola. The plane along the
 /// axis is read once more with its stored origin level with the apex,
-/// where a lever read off that origin would be zero. Each refusal is
-/// [`FrameError::OutsideInventory`] carrying the table's naming, and the
-/// Boolean's refusal is [`BooleanError::GermSectionOutsideInventory`]:
+/// where a lever read off that origin would be zero. The table serves
+/// each as [`geom_brep::PlaneConeSection::OpenConic`], whose arcs the
+/// Boolean has no crossing layer for: each refusal is
+/// [`FrameError::OpenConic`] naming the table's conic, and the
+/// Boolean's refusal is [`BooleanError::GermSectionOpenConic`]:
 /// neither the missing-arm `NoArm` nor a desync.
 #[test]
-fn a_parabola_or_a_hyperbola_refuses_by_decision_naming_the_conic() {
+fn a_parabola_or_a_hyperbola_refuses_at_the_frame_naming_the_conic() {
     let cone = widening();
     let alpha = 0.5_f64.atan();
     let c4 = 20_f64.to_radians();
-    let hyperbola = (OutsideConic::Hyperbola, "a hyperbola", "a parabola");
-    let parabola = (OutsideConic::Parabola, "a parabola", "a hyperbola");
+    let hyperbola = (OpenConic::Hyperbola, "a hyperbola", "a parabola");
+    let parabola = (OpenConic::Parabola, "a parabola", "a hyperbola");
     let poses = [
         ("C2", [0.3, 0.5, 0.0], Vec3::new(1.0, 0.0, 0.0), hyperbola),
         (
@@ -251,14 +251,9 @@ fn a_parabola_or_a_hyperbola_refuses_by_decision_naming_the_conic() {
     for (label, origin, n, (conic, named, other)) in poses {
         let p = plane(origin, n);
         let got = frame(&p, &cone, on_wall());
-        let Err(FrameError::OutsideInventory {
-            conic: got_conic,
-            section: SectionError::RoutesToGeneralRung { pair, .. },
-        }) = &got
-        else {
-            panic!("{label}: {named} refuses by decision, got {}", shape(&got));
+        let Err(FrameError::OpenConic { conic: got_conic }) = &got else {
+            panic!("{label}: {named} refuses at the frame, got {}", shape(&got));
         };
-        assert_eq!(*pair, "plane×cone", "{label}: the pair the table names");
         assert_eq!(*got_conic, conic, "{label}: the conic the refusal names");
         let refused = frame_refusal(
             got.err().unwrap(),
@@ -268,10 +263,9 @@ fn a_parabola_or_a_hyperbola_refuses_by_decision_naming_the_conic() {
         assert!(
             matches!(
                 refused,
-                BooleanError::GermSectionOutsideInventory {
+                BooleanError::GermSectionOpenConic {
                     a_kind: geom::SurfaceKind::Plane,
                     b_kind: geom::SurfaceKind::Cone,
-                    section: SectionError::RoutesToGeneralRung { .. },
                     ..
                 }
             ),
