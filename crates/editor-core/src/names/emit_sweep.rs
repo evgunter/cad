@@ -703,8 +703,65 @@ mod tests {
             let built = sweep::revolve(&profile, axis, sweep::Revolution::Full, Tol::witness())
                 .unwrap_or_else(|e| panic!("{what}: the profile revolves: {e:?}"));
             assert_eq!(built.cavities.len(), cavities, "{what}");
-            name_revolve(node(), &built, &ProfilePieces::numbered(&counts))
+            let pieces = ProfilePieces::numbered(&counts);
+            let table = name_revolve(node(), &built, &pieces)
                 .unwrap_or_else(|e| panic!("{what}: the revolve is named: {e:?}"));
+            if what == "three runs" {
+                three_runs_walls_are_named_by_their_pieces(&built, &table, &pieces);
+            }
+        }
+    }
+
+    /// Each wall of the three-run column, cavity walls included, is the
+    /// surface its own profile piece sweeps: read through the NAME and
+    /// checked against the piece's geometry, so two walls' names
+    /// swapped is red.
+    fn three_runs_walls_are_named_by_their_pieces(
+        built: &sweep::Revolved<f64>,
+        table: &NameTable,
+        pieces: &ProfilePieces,
+    ) {
+        use geom::Surface;
+        // (piece, the swept surface): a plane at height y, a cylinder
+        // of radius r, or a cone.
+        enum Wall {
+            Plane(f64),
+            Cylinder(f64),
+            Cone,
+        }
+        let walls = [
+            (0, Wall::Plane(0.0)),
+            (1, Wall::Cylinder(2.0)),
+            (2, Wall::Plane(5.0)),
+            (4, Wall::Plane(4.0)),
+            (5, Wall::Cylinder(0.5)),
+            (6, Wall::Plane(3.0)),
+            (8, Wall::Plane(2.0)),
+            (9, Wall::Cone),
+        ];
+        for (k, want) in walls {
+            let name = name1(
+                EntityKind::Face,
+                node(),
+                RoleSeg::Band(run_at(pieces, 0, &[k])),
+            );
+            let entry = table
+                .lookup(&name)
+                .unwrap_or_else(|| panic!("piece {k}'s wall is named"));
+            let Some(face) = entry.entities()[0].face() else {
+                panic!("piece {k}'s wall name holds a face")
+            };
+            let surface = built.body.get_face(face).unwrap().surface;
+            let fits = match (want, *built.body.get_surface(surface).unwrap()) {
+                (Wall::Plane(y), Surface::Plane { origin, .. }) => (origin.y - y).abs() < 1e-12,
+                (Wall::Cylinder(r), Surface::Cylinder { radius, .. }) => (radius - r).abs() < 1e-12,
+                (Wall::Cone, Surface::Cone { .. }) => true,
+                _ => false,
+            };
+            assert!(
+                fits,
+                "piece {k}'s wall name holds the surface piece {k} sweeps"
+            );
         }
     }
 

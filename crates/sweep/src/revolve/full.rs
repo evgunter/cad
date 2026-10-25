@@ -79,7 +79,14 @@ use geom_core::Tol;
 /// - a gap's stretch and the outer stretch are non-adjacent segments of
 ///   one loop (an axis run separates them on each side), which the
 ///   simplicity pass decided definitely apart, and the gap itself lies
-///   strictly between the outer stretch's two poles.
+///   strictly between the outer stretch's two poles;
+/// - two gaps' stretches are non-adjacent segments of the same loop too,
+///   decided apart by the same pass, and their gaps are disjoint
+///   intervals of the axis, so two pocket cavities are disjoint;
+/// - a hole lies inside the outer loop and a pocket outside it, and
+///   the validation decided the hole apart from every segment of the
+///   outer loop, the pocket's stretch included, so a hole's cavity and
+///   a pocket's are disjoint.
 ///
 /// So the carried sign is `Positive` by the validation's own decisions,
 /// and no 3-D containment test (box or probe) runs here at all. No SSI,
@@ -94,14 +101,9 @@ use geom_core::Tol;
 /// minted. Any caller of this path owes an equivalent: a decided
 /// strict-containment fact about the SKETCH loops, not about the
 /// numbers a caller wrote.
-///
-/// `outer_forward` is the outer loop's FORWARD traversal, which a gap's
-/// pocket is built from; `None` from a caller whose outer loop cannot
-/// meet the axis twice (the tube's circle clears the axis).
 pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
     frame: &AxisFrame<T>,
     loops: &[Vec<SweptSeg<T>>],
-    outer_forward: Option<&[SweptSeg<T>]>,
     classes: &[LoopClasses<T>],
     theta: T,
     band: Band,
@@ -155,13 +157,7 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
     }
 
     for (gap, stretch) in pockets.into_iter().enumerate() {
-        let Some(forward) = outer_forward else {
-            unreachable!(
-                "an outer loop meeting the axis in two runs reached the full revolve with no \
-                 forward traversal, though only the tube omits it and its circle clears the axis"
-            )
-        };
-        let wire = pocket_wire(frame, &outer, stretch, forward, band)?;
+        let wire = pocket_wire(frame, &outer, stretch, band)?;
         let pocket = build_wire(frame, &wire, theta, band, tol)?;
         let grafted = insert_pocket(&mut out, pocket, CavityOrigin::Pocket { gap })?;
         // The pocket's walls are swept by the outer loop's own segments,
@@ -291,47 +287,47 @@ fn gap_stretches<T: Decide>(
 }
 
 /// A gap's pocket as a wire in hole-as-outer orientation: the gap's
-/// stretch traversed FORWARD (the outer loop's canonical direction,
-/// which has the pocket on its right, as the swept traversal of a loop
-/// has its material), closed by the gap itself along the axis, then
-/// classified and collapsed as a loop of its own and opened at the gap.
+/// stretch of the outer loop's one collapse, traversed backward. The
+/// swept traversal has the profile on its right; backward, the pocket
+/// is on its right, which is how a swept traversal holds its material,
+/// so each wall is classified with `reverse` set as the outer loop's
+/// are. The vertex classes are the outer loop's own (a point's radial
+/// class has no direction), and so are the runs and their members, in
+/// the loop's swept order.
 fn pocket_wire<T: Decide>(
     frame: &AxisFrame<T>,
     outer: &Collapsed<T>,
     stretch: Stretch,
-    forward: &[SweptSeg<T>],
     band: Band,
 ) -> Result<Wire<T>, RevolveError> {
     let n = outer.segs.len();
-    let mut segs: Vec<SweptSeg<T>> = (0..stretch.len)
-        .rev()
-        .flat_map(|i| outer.members[(stretch.start + i) % n].iter().rev())
-        .map(|&c| forward[c])
+    let m = stretch.len;
+    // Wire vertex `i` is the stretch's vertex `m − i`; wire segment `i`
+    // is the stretch's segment `m − 1 − i`, reversed.
+    let at = |i: usize| (stretch.start + i) % n;
+    let verts: Vec<VertexClass<T>> = (0..=m).map(|i| outer.cls.verts[at(m - i)]).collect();
+    let canon_verts: Vec<usize> = (0..=m)
+        .map(|i| outer.segs[at(m - i)].canonical_vertex)
         .collect();
-    let (Some(&first), Some(&last)) = (segs.first(), segs.last()) else {
-        unreachable!("a stretch between two axis runs holds a segment")
-    };
-    segs.push(SweptSeg {
-        a: last.b,
-        b: first.a,
-        kind: crate::swept::Traversed::line(),
-        canonical_vertex: (last.canonical_segment + 1) % forward.len(),
-        // The gap retraces no canonical segment; the wire omits it, so
-        // nothing reads this.
-        canonical_segment: usize::MAX,
-    });
-    let cls = super::axis::classify_loop(&segs, frame, 0, true, band)?;
-    let col = collapse_runs(&segs, &cls, 0, band)?;
-    let runs = super::axis::analyze_contact(&col.segs, &col.cls, 0)?;
-    let [run] = runs[..] else {
-        unreachable!(
-            "a pocket loop meets the axis in its gap alone, though it has {} runs",
-            runs.len()
-        )
-    };
-    let mut wire = Wire::off_run(&col, run);
-    wire.n_canon = outer.n_canon;
-    Ok(wire)
+    let segs: Vec<SweptSeg<T>> = (0..m)
+        .map(|i| outer.segs[at(m - 1 - i)].reversed(canon_verts[i]))
+        .collect();
+    let walls = (0..m)
+        .map(|i| {
+            super::axis::classify_segment(&segs[i], &verts[i], &verts[i + 1], frame, 0, true, band)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(Wire {
+        points: (0..=m).map(|i| outer.segs[at(m - i)].a).collect(),
+        members: (0..m)
+            .map(|i| outer.members[at(m - 1 - i)].clone())
+            .collect(),
+        segs,
+        walls,
+        verts,
+        canon_verts,
+        n_canon: outer.n_canon,
+    })
 }
 
 /// A pocket's handles re-keyed into the result body, over its canonical

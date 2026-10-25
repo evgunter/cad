@@ -16,10 +16,10 @@ use std::collections::BTreeSet;
 use crate::revolve_common;
 
 use geom::Surface;
-use geom_core::{Point2, Tol};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use revolve_common::*;
-use sweep::{CavityOrigin, Revolution, Revolved, RevolvedKind, revolve};
+use sweep::{CavityOrigin, Revolution, RevolveAxis, Revolved, RevolvedKind, revolve};
 use topo::FaceKey;
 
 const PI: f64 = core::f64::consts::PI;
@@ -83,14 +83,14 @@ fn cylinder_radii(t: &Revolved<f64>, shell: topo::ShellKey) -> Vec<f64> {
     radii
 }
 
-/// A radius-1, height-`h` column against the axis with square notches
+/// A radius-`w`, height-`h` column against the axis with square notches
 /// `(depth, lo, hi)` cut into it from the axis, lowest first: one axis
-/// run per notch plus one.
-fn notched_column(h: f64, notches: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
+/// run per notch plus one. CCW, starting at the origin.
+fn notched_pts(w: f64, h: f64, notches: &[(f64, f64, f64)]) -> Vec<Point2<f64>> {
     let mut pts = vec![
         Point2::new(0.0, 0.0),
-        Point2::new(1.0, 0.0),
-        Point2::new(1.0, h),
+        Point2::new(w, 0.0),
+        Point2::new(w, h),
         Point2::new(0.0, h),
     ];
     for &(d, lo, hi) in notches.iter().rev() {
@@ -101,7 +101,76 @@ fn notched_column(h: f64, notches: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
             Point2::new(0.0, lo),
         ]);
     }
-    ProfileLoop::polygon(pts)
+    pts
+}
+
+/// [`notched_pts`] at radius 1.
+fn notched_column(h: f64, notches: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
+    ProfileLoop::polygon(notched_pts(1.0, h, notches))
+}
+
+/// The closed-form volume of a [`notched_pts`] column.
+fn notched_volume(w: f64, h: f64, notches: &[(f64, f64, f64)]) -> f64 {
+    PI * w * w * h
+        - notches
+            .iter()
+            .map(|&(d, lo, hi)| PI * d * d * (hi - lo))
+            .sum::<f64>()
+}
+
+/// Pappus for a polygon profile against the y axis: `2π ∫ r dA`, which
+/// is the full revolve's volume whatever its cavities.
+fn pappus_volume(pts: &[Point2<f64>]) -> f64 {
+    let n = pts.len();
+    let moment: f64 = (0..n)
+        .map(|i| {
+            let (p, q) = (pts[i], pts[(i + 1) % n]);
+            (p.x + q.x) * (p.x * q.y - q.x * p.y)
+        })
+        .sum::<f64>()
+        / 6.0;
+    2.0 * PI * moment
+}
+
+/// **Loop 0's bands read in swept order** (the documented order of
+/// `Revolved::bands` and `BandWall::segments`): each band's segments
+/// run down the canonical indices, as the reversed traversal does, and
+/// the bands' first segments descend with at most one wrap; every
+/// off-axis canonical segment is in exactly one band, and its wall is
+/// that band's face.
+fn assert_swept_order(what: &str, t: &Revolved<f64>, n: usize) {
+    let walls = t.walls();
+    let next = |c: usize| (c + n - 1) % n;
+    let mut seen = BTreeSet::new();
+    for band in &t.bands[0] {
+        for pair in band.segments.windows(2) {
+            assert_eq!(
+                pair[1],
+                next(pair[0]),
+                "{what}: band {:?} in swept order",
+                band.segments
+            );
+        }
+        for &c in &band.segments {
+            assert!(seen.insert(c), "{what}: segment {c} in one band");
+            assert_eq!(
+                walls[0][c],
+                Some(band.face),
+                "{what}: segment {c} reads its band's wall"
+            );
+        }
+    }
+    let swept = |c: usize| n - 1 - c;
+    let firsts: Vec<usize> = t.bands[0].iter().map(|b| swept(b.segments[0])).collect();
+    let descents = (0..firsts.len())
+        .filter(|&i| firsts[(i + 1) % firsts.len()] <= firsts[i])
+        .count();
+    assert!(
+        descents <= 1,
+        "{what}: bands in swept order, firsts {firsts:?}"
+    );
+    let walled: BTreeSet<usize> = (0..n).filter(|&c| walls[0][c].is_some()).collect();
+    assert_eq!(seen, walled, "{what}: every wall is in a band");
 }
 
 /// **The C profile** (r ∈ [0,1], z ∈ [0,3], notch r < 0.5, z ∈ (1,2)):
@@ -318,4 +387,306 @@ fn a_two_run_profile_part_turn_has_no_cavity() {
     assert_all_tiers(&t.body);
     assert_eq!(t.body.shells().count(), 1);
     assert!(t.cavities.is_empty());
+}
+
+/// **Up to five runs, of varied depths**: one cavity per gap, each
+/// findable by its rank, and the closed-form volume.
+#[test]
+fn up_to_five_runs_build_a_cavity_per_gap() {
+    let rows: [&[(f64, f64, f64)]; 2] = [
+        &[(0.5, 1.0, 2.0), (0.25, 3.0, 4.0), (0.75, 5.0, 6.0)],
+        &[
+            (0.9, 1.0, 1.5),
+            (0.1, 2.0, 2.5),
+            (0.5, 3.0, 3.5),
+            (0.99, 4.0, 4.5),
+        ],
+    ];
+    for notches in rows {
+        let pts = notched_pts(1.0, 7.0, notches);
+        let n = pts.len();
+        let what = format!("{} notches", notches.len());
+        let t = revolve(
+            &validated(vec![ProfileLoop::polygon(pts)]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap();
+        assert_all_tiers(&t.body);
+        assert_eq!(t.body.shells().count(), notches.len() + 1, "{what}");
+        for (gap, &(d, ..)) in notches.iter().enumerate() {
+            let shell = t.cavity(CavityOrigin::Pocket { gap }).unwrap();
+            assert_eq!(cylinder_radii(&t, shell), vec![d], "{what}: gap {gap}");
+        }
+        assert_swept_order(&what, &t, n);
+        assert_near(&what, props(&t).0, notched_volume(1.0, 7.0, notches));
+    }
+}
+
+/// **Where the loop starts and which way it was authored change
+/// nothing**: every rotation of the two-notch column, counter- and
+/// clockwise, builds the same body, gap 0 the lower notch, its bands
+/// in swept order.
+#[test]
+fn the_start_vertex_and_the_authored_winding_change_nothing() {
+    let notches = [(0.5, 1.0, 2.0), (0.25, 3.0, 4.0)];
+    let base = notched_pts(1.0, 5.0, &notches);
+    for rot in 0..base.len() {
+        for cw in [false, true] {
+            let what = format!("rotation {rot}, clockwise {cw}");
+            let mut pts = base.clone();
+            pts.rotate_left(rot);
+            if cw {
+                pts.reverse();
+            }
+            let t = revolve(
+                &validated(vec![ProfileLoop::polygon(pts)]),
+                axis_y(),
+                Revolution::Full,
+                Tol::witness(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: {e}"));
+            assert_all_tiers(&t.body);
+            let low = t.cavity(CavityOrigin::Pocket { gap: 0 }).unwrap();
+            let high = t.cavity(CavityOrigin::Pocket { gap: 1 }).unwrap();
+            assert_eq!(cylinder_radii(&t, low), vec![0.5], "{what}");
+            assert_eq!(cylinder_radii(&t, high), vec![0.25], "{what}");
+            assert_swept_order(&what, &t, base.len());
+            assert_near(&what, props(&t).0, notched_volume(1.0, 5.0, &notches));
+        }
+    }
+}
+
+/// **The frame decides the gap order, not the sketch**: mirrored with
+/// the axis pointing down, gap 0 is the notch lowest along `d̂ = −y`
+/// (the upper one in the sketch); an x-directed and an off-origin axis
+/// build the same body.
+#[test]
+fn reflected_and_moved_frames_build_the_same_body() {
+    let notches = [(0.5, 1.0, 2.0), (0.25, 3.0, 4.0)];
+    let want = notched_volume(1.0, 5.0, &notches);
+    let base = notched_pts(1.0, 5.0, &notches);
+    let axis = |origin: Point2<f64>, dir: Vec2<f64>| RevolveAxis { origin, dir };
+    let cases = [
+        (
+            "mirrored, axis down",
+            base.iter()
+                .map(|p| Point2::new(-p.x, p.y))
+                .collect::<Vec<_>>(),
+            axis(Point2::new(0.0, 0.0), Vec2::new(0.0, -1.0)),
+            0.25,
+        ),
+        (
+            "x axis",
+            base.iter().map(|p| Point2::new(p.y, -p.x)).collect(),
+            axis(Point2::new(0.0, 0.0), Vec2::new(1.0, 0.0)),
+            0.5,
+        ),
+        (
+            "off-origin axis",
+            base.iter()
+                .map(|p| Point2::new(p.x + 3.0, p.y - 7.0))
+                .collect(),
+            axis(Point2::new(3.0, 11.0), Vec2::new(0.0, 2.0)),
+            0.5,
+        ),
+    ];
+    for (what, pts, axis, gap0) in cases {
+        let t = revolve(
+            &validated(vec![ProfileLoop::polygon(pts)]),
+            axis,
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: {e}"));
+        assert_all_tiers(&t.body);
+        assert_eq!(t.cavities.len(), 2, "{what}");
+        let g0 = t.cavity(CavityOrigin::Pocket { gap: 0 }).unwrap();
+        assert_eq!(cylinder_radii(&t, g0), vec![gap0], "{what}: gap 0");
+        assert_near(what, props(&t).0, want);
+    }
+}
+
+/// **Collinear pieces collapse to one wall**, in a pocket's stretch and
+/// in an axis run alike.
+#[test]
+fn collinear_pieces_in_a_pocket_and_a_run_are_one_wall() {
+    let pts = vec![
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 3.0),
+        Point2::new(0.0, 3.0),
+        Point2::new(0.0, 2.5),
+        Point2::new(0.0, 2.0),
+        Point2::new(0.25, 2.0),
+        Point2::new(0.5, 2.0),
+        Point2::new(0.5, 1.7),
+        Point2::new(0.5, 1.2),
+        Point2::new(0.5, 1.0),
+        Point2::new(0.0, 1.0),
+        Point2::new(0.0, 0.5),
+    ];
+    let n = pts.len();
+    let t = revolve(
+        &validated(vec![ProfileLoop::polygon(pts)]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_all_tiers(&t.body);
+    let walls = t.walls();
+    assert_eq!(walls[0][5], walls[0][6], "the notch's top is one plane");
+    assert_eq!(walls[0][7], walls[0][8], "the notch's wall is one cylinder");
+    assert_eq!(walls[0][8], walls[0][9], "the notch's wall is one cylinder");
+    assert_swept_order("collinear", &t, n);
+    assert_near("volume", props(&t).0, 3.0 * PI - 0.25 * PI);
+}
+
+/// **Cone tips at both ends of a gap, arc pockets beside a square one,
+/// and a hole**: every pole kept, every cavity findable by its origin.
+#[test]
+fn cone_tips_and_arc_pockets_beside_a_hole() {
+    let pts = vec![
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 3.0),
+        Point2::new(0.0, 3.0),
+        Point2::new(0.0, 2.0),
+        Point2::new(0.5, 1.5),
+        Point2::new(0.0, 1.0),
+    ];
+    let t = revolve(
+        &validated(vec![ProfileLoop::polygon(pts)]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_all_tiers(&t.body);
+    assert!(
+        t.poles[0][4].is_some() && t.poles[0][6].is_some(),
+        "two apexes"
+    );
+    assert_near("diamond", props(&t).0, 3.0 * PI - PI / 12.0);
+
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 4.0), 0.0),
+        (Point2::new(0.0, 4.0), 0.0),
+        (Point2::new(0.0, 3.5), 0.0),
+        (Point2::new(0.5, 3.5), 0.0),
+        (Point2::new(0.5, 3.0), 0.0),
+        (Point2::new(0.0, 3.0), 0.0),
+        (Point2::new(0.0, 2.5), -1.0),
+        (Point2::new(0.0, 2.0), 0.0),
+        (Point2::new(0.0, 1.5), -1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
+    let hole = ProfileLoop::polygon([
+        Point2::new(1.0, 1.0),
+        Point2::new(1.5, 1.0),
+        Point2::new(1.5, 2.0),
+        Point2::new(1.0, 2.0),
+    ]);
+    let t = revolve(
+        &validated(vec![lp, hole]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_all_tiers(&t.body);
+    assert_eq!(t.body.shells().count(), 5);
+    assert!(t.cavity(CavityOrigin::Hole { loop_index: 1 }).is_some());
+    for gap in 0..3 {
+        assert!(
+            t.cavity(CavityOrigin::Pocket { gap }).is_some(),
+            "gap {gap}"
+        );
+    }
+    let ball = 4.0 / 3.0 * PI * 0.25f64.powi(3);
+    let want = 16.0 * PI - 0.25 * PI * 0.5 - 2.0 * ball - 2.0 * PI * 1.25 * 0.5;
+    assert_near("arcs and a hole", props(&t).0, want);
+}
+
+/// **Every handle map of loop 0 spans the canonical loop**, and loop
+/// 0's bands and π walls together name every face of the body.
+#[test]
+fn loop_zeros_maps_cover_every_face() {
+    let pts = notched_pts(1.0, 5.0, &[(0.5, 1.0, 2.0), (0.25, 3.0, 4.0)]);
+    let n = pts.len();
+    let t = revolve(
+        &validated(vec![ProfileLoop::polygon(pts)]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap();
+    let RevolvedKind::Full {
+        meridians,
+        pi_walls,
+        pi_meridians,
+        pi_rims,
+        ..
+    } = &t.kind
+    else {
+        panic!("a full revolve")
+    };
+    for (what, len) in [
+        ("meridians", meridians[0].len()),
+        ("pi_walls", pi_walls.len()),
+        ("pi_meridians", pi_meridians.len()),
+        ("pi_rims", pi_rims.len()),
+        ("rims", t.rims[0].len()),
+        ("poles", t.poles[0].len()),
+    ] {
+        assert_eq!(len, n, "{what}");
+    }
+    let mut named: BTreeSet<FaceKey> = t.bands[0].iter().map(|b| b.face).collect();
+    named.extend(pi_walls.iter().flatten().copied());
+    let all: BTreeSet<FaceKey> = t.body.faces().map(|(f, _)| f).collect();
+    assert_eq!(named, all);
+}
+
+/// **A near-collinear kink in a pocket's stretch has one reading**: the
+/// cosurface margin of two lines depends on the traversal's direction,
+/// and the outer loop's one collapse decides the pocket's runs too, so
+/// each run is one wall of one cavity whichever way the kink reads,
+/// and the bands keep swept order. (A shorter kink, 15–60ε, refuses
+/// on a single-run outer shell as well: that defect is filed on its own
+/// row, not this one's.)
+#[test]
+fn a_kink_in_a_pocket_has_the_outer_loops_reading() {
+    let eps = eps();
+    for (a_end, s) in [(2.195, 150.0), (2.199, 500.0)] {
+        let what = format!("kink at {a_end}, offset {s}ε");
+        let pts = vec![
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 3.0),
+            Point2::new(0.0, 3.0),
+            Point2::new(0.0, 2.2),
+            Point2::new(0.5, 2.2),
+            Point2::new(0.5, a_end),
+            Point2::new(0.5 + s * eps, 1.0),
+            Point2::new(0.0, 1.0),
+        ];
+        let n = pts.len();
+        let t = revolve(
+            &validated(vec![ProfileLoop::polygon(pts.clone())]),
+            axis_y(),
+            Revolution::Full,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: {e}"));
+        assert_all_tiers(&t.body);
+        let cavity = t.cavity(CavityOrigin::Pocket { gap: 0 }).unwrap();
+        assert_eq!(shell_faces(&t, cavity), walls_of(&t, &[4, 5, 6, 7]), "{what}");
+        assert_swept_order(&what, &t, n);
+        let rel = (props(&t).0 - pappus_volume(&pts)) / pappus_volume(&pts);
+        assert!(rel.abs() < 1e-9, "{what}: volume off by {rel}");
+    }
 }

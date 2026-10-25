@@ -589,15 +589,19 @@ pub enum RevolveError {
         vertex_index: usize,
     },
     /// Whether two consecutive axis runs of a full revolve's outer loop
-    /// lie apart along the axis escalated: the run ending at
-    /// `vertex_index` and the next run's start sit a sliver apart.
+    /// lie apart along the axis escalated: the end of one run, at
+    /// `vertex_index`, and the start of the run after it in swept order
+    /// sit a sliver apart axially. Which of the two is lower is what
+    /// escalated, so the run may be the top one, the filled shell's
+    /// stretch then being the one in question.
     /// Unreachable for a profile validated at this run's tolerance (two
     /// runs are non-adjacent segments the simplicity pass decided
     /// apart), so it exists for a profile validated at another ε.
     AxisGapEscalated {
         /// Canonical index of the loop.
         loop_index: usize,
-        /// Canonical index of the vertex where the lower run ends.
+        /// Canonical index of the vertex where the run ends, in swept
+        /// order.
         vertex_index: usize,
         /// The predicate-layer escalation.
         source: Indeterminate,
@@ -1097,8 +1101,7 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
     let mut out = if full {
-        let forward = swept_segments(&profile.loops()[0], false);
-        full::build_full(&frame, &loops, Some(&forward), &classes, theta, band, tol)
+        full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {
         partial::build_partial(&frame, &loops, &classes, theta, reverse, band, tol)
     }?;

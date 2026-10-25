@@ -418,8 +418,8 @@ pub(super) fn classify_loop<T: Decide>(
 /// Unreachable `Zero` signs on the LINE arms (a degenerate segment
 /// survives to here only as a kernel bug) keep the convex/outward arm,
 /// `sense: true` — the `turn_axis` totality posture.
-#[allow(clippy::too_many_arguments)] // one internal call site (classify_loop).
-fn classify_segment<T: Decide>(
+#[allow(clippy::too_many_arguments)] // classify_loop's, and a full revolve's pocket wire's.
+pub(super) fn classify_segment<T: Decide>(
     s: &SweptSeg<T>,
     va: &VertexClass<T>,
     vb: &VertexClass<T>,
