@@ -7009,3 +7009,9 @@ Signed (WIRE orchestrator).
 - 2026-10-25 (WIRE orchestrator) Ev on PR 5705 asked whether the method is simple, consistent and stable, or will need patches, and whether a simpler rule with a few worse cases exists. Both designers were asked to count the cases, weigh a no-orientation rule and a tie-instead-of-rank rule, and recommend one. The answer goes on the PR once reconciled.
 - 2026-10-25 (WIRE orchestrator) Reply on PR 5705 to Ev's simplicity question. Both designers recommend dropping ranks: sense along each thing on the line, else tie (two rules), replacing the joint method's 9–10 cases. This reverses row 73's rank half; no test reaches it, and the change is additive later. The 18 seam-run groups are unmeasured; a build checks them first. Waiting for Ev's yes before switching the diff.
 - 2026-10-25 (WIRE orchestrator) Ev on PR 5705: "this sounds good but do measure first". Dispatched `wire-orient-measure` (read-only instrumented probe over the suite and corpus). It counts every ranked or tied group, whether per-thing sense separates it, the tie count under the no-rank rule, and the 18 seam-run groups. The diff switches only after the numbers are reported to Ev.
+- 2026-10-25 (WIRE orchestrator) PR 5535 FULL review: mergeable with fixes.
+  - The ops.rs dedup is right. Instrumented, duplicates also appear in five topo families, and no reader depended on them.
+  - MAJOR: the tied-corner arm still collapses copies, against N4's divider rule. The pair boolean does it right.
+  - MINOR: a new unreachable! rests on two decisions agreeing, so it goes typed per the class rule.
+  - Fix pass sent: tied arm, typed refusal, dedup helper, territory line, row wording.
+  - The reviewer also reports main red at 4b7d569 on about 30 slow tests, goldens included, identical at base. The orchestrator is checking a sample on current main.
