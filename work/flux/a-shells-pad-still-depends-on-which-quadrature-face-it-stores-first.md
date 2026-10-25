@@ -2,11 +2,13 @@
 id: a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first
 kind: issue
 title: "A shell's pad still depends on which quadrature face it stores first: 90× across rotations at 1e-6 when its quadrature faces lie a kilometre apart"
-status: open
+status: closed
 priority: P2
 cost: M
 refs: [a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order]
 opened: 2026-10-20
+closed: 2026-10-25
+branch: flux/shell-pad-per-region
 ---
 
 (Found by the review of PR 5495, which closed
@@ -72,3 +74,34 @@ apart has no single point near both.
 The two-tori body reads within 2× across rotations at every ε, and the
 row is restated to assert it. Or this item is closed with the measurement
 that says no shape helps.
+
+## Resolution
+
+Closed on `flux/shell-pad-per-region`, by the first shape above, with
+the carry read off the region's boundary rather than its faces.
+
+- A shell's quadrature faces are grouped into regions by shared edges
+  (`quadrature_regions` in `crates/topo/src/props.rs`).
+- Each region after the first is read about the stored start vertex of
+  its first face, `c_g`, and carried to the shell's point `c` by
+  `(c_g − c)·A⃗(∂g)`. `∂g` is the half-edges of its faces whose mate
+  lies outside it, read in interval arithmetic by `loop_vector_area`.
+- By Stokes the faces' vector areas sum to the boundary's. The boundary
+  lies on closed-form faces, so its vector area is exact but for
+  rounding, and the carry does not bring back the width the point
+  removed. That width is what sank 5495's per-face carry.
+- The derivation, the sign, the orientation, why the boundary is
+  closed-form, and the rounding are in the `References` docs.
+
+Measured on the two tori on a bar, across the 12 rotations:
+
+| ε | before | after |
+|---|---|---|
+| 1e-9 | 2.28e-5 – 5.88e-5 (2.58×) | 4.10e-6 (1.00×) |
+| 1e-12 | 2.14e-8 – 5.80e-8 (2.71×) | 3.69e-9 – 3.74e-9 (1.01×) |
+| 1e-6 | 4.14e-5 – 3.74e-3 (90.2×) | 4.10e-6 (1.00×) |
+
+A shell of one region reads bit for bit as before. The row in
+`crates/sweep/tests/a_spiric_cut_far_off_and_turned_reads_as_at_home.rs`
+is restated as
+`a_shells_pad_reads_alike_whichever_quadrature_face_it_stores_first`.

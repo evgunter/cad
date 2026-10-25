@@ -4,8 +4,10 @@
 //! walls tori, each measured by quadrature. A rigid motion preserves
 //! volume, and moving a body moves no face's width: every face's flux
 //! is read about a vertex of its shell's first quadrature face
-//! (`topo::props`' `shell_reference`), so the lever a width scales with
-//! is the extent of the shell's quadrature faces wherever the body sits.
+//! (`topo::props`' `shell_reference`), or of its quadrature region's first
+//! face where the shell has more than one region (`topo::props`'
+//! `References`), so the lever a width scales with is the extent of a
+//! region's quadrature faces wherever the body sits.
 //!
 //! Read about the world origin, the same cut carried `s = 100` along
 //! `(8, −3, 5)` and turned by 0.7 rad about a skew axis stood ~990 m

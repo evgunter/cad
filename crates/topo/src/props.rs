@@ -1529,7 +1529,9 @@ fn closed_form_or_carried<T: Decide>(
 }
 
 /// **A walk's runs re-derived in interval arithmetic**, each face about
-/// its shell's vertex `c` ([`corner_of`]): `(volume, surface area)`,
+/// the vertex `c` the walk read it about ([`corner_of`]: its shell's, or
+/// its carried quadrature region's, whose first face takes the region's
+/// carry), `(volume, surface area)`,
 /// whether every face was taken about its `c`, and whether a face was
 /// read off its quadrature ([`Rederived`]).
 ///
@@ -1589,8 +1591,9 @@ fn rederive<T: Decide>(
     rederive_faces(body, band, tol, lane, runs, tight)
 }
 
-/// [`rederive`] face by face, each about its shell's reference `c`
-/// ([`corner_of`]), which every run's enclosure is about already.
+/// [`rederive`] face by face, each about the point `c` the walk read it
+/// about ([`corner_of`]), which every run's enclosure is about already,
+/// and each carried region's first face with its carry ([`References`]).
 fn rederive_faces<T: Decide>(
     body: &Body<T>,
     band: Band,
@@ -1816,7 +1819,8 @@ impl Rederived {
 }
 
 /// **The reference point the re-derivation takes the flux about**: the
-/// face's shell's ([`shell_reference`]), a vertex of the body, lifted
+/// face's shell's ([`shell_reference`]), or its carried quadrature
+/// region's ([`References`]), a vertex of the body, lifted
 /// through `lane` (a point interval at `f64`). A point of the body lies
 /// within the body's extent along each face's normal of that face's
 /// plane: a needle's or a slab's thickness for its long faces. A plane's
@@ -3211,8 +3215,10 @@ fn mass_properties_impl<T: Decide>(
     mass_properties_runs(body, faces, band, quad, lane, tol).map(|(props, _)| props)
 }
 
-/// One face's flux term about its shell's reference ([`shell_reference`])
-/// and its half-width, keyed by the face.
+/// One face's flux term about the point the walk reads it about (its
+/// shell's reference, [`shell_reference`], or its carried quadrature
+/// region's, whose first face's term holds the region's carry:
+/// [`References`]) and its half-width, keyed by the face.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 pub type FaceTerm = (FaceKey, f64, f64);
@@ -3255,9 +3261,10 @@ pub fn fold_order_bound(terms: &[FaceTerm]) -> (f64, f64) {
 /// are what a caller compares face by face where two bodies store
 /// their faces in different orders (the fold's sum depends on the
 /// order; each face's term depends only on the point it is about, its
-/// shell's reference ([`shell_reference`]), so two such bodies compare
-/// face by face where each shell's first quadrature face starts at one
-/// vertex of both).
+/// shell's reference ([`shell_reference`]) or its carried region's
+/// ([`References`]), so two such bodies compare face by face where each
+/// shell's first quadrature face, and each region's, starts at one vertex
+/// of both).
 ///
 /// # Errors
 ///
@@ -3281,7 +3288,8 @@ pub fn mass_properties_with_face_terms(
 }
 
 /// Every face's own flux term and its area, in face-arena order,
-/// each read about its shell's reference by its own lane ([`face_flux`])
+/// each read about its shell's reference, or its carried quadrature
+/// region's ([`References`]), by its own lane ([`face_flux`])
 /// WITHOUT the door's seam-region reads ([`seam_refusals`]): what each
 /// face's arm measures of a body the door refuses as a whole, such as a
 /// sphere seam region whose members' bits disagree. Test vocabulary: the
@@ -3447,7 +3455,7 @@ pub fn shell_references(body: &Body<f64>) -> Vec<(ShellKey, Point3<f64>)> {
 
 /// Every quadrature face of `body` with the first round its lane meets
 /// the reporting target at, each read alone at that round about the
-/// face's shell's reference ([`shell_reference`]) as [`mass_properties`] reads it:
+/// point [`mass_properties`] reads it about ([`References`]):
 /// `(face, its surface's kind, round)`, `None` where no round of the
 /// schedule meets it. Test vocabulary: two poses of one body compare their faces'
 /// rounds, which say whether a face's width depends on where it sits.
@@ -3840,7 +3848,8 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
     regions.into_iter().map(|(_, faces)| faces).collect()
 }
 
-/// **The point a face's flux is read about** — its shell's reference:
+/// **The point a shell's faces are read about** — its reference, and its
+/// first quadrature region's point:
 /// the stored start vertex of the outer loop of the shell's first face, in
 /// its stored order, that takes the quadrature ([`takes_quadrature`]), or
 /// of its first face where none does (the world origin for a shell of no
@@ -4529,8 +4538,10 @@ pub mod read_points {
     }
 }
 
-/// The per-face body of the flux walk (module docs), about the face's
-/// shell's reference, as `refs` holds it.
+/// The per-face body of the flux walk (module docs), about the point
+/// `refs` holds for the face (its shell's reference, or its carried
+/// quadrature region's), with the region's carry on the region's first
+/// face ([`References`]).
 fn face_flux<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
