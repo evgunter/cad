@@ -671,11 +671,20 @@ mod tests {
                     (p(0.0, 1.0), Segment::Line),
                 ]),
         );
-        let three_runs: Vec<Point2<f64>> =
-            column.iter().chain(&square).chain(&pointed).copied().collect();
+        let three_runs: Vec<Point2<f64>> = column
+            .iter()
+            .chain(&square)
+            .chain(&pointed)
+            .copied()
+            .collect();
         // (what, loops, segments per loop, cavities)
         let cases = [
-            ("three runs", vec![ProfileLoop::polygon(three_runs)], vec![11], 2),
+            (
+                "three runs",
+                vec![ProfileLoop::polygon(three_runs)],
+                vec![11],
+                2,
+            ),
             ("round notch", vec![round], vec![6], 1),
             (
                 "a hole beside a gap",
