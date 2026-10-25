@@ -4,7 +4,7 @@ kind: unit
 title: delete gate_operand_edges once every site behind the sweep refuses a spline or spiric edge typed
 status: open
 opened: 2026-10-03
-priority: P1
+priority: P0
 cost: M
 refs: [3984]
 ---
@@ -73,3 +73,39 @@ named through the boolean. Today only unit rows reach
 `emit_topo::chord_along`, which orders the two crossings
 (`emit_topo`'s `nurbs_crossings_rank_by_parameter`,
 `work/emit/a-crossing-of-a-nurbs-edge-ties-for-want-of-its-parameter.md`).
+
+## The klein bottle is refused for edges nowhere near its contact (2026-10-25)
+
+Measured on main at `20658b1d` (asked in chat whether the bottle's
+join really needs a spline edge). `klein::bottle` at `Tol::witness()`:
+the loop (`lofted_loop`, the union's operand B) has 12 edges: **8 are
+`Curve3::Circle`**, the inner and outer rims of its two annular caps
+(at z = 3.0 and z = 0.6), and **4 are `Curve3::Nurbs`**, the loft's
+longitudinal seams, one per wall, running the length of the tube. The
+bulb has 16 circles and 6 lines and no spline. `union(bulb, loop)`
+refuses `CurvedEdgeUnsupported { operand: B, edge: EdgeKey(5v1) }`,
+and `5v1` is one of the seams.
+
+So the edges where the two bodies meet, the cap rims against the
+bulb's rims, are plain circles and need nothing from a spline lane;
+the gate refuses the whole operand because a seam elsewhere on it is
+a spline. The only part of the bottle's join that genuinely asks for
+NURBS work is the descent through the flare: the loop's NURBS walls
+piercing the bulb's cone (wall 4's subject), along with whatever seam
+crosses it. Deleting the gate should therefore move klein wall 3 to
+that pierce, or to the contact itself, and the row that retires the
+gate should say which. The unreviewed attempt above moved it to
+`CurvedPairUnsupported{Cone, Plane}`, which names neither a NURBS face
+nor a seam; nobody has said which faces that pair is.
+
+One thing the circles do not settle: the loop's caps are tilted
+3.99e-4 rad off the rims they meet (klein finding 11), so their circles
+are not the bulb's. The rims can be up to about 1.1e-4 m apart, which a
+declared `Rest` contact would have to accept. That tilt goes away when
+the loop is swept along its exact spine
+(`work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`,
+P0).
+
+## Re-banded to P0 (on request in chat, 2026-10-25)
+
+This gate is what stops three demo joins: klein wall 3, lily wall 8 and teapot wall 3. Each one refuses a lofted or swept operand because its seams are spline edges, even where the contact itself is plain circles (the klein measurement above). Any body built by loft or sweep is refused by every boolean.

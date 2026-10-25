@@ -207,8 +207,28 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/geom/src/curves/boxes.rs",
-        subject: "of",
-        why: Payload("`Brk::of`, the mechanism the two arc constructors share"),
+        subject: "conic_arc_extent_along_bracketed",
+        why: Payload(
+            "an arc's extent along a direction as an f64 bracket, as the arc constructors",
+        ),
+    },
+    Site {
+        path: "crates/geom/src/curves/boxes.rs",
+        subject: "conic_frame_aabb",
+        why: Payload("the body the circle and ellipse constructors above share"),
+    },
+    Site {
+        path: "crates/geom/src/curves/boxes.rs",
+        subject: "lift",
+        why: Payload(
+            "a bracket entered as the Interval whose bounds alone the doors above read back; \
+             a dual's bracket is its value channel's",
+        ),
+    },
+    Site {
+        path: "crates/geom/src/curves/boxes.rs",
+        subject: "impl<T: Bounds> ConicFrame<T>",
+        why: Payload("`lift` over a conic's frame"),
     },
     Site {
         path: "crates/geom/src/curves/projection.rs",

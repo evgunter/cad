@@ -2,11 +2,10 @@
 id: period-headroom-margin-has-no-shared-home
 kind: issue
 title: The period-headroom margin Margin::levered(T::tau() - span, lever) is spelled at ~18 sites across 6 crates under ~12 predicate names with no shared home
-status: dispatched
+status: open
 opened: 2026-09-06
 priority: P1
 cost: H
-branch: pred/period-turn-rule
 ---
 
 
@@ -278,3 +277,24 @@ Off-question findings from the pair, owed rows:
 - `profile/src/path/verbs.rs` `path_arc_sweep` gates a bare radian
   through `Margin::of` against the metres band. Unit 2 owns it as a
   site.
+
+## Unit 1 landed (PR 5686, 2026-10-25)
+
+The rule, its types and certification are built, along with `ConicArc::of`
+as a caller, under a dual review (both APPROVE-WITH-FIXES, no MAJOR) and
+a 13-item fix pass. What changed against the design:
+- `Extent` is built by `forward`, `hull(values)` (not `width`),
+  `decide_signed`, `Add`, and the certificate's `CertifiedTurn`, which
+  carries its interval as well;
+- rates are built by constructors;
+- one speed floor is `geom::carrier_speed::speed_floor`, and the sup is
+  `turn_defect_speed_hi(carrier, t0, extent)`.
+
+**Unit 2 remains.** It moves every other site onto the rule:
+- props' hand-built askers;
+- topo's chart and hull askers, and projected check 2 (sup only: an
+  escalation unless an inf chart rate exists);
+- the authored askers (revolve, tube, path, `seg.rs`);
+- the certified readers, which read the stored turn.
+
+Read the PR 5686 body's per-site call shapes first.
