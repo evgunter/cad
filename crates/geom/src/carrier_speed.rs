@@ -3,8 +3,9 @@
 //! line's `|dir|`, a conic's semi-axes (read as magnitudes in either
 //! stored order, [`crate::Curve3::semi_axes_by_size`]), a spiric's and a
 //! spline's bounds. [`speed_at`] and [`speed_hi`] answer the line and
-//! the conics alone, `None` for a spiric or spline carrier, which their
-//! callers read as a door that stays.
+//! the conics alone, `None` for a spiric or spline carrier: the speed
+//! at a point a conic's root is metered by, and the closed form a
+//! carrier's rounding resolution is summed from.
 
 use geom_core::period::Extent;
 use geom_core::{InfSpeed, Real, SpanLocate, SupSpeed, Vec3};
@@ -24,13 +25,6 @@ pub fn speed_at<T: SpanLocate>(carrier: &crate::Curve3<T>, t: T) -> Option<T> {
 /// ellipse's larger semi-axis.
 pub fn speed_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {
     Kind::of(carrier).closed_hi()
-}
-
-/// [`speed_hi`] and [`curvature_hi`] together, `None` past
-/// [`speed_hi`]'s kinds.
-pub fn speed_and_curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<(T, T)> {
-    let kind = Kind::of(carrier);
-    Some((kind.closed_hi()?, kind.curvature_hi()?))
 }
 
 /// Bounds on `|C′(t)|` over every `t`, on every kind: exact on a line
@@ -188,7 +182,7 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
     }
 
     /// The greatest speed of a line or a conic; `None` on a spiric or a
-    /// spline, which [`speed_at`]'s callers read as a door that stays.
+    /// spline.
     fn closed_hi(&self) -> Option<T> {
         match self {
             Self::Line(_) | Self::Conic(_) => Some(self.range().1.get()),

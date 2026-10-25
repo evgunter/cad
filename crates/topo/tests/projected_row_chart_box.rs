@@ -224,16 +224,16 @@ fn a_projected_edge_on_part_of_its_net_reads_the_tighter_box() {
 /// **The cell door beside a spline edge.** The unit prism's bottom face
 /// with its first edge's carrier swapped for a degree-1 net along the
 /// same chord: the face is still the unit square, and the spline edge is
-/// read as the ball its control net lies in (`cell_region`'s ball row).
-/// Every cell of a grid over the square and its surround the door
-/// decides agrees with the square.
+/// read as the ball its control net lies in, and past it piece by piece
+/// (`cell_region`'s ball row). Every cell of a grid over the square and
+/// its surround the door decides agrees with the square.
 ///
-/// The decided counts are pinned, and that pin is what stands against
-/// the ball row: `contfp` holds an uncrossable edge as a ball too and
-/// refuses a station inside it, so a door that called every spline
-/// edge clear never decides a cell the edge straddles here, and the
-/// soundness assertion cannot see it. It decides ten more cells inside,
-/// near the edge, and the count goes red.
+/// The decided counts are pinned. `contfp` holds an uncrossable edge as
+/// a ball too and refuses a station inside it, so a door that called
+/// every spline edge clear never decides a cell the edge straddles here,
+/// and the soundness assertion cannot see it: the floor's own rows
+/// (`carrier_touch_rows`, a ball on a spline is not cleared of it) stand
+/// against that door.
 #[test]
 fn the_cell_door_reads_a_spline_edge_as_its_ball() {
     use topo::cell_region::{CellRegion, cell_region};
@@ -284,7 +284,7 @@ fn the_cell_door_reads_a_spline_edge_as_its_ball() {
     assert_eq!(wrong, 0, "a decided cell contradicts the square");
     assert_eq!(
         (inside, outside),
-        (65, 407),
+        (75, 407),
         "the cells the door decides beside the spline edge, pinned"
     );
 }
