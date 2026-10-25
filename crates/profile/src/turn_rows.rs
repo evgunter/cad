@@ -224,7 +224,9 @@ fn review_probe_the_two_readings_share_one_row() {
     let (over, over_signs) = signs(1.5 * TAU, Range::Chord);
     let (zero, zero_signs) = signs(0.0, Range::Chord);
     let (full, full_signs) = signs(TAU, Range::FullTurn);
-    eprintln!("cw {cw:?} {cw_signs:?}; over {over:?} {over_signs:?}; zero {zero:?} {zero_signs:?}; full {full:?} {full_signs:?}");
+    eprintln!(
+        "cw {cw:?} {cw_signs:?}; over {over:?} {over_signs:?}; zero {zero:?} {zero_signs:?}; full {full:?} {full_signs:?}"
+    );
     assert_eq!(cw, Outcome::Admitted);
     assert!(cw_signs.contains(&Sign::Negative));
     assert_eq!(over, Outcome::Refused);
