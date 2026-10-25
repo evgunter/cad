@@ -122,7 +122,7 @@ connected piece of the solution set in a box ends on the box's boundary
 at two points. The solution set in the chain is one arc, and it spans
 the carrier; the proof is the same at every door, a search's and an
 edge's at rest. For a carrier between two analytic surfaces the three
-limbs are the edge certificate's own (`edge_nurbs::analytic_rung3`,
+limbs are the edge certificate's own (`edge_nurbs::analytic_edge_limbs`,
 through the scalar's certified lane): limb 2 against each operand, its
 distance from that surface over the edge's interval, whatever faces
 store pcurve rows (a planar face stores none), which implies limb 1;

@@ -1027,6 +1027,28 @@ fn chart_of<T: Decide>(
     framed: &FramedCarrier<T>,
     band: Band,
 ) -> Result<ProjectedChart<T>, PcurveCertifyError> {
+    chart_at(
+        surface,
+        || match framed {
+            FramedCarrier::Net(net) => {
+                let (d0, d1) = net.knot_values().domain();
+                net.eval(T::from_f64(0.5) * (d0 + d1)).z
+            }
+            FramedCarrier::Circle { origin, span, .. } => {
+                framed.eval(*origin + *span * T::from_f64(0.5)).z
+            }
+        },
+        band,
+    )
+}
+
+/// [`chart_of`] for a carrier whose middle sits at height `mid` in the
+/// surface's chart frame, read only on a cone.
+pub(crate) fn chart_at<T: Decide>(
+    surface: &Surface<T>,
+    mid: impl FnOnce() -> T,
+    band: Band,
+) -> Result<ProjectedChart<T>, PcurveCertifyError> {
     Ok(match *surface {
         Surface::Plane { .. } => ProjectedChart::Plane,
         Surface::Cylinder { .. } => ProjectedChart::Cylinder,
@@ -1036,15 +1058,7 @@ fn chart_of<T: Decide>(
         },
         Surface::Cone { half_angle, .. } => {
             let (sin, cos) = half_angle.sin_cos();
-            let mid = match framed {
-                FramedCarrier::Net(net) => {
-                    let (d0, d1) = net.knot_values().domain();
-                    net.eval(T::from_f64(0.5) * (d0 + d1)).z
-                }
-                FramedCarrier::Circle { origin, span, .. } => {
-                    framed.eval(*origin + *span * T::from_f64(0.5)).z
-                }
-            };
+            let mid = mid();
             let nappe =
                 match decide("pcurve_projected_nappe", Margin::of(mid), band).map_err(|cause| {
                     PcurveCertifyError::Escalated {
@@ -1786,7 +1800,6 @@ pub(crate) fn net_offset_sup<T: Decide>(
     band: Band,
     lane: crate::FittedLane<T>,
 ) -> Result<Offset<T>, PcurveCertifyError> {
-    use crate::ssi::certify::{Hull, Subdivided, subdivide};
     let Some((origin, e)) = chart_frame(surface) else {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),
@@ -1823,8 +1836,33 @@ pub(crate) fn net_offset_sup<T: Decide>(
         unreachable!("built from the net above")
     };
     let d = net_fidelity(stored, &twin_net);
+    offset_rounds(
+        |cuts| lane.projected_hull(&image, &twin_net, &twin, cuts),
+        window,
+        &image.chart,
+        &twin,
+        d,
+        band,
+    )
+}
+
+/// Limb 2's rounds over a carrier's composite, read on the parts the
+/// edge's `window` overlaps: `hull` composes the carrier's twin with
+/// its parts cut at a round's breaks, and the rounds halve as
+/// [`net_offset_sup`]'s docs say. The bound is decided on
+/// [`net_incidence`] over the parts the rounds stopped on, with `d` the
+/// stored carrier's distance from the twin the composite read.
+pub(crate) fn offset_rounds<T: Decide>(
+    hull: impl Fn(&[f64]) -> Result<ProjectedHull, PcurveCertifyError>,
+    window: (T, T),
+    chart: &ProjectedChart<T>,
+    twin: &Surface<T>,
+    d: T,
+    band: Band,
+) -> Result<Offset<T>, PcurveCertifyError> {
+    use crate::ssi::certify::{Hull, Subdivided, subdivide};
     let round = |cuts: &[f64]| -> Result<Hull<ProjectedHull>, PcurveCertifyError> {
-        let hull = lane.projected_hull(&image, &twin_net, &twin, cuts)?;
+        let hull = hull(cuts)?;
         let Window { parts, inside } = window_of(&hull, window)?;
         let read = &hull.spans[parts.clone()];
         let spans: Vec<f64> = read.iter().map(|s| s.meters).collect();
@@ -1855,13 +1893,14 @@ pub(crate) fn net_offset_sup<T: Decide>(
                 .collect(),
             floors: (*parts.start()..=*parts.end() + 1).map(floor).collect(),
             spans,
-            // The lane composes the whole net, whatever the window reads.
+            // The composite reads the whole carrier, whatever the
+            // window reads.
             work: hull.spans.len(),
             data: hull,
         })
     };
     let bound = |hull: &ProjectedHull| {
-        net_incidence(hull, window, &image.chart, &twin, d, band).map(|(incidence, _)| incidence)
+        net_incidence(hull, window, chart, twin, d, band).map(|(incidence, _)| incidence)
     };
     Ok(match subdivide(round, band)? {
         Subdivided::Bound(hull) => Offset::Bound(bound(&hull.data)?),

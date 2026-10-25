@@ -117,8 +117,16 @@ fn the_corner_ball_cylinder_circle_certifies_as_a_tangent_intersection() {
         param_start: t0,
         param_end: t1,
     };
-    let curve = EdgeCurve::certify(spec, start, end, |k| surfaces.get(k).cloned(), 1.0, band())
-        .expect("the corner trimline is a certified tangent intersection");
+    let curve = EdgeCurve::certify_via(
+        spec,
+        start,
+        end,
+        |k| surfaces.get(k).cloned(),
+        1.0,
+        band(),
+        Some(geom_brep::NurbsLane::certified()),
+    )
+    .expect("the corner trimline is a certified tangent intersection");
     assert!(
         curve.certificate().max_residual < 1e-12,
         "the coaxial contact circle is EXACT geometry: {}",
@@ -193,6 +201,7 @@ fn cap_crossing(r: f64, h: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 fn certify_cap_quarter<T: Decide>(
     r: f64,
     cylinder_first: bool,
+    lane: Option<geom_brep::NurbsLane<T>>,
     describe: impl Fn(SurfaceKey, SurfaceKey, Point3<T>) -> EdgeDescriptionSpec<T>,
 ) -> Result<EdgeCurve<T>, CertifyError> {
     let (plane, cylinder, circle) = cap_crossing(r, 0.5);
@@ -214,20 +223,21 @@ fn certify_cap_quarter<T: Decide>(
         param_start: t0,
         param_end: t1,
     };
-    EdgeCurve::certify(
+    EdgeCurve::certify_via(
         spec,
         circle.eval(t0),
         circle.eval(t1),
         |k| surfaces.get(k).cloned(),
         geom_core::Real::from_f64(1.0),
         band(),
+        lane,
     )
 }
 
 /// The cap crossing described as a tangency at `T`, with the surfaces
 /// in the (plane, cylinder) order or reversed.
 fn tangent_cap_quarter<T: Decide>(r: f64, reversed: bool) -> Result<EdgeCurve<T>, CertifyError> {
-    certify_cap_quarter(r, reversed, |plane, cylinder, witness| {
+    certify_cap_quarter(r, reversed, None, |plane, cylinder, witness| {
         EdgeDescriptionSpec::TangentIntersection {
             pair: SurfacePair::new(plane, cylinder),
             witness,
@@ -300,12 +310,15 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
         );
     }
 
-    certify_cap_quarter::<f64>(r, false, |s1, s2, witness| {
-        EdgeDescriptionSpec::Intersection {
+    certify_cap_quarter::<f64>(
+        r,
+        false,
+        Some(geom_brep::NurbsLane::certified()),
+        |s1, s2, witness| EdgeDescriptionSpec::Intersection {
             pair: SurfacePair::new(s1, s2),
             witness,
-        }
-    })
+        },
+    )
     .expect("the cap crossing is a certified transverse intersection");
 
     for reversed in [false, true] {

@@ -1402,17 +1402,11 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     let piece = edge_piece(carrier, lo, hi)?;
     let lane = crate::FittedLane::<T>::certified();
     for operand in [s1, s2] {
-        use crate::pcurve_cache::projected::{Offset, net_offset_sup};
-        let kind = operand.kind();
-        let refused = |e| AnalyticRung3Refusal::of_offset(kind, e);
-        let offset = match net_offset_sup(carrier, params, operand, band, lane).map_err(refused)? {
-            Offset::Bound(offset) => offset,
-            Offset::Miss { floor, bound } => {
-                rung3_limb(kind, Limb2::Miss, floor, band)?;
-                bound.map_err(refused)?
-            }
-        };
-        rung3_limb(kind, Limb2::Bound, offset, band)?;
+        limb2(
+            operand,
+            crate::pcurve_cache::projected::net_offset_sup(carrier, params, operand, band, lane),
+            band,
+        )?;
     }
     if let Some(operand) = [s1.kind(), s2.kind()]
         .into_iter()
@@ -1439,6 +1433,70 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     )
     .map(|_| ())
     .map_err(AnalyticRung3Refusal::of_tube)
+}
+
+/// **C2's limbs of an `Intersection` carrier of any kind between two
+/// ANALYTIC surfaces**, over the edge's interval `params`: limb 2 against
+/// each operand for every carrier, and the uniqueness tube for a spline
+/// one ([`analytic_rung3`], which is this door for a `Curve3::Nurbs`).
+///
+/// A line, circle, ellipse or spiric is read through its certified
+/// enclosing net ([`crate::pcurve_cache::closed_form_offset_sup`]): the
+/// operand's canonical implicit form composed along it, converted to
+/// metres per part as for a spline, its parts halved under limb 2's
+/// budget, and decided as [`analytic_rung3`] decides its limb 2. Limb 1,
+/// the same distance at the schedule's samples, is implied by it.
+///
+/// # Errors
+///
+/// [`analytic_rung3`]'s for a spline; for any other kind, a limb's
+/// measured refusal or escalation, an operand whose distance bound has
+/// no certificate, a carrier with no certified enclosing net over a span
+/// of the interval ([`AnalyticRung3Refusal::CarrierEnclosure`]), or a
+/// spline operand.
+pub fn analytic_edge_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &Curve3<T>,
+    params: (T, T),
+    s1: &Surface<T>,
+    s2: &Surface<T>,
+    band: Band,
+) -> Result<(), AnalyticRung3Refusal> {
+    if let Curve3::Nurbs(net) = carrier {
+        return analytic_rung3(net, params, s1, s2, band);
+    }
+    if !(is_analytic(s1) && is_analytic(s2)) {
+        return Err(AnalyticRung3Refusal::Unsupported {
+            what: "the analytic edge certificate reads two analytic operands",
+        });
+    }
+    for operand in [s1, s2] {
+        limb2(
+            operand,
+            crate::pcurve_cache::closed_form_offset_sup(carrier, params, operand, band),
+            band,
+        )?;
+    }
+    Ok(())
+}
+
+/// Limb 2 against `operand`, decided on what the composite read of the
+/// carrier's distance from it.
+fn limb2<T: Decide>(
+    operand: &Surface<T>,
+    read: Result<crate::pcurve_cache::projected::Offset<T>, crate::PcurveCertifyError>,
+    band: Band,
+) -> Result<(), AnalyticRung3Refusal> {
+    use crate::pcurve_cache::projected::Offset;
+    let kind = operand.kind();
+    let refused = |e| AnalyticRung3Refusal::of_offset(kind, e);
+    let offset = match read.map_err(refused)? {
+        Offset::Bound(offset) => offset,
+        Offset::Miss { floor, bound } => {
+            rung3_limb(kind, Limb2::Miss, floor, band)?;
+            bound.map_err(refused)?
+        }
+    };
+    rung3_limb(kind, Limb2::Bound, offset, band)
 }
 
 /// Which of limb 2's readings a verdict decides on.
@@ -1639,6 +1697,12 @@ pub enum AnalyticRung3Refusal {
         /// Why, in a clause.
         why: &'static str,
     },
+    /// The carrier has no certified enclosing net over a span of the
+    /// edge's interval (a spiric whose root's argument reaches zero
+    /// there, or a carrier whose data are not finite), so limb 2 has no
+    /// composite to bound ([`PlaneNurbsRefusal::CarrierEnclosure`] reads
+    /// the same fact).
+    CarrierEnclosure(crate::CarrierEnclosureRefusal),
     /// The uniqueness tube has no enclosure of this operand's implicit
     /// gradient, so no box of any rung certifies, whatever the carrier's
     /// accuracy: raised once limb 2 holds against both operands.
@@ -1679,6 +1743,7 @@ impl AnalyticRung3Refusal {
                 limb: Rung3Limb::HullSup,
                 cause,
             },
+            crate::PcurveCertifyError::CarrierEnclosure(refusal) => Self::CarrierEnclosure(refusal),
             crate::PcurveCertifyError::SectorRefused { channel, .. } => Self::NoOffsetBound {
                 operand,
                 why: channel.describe(),
@@ -1748,6 +1813,7 @@ impl AnalyticRung3Refusal {
             // The one-arc proof is the SSI door's own decision, and
             // `ending` reads it there.
             Self::NoOffsetBound { .. }
+            | Self::CarrierEnclosure(_)
             | Self::NoTubeEnclosure { .. }
             | Self::TubeNotOneArc { .. }
             | Self::Unsupported { .. } => {
@@ -1794,6 +1860,10 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                 }
                 write!(f, " escalated: {}", cause.payload())
             }
+            Self::CarrierEnclosure(r) => write!(
+                f,
+                "limb 2 could not enclose the carrier between samples: {r}"
+            ),
             Self::NoOffsetBound { operand, why } => write!(
                 f,
                 "the carrier's distance from the {} has no certified bound: {why}",

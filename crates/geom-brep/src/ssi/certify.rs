@@ -1675,8 +1675,8 @@ pub(crate) const NURBS_LIMBS_NEED_PCURVE: &str = "a NURBS operand's limbs need t
 /// [`certify_branch`]'s routing boundary for a closed-form carrier
 /// between two analytic operands, whose tube is the ℝ³ box chain.
 pub(crate) const BOX_CHAIN_NEEDS_SPLINE: &str = "the ℝ³ uniqueness tube of two analytic \
-     operands is a chain of a spline carrier's control-net hulls; a closed-form carrier on \
-     such a pair is rung 1 or 2, zero by construction";
+     operands is a chain of a spline carrier's control-net hulls, which a closed-form carrier \
+     does not have";
 
 /// [`certify_branch`]'s routing boundary for a NURBS operand whose
 /// analytic partner is not a plane.

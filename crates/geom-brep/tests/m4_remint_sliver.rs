@@ -56,13 +56,14 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
         param_start: t0,
         param_end: t1,
     };
-    EdgeCurve::certify(
+    EdgeCurve::certify_via(
         spec,
         Point3::new(0.0, 0.0, 0.0),
         Point3::new(2.0, 0.0, 0.0),
         &resolve,
         1.0,
         band,
+        Some(geom_brep::NurbsLane::certified()),
     )
 }
 

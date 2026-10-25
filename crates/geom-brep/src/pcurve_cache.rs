@@ -2961,9 +2961,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     twin: &Surface<T>,
     cuts: &[f64],
 ) -> Result<projected::ProjectedHull, PcurveCertifyError> {
-    use geom_core::Bounds;
-    use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
-    use projected::{PieceHull, ProjectedHull, SpanHull};
+    use projected::{PieceHull, ProjectedHull};
     let cross = geom_core::Interval::from_certified;
     let refuse = |why| PcurveCertifyError::ImageMismatch {
         image: PcurveKind::Projected,
@@ -3000,42 +2998,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         v_off: cross(image.v_off),
         v_sign: cross(image.v_sign),
     };
-    // An endpoint of a bracket that does not certify is an ordinary
-    // number, not a bound: every read here asks first, and reads NaN
-    // for one that does not. A piece or span the edge's interval meets
-    // refuses on it (`projected::net_incidence`, the sector check); one
-    // outside the interval is not the edge's.
-    //
-    // A net with a control that does not certify is corrupt, and it
-    // refuses wherever that control's support reaches: a piece or part
-    // reads NaN for every bound (`ok` false), through the same two
-    // reads, whichever channel the control's refusal sits in — not only
-    // where a box the bound is read off carries it.
-    let lower = |v: geom_core::Interval, ok: bool| {
-        if ok && v.is_certified() {
-            v.lo()
-        } else {
-            f64::NAN
-        }
-    };
-    let upper = |v: geom_core::Interval, ok: bool| {
-        if ok && v.is_certified() {
-            v.hi()
-        } else {
-            f64::NAN
-        }
-    };
-    let uncertified = |n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)| {
-        let (knots, p) = (
-            n.knots_f64_interim().knots(),
-            n.knots_f64_interim().degree(),
-        );
-        n.control().iter().enumerate().any(|(i, c)| {
-            knots[i] < b
-                && knots[i + p + 1] > a
-                && !(c.x.is_certified() && c.y.is_certified() && c.z.is_certified())
-        })
-    };
+    let (lower, uncertified) = (certified_lower, uncertified_over);
     let knots = image.breaks.knots();
     let pieces = (0..image.pieces())
         .map(|k| {
@@ -3056,6 +3019,84 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             }
         })
         .collect();
+    let spans = twin_span_hulls(
+        &lift(twin_net),
+        twin,
+        &image.chart,
+        projected::INCIDENCE_CUTS,
+        cuts,
+    )?;
+    Ok(ProjectedHull { pieces, spans })
+}
+
+/// An endpoint of a bracket that does not certify is an ordinary
+/// number, not a bound: every read here asks first, and reads NaN for
+/// one that does not. A piece or span the edge's interval meets refuses
+/// on it (`projected::net_incidence`, the sector check); one outside the
+/// interval is not the edge's.
+fn certified_lower(v: geom_core::Interval, ok: bool) -> f64 {
+    use geom_core::Bounds;
+    if ok && v.is_certified() {
+        v.lo()
+    } else {
+        f64::NAN
+    }
+}
+
+/// [`certified_lower`]'s upper end.
+fn certified_upper(v: geom_core::Interval, ok: bool) -> f64 {
+    use geom_core::Bounds;
+    if ok && v.is_certified() {
+        v.hi()
+    } else {
+        f64::NAN
+    }
+}
+
+/// Whether a control of `n` whose support meets `(a, b)` does not
+/// certify. A net with such a control is corrupt, and it refuses
+/// wherever that control's support reaches: a piece or part reads NaN
+/// for every bound, whichever channel the control's refusal sits in —
+/// not only where a box the bound is read off carries it.
+fn uncertified_over(n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)) -> bool {
+    let (knots, p) = (
+        n.knots_f64_interim().knots(),
+        n.knots_f64_interim().degree(),
+    );
+    n.control().iter().enumerate().any(|(i, c)| {
+        knots[i] < b
+            && knots[i + p + 1] > a
+            && !(c.x.is_certified() && c.y.is_certified() && c.z.is_certified())
+    })
+}
+
+/// The parts of a carrier's twin net in certification arithmetic: the
+/// chart's canonical implicit form composed along `twin_net` (the
+/// carrier written in the frame of `twin`, the chart's orthonormal
+/// twin), each knot span cut into `per_span` equal parts and at `cuts`,
+/// with each part's bound of `|f|`, the floors its metre conversion
+/// reads, and its metre readings.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::ImageMismatch`] for a net the composite
+/// refuses; [`PcurveCertifyError::UnsupportedChart`] off an analytic
+/// chart.
+fn twin_span_hulls<T: geom_core::CertifiedBounds>(
+    twin_net: &NurbsCurve3<geom_core::Interval>,
+    twin: &Surface<T>,
+    chart: &ProjectedChart<T>,
+    per_span: usize,
+    cuts: &[f64],
+) -> Result<Vec<projected::SpanHull>, PcurveCertifyError> {
+    use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
+    use projected::SpanHull;
+    let cross = geom_core::Interval::from_certified;
+    let refuse = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::Projected,
+        why,
+    };
+    let (lower, upper, uncertified) = (certified_lower, certified_upper, uncertified_over);
     let form = match *twin {
         Surface::Plane { .. } => CanonicalSurface::Plane,
         Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder {
@@ -3084,7 +3125,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
         }
     };
-    let Some(meters) = projected::Meters::of(twin, &image.chart, cross) else {
+    let Some(meters) = projected::Meters::of(twin, chart, cross) else {
         unreachable!("the form above is analytic")
     };
     // The composite of the net, and the same composite with each knot
@@ -3097,7 +3138,6 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // and its span's, both bounds on `|f|` over the part; its floors are
     // read off its own controls (`projected::piece_controls`, whose
     // ratios are formed in the scalar).
-    let twin_net = lift(twin_net);
     let coords = twin_net.certified_coords();
     let data = CurveCertData::new(
         twin_net.knots_f64_interim(),
@@ -3119,9 +3159,9 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     let mut all_cuts: Vec<f64> = runs
         .windows(2)
         .flat_map(|w| {
-            (1..projected::INCIDENCE_CUTS).map(move |j| {
+            (1..per_span).map(move |j| {
                 #[allow(clippy::cast_precision_loss)]
-                let f = j as f64 / projected::INCIDENCE_CUTS as f64;
+                let f = j as f64 / per_span as f64;
                 w[0] + (w[1] - w[0]) * f
             })
         })
@@ -3129,7 +3169,12 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         .collect();
     all_cuts.sort_by(f64::total_cmp);
     all_cuts.dedup();
-    let parts = composite_of(&data.clone().with_breaks(&all_cuts))?;
+    let cut = if all_cuts.is_empty() {
+        None
+    } else {
+        Some(composite_of(&data.clone().with_breaks(&all_cuts))?)
+    };
+    let parts = cut.as_ref().unwrap_or(&whole);
     let (breaks, part_sup, values) = (
         parts.num.breaks().to_vec(),
         parts.span_sup_bounds(),
@@ -3160,7 +3205,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                     floors: (0.0, 0.0),
                 };
             };
-            let controls = projected::piece_controls(&twin_net, piece);
+            let controls = projected::piece_controls(twin_net, piece);
             let (boxed, support, z) = projected::part_floors(&controls);
             // The support's divisor may not certify (a chord through the
             // axis): the box's floor stands alone then.
@@ -3169,7 +3214,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             } else {
                 boxed
             };
-            let ok = !uncertified(&twin_net, range);
+            let ok = !uncertified(twin_net, range);
             let f_sup = if ok { part.min(whole) } else { f64::NAN };
             let (rho_lo, z) = (lower(rho, ok), (lower(z.0, ok), upper(z.1, ok)));
             let point = |x: f64| geom_core::Interval::from_bounds(x, x);
@@ -3206,7 +3251,105 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             }
         })
         .collect();
-    Ok(ProjectedHull { pieces, spans })
+    Ok(spans)
+}
+
+/// **A closed-form carrier's distance from an analytic surface** —
+/// [`projected::net_offset_sup`] for a line, circle, ellipse or spiric,
+/// limb 2 of C2 for an analytic operand of any `Intersection` edge
+/// ([`crate::analytic_edge_limbs`]). The carrier is read through its
+/// certified enclosing net ([`crate::carrier_net::carrier_net`]) over
+/// the outer ends of `window`, written in the frame of the surface's
+/// orthonormal twin in certification arithmetic, and the twin's
+/// canonical composite along it is converted to metres per part (the
+/// cone's and the torus's lever per part) and halved under limb 2's
+/// budget ([`projected::offset_rounds`]). A round's cuts are breaks of
+/// the net itself, so each halving re-encloses the span it cuts.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::CarrierEnclosure`] for a span the carrier has
+/// no certified net over; [`PcurveCertifyError::UnsupportedChart`] off
+/// an analytic chart; as [`projected::offset_rounds`] otherwise.
+pub(crate) fn closed_form_offset_sup<
+    T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
+>(
+    carrier: &Curve3<T>,
+    window: (T, T),
+    surface: &Surface<T>,
+    band: Band,
+) -> Result<projected::Offset<T>, PcurveCertifyError> {
+    use geom_core::Interval;
+    let Some((origin, e)) = projected::chart_frame(surface) else {
+        return Err(PcurveCertifyError::UnsupportedChart {
+            chart: surface.kind(),
+        });
+    };
+    let chart = projected::chart_at(
+        surface,
+        || (carrier.mid_point(window.0, window.1) - origin).dot(e[2]),
+        band,
+    )?;
+    let twin = orthonormal_chart(surface);
+    let Some((o, te)) = projected::chart_frame(&twin) else {
+        unreachable!("an analytic chart has a frame")
+    };
+    let cross = Interval::from_certified;
+    let lift = |v: Vec3<T>| Vec3::new(cross(v.x), cross(v.y), cross(v.z));
+    let (o, te) = (lift(o - Point3::origin()), te.map(lift));
+    let (lo, hi) = crate::carrier_net::outer_ends(window);
+    let grid = closed_form_grid(carrier, lo, hi);
+    let hull = |cuts: &[f64]| -> Result<projected::ProjectedHull, PcurveCertifyError> {
+        let mut breaks: Vec<f64> = grid.iter().chain(cuts).copied().collect();
+        breaks.sort_by(f64::total_cmp);
+        breaks.dedup();
+        let net = crate::carrier_net::carrier_net(carrier, (lo, hi), &breaks)
+            .map_err(PcurveCertifyError::CarrierEnclosure)?;
+        let (knots, weights, coords) = net.operand();
+        let control: Vec<Point3<Interval>> = (0..coords[0].len())
+            .map(|i| {
+                let p = Vec3::new(coords[0][i], coords[1][i], coords[2][i]) - o;
+                Point3::new(p.dot(te[0]), p.dot(te[1]), p.dot(te[2]))
+            })
+            .collect();
+        let twin_net = NurbsCurve3::new(
+            geom_core::spline::Knots::from(knots.clone()).lift(|k| Interval::from_bounds(k, k)),
+            control,
+            weights.iter().map(|_| Interval::one()).collect(),
+        )
+        .map_err(|_| PcurveCertifyError::ImageMismatch {
+            image: PcurveKind::Projected,
+            why: "the carrier's enclosing net forms no curve",
+        })?;
+        Ok(projected::ProjectedHull {
+            pieces: Vec::new(),
+            spans: twin_span_hulls(&twin_net, &twin, &chart, 1, &[])?,
+        })
+    };
+    projected::offset_rounds(hull, window, &chart, &twin, T::zero(), band)
+}
+
+/// The breaks a closed-form carrier's first net is cut at inside
+/// `[lo, hi]`: none for a line, whose degree-1 net is exact; for a
+/// curved kind, equal spans of at most a [`crate::ssi::SSI_CERT_SPANS`]th
+/// of a turn of its angle parameter, so a span's Taylor remainder is
+/// bounded by the turn's fraction whatever the arc's length.
+fn closed_form_grid<T: Real>(carrier: &Curve3<T>, lo: f64, hi: f64) -> Vec<f64> {
+    if matches!(carrier, Curve3::Line { .. }) {
+        return Vec::new();
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let turn = core::f64::consts::TAU / crate::ssi::SSI_CERT_SPANS as f64;
+    let reach = ((hi - lo) / turn).ceil();
+    if !reach.is_finite() || reach < 2.0 {
+        return Vec::new();
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let n = (reach as usize).min(crate::ssi::SSI_CERT_SPANS);
+    #[allow(clippy::cast_precision_loss)]
+    (1..n)
+        .map(|k| lo + (hi - lo) * (k as f64 / n as f64))
+        .collect()
 }
 
 /// The fitted door's body for check 4 ([`crate::FittedLane`]): limb 2

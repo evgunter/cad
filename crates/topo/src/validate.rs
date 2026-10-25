@@ -3031,7 +3031,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its curve's parameter range cannot carry the curve's image on its spline face"
         }
         CertifyError::PlaneNurbs(P::ChartSpeed(r)) => chart_speed_reason(*r),
-        CertifyError::PlaneNurbs(P::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
+        CertifyError::PlaneNurbs(P::CarrierEnclosure(_))
+        | CertifyError::AnalyticRung3(A::CarrierEnclosure(_)) => CARRIER_ENCLOSURE,
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. })
@@ -3073,7 +3074,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                 P::FootPointInconclusive { .. } | P::Unsupported { .. } | P::CarrierEnclosure(_),
             )
             | CertifyError::AnalyticRung3(
-                A::NoOffsetBound { .. } | A::NoTubeEnclosure { .. } | A::Unsupported { .. },
+                A::NoOffsetBound { .. }
+                | A::NoTubeEnclosure { .. }
+                | A::Unsupported { .. }
+                | A::CarrierEnclosure(_),
             ) => NOT_YET_ENDING,
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::NurbsLaneNotSupplied => {

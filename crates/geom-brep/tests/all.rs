@@ -78,6 +78,8 @@ mod cert5_arm_and_cells;
 mod cert5_r1_patch_probes;
 #[path = "chart_box_span.rs"]
 mod chart_box_span;
+#[path = "closed_form_limb2.rs"]
+mod closed_form_limb2;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;

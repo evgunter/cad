@@ -58,13 +58,14 @@ fn the_gate_meters_either_order_and_refuses_a_negative_minor() {
             param_start: 0.0,
             param_end: core::f64::consts::FRAC_PI_2,
         };
-        EdgeCurve::certify(
+        EdgeCurve::certify_via(
             spec,
             e.eval(0.0),
             e.eval(core::f64::consts::FRAC_PI_2),
             |k| surfaces.get(k).cloned(),
             1.0,
             band,
+            Some(geom_brep::NurbsLane::certified()),
         )
     };
     assert!(certify(a, b, x).is_ok(), "the ordinary frame certifies");
