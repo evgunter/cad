@@ -160,10 +160,7 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
 const CORNER: &str = "bool_torus_region_corner";
 
 /// A circle edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows {
-    span: "bool_torus_region_arc_span",
-    straddle: "bool_torus_region_arc_straddle",
-};
+const BOUNDARY: ConicRows = ConicRows::bounded("bool_torus_region_arc_span", "bool_torus_region_arc_straddle");
 
 /// An oval edge's boundary reading's rows (module docs).
 const SPIRIC: SpiricRows = SpiricRows {
@@ -470,7 +467,7 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
         match edge.carrier {
             geom::Curve3::Circle { .. } => {
                 let span = (edge.t0, edge.t1);
-                circle_edge_hit(&edge.carrier, span, BOUNDARY, p, self.outer, band)
+                circle_edge_hit(&edge.carrier, span, edge.extent, BOUNDARY, p, self.outer, band)
             }
             geom::Curve3::Spiric {
                 center,
@@ -762,6 +759,7 @@ mod tests {
             },
             t0: 0.0,
             t1: TAU,
+            extent: crate::boolean::region::fixture_extent(0.0, TAU),
             forward,
         }
     }
@@ -837,6 +835,7 @@ mod tests {
             },
             t0: 0.0,
             t1: TAU,
+            extent: crate::boolean::region::fixture_extent(0.0, TAU),
             forward,
         };
         TorusFaceRegion {
@@ -975,6 +974,7 @@ mod tests {
                 },
                 t0: 0.0,
                 t1: TAU,
+                extent: crate::boolean::region::fixture_extent(0.0, TAU),
                 forward,
             };
             let point = |phi: f64, t: f64| {
@@ -1077,6 +1077,7 @@ mod tests {
             },
             t0,
             t1,
+            extent: crate::boolean::region::fixture_extent(t0, t1),
             forward: true,
         }
     }
@@ -1149,6 +1150,7 @@ mod tests {
             },
             t0: -2.5,
             t1: 2.5,
+            extent: crate::boolean::region::fixture_extent(-2.5, 2.5),
             forward: true,
         };
         let region = holding(oval.clone());

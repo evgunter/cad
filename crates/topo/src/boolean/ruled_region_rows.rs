@@ -32,6 +32,7 @@ fn edge(k: u64, curve: geom::Curve3<f64>, (t0, t1): (f64, f64), forward: bool) -
         carrier: curve,
         t0,
         t1,
+        extent: crate::boolean::region::fixture_extent(t0, t1),
         forward,
     }
 }

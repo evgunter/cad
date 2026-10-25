@@ -733,10 +733,7 @@ const EDGE_ROWS: ParityRows = ParityRows {
 /// The pre-pass's rows ([`crate::splitting::containment::LoopEdge::contact`]).
 const ROWS: BoundaryRows = BoundaryRows {
     line: &EDGE_ROWS,
-    conic: ConicRows {
-        span: "bool_contact_arc_span",
-        straddle: "bool_contact_arc_straddle",
-    },
+    conic: ConicRows::bounded("bool_contact_arc_span", "bool_contact_arc_straddle"),
     spiric: SpiricRows {
         end: "bool_contact_spiric_end",
         clear: "bool_contact_spiric_clear",

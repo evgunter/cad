@@ -44,6 +44,27 @@ pub fn speed_range<T: SpanLocate>(carrier: &crate::Curve3<T>) -> (InfSpeed<T>, S
     Kind::of(carrier).range()
 }
 
+/// A sup on `|C′|` over a window's **turn defect**: the stretch between
+/// its start `t0` and its end one period on, a gap where `gap = τ − (t1 −
+/// t0)` is positive and an overlap where it is negative. On a conic it
+/// is the speed at the stretch's middle `t0 − gap/2` plus the larger
+/// semi-axis (a bound on `|C″|`) times half its width — never less than
+/// the speed anywhere on it, and tight as it shrinks; on every other
+/// kind, [`speed_range`]'s sup.
+pub fn turn_defect_speed_hi<T: SpanLocate>(
+    carrier: &crate::Curve3<T>,
+    t0: T,
+    gap: T,
+) -> SupSpeed<T> {
+    let half = T::from_f64(0.5);
+    match Kind::of(carrier) {
+        Kind::Conic(c) => {
+            SupSpeed::new(c.speed_at(t0 - gap * half) + c.speed_hi() * gap.abs() * half)
+        }
+        kind => kind.range().1,
+    }
+}
+
 /// A bound on `|C″(t)|` over every `t`: zero on a line, a conic's
 /// larger semi-axis, a spiric's [`crate::spiric_period_rate_bounds`];
 /// `None` on a spline, which has no bound here at every scalar.

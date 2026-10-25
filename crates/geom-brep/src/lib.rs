@@ -98,7 +98,7 @@ pub mod torus_convention;
 
 pub use carrier_net::CarrierEnclosureRefusal;
 pub use certify::{
-    CERT_SAMPLES, CertCheck, Certificate, CertifyError, DraftedIntersection, EdgeCurve,
+    CERT_SAMPLES, CertCheck, Certificate, CertifiedTurn, CertifyError, DraftedIntersection, EdgeCurve,
     EdgeCurveSpec, ForwardReading, IntersectionDraft, NurbsLane, StatedImage, StatedSpan,
     WindingReading, edge_extent, folded_parallelism, sample_param, schedule_param,
 };

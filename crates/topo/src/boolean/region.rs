@@ -7,6 +7,7 @@
 //! landings, and its own rows and crossing arithmetic.
 
 use geom_brep::roots::{RootRefusal, Roots};
+use geom_core::period::Extent;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::FirstHarmonicRoots;
@@ -77,12 +78,14 @@ impl RegionRefusal {
 pub(crate) fn circle_edge_hit<T: Decide>(
     circle: &geom::Curve3<T>,
     span: (T, T),
+    extent: Option<Extent<T>>,
     rows: ConicRows,
     p: Point3<T>,
     outer: LoopKey,
     band: Band,
 ) -> Result<bool, RegionRefusal> {
-    let k = match ConicArc::of(circle, span, rows, band) {
+    let arc = extent.map_or(Ok(None), |extent| ConicArc::of(circle, span, extent, rows, band));
+    let k = match arc {
         Ok(Some(k)) => k,
         Err(ConicArcError::Escalated(e)) => return Err(RegionRefusal::Escalated(e.diag)),
         Ok(None) | Err(ConicArcError::WoundPastPeriod) => {
@@ -200,6 +203,9 @@ pub(crate) struct RegionEdge<T: geom_core::Real> {
     pub(crate) carrier: geom::Curve3<T>,
     pub(crate) t0: T,
     pub(crate) t1: T,
+    /// The certified extent of `[t0, t1]` on a periodic carrier
+    /// ([`geom_brep::CertifiedTurn::extent`]); `None` on a line.
+    pub(crate) extent: Option<Extent<T>>,
     /// Whether the loop runs `t0 → t1` (its `he_plus`).
     pub(crate) forward: bool,
 }
@@ -289,6 +295,7 @@ pub(crate) fn boundary<T: Decide>(
                 carrier: curve.carrier().clone(),
                 t0,
                 t1,
+                extent: curve.certificate().turn.map(|turn| turn.extent()),
                 forward: he == edge.he_plus,
             });
         }
@@ -834,6 +841,7 @@ mod tests {
             carrier,
             t0,
             t1,
+            extent: fixture_extent(t0, t1),
             forward: true,
         }
     }
@@ -958,4 +966,11 @@ mod tests {
             "a whole turn"
         );
     }
+}
+
+/// A fixture edge's extent, as certification would decide it forward.
+#[cfg(test)]
+pub(crate) fn fixture_extent(t0: f64, t1: f64) -> Option<Extent<f64>> {
+    let band = Band::new(1e-9, 1e-8).ok()?;
+    Extent::forward("test_region_extent", t0, t1, geom_core::InfSpeed::new(1.0), band).ok()
 }

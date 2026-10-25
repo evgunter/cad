@@ -155,10 +155,7 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
 };
 
 /// A conic edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows {
-    span: "bool_ruled_region_arc_span",
-    straddle: "bool_ruled_region_arc_straddle",
-};
+const BOUNDARY: ConicRows = ConicRows::bounded("bool_ruled_region_arc_span", "bool_ruled_region_arc_straddle");
 
 /// A line edge's boundary reading's rows ([`ray_walk::on_segment`]).
 const LINE: SegmentRows = SegmentRows {
@@ -685,6 +682,7 @@ impl<T: Decide> Region<T> for RuledFaceRegion<T> {
             _ => circle_edge_hit(
                 &edge.carrier,
                 (edge.t0, edge.t1),
+                edge.extent,
                 BOUNDARY,
                 p,
                 self.outer,
