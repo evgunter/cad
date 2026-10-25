@@ -58,12 +58,14 @@ this order:
 - **E1b**: incidence ends by `EdgeAuthority`. It threads the authority
   into topo's ending function and the mint's routes. E1 keeps today's
   `CarrierOffChart` / `ChartIncidence` endings.
-- **E1c**: the plane and cylinder mints read incidence. Today they image
-  any carrier and meter its miss as a residual at the samples, so a
+- **E1c**: the plane and cylinder mints read incidence. Today the plane
+  mint images any carrier, and the cylinder mint reads incidence only
+  where its orientation reading is in band (E1's general lane), so
+  elsewhere both meter a carrier's miss as a residual at the samples. A
   carrier off a plane or cylinder face ends as `ChartResidual`'s defect
   whoever placed it, and E1b's authority routing never sees it
-  (`work/pcert/plane-and-cylinder-mints-meter-incidence-as-a-residual.md`,
-  filed with E1b). D3's incidence clause is finished only on the charts
+  (`work/pcert/plane-and-cylinder-mints-meter-incidence-as-a-residual.md`;
+  its cylinder half touches the arm E2 re-reads). D3's incidence clause is finished only on the charts
   whose mint reads incidence (sphere, cone, torus) until it lands.
 - **E2**: a cylinder line gets a projected lane, together with the
   cylinder `pcurve_chart_radial_moving` tie-break and
