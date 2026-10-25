@@ -27,3 +27,12 @@ spelled in two places:
 beside its sup twin `azimuth_lever`. `certified_arms` would read its
 analytic arms there and keep its own gate and refusals. Its spline arm
 is its own and stays.
+
+**Not window-tight on the torus** (PR 5710's review, NOTE-2):
+`azimuth_lever_inf` reads `R − r` for every torus window, the global
+inf of `R + r·cos v`. A window away from the inner equator has a larger
+inf (the least of `R + r·cos v` over its `v` range, or `R − r` where the
+range reaches `v = π`), so a short sweep there may escalate where a
+window-tight inf would decide it. `certified_arms` makes the same
+choice deliberately ("a window-free bound cannot be wrong about a
+branch"); one home would make it once.

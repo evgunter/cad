@@ -931,11 +931,13 @@ pub(crate) fn sweep_range<T: Decide>(
     let inconsistent = || SegIssue::Inconsistent {
         check: ArcCheck::SweepRange,
     };
-    let length = "arc_sweep_length";
-    let (_, sweep) = Extent::decide_signed(length, arc.sweep, InfSpeed::new(arc.radius), band)
-        .map_err(|source| match source.margin.rejected_sign() {
-            Some(Sign::Zero) => inconsistent(),
-            _ => SegIssue::escalated(source),
+    let rate = InfSpeed::new(arc.radius);
+    let (_, sweep) =
+        Extent::decide_signed("arc_sweep_length", arc.sweep, rate, band).map_err(|source| {
+            match source.margin.rejected_sign() {
+                Some(Sign::Zero) => inconsistent(),
+                _ => SegIssue::escalated(source),
+            }
         })?;
     let (one_turn, rows, rate) = (
         Period::new(T::tau()),
