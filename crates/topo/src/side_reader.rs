@@ -729,7 +729,12 @@ pub(crate) fn aimed_rays_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<St
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn shell_aims_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<String> {
     body.shells()
-        .map(|(shell, _)| format!("{:?}", cast_aims(body, &SolidFaces::of_shell(body, shell), band)))
+        .map(|(shell, _)| {
+            format!(
+                "{:?}",
+                cast_aims(body, &SolidFaces::of_shell(body, shell), band)
+            )
+        })
         .collect()
 }
 

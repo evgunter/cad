@@ -206,8 +206,6 @@ mod crossing_equal_rods;
 mod curved_edge_corpus;
 #[path = "curved_edge_ray_probes.rs"]
 mod curved_edge_ray_probes;
-#[path = "sphere_spline_aim_probes.rs"]
-mod sphere_spline_aim_probes;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -342,6 +340,8 @@ mod torax_interval;
 mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
+#[path = "trimmed_sphere_aims.rs"]
+mod trimmed_sphere_aims;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]
