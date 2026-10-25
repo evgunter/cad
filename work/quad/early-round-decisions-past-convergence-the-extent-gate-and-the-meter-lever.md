@@ -19,7 +19,7 @@ neither is measured to fire.
 
 1. **`props_quad_face_extent`**, read on the converged enclosure in
    every lane (`cylinder_cut_face_rounds`, the rational and integral
-   patch lanes, `trimmed_patch_face_rounds`, `spiric_face_rounds`):
+   patch lanes, `trimmed_patch_face_rounds`, `rim_face_rounds`):
    an in-band margin escalates, and a `Zero` refuses
    `DegenerateFace`, at the first converged round. The margin is
    `area.lo()/perimeter`, and a later round raises `area.lo()`. At

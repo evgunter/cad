@@ -160,3 +160,5 @@ PR 4369 (`germ/cone-sector-normals`).
   pose then meets D6, the interior-loop guard.
 
 **2026-10-09, closed: U-S3 and U-S4 land (PR 4375, DR-118, sequential arm).** With U-S1, U-S2 and U-S6 (PR 4369), every door of the cone's sector algebra is open below the operand gate. That covers the pierce and sector normals, the plane × cone frame, the dispatch and the planar chord, and each refuses typed at the apex and for a hyperbola or parabola. The roster flip is VERBS-CONE's U7. U-S5 (rings on a cone face in `face_flux`) is off U7's path and stays in `docs/GERM-CONE-SECTOR-SPEC.md`.
+
+**2026-10-25, renamed (PR 5692).** `BooleanError::GermSectionOutsideInventory` in D3 above is now `BooleanError::GermSectionOpenConic { conic }`, carrying the conic rather than the table's `SectionError`: `plane_cone_section` mints the parabola and hyperbola as an exact rational-quadratic NURBS arc (`crates/geom-brep/README.md` C1), and the frame refuses it because the Boolean has no crossing layer for a NURBS carrier.
