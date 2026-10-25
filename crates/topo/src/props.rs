@@ -4062,7 +4062,7 @@ fn takes_quadrature<'a, T: Decide + 'a>(
 fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
         geom::Curve3::Spiric { .. } => true,
-        geom::Curve3::Nurbs(c) => geom_brep::props::rational_rim::is_rational(c),
+        geom::Curve3::Nurbs(c) => geom_brep::props::is_rational(c),
         geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             false
         }

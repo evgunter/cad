@@ -158,6 +158,15 @@ fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
     }
 }
 
+/// Is this carrier rational: are its weights not all one plain constant
+/// ([`NurbsCurve3::constant_weight`])? The one spelling of the question
+/// the closed form refuses on ([`nurbs_vector_area`]) and the certified
+/// lane answers ([`super::rational_rim`]).
+#[must_use]
+pub fn is_rational<T: SpanLocate>(curve: &NurbsCurve3<T>) -> bool {
+    curve.constant_weight().is_none()
+}
+
 /// `(1/2)∫_{t0}^{t1} (P(t) − ref)×P′(t) dt` for a **non-rational**
 /// B-spline carrier ([`NurbsCurve3::constant_weight`]), exact (module
 /// docs of [`loop_vector_area`]: the per-span polynomial integrand meets the fixed `k`-point Gauss rule
@@ -176,7 +185,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if super::rational_rim::is_rational(curve) {
+    if is_rational(curve) {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);

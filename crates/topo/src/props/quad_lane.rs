@@ -1088,7 +1088,7 @@ fn plane_cap(
         if let Some(q) = spiric_edge_q(e, anchor, None) {
             spirics.push(q);
         } else if let Curve3::Nurbs(c) = &e.carrier
-            && rational_rim::is_rational(c)
+            && geom_brep::props::is_rational(c)
         {
             rationals.push(rational_rim::rational_edge_q(
                 c, e.t0, e.t1, e.forward, anchor,

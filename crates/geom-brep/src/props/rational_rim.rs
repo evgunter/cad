@@ -92,14 +92,6 @@ impl RationalEdgeQ {
     }
 }
 
-/// Is this carrier rational: are its weights not all one plain constant
-/// ([`NurbsCurve3::constant_weight`])? The one spelling of the question
-/// the closed form refuses on and the certified lane answers.
-#[must_use]
-pub fn is_rational<T: geom_core::SpanLocate>(curve: &NurbsCurve3<T>) -> bool {
-    curve.constant_weight().is_none()
-}
-
 /// A Bernstein row on `[0, 1]` as the power form about `½`:
 /// `Σ dⱼ vʲ` with `v = u − ½`, in interval arithmetic. First the power
 /// form about `0`, `cₖ = C(p, k)·Σᵢ (−1)^(k−i)·C(k, i)·bᵢ`, then the shift
@@ -319,7 +311,8 @@ pub fn rational_vector_area_split(e: &RationalEdgeQ, pieces: usize) -> (RVec3, [
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::panic)]
+// The truths are quoted at the reference's 40 digits, rounded at the parse.
+#[allow(clippy::unwrap_used, clippy::panic, clippy::excessive_precision)]
 mod tests {
     use super::*;
     use geom_core::spline::KnotVector;
