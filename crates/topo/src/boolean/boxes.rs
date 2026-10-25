@@ -6364,7 +6364,12 @@ pub(crate) mod tests {
         let band = witness_band();
         let mut worst_short: f64 = 0.0;
         let mut worst_loose: f64 = 0.0;
-        for (start, span, phi) in [(0.3, 2.3, 0.0), (-1.0, 3.0, 0.7), (2.0, 4.5, -1.3), (0.1, 6.0, 2.0)] {
+        for (start, span, phi) in [
+            (0.3, 2.3, 0.0),
+            (-1.0, 3.0, 0.7),
+            (2.0, 4.5, -1.3),
+            (0.1, 6.0, 2.0),
+        ] {
             let (body, _) = circle_sector(1.7, start, span, phi);
             let (edge, curve) = conic_edge(&body);
             let (t0, t1) = curve.params();
@@ -6397,17 +6402,25 @@ pub(crate) mod tests {
                     assert!(
                         lo[k] <= slo[k] + 1e-14 && hi[k] >= shi[k] - 1e-14,
                         "[{start},{span},{phi}] aim {aim:?} row {k}: [{}, {}] vs samples [{}, {}]",
-                        lo[k], hi[k], slo[k], shi[k]
+                        lo[k],
+                        hi[k],
+                        slo[k],
+                        shi[k]
                     );
                     assert!(
                         slo[k] - lo[k] <= 1e-8 && hi[k] - shi[k] <= 1e-8,
                         "[{start},{span},{phi}] aim {aim:?} row {k}: loose [{}, {}] vs samples [{}, {}]",
-                        lo[k], hi[k], slo[k], shi[k]
+                        lo[k],
+                        hi[k],
+                        slo[k],
+                        shi[k]
                     );
                 }
             }
         }
-        println!("probe aimed conic reach: worst short {worst_short:e}, worst loose {worst_loose:e}");
+        println!(
+            "probe aimed conic reach: worst short {worst_short:e}, worst loose {worst_loose:e}"
+        );
     }
 }
 

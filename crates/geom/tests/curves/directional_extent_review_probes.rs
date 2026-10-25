@@ -73,9 +73,15 @@ fn probe_interval_window_contains_realizations_of_wide_brackets() {
         let c = [0.0, 1.3, -115.0, 1e6][iter / 3 % 4];
         let (p, q) = if iter % 11 == 0 {
             // 5000:1 and worse
-            (rng.range(-1.0, 1.0) * amp_scale, rng.range(-1.0, 1.0) * amp_scale * 1e-7)
+            (
+                rng.range(-1.0, 1.0) * amp_scale,
+                rng.range(-1.0, 1.0) * amp_scale * 1e-7,
+            )
         } else {
-            (rng.range(-1.0, 1.0) * amp_scale, rng.range(-1.0, 1.0) * amp_scale)
+            (
+                rng.range(-1.0, 1.0) * amp_scale,
+                rng.range(-1.0, 1.0) * amp_scale,
+            )
         };
         let ts = q.atan2(p);
         let len = match iter % 9 {
@@ -90,9 +96,9 @@ fn probe_interval_window_contains_realizations_of_wide_brackets() {
             _ => -TAU,
         };
         let start = match iter / 9 % 6 {
-            0 => ts,              // crest at start
-            1 => ts - len,        // crest at end
-            2 => ts + 1e-12,      // crest just outside start (if len > 0)
+            0 => ts,         // crest at start
+            1 => ts - len,   // crest at end
+            2 => ts + 1e-12, // crest just outside start (if len > 0)
             3 => ts - len - 1e-12,
             4 => ts + PI - len / 2.0, // trough centered
             _ => rng.range(-20.0, 20.0),
@@ -115,7 +121,11 @@ fn probe_interval_window_contains_realizations_of_wide_brackets() {
                 2 => x,
                 _ => x + w * s * rng.range(-1.0, 1.0),
             };
-            let (cr, pr, qr) = (pick(c, 1.0, &mut rng), pick(p, amp_scale, &mut rng), pick(q, amp_scale, &mut rng));
+            let (cr, pr, qr) = (
+                pick(c, 1.0, &mut rng),
+                pick(p, amp_scale, &mut rng),
+                pick(q, amp_scale, &mut rng),
+            );
             let (t0r, t1r) = (pick(t0, 1.0, &mut rng), pick(t1, 1.0, &mut rng));
             let (slo, shi) = reference(cr, pr, qr, t0r, t1r);
             let scale = cr.abs() + (pr.hypot(qr)) + 1e-300;
@@ -147,9 +157,15 @@ fn probe_f64_window_is_exact_to_rounding() {
         let amp_scale = [1.0, 1e-6, 1e3][iter % 3];
         let c = [0.0, 1.3, -115.0, 1e6][iter / 3 % 4];
         let (p, q) = if iter % 11 == 0 {
-            (rng.range(-1.0, 1.0) * amp_scale, rng.range(-1.0, 1.0) * amp_scale * 2e-4)
+            (
+                rng.range(-1.0, 1.0) * amp_scale,
+                rng.range(-1.0, 1.0) * amp_scale * 2e-4,
+            )
         } else {
-            (rng.range(-1.0, 1.0) * amp_scale, rng.range(-1.0, 1.0) * amp_scale)
+            (
+                rng.range(-1.0, 1.0) * amp_scale,
+                rng.range(-1.0, 1.0) * amp_scale,
+            )
         };
         let ts = q.atan2(p);
         let len = match iter % 9 {
@@ -181,21 +197,33 @@ fn probe_f64_window_is_exact_to_rounding() {
         let d = (lo - slo).abs().max((hi - shi).abs()) / (f64::EPSILON * scale);
         if d > 16.0 {
             let past = (t1 - t0).abs() > TAU;
-            *gross.entry((past, iter % 9, iter / 9 % 7)).or_insert(0usize) += 1;
+            *gross
+                .entry((past, iter % 9, iter / 9 % 7))
+                .or_insert(0usize) += 1;
             if !past {
-                eprintln!("NOT-PAST-A-TURN miss iter {iter}: c={c} p={p} q={q} t=[{t0},{t1}] door [{lo},{hi}] ref [{slo},{shi}] d={d}");
+                eprintln!(
+                    "NOT-PAST-A-TURN miss iter {iter}: c={c} p={p} q={q} t=[{t0},{t1}] door [{lo},{hi}] ref [{slo},{shi}] d={d}"
+                );
             }
             continue;
         }
         if d > worst {
             worst = d;
-            worst_at = format!("iter {iter}: c={c} p={p} q={q} t=[{t0},{t1}] door [{lo},{hi}] ref [{slo},{shi}]");
+            worst_at = format!(
+                "iter {iter}: c={c} p={p} q={q} t=[{t0},{t1}] door [{lo},{hi}] ref [{slo},{shi}]"
+            );
         }
     }
     eprintln!("probe f64: worst (non-gross) {worst} eps*scale at {worst_at}");
     eprintln!("probe f64: gross misses keyed (past a turn, len shape, start shape): {gross:?}");
-    assert!(gross.keys().all(|k| k.0), "a gross miss on a span within a turn");
-    assert!(worst < 16.0, "f64 door off by {worst} eps*scale: {worst_at}");
+    assert!(
+        gross.keys().all(|k| k.0),
+        "a gross miss on a span within a turn"
+    );
+    assert!(
+        worst < 16.0,
+        "f64 door off by {worst} eps*scale: {worst_at}"
+    );
 }
 
 /// The box doors with a 5000:1 / 1e8:1 ellipse in a tilted plane, a
@@ -206,12 +234,74 @@ fn probe_box_doors_contain_adversarial_arcs() {
     let axis = Vec3::new(1.0, 2.0, 3.0).normalize();
     let u = axis.orthonormal_basis().0;
     let cases: Vec<(&str, Curve3<f64>, f64, f64)> = vec![
-        ("flat 5000", Curve3::Ellipse { center: Point3::new(-1.0, 0.5, 2.0), axis, semi_u: 5.0, semi_v: 1e-3, u_ref: u }, 0.3, 5.9),
-        ("flat 1e8", Curve3::Ellipse { center: Point3::new(-1.0, 0.5, 2.0), axis, semi_u: 5.0, semi_v: 5e-8, u_ref: u }, 0.3, 5.9),
-        ("near full", Curve3::Circle { center: Point3::new(0.3, -0.2, 0.15), axis, radius: 1.0, u_ref: u }, 0.1, 0.1 + 0.999 * TAU),
-        ("micron far", Curve3::Circle { center: Point3::new(1e6, -5e5, 2.5e5), axis, radius: 1e-6, u_ref: u }, 0.7, 2.9),
-        ("descending past turn", Curve3::Circle { center: Point3::new(0.0, 0.0, -3.0), axis, radius: 2.5, u_ref: u }, 9.0, 0.37 - TAU),
-        ("exactly pi", Curve3::Circle { center: Point3::new(0.0, 1.0, -3.0), axis, radius: 2.5, u_ref: u }, 0.37, 0.37 + PI),
+        (
+            "flat 5000",
+            Curve3::Ellipse {
+                center: Point3::new(-1.0, 0.5, 2.0),
+                axis,
+                semi_u: 5.0,
+                semi_v: 1e-3,
+                u_ref: u,
+            },
+            0.3,
+            5.9,
+        ),
+        (
+            "flat 1e8",
+            Curve3::Ellipse {
+                center: Point3::new(-1.0, 0.5, 2.0),
+                axis,
+                semi_u: 5.0,
+                semi_v: 5e-8,
+                u_ref: u,
+            },
+            0.3,
+            5.9,
+        ),
+        (
+            "near full",
+            Curve3::Circle {
+                center: Point3::new(0.3, -0.2, 0.15),
+                axis,
+                radius: 1.0,
+                u_ref: u,
+            },
+            0.1,
+            0.1 + 0.999 * TAU,
+        ),
+        (
+            "micron far",
+            Curve3::Circle {
+                center: Point3::new(1e6, -5e5, 2.5e5),
+                axis,
+                radius: 1e-6,
+                u_ref: u,
+            },
+            0.7,
+            2.9,
+        ),
+        (
+            "descending past turn",
+            Curve3::Circle {
+                center: Point3::new(0.0, 0.0, -3.0),
+                axis,
+                radius: 2.5,
+                u_ref: u,
+            },
+            9.0,
+            0.37 - TAU,
+        ),
+        (
+            "exactly pi",
+            Curve3::Circle {
+                center: Point3::new(0.0, 1.0, -3.0),
+                axis,
+                radius: 2.5,
+                u_ref: u,
+            },
+            0.37,
+            0.37 + PI,
+        ),
     ];
     for (what, c, t0, t1) in cases {
         let b = match c {
@@ -224,21 +314,35 @@ fn probe_box_doors_contain_adversarial_arcs() {
             let t = t0 + (t1 - t0) * f64::from(i) / 200_000.0;
             let p = c.eval(t);
             let s = 4.0 * f64::EPSILON * (1.0 + p.x.abs().max(p.y.abs()).max(p.z.abs()));
-            for (w, lo, hi) in [(p.x, b.min_x, b.max_x), (p.y, b.min_y, b.max_y), (p.z, b.min_z, b.max_z)] {
-                assert!(w >= lo - s && w <= hi + s, "{what}: t={t} {w} outside [{lo},{hi}]");
+            for (w, lo, hi) in [
+                (p.x, b.min_x, b.max_x),
+                (p.y, b.min_y, b.max_y),
+                (p.z, b.min_z, b.max_z),
+            ] {
+                assert!(
+                    w >= lo - s && w <= hi + s,
+                    "{what}: t={t} {w} outside [{lo},{hi}]"
+                );
                 wmax = wmax.max((lo - w).max(w - hi));
             }
         }
         // the oblique directional doors too
         for n in [Vec3::new(0.3, -0.8, 0.5), Vec3::new(-0.9, 0.1, 0.4)] {
-            let (blo, bhi) = conic_arc_extent_along_bracketed(&c, t0, t1, Point3::origin(), n).unwrap();
+            let (blo, bhi) =
+                conic_arc_extent_along_bracketed(&c, t0, t1, Point3::origin(), n).unwrap();
             let (flo, fhi) = conic_arc_extent_along(&c, t0, t1, Point3::origin(), n).unwrap();
             for i in 0..=200_000 {
                 let t = t0 + (t1 - t0) * f64::from(i) / 200_000.0;
                 let r = (c.eval(t) - Point3::origin()).dot(n);
                 let s = 8.0 * f64::EPSILON * (1.0 + r.abs());
-                assert!(r >= blo - s && r <= bhi + s, "{what} certified along {n:?}: {r} outside [{blo},{bhi}]");
-                assert!(r >= flo - s && r <= fhi + s, "{what} f64 along {n:?}: {r} outside [{flo},{fhi}]");
+                assert!(
+                    r >= blo - s && r <= bhi + s,
+                    "{what} certified along {n:?}: {r} outside [{blo},{bhi}]"
+                );
+                assert!(
+                    r >= flo - s && r <= fhi + s,
+                    "{what} f64 along {n:?}: {r} outside [{flo},{fhi}]"
+                );
             }
         }
         eprintln!("probe box {what}: {b:?} worst sample overshoot {wmax:e}");
@@ -256,7 +360,10 @@ fn probe_interval_ties_and_h_straddling_pi() {
     for w in [1e-12, 1e-6, 1e-2] {
         // h straddles pi: span [ts + 0.01, ts + 0.01 + tau]; crest at ts+tau is inside
         // for realizations of length >= tau - 0.01... and the gap
-        for (t0, t1) in [(ts + w / 2.0, ts + TAU - w / 2.0), (ts + TAU - w / 2.0, ts + w / 2.0)] {
+        for (t0, t1) in [
+            (ts + w / 2.0, ts + TAU - w / 2.0),
+            (ts + TAU - w / 2.0, ts + w / 2.0),
+        ] {
             let wid = |x: f64| Interval::from_bounds(x - w, x + w);
             let win = ArcWindow::new(wid(t0), wid(t1));
             let co = win.crest_outside(wid(p), wid(q));
@@ -269,7 +376,10 @@ fn probe_interval_ties_and_h_straddling_pi() {
                 hi.hi()
             );
             // the realization with the crest in: max = 1 + A
-            assert!(hi.hi() >= 1.0 + (p.hypot(q)) - 2.0 * w - 1e-15, "dropped the crest");
+            assert!(
+                hi.hi() >= 1.0 + (p.hypot(q)) - 2.0 * w - 1e-15,
+                "dropped the crest"
+            );
             assert!(lo.lo() <= 1.0 - (p.hypot(q)) + 1e-15, "dropped the trough");
         }
     }
