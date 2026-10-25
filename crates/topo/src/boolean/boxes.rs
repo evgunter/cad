@@ -5161,7 +5161,9 @@ pub(crate) mod tests {
                 ("max_y", hi.y - boxed.max_y, hi.y),
                 ("max_z", hi.z - boxed.max_z, hi.z),
             ] {
-                let tol = 4.0 * f64::EPSILON * (1.0 + scale.abs());
+                // A crest is `c ± A` rounded at the scale of its terms, the
+                // fixtures' radii (at most 2), whatever the coordinate itself is.
+                let tol = 4.0 * f64::EPSILON * (3.0 + scale.abs());
                 assert!(
                     gap >= -tol,
                     "{what}: the census box does not contain the boolean box at {name} \
@@ -6129,7 +6131,9 @@ pub(crate) mod tests {
             ("max_y", hi.y - b0.max_y, hi.y),
             ("max_z", hi.z - b0.max_z, hi.z),
         ] {
-            let tol = 4.0 * f64::EPSILON * (1.0 + scale.abs());
+            // A crest is `c ± A` rounded at the scale of its terms, the
+            // fixtures' radii (at most 2), whatever the coordinate itself is.
+            let tol = 4.0 * f64::EPSILON * (3.0 + scale.abs());
             assert!(
                 gap >= -tol && gap <= tol,
                 "wrap window: the census box must be this lane's box to rounding at {name}, \

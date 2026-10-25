@@ -104,3 +104,15 @@ refuses a face whose corners straddle the apex. The region reads a
 point's nappe on faces that may reach both nappes, and its own answers
 must hold there. So these sites join the per-point granularity this row
 already names: the count moved, but the row is not settled.
+
+## Sweep note (PRED `D292` lane, 2026-10-25)
+
+`crates/geom-brep/src/props/curved.rs`, `require_cone_ellipse`, decides
+`props_cone_ellipse_nappe` on `h_low`: the least over 128 pieces of a
+per-piece lower bound on `|(P(t) − apex)·â|`, a SAMPLED directional
+extent of the ellipse arc along the cone's axis. The exact extent now
+has a door, `geom::curves::boxes::conic_arc_extent_along(carrier, t0,
+t1, apex, axis)`, and `lo.max(-hi)` of it is the arc's least `|h|`
+wherever that is positive — the nappe question this row is about. The
+per-piece `|h|` stays needed there for the elevation bound's
+denominator; only the nappe decision could read the door.
