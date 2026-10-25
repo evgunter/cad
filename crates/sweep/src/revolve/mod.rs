@@ -56,25 +56,37 @@
 //!   typed error. Partial revolves treat on-axis vertices/edges as
 //!   ordinary boundary entities shared by the wedge caps (no strut, no
 //!   wall). Full revolves OMIT on-axis edges (they sweep to nothing):
-//!   a profile whose axis contact is one contiguous run of on-axis
-//!   line segments opens into a **wire** whose tips become poles/
+//!   a profile whose axis contact is contiguous runs of on-axis
+//!   line segments opens into **wires** whose tips become poles/
 //!   apexes (a tip where a plane wall meets the axis is a disc's
-//!   centre, built whole, and no vertex); contact at an isolated vertex, or in two or more runs,
-//!   revolves to a non-manifold solid and is refused (D1). Holes are
-//!   supported for partial revolves (extrude-shaped) AND for full
-//!   revolves: a full revolve of a holed profile is DEFINED as
-//!   `revolve(outer) − revolve(hole-as-outer)` (OFFSET-DESIGN O4) and
-//!   executed as the degenerate no-crossing arm — each hole revolves
-//!   as its own solid of revolution and its reversed boundary is
-//!   inserted as a cavity through the shared void-insertion door
-//!   ([`topo::insert_void`], DESIGN's M2 cavity invariant), with
-//!   strict containment certified FROM the profile's own validation:
-//!   a hole is strictly inside the outer loop with decided clearance
-//!   and containment margins, and revolution about the shared axis
-//!   carries strict 2-D containment to strict 3-D containment
-//!   verbatim. No SSI, no crossing census, no 3-D box test runs on
-//!   that path (a torus-walled cavity could not even enter the
-//!   crossing pipeline — its operand gate refuses tori).
+//!   centre, built whole, and no vertex); contact at an isolated
+//!   vertex revolves to a non-manifold pinch and is refused (D1).
+//!   Holes are supported for partial revolves (extrude-shaped). A
+//!   full revolve of a profile is DEFINED as
+//!   `revolve(filled) − Σ revolve(pocket)` (crate topo's README,
+//!   structural conventions): its pockets are its hole loops and the
+//!   region each gap between two consecutive axis runs closes, and
+//!   `filled` is the profile with its pockets added, touching the axis
+//!   in one run from the lowest run's lower end to the highest run's
+//!   upper end. A loop meeting the axis in k runs is therefore a
+//!   manifold solid with k − 1 axis cavities. It is executed as the
+//!   degenerate no-crossing arm: `filled` builds as the wire of the
+//!   stretch joining the axially extreme run ends, each pocket
+//!   revolves as its own solid of revolution in hole-as-outer
+//!   orientation (a hole as a lamina, a gap's pocket as the wire of
+//!   the stretch joining the gap's two ends), and its reversed
+//!   boundary is inserted as a cavity through the shared
+//!   void-insertion door ([`topo::insert_void`], DESIGN's M2 cavity
+//!   invariant), with strict containment certified FROM the profile's
+//!   own validation: a hole is strictly inside the outer loop with
+//!   decided clearance and containment margins, a pocket's stretch and
+//!   the outer stretch are non-adjacent segments of one loop that the
+//!   simplicity pass decided apart, and revolution about the shared
+//!   axis cannot bring two points closer than their meridian distance,
+//!   so strict 2-D separation is strict 3-D containment verbatim. No
+//!   SSI, no crossing census, no 3-D box test runs on that path (a
+//!   torus-walled cavity could not even enter the crossing pipeline —
+//!   its operand gate refuses tori).
 //! - **Cone charts.** A cone wall is minted with `axis = +a₃`
 //!   regardless of which nappe the face occupies: the implicit
 //!   residual/gradient machinery is nappe-symmetric, so the axis sign
@@ -197,12 +209,16 @@ pub struct Revolved<T: Real> {
     pub solid: SolidKey,
     /// The primary (outer-boundary) shell.
     pub shell: ShellKey,
-    /// A full revolve of a holed profile only: the cavity shell each
-    /// hole's revolved boundary was inserted as, one per hole loop
-    /// (index 0 ↔ canonical loop 1). Empty for partial revolves (holes
-    /// there are extrude-shaped tunnels in the one shell) and for
-    /// unholed profiles.
-    pub cavities: Vec<ShellKey>,
+    /// A full revolve only: the cavity shells, each keyed by the pocket
+    /// it is the revolved boundary of ([`CavityOrigin`]) — hole loops
+    /// in canonical order, then the gaps between the outer loop's axis
+    /// runs in ascending axial order. Empty for partial revolves (holes
+    /// there are extrude-shaped tunnels in the one shell) and for a
+    /// profile with no hole and at most one axis run. A gap's cavity
+    /// walls, rims, meridians and poles are the outer loop's own
+    /// entries in the per-loop maps below: they are swept by the outer
+    /// loop's segments.
+    pub cavities: Vec<Cavity>,
     /// Wall faces, per loop, one per run of segments on one carrier
     /// (crate README, "Walls: one per run"), in swept order of their
     /// first segment. The per-segment view is [`Revolved::walls`].
@@ -232,6 +248,42 @@ pub struct Revolved<T: Real> {
     pub kind: RevolvedKind,
 }
 
+/// One cavity shell of a full revolve, keyed by its origin.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Cavity {
+    /// The pocket whose revolved boundary this shell is.
+    pub origin: CavityOrigin,
+    /// The cavity shell in the result body.
+    pub shell: ShellKey,
+}
+
+/// Which pocket of a full revolve's profile a cavity is the revolution
+/// of (module docs: `revolve(filled) − Σ revolve(pocket)`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum CavityOrigin {
+    /// A hole loop, by canonical loop index (1 onwards).
+    Hole {
+        /// Canonical index of the hole loop.
+        loop_index: usize,
+    },
+    /// The region a gap between two consecutive axis runs of the outer
+    /// loop closes: gap 0 lies between the two runs lowest along the
+    /// axis direction, gap 1 above it, and so on.
+    Pocket {
+        /// The gap's rank along the axis direction.
+        gap: usize,
+    },
+}
+
+impl fmt::Display for CavityOrigin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Hole { loop_index } => write!(f, "hole loop {loop_index}"),
+            Self::Pocket { gap } => write!(f, "the pocket of axis gap {gap}"),
+        }
+    }
+}
+
 /// One wall of a revolve: the run of profile segments it sweeps.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BandWall {
@@ -243,6 +295,15 @@ pub struct BandWall {
 }
 
 impl<T: Real> Revolved<T> {
+    /// The cavity shell `origin` revolved to, if the revolve built one.
+    #[must_use]
+    pub fn cavity(&self, origin: CavityOrigin) -> Option<ShellKey> {
+        self.cavities
+            .iter()
+            .find(|c| c.origin == origin)
+            .map(|c| c.shell)
+    }
+
     /// The wall face of every segment, per loop, per canonical segment
     /// (`None`: on-axis): a run's segments read its one wall.
     #[must_use]
@@ -304,11 +365,12 @@ pub enum RevolvedKind {
     /// one full-period band: `walls`/`rims` carry the complete
     /// revolution patches and full-period rim self-loops, `meridians`
     /// the single seam chain, and every `pi_*` field is `None`. The
-    /// **wire** case (an on-axis run, omitted — the OUTER loop only;
+    /// **wire** case (on-axis runs, omitted — the OUTER loop only;
     /// holes are strictly off-axis by validated containment) sweeps
     /// two π-bands so poles/apexes keep valence 2 (tier 2's strut
     /// ban): `walls`/`rims` are the angle-0…π band, the `pi_*` fields
-    /// the π…2π band. In either case a PLANE wall is one face with no
+    /// the π…2π band, for the outer shell's stretch and every gap's
+    /// cavity stretch alike. In either case a PLANE wall is one face with no
     /// meridian — an annulus whose inner circle is a ring, or (wire
     /// case only) a disc whose centre is no vertex — so its `meridians`
     /// and `pi_*` entries are `None`. Hole loops are always
@@ -316,7 +378,8 @@ pub enum RevolvedKind {
     /// `meridians` entries are their cavity seam chains, and the
     /// `pi_*` fields (outer-loop shaped) never name hole entities.
     Full {
-        /// The outer loop touches the axis: the wire case.
+        /// The outer loop touches the axis (in one run or more): the
+        /// wire case.
         wire: bool,
         /// Angle-0 meridian edges (the `u = 0` seam chain), per
         /// canonical loop, per canonical segment (`None`: omitted
@@ -516,8 +579,8 @@ pub enum RevolveError {
         /// Canonical index of the segment.
         segment_index: usize,
     },
-    /// Full revolve of a profile whose axis contact is not a single
-    /// contiguous run of on-axis segments: an isolated on-axis vertex
+    /// Full revolve of a profile whose axis contact is not made of
+    /// contiguous runs of on-axis segments: an isolated on-axis vertex
     /// (or a run-detached one) revolves to a non-manifold solid (D1).
     NonManifoldAxisContact {
         /// Canonical index of the loop.
@@ -525,19 +588,23 @@ pub enum RevolveError {
         /// Canonical index of the offending vertex.
         vertex_index: usize,
     },
-    /// Full revolve of a profile whose OUTER loop touches the axis in
-    /// two or more disjoint runs: the revolved boundary closes an
-    /// inner shell — a cavity — that this construction has no
-    /// certified containment evidence for (the two-run profile's
-    /// "hole" is not a validated hole loop; it exists only in the
-    /// revolved solid). Refused under the ratified cavity invariant
-    /// (DESIGN's M2 bullet: every cavity is born through the shared
-    /// void-insertion door, with caller-certified containment) — the
-    /// recourse is the explicit composition, whose boolean derives
-    /// the evidence itself.
-    MultipleAxisRuns {
+    /// Whether two consecutive axis runs of a full revolve's outer loop
+    /// lie apart along the axis escalated: the end of one run, at
+    /// `vertex_index`, and the start of the run after it in swept order
+    /// sit a sliver apart axially. Which of the two is lower is what
+    /// escalated, so the run may be the top one, the filled shell's
+    /// stretch then being the one in question.
+    /// Unreachable for a profile validated at this run's tolerance (two
+    /// runs are non-adjacent segments the simplicity pass decided
+    /// apart), so it exists for a profile validated at another ε.
+    AxisGapEscalated {
         /// Canonical index of the loop.
         loop_index: usize,
+        /// Canonical index of the vertex where the run ends, in swept
+        /// order.
+        vertex_index: usize,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
     },
     /// Full revolve of a holed profile met a HOLE loop with axis
     /// contact (an on-axis vertex or segment). Unreachable for a
@@ -552,15 +619,15 @@ pub enum RevolveError {
         /// Canonical index of the hole loop.
         loop_index: usize,
     },
-    /// The void-insertion door refused a hole cavity's insertion
+    /// The void-insertion door refused a cavity's insertion
     /// ([`topo::insert_void`]). The evidence and destination arms are
-    /// unreachable from this construction (every hole shell is
+    /// unreachable from this construction (every cavity shell is
     /// certified from the profile's own validation before the call, into
     /// the solid the build minted); the revert arm refuses a cavity two
     /// of whose edges lie on one line ([`topo::RevertError`]).
     VoidInsertion {
-        /// Canonical index of the hole loop whose insertion refused.
-        loop_index: usize,
+        /// The pocket whose cavity's insertion refused.
+        cavity: CavityOrigin,
         /// The door's refusal.
         source: topo::VoidInsertError,
     },
@@ -848,15 +915,24 @@ impl fmt::Display for RevolveError {
             } => write!(
                 f,
                 "a full revolve of loop {loop_index} would pinch at vertex {vertex_index}, \
-                 where the loop touches the axis outside a single on-axis segment. \
+                 where the loop touches the axis outside an on-axis segment. \
                  Recourse: lay that stretch of the loop along the axis, or use a partial \
                  revolve"
             ),
-            Self::MultipleAxisRuns { loop_index } => write!(
+            Self::AxisGapEscalated {
+                loop_index,
+                vertex_index,
+                source,
+            } => write!(
                 f,
-                "loop {loop_index} touches the axis in two or more separate runs, so a full \
-                 revolve would enclose a cavity it cannot certify. Recourse: revolve the \
-                 solid profile and subtract the enclosed body, or use a partial revolve"
+                "{}",
+                source.undecided(
+                    format_args!(
+                        "whether the axis run of loop {loop_index} ending at vertex \
+                         {vertex_index} is apart from the next one"
+                    ),
+                    source.ending(geom_core::COINCIDENCE_RECOURSE),
+                )
             ),
             Self::HoleTouchesAxis { loop_index } => write!(
                 f,
@@ -864,10 +940,9 @@ impl fmt::Display for RevolveError {
                  validated with it strictly inside its outer loop at another tolerance. \
                  Recourse: re-validate the profile at the revolve's tolerance"
             ),
-            Self::VoidInsertion { loop_index, source } => write!(
-                f,
-                "inserting the cavity of hole loop {loop_index} refused: {source}"
-            ),
+            Self::VoidInsertion { cavity, source } => {
+                write!(f, "inserting the cavity of {cavity} refused: {source}")
+            }
             Self::CosurfaceEscalated {
                 loop_index,
                 vertex_index,
@@ -1048,7 +1123,9 @@ mod tests {
     /// gauge, and the line runs, the arc centre and the cosurface
     /// distance select a form: each ends in the lever alone on every
     /// reading. The arc's apex and clearance are distances the profile
-    /// keeps from the axis, and offer the tolerance a value gives.
+    /// keeps from the axis, and the gap between two axis runs a
+    /// distance it keeps between them: each offers the tolerance a
+    /// value gives.
     #[test]
     fn a_revolve_escalation_ends_by_its_decisions_kind() {
         use crate::swept::undecided_fixtures::{LEVER, SIZED, expected, readings};
@@ -1086,7 +1163,7 @@ mod tests {
         ];
         assert_eq!(clearances.map(|(d, ..)| d), ClearanceDecision::ALL);
         type Build = fn(Indeterminate) -> RevolveError;
-        let cases: [(&'static str, &str, [&str; 3], Build); 4] = [
+        let cases: [(&'static str, &str, [&str; 3], Build); 5] = [
             ("revolve_angle", "the revolve angle", LEVER, |source| {
                 RevolveError::AngleEscalated { source }
             }),
@@ -1101,6 +1178,16 @@ mod tests {
                 "whether the revolve axis has a length",
                 LEVER,
                 |source| RevolveError::AxisEscalated { source },
+            ),
+            (
+                "axis_gap",
+                "whether the axis run of loop 0 ending at vertex 3 is apart from the next one",
+                SIZED,
+                |source| RevolveError::AxisGapEscalated {
+                    loop_index: 0,
+                    vertex_index: 3,
+                    source,
+                },
             ),
             (
                 "wall_lines_cosurface",

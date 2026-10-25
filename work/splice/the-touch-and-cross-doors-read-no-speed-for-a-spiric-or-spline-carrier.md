@@ -7,6 +7,7 @@ opened: 2026-10-13
 closed: 2026-10-25
 priority: P1
 cost: E
+branch: splice/touch-doors
 ---
 
 Found by FUSE's review of PR 4946 (`census-curved-record-lanes-read-circles-only`, branch `fuse/census-reads-every-curved-edge`).
