@@ -479,3 +479,45 @@ fn a_ball_beside_a_spline_or_spiric_edge_is_cleared_of_it() {
         "the ball on the spline is cleared of it"
     );
 }
+
+/// **A spline with a corner crosses the face past its corner, and is not
+/// certified off it.** The degree-1 spline in the plane `z = 1/2` runs
+/// along the tangent of the unit cylinder at azimuth `7/10` (on the
+/// quarter sheet), `0.28` outside it, to a corner just past its middle
+/// point, then turns straight in and ends `~0.008` inside the cylinder:
+/// it crosses the sheet once, on the face. Each span is a segment, so
+/// `accel_hi` and `curvature_hi` read zero, though the curve's tangent
+/// turns a right angle at the knot.
+#[test]
+fn a_spline_with_a_corner_crossing_the_face_is_not_off_it() {
+    use geom::NurbsCurve3;
+    use geom_core::spline::{KnotVector, Knots};
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let frame = CylFrame::canonical(1.0);
+    let face = cyl_wall_sheet(&mut body, frame, (0.0, FRAC_PI_2), (0.0, 1.0), tol);
+    crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
+    let surface = frame.surface::<f64>();
+    let (p, n, t) = on_unit_cylinder(0.7);
+    let m = p + n * 0.28;
+    let (a, k) = (m - t * 0.3, m + t * 0.012);
+    let b = k - n * 0.288;
+    let knots = KnotVector::clamped(vec![0.0, 0.0, 0.52, 1.0, 1.0], 1).unwrap();
+    let c = Curve3::Nurbs(std::sync::Arc::new(
+        NurbsCurve3::new(Knots::from(knots), vec![a, k, b], vec![1.0; 3]).unwrap(),
+    ));
+    assert!(
+        (b - Point3::new(0.0, 0.0, 0.5)).norm() < 1.0,
+        "the end lies inside the cylinder"
+    );
+    assert_eq!(
+        geom::carrier_speed::curvature_hi(&c),
+        0.0,
+        "each span is straight"
+    );
+    let got = off_face(&body, face, &surface, &c, (0.0, 1.0), band());
+    assert!(
+        matches!(got, Ok(false)),
+        "the spline crosses the sheet at azimuth ~0.71, on the face: {got:?}"
+    );
+}
