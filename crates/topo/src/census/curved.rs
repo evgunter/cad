@@ -24,7 +24,7 @@
 use geom::Curve3;
 use geom_brep::curve_pair::{Hit, MeetFault, Meeting, Span, meet};
 use geom_brep::roots::Unsettled;
-use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign};
+use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::{CensusSubject, CensusUnsupportedCause, ValidationError};
 use crate::body::Body;
@@ -181,9 +181,41 @@ fn on_interior_reading<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<MarginDiag>> {
+    on_interior_at(body, r, q, band, errors).map(|on| on.map(|(_, margin)| margin))
+}
+
+/// **`e`'s tangent where `q` lies on its interior**, along its plus
+/// half and scaled to the edge's extent: `Some(None)` where `q` is not
+/// on the interior; `None` where a decision escalated or the edge is not
+/// read (pushed).
+pub(super) fn tangent_on_interior<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<Vec3<T>>> {
+    let r = read(body, e, band, errors)?;
+    let (t0, t1) = r.span;
+    let chord = r.curve.eval(t0).distance(r.curve.eval(t1));
+    let extent = geom_brep::edge_extent(&r.curve, t0, t1, chord);
+    Some(
+        on_interior_at(body, &r, q, band, errors)?
+            .map(|(t, _)| r.curve.deriv(t).normalize() * extent),
+    )
+}
+
+/// [`on_interior_reading`], keeping the parameter `q`'s foot is at.
+fn on_interior_at<T: Decide>(
+    body: &Body<T>,
+    r: &Read<T>,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<(T, MarginDiag)>> {
     let span = span(body, r);
     match span.contact(q, geom::mid_param(r.span.0, r.span.1), band) {
-        Ok(Some(Hit::On { margin, .. })) => Some(Some(margin)),
+        Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
         Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
             errors.push(ValidationError::CensusEscalated { cause });

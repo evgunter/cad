@@ -1384,13 +1384,17 @@ pub(crate) enum PairOutcome<T: Real> {
 /// Classifies every contact between two segments — the simplicity core.
 /// Dispatches on carrier kinds; all closed form. Errors are in-band /
 /// poisoned classifications, propagated for the caller to wrap (D4 ¶3).
+/// `shared` is a stored vertex the pair shares, an end of each (an
+/// adjacent pair, `validate::judge_pair`); only two lines read it, where
+/// their sides escalate ([`line_line`]).
 pub(crate) fn pair_contacts<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
+    shared: Option<Point2<T>>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
     match (&s1.kind, &s2.kind) {
-        (SegKind::Line, SegKind::Line) => line_line(s1, s2, band),
+        (SegKind::Line, SegKind::Line) => line_line(s1, s2, shared, band),
         (SegKind::Line, SegKind::Arc(g2)) => line_arc(s1, s2, g2, band),
         (SegKind::Arc(g1), SegKind::Line) => line_arc(s2, s1, g1, band),
         (SegKind::Arc(g1), SegKind::Arc(g2)) => arc_arc(s1, g1, s2, g2, band),
@@ -1435,6 +1439,45 @@ fn gaps_apart<T: Decide>(s1: &Seg<T>, s2: &Seg<T>, band: Band) -> bool {
         decide("segment_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
     };
     apart(s1, s2) || apart(s2, s1)
+}
+
+/// Whether two straight segments that share a stored vertex, an end of
+/// each, can meet only within the band of it: `other` read along
+/// `host`'s axis ([`geom_core::one_line`]), on the
+/// **`collinear_overlap`** predicate, where the overlap's upper bound
+/// (`extent + noise`) reads no more than Zero.
+///
+/// The shared vertex is an end of both, so its projection lies in both
+/// projected intervals, and the true overlap contains it and is no
+/// longer than that bound. A point on both segments projects into the
+/// overlap, and along `host` its projection is its distance from
+/// `host`'s end, so every such point is within the band of the shared
+/// vertex: the vertex's own touch. No angle between the two enters, so
+/// it holds at a straight joint, a turned one and a reversal alike.
+///
+/// [`line_line`] asks it only where a carrier side has escalated, so a
+/// decided verdict never moves. That pair's joint is then read in band
+/// too: the short leg's far end stands off the long one's carrier by
+/// `sin θ` times the short leg, the turn [`joint_tangency`] reads levered
+/// by the shorter arm. So the escalation moves to the joint, the question
+/// it is, and a refusal later in the pass is read. The collinear arm's
+/// straddle is not asked: there the joint can read a continuation, and
+/// the pair would validate where the overlap's charge, far from the
+/// origin, passes the band.
+///
+/// topo's check 9 (`lines_meet`) has no such pair to read: it pairs a
+/// ring's edges with its outer loop's, and a vertex the two loops share
+/// is its arm 1's contact before any edge pair is read.
+fn touches_only_near_the_shared_end<T: Decide>(host: &Seg<T>, other: &Seg<T>, band: Band) -> bool {
+    let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
+    matches!(
+        decide(
+            "collinear_overlap",
+            Margin::of(along.extent() + along.noise),
+            band
+        ),
+        Ok(Sign::Zero | Sign::Negative)
+    )
 }
 
 /// The collinear arm of [`line_line`]: `other` read along `host`'s axis,
@@ -1508,6 +1551,7 @@ fn collinear_overlap<T: Decide>(
 fn line_line<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
+    shared: Option<Point2<T>>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
     if gaps_apart(s1, s2, band) {
@@ -1536,8 +1580,22 @@ fn line_line<T: Decide>(
     if collinear(&on_2) {
         return collinear_overlap(s2, s1, band);
     }
-    let [o_c, o_d] = [on_1[0]?, on_1[1]?];
-    let [o_a, o_b] = [on_2[0]?, on_2[1]?];
+    let sides = (|| Ok([on_1[0]?, on_1[1]?, on_2[0]?, on_2[1]?]))();
+    let [o_c, o_d, o_a, o_b] = match sides {
+        Ok(sides) => sides,
+        // An in-band side of an adjacent pair whose overlap along `s1`
+        // is within the band: its only contact is the shared vertex.
+        Err(_)
+            if let Some(v) = shared
+                && touches_only_near_the_shared_end(s1, s2, band) =>
+        {
+            return Ok(PairOutcome::Contacts(vec![Contact {
+                point: v,
+                kind: CKind::Touch,
+            }]));
+        }
+        Err(source) => return Err(source),
+    };
     let opposite = |x: Sign, y: Sign| {
         matches!(
             (x, y),
@@ -1590,7 +1648,10 @@ fn line_line<T: Decide>(
 ///
 /// An in-band clearance is a carrier question the segments need not
 /// ask: where [`arc_clear_of_carrier`] certifies the arc away from the
-/// whole line, there is no contact; otherwise it escalates.
+/// whole line, or [`segment_clear_of_circle`] the segment away from the
+/// whole circle, there is no contact; otherwise it escalates. The
+/// latter reads **`circle_foot_past_segment`** and
+/// **`circle_end_clear`**, in that order, only on that `Err`.
 fn line_arc<T: Decide>(
     line: &Seg<T>,
     arc: &Seg<T>,
@@ -1605,7 +1666,10 @@ fn line_arc<T: Decide>(
     let mut contacts = Vec::new();
     let carriers = match decide("carrier_line_circle", Margin::of(clearance), band) {
         Ok(sign) => sign,
-        Err(_) if arc_clear_of_carrier(line, arc, g, foot, band) => {
+        Err(_)
+            if arc_clear_of_carrier(line, arc, g, foot, band)
+                || segment_clear_of_circle(line, g, tc, band) =>
+        {
             return Ok(PairOutcome::Contacts(contacts));
         }
         Err(source) => return Err(source),
@@ -1680,6 +1744,98 @@ fn arc_clear_of_carrier<T: Decide>(
         }
 }
 
+/// Whether a line segment certainly keeps off an arc's whole carrier,
+/// read from the segment's span rather than the carriers' clearance: the
+/// line's side of [`arc_clear_of_carrier`]. Along a line the distance to
+/// a circle's centre has one local minimum, at `foot`, the line's point
+/// nearest the centre. A segment whose span definitely misses `foot` is
+/// therefore nearest the centre at an end, and with both ends
+/// definitely outside the circle ([`end_clear_of_circle`]) no point of
+/// it reaches the circle.
+///
+/// **The miss, charged** (**`circle_foot_past_segment`**). The foot is
+/// read by its parameter `tc = (c − a)·û` along the segment, computed,
+/// so the miss is `line_span`'s margin `min(tc, L − tc)` with `tc`'s
+/// making added to it: it must read definitely negative with
+/// [`rounding_charge`](geom_core::rounding_charge) of `tc`'s production
+/// (the difference `c − a` at `c`'s and `a`'s coordinate magnitudes, the
+/// dot product at `|c − a|`) and of the span margin's own arithmetic
+/// (`L`). At `Interval` the readings hold of the real points and the
+/// charge only widens them.
+fn segment_clear_of_circle<T: Decide>(line: &Seg<T>, g: &ArcGeom<T>, tc: T, band: Band) -> bool {
+    let made = (g.arc.centre - line.a).norm() + reach(line.a) + reach(g.arc.centre) + line.len;
+    let miss = tc.min(line.len - tc) + geom_core::rounding_charge(made);
+    decide("circle_foot_past_segment", Margin::of(miss), band) == Ok(Sign::Negative)
+        && [line.a, line.b]
+            .into_iter()
+            .all(|q| end_clear_of_circle(g, q, true, band))
+}
+
+/// Whether a segment's end lies definitely outside a circle, or with
+/// `outside` false definitely inside it (**`circle_end_clear`**,
+/// positive = outside): `circle_side`'s margin `|q − c| − r`, charged.
+/// The end is stored, but the margin is not: the difference `q − c`,
+/// its norm and the subtraction of `r` round at the coordinates' and the
+/// radius's magnitude. Inside the arcs' reach that rounding stays below
+/// the band's room, but a line's end has no such reach, and far out it
+/// passes it, so the margin must read definite with
+/// [`rounding_charge`](geom_core::rounding_charge) of `|q|`, `|c|` and
+/// `r` taken against it.
+fn end_clear_of_circle<T: Decide>(g: &ArcGeom<T>, q: Point2<T>, outside: bool, band: Band) -> bool {
+    let charge = geom_core::rounding_charge(reach(q) + reach(g.arc.centre) + g.arc.radius);
+    let rim = g.arc.rim(q) - g.arc.radius;
+    let (margin, side) = if outside {
+        (rim - charge, Sign::Positive)
+    } else {
+        (rim + charge, Sign::Negative)
+    };
+    decide("circle_end_clear", Margin::of(margin), band) == Ok(side)
+}
+
+/// Whether an arc certainly keeps off another circle, read from the
+/// arc's span rather than the carriers' clearances; `toward` is the unit
+/// from the arc's centre to the other's. Along a circle the distance to
+/// another centre has one local minimum, at the point facing it, and one
+/// maximum, opposite. An arc whose span definitely excludes the nearest
+/// is nearest the other centre at an end, so with both ends definitely
+/// outside the other circle ([`end_clear_of_circle`]) no point of it
+/// reaches that circle; one excluding the farthest is farthest at an end, so with
+/// both ends definitely inside, no point of it does either.
+///
+/// **The exclusion, charged** (**`circle_extreme_past_arc`**). The two
+/// extremes `c ± r·û` are computed, so each is read as `arc_span`'s
+/// margin `|a − apex| − |q − apex|` with its making added: it must read
+/// definitely negative with [`rounding_charge`](geom_core::rounding_charge)
+/// of the point's production (the centre's coordinate magnitude, `r`
+/// through `û`, itself a quotient by the centres' distance) and of the
+/// span margin's arithmetic (the span chord and `|q − apex|`, each at
+/// most `2r`). `toward` divides by the centres' distance, so it is read
+/// only where the identity margin was definite ([`arc_arc`]).
+fn arc_clear_of_circle<T: Decide>(
+    arc: &Seg<T>,
+    g: &ArcGeom<T>,
+    toward: Vec2<T>,
+    other: &ArcGeom<T>,
+    band: Band,
+) -> bool {
+    let ArcSpan::Chord { apex, span_chord } = g.span else {
+        // A full turn holds both extremes.
+        return false;
+    };
+    let ends = |outside: bool| {
+        [arc.a, arc.b]
+            .into_iter()
+            .all(|q| end_clear_of_circle(other, q, outside, band))
+    };
+    let excludes = |q: Point2<T>| {
+        let made = reach(g.arc.centre) + reach(q) + g.arc.radius * T::from_f64(5.0);
+        let miss = span_chord - q.distance(apex) + geom_core::rounding_charge(made);
+        decide("circle_extreme_past_arc", Margin::of(miss), band) == Ok(Sign::Negative)
+    };
+    let arm = toward * g.arc.radius;
+    (excludes(g.arc.centre + arm) && ends(true)) || (excludes(g.arc.centre - arm) && ends(false))
+}
+
 /// Arc/arc contacts. Predicates, in gate order, all margins in meters:
 ///
 /// - **`carrier_circles_identity`** — margin: |C₂ − C₁| + ||r₁| − |r₂||
@@ -1729,6 +1885,15 @@ fn arc_clear_of_carrier<T: Decide>(
 ///
 /// The margins and the crossings read one [`Circles2`], so the factors
 /// the crossings take are the margins decided, bit for bit.
+///
+/// An in-band external or internal reading is a carrier question
+/// the arcs need not ask: where [`arc_clear_of_circle`] certifies either
+/// arc away from the other's whole circle, there is no contact; otherwise
+/// it escalates. That certificate reads **`circle_extreme_past_arc`**
+/// and **`circle_end_clear`**, in that order, only on such an `Err`.
+/// It is not asked where the identity margin is in band:
+/// arcs on nearly one circle stand within about ε of each other's circle
+/// everywhere, so no radial margin separates them.
 ///
 /// A tangency's candidate is the midpoint of the circles' nearest
 /// points, which lie on the line of centres |g| apart, so it stands
@@ -1790,11 +1955,24 @@ fn arc_arc<T: Decide>(
                 let (p1, p2) = (g1.arc.centre + u * s1, g2.arc.centre + u * s2);
                 p1 + (p2 - p1) * T::from_f64(0.5)
             };
-            match decide(
+            // Either arc certainly off the other's circle is no contact,
+            // however the carriers' clearances read; the identity margin
+            // was definite, so `d` is bounded away from zero.
+            let clear = || {
+                let u = circles.direction();
+                arc_clear_of_circle(s1, g1, u, g2, band)
+                    || arc_clear_of_circle(s2, g2, -u, g1, band)
+            };
+            let no_contact = || Ok(PairOutcome::Contacts(Vec::new()));
+            let external = match decide(
                 "carrier_circles_external",
                 Margin::of(pair.external()),
                 band,
-            )? {
+            ) {
+                Err(_) if clear() => return no_contact(),
+                reading => reading?,
+            };
+            match external {
                 Sign::Positive => {}
                 Sign::Zero => {
                     // Externally tangent; d = r₁ + r₂ ≥ the definite
@@ -1811,11 +1989,15 @@ fn arc_arc<T: Decide>(
                     )?;
                 }
                 Sign::Negative => {
-                    match decide(
+                    let internal = match decide(
                         "carrier_circles_internal",
                         Margin::of(pair.internal()),
                         band,
-                    )? {
+                    ) {
+                        Err(_) if clear() => return no_contact(),
+                        reading => reading?,
+                    };
+                    match internal {
                         Sign::Negative => {}
                         Sign::Zero => {
                             // Internally tangent: d = |Δr| and the
@@ -1858,6 +2040,14 @@ fn arc_arc<T: Decide>(
                                     let interior = |found: &[Contact<T>]| {
                                         found.iter().any(|c| !matches!(c.kind, CKind::Touch))
                                     };
+                                    // No certificate is asked here: an arc
+                                    // clear of the other's circle keeps every
+                                    // candidate, a point on or within ε of
+                                    // that circle, definitely off its span, so
+                                    // both readings already agree on no
+                                    // contact. Two million near-concentric
+                                    // draws reached no disagreement with an
+                                    // arc clear (PR 5552's review fold).
                                     match (tangent(), secant()) {
                                         (Ok(t), Ok(x)) if interior(&t) == interior(&x) => {
                                             t.into_iter().chain(x).collect()
@@ -2420,7 +2610,7 @@ mod pair_contact_tests {
             band,
         );
         for (name, a, b) in [("s1 first", &s1, &s2), ("s2 first", &s2, &s1)] {
-            match pair_contacts(a, b, band) {
+            match pair_contacts(a, b, None, band) {
                 Ok(PairOutcome::Contacts(c)) if c.is_empty() => {}
                 Ok(PairOutcome::Contacts(c)) => panic!("{name}: {} contacts", c.len()),
                 Ok(PairOutcome::Overlap) => panic!("{name}: an overlap"),
@@ -2561,6 +2751,233 @@ mod pair_contact_tests {
             Ok(PairOutcome::Overlap) => panic!("read an overlap"),
             Ok(PairOutcome::Contacts(c)) => panic!("read {} contacts", c.len()),
         }
+    }
+
+    /// **An adjacent pair reads a touch near its shared end only where
+    /// every point it shares is within the band of it, on exact points.**
+    /// [`the_collinear_arm_keeps_its_contract_on_the_real_overlap`]'s
+    /// draw: `s1` runs `k` times a Pythagorean direction `(a, b)` from a
+    /// point up to `2·10⁵` m out, every point on the `2⁻³⁴` m grid. `s2`
+    /// shares one of `s1`'s ends and reaches to a grid point whose
+    /// projection along `s1` stands an exact `n ∈ [−30ε, 30ε]` past that
+    /// end ([`along_exactly`]) and `j` grid steps across it, `j` from 1 to
+    /// `10¹²`, arriving or leaving at random. The real overlap is `−n`
+    /// where `s2` reaches back over `s1`, else zero, exact in `i128`. At
+    /// ε `10⁻⁹`, `K` 10, wherever [`touches_only_near_the_shared_end`]
+    /// fires the real overlap is at most `ε`. A counterexample sweep: the
+    /// draws stand at the band's zero edge, where the charge acts.
+    #[test]
+    fn a_pair_reads_a_touch_near_its_shared_end_only_within_the_band_of_it() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let eps = band.zero();
+        let grid = 2f64.powi(-34);
+        let unit = 1i128 << 34;
+        let mut rng = test_utils::fuzz::start("seg-adjacent-touch-exact");
+        let dirs: [(i128, i128, i128); 5] = [
+            (3, 4, 5),
+            (5, 12, 13),
+            (8, 15, 17),
+            (7, 24, 25),
+            (20, 21, 29),
+        ];
+        let on_grid = |x: f64| (x / grid).round() as i128;
+        let sign = |rng: &mut test_utils::fuzz::Rng| if rng.range(0.0, 1.0) < 0.5 { -1 } else { 1 };
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let (mut a, mut b, c) = dirs[(rng.range(0.0, 5.0) as usize).min(4)];
+            if rng.range(0.0, 1.0) < 0.5 {
+                core::mem::swap(&mut a, &mut b);
+            }
+            a *= sign(&mut rng);
+            b *= sign(&mut rng);
+            let k = 10f64.powf(rng.range(2.0, 4.0)).round() as i128;
+            let p0 = [on_grid(rng.range(-2e5, 2e5)), on_grid(rng.range(-2e5, 2e5))];
+            let p1 = [p0[0] + k * a * unit, p0[1] + k * b * unit];
+            // `n` past the shared end, outward positive: the overlap is
+            // `−n` where `s2` reaches back over `s1`.
+            let (shared, away) = if rng.range(0.0, 1.0) < 0.5 {
+                (p0, -1)
+            } else {
+                (p1, 1)
+            };
+            let reach = 30.0 * eps / grid * c as f64;
+            let n = rng.range(-reach, reach) as i128;
+            let off = along_exactly(n * away, (a, b, c));
+            let j = 10f64.powf(rng.range(0.0, 12.0)).round() as i128 * sign(&mut rng);
+            let q = [shared[0] + off[0] - j * b, shared[1] + off[1] + j * a];
+            let f = |q: [i128; 2]| pt::<f64>((q[0] as f64 * grid, q[1] as f64 * grid));
+            let (from, to) = if rng.range(0.0, 1.0) < 0.5 {
+                (shared, q)
+            } else {
+                (q, shared)
+            };
+            let Ok(s2) = build_seg(f(from), f(to), Segment::Line, Consistency::Decide, band) else {
+                continue;
+            };
+            let s1: Seg<f64> = build_seg(f(p0), f(p1), Segment::Line, Consistency::Decide, band)
+                .unwrap_or_else(|e| panic!("s1: {}", e.predicate()));
+            if !touches_only_near_the_shared_end(&s1, &s2, band) {
+                continue;
+            }
+            let overlap = (-n).max(0) as f64 * grid / c as f64;
+            assert!(
+                overlap <= eps,
+                "read a touch near the shared end at a real overlap of {overlap:e} m \
+                 (ε {eps:e}): s1 {:?}→{:?}, s2 {:?}→{:?} — {}",
+                f(p0),
+                f(p1),
+                f(from),
+                f(to),
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// **A shared-end touch is read only past the overlap's charge.** A
+    /// case of
+    /// [`a_pair_reads_a_touch_near_its_shared_end_only_within_the_band_of_it`]'s
+    /// draw, every point on the `2⁻³⁴` m grid: `s1` runs `7680` times
+    /// `(−7, 24)`, `192` km, to an end about `3.4·10⁵` m out, and `s2`
+    /// arrives at that end from back over `s1`: their real overlap is
+    /// `1.0082·10⁻⁹` m, past ε. The overlap as computed reads within the
+    /// band's zero, and only its charge lifts the upper bound past it, so
+    /// [`touches_only_near_the_shared_end`] does not hold. With the charge
+    /// dropped it would, and the pair would read a touch at a vertex it
+    /// overlaps past.
+    #[test]
+    fn a_shared_end_touch_is_read_only_past_the_overlaps_charge() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let end = (-85837.30740873661, 327155.61704938876);
+        let s1 = line::<f64>((-32077.30740873661, 142835.61704938876), end, band);
+        let s2 = line::<f64>((-86069.63265372172, 327087.8555196004), end, band);
+        let along = on_one_line_2d(s1.unit, (s1.a, s1.b), (s2.a, s2.b), 0.0);
+        assert_eq!(
+            decide("collinear_overlap", Margin::of(along.extent()), band),
+            Ok(Sign::Zero),
+            "the overlap as computed reads within the band's zero"
+        );
+        assert!(!touches_only_near_the_shared_end(&s1, &s2, band));
+    }
+
+    /// **A straight continuation whose overlap straddles its charge still
+    /// escalates.** A case of
+    /// [`every_pair_the_shared_end_touch_rescues_escalates_at_its_joint`]'s
+    /// draw at ε `10⁻⁹`, `K` 10: a leg about `5.4·10⁵` m long arrives at
+    /// `(4195.4, 1159.4)`, and a `960` m leg leaves it on the same line,
+    /// its far end within the band's zero of the long leg's carrier. Both
+    /// of the short leg's ends read on the long carrier, so [`line_line`]
+    /// reads the pair collinear, and [`collinear_overlap`] straddles: the
+    /// overlap's lower bound is in band, its upper bound Zero. That upper
+    /// bound is what [`touches_only_near_the_shared_end`] reads, so the
+    /// shared-end touch would hold here and the joint reads a continuation
+    /// (`SameCarrier`): asked on the straddle, the rule would accept the
+    /// pair. It is correct by the rule's argument and deliberately not
+    /// accepted: the rule is asked only on an in-band side, so the pair
+    /// escalates, shared vertex or not.
+    #[test]
+    fn a_straight_continuation_straddling_its_overlaps_charge_still_escalates() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let v = (4195.37792743973, 1159.414105497221);
+        let leaving = line::<f64>(v, (5051.600599898648, 719.9751542338354), band);
+        let arriving = line::<f64>((-483370.8154819185, 251392.89144105796), v, band);
+        assert!(touches_only_near_the_shared_end(&leaving, &arriving, band));
+        match joint_tangency(&arriving, &leaving, "path_junction_turn", band) {
+            Ok(reading) => assert!(
+                matches!(reading.class, JointClass::SameCarrier),
+                "the joint reads a continuation, got {:?}",
+                reading.class
+            ),
+            Err(e) => panic!("the joint decides, got an escalation on {:?}", e.predicate),
+        }
+        for (host, other) in [(&leaving, &arriving), (&arriving, &leaving)] {
+            for shared in [None, Some(pt(v))] {
+                match pair_contacts(host, other, shared, band) {
+                    Err(e) => assert_eq!(e.predicate, Some("collinear_overlap"), "{shared:?}"),
+                    Ok(_) => panic!("{shared:?}: the straddle must escalate"),
+                }
+            }
+        }
+    }
+
+    /// **The pairs the shared-end touch rescues escalate at their joint.**
+    /// Two lines meeting at a vertex at angle `θ`, the shorter `Ls` from
+    /// `10⁻²` to `10³` m and the longer up to `10³` times it, about a
+    /// vertex up to `10⁵` m out, with `sin θ·Ls` drawn across the band
+    /// (`0.5ε` … `1.5Kε`), arriving and leaving either way round. Wherever
+    /// [`pair_contacts`] escalates and [`touches_only_near_the_shared_end`]
+    /// rescues the pair (read with either segment as host, as
+    /// `validate::judge_pair` reads a pair in pass order), the joint pass
+    /// ([`joint_tangency`]) escalates too: the short leg's far end stands
+    /// off the long one's carrier by `sin θ·Ls`, which is the turn the
+    /// joint reads, levered by the shorter arm. So the rule moves an
+    /// escalation to the joint and never accepts a loop the pair pass
+    /// escalated; a change to the joint pass that lets one through reds
+    /// here, and owes the rule's soundness its review then. A floor on the
+    /// rescues keeps the row from passing empty.
+    #[test]
+    fn every_pair_the_shared_end_touch_rescues_escalates_at_its_joint() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let (eps, k_eps) = (band.zero(), band.escalate());
+        let mut rng = test_utils::fuzz::start("seg-adjacent-joint-coupling");
+        let mut rescued = 0usize;
+        let draws = test_utils::fuzz::scaled(20_000);
+        for _ in 0..draws {
+            let far = 10f64.powf(rng.range(0.0, 5.0));
+            let v = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let short = 10f64.powf(rng.range(-2.0, 3.0));
+            let long = short * 10f64.powf(rng.range(0.0, 3.0));
+            let h = rng.range(0.5 * eps, 1.5 * k_eps);
+            let theta = (h / short).asin();
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            // The long leg arrives along `th`; the short one leaves at
+            // `θ` off it, either side, or the other way round.
+            let turn = if rng.range(0.0, 1.0) < 0.5 {
+                theta
+            } else {
+                -theta
+            };
+            let (lu, su) = (th, th + turn);
+            let at = |len: f64, ang: f64| (v.0 + len * ang.cos(), v.1 + len * ang.sin());
+            let (far_long, far_short) = (at(-long, lu), at(short, su));
+            let (prev, next) = if rng.range(0.0, 1.0) < 0.5 {
+                ((far_long, v), (v, far_short))
+            } else {
+                // Reversed traversal: the short leg arrives.
+                ((at(-short, su), v), (v, at(long, lu)))
+            };
+            let build = |(a, b): ((f64, f64), (f64, f64))| {
+                build_seg::<f64>(pt(a), pt(b), Segment::Line, Consistency::Decide, band)
+            };
+            let (Ok(prev), Ok(next)) = (build(prev), build(next)) else {
+                continue;
+            };
+            for (host, other) in [(&prev, &next), (&next, &prev)] {
+                if pair_contacts(host, other, None, band).is_ok() {
+                    continue;
+                }
+                if pair_contacts(host, other, Some(prev.b), band).is_err() {
+                    continue;
+                }
+                rescued += 1;
+                if let Ok(reading) = joint_tangency(&prev, &next, "path_junction_turn", band) {
+                    panic!(
+                        "rescued, and the joint decided {:?} on {}: prev {:?}→{:?}, \
+                         next {:?}→{:?} — {}",
+                        reading.class,
+                        reading.predicate,
+                        prev.a,
+                        prev.b,
+                        next.a,
+                        next.b,
+                        test_utils::fuzz::replay()
+                    );
+                }
+            }
+        }
+        assert!(
+            rescued * 10 >= draws,
+            "only {rescued} rescues in {draws} draws — {}",
+            test_utils::fuzz::replay()
+        );
     }
 
     /// **A far, long pair reads apart only past its charge.** `a` runs
@@ -3086,7 +3503,7 @@ mod pair_contact_tests {
             for (order, (p, q)) in [("", (first, second)), (", reversed", (second, first))] {
                 let read = build(p).and_then(|p| {
                     let q = build(q)?;
-                    match pair_contacts(&p, &q, band) {
+                    match pair_contacts(&p, &q, None, band) {
                         Ok(PairOutcome::Contacts(contacts)) => {
                             Ok(contacts.iter().map(|c| c.kind).collect())
                         }
@@ -3204,7 +3621,7 @@ mod pair_contact_tests {
     ) -> Result<Vec<(CKind, Point2<T>)>, Option<&'static str>> {
         let s1 = arc::<T>(c1, r1, t1 - 0.5, 1.0, band);
         let s2 = arc::<T>(c2, r2, t2 - 0.5, 1.0, band);
-        match pair_contacts(&s1, &s2, band) {
+        match pair_contacts(&s1, &s2, None, band) {
             Ok(PairOutcome::Contacts(contacts)) => {
                 Ok(contacts.into_iter().map(|c| (c.kind, c.point)).collect())
             }
@@ -3536,5 +3953,333 @@ mod circles_accuracy_tests {
             }
         }
         assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    }
+}
+
+/// The radial certificates' fuzz ([`segment_clear_of_circle`],
+/// [`arc_clear_of_circle`]).
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod clear_of_circle_tests {
+    use super::*;
+    use geom_core::{Bounds, Interval};
+
+    fn pt<T: Real>((x, y): (f64, f64)) -> Point2<T> {
+        Point2::new(T::from_f64(x), T::from_f64(y))
+    }
+
+    /// The fuzz rows' band: ε `10⁻¹²`, where a computed point's rounding
+    /// at `10⁶` m out passes the band's room.
+    fn fine_band() -> Band {
+        Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"))
+    }
+
+    /// A draw's scale: `10^lo … 10^hi`, log-uniform.
+    fn decades(rng: &mut test_utils::fuzz::Rng, lo: f64, hi: f64) -> f64 {
+        10f64.powf(rng.range(lo, hi))
+    }
+
+    /// A sign, either way with even odds.
+    fn signed(rng: &mut test_utils::fuzz::Rng) -> f64 {
+        if rng.range(0.0, 1.0) < 0.5 { -1.0 } else { 1.0 }
+    }
+
+    /// The arcs' reach at the fine band: no arc builds whose circle
+    /// stands past about `2.8` km from the origin (validation's
+    /// `arc_carrier_resolution`), so every circle these sweeps build sits
+    /// inside `10^REACH` m, centre and radius together.
+    const REACH: f64 = 3.3;
+
+    /// An arc sweep's distance from the origin, radius and step past the
+    /// point the certificate reads, inside the reach: `10⁰` … `10^REACH`
+    /// m out, radius `10⁻²` … `10^REACH` m, step `10⁻¹³` … `10⁻⁷` m.
+    fn draw_scales(rng: &mut test_utils::fuzz::Rng) -> (f64, f64, f64) {
+        (
+            decades(rng, 0.0, REACH),
+            decades(rng, -2.0, REACH),
+            signed(rng) * decades(rng, -13.0, -7.0),
+        )
+    }
+
+    /// [`segment_clear_of_circle`] on one built case, and whether its
+    /// premises hold in ℝ: the circle of radius `r` about `c`, and a
+    /// segment of length `len` along the direction `th`, on the line `h`
+    /// from the centre, starting `step` past the centre's foot. `None`
+    /// where the case does not build; otherwise whether the certificate
+    /// fired and, if it did, whether the `Interval` reading of its
+    /// premises on the stored points (the real foot off the span, both
+    /// ends outside the circle) holds.
+    fn segment_case(
+        c: (f64, f64),
+        r: f64,
+        th: f64,
+        (h, step, len): (f64, f64, f64),
+        band: Band,
+    ) -> Option<(bool, bool)> {
+        let (ux, uy) = (th.cos(), th.sin());
+        let a = (c.0 - uy * h + ux * step, c.1 + ux * h + uy * step);
+        let b = (a.0 + ux * len, a.1 + uy * len);
+        let carrier = Arc2 {
+            centre: pt(c),
+            radius: r,
+            sweep: core::f64::consts::PI,
+        };
+        let circle = build_seg(
+            pt::<f64>((c.0 + r, c.1)),
+            pt((c.0 - r, c.1)),
+            Segment::Arc(carrier),
+            Consistency::Decide,
+            band,
+        )
+        .ok()?;
+        let SegKind::Arc(g) = &circle.kind else {
+            return None;
+        };
+        let s = build_seg(pt(a), pt(b), Segment::Line, Consistency::Decide, band).ok()?;
+        let tc = (g.arc.centre - s.a).dot(s.unit);
+        if !segment_clear_of_circle(&s, g, tc, band) {
+            return Some((false, true));
+        }
+        let p = pt::<Interval>;
+        let (ia, ib, ic) = (p(a), p(b), p(c));
+        let along = (ic - ia).dot(ib - ia);
+        let off = along.hi() < 0.0 || (along - (ib - ia).dot(ib - ia)).lo() > 0.0;
+        let outside = |q: Point2<Interval>| ((q - ic).norm() - Interval::from_f64(r)).lo() > 0.0;
+        Some((true, off && outside(ia) && outside(ib)))
+    }
+
+    /// **A segment read clear of a circle is clear of it in ℝ**
+    /// ([`segment_clear_of_circle`]): a counterexample sweep
+    /// ([`segment_case`]). Each circle builds inside the arcs' reach
+    /// ([`REACH`]). A segment on a line `10⁻¹²` … `10⁻⁵` m either side of
+    /// the circle's tangent starts a small step (either sign) past the
+    /// centre's foot, or ends that step short of it, so the foot is read
+    /// from either end. Two families, half the draws each:
+    /// - the whole range: the circle and step of [`draw_scales`], the
+    ///   segment `10⁻²` … `10⁶` m long;
+    /// - **where the foot's charge binds**: a circle of radius `Kε` …
+    ///   `10⁻⁶` m inside the reach, a segment `10³` … `10⁹` m long whose far
+    ///   end is the one the foot is read from, and a step of `10⁻¹¹` …
+    ///   `10⁻⁷` m. There the foot's rounding, at the far end's magnitude,
+    ///   outgrows the band while the ends still clear the tiny circle.
+    ///
+    /// Wherever the certificate fires, its premises hold in ℝ. A floor of
+    /// fires in each family keeps the row from passing empty; with the
+    /// foot's charge cut to a sixteenth, the second family reds it.
+    #[test]
+    fn a_segment_read_clear_of_a_circle_is_clear_of_it() {
+        let band = fine_band();
+        let mut rng = test_utils::fuzz::start("seg-segment-clear-of-circle");
+        let draws = test_utils::fuzz::scaled(20_000);
+        let mut fired = [0usize; 2];
+        for i in 0..draws {
+            let binding = i % 2 == 1;
+            let (far, r, step, len) = if binding {
+                (
+                    decades(&mut rng, 0.0, REACH),
+                    decades(&mut rng, (band.escalate()).log10(), -6.0),
+                    signed(&mut rng) * decades(&mut rng, -11.0, -7.0),
+                    decades(&mut rng, 3.0, 9.0),
+                )
+            } else {
+                let (far, r, step) = draw_scales(&mut rng);
+                (far, r, step, decades(&mut rng, -2.0, 6.0))
+            };
+            let c = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            let h = r + signed(&mut rng) * decades(&mut rng, -12.0, -5.0);
+            // From the far end: the segment runs up to the foot, ending
+            // `step` short of it (or past it), so its start is `len` back.
+            let from_far = binding || rng.range(0.0, 1.0) < 0.5;
+            let start = if from_far { -step - len } else { step };
+            if let Some((true, holds)) = segment_case(c, r, th, (h, start, len), band) {
+                fired[usize::from(binding)] += 1;
+                assert!(
+                    holds,
+                    "read clear, but its premises fail in ℝ: c {c:?} r {r} th {th} h {h} \
+                     start {start} len {len} — {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+        for (family, &n) in ["the whole range", "the binding regime"].iter().zip(&fired) {
+            assert!(
+                n * 20 >= draws / 2,
+                "{family}: only {n} fires in {} draws — {}",
+                draws / 2,
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// **A segment reads clear of a circle only past its foot's charge.**
+    /// A circle of radius `10³` m about `(1500.3, −1700.7)`, near the arcs'
+    /// reach at the fine band ([`REACH`], past which no arc builds), and a
+    /// 10 m segment on a line `10⁻⁶` m outside it, so both ends clear their
+    /// own charge. The foot's charge there is
+    /// about `1.1·10⁻¹¹` m, beside the band's `Kε = 10⁻¹¹`. At a step of
+    /// `10⁻⁸` m past the foot the certificate fires, and its premises
+    /// hold in ℝ. At `1.5·10⁻¹¹` m it does not: the step is past `Kε`, so
+    /// with the foot's charge dropped it would read as a miss.
+    #[test]
+    fn a_segment_reads_clear_only_past_its_charge() {
+        let band = fine_band();
+        let (c, r, th) = ((1500.3, -1700.7), 1e3, 0.65);
+        let read = |step: f64| segment_case(c, r, th, (r + 1e-6, step, 10.0), band);
+        assert_eq!(
+            read(1e-8),
+            Some((true, true)),
+            "a step of 1e-8 m past the foot"
+        );
+        assert_eq!(
+            read(1.5e-11),
+            Some((false, true)),
+            "a step of 1.5e-11 m, inside the foot's charge, must not read clear"
+        );
+    }
+
+    /// [`arc_clear_of_circle`] on one built case, and whether its
+    /// premises hold in ℝ: an arc of the circle `(c1, r1)` from the polar
+    /// angle `start` through `sweep` (under half a turn), against the
+    /// circle `(c2, r2)`. `None` where the case does not build; otherwise
+    /// whether the certificate fired and, if it did, whether the
+    /// `Interval` reading of its premises on the stored points holds: the
+    /// real extreme's direction off the arc's span (cross-product signs),
+    /// and both ends outside, or both inside, the second circle.
+    fn arc_case(
+        (c1, r1): ((f64, f64), f64),
+        (c2, r2): ((f64, f64), f64),
+        (start, sweep): (f64, f64),
+        band: Band,
+    ) -> Option<(bool, bool)> {
+        let on = |c: (f64, f64), r: f64, t: f64| (c.0 + r * t.cos(), c.1 + r * t.sin());
+        let build = |c: (f64, f64), r: f64, t: f64, sweep: f64| {
+            let carrier = Arc2 {
+                centre: pt(c),
+                radius: r,
+                sweep,
+            };
+            build_seg(
+                pt::<f64>(on(c, r, t)),
+                pt(on(c, r, t + sweep)),
+                Segment::Arc(carrier),
+                Consistency::Decide,
+                band,
+            )
+            .ok()
+        };
+        let (s1, s2) = (build(c1, r1, start, sweep)?, build(c2, r2, 0.0, 1.0)?);
+        let (SegKind::Arc(g1), SegKind::Arc(g2)) = (&s1.kind, &s2.kind) else {
+            return None;
+        };
+        let toward = carrier_pair(g1, g2).direction();
+        if !arc_clear_of_circle(&s1, g1, toward, g2, band) {
+            return Some((false, true));
+        }
+        let p = pt::<Interval>;
+        let (ia, ib, ic1, ic2) = (p((s1.a.x, s1.a.y)), p((s1.b.x, s1.b.y)), p(c1), p(c2));
+        let (va, vb) = (ia - ic1, ib - ic1);
+        let rim = |q: Point2<Interval>| (q - ic2).norm() - Interval::from_f64(r2);
+        // Off the span of an arc under half a turn: on the far side of
+        // either end's radius, in the arc's sense.
+        let off = |v: Vec2<Interval>| {
+            let (from_a, to_b) = (va.perp_dot(v), v.perp_dot(vb));
+            if sweep > 0.0 {
+                from_a.hi() < 0.0 || to_b.hi() < 0.0
+            } else {
+                from_a.lo() > 0.0 || to_b.lo() > 0.0
+            }
+        };
+        let near = ic2 - ic1;
+        let outside = off(near) && rim(ia).lo() > 0.0 && rim(ib).lo() > 0.0;
+        let inside = off(-near) && rim(ia).hi() < 0.0 && rim(ib).hi() < 0.0;
+        Some((true, outside || inside))
+    }
+
+    /// **An arc read clear of another circle is clear of it in ℝ**
+    /// ([`arc_clear_of_circle`]): a counterexample sweep ([`arc_case`]),
+    /// every circle inside the arcs' reach ([`REACH`]). Two circles, the
+    /// second of radius `10⁻²` … `10^REACH` m, externally or internally tangent but for
+    /// `10⁻¹²` … `10⁻⁵` m either way, and an arc of the first, under half a
+    /// turn, starting a small step (either sign, along it) past its point
+    /// nearest or farthest from the second centre, at the scales of
+    /// [`draw_scales`]. Wherever the certificate fires, its premises hold
+    /// in ℝ, and a floor of fires keeps the row from passing empty. Inside
+    /// the reach the extreme's uncharged rounding stays below `Kε`, so no
+    /// soundness sweep at `f64` can tell its charge from none (the FULL
+    /// review's oracle, PR 5552): [`an_arc_reads_clear_only_past_its_charge`]
+    /// pins the charge's value instead.
+    #[test]
+    fn an_arc_read_clear_of_a_circle_is_clear_of_it() {
+        let band = fine_band();
+        let mut rng = test_utils::fuzz::start("seg-arc-clear-of-circle");
+        let draws = test_utils::fuzz::scaled(20_000);
+        let mut fired = 0usize;
+        for _ in 0..draws {
+            let (far, r1, step) = draw_scales(&mut rng);
+            let c1 = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let r2 = decades(&mut rng, -2.0, REACH);
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            let gap = signed(&mut rng) * decades(&mut rng, -12.0, -5.0);
+            let d = if rng.range(0.0, 1.0) < 0.5 {
+                r1 + r2 + gap
+            } else {
+                (r1 - r2).abs() + gap
+            };
+            if d <= 0.0 {
+                continue;
+            }
+            let c2 = (c1.0 + d * th.cos(), c1.1 + d * th.sin());
+            let extreme = if rng.range(0.0, 1.0) < 0.5 {
+                th
+            } else {
+                th + core::f64::consts::PI
+            };
+            let sweep = rng.range(0.1, 3.0) * signed(&mut rng);
+            let start = extreme + sweep.signum() * step / r1;
+            if let Some((true, holds)) = arc_case((c1, r1), (c2, r2), (start, sweep), band) {
+                fired += 1;
+                assert!(
+                    holds,
+                    "read clear, but in ℝ neither half holds: c1 {c1:?} r1 {r1}, c2 {c2:?} \
+                     r2 {r2}, start {start} sweep {sweep} — {}",
+                    test_utils::fuzz::replay()
+                );
+            }
+        }
+        assert!(
+            fired * 20 >= draws,
+            "only {fired} fires in {draws} draws — {}",
+            test_utils::fuzz::replay()
+        );
+    }
+
+    /// **An arc reads clear of another circle only past its extreme's
+    /// charge.** A circle of radius `10³` m about `(1500.3, −1700.7)`, near
+    /// the arcs' reach at the fine band ([`REACH`]), a circle of radius 5 m
+    /// externally `10⁻⁶` m clear of it along the direction `0.65`, and an
+    /// arc of the first turning one radian away from its point facing the
+    /// second, starting `step` along the circle past it. The extreme's
+    /// charge there is about `1.7·10⁻¹¹` m. At a step of `10⁻⁸` m the
+    /// certificate fires, and its premises hold in ℝ. At `2·10⁻¹¹` m it
+    /// does not: the step is past `Kε = 10⁻¹¹`, so with the extreme's
+    /// charge dropped it would read as an exclusion.
+    #[test]
+    fn an_arc_reads_clear_only_past_its_charge() {
+        let band = fine_band();
+        let (c1, r1, r2, th) = ((1500.3, -1700.7), 1e3, 5.0, 0.65);
+        let d = r1 + r2 + 1e-6;
+        let c2 = (c1.0 + d * th.cos(), c1.1 + d * th.sin());
+        let read = |step: f64| arc_case((c1, r1), (c2, r2), (th + step / r1, 1.0), band);
+        assert_eq!(
+            read(1e-8),
+            Some((true, true)),
+            "a step of 1e-8 m past the extreme"
+        );
+        assert_eq!(
+            read(2e-11),
+            Some((false, true)),
+            "a step of 2e-11 m, inside the extreme's charge, must not read clear"
+        );
     }
 }

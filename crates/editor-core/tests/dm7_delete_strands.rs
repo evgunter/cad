@@ -29,9 +29,8 @@ use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
-    Attr, AttrKind, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Maintenance,
-    MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
-    cascade_delete_order,
+    Attr, AttrKind, CapEnd, DocEdit, DocumentId, EntityKind, Maintenance, MeasurePrimitive, Node,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply, cascade_delete_order,
 };
 use fixture::{fname, insert, len, wall};
 use geom_core::Tol;
@@ -52,6 +51,8 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
             }
             Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
+            | Maintenance::StrandedSpace { .. }
+            | Maintenance::ValueDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
@@ -75,6 +76,8 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
             Maintenance::Strand { .. }
             | Maintenance::StrandedSelection { .. }
             | Maintenance::StrandedRead { .. }
+            | Maintenance::StrandedSpace { .. }
+            | Maintenance::ValueDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
         .collect()
@@ -347,7 +350,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
 /// A rest of `on`'s face against `to`'s, `on` the face of the copy it
 /// places.
 fn rest(to: StableName, on: StableName) -> editor_core::Mate<Formula> {
-    fixture::rest(fixture::head(on), fixture::head(to), ContactClass::Rest)
+    fixture::rest(fixture::head(on), fixture::head(to))
 }
 
 fn instance_face(instance: RecipeNodeId, part_body: RecipeNodeId) -> StableName {
@@ -378,7 +381,7 @@ fn a_mates_side_strands_as_a_read() {
     let doc_ref = store.insert(part, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_mate"), Tol::witness());
-    let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, ia) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let (doc, ib) = insert(doc, fixture::mated_instance(doc_ref));
     let head_a = instance_face(ia, part_body);
     let (doc, mate) = fixture::constrain(doc, rest(head_a.clone(), instance_face(ib, part_body)));
@@ -592,16 +595,19 @@ fn a_delete_reports_its_strands_alone_and_a_constraint_add_reports_nothing() {
     let doc_ref = store.insert(part, Tol::witness());
 
     let doc = ProfileDoc::empty(DocumentId::derive("dm7_app_order"), Tol::witness());
-    let (doc, ia) = insert(doc, Node::instantiate_part(doc_ref));
+    let (doc, ia) = insert(doc, crate::fixture::mated_instance(doc_ref));
     let (doc, ib) = insert(doc, fixture::mated_instance(doc_ref));
     let head_a = instance_face(ia, part_body);
     let mated = apply(
         &doc,
-        &DocEdit::AddConstraint {
-            placement: ib,
-            mate: Box::new(rest(head_a.clone(), instance_face(ib, part_body))),
-            fresh: Vec::new(),
-        },
+        // The mate written with a zero on each freedom it leaves, whole:
+        // every bundle pins its copy.
+        &crate::fixture::squared(
+            &doc,
+            rest(head_a.clone(), instance_face(ib, part_body)),
+            &[],
+        )
+        .write(ib),
         Tol::witness(),
     )
     .expect("the mate is added");

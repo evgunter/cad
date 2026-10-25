@@ -2,10 +2,11 @@
 id: offset-meters-cell-normal-midpoint-direction-is-an-f64-fold
 kind: issue
 title: offset_meters: cell_normal's assembly-B direction norm is an f64 fold used as an upper-bound divisor
-status: open
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: H
+closed: 2026-10-24
 ---
 
 
@@ -86,3 +87,16 @@ it. What it wants is the ring's fold, which this file already owns.
 ## Note from SSI (2026-10-01)
 
 PR 3653 (`ssi/chart-rate`) routes `cell_normal`'s `dn` through `geom_core::interval::norm_sup`, so the f64 fused-multiply-add fold this row describes is gone. The substance looks closed; whether the row closes is OFFSET's call.
+
+## Closed (2026-10-24, OFFSET orchestrator)
+
+Overtaken, not fixed here. At `c4318c38` `cell_normal`
+(`crates/geom-brep/src/offset_meters.rs`) has no assembly B at all: it
+returns `cross(&cell.s_u, &cell.s_v)` and takes its floor from
+`PatchCell::m_inf`, the area quotient's certified lower bound (NURBS
+PR 4984; ENCL PR 4687 moved the sup side to `PatchCell::m_sup`). There
+is no midpoint direction, no `dn` and no divisor left, and the file
+holds no `mul_add`. SSI's PR 3653 had already routed `dn` through
+`norm_sup` before both. The class this row names (an `f64` norm fold
+used as a divisor) has its other two members closed at #2469 and on
+TRIM's slate.

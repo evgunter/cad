@@ -224,14 +224,20 @@ fn a_multi_solid_graft_equals_sequential_single_solid_grafts() {
         "the same coordinates in the same arena order"
     );
     assert_eq!(
-        topo::mass_properties(&at_once, Tol::witness())
-            .expect("volume")
-            .volume
-            .to_bits(),
-        topo::mass_properties(&one_by_one, Tol::witness())
-            .expect("volume")
-            .volume
-            .to_bits(),
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", at_once.clone(), Tol::witness()),
+            Tol::witness()
+        )
+        .expect("volume")
+        .volume
+        .to_bits(),
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", one_by_one.clone(), Tol::witness()),
+            Tol::witness()
+        )
+        .expect("volume")
+        .volume
+        .to_bits(),
         "bit-equal volume"
     );
     // Solid ORDER is preserved: the k-th returned key is the k-th

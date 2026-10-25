@@ -68,6 +68,8 @@ let rect: ClosedLoop<f64> = Open
 let profile = validated(SketchPlane::<f64>::xy(), vec![rect.into()], tol)?;
 let plate = extrude(&profile, Extrusion::Distance { depth: real(mm(8.0)), side: ExtrudeSide::Along }, tol)?.body;
 validate_closed(&plate).expect("a closed solid");
+// The measurement reads a finished body: tier 3, once, at rest.
+let plate = AtRestBody::validate(plate, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
 let props = mass_properties(&plate, tol)?;
 assert!((props.volume - 2.56e-5).abs() < 1e-18);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -425,10 +427,13 @@ assert blended.vertex_count == 4
 **A profile is 2-D, and a body has no location.** A profile is drawn
 on its own xy plane and an extrude runs up its own +z, so a
 construction lies in its own coordinates and reads no frame. Where it
-stands is a placement's: `doc.place(body, pose=frame)` stands it in the
-world at a `Frame`, and `doc.place_against(target, body, frame)` stands
-it at a frame in `target`'s own coordinates — which is how a body
-joins a boolean with another construction.
+stands is a placement's: `doc.place(body, doc.world, bundle)` stands it in
+the world by its bundle — `Placed.unmated(values)`, a chain of spins
+about the world's axes and the slides along them, each a `MateValue`
+written as its author means it (a quarter turn is
+`Formula.turn_over(4)`) — and `doc.place(body, doc.space(target),
+bundle)` stands it in `target`'s space — which is how a body joins a
+boolean with another construction.
 
 Rigidity is **the door's, not yours**, in Python exactly as in Rust.
 `Frame.point_at(eye, target, roll)` aims the frame's +z from `eye` at
@@ -438,12 +443,13 @@ perpendicular. An aim of zero length, or a reference parallel to it,
 raises `FrameError` rather than building a degenerate frame.
 
 ```python
-from pncad import Doc, Formula, Frame, FrameError, Node, evaluate, m
+from pncad import Coord, Doc, Formula, Frame, FrameError, MateValue, Node, Placed, evaluate, m
 
 doc = Doc()
 # An upright wall: a 2 x 3 sketch extruded 0.25 up its own z, stood in
 # the world on the yz-plane: its x along world +y, its y along world
-# +z, so its own z — the extrusion — is world +x.
+# +z, so its own z — the extrusion — is world +x. A quarter turn about
+# the world's x, then one about its z.
 slab = doc.insert(
     Node.extrude(
         doc.insert(
@@ -459,7 +465,12 @@ slab = doc.insert(
         Formula.length_in(0.25, m),
     )
 )
-wall = doc.place(slab, pose=Frame.point_at((0 * m, 0 * m, 0 * m), (1 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0)))
+quarter = Formula.turn_over(4)
+wall = doc.place(
+    slab,
+    doc.world,
+    Placed.unmated([MateValue(Coord.spin("x"), quarter), MateValue(Coord.spin("z"), quarter)]),
+)
 ev = evaluate(doc)
 assert abs(ev.value(wall).body().mass_properties().volume - 1.5) < 1e-12
 corners = [ev.vertex_position(wall, v) for v in ev.all_vertices(wall)]
@@ -663,7 +674,10 @@ validate_pseudomanifold(&base, &ContactRecords::default(), tol)
 ### 2.4 Measure — mass properties and their pads
 
 `mass_properties` integrates over the exact B-rep — the divergence
-theorem on the real surfaces, not on a mesh:
+theorem on the real surfaces, not on a mesh. It reads a finished body
+(`&AtRestBody`): a Boolean's result is one already (`BooleanBody::body`
+holds the verdict its door kept, as a split's sides do), and a sweep's
+body is finished once with `AtRestBody::validate`, as `slab` does:
 
 ```
 use pncad::prelude::*;
@@ -691,33 +705,41 @@ let props = mass_properties(&result.body, tol)?;
 assert!((props.volume - 2.984e-5).abs() < 1e-15);       // m³
 assert!((props.surface_area - 1.0696e-2).abs() < 1e-12); // m²
 
-// Every face here has a closed form, so the certified pads are
-// exactly zero — the measure is not approximate.
+// Every face here has a closed form, so the pads are exactly zero:
+// no face needed a quadrature.
 assert_eq!(props.volume_pad, 0.0);
 assert_eq!(props.area_pad, 0.0);
 # Ok::<(), E>(())
 ```
 
-The **pads** are the part people miss. `volume` and `surface_area`
-are not bare numbers, they are the midpoints of *certified
-enclosures*, and `volume_pad`/`area_pad` are the half-widths. The
-true value is inside `volume ± volume_pad`, guaranteed, not
-estimated. Planar and other closed-form faces contribute exactly, so
-their pads are `0.0`; a curved *cut* face contributes a certified
-quadrature bracket and widens the pad. A nonzero pad is the kernel
-telling you how much it does not know, and a program that cares about
-a tolerance should read it rather than assume it.
+The **pads** are the part people miss. Where a face needs a
+quadrature, `volume` and `surface_area` are the midpoints of
+*certified enclosures*, and `volume_pad`/`area_pad` are their
+half-widths: a curved *cut* face contributes a certified quadrature
+bracket and widens the pad. Planar and other closed-form faces
+contribute their closed form, evaluated in floating point, and no pad.
+So a pad of `0.0` means every face had a closed form, not that the
+value is exact, and the true value lies within `volume ± volume_pad`
+up to the floating-point rounding of the closed forms and their sum,
+which the pad does not state. That rounding is a few ulps for a body
+whose surfaces are stated about the body. It is more for a face whose
+surface is stated through a point far from it, a plane through a
+point kilometres away for instance. A nonzero pad is the kernel
+telling you how much its quadrature does not know, and a program that
+cares about a tolerance should read it rather than assume it.
 
 **Gating and then measuring pays for one quadrature, not two — if you
-ask for it that way.** Tier 3's orientation check *is* a certified
-quadrature over the same body at the same band, so
-`validate_geometric` followed by `mass_properties` runs the expensive
-part twice. `validate_geometric_certificate` hands back the
-certificate the gate decided on, and
-`SignCertificate::refine_to_target` continues that same quadrature to
-the reporting target, reusing every round already paid for; the
-result is `mass_properties`' own answer, bit for bit. Python spells
-the pair as one call, `body.validate_geometric_measured()`.
+ask for it that way.** `mass_properties` reads a finished body, and
+tier 3's orientation check *is* a certified quadrature over the same
+body at the same band, so `AtRestBody::validate` followed by
+`mass_properties` runs the expensive part twice.
+`validate_geometric_certificate` hands back the certificate the gate
+decided on, and `SignCertificate::refine_to_target` continues that
+same quadrature to the reporting target, reusing every round already
+paid for; the result is `mass_properties`' own answer, bit for bit.
+Python's `body.mass_properties()` is that one call (so is
+`body.validate_geometric_measured()`): a body tier 3 refuses raises
+the gate's `ValidationError` there instead of being measured.
 
 The continuation can refuse where the gate passed, and that is the
 honest answer rather than a wrinkle. The reporting target is `1024·ε`,
@@ -881,6 +903,7 @@ let StepImport::Solid { body: reimported, .. } =
 else {
     panic!("the bracket re-imports as a solid, not a wireframe");
 };
+let reimported = AtRestBody::validate(reimported, tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
 let back = mass_properties(&reimported, tol)?;
 assert!((back.volume - props.volume).abs() < 1e-15);
 # Ok::<(), E>(())
@@ -910,7 +933,7 @@ opaque kernel calls.
 The same bracket, the same numbers:
 
 ```python
-from pncad import Doc, Formula, Frame, Node, evaluate, import_step, mm
+from pncad import Coord, Doc, Formula, MateValue, Node, Placed, evaluate, import_step, mm
 
 
 def slab(doc, x, y, z, on=None):
@@ -925,11 +948,11 @@ def slab(doc, x, y, z, on=None):
         )
     )
     body = doc.insert(Node.extrude(profile, Formula.literal(z[1] - z[0])))
-    # A body has no location: one that joins `on` stands against it,
-    # `z[0]` up in its coordinates.
+    # A body has no location: one that joins `on` stands in its space,
+    # `z[0]` up that space's z.
     if on is None:
         return body
-    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z[0])))
+    return doc.place(body, doc.space(on), Placed.unmated([MateValue(Coord.slide("z"), z[0])]))
 
 
 doc = Doc()
@@ -951,8 +974,8 @@ assert abs(props.volume - 2.984e-5) < 1e-15
 assert props.volume_pad == 0.0
 
 # Export through the document layer, and re-import to prove it. The
-# report's `enclosure` is the IMPORT GATE's own certified measurement
-# of the body it just adopted — reading it re-measures nothing.
+# report's `enclosure` is the IMPORT GATE's own measurement of the
+# body it just adopted — reading it re-measures nothing.
 step = ev.step_string(lightened, product_name="bracket")
 assert step.startswith("ISO-10303-21;")
 report = import_step(step)
@@ -1230,15 +1253,17 @@ import math
 
 from pncad import (
     Bulge,
+    Coord,
     CurveKind,
     Doc,
     EntityKind,
     Formula,
     GeomPred,
+    MateValue,
     NamePat,
     Node,
     Open,
-    Frame,
+    Placed,
     Selector,
     Start,
     SurfaceKind,
@@ -1281,14 +1306,20 @@ axis = (
 )
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half)), *axis, Formula.angle_in(2 * math.pi, rad)))
 # A revolve defines two outputs, its body and its axis, so a read of
-# it names which: `doc.output(ball, 0)` is the body. It stands against
-# the cube at a frame whose +y — the pole axis — is the cube's +z,
-# centred over the top face and sunk H into it.
-centre = (0.5 * m, 0.5 * m, (1.0 + R - H) * m)
-pip = doc.place_against(
-    cube,
+# it names which: `doc.output(ball, 0)` is the body. It stands in the
+# cube's space turned a quarter about x, so its +y — the pole axis — is
+# the cube's +z, centred over the top face and sunk H into it.
+pip = doc.place(
     doc.output(ball, 0),
-    Frame.point_at(centre, (0.5 * m, -0.5 * m, (1.0 + R - H) * m), (0.0, 0.0, 1.0)),
+    doc.space(cube),
+    Placed.unmated(
+        [
+            MateValue(Coord.spin("x"), Formula.turn_over(4)),
+            MateValue(Coord.slide("x"), 0.5 * m),
+            MateValue(Coord.slide("y"), 0.5 * m),
+            MateValue(Coord.slide("z"), (1.0 + R - H) * m),
+        ]
+    ),
 )
 pipped = doc.insert(Node.subtract(cube, pip))
 
@@ -1520,7 +1551,8 @@ cup = doc.insert(Node.shell(box, Formula.length_in(T, m), top))
 body = evaluate(doc).value(cup).body()
 body.validate()
 inner = L - 2 * T
-assert body.mass_properties().volume == L**3 - inner * inner * (L - T)
+want = L**3 - inner * inner * (L - T)
+assert abs(body.mass_properties().volume - want) <= 1e-12 * want
 
 # The cup's own vocabulary: one rim (named for the top it replaced)
 # and five cavity twins group as the SHELL's; the five outer faces are
@@ -1703,7 +1735,9 @@ let NodeResult::Ok(value) = ev.result(plate).expect("the node is live") else {
 let ValuePayload::Body(body) = &value.payload else {
     panic!("an extrude yields a body");
 };
-let props = mass_properties(body.as_ref(), tol)?;
+// An evaluated value holds the body as built; the measurement reads it finished.
+let body = AtRestBody::validate(Body::clone(body), tol).map_err(|errors| format!("not a finished body: {errors:?}"))?;
+let props = mass_properties(&body, tol)?;
 let expected = 4.0 * 2.0 * 0.5 - core::f64::consts::PI * 0.25 * 0.25 * 0.5;
 assert!((props.volume - expected).abs() < 1e-9);
 # Ok::<(), Box<dyn std::error::Error>>(())
@@ -1802,7 +1836,7 @@ one identifier) with a `VarNameFault`:
 
 ```
 use pncad::prelude::*;
-use pncad::document::{Bodies, BodyRead, BooleanValue, EditError, Frame, NodeResult, Operand, place_against};
+use pncad::document::{Bodies, BodyRead, BooleanValue, Coord, EditError, NodeResult, Operand, Placed, TargetAxis};
 
 let tol = Tol::witness();
 let lit = |v: f64| Formula::literal(v, Dimension::Length).expect("a length");
@@ -1839,8 +1873,8 @@ doc = next;
 
 // A plain tab on its own branch — parametrically inert, there so the
 // re-evaluation below has a sibling to REUSE. It is drawn in its own
-// coordinates and joins the plate's space by a placement against the
-// plate, 0.125 up the plate's own z.
+// coordinates and joins the plate's space by a placement into it,
+// 0.125 up that space's z.
 let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
     loops: vec![
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
@@ -1851,21 +1885,15 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
 doc = next;
 let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p.into(), distance: lit(0.25) });
 doc = next;
-let placed = place_against(
+// The one bundle constructor: the slide its author writes, and the
+// constant zero on every freedom left unnamed.
+let placed = Placed::unmated(vec![(Coord::Slide(TargetAxis::Z), lit(0.125))]);
+let in_plate = Operand::Var(doc.node_space(plate).expect("a construction is in its own space"));
+let (next, tab_on_plate) = insert(
     &doc,
-    &plate.into(),
-    &tab.into(),
-    &Frame::translation([0.0, 0.0, 0.125]),
-    &EvalOptions::default(),
-    tol,
-)?;
-let (next, tab_on_plate) = insert(&doc, Node::place(vec![BodyRead::plain(Operand::from(tab))]));
+    Node::place(vec![BodyRead::plain(Operand::from(tab))], in_plate, placed.bundle()),
+);
 doc = next;
-placed.write(tab_on_plate, |edit| {
-    let applied = apply(&doc, &edit, tol)?;
-    doc = applied.doc;
-    Ok::<_, EditError>(applied.record.minted_constraints)
-})?;
 let (next, solid) = insert(&doc, Node::Union {
     members: Bodies::Spelled(vec![plate.into(), tab_on_plate.into()]),
 });
@@ -1878,7 +1906,8 @@ let volume = |ev: &Evaluation<f64>, node: RecipeNodeId| {
     let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
         panic!("a union yields a body");
     };
-    mass_properties(body.as_ref(), tol).expect("mass properties").volume
+    let body = AtRestBody::validate(Body::clone(body), tol).expect("a finished body");
+    mass_properties(&body, tol).expect("mass properties").volume
 };
 
 // The analytic oracle: plate + tab − their overlap − two cylinders of
@@ -1893,18 +1922,17 @@ let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default(
 assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
 // One `DefineVar` moves BOTH holes; the tab's own branch never
-// re-runs. Its placement does: it is placed against the plate's
-// geometry, so it reads the plate.
+// re-runs, its placement included: it reads the plate's space, not
+// the plate's geometry.
 let bigger = apply(&doc, &DocEdit::DefineVar {
     var: VarName::from_static("hole_r").into(),
     def: VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.4)),
     fresh: Vec::new(),
 }, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
-assert_eq!(ev2.recomputed, 4); // the profile, the plate, the tab's
-                               // placement, the union
-assert_eq!(ev2.reused, 2);     // the tab's profile and extrude, by
-                               // content key
+assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
+assert_eq!(ev2.reused, 3);     // the tab's profile, extrude and
+                               // placement, by content key
 assert!((volume(&ev2, solid) - v(0.4)).abs() < 1e-6);
 
 // The holes were authored by NAME and are stored by IDENTITY: the

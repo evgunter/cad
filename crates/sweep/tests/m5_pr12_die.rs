@@ -249,7 +249,7 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
         "21 disjoint closed sphere shells"
     );
     let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
-    let pipped = subtract(&blank, &tool);
+    let pipped = topo::test_support::finished("pipped", subtract(&blank, &tool), Tol::witness());
     assert_eq!(topo::validate(&pipped), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&pipped), Ok(()), "tier 2");
     assert_eq!(
@@ -290,7 +290,8 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
 #[test]
 fn the_pip_caps_measure_through_the_closed_form() {
     let blank = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
-    let pipped = subtract(&blank, &pip_tool());
+    let pipped =
+        topo::test_support::finished("pipped", subtract(&blank, &pip_tool()), Tol::witness());
     let props = topo::mass_properties(&pipped, Tol::witness()).unwrap();
     println!(
         "PROBE pipped: volume={} volume_pad={} area={} area_pad={}",
@@ -368,14 +369,18 @@ fn deviation_1_both_doors_compose_and_agree() {
         .filter(|k| pipped.get_edge(*k).is_some())
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the pips");
-    let via_surgery = fillet_edges(
-        &sweep::test_support::at_rest(&pipped, Tol::witness()),
-        &surviving,
-        DIE_R,
+    let via_surgery = topo::test_support::finished(
+        "via_surgery",
+        fillet_edges(
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
+            &surviving,
+            DIE_R,
+            Tol::witness(),
+        )
+        .expect("the in-place surgery takes the subset request (M6 unit 1)")
+        .body,
         Tol::witness(),
-    )
-    .expect("the in-place surgery takes the subset request (M6 unit 1)")
-    .body;
+    );
     assert_eq!(
         topo::validate_geometric(&via_surgery, Tol::witness()),
         Ok(()),

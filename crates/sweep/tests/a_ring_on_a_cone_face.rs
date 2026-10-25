@@ -245,65 +245,45 @@ fn a_box_edge_through_a_cone_wall_crosses_it_at_the_rings_corners() {
                 }
                 let (sc, sx) = (cone_truth(pose), wedge_truth(s, pose));
                 let points = truth_grid(s, pose);
-                // The cone face the box's tilted sections bound has no
-                // trim reading: as built, 16 grid points refuse
-                // `PartialConeFace` in ∩ and box ∖ cone, and in ∪ and
-                // cone ∖ box, which keep the ring, 20 at the lune's scale
-                // and 52 at a tenth of it, at every ε row and member
-                // order. Tilted, at a tenth of the scale, one point
-                // refuses in those two at the 1e-6 row; otherwise none
-                // does.
-                let as_built = pose_name == "as built";
-                let partial = if as_built { 16 } else { 0 };
-                let ring_partial = match (as_built, s == 0.1) {
-                    (false, false) => 0,
-                    (false, true) => 1,
-                    (true, false) => 20,
-                    (true, true) => 52,
-                };
                 let vc = core::f64::consts::PI * R * R * height() / 3.0;
                 // ∪ keeps the lune as a ring on the cone face.
                 let union = topo::union(a, b, tol);
-                solid_truth::assert_is_but(
+                solid_truth::assert_is(
                     &format!("{label}, {order}, ∪"),
                     &union,
                     Want::Body(vc + 216.0 - overlap(s), 1e-9 * 216.0),
                     &|q| Op::Union.depth(&sc, &sx, q),
                     &[],
                     &points,
-                    ring_partial,
                 );
                 let inter = topo::intersect(a, b, tol);
-                let vi = solid_truth::assert_is_but(
+                let vi = solid_truth::assert_is(
                     &format!("{label}, {order}, ∩"),
                     &inter,
                     Want::Body(overlap(s), 1e-9 * overlap(s)),
                     &|q| Op::Intersect.depth(&sc, &sx, q),
                     &[],
                     &points,
-                    partial,
                 );
                 let diff = topo::subtract(a, b, tol);
                 if cone_first {
                     // The cone less the box keeps the ring too.
-                    solid_truth::assert_is_but(
+                    solid_truth::assert_is(
                         &format!("{label}, {order}, cone ∖ box"),
                         &diff,
                         Want::Body(vc - vi, 1e-9 * vc),
                         &|q| Op::Subtract.depth(&sc, &sx, q),
                         &[],
                         &points,
-                        ring_partial,
                     );
                 } else {
-                    solid_truth::assert_is_but(
+                    solid_truth::assert_is(
                         &format!("{label}, {order}, box ∖ cone"),
                         &diff,
                         Want::Body(216.0 - vi, 1e-9 * 216.0),
                         &|q| Op::Subtract.depth(&sx, &sc, q),
                         &[],
                         &points,
-                        partial,
                     );
                 }
             }

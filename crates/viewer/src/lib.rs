@@ -158,15 +158,15 @@ pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
-    MATE_KINDS, MateAdmission, MateChoice, MateFreedom, MateProposal, MateTool, MateToolError,
-    MateToolEvent, MateToolState, admitted_classes,
+    MATE_KINDS, MateChoice, MateFreedom, MateProposal, MateTool, MateToolError, MateToolEvent,
+    MateToolState,
 };
 pub use narrowing::Narrow;
 pub use parts::{PartChooser, PartEntry};
 pub use pickcache::{NotIndexed, unindexed};
 pub use pickindex::{
     EDGE_PICK_RADIUS_PX, EdgeId, EdgeNameFault, EdgeNames, EdgeNamesRefused, EdgePick, IdMap,
-    IdMapError, PatchId, PickError, PickIndex, PickIndexError, PickKinds,
+    IdMapError, PatchId, PatchNameFault, PickError, PickIndex, PickIndexError, PickKinds,
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError, Unusable};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
@@ -175,8 +175,8 @@ pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePar
 pub use seats::{Seat, SeatError, SeatEvent, Seats, seat_line};
 pub use session::{
     BoundsReading, DocSession, EdgeSelection, FaceSelection, GestureFrameFault, Hovered, Landing,
-    NodeKindWanted, OpOutcome, PatternRuleSpec, PlaceReport, ProfileShape, Refusal, Selection,
-    SessionOp, Standing,
+    NodeKindWanted, OpOutcome, PatternRuleSpec, ProfileShape, Refusal, Selection, SessionOp,
+    Standing,
 };
 pub use theme::{Mark, MixFraction, Polarity, Safety, Theme};
 pub use tools::{ToolKind, ToolNotice, Tools};

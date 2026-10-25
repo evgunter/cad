@@ -282,7 +282,15 @@ fn a1_inside_out_cone_apex() {
         assert_ne!(text, orig, "{label}: replacement must hit");
         match import_step(&text, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => {
-                let v = topo::mass_properties(&body, Tol::witness()).map(|p| p.volume);
+                let v = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        body.clone(),
+                        Tol::witness(),
+                    ),
+                    Tol::witness(),
+                )
+                .map(|p| p.volume);
                 println!(
                     "a1ca {label}: imported t3={:?} vol={:?}",
                     topo::validate_geometric(&body, Tol::witness()),
@@ -471,7 +479,12 @@ fn a6_unit_edges() {
     assert_ne!(t, orig);
     match import_step(&t, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
-            let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+            let v = topo::mass_properties(
+                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume;
             println!("a6 micro volume={v:e} (expect 1e-18)");
         }
         Ok(_) => panic!(),

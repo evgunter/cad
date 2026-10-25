@@ -83,12 +83,14 @@ fn a_chain_of_booleans_stays_at_one_level_however_long_it_gets() {
     let mut tools = Vec::new();
     for i in 0..20 {
         let (next, _, tool) = plate(&doc, 0.005 + f64::from(i) * 0.001, tol);
+        // Each tool stands in the base's space, where the cut reads it.
+        let (next, copy) = crate::fixture::stood_in(next, tool, base);
         doc = next;
         let (next, cut) = common::inserted(
             &doc,
             Node::Subtract {
                 from: accumulated.into(),
-                tool: tool.into(),
+                tool: copy.into(),
             },
             tol,
         );
@@ -129,6 +131,9 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
     let (next, _, tool_a) = plate(&doc, 0.02, tol);
     doc = next;
     let (next, _, tool_b) = plate(&doc, 0.01, tol);
+    // Both tools stand in the base's space, where the cut reads them.
+    let (next, tool_a) = crate::fixture::stood_in(next, tool_a, base);
+    let (next, tool_b) = crate::fixture::stood_in(next, tool_b, base);
     doc = next;
 
     // The tool is itself a boolean, so it sits at depth 1 in its own

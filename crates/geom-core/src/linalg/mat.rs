@@ -494,6 +494,32 @@ mod tests {
         }
     }
 
+    /// An axis whose squares leave the format names a direction like
+    /// any other, and `rotation_about` turns about it: the matrix is the
+    /// rotation about the in-range axis it is parallel to, never the
+    /// scaling `cos θ · I` a zero axis would build.
+    #[test]
+    fn rotation_about_an_axis_out_of_the_squares_range_is_a_rotation() {
+        for (ax, along) in [
+            ([1.0e160f64, 1.0, 1.0], [1.0, 0.0, 0.0]),
+            ([1.0e200, 1.0e200, 0.0], [1.0, 1.0, 0.0]),
+            ([-1.0e300, 0.0, 2.0e300], [-1.0, 0.0, 2.0]),
+            ([1.0e-170, 0.0, 0.0], [1.0, 0.0, 0.0]),
+            ([1.0e-160, 1.0e-160, 1.0e-160], [1.0, 1.0, 1.0]),
+        ] {
+            for angle in [1.0e-8f64, 1.0, 3.0] {
+                let got = Mat3::rotation_about(Vec3::from_array(ax), angle);
+                let want = Mat3::rotation_about(Vec3::from_array(along), angle);
+                for (g, w) in [(got.c0, want.c0), (got.c1, want.c1), (got.c2, want.c2)] {
+                    assert!(
+                        (g - w).norm() <= 1.0e-15,
+                        "axis {ax:?}, angle {angle}: column {g:?}, want {w:?}"
+                    );
+                }
+            }
+        }
+    }
+
     /// The diagonal is `(t·nᵢ²) + c`, **bit-exactly and not
     /// `((t·nᵢ)·nᵢ) + c`** — the association the doc comment states, at
     /// an input that can tell the two apart.
@@ -821,11 +847,10 @@ mod tests {
     /// and the subtraction of a value ≤ 2 from them is exact, so the
     /// reference carries no error of its own.
     ///
-    /// Degenerate axes are excluded on purpose. Where `normalize` is
-    /// not unit — an axis whose norm² overflows normalizes to the ZERO
-    /// vector — the two ladders are genuinely different maps and
-    /// disagree by metres; that is a `vec.rs` question, carried
-    /// separately, and pinning it here would pin the wrong thing.
+    /// The last four axes square out of the format (`norm²` overflows,
+    /// flushes to zero, or lands subnormal): the two ladders are one map
+    /// only through `|n| = 1`, so they are the rows that hold
+    /// `normalize` to it.
     #[test]
     fn the_operator_and_rotation_about_stay_the_same_map() {
         let mut worst = 0.0f64;
@@ -838,6 +863,10 @@ mod tests {
             [0.1, 0.2, -0.97],
             [1.0, 2.0, 3.0],
             [1.0, 1.0e-9, 0.0],
+            [1.0e160, 1.0, 1.0],
+            [1.0e200, 1.0e200, 0.0],
+            [1.0e-170, 0.0, 0.0],
+            [1.0e-160, 1.0e-160, 1.0e-160],
         ] {
             let axis = Vec3::from_array(ax);
             for k in -40..=40i32 {

@@ -2,10 +2,12 @@
 id: a-flat-rung-row-uses-an-absolute-epsilon-on-a-scaled-value
 kind: issue
 title: A flat-rung row compares a value of magnitude 8e-4 against an absolute f64::EPSILON
-status: open
+status: closed
 opened: 2026-09-21
 priority: P3
 cost: E
+closed: 2026-10-22
+pr: 5604
 ---
 
 
@@ -13,7 +15,7 @@ cost: E
 ## Finding
 
 `crates/viewer/src/scene.rs`'s `#[cfg(test)]` module,
-`a_count_that_does_not_move_is_the_prediction`, closes with
+`a_count_that_does_not_move_keeps_the_request`, closes with
 
 ```rust
 let last = rungs.last().copied().expect("a rung");
@@ -75,3 +77,20 @@ any unit that found it.
 CHROME-ONE-NUMBER's style reviewer (PR 3022, 2026-09-21), while
 reading the `#[cfg(test)]` modules that unit's own census named as a
 blind spot. Filed from that unit under implementer-discipline §6.
+
+## Closed
+
+PR 5604. `a_count_that_does_not_move_keeps_the_request` binds
+`let requested = 1.0e-4;`, hands it to `delta(requested)`, and closes
+with `assert_eq!(rungs.last().copied(), Some(requested * PROBE_FACTOR))`.
+Exact, because the request's rung is defined as that one multiply
+(`DisplayTolerance::scaled`, read back by `fit_from_probes` as
+`finest.get()`); a ladder that reached it another way would be pricing
+a different δ.
+
+Sweep of `scene.rs`'s `#[cfg(test)]` module and
+`tests/display_budget.rs` for `f64::EPSILON`, and then for the gap that
+pattern cannot match (`.abs() <`, literal tolerances, `1.01`-style
+factors): the one hit above is the only absolute epsilon. The others
+are relative (`largest <= placed * 1.01`, both files) or ulp-shaped
+(`reads_back_as_a_delta`'s `next_up`/`next_down` window), and stay.

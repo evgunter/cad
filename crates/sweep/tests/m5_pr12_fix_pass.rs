@@ -81,8 +81,15 @@ fn f2_every_corner_face_of_a_hexagonal_prism_is_tier3_valid() {
     );
     assert_eq!(f.corner_faces.len(), 12, "one octant per prism vertex");
     assert_eq!(f.blend_faces.len(), 18, "one blend per prism edge");
-    let props =
-        topo::mass_properties(&f.body, Tol::witness()).expect("closed-form mass properties");
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&f.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .expect("closed-form mass properties");
     assert!(props.volume > 0.0);
     assert_eq!(
         props.volume_pad, 0.0,
@@ -245,7 +252,18 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
             (curve.carrier().eval(t1) - curve.carrier().eval(t0)).norm()
         })
         .sum();
-    let volume = |b: &Body<f64>| topo::mass_properties(b, Tol::witness()).unwrap().volume;
+    let volume = |b: &Body<f64>| {
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(b),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume
+    };
     let (clip, rounded) = (volume(&clipped), volume(&f.body));
     assert!(
         rounded < clip && rounded > clip - r * r * total_length,
@@ -364,7 +382,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
         }
         if face_projected {
             let chart = f.body.get_surface(face.surface).unwrap().clone();
-            if let Err(e) = topo::pcurves::chart_boundary(&f.body, corner, &chart, band) {
+            if let Err(e) = topo::pcurves::loop_windings(&f.body, corner, &chart, band) {
                 assert!(
                     !matches!(e, topo::pcurves::PcurveMintError::Certify { .. }),
                     "corner face {corner:?}'s boundary refused at the derivation: {e:?}"

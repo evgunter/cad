@@ -48,11 +48,9 @@ use pncad::select as s;
 
 /// Which entity kind a name denotes.
 ///
-/// These four member names are a THIRD Python-visible spelling of
-/// this vocabulary, beside `crate::tags::entity_kind_tag`'s words
-/// (`RefusedRef.kind`) and `crate::tags::entity_id_tag`'s (a census
-/// subject). Those two are pinned to each other in `src/tests.rs`;
-/// this one reaches Python as an IDENTIFIER, with no literal for a
+/// These four member names are a second Python-visible spelling of
+/// this vocabulary, beside `crate::tags::entity_id_tag`'s words (a
+/// census subject); this one reaches Python as an IDENTIFIER, with no literal for a
 /// word census to read — what holds it is `tests/test_stubs.py`,
 /// which compares this class's attributes against `pncad.pyi`'s
 /// `Final` members name for name, in both directions. What no
@@ -868,7 +866,7 @@ pub(crate) fn select_refusal(
 }
 
 /// **A resolve the Rust door refuses, raised typed** — the select
-/// door's class and fields, the tag [`resolve_refusal_tag`]'s, the
+/// door's class and fields, the tag [`crate::tags::resolve_refusal_tag`]'s, the
 /// message the kernel's sentence as the document speaks it.
 pub(crate) fn resolve_refusal(
     py: Python<'_>,

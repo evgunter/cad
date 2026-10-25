@@ -217,9 +217,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # same carrier, the same row.
     "AlongFace": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                   "boolean-error.md"),
-    # `BooleanError`'s `DeclarationRead`: the glue a read pair held.
-    "GlueClass": ("argued", "non-carriage with its falsifier, beside the declaration "
-                  "in crates/topo/src/contact.rs"),
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
@@ -295,7 +292,7 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "OperandKeys": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Cell": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     "Origin": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
-    "Placed": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
+    "Map": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
     # `topo::coincidence::Relation`, reachable through `document::coincidence`;
     # the `Relation` `document` carries by name is `editor_core`'s.
     "Relation": ("filed", "work/lib/payload-rungs-behind-struct-payloads.md"),
@@ -350,13 +347,6 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
     "NodeStanding": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
                                "once, beside `Evaluation`; the general rule is at the "
                                "payload-rule header of crates/pncad/src/document.rs"),
-    # Which space a copy lives in (D10, Spaces: the world, or a loose copy's
-    # own) is the evaluation's own vocabulary as well, and the select-list
-    # refusals that meet two spaces (hit test, selection) name the two as
-    # their payload. The same rule as `NodeStanding`.
-    "Space": ("argued", "the placement vocabulary is `document`'s and is spelled "
-                        "once, beside `Evaluation`; the general rule is at the "
-                        "payload-rule header of crates/pncad/src/document.rs"),
 }
 
 
@@ -807,8 +797,8 @@ class Resolver:
     of the module the `use` is written in (which shadows a crate of the same
     name); its middle segments are modules; and its last segment is a type the target module declares, or one a `pub use`
     there re-exports by that name (followed in turn), or one a `pub use …::*`
-    there globs in. This is what tells `editor_core::Placed` — re-exported from
-    `mate::pin` — from the `Placed` that `coincide` declares beside it.
+    there globs in. This is what tells a name one module re-exports from
+    another declared under the same word elsewhere in the crate.
     """
 
     def __init__(self, root: Path, crates: dict[str, Path], index: dict[str, list[Decl]]):

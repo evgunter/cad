@@ -6,9 +6,10 @@
 //!
 //! The tool holds **two sequential face picks in tool state** — the
 //! GUI-2 single-select vocabulary ([`FaceSelection`]) consumed twice —
-//! then a choice of class, kind, flip and values ([`MateChoice`]), then
-//! ONE committed action: the mate added to the bundle of the copy it
-//! places, and each value added naming the mate's minted id. Everything
+//! then a choice of kind, flip and values ([`MateChoice`]), then
+//! ONE committed action: the bundle of the copy it places written whole
+//! with the mate and its values, the copy re-targeted into the space the
+//! `to` pick is in where it was placed elsewhere. Everything
 //! before the commit is tool state: it never enters the document, never
 //! enters any history, and dies with the session (G1's transient-state
 //! rule).
@@ -36,22 +37,15 @@
 //!
 //! # What the mate leaves
 //!
-//! Values set the freedoms the mate's kind leaves (ruling C-2): a plane
-//! mate slides along `x` and `y` and spins, an axis mate slides along
-//! its axis and spins. A value the kind does not leave is refused here
-//! ([`MateToolError::NotAFreedom`]), in the kernel's own reading
-//! ([`Coord::admitted_by`]), before any edit exists. A freedom left
-//! unset is free.
-//!
-//! # What the class admits
-//!
-//! The class choice is exposed through the kernel's own vocabulary
-//! ([`admitted_classes`]): the class LIST is [`ContactClass::ALL`] and
-//! the verdicts are the [`ClassAdmission`] table — both read, neither
-//! restated. `Rest` mints, `Tangent` solves but carries no at-rest
-//! record, and everything the vocabulary cannot name is the
-//! [`pncad::document::CLASS_DEFERRAL`] deferral, refused typed at
-//! [`MateTool::proposal`].
+//! Values set the freedoms the mate's kind leaves, on the target
+//! space's axes swung onto the mated direction: a plane mate slides
+//! along `x` and `y` and spins about `z`, an axis mate slides along
+//! and spins about `z`. A value the kind does not leave is refused here
+//! ([`MateToolError::NotAFreedom`], [`MateFreedom::left_by`]), before
+//! any edit exists. The mate goes in through the bundle door, which
+//! rewrites the placement's bundle whole: the values the new mate
+//! fixes leave it, each freedom it leaves keeps its value, and a
+//! freedom left unset is written `0`.
 //!
 //! # Survival
 //!
@@ -78,11 +72,10 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    CLASS_DEFERRAL, ClassAdmission, Coord, Doc, Evaluation, Formula, FreedomRefusal, Mate,
-    MateSide, Node, NotAFaceName, ProfileProgram, RecipeNodeId, SitedFace, SpokenNode, Target,
-    TargetAxis, VarKind, class_admission, member_of, pose,
+    Coord, Doc, Evaluation, Formula, Mate, MateSide, Node, NotAFaceName, ProfileProgram,
+    RecipeNodeId, SitedFace, SpokenNode, TargetAxis, VarKind, member_of, pose,
 };
-use pncad::select::{ContactClass, Resolution};
+use pncad::select::Resolution;
 
 use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
@@ -102,14 +95,15 @@ pub const MATE_KINDS: [(VarKind, &str); 2] = [(VarKind::Plane, "plane"), (VarKin
 
 vocabulary! {
     /// **A freedom a mate's value can set**, as the mate panel offers
-    /// it: a slide along the chart's `x`, `y` or `z`, or the spin. Which
-    /// of them a mate leaves is its kind's (`Coord::admitted_by`), and
-    /// the panel offers those alone. It mirrors the kernel's [`Coord`]
-    /// both ways, by two exhaustive matches ([`Self::coord`],
-    /// [`Self::of`]), so a freedom the kernel grows does not build here
-    /// until the panel offers it or says why not: a spin about the
-    /// target's own axis names no mate, and a mate's panel writes values
-    /// that name its mate.
+    /// it: a slide along the chart's `x`, `y` or `z`, or the spin about
+    /// the mated direction. Which of them a mate leaves is its kind's
+    /// ([`Self::left_by`]), and the panel offers those alone. It mirrors
+    /// the kernel's [`Coord`] both ways, by two exhaustive matches
+    /// ([`Self::coord`], [`Self::of`]), so a freedom the kernel grows
+    /// does not build here until the panel offers it or says why not: a
+    /// spin about the chart's `x` or `y` is a link of a chain of turns,
+    /// which a placement with no direction fixed writes, never a face
+    /// mate's.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum MateFreedom {
         /// A slide along the chart's `x`.
@@ -134,21 +128,34 @@ impl MateFreedom {
             Self::SlideX => Coord::Slide(TargetAxis::X),
             Self::SlideY => Coord::Slide(TargetAxis::Y),
             Self::SlideZ => Coord::Slide(TargetAxis::Z),
-            Self::Spin => Coord::Spin,
+            Self::Spin => Coord::Spin(TargetAxis::Z),
         }
     }
 
     /// The panel's freedom for the kernel's, `None` for a spin about the
-    /// target's own axis, which no mate's value sets.
+    /// chart's `x` or `y`, which no face mate leaves.
     #[must_use]
     pub fn of(coord: Coord) -> Option<Self> {
         match coord {
             Coord::Slide(TargetAxis::X) => Some(Self::SlideX),
             Coord::Slide(TargetAxis::Y) => Some(Self::SlideY),
             Coord::Slide(TargetAxis::Z) => Some(Self::SlideZ),
-            Coord::Spin => Some(Self::Spin),
-            Coord::SpinAbout(_) => None,
+            Coord::Spin(TargetAxis::Z) => Some(Self::Spin),
+            Coord::Spin(TargetAxis::X | TargetAxis::Y) => None,
         }
+    }
+
+    /// **Whether a mate of `kind` leaves this freedom**: a plane slides
+    /// along the chart's `x` and `y` and spins about `z`; an axis
+    /// slides along and spins about `z`. A kind no face pick reads
+    /// ([`MATE_KINDS`]) leaves nothing the panel offers.
+    #[must_use]
+    pub fn left_by(self, kind: VarKind) -> bool {
+        matches!(
+            (kind, self),
+            (VarKind::Plane, Self::SlideX | Self::SlideY | Self::Spin)
+                | (VarKind::Axis, Self::SlideZ | Self::Spin)
+        )
     }
 }
 
@@ -173,35 +180,8 @@ partial_mirror! {
         Vertex => "a reference, never a pose",
         Faces => "a reference, never a pose",
         Edges => "a reference, never a pose",
+        Space => "a placement's target, never a pose: a mate reads geometry",
     ],
-}
-
-/// One contact class and how far the vocabulary carries it — the
-/// admission exposure, verbatim from the kernel's table.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct MateAdmission {
-    /// The class.
-    pub class: ContactClass,
-    /// The kernel's own verdict on it.
-    pub admission: ClassAdmission,
-}
-
-/// Every contact class the vocabulary can NAME, with the kernel's
-/// admission verdict for each — what the tool's class choice offers.
-///
-/// Both halves come from the kernel: the class list is
-/// [`ContactClass::ALL`] (the enum is `#[non_exhaustive]`, so no list
-/// written here could see a variant land) and the verdicts are
-/// [`class_admission`]. A class the kernel grows appears here carrying
-/// whatever verdict the table gives it.
-pub fn admitted_classes() -> Vec<MateAdmission> {
-    ContactClass::ALL
-        .iter()
-        .map(|&class| MateAdmission {
-            class,
-            admission: class_admission(class),
-        })
-        .collect()
 }
 
 /// A typed mate-tool refusal (closed enum, D4 ¶3).
@@ -250,22 +230,13 @@ pub enum MateToolError {
         /// The kind asked for.
         kind: VarKind,
     },
-    /// The chosen class is outside the vocabulary
-    /// ([`ClassAdmission::NotAdmitted`]): refused HERE, before any
-    /// edit exists, with the kernel's own deferral sentence.
-    ClassRefused {
-        /// The refused class.
-        class: ContactClass,
-    },
-    /// A value sets a freedom the mate's kind does not leave, or leaves
-    /// with no chart ([`Coord::admitted_by`]).
+    /// A value sets a freedom the mate's kind does not leave
+    /// ([`MateFreedom::left_by`]).
     NotAFreedom {
         /// The freedom.
         coord: Coord,
         /// The mate's kind.
         kind: VarKind,
-        /// The kernel's reading.
-        refusal: FreedomRefusal,
     },
 }
 
@@ -295,28 +266,9 @@ impl core::fmt::Display for MateToolError {
             Self::KindNotOffered { kind } => {
                 write!(f, "a face pick reads a plane or an axis, not a {}", kind)
             }
-            Self::ClassRefused { class } => {
-                write!(
-                    f,
-                    "class {} is not admitted — {CLASS_DEFERRAL}",
-                    class.name()
-                )
+            Self::NotAFreedom { coord, kind } => {
+                write!(f, "a {} mate leaves no {} to set", kind, coord.name())
             }
-            Self::NotAFreedom {
-                coord,
-                kind,
-                refusal: FreedomRefusal::NotAFreedom,
-            } => write!(f, "a {} mate leaves no {} to set", kind, coord.name()),
-            Self::NotAFreedom {
-                coord,
-                kind,
-                refusal: FreedomRefusal::NoChart,
-            } => write!(
-                f,
-                "a {} mate's {} has no chart to set it on",
-                kind,
-                coord.name()
-            ),
         }
     }
 }
@@ -344,7 +296,6 @@ impl MateToolError {
             unspoken @ (Self::NotTwoPicks
             | Self::PickIsNotAFace { .. }
             | Self::KindNotOffered { .. }
-            | Self::ClassRefused { .. }
             | Self::NotAFreedom { .. }) => unspoken,
         }
     }
@@ -444,8 +395,6 @@ impl core::fmt::Display for MateToolEvent {
 /// picks and commit.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MateChoice {
-    /// The declared contact class.
-    pub class: ContactClass,
     /// The kind both picks are read as ([`MATE_KINDS`]): the mate's
     /// primitive.
     pub kind: VarKind,
@@ -458,8 +407,7 @@ pub struct MateChoice {
 }
 
 /// The derived, ready-to-commit mate: the placement it joins, the two
-/// sides, the mate and its values, plus the class's admission verdict
-/// for the chrome to show beside the commit.
+/// sides, the mate and its values.
 #[derive(Debug, Clone)]
 pub struct MateProposal {
     /// The placement whose bundle the mate joins: the `on` pick's copy.
@@ -470,21 +418,32 @@ pub struct MateProposal {
     pub to: SitedFace,
     /// The mate.
     pub mate: Mate<Formula>,
-    /// Its values, added naming the mate once its id is minted.
+    /// Its values, written naming the mate in the same bundle.
     pub values: Vec<(Coord, Formula)>,
-    /// The kernel's admission verdict for the mate's class (never
-    /// `NotAdmitted` — that refuses at [`MateTool::proposal`]).
-    pub admission: ClassAdmission,
 }
 
 impl MateProposal {
-    /// **The one committed action**: the session op that adds the mate
-    /// and its values through the ordinary commit door.
+    /// **The one committed action**: the session op that writes the
+    /// mate and its values through the ordinary commit door. A mate
+    /// whose `to` reads outside the copy's target space is refused there,
+    /// naming both spaces ([`Self::op_into_target_space`] moves it).
     pub fn op(&self) -> SessionOp {
+        self.committed(false)
+    }
+
+    /// [`Self::op`], the copy moved by name into the space the mate's
+    /// `to` reads where that is not its target — the chrome's explicit
+    /// "move the copy" choice, never a side effect of the mate.
+    pub fn op_into_target_space(&self) -> SessionOp {
+        self.committed(true)
+    }
+
+    fn committed(&self, into_target_space: bool) -> SessionOp {
         SessionOp::AddMate {
             placement: self.placement,
             mate: Box::new(self.mate.clone()),
             values: self.values.clone(),
+            into_target_space,
         }
     }
 }
@@ -661,26 +620,19 @@ impl MateTool {
         let MateToolState::Two { on, to } = &self.state else {
             return Err(MateToolError::NotTwoPicks);
         };
-        // The choice's doors FIRST, before any pick is read: the class
-        // in the kernel's own table, the kind among those a face
-        // reads, each value against the freedoms the kind leaves.
-        let admission = class_admission(choice.class);
-        if let ClassAdmission::NotAdmitted = admission {
-            return Err(MateToolError::ClassRefused {
-                class: choice.class,
-            });
-        }
+        // The choice's doors FIRST, before any pick is read: the kind
+        // among those a face reads, each value against the freedoms the
+        // kind leaves.
         if !MATE_KINDS.iter().any(|(kind, _)| *kind == choice.kind) {
             return Err(MateToolError::KindNotOffered { kind: choice.kind });
         }
         for (coord, _) in &choice.values {
-            coord
-                .admitted_by(choice.kind)
-                .map_err(|refusal| MateToolError::NotAFreedom {
+            if !MateFreedom::of(*coord).is_some_and(|f| f.left_by(choice.kind)) {
+                return Err(MateToolError::NotAFreedom {
                     coord: *coord,
                     kind: choice.kind,
-                    refusal,
-                })?;
+                });
+            }
         }
         let face = |side: MateSide, pick: &FaceSelection, name| {
             pncad::document::FaceName::new(name)
@@ -736,13 +688,11 @@ impl MateTool {
             placement,
             mate: Mate {
                 on: pose_of(choice.kind, &on_face),
-                to: Target::Pose(target),
-                class: choice.class,
+                to: target,
             },
             on: on_face,
             to: picked_to,
             values: choice.values,
-            admission,
         })
     }
 }

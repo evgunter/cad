@@ -373,8 +373,7 @@ fn main() {
     }
     // The constraint-activity indicator (TESS-SPLIT): which constraint
     // bound the schedule where the split ratio sits above 1.0, and the
-    // worst realized lattice aspect (reported; the sliver-safe line is
-    // read at mesh::nurbs_cert::SAFE_ASPECT, never from a copy here).
+    // worst realized lattice aspect (reported, not judged).
     {
         let (mut bands, mut cap, mut snap) = (0.0f64, 0.0f64, 0.0f64);
         let mut worst: Option<(f64, &Row)> = None;

@@ -15,16 +15,18 @@
 mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
+    use geom_core::{RigidMotion, Turns, UnitVec3};
+    use profile::SketchPlane;
 
     use geom::Curve3;
     use geom::Surface;
     use geom_core::{Bounds, Interval};
     use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
-    use sweep::test_support::{cube, finished, sketch_from_axes};
+    use sweep::test_support::{cube, finished};
     use sweep::{Revolution, RevolveAxis, revolve};
+    use topo::Body;
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{Body, mass_properties};
 
     const DIE_L: f64 = 1.0;
     const DIE_R: f64 = 0.12;
@@ -47,12 +49,11 @@ mod certified {
         let lp =
             bulge_loop::<Interval>(vec![(p2(0.0, -PIP_R), iv(1.0)), (p2(0.0, PIP_R), iv(0.0))]);
         let profile = Profile::new(
-            sketch_from_axes(
+            SketchPlane::from_frame(RigidMotion::turned(
                 p3(0.0, 0.0, 0.0),
-                v3(1.0, 0.0, 0.0),
-                v3(0.0, 0.0, 1.0),
-                Tol::witness(),
-            ),
+                UnitVec3::exact_x(),
+                Turns::quarters(1),
+            )),
             vec![lp],
         )
         .validate(Tol::witness())
@@ -190,13 +191,13 @@ mod certified {
         )
         .expect("the rim torus band decides definitely at Interval");
         assert_eq!(out.band_faces.len(), 1);
-        let die = out.body;
+        let die = topo::test_support::finished("die", out.body, Tol::witness());
         assert_eq!(
             topo::validate_geometric(&die, Tol::witness()),
             Ok(()),
             "tier 3"
         );
-        let vol = mass_properties(&die, Tol::witness()).unwrap().volume;
+        let vol = topo::mass_properties(&die, Tol::witness()).unwrap().volume;
         let want = blank_volume() - cap(PIP_R, PIP_H) - rim_fillet_extra(PIP_R, PIP_H, RIM_R);
         assert!(
             vol.lo() <= want && want <= vol.hi(),

@@ -3,9 +3,8 @@
 //! [`PcurveMintError::Stale`], stating the role it was passed as and
 //! checked before any work; a half of a null edge — scaffolding a public
 //! door mints — is [`PcurveMintError::NoCarrier`]; and a face whose
-//! outer loop is a lone vertex describes no chart boundary,
-//! [`PcurveMintError::EmptyOuter`]. Each refusal leaves the body as
-//! found.
+//! outer loop is a lone vertex winds no loop. Each refusal leaves the
+//! body as found.
 //!
 //! The fixture is a minted cylinder wall sheet (`cyl_wall_sheet`).
 
@@ -14,7 +13,7 @@
 use geom_core::{Band, Point3, Tol};
 use topo::test_support::{CylFrame, cyl_wall_sheet};
 use topo::{
-    Body, EntityId, FaceKey, HalfEdgeKey, MevSite, NewVertexSide, PcurveMintError, chart_boundary,
+    Body, EntityId, FaceKey, HalfEdgeKey, MevSite, NewVertexSide, PcurveMintError, loop_windings,
     mint_pcurves, mint_pcurves_of, pcurve_of,
 };
 
@@ -83,7 +82,7 @@ fn a_callers_key_that_does_not_resolve_is_refused_stale_under_its_role() {
         .unwrap()
         .clone();
     assert_eq!(
-        chart_boundary(&body, face, &chart, band()).err(),
+        loop_windings(&body, face, &chart, band()).err(),
         Some(PcurveMintError::Stale {
             role: "face",
             key: EntityId::Face(face),
@@ -144,18 +143,15 @@ fn a_null_edges_half_has_no_carrier_and_the_mint_leaves_the_body_as_found() {
     assert_eq!(rows(&body), before, "a refused mint writes nothing");
 }
 
-/// A face whose outer loop is a lone vertex (`mvfs`'s) bounds no region
-/// of any chart: refused `EmptyOuter`, not described as empty.
+/// A face whose outer loop is a lone vertex (`mvfs`'s) has no loop to
+/// wind: its windings are empty, not a refusal.
 #[test]
-fn a_lone_vertex_outer_loop_describes_no_chart_boundary() {
+fn a_lone_vertex_outer_loop_winds_no_loop() {
     let (mut body, wall) = sheet();
     let chart = body
         .get_surface(body.get_face(wall).unwrap().surface)
         .unwrap()
         .clone();
     let lone = body.mvfs(Point3::new(5.0, 0.0, 0.0), true).unwrap();
-    assert_eq!(
-        chart_boundary(&body, lone.face, &chart, band()).err(),
-        Some(PcurveMintError::EmptyOuter { face: lone.face })
-    );
+    assert_eq!(loop_windings(&body, lone.face, &chart, band()), Ok(vec![]));
 }

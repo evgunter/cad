@@ -2,11 +2,14 @@
 id: rational-gates-test-unit-weights-not-constancy
 kind: issue
 title: The cap class's 'is this rational' gate tests weights == 1.0 where any constant weight vector is polynomial - over-strict by TRIM-1's own insight
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2095]
 priority: P1
-cost: E
+cost: M
+branch: iso/one-polynomial-weight-test
+pr: 5635
+closed: 2026-10-24
 ---
 
 
@@ -68,3 +71,28 @@ speed through `NurbsCurve3::speed_upper_bound`, which bounds any
 positive-weight net (now the quotient bound, PR 4954), so `plane_spline_root` and
 the level-row section no longer refuse a rational or constant-weight
 carrier. That bullet above is closed by it.
+
+## `skin.rs` closed (2026-10-23, PR 5629)
+
+`skin_on` decides its lane per control row on constancy: a row whose
+weight is the same `c` in every section skins in Cartesian ℝ³ with
+every output weight exactly `c`, `1.0` included. The `sweep/src/skin.rs`
+bullet above is closed by it; the other sites remain.
+
+## Closed (2026-10-24, PR 5635)
+
+"Is this NURBS polynomial" has one home: `geom_core::spline::constant_weight`,
+which checks that every weight is bitwise equal to the first. `Weights::constant`
+and the curve and surface `constant_weight()` methods delegate to it. Every site
+listed above now routes through that home, and each site's polynomial arm is
+pinned bitwise against the unit-weight answer at c ∈ {2, 3, 0.1}.
+
+- **Arc-rim pattern:** it reads the ratio `w₁/w₀`.
+- **`step-export`'s writer:** unit-only, by the file format, as noted at the site.
+- **Creased nets:** a creased constant-c net now refuses as a unit one does.
+  The integral arm's crease gap is recorded on
+  `work/tess/loft-of-three-or-more-sections-at-degree-one-is-unmeshable.md`.
+
+The review also surfaced a NaN composite in `try_line` that read as a zero
+residual at c = 1e-300. That site now refuses. Its source is
+`work/nurbs/implicit-composite-refuses-a-net-whose-weights-sit-near-the-bottom-of-f64.md`.

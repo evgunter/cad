@@ -662,14 +662,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "ImproperPlacement",
-            EditError::ImproperPlacement {
-                node: s(5, "InstantiatePart"),
-                at: FrameSite::Listed { index: 1 },
-                determinant: -1.0,
-            },
-        ),
-        (
             "NonFinitePlacement",
             EditError::NonFinitePlacement {
                 node: s(5, "InstantiatePart"),
@@ -842,7 +834,7 @@ fn long_path_refusals() -> Vec<(&'static str, profile::PathError<f64>)> {
 
 /// A mate fault of every arm, for the two edit arms that forward one.
 fn mate_faults() -> Vec<(&'static str, MateFault)> {
-    use editor_core::{Coord, LeverRefusal, MateSide, TargetAxis, VarKind};
+    use editor_core::{LeverRefusal, MateSide, VarKind};
     let doc_ref = editor_core::DocRef {
         id: DocumentId::derive("bracket"),
         pin: ContentPin::of_bytes(b"bracket v3"),
@@ -856,22 +848,11 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             },
         ),
         (
-            "ClassNotAdmitted",
-            MateFault::ClassNotAdmitted { mate: r(9) },
-        ),
-        (
             "Overconstrained",
             MateFault::Overconstrained {
                 placement: n(7),
                 constraints: vec![c(8), c(9)],
                 free: 0,
-            },
-        ),
-        (
-            "TargetsDiffer",
-            MateFault::TargetsDiffer {
-                placement: n(7),
-                constraints: vec![c(8), c(9)],
             },
         ),
         ("NotOnTheCopy", MateFault::NotOnTheCopy { mate: r(9) }),
@@ -884,32 +865,10 @@ fn mate_faults() -> Vec<(&'static str, MateFault)> {
             },
         ),
         (
-            "WorldRead",
-            MateFault::WorldRead {
-                mate: r(9),
-                fault: editor_core::WorldReadFault::FlippedPoint,
-            },
-        ),
-        (
-            "ValueNamesNoMate",
-            MateFault::ValueNamesNoMate {
-                value: r(9),
-                mate: c(8),
-            },
-        ),
-        (
-            "NotAFreedom",
-            MateFault::NotAFreedom {
-                value: r(9),
-                coord: Coord::Slide(TargetAxis::Z),
-                kind: VarKind::Plane,
-            },
-        ),
-        (
             "NoChart",
             MateFault::NoChart {
                 value: r(9),
-                why: editor_core::NoChartWhy::PointRotation,
+                why: editor_core::NoChartWhy::SlideTurnsABall,
             },
         ),
         (
@@ -1029,7 +988,7 @@ const LABELS: &[(&str, &str)] = &[
 /// through", and none of the shared unlabelled repairs — by exact row
 /// id, grouped under the row that files them with their owner.
 const FILED_NO_RECOURSE: &[&str] = &[
-    // work/paths/paths-refusals-short-of-the-shape-guard.md
+    // work/profilerest/paths-refusals-short-of-the-shape-guard.md
     "Edit/ProfileProgramRefused(Resolve)",
     "Edit/ProfileProgramRefused(Transition)",
     "Edit/ProfileProgramRefused(Validate)",

@@ -23,7 +23,7 @@ fn main() {
         .expect("usage: export_acceptance <outdir>");
     std::fs::create_dir_all(&outdir).expect("create outdir");
     for (name, body, delta) in common::acceptance_bodies() {
-        topo::validate_geometric(&body, tol)
+        let body = topo::AtRestBody::validate(body, tol)
             .unwrap_or_else(|e| panic!("{name}: tier-3 validation failed: {e:?}"));
         let props = topo::mass_properties(&body, tol).expect("mass properties");
         let mesh = mesh::tessellate(&body, delta, tol).expect("tessellate");

@@ -24,7 +24,6 @@ use editor_core::{
 };
 use geom_core::Tol;
 use profile::{ContactKind, PathError, ProfileError, ReplayErrorKind};
-use topo::mass_properties;
 
 /// The document, plus the ids the rows address.
 struct Scene {
@@ -127,9 +126,16 @@ fn a_parameter_edit_re_evaluates_into_new_geometry() {
         let doc = set_hole_r(&s.doc, r);
         let ev = eval::<f64>(&doc);
         assert_eq!(ev.outcome, EvalOutcome::Completed, "r = {r} evaluates");
-        mass_properties(body_of(&ev, s.solid), Tol::witness())
-            .expect("mass properties")
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(body_of(&ev, s.solid)),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("mass properties")
+        .volume
     };
 
     let small = volume_at(HOLE_R_VALUE);
@@ -160,12 +166,26 @@ fn one_parameter_drives_both_holes() {
     let delta = {
         let a = eval::<f64>(&set_hole_r(&s.doc, 0.2));
         let b = eval::<f64>(&set_hole_r(&s.doc, 0.3));
-        mass_properties(body_of(&a, s.solid), Tol::witness())
-            .expect("a")
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(body_of(&a, s.solid)),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("a")
+        .volume
+            - topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(body_of(&b, s.solid)),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .expect("b")
             .volume
-            - mass_properties(body_of(&b, s.solid), Tol::witness())
-                .expect("b")
-                .volume
     };
     let one_hole = std::f64::consts::PI * (0.3 * 0.3 - 0.2 * 0.2) * PLATE_DEPTH;
     assert!(

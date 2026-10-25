@@ -30,19 +30,33 @@
 //! whatever scope the destination is inside (`SurgeryDepth`'s
 //! `Clone`), so the staging door's own scope on it is outermost and
 //! its close DOES sweep — once per call, not once per setter.
-//! `merge_coplanar_faces_declared` is the same shape per group. That
-//! is correct rather than unfortunate: no outer door ever promised to
-//! sweep that clone, and the clone is the body the staging door is
-//! about to hand back.
+//! `merge_coplanar_faces_declared` is the same shape: one scope over
+//! its staged clone for the whole run, and one more over each
+//! recorded-skip group's trial clone. That is correct rather than
+//! unfortunate: no outer door ever promised to sweep that clone, and
+//! the clone is the body the staging door is about to hand back.
 //!
-//! Such a door therefore pays two whole-body reads at its end — the
-//! tier-1 sweep its close runs, and its own typed
-//! [`fn@crate::validate_closed`] gate — and the pair is deliberate:
-//! **a panic and a typed refusal are different contracts.** A kernel
-//! bug has to panic, as loudly and as early as it is detectable (D9);
-//! a body that is tier-1 sound but not closed is a refusal the caller
-//! is entitled to receive. Collapsing the two would answer the first
-//! with the second.
+//! Such a door ends with a typed tier-2 gate as well as D1's sweep,
+//! and **a panic and a typed refusal are different contracts**: a
+//! kernel bug has to panic, as loudly and as early as it is detectable
+//! (D9), while a body that is tier-1 sound but not closed is answered
+//! with the door's typed error. The two contracts share one walk:
+//! [`Surgery::close_gated`] derives tier 1 once
+//! (`validate::closed_by_tier`), debug-asserts its half
+//! empty naming the door, and hands the tier-2 half back typed. Tier 1
+//! is then derived once at the door's end by `offset_planes_together`,
+//! `offset_charts_together` and `offset_charts_staged`'s doors
+//! (`replace_faces_offset`, `offset_surfaces_together`). Two kinds of
+//! door still derive it twice
+//! (`work/offset/staging-doors-gated-at-tier-3-still-derive-tier-1-twice`):
+//! - a door whose typed gate is tier 3 (the boolean, `shell`, the
+//!   split, STEP import) runs the sweep at its close and the at-rest
+//!   gate later, over a body it has changed since;
+//! - `merge_coplanar_faces_declared` closes gated and then
+//!   re-describes the kept faces' boundaries in a second, sweeping
+//!   scope — the describer needs a body that has passed the gate
+//!   before it can walk it, and it writes edge descriptions the sweep
+//!   must then re-check.
 //!
 //! # The spellings, and what each claims
 //!
@@ -51,6 +65,9 @@
 //!   through the guard is inside the scope.
 //! - [`Surgery::sweep_and_close`] closes it and, at the outermost
 //!   level, runs the tier-1 sweep. This is the door's postcondition.
+//! - [`Surgery::close_gated`] closes it with the same sweep and the
+//!   door's tier-2 gate, from one derivation: a tier-1 finding panics
+//!   naming the door, a tier-2 finding comes back typed.
 //! - [`Surgery::close_already_checked`] closes it and sweeps nothing,
 //!   for a door whose own trailing check is a **debug assertion** at
 //!   tier 1 or stronger — `debug_assert_eq!(validate_closed(&body),
@@ -59,8 +76,8 @@
 //!   `validate_closed(&work).map_err(…)?` turns a tier-1 failure into
 //!   an error return, and before this rule existed that same failure
 //!   panicked out of the operator that caused it. Such a door closes
-//!   with [`Surgery::sweep_and_close`], which keeps the split the door
-//!   already had: a kernel bug panics, a tier-2 refusal returns typed.
+//!   with [`Surgery::close_gated`], which keeps the split: a kernel
+//!   bug panics, a tier-2 refusal returns typed.
 //!   `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
 //!   requires a non-sweeping close to carry that debug assertion in
 //!   the door's own body.
@@ -70,10 +87,12 @@
 //! `Drop`**: a `debug_assert` firing while a panic unwinds aborts the
 //! process and takes the original error with it.
 //!
-//! `Body::enter_surgery` and its two closes are the same three
-//! meanings without the guard, for the two sites in this crate where
-//! a borrow forbids one. They are `pub(crate)` and their obligation is
-//! the caller's; the method docs carry it.
+//! `Body::enter_surgery` and its two closes — `leave_surgery_and_sweep`
+//! and `leave_surgery` — are the sweeping and the non-sweeping close
+//! without the guard, for the two sites in this crate where a borrow
+//! forbids one; the guardless path has no gated close. They are
+//! `pub(crate)` and their obligation is the caller's; the method docs
+//! carry it.
 //!
 //! # What actually fires, and what does not
 //!
@@ -239,21 +258,41 @@ impl SurgeryDepth {
     }
 
     /// **D1's closing sweep**: the tier-1 re-derivation over `body`,
-    /// run at the outermost level only.
+    /// run at the outermost level only, through
+    /// `postcondition_if_outermost`.
     ///
-    /// Both closes call this and then decrement — the guarded one
-    /// through its `Drop`, the guardless one on the next line — so
-    /// there is one spelling of the check and one ordering of it. The
-    /// order is deliberate: the sweep is the door's postcondition and
-    /// it belongs INSIDE the scope it closes, so that a validator
-    /// reached through a public door could not re-enter this path at
-    /// depth 0.
+    /// Both sweeping closes call this and then decrement — the guarded
+    /// one through its `Drop`, the guardless one on the next line.
     fn sweep_if_outermost<T: Real>(&self, body: &Body<T>) {
+        self.postcondition_if_outermost("door", || {
+            crate::validate::validate(body).err().unwrap_or_default()
+        });
+    }
+
+    /// **D1's postcondition, the one spelling of it**: at the outermost
+    /// level the tier-1 findings `broken()` returns over the body being
+    /// handed back must be empty, and a finding is a kernel bug that
+    /// debug-asserts naming `door`. Below the outermost level `broken`
+    /// is not called: the outer door is the observable boundary.
+    ///
+    /// Every close that checks tier 1 routes here — the two sweeping
+    /// closes through `sweep_if_outermost`, and
+    /// [`Surgery::close_gated`] with the tier-1 half of its one walk —
+    /// so there is one check and one ordering of it. The order is
+    /// deliberate: the check is the door's postcondition and it belongs
+    /// INSIDE the scope it closes, so that a validator reached through
+    /// a public door could not re-enter this path at depth 0.
+    fn postcondition_if_outermost<B: AsRef<[crate::ValidationError]>>(
+        &self,
+        door: &str,
+        broken: impl FnOnce() -> B,
+    ) {
         if self.get() == 1 {
-            debug_assert_eq!(
-                crate::validate::validate(body),
-                Ok(()),
-                "door postcondition: result is not tier-1 valid (kernel bug)",
+            let broken = broken();
+            let broken = broken.as_ref();
+            debug_assert!(
+                broken.is_empty(),
+                "{door} postcondition: result is not tier-1 valid (kernel bug): {broken:?}",
             );
         }
     }
@@ -472,6 +511,38 @@ impl<T: Real> Surgery<'_, T> {
         self.body.surgery.sweep_if_outermost(self.body);
     }
 
+    /// **Closes the scope and gates the body at tier 2, deriving tier 1
+    /// once** — [`Surgery::sweep_and_close`] and the door's
+    /// `validate_closed` gate in one walk.
+    ///
+    /// At the outermost level a tier-1 finding is a kernel bug and
+    /// debug-asserts, naming `door`: D1's postcondition, checking what
+    /// the sweep checks. The tier-2 findings come back typed, for the
+    /// door's own refusal. Where no assertion fires — a nested scope,
+    /// whose outer door sweeps, or a build with debug assertions off —
+    /// the tier-1 findings come back typed ahead of them, in
+    /// [`fn@crate::validate_closed`]'s order.
+    ///
+    /// # Errors
+    ///
+    /// Every finding the debug assertion did not take, tier 1 first.
+    pub fn close_gated(self, door: &str) -> Result<(), Vec<crate::ValidationError>> {
+        let (broken, scaffolding) = crate::validate::closed_by_tier(&*self.body);
+        #[cfg(debug_assertions)]
+        self.body
+            .surgery
+            .postcondition_if_outermost(door, || broken.as_slice());
+        #[cfg(not(debug_assertions))]
+        let _ = door;
+        let mut errors = broken;
+        errors.extend(scaffolding);
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
     /// **Closes the scope without sweeping**, for a door whose own
     /// trailing check is a DEBUG ASSERTION at tier 1 or stronger —
     /// `debug_assert_eq!(validate_closed(&body), Ok(()))` — placed
@@ -482,9 +553,9 @@ impl<T: Real> Surgery<'_, T> {
     /// typed gate is not that check**: a door ending
     /// `validate_closed(&work).map_err(…)?` answers a kernel bug with
     /// an error return, where the operators it composes used to panic,
-    /// so such a door closes with [`Surgery::sweep_and_close`]
-    /// instead. The closure-property walk requires the debug assertion
-    /// to be present in the door's own body.
+    /// so such a door closes with [`Surgery::close_gated`] instead.
+    /// The closure-property walk requires the debug assertion to be
+    /// present in the door's own body.
     pub fn close_already_checked(self) {}
 }
 

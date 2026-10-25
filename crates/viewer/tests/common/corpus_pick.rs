@@ -406,9 +406,8 @@ pub fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluat
         let outcome = session.perform(set_slot(session.committed_doc(), node, slot, &expr));
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();
-        // The bump stops the revolve short of a turn, so the seam its
-        // pin read goes: the ring is re-placed where it stood.
-        super::repin_stranded(&mut session, &doc, tol);
+        // The bump stops the revolve short of a turn; the ring's
+        // placement reads no geometry, so it stands where it stood.
         landed("gallery_ring", "the first edit", &session);
     }
     for doc in corpus::documents() {

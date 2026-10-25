@@ -620,7 +620,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         doc,
         bore,
         pin,
-        &fixture::frame_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+        &fixture::axes_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
     );
     let ev = eval(&doc);
     let (b_wall, p_wall) = (wall(&ev, bore), wall(&ev, pin));
@@ -839,7 +839,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
     // A placement of the MEASURE: a measured length is not placeable.
     let refusal = crate::fixture::insert_refused(
         &doc,
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::from(m),
         )]),
     );

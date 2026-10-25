@@ -51,9 +51,16 @@ fn volume(ev: &Evaluation<f64>, n: RecipeNodeId, what: &str) -> f64 {
     if let Some(e) = failure(ev, n) {
         panic!("{what}: refused {e:?}");
     }
-    topo::mass_properties(body_of(ev, n), Tol::witness())
-        .expect("the volume integrates")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(body_of(ev, n)),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .expect("the volume integrates")
+    .volume
 }
 
 /// **The round crenellation.** A drum `r = 13 mm`, `z ∈ [28, 36] mm`,

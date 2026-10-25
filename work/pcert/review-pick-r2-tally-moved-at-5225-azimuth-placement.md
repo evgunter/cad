@@ -31,3 +31,23 @@ The row's other asserts still hold: no genuine crossing is refused, and there ar
 **Owed.** Decide whether the new tally is what B1's placement should produce. If it is, re-pin with that reading in the pin's doc comment. If not, fix what moved it. The earlier movements and the open question about PR 4861's 60 lost aimed-vertex answers are `review-pick-r2-tally-moved-by-4861-section-ellipse-re-pose` (CLEAVE).
 
 Reproduce: `cargo nextest run -p viewer --profile ci --ignore-default-filter -E 'test(=review_pick_r2::the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus)'`.
+
+## 2026-10-24 (INTENT nightly triage)
+
+Still red at every ε, in the full suite and in `viewer app feature`
+(nightly run 40066431545, main `3dfb96b91c`):
+
+    left: (441036, 141423, 24792, 7386)
+   right: (440460, 141163, 13482, 6882)
+
+On 2026-10-23 (run 39906156937) the tally was
+`(441036, 141438, 24600, 7266)`. Overnight, 15 fewer rays are answered
+at the aimed vertex, 192 more candidates refuse at the determinant, and
+120 more rays carry a refusal. The ray count held. The 10-23 triage
+left the re-pin to INTENT D′2 (PR 5613), but D′2 merged without touching
+this row, and D′3 (PR 5636) does not touch it either. The refusal
+columns have nearly doubled since 10-22 (13482 → 24792), so this needs
+reading before any re-pin. The row's other asserts still hold: no
+genuine crossing is refused, and there are no wide winners. The
+overnight move is not bisected. The window's code merges are listed in
+the 2026-10-24 triage PR (`intent/nightly-triage-1024`).

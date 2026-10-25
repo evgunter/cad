@@ -3,7 +3,6 @@
 mod analysis;
 mod assembly;
 pub(crate) mod checks;
-mod contact;
 pub(crate) mod doc;
 mod expr;
 mod mate;
@@ -53,7 +52,7 @@ pyo3::create_exception!(
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
      `found_kind` and `expected_kind` (the entity kind a selection's \
      name denotes and the one its seat reads), \
-     `count`, `first`, `again`, `value`, `offered`, `determinant`, \
+     `count`, `first`, `again`, `value`, `offered`, \
      `index` (which of a node's placement frames: a transform's step \
      or an explicit rule's listed placement), `side` (the mate side \
      whose frame offset holds that step), `path`, `value_path` and \
@@ -330,17 +329,12 @@ pyo3::create_exception!(
     PncadError,
     "The at-rest assembly gate refused. Carries `variant`, the stable \
      tag of the refusing arm, plus the arm's payload as attributes \
-     (`mate`, `side`, `name`, `why`, `class_`, `findings`), each \
+     (`node`, `through`, `of`, `via`, `name`, `findings`), each \
      present on every arm and `None` where that arm does not carry \
      it.\n\n\
-     **The two verdict arms are NOT interchangeable.** `at_rest` is a \
-     finding AGAINST the document — a refuted declaration or an \
-     unrecorded contact. `uncertified` is the declared direction's \
-     FRONTIER: nothing was refuted and nothing was undeclared, the \
-     census simply has no certifier lane for the faces a declaration \
-     names, so nothing was decided about the geometry either way. A \
-     caller who catches this class must say which of the two they \
-     mean.\n\n\
+     `at_rest` is the census's verdict against the product, \
+     `findings` every one of its findings; `carried_at_rest` is the \
+     same for a document below this one.\n\n\
      A gather refusal arrives here under the gather's OWN tag \
      (`empty_product`, `root_poisoned`, ...), not a wrapper tag: which \
      invariant broke is what a caller branches on."
@@ -374,12 +368,20 @@ pyo3::create_exception!(
     "The `inline` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
      (`node`, `by`, `name`, `param`, `key`, `host_epsilon`, \
-     `part_epsilon`, `mate`), `None` where inapplicable.\n\n\
+     `part_epsilon`), `None` where inapplicable.\n\n\
      Inline crosses the SAME document seam evaluation does, so a \
      reference that will not resolve refuses under the seam's own \
      tags — `part_pin_mismatch`, `part_epsilon_seam`, \
      `part_unresolved` — the ones `EvaluationError.kind` already \
      speaks. A stale pin is refused here, never silently retargeted."
+);
+pyo3::create_exception!(
+    pncad,
+    FlattenError,
+    PncadError,
+    "The `flatten` refactoring refused. Carries `variant`, the stable \
+     tag of the refusing arm, plus its payload as attributes \
+     (`node`, `by`, `name`, `param`), `None` where inapplicable."
 );
 pyo3::create_exception!(
     pncad,
@@ -744,6 +746,7 @@ fn raise_typed(
         ErrorClass::Product => ProductError::new_err(message),
         ErrorClass::Split => SplitError::new_err(message),
         ErrorClass::Inline => InlineError::new_err(message),
+        ErrorClass::Flatten => FlattenError::new_err(message),
         ErrorClass::Update => UpdateError::new_err(message),
         ErrorClass::Readback => ReadbackError::new_err(message),
         ErrorClass::HitTest => HitTestError::new_err(message),
@@ -851,6 +854,7 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::Product
         | ErrorClass::Split
         | ErrorClass::Inline
+        | ErrorClass::Flatten
         | ErrorClass::Update
         | ErrorClass::Readback
         | ErrorClass::HitTest
@@ -917,6 +921,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("ProductError", py.get_type::<ProductError>())?;
     m.add("SplitError", py.get_type::<SplitError>())?;
     m.add("InlineError", py.get_type::<InlineError>())?;
+    m.add("FlattenError", py.get_type::<FlattenError>())?;
     m.add("UpdateError", py.get_type::<UpdateError>())?;
     m.add("ReadbackError", py.get_type::<ReadbackError>())?;
     m.add("HitTestError", py.get_type::<HitTestError>())?;
@@ -948,7 +953,6 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     mate::register(m)?;
     assembly::register(m)?;
     refactor::register(m)?;
-    contact::register(m)?;
     checks::register(m)?;
     mesh::register(m)?;
     value::register(m)?;

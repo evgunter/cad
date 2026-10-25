@@ -389,8 +389,8 @@ pub(crate) fn tessellate_curved(
         let uv = [[m[0].0, m[0].1], [m[1].0, m[1].1], [m[2].0, m[2].1]];
         let pole = [m[0].3, m[1].3, m[2].3];
         let bound = match chart.kind {
-            ChartKind::Cylinder { r } => cert::cert_cylinder(chart.anchor, chart.axis, r, tri),
-            ChartKind::Sphere { r } => cert::cert_sphere(chart.anchor, r, tri),
+            ChartKind::Cylinder { r } => cert::cert_cylinder(chart.anchor(), chart.axis(), r, tri),
+            ChartKind::Sphere { r } => cert::cert_sphere(chart.anchor(), r, tri),
             ChartKind::Cone { half_angle } => cert::cert_cone(half_angle, uv, pole),
             ChartKind::Torus { major, minor } => cert::cert_torus(major, minor, uv),
         };
@@ -2332,17 +2332,13 @@ mod tests {
     /// [`grid_counts`] directly. Only `kind` decides the counts; the
     /// frame is the fixture's.
     fn cone_chart() -> Chart {
-        let axis = Vec3::new(0.0, 1.0, 0.0);
-        let u_ref = Vec3::new(1.0, 0.0, 0.0);
-        Chart {
-            axis,
-            u_ref,
-            v_ref: axis.cross(u_ref),
-            anchor: Point3::new(0.0, 1.0, 0.0),
-            kind: ChartKind::Cone {
-                half_angle: core::f64::consts::FRAC_PI_4,
-            },
-        }
+        Chart::of(&Surface::Cone {
+            apex: Point3::new(0.0, 1.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        })
+        .unwrap()
     }
 
     /// **The issue 685 decision: a single-column cone patch takes no

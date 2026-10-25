@@ -17,7 +17,7 @@ use profile::RawLoop;
 
 use profile::{ProfileLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
-use topo::{Body, mass_properties, validate_geometric};
+use topo::{Body, validate_geometric};
 
 use geom_core::{Point2, Tol};
 use revolve_common::{axis_y, donut_profile, full_pappus_y, validated};
@@ -35,7 +35,11 @@ fn assert_close(what: &str, got: f64, expect: f64) {
 fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
     validate_geometric(body, Tol::witness())
         .expect("acceptance body must be tier-3 valid (incl. +V)");
-    let props = mass_properties(body, Tol::witness()).expect("mass properties must compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties must compute");
     assert_close(&format!("{what} volume"), props.volume, volume);
     assert_close(&format!("{what} area"), props.surface_area, area);
 }
@@ -114,7 +118,16 @@ fn washer_matches_closed_forms() {
     // V = π(2² − 1²)·1 = 3π; A = 4π + 2π + 2·3π = 12π.
     check(&t.body, "washer", 3.0 * PI, 12.0 * PI);
     let pappus = full_pappus_y(&t);
-    let v = mass_properties(&t.body, Tol::witness()).unwrap().volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
         "washer Pappus cross-check: exact {v} vs quadrature {pappus}"
@@ -136,7 +149,16 @@ fn ball_matches_closed_forms() {
     .unwrap();
     check(&t.body, "ball", 4.0 * PI / 3.0, 4.0 * PI);
     let pappus = full_pappus_y(&t);
-    let v = mass_properties(&t.body, Tol::witness()).unwrap().volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
         "ball Pappus: {v} vs {pappus}"
@@ -160,7 +182,16 @@ fn cone_matches_closed_forms() {
     // r = h = 1: V = π/3; A = πr√(r²+h²) + πr² = π(√2 + 1).
     check(&t.body, "cone", PI / 3.0, PI * (SQRT_2 + 1.0));
     let pappus = full_pappus_y(&t);
-    let v = mass_properties(&t.body, Tol::witness()).unwrap().volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
         "cone Pappus: {v} vs {pappus}"
@@ -179,7 +210,16 @@ fn donut_matches_closed_forms() {
     // R = 2, r = 1/2: V = 2π²Rr² = π²; A = 4π²Rr = 4π².
     check(&t.body, "donut", PI * PI, 4.0 * PI * PI);
     let pappus = full_pappus_y(&t);
-    let v = mass_properties(&t.body, Tol::witness()).unwrap().volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         (v - pappus).abs() < 1e-3 * v,
         "donut Pappus: {v} vs {pappus}"

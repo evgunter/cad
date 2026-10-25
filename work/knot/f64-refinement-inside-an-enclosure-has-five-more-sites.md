@@ -232,7 +232,7 @@ names as unclassified:
 - **`edge_nurbs.rs`'s `PXN_WALL_SPANS` wall refinement** is the ring:
   the tube reads the wall's homogeneous channels refined by
   `apply_certified` (`wall_grid`), measured necessary
-  (`work/iso/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
+  (`work/isotail/pxn-wall-refinement-may-be-unneeded-for-the-tube.md`).
 
 Site 1, `crates/mesh/src/chords.rs`'s `rational_carrier_m_bound` and its
 twin, is untouched and this row stays open for it: it refines in `f64`

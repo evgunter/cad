@@ -2,10 +2,11 @@
 id: the-folds-world-pin-check-has-no-row
 kind: issue
 title: The fold's own world-pin stand-alone check has no row: every door asks the same function first
-status: open
+status: closed
 opened: 2026-10-18
 priority: P3
 cost: E
+closed: 2026-10-22
 ---
 
 
@@ -16,3 +17,14 @@ Found by the second review pair on PR #5267 (R3, MINOR, a surviving mutant), lef
 **Why it matters, and why it was left.** The fold's check is defence in depth: it decides nothing a door has not already decided, and its `Ok(true)` arm (the pin places its copy by no map) is covered. A row would need a document built past the doors, which the crate offers no test door for.
 
 **Options.** (a) A `#[cfg(test)]` constructor that writes a bundle without admission, and a row that evaluates it; (b) make the fold's `Err` arm an `unreachable!` naming the doors, so a dead check is a panic, not a silent pass; (c) leave it, stating the invariant at the call. Retires with the interim (`a-copy-standing-where-its-body-stands-has-no-d10-spelling`) if D removes the world pin first.
+
+## Closed
+
+Closed 2026-10-22 (`intent/hygiene-batch`), with nothing to build: the
+row's own retirement condition fired. Stage 3 D
+(`transform-retires-into-a-placement`, closing
+`a-copy-standing-where-its-body-stands-has-no-d10-spelling` on
+2026-10-20) removed the world pin whole, `world_pin_stands_alone` and
+the fold's call to it with it; `git grep world_pin_stands_alone` on
+main is empty. A copy standing where its body stands is now the
+identity bundle, which no stand-alone check guards.

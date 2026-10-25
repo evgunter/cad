@@ -2,11 +2,10 @@
 id: opout-contacts-body-zero-invariant-is-held-by-prose
 kind: issue
 title: OpOut's 'a multi-output op never fills contacts' is held by a doc comment, not by the type
-status: parked
+status: open
 opened: 2026-09-28
 priority: P4
 cost: E
-blocked_on: [mates-declare-no-contact]
 ---
 
 Found by the GATHER editorial pass over `eval/wire.rs`

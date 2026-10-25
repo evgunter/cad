@@ -263,12 +263,26 @@ fn both_blends_evaluate_in_one_document() {
 /// `Transform` (a construction is built in its own coordinates and
 /// placed into the world by a `Place`), so its nodes, their ids and the
 /// names they mint moved.
+///
+/// RE-BLESSED, both rows, for a minted reference that comes from the
+/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
+/// cap now takes from the sketch's `x` axis and an extruded wall from
+/// its segment, where `orthonormal_basis` picked it off the axes. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x6799_aef6_110d_a34bu64),
-        ("die_chamfer", 0x7912_002b_4c0b_0437),
+        ("die_fillet", 0xf484_d087_4cd9_c7fd_u64),
+        ("die_chamfer", 0x03f9_6c32_9b8d_d6a5),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -469,13 +483,28 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// came in through, and in D a later operand is a placed copy, so the
 /// names it spells moved under both changes and the value is neither
 /// tree's. No other row moved.
+///
+/// RE-BLESSED, `crossing_slots`, `heat_sink` and `kiss_carry`, for a
+/// minted reference that comes from the inputs (PR #5547): the digest
+/// feeds each plane's `u_ref`, which a cap now takes from the sketch's
+/// `x` axis and an extruded wall from its segment, where
+/// `orthonormal_basis` picked it off the axes. No outcome or point
+/// moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xc686_087f_4f50_550eu64),
-        ("heat_sink", 0xf1a2_5a30_b135_72a2),
-        ("kiss_carry", 0xfb95_fe3f_5408_dbd8),
+        ("crossing_slots", 0xcdda_ac08_76e4_859f_u64),
+        ("heat_sink", 0x7d39_8e23_faa9_0232),
+        ("kiss_carry", 0xc4bf_a6e0_8afc_ec4b),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -550,6 +579,22 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// by no map, so the copy placed against `a` at the identity by a plane
 /// mate runs its map, which comes out as the exact identity and which
 /// the at-rest snap had placed by no map.
+///
+/// RE-BLESSED when a minted plane's `u_ref` became a direction its
+/// construction holds: the two prisms' caps are charted along their
+/// sketch's `x` axis and their walls along their swept segments, where
+/// `orthonormal_basis` picked both off the axes. No plane moved as a
+/// point set.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body, and the content key
+/// holds a placement's target (`VERSION` 18), so ids drawn after a
+/// construction and every value token moved. No point moved.
+///
+/// RE-BLESSED for D′2 (a value names no mate): the second operand's
+/// bundle is spelled in the new vocabulary and the content key's
+/// `VERSION` moved, so its ids and the names under them moved. Every
+/// node's kind and vertex bits are main's (`be9b907694`).
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -588,7 +633,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xdd05_bcb4_7430_15fb,
+        got, 0x50a8_257d_9948_f0f6,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

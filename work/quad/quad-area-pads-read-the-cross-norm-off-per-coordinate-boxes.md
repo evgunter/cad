@@ -39,3 +39,64 @@ cell is available in coefficient form (it is a hull evaluation here),
 and which of these sites are upper bounds the sentence covers rather
 than midpoint estimates (`g_mid` is a point reading and is not), is
 the taker's.
+
+## Measured on main 258dc6c7c2 (QUAD, 2026-10-21)
+
+**Verdict: stands, measured.** A rigid rotation moves the certified
+area bracket's width by up to 1.13× on this face. The flux enclosure
+moves too.
+
+Probe: `crates/sweep/tests/quad_frame_remeasure.rs`
+`row5_rational_wall_rotated`. The face is the rational cubic × linear
+wall `rational_wall` from
+`quad-rational-patch-cross-grows-with-translation` (weights 1.8 / 0.7),
+read whole by `nurbs_patch_face::<f64>` at the default ε. The probe
+first carries the wall's centre (0.525, 0.15, 0.4) to the origin
+(`ROW5_CENTRED=1`), so that a rotation changes no point's distance
+from the flux origin, and then rotates it about three axes through
+that centre:
+
+| rotation | about z | about x | about (1,2,3)/‖·‖ |
+|---|---|---|---|
+| 0° | 0.1045 | 0.1045 | 0.1045 |
+| 15° | 0.1038 | 0.1098 | 0.1093 |
+| 30° | 0.1038 | 0.1142 | 0.1131 |
+| 45° | 0.1039 | 0.1159 | 0.1149 |
+| 60° | 0.1043 | 0.1142 | 0.1145 |
+| 90° | 0.1045 | 0.1045 | 0.1170 |
+
+The table gives the area bracket's width (area ≈ 0.875). Every
+bracket holds the same area: the brackets' common part is
+[0.8234, 0.9272]. Two features fit this row's mechanism, which reads a
+norm off a per-coordinate box. First, a quarter turn about a
+coordinate axis gives back the unrotated width exactly, because it
+permutes the box's coordinates. Second, the width peaks near 45°.
+Over the rotations measured, the spread is 0.1038 to 0.1170, a ratio
+of 1.13 (the row's bound is √3). The flux enclosure's width over the
+same rotations moves from 7.3e-7 to 2.06e-6, a 2.8× spread, and its
+midpoint is the same to 6 digits.
+
+The area bracket is wide in every frame: about 12 % of the area. It is
+the O(h) area rule's own width (the A2 gauge's "wide by design"), and
+the rotation moves only a part of it.
+
+Rotated about the uncentred wall's centre instead, so that the wall
+sits 0.3 m to 1.2 m from the origin, the same door refuses
+`QuadratureBudget` (`width_len` 1.15e-6 to 1.57e-6 against 1.024e-6)
+at 30° and beyond about x and about (1,2,3). At 30° about (1,2,3) it
+refuses `Escalated { props_quad_converged }` instead. That is this
+door's translation dependence
+(`quad-rational-patch-cross-grows-with-translation`), and it does not
+reach a body through `topo`.
+
+## The rational area cell, 2026-10-22 (QUAD, `quad/rational-quotient-statement`)
+
+`rational_patch_face`'s area hull and pads no longer read a box: they
+are the quotient statement's `sup_norm` and `inf_norm`
+(`geom_core::spline::cell_measure_quotients`), `max_k ‖a_k‖/b_k` over
+each coefficient's own Euclidean norm, per hull block. The site this
+row lists first (`g_hull: (ch[0].sqr() + …).sqrt() / wh.powi(3)`) is
+gone. The rest of the list stands: `trimmed_patch_face_rounds`' `sup_g`,
+`norm_hi` (still read by the integral and trimmed lanes), `area_at`,
+`area_cell`, and the `p_bound` L1 folds. The rotation probe was not
+re-run.

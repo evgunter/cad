@@ -53,9 +53,13 @@ fn die_fillet_evaluates_green_and_meters_the_closed_form() {
     assert_eq!(ev.outcome, EvalOutcome::Completed);
     assert_eq!(ev.order.len(), d.len());
 
-    let body = body_of(&ev, d.result.expect("the blank is the head"));
-    assert_eq!(topo::validate(body), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(body), Ok(()), "closed");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, d.result.expect("the blank is the head"))),
+        Tol::witness(),
+    );
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&body), Ok(()), "closed");
 
     // Planes AND cylinders AND spheres at once: 6 shrunken supports,
     // 12 quarter-cylinder blends, 8 sphere-octant corners.
@@ -65,7 +69,7 @@ fn die_fillet_evaluates_green_and_meters_the_closed_form() {
         "6 supports + 12 blends + 8 corners"
     );
 
-    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     let (v, a) = rounded_box(die_fillet::L, die_fillet::R);
     assert!(
         (m.volume - v).abs() <= 1e-9 * v,
@@ -113,9 +117,17 @@ fn the_extrude_bump_recomputes_the_cone_and_the_fillet_needs_no_reselection() {
     assert!(after.reused > 0, "the profile must be reused");
 
     // The stretched blank is still a rounded box, metered the same way.
-    let body = body_of(&after, d.result.expect("head"));
-    assert_eq!(topo::validate_closed(body), Ok(()), "closed after the bump");
-    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&after, d.result.expect("head"))),
+        Tol::witness(),
+    );
+    assert_eq!(
+        topo::validate_closed(&body),
+        Ok(()),
+        "closed after the bump"
+    );
+    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     // L × L × L_BUMPED with radius R: the general rounded-box form
     // specialises to the cube one only when the box is a cube, so the
     // pin here is the cheap invariant — the bump grew the solid.

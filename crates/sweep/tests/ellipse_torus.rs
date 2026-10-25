@@ -52,7 +52,7 @@ fn drum_lower() -> Body<f64> {
         2,
         "the rim is two ellipse arcs"
     );
-    below
+    below.into_body()
 }
 
 /// A ring torus `(big, small)` about the axis `axis` through `c`: a full

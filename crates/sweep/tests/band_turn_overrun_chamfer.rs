@@ -24,7 +24,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_core::RigidMotion;
 use geom_core::{Bounds, Interval, Point3};
+use profile::SketchPlane;
 use sweep::blend::build::{Blended, chamfer_edges};
 use sweep::test_support::{assert_naming_totality, at_rest, realized};
 use topo::boolean::BooleanOp;
@@ -411,7 +413,11 @@ fn the_overrun_carves_at_the_certified_scalar() {
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, {e:?}"));
         assert_naming_totality(&ibody, &out, &iedges, &what);
         let v0 = mass_properties(&ibody, tol()).expect("props").volume;
-        let p = mass_properties(&out.body, tol()).expect("props");
+        let p = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol(),
+        )
+        .expect("props");
         let (removed, pad) = (v0 - p.volume, p.volume_pad.hi());
         assert!(
             removed.lo() - pad <= want && want <= removed.hi() + pad,
@@ -681,12 +687,7 @@ fn a_slot_through_the_overrun_is_never_consumed() {
     let r2 = core::f64::consts::FRAC_1_SQRT_2;
     let (y, z, h) = (-0.1 * D, 1.0 - 1.1 * D * r2, 0.003);
     let pin = sweep::test_support::prism_on(
-        sweep::test_support::sketch_from_axes(
-            Point3::new(-1.5, y, z),
-            geom_core::Vec3::new(0.0, 1.0, 0.0),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        ),
+        SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(-1.5, y, z))),
         sweep::test_support::corners(&[(-h, -h), (h, -h), (h, h), (-h, h)]),
         4.0,
         tol(),

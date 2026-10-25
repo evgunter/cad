@@ -52,7 +52,12 @@ pub(crate) fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> 
 }
 
 pub(crate) fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol()).expect("props").volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("props")
+    .volume
 }
 
 /// The solid a face belongs to ([`Body::solid_of_face`], which every
@@ -198,7 +203,12 @@ pub(crate) fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKe
 /// body whole: this is its per-SOLID twin on a multi-solid body.
 pub(crate) fn outer_and_void_of(body: &Body<f64>, solid: SolidKey) -> (ShellKey, ShellKey) {
     let shells = body.shells_of_solid(solid).unwrap();
-    let roles = topo::classify_shells_of(body, shells, tol()).expect("the solid classifies");
+    let roles = topo::classify_shells_of(
+        &topo::test_support::finished("the body", body.clone(), tol()),
+        shells,
+        tol(),
+    )
+    .expect("the solid classifies");
     let pick = |r: topo::ShellRole| {
         roles
             .iter()

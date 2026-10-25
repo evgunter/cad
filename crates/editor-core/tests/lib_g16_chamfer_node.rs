@@ -61,9 +61,13 @@ fn die_chamfer_evaluates_green_and_meters_the_closed_form() {
     assert_eq!(ev.outcome, EvalOutcome::Completed);
     assert_eq!(ev.order.len(), d.len());
 
-    let body = body_of(&ev, d.result.expect("the blank is the head"));
-    assert_eq!(topo::validate(body), Ok(()), "tier 1");
-    assert_eq!(topo::validate_closed(body), Ok(()), "closed");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, d.result.expect("the blank is the head"))),
+        Tol::witness(),
+    );
+    assert_eq!(topo::validate(&body), Ok(()), "tier 1");
+    assert_eq!(topo::validate_closed(&body), Ok(()), "closed");
 
     // The same 26 the fillet's twin produces, and for the same
     // reasons: 6 shrunken supports, 12 strips, 8 corner patches. Only
@@ -74,7 +78,7 @@ fn die_chamfer_evaluates_green_and_meters_the_closed_form() {
         "6 supports + 12 strips + 8 corner patches"
     );
 
-    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     let (v, a) = chamfered_box(die_chamfer::L, die_chamfer::D);
     assert!(
         (m.volume - v).abs() <= 1e-9 * v,
@@ -97,15 +101,23 @@ fn die_chamfer_evaluates_green_and_meters_the_closed_form() {
 fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
     let ch = die_chamfer::document();
     let ev = eval::<f64>(&ch.doc);
-    let chamfered = body_of(&ev, ch.result.expect("head"));
-    let cv = topo::mass_properties(chamfered, Tol::witness())
+    let chamfered = topo::test_support::finished(
+        "chamfered",
+        topo::Body::clone(body_of(&ev, ch.result.expect("head"))),
+        Tol::witness(),
+    );
+    let cv = topo::mass_properties(&chamfered, Tol::witness())
         .expect("mass properties")
         .volume;
 
     let fi = corpus::die_fillet::document();
     let fev = eval::<f64>(&fi.doc);
-    let filleted = body_of(&fev, fi.result.expect("head"));
-    let fv = topo::mass_properties(filleted, Tol::witness())
+    let filleted = topo::test_support::finished(
+        "filleted",
+        topo::Body::clone(body_of(&fev, fi.result.expect("head"))),
+        Tol::witness(),
+    );
+    let fv = topo::mass_properties(&filleted, Tol::witness())
         .expect("mass properties")
         .volume;
 

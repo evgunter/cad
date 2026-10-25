@@ -17,7 +17,7 @@ use geom_core::{Band, Interval, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::{BlendError, BlendRequest, fillet_edges};
 use sweep::test_support::{band_reach, corners, finished, revolved_about_y_at, rim_arcs_at};
-use topo::{AtRestBody, Body, EntityId, mass_properties, validate_geometric};
+use topo::{AtRestBody, Body, EntityId, validate_geometric};
 
 use crate::common::cavity::{brick, cut, edges_with_corners, rod};
 use crate::common::interval::iv;
@@ -51,7 +51,12 @@ fn built(
 ) -> Result<f64, BlendError> {
     let f = fillet_edges(body, edges, r, tol()).map_err(|e| e.error)?;
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "{what}: tier 3");
-    Ok(mass_properties(&f.body, tol()).expect("a volume").volume)
+    Ok(topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&f.body), tol()),
+        tol(),
+    )
+    .expect("a volume")
+    .volume)
 }
 
 fn is_reach(e: &BlendError) -> bool {

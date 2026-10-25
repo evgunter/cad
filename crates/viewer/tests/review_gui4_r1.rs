@@ -41,14 +41,13 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    ClassAdmission, DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId, assemble,
-    class_admission, parse_formula,
+    DocumentId, Frame, Node, PatternKind, ProfileDoc, RecipeNodeId, parse_formula,
 };
 use pncad::geom_core::{Point3, Tol};
-use pncad::select::{ContactClass, face_frame};
+use pncad::select::face_frame;
 use pncad::workspace::Workspace;
 use viewer::display::{AdmissionFault, DisplayFault};
-use viewer::matetool::{MateTool, admitted_classes};
+use viewer::matetool::MateTool;
 use viewer::scene::SceneMesh;
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
@@ -158,7 +157,7 @@ fn r1_the_minted_mate_reads_the_parts_own_faces_under_a_rotated_placement() {
     // The edit lands once, into the post's bundle once its world mate
     // is off, and the document stays green.
     asm::unpin(&mut session, rot_post);
-    common::commit_mate(&mut session, proposal.op());
+    common::commit_mate(&mut session, proposal.op_into_target_space());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after the mate: {row:?}");
     }
@@ -200,7 +199,7 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     let tol = Tol::witness();
     let bench = asm::bench("r1rotprobe", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b's world mate off: a loose space the probe moves, the frame
+    // post_b in a space of its own, which the probe moves, the frame
     // composed so it moves the post from where its pin stood it.
     asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
@@ -246,10 +245,10 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
         scene.flags().contains(&SceneMesh::FLAG_PROBE),
         "the probe's corners carry the distinctness flag"
     );
+    let drawn_box = scene.bounds().expect("the probed scene draws");
     assert!(
-        scene.bounds().max_x >= drawn.x - 1e-9,
-        "the drawn bounds reach the rotated probe: {:?}",
-        scene.bounds()
+        drawn_box.max_x >= drawn.x - 1e-9,
+        "the drawn bounds reach the rotated probe: {drawn_box:?}"
     );
 
     // The pick answers there, and the HIT POINT comes back in world.
@@ -304,9 +303,9 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     let mut session = asm::open_bench(&bench, tol);
     let s = asm::POST_SECTION;
 
-    // Probe post_b — its world mate off, a loose space of its own, drawn
-    // where its pin stood it — then hide the probed instance.
-    asm::unpin(&mut session, bench.post_b);
+    // Probe post_b — in a space of its own, drawn where its pin stood
+    // it — then hide the probed instance.
+    let own = asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
@@ -342,7 +341,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         "hidden beats probed in the pick index too"
     );
     assert!(
-        session.display().free_move_of(bench.post_b).is_some(),
+        crate::common::asm::frame_of(&session, bench.post_b).is_some(),
         "hiding does not destroy the probe VALUE — only the picture"
     );
 
@@ -361,42 +360,36 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         "unhiding restores the probe's drawn marking"
     );
 
-    // Mate it onto the shelf, which the world mates: the mate puts it
-    // in the world's space, and the landing discards the probe and
-    // reports it.
+    // Mate it onto the shelf, in the world: the mate places it into
+    // the world, which empties its own space, and the edit discards the
+    // probe and reports it.
     let first = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::middle_seat_values(),
     ));
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
-    assert_eq!(first.committed.len(), 4, "the mate and its three values");
-    assert!(
-        first.withdrawn.superseded.is_empty(),
-        "the space is known at the landing, not at the edit"
+    assert_eq!(
+        first.committed.len(),
+        3,
+        "the re-target, the mate and its values"
     );
-    session.pump();
-    let [superseded] = &session
-        .take_landed_withdrawals()
-        .into_iter()
-        .flat_map(|report| report.superseded)
-        .collect::<Vec<_>>()[..]
-    else {
-        panic!("exactly one placement is superseded at the landing")
+    let [superseded] = &first.withdrawn.superseded[..] else {
+        panic!("exactly one frame is superseded at the edit")
     };
+    session.pump();
     assert_eq!(superseded.instance, bench.post_b);
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
+            AdmissionFault::NotShown { space, .. } if space.id() == own
         ),
         "and the report carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
          the right fault with the wrong instance: {}",
         superseded.cause
     );
-    assert!(session.display().free_move_of(bench.post_b).is_none());
+    assert!(crate::common::asm::frame_of(&session, bench.post_b).is_none());
 
     // A SECOND mate naming the same pair fixes the seating plane the
     // first already fixes: the edit door refuses it (the bundle rule),
@@ -404,7 +397,6 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     let second = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::middle_seat_values(),
     ));
     session.pump();
@@ -421,7 +413,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
 
     // Free-move now refuses on BOTH participants: the shelf lives in
     // the world's space, and post_b, mated onto it, in the world's
-    // space too. There is no loose space to move.
+    // space too. There is no other space to move.
     for participant in [bench.post_b, bench.shelf_i] {
         match session
             .perform(SessionOp::BeginFreeMove {
@@ -594,87 +586,19 @@ fn r1_save_as_rebinds_the_directory_and_the_rebind_re_resolves() {
     let _ = std::fs::remove_dir_all(&elsewhere);
 }
 
-// ── 5. The class table, and what a Tangent commit means ──────────
-
-/// The tool must never offer a class the doors will not execute, and
-/// the verdict it shows beside a committable-but-unassemblable class
-/// must be the kernel's own.
-///
-/// This row also PINS what a `Tangent` commit currently means, because
-/// nothing else does: the document evaluates green, and the A5 at-rest
-/// gate refuses it. If v1 later decides Tangent should refuse at the
-/// tool instead, this row is what goes red.
-#[test]
-fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() {
-    let tol = Tol::witness();
-    let classes = admitted_classes();
-    assert!(!classes.is_empty(), "the tool offers something");
-    for entry in &classes {
-        assert_eq!(
-            entry.admission,
-            class_admission(entry.class),
-            "the exposed verdict is the kernel's, for {}",
-            entry.class.name()
-        );
-        assert_ne!(
-            entry.admission,
-            ClassAdmission::NotAdmitted,
-            "the tool never offers a class the solve door refuses: {}",
-            entry.class.name()
-        );
-    }
-    assert!(
-        classes.iter().any(|e| e.class == ContactClass::Rest)
-            && classes.iter().any(|e| e.class == ContactClass::Tangent),
-        "both kernel-nameable classes are offered: {classes:?}"
-    );
-
-    // A committed Tangent: green document, refused assembly.
-    let bench = asm::bench("r1tangent", tol);
-    let mut session = asm::open_bench(&bench, tol);
-    // A Tangent mate commits, post_b's world mate off: the constraint
-    // door admits it.
-    asm::unpin(&mut session, bench.post_b);
-    common::commit_mate(
-        &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Tangent,
-            asm::middle_seat_values(),
-        ),
-    );
-    for row in session.tree_rows() {
-        assert_eq!(
-            row.status,
-            RowStatus::Ok,
-            "…and every tree row reads OK, which is the whole difficulty: {row:?}"
-        );
-    }
-    let (doc, eval) = session.landed_pair().expect("landed");
-    let text = match assemble(doc, eval, tol) {
-        Err(refusal) => refusal.to_string(),
-        Ok(_) => panic!("the at-rest gate must refuse a Tangent declaration"),
-    };
-    assert!(
-        text.contains("no at-rest kernel record"),
-        "the refusal is the class table's own: {text}"
-    );
-}
-
-// ── 6. The gesture's own edges ───────────────────────────────────
+// ── 5. The gesture's own edges ───────────────────────────────────
 
 /// The three edges of the display gesture nothing else covers: the
 /// out-of-order refusals, the bit-exact identity commit, and the
-/// in-flight gesture a landing mate kills.
+/// in-flight gesture a mate kills.
 #[test]
 fn r1_the_probe_gestures_order_and_identity_edges() {
     let tol = Tol::witness();
     let bench = asm::bench("r1edges", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b's world mate off: a loose space of its own, which the probe
-    // moves, and which the mate below places.
-    asm::unpin(&mut session, bench.post_b);
+    // post_b in a space of its own, which the probe moves, and which
+    // the mate below empties.
+    let own = asm::unpin(&mut session, bench.post_b);
 
     // Preview / commit / cancel with no gesture: typed, all three.
     for op in [
@@ -722,7 +646,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         instance: bench.post_a,
     });
     assert!(
-        session.display().free_move_of(bench.post_b).is_none(),
+        crate::common::asm::frame_of(&session, bench.post_b).is_none(),
         "an identity commit leaves no entry"
     );
     let index = asm::index_of(&session);
@@ -741,9 +665,9 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     // because nothing substituted for a placement the document was
     // never asked for. The fault that killed it travels with it, so
     // the chrome can say why instead of the user learning it by
-    // starting another gesture and reading that refusal. The mate's
-    // space is known when its evaluation lands, so the landing's prune
-    // is the one that kills it.
+    // starting another gesture and reading that refusal. The mate
+    // places post_b into the world, emptying the space the gesture
+    // moves, which the edit's own prune reads off the recipe.
     session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
@@ -754,18 +678,10 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     let outcome = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::middle_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(
-        outcome.withdrawn.killed_gesture.is_none(),
-        "the edit alone does not know the mate's space"
-    );
-    session.pump();
-    let [report] = &session.take_landed_withdrawals()[..] else {
-        panic!("the landing reports one withdrawal")
-    };
+    let report = &outcome.withdrawn;
     assert!(
         report.superseded.is_empty(),
         "an in-flight gesture's death is not a SUPERSESSION: nothing \
@@ -781,9 +697,9 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     assert!(
         matches!(
             &killed.cause,
-            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
+            AdmissionFault::NotShown { space, .. } if space.id() == own
         ),
-        "the cause is the landing mate's space, carried from the predicate \
+        "the cause is the space the mate emptied, carried from the predicate \
          that decided rather than re-derived: {}",
         killed.cause
     );
@@ -805,7 +721,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
     );
 }
 
-// ── 7. Two picks on one instance, through the real cursor path ───
+// ── 6. Two picks on one instance, through the real cursor path ───
 
 /// Both picks on ONE instance refuses at the tool, before any edit
 /// exists — driven through the cursor path rather than by re-feeding
@@ -853,7 +769,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     );
 }
 
-// ── 8. An instance a `Pattern` consumes ──────────────────────────
+// ── 7. An instance a `Pattern` consumes ──────────────────────────
 
 /// **Both G3 display operations reach an instance a `Pattern`
 /// consumes** (the fix-pass rule; this row pinned the silent no-op as
@@ -863,10 +779,10 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
 /// placements; `display::drawn_targets` resolves one to the other.
 /// Hiding a patterned instance therefore hides every placed copy of the
 /// pattern — the pattern replicates the instance, and the display fact
-/// is the instance's. A free-move moves the picture of a loose space
-/// (DI5), so probing the loose instance displaces and marks the
-/// instance's own copy, and not the pattern's: each of those is a
-/// placement pinned to the world, in the world's space. The `Pattern`
+/// is the instance's. A free-move moves the picture of a shown space
+/// (DI5); the instance's own space is read by the pattern's copies,
+/// which are placed into the world, so it is not shown and the probe
+/// refuses it, typed. The `Pattern`
 /// node itself still has no display identity (`NotAnInstance`), which
 /// is right: the instance is the thing with an identity a user hides or
 /// probes.
@@ -875,15 +791,15 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
 /// silent no-op was measured (`examples/r1_gallery_probe.rs`, which
 /// now asserts the propagated behaviour on the real gallery).
 #[test]
-fn r1_a_patterned_instance_hides_its_pattern_and_probes_its_own_space() {
+fn r1_a_patterned_instance_hides_its_pattern_and_its_space_is_not_shown() {
     let tol = Tol::witness();
     let bench = asm::bench("r1pattern", tol);
     let scope = std::collections::BTreeMap::new();
     let mut ws = Workspace::open(&bench.dir).expect("the store opens");
     let mut doc = ProfileDoc::empty(DocumentId::derive("r1-pattern-bench"), tol);
-    // A loose instance — no world mate — so its space is what the probe
-    // moves; loose, it is drawn at the part's own coordinates.
+    // An instance in a space of its own, which the pattern reads.
     let instance = common::insert_into(&mut doc, crate::fixture::mated_instance(bench.post), tol);
+    doc = crate::fixture::into_new_space(doc, instance).0;
     let pattern = common::insert_into(
         &mut doc,
         Node::Pattern {
@@ -985,45 +901,22 @@ fn r1_a_patterned_instance_hides_its_pattern_and_probes_its_own_space() {
         "unhiding restores every copy"
     );
 
-    // FREE-MOVE: eligible, committed, and the instance's loose space —
-    // its own copy — is drawn displaced and marked distinct under the
-    // probe frame.
+    // FREE-MOVE: the instance's own space is read by the pattern's
+    // copies, which are drawn in the world, so that space is not shown
+    // and the probe has nothing of its own to move — it refuses, typed,
+    // naming the space.
+    let space = session
+        .doc()
+        .node_space(instance)
+        .expect("the instance is placed");
     assert!(
-        viewer::display::free_move_check(session.doc(), session.space_evaluation(), instance)
-            .is_ok(),
-        "the patterned instance is a loose space"
-    );
-    session.perform(SessionOp::BeginFreeMove { instance });
-    session.perform(SessionOp::PreviewFreeMove {
-        instance,
-        frame: Frame::translation([0.5, 0.0, 0.0]),
-    });
-    assert!(
-        session
-            .perform(SessionOp::CommitFreeMove { instance })
-            .refusal
-            .is_none(),
-        "the probe commits"
-    );
-    assert!(
-        session.display().free_move_of(instance).is_some(),
-        "the state holds the probe value"
-    );
-    let probed = index.scene_for(&session.display_view()).expect("a scene");
-    assert_eq!(
-        probed.stats().probe_parts,
-        1,
-        "the instance, a placement of its own, is marked; the pattern's copies, \
-         pinned to the world, are not in its space"
-    );
-    assert!(
-        probed.flags().contains(&SceneMesh::FLAG_PROBE),
-        "…its corners carry the flag"
-    );
-    assert!(
-        probed.bounds().max_x > 0.5,
-        "…and the instance is DRAWN displaced by the probe: {:?}",
-        probed.bounds()
+        matches!(
+            session.perform(SessionOp::BeginFreeMove { instance }).refusal,
+            Some(Refusal::Display(DisplayFault::Admission(
+                AdmissionFault::NotShown { space: said, .. }
+            ))) if said.id() == space
+        ),
+        "the patterned instance's space is shown through the pattern's copies"
     );
 
     // The `Pattern` node itself refuses both: it is no instance.
@@ -1043,7 +936,7 @@ fn r1_a_patterned_instance_hides_its_pattern_and_probes_its_own_space() {
     );
 }
 
-// ── 9. A workspace with no parts at all ──────────────────────────
+// ── 8. A workspace with no parts at all ──────────────────────────
 
 /// An assembly whose store is empty: the open still SUCCEEDS (a
 /// document is not held hostage by its directory), and every instantiate

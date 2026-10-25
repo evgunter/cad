@@ -39,6 +39,8 @@
 //!   stay beside the role readers the shell rows run over them.
 
 use geom_core::{Affine3, Bounds, Decide, Point2, Point3, Tol, Vec3};
+use geom_core::{RigidMotion, Turns, UnitVec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use profile::{ProfileLoop, RawLoop};
 use sweep::ExtrudeSide;
@@ -296,12 +298,11 @@ pub fn lean_in_band(tol: Tol) -> f64 {
 
 /// [`leaning_turn`] at the scalar `T`: its corners read from `f64`.
 pub fn leaning_turn_at<T: Decide + Bounds + topo::AtRestPolicy>(s: f64) -> (Body<T>, [EdgeKey; 2]) {
-    let plane = sweep::test_support::sketch_from_axes(
+    let plane = SketchPlane::from_frame(RigidMotion::turned(
         Point3::new(0.0, 0.0, 0.0).map(T::from_f64),
-        geom_core::Vec3::new(1.0, 0.0, 0.0).map(T::from_f64),
-        geom_core::Vec3::new(0.0, 0.0, 1.0).map(T::from_f64),
-        Tol::witness(),
-    );
+        UnitVec3::exact_x(),
+        Turns::quarters(1),
+    ));
     let body = sweep::test_support::prism_on(
         plane,
         sweep::test_support::corners(&[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (s, 1.0)]),
@@ -359,26 +360,33 @@ pub fn parallelepiped(s: f64) -> Body<f64> {
 /// [`parallelepiped`] at the scalar `T`: its corners read from `f64`.
 pub fn parallelepiped_at<T: Decide + Bounds + topo::AtRestPolicy>(s: f64) -> Body<T> {
     let t = T::from_f64;
-    let z = geom_core::Vec3::new(t(0.0), t(0.0), t(1.0));
     let tol = Tol::witness();
     let along_y = sweep::test_support::prism_on(
-        sweep::test_support::sketch_from_axes(
+        SketchPlane::from_frame(RigidMotion::turned(
             Point3::new(t(0.0), t(3.5), t(0.0)),
-            geom_core::Vec3::new(t(1.0), t(0.0), t(0.0)),
-            z,
-            tol,
-        ),
+            UnitVec3::exact_x(),
+            Turns::quarters(1),
+        )),
         sweep::test_support::corners(&[(0.0, 0.0), (2.0, 0.0), (2.0 + s, 1.0), (s, 1.0)]),
         t(5.0),
         tol,
     );
     let (z0, z1) = (-0.5, 1.5);
+    // The plane of −ŷ and ẑ: the quarter turn about x̂ (sketch `v` up
+    // ẑ), turned a quarter turn back about ẑ.
     let along_x = sweep::test_support::prism_on(
-        sweep::test_support::sketch_from_axes(
-            Point3::new(t(3.5), t(0.0), t(0.0)),
-            geom_core::Vec3::new(t(0.0), t(-1.0), t(0.0)),
-            z,
-            tol,
+        SketchPlane::from_frame(
+            RigidMotion::turned(
+                Point3::new(t(3.5), t(0.0), t(0.0)),
+                UnitVec3::exact_z(),
+                Turns::quarters(-1),
+            )
+            .compose(RigidMotion::turned(
+                Point3::origin(),
+                UnitVec3::exact_x(),
+                Turns::quarters(1),
+            ))
+            .expect("a product of turns is finite"),
         ),
         sweep::test_support::corners(&[
             (-1.5 - s * z0, z0),

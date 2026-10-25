@@ -224,6 +224,40 @@ fn cylinder_chart_pcurve_fits_and_replays_deterministically() {
     );
 }
 
+/// **The fitted cylinder pcurve's values are the ellipse's chart
+/// coordinates**, named in the angle window (C4): at both ends of an
+/// arc whose start azimuth lies past `π`, which the window names as
+/// itself rather than a turn lower, the pcurve reads
+/// `geom::Surface::chart_point` of the carrier's end, its `u` advancing by the arc's span (the eccentric
+/// anomaly is the azimuth up to the seam offset).
+#[test]
+fn cylinder_chart_pcurve_reads_the_carriers_chart_coordinates() {
+    let e = section_ellipse(0.5);
+    let c = cyl();
+    let (t0, t1) = (3.5, 6.0);
+    let fit = ellipse_pcurve_on_cylinder(&e, &c, t0, t1, 3, 1e-6).unwrap();
+    let read = |t: f64| {
+        c.chart_point(e.eval(t), geom_core::predicate::Band::least())
+            .unwrap()
+            .uv
+    };
+    let (start, end) = (read(t0), read(t1));
+    assert!(
+        start.x > core::f64::consts::PI && start.x <= core::f64::consts::TAU - 1.0,
+        "[{t0}, {t1}]: start u {} is not the angle window's name past π",
+        start.x
+    );
+    let (a, b) = (fit.curve.eval(0.0), fit.curve.eval(1.0));
+    assert!(
+        (a.x - start.x).abs() < 2e-6 && (a.y - start.y).abs() < 2e-6,
+        "[{t0}, {t1}]: the pcurve starts at {a:?}, the carrier's chart point is {start:?}"
+    );
+    assert!(
+        (b.y - end.y).abs() < 2e-6 && ((b.x - a.x).abs() - (t1 - t0)).abs() < 4e-6,
+        "[{t0}, {t1}]: the pcurve ends at {b:?} from {a:?}, the carrier's chart point is {end:?}"
+    );
+}
+
 // ---------------------------------------------------------------------
 // §6: the ellipse evaluator differential vs the exact
 // rational-quadratic NURBS form (test-side oracle; the export form

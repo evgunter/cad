@@ -109,12 +109,14 @@ fn an_open_margin_says_whether_it_keeps_an_opaque_atom() {
     );
 }
 
-/// **A form too big for the budget is no opaque value.** `xy + yz + zx
-/// − 3` at `x = y = z = 1` decides Zero by value; at a budget of two
-/// terms its form freezes, so it does not discharge, and what keeps it
-/// open is a frozen form over the parameters alone, not a value
-/// computed apart from them, though the session holds an opaque value
-/// elsewhere. Reds if a frozen node reads as opaque.
+/// **A form too big for the budget is no opaque value, and says the
+/// budget.** `xy + yz + zx − 3` at `x = y = z = 1` decides Zero by
+/// value; at a budget of two terms its form freezes, so it does not
+/// discharge, and what keeps it open is a frozen form over the
+/// parameters alone, not a value computed apart from them, though the
+/// session holds an opaque value elsewhere. Reds if a frozen node reads
+/// as opaque, or as a form read whole (`x − y` above is one, and says
+/// `Otherwise`).
 #[test]
 fn a_frozen_form_over_the_parameters_keeps_no_opaque_atom() {
     let tight = SymBudget {
@@ -126,6 +128,23 @@ fn a_frozen_form_over_the_parameters_keeps_no_opaque_atom() {
         let (x, y, z) = (p("x", 1.0), p("y", 1.0), p("z", 1.0));
         let three = <Sym<f64> as geom_core::Real>::from_f64(3.0);
         let frozen = zero(x * y + y * z + z * x - three);
+        discharge_or_why(frozen)
+    });
+    assert_eq!(got, Err(Undischarged::OverTheBudget));
+}
+
+/// **A form the ring's guards freeze is not over the budget.**
+/// `x·c⁸ − y·c⁸` at `x = y = 1`, `c = 0.1`, decides Zero by value; the
+/// products' coefficients outgrow the ring's coefficient bound well
+/// inside a generous term budget, so the form freezes and does not
+/// discharge, and what keeps it open is no budget a larger one would
+/// read past. Reds if a guard's freeze reads as the budget's.
+#[test]
+fn a_form_the_rings_guards_freeze_is_not_over_the_budget() {
+    let (got, _) = with_deferred_session(budget(), SymRules::shipped(), SymRetry::none(), || {
+        let c = || <Sym<f64> as geom_core::Real>::from_f64(0.1);
+        let scaled = |v: Sym<f64>| (0..8).fold(v, |acc, _| acc * c());
+        let frozen = zero(scaled(p("x", 1.0)) - scaled(p("y", 1.0)));
         discharge_or_why(frozen)
     });
     assert_eq!(got, Err(Undischarged::Otherwise));

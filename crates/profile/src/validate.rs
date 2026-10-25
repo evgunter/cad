@@ -196,17 +196,18 @@ use geom_core::{
     )
 )]
 pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or author the \
-     arc with a smaller radius (a flatter arc stores its centre farther out); a coarser tolerance \
-     also reads it";
+     arc with a smaller radius (a flatter arc stores its centre farther out)";
 
 /// The recourse of an undecided read in the path door's read-back of a
 /// constructed arc (`seg::read_back_arc`): the read sits inside the
-/// band, which a coarser tolerance clears; at a magnitude the scene
-/// resolves, a construction should land well inside ε, so it may be a
-/// kernel defect.
-pub(crate) const ARC_READ_BACK_UNDECIDED_RECOURSE: &str = "a coarser tolerance reads it, and so \
-     may moving the profile nearer the origin; where the scene resolves this size, an arc the \
-     path built should not miss by it, so report it as a possible kernel defect";
+/// band. Moving the profile nearer the origin shrinks the scale the read
+/// resolves at, and at a magnitude the scene resolves a construction
+/// should land well inside ε, so it may be a kernel defect. It names no
+/// tolerance: it has a geometry lever, so D4 ¶1 (i)'s last resort does
+/// not apply (`docs/DESIGN.md`, `[tolerance.recourse]`).
+pub(crate) const ARC_READ_BACK_UNDECIDED_RECOURSE: &str = "move the profile nearer the origin; \
+     where the scene resolves this size, an arc the path built should not miss by it, so report \
+     it as a possible kernel defect";
 
 /// The lever at a junction whose turn is undecided, and at one that is
 /// definitely tangent ([`crate::PathError::JunctionTangent`]):
@@ -847,6 +848,21 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "chord_side",
         kind: EndingKind::Sized,
     },
+    // a segment end's distance from a circle's centre less its radius, charged
+    DecisionEnding {
+        name: "circle_end_clear",
+        kind: EndingKind::Sized,
+    },
+    // how far a computed extreme of an arc's circle lies off its span, charged
+    DecisionEnding {
+        name: "circle_extreme_past_arc",
+        kind: EndingKind::Sized,
+    },
+    // how far a circle centre's computed foot lies off a segment's span, charged
+    DecisionEnding {
+        name: "circle_foot_past_segment",
+        kind: EndingKind::Sized,
+    },
     // which side of an arc's carrier circle a point lies on, as its distance from the centre
     // less the radius
     DecisionEnding {
@@ -1190,6 +1206,13 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "carrier_circles_internal" => "whether two circles touch from inside",
         "carrier_line_circle" => "whether a line and a circle cross, touch or miss",
         "chord_side" => "which side of a chord a point lies on",
+        "circle_end_clear" => "whether a segment's end lies definitely off a circle",
+        "circle_extreme_past_arc" => {
+            "whether an arc's point nearest or farthest from another circle's centre lies off it"
+        }
+        "circle_foot_past_segment" => {
+            "whether a circle's centre's foot on a line lies off the line's segment"
+        }
         "circle_side" => "which side of an arc's circle a point lies on",
         "collinear_overlap" => "whether two segments on one line overlap",
         "contact_at_shared_vertex" => "whether a contact point is a loop vertex",
@@ -2766,7 +2789,11 @@ pub(crate) fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
         }
     }
 
-    let outcome = seg::pair_contacts(&loop_segs[li][si], &loop_segs[lj][sj], band)
+    let shared_end = match shared[..] {
+        [v] => Some(v),
+        _ => None,
+    };
+    let outcome = seg::pair_contacts(&loop_segs[li][si], &loop_segs[lj][sj], shared_end, band)
         .map_err(|source| ProfileError::Escalated { site, source })?;
     let contacts = match outcome {
         PairOutcome::Overlap => {

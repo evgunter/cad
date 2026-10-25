@@ -108,7 +108,7 @@ fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let outer = body.get_face(face).unwrap().outer;
     let pts = loop_probe_points(body, outer);
     let Surface::Plane { normal, .. } =
-        newell_plane(&pts, Band::linear(Tol::witness()).unwrap()).unwrap()
+        newell_plane(&pts, pts[1] - pts[0], Band::linear(Tol::witness()).unwrap()).unwrap()
     else {
         panic!("newell returns a plane");
     };

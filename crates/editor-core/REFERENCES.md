@@ -173,6 +173,11 @@ one body by another and is the one pair: difference neither commutes nor
 associates, and nothing is a unary "not", so its two seats are named, and
 several tools are `Subtract { from: a, tool: Union([tools…]) }`, the one
 way to say it. There is no `Boolean { op, a, b }` and no `BooleanOp`.
+`Node::Assemble { members }` is the fourth operator, a list like a
+union's: it keeps its members as separate pieces, glues nothing,
+records each touch between two members and reports an overlap as an
+interference finding, and it is the at-rest census's door (DESIGN
+[operations.operators], [assertions]).
 
 A union or an intersect takes one argument of kind `Bodies` (D10). A
 `Bodies` is defined by index or by enumeration. By index it is a family:
@@ -334,11 +339,16 @@ by the identity beside `A`), and the operation answers both alike:
   A` and `A ∩ A` are `A`; each glued row is `Merged` of a set whose
   elements are one name, which is that name (N3).
 - **Subtract.** `A − A` is the typed empty result.
+- **Assemble.** `A ⊔ A` is two coincident pieces, an interference
+  finding.
 - **Loft.** A section listed twice is degenerate geometry, refused by the
   loft at evaluation.
 
-Two outputs of one operation are two variables, so a union of a split's two
-halves, or a revolve's body patterned about its own axis port, reads two
+A meeting one operand already decided (two of its own cells touching)
+is that operand's record, carried, and no operator above it judges it
+again (DESIGN [coincidence.booleans]). Two outputs of one operation
+are two variables, so a union of a split's two halves, or a revolve's
+body patterned about its own axis port, reads two
 things and names them apart (DM4). Two indexed reads `xs[i]` and
 `xs[j]` landing on one member at the current values are the repeated read
 of that member, answered the same way. The alternatives are not taken:

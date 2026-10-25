@@ -109,7 +109,7 @@ fn wedge_of(angle: f64, r: f64, h: f64) -> Body<f64> {
 #[test]
 fn r1p1_a_bulged_box_is_axial_and_hollows_to_its_closed_form() {
     let tol = Tol::witness();
-    let body = bulged_box();
+    let body = topo::test_support::finished("body", bulged_box(), tol);
     assert!(
         topo::is_axial(&body, band()).expect("the axis gate decides"),
         "planes parallel and normal to the cylinder's axis are axial"
@@ -125,17 +125,26 @@ fn r1p1_a_bulged_box_is_axial_and_hollows_to_its_closed_form() {
         outer * DEPTH
     );
     let want = outer * DEPTH - inner * (DEPTH - 2.0 * T);
-    let hollow = topo::shell(&finished("the operand", body.clone(), tol), T, tol)
-        .unwrap_or_else(|e| panic!("the bulged box hollows: {e:?}"))
-        .body;
+    let hollow = topo::shell(
+        &finished("the operand", topo::Body::clone(&body.clone()), tol),
+        T,
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the bulged box hollows: {e:?}"))
+    .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
-    let got = topo::mass_properties(&hollow, tol).expect("props").volume;
+    let got = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+        tol,
+    )
+    .expect("props")
+    .volume;
     println!("[r1p1] bulged box hollow: {got}, closed form {want}");
     assert!((got - want).abs() <= 1e-15, "hollow {got}, want {want}");
 
     // The door called directly: the cavity's charts, every one moved.
     let moves = moves_by(charts(&body), -T);
-    let mut work = body.clone();
+    let mut work = topo::Body::clone(&body);
     topo::offset_charts_together(&mut work, &moves, band(), tol)
         .unwrap_or_else(|e| panic!("the axial door takes the bulged box: {e:?}"));
     assert_eq!(
@@ -143,7 +152,12 @@ fn r1p1_a_bulged_box_is_axial_and_hollows_to_its_closed_form() {
         Ok(()),
         "the door's tier 3"
     );
-    let cavity = topo::mass_properties(&work, tol).expect("props").volume;
+    let cavity = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&work), tol),
+        tol,
+    )
+    .expect("props")
+    .volume;
     let shrunk = inner * (DEPTH - 2.0 * T);
     assert!(
         (cavity - shrunk).abs() <= 1e-15,
@@ -164,15 +178,27 @@ fn r1p2_a_sliver_wedge_with_no_cavity_must_refuse() {
     let tol = Tol::witness();
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
     for angle in [0.3, 0.45, core::f64::consts::FRAC_PI_2] {
-        let body = wedge_of(angle, r, h);
+        let body = topo::test_support::finished("body", wedge_of(angle, r, h), tol);
         let cross = T / (angle / 2.0).sin();
         println!(
             "[r1p2] angle {angle}: moved meridians cross at rho {cross:.6}, wall at {:.6}",
             r - T
         );
-        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
+        match topo::shell(
+            &finished("the operand", topo::Body::clone(&body.clone()), tol),
+            T,
+            tol,
+        ) {
             Ok(topo::Shelled { body: hollow, .. }) => {
-                let props = topo::mass_properties(&hollow, tol).expect("props");
+                let props = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&hollow),
+                        tol,
+                    ),
+                    tol,
+                )
+                .expect("props");
                 let outer = topo::mass_properties(&body, tol).expect("props").volume;
                 println!(
                     "[r1p2] angle {angle}: HOLLOWS, wall volume {} of outer {outer}",

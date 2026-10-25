@@ -55,7 +55,6 @@ from pncad import (
     FreeValue,
     FreeVar,
     Frame,
-    Mate,
     MateValue,
     Node,
     Open,
@@ -69,6 +68,8 @@ from pncad import (
     run_checks,
     subject_body,
 )
+
+from placing import against
 from test_assembly_eval import identities, opened
 
 
@@ -91,7 +92,7 @@ def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0, on=None):
     if on is None:
         assert z0 == 0.0, "a box standing alone sits on its own xy"
         return body
-    return doc.place_against(on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
+    return against(doc, on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
 
 
 def disjoint_union():
@@ -101,22 +102,22 @@ def disjoint_union():
     doc = Doc("checks-disjoint")
     a = slab(doc, 0.0, 1.0)
     b = slab(doc, 3.0, 4.0, on=a)
-    placed = doc.place(doc.insert(Node.union([a, b])))
+    placed = doc.place(doc.insert(Node.union([a, b])), doc.world)
     return doc, placed, a
 
 
 def one_box():
     """One box, placed; answers its placement."""
     doc = Doc("checks-connected")
-    return doc, doc.place(slab(doc, 0.0, 1.0))
+    return doc, doc.place(slab(doc, 0.0, 1.0), doc.world)
 
 
 def two_placed(x0):
     """Two boxes, each placed — the document's product gathers both.
     Answers the two placements."""
     doc = Doc("checks-two-placed")
-    first = doc.place(slab(doc, 0.0, 1.0))
-    return doc, first, doc.place(slab(doc, x0, x0 + 1.0))
+    first = doc.place(slab(doc, 0.0, 1.0), doc.world)
+    return doc, first, doc.place(slab(doc, x0, x0 + 1.0), doc.world)
 
 
 class TestTheConnectednessResident(unittest.TestCase):
@@ -313,8 +314,8 @@ class TestTheRegistryVocabulary(unittest.TestCase):
 
         def checked(seed, text):
             doc = Doc(seed)
-            first = doc.place(slab(doc, 0.0, 1.0))
-            doc.place(slab(doc, 0.5, 1.5))
+            first = doc.place(slab(doc, 0.0, 1.0), doc.world)
+            doc.place(slab(doc, 0.5, 1.5), doc.world)
             doc.apply(DocEdit.set_label(first, text))
             report = run_checks(doc, evaluate(doc))
             return first, report
@@ -407,9 +408,8 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         ident = identities()["stand"]
         doc = Doc("checks-instantiated-assembly")
         instance = doc.insert(
-            Node.instantiate_part(DocRef(ident, store.current_pin(ident)))
+            Node.instantiate_part(DocRef(ident, store.current_pin(ident)), doc.world)
         )
-        doc.pin(instance, resolver=store)
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):
@@ -456,22 +456,26 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         reporting over what did evaluate."""
         doc = Doc("checks-sliver")
         a = slab(doc, 0.0, 1.0)
-        # Placed while it builds — the gesture reads the union's faces —
-        # 0.5 m beside the first along x, by a value reading `apart`;
-        # then `apart` closes the gap to 2 nm: in band, so the union
-        # refuses.
+        # Placed 0.5 m beside the first along x, by a value reading
+        # `apart`; then `apart` closes the gap to 2 nm: in band, so the
+        # union refuses.
         doc.apply(DocEdit.declare_var(VarName("apart"), FreeVar.length(1.5 * m)))
-        b = doc.place_against(a, slab(doc, 0.0, 1.0), Frame.translation((1.5 * m, 0 * m, 0 * m)))
-        ((mate, _),) = [(r, c) for r, c in doc.bundle(b) if isinstance(c, Mate)]
-        ((slide, _),) = [
-            (r, c)
-            for r, c in doc.bundle(b)
-            if isinstance(c, MateValue) and c.coord == Coord.slide("x")
-        ]
-        doc.apply(DocEdit.remove_constraint(slide))
-        doc.add_value(mate, Coord.slide("x"), doc.var(VarName("apart")))
+        b = against(doc, a, slab(doc, 0.0, 1.0), Frame.translation((1.5 * m, 0 * m, 0 * m)))
+        # The bundle written again whole, its slide along `x` reading
+        # `apart`.
+        values = [c for _, c in doc.bundle(b)]
+        doc.set_constraints(
+            b,
+            [
+                MateValue(
+                    c.coord,
+                    doc.var(VarName("apart")) if c.coord == Coord.slide("x") else c.by,
+                )
+                for c in values
+            ],
+        )
         union = doc.insert(Node.union([a, b]))
-        root = doc.place(union)
+        root = doc.place(union, doc.world)
         self.assertAlmostEqual(
             evaluate(doc).value(union).body().mass_properties().volume, 2.0, places=9
         )
@@ -512,7 +516,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertIsNone(row.rung)
         self.assertEqual(
             row.residual,
-            "the two cells are two constructions, placed apart; with every variable a symbol, "
+            "the two cells are two constructions, placed or reflected apart; with every variable a symbol, "
             "neither the carriers' verdict nor the deciding margin is shown "
             "identically zero within the door's budget",
         )

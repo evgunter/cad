@@ -798,7 +798,7 @@ fn split_and_inline_carry_readers_by_id() {
     let host = ProfileDoc::empty(DocumentId::derive("intent-vars-3-host"), Tol::witness());
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     let inlined = inline(
@@ -913,8 +913,13 @@ fn an_unread_definition_moves_with_what_it_reads_and_comes_back() {
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())
         .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
     let (nodes, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
-        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+    same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &nodes,
+        &steps,
+    )
+    .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
 }
 
 /// `k = w + j`, read by nothing, with `w` read only by the cut and `j`
@@ -983,8 +988,13 @@ fn a_chain_of_definitions_moves_whole_and_comes_back() {
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())
         .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
     let (nodes, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
-        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+    same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &nodes,
+        &steps,
+    )
+    .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
 }
 
 /// `k = w + u` read by nothing, with `w` read only by the cut and `u`
@@ -1013,8 +1023,13 @@ fn a_free_variable_tied_to_a_moving_definition_moves_with_it() {
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())
         .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
     let (nodes, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
-        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+    same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &nodes,
+        &steps,
+    )
+    .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
 }
 
 /// `k = w + z` read by nothing, `w` read only by the cut and `z`
@@ -1100,8 +1115,13 @@ fn a_named_definition_reading_the_depth_comes_back() {
     let back = inline(&out.remainder, out.instance, &store, Tol::witness())
         .unwrap_or_else(|e| panic!("the round trip inlines: {e}"));
     let (nodes, steps) = composed(&doc, &out, &back);
-    same_up_to_ids(&doc, &back.doc, &nodes, &steps)
-        .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
+    same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &nodes,
+        &steps,
+    )
+    .unwrap_or_else(|problems| panic!("inline(split(d)) is d up to ids:\n{problems}"));
 }
 
 /// The round-trip comparator is not blind to variables: a document
@@ -1264,7 +1284,7 @@ fn inline_repoints_readers_at_the_hosts_ids() {
     let host = declare(&host, "pad", 1.0);
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &editor_core::EvalOptions {
             resolver: Some(store.clone()),
             ..editor_core::EvalOptions::default()
@@ -1310,7 +1330,7 @@ fn an_equal_valued_name_the_host_holds_refuses() {
     );
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &editor_core::EvalOptions {
             resolver: Some(store.clone()),
             ..editor_core::EvalOptions::default()
@@ -1363,7 +1383,7 @@ fn inline_carries_an_anonymous_variable_whole() {
     );
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &editor_core::EvalOptions {
             resolver: Some(store.clone()),
             ..editor_core::EvalOptions::default()
@@ -1454,7 +1474,7 @@ fn split_and_inline_declare_in_declaration_order() {
     );
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     let inlined = inline(
@@ -1514,7 +1534,7 @@ fn a_reader_of_a_deleted_variable_does_not_cross_a_cut() {
     );
     // The instance stands nowhere: its part does not evaluate, and the
     // inline refuses before it reads a placement.
-    let (host, instance) = insert(host, Node::instantiate_part(doc_ref_dead));
+    let (host, instance) = insert(host, crate::fixture::mated_instance(doc_ref_dead));
     match inline(
         &host,
         instance,

@@ -354,7 +354,7 @@ fn step_chain() -> Vec<(f64, f64, f64)> {
 /// **A segment's end in band of another's carrier but past its end
 /// along it is no contact, whichever way the loop is authored** (the
 /// line×line row of
-/// `paths/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// `profile/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
 /// The step fixture validates as authored; re-seamed to start at
 /// `(4, 2)`, where the in-band pair is read with the vertical segment
 /// first and its own axis puts the gap at `b`, in band; and reversed. In
@@ -537,22 +537,133 @@ fn a_loop_returning_to_a_vertex_along_a_straight_continuation_touches() {
     }
 }
 
-/// **An adjacent pair through a joint straight within the band still
-/// escalates.** [`straight_joint_at_start`] as the review wrote it
-/// (`1.8ε`): segment 0 and the closing leg share `Start`, their far ends
-/// stand in band of each other's carrier, and their projections touch
-/// at the shared vertex, so neither the gap nor a carrier side decides
-/// the pair, and it escalates `SegmentPair(0, 5)` on `chord_side`. Its
-/// only possible contact is that vertex
-/// (`paths/an-adjacent-pair-through-a-joint-straight-within-the-band-escalates-on-chord-side`).
+/// **An adjacent pair through a joint straight within the band touches
+/// only at the vertex it shares.** [`straight_joint_at_start`] as the
+/// review wrote it (`1.8ε`): segment 0 and the closing leg share
+/// `Start`, their far ends stand in band of each other's carrier, and
+/// their projections touch at the shared vertex, so neither the gap nor a
+/// carrier side decides the pair, and `line_line` escalates on
+/// `chord_side`. Their overlap along segment 0 is within the band, so
+/// every point they share is within the band of `Start`, which the
+/// adjacency discount reads, and the pair pass reads no contact. What
+/// escalates is the joint at `Start` (`SegmentPair(5, 0)`), straight
+/// within the band, as at `0.9ε`
+/// ([`a_run_end_in_band_of_a_carrier_past_its_segment_is_no_contact`]).
 #[test]
-fn an_adjacent_pair_through_a_joint_straight_within_the_band_escalates() {
+fn an_adjacent_pair_through_a_joint_straight_within_the_band_escalates_only_at_its_joint() {
     match validate_both(&straight_joint_at_start(1.8)) {
         Err(ProfileError::Escalated { site, source }) => {
-            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 5)));
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 5), sref(0, 0)));
             assert_eq!(source.predicate, Some("chord_side"));
         }
-        other => panic!("the straight joint at Start must escalate, got {other:?}"),
+        other => panic!("only the joint at Start may escalate, got {other:?}"),
+    }
+}
+
+/// A short closing leg arriving at `(0, 0)` from `(−0.1, h)`: the loop
+/// `(0,0) (1,0) (1,1) (−0.1,1) (−0.1,h)`. With `h` in band, the closing
+/// leg's far end stands in band of segment 0's carrier while `(1, 0)`
+/// stands `10·h` off the leg's, definitely, so the joint at `(0, 0)` is a
+/// corner and the pair's sides decide nothing.
+fn short_leg_into_a_corner(h: f64) -> profile::Profile<f64> {
+    profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+        (-0.1, 1.0, 0.0),
+        (-0.1, h, 0.0),
+    ])])
+}
+
+/// **An adjacent pair whose side reads in band escalates at its joint,
+/// not as a pair.** [`short_leg_into_a_corner`] at `in_band()`, and
+/// re-seamed to start at the leg's far end, so the short leg is the
+/// pair's first segment and the overlap is read along it. On main the
+/// pair escalated on `chord_side`. Its overlap is within the band, so the
+/// pair pass reads no contact, and the joint at `(0, 0)` escalates on
+/// `path_junction_turn`: the turn levered by the shorter leg is the same
+/// in-band displacement the leg's far end stands off segment 0's carrier.
+#[test]
+fn an_adjacent_pair_with_an_in_band_side_escalates_at_its_joint() {
+    let h = in_band();
+    let short_first = profile(vec![chain(&[
+        (-0.1, h, 0.0),
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+        (-0.1, 1.0, 0.0),
+    ])]);
+    for (name, p, joint) in [
+        ("the corner first", short_leg_into_a_corner(h), (4, 0)),
+        ("the short leg first", short_first, (0, 1)),
+    ] {
+        match validate_both(&p) {
+            Err(ProfileError::Escalated { site, source }) => {
+                assert_eq!(
+                    site,
+                    EscalationSite::SegmentPair(sref(0, joint.0), sref(0, joint.1)),
+                    "{name}"
+                );
+                assert_eq!(source.predicate, Some("path_junction_turn"), "{name}");
+            }
+            other => panic!("{name}: only the joint may escalate, got {other:?}"),
+        }
+    }
+}
+
+/// **A pair that shares no vertex still escalates on an in-band side.**
+/// The square `(0,0) (1,0) (1,−1) (0,−1)` and a triangle whose first edge
+/// starts half the band's zero past the square's `(1, 0)` and runs on to
+/// `(3, h)`, `h` in band: the two edges' projections touch within the
+/// band, and their sides read in band. The shared-end touch is the
+/// adjacent pair's, read at a vertex both segments store, so this pair,
+/// across two loops, escalates as before.
+#[test]
+fn a_pair_sharing_no_vertex_still_escalates_on_an_in_band_side() {
+    let t = tol().get();
+    let p = profile(vec![
+        chain(&[
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (1.0, -1.0, 0.0),
+            (0.0, -1.0, 0.0),
+        ]),
+        chain(&[
+            (1.0 + 0.5 * t.eps, 0.0, 0.0),
+            (3.0, in_band(), 0.0),
+            (2.0, 1.0, 0.0),
+        ]),
+    ]);
+    match err(&p) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(1, 0)));
+            assert_eq!(source.predicate, Some("chord_side"));
+        }
+        other => panic!("the pair across two loops must escalate, got {other:?}"),
+    }
+}
+
+/// **A crossing the pass reads after an adjacent pair's in-band side is
+/// the refusal.** `(0,0) (1,0) (1,1) (1.2,0.5) (−0.1,h)`, `h` in band:
+/// the closing leg and segment 0 meet only at `(0, 0)`, read before the
+/// crossing of segments 1 and 3 in pass order. On main the pair
+/// escalated on `chord_side` and the crossing went unread.
+#[test]
+fn a_crossing_after_an_adjacent_pairs_in_band_side_refuses() {
+    let p = profile(vec![chain(&[
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, 1.0, 0.0),
+        (1.2, 0.5, 0.0),
+        (-0.1, in_band(), 0.0),
+    ])]);
+    match err(&p) {
+        ProfileError::NonSimple {
+            first,
+            second,
+            kind: ContactKind::Crossing,
+        } => assert_eq!((first, second), (sref(0, 1), sref(0, 3))),
+        other => panic!("segments 1 and 3 cross, got {other:?}"),
     }
 }
 
@@ -590,6 +701,138 @@ fn an_in_band_line_circle_clearance_escalates_only_where_the_arc_holds_the_graze
     with_arc(1.0 / sagging)
         .validate(tol())
         .expect("the arc off the graze is clear of the line");
+}
+
+/// The in-band height the rows below place a carrier clearance at:
+/// half way across the band, `ε·(1 + K)/2`.
+fn in_band() -> f64 {
+    let t = tol().get();
+    t.eps * ((1.0 + t.k) / 2.0)
+}
+
+/// **A line that ends short of an in-band graze is no contact** (the
+/// line×circle row of
+/// `profile/validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+/// The major arc from `(3, 3)` to `(1, 3)` dips to an in-band height
+/// above `y = 0` at `x = 2`; the line along `y = 0` ends at `x = 1`,
+/// about `0.28` m from it. On main the pair pass escalated
+/// `SegmentPair(0, 6)` on `carrier_line_circle`: the arc holds the
+/// graze, so the arc's side cannot clear it. The line's side does: the
+/// centre's foot `(2, 0)` is past the line's end, and both its ends are
+/// outside the circle. The loop validates, at `f64` and `Interval`.
+#[test]
+fn a_line_ending_short_of_an_in_band_graze_is_no_contact() {
+    let b = in_band();
+    let p = profile(vec![chain(&[
+        (-1.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        (1.0, -1.0, 0.0),
+        (5.0, -1.0, 0.0),
+        (5.0, 5.0, 0.0),
+        (3.0, 5.0, 0.0),
+        (3.0, 3.0, -(3.0 - b)),
+        (1.0, 3.0, 0.0),
+        (-1.0, 3.0, 0.0),
+    ])]);
+    validate_both(&p).expect("the line ends a metre short of the graze");
+}
+
+/// Two half-disc holes in a square, whose circles, of radius 1 about
+/// `(0, 0)` and `(2 + gap, 0)`, are externally tangent within the band
+/// at `(1, 0)`: `facing` puts each arc on the side toward the other
+/// (through the near-tangency), otherwise each is on its far side.
+fn half_discs_outside(gap: f64, facing: bool) -> profile::Profile<f64> {
+    let x = 2.0 + gap;
+    let bulge = if facing { -1.0 } else { 1.0 };
+    profile(vec![
+        rect(-5.0, -5.0, 10.0, 10.0),
+        chain(&[(0.0, 1.0, bulge), (0.0, -1.0, 0.0)]),
+        chain(&[(x, -1.0, 0.0), (x, 1.0, -bulge)]),
+    ])
+}
+
+/// **Arcs on the far sides of an in-band external tangency are no
+/// contact** (the arc×arc row of the item above). The circles' external
+/// clearance is in band, and on main the pass escalated
+/// `SegmentPair((0, 0), (1, 1))` on `carrier_circles_external`, though
+/// the arcs stand two metres apart. Each arc excludes its point facing
+/// the other centre, and its ends lie outside the other circle, so the
+/// pair validates, at `f64` and `Interval`.
+#[test]
+fn arcs_away_from_an_in_band_external_tangency_are_no_contact() {
+    validate_both(&half_discs_outside(in_band(), false)).expect("the arcs stand two metres apart");
+}
+
+/// **One arc away from an in-band external tangency is enough.** As
+/// [`arcs_away_from_an_in_band_external_tangency_are_no_contact`], but
+/// the second hole's arc faces the near-tangency at `(1, 0)`, so only the
+/// first arc is clear of the other's circle, and that suffices: the pair
+/// validates, where reading only the second arc's certificate would
+/// escalate `SegmentPair((1, 0), (2, 1))` (the FULL review's witness,
+/// PR 5552).
+#[test]
+fn one_arc_away_from_an_in_band_external_tangency_is_no_contact() {
+    let x = 2.0 + in_band();
+    let p = profile(vec![
+        rect(-5.0, -5.0, 10.0, 10.0),
+        chain(&[(0.0, 1.0, 1.0), (0.0, -1.0, 0.0)]),
+        chain(&[(x, -1.0, 0.0), (x, 1.0, 1.0)]),
+    ]);
+    validate_both(&p).expect("the first arc stands a metre and more from the second circle");
+}
+
+/// **Arcs that face an in-band external tangency still escalate.** The
+/// control for the row above: each arc holds the near-tangency at
+/// `(1, 0)`, so neither is clear of the other's circle, and the
+/// clearance's in-band reading is the pair's verdict.
+#[test]
+fn arcs_facing_an_in_band_external_tangency_escalate() {
+    match err(&half_discs_outside(in_band(), true)) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(1, 0), sref(2, 1)));
+            assert_eq!(source.predicate, Some("carrier_circles_external"));
+        }
+        other => panic!("the facing arcs must escalate, got {other:?}"),
+    }
+}
+
+/// A circle of radius 1 about `(1 + gap, 0)` inside one of radius 2
+/// about the origin, internally tangent within the band at `(2, 0)`.
+/// The small one's half-disc, its arc through `(gap, 0)` away from the
+/// tangency, as a hole: in the big circle's segment right of `x = −1`
+/// (`outer_holds`, its arc through the tangency), or in a square beside
+/// the big circle's cap left of `x = −1` (its arc through `(−2, 0)`).
+fn half_discs_inside(gap: f64, outer_holds: bool) -> profile::Profile<f64> {
+    let x = 1.0 + gap;
+    let hole = chain(&[(x, 1.0, 1.0), (x, -1.0, 0.0)]);
+    let h = 3f64.sqrt();
+    if outer_holds {
+        // Sagitta 3 on half-chord √3.
+        profile(vec![chain(&[(-1.0, -h, h), (-1.0, h, 0.0)]), hole])
+    } else {
+        // Sagitta 1 on half-chord √3.
+        let cap = chain(&[(-1.0, h, 1.0 / h), (-1.0, -h, 0.0)]);
+        profile(vec![rect(-5.0, -5.0, 10.0, 10.0), cap, hole])
+    }
+}
+
+/// **Arcs away from an in-band internal tangency are no contact** (the
+/// item's arc×arc row, its internal sibling). The internal clearance is
+/// in band, and on main the pass escalated on
+/// `carrier_circles_internal`. Where the big arc holds the tangency,
+/// the small arc clears it from inside: it excludes its point farthest
+/// from the big centre, and its ends lie inside the big circle. Where
+/// neither holds it, the big arc clears it from outside. Both validate,
+/// at `f64` and `Interval`.
+#[test]
+fn arcs_away_from_an_in_band_internal_tangency_are_no_contact() {
+    for outer_holds in [true, false] {
+        validate_both(&half_discs_inside(in_band(), outer_holds)).unwrap_or_else(|e| {
+            panic!(
+                "the small arc keeps a metre off the tangency (outer_holds {outer_holds}): {e:?}"
+            )
+        });
+    }
 }
 
 /// Two holes in a square, one touching the other at a vertex that both

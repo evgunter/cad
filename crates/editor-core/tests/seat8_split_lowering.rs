@@ -337,7 +337,7 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// a turn written as a fraction of a turn takes its sine and cosine from
 /// the fraction, so its revolve's heading `turn/4` puts the axis on the
 /// profile's `y` exactly; its revolve stands upright by a bundle with no
-/// mate spun `turn/4` (`fixture::upright_at`) where `place_at` wrote an
+/// mate spun `turn/4` (`fixture::upright_at`) where the retired place-at helper wrote an
 /// `Axis` mate onto a world read spun by turns read off by `atan2`; and
 /// its split's plane and its circular pattern's axis are read off its
 /// faces (`fixture::plane_on`, `axis_on`) where they were frames moved by
@@ -350,13 +350,27 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// crossing line with the read it came in through, and in D a later
 /// operand is a placed copy, so the names it spells moved under both
 /// changes and the value is neither tree's. No other row moved.
+///
+/// RE-BLESSED, every row, for a minted reference that comes from the
+/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
+/// cap now takes from the sketch's `x` axis and an extruded wall from
+/// its segment, where `orthonormal_basis` picked it off the axes. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x4a6a_99bb_d540_29d3u64),
-        ("part_select", 0x60d5_4797_17cb_f087),
-        ("kitchen_sink", 0x9050_359e_8f31_a962),
+        ("cut_cylinder", 0xa204_ea8f_4f36_b852_u64),
+        ("part_select", 0x096a_b0ce_20a4_aa88),
+        ("kitchen_sink", 0x99b3_96f7_8787_0655),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -474,6 +488,17 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// reads a face with the stated normal) where it was a frame read off
 /// the cube's edges moved by turns read off by `atan2`, so its pose's
 /// nodes and the names the split mints moved.
+///
+/// RE-BLESSED when a minted plane's `u_ref` became a direction its
+/// construction holds: the cube's caps are charted along its sketch's
+/// `x` axis and its walls along their swept segments, where
+/// `orthonormal_basis` picked both off the axes. No plane moved as a
+/// point set.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body, and the content key
+/// holds a placement's target (`VERSION` 18), so ids drawn after a
+/// construction and every value token moved. No point moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -494,7 +519,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x9ddd_e390_4cc2_ff78,
+        got, 0xa218_4b53_38f5_c2fe,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -520,7 +545,7 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
     // A copy of each half, loose: a reader of the half's value.
     let still = |half: SplitHalf| {
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::output(split, half.port()),
         )])
     };

@@ -2,13 +2,14 @@
 id: placed-carriers-compare-through-their-frames
 kind: issue
 title: D10 stage 4 PR H: a placed carrier's canonical form reads its placement's frame, so a mate-placed face is structural
-status: parked
+status: closed
 opened: 2026-10-08
+closed: 2026-10-22
 priority: P0
 cost: H
 branch: intent/s4-h-placed-carriers-compare-through-their-frames
 pr: 5300
-blocked_on: [a-mate-placed-seat-is-unproven-at-the-doors-budget]
+refs: [a-mate-placed-seat-is-unproven-at-the-doors-budget, the-door-reads-a-mated-seat-by-its-mate]
 ---
 
 INTENT stage 4, PR H. Spec: `docs/INTENT-STAGE4-SPEC.md` §9. FORK-S4-5 is settled by FORK-S3O (fork log row 96, PR 4325), below.
@@ -42,3 +43,20 @@ PR 5300 lands what the replay needs. It does not switch on reading placed copies
 - **One switch for the rest.** `coincide::REPLAYS_PLACED_COPIES` is off. Turning it on resolves parts in the door's replay and reads an at-rest row by the carrier verdict on the copies' faces. The code is in `coincide/replay.rs` `prove_row`. Pinned off by `mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports` and `asm2a_instantiate::a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed`.
 
 What remains is the row's outcome: a mated seat proven, so the tour bench's three findings go quiet. That waits on `a-mate-placed-seat-is-unproven-at-the-doors-budget`, which carries the measurement and the cost its fix must beat.
+
+## Closed (2026-10-22, for mated rows)
+
+A mate-placed face is structural by the mate that places it, at the
+first rung, not through its frame: `the-door-reads-a-mated-seat-by-its-mate`.
+The tour bench's three findings are gone, and the comment beside `bench`
+is gone with them; the tour now asserts 0 `unproven-coincidence`
+findings. `mate6_gather_mints::a_mated_record_cites_the_census_row_the_lint_reports`
+pins the proof. The replay this unit built reads the rows no mate states,
+with parts resolved for an at-rest face pair it reads off the copies,
+and no switch; a node's row on a part stays `ThroughAPart`
+(`an-unmated-row-on-a-part-resolves-parts-at-sym-for-seconds`). The two rows
+stage 3 D pinned (`coincidence_door::a_ring_serving_two_pierces_records_their_fusion_unproven`
+and `glue_on_zero_rows::a_flush_rest_glues_and_records_its_unproven_rows`)
+stay unproven, correctly: their copies are placed by standoffs, which
+state no seat, and their recourse now names the budget.
+

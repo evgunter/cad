@@ -23,9 +23,12 @@ use topo::Body;
 const A: f64 = 0.006;
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol())
-        .expect("closed-form mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("closed-form mass properties")
+    .volume
 }
 
 fn extrude(profile: RecipeNodeId, distance: f64) -> editor_core::AuthoredNode {
@@ -59,7 +62,7 @@ fn rod(
         doc,
         target,
         rod,
-        &fixture::frame_at([x0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+        &fixture::axes_at([x0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
     )
 }
 
