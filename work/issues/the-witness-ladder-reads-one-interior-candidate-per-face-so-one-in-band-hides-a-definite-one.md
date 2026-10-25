@@ -22,7 +22,7 @@ nothing more, though a later candidate may lie well off the band.
 union `(brick ∖ slab) ∪ fill` leaves a `w × w` channel, and the fill's
 face toward it is `w = 30ε` wide. Its first candidate is a corner
 triple's centroid, `w/3 = Kε` off the cavity floor. Rounding puts its
-margin at `9.999999999996e-6`, against `escalate = 1e-5`, so it reads
+margin at `9.999999999996e-6`, against `escalate = 9.999999999999999e-6`, so it reads
 in band. The midpoint of a floor corner and a ceiling corner is `w/2 =
 15ε` off both walls and would read definite. The section-loop
 read refused `SectionLoopUndecided`, and the axis-aligned twin builds.

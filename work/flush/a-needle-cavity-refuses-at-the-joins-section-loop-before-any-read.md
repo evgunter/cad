@@ -67,7 +67,7 @@ the run line) at ε 1e-9 and 1e-6.
   no point off the band of the faces its rim lies on. In the moved
   pose at 30ε the first candidate, a corner triple's centroid, lies
   `w/3 = Kε` off the floor, and rounding puts it at `9.999999999996e-6`
-  against `escalate = 1e-5`.
+  against `escalate = 9.999999999999999e-6`.
 
 ## Classification
 
@@ -83,31 +83,62 @@ the witness falls, since every point of the face is on one side.
 
 `join.rs` `seam_germ_side`, which `resolve_roles_geometric` reads where
 no witness of either loop decides and no limit was met (after the slit
-case). Each chord of the loop lies on the other boundary. Where its
-midpoint lies strictly inside one face `F` of the other operand
-(`contain::face_placement`, the one containment ask), the region face
-`R` beside the chord leaves it along `n_R × t`. Its side is the sign of
-that direction against `F`'s outward normal, levered at the chord's
-length as an edge's dihedral is (`bool_seam_germ_side`). Zero is a
-flush region and reads nothing. So do a curved chord or region, a
-midpoint no one face holds, and any margin in band. No tie-break is
-represented. The read is about two crossing carriers, so no thinness
-enters.
+case).
+- **The read.** Each chord of the loop lies on the other boundary.
+  Where its midpoint lies strictly inside one face `F` of the other
+  operand (`contain::face_placement`, the one containment ask), the
+  region face `R` beside the chord leaves it along its inward direction
+  (`stands::inward`, the left of a half-edge, shared with rung 3's
+  `across_edges`). Its side is the sign of that direction against
+  `F`'s outward normal, levered at the chord's length
+  (`bool_join_seam_germ_side`).
+- **Reads nothing:** zero (a flush region), a curved chord or region, a
+  midpoint no one face holds, and any margin in band.
+- **Every chord is read.** Two that disagree refuse
+  `ClassificationInvariant`, a kernel defect, so the loop's start
+  cannot matter.
+- **The walk is `region_halves`**, shared with `region_faces`.
+- **Errors:** a stale face panics as `place_witness` does, and a normal
+  that reads the midpoint off its surface is `ClassificationInvariant`.
+- **The dihedral lever door** (`classify_dihedral`) does not serve: it
+  reads `|sin θ|`, not a side.
+- No tie-break is represented, and no thinness enters.
 
-Pinned by `shell_role_reader::a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void`
-(slow set) at 10.5, 12, 15, 21 and 30ε, ε 1e-9 and 1e-6,
-axis-aligned and turned. Each built body passes `validate_pseudomanifold`
-with no contacts, and so does every operand. The union's roles read
-`[Outer, Void]` and its volume is `27 − w²` to `w/100`. Each bar's eight
-corners are the channel's.
+**Pins** (slow set; ε 1e-9 and 1e-6; every operand and every built body
+passes `validate_pseudomanifold` with no contacts):
+- `shell_role_reader::a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void`:
+  10.5, 12, 15, 21 and 30ε; poses aligned, turned (corners turned) and
+  moved (`transform_rigid`); the union in both orders and the bar
+  through `∖` and `∩` in both orders.
+- `shell_role_reader::a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam`:
+  the fill's face leaning `s = 0.5`, 30ε, aligned and turned. At
+  ε 1e-6 this refuses `SectionLoopUndecided` on main (the review's
+  measurement).
+- **What each built run checks:**
+  - the union reads `[Outer, Void]`;
+  - the channel's own shell (the cavity, or the bar) holds its signed
+    volume, `−area` or `area` (from `classify_shells`), to `1e-6` at
+    ε 1e-6 and to 5% at ε 1e-9, where a turned bar's sums round by up to
+    2%;
+  - that shell's corners are the channel's.
+- `27 − w²` is not a check at ε 1e-9: it rounds to 27.
 
-Two refusals in the turned pose are not this row's, and the pin pins
-them with their rows:
-- at ε 1e-9 from 12ε up, all three refuse on the reduction's sector
-  question (`bool_sector_within`, `bool_sector_coplanar`), on main
-  too: `work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`;
-- at ε 1e-6, 30ε, `slab ∖ fill` refuses `ResultVolumeImplausible`, on
-  main too:
-  `work/hone/the-subtract-volume-backstop-holds-flush-operands-bit-exact-and-refuses-a-correct-bar.md`.
+Refusals that are not this row's, which the pins assert with their rows:
+- at ε 1e-9, turned from 12ε up and moved below 30ε, every run refuses
+  on the reduction's sector question (`bool_sector_within`,
+  `bool_sector_coplanar`), on main too:
+  `work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`;
+- at ε 1e-6, turned, 30ε, `slab ∖ fill` refuses
+  `ResultVolumeImplausible`, on main too:
+  `work/hone/the-subtract-volume-backstop-holds-flush-operands-bit-exact-and-refuses-a-correct-bar.md`;
+- the leaning face at 10.5ε refuses `Coincidence(VertexOnFace)` before
+  the join, on a corner `w/√(1 + s²)` from the face's carrier but `w`
+  from the face:
+  `work/hone/a-vertex-near-a-tilted-faces-carrier-but-w-from-its-face-refuses-vertex-on-face.md`.
 
 The row's "from 21ε up … builds" holds axis-aligned only.
+
+**Residue, not this row's.** A region face nearly flush with `F` reads
+its germ in band and nothing. It and `F` are then a face pair whose
+angle over the chord lies in band, which is the carrier-pair verdict's
+to refuse, not the join's.

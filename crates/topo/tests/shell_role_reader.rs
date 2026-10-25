@@ -446,21 +446,274 @@ fn a_boolean_leaving_a_turned_needle_builds_it_in_every_pose() {
     }
 }
 
+/// How the needle channel's operands are placed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Pose {
+    /// Along the axes, every coordinate exact.
+    Aligned,
+    /// Each operand's corners turned about `(1, 2, 3)` by 1.1 rad.
+    Turned,
+    /// The aligned operands moved by `transform_rigid` through the same
+    /// turn: carriers moved, not fitted from turned corners.
+    Moved,
+}
+
+/// The turn about `(1, 2, 3)` by 1.1 rad, as a matrix.
+fn turn() -> [[f64; 3]; 3] {
+    let (s, c) = 1.1_f64.sin_cos();
+    let n = 14.0_f64.sqrt();
+    let (x, y, z) = (1.0 / n, 2.0 / n, 3.0 / n);
+    let k = 1.0 - c;
+    [
+        [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+        [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+        [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+    ]
+}
+
+/// The needle channel's operands at width `w`: the brick `(−1,2)³`, the
+/// slab `(0,1)×(0.5,0.8)×(0.5,0.5+w)`, and the fill, flush with the slab
+/// on its other five faces, whose face toward the channel runs from
+/// `y = 0.5 + w` on the floor to `0.5 + w(1 + s)` on the ceiling. Also
+/// the channel's eight corners and its cross-section's area.
+struct Channel {
+    big: AtRestBody<f64>,
+    slab: AtRestBody<f64>,
+    fill: AtRestBody<f64>,
+    corners: Vec<[f64; 3]>,
+    area: f64,
+}
+
+fn channel(pose: Pose, w: f64, s: f64, tol: Tol) -> Channel {
+    let r = if pose == Pose::Turned {
+        turn()
+    } else {
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    };
+    let place = move |p: [f64; 3]| {
+        let at = |i: usize| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2];
+        [at(0), at(1), at(2)]
+    };
+    let motion = geom_core::RigidMotion::rotation(
+        geom_core::UnitVec3::new(
+            geom_core::Vec3::new(1.0, 2.0, 3.0),
+            "the needle channel's turn",
+            geom_core::Band::linear(tol).expect("the run's band"),
+        )
+        .expect("a unit axis"),
+        1.1,
+    )
+    .expect("a finite angle");
+    let block = |f: Box<dyn Fn(f64, f64, f64) -> [f64; 3]>| {
+        let body = common::mapped_cube::<f64>(
+            move |u, v, z| {
+                let q = place(f(u, v, z));
+                Point3::new(q[0], q[1], q[2])
+            },
+            tol,
+        );
+        let body = if pose == Pose::Moved {
+            topo::transform_rigid(&body, &motion, tol).expect("the turn moves the operand")
+        } else {
+            body
+        };
+        AtRestBody::validate(body, tol).expect("an operand at rest")
+    };
+    let corner = |p: [f64; 3]| {
+        if pose == Pose::Aligned {
+            p
+        } else {
+            let t = turn();
+            [0, 1, 2].map(|i| t[i][0] * p[0] + t[i][1] * p[1] + t[i][2] * p[2])
+        }
+    };
+    let corners = (0..8)
+        .map(|i| {
+            let (x, z) = (f64::from(i & 1), f64::from(i >> 2 & 1));
+            let y = if i >> 1 & 1 == 0 {
+                0.5
+            } else {
+                0.5 + w + s * w * z
+            };
+            corner([x, y, 0.5 + w * z])
+        })
+        .collect();
+    Channel {
+        big: block(Box::new(|u, v, z| {
+            [3.0 * u - 1.0, 3.0 * v - 1.0, 3.0 * z - 1.0]
+        })),
+        slab: block(Box::new(move |u, v, z| [u, 0.5 + 0.3 * v, 0.5 + w * z])),
+        fill: block(Box::new(move |u, v, z| {
+            let y0 = 0.5 + w + s * w * z;
+            [u, y0 + v * (0.8 - y0), 0.5 + w * z]
+        })),
+        corners,
+        area: w * w * (1.0 + s / 2.0),
+    }
+}
+
+/// What a run of the needle channel does.
+#[derive(Debug, PartialEq)]
+enum Want {
+    Builds,
+    /// The reduction's sector question refuses (the GERMCERT row).
+    Sector,
+    /// The subtract volume backstop refuses (the HONE row).
+    Backstop,
+}
+
+/// Every distinct point of `shell`'s loops.
+fn shell_points(body: &Body<f64>, shell: topo::ShellKey) -> Vec<[f64; 3]> {
+    let mut out: Vec<[f64; 3]> = Vec::new();
+    for &f in &body.get_shell(shell).expect("the shell resolves").faces {
+        let face = body.get_face(f).expect("its face resolves");
+        for l in std::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            let topo::LoopBoundary::Cycle { first } = body.get_loop(l).expect("a loop").boundary
+            else {
+                continue;
+            };
+            for he in body.loop_cycle(first).expect("the loop walks") {
+                let v = body.get_half_edge(he).expect("a half-edge").start;
+                let p = body
+                    .get_point(body.get_vertex(v).expect("a vertex").point)
+                    .expect("a point");
+                if !out.contains(&[p.x, p.y, p.z]) {
+                    out.push([p.x, p.y, p.z]);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// `points` are `corners`, each within `w/1000`.
+fn assert_corners(what: &str, points: &[[f64; 3]], corners: &[[f64; 3]], w: f64) {
+    assert_eq!(
+        points.len(),
+        corners.len(),
+        "{what}: the channel's corners, got {points:?}"
+    );
+    for q in corners {
+        assert!(
+            points
+                .iter()
+                .any(|p| (0..3).all(|i| (p[i] - q[i]).abs() < 1e-3 * w)),
+            "{what}: a corner at {q:?}, got {points:?}"
+        );
+    }
+}
+
+/// The needle channel at width `w = m·ε` (fill face tilt `s`), each of
+/// its five runs held to `want`: the union in both orders reads one
+/// solid whose cavity is the channel, its signed volume `−area` and its
+/// corners the channel's; the bar through `∖` and `∩` in both orders is
+/// one shell, volume `area`, corners the channel's. Every operand and
+/// every built body passes tier 3′ with no contacts. The volumes are
+/// read to `1e-6` at ε 1e-6 and to 5% at ε 1e-9, where a turned bar's
+/// sums round by up to 2%.
+fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Want) {
+    let e = tol.eps();
+    let w = m * e;
+    let rel = if (e - 1e-9).abs() < 1e-18 { 5e-2 } else { 1e-6 };
+    let what = |op: &str| format!("{op} leaving a {m}ε channel, tilt {s}, {pose:?}, at ε {e:e}");
+    let c = channel(pose, w, s, tol);
+    let hollow = built(&what("brick ∖ slab"), topo::subtract(&c.big, &c.slab, tol));
+    let complement = built(&what("brick ∖ fill"), topo::subtract(&c.big, &c.fill, tol));
+    for (name, body) in [
+        ("brick", &c.big),
+        ("slab", &c.slab),
+        ("fill", &c.fill),
+        ("brick ∖ slab", &hollow),
+        ("brick ∖ fill", &complement),
+    ] {
+        assert_at_tier_3_prime(&what(name), body, tol);
+    }
+    for (op, run) in [
+        ("brick ∖ slab ∪ fill", topo::union(&hollow, &c.fill, tol)),
+        ("fill ∪ brick ∖ slab", topo::union(&c.fill, &hollow, tol)),
+        ("slab ∖ fill", topo::subtract(&c.slab, &c.fill, tol)),
+        (
+            "slab ∩ (brick ∖ fill)",
+            topo::intersect(&c.slab, &complement, tol),
+        ),
+        (
+            "(brick ∖ fill) ∩ slab",
+            topo::intersect(&complement, &c.slab, tol),
+        ),
+    ] {
+        let what = what(op);
+        match want(op) {
+            Want::Sector => {
+                assert!(
+                    matches!(
+                        &run,
+                        Err(BooleanError::Escalated {
+                            decision: BooleanDecision::Coincidence(Coincide::Sectors, _),
+                            diag,
+                        }) if matches!(diag.predicate, Some("bool_sector_within" | "bool_sector_coplanar"))
+                    ),
+                    "{what}: refuses on the sector question, got {:?}",
+                    run.map(|_| ())
+                );
+                continue;
+            }
+            Want::Backstop => {
+                assert!(
+                    matches!(
+                        &run,
+                        Err(BooleanError::ResultVolumeImplausible { which, .. })
+                            if *which == "vol(A ∖ B) ≥ vol(A) − vol(B)"
+                    ),
+                    "{what}: refuses on the backstop, got {:?}",
+                    run.map(|_| ())
+                );
+                continue;
+            }
+            Want::Builds => {}
+        }
+        let body = built(&what, run);
+        assert_at_tier_3_prime(&what, &body, tol);
+        let shells = classify_shells(
+            &topo::test_support::finished("the needle channel", (*body).clone(), tol),
+            tol,
+        )
+        .unwrap_or_else(|err| panic!("{what}: every shell classifies, got {err:?}"));
+        let (volume, cavity) = if op.contains('∪') {
+            assert_eq!(
+                shells.iter().map(|c| c.role).collect::<Vec<_>>(),
+                [ShellRole::Outer, ShellRole::Void],
+                "{what}: one solid, its channel a cavity"
+            );
+            (-c.area, shells[1].shell)
+        } else {
+            assert_eq!(shells_per_solid(&body), [1], "{what}: one bar");
+            (c.area, shells[0].shell)
+        };
+        let got = shells
+            .iter()
+            .find(|r| r.shell == cavity)
+            .expect("the shell")
+            .volume;
+        assert!(
+            ((got - volume) / volume).abs() < rel,
+            "{what}: the channel's shell holds {volume:e}, got {got:e}"
+        );
+        assert_corners(&what, &shell_points(&body, cavity), &c.corners, w);
+    }
+}
+
 /// **A needle cavity at the door** (review R2's
 /// `r2_needle_cavity_and_solid_at_the_door`): `brick (−1,2)³ ∖ slab`,
 /// then `∪` a fill that leaves of the slab's cavity a channel `w × w`
-/// across, and the channel's bar alone, `slab ∖ fill` and
-/// `slab ∩ (brick ∖ fill)`. Every pair is definite. The fill's face
-/// toward the channel is `w` wide and its rim lies on the slab's walls,
-/// so no point of it is off the band of those walls; the join reads its
-/// side off its germ at the seam, and builds at every width. No face of
-/// the channel offers an aim that reads, and its volume's certified
-/// enclosure reads it a cavity: one solid, its channel a `Void`.
+/// across, and the channel's bar alone through `∖` and `∩`
+/// ([`channel_rows`]). Every pair is definite. The fill's face toward
+/// the channel is `w` wide and its rim lies on the slab's walls, so no
+/// point of it is off the band of those walls; the join reads its side
+/// off its germ at the seam, and builds at every width.
 ///
-/// Turned about `(1, 2, 3)` by 1.1 rad at ε 1e-9, from 12ε up, the same
+/// Turned at ε 1e-9 from 12ε up, and moved at ε 1e-9 below 30ε, the same
 /// operands refuse earlier, in the reduction's sector question
-/// (`bool_sector_within`, `bool_sector_coplanar`), whose direction
-/// carries a rounding that grows as `1/w`
+/// (`bool_sector_within`, `bool_sector_coplanar`)
 /// (`work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
 /// Turned at ε 1e-6, the 30ε bar `slab ∖ fill` refuses
 /// `ResultVolumeImplausible`: the backstop holds the operands' flush
@@ -472,135 +725,37 @@ fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
     if stood_down(tol) {
         return;
     }
-    let e = tol.eps();
-    let at_1e9 = (e - 1e-9).abs() < 1e-18;
-    let (s, c) = 1.1_f64.sin_cos();
-    let n = 14.0_f64.sqrt();
-    let (ax, ay, az) = (1.0 / n, 2.0 / n, 3.0 / n);
-    let k = 1.0 - c;
-    let turn = [
-        [c + ax * ax * k, ax * ay * k - az * s, ax * az * k + ay * s],
-        [ay * ax * k + az * s, c + ay * ay * k, ay * az * k - ax * s],
-        [az * ax * k - ay * s, az * ay * k + ax * s, c + az * az * k],
-    ];
-    let identity = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
-    for (pose, r) in [("axis-aligned", identity), ("turned", turn)] {
-        let place = move |p: [f64; 3]| {
-            let at = |i: usize| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2];
-            [at(0), at(1), at(2)]
-        };
-        let block = |x: (f64, f64), y: (f64, f64), z: (f64, f64)| {
-            AtRestBody::validate(
-                common::mapped_cube::<f64>(
-                    move |u, v, w| {
-                        let q = place([
-                            x.0 + u * (x.1 - x.0),
-                            y.0 + v * (y.1 - y.0),
-                            z.0 + w * (z.1 - z.0),
-                        ]);
-                        Point3::new(q[0], q[1], q[2])
-                    },
-                    tol,
-                ),
-                tol,
-            )
-            .expect("an operand at rest")
-        };
+    let at_1e9 = (tol.eps() - 1e-9).abs() < 1e-18;
+    for pose in [Pose::Aligned, Pose::Turned, Pose::Moved] {
         for m in [10.5, 12.0, 15.0, 21.0, 30.0] {
-            let w = m * e;
-            let what = |op: &str| format!("{op} leaving a {m}ε channel, {pose}, at ε {e:e}");
-            let big = block((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0));
-            let slab = block((0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w));
-            let fill = block((0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w));
-            let hollow = built(&what("brick ∖ slab"), topo::subtract(&big, &slab, tol));
-            let complement = built(&what("brick ∖ fill"), topo::subtract(&big, &fill, tol));
-            for (name, body) in [
-                ("brick", &big),
-                ("slab", &slab),
-                ("fill", &fill),
-                ("brick ∖ slab", &hollow),
-                ("brick ∖ fill", &complement),
-            ] {
-                assert_at_tier_3_prime(&what(name), body, tol);
-            }
-            let channel: Vec<[f64; 3]> = (0..8)
-                .map(|i| {
-                    let pick =
-                        |bit: usize, lo: f64, hi: f64| if i >> bit & 1 == 0 { lo } else { hi };
-                    place([
-                        pick(0, 0.0, 1.0),
-                        pick(1, 0.5, 0.5 + w),
-                        pick(2, 0.5, 0.5 + w),
-                    ])
-                })
-                .collect();
-            let turned = pose == "turned";
-            for (op, run) in [
-                ("brick ∖ slab ∪ fill", topo::union(&hollow, &fill, tol)),
-                ("slab ∖ fill", topo::subtract(&slab, &fill, tol)),
-                (
-                    "slab ∩ (brick ∖ fill)",
-                    topo::intersect(&slab, &complement, tol),
-                ),
-            ] {
-                let what = what(op);
-                if turned && at_1e9 && m >= 12.0 {
-                    assert!(
-                        matches!(
-                            &run,
-                            Err(BooleanError::Escalated {
-                                decision: BooleanDecision::Coincidence(Coincide::Sectors, _),
-                                diag,
-                            }) if matches!(diag.predicate, Some("bool_sector_within" | "bool_sector_coplanar"))
-                        ),
-                        "{what}: refuses on the sector question, got {:?}",
-                        run.map(|_| ())
-                    );
-                    continue;
-                }
-                if turned && !at_1e9 && m == 30.0 && op == "slab ∖ fill" {
-                    assert!(
-                        matches!(
-                            &run,
-                            Err(BooleanError::ResultVolumeImplausible { which, .. })
-                                if *which == "vol(A ∖ B) ≥ vol(A) − vol(B)"
-                        ),
-                        "{what}: refuses on the backstop, got {:?}",
-                        run.map(|_| ())
-                    );
-                    continue;
-                }
-                let body = built(&what, run);
-                assert_at_tier_3_prime(&what, &body, tol);
-                if op == "brick ∖ slab ∪ fill" {
-                    assert_eq!(
-                        roles(&what, &body, tol),
-                        [ShellRole::Outer, ShellRole::Void],
-                        "{what}: one solid, its channel a cavity"
-                    );
-                    let volume = topo::mass_properties(&body, tol)
-                        .unwrap_or_else(|err| panic!("{what}: measures, got {err:?}"))
-                        .volume;
-                    assert!(
-                        (volume - (27.0 - w * w)).abs() < 1e-2 * w,
-                        "{what}: holds 27 − w², got {volume}"
-                    );
-                    continue;
-                }
-                assert_eq!(shells_per_solid(&body), [1], "{what}: one bar");
-                let corners: Vec<[f64; 3]> =
-                    body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
-                assert_eq!(corners.len(), 8, "{what}: the bar's eight corners");
-                for q in &channel {
-                    assert!(
-                        corners
-                            .iter()
-                            .any(|p| (0..3).all(|i| (p[i] - q[i]).abs() < 1e-3 * w)),
-                        "{what}: a corner at {q:?}, got {corners:?}"
-                    );
-                }
-            }
+            channel_rows(pose, m, 0.0, tol, |op| match pose {
+                Pose::Turned if at_1e9 && m >= 12.0 => Want::Sector,
+                Pose::Moved if at_1e9 && m < 30.0 => Want::Sector,
+                Pose::Turned if !at_1e9 && m == 30.0 && op == "slab ∖ fill" => Want::Backstop,
+                _ => Want::Builds,
+            });
         }
+    }
+}
+
+/// **A channel whose fill face leans** (review of the seam read): the
+/// fill's face toward the channel runs from `w` off the far wall at the
+/// floor to `1.5w` at the ceiling, 30ε across, so the cavity's cross
+/// section is a trapezoid. Its rim lies on the cavity's walls as the
+/// upright face's does, and its germ there reads it.
+#[test]
+fn a_needle_channel_whose_fill_face_leans_reads_its_side_off_its_seam() {
+    let tol = Tol::witness();
+    if stood_down(tol) {
+        return;
+    }
+    let at_1e9 = (tol.eps() - 1e-9).abs() < 1e-18;
+    for pose in [Pose::Aligned, Pose::Turned] {
+        channel_rows(pose, 30.0, 0.5, tol, |op| match pose {
+            Pose::Turned if at_1e9 => Want::Sector,
+            Pose::Turned if op == "slab ∖ fill" => Want::Backstop,
+            _ => Want::Builds,
+        });
     }
 }
 
