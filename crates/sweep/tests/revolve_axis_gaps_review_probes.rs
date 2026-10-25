@@ -51,7 +51,11 @@ fn notched_pts(w: f64, h: f64, notches: &[(f64, f64, f64)]) -> Vec<Point2<f64>> 
 }
 
 fn notched_volume(w: f64, h: f64, notches: &[(f64, f64, f64)]) -> f64 {
-    PI * w * w * h - notches.iter().map(|&(d, lo, hi)| PI * d * d * (hi - lo)).sum::<f64>()
+    PI * w * w * h
+        - notches
+            .iter()
+            .map(|&(d, lo, hi)| PI * d * d * (hi - lo))
+            .sum::<f64>()
 }
 
 fn check(name: &str, t: &Revolved<f64>, cavities: usize, want_v: f64) {
@@ -67,7 +71,10 @@ fn check(name: &str, t: &Revolved<f64>, cavities: usize, want_v: f64) {
         .filter(|c| matches!(c.origin, CavityOrigin::Pocket { .. }))
         .collect();
     for g in 0..pockets.len() {
-        assert!(t.cavity(CavityOrigin::Pocket { gap: g }).is_some(), "{name}: gap {g}");
+        assert!(
+            t.cavity(CavityOrigin::Pocket { gap: g }).is_some(),
+            "{name}: gap {g}"
+        );
     }
 }
 
@@ -172,7 +179,10 @@ fn probe_reflected_frames() {
     let t = revolve(&vp, axis_x, Revolution::Full, Tol::witness()).unwrap();
     check("x axis", &t, 2, want);
     // Off-origin axis.
-    let shifted: Vec<_> = base.iter().map(|p| Point2::new(p.x + 3.0, p.y - 7.0)).collect();
+    let shifted: Vec<_> = base
+        .iter()
+        .map(|p| Point2::new(p.x + 3.0, p.y - 7.0))
+        .collect();
     let axis_off = RevolveAxis {
         origin: Point2::new(3.0, 11.0),
         dir: Vec2::new(0.0, 2.0),
@@ -302,7 +312,11 @@ fn try_build(pts: Vec<Point2<f64>>) -> String {
                     topo::validate_closed(&t.body).is_ok(),
                     topo::validate_geometric(&t.body, Tol::witness()).is_ok(),
                 );
-                format!("built: cavities {} tiers {tiers:?} vol {:.15}", t.cavities.len(), props(&t).0)
+                format!(
+                    "built: cavities {} tiers {tiers:?} vol {:.15}",
+                    t.cavities.len(),
+                    props(&t).0
+                )
             }
         },
     }
@@ -315,14 +329,20 @@ fn try_build(pts: Vec<Point2<f64>>) -> String {
 fn probe_thin_scan() {
     let eps = eps();
     eprintln!("eps {eps}");
-    for c in [0.25, 0.5, 0.9, 1.0, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0, 30.0, 100.0] {
+    for c in [
+        0.25, 0.5, 0.9, 1.0, 1.1, 1.5, 2.0, 3.0, 5.0, 10.0, 30.0, 100.0,
+    ] {
         let d = c * eps;
         // thin notch height d (gap between runs is d)
         let a = try_build(notched_pts(1.0, 3.0, &[(0.5, 1.0, 1.0 + d)]));
         // thin wall between notch and outer wall
         let b = try_build(notched_pts(1.0, 3.0, &[(1.0 - d, 1.0, 2.0)]));
         // short axis run between two notches
-        let c2 = try_build(notched_pts(1.0, 3.0, &[(0.5, 0.5, 1.0), (0.5, 1.0 + d, 2.0)]));
+        let c2 = try_build(notched_pts(
+            1.0,
+            3.0,
+            &[(0.5, 0.5, 1.0), (0.5, 1.0 + d, 2.0)],
+        ));
         // shallow notch depth d
         let e = try_build(notched_pts(1.0, 3.0, &[(d, 1.0, 2.0)]));
         // short bottom run (filled pole near the pocket pole)
@@ -493,7 +513,11 @@ fn probe_pocket_collapse_direction_asymmetry() {
         ("Y2", 2.19, 60.0 * eps),
         ("Y3", 2.195, 150.0 * eps),
         ("Y4", 2.199, 500.0 * eps),
-        ("control, same kink single run (no pocket): X", 1.2, 2.5 * eps),
+        (
+            "control, same kink single run (no pocket): X",
+            1.2,
+            2.5 * eps,
+        ),
     ] {
         let mut pts = wall(a_end, s);
         if what.starts_with("control") {
@@ -516,7 +540,10 @@ fn probe_pocket_collapse_direction_asymmetry() {
                         "built, cavities {}, walls of segs 6,7 equal: {}, bands {:?}, tiers {:?}",
                         t.cavities.len(),
                         w[0][6] == w[0][7],
-                        t.bands[0].iter().map(|b| b.segments.clone()).collect::<Vec<_>>(),
+                        t.bands[0]
+                            .iter()
+                            .map(|b| b.segments.clone())
+                            .collect::<Vec<_>>(),
                         (
                             topo::validate_closed(&t.body).is_ok(),
                             topo::validate_geometric(&t.body, Tol::witness()).is_ok()
@@ -550,7 +577,10 @@ fn probe_kink_control_on_outer_shell() {
                 Err(e) => format!("REVOLVE REFUSED: {e}"),
                 Ok(t) => format!(
                     "built, bands {:?}",
-                    t.bands[0].iter().map(|b| b.segments.clone()).collect::<Vec<_>>()
+                    t.bands[0]
+                        .iter()
+                        .map(|b| b.segments.clone())
+                        .collect::<Vec<_>>()
                 ),
             },
         };
