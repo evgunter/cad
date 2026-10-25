@@ -106,6 +106,10 @@ pub(crate) struct Fates<T: geom_core::Real> {
     pub edges: Vec<FateEdge>,
     /// The dropped sectors held wholly.
     pub corners: Vec<FateCorner<T>>,
+    /// Pairs of fate edges of one holder that may lie across a slit's
+    /// line from each other ([`border_fates`]), as `(holder, dropped
+    /// face, the two edges)`.
+    pub across: Vec<(Operand, FaceKey, [EdgeKey; 2])>,
 }
 
 impl<T: geom_core::Real> Default for Fates<T> {
@@ -113,6 +117,7 @@ impl<T: geom_core::Real> Default for Fates<T> {
         Self {
             edges: Vec::new(),
             corners: Vec::new(),
+            across: Vec::new(),
         }
     }
 }
@@ -182,18 +187,26 @@ impl FateCuts {
 /// edge is the split's scaffolding, not an edge of the face, and an
 /// edge whose two faces both cover the dropped face (a seam between two
 /// coplanar faces of the kept copy, or a face meeting itself) lies
-/// inside the held region; both are dropped. So are a slit's or ring's
-/// two edges where both bound the kept copy over one dropped face: two
-/// line edges on one segment by structure
-/// ([`crate::census::shared_segments`]), each with the kept face on
-/// its side, which are the two wedges' sides of the line, so the kept
-/// copy holds the dropped face across it. Sorted and deduplicated.
-pub(super) fn border_fates<T: geom_core::Real>(
+/// inside the held region; both are dropped. Sorted and deduplicated.
+///
+/// Two fate edges of one holder that overlap along a length
+/// ([`crate::census::collinear_overlaps`]) over one dropped face, each
+/// with the one kept face on its side as the classification read it,
+/// are pieces of a slit's or ring's two edges: [`Fates::across`] lists
+/// them for [`cut`], which reads after the join whether the kept face
+/// still lies on both sides of the line.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a fate edge that no
+/// longer resolves; [`BooleanError::Escalated`] where whether two of the
+/// holder's edges overlap reads in band.
+pub(super) fn border_fates<T: Decide + geom_core::Bounds>(
     mut fates: Fates<T>,
     covered: &[(FaceKey, FaceKey)],
     null_edges: &[super::BoolNullEdgeRecord<T>],
-    a: &Body<T>,
-    b: &Body<T>,
+    (a, b): (&Body<T>, &Body<T>),
+    band: Band,
 ) -> Result<Fates<T>, BooleanError> {
     fates.edges.sort();
     fates.edges.dedup();
@@ -230,24 +243,37 @@ pub(super) fn border_fates<T: geom_core::Real>(
     }
     let mut across = Vec::new();
     for (holder, body) in [(Operand::A, a), (Operand::B, b)] {
-        if !edges.iter().any(|h| h.holder == holder) {
+        let mut sides: Vec<(FaceKey, FaceKey)> = edges
+            .iter()
+            .filter(|h| h.holder == holder)
+            .map(|h| (h.face, h.kept))
+            .collect();
+        let count = sides.len();
+        sides.sort();
+        sides.dedup();
+        if sides.len() == count {
             continue;
         }
-        for pair in crate::census::shared_segments(body) {
+        let overlaps = crate::census::collinear_overlaps(body, band)
+            .map_err(super::ops::collinear_escalated)?;
+        for pair in overlaps {
+            let [e0, e1] = pair.edges;
             let fate = |e: EdgeKey| {
                 edges
                     .iter()
                     .filter(move |h| h.holder == holder && h.edge == e)
-                    .map(|h| h.face)
             };
-            let [e0, e1] = pair.edges;
-            for face in fate(e0).filter(|&f| fate(e1).any(|g| g == f)) {
-                across.extend([(holder, e0, face), (holder, e1, face)]);
+            for h in fate(e0) {
+                if fate(e1).any(|g| (g.face, g.kept) == (h.face, h.kept)) {
+                    across.push((holder, h.face, [e0, e1]));
+                }
             }
         }
     }
-    edges.retain(|h| !across.contains(&(h.holder, h.edge, h.face)));
+    across.sort();
+    across.dedup();
     fates.edges = edges;
+    fates.across = across;
     Ok(fates)
 }
 
@@ -338,11 +364,13 @@ fn contained(e: super::ContainError, what: &'static str) -> BooleanError {
 
 /// Whether unit `d` lies strictly inside the corner swept
 /// counterclockwise about `n` from unit `out` to unit `back`, or along
-/// `out` (`None`); `wraps` where the face wraps round its bounds' one
-/// ray: one dangling edge, or a slit's or ring's two edges at its tip.
+/// `out` (`None`). Where the two bounds leave along one ray, `wraps`
+/// says whether the face wraps round it, the corner then the whole
+/// turn but the ray itself, or holds no direction.
 fn corner_holds<T: Decide>(
     d: Vec3<T>,
-    (out, back, wraps): (Vec3<T>, Vec3<T>, bool),
+    (out, back): (Vec3<T>, Vec3<T>),
+    wraps: impl FnOnce() -> Result<bool, BooleanError>,
     n: Vec3<T>,
     arm: T,
     band: Band,
@@ -356,11 +384,7 @@ fn corner_holds<T: Decide>(
     let holds = match turn {
         Sign::Positive => s1 == Sign::Positive && s2 == Sign::Positive,
         Sign::Negative => s1 == Sign::Positive || s2 == Sign::Positive,
-        // A dangling edge's tip, or a slit's: the corner is the whole
-        // turn but the edge itself, which `along` read above. Two other
-        // edges leaving tangent bound a cusp, which holds no direction
-        // at this order.
-        Sign::Zero if sign(out.dot(back), arm, band)? == Sign::Positive => wraps,
+        Sign::Zero if sign(out.dot(back), arm, band)? == Sign::Positive => wraps()?,
         Sign::Zero => s1 == Sign::Positive,
     };
     Ok(Some(holds))
@@ -369,12 +393,12 @@ fn corner_holds<T: Decide>(
 /// Every place, among the faces of `body` divided from `root`, a chord
 /// leaving `at` (or a null-edge copy of it) along unit `d` may start;
 /// `None` where none of those faces holds `at`. A corner whose two
-/// bounds are distinct line edges leaving along one ray lies between a
-/// slit's or zero-area ring's two edges at its tip, and is the full turn
-/// round it, except in a sliver ([`super::slit::sliver_halves`]), whose
-/// outline is that one segment run twice and holds no direction.
+/// bounds leave along one ray wraps the face round it where they are
+/// one dangling edge, or two straight edges at a tip ([`tip_wraps`]);
+/// two other edges leaving tangent bound a cusp, which holds no
+/// direction at this order.
 fn places<T: Decide>(
-    body: &Body<T>,
+    (body, operand): (&Body<T>, Operand),
     at: &[VertexKey],
     root: FaceKey,
     divisions: &FaceDivisions,
@@ -452,13 +476,20 @@ fn places<T: Decide>(
                 Ok(None) | Err(_) => return Err(no_normal),
             };
             let arm = out_len.min(back.1);
-            let bounds = [p, h].map(|x| body.get_half_edge(x).map(|x| x.edge));
-            let wraps = bounds[0] == bounds[1]
-                || (bounds
+            let wraps = || {
+                let bounds = [p, h].map(|x| body.get_half_edge(x).map(|x| x.edge));
+                if bounds[0] == bounds[1] {
+                    return Ok(true);
+                }
+                if !bounds
                     .iter()
                     .all(|e| e.is_some_and(|e| crate::census::edge_is_line(body, e)))
-                    && super::slit::sliver_halves(body, f).is_none());
-            match corner_holds(d, (out, back.0, wraps), normal.vec(), arm, band)? {
+                {
+                    return Ok(false);
+                }
+                tip_wraps((body, operand), (f, h), band)
+            };
+            match corner_holds(d, (out, back.0), wraps, normal.vec(), arm, band)? {
                 None => found.push(Place::Along(h)),
                 Some(true) => found.push(Place::Corner(h)),
                 Some(false) => {}
@@ -466,6 +497,90 @@ fn places<T: Decide>(
         }
     }
     Ok(touched.then_some(found))
+}
+
+/// **Whether a corner whose two straight bounds leave along one ray is
+/// a tip the face wraps round**, a slit's or zero-area ring's, rather
+/// than a spur's, which holds nothing: `operand`'s face `f`, the corner
+/// at `h`'s start. The face lies left of each of its loops, so on a
+/// plane face the turns of a loop's corners sum to a whole turn,
+/// counterclockwise about the outward normal for the outline and
+/// clockwise for a ring. A corner whose bounds leave along one ray turns
+/// a half-turn: clockwise round a tip the face wraps, counterclockwise
+/// round a spur. The loop's other corners fix the sum of those
+/// half-turns, which says which they are where all turn one way: a
+/// sliver's outline (`slit::sliver_halves`) turns at two spurs, a
+/// zero-area ring at two tips, an outline with a slit at the tip.
+/// This reads the body as the join left it, not the operand at rest
+/// (`sectors::SlitTips`): the join cuts a slit's two edges into the
+/// other operand's flush face too.
+///
+/// # Errors
+///
+/// [`BooleanError::SlitFaceGlued`] where the turns are not read: a
+/// curved face, a curved edge on the loop, or half-turns both ways; an
+/// escalation where a turn reads in band.
+fn tip_wraps<T: Decide>(
+    (body, operand): (&Body<T>, Operand),
+    (f, h): (FaceKey, HalfEdgeKey),
+    band: Band,
+) -> Result<bool, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let unread = BooleanError::SlitFaceGlued { operand, face: f };
+    let Some(normal) = crate::face_normal::face_outward_normal(body, f) else {
+        return Err(unread);
+    };
+    let n = normal.vec();
+    let lp = loop_of(body, h)?;
+    let outer = body.get_face(f).map(|x| x.outer) == Some(lp);
+    let Some(LoopBoundary::Cycle { first }) = body.get_loop(lp).map(|l| l.boundary) else {
+        return Err(desync("a tip's loop is not a cycle"));
+    };
+    let cycle = body
+        .loop_cycle(first)
+        .ok_or_else(|| desync("a tip's loop does not walk"))?;
+    // The loop's straight runs, its null scaffolding skipped.
+    let mut runs = Vec::with_capacity(cycle.len());
+    for he in cycle {
+        let Some(run) = departure(body, he) else {
+            continue;
+        };
+        let edge = body
+            .get_half_edge(he)
+            .ok_or_else(|| desync("a tip's loop does not walk"))?
+            .edge;
+        if !crate::census::edge_is_line(body, edge) {
+            return Err(unread);
+        }
+        runs.push(run);
+    }
+    let (mut turned, mut halves) = (T::zero(), 0_u32);
+    for (k, &(b, b_len)) in runs.iter().enumerate() {
+        let (a, a_len) = runs[(k + runs.len() - 1) % runs.len()];
+        let (across, ahead) = (n.dot(a.cross(b)), a.dot(b));
+        let arm = a_len.min(b_len);
+        if sign(across, arm, band)? == Sign::Zero && sign(ahead, arm, band)? == Sign::Negative {
+            halves += 1;
+        } else {
+            turned = turned + across.atan2(ahead);
+        }
+    }
+    let whole = if outer {
+        T::tau()
+    } else {
+        T::zero() - T::tau()
+    };
+    let half_turns = (whole - turned) / T::pi();
+    let count = T::from_f64(f64::from(halves));
+    match (
+        sign(half_turns + count, T::one(), band)?,
+        sign(half_turns - count, T::one(), band)?,
+    ) {
+        _ if halves == 0 => Err(unread),
+        (Sign::Zero, _) => Ok(true),
+        (_, Sign::Zero) => Ok(false),
+        _ => Err(unread),
+    }
 }
 
 /// How a direction leaving a vertex is read against the corners there.
@@ -498,7 +613,7 @@ impl<T: geom_core::Real> Leaving<T> {
 /// `at`: the kept edge leaves the dropped face where the reduction put
 /// no vertex in it.
 fn place<T: Decide>(
-    body: &Body<T>,
+    (body, operand): (&Body<T>, Operand),
     (at, beyond): (&[VertexKey], &[VertexKey]),
     root: FaceKey,
     divisions: &FaceDivisions,
@@ -508,7 +623,7 @@ fn place<T: Decide>(
     let mut corners = Vec::new();
     let readings = [(leaving.tangent, false), (leaving.secant, true)];
     for (k, (d, secant)) in readings.into_iter().enumerate() {
-        let Some(found) = places(body, at, root, divisions, (d, secant), band)? else {
+        let Some(found) = places((body, operand), at, root, divisions, (d, secant), band)? else {
             return Ok(None);
         };
         if k == 0
@@ -962,7 +1077,7 @@ fn chord<T: Decide + crate::props::AtRestPolicy>(
 /// the face holds, or whose direction runs along an edge of it, refuses
 /// [`BooleanError::ClassificationInvariant`].
 fn sector_piece<T: Decide>(
-    body: &Body<T>,
+    (body, operand): (&Body<T>, Operand),
     s: SectorAt<T>,
     (divisions, copies): (&FaceDivisions, &NullCopies),
     band: Band,
@@ -975,7 +1090,7 @@ fn sector_piece<T: Decide>(
         })?
         .start;
     let placed = place(
-        body,
+        (body, operand),
         (&copies.of(v), &[]),
         divisions.root(face),
         divisions,
@@ -1040,8 +1155,44 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
     let mut done = std::collections::BTreeSet::new();
     // Every lone vertex is placed before any is minted: the containment
     // reading cannot walk an empty loop.
+    // A kept vertex's point key with its touch: two kept vertices on one
+    // point (a slit's open end, one per wedge) touch the dropped face at
+    // one lone vertex.
     let mut touches: Vec<(Operand, VertexKey, FaceKey, Point3<T>)> = Vec::new();
-    for fe in &red.fates.edges {
+    let mut touch_points: Vec<(Operand, VertexKey, crate::geometry::PointKey)> = Vec::new();
+    // Where one kept face holds the dropped one on both sides of a
+    // slit's line, a chord along it divides nothing, so none is minted,
+    // and an end the face holds no vertex at needs none.
+    let across = |red: &BooleanReduction<T>, fe: &FateEdge| {
+        let (div_k, kept_body) = match fe.holder {
+            Operand::A => (&*div_a, &red.a),
+            Operand::B => (&*div_b, &red.b),
+        };
+        let root = div_k.root(fe.kept);
+        let kept = |e: EdgeKey| {
+            kept_body.get_edge(e).and_then(|edge| {
+                [edge.he_plus, edge.he_minus]
+                    .into_iter()
+                    .filter_map(|he| kept_body.face_of_half_edge(he))
+                    .find(|&f| div_k.root(f) == root)
+            })
+        };
+        red.fates.across.iter().any(|&(holder, face, pair)| {
+            holder == fe.holder
+                && face == fe.face
+                && pair.contains(&fe.edge)
+                && kept(pair[0]).is_some()
+                && kept(pair[0]) == kept(pair[1])
+        })
+    };
+    let skipped: Vec<bool> = red.fates.edges.iter().map(|fe| across(red, fe)).collect();
+    for fe in red
+        .fates
+        .edges
+        .iter()
+        .zip(&skipped)
+        .filter_map(|(fe, &skip)| (!skip).then_some(fe))
+    {
         let (div_d, kept_body) = match fe.holder {
             Operand::A => (&*div_b, &red.a),
             Operand::B => (&*div_a, &red.b),
@@ -1058,13 +1209,22 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             match end_at(red, fe.holder, x, root, div_d)? {
                 End::At(_) => {}
                 End::Touch(t) => {
-                    if !touches.iter().any(|&(h, k, ..)| (h, k) == (fe.holder, t)) {
-                        let p = kept_body
+                    if !touch_points.iter().any(|&(h, k, _)| (h, k) == (fe.holder, t)) {
+                        let key = kept_body
                             .get_vertex(t)
-                            .and_then(|v| kept_body.get_point(v.point))
+                            .map(|v| v.point)
+                            .ok_or_else(|| desync("a fate cut's touching vertex has no point"))?;
+                        let p = kept_body
+                            .get_point(key)
                             .copied()
                             .ok_or_else(|| desync("a fate cut's touching vertex has no point"))?;
-                        touches.push((fe.holder, t, root, p));
+                        if !touch_points
+                            .iter()
+                            .any(|&(h, _, k)| (h, k) == (fe.holder, key))
+                        {
+                            touches.push((fe.holder, t, root, p));
+                        }
+                        touch_points.push((fe.holder, t, key));
                     }
                 }
             }
@@ -1087,9 +1247,17 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             Operand::B => &mut red.a,
         };
         let (w, _) = super::vtxfac::ring_vertex_in(body, face, p, tol)?;
-        lone.insert((holder, t), w);
+        let key = touch_points
+            .iter()
+            .find(|&&(h, k, _)| (h, k) == (holder, t))
+            .map(|&(.., key)| key);
+        for &(h, k, at) in &touch_points {
+            if h == holder && Some(at) == key {
+                lone.insert((holder, k), w);
+            }
+        }
     }
-    for fe in red.fates.edges.clone() {
+    for (fe, across) in red.fates.edges.clone().into_iter().zip(skipped) {
         let dropped = fe.holder.other();
         let (div_k, div_d) = match fe.holder {
             Operand::A => (&*div_a, &mut *div_b),
@@ -1156,6 +1324,15 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                     })
             }
         };
+        if across
+            && [x0, x1].into_iter().try_fold(false, |touch, x| {
+                Ok::<_, BooleanError>(
+                    touch || matches!(end_at(red, fe.holder, x, root, div_d)?, End::Touch(_)),
+                )
+            })?
+        {
+            continue;
+        }
         let (w0, w1) = (at(x0)?, at(x1)?);
         let body = match dropped {
             Operand::A => &mut red.a,
@@ -1163,7 +1340,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
         };
         let (Some(p0), Some(p1)) = (
             place(
-                body,
+                (body, dropped),
                 (&w0, &w1),
                 root,
                 div_d,
@@ -1174,7 +1351,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                 band,
             )?,
             place(
-                body,
+                (body, dropped),
                 (&w1, &w0),
                 root,
                 div_d,
@@ -1194,6 +1371,7 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             (_, Place::Along(h)) => body
                 .mate(h)
                 .ok_or_else(|| desync("an edge along a fate edge has no mate"))?,
+            _ if across => continue,
             _ => {
                 let c = chord(body, (p0, p1), (&curve, forward), div_d, band, tol)?;
                 let h = body
@@ -1256,9 +1434,11 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             Operand::B => &*div_a,
         };
         let copies = [dropped, fc.holder].map(|o| NullCopies::of_operand(&red.null_edges, o));
-        let face = sector_piece(body, fc.dropped, (div_d, &copies[0]), band)?;
+        let face = sector_piece((body, dropped), fc.dropped, (div_d, &copies[0]), band)?;
         let by = match fc.kept {
-            KeptAt::Sector(s) => sector_piece(kept_body, s, (div_k, &copies[1]), band)?,
+            KeptAt::Sector(s) => {
+                sector_piece((kept_body, fc.holder), s, (div_k, &copies[1]), band)?
+            }
             KeptAt::Pierced(f, at, d) => {
                 let root = div_k.root(f);
                 let ring = red.pierce_rings.iter().find(|r| {
@@ -1269,7 +1449,8 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
                         let copies =
                             NullCopies::of_operand(&red.null_edges, fc.holder).of(ring.ring_vertex);
                         let at = Leaving::bisector(d);
-                        match place(kept_body, (&copies, &[]), root, div_k, at, band)? {
+                        let held = (kept_body, fc.holder);
+                        match place(held, (&copies, &[]), root, div_k, at, band)? {
                             None => {
                                 return Err(BooleanError::ClassificationInvariant {
                                     what: "a pierce's ring vertex lies off its kept face",

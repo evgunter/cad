@@ -4670,9 +4670,9 @@ fn slit_tip_on<T: geom_core::Real>(
 /// them, a face of no area, and nothing winds it. The order is the
 /// outer lane's, the arc of better [`Capture`] ([`best_arc`]); the
 /// sliver's side is read with the section's other loops
-/// ([`resolve_roles_geometric`]), and the result merges the slit's two
-/// edges across it ([`super::slit::merge_slivers`]). Every other
-/// refusal is [`pinch_ray_refusal`]'s.
+/// ([`resolve_roles_geometric`]), which says what the result makes of
+/// it. A run both of whose arcs separate a pending pair keeps
+/// [`pinch_ray_refusal`]'s refusal, as does every other run.
 fn glued_slit_roles<T: Decide>(
     e: BooleanError,
     red: &BooleanReduction<T>,
@@ -4932,28 +4932,26 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     // a limit either loop's witnesses met still refuses as its own.
     let undecided = |x: &Reading| matches!(x, Reading::Undecided(t) if !t.kept.met_a_limit());
     if undecided(&o) && undecided(&r) {
-        let found = match sliver_along_a_slit(red, side, face, ring)? {
-            Some(slit) => Some((slit, &mut r)),
-            None => sliver_along_a_slit(red, side, face, outer)?.map(|slit| (slit, &mut o)),
-        };
-        if let Some((_, reading)) = found {
-            *reading = Reading::Side(SideCode::Out);
+        if sliver_along_a_slit(red, side, face, ring)? {
+            r = Reading::Side(SideCode::Out);
+        } else if sliver_along_a_slit(red, side, face, outer)? {
+            o = Reading::Side(SideCode::Out);
         }
     }
     loop_roles(face, (outer, o), (ring, r))
 }
 
-/// The other operand's slit or ring, as its operand and carrying face,
-/// where every region face flanking section loop `l` of null face
+/// Whether every region face flanking section loop `l` of null face
 /// `face`, on `side`, is a sliver ([`super::slit::sliver_halves`]) along
-/// it: both its ends are tips of that operand's slits in that one face
-/// ([`slit_tip_on`]), so its one segment is the slit's line.
+/// one slit or ring of the other operand's: both its ends are tips of
+/// that operand's slits in one face ([`slit_tip_on`]), so its one
+/// segment is the slit's line.
 fn sliver_along_a_slit<T: Decide>(
     red: &BooleanReduction<T>,
     side: Operand,
     face: FaceKey,
     l: LoopKey,
-) -> Result<Option<(Operand, FaceKey)>, BooleanError> {
+) -> Result<bool, BooleanError> {
     let body = match side {
         Operand::A => &red.a,
         Operand::B => &red.b,
@@ -4961,7 +4959,7 @@ fn sliver_along_a_slit<T: Decide>(
     let mut slit = None;
     for f in region_faces(body, face, l)? {
         let Some(halves) = super::slit::sliver_halves(body, f) else {
-            return Ok(None);
+            return Ok(false);
         };
         let tips = halves.map(|h| {
             body.get_half_edge(h)
@@ -4971,10 +4969,10 @@ fn sliver_along_a_slit<T: Decide>(
             [Some(a), Some(b)] if a == b && a.0 == side.other() && slit.is_none_or(|s| s == a) => {
                 slit = Some(a);
             }
-            _ => return Ok(None),
+            _ => return Ok(false),
         }
     }
-    Ok(slit)
+    Ok(slit.is_some())
 }
 
 /// The (IN, OUT) loop order from each loop's ladder reading. Either

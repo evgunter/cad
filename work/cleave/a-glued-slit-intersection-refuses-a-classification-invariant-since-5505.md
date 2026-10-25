@@ -64,7 +64,7 @@ builds every op, as on main, except `x − y` at `hi = 1.4`, which
 refuses `LineWedges` before 5505 too.
 
 Pinned by
-`a_keel_on_the_floor_subtracts_as_a_slit::a_box_flush_under_a_ringed_top_kept_once_refuses_typed`
+`a_keel_on_the_floor_subtracts_as_a_slit::a_box_flush_under_a_ringed_top_builds_in_every_op` (named `…_kept_once_refuses_typed` then)
 at rest and turned, CI's three ε.
 
 ## Since `cleave/fate-cut-ends-at-a-slit-tip`

@@ -2445,7 +2445,8 @@ pub enum RefusedRow {
 /// **Which construction a slit's line lacks**
 /// ([`BooleanError::SlitLineCrossed`]): the other solid has an edge
 /// along an operand's slit or ring, and the germs on the line are not
-/// placed where
+/// built where the material places them, for the reason each case
+/// names.
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names
@@ -3758,13 +3759,14 @@ pub enum BooleanError {
         gap: SlitLineGap,
     },
     /// The face carrying an operand's slit or zero-area ring is glued to
-    /// a face of the other solid, and the join's run along the slit
-    /// encloses no area. Either the run walls off the sliver between the
-    /// slit's two edges from neither side without separating a pending
-    /// pair, or runs on a curved face's ring lane; or the op drops that
-    /// sliver and keeps one of the two flush faces, which carries the
-    /// slit on, through a cut in the dropped one that ends at the slit's
-    /// tip. A construction gap, with no lever.
+    /// a face of the other solid, and the result along the slit is not
+    /// built: the join's run along it encloses no area and walls off the
+    /// sliver between the slit's two edges from neither side without
+    /// separating a pending pair, or runs on a curved face's ring lane;
+    /// or a fate cut through the dropped one of the two flush faces ends
+    /// at the slit's tip in a face whose turn there is not read (a
+    /// curved face, or a curved edge on the tip's loop). A construction
+    /// gap, with no lever.
     SlitFaceGlued {
         /// The operand holding the slit.
         operand: Operand,
@@ -5079,9 +5081,8 @@ impl core::fmt::Display for BooleanError {
             Self::SlitFaceGlued { operand, face } => write!(
                 f,
                 "a face of the other solid lies flush on face {face:?} of the {} solid, which \
-                 carries a slit or zero-area ring: its two coincident edges would become one \
-                 edge between its two walls, or stay in the one of the two flush faces the op \
-                 keeps, and the join does not build that there. {}",
+                 carries a slit or zero-area ring, and the boolean does not build the result \
+                 along it there. {}",
                 operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),
@@ -6050,7 +6051,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         records: null_edges,
         copies,
     } = null_edges;
-    let fates = fate::border_fates(fates, &covered, &null_edges, &a, &b)?;
+    let fates = fate::border_fates(fates, &covered, &null_edges, (&a, &b), band)?;
     let rest_contacts = decls
         .pairs
         .iter()

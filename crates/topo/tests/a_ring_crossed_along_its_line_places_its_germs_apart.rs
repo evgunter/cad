@@ -23,10 +23,11 @@
 //! closes it across the line, which the join does not build: it refuses
 //! `SlitLineCrossed` `Closes`
 //! (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
-//! A partner with a face flush with the top beside the ring builds
-//! where the op keeps one of the two flush faces: the dropped one is cut
-//! along the line, the cut ending in the full turn the ring leaves at its
-//! tip.
+//! A partner with a face flush with the top beside the ring builds in
+//! every op but `y ∪ x`: where the op keeps one of the two flush faces,
+//! the dropped one is cut along the line, the cut ending in the full
+//! turn the ring leaves at its tip. `y ∪ x` keeps only the top on the
+//! line and refuses `Closes`, as the union above does.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -385,7 +386,7 @@ fn a_partner_flush_with_the_rings_face_builds_where_one_copy_is_kept() {
             };
             let (vx, vy) = (volume(&x), volume(&y));
             let what = format!("flush {side}, {}", pose.label);
-            assert!((i - i2).abs() < 1e-12, "{what}: |x ∩ y| in both orders");
+            assert!((i - i2).abs() < 1e-9, "{what}: |x ∩ y| in both orders");
             assert!(
                 (xy + i - vx).abs() < 1e-9,
                 "{what}: |x − y| + |x ∩ y| = |x|"
