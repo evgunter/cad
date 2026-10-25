@@ -201,12 +201,12 @@ impl FateCuts {
 /// [`BooleanError::ClassificationInvariant`] for a fate edge that no
 /// longer resolves; [`BooleanError::Escalated`] where whether two of the
 /// holder's edges overlap reads in band.
-pub(super) fn border_fates<T: Decide + geom_core::Bounds>(
+pub(super) fn border_fates<T: geom_core::Real>(
     mut fates: Fates<T>,
     covered: &[(FaceKey, FaceKey)],
     null_edges: &[super::BoolNullEdgeRecord<T>],
     (a, b): (&Body<T>, &Body<T>),
-    band: Band,
+    overlaps: impl Fn(&Body<T>) -> Result<Vec<[EdgeKey; 2]>, BooleanError>,
 ) -> Result<Fates<T>, BooleanError> {
     fates.edges.sort();
     fates.edges.dedup();
@@ -254,10 +254,7 @@ pub(super) fn border_fates<T: Decide + geom_core::Bounds>(
         if sides.len() == count {
             continue;
         }
-        let overlaps = crate::census::collinear_overlaps(body, band)
-            .map_err(super::ops::collinear_escalated)?;
-        for pair in overlaps {
-            let [e0, e1] = pair.edges;
+        for [e0, e1] in overlaps(body)? {
             let fate = |e: EdgeKey| {
                 edges
                     .iter()
@@ -531,13 +528,9 @@ fn tip_wraps<T: Decide>(
         return Err(unread);
     };
     let n = normal.vec();
-    let lp = loop_of(body, h)?;
-    let outer = body.get_face(f).map(|x| x.outer) == Some(lp);
-    let Some(LoopBoundary::Cycle { first }) = body.get_loop(lp).map(|l| l.boundary) else {
-        return Err(desync("a tip's loop is not a cycle"));
-    };
+    let outer = body.get_face(f).map(|x| x.outer) == Some(loop_of(body, h)?);
     let cycle = body
-        .loop_cycle(first)
+        .loop_cycle(h)
         .ok_or_else(|| desync("a tip's loop does not walk"))?;
     // The loop's straight runs, its null scaffolding skipped.
     let mut runs = Vec::with_capacity(cycle.len());
@@ -554,13 +547,14 @@ fn tip_wraps<T: Decide>(
         }
         runs.push(run);
     }
-    let (mut turned, mut halves) = (T::zero(), 0_u32);
+    let (mut turned, mut halves, mut any) = (T::zero(), T::zero(), false);
     for (k, &(b, b_len)) in runs.iter().enumerate() {
         let (a, a_len) = runs[(k + runs.len() - 1) % runs.len()];
         let (across, ahead) = (n.dot(a.cross(b)), a.dot(b));
         let arm = a_len.min(b_len);
         if sign(across, arm, band)? == Sign::Zero && sign(ahead, arm, band)? == Sign::Negative {
-            halves += 1;
+            halves = halves + T::one();
+            any = true;
         } else {
             turned = turned + across.atan2(ahead);
         }
@@ -571,12 +565,11 @@ fn tip_wraps<T: Decide>(
         T::zero() - T::tau()
     };
     let half_turns = (whole - turned) / T::pi();
-    let count = T::from_f64(f64::from(halves));
     match (
-        sign(half_turns + count, T::one(), band)?,
-        sign(half_turns - count, T::one(), band)?,
+        sign(half_turns + halves, T::one(), band)?,
+        sign(half_turns - halves, T::one(), band)?,
     ) {
-        _ if halves == 0 => Err(unread),
+        _ if !any => Err(unread),
         (Sign::Zero, _) => Ok(true),
         (_, Sign::Zero) => Ok(false),
         _ => Err(unread),

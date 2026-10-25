@@ -6048,7 +6048,11 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         records: null_edges,
         copies,
     } = null_edges;
-    let fates = fate::border_fates(fates, &covered, &null_edges, (&a, &b), band)?;
+    let fates = fate::border_fates(fates, &covered, &null_edges, (&a, &b), |body| {
+        crate::census::collinear_overlaps(body, band)
+            .map(|lines| lines.into_iter().map(|line| line.edges).collect())
+            .map_err(ops::collinear_escalated)
+    })?;
     let rest_contacts = decls
         .pairs
         .iter()
