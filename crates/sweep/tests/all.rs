@@ -206,6 +206,8 @@ mod crossing_equal_rods;
 mod curved_edge_corpus;
 #[path = "curved_edge_ray_probes.rs"]
 mod curved_edge_ray_probes;
+#[path = "sphere_spline_aim_probes.rs"]
+mod sphere_spline_aim_probes;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]

@@ -229,6 +229,43 @@ impl<T: Decide> SphereFaceRegion<T> {
         .map(Some)
     }
 
+    /// A point of the face's sphere the side-at-infinity reader may aim
+    /// at: each arc's middle stepped along its great circle toward the
+    /// face (`N × τ`, module docs) by half its circle's angular radius
+    /// about its pole, so a cap's lone rim steps into the cap whichever
+    /// side of the rim it is; the steps' mean carried onto the sphere
+    /// radially, or the first arc's step where that mean is the centre.
+    /// It need not lie in the face; it only steers. `None` for a face with
+    /// no boundary arc, which offers no aim.
+    pub(crate) fn aim(&self) -> Option<Point3<T>> {
+        let (one, two) = (T::one(), T::from_f64(2.0));
+        let step = |arc: &Arc<T>| {
+            let t = geom::mid_param(arc.t0, arc.t1);
+            let m = arc.at(t);
+            let w = m - self.center;
+            let into = self.outward(m).cross(arc.traversal(t));
+            // The sine of the circle's angular radius, `ρ / R`; a carrier
+            // that is not a circle (none is admitted) steps as a great
+            // circle would.
+            let sine = match arc.carrier {
+                geom::Curve3::Circle { radius, .. } => (radius / self.radius).abs().min(one),
+                _ => one,
+            };
+            let cosine = (one - sine * sine).max(T::zero()).sqrt();
+            let (cos, sin) = (((one + cosine) / two).sqrt(), ((one - cosine) / two).sqrt());
+            w / w.norm() * cos + into / into.norm() * sin
+        };
+        let first = step(self.edges.first()?);
+        let sum = self.edges[1..]
+            .iter()
+            .fold(first, |sum, arc| sum + step(arc));
+        let len = sum.norm();
+        // Evaluation, not a decision: the direction only steers.
+        let at_centre = len.select_le_zero(one, T::zero());
+        let dir = sum / len.select_le_zero(one, len) + first / first.norm() * at_centre;
+        Some(self.center + dir / dir.norm() * self.radius)
+    }
+
     /// The ray from `a` along the unit tangent `t` (module docs, step 1):
     /// the great circle round the centre from `a` toward `t`.
     fn ray(&self, a: Vec3<T>, t: Vec3<T>) -> Leg<T, Round<T>> {
