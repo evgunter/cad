@@ -112,8 +112,9 @@ edge, into each face, at offsets 0, Kε/3 and Kε (within the band) and
     root two half-walls share is one crossing);
   - belongs to a face whose every edge is decided;
   - on a face not every edge of which is a line edge read exactly, lies
-    near the passage (`side_at_infinity_stands` /
-    `bool_point_in_solid_stands`) or is definitely held by the face.
+    near the passage (`side_at_infinity_met_edge_represents` /
+    `bool_point_in_solid_met_edge_represents`) or is definitely held by
+    the face.
 
   The hit spans the passage and both carrier crossings. A planar face
   with a met edge offers no crossing of its own; a curved face offers
@@ -128,6 +129,11 @@ edge, into each face, at offsets 0, Kε/3 and Kε (within the band) and
   - Elsewhere, a face that definitely holds the root holds it alone. The
     others' readings, in band, faulted or not, decide nothing; a fault
     stands only where no face holds the root. The reading is order-free.
+- **A fault does not turn on face order.** Where faces' readings of the
+  carriers fault, the ray refuses with the highest-ranked fault
+  (`RayFault::rank`, the order `Evidence` ranks by: fatal, blocked, in
+  band, graze), and of two of one rank the lesser face's. A broken face
+  is the query's refusal whatever another face holds.
 - Vertices of curved edges are corners, as a line edge's are, save a
   closed edge's conventional vertex.
 

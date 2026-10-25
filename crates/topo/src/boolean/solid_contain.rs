@@ -2686,7 +2686,7 @@ pub(crate) struct RayRows {
     pub(crate) edge: &'static str,
     pub(crate) edge_span: &'static str,
     pub(crate) winding: &'static str,
-    pub(crate) stands: &'static str,
+    pub(crate) represents: &'static str,
 }
 
 /// A schedule ray's rows (module docs).
@@ -2700,7 +2700,7 @@ const SCHEDULE_ROWS: RayRows = RayRows {
     edge: "bool_point_in_solid_edge",
     edge_span: "bool_point_in_solid_edge_span",
     winding: "bool_point_in_solid_winding",
-    stands: "bool_point_in_solid_stands",
+    represents: "bool_point_in_solid_met_edge_represents",
 };
 
 /// One ray of the sweep: the side its running count reads
@@ -3173,30 +3173,17 @@ fn crosses_by_turn<T: Decide>(
     band: Band,
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
-    let f = body
-        .get_face(face)
-        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
+    let corrupt = || RayFault::Fatal(PointInSolidError::CorruptFace { face });
+    let at = |v| {
+        body.get_vertex(v)
+            .and_then(|vx| body.get_point(vx.point))
+            .copied()
+            .ok_or_else(corrupt)
+    };
     let mut turn = T::zero();
-    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let first = match body.get_loop(l).map(|lp| lp.boundary) {
-            Some(LoopBoundary::Cycle { first }) => first,
-            // A lone ring vertex bounds no area and turns nothing.
-            Some(LoopBoundary::Empty { .. }) => continue,
-            None => return Err(RayFault::Fatal(PointInSolidError::CorruptFace { face })),
-        };
-        for h in body.loop_walk(first).closed("loop", first) {
-            let ends = body.get_half_edge(h).and_then(|he| {
-                let at = |v| {
-                    body.get_vertex(v)
-                        .and_then(|vx| body.get_point(vx.point))
-                        .copied()
-                };
-                Some((at(he.start)?, at(body.half_edge_end(h)?)?))
-            });
-            let (a, b) = ends.ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
-            let (u, w) = (a - p, b - p);
-            turn = turn + normal.dot(u.cross(w)).atan2(u.dot(w));
-        }
+    for e in face_edges(body, face).map_err(RayFault::Fatal)? {
+        let (u, w) = (at(e.ends[0])? - p, at(e.ends[1])? - p);
+        turn = turn + normal.dot(u.cross(w)).atan2(u.dot(w));
     }
     Ok(geom_core::k_stats::check_unlogged(
         rows.winding,
@@ -3269,27 +3256,30 @@ fn every_edge_read<T: geom_core::Real>(
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    body.get_face(face).is_some_and(|f| {
-        core::iter::once(f.outer)
-            .chain(f.rings.iter().copied())
-            .all(|l| match body.get_loop(l).map(|lp| lp.boundary) {
-                Some(LoopBoundary::Cycle { first }) => body
-                    .loop_walk(first)
-                    .closed("loop", first)
-                    .into_iter()
-                    .all(|h| {
-                        body.get_half_edge(h)
-                            .is_some_and(|he| read.contains(&he.edge))
-                    }),
-                Some(LoopBoundary::Empty { .. }) => true,
-                None => false,
-            })
-    })
+    face_edges(body, face).is_ok_and(|edges| edges.iter().all(|e| read.contains(&e.edge)))
 }
 
 /// The roots of a ray's trimmed curved carriers, and the faces whose
 /// carriers it definitely misses ([`carrier_roots`]).
 type CarrierRoots<T> = (Vec<RootCross<T>>, Vec<FaceKey>);
+
+/// The higher-ranked of a kept fault and `fault`, raised at `face`
+/// ([`RayFault::rank`]); of two of one rank, the lesser face's, so the
+/// ray's fault does not turn on the order its faces are read in.
+fn worse<E>(
+    kept: Option<(FaceKey, RayFault<E>)>,
+    face: FaceKey,
+    fault: RayFault<E>,
+) -> Option<(FaceKey, RayFault<E>)> {
+    match kept {
+        Some((at, k))
+            if (k.rank(), core::cmp::Reverse(at)) >= (fault.rank(), core::cmp::Reverse(face)) =>
+        {
+            Some((at, k))
+        }
+        _ => Some((face, fault)),
+    }
+}
 
 /// **The roots of each trimmed curved face's carrier** on the ray `q +
 /// s·d` (a wall's, a cone's, a sphere patch's, a torus patch's), before
@@ -3328,115 +3318,138 @@ fn carrier_roots<T: Decide>(
     rows: RayRows,
 ) -> Result<CarrierRoots<T>, RayFault<PointInSolidError>> {
     let (mut roots, mut missed) = (Vec::new(), Vec::new());
+    // Each face's fault, the highest kept: the ray's, whatever order its
+    // faces are read in.
+    let mut worst: Option<(FaceKey, RayFault<PointInSolidError>)> = None;
     for &(face, ref geo) in geos {
-        let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
-        let first = roots.len();
-        let mut push = |t: T, side: RootSide| {
-            let ordinal = roots.len() - first;
-            roots.push(RootCross {
-                face,
-                t,
-                side,
-                ordinal,
-            });
-        };
-        match *geo {
-            FaceGeo::Cylinder {
-                origin,
-                axis,
-                radius,
-                sense,
-                ..
-            } => match line_wall_roots(q, d, origin, axis, radius, reach, band)
-                .map_err(|fault| escalate(fault.diag))?
-            {
-                WallRoots::Miss => missed.push(face),
-                WallRoots::AxisParallel => {
-                    if !clear_of_carrier(wall_elevation(origin, axis, radius, q), face, band, rows)?
-                    {
-                        return Err(RayFault::Graze);
-                    }
-                }
-                WallRoots::Tangent => return Err(RayFault::Graze),
-                WallRoots::Two(ts) => {
-                    for (t, chart) in ts.into_iter().zip([Sign::Negative, Sign::Positive]) {
-                        push(t, RootSide::Ordered(oriented(chart, sense)));
-                    }
-                }
-            },
-            FaceGeo::Cone {
-                apex,
-                axis,
-                half_angle,
-                ref region,
-                ..
-            } => {
-                let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
-                // A bound on the face's reach from its apex, never under
-                // it — the lever both margins below are metered by.
-                let v_ext = region.reach();
-                if decide("bool_ray_cone_lead", Margin::levered(a2, v_ext), band)
-                    .map_err(escalate)?
-                    == Sign::Zero
+        let read = (|| {
+            let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
+            let first = roots.len();
+            let mut push = |t: T, side: RootSide| {
+                let ordinal = roots.len() - first;
+                roots.push(RootCross {
+                    face,
+                    t,
+                    side,
+                    ordinal,
+                });
+            };
+            match *geo {
+                FaceGeo::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    sense,
+                    ..
+                } => match line_wall_roots(q, d, origin, axis, radius, reach, band)
+                    .map_err(|fault| escalate(fault.diag))?
                 {
-                    return Err(RayFault::Graze); // generator-parallel
-                }
-                let disc = b2.powi(2) - a2 * c2;
-                match decide("bool_ray_cone_disc", Margin::over_lever(disc, v_ext), band)
-                    .map_err(escalate)?
-                {
-                    Sign::Positive => {
-                        // Unordered: `A` may be negative, and the count
-                        // orders by advance anyway.
-                        for t in quadratic_roots(a2, b2, c2, disc) {
-                            push(t, RootSide::Cone);
+                    WallRoots::Miss => missed.push(face),
+                    WallRoots::AxisParallel => {
+                        if !clear_of_carrier(
+                            wall_elevation(origin, axis, radius, q),
+                            face,
+                            band,
+                            rows,
+                        )? {
+                            return Err(RayFault::Graze);
                         }
                     }
-                    Sign::Zero => return Err(RayFault::Graze), // tangent ray
-                    Sign::Negative => missed.push(face),
+                    WallRoots::Tangent => return Err(RayFault::Graze),
+                    WallRoots::Two(ts) => {
+                        for (t, chart) in ts.into_iter().zip([Sign::Negative, Sign::Positive]) {
+                            push(t, RootSide::Ordered(oriented(chart, sense)));
+                        }
+                    }
+                },
+                FaceGeo::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    ref region,
+                    ..
+                } => {
+                    let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
+                    // A bound on the face's reach from its apex, never under
+                    // it — the lever both margins below are metered by.
+                    let v_ext = region.reach();
+                    if decide("bool_ray_cone_lead", Margin::levered(a2, v_ext), band)
+                        .map_err(escalate)?
+                        == Sign::Zero
+                    {
+                        return Err(RayFault::Graze); // generator-parallel
+                    }
+                    let disc = b2.powi(2) - a2 * c2;
+                    match decide("bool_ray_cone_disc", Margin::over_lever(disc, v_ext), band)
+                        .map_err(escalate)?
+                    {
+                        Sign::Positive => {
+                            // Unordered: `A` may be negative, and the count
+                            // orders by advance anyway.
+                            for t in quadratic_roots(a2, b2, c2, disc) {
+                                push(t, RootSide::Cone);
+                            }
+                        }
+                        Sign::Zero => return Err(RayFault::Graze), // tangent ray
+                        Sign::Negative => missed.push(face),
+                    }
                 }
-            }
-            FaceGeo::SpherePatch {
-                center,
-                radius,
-                sense,
-                ..
-            } => match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
-                WallRoots::Two([near, far]) => {
-                    push(near, RootSide::Ordered(oriented(Sign::Negative, sense)));
-                    push(far, RootSide::Ordered(oriented(Sign::Positive, sense)));
-                }
-                WallRoots::Tangent => return Err(RayFault::Graze),
-                WallRoots::Miss | WallRoots::AxisParallel => missed.push(face),
-            },
-            FaceGeo::TorusPatch {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                ..
-            } => {
-                let found =
-                    match line_torus_roots(q, d, center, axis, major_radius, minor_radius, band) {
+                FaceGeo::SpherePatch {
+                    center,
+                    radius,
+                    sense,
+                    ..
+                } => match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
+                    WallRoots::Two([near, far]) => {
+                        push(near, RootSide::Ordered(oriented(Sign::Negative, sense)));
+                        push(far, RootSide::Ordered(oriented(Sign::Positive, sense)));
+                    }
+                    WallRoots::Tangent => return Err(RayFault::Graze),
+                    WallRoots::Miss | WallRoots::AxisParallel => missed.push(face),
+                },
+                FaceGeo::TorusPatch {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => {
+                    let found = match line_torus_roots(
+                        q,
+                        d,
+                        center,
+                        axis,
+                        major_radius,
+                        minor_radius,
+                        band,
+                    ) {
                         Ok(roots) => Ok(roots),
                         Err(RootRefusal::Unsettled(why)) => Err(why),
                         Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
                     };
-                match torus_crossings(face, found)? {
-                    Some(found) => {
-                        for &t in found.roots() {
-                            push(t, RootSide::Torus);
+                    match torus_crossings(face, found)? {
+                        Some(found) => {
+                            for &t in found.roots() {
+                                push(t, RootSide::Torus);
+                            }
                         }
+                        None => missed.push(face),
                     }
-                    None => missed.push(face),
                 }
+                FaceGeo::Plane(..)
+                | FaceGeo::Sphere { .. }
+                | FaceGeo::Torus { .. }
+                | FaceGeo::PartialCone { .. }
+                | FaceGeo::PartialWall { .. } => {}
             }
-            FaceGeo::Plane(..)
-            | FaceGeo::Sphere { .. }
-            | FaceGeo::Torus { .. }
-            | FaceGeo::PartialCone { .. }
-            | FaceGeo::PartialWall { .. } => {}
+            Ok(())
+        })();
+        if let Err(fault) = read {
+            worst = worse(worst, face, fault);
         }
+    }
+    if let Some((_, fault)) = worst {
+        return Err(fault);
     }
     Ok((roots, missed))
 }
@@ -3601,12 +3614,16 @@ fn root_held<T: Decide>(
 /// ([`curved_edges`]). An edge the ray passes within the band of meets
 /// it, half a crossing for each face it bounds, at the carrier crossing
 /// of each face it stands for; a planar face with such an edge offers no
-/// crossing of its own, and a curved face none at that root. A met edge
-/// stands for a crossing only where the edge represents it: one no other
-/// met edge stands for, of a face whose every edge is decided, and, on a
-/// face not every edge of which is a line edge read exactly, one near the
-/// passage or definitely held by the face; else it reads nothing there. A planar
-/// face whose edges are all line edges so decided, and clear of the ray,
+/// crossing of its own, and a curved face none at that root.
+///
+/// A met edge stands for a crossing only where the edge represents it,
+/// and reads nothing there otherwise. It represents a crossing that:
+/// - no other met edge stands for;
+/// - belongs to a face whose every edge is decided;
+/// - on a face not every edge of which is a line edge read exactly, lies
+///   near the passage or is definitely held by the face.
+///
+/// A planar face whose edges are all line edges so decided, and clear of the ray,
 /// is crossed where the turn of its loops says ([`crosses_by_turn`]);
 /// another takes its in-face walk, and each root of a curved face no
 /// edge stands for its face's trim. A ray within the band of a vertex,
@@ -3760,8 +3777,9 @@ pub(crate) fn ray_crossings<T: Decide>(
             // face.
             if stands && !every_edge_read(body, f, &meets.lines) {
                 let off = (m.span.0 - t).max(t - m.span.1).max(T::zero());
-                let near = geom_core::k_stats::decide_magnitude(rows.stands, Margin::of(off), band)
-                    != Ok(geom_core::k_stats::Magnitude::Positive);
+                let near =
+                    geom_core::k_stats::decide_magnitude(rows.represents, Margin::of(off), band)
+                        != Ok(geom_core::k_stats::Magnitude::Positive);
                 let held = match (c, plane, geo_of(f)) {
                     _ if near => Ok(Some(true)),
                     (Cross::Plane, Some(p), _) => {
@@ -3873,9 +3891,14 @@ pub(crate) fn ray_crossings<T: Decide>(
                 Ok(Some(true)) => held = held.or(Some((r, geo))),
                 Ok(Some(false)) => {}
                 Ok(None) => boundary = boundary.or(Some(r)),
-                Err(f) => fault = fault.or(Some(f)),
+                Err(f) => fault = worse(fault, r.face, f),
             }
         }
+        // A broken face is the query's refusal, whatever another face holds.
+        if let Some((_, f @ RayFault::Fatal(_))) = fault {
+            return Err(f);
+        }
+        let fault = fault.map(|(_, f)| f);
         match (held, fault, boundary) {
             (Some((r, geo)), ..) => {
                 let outward = root_outward(r.face, geo, r, q, d, band)?;

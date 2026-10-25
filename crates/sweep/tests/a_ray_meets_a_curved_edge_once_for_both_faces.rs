@@ -90,7 +90,12 @@ fn whole_ray(
             .map(|(c, s)| (c.iter().map(|x| x.2).collect::<Vec<_>>(), *s))
             .ok()
     };
-    if counts(&orders[0]) != counts(&orders[1]) {
+    let kind = |r: &Read| {
+        r.as_ref()
+            .err()
+            .map(|e| e.split('(').next().unwrap_or("").to_owned())
+    };
+    if counts(&orders[0]) != counts(&orders[1]) || kind(&orders[0]) != kind(&orders[1]) {
         return Err(format!(
             "two face orders read {:?} and {:?}",
             counts(&orders[0]),
@@ -291,8 +296,9 @@ fn probe_disc_seeds() {
 /// (PR 5697's first review, MAJOR 1): rays just inside the kinked bore's
 /// face `x = 1`, shallow to it, passing the bore's mouth on that face
 /// within the band, each read whole. The face's plane crossing lies past
-/// the mouth, outside the face; on PR 5697's first head the edge the ray
-/// met first stood for it, and 140 of the 3042 rays read wrong.
+/// the kink edge, which reads clear, outside the face; on PR 5697's first
+/// head the mouth, met in band, stood for it, and 140 of the 3042 rays
+/// read wrong.
 #[test]
 fn a_ray_shallow_to_a_face_past_its_curved_edge_reads_right() {
     let tol = Tol::witness();

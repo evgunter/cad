@@ -38,7 +38,7 @@ pub(crate) const AIMED_ROWS: RayRows = RayRows {
     edge: "side_at_infinity_edge",
     edge_span: "side_at_infinity_edge_span",
     winding: "side_at_infinity_winding",
-    stands: "side_at_infinity_stands",
+    represents: "side_at_infinity_met_edge_represents",
 };
 
 /// **Two crossings of an aimed ray in band of each other along it** —
@@ -325,6 +325,7 @@ fn aim_at<T: Decide>(
 /// edge by edge however near an edge it lands ([`ray_crossings`]).
 /// `None` for a loop with a curved edge, or one that does not walk.
 fn line_loop_mean<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> Option<Point3<T>> {
+    // Not `face_edges`: the mean is the outer loop's, and that walks the rings too.
     let outer = body.get_face(face)?.outer;
     let first = match body.get_loop(outer)?.boundary {
         LoopBoundary::Cycle { first } => first,
@@ -397,6 +398,8 @@ pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -
     if a == b {
         return true;
     }
+    // Not `face_edges`, which collects and resolves every mate: this reads
+    // only the starts, in place, once per pair of faces.
     let starts = |face: FaceKey| {
         body.get_face(face)
             .into_iter()

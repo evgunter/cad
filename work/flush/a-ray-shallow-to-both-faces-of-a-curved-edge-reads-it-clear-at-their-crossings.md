@@ -30,21 +30,26 @@ The ray can pass an edge in band with every crossing of that edge's
 faces definitely off its carrier. One of PR 5697's reviews demonstrated
 this on the kinked bore (`crates/sweep/tests/curved_edge_corpus.rs`,
 `kinked_bore`). The ray is shallow to the face `x = 1` and passes the
-bore's mouth on it in band. Its plane crossing lies past the mouth,
-outside the face, and the mouth read clear.
+bore's mouth on it in band, steep to the bore's wall. The mouth was
+met: its span starts at the ray's `t = 3.0`. The ray then passes the
+kink edge, which read clear at every crossing of its faces, and crosses
+the plane `x = 1` at `X`, beyond the kink edge and outside the face.
 
-On the PR's first head, the kink edge the ray met first stood for that
-plane crossing. It counted `(s_T + s_W)/2 = 0` where the truth is ±1,
-and 140 of 3042 rays read the wrong side. This row's earlier text said
+On the PR's first head, the mouth stood for that plane crossing: the
+hits on 3c24a8b1 show one count at `t ≈ 2.99999`, its span running from
+the mouth's passage to `X` (`t ≈ 3.2785`). It counted
+`(s_T + s_W)/2 = 0` where the truth is ±1, and 140 of 3042 rays read
+the wrong side. This row's earlier text said
 "a lost read, never a wrong one", which was false.
 
 **The fix pass's rule.** A met edge stands for a face's crossing only
-where the crossing lies near the passage (`side_at_infinity_stands` /
-`bool_point_in_solid_stands`, past the band from the passage's span), or
-where the face definitely holds it. This applies on a face not every
-edge of which is a line edge read exactly; on such a face (planes only,
-`edge_meets`) every edge the ray passes in band is met. Otherwise the
-edge reads nothing there.
+where the crossing lies near the passage
+(`side_at_infinity_met_edge_represents` /
+`bool_point_in_solid_met_edge_represents`, not past the band from the
+passage's span), or where the face definitely holds it. This applies on a face not every
+edge of which is a line edge read exactly; on a face every edge of which
+is (planes only, `edge_meets`), every edge the ray passes in band is
+met. Otherwise the edge reads nothing there.
 - Measured on the kinked bore, the scan reads 0 wrong at ε 1e-9, 1e-6
   and 1e-12 (`a_ray_shallow_to_a_face_past_its_curved_edge_reads_right`).
 - **What it costs.** The rule also reads nothing where the half would
