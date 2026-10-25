@@ -155,7 +155,10 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
 };
 
 /// A conic edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded("bool_ruled_region_arc_span", "bool_ruled_region_arc_straddle");
+const BOUNDARY: ConicRows = ConicRows::bounded(
+    "bool_ruled_region_arc_span",
+    "bool_ruled_region_arc_straddle",
+);
 
 /// A line edge's boundary reading's rows ([`ray_walk::on_segment`]).
 const LINE: SegmentRows = SegmentRows {

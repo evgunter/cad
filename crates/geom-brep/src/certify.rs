@@ -54,11 +54,11 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::spline::SpanLocate;
 use geom_core::period::{
     Bounded, Exact, Extent, NotForward, Period, Turn, TurnRate as _, TurnRows, TurnUndecided,
     Within,
 };
+use geom_core::spline::SpanLocate;
 use geom_core::{
     Band, BandError, Decide, Decided, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Real,
     Sign,
@@ -3440,8 +3440,7 @@ fn run_checks<T: Decide>(
         },
     };
     let forward = |span: Margin<T>| -> Result<(), CertifyError> {
-        let decided =
-            decide_reported(FORWARD_ROW, span, band).map_err(span_escalated)?;
+        let decided = decide_reported(FORWARD_ROW, span, band).map_err(span_escalated)?;
         match Refused::of(decided, band) {
             None => Ok(()),
             Some(verdict) => Err(CertifyError::IntervalNotForward { verdict }),

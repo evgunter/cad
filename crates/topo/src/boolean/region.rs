@@ -84,7 +84,9 @@ pub(crate) fn circle_edge_hit<T: Decide>(
     outer: LoopKey,
     band: Band,
 ) -> Result<bool, RegionRefusal> {
-    let arc = extent.map_or(Ok(None), |extent| ConicArc::of(circle, span, extent, rows, band));
+    let arc = extent.map_or(Ok(None), |extent| {
+        ConicArc::of(circle, span, extent, rows, band)
+    });
     let k = match arc {
         Ok(Some(k)) => k,
         Err(ConicArcError::Escalated(e)) => return Err(RegionRefusal::Escalated(e.diag)),
@@ -972,5 +974,12 @@ mod tests {
 #[cfg(test)]
 pub(crate) fn fixture_extent(t0: f64, t1: f64) -> Option<Extent<f64>> {
     let band = Band::new(1e-9, 1e-8).ok()?;
-    Extent::forward("test_region_extent", t0, t1, geom_core::InfSpeed::new(1.0), band).ok()
+    Extent::forward(
+        "test_region_extent",
+        t0,
+        t1,
+        geom_core::InfSpeed::new(1.0),
+        band,
+    )
+    .ok()
 }

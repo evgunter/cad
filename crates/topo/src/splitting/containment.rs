@@ -124,9 +124,7 @@ use geom_brep::recourse::{LeverOnly, Reading, RefusedArm, RefusedSide, SizedDeci
 use geom_core::period::{
     Bounded, Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within,
 };
-use geom_core::{
-    Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Sign, Vec3,
-};
+use geom_core::{Band, Decide, Indeterminate, InfSpeed, Margin, MarginDiag, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, LoopBoundary, LoopKey};
@@ -1490,7 +1488,9 @@ pub(crate) fn carrier_loop<T: Decide>(
             Ok(Some(k)) => edges.push(LoopEdge::Conic(k)),
             Ok(None) => edges.push(match (curve.carrier(), ball) {
                 (geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. }, _) => {
-                    unreachable!("a certified circle or ellipse carries its turn and is a conic arc above")
+                    unreachable!(
+                        "a certified circle or ellipse carries its turn and is a conic arc above"
+                    )
                 }
                 // A line: its segment is its two end vertices'.
                 (geom::Curve3::Line { .. }, _) => LoopEdge::Chord,
@@ -2770,8 +2770,7 @@ mod tests {
                     let dt = overlap / speed;
                     let start = at - 0.5 * dt - core::f64::consts::FRAC_PI_2;
                     let span = (start, start + core::f64::consts::TAU + dt);
-                    let got =
-                        conic_of(&stored_minor_first(a, 1.0), span, WALK_ROWS.conic, band);
+                    let got = conic_of(&stored_minor_first(a, 1.0), span, WALK_ROWS.conic, band);
                     assert!(
                         matches!(
                             got,

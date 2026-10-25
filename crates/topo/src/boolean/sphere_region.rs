@@ -116,7 +116,10 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
 };
 
 /// The boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows::bounded("bool_sphere_region_arc_span", "bool_sphere_region_arc_straddle");
+const BOUNDARY: ConicRows = ConicRows::bounded(
+    "bool_sphere_region_arc_span",
+    "bool_sphere_region_arc_straddle",
+);
 
 /// A trimmed sphere face's boundary: every arc of every loop, each with
 /// the direction its loop traverses it.
@@ -250,7 +253,15 @@ impl<T: Decide> Region<T> for SphereFaceRegion<T> {
 
     fn on_edge(&self, arc: &Arc<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         let span = (arc.t0, arc.t1);
-        circle_edge_hit(&arc.carrier, span, arc.extent, BOUNDARY, p, self.outer, band)
+        circle_edge_hit(
+            &arc.carrier,
+            span,
+            arc.extent,
+            BOUNDARY,
+            p,
+            self.outer,
+            band,
+        )
     }
 }
 

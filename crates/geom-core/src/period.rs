@@ -615,7 +615,6 @@ impl<T: Decide> TurnRate<T> for Bounded<T> {
     }
 }
 
-
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod period_rows {

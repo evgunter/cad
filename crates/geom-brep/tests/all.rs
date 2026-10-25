@@ -81,6 +81,8 @@ mod chart_box_span;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;
+#[path = "certify_turn_rule.rs"]
+mod certify_turn_rule;
 #[path = "computed_values_enter_as_unknowns.rs"]
 mod computed_values_enter_as_unknowns;
 #[path = "coplanar_ellipses_one_locus.rs"]
@@ -95,8 +97,6 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "ellipse_signed_semi_axis_gate.rs"]
 mod ellipse_signed_semi_axis_gate;
-#[path = "certify_turn_rule.rs"]
-mod certify_turn_rule;
 #[path = "end_samples_read_the_carrier.rs"]
 mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
