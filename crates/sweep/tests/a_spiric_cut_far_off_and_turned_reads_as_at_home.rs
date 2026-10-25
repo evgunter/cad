@@ -697,6 +697,67 @@ fn a_shell_of_one_quadrature_region_reads_as_about_one_point_bit_for_bit() {
     }
 }
 
+/// **A region near its shell's point is not carried.** The two tori on a
+/// bar 10.6 m long rather than 900.6 m: the far torus's region, its cap
+/// 12 m across, lies about one of its own extents from the home torus's
+/// point, short of the 16 a carry asks (`topo::props`' `far_from`), where
+/// the carry's own rounding outweighs what the shorter lever saves. So it
+/// is read about the shell's point, and the body measures to the bits the
+/// one-point reading gives.
+#[test]
+fn a_region_near_its_shells_point_is_read_about_it_bit_for_bit() {
+    let tol = Tol::witness();
+    let near = finished(
+        "the small torus 10 m down the bar",
+        topo::transform_rigid(
+            &torus(0.2, 0.05),
+            &geom_core::test_support::rigid(
+                &Affine3::translation(Vec3::new(-10.27, 0.0, 0.0)),
+                tol,
+            ),
+            tol,
+        )
+        .unwrap(),
+        tol,
+    );
+    let tt = topo::union(&torus(2.0, 0.5), &near, tol)
+        .unwrap()
+        .body()
+        .unwrap()
+        .body
+        .clone();
+    let bar = finished(
+        "a 10.6 m bar",
+        framed_bar(
+            Point3::new(0.3, 0.0, 0.0),
+            Vec3::new(-1.0, 0.0, 0.0),
+            0.0,
+            10.6,
+            12.0,
+        ),
+        tol,
+    );
+    let body = topo::union(&tt, &bar, tol)
+        .unwrap()
+        .body()
+        .unwrap()
+        .body
+        .clone();
+    let regions = topo::test_support::region_carries_of(&body.clone().into_body());
+    let [(_, regions)] = &regions[..] else {
+        panic!("the short bar is one shell: {regions:?}");
+    };
+    let [(_, None), (_, None)] = &regions[..] else {
+        panic!("one shell of two regions, neither carried: {regions:?}");
+    };
+    let carried = topo::mass_properties(&body, tol).unwrap();
+    let one = topo::test_support::mass_properties_one_point(&body.into_body(), tol).unwrap();
+    assert_eq!(
+        [carried.volume, carried.volume_pad].map(f64::to_bits),
+        [one.volume, one.volume_pad].map(f64::to_bits),
+    );
+}
+
 /// **The reference is the first face the dispatch sends to the
 /// quadrature.** Each shell's point, read from the walk's side
 /// (`topo::test_support::shell_references`), is the stored start of the
