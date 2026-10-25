@@ -3512,6 +3512,64 @@ fn closed_form_about<U: Decide>(
     closed_form_of(&moved, &loops, sense, band)
 }
 
+/// **A shell's quadrature regions**: its faces that take the quadrature
+/// ([`takes_quadrature`]), grouped by sharing an edge, each region in the
+/// shell's stored order and the regions in the order their first faces
+/// are stored. The partition itself is the stored order's no more than
+/// the body's edges are; only which face of a region is first is. A face
+/// whose loops do not flatten is not one the walk reads by quadrature and
+/// belongs to no region.
+fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<FaceKey>> {
+    use crate::entity::EntityId;
+    let shell = crate::live::proven(&body.shells, shell, EntityId::Shell);
+    let mut quadrature: Vec<(FaceKey, Vec<HalfEdgeKey>)> = Vec::new();
+    for &key in &shell.faces {
+        let (face, surface) = resolve_face(body, key);
+        if let Ok(loops) = flat_loops(body, face)
+            && takes_quadrature(
+                surface,
+                loops.iter().flat_map(|(edges, _)| edges).map(|e| &e.carrier),
+            )
+        {
+            quadrature.push((key, loops.into_iter().flat_map(|(_, hes)| hes).collect()));
+        }
+    }
+    // Union–find over the quadrature faces, by index in stored order; a
+    // root is always the earliest stored member, so each region's first
+    // face is its root.
+    let index = |key: FaceKey| quadrature.iter().position(|(k, _)| *k == key);
+    let mut parent: Vec<usize> = (0..quadrature.len()).collect();
+    fn root(parent: &mut [usize], mut i: usize) -> usize {
+        while parent[i] != i {
+            parent[i] = parent[parent[i]];
+            i = parent[i];
+        }
+        i
+    }
+    for i in 0..quadrature.len() {
+        for &he in &quadrature[i].1 {
+            let Some(j) = body
+                .mate(he)
+                .and_then(|m| body.face_of_half_edge(m))
+                .and_then(index)
+            else {
+                continue;
+            };
+            let (a, b) = (root(&mut parent, i), root(&mut parent, j));
+            parent[a.max(b)] = a.min(b);
+        }
+    }
+    let mut regions: Vec<(usize, Vec<FaceKey>)> = Vec::new();
+    for i in 0..quadrature.len() {
+        let r = root(&mut parent, i);
+        match regions.iter_mut().find(|(k, _)| *k == r) {
+            Some((_, faces)) => faces.push(quadrature[i].0),
+            None => regions.push((r, vec![quadrature[i].0])),
+        }
+    }
+    regions.into_iter().map(|(_, faces)| faces).collect()
+}
+
 /// **The point a face's flux is read about** — its shell's reference:
 /// the stored start vertex of the outer loop of the shell's first face, in
 /// its stored order, that takes the quadrature ([`takes_quadrature`]), or
@@ -3588,9 +3646,22 @@ impl<T: Decide> References<T> {
         let mut shells = std::collections::BTreeMap::new();
         for key in faces {
             let shell = resolve_face(body, key).0.shell;
-            shells
-                .entry(shell)
-                .or_insert_with(|| shell_reference(body, shell));
+            shells.entry(shell).or_insert_with(|| {
+                let n = quadrature_regions(body, shell).len();
+                if n >= 2
+                    && let Ok(path) = std::env::var("QREG_OUT")
+                {
+                    use std::io::Write;
+                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+                        let _ = writeln!(
+                            f,
+                            "{n}\t{}",
+                            std::thread::current().name().unwrap_or("?")
+                        );
+                    }
+                }
+                shell_reference(body, shell)
+            });
         }
         Self {
             shells,
