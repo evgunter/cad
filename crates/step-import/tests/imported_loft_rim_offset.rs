@@ -73,7 +73,7 @@ fn rims(body: &topo::Body<f64>, face: topo::FaceKey) -> Vec<geom_brep::EdgeCurve
 #[test]
 fn an_imported_lofts_cap_rims_are_derived_when_the_cap_moves() {
     let text = step_export::step_string(
-        &twisted_loft(),
+        &crate::common::at_rest(&twisted_loft()),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )

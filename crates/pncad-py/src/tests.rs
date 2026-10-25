@@ -4389,7 +4389,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fallback_extent_unsupported",
             "germ_edge_carrier_unsupported",
             "germ_frame_unsupported",
-            "germ_section_outside_inventory",
+            "germ_section_open_conic",
             "germ_section_spiric",
             "graft_recertify",
             "held_pierce_unbuilt",
@@ -4777,6 +4777,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "export_error_tag",
         values: &[
+            "body_invalid",
             "empty_boolean",
             "node_failed",
             "not_a_body",

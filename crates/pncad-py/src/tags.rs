@@ -1549,7 +1549,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
         BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
-        BooleanErrorKind::GermSectionOutsideInventory => "germ_section_outside_inventory",
+        BooleanErrorKind::GermSectionOpenConic => "germ_section_open_conic",
         BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
         BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",
@@ -2216,6 +2216,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
+        E::BodyInvalid { .. } => "body_invalid",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
     }

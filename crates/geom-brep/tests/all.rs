@@ -83,6 +83,8 @@ mod closed_form_limb2;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;
+#[path = "certify_turn_rule.rs"]
+mod certify_turn_rule;
 #[path = "computed_values_enter_as_unknowns.rs"]
 mod computed_values_enter_as_unknowns;
 #[path = "coplanar_ellipses_one_locus.rs"]
@@ -139,6 +141,8 @@ mod onb_wall_frame_interval;
 mod onpair_plane_nurbs;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
+#[path = "plane_cone_arc.rs"]
+mod plane_cone_arc;
 #[path = "pn_apex_pair_over_a_span.rs"]
 mod pn_apex_pair_over_a_span;
 #[path = "pn_apex_reach.rs"]
@@ -269,6 +273,8 @@ test_utils::every_suite_file_is_aggregated!();
 mod r2_probes;
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+#[path = "review_r1_turn_probes.rs"]
+mod review_r1_turn_probes;
 
 #[path = "r1_perimeter_probes.rs"]
 mod r1_perimeter_probes;

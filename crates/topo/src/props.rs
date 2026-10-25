@@ -247,7 +247,7 @@ pub enum MassPropsError {
     /// `geom_brep::props::quad::cylinder_cut_face`), nor a torus wall
     /// bounded by rims and rulings, nor a torus wall any of whose loops
     /// carries a spiric (the spiric lane reads every loop,
-    /// `geom_brep::props::spiric::spiric_face_rounds`), nor a sphere face
+    /// `geom_brep::props::spiric::rim_face_rounds`), nor a sphere face
     /// bounded by circles. A boolean pierce leaves a ring in the wall it
     /// pierces.
     RingOnCurvedFace {
@@ -3195,6 +3195,98 @@ pub fn face_flux_terms(
         .collect()
 }
 
+/// One face's reading as [`mass_properties`] takes it: its flux term
+/// about its shell's reference ([`shell_reference`]) and its area, each
+/// with its half-width, and the first round a quadrature face meets the
+/// reporting target at (`None` for a closed-form face, or where no
+/// round of the schedule meets it). Test vocabulary: a row that pins
+/// one face of a body another face of which refuses.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+pub struct FaceReading {
+    /// The flux term about the shell's reference.
+    pub flux: f64,
+    /// Its half-width.
+    pub flux_pad: f64,
+    /// The face's area.
+    pub area: f64,
+    /// Its half-width.
+    pub area_pad: f64,
+    /// The first round meeting the reporting target.
+    pub met_at: Option<usize>,
+}
+
+/// [`FaceReading`] of `face`, read alone.
+///
+/// # Errors
+///
+/// The face's own refusal, as [`mass_properties`] reports it.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn face_reading(
+    body: &Body<f64>,
+    face: FaceKey,
+    tol: Tol,
+) -> Result<FaceReading, MassPropsError> {
+    face_reading_with(body, face, tol, Some(QuadLane::certified()))
+}
+
+/// [`face_reading`] through the structural door's closed forms alone
+/// ([`mass_properties_structural`]).
+///
+/// # Errors
+///
+/// The face's own refusal, as [`mass_properties_structural`] reports it.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub fn face_reading_structural(
+    body: &Body<f64>,
+    face: FaceKey,
+    tol: Tol,
+) -> Result<FaceReading, MassPropsError> {
+    face_reading_with(body, face, tol, None)
+}
+
+#[cfg(any(test, feature = "test-support"))]
+fn face_reading_with(
+    body: &Body<f64>,
+    face: FaceKey,
+    tol: Tol,
+    lane: Option<QuadLane<f64>>,
+) -> Result<FaceReading, MassPropsError> {
+    let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
+    let faces = crate::query::all_faces(body);
+    let hook = reporting_hook(lane);
+    let refs = References::of(body, faces.iter().copied(), band);
+    let run = face_flux(body, face, band, &hook, tol, RoundWindow::SCHEDULE, &refs)?;
+    let mut met_at = None;
+    if run.contribution.enclosure.is_some() {
+        // Each lane's schedule ends long before this bound; a lane that
+        // did not would read here as a bound reached, not a round met.
+        let mut ended = false;
+        for round in 0..64 {
+            let at = face_flux(body, face, band, &hook, tol, RoundWindow::at(round), &refs)?;
+            if at.converged_at.is_some() {
+                met_at = Some(round);
+            }
+            if met_at.is_some() || at.open_at.is_none() {
+                ended = true;
+                break;
+            }
+        }
+        assert!(ended, "a face's schedule ran past 64 rounds");
+    }
+    let c = run.contribution;
+    Ok(FaceReading {
+        flux: c.flux,
+        flux_pad: c.flux_pad,
+        area: c.area,
+        area_pad: c.area_pad,
+        met_at,
+    })
+}
+
 /// Every shell of `body` with the point its faces are read about
 /// ([`shell_reference`]), in arena order. Test vocabulary.
 #[cfg(any(test, feature = "test-support"))]
@@ -3941,8 +4033,9 @@ pub(crate) fn seam_region<T: Decide>(
 }
 
 /// **Whether a face's flux is read by the certified quadrature** rather
-/// than a closed form: a plane bounded by a spiric on any loop (its
-/// vector area is an elliptic integral), a curved face other than a cone
+/// than a closed form: a plane bounded by a spiric or a rational spline
+/// rim on any loop (its vector area is an elliptic integral, or a
+/// rational one: [`curved_rim`]), a curved face other than a cone
 /// trimmed by an ellipse, a spiric or a spline (a cone's closed form
 /// reads any boundary's vector area), and a described spline face
 /// whatever bounds it. Structural, on the surface and carrier kinds,
@@ -3954,10 +4047,24 @@ fn takes_quadrature<'a, T: Decide + 'a>(
 ) -> bool {
     let carriers = || carriers.clone();
     match surface {
-        Surface::Plane { .. } => carriers().any(|c| matches!(c, geom::Curve3::Spiric { .. })),
+        Surface::Plane { .. } => carriers().any(curved_rim),
         _ => {
             surface.spline_chart().is_some()
                 || (!matches!(surface, Surface::Cone { .. }) && carriers().any(trims))
+        }
+    }
+}
+
+/// Whether a carrier takes a plane off its closed form: a spiric, or a
+/// spline rim with varying weights, whose vector-area term is a rational
+/// integrand no fixed rule integrates exactly
+/// ([`geom_brep::props::rational_rim`]).
+fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
+    match carrier {
+        geom::Curve3::Spiric { .. } => true,
+        geom::Curve3::Nurbs(c) => geom_brep::props::is_rational(c),
+        geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+            false
         }
     }
 }
@@ -4042,8 +4149,9 @@ fn face_flux_about<T: Decide>(
                 .flat_map(|(edges, _)| edges)
                 .any(|e| matches!(e.carrier, geom::Curve3::Spiric { .. }));
             let reads_rings = match surface {
-                // A plane reaches this arm only bounded by a spiric, and
-                // the spiric lane reads every loop of its face.
+                // A plane reaches this arm only bounded by a spiric or a
+                // rational spline rim, and the plane cap reads every loop
+                // of its face.
                 Surface::Cone { .. } | Surface::Cylinder { .. } | Surface::Plane { .. } => true,
                 Surface::Torus { .. } => !trimmed || spiric,
                 Surface::Sphere { .. } => !trimmed,
