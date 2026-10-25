@@ -147,12 +147,36 @@ fn a_links_winding_takes_two_values_or_the_link_crosses_itself() {
         .unwrap()
     };
     let rows: [(&str, Link<f64>, bool); 6] = [
-        ("a cavity's corner", whole(vec![floor(false), cone(&up(), false)]), true),
-        ("a convex corner", whole(vec![floor(true), cone(&up(), true)]), true),
-        ("a pinch", whole(vec![cone(&up(), true), cone(&down(), true)]), true),
-        ("a sunk spike", whole(vec![floor(false), cone(&up(), true)]), false),
-        ("a cavity outside the face's material", whole(vec![floor(true), cone(&up(), false)]), false),
-        ("a sheet through a corner", whole(vec![corner(), sheet()]), false),
+        (
+            "a cavity's corner",
+            whole(vec![floor(false), cone(&up(), false)]),
+            true,
+        ),
+        (
+            "a convex corner",
+            whole(vec![floor(true), cone(&up(), true)]),
+            true,
+        ),
+        (
+            "a pinch",
+            whole(vec![cone(&up(), true), cone(&down(), true)]),
+            true,
+        ),
+        (
+            "a sunk spike",
+            whole(vec![floor(false), cone(&up(), true)]),
+            false,
+        ),
+        (
+            "a cavity outside the face's material",
+            whole(vec![floor(true), cone(&up(), false)]),
+            false,
+        ),
+        (
+            "a sheet through a corner",
+            whole(vec![corner(), sheet()]),
+            false,
+        ),
     ];
     for (what, link, rests) in rows {
         let got = rest::one_material(&link, band());
@@ -190,11 +214,21 @@ fn two_pits_and_a_needle_bound_one_material_where_a_pairwise_reading_refuses() {
     );
 }
 
-/// **A doubled sheet refuses as degenerate**: a floor and its copy.
+/// **A doubled sheet refuses as degenerate**: a floor and its copy. A
+/// link whose sectors do not pair up at their bounds — a cone and one
+/// face of another — is not read.
 #[test]
-fn a_doubled_sheet_refuses_degenerate() {
+fn a_doubled_sheet_or_an_open_link_is_not_read() {
     let got = rest::one_material(&whole(vec![floor(true), floor(true)]), band());
-    assert_eq!(got, TouchVerdict::Unread(TouchUnread::Degenerate));
+    assert_eq!(
+        got,
+        TouchVerdict::Unread(TouchUnread::Degenerate),
+        "doubled"
+    );
+    let mut open = cone(&square(0.5, -1.0), true);
+    open.sectors.truncate(1);
+    let got = rest::one_material(&whole(vec![cone(&square(0.5, 1.0), true), open]), band());
+    assert_eq!(got, TouchVerdict::Unread(TouchUnread::Unanalysed), "open");
 }
 
 // ---- The bodies.
@@ -222,11 +256,18 @@ fn extrude(body: &mut Body<f64>, face: FaceKey, ring: &[VertexKey], to: &[P]) ->
     let n = ring.len();
     let mut struts: Vec<MevCreated> = Vec::new();
     for i in 0..n {
-        let h = body.find_half_edge(face, ring[i], ring[(i + 1) % n]).unwrap();
+        let h = body
+            .find_half_edge(face, ring[i], ring[(i + 1) % n])
+            .unwrap();
         let from = at(body, ring[i]);
         struts.push(
-            body.mev(MevSite::Fan { he1: h, he2: h }, to[i], line(from, to[i]), tol())
-                .unwrap(),
+            body.mev(
+                MevSite::Fan { he1: h, he2: h },
+                to[i],
+                line(from, to[i]),
+                tol(),
+            )
+            .unwrap(),
         );
     }
     // The last face closes against the first one's edge along `to`.
@@ -263,7 +304,9 @@ fn grow_tet(body: &mut Body<f64>, face: FaceKey, ring: &[VertexKey], outer: [P; 
     let h = body.find_half_edge(face, ring[0], ring[1]).unwrap();
     let fan = |he: HalfEdgeKey| MevSite::Fan { he1: he, he2: he };
     let r = at(body, ring[0]);
-    let a = body.mev(fan(h), outer[0], line(r, outer[0]), tol()).unwrap();
+    let a = body
+        .mev(fan(h), outer[0], line(r, outer[0]), tol())
+        .unwrap();
     let b = body
         .mev(fan(a.he_minus), outer[1], line(outer[0], outer[1]), tol())
         .unwrap();
@@ -313,16 +356,38 @@ fn grow_tet(body: &mut Body<f64>, face: FaceKey, ring: &[VertexKey], outer: [P; 
 /// the body meets.
 fn crossing_tetrahedra(lift: f64) -> Body<f64> {
     let p = |x: f64, y: f64, z: f64| P::new(x, y, z);
-    let [v1, v2, a, b] = [p(0.0, 0.0, 0.0), p(4.0, 1.0, 1.0), p(4.0, -1.0, -1.0), p(-10.0, 5.0, -1.0)];
+    let [v1, v2, a, b] = [
+        p(0.0, 0.0, 0.0),
+        p(4.0, 1.0, 1.0),
+        p(4.0, -1.0, -1.0),
+        p(-10.0, 5.0, -1.0),
+    ];
     let q = |x: f64, y: f64, z: f64| P::new(x, y, z + lift);
-    let [w1, w2, c, d] = [q(2.0, 0.0, 0.0), q(-2.0, 2.0, 0.0), q(-2.0, -2.0, 0.0), q(8.0, 1.0, 2.0)];
+    let [w1, w2, c, d] = [
+        q(2.0, 0.0, 0.0),
+        q(-2.0, 2.0, 0.0),
+        q(-2.0, -2.0, 0.0),
+        q(8.0, 1.0, 2.0),
+    ];
     let (hole_p, hole_q) = (outward([v1, a, b], v2), outward([w1, c, d], w2));
     let centre = |t: [P; 3]| t[0] + ((t[1] - t[0]) + (t[2] - t[0])) / 3.0;
     let normal = |t: [P; 3]| (t[1] - t[0]).cross(t[2] - t[0]).normalize();
-    let (p0, np, q0, nq) = (centre(hole_p), normal(hole_p), centre(hole_q), normal(hole_q));
+    let (p0, np, q0, nq) = (
+        centre(hole_p),
+        normal(hole_p),
+        centre(hole_q),
+        normal(hole_q),
+    );
     let axis = [p0, p0 + np * 3.0, q0 + nq * 3.0, q0];
-    let dir: Vec<Vec3<f64>> = (0..3).map(|i| (axis[i + 1] - axis[i]).normalize()).collect();
-    let mitre = [None, Some((dir[0] + dir[1]).normalize()), Some((dir[1] + dir[2]).normalize()), Some(dir[2])];
+    let dir: Vec<Vec3<f64>> = (0..3)
+        .map(|i| (axis[i + 1] - axis[i]).normalize())
+        .collect();
+    let mitre = [
+        None,
+        Some((dir[0] + dir[1]).normalize()),
+        Some((dir[1] + dir[2]).normalize()),
+        Some(dir[2]),
+    ];
     let u = np.cross(Vec3::new(1.0, 0.0, 0.0)).normalize();
     let w = np.cross(u);
     let mut ring: Vec<P> = (0..3)
@@ -345,7 +410,14 @@ fn crossing_tetrahedra(lift: f64) -> Body<f64> {
     let r0 = &rings[0];
     let seed = body.mvfs(r0[0], true).unwrap();
     let e01 = body
-        .mev(MevSite::Lone { r#loop: seed.r#loop }, r0[1], line(r0[0], r0[1]), tol())
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            r0[1],
+            line(r0[0], r0[1]),
+            tol(),
+        )
         .unwrap();
     let e12 = body
         .mev(
@@ -375,7 +447,13 @@ fn crossing_tetrahedra(lift: f64) -> Body<f64> {
         cap = extrude(&mut body, seed.face, &cap, to);
     }
     grow_tet(&mut body, seed.face, &cap, hole_q, w2);
-    grow_tet(&mut body, back.face, &[start[2], start[1], start[0]], hole_p, v2);
+    grow_tet(
+        &mut body,
+        back.face,
+        &[start[2], start[1], start[0]],
+        hole_p,
+        v2,
+    );
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     for f in faces {
         let outer = body.get_face(f).unwrap().outer;
@@ -410,8 +488,7 @@ fn recorded(errors: &[ValidationError]) -> ContactRecords {
                 contact: CensusContact::VertexOnFace { vertex, face },
                 ..
             } => Some(crate::Cited::new(
-                crate::Contact::of(crate::Cell::Vertex(*vertex), crate::Cell::Face(*face))
-                    .unwrap(),
+                crate::Contact::of(crate::Cell::Vertex(*vertex), crate::Cell::Face(*face)).unwrap(),
                 crate::Cites::decided(0),
             )),
             _ => None,
@@ -513,7 +590,11 @@ fn a_pit_resting_its_apex_on_the_floor_holds_tier_three_prime() {
         panic!("the pit builds");
     };
     assert_eq!(pit.body.solids.len(), 1, "one solid");
-    assert_eq!(pit.contacts.vertex_face().count(), 1, "the apex on the floor");
+    assert_eq!(
+        pit.contacts.vertex_face().count(),
+        1,
+        "the apex on the floor"
+    );
     built("the pit", r);
 }
 
@@ -543,7 +624,11 @@ fn two_pits_and_a_needle_hold_tier_three_prime() {
     let held = built("the needle", union(&arch, &pyramid(apex, 0.2, 2.5), tol()));
     let body = built("two pits and a needle", union(&two, &held, tol()));
     assert_eq!(body.solids.len(), 1, "one solid");
-    assert_eq!(vertices_at(&body, apex), 3, "one vertex per cone at the apex");
+    assert_eq!(
+        vertices_at(&body, apex),
+        3,
+        "one vertex per cone at the apex"
+    );
 }
 
 // ---- At the census door: one solid of several shells, below tier 3's
@@ -563,7 +648,12 @@ enum Seat {
 /// `seat`, one solid**: the parallelepiped's shell moved into the cube's
 /// solid. Returns the body, the parallelepiped's corner, and the records
 /// that tie it to the cube (none for a shared key).
-fn cube_and_corner(seat: Seat, a: [f64; 3], b: [f64; 3], c: [f64; 3]) -> (Body<f64>, ContactRecords) {
+fn cube_and_corner(
+    seat: Seat,
+    a: [f64; 3],
+    b: [f64; 3],
+    c: [f64; 3],
+) -> (Body<f64>, ContactRecords) {
     let o = match seat {
         Seat::Shared | Seat::Tied => [0.0, 0.0, 0.0],
         Seat::OnEdge => [0.5, 0.0, 0.0],
@@ -584,13 +674,15 @@ fn cube_and_corner(seat: Seat, a: [f64; 3], b: [f64; 3], c: [f64; 3]) -> (Body<f
         body.solids[keep].shells.push(sh);
     }
     body.solid_provenance.remove(gone);
-    let here = |body: &Body<f64>, v: VertexKey| (at(body, v) - P::new(o[0], o[1], o[2])).norm() < 1e-12;
+    let here =
+        |body: &Body<f64>, v: VertexKey| (at(body, v) - P::new(o[0], o[1], o[2])).norm() < 1e-12;
     let corner = body
         .vertices
         .keys()
         .find(|v| !before.contains(v) && here(&body, *v))
         .unwrap();
-    let cited = |x, y| crate::Cited::new(crate::Contact::of(x, y).unwrap(), crate::Cites::decided(0));
+    let cited =
+        |x, y| crate::Cited::new(crate::Contact::of(x, y).unwrap(), crate::Cites::decided(0));
     let records = match seat {
         Seat::Shared => {
             let origin = before.iter().copied().find(|&v| here(&body, v)).unwrap();
@@ -601,9 +693,12 @@ fn cube_and_corner(seat: Seat, a: [f64; 3], b: [f64; 3], c: [f64; 3]) -> (Body<f
         }
         Seat::Tied => {
             let origin = before.iter().copied().find(|&v| here(&body, v)).unwrap();
-            [cited(crate::Cell::Vertex(corner), crate::Cell::Vertex(origin))]
-                .into_iter()
-                .collect()
+            [cited(
+                crate::Cell::Vertex(corner),
+                crate::Cell::Vertex(origin),
+            )]
+            .into_iter()
+            .collect()
         }
         Seat::OnEdge => {
             let geo = snapshot(&body);
