@@ -107,8 +107,12 @@ The fallback reaches poses that the join shapes on the section path, so
 A closed chord carries the kept edge's restated description, since a
 whole-turn scaffold circle reads as a null edge's.
 
-Where the cut still refuses, the fallback leaves the face whole and
-records why (`BooleanNaming::uncut`, `UncutFace`): five refusals in four
-tests at ε 1e-9. They are filed as
-`a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch`.
+Each dropped face is cut on its own. Where a face's cut meets one of
+the cut's placement limits (`fate::is_placement_limit`, which names
+each), that face alone is restored and recorded in
+`BooleanNaming::uncut` (`UncutFace`), with neither a substituted nor a
+discard row. Every other refusal of the cut propagates. The limit is
+filed as `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch`; that
+no reader reads `uncut` is filed on BORDERS as
+`no-reader-reads-a-fallbacks-uncut-faces`.
 

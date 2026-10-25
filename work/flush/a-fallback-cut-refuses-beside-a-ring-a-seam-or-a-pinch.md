@@ -13,20 +13,22 @@ refs: [5706]
 
 PR 5706 has the containment fallback divide its dropped coincident
 faces through the section path's own `fate::cut`
-(`crates/topo/src/boolean/ops.rs`, `fallback_fates`). Where the cut
-refuses, the result is left as built, since the fallback's body never
-reads the dropped clone. The face is left whole: no
-`BooleanNaming::substituted` row holds it, it is a discard, and a
-`BooleanNaming::uncut` row carries the refusal. The naming then cannot
-say which part of such a face the kept face holds, and the two operand
-orders disagree there.
+(`crates/topo/src/boolean/ops.rs`, `fallback_fates`), one face at a
+time. Where a face's cut meets one of the cut's placement limits
+(`fate::is_placement_limit`), the result is left as built, since the
+fallback's body never reads the dropped clone. That face alone is
+restored: no `BooleanNaming::substituted` or `discards` row names it,
+and a `BooleanNaming::uncut` row carries the refusal. The naming then
+says nothing of which part of the face the kept face holds. No reader
+reads `uncut` yet (BORDERS' `no-reader-reads-a-fallbacks-uncut-faces`).
 
 Measured on PR 5706's head, topo + sweep + editor-core under the `ci`
 profile at ε 1e-9: five refusals, in four tests, all
 `ClassificationInvariant`:
 
 - `sweep` `a_closed_conic_in_the_partners_face::a_boss_beside_a_ring_and_over_a_hole`,
-  twice: "a fate cut's end lies in no corner of the dropped face". This
+  twice, and the review probe `boss ∖ (holed plate ∪ lid)`, whose lid
+  cuts: "a fate cut's end lies in no corner of the dropped face". This
   is the boss `r = 0.3` over a plate whose top holds a hole's ring
   `r = 0.1` inside the rim. The same pose is pinned by
   `the_fallback_cuts_a_closed_rim_or_records_why_not`.
@@ -42,7 +44,10 @@ profile at ε 1e-9: five refusals, in four tests, all
 On the section path these poses meet the join first, which shapes the
 dropped face (`join`'s `one_site_segments`, `LoneRing::Closed`) or
 refuses typed (`a_closed_edge_in_a_cylinder_or_cone_face_refuses_typed`).
-The fallback asks `cut` alone.
+The fallback asks `cut` alone. The section path's `boss/holedlow ∩`
+(the PR 5706 review corpus) refuses at the same corner, on both trees:
+the cut now divides its two closed rims, then stops at a chord end on
+the hole's rim.
 
 ## Shape of a fix
 

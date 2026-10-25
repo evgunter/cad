@@ -320,9 +320,13 @@ pub struct BooleanNaming {
     /// path that never classifies (disjoint boxes) has none.
     pub substituted: Vec<super::SubstitutedFace>,
     /// Every dropped coincident face a containment fallback could not
-    /// divide where the region its kept face holds ends, with why
-    /// ([`super::UncutFace`]); sorted by operand, face and holder. Empty
-    /// on the section path, whose cut refuses the boolean instead.
+    /// divide where the region its kept face holds ends, one row per face
+    /// and kept face, with the refusal of that face's own cut
+    /// ([`super::UncutFace`]); sorted by operand, face and kept face. Such
+    /// a face has neither a [`Self::substituted`] nor a [`Self::discards`]
+    /// row. The section path records none: there the same cut refuses
+    /// the boolean, so the other operand order of a pose recorded here
+    /// can refuse where this order builds.
     pub uncut: Vec<super::UncutFace>,
     /// Every operand edge piece the classification read beside a vertex,
     /// with its side of the other operand
@@ -7597,15 +7601,18 @@ struct FallbackFates {
 /// it is kept, so it borders a kept face only through a substituted
 /// fragment.
 ///
-/// A cut that refuses moves no body, since the result holds nothing of
-/// the dropped clone: the clones are restored, each dropped face a fate
-/// edge lies in is left whole with an `uncut` row carrying the refusal,
-/// and a face held wholly is held as it stands.
+/// Each dropped face is cut on its own. Where its cut meets one of the
+/// cut's placement limits (`fate::is_placement_limit`), that face alone
+/// is restored as it stood and recorded as uncut
+/// ([`super::UncutFace`]), with neither a substituted nor a discard row;
+/// the result holds nothing of the dropped clone, so no body moves.
 ///
 /// # Errors
 ///
-/// A pair whose kept copy the result drops while it keeps the copy the
-/// lump dropped, or a cut in operand A's clone (the lump keeps A's copy,
+/// Every other refusal of the cut, as it is: a key that no longer
+/// resolves, a reading in band, an Euler operator's refusal. A pair
+/// whose kept copy the result drops while it keeps the copy the lump
+/// dropped, or a cut in operand A's clone (the lump keeps A's copy,
 /// `tables::kept_copy`), refuses
 /// [`BooleanError::ClassificationInvariant`]; a discard row's reading
 /// (`discard::discard_row`) refuses as it does.
@@ -7639,11 +7646,7 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
     }
     let mut corners = Vec::new();
     for fc in std::mem::take(&mut red.fates.corners) {
-        let k = match fc.kept {
-            super::fate::KeptAt::Sector(s) => s.face,
-            super::fate::KeptAt::Pierced(f, ..) => f,
-        };
-        if owed(fc.holder, k, fc.dropped.face)? {
+        if owed(fc.holder, fc.kept.face(), fc.dropped.face)? {
             corners.push(fc);
         }
     }
@@ -7654,68 +7657,60 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
             what: "a containment fallback cuts operand A's copy of a coincident pair",
         });
     }
-    red.fates.edges = edges;
-    red.fates.corners = corners;
     let fresh = || crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
     let mut divisions = [fresh(), fresh()];
-    // The clones as they stand, for a cut that refuses part way.
-    let before = (red.a.clone(), red.b.clone());
-    red.enter_join_surgery();
-    let [div_a, div_b] = &mut divisions;
-    let cuts = super::fate::cut(red, [div_a, div_b], band, tol);
-    red.leave_join_surgery(cuts.is_ok());
-    let (cuts, uncut) = match cuts {
-        Ok(cuts) => (cuts, Vec::new()),
-        // The result is built and holds nothing of the dropped clone, so
-        // a refusal here is the naming's alone: each dropped face a fate
-        // edge lies in is left whole and recorded with why; a face held
-        // wholly needs no cut, and is held as it stands.
-        Err(e) => {
-            (red.a, red.b) = before;
-            divisions = [fresh(), fresh()];
-            let partial: BTreeSet<(Operand, FaceKey)> = red
-                .fates
-                .edges
+    let mut cuts = super::fate::FateCuts::default();
+    let mut uncut = Vec::new();
+    let faces: BTreeSet<FaceKey> = edges
+        .iter()
+        .map(|fe| fe.face)
+        .chain(corners.iter().map(|fc| fc.dropped.face))
+        .collect();
+    for &face in &faces {
+        red.fates = super::fate::Fates {
+            edges: edges.iter().filter(|fe| fe.face == face).copied().collect(),
+            corners: corners
                 .iter()
-                .map(|fe| (fe.holder.other(), fe.face))
-                .collect();
-            let mut uncut: Vec<super::UncutFace> = red
-                .fates
-                .edges
-                .iter()
-                .map(|fe| super::UncutFace {
-                    operand: fe.holder.other(),
-                    face: fe.face,
+                .filter(|fc| fc.dropped.face == face)
+                .copied()
+                .collect(),
+        };
+        // A face no fate edge lies in is held whole, and its cut divides
+        // nothing; any other is kept as it stands, for a cut that meets a
+        // placement limit part way.
+        let before = (!red.fates.edges.is_empty()).then(|| (red.b.clone(), divisions[1].clone()));
+        red.b.enter_surgery();
+        let [div_a, div_b] = &mut divisions;
+        let got = super::fate::cut(red, [div_a, div_b], band, tol);
+        match (got, before) {
+            (Ok(c), _) => {
+                red.b.leave_surgery_and_sweep();
+                cuts.substituted.extend(c.substituted);
+                cuts.chords.extend(c.chords);
+            }
+            (Err(e), Some((b, div_b))) if super::fate::is_placement_limit(&e) => {
+                red.b.leave_surgery();
+                red.b = b;
+                divisions[1] = div_b;
+                uncut.extend(red.fates.edges.iter().map(|fe| super::UncutFace {
+                    operand: Operand::B,
+                    face,
                     by: fe.kept,
                     kind: e.kind(),
                     what: e.to_string(),
-                })
-                .collect();
-            uncut.sort_by_key(|u| (u.operand, u.face, u.by));
-            uncut.dedup();
-            let mut substituted: Vec<super::SubstitutedFace> = red
-                .fates
-                .corners
-                .iter()
-                .filter(|fc| !partial.contains(&(fc.holder.other(), fc.dropped.face)))
-                .map(|fc| super::SubstitutedFace {
-                    operand: fc.holder.other(),
-                    face: fc.dropped.face,
-                    by: match fc.kept {
-                        super::fate::KeptAt::Sector(s) => s.face,
-                        super::fate::KeptAt::Pierced(f, ..) => f,
-                    },
-                })
-                .collect();
-            substituted.sort();
-            substituted.dedup();
-            let cuts = super::fate::FateCuts {
-                substituted,
-                chords: Vec::new(),
-            };
-            (cuts, uncut)
+                }));
+            }
+            (Err(e), _) => {
+                red.b.leave_surgery();
+                return Err(e);
+            }
         }
-    };
+    }
+    red.fates = super::fate::Fates { edges, corners };
+    cuts.substituted.sort();
+    cuts.substituted.dedup();
+    uncut.sort_by_key(|u: &super::UncutFace| (u.operand, u.face, u.by));
+    uncut.dedup();
     let refuse = |_: crate::entity::HalfEdgeKey,
                   _: VertexKey,
                   _: VertexKey|
@@ -7741,7 +7736,9 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
             Operand::B => &red.b,
         };
         for (face, _) in body.faces() {
-            if gone(operand, div.root(face)) && !cuts.is_substituted(operand, face) {
+            let root = div.root(face);
+            let whole = uncut.iter().any(|u| (u.operand, u.face) == (operand, root));
+            if gone(operand, root) && !whole && !cuts.is_substituted(operand, face) {
                 discards.push(super::discard::discard_row(
                     body,
                     face,
@@ -7837,13 +7834,6 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         discards,
         divisions: [face_fragments_a, face_fragments_b],
     } = fallback_fates(red, [&discarded[0], &discarded[1]], kept, band, tol)?;
-    // The lump keeps operand A's copy of a coincident pair
-    // (`tables::kept_copy`), so a shell holding one is kept: a fallback
-    // that keeps B whole drops no such pair.
-    debug_assert!(
-        substituted.is_empty() || kind == BooleanResultKind::OperandA,
-        "a containment fallback keeping operand B whole holds a coincident pair"
-    );
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
             a_keys: OperandKeys::Direct,

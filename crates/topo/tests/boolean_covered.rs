@@ -12,8 +12,9 @@
 //! keeps `a`'s copies and is `a`, by the containment fallback; with
 //! `b` as operand A it keeps `b`'s copies and takes the section path.
 //! Raised to z 0..2, `b` pokes out of `a`'s top and the union takes the
-//! section path in either order; its bottom and y-walls stay flush. On either path, and with either block as operand A, each
-//! flush pair is recorded, whichever copy the classification kept.
+//! section path in either order; its bottom and y-walls stay flush. On
+//! either path, and with either block as operand A, each flush pair is
+//! recorded, whichever copy the classification kept.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
