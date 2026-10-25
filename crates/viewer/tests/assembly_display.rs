@@ -6,7 +6,7 @@
 //! here pin the three display-layer claims — the open path wires a
 //! resolver under the directory rule; a hidden instance leaves the
 //! picture and the pick index but never the document or the tree; a
-//! free-move probe admits only a loose space (DI5), moves every copy
+//! free-move probe admits only a shown space other than the world (DI5), moves every copy
 //! in it as one, draws visibly distinct, and is DISCARDED when the
 //! landing of a pin to the world says the space is gone.
 
@@ -18,18 +18,14 @@ use crate::common;
 use pncad::document::Bodies;
 
 use common::asm;
-use pncad::document::{Frame, RecipeNodeId, SlotId, product};
+use pncad::document::{Frame, RecipeNodeId, SlotId, VarId, product};
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use viewer::display::{self, AdmissionFault, DisplayFault};
 use viewer::frame;
 use viewer::marks;
 use viewer::pickindex::IdMap;
 use viewer::scene::SceneMesh;
-use viewer::session::{
-    DocSession, FaceFrameFault, PatternRuleSpec, Refusal, Selection, SessionOp,
-    face_frame_seat_drawn,
-};
+use viewer::session::{DocSession, PatternRuleSpec, Refusal, Selection, SessionOp};
 use viewer::tree::RowStatus;
 
 // --- the resolver (deliverable 1) ---------------------------------
@@ -218,13 +214,13 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     assert_eq!(restored.stats().triangles, full.stats().triangles);
 }
 
-/// **A held face on a hidden instance is neither marked nor committed
-/// against.** Hiding edits what the picture emits and not what an id
-/// means, so the face's patch id outlives the hide; what the held mark
-/// and the add-datum form's gate both read is whether the picture
-/// DRAWS it (`marks::drawn_patch`), and after the hide it does not.
+/// **A held face on a hidden instance is not marked.** Hiding edits
+/// what the picture emits and not what an id means, so the face's patch
+/// id outlives the hide; what the held mark reads is whether the
+/// picture DRAWS it (`marks::drawn_patch`), and after the hide it does
+/// not.
 #[test]
-fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
+fn a_held_face_on_a_hidden_instance_is_not_marked() {
     let tol = Tol::witness();
     let bench = asm::bench("held-hide", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -238,34 +234,18 @@ fn a_held_face_on_a_hidden_instance_is_not_marked_or_committed_against() {
     let read = |session: &DocSession| {
         let view = session.display_view();
         let (marked, _) = marks::compose(&index, &view, &Selection::None, None, &held);
-        let seat = face_frame_seat_drawn(session.landed_pair(), Some(&face), Some((&index, &view)));
-        (marked.held[0], seat)
+        marked.held[0]
     };
-    let (mark, seat) = read(&session);
+    let mark = read(&session);
     assert_ne!(mark, IdMap::NOTHING, "a drawn held face is marked");
-    assert_ne!(
-        seat,
-        Err(FaceFrameFault::NotDrawn),
-        "and not refused as undrawn"
-    );
 
     let outcome = session.perform(SessionOp::SetInstanceHidden {
         instance: bench.post_b,
         hidden: true,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let (mark, seat) = read(&session);
+    let mark = read(&session);
     assert_eq!(mark, IdMap::NOTHING, "a hidden held face is not marked");
-    // The button commits nothing against it either way: an instance's
-    // value is its copies, which no face-frame seat reads as one body,
-    // and that refusal is said before the picture is asked.
-    assert!(
-        matches!(
-            seat,
-            Err(FaceFrameFault::NotDrawn | FaceFrameFault::NotOneBody { .. })
-        ),
-        "the button would commit against a face nothing marks: {seat:?}"
-    );
 }
 
 /// Two instances of one part consumed by a single boolean, which is
@@ -290,7 +270,7 @@ fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, R
         },
         tol,
     );
-    let doc = common::placed_read(&doc, weld.into(), &bench.opts(), tol).0;
+    let doc = common::placed_read(&doc, weld.into(), tol).0;
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(
         pncad::document::Doc::empty_derived(&format!("gui4-{tag}-boot"), tol),
@@ -366,7 +346,7 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
             },
             tol,
         );
-        let doc = common::placed_read(&doc, union.into(), &bench.opts(), tol).0;
+        let doc = common::placed_read(&doc, union.into(), tol).0;
         (doc, members, union)
     };
     let (doc, members, union) = fused(4);
@@ -462,45 +442,26 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
 #[test]
 fn the_at_rest_badge_lands_with_the_evaluation() {
     // The A5 verdict lives past the commit: the mate-less assembly
-    // certifies with nothing minted; a Rest mate certifies WITH its
-    // declaration; a Tangent mate turns the badge into the gate's own
-    // refusal while its tree row carries the class's standing note.
+    // certifies, and so does a seated one — the seat is a touch between
+    // copies the census records at the door, never an overlap.
     let tol = Tol::witness();
     let bench = asm::bench("atrest", tol);
     let mut session = asm::open_bench(&bench, tol);
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified {
-            minted: 0,
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "disjoint instances certify outright (A5's disjoint half)"
     );
     asm::unpin(&mut session, bench.post_b);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Tangent,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
     );
-    match session.at_rest() {
-        Some(viewer::session::AtRestBadge::Refused { message }) => assert!(
-            message.contains("no at-rest kernel record"),
-            "the badge is the gate's own refusal: {message}"
-        ),
-        other => panic!("a Tangent mate must turn the badge red, got {other:?}"),
-    }
-    // …and the row of the placement holding the mate says why,
-    // independent of any run.
-    let note = common::row_of(&session.tree_rows(), bench.post_b)
-        .note
-        .clone()
-        .expect("a Tangent mate carries its standing note");
-    assert!(note.contains("Tangent"), "{note}");
+    assert_eq!(
+        session.at_rest(),
+        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        "a seated mate certifies, its touch recorded at rest"
+    );
 }
 
 /// **An id the document does not hold**, which is not the same
@@ -542,7 +503,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let mut session = asm::open_bench(&bench, tol);
     // One node of another kind, authored through the ordinary door so
     // the wrong-kind arm is driven by a node a user can really select.
-    let datum = common::xy_frame_in(&mut session);
+    let profile = common::rectangle_in(&mut session, 0.01, 0.01);
     session.pump();
     let doc = session.doc();
 
@@ -552,9 +513,9 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         "a live InstantiatePart is admitted"
     );
     assert_eq!(
-        display::instance_check(doc, datum),
+        display::instance_check(doc, profile),
         Err(AdmissionFault::NotAnInstance {
-            node: doc.spoken(datum)
+            node: doc.spoken(profile)
         }),
         "a node that IS in the document and is not an instance is the \
          wrong-kind refusal, naming itself"
@@ -577,8 +538,8 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let absent_says = display::instance_check(doc, absent)
         .expect_err("absent refuses")
         .to_string();
-    let wrong_kind_says = display::instance_check(doc, datum)
-        .expect_err("a datum is not an instance")
+    let wrong_kind_says = display::instance_check(doc, profile)
+        .expect_err("a profile is not an instance")
         .to_string();
     assert_eq!(
         absent_says, "node 00000000270f is not in the document",
@@ -586,7 +547,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     );
     assert_eq!(
         wrong_kind_says,
-        format!("{} is not a part instance", doc.spoken(datum)),
+        format!("{} is not a part instance", doc.spoken(profile)),
         "the wrong-kind sentence says something IS there and is the \
          wrong thing"
     );
@@ -616,26 +577,21 @@ fn hide_is_never_persisted() {
 
 // --- free-move (deliverable 3) ------------------------------------
 
-/// **Free-move admits a loose space and nothing the world pins** (DI5).
+/// **Free-move admits a space other than the world** (DI5).
 /// A copy pinned to the world refuses typed, and so does one mated onto
 /// a copy in the world, as does the world copy it is mated onto: all
 /// three live in the world's space. The same post, its pin taken off,
-/// is a loose space and is admitted.
+/// is in a space of its own and is admitted.
 #[test]
-fn free_move_accepts_only_a_loose_space() {
+fn free_move_accepts_only_a_space_other_than_the_world() {
     let tol = Tol::witness();
     let bench = asm::bench("fmeligible", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // Constrain post_a by mating it to the shelf, its world pin off.
+    // Constrain post_a by mating it to the shelf, its world mate off.
     asm::unpin(&mut session, bench.post_a);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_a, asm::middle_seat_values()),
     );
     session.pump();
     // The mated post, the shelf it is mated onto, and the post the
@@ -652,7 +608,7 @@ fn free_move_accepts_only_a_loose_space() {
             other => panic!("a copy in the world must refuse typed, got {other:?}"),
         }
     }
-    // Its pin off, the second post is a loose space and is admitted.
+    // Its pin off, the second post is in a space of its own and is admitted.
     asm::unpin(&mut session, bench.post_b);
     let outcome = session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
@@ -693,35 +649,29 @@ fn free_move_accepts_only_a_loose_space() {
     );
 }
 
-/// **Two copies mated to each other free-move as one** (DI5): a loose
-/// space holds every copy pinned to it, so either copy admits the probe
-/// to the one space, by its root, and the frame moves both pictures.
-/// Then a placement pins the space — the shelf's world pin put back —
-/// and the landing that knows it drops the frame, saying why.
+/// **Two copies placed into one space free-move as one** (DI5): a
+/// frame is keyed by the space, so either copy admits the probe to the
+/// one space and the frame moves both pictures. Then the shelf is
+/// pinned into the world and post_b given a space of its own, one edit
+/// each; the second empties the space, and that edit drops the frame,
+/// saying why.
 #[test]
-fn two_copies_mated_to_each_other_free_move_as_one() {
+fn two_copies_in_one_space_free_move_as_one() {
     let tol = Tol::witness();
     let bench = asm::bench("fmspace", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b and the shelf, their world pins off, the post mated onto
-    // the shelf: one loose space.
-    asm::unpin(&mut session, bench.post_b);
+    // The shelf in a space of its own, post_b mated onto it: one space.
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
     );
     session.pump();
-    let root = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
-        .expect("the mated post is in a loose space");
+    let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+        .expect("the mated post is in the shelf's space");
     assert_eq!(
         display::free_move_check(session.doc(), session.space_evaluation(), bench.shelf_i),
-        Ok(root),
+        Ok(space),
         "the shelf it is mated onto is in the same space"
     );
 
@@ -743,9 +693,9 @@ fn two_copies_mated_to_each_other_free_move_as_one() {
         assert!(outcome.committed.is_empty(), "a probe commits no edit");
     }
     assert_eq!(
-        session.display().free_move_of(root),
+        session.display().free_move_of(space),
         Some(&probe),
-        "the frame is the space's, keyed by its root"
+        "the frame is the space's, keyed by it"
     );
     let view = session.display_view();
     for copy in [bench.post_b, bench.shelf_i] {
@@ -757,7 +707,7 @@ fn two_copies_mated_to_each_other_free_move_as_one() {
     }
     assert!(
         !view.moved_placements.contains_key(&bench.post_a),
-        "and nothing the world pins"
+        "and nothing placed into the world"
     );
 
     // Driven from the other copy, the probe is the same space's: its
@@ -778,80 +728,57 @@ fn two_copies_mated_to_each_other_free_move_as_one() {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
     }
-    assert_eq!(session.display().free_move_of(root), Some(&again));
+    assert_eq!(session.display().free_move_of(space), Some(&again));
     assert_eq!(
         session.display_view().moved_placements.get(&bench.post_b),
         Some(&again),
         "one space, one frame"
     );
 
-    // A placement pins the space: the shelf's world pin, put back where
-    // it stood. The edit alone does not know the space; its landing
-    // does, and drops the frame.
-    let shelf_copy = pncad::document::Operand::Var(
-        session
-            .doc()
-            .output(bench.shelf_i, 0)
-            .expect("an instance defines its copies"),
-    );
-    let pin = editor_core::pin_at(
-        session.doc(),
-        &shelf_copy,
-        &Frame::translation(asm::SHELF_AT),
-        &bench.opts(),
-        tol,
-    )
-    .expect("the shelf's copy offers a frame");
-    let outcome = session.perform(SessionOp::AddMate {
-        placement: bench.shelf_i,
-        mate: Box::new(pin),
-        values: Vec::new(),
-    });
+    // The shelf moved into the world, resting on post_a: post_b is
+    // still placed into the space, so the frame stays.
+    let outcome = session.perform(asm::shelf_rest_op(&bench, bench.post_a, 0.0));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(outcome.withdrawn.superseded.is_empty());
-    assert!(
-        session.display().free_move_of(root).is_some(),
-        "between the edit and its landing the frame is held"
-    );
-    assert_eq!(
-        session.display_view().moved_placements.get(&bench.post_b),
-        Some(&again),
-        "and draws over the last-known copies"
-    );
-    session.pump();
-    let superseded: Vec<_> = session
-        .take_landed_withdrawals()
-        .into_iter()
-        .flat_map(|report| report.superseded)
-        .collect();
-    let [withdrawn] = &superseded[..] else {
-        panic!("the landing drops the one frame: {superseded:?}")
+    assert!(session.display().free_move_of(space).is_some());
+    // post_b given a space of its own: the space is empty, and the
+    // edit drops its frame.
+    let outcome = session.perform(SessionOp::IntoOwnSpace {
+        placement: bench.post_b,
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [withdrawn] = &outcome.withdrawn.superseded[..] else {
+        panic!(
+            "the edit drops the one frame: {:?}",
+            outcome.withdrawn.superseded
+        )
     };
-    assert_eq!(withdrawn.instance, root, "named by the space's root");
+    assert_eq!(
+        withdrawn.instance, bench.shelf_i,
+        "named by the instance that committed it"
+    );
     assert!(
         matches!(
             &withdrawn.cause,
-            AdmissionFault::InTheWorld { instance } if instance.id() == root
+            AdmissionFault::NotShown { space: said, .. } if said.id() == space
         ),
         "{}",
         withdrawn.cause
     );
-    assert!(session.display().free_move_of(root).is_none());
+    assert!(session.display().free_move_of(space).is_none());
     assert!(session.display_view().moved_placements.is_empty());
 }
 
-/// **A frame whose space joins another goes, and says so** (DI5): the
-/// probed post's own loose space is keyed by its root; a mate onto
-/// another LOOSE copy puts the post in that copy's space, so the root
-/// no longer names a loose space and the landing drops the frame —
-/// reporting the join, not a world pin, because the joined space is
-/// still loose and the probe still admits the post to it.
+/// **A frame whose copy joins another space goes, and says so** (DI5):
+/// the probed post's own space holds it alone; a mate onto the shelf in
+/// a space of its own places the post into the shelf's, so the post's
+/// space is no longer shown and the edit drops its frame.
 #[test]
-fn a_frame_whose_space_joins_another_goes_saying_so() {
+fn a_frame_whose_space_empties_into_another_goes_saying_so() {
     let tol = Tol::witness();
     let bench = asm::bench("fmjoin", tol);
     let mut session = asm::open_bench(&bench, tol);
-    asm::unpin(&mut session, bench.post_b);
+    let own = asm::unpin(&mut session, bench.post_b);
     asm::unpin(&mut session, bench.shelf_i);
     for op in [
         SessionOp::BeginFreeMove {
@@ -868,114 +795,94 @@ fn a_frame_whose_space_joins_another_goes_saying_so() {
         let outcome = session.perform(op.clone());
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
     }
-    assert!(session.display().free_move_of(bench.post_b).is_some());
+    assert!(session.display().free_move_of(own).is_some());
 
-    common::commit_mate(
-        &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ),
+    let outcome = session.perform(asm::seat_op(
+        &bench,
+        bench.post_b,
+        asm::own_space_seat_values(),
+    ));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let joined = session
+        .doc()
+        .node_space(bench.post_b)
+        .expect("the mated post is placed");
+    assert_eq!(
+        Some(joined),
+        session.doc().node_space(bench.shelf_i),
+        "the post is placed into the shelf's space"
     );
-    session.pump();
-    let joined = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
-        .expect("the mated post is in the shelf's loose space");
-    assert_ne!(joined, bench.post_b, "the post's space joined another");
-    let superseded: Vec<_> = session
-        .take_landed_withdrawals()
-        .into_iter()
-        .flat_map(|report| report.superseded)
-        .collect();
-    let [withdrawn] = &superseded[..] else {
-        panic!("the landing drops the post's frame: {superseded:?}")
+    let [withdrawn] = &outcome.withdrawn.superseded[..] else {
+        panic!(
+            "the edit drops the post's frame: {:?}",
+            outcome.withdrawn.superseded
+        )
     };
     assert_eq!(withdrawn.instance, bench.post_b);
     assert!(
         matches!(
             &withdrawn.cause,
-            AdmissionFault::MovedSpace { instance, into }
-                if instance.id() == bench.post_b && into.id() == joined
+            AdmissionFault::NotShown { space, .. } if space.id() == own
         ),
-        "the cause is the join, naming the space it joined: {}",
+        "the cause names the space it left: {}",
         withdrawn.cause
     );
-    assert!(session.display().free_move_of(bench.post_b).is_none());
+    assert!(session.display().free_move_of(own).is_none());
     assert!(session.display().free_move_of(joined).is_none());
 }
 
-/// The bench with post_b mated onto the loose shelf, one loose space
-/// rooted away from post_b, and a free-move gesture in flight opened
-/// on post_b — the copy that is not the root.
-fn gesture_on_a_non_root_copy(name: &str, tol: Tol) -> (asm::Bench, DocSession, RecipeNodeId) {
+/// The bench with the shelf in a space of its own, post_b mated onto
+/// it, and a free-move gesture in flight opened on post_b. Answers the
+/// space.
+fn gesture_on_a_non_root_copy(name: &str, tol: Tol) -> (asm::Bench, DocSession, VarId) {
     let bench = asm::bench(name, tol);
     let mut session = asm::open_bench(&bench, tol);
-    asm::unpin(&mut session, bench.post_b);
     asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
     );
     session.pump();
-    let root = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
-        .expect("the mated post is in a loose space");
-    assert_ne!(root, bench.post_b, "the space is rooted away from the post");
+    let space = display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
+        .expect("the mated post is in the shelf's space");
+    assert_eq!(Some(space), session.doc().node_space(bench.shelf_i));
     let outcome = session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    (bench, session, root)
+    (bench, session, space)
 }
 
 /// **A gesture is re-asked by the copy it was opened on, not only by
-/// its space's root.** The mate that put post_b in the shelf's space
-/// comes off mid-drag: the root still names a loose space, but post_b
-/// no longer lives in it, so the landing kills the gesture, saying the
-/// post left — rather than letting the post's drag steer the shelf.
+/// its space.** post_b, mid-drag, is given a space of its own: the
+/// shelf's space is still shown, but post_b is no longer placed into
+/// it, so the edit kills the gesture, saying where the post went —
+/// rather than letting the post's drag steer the shelf.
 #[test]
-fn a_gesture_whose_copy_leaves_the_space_dies_at_the_landing() {
+fn a_gesture_whose_copy_leaves_the_space_dies_at_the_edit() {
     let tol = Tol::witness();
     let (bench, mut session, _) = gesture_on_a_non_root_copy("fmsplit", tol);
-    let mate = *common::mates_in(session.committed_doc())
-        .last()
-        .expect("the seat mate");
-    let outcome = session.perform(SessionOp::RemoveConstraint { mate });
+    let outcome = session.perform(SessionOp::IntoOwnSpace {
+        placement: bench.post_b,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(
-        outcome.withdrawn.killed_gesture.is_none(),
-        "the edit alone does not know the spaces"
-    );
-    session.pump();
-    let killed: Vec<_> = session
-        .take_landed_withdrawals()
-        .into_iter()
-        .filter_map(|report| report.killed_gesture)
-        .collect();
-    let [killed] = &killed[..] else {
-        panic!("the landing kills the gesture: {killed:?}")
-    };
+    let own = session
+        .doc()
+        .node_space(bench.post_b)
+        .expect("the post is placed");
+    let killed = outcome
+        .withdrawn
+        .killed_gesture
+        .as_ref()
+        .expect("the edit kills the gesture");
     assert_eq!(killed.instance, bench.post_b);
     assert!(
         matches!(
             &killed.cause,
             AdmissionFault::MovedSpace { instance, into }
-                if instance.id() == bench.post_b && into.id() == bench.post_b
+                if instance.id() == bench.post_b && into.id() == own
         ),
         "{}",
-        killed.cause
-    );
-    assert!(
-        killed
-            .cause
-            .to_string()
-            .contains("is a loose space of its own now"),
-        "a split is worded as a split, not a join: {}",
         killed.cause
     );
     assert!(session.display().probing().is_none());
@@ -1020,34 +927,42 @@ fn a_replacement_takes_the_landings_untaken_report() {
     let tol = Tol::witness();
     let bench = asm::bench("fmreplace", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // Probe the loose post_b, then put its pin back: the landing
-    // withdraws the frame, and its report waits for the chrome.
-    let probe_then_repin = |session: &mut DocSession| {
-        asm::unpin(session, bench.post_b);
+    // A gesture on post_b, seated in the shelf's own space; the shelf
+    // then takes a mate the evaluation refuses, against post_a in the
+    // world, which places the shelf there and leaves post_b's seat
+    // reading it across two spaces: post_b refuses too, and the landing
+    // kills the gesture, its report waiting for the chrome.
+    let probe_then_refuse = |session: &mut DocSession| {
+        for op in [
+            SessionOp::IntoOwnSpace {
+                placement: bench.shelf_i,
+            },
+            SessionOp::IntoOwnSpace {
+                placement: bench.post_b,
+            },
+            asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
+        ] {
+            let outcome = session.perform(op.clone());
+            assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
+        }
+        session.pump();
         for op in [
             SessionOp::BeginFreeMove {
                 instance: bench.post_b,
             },
-            SessionOp::PreviewFreeMove {
-                instance: bench.post_b,
-                frame: Frame::translation([0.0, 0.0, 0.05]),
-            },
-            SessionOp::CommitFreeMove {
-                instance: bench.post_b,
-            },
-            SessionOp::Undo,
+            asm::no_centre_op(&bench, bench.post_a),
         ] {
             let outcome = session.perform(op.clone());
             assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
         }
         session.pump();
     };
-    probe_then_repin(&mut session);
+    probe_then_refuse(&mut session);
     assert!(
         !session.take_landed_withdrawals().is_empty(),
         "the control: the landing does leave a report"
     );
-    probe_then_repin(&mut session);
+    probe_then_refuse(&mut session);
     let outcome = session.perform(SessionOp::Open(bench.asm_path.clone()));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
@@ -1075,7 +990,7 @@ fn drag_slot(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
     pattern
 }
 
-/// A committed free-move frame on the loose `instance`.
+/// A committed free-move frame on `instance`'s space.
 fn commit_frame(session: &mut DocSession, instance: RecipeNodeId) {
     for op in [
         SessionOp::BeginFreeMove { instance },
@@ -1124,138 +1039,54 @@ fn landed_superseded(session: &mut DocSession) -> Vec<viewer::display::Withdrawn
         .collect()
 }
 
-/// **A pin's landing that a value gesture overtakes still prunes, mid-
-/// drag.** An undo pins post_b again under its committed frame; before
-/// that edit lands, a value gesture opens and previews, so the edit's
-/// own landing is stale and the next one to arrive is the scratch's.
-/// The scratch shares the committed graph, so it knows the pin: its
-/// landing drops the frame and says so then, not after the drag ends.
+/// **An undo under a value drag drops a frame at the edit**: frames are
+/// asked of the document alone, so an undo that takes post_b's own
+/// space says so at once, and the scratch landing of a drag opened
+/// after it has nothing left to say.
 #[test]
-fn a_pin_landing_a_value_gesture_overtakes_still_prunes() {
+fn an_undo_before_a_value_drag_drops_the_frame_on_the_edit() {
     let tol = Tol::witness();
     let bench = asm::bench("fmovertaken", tol);
     let mut session = asm::open_bench(&bench, tol);
     let pattern = drag_slot(&mut session, &bench);
-    asm::unpin(&mut session, bench.post_b);
+    let own = asm::unpin(&mut session, bench.post_b);
     commit_frame(&mut session, bench.post_b);
 
-    // The pin back, and before it lands, a drag.
-    assert!(session.perform(SessionOp::Undo).refusal.is_none());
-    drag_and_land(&mut session, pattern);
-    let superseded = landed_superseded(&mut session);
-    let [withdrawn] = &superseded[..] else {
-        panic!("the scratch landing drops the pinned frame mid-drag: {superseded:?}")
+    // The space taken back, and then a drag.
+    let outcome = session.perform(SessionOp::Undo);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [withdrawn] = &outcome.withdrawn.superseded[..] else {
+        panic!(
+            "the undo drops the frame: {:?}",
+            outcome.withdrawn.superseded
+        )
     };
     assert_eq!(withdrawn.instance, bench.post_b);
     assert!(
         matches!(
             &withdrawn.cause,
-            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
+            AdmissionFault::NoSuchSpace { space, .. } if space.id() == own
         ),
         "{}",
         withdrawn.cause
     );
-    assert!(session.display().free_move_of(bench.post_b).is_none());
-    assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
-    session.pump();
-    assert!(
-        landed_superseded(&mut session).is_empty(),
-        "and the cancel's landing has nothing left to say"
-    );
-}
-
-/// **A join a value gesture overtakes lands mid-drag too**: the seat
-/// that puts the framed post_b in the loose shelf's space is the
-/// graph's, so the scratch landing drops the frame, naming the join.
-#[test]
-fn a_join_landing_a_value_gesture_overtakes_still_prunes() {
-    let tol = Tol::witness();
-    let bench = asm::bench("fmovertakenjoin", tol);
-    let mut session = asm::open_bench(&bench, tol);
-    let pattern = drag_slot(&mut session, &bench);
-    asm::unpin(&mut session, bench.post_b);
-    asm::unpin(&mut session, bench.shelf_i);
-    commit_frame(&mut session, bench.post_b);
-    let seat = session.perform(asm::seat_op(
-        &bench,
-        bench.post_b,
-        ContactClass::Rest,
-        asm::middle_seat_values(),
-    ));
-    assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
-    drag_and_land(&mut session, pattern);
-    let superseded = landed_superseded(&mut session);
-    let [withdrawn] = &superseded[..] else {
-        panic!("the scratch landing drops the joined frame mid-drag: {superseded:?}")
-    };
-    assert!(
-        matches!(
-            &withdrawn.cause,
-            AdmissionFault::MovedSpace { instance, into }
-                if instance.id() == bench.post_b && into.id() != bench.post_b
-        ),
-        "{}",
-        withdrawn.cause
-    );
-}
-
-/// **A refused placement waits for the committed landing**, whatever
-/// refused it. A ball mate on post_b's top centre, which a plane has
-/// none of, is admitted at the door and refused where post_b evaluates
-/// — a refusal the graph decides, but the scratch
-/// landing cannot tell it from one a previewed value decides, so it
-/// keeps the frame; the committed landing after the cancel drops it,
-/// saying the post is in no space.
-#[test]
-fn a_refused_placement_waits_for_the_committed_landing() {
-    let tol = Tol::witness();
-    let bench = asm::bench("fmovertakenrefused", tol);
-    let mut session = asm::open_bench(&bench, tol);
-    let pattern = drag_slot(&mut session, &bench);
-    asm::unpin(&mut session, bench.post_b);
-    asm::unpin(&mut session, bench.shelf_i);
-    commit_frame(&mut session, bench.post_b);
-    // A mate the door admits and the evaluation refuses: post_b's
-    // placement fails, so its copy is in no space.
-    let seat = session.perform(asm::no_centre_seat_op(&bench, bench.post_b));
-    assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
+    assert!(session.display().free_move_of(own).is_none());
     drag_and_land(&mut session, pattern);
     assert!(
         landed_superseded(&mut session).is_empty(),
-        "the scratch landing discards nothing over a refusal"
+        "and the scratch landing has nothing left to say"
     );
-    assert!(session.display().free_move_of(bench.post_b).is_some());
-
     assert!(session.perform(SessionOp::CancelGesture).refusal.is_none());
-    session.pump();
-    assert_eq!(
-        session.landed_pair().map(|(doc, _)| doc),
-        Some(session.committed_doc()),
-        "the committed document landed"
-    );
-    let superseded = landed_superseded(&mut session);
-    let [withdrawn] = &superseded[..] else {
-        panic!("the committed landing drops the refused frame: {superseded:?}")
-    };
-    assert!(
-        matches!(
-            &withdrawn.cause,
-            AdmissionFault::NoSpace { instance } if instance.id() == bench.post_b
-        ),
-        "{}",
-        withdrawn.cause
-    );
-    assert!(session.display().free_move_of(bench.post_b).is_none());
 }
 
-/// **A frame whose root is deleted goes at the edit**, typed: the
-/// document alone says the root is gone.
+/// **A frame whose copy is deleted goes at the edit**, typed: the
+/// document alone says no copy is placed into the space any more.
 #[test]
-fn deleting_a_frames_root_drops_it_at_the_edit() {
+fn deleting_a_frames_copy_drops_it_at_the_edit() {
     let tol = Tol::witness();
     let bench = asm::bench("fmdeleteroot", tol);
     let mut session = asm::open_bench(&bench, tol);
-    asm::unpin(&mut session, bench.post_b);
+    let own = asm::unpin(&mut session, bench.post_b);
     commit_frame(&mut session, bench.post_b);
     let outcome = session.perform(SessionOp::DeleteNode { node: bench.post_b });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -1266,33 +1097,40 @@ fn deleting_a_frames_root_drops_it_at_the_edit() {
         )
     };
     assert!(
-        matches!(&withdrawn.cause, AdmissionFault::NoSuchNode { node } if node.id() == bench.post_b),
+        matches!(&withdrawn.cause, AdmissionFault::NotShown { space, .. } if space.id() == own),
         "{}",
         withdrawn.cause
     );
-    assert!(session.display().free_move_of(bench.post_b).is_none());
+    assert!(session.display().free_move_of(own).is_none());
 }
 
 /// **A gesture whose copy a refusal takes waits for the committed
-/// landing too**, as a frame does: a ball mate on post_b's top centre,
-/// which a plane has none of, is admitted at the door and refused where
-/// post_b evaluates, under a free-move in flight on it. A value drag's
-/// scratch landing keeps the gesture, and the committed landing after
-/// the cancel kills it, saying the post is in no space.
+/// landing**: under a free-move in flight on post_b, seated in the
+/// shelf's own space, the shelf takes a mate the evaluation refuses,
+/// against post_a in the world, which places the shelf there — post_b
+/// stays placed into the shelf's old space, still shown, so the edit
+/// keeps the gesture, and refuses where it evaluates, its seat reading
+/// across two spaces. A value drag's scratch landing keeps the gesture
+/// too, and the committed landing after the cancel kills it, saying the
+/// post has no picture.
 #[test]
 fn a_refused_gestures_copy_waits_for_the_committed_landing() {
     let tol = Tol::witness();
-    let bench = asm::bench("fmgesturerefused", tol);
-    let mut session = asm::open_bench(&bench, tol);
-    let pattern = drag_slot(&mut session, &bench);
-    asm::unpin(&mut session, bench.post_b);
+    let bench = &asm::bench("fmgesturerefused", tol);
+    let mut session = asm::open_bench(bench, tol);
+    let pattern = drag_slot(&mut session, bench);
     asm::unpin(&mut session, bench.shelf_i);
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(bench, bench.post_b, asm::own_space_seat_values()),
+    );
     let outcome = session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let seat = session.perform(asm::no_centre_seat_op(&bench, bench.post_b));
+    let seat = session.perform(asm::no_centre_op(bench, bench.post_a));
     assert!(seat.refusal.is_none(), "{:?}", seat.refusal);
+    assert!(seat.withdrawn.killed_gesture.is_none(), "the edit keeps it");
     drag_and_land(&mut session, pattern);
     assert!(
         session
@@ -1324,81 +1162,75 @@ fn a_refused_gestures_copy_waits_for_the_committed_landing() {
     assert!(session.display().probing().is_none());
 }
 
-/// **Deleting a gesture's root takes the gesture's copy with it**, so
-/// the gesture dies at the edit naming the copy: every copy in a space
-/// reads its root. (An undo can take the root alone:
-/// `an_undo_past_a_gestures_root_kills_it_at_the_edit`.)
+/// **Deleting a gesture's space kills the gesture at the edit**,
+/// typed: the space is gone, which the document alone says.
 #[test]
-fn deleting_a_gestures_root_takes_its_copy_and_kills_it() {
+fn deleting_a_gestures_space_kills_it() {
     let tol = Tol::witness();
-    let (bench, mut session, root) = gesture_on_a_non_root_copy("fmdeletegestureroot", tol);
-    let outcome = session.perform(SessionOp::DeleteNode { node: root });
+    let (_, mut session, space) = gesture_on_a_non_root_copy("fmdeletegestureroot", tol);
+    let (node, _) = session
+        .doc()
+        .defined_by(space)
+        .expect("a `new_space()` defines the space");
+    let outcome = session.perform(SessionOp::DeleteNode { node });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(
-        session.doc().node(bench.post_b).is_none(),
-        "the copy mated onto the root goes with it"
-    );
     let killed = outcome
         .withdrawn
         .killed_gesture
         .as_ref()
         .expect("the delete kills the gesture");
     assert!(
-        matches!(&killed.cause, AdmissionFault::NoSuchNode { node } if node.id() == bench.post_b),
+        matches!(
+            &killed.cause,
+            AdmissionFault::NoSuchNode { .. } | AdmissionFault::NoSuchSpace { .. }
+        ),
         "{}",
         killed.cause
     );
+    assert!(session.display().probing().is_none());
 }
 
-/// **An undo that removes a gesture's root but not its copy kills the
-/// gesture at the edit.** A second shelf, inserted after post_b and then
-/// mated onto by it, roots the space the gesture moves; three undos
-/// take the seat, the unpin and the insertion in that order, so the
-/// shelf goes and post_b stays. No landing answers the document yet,
-/// so the root's absence is all there is to ask — and it is asked.
+/// **An undo that places a gesture's copy elsewhere kills the gesture
+/// at the edit.** post_b, in a space of its own, is seated under a
+/// second shelf in a space of its own, which puts it in that shelf's
+/// space; a gesture opens on it there, and undoing the seat puts post_b
+/// back in its own space. No landing answers the document yet, and the
+/// recipe alone says where post_b is placed — and it is asked.
 #[test]
-fn an_undo_past_a_gestures_root_kills_it_at_the_edit() {
+fn an_undo_that_moves_a_gestures_copy_kills_it_at_the_edit() {
     let tol = Tol::witness();
     let bench = asm::bench("fmundoroot", tol);
     let mut session = asm::open_bench(&bench, tol);
-    asm::unpin(&mut session, bench.post_b);
+    let own = asm::unpin(&mut session, bench.post_b);
     let shelf = common::instance_in(&mut session, bench.shelf.id);
-    asm::unpin(&mut session, shelf);
+    let shelf_space = asm::unpin(&mut session, shelf);
     common::commit_mate(
         &mut session,
-        asm::seat_op_under(
-            &bench,
-            bench.post_b,
-            shelf,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op_under(&bench, bench.post_b, shelf, asm::middle_seat_values()),
     );
     session.pump();
     assert_eq!(
         display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b),
-        Ok(shelf),
-        "the second shelf roots post_b's space"
+        Ok(shelf_space),
+        "post_b is placed into the second shelf's space"
     );
     let outcome = session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 
-    let mut killed = None;
-    for _ in 0..3 {
-        let outcome = session.perform(SessionOp::Undo);
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        killed = killed.or(outcome.withdrawn.killed_gesture);
-    }
-    assert!(session.doc().node(shelf).is_none(), "the root is gone");
+    let outcome = session.perform(SessionOp::Undo);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let killed = outcome
+        .withdrawn
+        .killed_gesture
+        .expect("the undo that moved the copy killed the gesture");
     assert!(
-        session.doc().node(bench.post_b).is_some(),
-        "the copy is not"
-    );
-    let killed = killed.expect("the undo that took the root killed the gesture");
-    assert!(
-        matches!(&killed.cause, AdmissionFault::NoSuchNode { node } if node.id() == shelf),
+        matches!(
+            &killed.cause,
+            AdmissionFault::MovedSpace { instance, into }
+                if instance.id() == bench.post_b && into.id() == own
+        ),
         "{}",
         killed.cause
     );
@@ -1410,7 +1242,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     let tol = Tol::witness();
     let bench = asm::bench("fmgesture", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b's world pin off: a loose space of its own, which the probe
+    // post_b in a space of its own, which the probe
     // moves, each frame composed so it is drawn where its pin stood it.
     asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
@@ -1433,10 +1265,8 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
         instance: bench.post_b,
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let committed = session
-        .display()
-        .free_move_of(bench.post_b)
-        .expect("the probe committed");
+    let committed =
+        crate::common::asm::frame_of(&session, bench.post_b).expect("the probe committed");
     assert_eq!(
         *committed,
         asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])),
@@ -1471,11 +1301,15 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     // authored x-extent end + the probe's 0.05, past the shelf's 0.10
     // that bounded the baseline.
     let want_max_x = asm::POST_B_AT[0] + asm::POST_SECTION + 0.05;
+    let (probed_box, baseline_box) = (
+        probed.bounds().expect("the probed picture draws"),
+        baseline.bounds().expect("the baseline picture draws"),
+    );
     assert!(
-        (probed.bounds().max_x - want_max_x).abs() < 1e-6,
+        (probed_box.max_x - want_max_x).abs() < 1e-6,
         "the probed part is DRAWN displaced by the probe: {} vs {want_max_x} (baseline {})",
-        probed.bounds().max_x,
-        baseline.bounds().max_x
+        probed_box.max_x,
+        baseline_box.max_x
     );
 
     // The pick follows the picture: the probed instance answers at
@@ -1509,9 +1343,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     });
     session.perform(SessionOp::CancelFreeMove);
     assert_eq!(
-        session
-            .display()
-            .free_move_of(bench.post_b)
+        crate::common::asm::frame_of(&session, bench.post_b)
             .expect("still committed")
             .translation,
         asm::where_b_stood(Frame::translation([0.05, 0.0, 0.0])).translation
@@ -1520,7 +1352,7 @@ fn the_probe_gesture_previews_commits_and_draws_visibly_distinct() {
     // Never persisted: save over the file, reopen, probe gone.
     session.perform(SessionOp::Save(bench.asm_path.clone()));
     let reopened = asm::open_bench(&bench, tol);
-    assert!(reopened.display().free_move_of(bench.post_b).is_none());
+    assert!(crate::common::asm::frame_of(&reopened, bench.post_b).is_none());
 }
 
 #[test]
@@ -1568,18 +1400,19 @@ fn a_non_rigid_preview_refuses_typed() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }
 
-/// **A placement that pins the space discards its frame when its solve
-/// lands** (DI5: the frame is dropped once its root stops naming a loose
-/// space). The mate's edit alone withdraws nothing, since spaces exist
-/// only after the solve; the landing answering it does.
+/// **A mate that places a probed copy into another space discards its
+/// frame at the edit** (DI5: the frame is dropped once its space is no
+/// longer shown). The mate re-targets post_b into the shelf's space, the
+/// world, and writes its bundle — two edits in one action — and the
+/// space it left holds nothing.
 #[test]
-fn a_landing_mate_discards_the_probe_value() {
+fn a_mate_that_moves_the_copy_discards_the_probe_value() {
     let tol = Tol::witness();
     let bench = asm::bench("fmsupersede", tol);
     let mut session = asm::open_bench(&bench, tol);
     let index = asm::index_of(&session);
-    // Its world pin off, post_b is a loose space.
-    asm::unpin(&mut session, bench.post_b);
+    // In a space of its own, post_b's space is shown.
+    let own = asm::unpin(&mut session, bench.post_b);
     // Probe post_b somewhere.
     for op in [
         SessionOp::BeginFreeMove {
@@ -1596,38 +1429,24 @@ fn a_landing_mate_discards_the_probe_value() {
         let outcome = session.perform(op);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     }
-    assert!(session.display().free_move_of(bench.post_b).is_some());
+    assert!(session.display().free_move_of(own).is_some());
 
-    // The mate lands on post_b: ONE committed edit, which says nothing
-    // yet about the post's space.
     let outcome = session.perform(asm::seat_op(
         &bench,
         bench.post_b,
-        ContactClass::Rest,
         asm::middle_seat_values(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 4, "the mate and its three values");
-    assert!(
-        outcome.withdrawn.superseded.is_empty(),
-        "the edit withdraws nothing: {:?}",
-        outcome.withdrawn
+    assert_eq!(
+        outcome.committed.len(),
+        3,
+        "the re-target, the mate and its values: {:?}",
+        outcome.committed
     );
-    assert!(
-        session.display().free_move_of(bench.post_b).is_some(),
-        "until the solve lands, the frame draws over the space's last known copies"
-    );
-    // The evaluation answering the mate lands, and its prune supersedes
-    // the probe.
-    session.pump();
-    let landed = session.take_landed_withdrawals();
-    let [report] = &landed[..] else {
-        panic!("one landing withdrew something: {landed:?}")
-    };
-    let [superseded] = &report.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
-            "exactly one placement is superseded: {:?}",
-            report.superseded
+            "exactly one frame is superseded: {:?}",
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
@@ -1635,21 +1454,18 @@ fn a_landing_mate_discards_the_probe_value() {
         "the supersession is reported, not inferred"
     );
     // The PAYLOAD, not the variant: what would go red if `prune` paired
-    // the right fault with the wrong root is this.
-    let AdmissionFault::InTheWorld { instance } = &superseded.cause else {
+    // the right fault with the wrong space is this.
+    let AdmissionFault::NotShown { space, .. } = &superseded.cause else {
         panic!(
-            "a mate pinning the space supersedes with its own fault: {}",
+            "a mate emptying the space supersedes with its own fault: {}",
             superseded.cause
         )
     };
-    assert_eq!(
-        instance.id(),
-        bench.post_b,
-        "the fault names the same instance"
-    );
+    assert_eq!(space.id(), own, "the fault names the space it emptied");
     // DISCARDED, not zeroed: the value is gone, and the map holds no
     // identity entry standing in for it.
-    assert!(session.display().free_move_of(bench.post_b).is_none());
+    assert!(session.display().free_move_of(own).is_none());
+    session.pump();
     // The instance is drawn at its SOLVED placement, undistinguished.
     let index_after = asm::index_of(&session);
     let scene = index_after
@@ -1751,7 +1567,7 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     let tol = Tol::witness();
     let bench = asm::bench("replacequiet", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // post_b and the shelf loose, each a space the free-move moves.
+    // post_b and the shelf each in a space of its own, which the free-move moves.
     asm::unpin(&mut session, bench.post_b);
     asm::unpin(&mut session, bench.shelf_i);
 
@@ -1789,7 +1605,7 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
         assert!(outcome.refusal.is_none(), "{op:?}: {:?}", outcome.refusal);
     }
     assert_eq!(session.display().hidden().len(), 1);
-    assert!(session.display().free_move_of(bench.post_b).is_some());
+    assert!(crate::common::asm::frame_of(&session, bench.post_b).is_some());
     assert_eq!(session.display().probing(), Some(bench.shelf_i));
 
     // With the drag in flight the door does not open at all, and the
@@ -1809,7 +1625,7 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     );
     assert!(
         session.display().hidden().len() == 1
-            && session.display().free_move_of(bench.post_b).is_some()
+            && crate::common::asm::frame_of(&session, bench.post_b).is_some()
             && session.display().probing() == Some(bench.shelf_i)
             && session.display().revision() == held,
         "…and takes nothing on the way out — a refusal that cleared \
@@ -1837,7 +1653,7 @@ fn a_document_replacement_takes_all_display_state_and_reports_none_of_it() {
     );
     assert!(
         session.display().hidden().is_empty()
-            && session.display().free_move_of(bench.post_b).is_none(),
+            && crate::common::asm::frame_of(&session, bench.post_b).is_none(),
         "…and it took the hide and the committed placement anyway, which \
          is the asymmetry this row records as decided"
     );

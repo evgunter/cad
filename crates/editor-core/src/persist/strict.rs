@@ -211,11 +211,44 @@ pub(crate) mod nodes {
         Ok(map)
     }
 }
-strict_map_section!(
-    /// The variable table (id → variable).
-    vars,
-    "variable"
-);
+/// **The variable table** (id → variable), the world's space aside:
+/// every document holds it at [`crate::VarId::WORLD`] from its creation,
+/// as it holds its world, so the wire never carries it, a file naming it
+/// refuses, and the load puts it back.
+pub(crate) mod vars {
+    use super::*;
+
+    pub(crate) fn serialize<S>(
+        map: &BTreeMap<crate::VarId, crate::Var>,
+        ser: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        use serde::ser::SerializeMap;
+        let mut out = ser.serialize_map(None)?;
+        for (id, var) in map {
+            if *id != crate::VarId::WORLD {
+                out.serialize_entry(id, var)?;
+            }
+        }
+        out.end()
+    }
+
+    pub(crate) fn deserialize<'de, D>(de: D) -> Result<BTreeMap<crate::VarId, crate::Var>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let mut map: BTreeMap<crate::VarId, crate::Var> = strict_map(de, "variable")?;
+        if map.contains_key(&crate::VarId::WORLD) {
+            return Err(serde::de::Error::custom(
+                "the world's space is not on the wire: every document holds it from its creation",
+            ));
+        }
+        map.insert(crate::VarId::WORLD, crate::Var::world());
+        Ok(map)
+    }
+}
 strict_map_section!(
     /// The variable-name store (id → name).
     var_names,

@@ -39,8 +39,16 @@ fn translation_is_exact_and_key_stable() {
         assert_eq!((p1.x, p1.y, p1.z), (p0.x + 0.25, p0.y - 1.5, p0.z + 8.0));
     }
     let (m0, m1) = (
-        mass_properties(&b, Tol::witness()).unwrap(),
-        mass_properties(&t, Tol::witness()).unwrap(),
+        mass_properties(
+            &topo::test_support::finished("the measured body", b.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap(),
+        mass_properties(
+            &topo::test_support::finished("the measured body", t.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap(),
     );
     assert_eq!(m0.volume.to_bits(), m1.volume.to_bits());
     assert_eq!(m0.surface_area.to_bits(), m1.surface_area.to_bits());
@@ -82,8 +90,16 @@ fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
     .unwrap();
     tiers_ok(&t);
     let (m0, m1) = (
-        mass_properties(&b, Tol::witness()).unwrap(),
-        mass_properties(&t, Tol::witness()).unwrap(),
+        mass_properties(
+            &topo::test_support::finished("the measured body", b.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap(),
+        mass_properties(
+            &topo::test_support::finished("the measured body", t.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap(),
     );
     assert!((m0.volume - m1.volume).abs() < 1e-12);
     assert!((m0.surface_area - m1.surface_area).abs() < 1e-12);

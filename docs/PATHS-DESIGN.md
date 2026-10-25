@@ -1473,11 +1473,13 @@ arm added to a decision, name which ε_input story it belongs to, or say
 why it belongs to none). The definite arm,
 `ContinuationTargetOffRay`, belongs to the AUTHORED-DATA story: the
 target and the ray are definitely different places, and the recourse is
-to move the target onto the ray — or, if the miss is genuinely
-acceptable, to WIDEN the input tolerance. That is the opposite
-direction from the tangency refusals, where closeness is what refuses
-and lowering the tolerance is the recourse, and the message says so
-rather than inheriting the wrong half of the template.
+to move the target onto the ray. It names no tolerance: a refusal does
+not advise loosening ε, and a definite arm names no ε lever at all
+(`docs/DESIGN.md` D4 ¶1 (i), `[tolerance.recourse]`). Its in-band
+sibling, the escalation on `path_continuation_target_offset`, tells the
+same story with the same recourse. Distance is what refuses here, not
+closeness, so it does not inherit the tangency refusals' template
+either.
 
 The in-band arm belongs to NO existing story, and this is the "or say
 why" branch. The shared sub-ε_input recourse is "declare the

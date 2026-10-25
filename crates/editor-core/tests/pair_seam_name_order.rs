@@ -13,16 +13,20 @@
 //! - a subtract that meets the same kind of chord, in every symmetry of
 //!   the square: it builds, and names its seams beside merged parents
 //!   alike;
-//! - a box less a rotated `Transform` copy of itself, whose two operands
-//!   hold the same names: its four `Crossing` vertices and the edges
-//!   ending at them are each one entity's name, none tied.
+//! - a box less a rotated copy of itself placed against it, whose
+//!   copy's names are the box's qualified `Placed`: its four `Crossing`
+//!   vertices and the edges ending at them are each one entity's name,
+//!   none tied.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{block, failure, run};
-use crate::fixture::{ends, face_vertices, insert, len, on_frame, out, point, scl, table, xform};
+use crate::fixture::{
+    axes_at, desc, ends, face_vertices, in_world_square, insert, len, out, plane_on, point, table,
+    xform,
+};
 use editor_core::{
-    Bodies, Datum, EntityKey, EntityKind, Entry, ExtrudeSide, Node, Operand, ProfileDoc,
-    RecipeNodeId, RoleSeg, SplitHalf, StableName,
+    Bodies, EntityKey, EntityKind, Entry, Node, Operand, ProfileDoc, RecipeNodeId, RoleSeg,
+    SplitHalf, StableName,
 };
 use geom_core::Tol;
 
@@ -67,9 +71,10 @@ impl Sym {
     }
 }
 
-/// `loop_` on the frame `(o, u, v)` under `sym`, extruded `d` along the
-/// frame's normal: the profile is mirrored back where `sym` mirrors, so
-/// the solid is `sym`'s image of the unmapped one.
+/// `loop_` on its own xy, extruded `d` along its own z, its copy standing
+/// in the world on the frame `(o, u, v)` under `sym`: the profile is
+/// mirrored back where `sym` mirrors, so the copy is `sym`'s image of
+/// the unmapped one.
 fn prism(
     doc: ProfileDoc,
     sym: Sym,
@@ -88,15 +93,15 @@ fn prism(
     } else {
         (u, v, loop_.to_vec())
     };
-    let (doc, p) = on_frame(doc, o, u, v, vec![pts]);
-    insert(
+    let (doc, p) = insert(doc, Node::Profile(desc(vec![pts])));
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(d),
-            side: ExtrudeSide::Along,
         },
-    )
+    );
+    in_world_square(doc, body, &axes_at(o, u, v))
 }
 
 const X: [f64; 3] = [1.0, 0.0, 0.0];
@@ -322,7 +327,8 @@ fn a_chord_between_two_merged_faces_is_the_seam_of_their_parents() {
 fn a_chord_between_two_merged_faces_builds_in_a_fold_and_after_a_split() {
     let doc = ProfileDoc::empty_derived("pair_seam_name_order_fold", Tol::witness());
     let (doc, a, b) = two_prisms(doc, Sym::all()[0]);
-    let (doc, c) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block(doc, (6.0, 7.0), (0.0, 1.0), 1.0);
+    let (doc, c) = in_world_square(doc, c, &editor_core::Frame::IDENTITY);
     let mut unions = Vec::new();
     let mut doc = doc;
     for order in [
@@ -342,18 +348,13 @@ fn a_chord_between_two_merged_faces_builds_in_a_fold_and_after_a_split() {
         doc = d;
         unions.push((u, order));
     }
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(3.5), len(0.0), len(0.0)],
-            normal: [scl(1.0), scl(0.0), scl(0.0)],
-        }),
-    );
+    // `a` stands at the identity: its own coordinates are the world's.
+    let tool = plane_on(&doc, a, [3.5, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: a.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let below = Operand::output(split, SplitHalf::Below.port());
@@ -467,21 +468,18 @@ fn a_subtracts_chord_between_two_merged_faces_is_named_alike_in_every_symmetry()
 }
 
 /// **A box less a rotated copy of itself names every crossing apart.**
-/// `Transform` mints no name, so both operands' tables hold the same
-/// names; the subtract's sides and crossings carry the read each came
-/// in through, so "from's edge crosses tool's face" and "tool's edge
-/// crosses from's face" are two names: the eight `Crossing` vertices,
-/// four spellings without their reads, and every row of the table are
-/// each one entity's.
+/// The copy's names are the box's, each qualified `Placed`; the
+/// subtract's sides and crossings carry the read each came in through,
+/// so "from's edge crosses tool's face" and "tool's edge crosses from's
+/// face" are two names: the eight `Crossing` vertices, four spellings
+/// without their reads, and every row of the table are each one
+/// entity's.
 #[test]
 fn a_subtract_of_a_transform_copy_names_each_crossing_apart() {
     let doc = ProfileDoc::empty_derived("pair_seam_name_order_copy", Tol::witness());
-    let (doc, x) = block(doc, (0.0, 4.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, x) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
     let h = std::f64::consts::FRAC_1_SQRT_2;
-    let (doc, copy) = insert(
-        doc,
-        xform(x, [1.0, -1.0, 1.5], [h, h, 0.0], std::f64::consts::PI),
-    );
+    let (doc, copy) = xform(doc, x, [1.0, -1.0, 1.5], [h, h, 0.0], std::f64::consts::PI);
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
@@ -511,8 +509,9 @@ fn a_subtract_of_a_transform_copy_names_each_crossing_apart() {
         other => panic!("a crossing cites a name carried in: {other:?}"),
     };
     let mut by_edge_read = std::collections::BTreeMap::new();
-    // The same crossings with the reads taken off: what citing the
-    // operands' bare names spelled, two crossings per spelling.
+    // The same crossings with the reads taken off, and the copy's
+    // `Placed` with them: what citing the operands' bare names spelled,
+    // two crossings per spelling.
     let mut bare = std::collections::BTreeSet::new();
     for n in &crossings {
         let Some(RoleSeg::Crossing { edge, face, sense }) = n.path.first() else {
@@ -525,7 +524,10 @@ fn a_subtract_of_a_transform_copy_names_each_crossing_apart() {
         );
         *by_edge_read.entry(read_of(edge)).or_insert(0) += 1;
         let inner = |n: &StableName| match n.path.first() {
-            Some(RoleSeg::From { of, .. }) => format!("{of:?}"),
+            Some(RoleSeg::From { of, .. }) => match of.path.as_slice() {
+                [RoleSeg::Placed { of }] => format!("{of:?}"),
+                _ => format!("{of:?}"),
+            },
             _ => unreachable!("read above"),
         };
         bare.insert((inner(edge), inner(face), format!("{sense:?}")));

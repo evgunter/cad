@@ -38,6 +38,8 @@
 //!   only, code with literals, prose alone) plus the traversals and
 //!   balanced-text operations that read them. The readers still
 //!   outside it are enumerated in `tests/reader_census.rs`.
+//! - [`arc_row`], an arc rim's `IsoArc` row compared against the row it
+//!   should be, which two suites in two crates make.
 //! - [`seam_census`], the classification of a planar normal against
 //!   `Vec3::orthonormal_basis`'s seam, which three corpus instruments
 //!   in three crates each need and none of them owns.
@@ -64,6 +66,7 @@
 //! without inverting the layering. Below everything, there is no cycle
 //! to create.
 
+pub mod arc_row;
 pub mod census;
 pub mod cone_cut;
 pub mod f6;

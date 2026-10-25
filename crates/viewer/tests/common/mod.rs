@@ -37,7 +37,6 @@ pub mod asm;
 pub mod corpus_pick;
 
 use bvh::Aabb;
-use editor_core::ExtrudeSide;
 use pncad::document::{SolvedPoses, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
@@ -77,7 +76,7 @@ pub fn plate_volume() -> f64 {
 /// This IS a call to `Camera::framing`, so a row whose subject is that
 /// door cannot take its camera from here and still be checking it.
 pub fn framed(aspect: f64) -> Camera {
-    Camera::framing(&plate_bounds(), aspect).expect("the plate frames")
+    Camera::framing(Some(plate_bounds()), aspect).expect("the plate frames")
 }
 
 /// The eight corners of a box.
@@ -166,7 +165,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
         },
         tol,
     );
-    let (doc, profile) = framed_square(&doc, 0.04, tol);
+    let (doc, profile) = square_profile(&doc, 0.04, tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
@@ -179,7 +178,6 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
                 scl(2.0),
             )
             .expect("length / scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -192,34 +190,78 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
 /// The failure is a division by a zero literal in the extrude's
 /// distance — an expression that is well-dimensioned at the edit door
 /// and non-finite at evaluation, which is exactly the shape GQ2's
-/// per-node result exists to report. The transform is placed. Answers
-/// the document, the failing extrude and the poisoned transform.
+/// per-node result exists to report. A placement of it is pinned in the
+/// world. Answers the document, the failing extrude and the poisoned
+/// placement.
 pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui3-broken", tol);
-    let (doc, profile) = framed_square(&doc, 0.04, tol);
+    let (doc, profile) = square_profile(&doc, 0.04, tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: Formula::div(len(0.008), scl(0.0)).expect("length / scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
     let (doc, moved) = inserted(
         &doc,
-        Node::transform(
-            extrude,
-            pncad::document::Step::Rigid {
-                translation: [len(0.01), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
+        Node::place(
+            vec![pncad::document::BodyRead::plain(
+                pncad::document::Operand::from(extrude),
+            )],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            pncad::document::stand().bundle(),
         ),
         tol,
     );
-    let (doc, _) = placed(&doc, moved, tol);
+    let at = pncad::document::Frame {
+        translation: [0.01, 0.0, 0.0],
+        ..pncad::document::Frame::IDENTITY
+    };
+    let doc = pin(
+        &doc,
+        moved,
+        &at,
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
     (doc, extrude, moved)
+}
+
+/// **`doc` with `body` placed in the world at `at`** — a placement of
+/// it, pinned there over its geometry ([`pin`]) — answering the
+/// document and the placement: a copy of `body` standing translated by
+/// `at` from where its body stands.
+pub fn placed_at(
+    doc: &Doc<ProfileProgram>,
+    body: RecipeNodeId,
+    at: [f64; 3],
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let (doc, placement) = inserted(
+        doc,
+        Node::place(
+            vec![pncad::document::BodyRead::plain(
+                pncad::document::Operand::from(body),
+            )],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
+        tol,
+    );
+    let pose = pncad::document::Frame {
+        translation: at,
+        ..pncad::document::Frame::IDENTITY
+    };
+    let doc = pin(
+        &doc,
+        placement,
+        &pose,
+        &pncad::document::EvalOptions::default(),
+        tol,
+    );
+    (doc, placement)
 }
 
 /// The gallery ring document as `demo-tour gallery` saved it (the
@@ -229,6 +271,20 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
 /// schema break makes this file unreadable, and the fix is to
 /// regenerate it from `demo-tour gallery` and rename, never to teach
 /// the loader about an old shape.
+///
+/// Regenerated for the identity bundle (FORK-REST): the tour stands its
+/// ring by `stand`, which writes no mate and the constant `0` on the
+/// three slides and three spins, where it wrote an `Axis` mate to the
+/// world's x axis turned by the revolve's heading and slid by its axis
+/// numbers. The ring's placement holds six values and no mate, so its
+/// ids from the placement on moved; the profile and the revolve did
+/// not.
+///
+/// Regenerated for values on the target space's axes (D′2): a spin
+/// value names its axis (`spin`, where it was `spin_about`), and the
+/// tour's variables now record the display units it authors them in.
+/// The placement's id, its constraints' and the copy's moved with the
+/// content key; no number moved.
 pub const GALLERY_RING: &str = include_str!("../gallery_ring.pncad");
 
 /// **ε is a run parameter, and a saved document records the one it was
@@ -280,27 +336,13 @@ pub fn gallery_ring_at(tol: Tol) -> String {
 
 use viewer::session::{DocSession, FaceSelection, SessionOp};
 
-/// Add the world xy frame through the session, answering its id — the
-/// pick every `SessionOp::AddProfile` below hands over.
-///
-/// Through the vocabulary's own numbers (`ProfilePlane::world_xy`)
-/// rather than a second spelling of them here: the add-profile form's
-/// `NewXy` choice mints that frame, so a suite that hand-wrote the
-/// components would stop testing the frame the chrome authors the
-/// moment either moved.
-pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
-    session_insert(
-        session,
-        SessionOp::AddDatum {
-            datum: viewer::session::ProfilePlane::world_xy().expect("the world xy frame lowers"),
-        },
-    )
-}
-
-/// **Perform one authoring op and answer the node it made**: its first
-/// committed edit inserts that node, and every later edit is the world's
-/// (A10) — the new body's placement and the mate and values that place
-/// it, or the target's placements re-pointed or withdrawn.
+/// **Perform one authoring op and answer the node it made**: the node
+/// is its first committed insert that is not a placement — or its first
+/// insert, for an op whose node is one — and every other edit places
+/// bodies (A10, D10): the operands a combine places against its first
+/// operand's root before it reads them, the new body's world placement
+/// and the bundle that places it, or the target's placements
+/// re-pointed or withdrawn.
 ///
 /// This is the op vocabulary's door, and it holds the session's
 /// contract. [`inserted`] and [`insert_into`] are the document's door
@@ -311,15 +353,27 @@ pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
 pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let (first, world) = outcome
+    let inserts: Vec<&pncad::document::AuthoredNode> = outcome
         .committed
-        .split_first()
-        .expect("the op committed an edit");
-    assert!(
-        matches!(first, DocEdit::InsertNode { .. }),
-        "the op's first edit inserts its node: {first:?}"
-    );
-    for edit in world {
+        .iter()
+        .filter_map(|edit| match edit {
+            DocEdit::InsertNode { node, .. } => Some(&**node),
+            _ => None,
+        })
+        .collect();
+    assert!(!inserts.is_empty(), "the op inserts its node: {outcome:?}");
+    let at = inserts
+        .iter()
+        .position(|node| !matches!(node, Node::Place { .. }))
+        .unwrap_or(0);
+    let mut seen = 0;
+    for edit in &outcome.committed {
+        if let DocEdit::InsertNode { .. } = edit {
+            seen += 1;
+            if seen == at + 1 {
+                continue;
+            }
+        }
         assert!(
             matches!(
                 edit,
@@ -329,14 +383,19 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                 DocEdit::SetParam {
                     slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Shape(_)),
                     ..
+                } | DocEdit::SetParam {
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
+                    ..
                 } | DocEdit::DeleteNode { .. }
+                    | DocEdit::SetConstraints { .. }
                     | DocEdit::AddConstraint { .. }
-                    | DocEdit::AddValue { .. }
+                    | DocEdit::RemoveConstraint { .. }
+                    | DocEdit::RemoveConstraints { .. }
             ),
-            "every later edit is the world's: {edit:?}"
+            "every other edit places bodies: {edit:?}"
         );
     }
-    *outcome.minted.first().expect("the insert minted its node")
+    *outcome.minted.get(at).expect("the insert minted its node")
 }
 
 /// **Add an instance of the part `id` through the session**, pump the
@@ -349,30 +408,26 @@ pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) ->
     node
 }
 
-/// **Every mate `doc` holds between two copies**: each mate whose
-/// target is a pose rather than the world, by its address, in placement
-/// order and bundle order within one — the recipe's own mates, without
-/// the world pins and without the values.
+/// **Every mate `doc` holds between two copies**: each mate, by its
+/// address, in placement order and bundle order within one — the
+/// recipe's own mates, without the values.
 pub fn mates_in(doc: &Doc<ProfileProgram>) -> Vec<pncad::document::MateRef> {
     doc.placements()
         .into_iter()
         .flat_map(|placement| {
             crate::fixture::bundle(doc, placement)
                 .into_iter()
-                .filter(|constraint| {
-                    constraint
-                        .mate()
-                        .is_some_and(|mate| matches!(mate.to, pncad::document::Target::Pose(_)))
-                })
+                .filter(|constraint| constraint.mate().is_some())
                 .map(move |constraint| pncad::document::MateRef::new(placement, constraint.id))
         })
         .collect()
 }
 
 /// **A mate and its values written into `doc`** through the edit door:
-/// `mate` added to `placement`'s bundle, then each of `values` naming
-/// the id it minted — what the mate tool's op commits, for a row that
-/// authors its document before a session opens it. Answers the mate.
+/// `placement`'s bundle written whole as `mate` and `values` naming it
+/// (`viewer::test_support::mated`) — what the mate tool's op commits,
+/// for a row that authors its document before a session opens it.
+/// Answers the mate.
 pub fn mate_into(
     doc: &mut Doc<ProfileProgram>,
     placement: RecipeNodeId,
@@ -380,51 +435,23 @@ pub fn mate_into(
     values: Vec<(pncad::document::Coord, Formula)>,
     tol: Tol,
 ) -> pncad::document::MateRef {
-    let applied = pncad::document::apply(
-        doc,
-        &DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(mate),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .expect("the mate is admitted");
-    let [id] = applied.record.minted_constraints[..] else {
-        panic!("a mate mints one id")
-    };
-    *doc = applied.doc;
-    for (coord, by) in values {
-        edit_into(
-            doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(pncad::document::Value {
-                    mate: id,
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            tol,
-        );
-    }
-    pncad::document::MateRef::new(placement, id)
+    let (next, mate) = viewer::test_support::mated(doc, placement, mate, values, tol);
+    *doc = next;
+    mate
 }
 
 /// **Commit a mate through the session**, pump, and answer the mate it
-/// added — the op's first committed edit checked to BE an
-/// `AddConstraint` and the rest its values, and the mate read back by
-/// its address, because that address is what the solve keys a fault by
-/// (its placement's).
+/// added — the op's last committed edit checked to BE an
+/// `AddConstraint` (or the bundle written whole over it with the
+/// panel's values), and the mate read back by its address, because
+/// that address is what the solve keys a fault by (its placement's).
 ///
 /// A row that authors two mates into ONE evaluation does not pump
 /// between them, and so takes [`add_mate`] instead.
 ///
 /// # Panics
 ///
-/// If the op refuses, or commits anything but one `AddConstraint` and
-/// its `AddValue`s.
+/// If the op refuses, or commits anything but one new mate.
 pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
     let mate = add_mate(session, op);
     session.pump();
@@ -433,64 +460,61 @@ pub fn commit_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::
 
 /// [`commit_mate`] without the pump.
 pub fn add_mate(session: &mut DocSession, op: SessionOp) -> pncad::document::MateRef {
-    let before = session.committed_doc().clone();
-    let outcome = session.perform(op);
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let [DocEdit::AddConstraint { placement, .. }, values @ ..] = outcome.committed.as_slice()
-    else {
-        panic!("the op adds one mate: {:?}", outcome.committed)
+    let SessionOp::AddMate { placement, .. } = &op else {
+        panic!("a mate is added by `AddMate`: {op:?}")
     };
-    assert!(
-        values
-            .iter()
-            .all(|edit| matches!(edit, DocEdit::AddValue { .. })),
-        "the rest are its values: {values:?}"
-    );
-    let held = |doc: &Doc<ProfileProgram>| {
-        crate::fixture::bundle(doc, *placement)
+    let placement = *placement;
+    let mates = |doc: &Doc<ProfileProgram>| -> Vec<_> {
+        crate::fixture::bundle(doc, placement)
             .into_iter()
             .filter(|constraint| constraint.mate().is_some())
             .map(|constraint| constraint.id)
-            .collect::<Vec<_>>()
+            .collect()
     };
-    let was = held(&before);
-    let [id] = held(session.committed_doc())
+    let before = mates(session.committed_doc());
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    // The mate added, its bundle then written whole with the panel's
+    // values where it has any, after a re-target where the mate reads
+    // another space.
+    assert!(
+        matches!(
+            outcome.committed.last(),
+            Some(DocEdit::AddConstraint { .. } | DocEdit::SetConstraints { .. })
+        ),
+        "the op writes one bundle: {:?}",
+        outcome.committed
+    );
+    let added: Vec<_> = mates(session.committed_doc())
         .into_iter()
-        .filter(|id| !was.contains(id))
-        .collect::<Vec<_>>()[..]
-    else {
-        panic!("the op minted one mate on {placement:?}")
+        .filter(|id| !before.contains(id))
+        .collect();
+    let [id] = added[..] else {
+        panic!("the op wrote one mate on {placement:?}: {added:?}")
     };
-    pncad::document::MateRef::new(*placement, id)
+    pncad::document::MateRef::new(placement, id)
 }
 
 /// **A rectangle profile through the session**: the chrome's rectangle
-/// template, `width` by `height` and centred on `plane`'s origin,
-/// drawn by `SessionOp::AddProfile` — answering the profile.
-pub fn rectangle_in(
-    session: &mut DocSession,
-    plane: RecipeNodeId,
-    width: f64,
-    height: f64,
-) -> RecipeNodeId {
+/// template, `width` by `height` and centred on the profile's own
+/// origin, drawn by `SessionOp::AddProfile` — answering the profile.
+pub fn rectangle_in(session: &mut DocSession, width: f64, height: f64) -> RecipeNodeId {
     session_insert(
         session,
         SessionOp::AddProfile {
-            plane: viewer::session::ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle { width, height })],
         },
     )
 }
 
-/// **A box through the session**: [`rectangle_in`] on `plane`, then
+/// **A box through the session**: [`rectangle_in`], then
 /// `SessionOp::AddExtrude` by `depth` — answering the profile and the
 /// extrude.
 pub fn box_in(
     session: &mut DocSession,
-    plane: RecipeNodeId,
     [width, height, depth]: [f64; 3],
 ) -> (RecipeNodeId, RecipeNodeId) {
-    let profile = rectangle_in(session, plane, width, height);
+    let profile = rectangle_in(session, width, height);
     let extrude = session_insert(
         session,
         SessionOp::AddExtrude {
@@ -501,11 +525,10 @@ pub fn box_in(
     (profile, extrude)
 }
 
-/// [`box_in`] on a fresh world xy frame ([`xy_frame_in`]) — answering
-/// the extrude, the body a row goes on to combine, blend or measure.
+/// [`box_in`], answering the extrude — the body a row goes on to
+/// combine, blend or measure.
 pub fn xy_box_in(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
-    let plane = xy_frame_in(session);
-    box_in(session, plane, size).1
+    box_in(session, size).1
 }
 
 /// **One node's row out of a tree render.**
@@ -712,7 +735,7 @@ pub use crate::fixture::{head, head_at};
 /// **What the world places** (A10): for each world placement, in
 /// document order, the node defining the body it places.
 pub fn world(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    doc.placements()
+    viewer::world::drawn_copies(doc)
         .into_iter()
         .map(|placement| viewer::world::seat_of(doc, placement))
         .collect()
@@ -737,7 +760,7 @@ pub fn copy_of(doc: &Doc<ProfileProgram>, body: RecipeNodeId) -> RecipeNodeId {
 
 /// **The node `node`'s body is drawn under**: its one world placement
 /// when the world places it once ([`copy_of`]), `node` itself
-/// otherwise — so a row can aim at a datum or an unplaced node the way
+/// otherwise — so a row can aim at a profile or an unplaced node the way
 /// it aims at a placed body.
 pub fn drawn_node(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> RecipeNodeId {
     match viewer::world::placements_of(doc, node)[..] {
@@ -773,65 +796,4 @@ pub fn inline_without_door(
     tol: pncad::geom_core::Tol,
 ) -> viewer::session::DocSession {
     viewer::session::DocSession::inline(doc, tol).with_door(Box::new(NoDoor))
-}
-
-/// **Re-place every copy an edit stranded** — what an author does
-/// after an edit removes the geometry a pin reads (a full revolve's
-/// seam goes when the revolve stops short of a turn): each `Place`
-/// whose mate no longer evaluates (`SideUnevaluated`) is pinned again,
-/// over its copy's geometry as the edit left it, at the pose it held in
-/// `before`, through the session's own doors (`RemoveConstraint`, then
-/// the mate tool's `AddMate`). A copy `before` did not pose stays as
-/// it is.
-pub fn repin_stranded(session: &mut DocSession, before: &editor_core::ProfileDoc, tol: Tol) {
-    use editor_core::{EvalOptions, MateFault, MateRef, Node, NodeErrorKind, Operand};
-    let opts = EvalOptions::default();
-    let poses = solve_document(before, &opts, tol);
-    let (doc, eval) = session.landed_pair().expect("a landed pair");
-    let doc = doc.clone();
-    let stranded: Vec<_> = doc
-        .ids()
-        .into_iter()
-        .filter(|&id| {
-            eval.node_error(id).is_some_and(|e| {
-                matches!(&e.kind, NodeErrorKind::Mate(f)
-                    if matches!(**f, MateFault::SideUnevaluated { .. }))
-            })
-        })
-        .filter_map(|id| match doc.node(id) {
-            Some(Node::Place {
-                shapes,
-                constraints,
-            }) => Some((
-                id,
-                Operand::Var(shapes.first().expect("a placement copies a shape").read),
-                constraints
-                    .iter()
-                    .filter(|c| c.mate().is_some())
-                    .map(|c| c.id)
-                    .collect::<Vec<_>>(),
-            )),
-            _ => None,
-        })
-        .collect();
-    for (placement, copy, mates) in stranded {
-        let Ok(frame) = poses.placement(before, placement) else {
-            continue;
-        };
-        let pin = editor_core::pin_at(session.committed_doc(), &copy, &frame, &opts, tol)
-            .expect("the copy as the edit left it has a frame to pin");
-        for id in mates {
-            let outcome = session.perform(SessionOp::RemoveConstraint {
-                mate: MateRef::new(placement, id),
-            });
-            assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        }
-        let outcome = session.perform(SessionOp::AddMate {
-            placement,
-            mate: Box::new(pin),
-            values: Vec::new(),
-        });
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        session.pump();
-    }
 }

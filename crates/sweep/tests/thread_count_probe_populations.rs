@@ -79,7 +79,7 @@ fn assert_identical(walk: impl Fn() + Send + Sync) {
 /// The face walk of `topo::props`.
 #[test]
 fn the_mass_props_sample_population_is_identical_at_one_and_four_threads() {
-    let body = probe_arc_loft();
+    let body = topo::test_support::finished("the probe arc loft", probe_arc_loft(), Tol::witness());
     assert_identical(|| {
         let _ = topo::mass_properties(&body, Tol::witness());
     });
@@ -88,7 +88,7 @@ fn the_mass_props_sample_population_is_identical_at_one_and_four_threads() {
 /// The shell walk of the census door.
 #[test]
 fn the_shell_census_sample_population_is_identical_at_one_and_four_threads() {
-    let body = probe_arc_loft();
+    let body = topo::test_support::finished("the probe arc loft", probe_arc_loft(), Tol::witness());
     assert_identical(|| {
         let _ = topo::classify_shells(&body, Tol::witness());
     });

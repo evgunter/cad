@@ -2,10 +2,11 @@
 id: step-import-source-debug-in-prose-panics-the-binding
 kind: issue
 title: step-import renders {source:?} on TransformError and BooleanError, both of which have a Display — a live panic at py::typed_err
-status: open
+status: closed
 opened: 2026-09-04
 priority: P0
 cost: E
+closed: 2026-10-23
 ---
 
 
@@ -71,3 +72,14 @@ code-quality Track U's, which EXCH claims for its STEP/STL rows.
 ## Reference note (FIX's sweep, 2026-09-21)
 
 `debug-in-prose-at-blend-and-step-import` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/debug-in-prose-at-blend-and-step-import.md`.
+
+## Closed (2026-10-23)
+
+Fixed before it was split out, and never closed. D343 (EXCH-E1, PR 1854,
+commit `4f1f257c6b`, 2026-09-04) converted both arms to their sources'
+`Display`: `crates/step-import/src/error.rs` now renders `Placement` as
+`source.render(*file)` and `Instance` as `{source}`, and no `{source:?}`
+remains in the file. `error.rs`'s `nested_at_the_door` test pins the
+`Placement` arm's prose. `TierInvalid`'s `{e:?} — {e}` is the one Debug
+spelling left in that `Display`. It is argued at the site and tracked
+on its own (`work/export/step-import-joins-rendered-refusals-on-a-mark-they-may-contain.md`).

@@ -2,11 +2,10 @@
 id: a-covered-line-ending-just-off-the-face-keeps-the-door
 kind: issue
 title: A Seam-covered line whose end touches the partner's carrier just outside the face keeps the door
-status: parked
+status: open
 opened: 2026-10-08
 priority: P3
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 ## What

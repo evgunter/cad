@@ -304,7 +304,11 @@ fn the_prism_in_cylinder_oracle_agrees_with_a_quadrature() {
         } else {
             ExtrudeSide::Against
         };
-        let body = prism_turned(k, sites, 2.0, 1.5, side, psi);
+        let body = topo::test_support::finished(
+            "body",
+            prism_turned(k, sites, 2.0, 1.5, side, psi),
+            tol(),
+        );
         let exact = prism_in_cylinder(&prism_corners(k, sites, 2.0, 1.5, along, psi), (-8.0, 8.0));
         let built: Vec<V3> = body
             .vertex_points()
@@ -489,7 +493,8 @@ fn steep_plate_rod_battery() {
                             let xs = if mirror { (-x.1, -x.0) } else { x };
                             let pl = plate(xs, t);
                             let len = 2.0 * ((R + t) / theta.cos() + 1.0);
-                            let rd = rod(theta, phi, t, len);
+                            let rd =
+                                topo::test_support::finished("rd", rod(theta, phi, t, len), tol());
                             let va = (xs.1 - xs.0) * 4.0 * t;
                             let vb = topo::mass_properties(&rd, tol()).unwrap().volume;
                             let vi = want_i(theta, xs, t);
@@ -504,9 +509,9 @@ fn steep_plate_rod_battery() {
                             ] {
                                 for (order, want) in [("AB", w_ab), ("BA", w_ba)] {
                                     let (l, r) = if order == "AB" {
-                                        (&pl, &rd)
+                                        (&pl, &*rd)
                                     } else {
-                                        (&rd, &pl)
+                                        (&*rd, &pl)
                                     };
                                     let got = door(op, l, r);
                                     println!("{tag} {op} {order} => {}", outcome(got, want, tol()));
@@ -564,7 +569,7 @@ fn u_plate_battery() {
         for w in [0.03, 0.12] {
             for phi in [0.0, core::f64::consts::FRAC_PI_2, 0.4, 2.0] {
                 let (pl, poly) = u_plate(c, w, t);
-                let rd = rod(0.0, phi, t, 3.0);
+                let rd = topo::test_support::finished("rd", rod(0.0, phi, t, 3.0), tol());
                 let va = area(&poly) * t;
                 let vb = topo::mass_properties(&rd, tol()).unwrap().volume;
                 let vi = disc_clip_area(R, &poly) * t;
@@ -576,9 +581,9 @@ fn u_plate_battery() {
                 ] {
                     for (order, want) in [("AB", w_ab), ("BA", w_ba)] {
                         let (l, r) = if order == "AB" {
-                            (&pl, &rd)
+                            (&pl, &*rd)
                         } else {
-                            (&rd, &pl)
+                            (&*rd, &pl)
                         };
                         let got = door(op, l, r);
                         println!("{tag} {op} {order} => {}", outcome(got, want, tol()));
@@ -701,11 +706,15 @@ fn steep_ellipse_poses_build_sound() {
         let x = (x1f * R / theta.cos(), x2f * R);
         let xs = if mirror { (-x.1, -x.0) } else { x };
         let pl = plate(xs, t);
-        let rd = rod(
-            theta,
-            core::f64::consts::FRAC_PI_2,
-            t,
-            2.0 * ((R + t) / theta.cos() + 1.0),
+        let rd = topo::test_support::finished(
+            "rd",
+            rod(
+                theta,
+                core::f64::consts::FRAC_PI_2,
+                t,
+                2.0 * ((R + t) / theta.cos() + 1.0),
+            ),
+            tol(),
         );
         let va = (xs.1 - xs.0) * 4.0 * t;
         let mb = topo::mass_properties(&rd, tol()).unwrap();
@@ -719,9 +728,9 @@ fn steep_ellipse_poses_build_sound() {
                 _ => vi,
             };
             let (l, r) = if order == "AB" {
-                (&pl, &rd)
+                (&pl, &*rd)
             } else {
-                (&rd, &pl)
+                (&*rd, &pl)
             };
             let got = ops(op, l, r);
             if tol().eps() == 1e-6 && theta_deg == REFUSES_AT_1E6.0 && mirror {

@@ -37,9 +37,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node, NodeResult,
-    PartSelect, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload,
-    apply, evaluate,
+    BooleanValue, CancelToken, DocEdit, EvalOptions, Evaluation, Node, NodeResult, PartSelect,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow, ValuePayload, apply,
+    evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;
@@ -69,6 +69,7 @@ pub mod plate_param;
 pub mod reshaped_rod;
 pub mod sink;
 pub mod slots;
+pub mod symmetric_plate;
 pub mod table;
 pub mod tangency;
 pub mod tube_arc;
@@ -78,10 +79,10 @@ pub mod vessel;
 pub use super::fixture::Recorder;
 
 /// **A body placed in the world where it stands, recorded**: the
-/// loose placement, then the named interim's world pin
-/// ([`DocEdit::PinWhereItStands`], stage 3 C), which the Python
+/// placement and the identity bundle [`editor_core::stand`] writes (no
+/// mate, and the constant `0` on every freedom), which the Python
 /// bindings' `Doc.place(shapes)` writes too, so a corpus document and
-/// its bound re-authoring are one log. The pin reads nothing, so the
+/// its bound re-authoring are one log. The bundle reads nothing, so the
 /// copy follows every variable its body reads.
 pub trait PlacePart {
     /// **One copy of `body` in the world** (A10), placed where it
@@ -91,16 +92,27 @@ pub trait PlacePart {
 
 impl PlacePart for Recorder {
     fn place_part(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
-        let read = super::fixture::body_read(&self.doc, body.into());
-        let placement = self
-            .push(DocEdit::InsertNode {
-                node: Box::new(Node::place(vec![editor_core::BodyRead::plain(read)])),
-                fresh: Vec::new(),
-            })
-            .expect("a placement mints its node");
-        self.push(DocEdit::PinWhereItStands { placement });
-        placement
+        self.place(body)
     }
+}
+
+/// **The world's motion turning a construction's own `z` onto the
+/// world's `+y`**, its origin at the world's: `−turn/4` about `x`, so
+/// its own `y` lies along the world's `−z` — the values of a bundle with
+/// no mate ([`Recorder::in_world_by`]).
+pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
+    use editor_core::{Coord, Dimension, Formula, TargetAxis};
+    let quarter = Formula::turn_over(4).expect("a quarter turn");
+    let back = Formula::neg(quarter).expect("an angle negates");
+    [TargetAxis::X, TargetAxis::Y, TargetAxis::Z]
+        .into_iter()
+        .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
+        .chain([
+            (Coord::Spin(TargetAxis::X), back),
+            (Coord::Spin(TargetAxis::Y), Formula::zero(Dimension::Angle)),
+            (Coord::Spin(TargetAxis::Z), Formula::zero(Dimension::Angle)),
+        ])
+        .collect()
 }
 
 /// **Each of a pattern's `count` copies placed in the world**, in
@@ -115,17 +127,36 @@ pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
     }
 }
 
+/// **[`place_instances`] at `at`**: each instance placed in the world
+/// at the frame `at`.
+pub fn place_instances_at(
+    r: &mut Recorder,
+    pattern: RecipeNodeId,
+    count: i64,
+    at: &editor_core::Frame,
+) {
+    for i in 0..count {
+        let copy = r.insert(Node::Part {
+            of: pattern.into(),
+            select: PartSelect::Instance(editor_core::Formula::count(i)),
+        });
+        r.in_world(copy, at);
+    }
+}
+
 /// **`doc` with copies `0..count` of its one pattern placed**: the
 /// copies a placement already picks stay, and each further one is
-/// picked and placed. Driving a pattern's count moves no placement, so
-/// a document whose count was driven places the new copies this way.
+/// picked and placed where the document places the ones it picks (the
+/// first such placement's solved motion; the world's identity when it
+/// picks none). Driving a pattern's count moves no placement, so a
+/// document whose count was driven places the new copies this way.
 pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
     let pattern = doc
         .ids()
         .into_iter()
         .find(|&id| matches!(doc.node(id), Some(Node::Pattern { .. })))
         .expect("the document holds a pattern");
-    let placed = doc
+    let placed: Vec<RecipeNodeId> = doc
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
@@ -138,9 +169,18 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
             }),
             _ => false,
         })
-        .count();
+        .collect();
+    let at = placed.first().map_or(editor_core::Frame::IDENTITY, |&p| {
+        let ev = eval::<f64>(&doc);
+        let value = ev
+            .value(p)
+            .expect("the document's pattern copies are placed");
+        value.motion.map_or(editor_core::Frame::IDENTITY, |motion| {
+            editor_core::Frame::from_affine(motion.to_affine())
+        })
+    });
     let mut doc = doc;
-    for i in i64::try_from(placed).expect("a count")..count {
+    for i in i64::try_from(placed.len()).expect("a count")..count {
         let (next, copy) = crate::fixture::insert(
             doc,
             Node::Part {
@@ -148,7 +188,7 @@ pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
                 select: PartSelect::Instance(editor_core::Formula::count(i)),
             },
         );
-        doc = crate::fixture::place(next, copy).0;
+        doc = crate::fixture::in_world(next, copy, &at).0;
     }
     doc
 }
@@ -260,9 +300,9 @@ pub fn documents() -> Vec<CorpusDoc> {
         // oracle (`lib_placedunion.rs`).
         heatsink_union::document(),
         die_tool::document(),
-        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face
-        // through a derived frame — the first `Datum::FaceFrame` in the
-        // registry, so the derived frame carries the standard rows
+        // `face_sketch` (DOCM-1): a boss sketched ON the box's top face,
+        // placed by a plane mate naming that face, so the placement
+        // carries the standard rows
         // (every ε, the Interval lane under DM1c, persistence, latency).
         face_sketch::document(),
         // `part_select` (DOCM-2): a split's two halves read by port and
@@ -270,6 +310,9 @@ pub fn documents() -> Vec<CorpusDoc> {
         // consumed downstream, so every standard row (every ε, the
         // Interval lane, persistence, latency) runs both.
         part_select::document(),
+        // `symmetric_plate`: a mirror is a construction, and a symmetric
+        // part is a body unioned with its mirror across its own face.
+        symmetric_plate::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
         // (every ε, interval lane, persistence, latency) for free by
@@ -417,13 +460,14 @@ pub fn read_body<'e, T: Decide>(
 ///
 /// - `Sweep`: every recipe-expressible sweep refuses at one door, for
 ///   the reason `eval::wire::SWEEP_FRONTIER` states.
-/// - `World`: the world defines no variable and is scheduled nowhere
-///   (`eval::schedule`); a constraint reads it as a side, never as a
-///   value.
+/// - `World` and `Space`: each defines one `Space` variable, which
+///   holds nothing, and is scheduled nowhere (`eval::schedule`); a
+///   placement reads it as its target and a constraint the world as a
+///   side, never as a value.
 ///
 /// Each reader holds its entries in both directions, so a kind that
 /// starts evaluating reds until it is removed here.
-pub const NEVER_EVALUATES: [&str; 2] = ["Sweep", "World"];
+pub const NEVER_EVALUATES: [&str; 3] = ["Sweep", "World", "Space"];
 
 /// **The node kinds that evaluate, but only in documents beside this
 /// registry** — so [`documents`] cannot cover them while
@@ -442,7 +486,6 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
 pub const NODE_KINDS: [&str; 23] = [
-    "Datum",
     "Profile",
     "Extrude",
     "Revolve",
@@ -456,12 +499,12 @@ pub const NODE_KINDS: [&str; 23] = [
     // document.
     "Chamfer",
     "Split",
+    "Mirror",
     // The three booleans are three nodes: a union and an intersect over
     // a `Bodies` argument, a subtract over its binary `from`/`tool`.
     "Union",
     "Intersect",
     "Subtract",
-    "Transform",
     "Pattern",
     // DOCM-2's projection node — COVERED, by `part_select`.
     "Part",
@@ -503,20 +546,23 @@ pub const NODE_KINDS: [&str; 23] = [
     // The world: in every document, authored by none, so it reads zero
     // here and is exempt through `NEVER_EVALUATES`.
     "World",
+    // A `new_space()`: it holds nothing and is scheduled nowhere, and
+    // no corpus document places into one, so it reads zero here and is
+    // exempt through `NEVER_EVALUATES`.
+    "Space",
 ];
 
 /// The edit kinds the corpus is required to exercise — the coverage
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
 /// It is a SUBSET, deliberately and visibly: `SetMembers`,
-/// `RemoveConstraint`, `RenameVar`, `DeleteVar` and `UpdateReference`
-/// are arms of `DocEdit` that no corpus document authors, and listing
-/// them here would report five permanent misses rather than covering
-/// anything. `PinWhereItStands` is listed: every placement the recorder
-/// authors at the identity writes the named interim's world pin.
-/// `AddConstraint` and `AddValue` are listed: the documents that mate
-/// copies to each other write mates and the values that set their
-/// freedoms.
+/// `RemoveConstraint`, `RemoveConstraints`, `RenameVar`, `DeleteVar` and
+/// `UpdateReference` are arms of `DocEdit` that no corpus document
+/// authors, and listing them here would report six permanent misses
+/// rather than covering anything. `AddConstraint` is not listed
+/// either: no corpus document authors one, its placements being
+/// written whole.
+/// `SetConstraints` is listed: a placement's bundle is written whole.
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -528,13 +574,12 @@ pub const NODE_KINDS: [&str; 23] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 24] = [
+pub const EDIT_KINDS: [&str; 21] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
     "SetParam",
     "SetStructuralParam",
-    "SetExtrudeSide",
     "SetExpression",
     "DeclareVar",
     "DefineVar",
@@ -550,19 +595,12 @@ pub const EDIT_KINDS: [&str; 24] = [
     "SetAppearanceMeta",
     "ClearAppearanceMeta",
     "SetLabel",
-    "AddConstraint",
-    "AddValue",
-    "PinWhereItStands",
+    "SetConstraints",
 ];
 
-/// The node SUB-kinds the corpus must also cover in full: every datum
-/// flavour and both pattern kinds.
-pub const SUB_KINDS: [&str; 14] = [
-    "Datum::Plane",
-    "Datum::Axis",
-    "Datum::Point",
-    "Datum::Frame",
-    "Datum::FaceFrame",
+/// The node SUB-kinds the corpus must also cover in full: both pattern
+/// kinds and every tube window.
+pub const SUB_KINDS: [&str; 9] = [
     "Pattern::Linear",
     "Pattern::Circular",
     // The projection node: `part_select` reads a pattern's middle
@@ -592,15 +630,6 @@ pub const SUB_KINDS: [&str; 14] = [
 /// The sub-kind tally names a node contributes (possibly none).
 pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str> {
     match node {
-        Node::Datum(Datum::Plane { .. }) => vec!["Datum::Plane"],
-        Node::Datum(Datum::Axis { .. }) => vec!["Datum::Axis"],
-        Node::Datum(Datum::Point { .. }) => vec!["Datum::Point"],
-        // Listed since a profile takes its plane as a frame NODE: every
-        // corpus document authors at least one, which is the condition
-        // this arm was written waiting for.
-        Node::Datum(Datum::Frame { .. }) => vec!["Datum::Frame"],
-        // Listed: `face_sketch` draws on a frame derived from a face.
-        Node::Datum(Datum::FaceFrame { .. }) => vec!["Datum::FaceFrame"],
         Node::Union { .. } | Node::Intersect { .. } | Node::Subtract { .. } => Vec::new(),
         Node::Pattern { kind, .. } => vec![match kind {
             PatternKind::Linear { .. } => "Pattern::Linear",
@@ -620,8 +649,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
             ..
         } => vec!["Part::Instance"],
         // EXHAUSTIVE on purpose (review MIN-2): no wildcard arm, so a
-        // new `Node` variant — or a new `Datum`/
-        // `PatternKind` flavour above — is a COMPILE error here rather
+        // new `Node` variant — or a new `PatternKind` flavour above — is a COMPILE error here rather
         // than a silently uncovered sub-kind, matching the
         // compile-time totality `node_kind`/`edit_kind` already have.
         // A tube's WINDOW is a sub-kind on the same footing as a
@@ -648,9 +676,10 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         // payload's emptiness, which no other kind counts either.
         | Node::Shell { .. }
         | Node::Split { .. }
-        | Node::Transform { .. }
+        | Node::Mirror { .. }
         | Node::Place { .. }
         | Node::World
+        | Node::Space
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Measure { .. }
@@ -661,11 +690,10 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
 
 /// The node kind's tally name: one per [`Node`] VARIANT, which is what
 /// the census counts. Not `editor_core::node_kind_noun`, whose words
-/// split `Datum` by flavour — a split this tally's sub-kind half
-/// (`sub_kinds`) already counts on its own.
+/// split a kind where this tally's sub-kind half (`sub_kinds`) already
+/// counts on its own.
 pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
     match node {
-        Node::Datum(_) => "Datum",
         Node::Profile(_) => "Profile",
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
@@ -675,12 +703,13 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Tube { .. } => "Tube",
         Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
+        Node::Mirror { .. } => "Mirror",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
-        Node::Transform { .. } => "Transform",
         Node::Place { .. } => "Place",
         Node::World => "World",
+        Node::Space => "Space",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
@@ -701,7 +730,6 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
-        DocEdit::SetExtrudeSide { .. } => "SetExtrudeSide",
         DocEdit::SetExpression { .. } => "SetExpression",
         DocEdit::DeclareVar { .. } => "DeclareVar",
         DocEdit::DefineVar { .. } => "DefineVar",
@@ -720,8 +748,8 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
         DocEdit::AddConstraint { .. } => "AddConstraint",
         DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
-        DocEdit::AddValue { .. } => "AddValue",
-        DocEdit::PinWhereItStands { .. } => "PinWhereItStands",
+        DocEdit::RemoveConstraints { .. } => "RemoveConstraints",
+        DocEdit::SetConstraints { .. } => "SetConstraints",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
     }

@@ -288,13 +288,10 @@ impl BooleanTool {
     }
 }
 
-/// **The split tool**: a body pick and a datum-plane pick, committing
-/// one [`SessionOp::AddSplit`].
-///
-/// The second seat is a datum PLANE and not a body — `Node::Split`'s
-/// tool operand is the plane the cut is taken on, which is why this
-/// tool's two seats want different kinds where the boolean's want the
-/// same one.
+/// **The split tool**: a body pick plus the cutting plane's fields,
+/// committing one [`SessionOp::AddSplit`]. The plane is a point and a
+/// normal in the target's own coordinates, read off its geometry by the
+/// session door.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitTool {
     seats: Seats,
@@ -310,7 +307,7 @@ impl SplitTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::new([Seat::SplitTarget, Seat::SplitPlane]),
+            seats: Seats::one(Seat::SplitTarget),
         }
     }
 
@@ -325,13 +322,9 @@ impl SplitTool {
         self.seats.held(0)
     }
 
-    /// The held cutting plane.
-    pub fn plane(&self) -> Option<RecipeNodeId> {
-        self.seats.held(1)
-    }
-
-    /// Feed one node pick; `doc` routes it, and does not judge it. A
-    /// pick on a copy seats the body it places.
+    /// Feed one node pick — a second pick REPLACES the first, this tool
+    /// having only the one seat. `doc` routes it, and does not judge it.
+    /// A pick on a copy seats the body it places.
     pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
         self.seats.pick(doc, node);
     }
@@ -347,7 +340,7 @@ impl SplitTool {
         self.seats.choose_half(i, half);
     }
 
-    /// Empty both seats.
+    /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
     }
@@ -362,15 +355,17 @@ impl SplitTool {
         self.seats.respeak(doc);
     }
 
-    /// **The one committed edit**.
+    /// **The one committed edit**: the split by the plane through
+    /// `origin` with normal `normal`.
     ///
     /// # Errors
     ///
-    /// [`SeatError::Empty`] until both seats are filled.
-    pub fn op(&self) -> Result<SessionOp, SeatError> {
+    /// [`SeatError::Empty`] until a body is picked.
+    pub fn op(&self, origin: [Formula; 3], normal: [Formula; 3]) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddSplit {
             target: self.seats.require_read(0)?,
-            tool: self.seats.require(1)?,
+            origin,
+            normal,
         })
     }
 }
@@ -490,27 +485,19 @@ vocabulary! {
     pub const ALL;
 }
 
-/// **The pattern tool**: a body pick, and — for the circular rule
-/// only — a datum-axis pick, committing one [`SessionOp::AddPattern`]
-/// or one [`SessionOp::AddPlacedUnion`].
+/// **The pattern tool**: a body pick, committing one
+/// [`SessionOp::AddPattern`] or one [`SessionOp::AddPlacedUnion`]; the
+/// circular rule's axis is a point and a direction in the body's own
+/// coordinates, read off its geometry by the session door.
 ///
 /// **One tool, two nodes**: the output choice
 /// ([`PatternOutputChoice`]) picks which op each door mints, because
 /// everything the tool holds is the same either way — the same
-/// prototype seat, the same axis seat, the same count and the same
-/// rule fields. The kernel's fused node takes exactly a prototype, a
+/// prototype seat, the same count and the same rule fields. The kernel's fused node takes exactly a prototype, a
 /// count and a parametric rule, so there is nothing more to collect.
 ///
-/// The axis seat is filled by an ordinary second pick whichever rule is
-/// chosen, and READ only by [`PatternTool::circular_op`]: a user who
-/// picks an axis and then chooses the linear rule is not corrected,
-/// because the pick is not wrong until a commit needs it to mean
-/// something.
-///
-/// **Two commit doors rather than one taking a rule value**: the axis
-/// is a SEAT for one rule and absent from the other, so a single door
-/// would either carry an axis the linear arm ignores or an `Option`
-/// every caller has to fill. The chrome's rule choice picks the door,
+/// **Two commit doors rather than one taking a rule value**: each rule
+/// has fields the other lacks. The chrome's rule choice picks the door,
 /// which is the same decision it was already making.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatternTool {
@@ -527,7 +514,7 @@ impl PatternTool {
     /// A tool holding nothing.
     pub const fn new() -> Self {
         Self {
-            seats: Seats::new([Seat::PatternBody, Seat::PatternAxis]),
+            seats: Seats::one(Seat::PatternBody),
         }
     }
 
@@ -540,11 +527,6 @@ impl PatternTool {
     /// The held body.
     pub fn input(&self) -> Option<RecipeNodeId> {
         self.seats.held(0)
-    }
-
-    /// The held axis, if one was picked.
-    pub fn axis(&self) -> Option<RecipeNodeId> {
-        self.seats.held(1)
     }
 
     /// Feed one node pick; `doc` routes it, and does not judge it. A
@@ -564,7 +546,7 @@ impl PatternTool {
         self.seats.choose_half(i, half);
     }
 
-    /// Empty both seats.
+    /// Empty the seat.
     pub fn clear(&mut self) {
         self.seats.clear();
     }
@@ -602,23 +584,24 @@ impl PatternTool {
         ))
     }
 
-    /// **The one committed edit**, stepping around the picked axis.
+    /// **The one committed edit**, stepping around the axis through
+    /// `through` along `direction`.
     ///
     /// # Errors
     ///
-    /// [`SeatError::Empty`] with no body picked, or with no axis
-    /// picked — which this door is the only one to need.
+    /// [`SeatError::Empty`] with no body picked.
     pub fn circular_op(
         &self,
         output: PatternOutputChoice,
         count: i64,
+        through: [Formula; 3],
+        direction: [Formula; 3],
         step: Formula,
     ) -> Result<SessionOp, SeatError> {
-        // The BODY seat first, so an empty form names the pick a user
-        // makes first rather than the one this rule adds.
         let input = self.seats.require_read(0)?;
         let rule = PatternRuleSpec::Circular {
-            axis: self.seats.require(1)?,
+            through,
+            direction,
             step,
         };
         Ok(pattern_op(output, input, count, rule))
@@ -640,7 +623,7 @@ fn pattern_op(
     }
 }
 
-/// Lower one pattern spec to its node, placing the authored
+/// Lower one pattern rule to its node, placing the authored
 /// expressions and minting the STRUCTURAL count.
 ///
 /// The count is `Formula::count` — an exact integer — and not a
@@ -656,11 +639,11 @@ fn pattern_op(
 /// slot it lands in is the edit door's question
 /// (`EditError::SlotDimensionMismatch`), asked of authored and
 /// hand-written documents alike.
-pub fn pattern_node(input: Operand, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
+pub fn pattern_node(input: Operand, count: i64, kind: PatternKind<Formula>) -> AuthoredNode {
     Node::Pattern {
         input,
         count: Formula::count(count),
-        kind: rule_kind(rule),
+        kind,
     }
 }
 
@@ -679,25 +662,11 @@ pub fn pattern_node(input: Operand, count: i64, rule: PatternRuleSpec) -> Author
 /// edit door's question. Whether the placements are DISJOINT is not
 /// asked here either — that certificate is evaluation's, reported on
 /// the node's own badge.
-pub fn placed_union_node(input: Operand, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
+pub fn placed_union_node(input: Operand, count: i64, kind: PatternKind<Formula>) -> AuthoredNode {
     Node::PlacedUnion {
         input,
         count: Some(Formula::count(count)),
-        kind: rule_kind(rule),
-    }
-}
-
-/// The rule vocabulary the two pattern nodes SHARE, lowered once: a
-/// spec is a `PatternKind`, whichever node is about to carry it.
-fn rule_kind(rule: PatternRuleSpec) -> PatternKind<Formula> {
-    match rule {
-        PatternRuleSpec::Linear { direction, spacing } => {
-            PatternKind::Linear { direction, spacing }
-        }
-        PatternRuleSpec::Circular { axis, step } => PatternKind::Circular {
-            axis: axis.into(),
-            step,
-        },
+        kind,
     }
 }
 
@@ -1152,14 +1121,13 @@ fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) ->
 /// # Errors
 ///
 /// [`pncad::document::DimensionError`] for a non-finite `step` — which
-/// [`duplicate_step`] never answers — and it is a `Result` for
-/// [`crate::session::ProfilePlane::world_xy`]'s reason: whether a
-/// number is authorable keeps ONE home, the expression door.
-pub fn duplicate_rule(step: f64) -> Result<PatternRuleSpec, pncad::document::DimensionError> {
+/// [`duplicate_step`] never answers — and it is a `Result` because
+/// whether a number is authorable keeps ONE home, the expression door.
+pub fn duplicate_rule(step: f64) -> Result<PatternKind<Formula>, pncad::document::DimensionError> {
     use pncad::document::Dimension;
     let scalar = |v: f64| Formula::literal(v, Dimension::Scalar);
     let [x, y, z] = STEP_DIRECTION;
-    Ok(PatternRuleSpec::Linear {
+    Ok(PatternKind::Linear {
         direction: [scalar(x)?, scalar(y)?, scalar(z)?],
         spacing: Formula::literal(step, Dimension::Length)?,
     })

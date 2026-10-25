@@ -247,21 +247,16 @@ pass 2.
   reads rides to the walls. At `Interval` the loft encloses the family its
   sections stand for: sections and planes whose values are points loft as the
   `f64` skin of that value channel, enclosed, and wider ones (a box over the
-  section, or values a few ulps wide with no box at all, as the plane of a
-  rotated or derived frame) are skinned at the lane scalar. An arc's weight is
-  no point at `Interval`, so an arc section there refuses typed at the
-  carrier's door (`SplineError::CarrierWeightNotAPoint`, until C6's S4/S5)
-  rather than standing for the nominal over its box.
-- **The sketch plane is minted at the lane.** A frame crosses no scalar
-  upward, so every profile is placed on its frame's value at the lane scalar
-  (`frame_plane_lane`). An authored frame's f64 read (`mint_frame_placement`,
-  from the frame node's own slots, carried on its value and read by
-  `profile_plane_f64`) is pass 1's assembly frame; at `f64` the lane's value
-  is that read, bit for bit. A derived frame (`Datum::FaceFrame`,
-  REFERENCES.md DM1) has no document elaboration — its value is read off the
-  evaluated body — so pass 1 assembles on the conventional `xy`, and its
-  placed coordinates at `Interval` are enclosures, which is what a derived
-  frame is at that scalar. The 2-D structure record (PP1) stays f64-pinned.
+  section, or values a few ulps wide with no box at all, as a station
+  turned by an angle the lane rounds) are skinned at the lane scalar. An
+  arc's weight is no point at `Interval`, so an arc section there refuses
+  typed at the carrier's door (`SplineError::CarrierWeightNotAPoint`, until
+  C6's S4/S5) rather than standing for the nominal over its box.
+- **The sketch plane.** A profile is drawn on its own `xy` (D10): its
+  placed coordinates are its 2-D ones with `z = 0`, exact at every scalar,
+  and a loft's later section stands at its station, the first section's
+  plane carried by slides and spins of the lane scalar. The 2-D structure
+  record (PP1) stays f64-pinned.
 - **Out of scope:** naming, persistence, the sketch solver.
 
 ## Open

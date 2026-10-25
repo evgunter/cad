@@ -61,7 +61,7 @@ fn run(tag: &str, operand: &AtRestBody<f64>, origin: V3, normal: V3) -> bool {
     );
     let line = match r {
         Ok(r) => {
-            let vol = |b: Option<&Body<f64>>| {
+            let vol = |b: Option<&AtRestBody<f64>>| {
                 b.map_or(0.0, |b| {
                     mass_properties(b, tol()).map_or(f64::NAN, |m| m.volume)
                 })

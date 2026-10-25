@@ -744,7 +744,7 @@ fn the_fit_seam_answers_with_the_key_it_was_asked_with() {
         fitted.delta, direct.delta,
         "the seam's answer is the function's answer",
     );
-    assert_eq!(fitted.predicted, direct.predicted);
+    assert_eq!(fitted.requested_cost, direct.requested_cost);
     assert_eq!(fitted.probe_triangles, direct.probe_triangles);
     assert!(seam.poll().is_none(), "and there is nothing else to take");
 }

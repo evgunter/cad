@@ -10,11 +10,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{insert, len, on_frame, step};
+use crate::fixture::{desc, insert, len, slid};
+use crate::resolve_group_membership::{Placed, moved, placed};
 use editor_core::{
-    Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
-    ExtrudeSide, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId,
-    StableName, evaluate,
+    CancelToken, Diagnosis, EntityKind, Entry, EvalOptions, Evaluation, Node, ProfileDoc,
+    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, StableName, evaluate,
 };
 use geom_core::Tol;
 
@@ -28,28 +28,38 @@ fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     )
 }
 
+/// A block on its own xy: a construction, the root of its own space.
 fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
+    let (doc, p) = insert(
         doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+        Node::Profile(desc(vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]])),
     );
     insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
+}
+
+/// [`block`] placed against `target`, its base `z0` up `target`'s own
+/// `z`: the placement, whose output is the copy.
+fn block_on(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    x: (f64, f64),
+    y: (f64, f64),
+    z0: f64,
+    dz: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, b) = block(doc, x, y, dz);
+    slid(doc, target, b, [0.0, 0.0, z0])
 }
 
 fn subtract(doc: ProfileDoc, from: RecipeNodeId, tool: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
@@ -62,42 +72,28 @@ fn subtract(doc: ProfileDoc, from: RecipeNodeId, tool: RecipeNodeId) -> (Profile
     )
 }
 
-/// `block` behind a `Transform` with no motion yet: the block and the
-/// transform.
-fn moved_block(
+/// [`block`] placed against `target`, its base `z0` up `target`'s own
+/// `z`, kept as a [`Placed`] so a later edit can slide it.
+fn placed_block(
     doc: ProfileDoc,
+    target: RecipeNodeId,
     x: (f64, f64),
     y: (f64, f64),
     z0: f64,
     dz: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, b) = block(doc, x, y, z0, dz);
-    insert(
-        doc,
-        crate::fixture::xform(b, [0.0; 3], [0.0, 0.0, 1.0], 0.0),
-    )
+) -> (ProfileDoc, Placed) {
+    let (doc, b) = block(doc, x, y, dz);
+    placed(doc, target, b, z0)
 }
 
-fn slide(doc: &ProfileDoc, node: RecipeNodeId, axis: Axis3, by: f64) -> ProfileDoc {
-    step(
-        doc.clone(),
-        DocEdit::SetParam {
-            node,
-            slot: SlotId::Translation(axis),
-            value: len(by).into(),
-            fresh: Vec::new(),
-        },
-    )
-    .0
-}
-
-/// The bar notched through its back top edge: the document and the
-/// notched bar.
-fn notched_bar(label: &str) -> (ProfileDoc, RecipeNodeId) {
+/// The bar notched through its back top edge: the document, the
+/// notched bar and the bar, the root of its space.
+fn notched_bar(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
-    let (doc, bar) = block(doc, (0.0, 20.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, notch) = block(doc, (9.0, 11.0), (1.5, 3.0), 0.5, 1.0);
-    subtract(doc, bar, notch)
+    let (doc, bar) = block(doc, (0.0, 20.0), (0.0, 2.0), 1.0);
+    let (doc, notch) = block_on(doc, bar, (9.0, 11.0), (1.5, 3.0), 0.5, 1.0);
+    let (doc, notched) = subtract(doc, bar, notch);
+    (doc, notched, bar)
 }
 
 fn failed<'a>(res: &'a Resolution, what: &str) -> &'a editor_core::ResolutionFailure {
@@ -120,8 +116,8 @@ fn crossings(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<(StableName, Stabl
         .collect()
 }
 
-/// **A line resolved on its own is read as a line.** A strip `M` behind a
-/// transform lies clear of the notched bar, then is slid onto its back
+/// **A line resolved on its own is read as a line.** A strip `M`, a placed
+/// copy, lies clear of the notched bar, then is slid onto its back
 /// top edge and swallows both pieces; a slot `N` across the first piece
 /// crosses the edge's line at `M`. After the slide the crossing vanishes
 /// through that line, and resolving the line itself states why it is
@@ -129,12 +125,12 @@ fn crossings(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<(StableName, Stabl
 /// still has both pieces on it, so it is not where the cause lies.
 #[test]
 fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
-    let (doc, notched) = notched_bar("cited-line-through");
-    let (doc, strip) = moved_block(doc, (-1.0, 21.0), (2.2, 3.0), 0.6, 1.0);
-    let (doc, m) = subtract(doc, notched, strip);
-    let (doc, slot) = block(doc, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
+    let (doc, notched, bar) = notched_bar("cited-line-through");
+    let (doc, strip) = placed_block(doc, bar, (-1.0, 21.0), (2.2, 3.0), 0.6, 1.0);
+    let (doc, m) = subtract(doc, notched, strip.placement);
+    let (doc, slot) = block_on(doc, bar, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
     let (doc, n) = subtract(doc, m, slot);
-    let doc2 = slide(&doc, strip, Axis3::Y, -0.5);
+    let doc2 = moved(doc.clone(), &strip, [0.0, -0.5, 0.0]);
     let ev1 = run(&doc, None);
     let ev2 = run(&doc2, Some(&ev1));
     // The crossing cites the line as N's table carries it in from M.
@@ -190,17 +186,17 @@ fn a_cascades_through_line_resolved_on_its_own_reads_the_lines_inside_it() {
 }
 
 /// **A vanished edge piece is offered the surviving pieces of its
-/// line.** A slot `N` behind a transform cuts the first piece of the
+/// line.** A slot `N`, a placed copy, cuts the first piece of the
 /// back top edge in two; slid clear, it leaves that piece whole. Each
 /// vanished half is offered the pieces of its line that `N` still has:
 /// the first piece whole, and the second.
 #[test]
 fn a_vanished_piece_is_offered_the_pieces_of_its_line() {
-    let (doc, notched) = notched_bar("cited-line-offers");
-    let (doc, slot) = moved_block(doc, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
-    let (doc, n) = subtract(doc, notched, slot);
+    let (doc, notched, bar) = notched_bar("cited-line-offers");
+    let (doc, slot) = placed_block(doc, bar, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
+    let (doc, n) = subtract(doc, notched, slot.placement);
     let from_read = crate::fixture::out(&doc, notched);
-    let doc2 = slide(&doc, slot, Axis3::Y, 1.0);
+    let doc2 = moved(doc.clone(), &slot, [0.0, 1.0, 0.0]);
     let ev1 = run(&doc, None);
     let ev2 = run(&doc2, Some(&ev1));
     let (t1, t2) = (
@@ -283,8 +279,8 @@ fn a_vanished_piece_is_offered_the_pieces_of_its_line() {
 /// it through the line's rows.
 #[test]
 fn a_union_reads_a_cited_member_line_by_its_rows() {
-    let (doc, notched) = notched_bar("cited-line-union");
-    let (doc, post) = block(doc, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
+    let (doc, notched, bar) = notched_bar("cited-line-union");
+    let (doc, post) = block_on(doc, bar, (3.0, 4.0), (1.5, 3.0), 0.5, 1.0);
     let (doc, u) = insert(
         doc,
         Node::Union {

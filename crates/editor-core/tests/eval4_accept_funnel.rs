@@ -4,7 +4,7 @@
 //! beside the documents and the recorded edits, never instead of them.
 //!
 //! No edit records a frame (A11 (2)), so a mated pair cut whole or
-//! spliced back reports nothing: its world pin and its mate move as the
+//! spliced back reports nothing: its world mate and its mate move as the
 //! bundles they are. Each row reads the bundles of the documents that
 //! came back, so an empty report is checked against what moved rather
 //! than read as "nothing moved".
@@ -12,23 +12,22 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, Frame, MateRef, Node, ProfileDoc,
-    RecipeNodeId, SlideAxis, StableName, Value, WorldRead, inline,
+    CapEnd, Coord, DocumentId, Frame, MateRef, Node, ProfileDoc, RecipeNodeId, StableName,
+    TargetAxis, inline,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, offset_of, on_frame_keeping, square};
+use fixture::{insert, len, offset_of, on_frame, square};
 use geom_core::Tol;
 
 /// A one-block part: a unit square extruded 1 tall, and its body.
 fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, _, profile) = on_frame_keeping(
+    let (doc, profile) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -40,7 +39,6 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -49,36 +47,20 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// leaves each set to zero, so the copy `b` reads is pinned: the mate
 /// and its values, by the mate's address.
 fn stacked(doc: ProfileDoc, a: StableName, b: StableName) -> (ProfileDoc, MateRef) {
-    let (doc, joint) = fixture::constrain(
+    let (doc, joint) = crate::fixture::constrain_with(
         doc,
-        fixture::rest(fixture::head(b), fixture::head(a), ContactClass::Rest),
+        fixture::rest(fixture::head(b), fixture::head(a)),
+        &[
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), fixture::ang(0.0)),
+        ],
     );
-    let doc = [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
-        (Coord::Spin, fixture::ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        fixture::step(
-            doc,
-            DocEdit::AddValue {
-                placement: joint.placement,
-                value: Box::new(Value {
-                    mate: joint.id,
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
     (doc, joint)
 }
 
 /// Row 2 — a mated pair cut whole moves as selected (A4): the pinned
-/// instance keeps its world pin in the part, the mate-placed one its
+/// instance keeps its world mate in the part, the mate-placed one its
 /// mate, and the instance left behind is pinned where it stands, at the
 /// identity; neither side reports anything: no edit records a frame.
 #[test]
@@ -171,7 +153,14 @@ fn inline_of_a_whole_pair_split_restores_the_pinned_pose_and_reports_nothing() {
 /// offset, the second stacked by a mate and its values onto the first:
 /// the document, its part store, `[a, b]` and `a`'s world read as
 /// written.
-fn placed_pair(label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 2], WorldRead<Formula>) {
+fn placed_pair(
+    label: &str,
+) -> (
+    ProfileDoc,
+    PartStore,
+    [RecipeNodeId; 2],
+    Vec<(editor_core::Coord, Formula)>,
+) {
     let mut store = PartStore::new();
     let (doc_ref, part_body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let opts = with_resolver(store.clone());
@@ -185,6 +174,6 @@ fn placed_pair(label: &str) -> (ProfileDoc, PartStore, [RecipeNodeId; 2], WorldR
         in_part(b, part_body, CapEnd::Start),
     );
     assert_eq!(joint.placement, b, "the mate places the second instance");
-    let offset = offset_of(&doc, a).expect("a is pinned by one world read");
+    let offset = offset_of(&doc, a).expect("a is placed by values alone");
     (doc, store, [a, b], offset)
 }

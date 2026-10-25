@@ -1319,4 +1319,73 @@ Signed (CLEAVE orchestrator).
   - The 414 3′-uncertified Oks are disclosed (inside the door's tier-3 contract; REACHHOLD row noted).
   - P1 row closed. Follow-ups: P1 `a-boolean-places-two-germs-along-a-slit-line`, P1 `a-boolean-glues-away-the-face-a-slit-lies-in`, P1 `a-boolean-edge-running-past-the-face-…`, P1 `a-boolean-edge-lying-in-a-curved-face-…`, P2 `the-boolean-parting-refuses-its-rarer-configurations`.
 - 2026-10-20 — Dispatched the two P1s that recover main's correct cells lost in 5380: `a-boolean-glues-away-the-face-a-slit-lies-in` (the join merges a glued slit into one wall|wall edge) and `a-boolean-places-two-germs-along-a-slit-line` (recl along a slit line).
+- 2026-10-20 — The slit-line P1 is up as PR 5479 (`8d601d380e`, gate ok).
+  - recl places germs apart along a slit line (`reflank`, flank membership).
+  - Builds 20/30 void-ray and 40/60 partner cells; all 3′-ok; 15 are the same as before 5380.
+  - The unions (face closing across the line) still refuse. Filed P1 `a-boolean-closes-a-slits-face-across-its-line` and told the join sibling it's the mirror of its case.
+  - Full review dispatched.
+- 2026-10-20 — The glued-slit P1 is up as PR 5505 (`35c9fccc1f`, gate ok).
+  - The join merges a glued slit's sliver into one wall|wall edge (`merge_glued_slits` via `kef`; the sliver side reads Out). All 100 cells per ε build at closed form, 3′ ok; no new refusals; 34 `union_flush` LineWedges re-pinned to builds.
+  - Filed FLUSH P1 `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab` (a main red since 5368).
+  - Full review dispatched; focus on whether the merge hides a true overlap.
+- 2026-10-20 — PR 5505 review: APPROVE-WITH-FIXES, no MAJOR.
+  - Families correct at 3 ε, including partly glued; the 34 `union_flush` re-pins are correct, not hidden overlaps; the FLUSH regression is confirmed.
+  - Fixes: the sliver-Out rule must not override `Ranked::Blocked`; rename and re-doc the merge to its true scope (zero-area two-edge faces alone on a line); the FLUSH row quote; one predicate helper; small Q7s.
+- 2026-10-20 — PR 5479 review: APPROVE-WITH-FIXES, no MAJOR.
+  - All 120 new cells are correct at 3 ε (every cell checked against an analytic oracle). The slow sets never reach the branch.
+  - Fixes:
+    - MINOR: a flank reading Along now gives `ClassificationInvariant` where main refused `SlitLineCrossed` truthfully; refuse typed before placing germs.
+    - Stale docs.
+    - `reflank` made absolute.
+    - `SlitLineCrossed` split by gap.
+    - Q1/Q7.
+  - Confirm and file four unlisted 1e-12 reds and a 1e-6 cone red on main.
+- 2026-10-20 — PR 5505 merged: a union gluing away a slit's floor merges the slit into one wall|wall edge (`merge_slivers`; sliver-Out only where the loop was undecided). All 100 cells per ε build at closed form, 3′ ok. Row closed.
+- 2026-10-21 — PR 5479 fix pass (`802d9aee69`).
+  - `SlitLineCrossed{Flush}` refuses a flank reading Along before placing germs. The first unnarrowed version over-refused `x − y`, and the check was narrowed.
+  - The gap enum split: Closes / Flush / CrossedTwice. Placement is absolute.
+  - Main reds filed: lib `main-red-lattice-built-loop-…`; tess P1 `demo-tour-wall-8-no-longer-refuses-at-1e-12`; CLEAVE P2 `the-meeting-axes-pose-escalates-…`.
+  - Narrow re-review dispatched, aimed at over-refusal by Flush.
+- 2026-10-21 — PR 5479 merged: recl places germs apart along a slit line.
+  - 120 cells correct at 3 ε; unions refuse `SlitLineCrossed{Closes}`; flush flanks refuse `{Flush}`. Row closed.
+  - Filed P1 `a-glued-slit-intersection-refuses-a-classification-invariant-since-5505`, a regression of my 5505 that the 5479 re-review found.
+  - Cleanup notes on the parting row.
 - 2026-10-21 — **Seam (NURBS):** PR 5513 merged (`9866210b`, NURBS build A, FULL). This is PR 4 of 4 for CPAIR's `two-spans-projections-on-one-line-are-read-four-ways`. `topo::census` reads its collinear span pairs (`collinear_overlap`, `span_clear`, the `ee_overlap` midpoint) from `geom_core::one_line`. Below a threshold (the charge under (K−1)ε, divided by `rounding_charge(1)`) the end comparisons stay uncharged, as before. Past it they are charged straddles on m ± noise (`pm_census_span_order_charged` / `pm_census_ee_overlap_charged`), escalating on `pm_census_span_rounding` only when the two disagree; there is no blanket escalation. Ends that are one point read Zero without their projections: a shared point key, or two stored vertices that `pm_census_vv_gap` (the vertex pass's own decision) reads as one. A touch at a stretch's computed end can still escalate past about 1.3 km at 1e-12, as the doc says. The new user-facing story is `BooleanDecision::LineSpanPrecision` at the result gate (routed by `is_span_precision`) and `CensusEscalated` rendering `census::SPAN_PRECISION_RECOURSE` at validate, which names geometry levers only (D4 ¶1 (i)). The flip report gains `decision_words` rows. The 3 km bar union builds at every ε; the new rows are in `crates/topo/tests/long_edges_on_one_line.rs`. No golden moved. (NURBS orchestrator)
+- 2026-10-21 — PR 5538 merged (`cf7f2778b3`): `resolve_roles_geometric` refuses `SlitFaceGlued` where the op drops the sliver along a glued slit, restoring E3 `x ∩ y`'s typed refusal (5505 had made it ClassificationInvariant). `a-glued-slit-intersection-refuses-a-classification-invariant-since-5505` closed. Its sibling sweep (`y ∩ x`, `x ∪ y`, both ClassificationInvariant before 5505) is FLUSH's fate cut, recorded as evidence on `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab`. Orchestrator read the diff (a narrow guard on reviewed code; outcome diff fires only in its pin), clean merge-tree, CI green. (CLEAVE orchestrator)
+- 2026-10-21 — `topo-mints-indeterminates-outside-the-funnel` parked on `the-indeterminate-seal`: by its 2026-10-10 ruling it is an umbrella that closes when the seal lands, and every unit under it is closed, parked, or another program's row, so "open" overstated it. Dispatched three P1s on disjoint files where possible: `a-boolean-closes-a-slits-face-across-its-line` (`cleave/boolean-closes-a-slits-face`; join/merge/recl), `a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line` (`cleave/fate-cut-ends-at-a-slit-tip`; the fate cut's corner at a slit's tip, which is also FLUSH's `a-fate-cut-refuses-a-slit-floor-flush-with-an-inner-slab` and 5538's `SlitFaceGlued` guard: one mechanism, seam announced on FLUSH's log), and `a-boolean-edge-running-past-the-face-it-lies-in-is-not-parted` (`cleave/boolean-parts-an-edge-running-past-its-face`; `slit::part` and the zip's fuse). `a-boolean-edge-lying-in-a-curved-face-is-not-read` waits for the last: both edit `boolean/slit.rs`. (CLEAVE orchestrator)
+- 2026-10-22 — Seam note from FLUX (branch `flux/typed-door-f1`, unit F1: the measurement door typed `&AtRestBody`, Ev's decision on PR 4822), on `crates/topo/src/splitting/finish.rs` and `splitting/mod.rs`:
+  - `SplitPart::Body` now holds an `AtRestBody`, the verdict `split`'s own at-rest gate reached (`T::gate_at_rest_kept` in place of `T::gate_at_rest`, the same pass), as a Boolean's `BooleanBody.body` does. `SplitPart::body()` returns `Option<&AtRestBody<T>>`; a caller wanting the body by value takes `.into_body()`.
+  - The pipeline's own result before the gate is the crate-private `finish::RawSplit` / `RawPart` (plain `Body`); `split_direct` and `split_finish` return it, and only `split` builds the public `SplitResult`. No split decision moves.
+  - Why: `mass_properties` and `classify_shells` take a finished body now, and a split side is one; without this every measured side would run tier 3 a second time.
+  - (FLUX implementer)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words a doc in `topo/src/boolean/ops.rs`: a lane stops at its floor or its work wall. Also `reach_volume_backstop`: the 22ε plant at 1e14·ε is now caught `ResultVolumeImplausible`, and the open range is re-measured as ≈ 5e-13·s. (QUAD orchestrator's lane)
+
+- 2026-10-24 — Note from CHART: filed `w2-describes-folds-a-corrupt-face-into-a-miss`, `w2-torus-v-winding-is-unverified` (measure first) and `curved-face-containment-answers-none-on-a-ringed-face` on this slate. CHART's region designers found them: W2 reads `chart_boundary(..).is_ok()` as a topological claim, so any change CHART makes to `chart_boundary`'s refusals is a change to W2. CHART will not relax those refusals without giving W2 its own predicate. (CHART orchestrator)
+
+- 2026-10-24 — **Seam (CHART):** branch `chart/ringed-curved-doors`, unit `curved-face-containment-answers-none-on-a-ringed-face`, edits `topo/src/boolean/contain.rs` and `solid_contain.rs` (CLEAVE, HONE, INSIDE, REACHTAIL ground).
+  - A cylinder or cone face's point-in-face reading is now `boolean::ruled_region`, read from the face's boundary edges by the closest crossing along rulings and parallels. Rings are read in the same stride, seams are left out, nothing is read in the chart, and a cone's apex is a point like any other. Both doors read it: `curved_face_containment` / `face_placement` (the pierce arm, the census confirm, section witnesses) and `point_in_solid`'s pre-pass and ray hits.
+  - The cylinder and cone chart trims are deleted: `wall_outline` and its `WallOutline` classes (rectangle, chart outline, full-turn band), `cylinder_chart_trim`, `point_on_wall_in_face`, `cone_chart_trim` / `cone_face_trim` with the wrapped-group representative, and `point_on_cone_in_face`. `PointInSolidError::JunctionSidesDisagree` / `NarrowWindowUnread`, `ContainDecision::WindowPeriod` and the census's `WitnessNarrowWindow` go with them.
+  - A wall or cone face whose region cannot be read (an edge that is not a line, a circle or an ellipse) still refuses only inside a ball holding it (`FaceGeo::PartialWall`, `FaceGeo::PartialCone`).
+  - The doors now read loop orientation, as the sphere and torus doors always have. Several test sheets were inside-out; filed `work/issues/wall-sheet-fixtures-mint-inside-out-faces.md`. (CHART implementer)
+- 2026-10-24 — **Seam (CHART):** branch `chart/w2-one-sheet` (unit `w2-reads-a-one-sheet-predicate-off-the-walk`, with its passenger `w2-describes-folds-a-corrupt-face-into-a-miss`) edits `boolean/ops.rs` (`ChartCache`, `pair_verdict`, `walk_pairs`, `sphere_faces_apart`), `boolean/section_cert.rs` (`certify` takes a `Sheet`; new `Refusal::Unread`), the two `section_cert_*_rows.rs`, and `chord_join.rs` (`ApexClosure::Closed` drops its `window` and `reach`, which only the retired cone clause read).
+  - W2 no longer reads `chart_boundary(..).is_ok()`. Its own predicate comes off the loop walk (`pcurves::loop_windings`): every loop off the apex winds the identity; at most one loop meets the apex; a cone face lies on one nappe (`offset_nappe::face_nappe`). It is asked only of a cylinder, cone or torus. A call on a plane, sphere or spline face (no arm marks one essential) is `ClassificationInvariant`. The cone apex clause folds in.
+  - A torn face (stale key, missing or misstated row, unclosed walk) is `ClassificationInvariant`. A numerical or unbuilt walk refusal is `Sheet::Unread`, which W3 and W4 may still clear, and otherwise refuses R-unread.
+  - Filed `w2-reads-a-torus-face-as-planar` here.
+  - (CHART implementer)
+- 2026-10-24 — **Seam (CHART):** branch `chart/region-skeleton`, unit `the-region-doors-share-one-skeleton-three-times`, edits `topo/src/boolean/{region,sphere_region,torus_region,ruled_region,ruled_region_rows}.rs` (CLEAVE, HONE, INSIDE ground).
+  - The three region doors share one skeleton in `region.rs`:
+    - the boundary gather (`boundary`, with the doors' one difference carried as `Scaffolding`);
+    - the boundary pre-pass (`Region::on_boundary` over each door's `on_edge`);
+    - the targets (`targets`), and the path roster and its walk (`walk`, over a `Paths` door's `single`/`aimed` legs);
+    - the crossing offer (`read_leg`/`read_path`, over the door's `landings` and `place`);
+    - the leg circle (`Round`, `polar`, `parallel`).
+  - The sphere door's great-circle ray loop stays its own. It reads each root's span and then places it before reading the next root, while the torus and ruled doors read all of an edge's landings before placing any. Sharing the loop would have moved the sphere door's decision order.
+  - No answer or predicate name moves. The before/after differential is in the PR.
+  - Filed `sphere-region-refuses-null-scaffolding-the-torus-and-ruled-doors-step-over` here. (CHART implementer)
+- 2026-10-24 — **Seam (CHART):** branch `chart/region-skeleton-2`, unit `the-sphere-ray-and-the-circle-leg-stand-outside-the-region-skeleton`, edits `topo/src/boolean/{region,sphere_region,torus_region,ruled_region}.rs` (CLEAVE, HONE, INSIDE ground).
+  - A `Legs` trait now sits under `Paths`: a door's landings, outward normal, lever and rows. The sphere's great-circle rays read through `region::read_leg` as `Legs` legs, so the sphere's per-root place loop is gone.
+  - A leg is one `region::Leg` (a `Course` — a `Round` or a `Line` — and an `End`). The skeleton reads a landing's place and an edge lying along the leg (`Leg::place`, `Leg::along`); the doors' `place`, `heading` and two `along`s are gone.
+  - Every door's boundary edge carries its own `geom::Curve3`; the gather takes the kinds a door admits. The torus `Carrier`, ruled `Reading` and sphere `Circle` are gone.
+  - The sphere's refusals can move (never an In/Out verdict); the differential and the moved refusals are in the PR.
+  - Filed `work/germtail/ring-path-spells-its-circle-and-conic-arcs-by-hand.md`. (CHART implementer)

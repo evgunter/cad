@@ -38,8 +38,7 @@ use viewer::blend::{BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
 use viewer::display::DisplayView;
 use viewer::pickindex::PickKinds;
 use viewer::session::{
-    DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, Refusal, Selection,
-    SessionOp,
+    DocSession, EdgeSelection, FaceSelection, NodeKindWanted, Refusal, Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, ToolNotice, Tools};
 use viewer::tree::{self, RowStatus};
@@ -131,9 +130,13 @@ fn plain_body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> 
     else {
         panic!("a blend evaluates to a body");
     };
-    pncad::topo::mass_properties(body, tol)
-        .expect("mass properties")
-        .volume
+    pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// The blend tool with every edge of `node` held, accumulated by
@@ -355,23 +358,22 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let target = common::xy_box_in(&mut session, [SIDE; 3]);
-    let datum = session_insert(
+    // A profile: a node with a name table and no body, so no edges.
+    let profile = session_insert(
         &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Point {
-                position: len3([0.0, 0.0, 0.0]),
-            },
+        SessionOp::AddProfile {
+            loops: vec![common::rectangle_loop([0.0, 0.0], SIDE, SIDE)],
         },
     );
     session.pump();
 
     let mut tools = picked_all(&session, target);
-    let refused = load_all(&mut tools, &session, whole(&session, datum));
+    let refused = load_all(&mut tools, &session, whole(&session, profile));
     assert_eq!(
         refused,
         Some(BlendEvent::NoEdgesOnTarget {
             target: BlendTarget {
-                node: datum,
+                node: profile,
                 body: 0
             }
         })
@@ -670,8 +672,7 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
     let target = common::xy_box_in(&mut session, [SIDE; 3]);
     session.pump();
     let selection = all_edge_names(&session, target);
-    let plane = common::xy_frame_in(&mut session);
-    let profile = common::rectangle_in(&mut session, plane, SIDE, SIDE);
+    let profile = common::rectangle_in(&mut session, SIDE, SIDE);
 
     for op in [
         SessionOp::AddFillet {
@@ -844,20 +845,12 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let target = common::xy_box_in(&mut session, [SIDE; 3]);
-    let plane = session_insert(
-        &mut session,
-        SessionOp::AddDatum {
-            datum: DatumSpec::Plane {
-                origin: len3([0.0, 0.0, SIDE / 2.0]),
-                normal: scl3([0.0, 0.0, 1.0]),
-            },
-        },
-    );
     let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: target.into(),
-            tool: plane,
+            origin: len3([0.0, 0.0, SIDE / 2.0]),
+            normal: scl3([0.0, 0.0, 1.0]),
         },
     );
     // Each half placed by its port (A10), in place of the whole box.
@@ -869,18 +862,10 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
         tol,
     );
     let doc_with_both = {
-        let (with_first, first) = common::placed_read(
-            &doc,
-            pncad::document::Operand::output(split, 0),
-            &pncad::document::EvalOptions::default(),
-            tol,
-        );
-        let (with_both, second) = common::placed_read(
-            &with_first,
-            pncad::document::Operand::output(split, 1),
-            &pncad::document::EvalOptions::default(),
-            tol,
-        );
+        let (with_first, first) =
+            common::placed_read(&doc, pncad::document::Operand::output(split, 0), tol);
+        let (with_both, second) =
+            common::placed_read(&with_first, pncad::document::Operand::output(split, 1), tol);
         (with_both, [first, second])
     };
     let (doc, copies) = doc_with_both;
@@ -1024,7 +1009,11 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
         session
             .perform(SessionOp::SetSlot {
                 node: b,
-                slot: SlotId::Translation(pncad::document::Axis3::X),
+                slot: crate::fixture::value_slot(
+                    session.committed_doc(),
+                    b,
+                    pncad::document::Coord::Slide(pncad::document::TargetAxis::X),
+                ),
                 value: viewer::props::SlotValue::of(Dimension::Length, SIDE * 2.0)
                     .expect("a finite length is a value"),
             })
@@ -1228,8 +1217,7 @@ fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
     let face = index
         .ids_in(drawn, 0)
         .first()
-        .and_then(|&id| index.name_of(id))
-        .and_then(|named| named.as_ref().ok())
+        .and_then(|&id| index.name_of(id).ok())
         .map(|name| FaceSelection {
             name: name.clone(),
             node: drawn,

@@ -212,22 +212,9 @@ fn nurbs_chord_count(
     delta_s: f64,
     ek: EdgeKey,
 ) -> Result<usize, TessellateError> {
-    let rational = n.weights().iter().any(|w| *w != 1.0);
-    // The convex-combination licence (the surface arm's rule): every
-    // hull fact below needs strictly positive finite weights.
-    if rational
-        && !n
-            .weights()
-            .iter()
-            .all(|w| geom_core::spline::weight_in_regime(*w))
-    {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "rational B-spline carrier with a non-positive or non-finite weight — \
-                   an illegal rational description: the convex-combination licence \
-                   every hull fact rests on requires strictly positive weights",
-        });
-    }
+    // Every weight is strictly positive and finite: the door's own
+    // condition, and the convex-combination licence each hull fact below
+    // reads. Which arm bounds `C″` is the second-derivative door's.
     let kv = n.knots_f64_interim();
     let p = kv.degree();
     if p < 2 {
@@ -395,7 +382,7 @@ fn nurbs_tighten(
                 breaks,
                 ..
             } => {
-                let spans = breaks.control_count().saturating_sub(1);
+                let spans = geom_brep::iso_arc_spans(breaks);
                 if spans == 0 {
                     return Err(TessellateError::UnsupportedCurve {
                         edge: ek,
@@ -541,9 +528,7 @@ fn lcm(a: usize, b: usize) -> usize {
 /// IS its polynomial wrap and the differenced control net is exactly
 /// its derivative net; a genuinely varying weight vector's derivative
 /// is a quotient whose coefficients are not that net, and refuses
-/// typed. Asking "constant" rather than "every weight is 1" is
-/// `work/trim/rational-gates-test-unit-weights-not-constancy.md`'s fix
-/// shape, which names this file.
+/// typed ([`geom::NurbsCurve2::constant_weight`]).
 ///
 /// **What this function does NOT check, because the type already
 /// does.** A degree-0 image and an interior multiplicity above the
@@ -556,12 +541,7 @@ fn general_uv_speeds(
     params: (f64, f64),
     ek: EdgeKey,
 ) -> Result<(f64, f64), TessellateError> {
-    let weights = image.weights();
-    let w0 = weights.first().copied().unwrap_or(f64::NAN);
-    // `!(w0 > 0.0)` catches NaN; the positivity is the convex-
-    // combination licence the constant has to carry with it.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if !(w0 > 0.0) || !w0.is_finite() || weights.iter().any(|w| *w != w0) {
+    if image.constant_weight().is_none() {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "NURBS-face half-edge carries a RATIONAL general curve-in-UV pcurve — \
@@ -883,10 +863,6 @@ mod tests {
     /// identically to the unit-weight one; a VARYING weight vector's
     /// derivative is a quotient whose coefficients are not the
     /// differenced net, and refuses typed.
-    ///
-    /// The constancy half is
-    /// `work/trim/rational-gates-test-unit-weights-not-constancy.md`'s
-    /// own fix shape, which names this file.
     #[test]
     fn a_constant_weight_image_answers_and_a_varying_one_refuses() {
         let base = interior_max_cubic();
@@ -1003,6 +979,37 @@ mod tests {
             })
             .collect();
         NurbsCurve3::interpolate(&pts, 3).unwrap()
+    }
+
+    /// **A constant weight is the integral arm's.** The wiggle's net
+    /// with every weight one constant (`2`, `3`, `0.1`) is the same
+    /// polynomial curve, so its chord
+    /// count is the unit-weight curve's at every target (the control
+    /// hull reads the net alone); the rational arm's quotient bound on
+    /// the same curve is its own, and looser.
+    #[test]
+    fn a_constant_weight_carrier_counts_as_its_polynomial() {
+        let unit = wiggle();
+        let (d0, d1) = unit.domain();
+        for c in [2.0, 3.0, 0.1] {
+            let constant = NurbsCurve3::new(
+                unit.knot_values().clone(),
+                unit.control().to_vec(),
+                vec![c; unit.control().len()],
+            )
+            .unwrap();
+            for delta_s in [1e-2, 1e-4, 1e-6] {
+                let count = |n: &NurbsCurve3<f64>| {
+                    nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default())
+                        .expect("in inventory")
+                };
+                assert_eq!(
+                    count(&constant),
+                    count(&unit),
+                    "weights {c}, δ_s = {delta_s:e}"
+                );
+            }
+        }
     }
 
     /// The hull-bounded sagitta generalization: the chord count sizes
@@ -1177,9 +1184,8 @@ mod tests {
 
     /// The refusal row the flip keeps: an ILLEGAL rational carrier
     /// (non-positive weight) cannot even be described —
-    /// `NurbsCurve3::new` refuses at the door, so
-    /// [`nurbs_chord_count`]'s own licence check is a defensive
-    /// backstop rather than a reachable lane.
+    /// `NurbsCurve3::new` refuses at the door, which is why
+    /// [`nurbs_chord_count`] carries no licence check of its own.
     #[test]
     fn illegal_rational_carrier_weight_refuses_at_the_door() {
         let n = wiggle();

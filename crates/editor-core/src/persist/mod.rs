@@ -144,10 +144,6 @@ mod canon;
 mod check;
 pub mod hexbytes;
 pub(crate) mod jsontext;
-/// The bytes of kernel types, described from above the layering
-/// boundary — see the module's own docs for the rules a new one
-/// follows.
-pub(crate) mod kernel_wire;
 pub(crate) mod nesting;
 pub(crate) mod pairs;
 /// The refusal channel. `pub(crate)` for its `record` alone: the

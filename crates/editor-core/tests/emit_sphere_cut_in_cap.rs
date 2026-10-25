@@ -1,6 +1,6 @@
 //! **A sphere cut in a cap names its lens's entities.** Two revolved
 //! balls, the unit ball and radius 0.8 at height 1.4, intersect in a
-//! lens; a 0.4 × 0.4 × 0.3 brick, on a frame turned so its near face lies 0.985 from
+//! lens; a 0.4 × 0.4 × 0.3 brick, standing turned so its near face lies 0.985 from
 //! the origin toward latitude 68°, azimuth 50°, meets the lens's top
 //! face in a circle no edge reaches. The kernel cuts that face along its
 //! chart's meridian through the circle before the op runs
@@ -16,10 +16,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::blocks::{failure, run};
-use crate::fixture::{ang, insert, len, len2, on_frame, scl, xy_frame};
+use crate::fixture::{against, ang, axes_at, insert, len, len2, on_frame, scl};
 use editor_core::{
-    ExtrudeSide, LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId,
 };
 use geom_core::Tol;
 
@@ -34,11 +34,9 @@ pub(crate) fn ball(doc: ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let (doc, xy) = insert(doc, xy_frame());
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: xy.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),
@@ -70,16 +68,19 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
     ]
 }
 
-/// A `2w × 2w × t` brick whose near face lies in the plane `n·p = s`,
-/// centred on its foot, its material beyond the plane: `y` turned onto
-/// `n` about `y × n`, as `sweep`'s `snowman` rows turn theirs.
+/// A `2w × 2w × t` brick on its own xy, centred on its own origin, and
+/// the frame it stands on in the world: its near face in the plane
+/// `n·p = s`, centred on its foot, its material beyond the plane — `y`
+/// turned onto `n` about `y × n`, as `sweep`'s `snowman` rows turn
+/// theirs. The brick is the root a combine with it is spelled in, and
+/// [`world_in_brick`] places a world-drawn body beside it.
 pub(crate) fn brick_toward(
     doc: ProfileDoc,
     n: [f64; 3],
     s: f64,
     w: f64,
     t: f64,
-) -> (ProfileDoc, RecipeNodeId) {
+) -> (ProfileDoc, RecipeNodeId, editor_core::Frame) {
     let k = cross([0.0, 1.0, 0.0], n);
     let kn = k.iter().map(|x| x * x).sum::<f64>().sqrt();
     let k = k.map(|x| x / kn);
@@ -93,19 +94,31 @@ pub(crate) fn brick_toward(
     let (u, v) = (rot([0.0, 0.0, 1.0]), rot([1.0, 0.0, 0.0]));
     let (doc, p) = on_frame(
         doc,
-        n.map(|x| x * s),
-        u,
-        v,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
         vec![vec![(-w, -w), (w, -w), (w, w), (-w, w)]],
     );
-    insert(
+    let (doc, brick) = insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(t),
-            side: ExtrudeSide::Along,
         },
-    )
+    );
+    (doc, brick, axes_at(n.map(|x| x * s), u, v))
+}
+
+/// **`body`, drawn in world coordinates, placed against the `brick`
+/// standing on `stands`**: its copy in the brick's own coordinates.
+pub(crate) fn world_in_brick(
+    doc: ProfileDoc,
+    brick: RecipeNodeId,
+    stands: &editor_core::Frame,
+    body: editor_core::Operand,
+) -> (ProfileDoc, RecipeNodeId) {
+    let at = editor_core::Frame::from_affine(stands.affine::<f64>().inverse());
+    against(doc, brick, body, &at)
 }
 
 /// Where the cut survives, the result holds two pieces of one sphere
@@ -119,16 +132,15 @@ fn document(op: &str, lens_first: bool) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived("sphere_cut_in_cap", Tol::witness());
     let (doc, b1) = ball(doc, 1.0, 0.0);
     let (doc, b2) = ball(doc, 0.8, 1.4);
+    let (doc, brick, stands) = brick_toward(doc, dir(68.0, 50.0), 0.985, 0.2, 0.3);
+    let (doc, b1) = world_in_brick(doc, brick, &stands, editor_core::Operand::output(b1, 0));
+    let (doc, b2) = world_in_brick(doc, brick, &stands, editor_core::Operand::output(b2, 0));
     let (doc, lens) = insert(
         doc,
         Node::Intersect {
-            members: editor_core::Bodies::Spelled(vec![
-                editor_core::Operand::output(b1, 0).into(),
-                editor_core::Operand::output(b2, 0).into(),
-            ]),
+            members: editor_core::Bodies::Spelled(vec![b1.into(), b2.into()]),
         },
     );
-    let (doc, brick) = brick_toward(doc, dir(68.0, 50.0), 0.985, 0.2, 0.3);
     let (x, y) = if lens_first {
         (lens, brick)
     } else {

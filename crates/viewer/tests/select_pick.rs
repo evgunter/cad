@@ -20,7 +20,6 @@
 
 use crate::common;
 use crate::common::plate_index;
-use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -61,13 +60,12 @@ fn eval_of(session: &DocSession) -> &Evaluation<f64> {
 /// copies' placements are `doc.placements()`, in instance order.
 fn patterned_blocks(tol: Tol, count: i64) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-pattern", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -352,11 +350,7 @@ fn the_ray_paths_answer_is_the_id_maps_inverse() {
             .expect("a drawn id names a drawn patch");
         assert_eq!(key.node, hit.node);
         assert_eq!(key.body, hit.body);
-        let name = index
-            .name_of(*id)
-            .expect("a drawn id has a name slot")
-            .as_ref()
-            .expect("the face is named");
+        let name = index.name_of(*id).expect("the face is named");
         assert_eq!(*name, hit.name, "the id map inverts to the ray's answer");
     }
 }
@@ -954,13 +948,12 @@ fn a_product_scene_carries_no_ids_and_is_therefore_unpickable() {
 fn two_boxes(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-two-roots", tol);
     let box_of = |doc: &Doc<ProfileProgram>| {
-        let (doc, profile) = common::framed_square(doc, 0.02, tol);
+        let (doc, profile) = common::square_profile(doc, 0.02, tol);
         let (doc, extrude) = common::inserted(
             &doc,
             Node::Extrude {
                 profile: profile.into(),
                 distance: common::len(0.01),
-                side: ExtrudeSide::Along,
             },
             tol,
         );

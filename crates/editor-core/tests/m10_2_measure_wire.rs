@@ -35,23 +35,32 @@ fn two_named_nodes(doc: &ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
     for x in [0.0, 2.0] {
         let (d, profile) = crate::fixture::on_frame(
             doc,
-            [x, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
-            vec![crate::fixture::square(0.0, 0.0, 0.5)],
+            vec![crate::fixture::square(x, 0.0, 0.5)],
         );
         let (d, block) = crate::fixture::insert(
             d,
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: editor_core::ExtrudeSide::Along,
             },
         );
         doc = d;
         blocks.push(block);
     }
     (doc, [blocks[0], blocks[1]])
+}
+
+/// [`two_named_nodes`]' blocks' end caps, read in one space: the
+/// second block stands in the first's, as a measure's sites share one,
+/// and its cap is read at its copy.
+fn two_named_faces(doc: &ProfileDoc) -> (ProfileDoc, [SitedRef; 2]) {
+    let (doc, [a, b]) = two_named_nodes(doc);
+    let (doc, copy) = crate::fixture::stood_in(doc, b, a);
+    let at_copy = SitedRef::new(copy, name(b).name);
+    (doc, [name(a), at_copy])
 }
 
 fn name(node: RecipeNodeId) -> SitedRef {
@@ -94,8 +103,7 @@ fn every_form() -> ProfileDoc {
     // reason the other three are — this fixture IS the populated wire
     // golden for the primitive table, so a primitive absent from it
     // round-trips under no test at all.
-    let (doc, blocks) = two_named_nodes(&doc);
-    let refs = blocks.map(name);
+    let (doc, refs) = two_named_faces(&doc);
     let (mut doc, measured) = crate::fixture::measure(
         doc,
         &[
@@ -150,8 +158,7 @@ fn every_form() -> ProfileDoc {
 }
 
 /// Both fixtures put their first measure third and their assertion
-/// last: two datum points come first so the references name live
-/// nodes.
+/// last: two blocks come first so the references name live nodes.
 fn measure(doc: &ProfileDoc) -> RecipeNodeId {
     doc.ids()
         .into_iter()
@@ -173,8 +180,7 @@ fn angular() -> ProfileDoc {
             .expect("a valid edit applies")
             .doc
     };
-    let (doc, blocks) = two_named_nodes(&doc);
-    let refs = blocks.map(name);
+    let (doc, refs) = two_named_faces(&doc);
     let (mut doc, measured) =
         crate::fixture::measure(doc, &[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs);
     doc = push(
@@ -309,14 +315,14 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
     );
 }
 
-/// An assertion over something that is not a scalar at all: a datum
-/// point's output is a pose, read at the bound's dimension.
+/// An assertion over something that is not a scalar at all: a profile's
+/// output, read at the bound's dimension.
 #[test]
 fn an_assertion_over_a_non_scalar_refuses() {
     let doc = angular();
     let point = doc
         .output(doc.ids()[0], 0)
-        .expect("a point defines its pose");
+        .expect("a profile defines its output");
     let err = apply(
         &doc,
         &DocEdit::InsertNode {

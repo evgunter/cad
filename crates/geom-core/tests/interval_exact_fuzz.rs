@@ -56,6 +56,7 @@ test_utils::gated_to![
 use geom_core::Bounds;
 use geom_core::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::pow2;
 use std::cmp::Ordering;
 use test_utils::fuzz;
 
@@ -411,22 +412,6 @@ fn short_dyadic(rng: &mut fuzz::Rng, exp_span: i32) -> (f64, bool, u128, i32) {
     let neg = rng.next_u64() & 1 == 1;
     let v = (m as f64) * pow2(e) * if neg { -1.0 } else { 1.0 };
     (v, neg, m, e)
-}
-
-/// Exact power of two (no `powi`, which would round).
-fn pow2(e: i32) -> f64 {
-    if (-1022..=1023).contains(&e) {
-        f64::from_bits(((e + 1023) as u64) << 52)
-    } else if e < -1022 {
-        // Subnormal: build by repeated halving from 2^-1022 (exact).
-        let mut v = f64::from_bits(1u64 << 52);
-        for _ in 0..(-1022 - e) {
-            v *= 0.5;
-        }
-        v
-    } else {
-        f64::INFINITY
-    }
 }
 
 fn sweep(rng: &mut fuzz::Rng) {

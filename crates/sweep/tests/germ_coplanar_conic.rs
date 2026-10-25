@@ -17,11 +17,8 @@
 //! - a tube authored with a vertex at `ρ = 1`, `y = 0` on its outer
 //!   side, which the revolve does not keep: its outer wall is one face.
 //!   The box top in that plane cuts an arc of the wall (every op
-//!   answers its closed form; `point_in_solid` on the result refuses
-//!   typed on the notched full-turn wall,
-//!   `work/inside/revolved-tube-wall-refuses-bool-wall-trim-period.md`,
-//!   which carries the closed duplicate
-//!   `a-notched-full-turn-wall-has-no-ray-trim`), or both walls whole,
+//!   answers its closed form, and `point_in_solid` on the result its
+//!   witnesses), or both walls whole,
 //!   each section circle crossing its wall's one seam once (every op
 //!   answers its closed form);
 //! - a die pip whose ball is poled along `y`, so its seam meridian and
@@ -256,7 +253,6 @@ fn every_op_refuses_or_answers_its_closed_form() {
     let band = Band::linear(Tol::witness()).unwrap();
     let tol = Tol::witness();
     let mut failures = Vec::new();
-    let mut refusals = Vec::new();
     let mut outcomes = Vec::new();
     for fx in fixtures() {
         let (a, b, ov) = (&fx.a, &fx.b, fx.overlap);
@@ -310,22 +306,12 @@ fn every_op_refuses_or_answers_its_closed_form() {
                 let q = Point3::new(x, y, z);
                 match topo::point_in_solid(body, q, band, tol) {
                     Ok(c) if c == expect => {}
-                    // The notched full-turn wall's ray trim (module docs).
-                    Err(topo::PointInSolidError::Escalated { diag, .. })
-                        if diag.predicate == Some("bool_wall_trim_period") =>
-                    {
-                        refusals.push(format!("{what}: point_in_solid{q:?}: {diag:?}"));
-                    }
                     got => failures.push(format!("{what}: point_in_solid{q:?} = {got:?}")),
                 }
             }
         }
     }
-    assert!(
-        failures.is_empty(),
-        "{}\n(refused: {refusals:?})",
-        failures.join("\n")
-    );
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
     assert_eq!(
         outcomes, OUTCOMES,
         "which ops build and where the rest stop"

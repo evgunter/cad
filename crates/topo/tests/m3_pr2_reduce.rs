@@ -562,7 +562,7 @@ fn interval_lane_notched_and_wedge() {
 ///
 /// **This is a pin on the ARM, not an end-to-end row.** There is no
 /// fixture here that drives a real `Body` into `sector_shape`'s rung
-/// 0: that needs an orbit chord past `Vec3::normalize`'s ~1e154 band
+/// 0: that needs an orbit chord past `Vec3::norm`'s ~1e154 band
 /// surviving body construction and reaching the neighborhood pass, and
 /// every fixture in this file is built from small integers on purpose.
 /// The translation from `SectorFault::NonFiniteChord` into this arm is

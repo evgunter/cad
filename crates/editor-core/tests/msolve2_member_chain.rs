@@ -1,5 +1,5 @@
 //! **Nested copies as a mate's target** — `Pattern` over `Part` over
-//! `Pattern`, and transforms between, read where the copy stands.
+//! `Pattern`, read where the copy stands.
 //!
 //! A pattern's value is many bodies and a pattern's input is one, so
 //! a pattern OVER a pattern does not evaluate. The nested shape a
@@ -29,18 +29,17 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
-    CapEnd, ContactClass, Datum, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind,
-    NodeResult, Operand, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef,
-    Space, StableName, VarName, product,
+    CapEnd, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
+    Mate, MateFault, MateRef, MateSide, NameRef, Node, NodeErrorKind, NodeResult, Operand,
+    PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, VarId,
+    VarName, product,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
-use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
+use fixture::{ang, gate, in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 use geom_core::linalg::Affine3;
 
@@ -66,7 +65,6 @@ fn part_doc(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -113,7 +111,10 @@ fn world(
 ) -> ProfileDoc {
     let place = |doc: ProfileDoc, body: RecipeNodeId| {
         let read = fixture::body_read(&doc, body.into());
-        let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+        let (doc, placement) = insert(
+            doc,
+            crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+        );
         fixture::pinned(doc, placement, opts)
     };
     let doc = bodies.iter().fold(doc, |doc, &body| place(doc, body));
@@ -196,28 +197,33 @@ fn part_of(of: RecipeNodeId, i: i64) -> AuthoredNode {
     }
 }
 
-/// A `Datum::Axis` parallel to `+z` through `(x, y, 0)`.
-fn axis_z(doc: ProfileDoc, at: [f64; 2]) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(at[0]), len(at[1]), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    )
+/// **The axis parallel to `+z` through `(x, y)`**, read off the top's
+/// geometry: its lateral edge at the profile's first vertex (the
+/// origin), slid `x` along its first rim line and `y` along its second.
+fn axis_z(s: &Scene, at: [f64; 2]) -> Operand {
+    let read = |name: &StableName| SitedRef::new(s.top, s.on_top(name));
+    let mut axis = fixture::axis(read(&s.names.lateral[0]));
+    for (rim, by) in s.names.rim.iter().zip(at) {
+        if by != 0.0 {
+            axis = Operand::Pose(Box::new(PoseDef::Slide {
+                pose: RoleRead::plain(axis),
+                along: RoleRead::plain(fixture::axis(read(rim))),
+                by: len(by),
+            }));
+        }
+    }
+    axis
 }
 
-/// A circular pattern about a `+z` axis through `(x, y)` — the rule
-/// whose copy map ROTATES, which is what makes a chain's two levels
-/// fail to commute.
+/// A circular pattern about `axis` — the rule whose copy map ROTATES,
+/// which is what makes a chain's two levels fail to commute.
 fn circular(
     doc: ProfileDoc,
     input: RecipeNodeId,
-    at: [f64; 2],
+    axis: Operand,
     step_angle: f64,
     count: i64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, axis) = axis_z(doc, at);
     insert(
         doc,
         Node::Pattern {
@@ -237,9 +243,6 @@ const Q: f64 = std::f64::consts::FRAC_PI_2;
 /// Half the block's width: how far each target edge is slid across the
 /// copy, so the cap overhangs it.
 const OVERHANG: f64 = 0.5 * TOP_WIDTH;
-
-/// The lift a rule whose copies stand clear of each other steps by.
-const LIFT: f64 = 10.0;
 
 /// A document holding the patterned instance `top`, pinned to the
 /// world, and the `cap` whose bundle is empty, with their resolver.
@@ -270,7 +273,7 @@ impl Scene {
     }
 
     /// **The seat of `cap` on the copy read at `at` under `wrap`**: one
-    /// pin (FORK-S3O) equating the cap's corner frame at its bottom cap
+    /// frame mate equating the cap's corner frame at its bottom cap
     /// (up its lateral edge 0, `x` towards corner 1) with the copy's at
     /// its top cap, slid [`OVERHANG`] along both rim lines, so the cap
     /// overhangs the copy — `wrap` spells a name of the top as the copy
@@ -300,7 +303,6 @@ impl Scene {
         vec![fixture::mate(
             fixture::corner_frame(own(&self.names.lateral[0]), own(&self.names.corner[0])),
             target,
-            ContactClass::Rest,
         )]
     }
 }
@@ -342,7 +344,7 @@ fn scene(label: &str) -> Scene {
     let (top_ref, top_body) = store.insert_part((part, body), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, top) = fixture::insert_pinned(doc, Node::instantiate_part(top_ref), &opts);
+    let (doc, top) = fixture::insert_pinned(doc, crate::fixture::mated_instance(top_ref), &opts);
     let (doc, cap) = insert(doc, fixture::mated_instance(top_ref));
     Scene {
         doc,
@@ -380,8 +382,8 @@ fn assert_placed(doc: &ProfileDoc, opts: &EvalOptions, cap: RecipeNodeId, what: 
     );
     let ev = run(doc, opts);
     assert_eq!(
-        ev.space(cap),
-        Space::World,
+        doc.node_space(cap),
+        Some(VarId::WORLD),
         "{what}: the cap is in the world"
     );
     assert!(
@@ -438,24 +440,7 @@ fn a1_a_nested_copy_seats_where_its_chain_stands() {
     let s = scene("msolve2-a1");
     let (doc, inner) = insert(s.doc.clone(), linear(s.top, [1.0, 0.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
-    let (doc, axis) = insert(
-        doc,
-        Node::Datum(Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
-    let (doc, outer) = insert(
-        doc,
-        Node::Pattern {
-            input: part.into(),
-            count: Formula::count(2),
-            kind: PatternKind::Circular {
-                axis: axis.into(),
-                step: ang(Q),
-            },
-        },
-    );
+    let (doc, outer) = circular(doc, part, axis_z(&s, [0.0, 0.0]), Q, 2);
     let doc = world(doc, &s.opts, &[], &[(outer, 2)]);
     let wrap = |n| in_copy(outer, 1, in_copy(inner, 1, n));
     let (doc, copy) = insert(doc, part_of(outer, 1));
@@ -486,7 +471,7 @@ fn a2d_a_rotating_outer_map_seats() {
     let s = scene("msolve2-a2d");
     let (doc, inner) = insert(s.doc.clone(), linear(s.top, [0.0, -1.0, 0.0], 4.0, 2));
     let (doc, part) = insert(doc, part_of(inner, 1));
-    let (doc, outer) = circular(doc, part, [-2.0, 5.0], Q, 3);
+    let (doc, outer) = circular(doc, part, axis_z(&s, [-2.0, 5.0]), Q, 3);
     let doc = world(doc, &s.opts, &[], &[(outer, 3)]);
     let wrap = |n| in_copy(outer, 1, in_copy(inner, 1, n));
     let (doc, copy) = insert(doc, part_of(outer, 1));
@@ -538,41 +523,6 @@ fn a3a_a_part_selected_copy_read_at_the_part_seats() {
     );
 }
 
-/// **A3(c).** `Transform` over `Part { Instance(1) }` over a pattern,
-/// the target read at the TRANSFORM: the transform's map rides on the
-/// copy's, the `Part` in between passing it, and the cap seats. A
-/// transform over ONE copy of a pattern is a shape only a `Part` lets
-/// a user build.
-///
-/// *Breaks if* a pose read at a transform over a `Part` misses either
-/// map.
-#[test]
-fn a3c_transform_over_part_over_a_pattern_seats() {
-    let control = control_seat("msolve2-a3c");
-    let s = scene("msolve2-a3c");
-    let (doc, pattern) = insert(s.doc.clone(), linear(s.top, [0.0, -1.0, 0.0], 4.0, 2));
-    let (doc, part) = insert(doc, part_of(pattern, 1));
-    let (doc, moved) = insert(doc, xform(part, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], Q));
-    let doc = world(doc, &s.opts, &[moved], &[]);
-    let wrap = |n| in_copy(pattern, 1, n);
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, moved, &wrap));
-    assert_placed(&doc, &s.opts, s.cap, "A3(c)");
-    let ev = run(&doc, &s.opts);
-    assert_seated(
-        &doc,
-        &ev,
-        &wrap(s.top_cap()),
-        &s.cap_bottom(),
-        &control,
-        "A3(c) transform over part",
-    );
-    assert!(
-        gate(&doc, &ev).is_ok(),
-        "A3(c): the gate refused: {:?}",
-        gate(&doc, &ev).err()
-    );
-}
-
 // ---- A4: the `Part`'s index against the name ----
 
 /// **A4.** A `Part` whose index selects a copy the target's NAME does
@@ -596,72 +546,7 @@ fn a4_a_part_that_selects_another_copy_leaves_the_target_unresolved() {
     assert_target_unresolved(&ev, s.cap, "A4");
 }
 
-// ---- the gate on a nested document ----
-
-/// **What the at-rest gate says for a seat read BELOW the outer
-/// pattern** — on a nested document. The cap seats on such a target;
-/// the gate mints nothing for its mates, because their targets read the
-/// `Part`, which no placement places — the outer pattern's copies are
-/// what the world holds.
-///
-/// *Breaks if* a mate whose target body has no world copy mints a
-/// declaration.
-#[test]
-fn the_gate_on_a_seat_read_below_the_outer_pattern_mints_nothing() {
-    let s = scene("msolve2-gate");
-    let (doc, inner) = insert(s.doc.clone(), linear(s.top, [0.0, -1.0, 0.0], 4.0, 2));
-    let (doc, part) = insert(doc, part_of(inner, 1));
-    let (doc, outer) = insert(doc, linear(part, [0.0, 0.0, 1.0], LIFT, 2));
-    let doc = world(doc, &s.opts, &[], &[(outer, 2)]);
-    // Read at the `Part`, BELOW the outer pattern: the name stops at
-    // the inner pattern's own `Instance(1)` row.
-    let wrap = |n| in_copy(inner, 1, n);
-    let (doc, mates) = seated(doc, s.cap, s.seat(s.cap, part, &wrap));
-    assert_placed(&doc, &s.opts, s.cap, "a seat read below the outer pattern");
-    let ev = run(&doc, &s.opts);
-    // No placement reads the `Part` the targets are read at, so no
-    // mate has a world copy to mint on.
-    for mate in mates {
-        fixture::assert_mints_nothing(&doc, &ev, mate);
-    }
-}
-
 // ---- A1′: the chain, deeper and with transforms interleaved ----
-
-/// **A1′(a).** `Transform` over `Part(P₂, 2)` over `P₂` (linear)
-/// over `Transform` over `Part(P₁, 1)` over `P₁` (circular) over the
-/// instance, the target read at the outermost transform.
-///
-/// Every map in the chain is non-identity and no adjacent pair
-/// commutes, so the seat holds only if the copy the target is read off
-/// stands where all four put it, outermost last.
-///
-/// *Breaks if* any map of the chain is dropped or reordered between
-/// the copy and the pose read off it.
-#[test]
-fn a1b_two_levels_with_transforms_between_and_above_seat() {
-    let control = control_seat("msolve2-a1b");
-    let s = scene("msolve2-a1b");
-    let (doc, p1) = circular(s.doc.clone(), s.top, [0.0, 0.0], Q, 4);
-    let (doc, part1) = insert(doc, part_of(p1, 1));
-    let (doc, t_mid) = insert(doc, xform(part1, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], Q));
-    let (doc, p2) = insert(doc, linear(t_mid, [1.0, 0.0, 0.0], 4.0, 3));
-    let (doc, part2) = insert(doc, part_of(p2, 2));
-    let (doc, t_top) = insert(doc, xform(part2, [0.0, 3.0, 0.0], [0.0, 0.0, 1.0], Q));
-    let doc = world(doc, &s.opts, &[t_top], &[]);
-    let wrap = |n| in_copy(p2, 2, in_copy(p1, 1, n));
-    let (doc, _) = seated(doc, s.cap, s.seat(s.cap, t_top, &wrap));
-    assert_placed(&doc, &s.opts, s.cap, "A1′(a)");
-    let ev = run(&doc, &s.opts);
-    assert_seated(
-        &doc,
-        &ev,
-        &wrap(s.top_cap()),
-        &s.cap_bottom(),
-        &control,
-        "A1′(a) two levels + transforms",
-    );
-}
 
 /// **A1′(b).** Three levels — circular, linear, circular — each with
 /// a non-identity map, the target read at a `Part` projecting the
@@ -673,11 +558,17 @@ fn a1b_two_levels_with_transforms_between_and_above_seat() {
 fn a1c_three_levels_deep_seat() {
     let control = control_seat("msolve2-a1c");
     let s = scene("msolve2-a1c");
-    let (doc, p1) = circular(s.doc.clone(), s.top, [0.0, 0.0], Q, 4);
+    let (doc, p1) = circular(s.doc.clone(), s.top, axis_z(&s, [0.0, 0.0]), Q, 4);
     let (doc, part1) = insert(doc, part_of(p1, 1));
     let (doc, p2) = insert(doc, linear(part1, [1.0, 0.0, 0.0], 4.0, 2));
     let (doc, part2) = insert(doc, part_of(p2, 1));
-    let (doc, p3) = circular(doc, part2, [5.0, 5.0], std::f64::consts::FRAC_PI_3, 4);
+    let (doc, p3) = circular(
+        doc,
+        part2,
+        axis_z(&s, [5.0, 5.0]),
+        std::f64::consts::FRAC_PI_3,
+        4,
+    );
     let doc = world(doc, &s.opts, &[], &[(p3, 4)]);
     let wrap = |n| in_copy(p3, 2, in_copy(p2, 1, in_copy(p1, 1, n)));
     let (doc, copy) = insert(doc, part_of(p3, 2));
@@ -699,8 +590,8 @@ fn a1c_three_levels_deep_seat() {
 /// **A4′(a) — a `Part` mismatch is met per reference.**
 ///
 /// Two `Part`s over one pattern: the cap is seated on `part1`'s copy
-/// (selects 0, names 0); a second cap is seated on a transform over
-/// `part2` (selects 0 at insert, NAMES 0). `part2` is then re-pointed
+/// (selects 0, names 0); a second cap is seated on `part2` (selects 0
+/// at insert, NAMES 0). `part2` is then re-pointed
 /// at copy 2, which is how a `Part` comes to disagree with a name after
 /// insert: the second cap's target no longer resolves, and the first
 /// cap's seat is untouched.
@@ -713,10 +604,9 @@ fn a4b_a_part_mismatch_is_met_per_reference() {
     let (doc, pattern) = insert(doc, linear(s.top, [0.0, -1.0, 0.0], 4.0, 3));
     let (doc, part1) = insert(doc, part_of(pattern, 0));
     let (doc, part2) = insert(doc, part_of(pattern, 0));
-    let (doc, moved) = insert(doc, xform(part2, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0], 0.0));
     let wrap = |n| in_copy(pattern, 0, n);
     let (doc, _) = seated(doc, s.cap, s.seat(s.cap, part1, &wrap));
-    let (doc, _) = seated(doc, cap2, s.seat(cap2, moved, &wrap));
+    let (doc, _) = seated(doc, cap2, s.seat(cap2, part2, &wrap));
     assert!(
         solve(&doc, &s.opts, Tol::witness()).fault(cap2).is_none(),
         "the premise: the second cap seats while its `Part` agrees with the name"

@@ -1,7 +1,7 @@
 //! **EDIT-PLACEMENT P2 — world poses against an independent
 //! composition, and the doors across spaces** (ASSEMBLY.md A4, A9,
-//! A11 (2)–(5); D10, Spaces): a seat under a world pin whose pose two
-//! parameters drive, and a transform of the seated copy, in f64 and in
+//! A11 (2)–(5); D10, Spaces): a seat under a world mate whose pose two
+//! parameters drive, and a copy stacked on the seated copy, in f64 and in
 //! the interval lane; a constraint that moves a loose space onto the
 //! world; the clearance door, the at-rest gate and the document seam
 //! across spaces; inline of split. The expected poses are composed here
@@ -14,17 +14,15 @@ use std::sync::Arc;
 
 use crate::fixture;
 use crate::p2_gauges::{
-    BASE_HEIGHT, BASE_WIDTH, Parts, TOP_HEIGHT, block, body_of, parts, pinned, seat, seat_on,
+    BASE_HEIGHT, BASE_WIDTH, Parts, TOP_HEIGHT, block, body_of, parts, pinned, seat,
 };
 
-use editor_core::pose::PoseRole;
 use editor_core::{
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
-    FreeVar, Node, Operand, ParamBox, ProfileDoc, RecipeNodeId, Space, Step, Target, VarName,
-    WorldRead, evaluate,
+    FreeVar, ParamBox, ProfileDoc, RecipeNodeId, VarName, evaluate,
 };
 use fixture::resolver::with_resolver;
-use fixture::{ang, head, insert, len, run, scl, solve, step};
+use fixture::{ang, head, insert, len, run, solve, step};
 use geom_core::{Bounds, Interval, Tol};
 use topo::Body;
 
@@ -79,12 +77,6 @@ impl M {
             *o += (0..3).map(|k| self.r[i][k] * x[k]).sum::<f64>();
         }
         out
-    }
-    fn frame(&self) -> Frame {
-        Frame {
-            columns: [0, 1, 2].map(|j| [self.r[0][j], self.r[1][j], self.r[2][j]]),
-            translation: self.t,
-        }
     }
     fn of(f: &Frame) -> M {
         M {
@@ -189,34 +181,48 @@ fn chain(label: &str) -> ProfileDoc {
     declare(doc, turn(), 0.25, Dimension::Angle)
 }
 
-/// **An instance of `part` pinned to the world at the parametric pose
-/// [`chain_frame`] composes, onto `root_off`**: the pin at `root_off`
-/// over its geometry, its world read then spun `spin` about the world's
-/// z, slid `lift` along it, spun 0.3 about the world's x and slid 5
-/// along it — each move about the world's own axes, so each composes on
-/// the left: `G0 ∘ G1(lift, spin) ∘ root_off`.
-fn pinned_chain(
-    doc: ProfileDoc,
-    part: DocRef,
-    root_off: &M,
-    o: &EvalOptions,
-) -> (ProfileDoc, RecipeNodeId) {
+/// **An instance of `part` placed in the world at the parametric pose
+/// [`chain_frame`] composes onto [`root_off`]**, by values alone (D10
+/// `[placement.values]`): the chain of spins `0.2` about `y`, `spin`
+/// about `z` and `0.3` about `x`, in that order, and the slides that put
+/// its origin where `G0 ∘ G1(lift, spin) ∘ root_off` does — written as
+/// the formulas over `lift` and `spin` that motion means, so both keep
+/// driving the copy.
+fn pinned_chain(doc: ProfileDoc, part: DocRef) -> (ProfileDoc, RecipeNodeId) {
+    use editor_core::{Coord, TargetAxis};
     let (doc, id) = insert(doc, fixture::mated_instance(part));
-    let copy = Operand::Var(doc.output(id, 0).expect("an instance defines its copies"));
-    let mut pin = editor_core::pin_at(&doc, &copy, &root_off.frame(), o, Tol::witness())
-        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    let Target::World(world) = pin.to else {
-        unreachable!("a pin reads the world")
-    };
-    let axis = WorldRead::through;
-    pin.to = Target::World(
-        world
-            .spin(axis(PoseRole::Z), Formula::named(turn(), Dimension::Angle))
-            .slide(axis(PoseRole::Z), Formula::named(lift(), Dimension::Length))
-            .spin(axis(PoseRole::X), ang(0.3))
-            .slide(axis(PoseRole::X), len(5.0)),
-    );
-    (fixture::constrain_at(doc, id, pin).0, id)
+    let lift = || Formula::named(lift(), Dimension::Length);
+    let spin = || Formula::named(turn(), Dimension::Angle);
+    let cos = || Formula::cos(spin()).expect("an angle's cosine");
+    let sin = || Formula::sin(spin()).expect("an angle's sine");
+    let times = |k: f64, f: Formula| Formula::mul(fixture::scl(k), f).expect("a product");
+    let plus = |a: Formula, b: Formula| Formula::add(a, b).expect("a sum");
+    // root_off's origin (1, 2, 0) turned by `spin` about z, lifted.
+    let at = |k: f64, f: Formula| Formula::mul(len(k), f).expect("a length");
+    let ax = plus(at(1.0, cos()), at(-2.0, sin()));
+    let ay = plus(at(1.0, sin()), at(2.0, cos()));
+    let (c, s) = (0.3_f64.cos(), 0.3_f64.sin());
+    let values = vec![
+        (Coord::Spin(TargetAxis::Y), ang(0.2)),
+        (Coord::Spin(TargetAxis::Z), spin()),
+        (Coord::Spin(TargetAxis::X), ang(0.3)),
+        (Coord::Slide(TargetAxis::X), plus(len(5.0), ax)),
+        (
+            Coord::Slide(TargetAxis::Y),
+            plus(times(c, ay.clone()), times(-s, lift())),
+        ),
+        (
+            Coord::Slide(TargetAxis::Z),
+            plus(times(s, ay), times(c, lift())),
+        ),
+    ];
+    let placed = editor_core::Placed::unmated(values);
+    (fixture::written(doc, id, placed), id)
+}
+
+/// The turned literal the parametric pose composes onto.
+fn root_off() -> M {
+    M::tr([1.0, 2.0, 0.0]).c(&M::rot([0.0, 1.0, 0.0], 0.2))
 }
 
 fn chain_frame(lift: f64, turn: f64) -> M {
@@ -235,6 +241,35 @@ fn seat_rep() -> M {
     M::tr([1.0, 1.0, BASE_HEIGHT])
 }
 
+/// **Where a copy seated on a placed base stands, by D′2's chart**
+/// (`docs/INTENT-STAGE3-SPEC.md` §5′.2), written out independently of
+/// the solve: the target space's axes swung onto the base's upper cap's
+/// normal `n = (a, b, c)` by the shortest turn, `x' = (1 − a²/(1 + c),
+/// −ab/(1 + c), −a)` and `y' = n × x'`; the copy's own axes land on them
+/// (no spin), its origin `at` along `x'` and `y'` from the space's
+/// origin and on the cap's plane, `height` up the base, along `n`.
+fn space_seat(base: &M, height: f64, at: [f64; 2]) -> M {
+    let n = [base.r[0][2], base.r[1][2], base.r[2][2]];
+    let on_cap: [f64; 3] = std::array::from_fn(|i| base.r[i][2] * height + base.t[i]);
+    let (a, b, c) = (n[0], n[1], n[2]);
+    let one_plus_c = if c < 0.0 {
+        (a * a + b * b) / (1.0 - c)
+    } else {
+        1.0 + c
+    };
+    let x = [1.0 - a * a / one_plus_c, -a * b / one_plus_c, -a];
+    let y = [
+        n[1] * x[2] - n[2] * x[1],
+        n[2] * x[0] - n[0] * x[2],
+        n[0] * x[1] - n[1] * x[0],
+    ];
+    let along: f64 = (0..3).map(|i| on_cap[i] * n[i]).sum();
+    M {
+        r: std::array::from_fn(|i| [x[i], y[i], n[i]]),
+        t: std::array::from_fn(|i| at[0] * x[i] + at[1] * y[i] + along * n[i]),
+    }
+}
+
 /// **The seat's relative pose, the one input the rows below take from
 /// the kernel rather than compose**: a top mated onto a base at the world
 /// origin sits at the composed seat to 1e-15.
@@ -243,7 +278,7 @@ fn the_seat_relation_the_rows_compose_with_is_the_solves() {
     let p = parts("r2-control");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r2-control"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let poses = solve(&doc, &o, Tol::witness());
@@ -251,38 +286,31 @@ fn the_seat_relation_the_rows_compose_with_is_the_solves() {
     assert!(got.dist(&seat_rep()) <= 1e-15, "{got:?}");
 }
 
-/// **A seat under a two-parameter world pin against an independent
-/// composition**: the base pinned to the world at a pose two parameters
+/// **A seat under a two-parameter placement against an independent
+/// composition**: the base placed in the world at a pose two parameters
 /// drive composed with a turned literal, the top seated on it, and a
-/// Transform of the seated top, in f64 and in the interval lane at two
-/// parameter values.
+/// second top stacked on the seated one, each seat by the chart of the
+/// space it is placed into ([`space_seat`]), in f64 and in the interval
+/// lane at two parameter values.
 #[test]
 fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     let p = parts("r2-afb-x");
     let o = p.opts();
     let doc = chain("r2-afb-x");
-    let root_off = M::tr([1.0, 2.0, 0.0]).c(&M::rot([0.0, 1.0, 0.0], 0.2));
-    let (doc, base) = pinned_chain(doc, p.base, &root_off, &o);
+    let root_off = root_off();
+    let (doc, base) = pinned_chain(doc, p.base);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
-    let tm = M::tr([0.0, 0.0, 10.0]).c(&M::rot([1.0, 0.0, 0.0], 0.4));
-    let (doc, t) = insert(
-        doc,
-        Node::transform(
-            top,
-            Step::Rigid {
-                translation: [0.0, 0.0, 10.0].map(len),
-                axis: [1.0, 0.0, 0.0].map(scl),
-                angle: ang(0.4),
-            },
-        ),
-    );
+    let (doc, t) = crate::p2_gauges::stacked(doc, p.top, p.top_body, head(p.top_upper_cap(top)));
     let (doc, _) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let top_pts = part_points("r2-afb-x-top", 1.0, TOP_HEIGHT);
     let base_pts = part_points("r2-afb-x-base", BASE_WIDTH, BASE_HEIGHT);
     for (lv, tv) in [(2.0, 0.25), (7.0, -1.1)] {
         let doc = set_value(set_value(doc.clone(), lift(), lv), turn(), tv);
         let f = chain_frame(lv, tv).c(&root_off);
-        let w_top = f.c(&seat_rep());
+        // Each seat's values chart on the world, swung onto the cap it
+        // rests on: a seat does not ride with its base in the cap's plane.
+        let w_top = space_seat(&f, BASE_HEIGHT, [1.0, 1.0]);
+        let w_t = space_seat(&w_top, TOP_HEIGHT, [0.0, 0.0]);
         let poses = solve(&doc, &o, Tol::witness());
         assert_eq!(poses.fault(top), None, "the seat places the top");
         let got = M::of(&poses.placement(&doc, top).expect("placed"));
@@ -294,7 +322,7 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
         assert!(got_b.dist(&f) <= 1e-12, "DEFECT: base pose");
         let ev = run(&doc, &o);
         check_body_f64(&ev, top, &top_pts, &w_top, "f64 top");
-        check_body_f64(&ev, t, &top_pts, &tm.c(&w_top), "f64 transformed top");
+        check_body_f64(&ev, t, &top_pts, &w_t, "f64 placed copy of the top");
         check_body_f64(&ev, base, &base_pts, &f, "f64 base");
         let lane = evaluate::<Interval>(
             &doc,
@@ -308,7 +336,7 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
             check_body_interval(&lane, top, &top_pts, &w_top, "interval top");
         });
         crate::p2_gauges::encloses_or_escalates(&lane, t, || {
-            check_body_interval(&lane, t, &top_pts, &tm.c(&w_top), "interval t");
+            check_body_interval(&lane, t, &top_pts, &w_t, "interval t");
         });
         crate::p2_gauges::encloses_or_escalates(&lane, base, || {
             check_body_interval(&lane, base, &base_pts, &f, "interval base");
@@ -316,68 +344,10 @@ fn a_seat_under_a_two_parameter_world_pin_poses_as_composed() {
     }
 }
 
-// ---- a constraint moves a loose space ----
-
-/// **"Mate a1 to b" moves a1's whole loose space onto b and leaves b
-/// where it is**: a1 (a top) with a2 stacked on it, both loose — one
-/// space rooted at a1 — and b (the base) pinned to the world at
-/// `[20, 0, 0]`. The constraint in a1's bundle puts a1 on b, a2 follows
-/// it into the world, and b does not move.
-#[test]
-fn mate_a_to_b_moves_a_whole_loose_space_and_leaves_b_where_it_is() {
-    let p = parts("r2-door2");
-    let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("r2-door2"), Tol::witness());
-    let (doc, a1) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, a2) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, _) = seat_on(
-        doc,
-        a2,
-        head(p.top_cap(a2)),
-        head(p.top_upper_cap(a1)),
-        [0.0, 0.0],
-    );
-    let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(poses.space(a2), Some(Space::Loose { root: a1 }));
-    let a2_in_a1 = poses.relative(a2).expect("a2 sits in a1's space");
-    let (doc, b) = pinned(doc, p.base, crate::p2_gauges::literal([20.0, 0.0, 0.0]), &o);
-    let (doc, m) = seat(doc, a1, head(p.top_cap(a1)), head(p.base_cap(b)));
-    let poses = solve(&doc, &o, Tol::witness());
-    assert_eq!(poses.fault(m.placement), None, "the mate places");
-    assert_eq!(
-        poses.fault(b),
-        None,
-        "DEFECT: the target faulted after 'mate a1 to b'"
-    );
-    let b_at = poses.placement(&doc, b).expect("b placed").translation;
-    assert!(
-        b_at.iter()
-            .zip([20.0, 0.0, 0.0])
-            .all(|(x, y)| (x - y).abs() < 1e-12),
-        "DEFECT: b moved: {b_at:?}"
-    );
-    let a1_at = poses.placement(&doc, a1).expect("a1 placed");
-    assert!(
-        (a1_at.translation[0] - 21.0).abs() < 1e-12 && (a1_at.translation[1] - 1.0).abs() < 1e-12,
-        "DEFECT: a1 not moved onto b: {a1_at:?}"
-    );
-    assert_eq!(
-        poses.space(a2),
-        Some(Space::World),
-        "a2 follows a1 into the world"
-    );
-    let a2_at = M::of(&poses.placement(&doc, a2).expect("a2 placed"));
-    let want = M::of(&a1_at).c(&M::of(&a2_in_a1));
-    assert!(
-        a2_at.dist(&want) <= 1e-12,
-        "DEFECT: a2 left its seat on a1: {a2_at:?} vs {want:?}"
-    );
-}
-
-// ---- loose spaces ----
+// ---- spaces ----
 
 /// **The public clearance door refuses across spaces**: a world base
-/// and a loose top. The two selections live in different spaces, so the
+/// and a top in a space of its own. The two selections live in different spaces, so the
 /// door refuses `AcrossSpaces` naming both — before it reads either
 /// body, which here has no resolver to build.
 #[test]
@@ -387,8 +357,10 @@ fn the_clearance_door_refuses_two_selections_in_different_spaces() {
     };
     let p = parts("r2-clear");
     let doc = ProfileDoc::empty(DocumentId::derive("r2-clear"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &p.opts());
+    let (doc, base) =
+        fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &p.opts());
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, space) = fixture::into_new_space(doc, top);
     let report = clearance(
         &doc,
         &ParamBox::from_axes(BTreeMap::new()),
@@ -400,23 +372,23 @@ fn the_clearance_door_refuses_two_selections_in_different_spaces() {
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(
             SelectionRefusal::AcrossSpaces { a, b },
-        )) => assert_eq!((*a, *b), (Space::World, Space::Loose { root: top })),
+        )) => assert_eq!((*a, *b), (editor_core::VarId::WORLD, space)),
         other => panic!("clearance across spaces refuses typed: {other:?}"),
     }
 }
 
-/// **The at-rest gate checks loose spaces regardless of the world**: a
-/// loose top whose copy only an in-space measure reads holds nothing to
-/// check against, so the gate certifies the world. With the world's base
-/// deleted, the loose top is all the document holds: the gather refuses
-/// `EmptyProduct`, naming it loose.
+/// **The at-rest gate checks the world**: a top in a space of its own,
+/// whose copy only an in-space measure reads, is no part of the world,
+/// so the gate certifies the world. With the world's base deleted, the
+/// world is empty: the gather refuses `EmptyProduct`.
 #[test]
-fn the_gate_checks_loose_spaces_whatever_the_world_holds() {
+fn the_gate_checks_the_world_whatever_another_space_holds() {
     let p = parts("r2-gate");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r2-gate"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = fixture::into_new_space(doc, top);
     let (doc_m, meas) = crate::fixture::measure_node(
         &doc,
         editor_core::MeasurePrimitive::Distance { a: 0, b: 1 },
@@ -428,49 +400,56 @@ fn the_gate_checks_loose_spaces_whatever_the_world_holds() {
     let ev = run(&doc_m, &o);
     assert!(ev.value(meas).is_some(), "{:?}", ev.node_error(meas));
     editor_core::assemble(&doc_m, &ev, Tol::witness())
-        .expect("a loose space with nothing to compare holds nothing to check");
-    // The base goes: the loose top is all the document holds.
+        .expect("the world certifies whatever another space holds");
+    // The base goes: the world is empty.
     let (alone, _) = step(doc, DocEdit::DeleteNode { id: base });
     let ev = run(&alone, &o);
     match editor_core::assemble(&alone, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => match *e {
-            editor_core::ProductError::EmptyProduct { ref loose, .. } => {
-                assert_eq!(loose, &vec![top]);
-                assert!(e.to_string().contains("loose"), "{e}");
+            editor_core::ProductError::EmptyProduct { ref unplaced, .. } => {
+                assert!(unplaced.is_empty(), "{unplaced:?}");
             }
-            ref other => panic!("the gather names the loose copy: {other:?}"),
+            ref other => panic!("the gather refuses an empty world: {other:?}"),
         },
-        other => panic!("a loose copy alone refuses at the gather: {other:?}"),
+        other => panic!("an empty world refuses at the gather: {other:?}"),
     }
 }
 
-/// **A loose copy below does not cross the document seam**: a
-/// sub-assembly holding a pinned base and a loose top crosses as its
-/// world product (A9: the top is not part of that body), so the outer
-/// product holds the base's material alone and the outer gate certifies
-/// it.
+/// **A copy in another space below does not cross the document seam**:
+/// a sub-assembly holding a pinned base and a top in a space of its own
+/// crosses as its world product (A9: the top is not part of that body),
+/// so the outer product holds the base's material alone and the outer
+/// gate certifies it.
 #[test]
-fn a_loose_copy_below_stays_out_of_the_outer_product() {
+fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     let p = parts("r2-seam");
     let sub = ProfileDoc::empty(DocumentId::derive("r2-seam-sub"), Tol::witness());
     let o = p.opts();
-    let (sub, base) = fixture::insert_pinned(sub, Node::instantiate_part(p.base), &o);
+    let (sub, base) = fixture::insert_pinned(sub, crate::fixture::mated_instance(p.base), &o);
     let (sub, top) = insert(sub, fixture::mated_instance(p.top));
+    let (sub, space) = fixture::into_new_space(sub, top);
+    assert_eq!(sub.node_space(top), Some(space));
     let ev_sub = run(&sub, &o);
-    assert_eq!(ev_sub.space(top), Space::Loose { root: top });
     let mut store = p.store.clone();
     let sub_ref = store.insert(sub.clone(), Tol::witness());
     let outer = ProfileDoc::empty(DocumentId::derive("r2-seam-outer"), Tol::witness());
     let (outer, _) = fixture::insert_pinned(
         outer,
-        Node::instantiate_part(sub_ref),
+        crate::fixture::mated_instance(sub_ref),
         &with_resolver(store.clone()),
     );
     let ev = run(&outer, &with_resolver(store));
     let vol = |b: &Body<f64>| {
-        topo::mass_properties(b, Tol::witness())
-            .expect("mass")
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(b),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("mass")
+        .volume
     };
     let gathered = editor_core::product(&outer, &ev, Tol::witness()).expect("the world gathers");
     assert!(
@@ -496,7 +475,8 @@ fn split_of(
 }
 
 /// **Inline of split on the verbatim shape** (a cut of two pinned bases
-/// and a top seated on one of them) returns every instance's world pose.
+/// and a top seated on one of them), flattened, returns every instance's
+/// world pose.
 #[test]
 fn inline_of_a_verbatim_split_returns_every_world_pose() {
     let p = parts("r2-rt");
@@ -522,11 +502,12 @@ fn inline_of_a_verbatim_split_returns_every_world_pose() {
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store.clone());
     let back = editor_core::inline(&out.remainder, out.instance, &resolver, Tol::witness())
         .expect("inline of the verbatim split");
+    let flat = fixture::round_trip::flat(&back);
     let po = with_resolver(store);
-    let poses = solve(&back.doc, &po, Tol::witness());
+    let poses = solve(&flat, &po, Tol::witness());
     for (i, old) in [b1, t1, b2].iter().enumerate() {
         let new = back.node_map[&out.node_map[old]];
-        let got = M::of(&poses.placement(&back.doc, new).unwrap());
+        let got = M::of(&poses.placement(&flat, new).unwrap());
         assert!(
             got.dist(&before[i]) <= 1e-12,
             "DEFECT: {old:?} moved over inline(split): {got:?} vs {:?}",

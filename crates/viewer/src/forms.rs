@@ -17,17 +17,12 @@
 //! and only their words are written here, at an exhaustive match (the
 //! verbs not even that — `profile::Verb`'s `Display` is its word). What
 //! no compiler holds is a DELIBERATELY PARTIAL list, which claims no
-//! completeness and so cannot be held to it.
-//! The partial mirror on this page is held to the weaker thing that
-//! IS true of it: `partial_mirror!` (`crates/viewer/src/vocab.rs`)
-//! classifies every variant of the mirrored enum as offered here or as
-//! deliberately absent with its reason, so `DatumSpec` cannot grow
-//! past this form in silence (`crate::matetool::MATE_KINDS` is held the
-//! same way, beside the tool that reads it). `DatumKindChoice` is an
-//! enum whose `ALL` is projected, so its roster names a counterpart and
-//! has no seat to hold. (Code spans rather
-//! than links: everything on this page is `pub(crate)`, so an
-//! intra-doc link from a public module page does not resolve.)
+//! completeness and so cannot be held to it (`partial_mirror!`,
+//! `crates/viewer/src/vocab.rs`, holds such a list to the weaker thing
+//! that IS true of it; `crate::matetool::MATE_KINDS` is held that way,
+//! beside the tool that reads it). (Code spans rather than links:
+//! everything on this page is `pub(crate)`, so an intra-doc link from a
+//! public module page does not resolve.)
 //!
 //! [`FieldWriting`] and the drag speeds are the same kind of decision
 //! one level down: how many of a unit one pixel of drag is worth.
@@ -41,18 +36,19 @@ use pncad::quantity::UnitDef;
 use pncad::topo::BooleanOp;
 
 use crate::props;
-use crate::session::DatumSpec;
-use crate::vocab::{partial_mirror, vocabulary};
+use crate::vocab::vocabulary;
 
 vocabulary! {
-    /// The pattern form's rule choice — the two PARAMETRIC rules, an enum
-    /// for the reason [`DatumKindChoice`] is one. `Explicit` is absent by the
-    /// plan's ruling: a list of absolute frames is not a form's job.
+    /// The pattern form's rule choice — the two PARAMETRIC rules. An
+    /// enum rather than an index into a label list, because a consumer
+    /// can match an enum and name every rule, and cannot do that with an
+    /// index. `Explicit` is absent by the plan's ruling: a list of
+    /// absolute frames is not a form's job.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum PatternKindChoice {
         /// Stepped along a direction.
         Linear = "linear",
-        /// Stepped around a picked datum axis.
+        /// Stepped around an axis given by a point and a direction.
         Circular = "circular",
     }
 
@@ -86,130 +82,13 @@ pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
     }
 }
 
-vocabulary! {
-    /// The add-datum form's kind choice — one form, and **every arm of
-    /// [`crate::session::DatumSpec`]**. An enum rather than an index
-    /// into a label list, because a consumer can match an enum and name
-    /// every kind, and cannot do that with an index.
-    ///
-    /// One kind needs a PICK as well as numbers: `FaceFrame`'s picks
-    /// are a face in the VIEWPORT and the body-denoting node the ray
-    /// met, which no combo can list, so its seat is the selection
-    /// itself ([`crate::session::face_frame_seat`] is the gate above
-    /// it). It states the sentence its unmet seat reads, at
-    /// [`DatumKindChoice::unmet_seat`].
-    ///
-    /// **`Choice` because `viewer::DatumKind` is a different type** —
-    /// the tag [`crate::datums::DatumDraw`] carries for how a datum is
-    /// DRAWN, which partitions the datum VALUES rather than selecting
-    /// among the specs. This crate already spells a form's choice
-    /// apart from the thing chosen among that way
-    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]).
-    /// `ALL` is this side's alone: it is the radio row's offering, in
-    /// form order, and a drawing's tag claims no such thing.
-    ///
-    /// **Held to `DatumSpec` by a roster.** The direction the compiler
-    /// already held is kind-to-spec: `Drafts::datum_spec`'s lowering
-    /// match is exhaustive over this enum, so a choice with no spec to lower
-    /// to does not build. The `partial_mirror!` invocation below holds
-    /// spec-to-kind: every `DatumSpec` arm is classified as offered
-    /// here or as deliberately absent with its reason, so a new arm
-    /// cannot arrive with no form edit and nothing saying so. An empty
-    /// absent section means the form offers the whole spec. It takes
-    /// the `onto` shape rather than a seat roster because the offering
-    /// is an ENUM whose `ALL` is projected from its declaration, so
-    /// naming a counterpart there already says the radio row draws it
-    /// (`crates/viewer/src/vocab.rs`).
-    ///
-    /// **That roster holds nothing between this enum and
-    /// [`crate::datums::DatumKind`]**: what it mirrors is `DatumSpec`,
-    /// and the draw tag is not party to it.
-    ///
-    /// **Declared in FORM order**, which is the order [`DatumKindChoice::ALL`]
-    /// is projected in and therefore the order the radio row is drawn
-    /// in: the frame sits next to the plane because that is the choice
-    /// a reader is actually making — the same surface, with or without
-    /// a stated direction on it. The frame on a face sits next to
-    /// the frame by the same rule one step on: a frame you type and a
-    /// frame you pick are the same choice, differently sourced.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum DatumKindChoice {
-        /// A plane datum.
-        Plane = "plane",
-        /// A sketch frame — an oriented plane.
-        Frame = "frame",
-        /// A sketch frame read off a picked face.
-        FaceFrame = "frame on face",
-        /// An axis datum, in world coordinates.
-        Axis = "axis",
-        /// A point datum.
-        Point = "point",
-    }
-
-    /// Every kind with its radio label, in form order.
-    pub(crate) const ALL;
-}
-
-impl DatumKindChoice {
-    /// **What this kind is still waiting for**, when it is waiting for
-    /// a pick — the sentence the add-datum form shows over a held
-    /// button, and `None` for a kind that has no pick to wait for.
-    ///
-    /// One sentence per kind rather than one for the form: a single
-    /// sentence over the button would be false of every kind that has
-    /// no pick to wait for.
-    ///
-    /// **The `Some` half is exactly the set `Drafts::datum_spec`
-    /// answers `Ok(None)` for**, which is a fact about two functions in
-    /// two modules and is therefore asserted rather than asked to be
-    /// believed (`drafts::tests::the_unmet_seat_sentence_follows_the_kind`).
-    ///
-    /// **The frame-on-a-face sentence is READ, not written here.** The
-    /// face-frame gate refuses an empty pick with the same sentence
-    /// ([`crate::session::FaceFrameFault::NoFace`]), so the two are one
-    /// string at its one home and cannot drift apart.
-    pub(crate) fn unmet_seat(self) -> Option<&'static str> {
-        match self {
-            Self::FaceFrame => Some(crate::session::NO_FACE_PICKED),
-            Self::Plane | Self::Frame | Self::Axis | Self::Point => None,
-        }
-    }
-
-    /// **The kind noun of the node this choice creates** —
-    /// `node_kind_noun`'s word for it, which the form's proposed label
-    /// counts by ([`crate::tree::proposed_label`]).
-    /// `drafts::tests::each_datum_choices_noun_is_the_kind_of_the_node_it_commits`
-    /// holds each to the node the form commits.
-    pub(crate) fn noun(self) -> &'static str {
-        match self {
-            Self::Plane => "Datum plane",
-            Self::Frame => "Datum frame",
-            Self::FaceFrame => "Datum frame (on face)",
-            Self::Axis => "Datum axis",
-            Self::Point => "Datum point",
-        }
-    }
-}
-
-partial_mirror! {
-    DatumSpec, onto DatumKindChoice,
-    offered [
-        Plane { .. } => Plane,
-        Axis { .. } => Axis,
-        Point { .. } => Point,
-        Frame { .. } => Frame,
-        FaceFrame { .. } => FaceFrame,
-    ],
-    absent [],
-}
-
 pub(crate) use crate::tree::split_half_label;
 
 vocabulary! {
     /// The add-profile form's loop choice: the two templates, or a PATH
     /// authored verb by verb.
     ///
-    /// An enum for the reason [`DatumKindChoice`] is one — and the templates
+    /// An enum for the reason [`PatternKindChoice`] is one — and the templates
     /// stay in it rather than being folded into the path arm because they
     /// are not chains: a circle is a seamless closed carrier no chain of
     /// legs can spell, and a rectangle is four `line_to`s nobody should

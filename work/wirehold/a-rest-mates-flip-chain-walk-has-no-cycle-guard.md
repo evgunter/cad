@@ -2,9 +2,8 @@
 id: a-rest-mates-flip-chain-walk-has-no-cycle-guard
 kind: issue
 title: mate::rested_faces walks a Flip chain of document vars with an unbounded loop and no cycle guard
-status: parked
+status: open
 opened: 2026-10-19
-blocked_on: [a-mate-relates-two-poses]
 priority: P3
 cost: E
 ---
@@ -23,3 +22,13 @@ cite that check.
 
 Mates are D10 ground, so this is parked until the mates rebuild settles
 what a pose chain is.
+
+## Opened (2026-10-21)
+
+`a-mate-relates-two-poses` closed and nothing else gates this row.
+`mate::rested_faces` is gone; the walk that follows a `PoseDef::Flip`
+from var to var now lives in `eval/wire/pose.rs` `own_direction`, which
+recurses through each `RoleRead<VarId>` with no depth bound and no
+visited set. The question stands there: whether document validation
+rules out a pose cycle among a document's vars, and if it does, the
+walk should cite that check.

@@ -1,20 +1,27 @@
 ---
 id: each-space-runs-its-census-between-arrivals
 kind: unit
-title: Each space runs its at-rest census between its arrivals; the graft supplies the arrivals and record_at_rest takes them
-status: open
+title: Each ⊔ decides its operands' meetings: the census at each Assemble's door decides between arrivals and nothing inside one, confirms and matches what an arrival carries, and reports each finding once, at the ⊔ that decided it
+status: parked
 opened: 2026-10-19
 priority: P1
-cost: H
+cost: M
 refs: [a-census-contact-is-a-row-and-a-record, a-placement-carries-its-sources-at-rest-result]
+blocked_on: [a-placement-carries-its-sources-at-rest-result]
 ---
 
-D10 `[assertions]` (PR 4666, Ev 2026-10-19: "the second seems solidly better, yes"): each space's census examines its carried bodies; between two arrivals it decides and records; inside one it decides nothing and reads nothing. This unit lands a transitional check inside each arrival (confirm carried records, match carried findings, report anything else as that arrival's door's defect, typed); `the-in-arrival-census-check-retires` removes it. A finding is reported once, as the deciding space's. A space outside the product is checked too.
+**Sequencing:** `docs/INTENT-STAGE3-SPEC.md` §12 ("Sequencing: the seat and census units"), step 6. Parked on the carry, whose solid-pair match is this unit's confirm-and-match arm; the carry waits on D′3 and E's core. The id keeps its pre-5494 wording ("each space"); ids are stable (`work/README.md`), and `scripts/work.py` has no rename.
 
-Today the census runs once per document, at the product gather: `product_recorded` calls `topo::record_at_rest(body, records, groups)` with each world copy as its own group (`crates/editor-core/src/product.rs`). What changes:
-- the graft that assembles a space's carried bodies returns the aggregate with its arrivals (one placement's copies at one index value, or one op's output), and `record_at_rest` takes that one value. The `groups` closure and the "in no group" arm retire;
-- a census per space with two or more arrivals, memoised with the space's inputs. A space placed n times is decided once;
-- a finding names its cells on the space's bodies (PR 5315's picks, or the pick's definition where nobody picked the copy);
-- the unproven-coincidence lint reports a space's findings once, in that space.
+D10 `[assertions]` (PR 4666, Ev 2026-10-19; restated by PR 5494, rows 189–191, and PR 5555, row 187): the census is each `⊔`'s door. At rest it examines the meetings between that operator's operands pairwise, and nothing it finds refuses. An arrival is one operand at one value of its indices. Between two arrivals the census decides each pair once, at the highest-dimensional cells that touch; inside one arrival it decides nothing and reads nothing, since the arrival's verdicts are its source's or its door's, carried. A finding belongs to the `⊔` that decided it and is reported once, however many times its body is placed or read, and a `⊔` the product does not read is checked all the same.
 
-Open measure: `assemble-aggregate-census-is-quadratic-in-solids` for spaces with many arrivals. Also check that `Measure`'s door refuses a `Gap` whose two refs are in different spaces (`crates/editor-core/src/measure.rs`); "an assertion quiets only findings of its own space" rests on it.
+What D′3 already builds (`assemble-is-an-operator-and-the-product-is-a-slot`): `Node::Assemble`, whose door grafts its operands as pieces and runs `topo::record_at_rest` over them, one group per arrival, lifted from `product_recorded`'s gather (`crates/editor-core/src/product.rs`, `copy_groups` in `checks/at_rest.rs`). That is a census per `⊔`, decided once per node evaluation, so "a body placed n times is decided once" holds by construction.
+
+What this unit builds on it:
+- **Nothing decided inside an arrival.** A transitional check inside each arrival confirms the records it carries and matches the findings it carries (the carry's solid-pair match), and reports anything else as that arrival's door's defect, typed. `the-in-arrival-census-check-retires` removes it.
+- **Findings named by reads.** A finding names its cells by the reads they entered the `⊔` through and their names there (a pick where a piece of a copy was read).
+- **Reported once.** The unproven-coincidence lint reports each `⊔`'s findings once, at that `⊔`; an instance's findings are its document's, carried.
+- **Families.** Before G, D′3 treats each body of a `Pattern` or `PlacedUnion` operand as its own arrival; G makes each member an arrival by construction. This unit keeps that interim and names it.
+
+Re-priced M from H: D′3 moves the census to the node, so what is left is the in-arrival check, the naming and the reporting.
+
+Open measure: `assemble-aggregate-census-is-quadratic-in-solids` for a `⊔` with many arrivals. Also check that `Measure`'s door refuses a `Gap` whose two sites are in different spaces (`crates/editor-core/src/measure.rs`; D′1's `space_faults` is meant to); "an assertion quiets only findings between bodies of its own space" rests on it.

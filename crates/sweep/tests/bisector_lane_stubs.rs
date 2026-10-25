@@ -63,7 +63,11 @@ fn long(phi: f64) -> Body<f64> {
 type Measured = (f64, f64);
 
 fn volume(b: &Body<f64>) -> Measured {
-    let m = topo::mass_properties(b, Tol::witness()).unwrap();
+    let m = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     (m.volume, m.volume_pad)
 }
 

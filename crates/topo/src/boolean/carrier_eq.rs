@@ -45,7 +45,7 @@
 //! spelling of two boxes' opposed faces. Aligned coincidence is
 //! CONTAINMENT, not contact (the C1 lemma); the carrier ladder
 //! reports it honestly as `SameOriented` and the CONTACT doors
-//! ([`super::contact_verify::contact_pair_verdict`]) are what refuse it.
+//! ([`super::contact_verify::rest_pair_verdict`]) are what refuse it.
 //!
 //! **A margin decided Zero glues** (D10, Booleans). Two independently
 //! authored spheres with equal radii and centres are one carrier

@@ -27,7 +27,7 @@ use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
 use crate::{
-    Datum, Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
+    Dimension, DocEdit, Expr, Formula, HitTestError, LoopProgram, Node, PickHit, ProfileDoc,
     ProfileProgram, RecipeNodeId,
 };
 
@@ -151,7 +151,7 @@ pub fn stored_reading(
     }
     let doc = core::cell::RefCell::new(doc);
     node.try_map_slots(
-        |p, f, r| ProfileProgram::lower(p, f, r),
+        |p, f| ProfileProgram::lower(p, f),
         &mut |f| crate::edit::lower_slot_into(&mut doc.borrow_mut(), f),
         &mut |slot, operand| Ok(given(&doc, slot, operand, &read)),
     )
@@ -230,55 +230,643 @@ pub fn stored_loop(doc: &mut ProfileDoc, program: &LoopProgram<Formula>) -> Loop
         .expect("a loop the document can answer lowers")
 }
 
-/// The stored placement `placement` lowers to in `doc` ([`stored`]).
+// --- placing a construction ------------------------------------------
+
+/// **A placement of `body` into `target` under `placed`**, its whole
+/// bundle written by the insert.
 ///
 /// # Panics
 ///
-/// If `placement` does not lower in `doc`.
-pub fn stored_placement(
-    doc: &mut ProfileDoc,
-    placement: &crate::Placement<Formula>,
-) -> crate::Placement {
-    placement
-        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
-        .expect("a placement the document can answer lowers")
+/// If the insert door refuses it.
+fn place_of(
+    doc: ProfileDoc,
+    body: crate::Operand,
+    target: crate::Operand,
+    placed: crate::Placed,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, RecipeNodeId) {
+    let applied = crate::apply(
+        &doc,
+        &DocEdit::place(vec![crate::BodyRead::plain(body)], target, placed.bundle()),
+        tol,
+    )
+    .expect("a placement inserts");
+    let placement = applied.record.minted.expect("an insert mints a node");
+    (applied.doc, placement)
 }
 
-// --- the frame a sketch is drawn on ---------------------------------
+/// **The body a node defines, as a placement reads it**: a revolve's
+/// `body` port, any other node itself.
+#[must_use]
+pub fn body_of(doc: &ProfileDoc, node: RecipeNodeId) -> crate::Operand {
+    match doc.node(node) {
+        Some(Node::Revolve { .. }) => crate::Operand::output(node, 0),
+        _ => crate::Operand::Node(node),
+    }
+}
 
-/// The frame datum a profile is drawn on, as a node to insert: an
-/// origin, and the two directions sketch +x and +y point.
+/// **The moves a frame states** (the helpers ruling): the slides along
+/// the target space's axes to its origin, and a chain of spins about
+/// `x`, then `y`, then `z` — by quarter turns written `turn/4` where its
+/// axes are the target space's up to sign and order, so the copy stands
+/// exactly where the frame says, else by the angles `atan2` reads off
+/// its columns (`linear = Rz(γ)·Ry(β)·Rx(α)`), to their rounding. The
+/// constant `0` is left to [`crate::Placed::of`].
+pub fn moves_at(at: &crate::Frame) -> Vec<(crate::Coord, Formula)> {
+    use crate::{Coord, TargetAxis};
+    let quarter = |k: i32| -> [[i32; 3]; 3] {
+        // The turn by `k` quarters about z, in columns.
+        let (c, s) = match k.rem_euclid(4) {
+            0 => (1, 0),
+            1 => (0, 1),
+            2 => (-1, 0),
+            _ => (0, -1),
+        };
+        [[c, s, 0], [-s, c, 0], [0, 0, 1]]
+    };
+    // A turn about z carried onto x or y by cycling the coordinates.
+    let about = |axis: usize, k: i32| -> [[i32; 3]; 3] {
+        let q = quarter(k);
+        let cyc = |i: usize| (i + 1 + axis) % 3;
+        let mut m = [[0; 3]; 3];
+        for (col, column) in q.iter().enumerate() {
+            for (row, &v) in column.iter().enumerate() {
+                m[cyc(col)][cyc(row)] = v;
+            }
+        }
+        m
+    };
+    let mul = |a: [[i32; 3]; 3], b: [[i32; 3]; 3]| -> [[i32; 3]; 3] {
+        let mut m = [[0; 3]; 3];
+        for (col, out) in m.iter_mut().enumerate() {
+            for (row, cell) in out.iter_mut().enumerate() {
+                *cell = (0..3).map(|k| a[k][row] * b[col][k]).sum();
+            }
+        }
+        m
+    };
+    let target: Vec<[f64; 3]> = at.columns.to_vec();
+    let chain = (0..64).find_map(|n| {
+        let (x, y, z) = (n % 4, (n / 4) % 4, n / 16);
+        let r = mul(about(2, z), mul(about(1, y), about(0, x)));
+        let exact = r
+            .iter()
+            .zip(&target)
+            .all(|(col, want)| col.iter().zip(want).all(|(&v, &w)| f64::from(v) == w));
+        exact.then_some([(TargetAxis::X, x), (TargetAxis::Y, y), (TargetAxis::Z, z)])
+    });
+    let turn = |k: i32| match k {
+        1 => Formula::turn_over(4).expect("a quarter turn"),
+        2 => Formula::turn_over(2).expect("a half turn"),
+        _ => Formula::neg(Formula::turn_over(4).expect("a quarter turn")).expect("an angle"),
+    };
+    let slides = TargetAxis::ALL
+        .into_iter()
+        .zip(at.translation)
+        .filter(|&(_, by)| by != 0.0)
+        .map(|(axis, by)| (Coord::Slide(axis), len(by)));
+    let spins: Vec<(Coord, Formula)> = match chain {
+        Some(chain) => chain
+            .into_iter()
+            .filter(|&(_, k)| k != 0)
+            .map(|(axis, k)| (Coord::Spin(axis), turn(k)))
+            .collect(),
+        None => euler_turns(&at.columns)
+            .into_iter()
+            .filter(|&(_, angle)| angle != 0.0)
+            .map(|(axis, angle)| (Coord::Spin(axis), ang(angle)))
+            .collect(),
+    };
+    slides.chain(spins).collect()
+}
+
+/// **The turns about `x`, then `y`, then `z` that the rotation
+/// `columns` makes** (`linear = Rz(γ)·Ry(β)·Rx(α)`), each angle taken
+/// by `atan2` — the fixtures' one reading of a frame's turns as a
+/// chain, for a test that states a pose as a matrix.
+#[must_use]
+pub fn euler_turns(columns: &[[f64; 3]; 3]) -> [(crate::TargetAxis, f64); 3] {
+    use crate::TargetAxis;
+    // Entry `r(i, j)`: row `i` of column `j`.
+    let r = |i: usize, j: usize| columns[j][i];
+    let cos_beta = r(0, 0).hypot(r(1, 0));
+    let beta = (-r(2, 0)).atan2(cos_beta);
+    let (alpha, gamma) = if cos_beta > f64::EPSILON.sqrt() {
+        (r(2, 1).atan2(r(2, 2)), r(1, 0).atan2(r(0, 0)))
+    } else {
+        ((-r(1, 2)).atan2(r(1, 1)), 0.0)
+    };
+    [
+        (TargetAxis::X, alpha),
+        (TargetAxis::Y, beta),
+        (TargetAxis::Z, gamma),
+    ]
+}
+
+/// **A copy of `body` standing in the world at `at`** (D10: a body has
+/// no location, so where it stands is its placement's): the bundle
+/// with no mate whose values are the moves `at` states
+/// ([`moves_at`]), the identity bundle ([`crate::stand`]) at the
+/// identity. Returns the document and the placement; its copy is the
+/// placement's output.
 ///
 /// # Panics
 ///
-/// If a component is not finite.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::AuthoredNode {
-    Node::Datum(Datum::Frame {
-        origin: origin.map(len),
-        u: u.map(scl),
-        v: v.map(scl),
+/// If a door refuses.
+pub fn in_world(
+    doc: ProfileDoc,
+    body: impl Into<crate::Operand>,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, RecipeNodeId) {
+    let body = body.into();
+    let placed = crate::Placed::of(&doc, Vec::new(), moves_at(at));
+    place_of(
+        doc,
+        body,
+        crate::Operand::Var(crate::VarId::WORLD),
+        placed,
+        tol,
+    )
+}
+
+/// **A copy of `body` placed against `target`'s geometry at `at`** —
+/// `at` the copy's own frame in `target`'s own coordinates: how a construction combined with another body joins that
+/// body's space. A plane mate equates the copy's first planar face by id
+/// lying on its own `xy` with the target's lying on its own `xy`, slid
+/// along its normal to where the copy's face stands at `at` (flipped
+/// where the two face one way), and the three values put the copy at
+/// `at` on the chart of that mate, each the number `at` states (a turn
+/// by quarter turns written `turn/4`); where either body has no planar
+/// face on its own `xy`, or `at` tilts the copy's face off the
+/// target's, no mate, and the moves `at` states ([`moves_at`]). Returns
+/// the document and the placement; its copy is the placement's output.
+///
+/// # Panics
+///
+/// If a door refuses.
+pub fn against(
+    doc: ProfileDoc,
+    target: impl Into<crate::Operand>,
+    body: impl Into<crate::Operand>,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (target, body) = (target.into(), body.into());
+    let placed = placed_against(&doc, &target, &body, at, tol);
+    let space = doc
+        .operand_space(&target)
+        .expect("the target is a body in a space");
+    place_of(doc, body, crate::Operand::Var(space), placed, tol)
+}
+
+/// **[`against`]'s bundle**, not yet written: the mate and its three
+/// values, into the space `target` is in.
+///
+/// # Panics
+///
+/// As [`against`]'s.
+#[must_use]
+pub fn placed_against(
+    doc: &ProfileDoc,
+    target: &crate::Operand,
+    body: &crate::Operand,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> crate::Placed {
+    placed_against_in(doc, &crate::EvalOptions::default(), target, body, at, tol)
+}
+
+/// [`placed_against`] under `opts` — which reaches the parts an
+/// instance copies.
+///
+/// # Panics
+///
+/// As [`against`]'s.
+#[must_use]
+pub fn placed_against_in(
+    doc: &ProfileDoc,
+    opts: &crate::EvalOptions,
+    target: &crate::Operand,
+    body: &crate::Operand,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> crate::Placed {
+    use crate::pose::{PoseDef, PoseRole, RoleRead};
+    use crate::{Coord, TargetAxis};
+    let ev: crate::Evaluation<f64> =
+        crate::evaluate(doc, None, &crate::CancelToken::new(), opts, tol);
+    // The first planar face by id on the body's own xy, as the sign of
+    // its outward normal's z there.
+    let own_plane = |shape: &crate::Operand| {
+        let (_, solid, table, motion) =
+            crate::mate::corner::read_of(doc, &ev, shape).expect("the body has a value");
+        let motion = motion.map(|m| m.to_affine());
+        solid.faces().find_map(|(face, _)| {
+            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            (kind == geom::SurfaceKind::Plane).then_some(())?;
+            let pose = topo::readback::face_pose(&solid, face).ok()?;
+            let n = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
+            let o = pose.origin - geom_core::linalg::Point3::origin();
+            let (o, n) = match motion {
+                None => (o, n),
+                Some(m) => {
+                    let back = m.linear.transpose();
+                    (back * (o - m.translation), back * n)
+                }
+            };
+            let name = table.name_of(&crate::names::EntityRef {
+                body: 0,
+                key: crate::names::EntityKey::Face(face),
+            })?;
+            [o.z, n.x, n.y]
+                .into_iter()
+                .all(|c| c == 0.0)
+                .then(|| (name.clone(), n.z.signum()))
+        })
+    };
+    // A body with no planar face on its own xy (a full revolve, an arc
+    // tube) is placed by the moves `at` states, with no mate.
+    let (Some((copy_face, copy_z)), Some((target_face, target_z))) =
+        (own_plane(body), own_plane(target))
+    else {
+        return crate::Placed::of(doc, Vec::new(), moves_at(at));
+    };
+    let placed = at.affine::<f64>();
+    // The copy's face's normal where `at` puts it.
+    let m = placed.linear * geom_core::linalg::Vec3::new(0.0, 0.0, copy_z);
+    // An `at` tilting the copy's face off the target's xy is no face
+    // rest: the copy is placed by the moves `at` states, with no mate.
+    if m.x != 0.0 || m.y != 0.0 {
+        return crate::Placed::of(doc, Vec::new(), moves_at(at));
+    }
+    let plane = |shape: &crate::Operand, face: crate::StableName| {
+        crate::Operand::Pose(Box::new(PoseDef::Plane {
+            face: crate::Operand::select(shape.clone(), vec![face]),
+        }))
+    };
+    let along = target_z * placed.translation.z;
+    let to_plane = plane(target, target_face);
+    let to = if along == 0.0 {
+        to_plane
+    } else {
+        crate::Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::plain(to_plane.clone()),
+            along: RoleRead::through(to_plane, PoseRole::Normal),
+            by: len(along),
+        }))
+    };
+    let on = plane(body, copy_face);
+    let on = if m.z == target_z {
+        on
+    } else {
+        crate::Operand::Pose(Box::new(PoseDef::Flip {
+            pose: RoleRead::plain(on),
+        }))
+    };
+    // The chart of a mate along the target's ±z: the target space's x
+    // kept, its y `d × x`; the copy's x where `at` turns it, measured
+    // about `d` in quarter turns where it lies on an axis.
+    let d = target_z;
+    let (sx, sy) = (placed.translation.x, d * placed.translation.y);
+    let xc = placed.linear * geom_core::linalg::Vec3::new(1.0, 0.0, 0.0);
+    let spin = match (xc.x, d * xc.y) {
+        (1.0, 0.0) => Formula::zero(Dimension::Angle),
+        (0.0, 1.0) => Formula::turn_over(4).expect("a quarter turn"),
+        (-1.0, 0.0) => Formula::turn_over(2).expect("a half turn"),
+        (0.0, -1.0) => {
+            Formula::neg(Formula::turn_over(4).expect("a quarter turn")).expect("an angle")
+        }
+        (c, s) => ang(s.atan2(c)),
+    };
+    let slide = |by: f64| {
+        if by == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(by)
+        }
+    };
+    crate::Placed {
+        mates: vec![crate::Mate { on, to }],
+        values: vec![
+            (Coord::Slide(TargetAxis::X), slide(sx)),
+            (Coord::Slide(TargetAxis::Y), slide(sy)),
+            (Coord::Spin(TargetAxis::Z), spin),
+        ],
+    }
+}
+
+/// **The frame at `origin` with axes `u` and `v`** (`v` made orthogonal
+/// to `u`, both normalised), the normal `u × v` — a construction's own
+/// frame where a test places it.
+///
+/// # Panics
+///
+/// If `u` and `v` span no plane.
+#[must_use]
+pub fn axes_at(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> crate::Frame {
+    use geom_core::linalg::Vec3 as V;
+    let u = V::new(u[0], u[1], u[2]);
+    let v = V::new(v[0], v[1], v[2]);
+    let x = u * (1.0 / u.norm());
+    let y = v - x * v.dot(x);
+    assert!(y.norm() > 0.0, "the frame's axes span a plane");
+    let y = y * (1.0 / y.norm());
+    let z = x.cross(y);
+    crate::Frame {
+        columns: [[x.x, x.y, x.z], [y.x, y.y, y.z], [z.x, z.y, z.z]],
+        translation: origin,
+    }
+}
+
+/// **The plane through `origin` with normal `normal`, read off a face of
+/// `body` that has that normal** (both in `body`'s own coordinates): the
+/// plane of the body's planar face whose outward normal is `normal`'s
+/// direction, or its opposite flipped, slid along it onto `origin` — a
+/// split's tool or a plane target parallel to a face of the body,
+/// written with no turn, so it stands exactly where it is meant. A face
+/// whose plane passes through `origin`, within `tol`'s ε, is that
+/// plane, read with no slide; of several, the first by name, so the
+/// face read is the document's choice and never the arena's. A placed
+/// copy is read where its placement put it, `origin` and `normal`
+/// carried there with it.
+///
+/// # Panics
+///
+/// If `body` has no planar face with that normal, either way, or no
+/// value; a plane no face of the body is parallel to is
+/// [`plane_on_frame`]'s.
+#[must_use]
+pub fn plane_on(
+    doc: &ProfileDoc,
+    body: impl Into<crate::Operand>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+    tol: geom_core::Tol,
+) -> crate::pose::RoleRead<crate::Operand> {
+    use crate::pose::{PoseDef, PoseRole, RoleRead};
+    use geom_core::linalg::{Point3, Vec3 as V};
+    let body = body.into();
+    let ev: crate::Evaluation<f64> = crate::evaluate(
+        doc,
+        None,
+        &crate::CancelToken::new(),
+        &crate::EvalOptions::default(),
+        tol,
+    );
+    let (node, solid, table, motion) =
+        crate::mate::corner::read_of(doc, &ev, &body).expect("the body has a value");
+    let motion = motion.map(|m| m.to_affine());
+    let n = V::new(normal[0], normal[1], normal[2]);
+    let n = n * (1.0 / n.norm());
+    let o = Point3::new(origin[0], origin[1], origin[2]);
+    let (n, o) = match motion {
+        None => (n, o),
+        Some(m) => (m.linear * n, m.transform_point(o)),
+    };
+    let parallel: Vec<_> = solid
+        .faces()
+        .filter_map(|(face, _)| {
+            let kind = topo::readback::face_carrier_kind(&solid, face).ok()?;
+            (kind == geom::SurfaceKind::Plane).then_some(())?;
+            let pose = topo::readback::face_pose(&solid, face).ok()?;
+            let out = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
+            let sense = if out.to_array() == n.to_array() {
+                1.0
+            } else if (-out).to_array() == n.to_array() {
+                -1.0
+            } else {
+                return None;
+            };
+            Some((face, sense, pose.origin))
+        })
+        .collect();
+    let named = |face| {
+        table
+            .name_of(&crate::names::EntityRef {
+                body: 0,
+                key: crate::names::EntityKey::Face(face),
+            })
+            .expect("a face of the body is named")
+            .clone()
+    };
+    let through = parallel
+        .iter()
+        .filter(|(_, _, at)| (o - *at).dot(n).abs() <= tol.eps())
+        .map(|&(face, sense, at)| (named(face), sense, at))
+        .min_by(|a, b| a.0.cmp(&b.0));
+    let (name, sense, at) = match through.clone() {
+        Some(on) => on,
+        None => parallel
+            .first()
+            .map(|&(face, sense, at)| (named(face), sense, at))
+            .unwrap_or_else(|| panic!("{node} has a planar face with normal {normal:?}")),
+    };
+    let read = |def| RoleRead::plain(crate::Operand::Pose(Box::new(def)));
+    let plane = read(PoseDef::Plane {
+        face: crate::Operand::select(body, vec![name]),
+    });
+    let plane = if sense > 0.0 {
+        plane
+    } else {
+        read(PoseDef::Flip { pose: plane })
+    };
+    if through.is_some() {
+        return plane;
+    }
+    let by = (o - at).dot(n);
+    let along = RoleRead::through(plane.read.clone(), PoseRole::Normal);
+    read(PoseDef::Slide {
+        pose: plane,
+        along,
+        by: crate::Formula::literal(by, Dimension::Length).expect("a finite slide"),
     })
 }
 
-/// The world xy frame as a node — origin at the world origin, sketch
-/// +x along world +x, sketch +y along world +y.
-pub fn xy_frame() -> crate::AuthoredNode {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
+/// **The plane through `origin` with normal `normal`, read off a frame
+/// on `body`'s own geometry** ([`frame_on`] through its `xy`): a
+/// plane no face of the body is parallel to. The frame's turns are read
+/// once off the geometry by `atan2` and written as numbers, so a plane
+/// meant on the body's axes stands there to the rounding of those
+/// turns; [`plane_on`] reads one a face is parallel to exactly. A
+/// test's tool, which no placement reads.
+///
+/// # Panics
+///
+/// If `normal` is zero or `body` offers no frame to read.
+#[must_use]
+pub fn plane_on_frame(
+    doc: &ProfileDoc,
+    body: impl Into<crate::Operand>,
+    origin: [f64; 3],
+    normal: [f64; 3],
+    tol: geom_core::Tol,
+) -> crate::pose::RoleRead<crate::Operand> {
+    use geom_core::linalg::Vec3 as V;
+    let n = V::new(normal[0], normal[1], normal[2]);
+    // Any axis off the normal starts the plane's own `x`.
+    let seed = if n.x.abs() <= n.y.abs().max(n.z.abs()) {
+        V::new(1.0, 0.0, 0.0)
+    } else {
+        V::new(0.0, 1.0, 0.0)
+    };
+    let u = seed - n * (seed.dot(n) / n.dot(n));
+    let v = n.cross(u);
+    let at = axes_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
+    let frame = frame_on(doc, &body.into(), &at, tol);
+    crate::pose::RoleRead::through(frame, crate::pose::PoseRole::Xy)
+}
+
+/// **A frame read off `body`'s own geometry, standing at `at` in its
+/// own coordinates**: `Through` the first edge by id with an axis and
+/// the first vertex by id off its line, spun about that frame's own x,
+/// y and z (`linear = Rz(γ)·Ry(β)·Rx(α)`, the angles taken once by
+/// `atan2`) and slid along them to `at`.
+///
+/// # Panics
+///
+/// If the body has no value, or no such edge and vertex.
+pub fn frame_on(
+    doc: &ProfileDoc,
+    body: &crate::Operand,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> crate::Operand {
+    frame_on_in(doc, &crate::EvalOptions::default(), body, at, tol)
+}
+
+/// [`frame_on`] under `opts` — which reaches the parts an instance
+/// copies.
+///
+/// # Panics
+///
+/// As [`frame_on`]'s.
+#[must_use]
+pub fn frame_on_in(
+    doc: &ProfileDoc,
+    opts: &crate::EvalOptions,
+    body: &crate::Operand,
+    at: &crate::Frame,
+    tol: geom_core::Tol,
+) -> crate::Operand {
+    use crate::names::{EntityKey, EntityRef};
+    use crate::pose::{PoseDef, RoleRead};
+    use crate::{FrameMove, TargetAxis};
+    use geom_core::UnitVec3;
+    let band = geom_core::predicate::Band::linear(tol).expect("a band");
+    let ev: crate::Evaluation<f64> =
+        crate::evaluate(doc, None, &crate::CancelToken::new(), opts, tol);
+    let (node, solid, table, motion) =
+        crate::mate::corner::read_of(doc, &ev, body).expect("the body has a value");
+    let name = |key| table.name_of(&EntityRef { body: 0, key }).cloned();
+    let picked = solid.edges().find_map(|(edge, _)| {
+        let kind = topo::readback::edge_carrier_kind(&solid, edge).ok()?;
+        matches!(
+            kind,
+            geom::CurveKind::Line | geom::CurveKind::Circle | geom::CurveKind::Ellipse
+        )
+        .then_some(())?;
+        let line = topo::readback::edge_pose(&solid, edge).ok()?;
+        let dir = UnitVec3::new(line.axis, topo::query::POSE_UNIT_NORM, band).ok()?;
+        let edge_name = name(EntityKey::Edge(edge))?;
+        solid.vertices().find_map(|(vertex, _)| {
+            let point = topo::readback::vertex_point(&solid, vertex).ok()?;
+            let off = point - line.origin;
+            let across = off - dir.get() * off.dot(dir.get());
+            UnitVec3::new(across, "frame_vertex_off_the_line", band).ok()?;
+            let vertex_name = name(EntityKey::Vertex(vertex))?;
+            let foot = line.origin + dir.get() * off.dot(dir.get());
+            let frame = geom_core::RigidMotion::from_aim_and_reference(
+                foot,
+                dir,
+                off,
+                topo::query::POSE_UNIT_NORM,
+                band,
+            )
+            .ok()?;
+            Some((edge_name.clone(), vertex_name, frame))
+        })
+    });
+    let (edge_name, vertex_name, frame) =
+        picked.unwrap_or_else(|| panic!("{node} offers a frame to read"));
+    let at = motion.map_or_else(|| at.affine(), |m| m.to_affine() * at.affine());
+    let read = |def: PoseDef<crate::Operand, Formula>| {
+        RoleRead::plain(crate::Operand::Pose(Box::new(def)))
+    };
+    let base = crate::Operand::Pose(Box::new(PoseDef::Through {
+        axis: read(PoseDef::Axis {
+            of: crate::Operand::select(body.clone(), vec![edge_name]),
+        }),
+        point: read(PoseDef::Point {
+            of: crate::Operand::select(body.clone(), vec![vertex_name]),
+        }),
+    }));
+    let rel = frame.to_affine().inverse() * at;
+    let columns = [rel.linear.c0, rel.linear.c1, rel.linear.c2].map(|c| [c.x, c.y, c.z]);
+    let spins = euler_turns(&columns)
+        .into_iter()
+        .filter(|(_, angle)| *angle != 0.0)
+        .map(|(axis, angle)| FrameMove::Spin(axis, ang(angle)));
+    let t = rel.translation;
+    let slides = [
+        (TargetAxis::X, t.x),
+        (TargetAxis::Y, t.y),
+        (TargetAxis::Z, t.z),
+    ]
+    .into_iter()
+    .filter(|(_, length)| *length != 0.0)
+    .map(|(axis, length)| FrameMove::Slide(axis, len(length)));
+    crate::moved_frame(base, &spins.chain(slides).collect::<Vec<_>>())
+}
+
+/// **The axis through `origin` along `dir`, read off two faces of
+/// `body`** (both in `body`'s own coordinates): the meet of the planes
+/// through `origin` across `dir` along the two coordinate axes it is
+/// not ([`plane_on`]), so a coordinate axis of the body is written
+/// with no turn. A pattern's axis or an axis target where a test
+/// writes one in the body's own coordinates.
+///
+/// # Panics
+///
+/// If `dir` is not a coordinate axis, either way, or `body` lacks a
+/// planar face across either of the other two.
+#[must_use]
+pub fn axis_on(
+    doc: &ProfileDoc,
+    body: impl Into<crate::Operand>,
+    origin: [f64; 3],
+    dir: [f64; 3],
+    tol: geom_core::Tol,
+) -> crate::pose::RoleRead<crate::Operand> {
+    use crate::pose::{PoseDef, RoleRead};
+    let body = body.into();
+    // The two coordinate axes across `dir`, in the order whose cross
+    // product is `dir`.
+    let (a, b) = match dir {
+        [0.0, 0.0, z] if z != 0.0 => ([1.0, 0.0, 0.0], [0.0, z.signum(), 0.0]),
+        [x, 0.0, 0.0] if x != 0.0 => ([0.0, 1.0, 0.0], [0.0, 0.0, x.signum()]),
+        [0.0, y, 0.0] if y != 0.0 => ([0.0, 0.0, 1.0], [y.signum(), 0.0, 0.0]),
+        _ => panic!("{dir:?} is a coordinate axis"),
+    };
+    let a = plane_on(doc, body.clone(), origin, a, tol);
+    let b = plane_on(doc, body, origin, b, tol);
+    RoleRead::plain(crate::Operand::Pose(Box::new(PoseDef::Meet { a, b })))
 }
 
 // --- recipes ---------------------------------------------------------
 
 /// **A cylinder split through a rim arc twice**: `circle(0, 0, 0.5)`
 /// extruded 1.0, split by the plane through `(0, 0.2, 0)` with normal
-/// `(0, 1, -1)`. The plane crosses the start rim arc twice and leaves
-/// the wall and the start cap one piece per side, under `tol`. Returns the document
-/// and the ids of the extrude, the plane datum and the split. No
+/// `(0, 1, -1)`, read off the cylinder's own geometry
+/// ([`plane_on_frame`]). The plane crosses the start rim arc twice and
+/// leaves the wall and the start cap one piece per side, under `tol`.
+/// Returns the document and the ids of the extrude and the split. No
 /// oracle: the rows that read it state what it must evaluate to.
 ///
 /// # Panics
 ///
 /// If a door refuses an insert.
-pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) {
+pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 2]) {
     let ins = |doc: ProfileDoc, node: crate::AuthoredNode| {
         let a = crate::apply(
             &doc,
@@ -292,11 +880,9 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
         (a.doc, a.record.minted.expect("an insert mints a node"))
     };
     let doc = ProfileDoc::empty_derived("clipped_cylinder", tol);
-    let (doc, plane) = ins(doc, xy_frame());
     let (doc, profile) = ins(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
         }),
@@ -306,24 +892,17 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: crate::ExtrudeSide::Along,
         },
     );
-    let (doc, tool) = ins(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.2), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(-1.0)],
-        }),
-    );
+    let tool = plane_on_frame(&doc, ext, [0.0, 0.2, 0.0], [0.0, 1.0, -1.0], tol);
     let (doc, split) = ins(
         doc,
         Node::Split {
             target: ext.into(),
-            tool: tool.into(),
+            tool,
         },
     );
-    (doc, [ext, tool, split])
+    (doc, [ext, split])
 }
 
 // --- the pick door --------------------------------------------------
@@ -429,12 +1008,12 @@ pub fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
 /// variant of `names::VerbatimEdge`, without the operands it carries.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum VerbatimKind {
-    /// `VerbatimEdge::Whole`: every body of the input, moved.
-    Whole,
     /// `VerbatimEdge::Selected`: one body of the input, projected.
     Selected,
     /// `VerbatimEdge::Intact`: the entities a split leaves intact.
     Intact,
+    /// `VerbatimEdge::Reflected`: a mirror's image.
+    Reflected,
 }
 
 /// **The name-carrying edge the recipe walks read `node` as, if any**:
@@ -450,9 +1029,9 @@ pub enum VerbatimKind {
 pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
     use crate::names::VerbatimEdge;
     Some(match crate::names::verbatim_edge(node)? {
-        VerbatimEdge::Whole { .. } => VerbatimKind::Whole,
         VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
-        VerbatimEdge::Intact => VerbatimKind::Intact,
+        VerbatimEdge::Intact { .. } => VerbatimKind::Intact,
+        VerbatimEdge::Reflected { .. } => VerbatimKind::Reflected,
     })
 }
 
@@ -540,12 +1119,13 @@ pub fn slot_spelling(doc: &ProfileDoc, node: RecipeNodeId, slot: crate::SlotId) 
 // --- a state no door admits -------------------------------------------
 
 /// **`mate` written into `placement`'s bundle past the bundle rule**:
-/// the constraint lowered and admitted as [`DocEdit::AddConstraint`]
-/// admits it into an empty bundle, then the bundle's other
-/// constraints put back beside it. The state a doctored save leaves, which
-/// no edit door admits and the fold refuses (`MateFault::Overconstrained`); for
-/// rows that hold the solve's half of the rule. Answers the document
-/// and the constraint's id.
+/// the constraint lowered as the door lowers it, its id minted, and
+/// admitted on its own datum as the door admits it, then appended
+/// beside the bundle's other constraints with no bundle check. The
+/// state a doctored save leaves, which no edit door admits and the fold
+/// refuses (`MateFault::Overconstrained`); for rows that hold the
+/// solve's half of the rule. Answers the document and the constraint's
+/// id.
 ///
 /// # Panics
 ///
@@ -555,39 +1135,43 @@ pub fn beside_past_the_bundle_rule(
     doc: &ProfileDoc,
     placement: RecipeNodeId,
     mate: crate::Mate<Formula>,
-    tol: geom_core::Tol,
+    _tol: geom_core::Tol,
 ) -> (ProfileDoc, crate::node::ConstraintId) {
-    let bundle = |doc: &mut ProfileDoc| match doc.nodes.get_mut(&placement) {
-        Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
-            std::mem::take(constraints)
-        }
-        _ => panic!("{placement} is no placement"),
+    let mut out = doc.clone();
+    // The mate lowered in a carrier bundle of its own, as the door
+    // lowers a bundle's constraints.
+    let carrier: Node<
+        <crate::program::ProfileProgram as crate::ProfilePayload>::Authored,
+        Formula,
+    > = Node::Place {
+        shapes: Vec::new(),
+        target: crate::Operand::Var(crate::VarId::WORLD),
+        constraints: vec![crate::Constraint::of_mate(
+            crate::node::ConstraintId::placeholder(1),
+            mate,
+        )],
     };
-    let mut emptied = doc.clone();
-    let held = bundle(&mut emptied);
-    let applied = crate::apply(
-        &emptied,
-        &DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(mate),
-            fresh: Vec::new(),
-        },
-        tol,
-    )
-    .unwrap_or_else(|e| panic!("the door admits the mate alone: {e}"));
-    let mut out = applied.doc;
-    let id = applied.record.minted_constraints[0];
-    // The door dropped the variables only the taken-out constraints
-    // read; they go back with them.
-    for (var, def) in &doc.vars {
-        out.vars.entry(*var).or_insert_with(|| def.clone());
-    }
-    let added = bundle(&mut out);
+    let Node::Place {
+        constraints: mut lowered,
+        ..
+    } = crate::edit::lower_node_into(&mut out, &carrier)
+        .unwrap_or_else(|e| panic!("the mate lowers: {e}"))
+    else {
+        unreachable!("a placement lowers to a placement")
+    };
+    let mut written = lowered.remove(0);
+    let id = out.mint.add_constraint(placement, &written.kind);
+    written.id = id;
+    let crate::mate::ConstraintKind::Mate(data) = &written.kind else {
+        unreachable!("the carrier holds a mate")
+    };
+    crate::mate::solve::admit_mate(&out, crate::MateRef::new(placement, id), data)
+        .unwrap_or_else(|e| panic!("the door admits the mate on its own: {e}"));
     match out.nodes.get_mut(&placement) {
         Some(Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) => {
-            *constraints = held.into_iter().chain(added).collect();
+            constraints.push(written);
         }
-        _ => unreachable!("the placement was found above"),
+        _ => panic!("{placement} is no placement"),
     }
     (out, id)
 }
@@ -665,4 +1249,46 @@ pub(crate) fn record_fold_row(
         relation: named.relation,
         spelled: spelled.clone(),
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{axes_at, moves_at};
+    use crate::{Coord, Formula, TargetAxis};
+
+    /// **A frame's quarter turns are read about the axes they turn
+    /// about**: a frame turned a quarter about each of the target
+    /// space's axes, and one turned about `x` then `z`, read back as
+    /// those spins, each `turn/4`, in the chain's order.
+    ///
+    /// *Breaks if* a turn about one axis is labelled with another.
+    #[test]
+    fn a_quarter_turn_is_read_about_its_own_axis() {
+        let quarter = Formula::turn_over(4).expect("a quarter turn");
+        let spins = |at| -> Vec<(Coord, Formula)> {
+            moves_at(&at)
+                .into_iter()
+                .filter(|(c, _)| matches!(c, Coord::Spin(_)))
+                .collect()
+        };
+        for (axis, x, y) in [
+            (TargetAxis::X, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            (TargetAxis::Y, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
+            (TargetAxis::Z, [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]),
+        ] {
+            assert_eq!(
+                spins(axes_at([0.0; 3], x, y)),
+                vec![(Coord::Spin(axis), quarter.clone())],
+                "a quarter turn about {axis:?}"
+            );
+        }
+        // About x, then z: x ↦ y, y ↦ z, z ↦ x.
+        assert_eq!(
+            spins(axes_at([0.0; 3], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0])),
+            vec![
+                (Coord::Spin(TargetAxis::X), quarter.clone()),
+                (Coord::Spin(TargetAxis::Z), quarter),
+            ],
+        );
+    }
 }

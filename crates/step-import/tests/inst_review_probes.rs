@@ -190,9 +190,12 @@ fn three_instances_of_one_component() {
     }
     let v_box = (hi[0] - lo[0]) * (hi[1] - lo[1]) * (hi[2] - lo[2]);
     let v_sphere = 4.0 / 3.0 * std::f64::consts::PI * 0.5f64.powi(3);
-    let got = topo::mass_properties(&body, Tol::witness())
-        .expect("mass properties")
-        .volume
+    let got = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
         * 1e9;
     let want = 3.0 * v_box + v_sphere;
     assert!(

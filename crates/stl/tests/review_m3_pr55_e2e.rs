@@ -11,12 +11,12 @@
 
 use crate::common::finished;
 use geom_core::Tol;
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::{Point2, Point3, RigidMotion, Turns, UnitVec3};
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
 use sweep::ExtrudeSide;
-use sweep::test_support::sketch_from_axes;
+
 use sweep::{Extrusion, extrude};
 use topo::{AtRestBody, BooleanResult, mass_properties, subtract, validate, validate_closed};
 
@@ -27,14 +27,7 @@ fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<
 }
 
 /// A rectangular raw-extrude brick on an arbitrary sketch frame.
-fn slab(
-    origin: Point3<f64>,
-    u: Vec3<f64>,
-    v: Vec3<f64>,
-    w: (f64, f64),
-    h: (f64, f64),
-    depth: f64,
-) -> AtRestBody<f64> {
+fn slab(frame: RigidMotion<f64>, w: (f64, f64), h: (f64, f64), depth: f64) -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(w.0, h.0),
         Point2::new(w.1, h.0),
@@ -42,7 +35,7 @@ fn slab(
         Point2::new(w.0, h.1),
     ]);
     let body = extrude(
-        &validated(sketch_from_axes(origin, u, v, Tol::witness()), lp),
+        &validated(SketchPlane::from_frame(frame), lp),
         Extrusion::Distance {
             depth,
             side: ExtrudeSide::Along,
@@ -58,22 +51,31 @@ fn slab(
 /// square, 0.125 deep, {0.5,1,1.5} grid, opposite faces sum 7).
 #[test]
 fn die_from_raw_extrudes_watertight_stl() {
-    let o = Point3::new(0.0, 0.0, 0.0);
-    let (ex, ey, ez) = (
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
+    let mut acc = slab(
+        RigidMotion::axes_xy(Point3::origin()),
+        (0.0, 2.0),
+        (0.0, 2.0),
+        2.0,
     );
-    let mut acc = slab(o, ex, ey, (0.0, 2.0), (0.0, 2.0), 2.0);
     let g = [0.5, 1.0, 1.5];
-    // (sketch origin, u, v, pip centers (u,v)) per face; sketch plane
-    // sits 0.125 under the face, extrude 0.625 outward.
-    let faces: [(Point3<f64>, Vec3<f64>, Vec3<f64>, Vec<(f64, f64)>); 6] = [
-        (Point3::new(0.0, 0.0, 1.875), ex, ey, vec![(g[1], g[1])]),
+    // (sketch frame, pip centers (u,v)) per face; sketch plane sits
+    // 0.125 under the face, extrude 0.625 outward. Each face's frame is
+    // a world frame or a written turn of one.
+    let (x, y, z) = (
+        UnitVec3::exact_x(),
+        UnitVec3::exact_y(),
+        UnitVec3::exact_z(),
+    );
+    let faces: [(RigidMotion<f64>, Vec<(f64, f64)>); 6] = [
         (
-            Point3::new(0.0, 0.0, 0.125),
-            ey,
-            ex, // normal -z
+            RigidMotion::axes_xy(Point3::new(0.0, 0.0, 1.875)),
+            vec![(g[1], g[1])],
+        ),
+        (
+            // (ŷ, x̂), normal −ẑ
+            RigidMotion::turned(Point3::new(0.0, 0.0, 0.125), z, Turns::quarters(1))
+                .compose(RigidMotion::half_turn_x())
+                .unwrap(),
             vec![
                 (g[0], g[0]),
                 (g[1], g[1]),
@@ -84,15 +86,12 @@ fn die_from_raw_extrudes_watertight_stl() {
             ],
         ),
         (
-            Point3::new(1.875, 0.0, 0.0),
-            ey,
-            ez, // normal +x
+            RigidMotion::axes_yz(Point3::new(1.875, 0.0, 0.0)),
             vec![(g[0], g[0]), (g[2], g[2])],
         ),
         (
-            Point3::new(0.125, 0.0, 0.0),
-            ez,
-            ey, // normal -x
+            // (ẑ, ŷ), normal −x̂
+            RigidMotion::turned(Point3::new(0.125, 0.0, 0.0), y, Turns::quarters(-1)),
             vec![
                 (g[0], g[0]),
                 (g[2], g[2]),
@@ -102,25 +101,20 @@ fn die_from_raw_extrudes_watertight_stl() {
             ],
         ),
         (
-            Point3::new(0.0, 1.875, 0.0),
-            ez,
-            ex, // normal +y
+            RigidMotion::axes_zx(Point3::new(0.0, 1.875, 0.0)),
             vec![(g[0], g[0]), (g[1], g[1]), (g[2], g[2])],
         ),
         (
-            Point3::new(0.0, 0.125, 0.0),
-            ex,
-            ez, // normal -y
+            // (x̂, ẑ), normal −ŷ
+            RigidMotion::turned(Point3::new(0.0, 0.125, 0.0), x, Turns::quarters(1)),
             vec![(g[0], g[0]), (g[2], g[2]), (g[0], g[2]), (g[2], g[0])],
         ),
     ];
     let mut pips = 0u32;
-    for (origin, u, v, centers) in faces {
+    for (frame, centers) in faces {
         for (cu, cv) in centers {
             let pip = slab(
-                origin,
-                u,
-                v,
+                frame,
                 (cu - 0.125, cu + 0.125),
                 (cv - 0.125, cv + 0.125),
                 0.625,

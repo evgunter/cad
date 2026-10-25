@@ -19,9 +19,7 @@
 use geom::Surface;
 use geom_core::Point3;
 use geom_core::Tol;
-use topo::{
-    FaceSurface, ValidationError, mass_properties, validate, validate_closed, validate_geometric,
-};
+use topo::{FaceSurface, ValidationError, validate, validate_closed, validate_geometric};
 
 use crate::common;
 
@@ -39,7 +37,8 @@ fn mirrored_cube_is_caught_by_negative_volume() {
         "tier 2 cannot see orientation"
     );
     // The exact machinery agrees the volume is −1.
-    let props = mass_properties(&body, Tol::witness()).unwrap();
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let props = topo::test_support::measure_unvalidated(&body, Tol::witness()).unwrap();
     assert!(
         (props.volume + 1.0).abs() < 1e-12,
         "mirrored cube volume: {}",
@@ -101,7 +100,8 @@ fn thin_inverted_slab_reads_inside_out() {
     // (b) a slab Kε thick: builds, is inside out, refuses.
     let t = 10.0 * eps; // = Kε at default K: certifies; |V|/A = 5ε ∈ (ε, Kε).
     let body = common::mapped_cube(|x, y, z| Point3::new(-x, y, z * t), Tol::witness());
-    let props = mass_properties(&body, Tol::witness()).unwrap();
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let props = topo::test_support::measure_unvalidated(&body, Tol::witness()).unwrap();
     assert!(props.volume < 0.0, "the slab is genuinely inside out");
     let solid = body.solids().next().expect("one solid").0;
     assert_eq!(

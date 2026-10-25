@@ -86,7 +86,10 @@ fn every_door(operand: &AtRestBody<Dual64>) -> Vec<(&'static str, Option<SplitRe
 #[test]
 fn the_inside_out_wedge_does_not_finish_at_f64_or_interval() {
     let tol = Tol::witness();
-    let volume = mass_properties(&wedge::<f64>(false), tol).unwrap().volume;
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let volume = topo::test_support::measure_unvalidated(&wedge::<f64>(false), tol)
+        .unwrap()
+        .volume;
     assert!(
         (volume + 0.5 * 0.5 * 110f64.to_radians().sin()).abs() < 1e-12,
         "the clockwise wedge encloses minus its area times its height: {volume}"
@@ -157,10 +160,13 @@ fn brick_beside_inside_out_wedge() -> Body<Dual64> {
     }
     common::describe_as_intersections(&mut parts, tol);
     assert!(
-        mass_properties_structural(&parts, tol)
-            .unwrap()
-            .volume
-            .value
+        mass_properties_structural(
+            &topo::test_support::finished("the parts", parts.clone(), tol),
+            tol
+        )
+        .unwrap()
+        .volume
+        .value
             > 0.0,
         "the body's total is positive, so it hides the part's sign"
     );

@@ -116,10 +116,20 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
 /// **The fixture** is `common::strip_section`'s thin curved strip:
 /// two large rational walls whose fluxes nearly cancel, so the volume
 /// is `≈ 2·s·delta` per unit height while the enclosure width is the
-/// walls' own. At `s = 1e12·ε` the schedule is exhausted after round 0
-/// at every ε — the family's disposition is a function of `delta/s`
-/// alone, which is why two thicknesses pin the same two arms at every
-/// ε row rather than going vacuous at one of them. Both traversal
+/// walls' own. At `s = 1e14·ε` no wall reaches the reporting target
+/// at any ε (each stops at the work wall after 11 rounds, 2.489e-5 m
+/// against 1.024e-6 m at ε = 1e-9), so the sign walk runs the schedule
+/// out wherever the sign stays open: at `delta/s = 1e-1` it settles and
+/// the number is refused, and at `1e-10` it does not settle and check 7
+/// refuses `VolumeUncomputable` (measured at 1e-9; `1e-8` settles, so
+/// the refusing arm sits two decades past it). The scale was `1e12·ε`
+/// and the thin arm `1e-8` while every lane stopped at its round cap
+/// and refused a face at round 0 on a predicted last round: the walls
+/// now refine to the work wall, which certifies the `1e12·ε` strip's
+/// number and settles its `1e-8` sign.
+/// The family's disposition is a function of `delta/s` alone, which is
+/// why two thicknesses pin the same two arms at every ε row rather than
+/// going vacuous at one of them. Both traversal
 /// senses are built: the reversed strip is the inside-out twin, and
 /// an undecided sign cannot tell it from the upright one, which is
 /// the whole reason an undecided sign may not pass.
@@ -129,9 +139,9 @@ fn strip_loft(s: f64, delta: f64, reversed: bool) -> Option<Body<f64>> {
 #[test]
 fn an_undecided_sign_with_the_schedule_run_out_refuses() {
     let tol = Tol::witness();
-    let s = 1.0e12 * tol.get().eps;
+    let s = 1.0e14 * tol.get().eps;
     let (mut admitted, mut refused) = (0usize, 0usize);
-    for rel in [1e-1, 1e-3] {
+    for rel in [1e-1, 1e-10] {
         for reversed in [false, true] {
             let label = format!("strip rel={rel:e} reversed={reversed}");
             let body = strip_loft(s, rel * s, reversed)
@@ -156,16 +166,22 @@ fn an_undecided_sign_with_the_schedule_run_out_refuses() {
                 continue;
             };
             let e = cert.enclosure();
-            if let Some(outstanding) = cert.target_refusal() {
-                assert!(
-                    e.volume_lo > 0.0,
-                    "{label}: tier 3 admitted a body whose number is refused \
-                     ({outstanding:?}) and whose volume enclosure [{}, {}] does not \
-                     exclude zero — an undecided sign is not a pass",
-                    e.volume_lo,
-                    e.volume_hi
-                );
-                admitted += 1;
+            match cert.measure() {
+                Err(topo::TargetUnreached { refusal, .. }) => {
+                    assert!(
+                        e.volume_lo > 0.0,
+                        "{label}: tier 3 admitted a body whose number is refused \
+                         ({refusal}) and whose volume enclosure [{}, {}] does not \
+                         exclude zero — an undecided sign is not a pass",
+                        e.volume_lo,
+                        e.volume_hi
+                    );
+                    admitted += 1;
+                }
+                Ok(props) => panic!(
+                    "{label}: at s = 1e14·ε no wall reaches the reporting target, yet the \
+                     number measured: {props:?}"
+                ),
             }
         }
     }
@@ -216,8 +232,11 @@ fn the_gate_certifies_a_sign_and_the_continuation_certifies_the_number() {
         let mut continued = None;
         let refine = quad_verdicts(|| continued = Some(gated.refine_to_target()));
         let continued = continued.expect("the closure ran");
+        // Finished outside the count: the count is the one measurement's.
+        let finished =
+            topo::test_support::finished("the measured body", topo::Body::clone(&body), tol);
         let mut measured = None;
-        let one = quad_verdicts(|| measured = Some(topo::mass_properties(&body, tol)));
+        let one = quad_verdicts(|| measured = Some(topo::mass_properties(&finished, tol)));
         let measured = measured.expect("the closure ran");
 
         // REUSE: no round run twice, none skipped — on EVERY roster

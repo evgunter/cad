@@ -6,15 +6,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
-use crate::fixture::{ang, fname, insert, len, len2, on_frame, out, scl, table};
+use crate::blocks::{block, block_on, failure, run};
+use crate::emit_shared_rim_several::own_name;
+use crate::fixture::{fname, insert, len, len2, on_frame, out, scl, table};
 
 use editor_core::{
-    Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, Datum, EntityKey, EntityKind, Entry,
+    Advisory, CapEnd, CheckEvidence, CheckId, ChecksConfig, EntityKey, EntityKind, Entry,
     EvalOptions, Evaluation, FindingSubject, Formula, LoopProgram, NamedCell, NamedCoincidence,
     Node, PartSelect, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     Proof, RecipeNodeId, RoleSeg, Rung, Severity, SplitHalf, StableName, ValuePayload, VarId,
-    coincide, spoken_by,
+    coincide,
 };
 use geom_core::{MarginDiag, Point3, Tol};
 use topo::{DecisionSite, Relation};
@@ -116,10 +117,15 @@ fn entity(input: VarId, name: &StableName) -> NamedCell {
 #[test]
 fn a_glued_rest_and_its_corners_are_unproven_rows_named_by_their_operands() {
     let doc = ProfileDoc::empty_derived("coincide-declared-rest", Tol::witness());
-    let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, plate) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
+    let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, plate) = block_on(doc, base, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
     let top = fname(base, RoleSeg::Cap(CapEnd::End));
-    let bottom = fname(plate, RoleSeg::Cap(CapEnd::Start));
+    let bottom = own_name(
+        &doc,
+        plate,
+        EntityKind::Face,
+        vec![RoleSeg::Cap(CapEnd::Start)],
+    );
     let (doc, union) = insert(
         doc,
         Node::Union {
@@ -252,12 +258,11 @@ fn face_of(
 }
 
 /// **The same construction read twice is proven, through the
-/// placement** (§11 row 4). A box placed by a transform and split in
-/// two: each half's `−x` wall is a piece of the one extruded wall, read
-/// through the one transform, so a row over them is
+/// placement** (§11 row 4). A box's placed copy split in two: each
+/// half's `−x` wall is a piece of the one extruded wall, read through
+/// the one placement, so a row over them is
 /// `Structural(SameConstruction)`. The box's own wall against a half's
-/// is two constructions — the placed copy is not the unplaced one, and
-/// the walk sees the transform although it adds no name segment — and
+/// is two constructions — the placed copy is not the unplaced one — and
 /// stays unproven.
 ///
 /// The row is built here over the scene's real cells; the production
@@ -266,30 +271,14 @@ fn face_of(
 #[test]
 fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let doc = ProfileDoc::empty_derived("coincide-same-source", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, placed) = insert(
-        doc,
-        Node::transform(
-            the_box,
-            editor_core::Step::Rigid {
-                translation: [len(3.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, placed) = crate::fixture::slid(doc, the_box, the_box, [3.0, 0.0, 0.0]);
+    let tool = crate::fixture::plane_on(&doc, the_box, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: placed.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let ev = run(&doc);
@@ -336,8 +325,8 @@ fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
 #[test]
 fn a_unions_rows_follow_its_member_order() {
     let doc = ProfileDoc::empty_derived("coincide-union-order", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let n = crate::fixture::flush_segs(&doc, a).len();
     let mut seen = Vec::new();
     for members in [[a, b], [b, a]] {
@@ -397,7 +386,7 @@ fn a_unions_rows_follow_its_member_order() {
 #[test]
 fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
     let doc = ProfileDoc::empty_derived("coincide-pattern", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -451,10 +440,10 @@ fn a_patterns_instances_are_two_constructions_of_one_minted_face() {
         panic!("both cells walk to the box: {residual:?}")
     };
     assert_eq!(a.origin, b.origin, "one extrude minted both tops");
-    assert_ne!(a.placed, b.placed, "placed by two instances");
+    assert_ne!(a.maps, b.maps, "placed by two instances");
     assert_eq!(
         residual.to_string(),
-        "the two cells are one construction placed apart; the replay with every variable a \
+        "the two cells are one construction placed or reflected apart; the replay with every variable a \
          symbol took other decisions there",
         "a row no node decided matches no row of the replay"
     );
@@ -497,7 +486,7 @@ fn edge_named(ev: &Evaluation<f64>, node: RecipeNodeId, a: [f64; 3], b: [f64; 3]
 #[test]
 fn a_filleted_box_records_one_unproven_turn_per_corner() {
     let doc = ProfileDoc::empty_derived("coincide-mitre", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 1.0);
     let ev = run(&doc);
     let corners = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.5], [0.0, 1.5]];
     let rim = |z: f64| -> Vec<StableName> {
@@ -539,9 +528,9 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
     );
     assert_eq!(
         recourses(&proved),
-        [Some(coincide::Recourse::OneConstruction); 8],
+        [Some(coincide::Recourse::Budget); 8],
         "the feet distance freezes on the door's budget, which is no value computed apart \
-         from the variables: no special recourse"
+         from the variables: the recourse names the budget"
     );
     assert_eq!(unproven(&doc, &ev).len(), 8);
 }
@@ -559,18 +548,25 @@ fn a_supplementary_chamfer_turn_is_recorded_unproven() {
     let s = 0.3;
     let (z0, z1) = (-0.5, 1.5);
     let doc = ProfileDoc::empty_derived("coincide-supplementary", Tol::witness());
+    // Each prism is drawn on its own xy. The `y`-running prism is the
+    // root, its own frame the world's plane `y = 3.5` (x along x, y
+    // along z, extruded toward −y); the `x`-running one stands on the
+    // plane `x = 3.5` (x along −y, y along z, extruded toward −x),
+    // spelled in the root's own coordinates, where a world point `p`
+    // reads `(p.x, p.z, 3.5 − p.y)`.
+    let identity = ([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
     let (doc, along_y) = on_frame(
         doc,
-        [0.0, 3.5, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        identity.0,
+        identity.1,
+        identity.2,
         vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0 + s, 1.0), (s, 1.0)]],
     );
     let (doc, along_x) = on_frame(
         doc,
-        [3.5, 0.0, 0.0],
-        [0.0, -1.0, 0.0],
-        [0.0, 0.0, 1.0],
+        identity.0,
+        identity.1,
+        identity.2,
         vec![vec![
             (-1.5 - s * z0, z0),
             (-s * z0, z0),
@@ -581,10 +577,15 @@ fn a_supplementary_chamfer_turn_is_recorded_unproven() {
     let extrude = |profile: RecipeNodeId| Node::Extrude {
         profile: profile.into(),
         distance: len(5.0),
-        side: editor_core::ExtrudeSide::Along,
     };
     let (doc, y) = insert(doc, extrude(along_y));
     let (doc, x) = insert(doc, extrude(along_x));
+    let (doc, x) = crate::fixture::against(
+        doc,
+        y,
+        x,
+        &crate::fixture::axes_at([3.5, 0.0, 3.5], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
+    );
     let (doc, sheared) = insert(
         doc,
         Node::Intersect {
@@ -592,10 +593,11 @@ fn a_supplementary_chamfer_turn_is_recorded_unproven() {
         },
     );
     let ev = run(&doc);
-    let w = [2.0 + s, s, 1.0];
+    let into_y = |p: [f64; 3]| [p[0], p[2], 3.5 - p[1]];
+    let w = into_y([2.0 + s, s, 1.0]);
     let edges = vec![
-        edge_named(&ev, sheared, w, [s, s, 1.0]),
-        edge_named(&ev, sheared, w, [2.0 + s, 1.5 + s, 1.0]),
+        edge_named(&ev, sheared, w, into_y([s, s, 1.0])),
+        edge_named(&ev, sheared, w, into_y([2.0 + s, 1.5 + s, 1.0])),
     ];
     let (doc, chamfer) = insert(doc, Node::chamfer(sheared, len(0.1), edges));
     let ev = run(&doc);
@@ -634,21 +636,14 @@ fn split_prism(
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(at), len(0.0)],
-            normal: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-    );
+    let tool = crate::fixture::plane_on_frame(&doc, prism, [0.0, at, 0.0], [0.0, 1.0, 0.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: prism.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let ev = run(&doc);
@@ -715,7 +710,7 @@ fn a_split_through_a_pinch_records_one_row_per_pinched_vertex() {
 #[test]
 fn the_check_off_is_visibly_skipped() {
     let doc = ProfileDoc::empty_derived("coincide-off", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 1.0);
     let ev = run(&doc);
     let edges = vec![
         edge_named(&ev, the_box, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
@@ -755,19 +750,13 @@ fn the_check_off_is_visibly_skipped() {
 #[test]
 fn a_reunited_splits_section_caps_are_one_construction() {
     let doc = ProfileDoc::empty_derived("coincide-reunite", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let tool = crate::fixture::plane_on(&doc, the_box, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: the_box.into(),
-            tool: tool.into(),
+            tool,
         },
     );
     let ev = run(&doc);
@@ -812,17 +801,25 @@ fn a_reunited_splits_section_caps_are_one_construction() {
         "both caps lie on the one tool plane"
     );
     let [Ok(a), Ok(b)] = caps.each_ref().map(|c| match c {
-        NamedCell::Entity { input, name } => coincide::construction(&doc, *input, name),
+        NamedCell::Entity { input, name } => {
+            coincide::construction(&doc, *input, name, Tol::witness())
+        }
         NamedCell::Tool { .. } | NamedCell::Piece { .. } => unreachable!(),
     }) else {
         panic!("both caps walk")
     };
-    assert_eq!(a.origin, coincide::Origin::Datum(tool, None));
+    let Some(Node::Split { tool, .. }) = doc.node(split) else {
+        panic!("the split")
+    };
+    assert_eq!(a.origin, coincide::Origin::Pose(tool.read, tool.role));
     assert_eq!(a, b);
+    // The halves' copies of one crossing are one construction: the
+    // split, the crossed edge and the sense against the `Above` half.
     for proof in proofs(&doc, union, &got) {
-        assert!(
-            matches!(proof, Proof::Structural(_)),
-            "every row of the reunion is one construction: {proof:?}"
+        assert_eq!(
+            proof,
+            Proof::Structural(Rung::SameConstruction),
+            "every row of the reunion is one construction, with no replay"
         );
     }
     let report = editor_core::run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness())
@@ -841,12 +838,368 @@ fn a_reunited_splits_section_caps_are_one_construction() {
     );
 }
 
+/// Whether `cell` names a split's crossing vertex, through any copies
+/// a placement made of it.
+fn a_crossing(cell: &NamedCell) -> bool {
+    fn crossing(name: &StableName) -> bool {
+        match name.path.first() {
+            Some(RoleSeg::CrossingVertex { .. }) => true,
+            Some(RoleSeg::Placed { of }) => crossing(of),
+            _ => false,
+        }
+    }
+    matches!(cell, NamedCell::Entity { name, .. } if crossing(name))
+}
+
+/// **A split's crossing vertex lies on its tool's plane, and so on the
+/// face the plane is read off.** A unit block `X` standing in a wider
+/// slab `Y` half as tall is split by the plane of `Y`'s top, and `X`'s
+/// upper half is unioned with `Y`. The four crossings of `X`'s struts
+/// lie on `Y`'s top as the split built them, and the section face is
+/// `Y`'s top read again, so every row the union decides there is the
+/// first rung's, with no replay. The replay cannot prove the crossings
+/// at any budget: the plane's normal is the document's, opaque to the
+/// tier.
+///
+/// *Breaks if* a crossing vertex is not read as lying on its split's
+/// tool plane.
+#[test]
+fn a_split_on_a_faces_plane_lays_its_crossings_on_that_face() {
+    let doc = ProfileDoc::empty_derived("coincide-crossings-on-a-face", Tol::witness());
+    let (doc, slab) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.5);
+    let (doc, x) = block_on(doc, slab, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let tool = crate::fixture::plane_on(&doc, slab, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: x.into(),
+            tool,
+        },
+    );
+    let upper = port(&doc, split, SplitHalf::Above);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![upper.into(), slab.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let got = rows(&ev, union);
+    let crossings: Vec<&NamedCoincidence> = got
+        .iter()
+        .filter(|r| r.relation == Relation::OnCarrier && r.cells.iter().any(a_crossing))
+        .collect();
+    assert_eq!(
+        crossings.len(),
+        4,
+        "the premise: each strut's crossing on the slab's top: {got:?}"
+    );
+    for (row, proof) in got.iter().zip(proofs(&doc, union, &got)) {
+        assert_eq!(
+            proof,
+            Proof::Structural(Rung::SameConstruction),
+            "the union's row over the slab's top is one construction: {row:?}"
+        );
+    }
+}
+
+/// **A half's copy of an operand vertex the tool passes through stays
+/// a coincidence of values**: a unit cube turned off every axis stands
+/// in a slab, levelled so that one of its middle corners is at the
+/// slab's top by the numbers alone. The cube is split by the plane of
+/// the slab's top, and its upper half is unioned with the slab. That
+/// corner's copy (`OnToolVertex`) lies on the slab's top where its
+/// values put it, not as the split built it, so the row laying it
+/// there is no first-rung proof, and the check reports it. The
+/// crossings beside it lie on the top by construction.
+///
+/// *Breaks if* an `OnToolVertex` is read as lying on its split's tool
+/// by construction.
+#[test]
+fn a_corner_the_tool_passes_through_is_not_on_it_by_construction() {
+    use geom_core::Point3;
+    let band = geom_core::Band::linear(Tol::witness()).expect("the witness band");
+    let turn =
+        editor_core::Frame::rotate_then_translate([1.0, 2.0, 3.0], 0.4, [0.5, 0.5, 0.25], band)
+            .expect("a turn about a unit axis");
+    let mut heights: Vec<f64> = [0.0, 1.0]
+        .into_iter()
+        .flat_map(|x| {
+            [0.0, 1.0]
+                .into_iter()
+                .flat_map(move |y| [0.0, 1.0].map(|z| [x, y, z]))
+        })
+        .map(|[x, y, z]| turn.affine::<f64>().transform_point(Point3::new(x, y, z)).z)
+        .collect();
+    heights.sort_by(f64::total_cmp);
+    let level = heights[3];
+    let doc = ProfileDoc::empty_derived("coincide-on-tool-vertex", Tol::witness());
+    let (doc, slab) = block(doc, (-2.0, 3.0), (-2.0, 3.0), level);
+    let (doc, cube) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, cube) = crate::fixture::against(doc, slab, cube, &turn);
+    let tool = crate::fixture::plane_on(&doc, slab, [0.0, 0.0, level], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: cube.into(),
+            tool,
+        },
+    );
+    let upper = port(&doc, split, SplitHalf::Above);
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![upper.into(), slab.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let got = rows(&ev, union);
+    let on_tool = |cell: &NamedCell| {
+        matches!(cell, NamedCell::Entity { name, .. }
+            if matches!(name.path.first(), Some(RoleSeg::OnToolVertex { .. })))
+    };
+    let proven = proofs(&doc, union, &got);
+    let laid: Vec<(&NamedCoincidence, &Proof)> = got
+        .iter()
+        .zip(&proven)
+        .filter(|(r, _)| r.relation == Relation::OnCarrier && r.cells.iter().any(on_tool))
+        .collect();
+    assert_eq!(
+        laid.len(),
+        1,
+        "the premise: the levelled corner laid on the slab's top: {got:?}"
+    );
+    for (row, proof) in &laid {
+        assert!(
+            matches!(proof, Proof::Unproven { .. }),
+            "a corner on the tool by its values is unproven: {row:?} {proof:?}"
+        );
+    }
+    for (row, proof) in got.iter().zip(&proven) {
+        if row.cells.iter().any(a_crossing) {
+            assert_eq!(
+                *proof,
+                Proof::Structural(Rung::SameConstruction),
+                "a crossing lies on the top by construction: {row:?}"
+            );
+        }
+    }
+}
+
+/// **A crossing of a half a placement moves is not on the unmoved
+/// face by construction**: [`a_split_on_a_faces_plane_lays_its_crossings_on_that_face`]'s
+/// scene, with the upper half placed `(0.25, 0, 0)` along the slab
+/// before the union. Each crossing's construction carries the
+/// placement's map and the slab's top does not, so though the half
+/// still rests on the top, no crossing row is the first rung's.
+///
+/// *Breaks if* a crossing is laid on its tool's face without the maps
+/// above the split.
+#[test]
+fn a_placed_halfs_crossings_are_not_on_the_unplaced_face_by_construction() {
+    let doc = ProfileDoc::empty_derived("coincide-placed-half", Tol::witness());
+    let (doc, slab) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.5);
+    let (doc, x) = block_on(doc, slab, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let tool = crate::fixture::plane_on(&doc, slab, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: x.into(),
+            tool,
+        },
+    );
+    let upper = port(&doc, split, SplitHalf::Above);
+    let (doc, moved) = crate::fixture::against(
+        doc,
+        slab,
+        upper,
+        &editor_core::Frame::translation([0.25, 0.0, 0.0]),
+    );
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![moved.into(), slab.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let got = rows(&ev, union);
+    let crossings: Vec<(&NamedCoincidence, Proof)> = got
+        .iter()
+        .zip(proofs(&doc, union, &got))
+        .filter(|(r, _)| r.relation == Relation::OnCarrier && r.cells.iter().any(a_crossing))
+        .collect();
+    assert_eq!(
+        crossings.len(),
+        4,
+        "the premise: the four crossings: {got:?}"
+    );
+    for (row, proof) in crossings {
+        assert_ne!(
+            proof,
+            Proof::Structural(Rung::SameConstruction),
+            "a placed crossing is read on the unplaced top by construction: {row:?}"
+        );
+    }
+}
+
+/// **An arc crossed twice reunites**: a disc's cylinder split by a
+/// plane off its axis, so each rim circle is crossed twice and each
+/// half holds one crossing of each sense on it, then the halves
+/// unioned again. The halves' copies pair per crossing, the `Above`
+/// half's `Enters` with the `Below` half's `Leaves`, so every crossing
+/// row is the first rung's.
+///
+/// *Breaks if* the two halves' copies of a crossing are read with each
+/// half's own sense, or ranked apart.
+#[test]
+fn an_arc_crossed_twice_reunites_by_construction() {
+    let doc = ProfileDoc::empty_derived("coincide-arc-twice", Tol::witness());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("a circle")],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, disc) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+        },
+    );
+    let (doc, wall) = block_on(doc, disc, (-1.0, 1.0), (-1.0, 0.2), 0.0, 1.0);
+    let tool = crate::fixture::plane_on(&doc, wall, [0.0, 0.2, 0.0], [0.0, 1.0, 0.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: disc.into(),
+            tool,
+        },
+    );
+    let (above, below) = (
+        port(&doc, split, SplitHalf::Above),
+        port(&doc, split, SplitHalf::Below),
+    );
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
+        },
+    );
+    let ev = run(&doc);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    let got = rows(&ev, union);
+    let crossings: Vec<(&NamedCoincidence, Proof)> = got
+        .iter()
+        .zip(proofs(&doc, union, &got))
+        .filter(|(r, _)| r.cells.iter().any(a_crossing))
+        .collect();
+    assert_eq!(
+        crossings.len(),
+        4,
+        "the premise: two crossings on each rim: {got:?}"
+    );
+    for (row, proof) in crossings {
+        assert_eq!(
+            proof,
+            Proof::Structural(Rung::SameConstruction),
+            "a crossing's two copies are one construction: {row:?}"
+        );
+    }
+}
+
+/// **A section edge lies on the operand face it runs across**: a row
+/// laying the upper half's section edge on the lower half's fragment
+/// of that edge's wall is the first rung's, and one laying it on the
+/// fragment of a wall it does not cross is not. The rows are written
+/// here: no node decides an edge on a face of the other half.
+///
+/// *Breaks if* a section edge is not read as on its wall, or is read
+/// as on every wall.
+#[test]
+fn a_section_edge_lies_on_the_wall_it_runs_across() {
+    let doc = ProfileDoc::empty_derived("coincide-section-edge", Tol::witness());
+    let (doc, cube) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let tool = crate::fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: cube.into(),
+            tool,
+        },
+    );
+    let (above, below) = (
+        port(&doc, split, SplitHalf::Above),
+        port(&doc, split, SplitHalf::Below),
+    );
+    let (doc, union) = insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![above.into(), below.into()]),
+        },
+    );
+    let ev = run(&doc);
+    let names = |half| -> Vec<StableName> {
+        crate::fixture::half(&ev, split, half)
+            .iter()
+            .map(|(name, _)| name.clone())
+            .collect()
+    };
+    let (upper, lower) = (names(SplitHalf::Above), names(SplitHalf::Below));
+    let (edge, across) = upper
+        .iter()
+        .find_map(|n| match n.path.first() {
+            Some(RoleSeg::SectionEdge { face }) => Some((n.clone(), face.clone())),
+            _ => None,
+        })
+        .expect("the premise: a section edge of the upper half");
+    let fragment = |of: &dyn Fn(&StableName) -> bool| {
+        lower
+            .iter()
+            .find(|n| {
+                n.kind == EntityKind::Face
+                    && matches!(n.path.first(), Some(RoleSeg::SplitFragment { parent }) if of(parent))
+            })
+            .cloned()
+            .expect("the premise: a fragment of the lower half")
+    };
+    let its_wall = fragment(&|parent| *parent == *across);
+    let another = fragment(&|parent| {
+        *parent != *across && matches!(parent.path.first(), Some(RoleSeg::Lateral(_)))
+    });
+    let laid = |face: &StableName| {
+        let margin = MarginDiag::value(0.0);
+        NamedCoincidence {
+            cells: vec![entity(above, &edge), entity(below, face)],
+            relation: Relation::OnCarrier,
+            site: DecisionSite::VertexFusion,
+            margin,
+            discharge: topo::Discharge::of(margin),
+            origin: coincide::RowOrigin::Node,
+        }
+    };
+    assert_eq!(
+        proof(&doc, union, &laid(&its_wall)),
+        Proof::Structural(Rung::SameConstruction),
+        "the section edge on its own wall's fragment"
+    );
+    assert_ne!(
+        proof(&doc, union, &laid(&another)),
+        Proof::Structural(Rung::SameConstruction),
+        "the section edge on a wall it does not cross"
+    );
+}
+
 /// Two unit blocks apart along x, their caps and y-walls on one
 /// carrier each, joined by `op`: the boolean's own rows and its node.
 fn apart(subtract: bool, id: &str) -> (ProfileDoc, Evaluation<f64>, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     let boolean = if subtract {
         Node::Subtract {
             from: a.into(),
@@ -882,16 +1235,11 @@ fn the_fallbacks_record_no_row_for_faces_that_never_meet() {
     }
 }
 
-/// A one-loop profile program on a fresh xy frame.
+/// A one-loop profile program.
 fn profile_of(doc: ProfileDoc, steps: LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = insert(
-        doc,
-        crate::fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
     insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![steps],
             ids: Vec::new(),
         }),
@@ -968,12 +1316,7 @@ fn a_profile_junction_the_lattice_reads_as_a_corner_is_no_row() {
 fn a_profile_junction_on_one_carrier_refuses_at_the_door() {
     let rise = 0.1 * Tol::witness().eps();
     let doc = ProfileDoc::empty_derived("g_profile_same_carrier", Tol::witness());
-    let (doc, plane) = insert(
-        doc,
-        crate::fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
     let node = Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At(len2([0.0, 0.0])),
             ProgramStep::LineTo(ProgramTarget::Point(len2([10.0, 0.0]))),
@@ -1042,8 +1385,8 @@ fn rim_named(ev: &Evaluation<f64>, node: RecipeNodeId, z: f64) -> Vec<StableName
 /// `BatteryJoint` over the two rim edges meeting there, each named by
 /// the disc's own names. The cap and the wall are two constructions;
 /// replayed with every variable a symbol, each coaxiality is the zero
-/// polynomial, and each joint's form outgrows the door's budget, so the
-/// joints alone are reported.
+/// polynomial, and so is each joint's form now that the disc reads no
+/// frame (D10): nothing is reported.
 ///
 /// Red if either decision stops being recorded, or is not carried to
 /// the fillet's value.
@@ -1062,7 +1405,6 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -1113,34 +1455,15 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
     }
     let proved = proofs(&doc, fillet, &got);
     assert_eq!(
-        proved[..2],
-        [const { Proof::Structural(Rung::MarginIdentity) }; 2],
-        "each support's departure from the shared axis is the zero polynomial"
-    );
-    for proof in &proved[2..] {
-        assert!(
-            matches!(proof, Proof::Unproven { residual, .. }
-                if residual.replay == coincide::Unreplayed::Numeric),
-            "a joint's form outgrows the door's budget: {proof:?}"
-        );
-    }
-    assert_eq!(
-        recourses(&proved[2..]),
-        [Some(coincide::Recourse::OneConstruction); 2],
-        "a joint's form freezes on the door's budget: no special recourse"
+        proved,
+        [const { Proof::Structural(Rung::MarginIdentity) }; 4],
+        "each support's departure from the shared axis, and each joint's, is the zero \
+         polynomial"
     );
     let findings = unproven(&doc, &ev);
-    assert_eq!(
-        findings.len(),
-        2,
-        "the report carries the door's verdict: the supports proven, the joints left: \
-         {findings:?}"
-    );
-    let said: Vec<String> = findings.iter().map(|f| spoken_by(f, &doc)).collect();
     assert!(
-        said.iter()
-            .any(|s| s.contains("a blend chain's joint read as tangent")),
-        "{said:?}"
+        findings.is_empty(),
+        "the report carries the door's verdict, every row proven: {findings:?}"
     );
 }
 
@@ -1155,9 +1478,9 @@ fn a_filleted_disc_records_its_coaxial_supports_and_tangent_joints() {
 #[test]
 fn a_union_records_a_vertex_touch_once() {
     let doc = ProfileDoc::empty_derived("coincide-union-kiss", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
-    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (1.0, 2.0), (1.0, 2.0), 1.0, 2.0);
+    let (doc, far) = block_on(doc, a, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, pair) = crate::fixture::union_over(doc, &[a, b]);
     // The kiss is the last step's, so its record is the union's.
     let (doc, union) = crate::fixture::union_over(doc, &[far, a, b]);
@@ -1270,7 +1593,7 @@ fn measure_rows(doc: &ProfileDoc, node: RecipeNodeId) {
 #[ignore = "a measurement: run in release with --nocapture"]
 fn measure_the_box_mitre_at_sym() {
     let doc = ProfileDoc::empty_derived("coincide-mitre", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 2.0), (0.0, 1.5), 1.0);
     let ev = run(&doc);
     let corners = [[0.0, 0.0], [2.0, 0.0], [2.0, 1.5], [0.0, 1.5]];
     let rim = |z: f64| -> Vec<StableName> {
@@ -1302,7 +1625,6 @@ fn measure_the_filleted_disc_at_sym() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -1315,10 +1637,11 @@ fn measure_the_filleted_disc_at_sym() {
 /// lane binds an untoleranced one as its value**
 /// (`unproven-coincidence-lint-binds-every-variable-as-a-symbol`). The
 /// declared rest above stands a plate on a block whose height and the
-/// plate's floor are two variables typed to one metre: the lint
-/// reports the row (that test), and here the two environments read
-/// their difference. In the analysis lane's environment both are the
-/// constant 1, so the difference decides Zero as a theorem; in the
+/// plate's floor are two variables typed to one metre — the floor a
+/// slide of the block's start cap along its outward normal, `−z`, by
+/// `−1`: the lint reports the row (that test), and here the two
+/// environments read their sum. In the analysis lane's environment
+/// both are constants, so the sum decides Zero as a theorem; in the
 /// door's they are two symbols, so it decides Zero only by value.
 #[test]
 fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbols_to_the_door() {
@@ -1326,26 +1649,29 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
     use editor_core::{FreeVar, ParamValue};
     use geom_core::{Band, Decide, Sym, SymBudget};
     let doc = ProfileDoc::empty_derived("coincide-two-metres", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, _) = block(doc, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
-    let metres: Vec<editor_core::VarId> = doc
-        .free_vars()
-        .filter_map(|(id, free)| match *free {
-            FreeVar::Continuous { value, .. } => (value == 1.0).then_some(id),
-            _ => None,
-        })
-        .collect();
+    let (doc, base) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, _) = block_on(doc, base, (0.5, 1.5), (0.5, 1.5), 1.0, 0.5);
+    let typed = |want: f64| -> Vec<editor_core::VarId> {
+        doc.free_vars()
+            .filter_map(|(id, free)| match *free {
+                FreeVar::Continuous { value, .. } => (value == want).then_some(id),
+                _ => None,
+            })
+            .collect()
+    };
+    let (heights, floors) = (typed(1.0), typed(-1.0));
     assert!(
-        metres.len() >= 2,
-        "the block's height and the plate's floor: {metres:?}"
+        !heights.is_empty() && !floors.is_empty(),
+        "the block's height and the plate's floor: {heights:?} {floors:?}"
     );
+    let metres = [heights[0], floors[0]];
     let band = Band::linear(Tol::witness()).expect("a band");
     let difference = |env: &editor_core::VarEnv<Sym<f64>>| {
         let value = |id| match env.bindings.get(id) {
             Some(ParamValue::Continuous { value, .. }) => *value,
             other => panic!("{id:?} binds {other:?}"),
         };
-        let decided = (value(&metres[0]) - value(&metres[1]))
+        let decided = (value(&metres[0]) + value(&metres[1]))
             .sign_within(band)
             .expect("a difference of nothing decides");
         (decided.sign, decided.margin.proven())
@@ -1363,7 +1689,7 @@ fn two_variables_typed_equal_are_one_constant_to_the_analysis_lane_and_two_symbo
     assert_eq!(
         analysis,
         (geom_core::Sign::Zero, true),
-        "the analysis lane reads two constants 1 and their difference is the zero polynomial"
+        "the analysis lane reads two constants and their sum is the zero polynomial"
     );
     assert_eq!(
         door,
@@ -1398,6 +1724,49 @@ fn a_ratio_evaluates_exactly_at_sym() {
         })
     });
     assert_eq!(theorems, [true; 3]);
+}
+
+/// **The door's proof of each row of the corpus**, one line a row
+/// (`ROW <document> <node> <index> <relation> <site> <proof>`): the
+/// instrument a change to a rung is diffed by, base against head. A
+/// census, not a gate.
+#[test]
+#[ignore = "a census: cargo nextest run -p editor-core --run-ignored only --no-capture -E 'test(=coincidence_door::census_the_door_per_row_over_the_corpus)'"]
+fn census_the_door_per_row_over_the_corpus() {
+    for cd in crate::corpus::documents() {
+        let ev = run(&cd.doc);
+        let nodes: Vec<(RecipeNodeId, &[NamedCoincidence])> = ev
+            .order
+            .iter()
+            .filter_map(|&node| ev.value(node).map(|v| (node, &*v.coincidences)))
+            .filter(|(_, rows)| !rows.is_empty())
+            .collect();
+        let proofs = coincide::prove(
+            &cd.doc,
+            &nodes,
+            None,
+            Tol::witness(),
+            &editor_core::CancelToken::new(),
+        )
+        .expect("an uncanceled door");
+        for ((node, rows), proofs) in nodes.iter().zip(&proofs) {
+            for (i, (row, proof)) in rows.iter().zip(proofs).enumerate() {
+                let how = match proof {
+                    Proof::Structural(rung) => format!("{rung:?}"),
+                    Proof::Unproven { residual, recourse } => {
+                        format!("unproven/{:?}/{recourse:?}", residual.replay)
+                    }
+                };
+                println!(
+                    "ROW {} {} {i} {:?} {:?} {how}",
+                    cd.name,
+                    node.0.ordinal(),
+                    row.relation,
+                    row.site
+                );
+            }
+        }
+    }
 }
 
 /// **What the door proves on the corpus**: every document's rows, by
@@ -1501,17 +1870,21 @@ fn an_unproven_row_says_why_the_replay_left_it() {
 
 /// **What the door proves on the tour's composed dies**: the blend
 /// joints whose `fillet3_chain_g1` margin is the zero polynomial. One of
-/// `die_composed`'s two and 21 of `die_composed_tour`'s 42 prove as
-/// theorems, and the rest stay unproven. The dies' booleans decide
-/// vertex identities too, each a point minted on an edge, published as
-/// a `Meet` of the cells it lies in and left unproven, a coincidence of
-/// values as far as the door can tell.
+/// `die_composed`'s two and 14 of `die_composed_tour`'s 42 prove as
+/// theorems, and the rest stay unproven. The tour's pips are copies
+/// placed against the die's faces; a copy placed by a frame turned off
+/// the die's own axes reaches its rim through that turn's sine and
+/// cosine, and its joints stay unproven
+/// (`work/intent/a-turn-by-the-nearest-quarter-turn-rounds.md`). The
+/// dies' booleans decide vertex identities too, each a point minted on
+/// an edge, published as a `Meet` of the cells it lies in and left
+/// unproven, a coincidence of values as far as the door can tell.
 #[test]
 fn the_door_proves_half_the_composed_dies_joints() {
     // `met`: the vertex identities the dies' booleans decide at a point
     // minted on an edge, each a `Meet` of the cells it lies in (measured:
     // a pip's meridian seam edge against a face of the die).
-    for (name, proved, rows, met) in [("die_composed", 1, 4, 2), ("die_composed_tour", 21, 84, 42)]
+    for (name, proved, rows, met) in [("die_composed", 1, 4, 2), ("die_composed_tour", 14, 84, 42)]
     {
         let cd = crate::corpus::documents()
             .into_iter()
@@ -1563,7 +1936,7 @@ fn the_door_proves_half_the_composed_dies_joints() {
 fn a_symbolic_run_over_a_box_refuses_every_node() {
     use editor_core::{NodeErrorKind, NodeResult, ParamBox, ParamBoxError};
     let doc = ProfileDoc::empty_derived("coincide-symbols-box", Tol::witness());
-    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let opts = editor_core::EvalOptions {
         symbols: true,
         param_box: Some(std::sync::Arc::new(ParamBox::from_axes(
@@ -1612,7 +1985,7 @@ fn two_documents_variables_are_two_symbols() {
     use geom_core::{Band, Decide, Sym, SymBudget};
     let built = |seed: &str| {
         let doc = ProfileDoc::empty_derived(seed, Tol::witness());
-        block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0).0
+        block(doc, (0.0, 1.0), (0.0, 1.0), 1.0).0
     };
     let (a, b) = (built("coincide-seam-a"), built("coincide-seam-b"));
     let ids: Vec<VarId> = a.free_vars().map(|(id, _)| id).collect();
@@ -1683,17 +2056,24 @@ fn two_documents_variables_are_two_symbols() {
 /// one** (D10, `Placed::World`). A unit block placed at the identity
 /// and again turned half a turn about z and moved 2 along x and 1
 /// along y: the copies meet at x = 1, each by the image of the block's
-/// own +x wall, so every row between them names the same face, edge or
-/// vertex of the one construction in each cell. The door walks each
-/// cell through its copy's placement, so none of those rows is proven
-/// `SameConstruction`, and the check reports every one.
+/// own +x wall, and lie flush on four sides, so every row between them
+/// names the same face, edge or vertex of the one construction in each
+/// cell. The door walks each cell through its copy's placement, so
+/// none of those rows is proven `SameConstruction`.
+///
+/// The seat and the two side walls are reported. Their coincidence
+/// holds only because the turned copy's move equals the block's width.
+/// The top and bottom walls lie on the planes both copies hold for every
+/// value (the turn is about z), which the replay's carrier verdict
+/// proves.
 ///
 /// Red if the walk drops the placement: same-cell rows between copies
 /// then read as one construction and go silent.
 #[test]
 fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
+    use editor_core::coincide::{Proof, Rung};
     let doc = ProfileDoc::empty_derived("coincide-copies-same-face", Tol::witness());
-    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, _) = crate::fixture::place(doc, the_box);
     let turned = editor_core::Frame::rotate_then_translate(
         [0.0, 0.0, 1.0],
@@ -1704,26 +2084,52 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
     .expect("a half-turn about z");
     let (doc, q) = crate::fixture::insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(the_box)]),
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(the_box)]),
     );
     let doc = crate::fixture::pin(doc, q, &turned, &EvalOptions::default());
     let ev = run(&doc);
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
-    let rows = product.coincidences.len();
-    assert!(
-        rows > 0
-            && product
-                .coincidences
-                .iter()
-                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
-        "the copies' touch is their rows: {:?}",
-        product.coincidences
+    let proofs: Vec<(topo::Relation, Option<Rung>)> = product
+        .coincidences
+        .iter()
+        .map(|r| {
+            let (a, _) = r.copies;
+            let node = doc.operation_of(a.var).expect("a copy's placement");
+            let rows = [r.row.clone()];
+            let proof = editor_core::coincide::prove(
+                &doc,
+                &[(node, &rows[..])],
+                None,
+                Tol::witness(),
+                &editor_core::CancelToken::new(),
+            )
+            .expect("the door runs");
+            let rung = match proof[0][0] {
+                Proof::Structural(rung) => Some(rung),
+                Proof::Unproven { .. } => None,
+            };
+            (r.row.relation, rung)
+        })
+        .collect();
+    let mut kinds = proofs.clone();
+    kinds.sort_by_key(|(relation, rung)| (format!("{relation:?}"), format!("{rung:?}")));
+    assert_eq!(
+        kinds,
+        vec![
+            (topo::Relation::SameOpposite, None),
+            (topo::Relation::SameOriented, None),
+            (topo::Relation::SameOriented, None),
+            (topo::Relation::SameOriented, Some(Rung::CarrierVerdict)),
+            (topo::Relation::SameOriented, Some(Rung::CarrierVerdict)),
+        ],
+        "the seat and the two side walls unproven, the top and bottom proven by their \
+         carriers, none one construction"
     );
     let reported = unproven(&doc, &ev)
         .into_iter()
         .filter(|f| matches!(f.subject, FindingSubject::Copies { .. }))
         .count();
-    assert_eq!(reported, rows, "every row between the copies is unproven");
+    assert_eq!(reported, 3, "and the check reports the three unproven");
 }
 
 /// **The door enters a report one way.** On a filleted corpus document,
@@ -1737,7 +2143,7 @@ fn two_copies_meeting_by_the_same_face_are_not_one_construction() {
 fn a_report_settled_at_rest_is_the_synchronous_report() {
     let cd = crate::corpus::documents()
         .into_iter()
-        .find(|cd| cd.name == "reshaped_rod")
+        .find(|cd| cd.name == "die_composed")
         .expect("a corpus document");
     let ev = run(&cd.doc);
     let tol = Tol::witness();
@@ -1759,7 +2165,7 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
     assert_eq!(
         sync.findings.iter().map(|f| f.check).collect::<Vec<_>>()[..2],
         [CheckId::Connectedness, CheckId::UnprovenCoincidence],
-        "the stale expectation, then the rod's support row: {sync}"
+        "the stale expectation, then the composed die's unproven row: {sync}"
     );
     let (mut at_rest, job) = editor_core::run_checks_at_rest_on(
         &cd.doc,
@@ -1790,9 +2196,9 @@ fn a_report_settled_at_rest_is_the_synchronous_report() {
 /// moved `dx` along x; the plate, the blocks and their union.
 fn ring_pinch(dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("coincide-ring", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, p1) = block(doc, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
-    let (doc, p2) = block(doc, (1.5 + dx, 2.0), (1.0, 3.0), 0.47, 1.23);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
+    let (doc, p1) = block_on(doc, plate, (1.0, 1.5), (-1.0, 1.0), 0.5, 1.5);
+    let (doc, p2) = block_on(doc, plate, (1.5 + dx, 2.0), (1.0, 3.0), 0.47, 1.23);
     let (doc, blocks) = insert(
         doc,
         Node::Union {
@@ -1828,8 +2234,9 @@ fn fusions(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<NamedCoincidence> {
 /// as two vertices. It records the decision: one `VertexFusion`
 /// `Meet` row, its two cells the two blocks' edges as the union names
 /// them, sharing the point each pierce was minted at, its margin the
-/// gap. The door leaves it unproven
-/// with the one-construction recourse, and the check reports it. Red if
+/// gap. The door leaves it unproven, its form outgrowing the door's
+/// budget, and the check reports it: the blocks are copies placed
+/// against the plate, and no mate states their edges one. Red if
 /// the ring glues the two by a shared point key alone, which records
 /// nothing.
 ///
@@ -1853,9 +2260,9 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     // extruded across the blocks' y range.
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 4.0, 0.0],
+        [0.0; 3],
         [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
+        [0.0, 1.0, 0.0],
         vec![vec![(0.5, 0.0), (4.0, 0.0), (4.0, 2.0), (2.5, 2.0)]],
     );
     let (doc, slab) = insert(
@@ -1863,8 +2270,13 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(6.0),
-            side: editor_core::ExtrudeSide::Along,
         },
+    );
+    let (doc, slab) = crate::fixture::against(
+        doc,
+        plate,
+        slab,
+        &crate::fixture::axes_at([0.0, 4.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
     );
     let (doc, cut) = insert(
         doc,
@@ -1896,8 +2308,8 @@ fn a_ring_serving_two_pierces_records_their_fusion_unproven() {
     );
     assert_eq!(
         recourses(&proofs(&doc, common, &fused)),
-        vec![Some(coincide::Recourse::OneConstruction)],
-        "unproven, with the one-construction recourse"
+        vec![Some(coincide::Recourse::Budget)],
+        "unproven, its form outgrowing the door's budget"
     );
     let reported: Vec<_> = unproven(&doc, &ev)
         .into_iter()

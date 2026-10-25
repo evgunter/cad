@@ -12,7 +12,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -64,11 +63,9 @@ fn run(doc: &editor_core::ProfileDoc, shelf: &Arc<VersionShelf>) -> Evaluation<f
 /// `(doc, profile, extrude, placement)`.
 fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive("held-names-part"), Tol::witness());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap(),
             ],
@@ -80,7 +77,6 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placement) = fixture::place(doc, ext);
@@ -185,7 +181,7 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     let shelf = Arc::new(shelf);
 
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
-    let (parent, instance) = insert(parent, Node::instantiate_part(r1));
+    let (parent, instance) = insert(parent, crate::fixture::mated_instance(r1));
     let name = held(instance, placement, &wall);
     let parent = apply(
         &parent,
@@ -261,24 +257,13 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
     )
     .unwrap()
     .doc;
-    // The part's world pin reads its frame off an edge and a vertex of
+    // The part's world mate reads its frame off an edge and a vertex of
     // the body, which the reshape may move: the placement is pinned
     // again where the reshaped body stands in its own coordinates.
     let [placement] = doc.placements()[..] else {
         panic!("the part places its body once")
     };
-    let doc = fixture::bundle(&doc, placement)
-        .into_iter()
-        .fold(doc, |doc, c| {
-            fixture::step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
+    let doc = fixture::stand_again(doc, placement);
     fixture::pinned(doc, placement, &editor_core::EvalOptions::default())
 }
 
@@ -333,7 +318,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
         )
     };
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
-    let (parent, instance) = insert(parent, Node::instantiate_part(ra));
+    let (parent, instance) = insert(parent, crate::fixture::mated_instance(ra));
     let name = held(instance, placement, &wall(a_new));
     let parent = apply(
         &parent,
@@ -416,7 +401,6 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(3.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (b, taller) = insert(
@@ -424,7 +408,6 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(5.0),
-            side: ExtrudeSide::Along,
         },
     );
     assert_ne!(tall, taller, "each branch mints its own node's id");

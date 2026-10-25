@@ -536,10 +536,10 @@ Six ways a name escapes the old pattern, all live today:
 3. **A named `const &str` rather than a literal at the site.** Six,
    not the three originally recorded: `sector_shape.rs`'s
    module-private `SECTOR_{ARM,REFLEX,STRAIGHT}`, plus
-   `SEL_DATUM_DISTANCE` (`sel_datum_distance` — since SEAT-2 a `pub`
+   `SEL_PLANE_DISTANCE` (`sel_plane_distance` — since SEAT-2 a `pub`
    const in `topo/src/query.rs`, re-exported by `editor-core`),
    and the direction-length pair —
-   `DATUM_UNIT_NORM` (`datum_unit_norm`, a `pub` const in
+   `POSE_UNIT_NORM` (`pose_unit_norm`, a `pub` const in
    `topo/src/query.rs`) and `EVAL_DIRECTION_NORM`
    (`eval_direction_norm`, `editor-core`'s `eval/wire.rs`), which are
    the same shape for the same reason and are described together
@@ -556,9 +556,9 @@ Six ways a name escapes the old pattern, all live today:
    the funnel site
    as a `&'static str` PARAMETER, because the layer that owns a value
    is the layer whose telemetry names its length decision. So
-   `decide(` at that site names a variable: `datum_unit_norm` (the
+   `decide(` at that site names a variable: `pose_unit_norm` (the
    name `topo` owns) is passed to `geom_core::UnitVec3::new` by
-   `editor-core`'s `datum_unit` — the datum arms of `wire_datum` —
+   `editor-core`'s `pose_unit` — the datum arms of `wire_datum` —
    for a datum's normal or axis direction, and `eval_direction_norm`
    by `editor-core`'s `unit()`, in the same file, for the directions
    the evaluation layer owns (a transform's rotation axis, a pattern's
@@ -585,7 +585,8 @@ Six ways a name escapes the old pattern, all live today:
    (`geom`, `geom-brep`, `sweep`, `profile`) can mint a name this way
    as readily as one above it; it used to be `topo`'s dependents only.
 5. **A struct field or a local table.** `ray_walk::ParityRows` (the
-   one carrier this document already listed), `swept.rs`'s
+   one carrier this document already listed) and its two-row
+   `ray_walk::SegmentRows`, `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
 6. **The scan root — a scope error in the method, not a missed site.**
@@ -814,6 +815,27 @@ into the Band 4 corpus, which moves the gate's subject matter — a
 geometry conversation, of the same kind `scripts/k_probe_sweep.sh`
 declines when it keeps the M2 corpus beside the linted CSV rather than
 inside it.
+
+**Retirement (2026-10-22): `props_quad_last_round`, and the gate that
+kept the ruling above honest.** The quadrature lanes know no target
+(`[tolerance.measure]`, `docs/QUAD-MEASURE-SPEC.md` unit A): a lane
+stops at its floor or its work wall and no lane bounds a round it will
+not run, so the budget exit that minted this name is gone and nothing
+mints it. The ruling above was `k_lint::EPS_COUPLED_UNRULED`'s one
+entry, so the list went with it, together with the CLI's gate on an
+unruled name's rows and the three rows that pinned the ruling
+(`an_unruled_eps_coupled_row_*` in `tests/cli_contract.rs`,
+`the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from`
+and `an_unruled_eps_coupled_margins_positive_side_is_loud_under_rule_3_at_the_tight_rows`).
+A future ε-coupled name ruled off rule (4) brings that machinery back
+with its own reason. `props_quad_converged` stays on the roster: it is
+minted now by `topo`'s interim reporting adapter
+(`crates/topo/src/props/quad_lane.rs`, `to_target`), which reads the
+target the lanes no longer do, and the roster pin reads that source
+beside `props/quad.rs`. Its margin and band are the ones the lanes
+minted it with, and a face that meets the target records the same
+samples; a face that cannot now records one at every round to its
+lane's stop, where the budget exit ended it after round 0.
 
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
@@ -1106,7 +1128,7 @@ the value). The names that reach the funnel through them today:
 
 | name | carrier | reaches the sweep's corpus? |
 |---|---|---|
-| `datum_unit_norm` | `topo`'s const, passed by `editor-core`'s `frame_axes` | yes — every authored and face frame |
+| `pose_unit_norm` | `topo`'s const, passed by `editor-core`'s `frame_axes` | yes — every authored and face frame |
 | `eval_direction_norm` | `editor-core`'s const, passed by `tube_args` | yes — every recipe tube's reference radial |
 | `frame_point_at_roll_offset`, `frame_path_start_reference_z`, `frame_path_start_reference_x` | `geom-core`'s ladders, same names | as before, at a slightly SMALLER count — see below |
 | `tour_frame_axis` | `demos/tour/src/scalar.rs`, a const the TOUR owns | **yes** — the demo-scenes leg of `scripts/k_probe_sweep.sh` runs the scenes that mint it |
@@ -1145,11 +1167,14 @@ suite owns, reaching no corpus by construction. The aim decision
 side — as before; the mate frame's axis is read off the ladder's
 witness rather than decided again.
 
-`tour_frame_axis` is a demo minting a roster name because the type's
-decision-free mints are the three cyclic world frames and the tour's
-planes are not all among them; that friction is filed at
-`work/props/exact-frame-mints-cover-three-of-the-world-frames.md`, with
-the two shapes a fix could take. The two names the sweep's corpus does
+`tour_frame_axis` is a demo minting a roster name for the frames it
+computes: the lily's bud, blade and loft sections, and its tube
+scenes' spine frames. The tour's axis-aligned sketch planes are written
+turns (`RigidMotion::turned`), which decide nothing, so the Klein
+bottle's and the lily's exact planes no longer sample it. The tube
+scenes' `axis_frame` still decides an exact (axis, reference) pair
+under it (`work/frame/exact-axis-and-reference-frames-still-decide.md`).
+The two names the sweep's corpus does
 NOT reach — `sketch_plane_frame_norm`, which is production code, and
 `fixture_frame_axis` — are filed at
 `work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`.
@@ -2068,14 +2093,14 @@ the committed snapshot, which still says 233 because it still contains
 the six old names.
 
 **And SEAT-DV adds one: 232 at a sweep cut immediately after it.**
-`datum_unit_norm` is the length decision `editor-core`'s `datum_unit`
+`pose_unit_norm` is the length decision `editor-core`'s `pose_unit`
 passes to `geom_core::UnitVec3::new`, which is where a datum's normal
 or axis direction is normalized. It does not REPLACE `eval_direction_norm`, which keeps
 the directions the evaluation layer owns (a transform's rotation axis,
 a linear pattern's direction) — so this is one name in, none out. The
 population it takes is small and it moves rather than grows: the datum
 arms of `editor-core`'s `wire_datum` used to emit `eval_direction_norm`
-and now emit `datum_unit_norm`. **One triple is emitted under BOTH
+and now emit `pose_unit_norm`. **One triple is emitted under BOTH
 names depending on the road**: `mate/solve.rs`'s derived-offset
 derivation re-reads a circular pattern's datum-axis node from the
 recipe and normalizes that same direction through `eval_direction_norm`
@@ -2084,8 +2109,8 @@ recipe and normalizes that same direction through `eval_direction_norm`
 **And the mate road is not the only place one triple carries two
 names.** A revolve's axis is decided twice by design: the
 evaluation layer lifts the authored sketch direction for the revolve's
-axis output and decides the lifted 3-D vector under `datum_unit_norm`
-(`wire/pose.rs`'s `datum_unit(u * dir.x + v * dir.y, …)`), while
+axis output and decides the lifted 3-D vector under `pose_unit_norm`
+(`wire/pose.rs`'s `pose_unit(u * dir.x + v * dir.y, …)`), while
 `sweep`'s revolve takes the
 UNLIFTED sketch pair and decides it again under
 `revolve_axis_direction` (`revolve/axis.rs`) — one authored heading,
@@ -2114,7 +2139,7 @@ consequence is nil (same names, same margins, same order, same
 outcomes); the roster consequence is that neither name is a literal at
 its `decide` site any more, recorded as escape route 4 in the
 inventory method above. The population under each name is unchanged —
-`datum_unit_norm` for the datum arms of `wire_datum`,
+`pose_unit_norm` for the datum arms of `wire_datum`,
 `eval_direction_norm` for the evaluation layer's own directions and
 for the mate solve's re-derivation of both rule kinds from the
 recipe.
@@ -3132,7 +3157,7 @@ before the revolve turns about it, through `UnitVec3::new`'s
 `Margin::norm3`. Its margin is the length of a placed unit direction,
 about one, against the linear band. It is a third name for the
 revolve axis's length, beside `revolve_axis_direction` (the sketch
-pair) and `datum_unit_norm` (the evaluation layer's lift), on the
+pair) and `pose_unit_norm` (the evaluation layer's lift), on the
 "one length, two funnel names, split by road" shape above: the
 placement is a general map, so the placed axis is a length of its
 own until the sketch plane is a frame.
@@ -3185,7 +3210,7 @@ for this addendum, so no population count is claimed.
   zero; the margin approaches zero only where the path doubles back,
   which is where it refuses.
 
-The evaluation layer's `datum_unit_norm` under `DATUM_AXIS_ROLE`
+The evaluation layer's `pose_unit_norm` under `AXIS_DIRECTION_ROLE`
 (`editor-core`'s axis port, `eval/wire/pose.rs`) is asked once per
 axis read instead of twice: the sketch direction is decided, and the
 placed one is the frame's turn of it.
@@ -3212,3 +3237,77 @@ name and so the same at main (`curve_pair_pose_parallel`, `curve_pair_pose_clear
 `curve_pair_pose_travel` on demo/projectbox_cutaway, `bool_pair_gap` on
 demo/tiltedcut), and the nightly's sweep stops before it in the
 plain-suite prelude, so these figures are a local reading.
+
+## CHART addendum (2026-10-24): `chart_bound_outer_span` decides at Probe
+
+The outer-span margin is now read off each envelope's `reach` (the
+pcurve's `chart_box`, finite at every scalar), not off its `image`,
+which is poison at a point scalar
+(`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+Measured at ε = 1e-9 with the Band 4 corpus and the tour scenes, main
+against the branch: all 41 `chart_bound_outer_span` samples move from
+`invalid`/`NaN` to `negative`, with margins between −0.236 m and
+−29.1 m, far outside the band. The sample count (3,437,597) is
+identical, no other row differs, and rule 1 falls from 43 to 2 (the
+two `props_quad_converged` indeterminates).
+
+
+**Roster change (CHART, 2026-10-24): a cylinder or cone face's region.**
+Eighteen names from `topo/src/boolean/ruled_region.rs`, which replaces the
+cylinder and cone chart trims. `bool_wall_trim`, `bool_wall_trim_period`,
+`bool_wall_iso_meridian`, `bool_wall_iso_rim`, `bool_wall_section_tilt`,
+`bool_wall_section_seat`, `bool_wall_piece_span`, `bool_wall_rim_level`,
+`bool_wall_junction`, `bool_curved_contain_period`, `bool_cone_trim`,
+`bool_cone_trim_nappe`, `bool_cone_trim_side`, `bool_cone_trim_period`,
+`bool_cone_chart_box`, `bool_cone_group_slant` and `bool_ray_cone_apex`
+leave the roster; `bool_wall_outline_reach` and `bool_cone_partial_reach`
+stay, as the balls a wall or cone face whose region cannot be read
+refuses inside. Ten are its paths' bare literals, four a
+`FirstHarmonicRows` value (`ROOT_ROWS`), two a `ConicRows` value
+(`BOUNDARY`) and two a `ray_walk::SegmentRows` value (`LINE`) for its
+boundary pre-pass. `SegmentRows` is a new carrier: the two of a
+`ParityRows` that `ray_walk::on_segment` reads, for a caller that casts
+no ray through the segment. `bool_cone_apex_nappe` left the tree with
+`cone_apex_closure` in the same change; it was never on the roster.
+
+| name | carrier |
+|---|---|
+| `bool_ruled_region_frame` | a bare literal: the point's distance from a cylinder's axis, or from a cone's apex (`Zero` reads the point from the apex) |
+| `bool_ruled_region_nappe` | a bare literal: a point's height over the cone's apex along the axis — the query's, a generator's target, a conic edge's middle, a line edge's end, a conic's root on a ruling leg's meridian plane |
+| `bool_ruled_region_component` | a bare literal: which of a meridian plane's two points of an edge a root is, by its offset from the axis along the leg's radial, `2ρ` from the other |
+| `bool_ruled_region_collinear` | a bare literal: whether a line edge lies on a ruling leg's line, by its ends' larger distance from it |
+| `bool_ruled_region_span` | a bare literal: a root's parameter against its edge's span ends, at the conic's smaller semi-axis or the line's unit speed |
+| `bool_ruled_region_at` | a bare literal: a crossing's, or an end of an edge on the leg's line, place along its leg from the leg's start, arc length on a parallel and metres on a ruling |
+| `bool_ruled_region_end` | a bare literal: a place along a leg against the leg's end — a first leg's corner, or a generator's end at the apex |
+| `bool_ruled_region_corner` | a bare literal: an aimed ruling's run to its corner, the side of `p` the target's parallel lies |
+| `bool_ruled_region_order` | a bare literal: two crossings' places along the path |
+| `bool_ruled_region_cross` | a bare literal: the leg's heading against the face side at the closest crossing, at the face's scale |
+| `bool_ruled_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_coaxial` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_extreme` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_arc_span` | `ConicRows` field (`BOUNDARY`): a circle or ellipse edge's gap to a whole turn |
+| `bool_ruled_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle |
+| `bool_ruled_region_edge_length` | `SegmentRows` field (`LINE`): a line edge's own length, the degeneracy gate |
+| `bool_ruled_region_edge` | `SegmentRows` field (`LINE`): the point's distance from a line edge's closed segment |
+
+They pool with nothing: the region is read by the point doors at points
+on a cylinder or a cone.
+
+## CHART addendum (2026-10-24): clearance cells are decided in model space
+
+**Roster change.** The seven `chart_bound_*` names leave the roster:
+the six of the TRIM-3 roster addition (`chart_bound_gap`,
+`chart_bound_outer_span` and the four `ParityRows` fields) with
+`topo/src/chart_bound.rs`, and `chart_bound_joint_room`, the loop
+walk's room fence, renamed `loop_windings_joint_room` for the door it
+now serves (`pcurves::loop_windings`). Five arrive from
+`topo/src/cell_region.rs`, each a named `const &str` (escape route 3):
+`cell_region_vertex_gap`, `cell_region_segment_gap`,
+`cell_region_conic_gap`, `cell_region_ball_gap` and
+`cell_region_singular_gap`, a cell's clearance of one kind of boundary
+feature of its face, or of its carrier's singular set. Their dimensions
+are `docs/predicate-dimension-audit.md`'s rows of the same names. They
+are asked by the clearance sweep per (window, cell), so their
+populations are the sweep's cells times each face's features; they
+pool with nothing, and with each other not at all.

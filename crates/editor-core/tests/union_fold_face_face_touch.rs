@@ -25,39 +25,21 @@
 //!   cites the pass's row through lineage alone.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
-use crate::fixture::{self, insert, len, union_over};
+use crate::blocks::{block, block_on, failure, run};
+use crate::fixture::{self, against, axes_at, insert, len, slid, union_over};
 use editor_core::{
-    BooleanValue, ExtrudeSide, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
-    ValuePayload,
+    BooleanValue, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload,
 };
 use geom::SurfaceKind;
 use geom_core::Tol;
 
-/// A rod of radius 0.5 about (0, 2.5) from z = 0 to 1, the plate's
-/// height, its rim vertices at (±0.5, 2.5): tangent to the plate's
-/// y = 2 face along x = 0, its cap circles touching the plate's top and
-/// bottom edges at the line's ends.
-fn rod(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
-    leaning_rod(doc, 0.0)
-}
-
-/// [`rod`], its sketch plane turned by `lean` about x, so its axis
-/// leans toward the plate's face.
-fn leaning_rod(doc: ProfileDoc, lean: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = insert(
-        doc,
-        fixture::frame(
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, lean.cos(), lean.sin()],
-        ),
-    );
+/// A rod of radius 0.5 about `(cx, 2.5)` on its own xy, `length` up its
+/// own z: a construction.
+fn upright_rod(doc: ProfileDoc, cx: f64, length: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
-            loops: vec![LoopProgram::circle_split(0.0, 2.5, 0.5, 2, 0.0).expect("a finite circle")],
+            loops: vec![LoopProgram::circle_split(cx, 2.5, 0.5, 2, 0.0).expect("a finite circle")],
             ids: Vec::new(),
         }),
     );
@@ -65,9 +47,57 @@ fn leaning_rod(doc: ProfileDoc, lean: f64) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Extrude {
             profile: profile.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
+            distance: len(length),
         },
+    )
+}
+
+/// A rod of radius 0.5 about (0, 2.5) from z = 0 to 1, the plate's
+/// height, its rim vertices at (±0.5, 2.5): tangent to the plate's
+/// y = 2 face along x = 0, its cap circles touching the plate's top and
+/// bottom edges at the line's ends. Its copy stands in `plate`'s space.
+fn rod(doc: ProfileDoc, plate: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    leaning_rod(doc, plate, 0.0)
+}
+
+/// [`rod`], its copy turned by `lean` about x, so its axis leans toward
+/// the plate's face.
+fn leaning_rod(doc: ProfileDoc, plate: RecipeNodeId, lean: f64) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, body) = upright_rod(doc, 0.0, 1.0);
+    against(
+        doc,
+        plate,
+        body,
+        &axes_at(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, lean.cos(), lean.sin()],
+        ),
+    )
+}
+
+/// The slab 0.2 thick across the line: `corners` on its own xy,
+/// extruded 0.2, its copy standing in `plate`'s space at `origin` with
+/// its own y along (0, 0.8, 0.6).
+fn slab(
+    doc: ProfileDoc,
+    plate: RecipeNodeId,
+    origin: [f64; 3],
+    corners: Vec<(f64, f64)>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, prof) = insert(doc, Node::Profile(fixture::desc(vec![corners])));
+    let (doc, body) = insert(
+        doc,
+        Node::Extrude {
+            profile: prof.into(),
+            distance: len(0.2),
+        },
+    );
+    against(
+        doc,
+        plate,
+        body,
+        &axes_at(origin, [1.0, 0.0, 0.0], [0.0, 0.8, 0.6]),
     )
 }
 
@@ -76,7 +106,7 @@ const PI: f64 = core::f64::consts::PI;
 /// The plate (−2..2)² × (0..1), and its document.
 fn plate() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("fold-ff", Tol::witness());
-    block(doc, (-2.0, 2.0), (-2.0, 2.0), 0.0, 1.0)
+    block(doc, (-2.0, 2.0), (-2.0, 2.0), 1.0)
 }
 
 /// Asserts the union of `members` answers with `solids` solids of
@@ -107,7 +137,16 @@ fn touches(
         panic!("{what}: not a boolean body");
     };
     assert_eq!(body.solids().count(), solids, "{what}: solids");
-    let v = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&**body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         (v - volume).abs() < 1e-9,
         "{what}: volume {v}, want {volume}"
@@ -180,8 +219,8 @@ const PLATE_AND_ROD: f64 = 16.0 + PI / 4.0;
 #[test]
 fn a_fold_step_records_a_given_tangency_through_both_interiors_in_every_order() {
     let (doc, plate) = plate();
-    let (doc, rod) = rod(doc);
-    let (doc, apart) = block(doc, (5.0, 6.0), (5.0, 6.0), 0.0, 1.0);
+    let (doc, rod) = rod(doc, plate);
+    let (doc, apart) = block_on(doc, plate, (5.0, 6.0), (5.0, 6.0), 0.0, 1.0);
     for (what, members) in [
         ("plate, rod, block", [plate, rod, apart]),
         ("block, plate, rod", [apart, plate, rod]),
@@ -206,9 +245,9 @@ fn a_fold_step_records_a_given_tangency_through_both_interiors_in_every_order() 
 #[test]
 fn a_piece_of_the_plates_face_still_holds_the_line() {
     let (doc, plate) = plate();
-    let (doc, rod) = rod(doc);
-    let (doc, flush) = block(doc, (1.0, 1.8), (2.0, 2.6), 0.0, 1.0);
-    let (doc, across) = block(doc, (1.0, 1.5), (1.5, 2.5), -0.5, 2.0);
+    let (doc, rod) = rod(doc, plate);
+    let (doc, flush) = block_on(doc, plate, (1.0, 1.8), (2.0, 2.6), 0.0, 1.0);
+    let (doc, across) = block_on(doc, plate, (1.0, 1.5), (1.5, 2.5), -0.5, 2.0);
     let flush_v = PLATE_AND_ROD + 0.8 * 0.6;
     let across_v = PLATE_AND_ROD + 0.5 * 2.0 - 0.5 * 0.5;
     for (what, members, volume) in [
@@ -233,21 +272,12 @@ fn a_piece_of_the_plates_face_still_holds_the_line() {
 #[test]
 fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
     let (doc, plate) = plate();
-    let (doc, rod) = rod(doc);
-    let (doc, prof) = crate::fixture::on_frame(
+    let (doc, rod) = rod(doc, plate);
+    let (doc, slab) = slab(
         doc,
+        plate,
         [-1.0, 2.0, 0.7],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.8, 0.6],
-        vec![vec![(0.0, -1.0), (2.0, -1.0), (2.0, 1.5), (0.0, 1.5)]],
-    );
-    let (doc, slab) = insert(
-        doc,
-        Node::Extrude {
-            profile: prof.into(),
-            distance: len(0.2),
-            side: ExtrudeSide::Along,
-        },
+        vec![(0.0, -1.0), (2.0, -1.0), (2.0, 1.5), (0.0, 1.5)],
     );
     // The closed form is not simple; the orders that answer agree on it,
     // within what the run's ε resolves.
@@ -263,9 +293,16 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
         if let Some(e) = failure(&ev, u) {
             panic!("{what}: refused: {e:?}");
         }
-        let v = topo::mass_properties(crate::corpus::body_of(&ev, u), Tol::witness())
-            .unwrap()
-            .volume;
+        let v = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         assert!((v - volume).abs() < within, "{what}: volume {v}");
         touches(&doc, what, &members, (plate, rod), 1, v, records);
     }
@@ -282,8 +319,8 @@ fn a_slab_across_the_line_leaves_the_touch_on_its_pieces() {
 #[test]
 fn a_merged_face_far_longer_than_the_pair_holds_the_pass_s_line() {
     let (doc, plate) = plate();
-    let (doc, rod) = leaning_rod(doc, 0.1 * Tol::witness().eps());
-    let (doc, long) = block(doc, (2.0, 300.0), (-2.0, 2.0), 0.0, 1.0);
+    let (doc, rod) = leaning_rod(doc, plate, 0.1 * Tol::witness().eps());
+    let (doc, long) = block_on(doc, plate, (2.0, 300.0), (-2.0, 2.0), 0.0, 1.0);
     for (what, members) in [
         ("plate, long, rod", [plate, long, rod]),
         ("long, plate, rod", [long, plate, rod]),
@@ -302,58 +339,49 @@ fn a_merged_face_far_longer_than_the_pair_holds_the_pass_s_line() {
     }
 }
 
-/// A rod of radius 0.5 about (0, 2.5) in a sketch frame turned by
-/// `lean` about x, occupying stations 0..1 along its axis, whose
-/// cylinder carrier's origin stands `back` behind station 0: extruded
-/// from station −`back` to 1, the part below station 0 cut away.
-fn far_origin_rod(doc: ProfileDoc, lean: f64, back: f64) -> (ProfileDoc, RecipeNodeId) {
+/// A rod of radius 0.5 about (0, 2.5), turned by `lean` about x,
+/// occupying stations 0..1 along its axis, whose cylinder carrier's
+/// origin stands `back` behind station 0: extruded from station −`back`
+/// to 1 in its own coordinates, the part below station 0 cut away by a
+/// block slid down its own z, and the result's copy standing in
+/// `plate`'s space with station 0 on the plate's xy.
+fn far_origin_rod(
+    doc: ProfileDoc,
+    plate: RecipeNodeId,
+    lean: f64,
+    back: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let (s, c) = (lean.sin(), lean.cos());
-    let (doc, plane) = insert(
+    let (doc, long) = upright_rod(doc, 0.0, back + 1.0);
+    let (doc, tool_profile) = insert(
         doc,
-        fixture::frame([0.0, back * s, -back * c], [1.0, 0.0, 0.0], [0.0, c, s]),
-    );
-    let (doc, profile) = insert(
-        doc,
-        Node::Profile(ProfileProgram {
-            frame: plane.into(),
-            loops: vec![LoopProgram::circle_split(0.0, 2.5, 0.5, 2, 0.0).expect("a finite circle")],
-            ids: Vec::new(),
-        }),
-    );
-    let (doc, long) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(back + 1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let (doc, tool_profile) = crate::fixture::on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, c, s],
-        vec![vec![
+        Node::Profile(fixture::desc(vec![vec![
             (-10.0, -10.0),
             (10.0, -10.0),
             (10.0, 10.0),
             (-10.0, 10.0),
-        ]],
+        ]])),
     );
     let (doc, tool) = insert(
         doc,
         Node::Extrude {
             profile: tool_profile.into(),
             distance: len(back + 5.0),
-            side: ExtrudeSide::Against,
         },
     );
-    insert(
+    let (doc, tool) = slid(doc, long, tool, [0.0, 0.0, -5.0]);
+    let (doc, cut) = insert(
         doc,
         Node::Subtract {
             from: long.into(),
             tool: tool.into(),
         },
+    );
+    against(
+        doc,
+        plate,
+        cut,
+        &axes_at([0.0, back * s, -back * c], [1.0, 0.0, 0.0], [0.0, c, s]),
     )
 }
 
@@ -370,8 +398,8 @@ fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
     let far = if eps < 1e-10 { 1000.0 } else { 3000.0 };
     for back in [300.0, far] {
         let (doc, plate) = plate();
-        let (doc, rod) = far_origin_rod(doc, lean, back);
-        let (doc, apart) = block(doc, (5.0, 6.0), (5.0, 6.0), 0.0, 1.0);
+        let (doc, rod) = far_origin_rod(doc, plate, lean, back);
+        let (doc, apart) = block_on(doc, plate, (5.0, 6.0), (5.0, 6.0), 0.0, 1.0);
         for (order, members) in [
             ("plate, rod, block", [plate, rod, apart]),
             ("block, plate, rod", [apart, plate, rod]),
@@ -396,30 +424,10 @@ fn a_carrier_whose_origin_stands_far_off_hands_on_the_pass_s_line() {
 #[test]
 fn a_merged_face_cites_the_verdict_of_the_member_face_it_holds() {
     let doc = ProfileDoc::empty_derived("fold-ff-merged", Tol::witness());
-    let (doc, first) = block(doc, (-2.0, 0.0), (-2.0, 2.0), 0.0, 1.0);
-    let (doc, second) = block(doc, (0.0, 2.0), (-2.0, 2.0), 0.0, 1.0);
-    let (doc, plane) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
-    let (doc, profile) = insert(
-        doc,
-        Node::Profile(ProfileProgram {
-            frame: plane.into(),
-            loops: vec![
-                LoopProgram::circle_split(0.25, 2.5, 0.5, 2, 0.0).expect("a finite circle"),
-            ],
-            ids: Vec::new(),
-        }),
-    );
-    let (doc, rod) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
+    let (doc, first) = block(doc, (-2.0, 0.0), (-2.0, 2.0), 1.0);
+    let (doc, second) = block_on(doc, first, (0.0, 2.0), (-2.0, 2.0), 0.0, 1.0);
+    let (doc, rod) = upright_rod(doc, 0.25, 1.0);
+    let (doc, rod) = slid(doc, first, rod, [0.0; 3]);
     for (order, members) in [
         ("first, second, rod", [first, second, rod]),
         ("second, first, rod", [second, first, rod]),
@@ -439,21 +447,12 @@ fn a_merged_face_cites_the_verdict_of_the_member_face_it_holds() {
 #[test]
 fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
     let (doc, plate) = plate();
-    let (doc, rod) = rod(doc);
-    let (doc, prof) = crate::fixture::on_frame(
+    let (doc, rod) = rod(doc, plate);
+    let (doc, slab) = slab(
         doc,
+        plate,
         [-3.0, 2.0, 0.7],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.8, 0.6],
-        vec![vec![(0.0, -1.0), (6.0, -1.0), (6.0, 1.5), (0.0, 1.5)]],
-    );
-    let (doc, slab) = insert(
-        doc,
-        Node::Extrude {
-            profile: prof.into(),
-            distance: len(0.2),
-            side: ExtrudeSide::Along,
-        },
+        vec![(0.0, -1.0), (6.0, -1.0), (6.0, 1.5), (0.0, 1.5)],
     );
     let within = 1e-7_f64.max(100.0 * Tol::witness().eps());
     let mut volume = None;
@@ -467,9 +466,16 @@ fn a_slab_across_the_whole_face_pairs_each_piece_with_its_own_side() {
         if let Some(e) = failure(&ev, u) {
             panic!("{what}: refused: {e:?}");
         }
-        let v = topo::mass_properties(crate::corpus::body_of(&ev, u), Tol::witness())
-            .unwrap()
-            .volume;
+        let v = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(crate::corpus::body_of(&ev, u)),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         let want = *volume.get_or_insert(v);
         assert!(
             (v - want).abs() < within,

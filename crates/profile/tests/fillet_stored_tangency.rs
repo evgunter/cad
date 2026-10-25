@@ -359,7 +359,7 @@ fn a_shallow_arc_x_arc_corner_validates_wherever_its_legs_stand_apart() {
                 // within ε at their joint, and the pair pass reads the
                 // two carriers' clearance in band: the near-tangency the
                 // door's joint read relayed while it read the carriers
-                // (`work/paths/an-adjacent-line-arc-pair-tangent-at-its-joint-escalates-its-carriers-clearance.md`).
+                // (`work/profile/an-adjacent-line-arc-pair-tangent-at-its-joint-escalates-its-carriers-clearance.md`).
                 Err(ProfileError::Escalated {
                     site: EscalationSite::SegmentPair(..),
                     source,

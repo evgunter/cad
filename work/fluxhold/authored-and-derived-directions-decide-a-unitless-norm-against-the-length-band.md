@@ -2,9 +2,8 @@
 id: authored-and-derived-directions-decide-a-unitless-norm-against-the-length-band
 kind: issue
 title: Authored and derived directions decide a unit-less norm against the length band through the metre door
-status: parked
+status: open
 opened: 2026-10-02
-blocked_on: [transform-retires-into-a-placement]
 priority: P3
 cost: M
 ---
