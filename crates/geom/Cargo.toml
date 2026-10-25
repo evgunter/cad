@@ -62,3 +62,7 @@ nalgebra = "0.35"
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "r2_turn_probes"
+path = "tests/r2_turn_probes.rs"
