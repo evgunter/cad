@@ -7,7 +7,7 @@ opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [glue-disagreements-and-held-contradictions-after-stage-4, cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect, ring-contact-and-sliver-split-endings-want-their-decisions, contact-gate-readers-drop-the-arm-verdict-or-mint-invalid]
+blocked_on: [glue-disagreements-and-held-contradictions-after-stage-4, cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect, material-arm-split-ends-as-a-hand-minted-invalid]
 ---
 
 Unit 6 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
@@ -37,9 +37,12 @@ in parts. The remaining hand mints are:
 - CHART's four (`chart-region-mints-indeterminates-after-a-definite-sign`,
   `chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value`);
 - TOPO's `boolean-unreadable-norm-ends-as-a-kernel-defect`;
-- RESTFRONT's `ring-contact-and-sliver-split-endings-want-their-decisions`;
-- SECTOR's `contact-gate-readers-drop-the-arm-verdict-or-mint-invalid`;
-- the 35 D10-held arms, through unit 5.
+- RESTFRONT's `material-arm-split-ends-as-a-hand-minted-invalid`
+  (split from `ring-contact-and-sliver-split-endings-want-their-decisions`,
+  whose other parts mint nothing);
+- the 35 D10-held arms, through unit 5. These include `contact_verify`'s
+  seven, which SECTOR's `contact-gate-readers-drop-the-arm-verdict-or-mint-invalid`
+  also names; unit 5 carries them, so this row does not wait on SECTOR's.
 
 A blocker row may close without retiring its mint. Re-run the
 re-scope's two passes when the last blocker closes. The ratchet gate

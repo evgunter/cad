@@ -4,7 +4,7 @@ kind: unit
 title: Conic build unit 3: a classified pair's section function states the crossing-angle floor and the overlap clearance for its pose, and the certificate owes no tube where it does
 status: parked
 opened: 2026-10-25
-priority: P1
+priority: P0
 cost: M
 parent: offset-lane-has-no-conic-carrier
 blocked_on: [edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short]

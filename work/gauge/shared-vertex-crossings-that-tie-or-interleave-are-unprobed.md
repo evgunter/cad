@@ -4,7 +4,7 @@ kind: issue
 title: "SharedVertexCrossings: the fan-interleave arm is reached by no witness; the one-arc strut arm is its own row"
 status: open
 opened: 2026-10-03
-priority: P3
+priority: P1
 cost: M
 ---
 

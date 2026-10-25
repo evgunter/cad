@@ -10,4 +10,7 @@ Every row here moved by `git mv` with its id, body and history
 unchanged. No row is dispatchable; the track opens `blocked`.
 — (REACH orchestrator)
 
+## 2026-10-25 — band rule (band-rule triage)
+
+**Band rule (work/README.md, Priority):** `boolean-door-runs-the-census-over-its-result` re-banded P1→P0: FLUSH's P0s `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded` and `a-result-that-is-only-a-sliver-shell-passes-the-door` are parked on it, and the door census is their whole residue. Its blocker, RESTREAD's `census-cross-solid-curved-pairs-undecidable-on-shell-results`, goes to P0 with it. (band-rule triage)
 - 2026-10-25 — **Re-cut (refold approved in chat):** moved `nurbs-edge-crossing-rung-is-the-ring-composite` to SPLICE by `git mv`, ids and bodies unchanged, each with a dated Moved note. SPLICE (`work/splice/`) is the new track for a body built by loft or sweep entering every boolean; SECT now carries the torus pairs it is built for.
