@@ -80,9 +80,9 @@ sweep = { path = ".", features = ["test-support"] }
 # `profile::RawLoop` fixture door (that trait's docs carry the
 # argument); a shipped build of this crate still cannot mint a table.
 profile = { path = "../profile", features = ["test-support"] }
-# `step-export` for one row: the standing `CurvedShellClassification`
-# gate, recorded on a curved two-shell body that only the shell verb
-# can now produce. Dev-only — no consumer's build graph sees it.
+# `step-export` for one row: a curved two-shell body that only the
+# shell verb produces, whose cavity the writer reads as a void.
+# Dev-only — no consumer's build graph sees it.
 step-export = { path = "../step-export" }
 # `sweep-testing` for the same reason editor-core's dev-dependency
 # carries it: several suites here run the §4.4 differential pair and

@@ -17,8 +17,18 @@ On the `f64` bracket lane, `Aabb::padded`'s outward ulp plus
 `census::edge_reach_in`) adds no pad. So at `f64` its boxes can fall a
 few ulps of their scale short of the locus. These are the face extents
 (`slab_extent`, `cone_frustum_extent`, `ball_extent`, `torus_extent`,
-`torus_window_extent`, `torus_rect_extent`, `conic_extent`) and
-`arc_extent`.
+`torus_window_extent`, `torus_rect_extent`, `conic_extent`) and the
+conic edge and axial arms, which read `geom`'s directional door
+(`geom::curves::boxes::conic_arc_extent_along`, `ArcWindow`) at the
+census's own scalar.
+
+The conic arms rest on this contract with no margin of their own. They
+used to read a sampled extent, whose subdivision charge
+(`a·(Δt/16)²/8`) sat outside the locus by far more than rounding; the
+door is the closed form, so at `f64` it is the extent to rounding of
+its terms (the centre's offset and the semi-axes, times `|n|`) and can
+fall a few ulps of that scale short of the locus, like the face
+extents above.
 
 None of them takes the root of a cancelling difference, so the shortfall
 stays at a few ulps of scale.

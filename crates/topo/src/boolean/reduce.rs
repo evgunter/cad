@@ -614,7 +614,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 /// - the sector walk at an ON vertex (`sectors::build_sectors`), which
 ///   takes a spline's chord as its departure direction.
 ///
-/// Retiring it is `work/orbit/delete-the-boolean-operand-edge-gate.md`.
+/// Retiring it is `work/splice/delete-the-boolean-operand-edge-gate.md`.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match certified(body.get_curve_geom(edge.curve))?.carrier() {
@@ -4427,31 +4427,10 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
             }
         }
         // A span of at most one period is what makes the MIDPOINT
-        // anchor's branch the right one, and it is CHECKED rather than
-        // assumed: past a period the azimuth aliases by 2π silently,
-        // and `split_edge`'s interiority gate cannot see it (an aliased
-        // parameter is still inside a span that long). The row is the
-        // period guard the boundary pre-pass's conic arm already spells,
-        // metered the same way; a full turn is `Zero` and passes.
-        match decide(
-            "bool_split_span_period",
-            Margin::levered(T::tau() - (t1 - t0), radius),
-            band,
-        ) {
-            Ok(Sign::Positive | Sign::Zero) => {}
-            Ok(Sign::Negative) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "circle edge span exceeds one period; the split azimuth \
-                           would alias by a turn",
-                });
-            }
-            Err(diag) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::ArcSpan,
-                    diag,
-                });
-            }
-        }
+        // anchor's branch the right one (past a period the azimuth
+        // aliases by 2π silently, and `split_edge`'s interiority gate
+        // cannot see it): the edge's certificate holds its turn, which
+        // is never over one ([`geom_brep::CertifiedTurn`]).
     }
     let t = curve
         .carrier()
