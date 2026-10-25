@@ -2,10 +2,13 @@
 id: a-mirrors-body-reads-as-in-no-space
 kind: issue
 title: Doc::space_of answers no space for a mirror's body, so a union whose first member is a mirror's image is in no space
-status: open
+status: closed
 opened: 2026-10-23
 priority: P2
 cost: E
+closed: 2026-10-25
+parent: the-viewer-cannot-author-a-mirror
+pr: 5683
 ---
 
 Found by the `_ =>` sweep of `a-symmetric-parts-seam-is-not-walked-as-one-construction` (2026-10-23). `Node::Mirror` defines "a new `Body` in its source's space" (its doc in `crates/editor-core/src/node.rs`). But `SpaceWalk::node` (`crates/editor-core/src/doc.rs`, the walk behind `Doc::space_of` and `Doc::operand_space`) names no `Mirror` arm. A mirror falls to `_ => self.own.get(&id).copied()`, which serves a construction that defines a `space` port. A mirror defines only `body` (`Node::outputs`), so the answer is `None`.
@@ -33,3 +36,7 @@ The viewer's mirror tool (`crates/viewer/src/combine.rs` `MirrorTool`, the sessi
 - `crates/editor-core/tests/a_mirror_is_a_construction.rs` `a_mirrors_image_and_a_union_it_leads_are_in_the_sources_space` (the L-plate probe): the image's body, the mirror node, and `Union { members: [image, plate] }` are all in the plate's space.
 - `crates/viewer/tests/mirror_authoring.rs` `a_moved_symmetric_part_is_drawn_in_one_place_in_either_order`: block-first and image-first unions of a translated block insert the union alone, with no extra `Place`, and are drawn over the same span.
 - `a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body`: a plane on another space's image now refuses `SpaceMismatch`. Before the arm, its space was `None`.
+
+## Closed
+
+2026-10-25, PR 5683. Moved from INTENT, which was told on its log (PR 5690). This PR carries the one arm. The re-verify read every reader of `space_of` / `operand_space` whose answer for a mirror changes from None to Some, and each now answers correctly.

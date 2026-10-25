@@ -713,8 +713,10 @@ pub enum SessionOp {
     /// (`Node::Mirror`) and the union of the body and its image, in the
     /// body's space, the body's drawn copies re-pointed to the union —
     /// the feature takeover a fillet makes — so the part is drawn where
-    /// each copy stands and follows every later edit of the copy. A body
-    /// nothing places gets its image alone, reached in the tree.
+    /// each copy stands and moves with the copy's placement. A mate that
+    /// another placement seats on a face of the body's copy goes stale
+    /// at the takeover, as it does at a fillet's. A body nothing places
+    /// gets its image alone, reached in the tree.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
     /// a face read in another space — another construction's, or its
