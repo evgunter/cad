@@ -941,7 +941,7 @@ mod period_rows {
     test_utils::gated_to!["crates/geom-core/src/period.rs"];
 
     /// **The gallop answers as the step-by-step walk does at `Interval`,
-    /// levered** (a counterexample search: the seed varies). Enclosures
+    /// metered** (a counterexample search: the seed varies). Enclosures
     /// of every width from a point to two periods, centred out to 300
     /// periods, half of them within 1e-7 periods of a half-period mark,
     /// metered at a lever of 0.37: the answer, the miss and the pair
@@ -955,7 +955,7 @@ mod period_rows {
         let tau = Interval::tau();
         let arm = Interval::from_f64(0.37);
         let band = band();
-        let meter = |g| Margin::levered(g, arm);
+        let meter = |g| Margin::metered(g, crate::InfSpeed::new(arm));
         let step_walk = |gap: Interval| -> String {
             let half = Interval::from_f64(0.5);
             let mark = |k: i32, side: Interval| {

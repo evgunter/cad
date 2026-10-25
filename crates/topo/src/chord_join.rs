@@ -3278,7 +3278,7 @@ fn pole_branch<T: Decide>(
         .decide(
             "split_sphere_pole_branch",
             shifted,
-            |g| Margin::levered(g, lever),
+            |g| Margin::metered(g, InfSpeed::new(lever)),
             band,
         )
         .map_err(|stop| match stop.miss {

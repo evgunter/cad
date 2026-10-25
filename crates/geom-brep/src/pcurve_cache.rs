@@ -7800,7 +7800,7 @@ impl<T: Decide> Placement<T> {
     /// read piece by piece (the projected one), the turns its deck origin
     /// takes. The turns are decided through the half-period marks about
     /// the window's centre (C4: a whole-period choice a reader tells apart
-    /// goes through the marks), levered at the angle's lever ([`Levers`]).
+    /// goes through the marks), metered at the angle's lever ([`Levers`]).
     /// A lever of zero (an edge wholly on the axis, a pole's zero-radius
     /// parallel; at `Interval`, an enclosure reaching zero) moves nothing,
     /// so every copy is the same curve and the angle as read is kept, at
@@ -7832,7 +7832,7 @@ impl<T: Decide> Placement<T> {
         match Period::new(T::tau()).decide(
             "pcurve_chart_placement",
             at - centre,
-            |g| Margin::levered(g, lever),
+            |g| Margin::metered(g, InfSpeed::new(lever)),
             band,
         ) {
             Ok(k) => Ok(k),
