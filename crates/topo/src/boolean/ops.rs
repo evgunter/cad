@@ -7597,13 +7597,18 @@ struct FallbackFates {
 /// it is kept, so it borders a kept face only through a substituted
 /// fragment.
 ///
+/// A cut that refuses moves no body, since the result holds nothing of
+/// the dropped clone: the clones are restored, each dropped face a fate
+/// edge lies in is left whole with an `uncut` row carrying the refusal,
+/// and a face held wholly is held as it stands.
+///
 /// # Errors
 ///
-/// [`fate::cut`](super::fate::cut)'s refusals; a pair whose kept copy
-/// the result drops while it keeps the copy the lump dropped, or a cut
-/// in operand A's clone (the lump keeps A's copy,
+/// A pair whose kept copy the result drops while it keeps the copy the
+/// lump dropped, or a cut in operand A's clone (the lump keeps A's copy,
 /// `tables::kept_copy`), refuses
-/// [`BooleanError::ClassificationInvariant`].
+/// [`BooleanError::ClassificationInvariant`]; a discard row's reading
+/// (`discard::discard_row`) refuses as it does.
 fn fallback_fates<T: Decide + AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     discarded: [&BTreeSet<FaceKey>; 2],
