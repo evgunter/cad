@@ -7015,3 +7015,4 @@ Signed (WIRE orchestrator).
   - MINOR: a new unreachable! rests on two decisions agreeing, so it goes typed per the class rule.
   - Fix pass sent: tied arm, typed refusal, dedup helper, territory line, row wording.
   - The reviewer also reports main red at 4b7d569 on about 30 slow tests, goldens included, identical at base. The orchestrator is checking a sample on current main.
+- 2026-10-25 (WIRE orchestrator) Checked main (63230e1077). die_name_tables_are_golden, node_standing READERS and intent_s2_c_world are red, and name_words_rows' timing test failed under load. These are already filed by INTENT, against PR 5613 (D′2): `intent/main-red-the-seat-and-name-table-goldens-moved-at-dprime2` and `intent/main-red-node-standing-readers-census-trails-the-dprime2-mate-split`, including wire.rs's 9-vs-10 reader count. Not WIRE's; no action. Lanes are told not to count these as theirs.
