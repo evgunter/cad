@@ -1076,15 +1076,19 @@ fn r2_valid_booleans_with_a_vertex_on_a_face_of_their_own_solid() {
     );
     let body = built("r2 pyramid on its apex", union(&plate(), &held, tol()));
     eprintln!("R2 pyramid on its apex: solids {}", body.solids.len());
-    let mould = built(
-        "r2 mould",
-        subtract(&block((-1.0, 5.0), (-1.0, 5.0), (-1.0, 4.5)), &body, tol()),
-    );
-    eprintln!(
-        "R2 mould: solids {} shells {}",
-        mould.solids.len(),
-        mould.shells.len()
-    );
+    match subtract(&block((-1.0, 5.0), (-1.0, 5.0), (-1.0, 4.5)), &body, tol()) {
+        Ok(BooleanResult::Body(r)) => eprintln!(
+            "R2 mould: solids {} shells {} records {:?} validate {:?}",
+            r.body.solids.len(),
+            r.body.shells.len(),
+            r.contacts,
+            validate_pseudomanifold(&r.body, &r.contacts, tol()).map_err(|e| (
+                e.clone(),
+                validate_pseudomanifold(&r.body, &record_all(&e), tol())
+            ))
+        ),
+        other => eprintln!("R2 mould: {:?}", other.map(|_| ())),
+    }
     let corner = crate::test_support::finished(
         "r2 corner",
         crate::test_support_fixtures::mapped_cube::<f64>(
