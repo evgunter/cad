@@ -2945,6 +2945,9 @@ struct RootCross<T> {
     face: FaceKey,
     t: T,
     side: RootSide,
+    /// Its place among its face's roots: two faces on one carrier read
+    /// the same roots in the same order.
+    ordinal: usize,
 }
 
 /// How a root's outward sign is read: off the decided root order (a
@@ -3258,7 +3261,16 @@ fn carrier_roots<T: Decide>(
     let (mut roots, mut missed) = (Vec::new(), Vec::new());
     for &(face, ref geo) in geos {
         let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
-        let mut push = |t: T, side: RootSide| roots.push(RootCross { face, t, side });
+        let first = roots.len();
+        let mut push = |t: T, side: RootSide| {
+            let ordinal = roots.len() - first;
+            roots.push(RootCross {
+                face,
+                t,
+                side,
+                ordinal,
+            });
+        };
         match *geo {
             FaceGeo::Cylinder {
                 origin,
@@ -3743,21 +3755,52 @@ pub(crate) fn ray_crossings<T: Decide>(
     // Each root of a trimmed curved face no edge stands for, tested
     // against the face's own region: a root outside it is no crossing of
     // this face, and one on its boundary, or one the region cannot
-    // place, reads no side.
-    for (k, r) in roots.iter().enumerate() {
-        if attributed.contains(&k) {
+    // place, reads no side. Faces on one carrier (a seam split) share
+    // its roots: a face that definitely holds one holds it alone, so the
+    // others' readings of it, in band or not, decide nothing.
+    let surface = |f: FaceKey| body.get_face(f).map(|fc| fc.surface);
+    let mut read = vec![false; roots.len()];
+    for k in 0..roots.len() {
+        if read[k] {
             continue;
         }
-        let Some(geo) = geo_of(r.face) else {
+        let shared: Vec<usize> = (k..roots.len())
+            .filter(|&j| {
+                roots[j].ordinal == roots[k].ordinal
+                    && surface(roots[j].face) == surface(roots[k].face)
+            })
+            .collect();
+        for &j in &shared {
+            read[j] = true;
+        }
+        if shared.iter().any(|j| attributed.contains(j)) {
             continue;
-        };
-        match root_held(r.face, geo, q + d * r.t, band)? {
-            Some(false) => {}
-            None => offer_root(r.face, r.t, Sign::Zero, true)?,
-            Some(true) => {
-                let outward = root_outward(r.face, geo, *r, q, d, band)?;
+        }
+        let (mut held, mut in_band, mut boundary) = (None, None, None);
+        for &j in &shared {
+            let r = roots[j];
+            let Some(geo) = geo_of(r.face) else {
+                continue;
+            };
+            match root_held(r.face, geo, q + d * r.t, band) {
+                Ok(Some(true)) => {
+                    held = Some((r, geo));
+                    break;
+                }
+                Ok(Some(false)) => {}
+                Ok(None) => boundary = boundary.or(Some(r)),
+                Err(fault @ RayFault::InBand(_)) => in_band = in_band.or(Some(fault)),
+                Err(fault) => return Err(fault),
+            }
+        }
+        match (held, in_band, boundary) {
+            (Some((r, geo)), ..) => {
+                let outward = root_outward(r.face, geo, r, q, d, band)?;
                 offer_root(r.face, r.t, outward, false)?;
             }
+            (None, Some(fault), _) => return Err(fault),
+            (None, None, Some(r)) => offer_root(r.face, r.t, Sign::Zero, true)?,
+            (None, None, None) => {}
         }
     }
     for &(face, ref geo) in geos {
@@ -3940,6 +3983,7 @@ pub(crate) fn ray_crossings<T: Decide>(
                         face,
                         t,
                         side: RootSide::Torus,
+                        ordinal: 0,
                     };
                     let outward = root_outward(face, geo, root, q, d, band)?;
                     offer_root(face, t, outward, false)?;
