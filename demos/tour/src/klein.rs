@@ -155,11 +155,11 @@
 //!    two-shell solid (torus + toroidal cavity) through the shared
 //!    void-insertion door, tier-valid, and the probe asserts that
 //!    build every run. What the shape still cannot do is leave as a
-//!    STEP file: the writer's outward/void shell classifier has
-//!    closed forms for planar faces only, so a multi-shell CURVED
-//!    solid refuses `CurvedShellClassification` — the KNOWN standing
-//!    gate of OFFSET-DESIGN O6's demo-gates list, recorded here and
-//!    never worked around.
+//!    STEP file: the writer reads the cavity as the void it is and
+//!    refuses it, `VoidShellUnsupported`, because it does not write
+//!    `BREP_WITH_VOIDS` yet
+//!    (`work/export/step-export-refuses-every-hollow-body.md`) —
+//!    recorded here and never worked around.
 //! 8. **Edge selection by adjacent surface kinds works at BOTH
 //!    seats.** `select_where` + `GeomPred::AdjacentKinds` says "the
 //!    cone×cylinder corners" over an `Evaluation` (the die scene says
@@ -1206,9 +1206,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // void-insertion door (the degenerate no-crossing arm), so the
     // probe asserts the two-shell tier-valid build it used to pin as
     // a refusal. The wall that REMAINS for this shape is its STEP
-    // export: the writer's outward/void shell classifier has closed
-    // forms for planar faces only, so a multi-shell CURVED solid
-    // refuses typed — OFFSET-DESIGN O6's known standing demo gate,
+    // export: the writer refuses its cavity as a void (no
+    // BREP_WITH_VOIDS) — OFFSET-DESIGN O6's standing demo gate,
     // recorded here and never worked around.
     let ring_plane = meridian_plane::<S>();
     let ring =
@@ -1270,10 +1269,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                pncad::step_export::StepExportError::VoidShellUnsupported { .. }
             )
         },
-        "record that the writer's outward/void classifier grew a curved arm, update \
+        "record that the writer writes BREP_WITH_VOIDS, update \
          findings entry 7 (the O6 demo-gates list row), and retire the `ring`, \
          `tubewall::hollowtorus` and `torusvessel` scenes' `step_at_frontier` \
          declarations, which pin this same refusal on the rendered hollow ring, on the \

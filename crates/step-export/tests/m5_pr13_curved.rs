@@ -944,14 +944,9 @@ fn epsilon_reaches_only_the_uncertainty_record() {
 }
 
 /// **Two curved stubs are two solids, and export.** S12's two-stub
-/// `boss ∖ plate` complement used to be one solid of two curved shells,
-/// and the outward/void classifier (which has closed forms for planar
-/// faces only) refused it. A solid is one piece of material now
-/// (`docs/DESIGN.md`), so the complement is two solids of one shell
-/// each, which never reach the classifier: the body exports at both
-/// tolerances. The classifier's refusal stays pinned on the shape that
-/// still reaches it, the hollow ring below
-/// ([`hollow_ring_hits_the_curved_shell_gate`]).
+/// `boss ∖ plate` complement is two solids of one shell each (a solid
+/// is one piece of material, `docs/DESIGN.md`), so neither reaches the
+/// shell classification: the body exports at both tolerances.
 #[test]
 fn two_curved_stubs_are_two_solids_and_export_at_both_tolerances() {
     let stubs = common::two_stub_complement();
@@ -967,15 +962,13 @@ fn two_curved_stubs_are_two_solids_and_export_at_both_tolerances() {
     }
 }
 
-/// **The standing gate, on the shape that made it real** (VERBS-RING;
-/// OFFSET-DESIGN O6's demo-gates list): the one-call hollow ring — a
-/// full revolve of an annulus, outer torus + toroidal cavity — builds
-/// tier-valid but cannot leave as STEP, because the outward/void
-/// shell classifier has closed forms for planar faces only. Recorded
-/// as a pin, not worked around; retiring it is the classifier's own
-/// unit, not a ring change.
+/// **A curved void classifies** (VERBS-RING): the one-call hollow ring
+/// — a full revolve of an annulus, outer torus + toroidal cavity — is a
+/// solid of two curved shells, and the writer reads the cavity's role
+/// off the kernel's shell-role door: it refuses as the void it is, its
+/// volume the cavity's `−2π²Rr²`, and never for the torus surfaces.
 #[test]
-fn hollow_ring_hits_the_curved_shell_gate() {
+fn hollow_ring_refuses_as_a_void() {
     use geom_core::{Point2, Vec2};
     let tol = Tol::witness();
     let outer = profile::circle(Point2::new(5.0, 0.0), 0.5, tol).unwrap();
@@ -994,12 +987,17 @@ fn hollow_ring_hits_the_curved_shell_gate() {
     )
     .unwrap();
     assert_eq!(ring.body.shells().count(), 2, "the ring is two-shell");
+    let cavity = ring.body.shells().nth(1).expect("two shells").0;
     match step_string(&ring.body, &StepOptions::default(), tol) {
-        Err(StepExportError::CurvedShellClassification { kind, .. }) => {
-            // The classifier meets the torus wall's surface first.
-            assert_eq!(kind, "torus surface");
+        Err(StepExportError::VoidShellUnsupported { shell, volume }) => {
+            assert_eq!(shell, cavity, "the cavity is the void");
+            let expected = -2.0 * std::f64::consts::PI.powi(2) * 5.0 * 0.35_f64.powi(2);
+            assert!(
+                (volume - expected).abs() <= 1e-6 * expected.abs(),
+                "the cavity's signed volume: {volume} vs {expected}"
+            );
         }
-        other => panic!("expected the standing curved-shell gate, got {other:?}"),
+        other => panic!("expected VoidShellUnsupported, got {other:?}"),
     }
 }
 

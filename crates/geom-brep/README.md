@@ -1214,9 +1214,9 @@ faces inherit the NURBS-adjacent exemption from dihedral marks (C7).
 
 **O6 — Sequencing and the demo gates.** The units are landed in the
 order O1 → O3 meters and fit → O2 storage → face replacement and shell.
-Live gates, each named where it refuses: a multi-shell curved solid
-refuses STEP export (`CurvedShellClassification`, the outward/void
-classifier is planar-only); the area enclosure is unmetered; rational
+Live gates, each named where it refuses: a hollow solid refuses STEP
+export (`VoidShellUnsupported`, the writer has no `BREP_WITH_VOIDS`);
+the area enclosure is unmetered; rational
 pcurve quadrature refuses typed; the Klein bottle's BULB wall pairs wait on
 the `cylinder × torus` and `cone × torus` arms — its own two rims. The
 bulb has no cone-abutting-cylinder adjacency at all: its flare is

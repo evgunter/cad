@@ -310,14 +310,36 @@ fn curved_bodies_export_rather_than_refuse() {
 #[test]
 fn voided_body_refuses_typed() {
     let body = common::voided();
+    let cavity = body.shells().nth(1).expect("two shells").0;
     match step_string(&body, &StepOptions::default(), Tol::witness()) {
-        Err(StepExportError::VoidShellUnsupported { volume, .. }) => {
-            // The reverted inner shell bounds the unit cavity; its
-            // outward-from-material normals point INTO the cavity, so
-            // the divergence sum is exactly −1.
+        Err(StepExportError::VoidShellUnsupported { shell, volume }) => {
+            assert_eq!(shell, cavity, "the inner shell is the void");
+            // The cavity's walls face into it, away from the material,
+            // so its signed volume is exactly −1.
             assert_eq!(volume, -1.0, "cavity volume, negatively signed");
         }
         other => panic!("expected VoidShellUnsupported, got {other:?}"),
+    }
+}
+
+/// **A multi-shell body wound inside out refuses unread.** The voided
+/// body reverted: its outer wall encloses −27 m³ and its cavity wall
+/// +1 m³. A sign read alone names the outer wall a void and the cavity
+/// material; the writer reads roles only off a finished body, and this
+/// one is not.
+#[test]
+fn an_inside_out_multi_shell_body_refuses_typed() {
+    let body = common::voided().revert().expect("the voided body reverts");
+    let solid = body.solids().next().expect("one solid").0;
+    match step_string(&body, &StepOptions::default(), Tol::witness()) {
+        Err(StepExportError::MultiShellNotAtRest { findings }) => {
+            assert_eq!(
+                findings,
+                vec![topo::ValidationError::NegativeVolume { solid }],
+                "the gate's reason"
+            );
+        }
+        other => panic!("expected MultiShellNotAtRest, got {other:?}"),
     }
 }
 

@@ -349,11 +349,8 @@ pub fn notched() -> Body<f64> {
 
 /// S12's two-stub complement: a radius-0.35 cylindrical boss spanning
 /// z ∈ [−0.2, 1.0] MINUS a 3×3×0.8 plate — the boss's two ends stick
-/// out above and below, so the result is one solid with TWO disjoint
-/// shells, both carrying cylinder walls. The only curved MULTI-shell
-/// body constructible at rest, and therefore the only body that
-/// reaches (and refuses at) the export's outward/void classifier.
-/// Deliberately NOT a committed fixture: it does not export.
+/// out above and below, so the result is two solids of one shell
+/// each, both carrying cylinder walls.
 pub fn two_stub_complement() -> Body<f64> {
     use core::f64::consts::PI;
 

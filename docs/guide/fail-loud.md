@@ -490,8 +490,9 @@ when the value was the wrong shape, the kind it actually found — so
 "you asked me to export a profile" is a matchable fact rather than a
 message. On the Rust side, STEP export has three refusals you should
 *expect* rather than fix — `UnsupportedSurface`, `UnsupportedCurve`,
-`CurvedShellClassification` — meaning the AP242 writer has no
-representation for a surface the modeller can legitimately build. The
+`VoidShellUnsupported` — meaning the AP242 writer has no
+representation for a surface or a cavity the modeller can legitimately
+build. The
 tour tolerates exactly those three, per scene, and panics on anything
 else. That is the right posture to copy: enumerate the refusals you
 accept, and let every other one be loud.

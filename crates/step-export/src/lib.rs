@@ -152,44 +152,26 @@
 //!   This holds for either face sense and the flag is never flipped:
 //!   the schema *composes* a bound's orientation with the owning
 //!   face's `same_sense`, so with the sense already emitted above, a
-//!   second flip here would double-count it. Shell volumes are read
-//!   from these same windings and are sense-invariant by derivation
-//!   for the same reason (`volume.rs` module docs).
+//!   second flip here would double-count it.
 //!
 //! # Solids, shells, and voids
 //!
 //! Each shell exports as one `CLOSED_SHELL` under its own
-//! `MANIFOLD_SOLID_BREP`. For a **multi-shell solid** (an M3 boolean
-//! Assembly/Voided result) the writer classifies each shell by the
-//! sign of its divergence-theorem volume over the planar subset,
-//! computed in f64 (closed forms per segment; rounded accumulation in
-//! general, exact on dyadic inputs — the sign read is a plain
-//! comparison, not a Q1 trilean, and `volume.rs`'s module docs carry
-//! the headroom argument for why that is safe on any buildable shell).
-//! Outward-normal convention: a positive shell bounds material from
-//! outside, a negative shell is a void cavity wall. Positive shells
-//! become independent `MANIFOLD_SOLID_BREP`s (the disjoint-assembly
-//! case); a negative shell is **refused** with
-//! [`StepExportError::VoidShellUnsupported`] — `BREP_WITH_VOIDS`
-//! needs a void-to-containing-shell association the kernel does not
-//! yet record, and guessing it would be a silent lie. Voided bodies
-//! wait for that designation (M5+); the refusal is pinned by test.
-//! Single-shell solids are deliberately never volume-checked: tier-2
-//! validity plus the +V invariant own a lone shell's orientation, and
-//! the classification gate exists only to tell a multi-shell solid's
+//! `MANIFOLD_SOLID_BREP`. For a **multi-shell solid** the writer reads
+//! each shell's outer/void role off `topo::classify_shells_of`, the
+//! kernel's one shell-role reader, over the body finished through
+//! `topo::AtRestBody::validate` (the door classifies finished bodies
+//! only). Outer shells become independent `MANIFOLD_SOLID_BREP`s; a void
+//! shell is **refused** with [`StepExportError::VoidShellUnsupported`] —
+//! `BREP_WITH_VOIDS` needs a void-to-containing-shell association the
+//! kernel does not yet record, and guessing it would be a silent lie. A
+//! multi-shell body that is not finished refuses as
+//! [`StepExportError::MultiShellNotAtRest`], and a shell the door cannot
+//! classify as [`StepExportError::ShellUnclassified`]; neither is read
+//! to a side. Single-shell solids are deliberately never classified:
+//! tier-2 validity plus the +V invariant own a lone shell's orientation,
+//! and the classification exists only to tell a multi-shell solid's
 //! shells apart.
-//!
-//! The classifier's closed forms are **planar only** and did not grow
-//! at M5 PR 13, so it is now narrower than the emitter: a MULTI-shell
-//! solid carrying curved geometry refuses
-//! ([`StepExportError::CurvedShellClassification`]) even though every
-//! one of its faces has a printer. The reduction the classifier
-//! performs is a planarity identity with no closed-form curved
-//! counterpart, and its output is a material-vs-void sign — the one
-//! place an approximation would be a silent lie rather than a
-//! roundoff. Single-shell curved solids — every curved body at rest
-//! today bar S12's two-stub `boss ∖ plate` complement — never reach it
-//! and export normally.
 //!
 //! # Determinism (D9)
 //!
@@ -226,7 +208,6 @@ use geom_core::Tol;
 use topo::{Body, EdgeKey, FaceKey, LoopKey, ShellKey};
 
 mod real;
-mod volume;
 mod writer;
 
 pub use real::fmt_real;
@@ -303,45 +284,29 @@ pub enum StepExportError {
     /// with no shells) — an empty DATA section would be a conformance
     /// defect, so the writer refuses.
     NothingToExport,
-    /// A multi-shell solid contains a shell whose signed volume is
-    /// definitely negative — a void cavity wall (outward normals point
-    /// into the cavity). `BREP_WITH_VOIDS` needs the kernel's
-    /// void-to-outer-shell designation, which does not exist yet
-    /// (M5+); exporting the void as a solid would be silently wrong,
-    /// so the writer refuses.
+    /// A multi-shell solid contains a void shell (a cavity wall,
+    /// `topo::ShellRole::Void`). `BREP_WITH_VOIDS` needs the kernel's
+    /// void-to-outer-shell designation, which does not exist yet;
+    /// exporting the void as a solid would be silently wrong, so the
+    /// writer refuses.
     VoidShellUnsupported {
         /// The void shell.
         shell: ShellKey,
-        /// Its computed signed volume (m³, negative).
+        /// Its signed volume (m³; the midpoint of the door's bracket).
         volume: f64,
     },
-    /// A multi-shell solid contains a shell whose signed volume is
-    /// zero or non-finite — the outward/void classification has no
-    /// honest answer.
-    ShellVolumeIndeterminate {
-        /// The unclassifiable shell.
-        shell: ShellKey,
-        /// The computed signed volume (m³).
-        volume: f64,
+    /// A body with a multi-shell solid did not pass
+    /// `topo::AtRestBody::validate`, so its shells have no role the
+    /// kernel can read.
+    MultiShellNotAtRest {
+        /// The gate's findings, verbatim.
+        findings: Vec<topo::ValidationError>,
     },
-    /// A **multi-shell** solid contains a shell whose geometry leaves
-    /// the outward/void classifier's closed forms (planes bounded by
-    /// lines). The emitter itself handles the curved subset — this is
-    /// the classifier alone: the divergence-theorem reduction in
-    /// `volume.rs` is exact per planar face and has no curved-face
-    /// counterpart yet, and guessing a shell's sign would silently
-    /// decide material-vs-void. Single-shell solids never reach it, so
-    /// curved bodies export normally; only a curved solid with two or
-    /// more shells refuses.
-    CurvedShellClassification {
-        /// The shell that could not be classified.
-        shell: ShellKey,
-        /// The face whose geometry left the closed forms.
-        face: FaceKey,
-        /// What that face carries: a surface kind's name followed by
-        /// `surface` (`"torus surface"`), or an edge carrier's followed
-        /// by `curve` (`"circle curve"`).
-        kind: String,
+    /// `topo::classify_shells_of` could not decide a shell of a
+    /// multi-shell solid outer or void; its refusal names the shell.
+    ShellUnclassified {
+        /// The door's refusal.
+        source: Box<topo::ShellClassifyError>,
     },
     /// An explicit [`StepOptions::uncertainty_m`] is not finite and
     /// strictly positive.
@@ -403,23 +368,25 @@ impl fmt::Display for StepExportError {
             }
             Self::VoidShellUnsupported { shell, volume } => write!(
                 f,
-                "step export: shell {shell:?} of a multi-shell solid has negative signed \
-                 volume {volume} m\u{b3} — a void cavity; BREP_WITH_VOIDS export needs the \
+                "step export: shell {shell:?} of a multi-shell solid is a void cavity \
+                 (signed volume {volume} m\u{b3}); BREP_WITH_VOIDS export needs the \
                  kernel's void-shell designation (future work), refusing rather than \
                  exporting a void as material"
             ),
-            Self::ShellVolumeIndeterminate { shell, volume } => write!(
+            Self::MultiShellNotAtRest { findings } => write!(
                 f,
-                "step export: shell {shell:?} of a multi-shell solid has signed volume \
-                 {volume} m\u{b3} — outward/void classification is indeterminate"
+                "step export: the body has a multi-shell solid but is not a finished \
+                 body, so its shells cannot be told outer from void ({} finding(s), \
+                 first: {})",
+                findings.len(),
+                findings
+                    .first()
+                    .map_or_else(|| "none".to_owned(), ToString::to_string)
             ),
-            Self::CurvedShellClassification { shell, face, kind } => write!(
+            Self::ShellUnclassified { source } => write!(
                 f,
-                "step export: shell {shell:?} of a multi-shell solid carries face \
-                 {face:?} ({kind}) — the outward/void classifier's divergence-theorem \
-                 closed forms cover planes bounded by lines only, and a guessed sign \
-                 would silently decide material vs void; refusing (the emitter itself \
-                 exports this geometry — single-shell curved solids are unaffected)"
+                "step export: a shell of a multi-shell solid cannot be classified \
+                 outer or void: {source}"
             ),
             Self::InvalidUncertainty { value } => write!(
                 f,
@@ -436,6 +403,7 @@ impl std::error::Error for StepExportError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Io(e) => Some(e),
+            Self::ShellUnclassified { source } => Some(source.as_ref()),
             _ => None,
         }
     }

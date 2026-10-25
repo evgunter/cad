@@ -17,10 +17,12 @@ use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
-use topo::{Body, CurveGeom, Edge, EdgeKey, FaceKey, LoopBoundary, LoopKey, ShellKey, VertexKey};
+use topo::{
+    AtRestBody, Body, CurveGeom, Edge, EdgeKey, FaceKey, LoopBoundary, LoopKey, ShellKey,
+    ShellRole, VertexKey, classify_shells_of,
+};
 
 use crate::real::fmt_real;
-use crate::volume::shell_signed_volume;
 use crate::{SharedIds, StepExportError, StepOptions, quoted};
 use geom_core::Tol;
 
@@ -40,13 +42,12 @@ const SPIRIC_MAX_NODES: usize = 1024;
 /// buys (`Writer::spiric_spline`'s docs).
 const SPIRIC_MIN_NODES: usize = 4;
 
-/// The surface's name, for typed refusals and for the curved-shell
-/// classification message: the kind's own name
+/// The surface's name, for typed refusals: the kind's own name
 /// ([`geom::SurfaceKind::name`]), except that the mvfs "no description
 /// yet" NURBS placeholder (the shared `is_placeholder` discriminator)
 /// is named apart — it is a mid-surgery fact and refuses, where a
 /// described NURBS surface exports natively.
-pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
+fn surface_kind(surface: &Surface<f64>) -> &'static str {
     match surface {
         Surface::Nurbs(payload) if payload.is_placeholder() => "nurbs placeholder",
         _ => surface.kind().name(),
@@ -55,7 +56,7 @@ pub(crate) fn surface_kind(surface: &Surface<f64>) -> &'static str {
 
 /// The certified carrier of `edge`, refusing null scaffolding with the
 /// typed mid-surgery error.
-pub(crate) fn certified_carrier<'a>(
+fn certified_carrier<'a>(
     body: &'a Body<f64>,
     edge_key: EdgeKey,
     edge: &Edge,
@@ -993,51 +994,63 @@ impl<'a> Writer<'a> {
         Ok(self.emit(&format!("CLOSED_SHELL('', ({}))", refs(&faces))))
     }
 
-    /// One `MANIFOLD_SOLID_BREP` per shell of every solid, with the
-    /// multi-shell outward/void classification (crate docs: positive
-    /// shells are independent solids, negative shells refuse).
-    /// Single-shell solids skip classification by design — tier-2
-    /// validity and the +V invariant own lone-shell orientation.
-    fn manifold_solids(&mut self, name: &str) -> Result<Vec<u64>, StepExportError> {
+    /// One `MANIFOLD_SOLID_BREP` per shell of every solid, after the
+    /// multi-shell outer/void classification (crate docs: outer shells
+    /// are independent solids, a void shell refuses). Single-shell
+    /// solids skip classification by design — tier-2 validity and the
+    /// +V invariant own lone-shell orientation.
+    fn manifold_solids(&mut self, name: &str, tol: Tol) -> Result<Vec<u64>, StepExportError> {
         // Snapshot the walk order first (arena order for solids, stored
         // order for their shells) so classification runs before any
-        // emission for the offending solid.
+        // emission.
         let solid_shells: Vec<Vec<ShellKey>> = self
             .body
             .solids()
             .map(|(_, solid)| solid.shells.clone())
             .collect();
+        let multi: Vec<ShellKey> = solid_shells
+            .iter()
+            .filter(|shells| shells.len() > 1)
+            .flatten()
+            .copied()
+            .collect();
+        if !multi.is_empty() {
+            self.refuse_void_shells(&multi, tol)?;
+        }
         let mut msbs = Vec::new();
-        for shells in solid_shells {
-            if shells.len() > 1 {
-                for &shell_key in &shells {
-                    let shell = self
-                        .body
-                        .get_shell(shell_key)
-                        .ok_or(StepExportError::Corrupt {
-                            what: "solid shell key does not resolve",
-                        })?;
-                    let volume = shell_signed_volume(self.body, shell_key, shell)?;
-                    if !volume.is_finite() || volume == 0.0 {
-                        return Err(StepExportError::ShellVolumeIndeterminate {
-                            shell: shell_key,
-                            volume,
-                        });
-                    }
-                    if volume < 0.0 {
-                        return Err(StepExportError::VoidShellUnsupported {
-                            shell: shell_key,
-                            volume,
-                        });
-                    }
-                }
-            }
-            for shell_key in shells {
-                let cs = self.closed_shell(shell_key)?;
-                msbs.push(self.emit(&format!("MANIFOLD_SOLID_BREP({name}, #{cs})")));
-            }
+        for shell_key in solid_shells.into_iter().flatten() {
+            let cs = self.closed_shell(shell_key)?;
+            msbs.push(self.emit(&format!("MANIFOLD_SOLID_BREP({name}, #{cs})")));
         }
         Ok(msbs)
+    }
+
+    /// The roles of `shells` (every shell of the body's multi-shell
+    /// solids, in walk order) through `topo::classify_shells_of`; the
+    /// first void in walk order refuses.
+    fn refuse_void_shells(&self, shells: &[ShellKey], tol: Tol) -> Result<(), StepExportError> {
+        let finished = AtRestBody::validate(self.body.clone(), tol)
+            .map_err(|findings| StepExportError::MultiShellNotAtRest { findings })?;
+        let rows = classify_shells_of(&finished, shells, tol).map_err(|source| {
+            StepExportError::ShellUnclassified {
+                source: Box::new(source),
+            }
+        })?;
+        for &shell in shells {
+            let row =
+                rows.iter()
+                    .find(|row| row.shell == shell)
+                    .ok_or(StepExportError::Corrupt {
+                        what: "solid shell key does not resolve",
+                    })?;
+            if row.role == ShellRole::Void {
+                return Err(StepExportError::VoidShellUnsupported {
+                    shell,
+                    volume: row.volume,
+                });
+            }
+        }
+        Ok(())
     }
 }
 
@@ -1067,7 +1080,7 @@ pub(crate) fn write_document(
     let mut w = Writer::new(body, eps);
 
     // Geometry + topology.
-    let msbs = w.manifold_solids(&name)?;
+    let msbs = w.manifold_solids(&name, tol)?;
     if msbs.is_empty() {
         return Err(StepExportError::NothingToExport);
     }

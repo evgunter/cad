@@ -169,15 +169,15 @@ the centroid's arc length — which the kernel's certified volume must
 contain and the MESH must fall short of inside a **two-sided** band,
 since exact agreement would mean no real mesh was measured.
 
-One typed refusal remains as a named frontier: a multi-shell **curved**
-solid, whose shells the writer classifies outward or void with planar
-closed forms only (`CurvedShellClassification`;
-`work/export/step-export-reclassifies-shell-roles-with-its-own-planar-flux.md`).
-Five tour bodies are in it, each declared at the body with
-`SceneBody::step_at_frontier` and exported with a null `step`: four
-hollow ones, `hollowring` (`ring`), `hollowtorus` (`tubewall`),
-`torusvessel` and `fivewall`, and one of disjoint lumps, `cutaway_above`
-(`projectbox`), whose cut frees two bored boss tops.
+One typed refusal remains as a named frontier: a **hollow** solid,
+whose cavity the writer reads as a void through the kernel's
+shell-role door and refuses, since it does not write `BREP_WITH_VOIDS`
+(`VoidShellUnsupported`;
+`work/export/step-export-refuses-every-hollow-body.md`). Four tour
+bodies are in it, each declared at the body with
+`SceneBody::step_at_frontier` and exported with a null `step`:
+`hollowring` (`ring`), `hollowtorus` (`tubewall`), `torusvessel` and
+`fivewall`.
 
 ## Rendering the montages
 

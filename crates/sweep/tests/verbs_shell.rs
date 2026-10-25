@@ -1496,12 +1496,12 @@ fn a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate() {
 // The STEP gate, recorded
 // ---------------------------------------------------------------------
 
-/// **The standing gate, on a shelled body.** A curved two-shell solid
-/// refuses STEP export: the outward/void classifier is a planarity
-/// identity with no curved counterpart. Recorded here so the day it is
-/// retired this row says so.
+/// **A shelled body's cavity reads as a void.** The shelled tube is a
+/// solid of two curved shells, and STEP export reads their roles off
+/// the kernel's shell-role door: the inner wall is a void, which the
+/// writer refuses (`BREP_WITH_VOIDS` is not written yet).
 #[test]
-fn a_curved_two_shell_shell_refuses_step_export() {
+fn a_curved_shelled_body_refuses_step_export_as_a_void() {
     let hollow = topo::shell(
         &finished("the operand", tube(0.6, 1.0, 2.0), Tol::witness()),
         0.1,
@@ -1518,13 +1518,13 @@ fn a_curved_two_shell_shell_refuses_step_export() {
         },
         Tol::witness(),
     )
-    .expect_err("a curved two-shell body has no classifier");
+    .expect_err("a body with a cavity has no STEP spelling yet");
+    let step_export::StepExportError::VoidShellUnsupported { volume, .. } = e else {
+        panic!("expected the void refusal, got {e}");
+    };
     assert!(
-        matches!(
-            e,
-            step_export::StepExportError::CurvedShellClassification { .. }
-        ),
-        "expected the standing curved-two-shell gate, got {e}"
+        volume < 0.0,
+        "the cavity's signed volume is negative: {volume}"
     );
 }
 
