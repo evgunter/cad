@@ -8611,13 +8611,13 @@ fn net_incidence<T: Decide>(
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
     let span = span.unwrap_or_else(|| net.knot_values().domain());
-    let farthest = farthest_over_span(surface, span, |t| net.eval(t));
-    match decide("pcurve_spline_chart_incident", Margin::of(farthest), band)
-        .map_err(incidence_escalated)?
-    {
-        Sign::Positive => Ok(Incidence::Off),
-        Sign::Zero | Sign::Negative => Ok(Incidence::On),
-    }
+    incidence_over_span(
+        "pcurve_spline_chart_incident",
+        surface,
+        span,
+        |t| net.eval(t),
+        band,
+    )
 }
 
 /// The two iso families of an analytic chart: `U` the `u = const`
@@ -10019,36 +10019,50 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
     }
 }
 
-/// **The incidence test of a closed conic on a curved chart**, decided
-/// one-sidedly: `Off` only when the carrier is definitely off the chart
-/// somewhere. The largest exact distance of [`INCIDENCE_SAMPLES`] of its
-/// points from the chart ([`chart_distance`]) bounds its distance from
-/// below, so a `Positive` verdict is certified; `Zero` says only that the
-/// carrier is not shown off, and is `On` here — the image the caller
-/// derives is then measured by its certificate, and a carrier that is no
-/// class of the chart takes D3's lane choice ([`incidence::general_lane`]).
+/// **The incidence test of a closed conic on a curved chart**: the
+/// sampled test ([`incidence_over_span`]) over one turn `[0, τ]`, whose
+/// end repeats its start.
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::Escalated`] ([`PcurveCheck::ChartIncidence`])
-/// when the sampled distance lands in the sliver band.
+/// As [`incidence_over_span`].
 fn chart_incidence<T: Decide>(
     name: &'static str,
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let step = T::tau() / T::from_f64(f64::from(INCIDENCE_SAMPLES));
-    // A poisoned distance is carried to the decision, which escalates on
-    // it, rather than dropped by `max` and read as on the chart.
-    let farthest = (0..INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
-        let d = chart_distance(surface, carrier.eval(T::from_f64(f64::from(i)) * step));
-        if far.is_poison() || d.is_poison() {
-            d + far
-        } else {
-            far.max(d)
-        }
-    });
+    incidence_over_span(
+        name,
+        surface,
+        (T::zero(), T::tau()),
+        |t| carrier.eval(t),
+        band,
+    )
+}
+
+/// **A carrier's sampled incidence test**, decided one-sidedly: `Off`
+/// only when the carrier is definitely off the chart somewhere. The
+/// largest exact distance from the chart of its points at the
+/// [`farthest_over_span`] samples of `span` bounds its distance from
+/// below, so a `Positive` verdict is certified; `Zero` says only that the
+/// carrier is not shown off, and is `On` here — the image the caller
+/// derives is then measured by its certificate, and a carrier that is no
+/// class of the chart takes D3's lane choice ([`incidence::general_lane`]).
+/// The one decider of a closed conic's, a line's and a spline's tests.
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::Escalated`] ([`PcurveCheck::ChartIncidence`])
+/// when the sampled distance lands in the sliver band, or is poisoned.
+fn incidence_over_span<T: Decide>(
+    name: &'static str,
+    surface: &Surface<T>,
+    span: (T, T),
+    at: impl Fn(T) -> Point3<T>,
+    band: Band,
+) -> Result<Incidence, PcurveCertifyError> {
+    let farthest = farthest_over_span(surface, span, at);
     match decide(name, Margin::of(farthest), band).map_err(incidence_escalated)? {
         Sign::Positive => Ok(Incidence::Off),
         Sign::Zero | Sign::Negative => Ok(Incidence::On),
@@ -10066,10 +10080,9 @@ fn chart_incidence<T: Decide>(
 mod incidence {
     use super::{
         Curve3, Decide, Incidence, Indeterminate, OffChart, PcurveCertifyError, PcurveCheck,
-        Placement, Surface, Underived, chart_incidence, cone_conic_incidence, decide,
-        incidence_escalated,
+        Placement, Surface, Underived, chart_incidence, cone_conic_incidence,
     };
-    use geom_core::{Band, Margin, Sign};
+    use geom_core::Band;
 
     /// The carrier's incidence test on its chart did not show it off the
     /// chart. Built only by [`incident`].
@@ -10129,25 +10142,27 @@ mod incidence {
         }
     }
 
-    /// A line's incidence test: its largest exact distance from the chart
-    /// at [`super::INCIDENCE_SAMPLES`] points of `span`, decided
-    /// one-sidedly as [`chart_incidence`]'s is.
+    /// A line's incidence test: the sampled test
+    /// ([`super::incidence_over_span`]) over the placement's `span`.
     fn line_incidence<T: Decide>(
         carrier: &Curve3<T>,
         surface: &Surface<T>,
         span: (T, T),
         band: Band,
     ) -> Result<(), PcurveCertifyError> {
-        let farthest = super::farthest_over_span(surface, span, |t| carrier.eval(t));
-        match decide("pcurve_line_chart_incident", Margin::of(farthest), band)
-            .map_err(incidence_escalated)?
-        {
-            Sign::Positive => Err(OffChart(
+        match super::incidence_over_span(
+            "pcurve_line_chart_incident",
+            surface,
+            span,
+            |t| carrier.eval(t),
+            band,
+        )? {
+            Incidence::Off => Err(OffChart(
                 "the line's points are not on the chart (its distance from the chart at a \
                  sample of its span is past the band)",
             )
             .refusal(surface, carrier)),
-            Sign::Zero | Sign::Negative => Ok(()),
+            Incidence::On => Ok(()),
         }
     }
 

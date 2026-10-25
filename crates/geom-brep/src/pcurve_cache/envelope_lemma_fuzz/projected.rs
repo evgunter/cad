@@ -2123,7 +2123,8 @@ fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
     // nearest approach to the pole is `mid`.
     let beside = Vec3::new(0.0, mid.sin(), mid.cos());
     let ruling = Vec3::new(half_angle.sin(), 0.0, half_angle.cos());
-    let charts: [(&str, &Surface<f64>, Vec<(&str, Curve3<f64>)>); 2] = [
+    type Nets = Vec<(&'static str, Curve3<f64>)>;
+    let charts: [(&str, &Surface<f64>, Nets); 2] = [
         (
             "sphere",
             &sphere,
