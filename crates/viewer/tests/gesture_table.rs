@@ -113,7 +113,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 55;
+const OP_COUNT: usize = 56;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -361,6 +361,18 @@ pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<Ses
             ),
         },
         SessionOp::IntoOwnSpace { placement: node },
+        SessionOp::AddMirror {
+            body: node.into(),
+            plane: viewer::session::FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node,
+                    path: Vec::new(),
+                },
+                node,
+                body: 0,
+            },
+        },
     ]
 }
 
@@ -462,6 +474,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // A re-target and a bundle written: a document edit, fenced
         // with every other one.
         SessionOp::IntoOwnSpace { .. } => (54, false),
+        // An insert door, fenced with every other one.
+        SessionOp::AddMirror { .. } => (55, false),
     }
 }
 
@@ -940,6 +954,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }
@@ -1553,6 +1568,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }

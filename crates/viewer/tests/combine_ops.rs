@@ -1564,6 +1564,7 @@ fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
         ToolKind::Blend => tools.blend().is_some(),
         ToolKind::Part => tools.part().is_some(),
         ToolKind::Duplicate => tools.duplicate().is_some(),
+        ToolKind::Mirror => tools.mirror().is_some(),
     })
 }
 
@@ -1707,6 +1708,20 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
             Seat::DuplicateBody => SessionOp::Duplicate {
                 input: filled(Seat::DuplicateBody).into(),
+            },
+            // The plane a face of the right body, so the refusal is
+            // about the body seat.
+            Seat::MirrorBody => SessionOp::AddMirror {
+                body: filled(Seat::MirrorBody).into(),
+                plane: viewer::session::FaceSelection {
+                    name: pncad::prelude::StableName {
+                        kind: pncad::prelude::EntityKind::Face,
+                        node: body,
+                        path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+                    },
+                    node: body,
+                    body: 0,
+                },
             },
             Seat::PatternBody => SessionOp::AddPattern {
                 input: filled(Seat::PatternBody).into(),
@@ -2319,7 +2334,9 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
     for kind in ToolKind::ALL {
         tools.open(kind);
         let want = match kind {
-            ToolKind::Mate => PickKinds::FacesOnly,
+            // The mirror tool's plane is a face, and its body is
+            // picked by one too.
+            ToolKind::Mate | ToolKind::Mirror => PickKinds::FacesOnly,
             ToolKind::Blend => PickKinds::EdgesOnly,
             ToolKind::Revolve
             | ToolKind::Boolean
@@ -2961,6 +2978,7 @@ fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
             ToolKind::Transform => tools.transform().and_then(|t| t.input()),
             ToolKind::Pattern => tools.pattern().and_then(|t| t.input()),
             ToolKind::Duplicate => tools.duplicate().and_then(|t| t.input()),
+            ToolKind::Mirror => tools.mirror().and_then(|t| t.input()),
             // Seats a split or a pattern, never a body: its own row
             // below picks one.
             ToolKind::Part => continue,

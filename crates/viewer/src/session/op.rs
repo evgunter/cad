@@ -703,6 +703,23 @@ pub enum SessionOp {
         /// The plane's normal (`Scalar`).
         normal: [Formula; 3],
     },
+    /// Insert the mirror image of an existing body across the plane of
+    /// a picked face — the mirror tool's one committed edit, the image
+    /// placed in the world beside its source. The plane is the face's
+    /// own, read where it was picked: a pick on a copy is read on the
+    /// body the copy places (`crate::world::on_body`), so the plane
+    /// reads the geometry of the body's space as a mirror's plane must.
+    ///
+    /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
+    /// a face of another space refuses at the insert door
+    /// (`EditError::SpaceMismatch`). Whether the face is planar is the
+    /// mirror's own refusal where it evaluates.
+    AddMirror {
+        /// The body reflected.
+        body: Operand,
+        /// The face whose plane it is reflected across.
+        plane: FaceSelection,
+    },
     /// **Move an existing body rigidly** — the transform tool's one
     /// committed action: a placement of the body into the space it is
     /// in (`Node::Place`, no mate), its values on that space's axes —
@@ -1155,6 +1172,7 @@ impl SessionOp {
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1272,6 +1290,7 @@ impl SessionOp {
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1494,6 +1513,7 @@ impl SessionOp {
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1620,6 +1640,7 @@ impl SessionOp {
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }

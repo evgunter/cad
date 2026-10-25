@@ -1811,6 +1811,7 @@ impl DocSession {
                 origin,
                 normal,
             } => self.add_split(target, &origin, &normal),
+            SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddTransform {
                 input,
                 translation,
@@ -2976,6 +2977,18 @@ impl DocSession {
             }),
             fresh: Vec::new(),
         })
+    }
+
+    /// Insert the mirror image of a body across the plane of a picked
+    /// face ([`SessionOp::AddMirror`]), placed in the world beside it.
+    fn add_mirror(&mut self, body: Operand, plane: &FaceSelection) -> OpOutcome {
+        if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        let doc = self.committed_doc();
+        let (at, _, face) = crate::world::on_body(doc, plane.node, plane.body, &plane.name);
+        let node = combine::mirror_node(body, body_of(doc, at), face);
+        self.create_placed(node)
     }
 
     /// **A pose read off the geometry of `body`'s space**: the frame

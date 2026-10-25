@@ -27,12 +27,13 @@ use pncad::document::{
     ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
+use pncad::prelude::StableName;
 use pncad::select::SplitHalf;
 use pncad::topo::BooleanOp;
 
 use crate::seats::{Port, Seat, SeatError, SeatEvent, Seats, pick_said, picks_line, seat_line};
 use crate::session::refuse::one_body;
-use crate::session::{BooleanSpec, PartSelectSpec, PatternRuleSpec, SessionOp};
+use crate::session::{BooleanSpec, FaceSelection, PartSelectSpec, PatternRuleSpec, SessionOp};
 use crate::vocab::vocabulary;
 
 /// **The boolean tool**: one operation choice and the body picks it
@@ -368,6 +369,202 @@ impl SplitTool {
             normal,
         })
     }
+}
+
+/// **The mirror tool**: a body seat and the face whose plane the body
+/// is reflected across, committing one [`SessionOp::AddMirror`].
+///
+/// The plane is a FACE pick, held as the mate tool holds its picks and
+/// marked as they are (`crate::marks::Held`): a face is a name, so it
+/// survives by resolving against the landed evaluation
+/// ([`Self::reconcile_plane`]) and is re-seated by a rename, where the
+/// body seat survives as every seat does ([`Seats::reconcile`]).
+///
+/// **The first face pick fills both**: the body it is on and its own
+/// plane — a body mirrored across one of its own faces is the
+/// symmetric part's case. A later face pick re-picks the plane alone, so
+/// a body is mirrored across another body's face by picking that face
+/// second; a tree pick re-picks the body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MirrorTool {
+    seats: Seats,
+    plane: Option<FaceSelection>,
+    /// The plane's node as the document last spoke it
+    /// ([`Self::respeak`]).
+    plane_said: Option<SpokenNode>,
+}
+
+impl Default for MirrorTool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// **What the mirror tool calls its plane**, in sentences: the panel
+/// line's role and the drop notice's.
+pub const MIRROR_PLANE: &str = "mirror plane";
+
+impl MirrorTool {
+    /// A tool holding nothing.
+    pub const fn new() -> Self {
+        Self {
+            seats: Seats::one(Seat::MirrorBody),
+            plane: None,
+            plane_said: None,
+        }
+    }
+
+    /// The body seat.
+    pub fn seats(&self) -> &Seats {
+        &self.seats
+    }
+
+    /// The held body.
+    pub fn input(&self) -> Option<RecipeNodeId> {
+        self.seats.held(0)
+    }
+
+    /// The held plane face.
+    pub fn plane(&self) -> Option<&FaceSelection> {
+        self.plane.as_ref()
+    }
+
+    /// Feed one node pick: it REPLACES the body.
+    pub fn pick(&mut self, doc: &Doc<ProfileProgram>, node: RecipeNodeId) {
+        self.seats.pick(doc, node);
+    }
+
+    /// **Feed one face pick**: the plane, and the body it is on while
+    /// no body is held (the type's docs).
+    pub fn pick_plane(&mut self, doc: &Doc<ProfileProgram>, face: FaceSelection) {
+        if self.seats.is_empty() {
+            self.seats.pick_at(doc, face.node, Some(face.body));
+        }
+        self.plane_said = Some(doc.spoken(face.node));
+        self.plane = Some(face);
+    }
+
+    /// The half the body seat reads, when it holds a split picked
+    /// alone ([`Seats::choose_half`]).
+    pub fn choose_half(&mut self, i: usize, half: SplitHalf) {
+        self.seats.choose_half(i, half);
+    }
+
+    /// Empty the seat and the plane.
+    pub fn clear(&mut self) {
+        self.seats.clear();
+        self.plane = None;
+        self.plane_said = None;
+    }
+
+    /// The body seat's survival step ([`crate::seats`]).
+    pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
+        self.seats.reconcile(doc)
+    }
+
+    /// **The plane's survival step**: the held face re-read against the
+    /// landed pair, as the mate tool re-reads its picks, and dropped
+    /// when it no longer resolves.
+    pub fn reconcile_plane(
+        &mut self,
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+    ) -> Option<MirrorEvent> {
+        let face = self.plane.as_ref()?;
+        let verdict = crate::tree::pick_resolution(doc, eval, face.node, face.body, &face.name);
+        if crate::session::select::resolves(&verdict) {
+            return None;
+        }
+        let face = self.plane.take()?;
+        let node = self
+            .plane_said
+            .take()
+            .unwrap_or_else(|| doc.spoken(face.node));
+        Some(MirrorEvent::PlaneLost {
+            node,
+            resolution: Box::new(verdict),
+        })
+    }
+
+    /// **The held plane's name re-seated** after an operation that
+    /// moved it ([`crate::session::Renamed`]).
+    pub fn rename(&mut self, renamed: &crate::session::Renamed) {
+        if let Some(face) = &mut self.plane {
+            renamed.rename(&mut face.name);
+        }
+    }
+
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+        crate::seats::respeak_each(core::slice::from_mut(&mut self.plane_said), doc);
+    }
+
+    /// **The panel's held-picks line**: the body seat as [`seat_line`]
+    /// says it and the plane as the mate tool says a face pick.
+    pub fn line(&self, doc: &Doc<ProfileProgram>) -> String {
+        let body = self.seats.said(doc, 0);
+        let plane = self
+            .plane
+            .as_ref()
+            .map(|face| crate::matetool::face_of(&doc.spoken(face.node)));
+        picks_line([(Seat::MirrorBody.name(), body), (MIRROR_PLANE, plane)])
+    }
+
+    /// **The one committed edit**: the body mirrored across the held
+    /// face's plane.
+    ///
+    /// # Errors
+    ///
+    /// [`SeatError::Empty`] until a body is picked, and naming the
+    /// plane until a face is.
+    pub fn op(&self) -> Result<SessionOp, SeatError> {
+        let body = self.seats.require_read(0)?;
+        let plane = self
+            .plane
+            .clone()
+            .ok_or(SeatError::NoFace { role: MIRROR_PLANE })?;
+        Ok(SessionOp::AddMirror { body, plane })
+    }
+}
+
+/// A typed mirror-tool event the chrome renders: the plane's drop. The
+/// body seat's drop is a [`SeatEvent`].
+#[derive(Debug)]
+pub enum MirrorEvent {
+    /// The held plane face no longer resolves against the landed
+    /// evaluation; the tool dropped it.
+    PlaneLost {
+        /// The face's node by the last label the tool kept for it.
+        node: SpokenNode,
+        /// The resolution machinery's own verdict.
+        resolution: Box<pncad::select::Resolution>,
+    },
+}
+
+impl core::fmt::Display for MirrorEvent {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PlaneLost { node, .. } => write!(
+                f,
+                "the {MIRROR_PLANE} pick (a {}) no longer resolves; the tool dropped it",
+                crate::matetool::face_of(node)
+            ),
+        }
+    }
+}
+
+/// **A mirror node**: `body` reflected across the plane of the face
+/// `face` of the body `on` reads, the face read as a plane mate's is
+/// ([`crate::matetool::plane_of`]).
+///
+/// Total: whether `face` names a face of `on`, and whether that face is
+/// planar, are the door's and the evaluation's to refuse.
+pub fn mirror_node(body: Operand, on: Operand, face: StableName) -> AuthoredNode {
+    Node::mirror(
+        body,
+        crate::matetool::plane_of(Operand::select(on, vec![face])),
+    )
 }
 
 /// **The transform tool**: one body pick plus the placement fields,

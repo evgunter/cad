@@ -130,6 +130,8 @@ vocabulary! {
         PartInstance,
         /// The body a duplicate copies.
         DuplicateBody,
+        /// The body a mirror reflects.
+        MirrorBody,
     }
 
     /// Every seat, so a sweep over the vocabulary cannot silently
@@ -164,7 +166,8 @@ impl Seat {
             | Self::SplitTarget
             | Self::TransformBody
             | Self::PatternBody
-            | Self::DuplicateBody => NodeKindWanted::Body,
+            | Self::DuplicateBody
+            | Self::MirrorBody => NodeKindWanted::Body,
         }
     }
 
@@ -180,6 +183,7 @@ impl Seat {
             Self::PatternBody => "patterned body",
             Self::PartInstance => "pattern to project",
             Self::DuplicateBody => "duplicated body",
+            Self::MirrorBody => "mirrored body",
         }
     }
 }
@@ -191,6 +195,13 @@ pub enum SeatError {
     Empty {
         /// Which one.
         seat: Seat,
+    },
+    /// A face pick the commit needs is still empty — a tool's held
+    /// face beside its seats, named by the role the panel line gives
+    /// it.
+    NoFace {
+        /// The face's role.
+        role: &'static str,
     },
     /// A seat holds a split picked in the tree, and which of its two
     /// halves it reads is not chosen yet.
@@ -204,6 +215,7 @@ impl core::fmt::Display for SeatError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Empty { seat } => write!(f, "no {} picked yet", seat.name()),
+            Self::NoFace { role } => write!(f, "no {role} picked yet"),
             Self::HalfUnchosen { seat } => {
                 write!(
                     f,
@@ -402,6 +414,12 @@ impl Seats {
         self.ports.get(i) == Some(&Port::HalfPending)
     }
 
+    /// **Seat `i`'s pick as the panel says it** ([`pick_said`]), the
+    /// item [`seat_line`] composes; `None` for an open seat.
+    pub(crate) fn said(&self, doc: &Doc<ProfileProgram>, i: usize) -> Option<String> {
+        self.held(i).map(|node| pick_said(doc, node, self.ports[i]))
+    }
+
     /// Seat `i`'s role.
     pub fn role(&self, i: usize) -> Seat {
         self.roles[i]
@@ -596,12 +614,7 @@ pub(crate) fn respeak_each(held: &mut [Option<SpokenNode>], doc: &Doc<ProfilePro
 /// speaks it, so the panel and the notice about the same pick call it
 /// one thing.
 pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
-    picks_line((0..seats.arity()).map(|i| {
-        let said = seats
-            .held(i)
-            .map(|node| pick_said(doc, node, seats.ports[i]));
-        (seats.roles[i].name(), said)
-    }))
+    picks_line((0..seats.arity()).map(|i| (seats.roles[i].name(), seats.said(doc, i))))
 }
 
 /// **The composition of the seated tools' and the mate tool's

@@ -116,6 +116,8 @@ mod landing_gathers;
 mod mate_door_and_badge;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+#[path = "mirror_authoring.rs"]
+mod mirror_authoring;
 
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;
