@@ -2686,6 +2686,7 @@ pub(crate) struct RayRows {
     pub(crate) edge: &'static str,
     pub(crate) edge_span: &'static str,
     pub(crate) winding: &'static str,
+    pub(crate) stands: &'static str,
 }
 
 /// A schedule ray's rows (module docs).
@@ -2699,6 +2700,7 @@ const SCHEDULE_ROWS: RayRows = RayRows {
     edge: "bool_point_in_solid_edge",
     edge_span: "bool_point_in_solid_edge_span",
     winding: "bool_point_in_solid_winding",
+    stands: "bool_point_in_solid_stands",
 };
 
 /// One ray of the sweep: the side its running count reads
@@ -2895,12 +2897,12 @@ struct PlaneCross<T: geom_core::Real> {
     outward: Sign,
 }
 
-/// **The line edges a ray meets**: each line edge between two planar
-/// faces whose planes it crosses ([`crate::census::line_passes`], the
-/// census's closest read of two lines) is decided once, for both faces.
-/// `met` holds each edge it passes within the band of, with its advance;
-/// `read` every edge decided, met or not; `marks` where along the ray it
-/// meets what it reads nothing at ([`RayHit::mark`]).
+/// **The edges a ray meets**, each decided once, for both faces it
+/// bounds: a line edge between two crossed planes by the census's closest
+/// read of two lines ([`edge_meets`]), any other by where the ray passes
+/// it ([`curved_edges`]). `met` holds each edge it passes within the band
+/// of; `lines` and `read` the edges decided, met or not; `marks` where
+/// along the ray it meets what it reads nothing at ([`RayHit::mark`]).
 struct EdgeMeets<T> {
     met: Vec<Met<T>>,
     /// The line edges between two planar faces decided, met or not.
@@ -2911,15 +2913,32 @@ struct EdgeMeets<T> {
     marks: Vec<RayHit<T>>,
     /// The vertices read so far, each once.
     vertices: Vec<crate::entity::VertexKey>,
-    /// The gap of each edge of `met`, in band (`None` decided Zero), for
-    /// a wedge's reading.
-    gaps: Vec<Option<Indeterminate>>,
+}
+
+/// How far the ray passes a met edge, as a wedge's mark reads it.
+#[derive(Clone, Copy)]
+enum Gap {
+    /// Decided Zero.
+    Zero,
+    /// In the band's gap.
+    InBand(Indeterminate),
+}
+
+impl Gap {
+    /// The mark two met edges of one face read: a wedge where either gap
+    /// is in band, else a graze.
+    const fn mark(self, other: Self) -> Mark {
+        match (self, other) {
+            (Self::InBand(gap), _) | (Self::Zero, Self::InBand(gap)) => Mark::Wedge(gap),
+            (Self::Zero, Self::Zero) => Mark::Graze,
+        }
+    }
 }
 
 /// **An edge the ray meets**, half a crossing for each of its faces: the
 /// edge, its faces, the advance where the ray passes it, the span its
-/// passage lies in along the ray, and which carrier crossing of each
-/// face it stands for.
+/// passage lies in along the ray, which carrier crossing of each face it
+/// stands for, and how far the ray passes it.
 #[derive(Clone, Copy)]
 struct Met<T> {
     edge: crate::entity::EdgeKey,
@@ -2927,6 +2946,7 @@ struct Met<T> {
     at: T,
     span: (T, T),
     cross: [Cross; 2],
+    gap: Gap,
 }
 
 /// Which carrier crossing of a face a met edge stands for: a planar
@@ -3004,7 +3024,6 @@ fn edge_meets<T: Decide>(
         read: std::collections::BTreeSet::new(),
         marks: Vec::new(),
         vertices: Vec::new(),
-        gaps: Vec::new(),
     };
     for pass in &passes {
         for v in pass.ends {
@@ -3025,8 +3044,8 @@ fn edge_meets<T: Decide>(
         let gap =
             match geom_core::k_stats::decide_magnitude(rows.edge, Margin::of(pass.gap[0]), band) {
                 Ok(geom_core::k_stats::Magnitude::Positive) => continue,
-                Ok(geom_core::k_stats::Magnitude::Zero) => None,
-                Err(gap) => Some(gap),
+                Ok(geom_core::k_stats::Magnitude::Zero) => Gap::Zero,
+                Err(gap) => Gap::InBand(gap),
             };
         let faces = [pass.faces.0, pass.faces.1];
         let [lo, hi] = pass.along;
@@ -3055,16 +3074,14 @@ fn edge_meets<T: Decide>(
         if !inside {
             continue;
         }
-        meets.meet(
-            Met {
-                edge: pass.edge,
-                faces,
-                at,
-                span: (at, at),
-                cross: [Cross::Plane; 2],
-            },
+        meets.meet(Met {
+            edge: pass.edge,
+            faces,
+            at,
+            span: (at, at),
+            cross: [Cross::Plane; 2],
             gap,
-        );
+        });
     }
     Ok(meets)
 }
@@ -3121,23 +3138,20 @@ impl<T: Decide> EdgeMeets<T> {
         Ok(())
     }
 
-    /// **Records `met`**, `gap` its gap's in-band reading (`None` for one
-    /// decided Zero). A face it shares with an edge already met is a
-    /// wedge: both are marked, as a wedge where either gap is in band,
-    /// else as a graze.
-    fn meet(&mut self, met: Met<T>, gap: Option<Indeterminate>) {
-        if let Some(k) = self
+    /// **Records `met`**. A face it shares with an edge already met is a
+    /// wedge: both are marked ([`Gap::mark`]).
+    fn meet(&mut self, met: Met<T>) {
+        if let Some(other) = self
             .met
             .iter()
-            .position(|w| w.faces.iter().any(|f| met.faces.contains(f)))
+            .find(|w| w.faces.iter().any(|f| met.faces.contains(f)))
+            .copied()
         {
-            let mark = gap.or(self.gaps[k]).map_or(Mark::Graze, Mark::Wedge);
+            let mark = met.gap.mark(other.gap);
             self.marks.push(RayHit::marked(met.faces, met.at, mark));
-            let other = self.met[k];
             self.marks.push(RayHit::marked(other.faces, other.at, mark));
         }
         self.met.push(met);
-        self.gaps.push(gap);
     }
 }
 
@@ -3194,7 +3208,62 @@ fn crosses_by_turn<T: Decide>(
         == Sign::Positive)
 }
 
-/// Whether every edge of `face` is one [`edge_meets`] decided.
+/// **An edge of a face's loops**, as one of its half-edges walks it: the
+/// half-edge, the edge, its two ends in the half-edge's direction, and the
+/// face across it (the face itself across a seam inside it).
+#[derive(Clone, Copy)]
+pub(crate) struct FaceEdge {
+    // Read by the probes' frames, which orient the edge by it.
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
+    pub(crate) half: crate::entity::HalfEdgeKey,
+    pub(crate) edge: crate::entity::EdgeKey,
+    pub(crate) ends: [crate::entity::VertexKey; 2],
+    pub(crate) across: FaceKey,
+}
+
+/// Every edge of `face`'s loops, rings included ([`FaceEdge`]). A loop
+/// with no edge (a lone ring vertex) bounds no area and has none.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] where a loop, a half-edge, its mate
+/// or the mate's face does not resolve.
+pub(crate) fn face_edges<T: geom_core::Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Vec<FaceEdge>, PointInSolidError> {
+    let corrupt = PointInSolidError::CorruptFace { face };
+    let f = body.get_face(face).ok_or(corrupt.clone())?;
+    let mut out = Vec::new();
+    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let first = match body.get_loop(l).map(|lp| lp.boundary) {
+            Some(LoopBoundary::Cycle { first }) => first,
+            Some(LoopBoundary::Empty { .. }) => continue,
+            None => return Err(corrupt),
+        };
+        for half in body.loop_walk(first).closed("loop", first) {
+            let he = body.get_half_edge(half).ok_or(corrupt.clone())?;
+            let across = body
+                .edges
+                .get(he.edge)
+                .and_then(|e| e.claim(half))
+                .and_then(|c| body.get_half_edge(c.mate))
+                .and_then(|m| body.get_loop(m.parent_loop))
+                .ok_or(corrupt.clone())?
+                .face;
+            let end = body.half_edge_end(half).ok_or(corrupt.clone())?;
+            out.push(FaceEdge {
+                half,
+                edge: he.edge,
+                ends: [he.start, end],
+                across,
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// Whether every edge of `face` is one of `read`.
 fn every_edge_read<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
@@ -3532,7 +3601,11 @@ fn root_held<T: Decide>(
 /// ([`curved_edges`]). An edge the ray passes within the band of meets
 /// it, half a crossing for each face it bounds, at the carrier crossing
 /// of each face it stands for; a planar face with such an edge offers no
-/// crossing of its own, and a curved face none at that root. A planar
+/// crossing of its own, and a curved face none at that root. A met edge
+/// stands for a crossing only where the edge represents it: one no other
+/// met edge stands for, of a face whose every edge is decided, and, on a
+/// face not every edge of which is a line edge read exactly, one near the
+/// passage or definitely held by the face; else it reads nothing there. A planar
 /// face whose edges are all line edges so decided, and clear of the ray,
 /// is crossed where the turn of its loops says ([`crosses_by_turn`]);
 /// another takes its in-face walk, and each root of a curved face no
@@ -3624,91 +3697,85 @@ pub(crate) fn ray_crossings<T: Decide>(
         rows,
         &mut meets,
     )?;
-    for c in &planes {
-        let face = c.face;
-        let met: Vec<T> = meets
-            .met
-            .iter()
-            .filter(|m| m.faces.contains(&face))
-            .map(|m| m.at)
-            .collect();
-        if !met.is_empty() {
-            // Its crossing is its edges'; one no reading here decides
-            // could lie in band of it too, so the ray is marked a graze
-            // at its crossing and at each edge it meets.
-            if !every_edge_read(body, face, &meets.read) {
-                for at in met.into_iter().chain([c.t]) {
-                    meets
-                        .marks
-                        .push(RayHit::marked([face, face], at, Mark::Graze));
-                }
-            }
-            continue;
-        }
-        // In-face test FIRST: a plane hit outside the face region is no
-        // crossing at all — in particular a  hit on a face plane
-        // through  (a corner-aligned query) must be skipped, not
-        // grazed, when the face itself is elsewhere.
-        let inside = if every_edge_read(body, face, &meets.lines) {
-            Some(crosses_by_turn(
-                body, face, c.normal, c.p, reach, band, rows,
-            )?)
-        } else {
-            point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?
-        };
-        let point = (c.t, c.t);
-        match inside {
-            Some(false) => {}
-            Some(true) => offer(RayHit::crossing(face, c.t, count(c.outward)), point, false)?,
-            None => offer(RayHit::crossing(face, c.t, 0), point, true)?,
-        }
-    }
-    // A curved face's root an edge stands for is that edge's; an edge of
-    // the face no reading here decides could lie in band of it too, as on
-    // a planar face.
-    let attributed: Vec<usize> = meets
-        .met
-        .iter()
-        .flat_map(|m| m.cross)
-        .filter_map(|c| match c {
-            Cross::Root(k) => Some(k),
-            Cross::Plane => None,
-        })
-        .collect();
-    for &k in &attributed {
-        let face = roots[k].face;
-        if !every_edge_read(body, face, &meets.read) {
-            for m in meets.met.iter().filter(|m| m.faces.contains(&face)) {
-                meets
-                    .marks
-                    .push(RayHit::marked([face, face], m.at, Mark::Graze));
-            }
-            meets
-                .marks
-                .push(RayHit::marked([face, face], roots[k].t, Mark::Graze));
-        }
-    }
     let geo_of = |f: FaceKey| geos.iter().find(|g| g.0 == f).map(|g| &g.1);
+    // A carrier crossing as one point of its carrier: faces on one carrier
+    // (a seam split) cross it at the same crossings, read in the same
+    // order, so the crossing is the carrier and its place among them.
+    let surface = |f: FaceKey| body.get_face(f).map(|fc| fc.surface);
+    let key = |f: FaceKey, c: Cross| {
+        (
+            surface(f),
+            match c {
+                Cross::Plane => 0,
+                Cross::Root(k) => roots[k].ordinal + 1,
+            },
+        )
+    };
+    // Each carrier crossing, with every met edge that stands for it: one
+    // standing for both its faces' one crossing (a seam met) stands once.
+    let mut claims = Vec::new();
+    for m in &meets.met {
+        for (&f, &c) in m.faces.iter().zip(&m.cross) {
+            let claim = (key(f, c), m.edge);
+            if !claims.contains(&claim) {
+                claims.push(claim);
+            }
+        }
+    }
+    // ---- Each met edge, half a crossing for each face at the crossing it
+    // stands for, or nothing. ----
     for m in &meets.met {
         let [a, b] = m.faces;
-        // Each face's carrier crossing the edge stands for, its advance
-        // and its sign; a sign no reading here gives reads nothing.
         let mut ends = [(m.at, 0); 2];
+        let mut stands = true;
         for (end, (&f, &c)) in ends.iter_mut().zip(m.faces.iter().zip(&m.cross)) {
-            *end = match c {
-                Cross::Plane => planes
-                    .iter()
-                    .find(|p| p.face == f)
-                    .map_or((m.at, 0), |p| (p.t, count(p.outward))),
-                Cross::Root(k) => {
-                    let r = roots[k];
-                    let side = match geo_of(f) {
-                        Some(geo) => root_outward(f, geo, r, q, d, band)?,
+            let plane = planes.iter().find(|p| p.face == f);
+            let (t, side) = match c {
+                Cross::Plane => plane.map_or((m.at, Sign::Zero), |p| (p.t, p.outward)),
+                Cross::Root(k) => (
+                    roots[k].t,
+                    match geo_of(f) {
+                        Some(geo) => root_outward(f, geo, roots[k], q, d, band)?,
                         None => Sign::Zero,
-                    };
-                    (r.t, count(side))
-                }
+                    },
+                ),
             };
+            *end = (t, count(side));
+            // A crossing two met edges stand for would be counted at each.
+            let k = key(f, c);
+            if claims.iter().filter(|(claimed, _)| *claimed == k).count() > 1 {
+                stands = false;
+            }
+            // An edge of the face no reading here decides could lie in band
+            // of the ray too.
+            if !every_edge_read(body, f, &meets.read) {
+                stands = false;
+            }
+            // A face whose edges are all read exactly is met at each edge
+            // the ray passes in band of, so its crossing lies between them.
+            // Another's crossing stands for the edge only where it lies near
+            // the passage, or where the face definitely holds it: a ray
+            // shallow to the face can pass an edge of it read clear at the
+            // crossings, and cross its carrier past that edge, outside the
+            // face.
+            if stands && !every_edge_read(body, f, &meets.lines) {
+                let off = (m.span.0 - t).max(t - m.span.1).max(T::zero());
+                let near = geom_core::k_stats::decide_magnitude(rows.stands, Margin::of(off), band)
+                    != Ok(geom_core::k_stats::Magnitude::Positive);
+                let held = match (c, plane, geo_of(f)) {
+                    _ if near => Ok(Some(true)),
+                    (Cross::Plane, Some(p), _) => {
+                        point_in_face(body, f, p.normal, p.p, band).map_err(at_hit)
+                    }
+                    (Cross::Root(_), _, Some(geo)) => root_held(f, geo, q + d * t, band),
+                    _ => Ok(None),
+                };
+                stands = match held {
+                    Ok(held) => held == Some(true),
+                    Err(fault @ RayFault::Fatal(_)) => return Err(fault),
+                    Err(_) => false,
+                };
+            }
         }
         let [(ta, sa), (tb, sb)] = ends;
         // An edge's half crossings are its faces' crossings of their
@@ -3718,12 +3785,10 @@ pub(crate) fn ray_crossings<T: Decide>(
         let ahead = [ta, tb]
             .iter()
             .all(|&t| decide(rows.advance, Margin::of(t), band) == Ok(Sign::Positive));
-        if !ahead || sa == 0 || sb == 0 {
-            offer(
-                RayHit::marked([a, b], m.at, Mark::Graze),
-                (m.at, m.at),
-                true,
-            )?;
+        if !stands || !ahead || sa == 0 || sb == 0 {
+            for at in [m.at, ta, tb] {
+                offer(RayHit::marked([a, b], at, Mark::Graze), (at, at), true)?;
+            }
             continue;
         }
         // The ray crosses the edge's faces somewhere between where it
@@ -3741,6 +3806,30 @@ pub(crate) fn ray_crossings<T: Decide>(
             false,
         )?;
     }
+    // ---- Each planar face no edge is met at, crossed where it lies. ----
+    for c in &planes {
+        let face = c.face;
+        if meets.met.iter().any(|m| m.faces.contains(&face)) {
+            continue;
+        }
+        // In-face test FIRST: a plane hit outside the face region is no
+        // crossing at all — in particular a `t = 0` hit on a face plane
+        // through `q` (a corner-aligned query) must be skipped, not
+        // grazed, when the face itself is elsewhere.
+        let inside = if every_edge_read(body, face, &meets.lines) {
+            Some(crosses_by_turn(
+                body, face, c.normal, c.p, reach, band, rows,
+            )?)
+        } else {
+            point_in_face(body, face, c.normal, c.p, band).map_err(at_hit)?
+        };
+        let point = (c.t, c.t);
+        match inside {
+            Some(false) => {}
+            Some(true) => offer(RayHit::crossing(face, c.t, count(c.outward)), point, false)?,
+            None => offer(RayHit::crossing(face, c.t, 0), point, true)?,
+        }
+    }
     for m in meets.marks {
         offer(m, (m.at, m.at), true)?;
     }
@@ -3752,48 +3841,42 @@ pub(crate) fn ray_crossings<T: Decide>(
             edge || outward == Sign::Zero,
         )
     };
-    // Each root of a trimmed curved face no edge stands for, tested
+    // ---- Each root of a trimmed curved face no edge stands for, tested
     // against the face's own region: a root outside it is no crossing of
-    // this face, and one on its boundary, or one the region cannot
-    // place, reads no side. Faces on one carrier (a seam split) share
-    // its roots: a face that definitely holds one holds it alone, so the
-    // others' readings of it, in band or not, decide nothing.
-    let surface = |f: FaceKey| body.get_face(f).map(|fc| fc.surface);
+    // this face, and one on its boundary, or one the region cannot place,
+    // reads no side. Faces on one carrier (a seam split) share its roots:
+    // a face that definitely holds one holds it alone, so the others'
+    // readings of it, in band, faulted or not, decide nothing; a fault
+    // stands only where no face holds it. ----
     let mut read = vec![false; roots.len()];
     for k in 0..roots.len() {
         if read[k] {
             continue;
         }
+        let root_key = key(roots[k].face, Cross::Root(k));
         let shared: Vec<usize> = (k..roots.len())
-            .filter(|&j| {
-                roots[j].ordinal == roots[k].ordinal
-                    && surface(roots[j].face) == surface(roots[k].face)
-            })
+            .filter(|&j| key(roots[j].face, Cross::Root(j)) == root_key)
             .collect();
         for &j in &shared {
             read[j] = true;
         }
-        if shared.iter().any(|j| attributed.contains(j)) {
+        if claims.iter().any(|(claimed, _)| *claimed == root_key) {
             continue;
         }
-        let (mut held, mut in_band, mut boundary) = (None, None, None);
+        let (mut held, mut fault, mut boundary) = (None, None, None);
         for &j in &shared {
             let r = roots[j];
             let Some(geo) = geo_of(r.face) else {
                 continue;
             };
             match root_held(r.face, geo, q + d * r.t, band) {
-                Ok(Some(true)) => {
-                    held = Some((r, geo));
-                    break;
-                }
+                Ok(Some(true)) => held = held.or(Some((r, geo))),
                 Ok(Some(false)) => {}
                 Ok(None) => boundary = boundary.or(Some(r)),
-                Err(fault @ RayFault::InBand(_)) => in_band = in_band.or(Some(fault)),
-                Err(fault) => return Err(fault),
+                Err(f) => fault = fault.or(Some(f)),
             }
         }
-        match (held, in_band, boundary) {
+        match (held, fault, boundary) {
             (Some((r, geo)), ..) => {
                 let outward = root_outward(r.face, geo, r, q, d, band)?;
                 offer_root(r.face, r.t, outward, false)?;

@@ -297,8 +297,8 @@ pub mod test_support {
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
     pub use crate::props::{
-        FaceTerm, fold_order_bound, mass_properties_with_face_terms, quadrature_rounds,
-        shell_references,
+        FaceReading, FaceTerm, face_reading, face_reading_structural, fold_order_bound,
+        mass_properties_with_face_terms, quadrature_rounds, shell_references,
     };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
@@ -403,6 +403,20 @@ pub mod test_support {
     }
 
     pub use crate::side_reader::EdgeFrame;
+
+    /// Every crossing of the ray `q + s·d` with the solid holding `face`,
+    /// its faces in an order turned left by `turn` and reversed where
+    /// asked, as `(from, to, count, sideless)` (`side_reader`): the probes
+    /// read a whole ray's count off it.
+    pub fn ray_counts(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        ray: (geom_core::Point3<f64>, geom_core::Vec3<f64>),
+        band: geom_core::Band,
+        order: (usize, bool),
+    ) -> Result<Vec<(f64, f64, i32, bool)>, String> {
+        crate::side_reader::ray_counts(body, face, ray, band, order)
+    }
 
     /// Each edge's frames on each of its faces, at each fraction of
     /// `fractions` along it (`side_reader`): the probes aim at and about
