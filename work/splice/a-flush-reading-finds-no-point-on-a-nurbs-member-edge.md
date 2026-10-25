@@ -4,7 +4,7 @@ kind: issue
 title: The flush rule's Track reads every point as off a NURBS member edge, because Curve3::param_near has no parameter for a NURBS carrier
 status: open
 opened: 2026-10-07
-priority: P3
+priority: P1
 cost: M
 ---
 
@@ -27,3 +27,7 @@ Found by the sweep for `param_near` sites in
 That row's `emit_topo::chord_along` orders two points on one NURBS
 piece, but it gives no parameter, and an on-the-edge test needs one, or
 a certified distance to the piece.
+
+## Moved to SPLICE (2026-10-25)
+
+From SEAMRANK. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: a union's flush and rest readings on a lofted operand (lily wall 8's sheath on its blade) read these NURBS edges.

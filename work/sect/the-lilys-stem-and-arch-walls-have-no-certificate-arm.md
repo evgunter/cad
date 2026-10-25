@@ -46,3 +46,7 @@ builds. The tour's `lily` wall 1 pins the same refusal.
 ## Re-banded to P0 (on request in chat, 2026-10-25)
 
 Lily wall 1. Two tube arcs glued end to end on a shared disc is an ordinary join on ordinary geometry, so this is a normal verb broken on normal geometry.
+
+## Moved to SECT (2026-10-25)
+
+From ORBIT. Moved by `git mv` in the chat-approved refold (2026-10-25) that put the torus pairs with the section-first join they are built on. Lily wall 1's torus × torus pair is a section-certificate arm for a torus pair, beside SECT's torus germ frames (teapot wall 2); the two are one torus-pair thread on the section object.

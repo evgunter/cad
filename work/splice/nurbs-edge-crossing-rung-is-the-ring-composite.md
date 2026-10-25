@@ -2,11 +2,10 @@
 id: nurbs-edge-crossing-rung-is-the-ring-composite
 kind: unit
 title: a NURBS operand edge gets one crossing rung keyed on the carrier: the spline::compose ring composite
-status: parked
+status: open
 opened: 2026-10-03
-priority: P1
+priority: P0
 cost: H
-blocked_on: [cylinder-sphere-germ-pair-has-no-join-lane]
 refs: [3984]
 ---
 
@@ -59,3 +58,7 @@ there is no caller: the corpus's STEP
 files carry no NURBS edge, and every loft or sweep operand refuses on
 a NURBS face first (d1's measured table). Build it with (d), as (d)'s
 consumer-side half.
+
+## Moved to SPLICE (2026-10-25)
+
+From REACHHOLD. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P1 → P0 and UN-PARKED (was `blocked_on: [cylinder-sphere-germ-pair-has-no-join-lane]`). That park waited for a first PRODUCER of spline edges between faces, and every loft and sweep already is one: the klein loop's four longitudinal seams are `Curve3::Nurbs` edges between two NURBS walls (measured on main, 2026-10-25, `work/splice/delete-the-boolean-operand-edge-gate.md`), and once the gate is gone they cross the bulb's cone. Klein wall 3 and teapot wall 3 reach this rung.

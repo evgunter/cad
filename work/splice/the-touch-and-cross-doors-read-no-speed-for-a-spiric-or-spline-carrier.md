@@ -4,7 +4,7 @@ kind: issue
 title: carrier_touch and carrier_cross take a carrier's speed from speed_at and speed_hi, which answer None for a spiric or spline, though speed_range now bounds every kind
 status: open
 opened: 2026-10-13
-priority: P3
+priority: P1
 cost: E
 ---
 
@@ -24,3 +24,7 @@ callers keep the `None` as a door that stays:
 Widening them to `speed_range` (and `accel_hi` for the bend) would let
 those doors localize a spiric span, and a spline span where its bounds
 are sound. Not done in PR 4946, which kept their behaviour unchanged.
+
+## Moved to SPLICE (2026-10-25)
+
+From CLEAVE (taken on request in chat; CLEAVE would not start a P3). Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: a link the spline operand's path runs through.

@@ -614,7 +614,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 /// - the sector walk at an ON vertex (`sectors::build_sectors`), which
 ///   takes a spline's chord as its departure direction.
 ///
-/// Retiring it is `work/orbit/delete-the-boolean-operand-edge-gate.md`.
+/// Retiring it is `work/splice/delete-the-boolean-operand-edge-gate.md`.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match certified(body.get_curve_geom(edge.curve))?.carrier() {

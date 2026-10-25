@@ -4,7 +4,7 @@ kind: issue
 title: both sector walks take a NURBS edge's chord as its departure direction at an ON vertex
 status: open
 opened: 2026-10-03
-priority: P3
+priority: P0
 cost: E
 refs: [3984]
 ---
@@ -42,3 +42,7 @@ which does not run the gate. Becomes live the day either gate narrows.
 Give the NURBS arm the spiric's reading (`walk_tangents`,
 `walk_departure_deriv2`, `geom_brep::edge_extent`) at both sites, with
 a row that red on the chord.
+
+## Moved to SPLICE (2026-10-25)
+
+From GAUGE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P0: the sector walk is one of the sites the P0 gate deletion waits on.

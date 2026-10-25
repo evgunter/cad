@@ -1182,7 +1182,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // edges are NURBS carriers, and the operand gate admits a rung-3
     // edge in no INPUT operand (rung-3 is what the curved zip mints,
     // not what it consumes) —
-    // `work/orbit/delete-the-boolean-operand-edge-gate`.
+    // `work/splice/delete-the-boolean-operand-edge-gate`.
     crate::walls::wall(
         "bottle",
         3,

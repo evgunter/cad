@@ -283,3 +283,27 @@ waits on Ev's `[ev]` PR 5689. Unit 3 waits on SELECT's chord-extent row
 dual fork, since 5689 may move limb 2 to rest and change what the cost
 row is about. That leaves no dispatchable P0 or P1 on this slate. The
 orchestrator holds the track while `[ev]` PR 5689 is open.
+
+## 2026-10-25 — the dual-limb fork converges on structural pairing (OFFSET orchestrator)
+
+PR 5689 (`[ev]`, row 196) answers Ev's question about the dual entering
+certification. Both designers agree:
+- the edge door splits into mint (generic) and certify (bounded on the
+  certification trait), so a dual mints and never checks, by type;
+- the dual keeps its values;
+- a dual pass is a function of its validated `f64` anchor, bound to the
+  document revision it read. It walks the anchor's nodes and compares each
+  value channel bit for bit.
+
+Ev objected to recovering the anchor by content key. Both designers
+withdrew it: a key excludes node identity and, at a dual, includes the
+tangent bits. My earlier explanation to Ev presented that lookup as the
+existing mechanism. That was wrong, since today's `pair_pass` pairs by node
+id in order, and I corrected it on the PR. Unit 1 stays parked until Ev
+rules, then is re-scoped to the split and the pairing.
+
+Process lesson: a chained `git merge` and commit pushed conflict markers
+into the fork log once, and twice a chained command stopped at an empty
+commit and left edits unapplied. Merge with `--no-commit`, grep for
+markers, then commit as a separate step, and check `git log` after every
+chained push.
