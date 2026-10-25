@@ -2,11 +2,11 @@
 id: period-headroom-margin-has-no-shared-home
 kind: issue
 title: The period-headroom margin Margin::levered(T::tau() - span, lever) is spelled at ~18 sites across 6 crates under ~12 predicate names with no shared home
-status: open
+status: dispatched
 opened: 2026-09-06
 priority: P1
-cost: M
-design: true
+cost: H
+branch: pred/period-turn-rule
 ---
 
 
@@ -147,3 +147,134 @@ lives: lifted onto `Decide` across crates, or one home per crate plus
 agreement tests. No in-flight PR touches these sites, and INTENT's
 remaining stages are unlikely to move them, since these are guards on
 stored spans, not coincidence decisions.
+
+## Design (PRED orchestrator, 2026-10-25): weighed by a designer pair, converged
+
+Both designers, one Opus and one Fable, were given the same problem and
+neither saw the other's report. They reached the same final state
+independently. It is not an Ev fork: no ratified text changes. This is
+the reconciled design the unit builds.
+
+**The premise correction both made.** It is one QUANTITY, the headroom
+`h = τ − extent`, read for three different questions. The sites differ
+in the question they ask, not only in how they spell it:
+- **"not over"** admits `Zero | Positive`. Sites: certification,
+  `require_span_within_period`, `fold_chain`, `props_cone_apex_loop_sweep`,
+  `split_ring_chart_window`, `chart_region_seam_span`, projected check 2,
+  and `ConicArc::of`'s lower half.
+- **"strictly partial"** admits `Positive` only. Sites:
+  `revolve_angle_headroom`, `tube_window_headroom`, `path_arc_sweep_full`,
+  `bool_sphere_trim_meridian_span`, `bool_sphere_trim_period`, and
+  surgery's raw read.
+- **"whole turn"** asks whether `Zero` is the answer. Sites:
+  `chart_region_cyl_wrap`, `props_rim_only_closed`, and
+  `props_sphere_pole_arc_full`.
+- **Missed by the census:** `profile/src/seg.rs` `arc_sweep_range`.
+
+So one home that fixes the disposition can serve only the first
+question. What every site shares, and what is spelled by hand at each,
+is the margin: its sign, its rate, and its dimension door. Most sites
+cross a parameter span through `Margin::levered`, against
+`[tolerance.margins]` (iii) and that door's own doc. Certification
+already uses `metered`.
+
+**The final state.**
+1. **One rule in `geom-core`.** `profile` sees only `geom-core`, and the
+   sweep levers are not carriers. Signature:
+   `turn(rows, extent, rate, band) -> Result<Turn, _>`, where
+   `Turn::{Short, Whole, Over}` carries its `MarginDiag`. Every site
+   matches exhaustively for the question it asks. If
+   `geom_brep::pcurve_cache::Period` moves down cleanly with
+   `WalkStop`/`BranchMiss`, the rule is `Period::turn`. Period's doc
+   already claims every whole-period question. Moving it is a reshuffle,
+   so it is logged, not asked. If it does not move cleanly, the rule is a
+   free function and Period's doc is corrected.
+2. **The rate is typed:** `Exact(r)` (a circle, an authored angle on its
+   arm, a revolve's widest meridian) or `Bounded(inf, sup)` (an ellipse,
+   a spiric, a chart image). The rule is `ConicArc::of`'s, lifted:
+   - `Over` needs `h` at the inf rate definitely negative;
+   - `Whole` needs `h` at the sup rate in band;
+   - `Short` needs `h` definitely positive at the inf rate.
+
+   Any other combination escalates, on the caller's straddle row. At
+   `Exact` the two reads are one decision, bit-identical to today's
+   verdicts, margins and K samples.
+3. **The forward half is a TYPE, not a second call.** The extent enters
+   as `Extent<T>`, and a reversed span does not typecheck. Constructors:
+   - `forward(name, t0, t1, rate, band)` decides `0 < Δt` (hand-built
+     loops, authored windows);
+   - `width(lo, hi)` is a hull, max − min;
+   - `decide_signed(...)` is for a signed input (revolve's angle, the
+     cone apex loop's net turn), and refuses typed at `Zero`;
+   - in `geom-brep`, a certified edge's extent comes from its
+     certificate, which already decided `0 < Δt`.
+
+   There is deliberately **no bare `magnitude(x)` constructor**: the
+   absolute value of a reversed difference is exactly MESH-12's defect.
+   `Extent` implements `Add`, for `props_rim_only_closed`'s sum of rim
+   spans.
+4. **Names stay per site.** Each caller passes its own
+   `TurnRows { turn, straddle }`, as `ConicRows` does today. A `Bounded`
+   site names its straddle row; an `Exact` site cannot straddle and
+   passes none. That is type-enforced, so no name exists that can never
+   fire. The rule's margin gets one row in
+   `docs/predicate-dimension-audit.md`, and each site's row cites it. No
+   name is renamed.
+5. **A certified edge's turn belongs to its certificate.** Certification
+   stores the `Short` or `Whole` it reached; `Over` never certifies. Four
+   sites currently re-decide it on certified edges:
+   - `bool_split_span_period`;
+   - `bool_sphere_trim_meridian_span`;
+   - `ConicArc`'s callers;
+   - surgery's raw read.
+
+   They read the stored turn instead, and their own decisions retire.
+   Verify first that the band at those readers equals the band the edge
+   was certified at (`restate_stored_edge` suggests edges are
+   re-certified when the band changes). If it does not hold, those sites
+   call the rule instead.
+
+**What moves, deliberately.** Each of these is listed in the agreement
+test as an expected delta, never hidden:
+- Certification's ellipse and spiric arms, and props' cone ellipse,
+  escalate on an inf-`Zero` / sup-`Negative` straddle that they admit
+  today (`certify-admits-an-ellipse-wound-past-its-period-on-the-slow-rate`).
+- Projected check 2 escalates on a sup-only overshoot, instead of
+  refusing sign-certain (`AzimuthPeriodExceeded`), unless an inf chart
+  rate exists.
+- The `chart_region` excess forms flip their recorded margin's sign. No
+  classification moves.
+- The retired names leave the K stream.
+
+**The charter's agreement test.** Keep each old spelling as an in-test
+oracle (surgery's `old_misses` is the precedent), and run it against the
+rule on the cases each site was written for:
+- a full turn;
+- `τ ± {0.5, 3, 20}·ε/rate` at both edges of the band;
+- a zero-width hull;
+- a reversed span, which must fail to compile or refuse at the
+  `Extent` door;
+- an ellipse with `Δ·inf` in band and `Δ·sup` definite.
+
+**Two non-ratified doc statements to re-word in the same unit**, both
+in `geom-core/src/predicate.rs`'s module docs:
+- the rate-pair rule ("sup for an overshoot … can only refuse"), which
+  should read: sup certifies smallness; a definite verdict past the band
+  needs inf; disagreement escalates;
+- the naming paragraph, which should allow a shared rule to serve under
+  the caller's name.
+
+**Unit cut.**
+- **Unit 1:** the rule, the types and the harness, plus certification
+  adopting the rule and storing the turn. Includes the rider and
+  `ConicArc::of` as a caller.
+- **Unit 2:** every remaining site switches over, and the certified
+  readers read the stored turn.
+
+Off-question findings from the pair, owed rows:
+- surgery's raw read cites a "junction-end pick precedent" for
+  bounds-lane reads, and nobody has found it ratified. Unit 2 checks
+  that with `git log --all -S'junction-end pick'` before touching it.
+- `profile/src/path/verbs.rs` `path_arc_sweep` gates a bare radian
+  through `Margin::of` against the metres band. Unit 2 owns it as a
+  site.
