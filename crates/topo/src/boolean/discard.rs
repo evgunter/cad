@@ -132,6 +132,9 @@ impl ChordsAcross<'_> {
     }
 }
 
+/// An operand's vertex in result keys, where the result holds one.
+pub(super) type InResult<'a> = &'a dyn Fn(VertexKey) -> Option<VertexKey>;
+
 /// Vertex `v` of `operand`'s clone in result keys: the one copy of it
 /// the result keeps (`kept`, read on each of its null-edge copies), or
 /// where it keeps none, the one vertex of the other operand it meets
@@ -139,10 +142,7 @@ impl ChordsAcross<'_> {
 pub(super) fn own_in_result<T: geom_core::Real>(
     red: &super::BooleanReduction<T>,
     operand: Operand,
-    (kept, theirs): (
-        &dyn Fn(VertexKey) -> Option<VertexKey>,
-        &dyn Fn(VertexKey) -> Option<VertexKey>,
-    ),
+    (kept, theirs): (InResult<'_>, InResult<'_>),
     v: VertexKey,
 ) -> Option<VertexKey> {
     let one = |mut rs: Vec<VertexKey>| {

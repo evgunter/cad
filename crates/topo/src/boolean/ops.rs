@@ -7597,7 +7597,7 @@ struct FallbackFates {
 fn fallback_fates<T: Decide + AtRestPolicy>(
     red: &mut BooleanReduction<T>,
     discarded: [&BTreeSet<FaceKey>; 2],
-    kept: [&dyn Fn(VertexKey) -> Option<VertexKey>; 2],
+    kept: [super::discard::InResult<'_>; 2],
     band: Band,
     tol: Tol,
 ) -> Result<FallbackFates, BooleanError> {
@@ -7758,7 +7758,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     let body = gate(body, band, tol)?;
     let own = |v: VertexKey| carved.contains(&v).then_some(v);
     let absent = |_: VertexKey| None;
-    let kept: [&dyn Fn(VertexKey) -> Option<VertexKey>; 2] = match kind {
+    let kept: [super::discard::InResult<'_>; 2] = match kind {
         BooleanResultKind::OperandA => [&own, &absent],
         _ => [&absent, &own],
     };
