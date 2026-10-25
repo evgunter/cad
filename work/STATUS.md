@@ -476,7 +476,7 @@ area `kernel`; prefix `offset/`; tag `(OFFSET orchestrator)`; ab_band `8100-8199
 
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
-| P0 | `offset-lane-has-no-conic-carrier` | issue | H +design | open | the offset lane cannot carry a hyperbolic edge: a partial-revolve cone's wall meets its moved meridian cap in a conic the kernel has no carrier for (C5 R1) |  |  |
+| P0 | `offset-lane-has-no-conic-carrier` | issue | H | open | the offset lane cannot carry a hyperbolic edge: a partial-revolve cone's wall meets its moved meridian cap in a conic the kernel has no carrier for (C5 R1) |  |  |
 | P2 | `cell-curvature-joins-its-assemblies-in-f64-to-nearest` | issue | E | open | cell_curvature joins certified ends with f64 sums rounded to nearest (h.hi() + root, w11.hi() + w12.mag()), so its curvature bound can land an ulp inside |  |  |
 | P2 | `cone-offset-displacement-invents-a-radial-near-the-apex` | issue | M | open | ConeOffset::displacement normalizes an undecided radial, inventing a direction near the apex |  |  |
 | P2 | `offset-axial-classify-reads-a-stored-origin-against-the-body-axis` | issue | M | open | offset_axial's classify reads a cylinder's and a plane's stored origin against the body's axis after a tilt levered at the body's extent |  |  |
