@@ -2,11 +2,12 @@
 id: delete-the-boolean-operand-edge-gate
 kind: unit
 title: delete gate_operand_edges once every site behind the sweep refuses a spline or spiric edge typed
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P0
 cost: M
 refs: [3984]
+branch: splice/gate
 ---
 
 

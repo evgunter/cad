@@ -2,11 +2,12 @@
 id: a-nurbs-edges-sector-departure-is-its-chord
 kind: issue
 title: both sector walks take a NURBS edge's chord as its departure direction at an ON vertex
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P0
 cost: E
 refs: [3984]
+branch: splice/gate
 ---
 
 
