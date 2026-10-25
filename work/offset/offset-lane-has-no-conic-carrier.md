@@ -2,10 +2,11 @@
 id: offset-lane-has-no-conic-carrier
 kind: issue
 title: the offset lane cannot carry a hyperbolic edge: a partial-revolve cone's wall meets its moved meridian cap in a conic the kernel has no carrier for (C5 R1)
-status: open
+status: parked
 opened: 2026-09-08
 priority: P0
 cost: H
+blocked_on: [closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them, a-classified-pairs-section-states-the-bounds-that-retire-the-tube]
 ---
 
 

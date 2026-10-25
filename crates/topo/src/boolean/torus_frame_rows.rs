@@ -83,7 +83,7 @@ fn shape(got: &Loops) -> String {
         Err(FrameError::Desync(what)) => format!("desync {what}"),
         Err(FrameError::Spiric { loops, section }) => format!("spiric {loops:?} {section}"),
         Err(FrameError::NoArm) => "no arm".into(),
-        Err(FrameError::OutsideInventory { .. }) => "outside the inventory".into(),
+        Err(FrameError::OpenConic { .. }) => "an open conic".into(),
         Err(FrameError::DegenerateTorus { convention, .. }) => {
             format!("degenerate torus {convention:?}")
         }

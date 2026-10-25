@@ -152,6 +152,40 @@ fn a_body_and_its_mirror_across_its_own_face_union_to_one_solid() {
     );
 }
 
+/// **The image is in its source's space**: `Doc::space_of` reads a
+/// mirror's body as the space of the body it reflects, so a union whose
+/// first member is the image is in the plate's space too.
+#[test]
+fn a_mirrors_image_and_a_union_it_leads_are_in_the_sources_space() {
+    let (doc, plate) = plate();
+    let plane = fixture::plane_on(&doc, plate, [0.0, 0.0, 0.0], [-1.0, 0.0, 0.0]);
+    let (doc, mirror) = fixture::insert(
+        doc,
+        Node::Mirror {
+            body: Operand::output(plate, 0).into(),
+            plane,
+        },
+    );
+    let (doc, union) = fixture::insert(
+        doc,
+        Node::Union {
+            members: editor_core::Bodies::Spelled(vec![
+                Operand::output(mirror, 0).into(),
+                Operand::output(plate, 0).into(),
+            ]),
+        },
+    );
+    let home = fixture::space(&doc, plate);
+    let image = doc.output(mirror, 0).expect("a mirror defines its body");
+    assert_eq!(doc.space_of(image), Some(home), "the image's body");
+    assert_eq!(doc.node_space(mirror), Some(home), "the mirror node");
+    assert_eq!(
+        doc.node_space(union),
+        Some(home),
+        "the union the image leads"
+    );
+}
+
 /// **The plane holds its kind**: an axis at a mirror's plane refuses at
 /// the door, expecting a plane.
 #[test]

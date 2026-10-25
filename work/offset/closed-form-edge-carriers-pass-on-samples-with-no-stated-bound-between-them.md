@@ -2,12 +2,14 @@
 id: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
 kind: unit
 title: A closed-form Intersection carrier passes its certificate on nine samples with no stated bound between them; the standing is provenance read off the variant
-status: open
+status: parked
 opened: 2026-10-24
 priority: P0
 cost: H
 refs: [offset-lane-has-no-conic-carrier]
 parent: offset-lane-has-no-conic-carrier
+blocked_on: [a-lane-less-door-refusing-closed-form-carriers-refuses-every-dual-evaluation]
+branch: offset/limb2-for-every-carrier
 ---
 
 
