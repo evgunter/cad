@@ -2,10 +2,11 @@
 id: period-decide-callers-lever-a-parameter-gap
 kind: issue
 title: Four Period::decide callers cross a parameter gap to metres through Margin::levered, not the rate pair
-status: open
+status: dispatched
 opened: 2026-10-25
 priority: P3
 cost: E
+branch: pred/turn-rule-follow-ups
 ---
 
 
