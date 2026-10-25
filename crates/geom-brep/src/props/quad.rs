@@ -557,6 +557,13 @@ pub(super) fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (I
 /// full-period offset), NOT the exponential-in-|off| compounding a
 /// step-march would suffer. The composed rotation is applied to the
 /// base exactly once.
+/// `(cos t, sin t)` of an exact parameter `t`: [`trig_at`] from the exact
+/// `(1, 0)` at `t = 0`, transcendental-free, a few ulps wide.
+#[must_use]
+pub fn trig_of(t: f64) -> (Interval, Interval) {
+    trig_at((Interval::one(), Interval::zero()), t)
+}
+
 pub(super) fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
     if off == 0.0 {
         return base;

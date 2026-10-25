@@ -41,6 +41,29 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
     ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
 }
 
+/// **The trig bracket at one end of a trim edge's carrier interval**, as
+/// the cylinder lane reads it: `(cos a, sin a)` for `a` the end's
+/// midpoint, the parameter the lane integrates from (and to), formed from
+/// the exact `(1, 0)` at `t = 0` ([`quad::trig_of`]), a few ulps wide.
+/// The vertex reading ([`trig_at_start`]) is `ε` wide, and its width rides
+/// every piece of the edge, levered by the channel's trig coefficients:
+/// on a sliver whose height is a few `ε`, it alone was the face's floor
+/// (`work/flux/a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest.md`).
+/// Where the end is an exact point, the vertex reading encloses the same
+/// value by an independent argument, and the two are met; an empty meet
+/// refuses, since one of the arguments was then wrong. Where the end is
+/// wider than a point, the vertex encloses the trig of where in it the
+/// carrier starts, not of its midpoint, and only the parameter's bracket
+/// is the one the lane needs.
+fn trig_at_end(t: Interval, vertex: (Interval, Interval)) -> (Interval, Interval) {
+    let (c, s) = quad::trig_of((t.lo() + t.hi()) * 0.5);
+    if t.is_certified() && t.lo() == t.hi() {
+        (c.meet(vertex.0), s.meet(vertex.1))
+    } else {
+        (c, s)
+    }
+}
+
 /// `(cos t₀, sin t₀)` enclosure at the carrier-interval start,
 /// recovered algebraically from the carrier frame and the interval
 /// start's VERTEX point (within the run's ε of the carrier, D4 ¶2
@@ -829,17 +852,18 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
                 });
             };
             let (t0, t1) = cache.params();
+            let (t0, t1) = (Interval::from_certified(t0), Interval::from_certified(t1));
             // The interval-start vertex: traversal start when forward,
             // traversal end when reversed (`he_plus` start either way).
             let p_start = start_point(body, *he, le.forward)?;
-            let trig0 = trig_at_start(&le.carrier, p_start, eps)?;
+            let trig0 = trig_at_end(t0, trig_at_start(&le.carrier, p_start, eps)?);
             let p_end = start_point(body, *he, !le.forward)?;
-            let trig1 = Some(trig_at_start(&le.carrier, p_end, eps)?);
+            let trig1 = Some(trig_at_end(t1, trig_at_start(&le.carrier, p_end, eps)?));
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
-                t0: Interval::from_certified(t0),
-                t1: Interval::from_certified(t1),
+                t0,
+                t1,
                 forward: le.forward,
                 trig0,
                 trig1,
