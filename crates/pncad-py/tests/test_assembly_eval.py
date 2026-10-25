@@ -109,7 +109,9 @@ from bench_scene import (
     SHELF_VOLUME,
     STAND_SEATS,
 )
-from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Node, SegTag, Workspace, content_pin, evaluate, m, mm
+from pncad import CapEnd, Doc, DocEdit, DocRef, Formula, Frame, Node, SegTag, Workspace, content_pin, evaluate, m, mm
+
+from placing import placed
 
 #: The layout's nodes: the post instance, its pattern and the shelf
 #: instance, then each pattern copy projected and placed.
@@ -249,7 +251,7 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
         store, docs = opened()
         evaluation = evaluate(docs["layout"], resolver=store)
         self.assertEqual(failures(evaluation), {})
-        instance, family, shelf, *_placed = docs["layout"].order()
+        _master_space, instance, family, shelf, *_placed = docs["layout"].order()
         self.assertVolumes(volumes(evaluation, instance), [POST_VOLUME])
         self.assertVolumes(
             volumes(evaluation, family), [POST_VOLUME] * PATTERN_COUNT
@@ -418,16 +420,15 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         directory = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
         self.store = Workspace(str(directory))
-        # The boss: its one placed body, an extrude. It is stored while
-        # it builds, so the bracket can pin a copy of it over its faces.
+        # The boss: its one placed body, an extrude, stored while it
+        # builds.
         boss = bench_scene.prism("pncad-partroot-boss", 0.02, 0.02, 0.01)
         self.store.create(boss)
         # The bracket: its one placement is an instance of the boss,
-        # pinned to the bracket's world.
+        # standing in the bracket's world by the identity bundle.
         building = DocRef(boss.id, pncad.content_pin(boss))
         bracket = pncad.Doc("pncad-partroot-bracket")
-        self.bracket_root = bracket.insert(Node.instantiate_part(building, []))
-        bracket.pin(self.bracket_root, resolver=self.store)
+        self.bracket_root = bracket.insert(Node.instantiate_part(building, bracket.world))
         bracket.apply(DocEdit.set_label(self.bracket_root, "bracket seat"))
         # Then the boss's extrude is edited to no length, and the bracket
         # takes that version.
@@ -442,11 +443,11 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         # The assembly's twin is inserted as the bracket's root was, and
         # takes the flat version the same way.
         self.assembly = pncad.Doc("pncad-partroot-assembly")
-        self.twin = self.assembly.insert(Node.instantiate_part(building, []))
+        self.twin = self.assembly.insert(Node.instantiate_part(building, self.assembly.world))
         for edit in pncad.update_references(self.assembly, boss.id, self.boss_ref.pin):
             self.assembly.apply(edit)
         self.assembly.apply(DocEdit.set_label(self.twin, "host twin"))
-        self.instance = self.assembly.insert(Node.instantiate_part(self.bracket_ref))
+        self.instance = self.assembly.insert(Node.instantiate_part(self.bracket_ref, self.assembly.world))
 
     def test_the_part_refusal_is_short_and_its_cause_is_typed(self):
         bracket_root, instance = self.bracket_root, self.instance
@@ -492,14 +493,8 @@ class TestAPartWhoseRootFails(unittest.TestCase):
         self.assertEqual(boss_refusal.document, self.boss_ref)
 
     def test_a_node_poisoned_through_the_part_hands_on_its_cause(self):
-        moved = self.assembly.insert(
-            Node.transform(
-                self.instance,
-                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
-                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
-                Formula.literal(0.0 * pncad.rad),
-            )
-        )
+        # A copy of the instance's copies: a node that reads it.
+        moved = self.assembly.place(self.instance, self.assembly.world)
         refusal = failures(evaluate(self.assembly, resolver=self.store))[moved]
         self.assertEqual(refusal.reason, "poisoned")
         self.assertEqual(refusal.through, self.instance)
@@ -530,7 +525,6 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
                     (Formula.length_in(0.02, m), Formula.length_in(0, m)),
                     (Formula.length_in(0.02, m), Formula.length_in(0.02, m)),
                 ],
-                plane=part.sketch_frame(elevation=Formula.length_in(0, m)),
             )
         )
         part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))
@@ -538,7 +532,7 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
         store.create(part)
         assembly = pncad.Doc("pncad-emptyworld-assembly")
         instance = assembly.insert(
-            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)))
+            Node.instantiate_part(DocRef(part.id, pncad.content_pin(part)), assembly.world)
         )
         refusal = failures(evaluate(assembly, resolver=store))[instance]
         self.assertEqual(refusal.kind, "part_product")
@@ -547,7 +541,7 @@ class TestAPartWithAnEmptyWorld(unittest.TestCase):
 
 class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
     """`part_root_poisoned`, reached: a part whose extrude refuses and
-    whose one placed body, a transform over it, never runs.
+    whose one placed copy of it never runs.
 
     The instance names the part's placement and points at the extrude, the
     node the author repairs; the extrude's refusal crosses TYPED as the
@@ -568,27 +562,18 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
                     (Formula.length_in(0.02, m), Formula.length_in(0.02, m)),
                     (Formula.length_in(0, m), Formula.length_in(0.02, m)),
                 ],
-                plane=part.sketch_frame(elevation=Formula.length_in(0, m)),
             )
         )
         self.extrude = part.insert(Node.extrude(profile, Formula.length_in(0.01, m)))
-        self.root = part.insert(
-            Node.transform(
-                self.extrude,
-                (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
-                (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
-                Formula.literal(0.0 * pncad.rad),
-            )
-        )
-        # Placed while it builds — the gesture reads the transform's
-        # faces — then edited to no length, so the extrude refuses.
-        self.placed = part.place(self.root)
+        # Placed while it builds, then edited to no length, so the
+        # extrude refuses.
+        self.placed = placed(part, self.extrude, Frame.translation((0.01 * m, 0 * m, 0 * m)))
         part.apply(DocEdit.set_param(self.extrude, "distance", Formula.length_in(0.0, m)))
         self.store.create(part)
         self.part = part
         self.part_ref = DocRef(part.id, pncad.content_pin(part))
         self.assembly = pncad.Doc("pncad-partpoison-assembly")
-        self.instance = self.assembly.insert(Node.instantiate_part(self.part_ref))
+        self.instance = self.assembly.insert(Node.instantiate_part(self.part_ref, self.assembly.world))
 
     def test_the_instance_carries_the_failure_that_poisoned_the_root(self):
         refusal = failures(evaluate(self.assembly, resolver=self.store))[self.instance]
@@ -621,13 +606,13 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
         )
 
     def test_two_documents_down_the_cause_chain_ends_at_the_failing_node(self):
-        """A bracket whose root is a placement of a transform over an
-        instance of the part: the bracket's root is poisoned through
+        """A bracket whose root is a placement of an instance of the
+        part: the bracket's root is poisoned through
         that failed instance, and the chain runs instance, instance,
-        extrude. The inner instance is loose, so it is no root of the
-        bracket's world itself."""
+        extrude. The inner instance is placed into a space of its own, so
+        it is no root of the bracket's world itself."""
         # The bracket is placed while the part builds — the gesture
-        # reads the transform's faces — and then pinned to the part as
+        # reads the instance's faces — and then pinned to the part as
         # it stands, edited to no length.
         def at_length(length):
             self.part.apply(
@@ -638,25 +623,15 @@ class TestAPartWhoseRootIsPoisoned(unittest.TestCase):
 
         building = DocRef(self.part.id, at_length(0.01))
         bracket = pncad.Doc("pncad-partpoison-bracket")
-        inner = bracket.insert(Node.instantiate_part(building, []))
-        bracket.place(
-            bracket.insert(
-                Node.transform(
-                    inner,
-                    (Formula.length_in(0.01, m), Formula.length_in(0, m), Formula.length_in(0, m)),
-                    (Formula.literal(0.0), Formula.literal(0.0), Formula.literal(1.0)),
-                    Formula.literal(0.0 * pncad.rad),
-                )
-            ),
-            resolver=self.store,
-        )
+        inner = bracket.insert(Node.instantiate_part(building, bracket.new_space()))
+        placed(bracket, inner, Frame.translation((0.01 * m, 0 * m, 0 * m)))
         flat = at_length(0.0)
         for edit in pncad.update_references(bracket, self.part.id, flat):
             bracket.apply(edit)
         self.store.create(bracket)
         bracket_ref = DocRef(bracket.id, pncad.content_pin(bracket))
         assembly = pncad.Doc("pncad-partpoison-deep-assembly")
-        instance = assembly.insert(Node.instantiate_part(bracket_ref))
+        instance = assembly.insert(Node.instantiate_part(bracket_ref, assembly.world))
 
         refusal = failures(evaluate(assembly, resolver=self.store))[instance]
         self.assertEqual(refusal.kind, "part_root_poisoned")
@@ -692,7 +667,7 @@ import json, shutil, sys, tempfile, threading
 from pathlib import Path
 
 import bench_scene
-from pncad import CapEnd, DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
+from pncad import DocRef, Doc, EvaluationError, Node, Workspace, content_pin, evaluate
 
 levels, mode = int(sys.argv[1]), sys.argv[2]
 directory = Path(tempfile.mkdtemp())
@@ -701,31 +676,17 @@ try:
     below = bench_scene.post()
     store.create(below)
     first = None
-    base = None
     for level in range(1, levels + 1):
         doc = Doc(f"pncad-depth-level-{level}")
-        instance = doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below)), []))
-        # Each level stands its copy on its floor by the post's base
-        # cap. The first level reads that face off its copy; each level
-        # above wears the level below's name inside the one `InPart`
-        # its own instance puts round it, checked against the copy's own
-        # faces at the second and third levels before the chain is
-        # trusted with it.
-        if base is None:
-            base = json.loads(bench_scene.instance_face(store, doc, instance, CapEnd.Start))
-        else:
-            # `NodeId(...)`'s repr spells the id as a name writes it.
-            node = repr(instance).removeprefix("NodeId(").removesuffix(")")
-            base = {"kind": "Face", "node": node, "path": [{"InPart": {"of": base}}]}
-            if level <= 3:
-                faces = evaluate(doc, resolver=store).all_faces(instance)
-                assert base in [json.loads(face) for face in faces], level
-        bench_scene.on_floor(doc, instance, instance, json.dumps(base, separators=(",", ":")))
+        instance = doc.insert(Node.instantiate_part(DocRef(below.id, content_pin(below)), doc.world))
+        # Each level stands its copy on its floor by the identity
+        # bundle.
+        bench_scene.on_floor(doc, instance)
         store.create(doc)
         first = first or doc
         below = doc
     top = Doc("pncad-depth-top")
-    instance = top.insert(Node.instantiate_part(DocRef(below.id, content_pin(below))))
+    instance = top.insert(Node.instantiate_part(DocRef(below.id, content_pin(below)), top.world))
     if mode == "uncaught":
         evaluate(top, resolver=store).value(instance)
     said = {}
@@ -900,23 +861,22 @@ class TestTheMemoIsObservable(CorpusCase):
         the length is not a parameter this document holds and the edit
         is the one a Python author actually has — delete the extrude
         and insert a longer one over the same profile. What the memo
-        answers to is the same either way: the frame and the profile
-        are unchanged, so they are served, and only the node that
-        changed runs.
+        answers to is the same either way: the profile is unchanged, so
+        it is served, and only the nodes that changed run.
         """
         _, docs = opened()
         post = docs["post"]
         first = evaluate(post)
-        frame, profile, extrude, placed = post.order()
+        profile, extrude, placed = post.order()
         post.apply(DocEdit.delete_node(placed))
         post.apply(DocEdit.delete_node(extrude))
-        post.place(post.insert(Node.extrude(profile, Formula.length_in(2 * POST_HEIGHT, m))))
+        post.place(post.insert(Node.extrude(profile, Formula.length_in(2 * POST_HEIGHT, m))), post.world)
         again = evaluate(post, prior=first)
-        # TWO reused: the post's sketch frame and the section drawn on
-        # it, which are what the deleted extrude consumed, and neither
-        # moved; the new extrude and its placement run.
-        self.assertEqual(post.order()[:2], [frame, profile])
-        self.assertEqual((again.reused, again.recomputed), (2, 2))
+        # ONE reused: the post's section, which is what the deleted
+        # extrude consumed, and it did not move; the new extrude and
+        # its placement run.
+        self.assertEqual(post.order()[:1], [profile])
+        self.assertEqual((again.reused, again.recomputed), (1, 2))
         self.assertVolumes(volumes(again, again.order()[-1]), [2 * POST_VOLUME])
 
     def test_a_prior_of_another_document_reuses_nothing_and_is_legal(self):
@@ -937,8 +897,9 @@ class TestTheMemoIsObservable(CorpusCase):
         "a key is content, not position" was the wrong sentence.
 
         A sibling of the layout that opens with the layout's own first
-        insert, the post instance over the SAME document at the SAME pin
-        with the same (empty) bundle, agrees with it on content, and two
+        inserts, a space of its own and the post instance placed into it
+        over the SAME document at the SAME pin with the same bundle,
+        agrees with it on content, and two
         documents built from one recipe CAN mint the same ids. What
         makes the overlap worth nothing is not luck but DI3's refusal:
         the prior is of another document, so it is dropped whole and
@@ -948,7 +909,7 @@ class TestTheMemoIsObservable(CorpusCase):
         layout = evaluate(docs["layout"], resolver=store)
         post = docs["post"]
         sibling = Doc("pncad-layout-sibling")
-        sibling.insert(Node.instantiate_part(DocRef(post.id, content_pin(post)), []))
+        sibling.insert(Node.instantiate_part(DocRef(post.id, content_pin(post)), sibling.new_space()))
         again = evaluate(sibling, resolver=store, prior=layout)
         shared = [n for n in again.order() if n in layout.order()]
         self.assertTrue(shared, "the two share an id, so the memo could have hit")
@@ -995,7 +956,7 @@ class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
         store, docs = opened(directory)
         before = evaluate(docs["layout"], resolver=store)
         self.assertEqual(failures(before), {})
-        shelf_node = docs["layout"].order()[2]
+        shelf_node = docs["layout"].order()[3]
         pinned_body = volumes(before, shelf_node)
 
         store.resave(bench_scene.shelf(thickness=SHELF_THICKNESS * 1.5))
@@ -1118,9 +1079,9 @@ class TestTheSceneEvaluatesToWhatTheTourAsserts(CorpusCase):
         clear of the bench, and the pattern's extent along +y.
 
         The placed copies' box, through the tessellator the binding
-        already exposes: the pattern master is a loose copy in its
-        part's own coordinates, so the posts are read where each
-        pattern copy's world pin lays it, and the row below is what
+        already exposes: the pattern master stands in a space of its
+        own at its part's own coordinates, so the posts are read where each
+        pattern copy's world mate lays it, and the row below is what
         separates the posts inside the box.
         """
         store, docs = opened()
@@ -1294,16 +1255,18 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
         the pattern's count and spacing, the shelf's offset."""
         layout = self.body_of("layout_doc")
         placed = re.search(
-            r"Frame::rotate_then_translate\(\s*(\[[^\]]*\]),\s*([^,]+),\s*(\[[^\]]*\]),",
+            r"Coord::Spin\(TargetAxis::(\w)\),\s*crate::world::turn\((\d+),\s*(true|false)\)\)\];"
+            r"\s*values\.extend\(crate::world::slides\((\[[^\]]*\])\)\)",
             layout,
         )
-        self.assertIsNotNone(placed, "the post is no longer placed by a rotated frame")
-        self.assertScene(tour_value(placed.group(1)), (0.0, 1.0, 0.0), "the post's axis")
+        self.assertIsNotNone(placed, "the post is no longer placed by a spin and slides")
+        self.assertScene(placed.group(1), "Y", "the post's axis")
+        turned = -math.tau if placed.group(3) == "true" else math.tau
         self.assertScene(
-            tour_value(placed.group(2)), -math.pi / 2, "the post's rotation"
+            turned / int(placed.group(2)), -math.pi / 2, "the post's rotation"
         )
         self.assertScene(
-            tour_value(placed.group(3)),
+            tour_value(placed.group(4)),
             (FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0),
             "the post's flat-pack offset",
         )
@@ -1317,8 +1280,8 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
             int(spacing.group(1)) / 1000.0, PATTERN_SPACING, "PATTERN_SPACING"
         )
 
-        shelf = re.search(r"Frame::translation\((\[[^\]]*\])\)", layout)
-        self.assertIsNotNone(shelf, "the shelf is no longer placed by a translation")
+        shelf = re.search(r"shelf_i,\s*crate::world::slides\((\[[^\]]*\])\)", layout)
+        self.assertIsNotNone(shelf, "the shelf is no longer placed by slides")
         self.assertScene(
             tour_value(shelf.group(1)),
             (FLAT_PACK_GAP, FLAT_PACK_SHELF_Y, 0.0),
@@ -1326,7 +1289,7 @@ class TestTheSceneIsTheToursOwn(unittest.TestCase):
         )
 
     def test_the_stands_placement_and_seats_still_match_the_tour(self):
-        """The near post's inset — the spot its world pin sets it at on
+        """The near post's inset — the spot its world mate sets it at on
         the turntable — and the seat each of the two mates is authored
         against IN DOCUMENT ORDER: a swapped pair of seats is a
         different bench that every volume in this file would still

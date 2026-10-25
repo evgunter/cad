@@ -107,6 +107,44 @@ fn errors(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
     }
 }
 
+/// [`errors`] where no face pair can be confirmed: the structural twin
+/// holds no region door, so the sweeps read every meeting on a seat's
+/// boundary, which the certified census lets the seat's confirmed pair
+/// answer for inside its overlap's closure. The rows about those lanes
+/// read them here.
+fn structural(body: &Body<f64>, records: &ContactRecords) -> Vec<ValidationError> {
+    match topo::validate_pseudomanifold_structural(body, records, Tol::witness()) {
+        Ok(()) => Vec::new(),
+        Err(e) => e,
+    }
+}
+
+/// Whether `found` is exactly one unrecorded face pair.
+fn one_face_pair(found: &[ValidationError]) -> bool {
+    matches!(
+        found,
+        [ValidationError::UnrecordedContact {
+            contact: CensusContact::ConformalPatch { .. },
+            ..
+        }]
+    )
+}
+
+/// Whether `found` is exactly the tangent T resting on the shelf edge
+/// at (0.70, 0.30, 0.5): the two faces' closures meet there, outside
+/// the closure of their overlap, so the touch is a pair of its own
+/// (`[assertions]`) and, unrecorded, a finding.
+fn only_the_tangent(found: &[ValidationError]) -> bool {
+    matches!(
+        found,
+        [ValidationError::UnrecordedContact {
+            contact: CensusContact::VertexOnEdge { .. },
+            witness,
+            ..
+        }] if witness == "(0.7, 0.3, 0.5)"
+    )
+}
+
 fn undeclared(errors: &[ValidationError]) -> Vec<CensusContact> {
     errors
         .iter()
@@ -121,10 +159,11 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
     cs.iter().filter(|c| f(c)).count()
 }
 
-/// The unit's claim: nothing in the declared overhang seat is a hard
-/// `UnrecordedContact` any more. The edge-on-face overlap's two bounds
-/// (H and B, on the shelf edge's interior) are vertex-on-edge events
-/// the declared pair holds, so the overlap is backed like any other.
+/// The unit's claim: the edge-on-face overlap's two bounds (H and B,
+/// on the shelf edge's interior) are vertex-on-edge events the declared
+/// pair holds in the closure of its overlap, so the overlap is backed
+/// like any other. The one finding left is the tangent T, a touch of
+/// the pair's boundaries outside that closure.
 ///
 /// The seat also has nothing left at door 2. The declared patch's
 /// region-overlap confirm reaches `interior_witness`'s rescue rung with
@@ -140,21 +179,29 @@ fn the_declared_overhang_seat_keeps_no_hard_finding() {
     let (body, post_top, shelf_bottom, _) = overhang_seat();
     let found = errors(&body, &declared(&body, post_top, shelf_bottom));
     assert!(
-        undeclared(&found).is_empty(),
-        "every finding of the declared overhang seat is answered: {found:?}"
-    );
-    assert!(
-        found.is_empty(),
-        "and door 2 certifies the seat outright: {found:?}"
+        only_the_tangent(&found),
+        "every finding inside the declared overlap is answered, and door 2 \
+         certifies it: {found:?}"
     );
 }
 
 /// The rung reads declarations, never the geometry's own agreement
-/// with itself: undeclared, the seat is exactly as loud as it was.
+/// with itself: undeclared, the seat refuses as one face pair, and read
+/// where no pair is confirmed its boundary events are as loud as they
+/// were.
 #[test]
 fn the_bare_overhang_seat_still_refuses() {
     let (body, _, _, _) = overhang_seat();
-    let found = undeclared(&errors(&body, &ContactRecords::default()));
+    let certified = errors(&body, &ContactRecords::default());
+    let (pair, tangent): (Vec<_>, Vec<_>) = certified
+        .iter()
+        .cloned()
+        .partition(|e| one_face_pair(core::slice::from_ref(e)));
+    assert!(
+        one_face_pair(&pair) && only_the_tangent(&tangent),
+        "one face pair, and T: {certified:?}"
+    );
+    let found = undeclared(&structural(&body, &ContactRecords::default()));
     assert_eq!(
         count(&found, |c| matches!(c, CensusContact::VertexOnEdge { .. })),
         3,
@@ -185,8 +232,13 @@ fn the_bare_overhang_seat_still_refuses() {
 #[test]
 fn a_wrong_pair_backs_no_ef_bound() {
     let (body, post_top, _, shelf_top) = overhang_seat();
-    let bare = undeclared(&errors(&body, &ContactRecords::default()));
-    let wrong = undeclared(&errors(&body, &declared(&body, post_top, shelf_top)));
+    assert_eq!(
+        undeclared(&errors(&body, &ContactRecords::default())),
+        undeclared(&errors(&body, &declared(&body, post_top, shelf_top))),
+        "the certified census: one face pair, declared or not"
+    );
+    let bare = undeclared(&structural(&body, &ContactRecords::default()));
+    let wrong = undeclared(&structural(&body, &declared(&body, post_top, shelf_top)));
     assert_eq!(
         count(&wrong, |c| matches!(
             c,
@@ -226,8 +278,9 @@ fn the_declared_straddle_seat_certifies() {
     );
 }
 
-/// The rungs read DECLARATIONS only: bare, the straddle seat's WHOLE
-/// error list is pinned character for character, witnesses included.
+/// The rungs read DECLARATIONS only: bare, the straddle seat is one face
+/// pair, and read where no pair is confirmed its WHOLE error list is
+/// pinned character for character, witnesses included.
 /// The two `EdgeEdgeCross` witnesses are PLAIN — no verdict is named
 /// where no declared pair answered. Each cap side edge rests under the
 /// shelf from its lower corner up to where it crosses the shelf's
@@ -239,8 +292,10 @@ fn the_declared_straddle_seat_certifies() {
 #[test]
 fn the_bare_straddle_seat_is_untouched() {
     let (body, _, _) = straddle_seat();
+    let certified = errors(&body, &ContactRecords::default());
+    assert!(one_face_pair(&certified), "{certified:?}");
     let eps = Tol::witness().eps();
-    let found: Vec<ValidationError> = errors(&body, &ContactRecords::default())
+    let found: Vec<ValidationError> = structural(&body, &ContactRecords::default())
         .into_iter()
         .map(|e| match e {
             ValidationError::UnrecordedContact {

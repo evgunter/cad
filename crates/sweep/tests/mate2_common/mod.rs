@@ -19,7 +19,7 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::test_support::{extruded, sketch_at};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, BooleanResult, FaceKey, mass_properties};
+use topo::{Body, BooleanResult, FaceKey};
 
 /// An annulus of bore `r` and outer radius `outer`, `z ∈ [z0, z0 + len]`,
 /// both rims three 120° arcs starting at `deg0` — the bore wall is 3
@@ -150,7 +150,12 @@ pub fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
 }
 
 pub fn volume(b: &Body<f64>) -> f64 {
-    mass_properties(b, Tol::witness()).unwrap().volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 pub fn boolean_body(r: BooleanResult<f64>) -> topo::BooleanBody<f64> {

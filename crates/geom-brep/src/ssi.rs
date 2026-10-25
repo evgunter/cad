@@ -280,6 +280,9 @@ impl PointLever {
 /// decision reads its arm here: the march's states, the Hermite's ends,
 /// refinement's chord midpoint ([`march::decide_transversality`]) and
 /// the at-rest plane × NURBS check ([`crate::plane_nurbs_limbs`]).
+/// It is not [`crate::folded_lever_arm`], whose arms are each carrier
+/// kind's own length scale and poison on a NURBS carrier; the two agree
+/// where that scale is `1/κ`, on a plane, a sphere or a cylinder.
 pub(crate) fn point_arm<T: Real>(kappa: T, extent: T) -> (T, T) {
     let reach = kappa * extent;
     (extent / T::one().max(reach), reach)
@@ -491,7 +494,7 @@ pub enum SsiError {
     /// [`certify_rung3`] with a declared carrier. The
     /// pcurve cache reports it in a sentence of its own; the plane ×
     /// NURBS edge lane folds it into `Unsupported` through its wildcard
-    /// (`work/iso/plane-nurbs-refusal-arms-with-no-ending.md`).
+    /// (`work/isotail/plane-nurbs-refusal-arms-with-no-ending.md`).
     TubeLadderEmpty {
         /// The extent the ladder was scaled from (meters): the caller's
         /// extent at [`certify_rung3`], the domain's
@@ -2254,7 +2257,7 @@ impl TraceDecision {
     }
 
     /// The ending this decision's escalation on `cause` carries, read at
-    /// `reading`: the one its decided verdicts carry (D4 ¶1 (iv)).
+    /// `at`: the one its decided verdicts carry (D4 ¶1 (iv)).
     ///
     /// - The transversality decision ends by [`CertCheck::Transversality`],
     ///   and its arm gate by [`CertCheck::TransversalityArm`], as a
@@ -2273,28 +2276,27 @@ impl TraceDecision {
     ///   poisoned margin, no lever of theirs is what refused: the march's
     ///   own arithmetic went unreadable, which is the kernel's.
     #[must_use]
-    pub fn ending(self, cause: &Indeterminate, reading: Reading) -> String {
+    pub fn ending(self, cause: &Indeterminate, at: impl Into<ReadAt>) -> String {
+        let at = at.into();
         let arm = RefusedArm::Undecided(cause);
         match self {
             Self::TransversalityArm => {
-                crate::certify::recourse(CertCheck::TransversalityArm, arm, reading)
+                crate::certify::recourse(CertCheck::TransversalityArm, arm, at)
             }
-            Self::Transversality => {
-                crate::certify::recourse(CertCheck::Transversality, arm, reading)
-            }
-            Self::PairTangency => PAIR_TANGENCY.recourse(arm, reading),
+            Self::Transversality => crate::certify::recourse(CertCheck::Transversality, arm, at),
+            Self::PairTangency => PAIR_TANGENCY.recourse(arm, at),
             Self::StepProgress | Self::ClosureTangent | Self::BranchOpenEnd
                 if cause.margin.is_invalid() =>
             {
-                defect_ending(reading).to_owned()
+                defect_ending(at).to_owned()
             }
-            Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain(None), reading),
-            Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain(None), reading),
-            Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain(None), reading),
-            Self::ClosureReturn => Unsized::Fit.recourse(arm, reading),
+            Self::StepProgress => STEP_SCALE.recourse(RefusedArm::SignCertain(None), at),
+            Self::ClosureTangent => SELF_CROSSING.recourse(RefusedArm::SignCertain(None), at),
+            Self::BranchOpenEnd => OPEN_END.recourse(RefusedArm::SignCertain(None), at),
+            Self::ClosureReturn => Unsized::Fit.recourse(arm, at),
             // Every arm is reported; a poisoned distance is no input's,
             // since both operands are refused at the door unless finite.
-            Self::BoundarySection => defect_ending(reading).to_owned(),
+            Self::BoundarySection => defect_ending(at).to_owned(),
         }
     }
 }
@@ -2319,7 +2321,7 @@ impl SsiDecision {
     #[must_use]
     pub fn ending(self, cause: &Indeterminate, at: impl Into<ReadAt>) -> String {
         match self {
-            Self::Trace(decision) => decision.ending(cause, at.into().reading()),
+            Self::Trace(decision) => decision.ending(cause, at),
             Self::Limb(limb) => {
                 crate::certify::recourse(limb.check(), RefusedArm::Undecided(cause), at)
             }
@@ -3123,6 +3125,38 @@ mod ending_tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
+    /// **A trace escalation's defect ending reads the door it is given**
+    /// ([`TraceDecision::ending`] through [`super::SsiDecision::ending`]):
+    /// the boundary section's defect names the kernel at a build, the
+    /// kernel or the file at rest, and the file at the import door. Red
+    /// if the trace reads the import door as at rest.
+    #[test]
+    fn a_trace_defect_reads_its_door() {
+        let cause = Indeterminate {
+            margin: MarginDiag::INVALID,
+            band: band(),
+            predicate: None,
+            terminal_sliver: false,
+        };
+        let decision = super::SsiDecision::Trace(TraceDecision::BoundarySection);
+        for (at, want) in [
+            (
+                crate::recourse::ReadAt::Run(Reading::Build),
+                KERNEL_DEFECT_ENDING,
+            ),
+            (
+                crate::recourse::ReadAt::Run(Reading::AtRest),
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                crate::recourse::ReadAt::File(geom_core::FileCoincidence::new(1e-6)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+        ] {
+            assert_eq!(decision.ending(&cause, at), want, "{at:?}");
+        }
+    }
+
     /// An escalation of `margin` against [`band`].
     fn cause(margin: MarginDiag) -> Indeterminate {
         Indeterminate {
@@ -3205,6 +3239,67 @@ mod ending_tests {
             .to_string();
             assert!(shown.contains(words), "{lever:?}: {shown}");
         }
+    }
+
+    /// **The point arm and the folded arm agree where both read `1/κ`.**
+    /// On a plane, a sphere or a cylinder the carrier's own length scale
+    /// is its curvature radius, so `E / max(1, κE)` and the fold
+    /// `min(r, E)` are one number to rounding: flat (`κ = 0`), on either
+    /// side of `κE = 1` and at it, and at a collapsed radius (`κ = ∞`).
+    /// Poison in either input stays poison in both. A NURBS carrier is
+    /// where they part: the fold has no length scale to read there.
+    #[test]
+    fn the_point_arm_agrees_with_the_folded_arm_where_both_read_the_radius() {
+        use crate::ssi::point_arm;
+        use geom::Surface;
+        use geom_core::{Point3, Vec3};
+        let o = Point3::origin();
+        let plane = Surface::Plane {
+            origin: o,
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let sphere = |radius| Surface::Sphere {
+            center: o,
+            radius,
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let cylinder = |radius| Surface::Cylinder {
+            origin: o,
+            axis: Vec3::unit_z(),
+            radius,
+            u_ref: Vec3::unit_x(),
+        };
+        let e = 0.3;
+        let mut rows = vec![("plane", plane.clone(), 0.0)];
+        for r in [0.0, 0.1, e * (1.0 - 1e-15), e, e * (1.0 + 1e-15), 2.0] {
+            rows.push(("sphere", sphere(r), 1.0 / r));
+            rows.push(("cylinder", cylinder(r), 1.0 / r));
+        }
+        for (kind, s, kappa) in rows {
+            let (point, _) = point_arm(kappa, e);
+            let folded = crate::folded_lever_arm(&s, &plane, o, e);
+            assert!(
+                (point - folded).abs() <= 4.0 * f64::EPSILON * folded,
+                "{kind}, κ = {kappa:e}: point arm {point:e}, folded arm {folded:e}"
+            );
+        }
+        let (poison_kappa, _) = point_arm(f64::NAN, e);
+        let (poison_extent, _) = point_arm(1.0, f64::NAN);
+        assert!(
+            poison_kappa.is_nan(),
+            "point arm, κ poison: {poison_kappa:e}"
+        );
+        assert!(
+            poison_extent.is_nan(),
+            "point arm, E poison: {poison_extent:e}"
+        );
+        let folded = crate::folded_lever_arm(&sphere(0.1), &plane, o, f64::NAN);
+        assert!(folded.is_nan(), "folded arm, E poison: {folded:e}");
+        let nurbs = Surface::nurbs_placeholder();
+        let folded = crate::folded_lever_arm(&nurbs, &plane, o, e);
+        assert!(folded.is_nan(), "folded arm on a NURBS carrier: {folded:e}");
     }
 
     /// The transversality decision's one lever, read at every door.

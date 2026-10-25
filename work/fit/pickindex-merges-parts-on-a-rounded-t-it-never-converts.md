@@ -2,10 +2,12 @@
 id: pickindex-merges-parts-on-a-rounded-t-it-never-converts
 kind: issue
 title: pickindex merges parts on a rounded t it never converts, and slacks it by a tuned 1e-6
-status: open
+status: closed
 opened: 2026-09-16
 priority: P1
-cost: H
+cost: M
+pr: 5603
+closed: 2026-10-22
 ---
 
 
@@ -135,3 +137,34 @@ with: 18 of the 66 segment-midpoint cursors on the shipped plate
 `a_cursor_the_face_pick_ties_on_still_picks_the_edge`). This does not
 touch §3's number, and reading the occlusion question with
 `precedes` instead would now be a decision about both readers.
+
+## §1 split out, §3 is what is left (2026-10-22, FIT orchestrator)
+
+§1 is now its own row, `a-moved-copys-pick-span-crosses-its-frame-unconverted`,
+parked on stage 3 D′ because D′ rewrites the moved-copy frames it reads.
+§2 is closed (above). **This row is §3 alone**: `OCCLUSION_SLACK_REL`,
+the tuned relative `1e-6` on `t` in the occlusion probe, which reads
+`PickIndex::front_of`, whose second reader is `PickIndex::seed`. The
+open question is whether the occlusion probe takes the certified
+answer (`precedes` over the spans) or a deliberately looser one, and
+what that does to `seed`'s readers. It does not touch D10's ground.
+
+## Closed
+
+The occlusion probe orders the chord's own certified crossing against
+the front set, and `OCCLUSION_SLACK_REL` is gone. The crossing
+(`PickIndex::own_crossing`) is the hull of the span of the chord point
+the probe ray passes nearest — `editor_core::resolve::ray_segment_point`,
+a kernel door beside `ray_triangle` that counts `t_span`'s rounding
+plus the point's own `fl(b − a)` — and the `ray_triangle` spans of the
+chord's incident triangles, found by exact mesh index (`ChordFaces`,
+built once per index; every triangle at the vertex when the closest
+point clamps to an endpoint). The chord is hidden exactly when
+`TSpan::survivors` drops it. `front_of` answers the survivor set, and
+the edge seed searches every body it names, which fixes a tie across
+two parts offering one part's edges. A moved copy's front spans stay
+local-ray parameters, per
+`a-moved-copys-pick-span-crosses-its-frame-unconverted`.
+`tests/edge_pick.rs` pins a concave edge at grazing incidence, a hidden
+edge within 1e-6 of its depth, a silhouette whose faces the ray misses,
+and the cross-part tie; each reds under the rule it rules out.

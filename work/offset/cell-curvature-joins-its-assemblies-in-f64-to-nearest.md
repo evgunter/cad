@@ -4,6 +4,8 @@ kind: issue
 title: cell_curvature joins certified ends with f64 sums rounded to nearest (h.hi() + root, w11.hi() + w12.mag()), so its curvature bound can land an ulp inside
 status: open
 opened: 2026-10-01
+priority: P2
+cost: E
 ---
 
 

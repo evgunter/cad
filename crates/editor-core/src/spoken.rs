@@ -17,7 +17,7 @@
 //!   when the sentence is made. A part's labels are in its pin, which is
 //!   in the instance's key, so a fault from inside a part, and a row a
 //!   part carries up, hold the part's nodes as the pinned part says
-//!   them ([`crate::PartFault::held`], [`crate::CarriedRefusal::held`]).
+//!   them ([`crate::PartFault::held`], [`crate::assembly::CarriedAtRestFinding::held`]).
 //! - The `Display` of [`RecipeNodeId`] and [`StepId`] — the bare tag,
 //!   for a sentence made where no document is at hand (a refusal's own
 //!   `Display`, a stored reference). The edit, load and save doors all
@@ -51,7 +51,7 @@ use crate::doc::Doc;
 use crate::label::Label;
 use crate::names::words::Detail;
 use crate::names::{NameTable, StableName};
-use crate::node::{Datum, MintId, Node, RecipeNodeId, StepId};
+use crate::node::{MintId, Node, RecipeNodeId, StepId};
 use crate::program::ProfilePayload;
 
 /// How many hex digits a tag shows (`test_utils::refusal::NODE_TAG_DIGITS`
@@ -201,6 +201,58 @@ impl fmt::Display for SpokenVar {
         match &self.name {
             Some(name) => write!(f, "{name}"),
             None => write!(f, "{}", self.id),
+        }
+    }
+}
+
+/// **A space as a person reads it** (D10 `[placement.spaces]`): `the
+/// world`, a named space by its name, a `new_space()` as its node, and a
+/// construction's space as `the space of` its construction. Built by
+/// [`Doc::spoken_space`] from the document that holds the space.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpokenSpace {
+    id: crate::var::VarId,
+    name: Option<crate::doc::VarName>,
+    /// The node minting it, and whether it is a `new_space()` (said as
+    /// itself) rather than a construction (said as its space's owner).
+    of: Option<(SpokenNode, bool)>,
+}
+
+impl SpokenSpace {
+    /// The space this sentence names.
+    #[must_use]
+    pub fn id(&self) -> crate::var::VarId {
+        self.id
+    }
+}
+
+impl fmt::Display for SpokenSpace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.id == crate::var::VarId::WORLD {
+            return f.write_str("the world");
+        }
+        match (&self.name, &self.of) {
+            (Some(name), _) => write!(f, "`{name}`"),
+            (None, Some((node, true))) => write!(f, "{node}"),
+            (None, Some((node, false))) => write!(f, "the space of {node}"),
+            (None, None) => write!(f, "the space {}", self.id),
+        }
+    }
+}
+
+impl<P> Doc<P> {
+    /// `id`, a space, as a sentence names it ([`SpokenSpace`]).
+    pub fn spoken_space(&self, id: crate::var::VarId) -> SpokenSpace {
+        let of = self.defined_by(id).map(|(node, _)| {
+            (
+                self.spoken(node),
+                matches!(self.node(node), Some(Node::Space)),
+            )
+        });
+        SpokenSpace {
+            id,
+            name: self.var_name(id).cloned(),
+            of,
         }
     }
 }
@@ -699,9 +751,18 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     fn output_of(&self, var: crate::var::VarId) -> Option<OutputOf> {
         let (node, port) = self.var(var)?.def().output()?;
         let ports = self.node(node)?.outputs();
-        let port = match ports.len() {
-            0 | 1 => None,
-            _ => Some(ports.get(usize::from(port))?.name),
+        // A construction's space is no part of what it holds: a read of
+        // its one other output is said by the node alone, and a read of
+        // the space by its port.
+        let space = |p: &crate::node::OutputPort| {
+            p.kind == crate::node::PortKind::Of(crate::VarKind::Space)
+        };
+        let at = ports.get(usize::from(port))?;
+        let held = ports.iter().filter(|p| !space(p)).count();
+        let port = if space(at) {
+            (held > 0).then_some(at.name)
+        } else {
+            (held > 1).then_some(at.name)
         };
         Some(OutputOf { node, port })
     }
@@ -1241,6 +1302,25 @@ impl<'a> Speaker<'a> {
         }
     }
 
+    /// **A space, said** (D10 `[placement.spaces]`): `the world`, or as
+    /// the output it is (`the space of Extrude e548`).
+    #[must_use]
+    pub fn space(self, var: crate::var::VarId) -> String {
+        if var == crate::var::VarId::WORLD {
+            return "the world".to_owned();
+        }
+        let Some(doc) = self.doc else {
+            return format!("the space {var}");
+        };
+        if let Some(name) = doc.speak_var(var) {
+            return format!("`{name}`");
+        }
+        match doc.output_port(var) {
+            Some((node, _)) => format!("the space of {}", self.node(node)),
+            None => format!("the space {var}"),
+        }
+    }
+
     /// **A slot's variable, said as written**: what an anonymous one
     /// holds, its readers said ([`Self::formula`]); a named one by its
     /// name; `#<16 hex>` where the speaker's document does not hold it.
@@ -1391,32 +1471,22 @@ pub(crate) fn assert_taken_of<P>(what: &str, taken_of: crate::DocumentId, doc: &
 
 /// **The kind noun of a recipe node** — the word a sentence, a feature
 /// tree row, a delete confirmation and a kind census all say.
-///
-/// **The datum FLAVOURS are named apart** (`Datum plane`, not
-/// `Datum`): a plane and a frame are the same surface differing only
-/// in whether the spin about the normal is pinned, so a sentence that
-/// called both "Datum" would ask a reader to tell them apart by
-/// looking.
 pub fn node_kind_noun<P, S: crate::Slot>(node: &Node<P, S>) -> &'static str {
     match node {
         Node::Profile(_) => "Profile",
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
-        Node::Transform { .. } => "Transform",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
         Node::World => "World",
+        Node::Space => "Space",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Split { .. } => "Split",
+        Node::Mirror { .. } => "Mirror",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
-        Node::Datum(Datum::Plane { .. }) => "Datum plane",
-        Node::Datum(Datum::Frame { .. }) => "Datum frame",
-        Node::Datum(Datum::FaceFrame { .. }) => "Datum frame (on face)",
-        Node::Datum(Datum::Axis { .. }) => "Datum axis",
-        Node::Datum(Datum::Point { .. }) => "Datum point",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
         Node::Shell { .. } => "Shell",
@@ -1479,7 +1549,11 @@ mod tests {
     fn a_held_node_is_its_kind_and_tag_and_an_absent_one_is_a_node() {
         let tol = Tol::witness();
         let empty: Doc<ProfileProgram> = Doc::empty_derived("spoken", tol);
-        let node = test_support::xy_frame();
+        let node = crate::node::Node::Tube {
+            major_radius: test_support::len(1.0),
+            window: crate::node::TubeWindow::Full,
+            minor_radius: test_support::len(0.25),
+        };
         let kind = node_kind_noun(&node);
         let doc = empty
             .apply(
@@ -1489,15 +1563,15 @@ mod tests {
                 },
                 tol,
             )
-            .expect("the frame inserts")
+            .expect("the tube inserts")
             .doc;
-        let id = *doc.ids().last().expect("the inserted frame");
-        assert_eq!(kind, "Datum frame");
+        let id = *doc.ids().last().expect("the inserted tube");
+        assert_eq!(kind, "Tube");
         let spoken = doc.spoken(id);
-        assert_eq!((spoken.id(), spoken.kind()), (id, Some("Datum frame")));
+        assert_eq!((spoken.id(), spoken.kind()), (id, Some("Tube")));
         assert_eq!(
             spoken.to_string(),
-            format!("Datum frame {}", test_utils::refusal::tag(id.0.digest()))
+            format!("Tube {}", test_utils::refusal::tag(id.0.digest()))
         );
         let gone = empty.spoken(id);
         assert_eq!(gone.kind(), None);
@@ -1517,18 +1591,22 @@ mod tests {
         let doc = empty
             .apply(
                 &DocEdit::InsertNode {
-                    node: Box::new(test_support::xy_frame()),
+                    node: Box::new(crate::node::Node::Tube {
+                        major_radius: test_support::len(1.0),
+                        window: crate::node::TubeWindow::Full,
+                        minor_radius: test_support::len(0.25),
+                    }),
                     fresh: Vec::new(),
                 },
                 tol,
             )
-            .expect("the frame inserts")
+            .expect("the tube inserts")
             .doc;
-        let id = *doc.ids().last().expect("the inserted frame");
+        let id = *doc.ids().last().expect("the inserted tube");
         let stranger = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         let forged = SpokenNode::forged(
             id,
-            Some("Datum frame"),
+            Some("Tube"),
             Some(Label::new("floor").expect("a label")),
         );
         let kept: HeldNodes = [forged.clone()].into_iter().collect();
@@ -1536,12 +1614,12 @@ mod tests {
         let said = |by: Speaker<'_>, id| by.node(id).to_string();
         assert_eq!(
             said(Speaker::of(&doc).or_held(&kept), id),
-            format!("Datum frame {t}"),
+            format!("Tube {t}"),
             "the document holds it, so the document says it"
         );
         assert_eq!(
             said(Speaker::of(&empty).or_held(&kept), id),
-            format!("Datum frame \"floor\" ({t})"),
+            format!("Tube \"floor\" ({t})"),
             "the document does not hold it, so it is said as kept"
         );
         assert_eq!(

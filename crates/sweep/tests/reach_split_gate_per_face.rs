@@ -13,7 +13,7 @@ use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, SplitResult, split};
-use topo::{AtRestBody, Body, DATUM_UNIT_NORM, validate, validate_closed, validate_geometric};
+use topo::{AtRestBody, Body, POSE_UNIT_NORM, validate, validate_closed, validate_geometric};
 
 /// The chain revolved about the y axis, finished.
 fn revolved(chain: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
@@ -31,7 +31,7 @@ fn revolved(chain: Vec<(Point2<f64>, f64)>) -> AtRestBody<f64> {
 /// A cut normal minted the way a caller holding a direction mints one.
 fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
     let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
-    UnitVec3::new(v, DATUM_UNIT_NORM, band).expect("a cut normal has a length")
+    UnitVec3::new(v, POSE_UNIT_NORM, band).expect("a cut normal has a length")
 }
 
 /// The plane through `(0, qy, 0)` with normal `(sin φ, cos φ, 0)`.
@@ -78,7 +78,7 @@ fn halves(result: &SplitResult<f64>, what: &str) -> (Body<f64>, Body<f64>) {
             panic!("{what}: tier 3: {errs:?}");
         }
     }
-    (above.clone(), below.clone())
+    (topo::Body::clone(above), topo::Body::clone(below))
 }
 
 /// The unit cylinder `y ∈ [0, 1]` with its top rim rounded: the quarter
@@ -113,7 +113,11 @@ fn rounding_volume() -> f64 {
 const LOFT_PRISM_VOLUME: f64 = 9.0;
 
 fn props(b: &Body<f64>) -> topo::props::MassProperties<f64> {
-    topo::props::mass_properties(b, Tol::witness()).unwrap()
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
 }
 
 /// `v` lies within the kernel's certified bracket of `oracle`.
@@ -341,7 +345,7 @@ fn tilted_cut_rim() -> (Body<f64>, Rim) {
             })
         })
         .expect("the tilted section has a half-ellipse on z < 0");
-    (body, rim)
+    (body.into_body(), rim)
 }
 
 /// [`tilted_cut_rim`]'s half-ellipse: its edge, carrier, interval and

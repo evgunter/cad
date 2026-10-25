@@ -22,7 +22,8 @@ use super::discriminate::{
     CHORD_ON_RIM, Extent, ON_MEMBER_EDGE, ORDER_ALONG, band, extent_before, rank_by,
 };
 use super::emit::{
-    Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
+    CrossingSensesShape, DisagreeShape, Incidence, JoinShape, NamingError, Rim, RimShare,
+    SeamSidesShape, SeamVertexShape, WayShape, edge_ends, ent, face_half_edges, name1, rim_between,
     rims_between, vertex_point,
 };
 use super::groups::{Emitted, GroupRecord, Parent};
@@ -871,7 +872,7 @@ enum Joined {
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where a cover has no input-cell reading: a
+/// [`NamingError::UnsupportedJoin`] where a cover has no input-cell reading: a
 /// section chord joined to a piece of an operand edge.
 #[allow(clippy::too_many_arguments)]
 fn split_joined_readings<T: Decide>(
@@ -884,7 +885,6 @@ fn split_joined_readings<T: Decide>(
     target_node: RecipeNodeId,
     target_table: &NameTable,
 ) -> Result<BTreeMap<EdgeKey, Joined>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
     let lineage = &naming.joined_lineage;
     // Each record states the half it was made on: the edge it leaves
     // lives there.
@@ -936,10 +936,10 @@ fn split_joined_readings<T: Decide>(
                     continue;
                 }
                 _ => {
-                    return Err(bug(
-                        "a split joined a section chord to an operand edge's piece, which no \
-                         input cell reads",
-                    ));
+                    return Err(NamingError::UnsupportedJoin {
+                        edge: kept,
+                        shape: JoinShape::ChordWithPiece,
+                    });
                 }
             }
         }
@@ -1012,9 +1012,9 @@ fn split_join_seam<T: Decide>(
                  the cut: {BETWEEN_SECTIONS}"
             );
         }
-        return Err(NamingError::Emission {
-            what: "a split joined a section chord beside a merged operand face to whole operand \
-                   edges, which no rule names",
+        return Err(NamingError::UnsupportedJoin {
+            edge: kept,
+            shape: JoinShape::ChordBesideMergedFace,
         });
     }
     let (parent, tied) = merged.parent_of(other, naming, target_node, target_table)?;
@@ -1046,7 +1046,6 @@ fn name_split_edges_vertices<T: Decide>(
     bnd: geom_core::Band,
 ) -> Result<(), NamingError> {
     let (target_node, target_table) = (keeps.target_node, keeps.target_table);
-    let bug = |what| NamingError::Emission { what };
     let copy_to_original: BTreeMap<VertexKey, VertexKey> =
         naming.vertex_pairs.iter().copied().collect();
     // (side, base) → (from a tie, the side's edges under it).
@@ -1151,9 +1150,7 @@ fn name_split_edges_vertices<T: Decide>(
                     for &r in roots {
                         let same = EdgeCarrier::of_edge(target_body, r)?
                             .runs_with(&joined, ON_MEMBER_EDGE, bnd)?
-                            .ok_or_else(|| {
-                                bug("a split set piece lies off an operand edge it covers")
-                            })?;
+                            .ok_or(NamingError::JoinedPieceOffRoot { edge: e })?;
                         pieces_of.entry(r).or_default().push((e, same));
                     }
                     let group = edge_groups.entry((slot, name.clone())).or_default();
@@ -1223,39 +1220,17 @@ fn name_split_edges_vertices<T: Decide>(
                 tie.carry(up, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }
-            // Resolve the birth record — directly, or through the
-            // null-pair copy rows (a copy can be minted at an earlier
-            // copy; the original's record lives in whichever side kept
-            // it).
+            // The vertex it stands for: itself, or the original its
+            // null-pair copy rows end at.
             let src = pair_original(&copy_to_original, v);
-            let parent_edge = sides
-                .iter()
-                .find_map(|sb| match sb.body.vertex_provenance_of(src) {
-                    Some(Provenance::SplitEdge { edge }) => {
-                        Some(chase_split_edge_to_table(sides, target_table, *edge))
-                    }
-                    _ => None,
-                });
-            if let Some(parent_edge) = parent_edge {
-                // Crossing vertex: minted where the plane crossed an
-                // operand edge's interior.
-                match crossings.get_mut(&parent_edge) {
-                    Some((_, vs)) => vs.push(v),
-                    None => {
-                        let parent = upstream_name(
-                            target_table,
-                            target_node,
-                            ent(0, EntityKey::Edge(parent_edge)),
-                        )?;
-                        crossings.insert(parent_edge, (parent, vec![v]));
-                    }
-                }
-            } else if target_table
+            if target_table
                 .name_of(&ent(0, EntityKey::Vertex(src)))
                 .is_some()
             {
                 // The plane passed THROUGH an operand vertex: its
-                // copies in this half, named below.
+                // copies in this half, named below. Its own birth
+                // record, if any, is the operation that made the
+                // operand, never a crossing of this plane.
                 match on_tool.get_mut(&src) {
                     Some((_, vs)) => vs.push(v),
                     None => {
@@ -1267,13 +1242,38 @@ fn name_split_edges_vertices<T: Decide>(
                         on_tool.insert(src, (of, vec![v]));
                     }
                 }
-            } else {
+                continue;
+            }
+            // A vertex the split minted: the original's record lives in
+            // whichever side kept it.
+            let parent_edge = sides
+                .iter()
+                .find_map(|sb| match sb.body.vertex_provenance_of(src) {
+                    Some(Provenance::SplitEdge { edge }) => {
+                        Some(chase_split_edge_to_table(sides, target_table, *edge))
+                    }
+                    _ => None,
+                });
+            let Some(parent_edge) = parent_edge else {
                 unreachable!(
                     "split vertex {v:?} (standing for {src:?}) has neither a `SplitEdge` record \
                      nor an operand identity: a split mints a vertex only where the plane crosses \
                      an operand edge, recording the edge, or as a copy of an operand vertex in the \
                      plane, recorded in `SplitNaming::vertex_pairs`"
                 );
+            };
+            // Crossing vertex: minted where the plane crossed an operand
+            // edge's interior.
+            match crossings.get_mut(&parent_edge) {
+                Some((_, vs)) => vs.push(v),
+                None => {
+                    let parent = upstream_name(
+                        target_table,
+                        target_node,
+                        ent(0, EntityKey::Edge(parent_edge)),
+                    )?;
+                    crossings.insert(parent_edge, (parent, vec![v]));
+                }
             }
         }
         for (corner, (of, copies)) in on_tool {
@@ -2169,7 +2169,10 @@ fn name_boolean_edges<T: Decide>(
             )
         };
         if faces.len() != 2 {
-            return Err(bug("seam edge without exactly two adjacent faces"));
+            return Err(NamingError::UnsupportedSeamSides {
+                edge: e,
+                shape: SeamSidesShape::NotTwoFaces,
+            });
         }
         let union = op == topo::BooleanOp::Union;
         // A merged face beside an unmerged one. Where the merged face
@@ -2281,9 +2284,10 @@ fn name_boolean_edges<T: Decide>(
             .entry((fa.name, fb.name))
             .or_insert((false, one, Vec::new()));
         if slot.1 != one {
-            return Err(bug(
-                "one seam name holds edges between faces of one operand and of two",
-            ));
+            return Err(NamingError::UnsupportedSeamSides {
+                edge: e,
+                shape: SeamSidesShape::NameSpellsTwoSeams,
+            });
         }
         slot.0 |= from_tie;
         slot.2.push(e);
@@ -2334,7 +2338,10 @@ fn name_boolean_edges<T: Decide>(
             ChordKind::SameA(k) if both_merged => zip_rims.push((OpSide::A(k), e)),
             ChordKind::SameB(k) if both_merged => zip_rims.push((OpSide::B(k), e)),
             ChordKind::SameA(_) | ChordKind::SameB(_) => {
-                return Err(bug("seam edge between same-operand faces"));
+                return Err(NamingError::UnsupportedSeamSides {
+                    edge: e,
+                    shape: SeamSidesShape::WithinOneOperand,
+                });
             }
         }
     }
@@ -2544,8 +2551,9 @@ fn joined_cover<T: Decide>(
         )
     };
     let [f0, f1] = faces.as_slice() else {
-        return Err(NamingError::Emission {
-            what: "a joined edge without exactly two adjacent faces",
+        return Err(NamingError::UnsupportedSeamSides {
+            edge: e,
+            shape: SeamSidesShape::NotTwoFaces,
         });
     };
     let descents = |f: FaceKey| -> Result<Vec<OpSide<FaceKey>>, NamingError> {
@@ -2824,7 +2832,10 @@ fn name_boolean_vertices<T: Decide>(
                 Some(RoleSeg::Merged(_)) => {
                     let held = set_holding(v, set)?;
                     if held.is_empty() {
-                        return Err(bug("a vertex of a joined edge lies on none of its set"));
+                        return Err(NamingError::BandVerdictsDisagree {
+                            vertex: v,
+                            shape: DisagreeShape::VertexOffJoinedSet,
+                        });
                     }
                     for (r, x) in held {
                         edge_keys.insert(r);
@@ -2854,7 +2865,10 @@ fn name_boolean_vertices<T: Decide>(
                 // so it ends at operand vertices, and it has no A and B
                 // side to cross.
                 Some(RoleSeg::Seam { .. }) if side.is_some() => {
-                    return Err(NamingError::SeamVertexParentage { vertex: v });
+                    return Err(NamingError::UnsupportedSeamVertex {
+                        vertex: v,
+                        shape: SeamVertexShape::OneOperandSeam,
+                    });
                 }
                 Some(RoleSeg::Seam { a: s0, b: s1 }) => {
                     seam_lines.insert((s0.clone(), s1.clone()));
@@ -2927,7 +2941,7 @@ fn name_boolean_vertices<T: Decide>(
                 _ => None,
             })
         };
-        let sense = |side, edge: &NameRef| sense_of(&at_v, side, edge);
+        let sense = |side, edge: &NameRef| sense_of(v, &at_v, side, edge);
         // A crossing of operand `o`'s edge `e` by the face across it.
         let crossing = |o: topo::Operand, e: &NameRef, face: NameRef| {
             Ok::<_, NamingError>((
@@ -3060,7 +3074,10 @@ fn name_boolean_vertices<T: Decide>(
                     // line meeting one face. Curved faces are outside
                     // that argument, so no rule names this vertex.
                     ([_], [], ..) | ([], [_], ..) => {
-                        return Err(NamingError::SeamVertexParentage { vertex: v });
+                        return Err(NamingError::UnsupportedSeamVertex {
+                            vertex: v,
+                            shape: SeamVertexShape::LineAcrossSeveralFaces,
+                        });
                     }
                     (al, bl, ..) => unreachable!(
                         "seam vertex {v:?}'s operand edges hold no line ({al:?}, {bl:?}): the arm \
@@ -3079,7 +3096,12 @@ fn name_boolean_vertices<T: Decide>(
             // a seam between two faces of one operand. The body is sound
             // and nothing proves these shapes unreachable, so what is
             // missing is a rule.
-            _ => return Err(NamingError::SeamVertexParentage { vertex: v }),
+            _ => {
+                return Err(NamingError::UnsupportedSeamVertex {
+                    vertex: v,
+                    shape: SeamVertexShape::NoEdgePair,
+                });
+            }
         };
         // Pieces of one line crossed alike share a name, and rank along
         // the line, each read on its own piece.
@@ -3364,9 +3386,10 @@ struct EdgeSense {
 ///
 /// [`NamingError::PartnerUnread`] where a key is one the boolean read no
 /// partner of ([`topo::UnreadPartner`]), whose edges hold no class to
-/// read a sense from; [`NamingError::Emission`] where
-/// one side of the vertex holds pieces of one edge on both sides of the
-/// other operand, or no classified piece ([`UNCLASSIFIED_SIDE`]).
+/// read a sense from; [`NamingError::UnsupportedCrossingSenses`] where one side of
+/// the vertex holds pieces of one edge on both sides of the other
+/// operand; [`NamingError::Emission`] where it holds no classified piece
+/// ([`UNCLASSIFIED_SIDE`]).
 ///
 /// # Panics
 ///
@@ -3423,7 +3446,7 @@ fn senses_at<T: Decide>(
             )
         };
         let name = name.clone();
-        let sense = match (side_in_body(&before)?, side_in_body(&after)?) {
+        let sense = match (side_in_body(v, &before)?, side_in_body(v, &after)?) {
             (false, true) => Sense::Enters,
             (true, false) => Sense::Leaves,
             (false, false) => Sense::Outside,
@@ -3449,16 +3472,18 @@ fn senses_at<T: Decide>(
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where its pieces there read both ways, or
-/// where no piece there was classified ([`UNCLASSIFIED_SIDE`]).
-fn side_in_body(classes: &BTreeSet<bool>) -> Result<bool, NamingError> {
+/// [`NamingError::UnsupportedCrossingSenses`] at `vertex` where its pieces there
+/// read both ways; [`NamingError::Emission`] where no piece there was
+/// classified ([`UNCLASSIFIED_SIDE`]).
+fn side_in_body(vertex: VertexKey, classes: &BTreeSet<bool>) -> Result<bool, NamingError> {
     match classes.len() {
         0 => Err(NamingError::Emission {
             what: UNCLASSIFIED_SIDE,
         }),
         1 => Ok(classes.contains(&true)),
-        _ => Err(NamingError::Emission {
-            what: "a crossing's edge has pieces on both sides of the other operand on one side of it",
+        _ => Err(NamingError::UnsupportedCrossingSenses {
+            vertex,
+            shape: CrossingSensesShape::PiecesBothSides,
         }),
     }
 }
@@ -3483,7 +3508,7 @@ mod side_tests {
 
     use std::collections::BTreeSet;
 
-    use super::side_in_body;
+    use super::{VertexKey, side_in_body};
 
     /// **A side of a crossing with no classified piece refuses typed**
     /// (N2): a vertex that is not an operand's own holds the edge on
@@ -3491,17 +3516,25 @@ mod side_tests {
     #[test]
     fn a_side_with_no_classified_piece_refuses() {
         assert!(matches!(
-            side_in_body(&BTreeSet::new()),
+            side_in_body(VertexKey::default(), &BTreeSet::new()),
             Err(super::NamingError::Emission { what }) if what == super::UNCLASSIFIED_SIDE
         ));
     }
 
-    /// One class reads its side; two refuse.
+    /// One class reads its side; two are a crossing no rule reads, at
+    /// the vertex asked about.
     #[test]
     fn a_side_reads_its_one_class() {
-        assert!(side_in_body(&BTreeSet::from([true])).unwrap());
-        assert!(!side_in_body(&BTreeSet::from([false])).unwrap());
-        assert!(side_in_body(&BTreeSet::from([true, false])).is_err());
+        let v = VertexKey::default();
+        assert!(side_in_body(v, &BTreeSet::from([true])).unwrap());
+        assert!(!side_in_body(v, &BTreeSet::from([false])).unwrap());
+        assert!(matches!(
+            side_in_body(v, &BTreeSet::from([true, false])),
+            Err(super::NamingError::UnsupportedCrossingSenses {
+                vertex,
+                shape: super::CrossingSensesShape::PiecesBothSides,
+            }) if vertex == v
+        ));
     }
 }
 
@@ -3569,11 +3602,12 @@ mod fused_tests {
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where no piece of the edge is classified at
-/// the vertex, where edges sharing its name read different senses, or
-/// where the edge crosses but has no orientation to read its sense
-/// along ([`oriented`]).
+/// [`NamingError::UnsupportedCrossingSenses`] at `vertex` where edges sharing its
+/// name read different senses; [`NamingError::Emission`] where no piece
+/// of the edge is classified at the vertex, or where the edge crosses but
+/// has no orientation to read its sense along ([`oriented`]).
 fn sense_of(
+    vertex: VertexKey,
     senses: &[EdgeSense],
     side: topo::Operand,
     edge: &StableName,
@@ -3584,9 +3618,10 @@ fn sense_of(
         "a crossing's edge has no piece the boolean classified at the crossing",
     ))?;
     if read.any(|s| s.sense != first.sense) {
-        return Err(bug(
-            "edges of one name read different senses at one crossing",
-        ));
+        return Err(NamingError::UnsupportedCrossingSenses {
+            vertex,
+            shape: CrossingSensesShape::NameReadsTwoSenses,
+        });
     }
     if first.unoriented && first.sense.crosses() {
         return Err(bug(UNORIENTED));
@@ -3684,6 +3719,7 @@ pub(super) enum OnSegment {
 /// position against an edge is read: [`Segment::place`] says whether it
 /// lies on the segment.
 pub(super) struct Segment<T: Decide> {
+    edge: EdgeKey,
     q0: Point3<T>,
     q1: Point3<T>,
     d: Vec3<T>,
@@ -3697,6 +3733,7 @@ impl<T: Decide> Segment<T> {
         let (q0, q1) = (vertex_point(body, v0)?, vertex_point(body, v1)?);
         let d = q1 - q0;
         Ok(Segment {
+            edge: e,
             q0,
             q1,
             d,
@@ -3712,11 +3749,11 @@ impl<T: Decide> Segment<T> {
     /// # Errors
     ///
     /// [`NamingError::Escalated`] where a verdict falls in the band;
-    /// [`NamingError::Emission`] where the dot decides zero. A certified
-    /// edge spans at least the escalate band, K zero bands, but its ends
-    /// may each lie up to a zero band off this line, so for a small
-    /// enough K (any finite K > 1 is accepted) its projection on the line
-    /// can fall in the zero band: a precision limit, kept typed.
+    /// [`NamingError::WayInZeroBand`] where the dot decides zero. A
+    /// certified edge spans at least the escalate band, K zero bands, but
+    /// its ends may each lie up to a zero band off this line, so for a
+    /// small enough K (any finite K > 1 is accepted) its projection on the
+    /// line can fall in the zero band.
     pub(super) fn runs_with(
         &self,
         other: &Self,
@@ -3735,9 +3772,9 @@ impl<T: Decide> Segment<T> {
         match way {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
-            Sign::Zero => Err(NamingError::Emission {
-                what: "two segments on one line run neither way along it: the one's projection \
-                       on the other's line falls in the zero band",
+            Sign::Zero => Err(NamingError::WayInZeroBand {
+                edge: other.edge,
+                shape: WayShape::Line,
             }),
         }
     }
@@ -4420,8 +4457,8 @@ impl<T: Decide> Track<T> {
     /// # Errors
     ///
     /// As [`Track::offset`]; [`NamingError::Escalated`] where the band
-    /// cannot decide the two stretches; [`NamingError::Emission`] where it
-    /// decides them equal, a precision limit kept typed.
+    /// cannot decide the two stretches; [`NamingError::WayInZeroBand`]
+    /// where it decides them equal.
     pub(super) fn runs_with(
         &self,
         other: &Self,
@@ -4443,9 +4480,9 @@ impl<T: Decide> Track<T> {
         match self.sign(ahead, predicate, bnd)? {
             Sign::Positive => Ok(Some(true)),
             Sign::Negative => Ok(Some(false)),
-            Sign::Zero => Err(NamingError::Emission {
-                what: "a certified edge on another's carrier runs neither way along it: the \
-                       stretches compared, a quarter of its length apart, fall in the zero band",
+            Sign::Zero => Err(NamingError::WayInZeroBand {
+                edge: other.edge,
+                shape: WayShape::Carrier,
             }),
         }
     }
@@ -5815,7 +5852,7 @@ mod tests {
             &profile,
             sweep::Extrusion::Distance {
                 depth: 1.0_f64,
-                side: crate::ExtrudeSide::Along,
+                side: sweep::ExtrudeSide::Along,
             },
             Tol::witness(),
         )
@@ -6780,9 +6817,9 @@ mod split_carries_candidates {
     use crate::eval::{CancelToken, EvalOptions, Evaluation, evaluate};
     use crate::ident::DocumentId;
     use crate::names::table::{EntityRef, Entry, NameTable};
-    use crate::node::{Datum, Node, RecipeNodeId};
+    use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
-    use crate::test_support::{frame, len, scl};
+    use crate::test_support::{against, axes_at, len, plane_on};
     use geom_core::Tol;
 
     fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
@@ -6798,12 +6835,10 @@ mod split_carries_candidates {
         (a.doc, a.record.minted.expect("a node"))
     }
 
-    fn prism(doc: ProfileDoc, z0: f64, dz: f64, pts: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) {
-        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    fn prism(doc: ProfileDoc, dz: f64, pts: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
                 ids: Vec::new(),
             }),
@@ -6813,7 +6848,6 @@ mod split_carries_candidates {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(dz),
-                side: crate::ExtrudeSide::Along,
             },
         )
     }
@@ -6825,15 +6859,9 @@ mod split_carries_candidates {
             DocumentId::derive("split-carries-candidates"),
             Tol::witness(),
         );
-        let (doc, a) = prism(
-            doc,
-            0.0,
-            4.0,
-            &[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
-        );
+        let (doc, a) = prism(doc, 4.0, &[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]);
         let (doc, b) = prism(
             doc,
-            1.0,
             2.0,
             &[
                 (2.0, 1.0),
@@ -6846,25 +6874,27 @@ mod split_carries_candidates {
                 (2.0, 1.5),
             ],
         );
+        // The cutter stands one unit up the block's own z.
+        let (doc, cutter) = against(
+            doc,
+            a,
+            b,
+            &axes_at([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            Tol::witness(),
+        );
         let (doc, sub) = ins(
             doc,
             Node::Subtract {
                 from: a.into(),
-                tool: b.into(),
+                tool: crate::BodyRead::plain(crate::Operand::output(cutter, 0)),
             },
         );
-        let (doc, tool) = ins(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [len(0.0), len(y), len(0.0)],
-                normal: [scl(0.0), scl(ny), scl(0.0)],
-            }),
-        );
+        let tool = plane_on(&doc, a, [0.0, y, 0.0], [0.0, ny, 0.0], Tol::witness());
         let (doc, split) = ins(
             doc,
             Node::Split {
                 target: sub.into(),
-                tool: tool.into(),
+                tool,
             },
         );
         let ev = evaluate::<f64>(
@@ -6968,7 +6998,7 @@ mod split_edge_lineage {
 
     #[test]
     fn a_twice_crossed_rim_arcs_pieces_chase_to_the_rim_across_halves() {
-        let (doc, [ext, tool, _]) = clipped_cylinder(Tol::witness());
+        let (doc, [ext, split]) = clipped_cylinder(Tol::witness());
         let ev = evaluate::<f64>(
             &doc,
             None,
@@ -6980,18 +7010,21 @@ mod split_edge_lineage {
         let ValuePayload::Body(body) = &value.payload else {
             panic!("the extrude is one body");
         };
-        // The plane the split verb reads off the same datum.
-        let Some(ValuePayload::Datum(PoseValue::Plane { origin, normal })) =
-            ev.value(tool).map(|v| &v.payload)
+        // The plane the split verb reads, as the split binds it.
+        let Some(crate::Node::Split { tool, .. }) = doc.node(split) else {
+            panic!("the split is a split");
+        };
+        let Ok(PoseValue::Plane { normal, offset }) =
+            crate::eval::bound_pose(&doc, &ev, crate::OperandSlot::Tool, *tool, Tol::witness())
         else {
-            panic!("the tool is a plane datum");
+            panic!("the tool is a plane");
         };
         let table = ev.table_at(ext).expect("the extrude's table");
         let out = topo::split(
             &topo::test_support::finished("the extrude", (**body).clone(), Tol::witness()),
             &SplitPlane {
-                origin: *origin,
-                normal: *normal,
+                origin: PoseValue::plane_foot(normal, offset),
+                normal,
             },
             Tol::witness(),
         )
@@ -7078,7 +7111,7 @@ mod crossings_rank_along_the_line {
     use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
-    use crate::test_support::{frame, len, scl};
+    use crate::test_support::{len, scl};
     use geom_core::{Point3, Tol};
 
     fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
@@ -7096,15 +7129,12 @@ mod crossings_rank_along_the_line {
 
     fn extrude(
         doc: ProfileDoc,
-        z0: f64,
         dz: f64,
         loop_: LoopProgram<crate::Formula>,
     ) -> (ProfileDoc, RecipeNodeId) {
-        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -7114,7 +7144,29 @@ mod crossings_rank_along_the_line {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(dz),
-                side: crate::ExtrudeSide::Along,
+            },
+        )
+    }
+
+    /// `tool` cut from `from`, standing `z0` up `from`'s own z.
+    fn cut(
+        doc: ProfileDoc,
+        from: RecipeNodeId,
+        tool: RecipeNodeId,
+        z0: f64,
+    ) -> (ProfileDoc, RecipeNodeId) {
+        let (doc, copy) = crate::test_support::against(
+            doc,
+            from,
+            tool,
+            &crate::test_support::axes_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            Tol::witness(),
+        );
+        ins(
+            doc,
+            Node::Subtract {
+                from: from.into(),
+                tool: crate::BodyRead::plain(crate::Operand::output(copy, 0)),
             },
         )
     }
@@ -7134,7 +7186,6 @@ mod crossings_rank_along_the_line {
         // centre: its top rim arc is one edge, one line.
         let (doc, disc) = extrude(
             doc,
-            0.0,
             1.0,
             LoopProgram::Chain(vec![
                 ProgramStep::At([len(1.0), len(0.0)]),
@@ -7148,18 +7199,11 @@ mod crossings_rank_along_the_line {
         );
         let (doc, notch) = extrude(
             doc,
-            0.8,
             1.0,
             LoopProgram::polygon([(-1.5, -0.38), (-0.6, -0.38), (-0.6, -0.30), (-1.5, -0.30)])
                 .expect("finite"),
         );
-        let (doc, notched) = ins(
-            doc,
-            Node::Subtract {
-                from: disc.into(),
-                tool: notch.into(),
-            },
-        );
+        let (doc, notched) = cut(doc, disc, notch, 0.8);
         let ev = evaluate::<f64>(
             &doc,
             None,
@@ -7281,7 +7325,6 @@ mod nurbs_crossings_rank_by_parameter {
     use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
-    use crate::test_support::frame;
     use crate::{Formula, ProfileDoc};
     use geom_core::{Point3, Tol};
     use topo::{Body, EdgeKey};
@@ -7304,9 +7347,7 @@ mod nurbs_crossings_rank_by_parameter {
     pub(super) fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>, NameTable) {
         let mut doc = ProfileDoc::empty(DocumentId::derive("nurbs-crossings"), Tol::witness());
         let mut profiles = Vec::new();
-        for (k, dx) in [-a, a, -a, a].into_iter().enumerate() {
-            let z = [0.0, 1.0, 2.0, 3.0][k];
-            let (d, plane) = ins(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        for dx in [-a, a, -a, a] {
             let square = [
                 (dx - 1.0, -1.0),
                 (dx + 1.0, -1.0),
@@ -7314,9 +7355,8 @@ mod nurbs_crossings_rank_by_parameter {
                 (dx - 1.0, 1.0),
             ];
             let (d, profile) = ins(
-                d,
+                doc,
                 Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops: vec![LoopProgram::polygon(square).expect("finite")],
                     ids: Vec::new(),
                 }),
@@ -7324,10 +7364,24 @@ mod nurbs_crossings_rank_by_parameter {
             doc = d;
             profiles.push(profile);
         }
+        // Each later section stands `k` up the first's own z.
+        let mut sections = profiles.into_iter();
+        let first = sections.next().expect("four sections");
+        let then = (1u32..)
+            .zip(sections)
+            .map(|(k, profile)| crate::node::LoftSection {
+                profile: profile.into(),
+                station: vec![crate::node::StationMove::Slide {
+                    along: crate::node::Axis3::Z,
+                    by: crate::test_support::len(f64::from(k)),
+                }],
+            })
+            .collect();
         let (doc, loft) = ins(
             doc,
             Node::Loft {
-                profiles: profiles.into_iter().map(Into::into).collect(),
+                first: first.into(),
+                then,
                 v_degree: Formula::count(2),
             },
         );
@@ -7648,7 +7702,7 @@ mod edge_pieces_of_one_line_tie {
     use crate::names::table::{Entry, NameTable};
     use crate::node::{Node, RecipeNodeId};
     use crate::program::{LoopProgram, ProfileProgram};
-    use crate::test_support::{frame, len};
+    use crate::test_support::len;
     use geom_core::Tol;
 
     fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
@@ -7666,15 +7720,12 @@ mod edge_pieces_of_one_line_tie {
 
     fn extrude(
         doc: ProfileDoc,
-        z0: f64,
         dz: f64,
         loop_: LoopProgram<crate::Formula>,
     ) -> (ProfileDoc, RecipeNodeId) {
-        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -7684,7 +7735,29 @@ mod edge_pieces_of_one_line_tie {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(dz),
-                side: crate::ExtrudeSide::Along,
+            },
+        )
+    }
+
+    /// `tool` cut from `from`, standing `z0` up `from`'s own z.
+    fn cut(
+        doc: ProfileDoc,
+        from: RecipeNodeId,
+        tool: RecipeNodeId,
+        z0: f64,
+    ) -> (ProfileDoc, RecipeNodeId) {
+        let (doc, copy) = crate::test_support::against(
+            doc,
+            from,
+            tool,
+            &crate::test_support::axes_at([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            Tol::witness(),
+        );
+        ins(
+            doc,
+            Node::Subtract {
+                from: from.into(),
+                tool: crate::BodyRead::plain(crate::Operand::output(copy, 0)),
             },
         )
     }
@@ -7694,24 +7767,16 @@ mod edge_pieces_of_one_line_tie {
         let doc = ProfileDoc::empty(DocumentId::derive("edge-pieces-one-line"), Tol::witness());
         let (doc, rod) = extrude(
             doc,
-            0.0,
             1.5,
             LoopProgram::circle_split(0.0, 0.0, 1.0, 2, 0.0).unwrap(),
         );
         let (doc, top) = extrude(
             doc,
             1.0,
-            1.0,
             LoopProgram::polygon([(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)])
                 .expect("finite"),
         );
-        let (doc, cut) = ins(
-            doc,
-            Node::Subtract {
-                from: rod.into(),
-                tool: top.into(),
-            },
-        );
+        let (doc, cut) = cut(doc, rod, top, 1.0);
         let ev = evaluate::<f64>(
             &doc,
             None,
@@ -9012,8 +9077,19 @@ mod rim_holding_rows {
         let short = line(arc_on(&circle(), t, t + 2.0 * bnd.escalate()));
         let way = base.runs_with(&short, ON_MEMBER_EDGE, bnd);
         assert!(
-            matches!(way, Err(NamingError::Emission { what }) if what.contains("runs neither way")),
+            matches!(
+                way,
+                Err(NamingError::WayInZeroBand {
+                    shape: crate::names::WayShape::Carrier,
+                    ..
+                })
+            ),
             "at K = 1.5 the arc's way decides zero and refuses typed, got {way:?}"
+        );
+        let shown = way.unwrap_err().to_string();
+        assert!(
+            shown.contains("ambiguity factor K"),
+            "the refusal names its lever: {shown}"
         );
     }
 
@@ -9040,7 +9116,13 @@ mod rim_holding_rows {
         ));
         let way = base.runs_with(&across, ON_MEMBER_EDGE, bnd);
         assert!(
-            matches!(way, Err(NamingError::Emission { what }) if what.contains("run neither way")),
+            matches!(
+                way,
+                Err(NamingError::WayInZeroBand {
+                    shape: crate::names::WayShape::Line,
+                    ..
+                })
+            ),
             "the segment across the line refuses typed, got {way:?}"
         );
     }

@@ -35,7 +35,7 @@ const OPEN: [f64; 3] = [4.0, 1.0, 1.0];
 
 /// The piece of the box less the trench above the plane through the
 /// keel, at `pose`: the split's one-end slit.
-fn slit_body(pose: &Pose) -> Body<f64> {
+fn slit_body(pose: &Pose) -> AtRestBody<f64> {
     use topo::test_support::{FaceGeometry, describe_as_intersections, finished, prism_ops};
     let tol = t();
     let prism = |what: &str, profile: &[(f64, f64)], span: (f64, f64), axis_x: bool| {
@@ -148,7 +148,7 @@ fn the_split_slit_body_is_legal_and_refuses_to_revert() {
 #[test]
 fn subtracting_a_slit_tool_refuses_where_it_keeps_the_slit() {
     for pose in poses() {
-        let tool = AtRestBody::validate(slit_body(&pose), t()).unwrap();
+        let tool = slit_body(&pose);
         // The result gate reads the seamed result's wedges on the line;
         // the containment fallback reads the cavity's line, which nothing
         // joins.
@@ -223,7 +223,7 @@ fn a_slit_cavity_refuses_before_the_destination_is_written() {
                 .map(|(s, _)| (s, VoidContainment::Probed(topo::SolidContainment::In)))
                 .collect(),
         };
-        let refusal = match insert_void(&mut dst, solid, cavity.clone(), &evidence) {
+        let refusal = match insert_void(&mut dst, solid, cavity.clone().into_body(), &evidence) {
             Err(VoidInsertError::Revert(refusal)) => refusal,
             other => panic!("{what}: {other:?}, not the revert's refusal"),
         };

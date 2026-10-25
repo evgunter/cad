@@ -2,10 +2,11 @@
 id: emit-topo-raises-a-correct-kernel-may-reach-have-no-variant
 kind: issue
 title: Twenty-four Emission raises in emit_topo, emit_union and join_names that a correct kernel may reach have no row-1 or row-2 variant to take
-status: open
+status: closed
 opened: 2026-10-20
 priority: P2
 cost: M
+closed: 2026-10-21
 ---
 
 
@@ -136,3 +137,5 @@ Row 1 (two band verdicts can disagree):
 One variant per fact, or a small family, in `names/emit.rs`, each site
 moved onto it; or a witness for a site, which makes it a defect to fix
 where it starts.
+
+Closed by PR 5518 (2026-10-21). The 24 raises now take row-2 `Unsupported*` variants (`UnsupportedSeamVertex`, `…CrossingSenses`, `…SeamSides`, `…Join`, `…UnionName`) or row-1 `Category::Limit` variants (`WayInZeroBand`, `JoinedPieceOffRoot`, `BandVerdictsDisagree`). Each row-2 variant has a shape enum, and the row-1 variants end through `geom_core::lever_recourse`. The older missing-rule variants that lack the prefix are `the-older-missing-rule-naming-variants-lack-the-unsupported-prefix`.

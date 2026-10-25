@@ -410,7 +410,7 @@ fn a_cut_across_a_tangent_seam_describes_each_piece_by_the_rule() {
     else {
         panic!("material on the wall's side of the seam")
     };
-    let wall = finished("the wall's piece", wall, tol());
+    let wall = wall;
     for c in [
         0.25,
         0.5,
@@ -549,7 +549,7 @@ fn the_shoulder_seam_stores_one_description_through_the_chord_and_split_edge() {
     else {
         panic!("material on the wall's side of the seam")
     };
-    let wall = finished("the wall's piece", wall, tol());
+    let wall = wall;
     let plane =
         topo::test_support::split_plane(Point3::new(0.0, 0.0, short), Vec3::unit_z(), tol());
     let pieces = topo::split(&wall, &plane, tol()).expect("the seam cuts short");
@@ -614,7 +614,7 @@ fn an_offset_cap_re_asks_the_shoulder_pair_over_its_new_length() {
     for height in [0.0, h] {
         for d in [4.0, 16.0].map(|c| c * (2.0 * tol().eps()).sqrt()) {
             let label = format!("the cap at z = {height:e} moved out by {d:e}");
-            let mut body = wall.clone();
+            let mut body = topo::Body::clone(&wall);
             topo::replace_faces_offset(&mut body, &[cap_at(&wall, height)], d, tol())
                 .unwrap_or_else(|e| panic!("{label}: the offset builds, got {e:?}"));
             assert_eq!(
@@ -669,7 +669,8 @@ fn a_join_of_the_seams_pieces_keeps_the_tangency() {
             .above
             .body()
             .expect("material on the wall's side")
-            .clone();
+            .clone()
+            .into_body();
         let [seam] = ruling(&body)[..] else {
             panic!("{label}: one seam")
         };
@@ -974,7 +975,8 @@ fn a_thin_shoulders_seam_is_clean_at_its_build_eps() {
             .above
             .body()
             .expect("material on the wall's side")
-            .clone();
+            .clone()
+            .into_body();
         assert_eq!(
             shoulder_seam(&wall).0,
             "TangentIntersection",
@@ -1045,7 +1047,7 @@ fn a_conventional_form_stated_over_a_determinate_tangency_is_a_defect() {
         ("OnPair", curve.restated_on_pair(pair)),
         ("Chart", curve.restated_in_chart(plane)),
     ] {
-        let mut restated = wall.clone();
+        let mut restated = topo::Body::clone(&wall);
         restated
             .set_edge_curve(seam, spec, tol())
             .unwrap_or_else(|e| panic!("{form}: the restatement certifies by incidence: {e:?}"));

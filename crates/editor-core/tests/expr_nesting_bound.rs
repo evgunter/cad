@@ -18,7 +18,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -29,7 +28,7 @@ use editor_core::{
     ProgramTarget, RecipeNodeId, SlotId, ValuePayload, VarEnv, content_pin, eval, eval_count,
     parse_formula, unparse,
 };
-use fixture::{Recorder, len, run, scl, xy_frame};
+use fixture::{Recorder, len, run, scl};
 use geom_core::{Interval, Tol};
 use serde_json::Value;
 use test_utils::own_thread::on_the_smallest_stack;
@@ -77,9 +76,7 @@ fn refused_bound(error: &DimensionError) -> usize {
 /// writes), an extrude's distance, and a measurement.
 fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(2.0), len(0.0)])),
@@ -95,7 +92,6 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: deep_length(0.5, levels),
-        side: ExtrudeSide::Along,
     });
     let measure = r.insert(Node::Assertion {
         value: deep_sum(0.5, levels, levels.div_ceil(2)),
@@ -109,82 +105,82 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
 /// `distance`, and the extrude.
 fn extrude_document(distance: Formula) -> (Recorder, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(xy_frame());
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![fixture::square(0.0, 0.0, 0.5)],
-    )));
+    let profile = r.insert(Node::Profile(fixture::desc(vec![fixture::square(
+        0.0, 0.0, 0.5,
+    )])));
     let extrude = r.insert(Node::Extrude {
         profile: profile.into(),
         distance,
-        side: ExtrudeSide::Along,
     });
     (r, extrude)
 }
 
-/// **A copy placed by the deepest world read a mate holds**: the
-/// extrude of [`extrude_document`] placed by a plane mate on its end
-/// cap against the world's xy plane after six spins and six slides —
-/// a world read [`editor_core::MAX_WORLD_READ_DEPTH`] reads deep,
-/// written inside its mate, the spin nearest the world's frame holding
-/// its angle `levels` deep under every other bracket of the read.
-fn deepest_world_read_document(levels: usize) -> Recorder {
-    use editor_core::{ContactClass, Mate, Target, WorldRead, pose::PoseRole};
+/// **A copy placed by the deepest pose a mate holds**: the extrude of
+/// [`extrude_document`] placed into its own space by a plane mate of its
+/// start cap against its end cap's plane spun about a lateral edge and
+/// then slid along its normal [`POSE_SLIDES`] times — written inline in the mate's
+/// `to`, in the edit log, the spin's angle `levels` deep under every
+/// other bracket of the chain.
+fn deepest_pose_document(levels: usize) -> Recorder {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    use editor_core::{Mate, Operand};
     let (mut r, extrude) = extrude_document(len(0.5));
-    let read = fixture::body_read(&r.doc, extrude.into());
-    let placement = r
-        .push(DocEdit::InsertNode {
-            node: Box::new(Node::place(vec![editor_core::BodyRead::plain(read)])),
-            fresh: Vec::new(),
-        })
-        .expect("a placement mints its node");
-    let cap = fixture::plane(editor_core::Operand::select(
-        extrude,
-        vec![fixture::fname(
+    let cap = |end| {
+        fixture::plane(Operand::select(
             extrude,
-            editor_core::RoleSeg::Cap(editor_core::CapEnd::End),
+            vec![fixture::fname(extrude, editor_core::RoleSeg::Cap(end))],
+        ))
+    };
+    let top = cap(editor_core::CapEnd::End);
+    let normal = || RoleRead::through(top.clone(), PoseRole::Normal);
+    let by = (1..levels).fold(fixture::ang(0.0), |e, _| {
+        Formula::add(e, fixture::ang(0.0)).unwrap()
+    });
+    let edge = fixture::axis(Operand::select(
+        extrude,
+        vec![fixture::ename(
+            extrude,
+            editor_core::RoleSeg::LateralEdge(fixture::vpiece(&r.doc, extrude, 0, 0)),
         )],
     ));
-    let mut world = WorldRead::Frame;
-    for spin in 0..6 {
-        let by = if spin == 0 {
-            (1..levels).fold(fixture::ang(0.0), |e, _| {
-                Formula::add(e, fixture::ang(0.0)).unwrap()
-            })
-        } else {
-            fixture::ang(0.0)
-        };
-        world = WorldRead::Spin {
-            pose: Box::new(world),
-            about: Box::new(WorldRead::through(PoseRole::Z)),
-            by,
-        };
-    }
-    for _ in 0..6 {
-        world = WorldRead::Slide {
-            pose: Box::new(world),
-            along: Box::new(WorldRead::through(PoseRole::X)),
+    let mut to = Operand::Pose(Box::new(PoseDef::Spin {
+        pose: RoleRead::plain(top.clone()),
+        about: RoleRead::plain(edge),
+        by,
+    }));
+    for _ in 0..POSE_SLIDES {
+        to = Operand::Pose(Box::new(PoseDef::Slide {
+            pose: RoleRead::plain(to),
+            along: normal(),
             by: len(0.0),
-        };
+        }));
     }
-    let to = WorldRead::Role {
-        pose: Box::new(world),
-        role: PoseRole::Xy,
-    };
-    assert_eq!(to.depth(), editor_core::MAX_WORLD_READ_DEPTH);
-    // A recorded edit applies or the recorder panics: the read at the
+    let space = r
+        .doc
+        .operand_space(&extrude.into())
+        .expect("the extrude's space");
+    let placed = editor_core::Placed::of(
+        &r.doc,
+        vec![Mate {
+            on: cap(editor_core::CapEnd::Start),
+            to: fixture::flip(to),
+        }],
+        Vec::new(),
+    );
+    // A recorded edit applies or the recorder panics: the chain at the
     // bound is admitted.
-    r.push(DocEdit::AddConstraint {
-        placement,
-        mate: Box::new(Mate {
-            on: cap,
-            to: Target::World(to),
-            class: ContactClass::Rest,
-        }),
-        fresh: Vec::new(),
-    });
+    r.push(DocEdit::place(
+        vec![editor_core::BodyRead::plain(Operand::from(extrude))],
+        Operand::Var(space),
+        placed.bundle(),
+    ));
     r
 }
+
+/// How many slides [`deepest_pose_document`] nests its spin under: the
+/// chain that puts the spin's angle as deep as the load door's envelope
+/// reaches (`persist::nesting::ENVELOPE`).
+const POSE_SLIDES: usize = 6;
 
 /// [`extrude_document`] over a plain length, saved as its edit log over
 /// the empty document: the log carries the distance as the formula it
@@ -340,13 +336,12 @@ fn every_door_takes_an_expression_at_the_bound_on_the_smallest_stack() {
 
         // Saved as a snapshot and as an edit log replayed over the empty
         // document, it loads back to the document it was; and so does a
-        // copy placed by a world read at its own bound, its deepest
-        // angle at the expression's bound — the deepest position a save
-        // writes.
-        let world = deepest_world_read_document(BOUND);
-        let world_pin = content_pin(&world.doc, Tol::witness()).expect("the document pins");
+        // copy placed by the deepest pose chain, its spin's angle at the
+        // expression's bound — the deepest position a save writes.
+        let chain = deepest_pose_document(BOUND);
+        let chain_pin = content_pin(&chain.doc, Tol::witness()).expect("the document pins");
         let mut deepest = 0;
-        for (r, pin) in [(&r, pin), (&world, world_pin)] {
+        for (r, pin) in [(&r, pin), (&chain, chain_pin)] {
             for (label, text) in both_saves(r) {
                 deepest = deepest.max(editor_core::test_support::bracket_depth(&text));
                 let loaded = editor_core::persist::load(&text, Tol::witness())
@@ -810,6 +805,7 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
             let r = Recorder {
                 doc: d.doc,
                 edits: d.edits,
+                last: None,
             };
             (d.name.to_string(), r)
         })
@@ -819,8 +815,8 @@ fn the_load_doors_limit_is_the_deepest_body_a_save_writes() {
         deep_document(1).0,
     ));
     recorders.push((
-        "this suite's deepest world read".to_string(),
-        deepest_world_read_document(1),
+        "this suite's deepest pose chain".to_string(),
+        deepest_pose_document(1),
     ));
     let (mut deepest, mut at) = (0, String::new());
     for (name, r) in &recorders {

@@ -13,7 +13,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     DocEdit, DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
@@ -41,7 +40,6 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body).0
@@ -69,32 +67,24 @@ fn assembly(
     (doc, ids)
 }
 
-/// `placement`'s bundle replaced by one world pin at `translation`.
+/// `placement`'s bundle replaced by one world mate at `translation`.
 fn repinned(
     doc: ProfileDoc,
     placement: RecipeNodeId,
     translation: [f64; 3],
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = fixture::bundle(&doc, placement)
-        .into_iter()
-        .fold(doc, |doc, c| {
-            step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
+    let doc = fixture::stand_again(doc, placement);
     fixture::pin(doc, placement, &Frame::translation(translation), o)
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// Every x of a body's vertices in ascending total order — the
@@ -434,12 +424,28 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// by a mate whose frame is read off its own edge and vertex, so its
 /// bundle's selections are names of the evaluation, and the second
 /// copy's pose at x = 5 is re-composed from the world read's lengths
-/// and angles, which rounds — the volume landed one ulp above 2. FLUX's
-/// spiric-budget unit moved the volume back to exactly 2, the digest
-/// held: each face is read about a vertex of its own shell rather than
-/// the world origin, so the second copy's faces at x = 5 carry no
-/// lever of 5 m into the sum.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 7_395_789_236_268_229_663;
+/// and angles, which rounds — the volume lands one ulp above 2.
+/// INTENT stage 3 D moved the digest alone: the part's extrude has no
+/// side and its profile no frame, and its copy stands by `mate::stand`'s
+/// plane mate where C's world pin held it, so their mint preimages, and every id and
+/// name drawn after them, moved; the volume bits and the solid count
+/// held.
+///
+/// FLUX's spiric-budget unit moved the volume back to exactly 2, the
+/// digest held: each face is read about a vertex of its own shell
+/// rather than the world origin, so the second copy's faces at x = 5
+/// carry no lever of 5 m into the sum. Measured merging main at
+/// `be82e5ad6b` into D, the two moves add: D's digest, main's volume.
+///
+/// D′1 moved the digest alone: each construction defines its space
+/// beside its body, so every id and name drawn after one moved; the
+/// volume bits and the solid count held.
+///
+/// D′2 moved the digest alone: each instance is pinned by values on the
+/// world's axes rather than a mate read off its geometry, so its
+/// bundle's constraints, and every id and name drawn after them, moved;
+/// the volume bits and the solid count held.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 16_016_121_234_704_582_083;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

@@ -60,13 +60,7 @@
 //! construction history, which the pure-replay model guarantees. The
 //! standing invariant (documented at [`body`]): no arena iteration may
 //! feed a geometry decision unless the construction sequence is itself
-//! deterministic; accordingly this crate contains no `HashMap`/`HashSet`
-//! in any position that can feed a decision. One `HashSet` does exist —
-//! `transform.rs`'s `rewritten` set, which tracks which curve keys the
-//! walk remapped so an orphaned entry is refused as corruption. It is
-//! **membership-only and never iterated**, so no hash order can reach
-//! an output; a `SecondaryMap` would be both cheaper and consistent
-//! with the rule, and is the preferred form for anything new.
+//! deterministic; accordingly this crate contains no `HashMap`/`HashSet`.
 //! Half-edge traversal is **bounded** — the walks cap at the arena
 //! length and fail loud instead of spinning on corrupt input (the kernel
 //! never hangs, D9).
@@ -133,9 +127,9 @@
 pub mod attach;
 pub mod body;
 pub mod boolean;
+pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
-pub mod chart_bound;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
@@ -181,6 +175,7 @@ pub(crate) mod live;
 // the same rustdoc reason as the sector modules below.
 pub(crate) mod loop_winding;
 pub mod merge_faces;
+pub mod mirror;
 pub mod movefac;
 #[cfg(test)]
 mod n2r1_probes;
@@ -302,8 +297,8 @@ pub mod test_support {
     // would be comparing that constant against itself.
     pub use crate::null::with_ring_root;
     pub use crate::props::{
-        FaceTerm, fold_order_bound, mass_properties_with_face_terms, quadrature_rounds,
-        shell_references,
+        FaceReading, FaceTerm, face_reading, face_reading_structural, fold_order_bound,
+        mass_properties_with_face_terms, quadrature_rounds, shell_references,
     };
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
@@ -315,6 +310,57 @@ pub mod test_support {
         split_plane, straddle_seat, wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
+
+    /// **The raw measurement door**: [`crate::mass_properties`]' walk over
+    /// a body that has not passed tier 3. The public door takes a
+    /// finished body (`&AtRestBody`, Ev's decision on PR 4822); a test
+    /// whose subject is the walk on a body tier 3 refuses (a flipped
+    /// seam region, a corrupt arena, a shell wound against its role)
+    /// measures it here, and says so in one line at the call. No
+    /// production caller has a reason to: a body it built is finished
+    /// through `AtRestBody::validate`.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::mass_properties`].
+    pub use crate::props::raw_door::measure_body as measure_unvalidated;
+
+    /// **The raw classification door**: [`crate::classify_shells`] over a
+    /// body that has not passed tier 3, as [`measure_unvalidated`] is to
+    /// the measurement.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells`].
+    pub use crate::props::raw_door::classify_body as classify_unvalidated;
+
+    /// **The raw closed-form measurement door**:
+    /// [`crate::mass_properties_structural`] over a body that has not
+    /// passed tier 3, as [`measure_unvalidated`] is to
+    /// [`crate::mass_properties`].
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::mass_properties_structural`].
+    pub use crate::props::raw_door::measure_body_structural as measure_unvalidated_structural;
+
+    /// **The raw closed-form classification door**:
+    /// [`crate::classify_shells_structural`] over a body that has not
+    /// passed tier 3.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells_structural`].
+    pub use crate::props::raw_door::classify_body_structural as classify_unvalidated_structural;
+
+    /// **The raw restricted classification door**:
+    /// [`crate::classify_shells_of`] over a body that has not passed
+    /// tier 3.
+    ///
+    /// # Errors
+    ///
+    /// As [`crate::classify_shells_of`].
+    pub use crate::props::raw_door::classify_body_of as classify_unvalidated_of;
 
     /// Every shell's stored face list rotated left by `k` (modulo its
     /// length): the same solid stored in another face order, which the
@@ -405,11 +451,12 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid, apex_pyramid_kept, arch,
-            arch_cone, at, bearing, branching_cone, comb, corners, corners_disjoint, crown,
-            cycles_of, ell, ell_and_wedges, fin, four_wedges, inner_rows, leaned, lying, mix,
-            near_flat, nest, nest_polygon, notch, notch_rows, on_the_lying_faces, orders,
-            posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid, poses,
+            FIN_BOTTOM, Hole, MEET, PLATE, Point, Pose, along_lying_ray, apex_pyramid,
+            apex_pyramid_kept, arch, arch_cone, at, bearing, branching_cone, comb, corners,
+            corners_disjoint, crown, crown_body, cycles_of, ell, ell_and_wedges, fin,
+            fin_crown_body, four_wedges, inner_rows, leaned, lying, mix, near_flat, nest,
+            nest_polygon, notch, notch_rows, on_the_lying_faces, orders, posed_box, posed_boxes,
+            posed_crown, posed_crown_kept, posed_fin_crown, posed_prism, posed_pyramid, poses,
             pyramid_volumes, shape, single_arch, three_wedges, two_wedges, wedge,
             wedges_on_one_side, zigzag,
         };
@@ -441,13 +488,16 @@ pub mod test_support {
     /// refuses it — a fixture that is not a finished body.
     #[must_use]
     #[allow(clippy::panic)]
+    #[track_caller]
     pub fn finished<T: crate::AtRestPolicy>(
         what: &str,
         body: Body<T>,
         tol: geom_core::Tol,
     ) -> crate::AtRestBody<T> {
-        T::gate_at_rest_kept(body, tol)
-            .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
+        match T::gate_at_rest_kept(body, tol) {
+            Ok(body) => body,
+            Err(e) => panic!("{what} is not a finished body: {e:?}"),
+        }
     }
 
     /// Which bridge a graft ran ([`take_graft_bridges`]).
@@ -799,7 +849,7 @@ pub mod test_support {
     /// `(A face, B face, outcome)`. The outcome is `Ok` with each
     /// component's witness (`Unbounded`, `Essential(F|G)`, `Out(F|G)`,
     /// `LoneEvented`) or `Err` with the refusal (`Reach`, `Tangent(..)`,
-    /// `Loop`, `Undecided`, `LoneVertex`), spelled by `Debug`.
+    /// `Loop`, `Undecided`, `LoneVertex`, `Unread`), spelled by `Debug`.
     ///
     /// # Errors
     ///
@@ -850,9 +900,10 @@ pub mod test_support {
             .collect())
     }
 
-    /// Does `face` describe for the section certificate's W2 — its
-    /// `chart_boundary` answers, or, on a cone face, its apex closure
-    /// closes? The verdict the certificate reads per face.
+    /// Does `face` lift to one sheet for the section certificate's W2
+    /// (`boolean::ops::ChartCache::describes` answers `Sheet::One`)?
+    /// The verdict the certificate reads per face; a torn face, or one
+    /// whose walk is unread, answers `false`.
     pub fn face_describes<T: crate::props::AtRestPolicy>(
         body: &Body<T>,
         face: crate::FaceKey,
@@ -864,12 +915,15 @@ pub mod test_support {
         else {
             return false;
         };
-        crate::boolean::ChartCache::default().describes(
-            crate::Operand::A,
-            body,
-            face,
-            &surface.clone(),
-            band,
+        matches!(
+            crate::boolean::ChartCache::default().describes(
+                crate::Operand::A,
+                body,
+                face,
+                &surface.clone(),
+                band,
+            ),
+            Ok(crate::boolean::section_cert::Sheet::One)
         )
     }
 
@@ -939,9 +993,9 @@ pub use boolean::{
     PairFace, PairRefusalSite, PairSite, PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError,
     PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError, ReductionContacts, RefusedRow,
     SectorRead, SectorRung, SelfCheck, SettleError, Settler, Settling, ShellOrientation, SideCode,
-    SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace, SweepStrategy,
-    SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact, VfContact,
-    VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
+    SlitLineGap, SolidContainment, SolidFaces, SphereQuestion, SpiricLoops, SubstitutedFace,
+    SweepStrategy, SweepTrace, TorusConvention, UnreadNeighbourhood, UnreadPartner, VeContact,
+    VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact, WallRung,
     boolean_op_with, boolean_reduce, carrier_eq, contfp, curved_face_containment, decision_words,
     face_carrier, flush_pair_relation, insert_void, insert_voids, intersect,
     is_conventional_vertex, join_covers, joinable_vertices, joined_cell, joined_edge,
@@ -969,16 +1023,15 @@ pub use chord_join::face_azimuth_window_traces;
 // vocabulary always, the door on the boolean sweep's terms.
 pub use attach::Rechart;
 pub use census::{
-    CensusStrategy, CensusTrace, RecordedAtRest, SweepPairs, TouchUnread, census_cell_solid,
-    census_contact_row, census_entity_solid, census_interference_solids, census_rest_decision,
-    census_uncleared_solids, record_at_rest,
+    CensusStrategy, CensusTrace, FlushAtRest, RecordedAtRest, SweepPairs, TouchUnread,
+    census_cell_solid, census_contact_row, census_entity_solid, census_interference_solids,
+    census_rest_decision, census_uncleared_solids, record_at_rest,
 };
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
-    ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
-    GlueClass,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactRefusal,
+    ContactVerdict, DeclaredContact, GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -994,7 +1047,6 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
-pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
     ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP,
@@ -1028,7 +1080,8 @@ pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{
-    PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
+    LoopWinding, PcurveMintError, SiteRowRefusal, loop_windings, mint_pcurves, mint_pcurves_of,
+    pcurve_of,
 };
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
@@ -1041,9 +1094,10 @@ pub use provenance::{Provenance, SplitLineageCycle};
 // the query DOORS (materializers, predicates) keep their module
 // identity, like `readback`'s.
 pub use face_boxes::{FaceBox, FaceBoxes};
+pub use mirror::{Reflection, mirror_body};
 pub use pieces::PieceSortError;
 pub use query::{
-    CurveKind, CurveKindSet, DATUM_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,
+    CurveKind, CurveKindSet, POSE_UNIT_NORM, RimBreak, RimError, SurfaceKind, SurfaceKindSet,
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
 pub use replace_face::{

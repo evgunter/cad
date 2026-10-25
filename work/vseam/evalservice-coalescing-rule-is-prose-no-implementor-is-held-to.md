@@ -4,7 +4,7 @@ kind: issue
 title: EvalService's at-most-one-outstanding rule lives in module prose and no trait clause or row holds an implementor to it
 status: open
 opened: 2026-09-06
-priority: P1
+priority: P3
 cost: D
 ---
 
@@ -86,3 +86,7 @@ design question in it, and `CountingIndexer`
 (`crates/viewer/tests/frame_policy.rs`) is a delegating wrapper rather
 than a second machine, so the in-tree population that would have to be
 exempted is smaller here than `HeldEvaluator` makes it there.
+
+## 2026-10-21 — re-banded
+
+P1 → P3. An unenforced contract whose consequence the row shows is bounded: latent unsoundness, P3's band.

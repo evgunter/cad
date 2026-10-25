@@ -59,10 +59,7 @@ fn elliptic_piece(tol: Tol) -> (AtRestBody<f64>, Point3<f64>) {
         .unwrap()
         .clone();
     let apex = Point3::new(R, 0.0, DEPTH / 2.0 + R * theta.tan());
-    (
-        topo::test_support::finished("the lower piece", lower, tol),
-        apex,
-    )
+    (lower, apex)
 }
 
 /// Inside the cylinder, clear of its boundary.

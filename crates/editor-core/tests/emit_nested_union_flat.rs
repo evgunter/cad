@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block_on, failure, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::signature;
 use crate::fixture::{insert, out, table};
@@ -52,8 +52,8 @@ fn orders() -> Vec<Order> {
         let io: Vec<_> = inner.iter().map(|&i| ab[i]).collect();
         let (d1, u1) = crate::fixture::union_over(doc.clone(), &io);
         let ((cx, cy, cz), (gx, gy, gz)) = (C, G);
-        let (d1, c) = block(d1, cx, cy, cz.0, cz.1);
-        let (d1, g) = block(d1, gx, gy, gz.0, gz.1);
+        let (d1, c) = block_on(d1, ab[0], cx, cy, cz.0, cz.1);
+        let (d1, g) = block_on(d1, ab[0], gx, gy, gz.0, gz.1);
         let ids: Vec<VarId> = [ab[0], ab[1], c, g]
             .into_iter()
             .map(|m| out(&d1, m))
@@ -151,7 +151,7 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
         },
     );
     let (cx, cy, cz) = C;
-    let (d1, c) = block(d1, cx, cy, cz.0, cz.1);
+    let (d1, c) = block_on(d1, ab[0], cx, cy, cz.0, cz.1);
     let ev1 = run(&d1);
     assert!(failure(&ev1, inner).is_none(), "the pair boolean refused");
     let (inner_read, c_read) = (out(&d1, inner), out(&d1, c));
@@ -273,7 +273,7 @@ fn a_union_over_a_filleted_body_whose_rims_are_sets_publishes_flat_sets() {
         },
     );
     let ((cx, cy, cz), _) = (C, G);
-    let (d1, c) = block(d1, cx, cy, cz.0, cz.1);
+    let (d1, c) = block_on(d1, ab[0], cx, cy, cz.0, cz.1);
     let ev1 = run(&d1);
     assert!(failure(&ev1, fillet).is_none(), "the fillet refused");
     let (u1_read, fillet_read) = (out(&d1, u1), out(&d1, fillet));

@@ -59,7 +59,11 @@ fn body_of<T: Decide + geom_core::Bounds>(r: &BooleanResult<T>) -> &BooleanBody<
 
 /// Volume/area equality at f64 (exact values for the pinned corpus).
 fn assert_props(body: &Body<f64>, volume: f64, area: f64) {
-    let m = mass_properties(body, Tol::witness()).unwrap();
+    let m = mass_properties(
+        &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(m.volume, volume, "exact volume");
     assert_eq!(m.surface_area, area, "exact area");
 }

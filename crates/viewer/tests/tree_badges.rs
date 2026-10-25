@@ -18,11 +18,9 @@
 
 use crate::common;
 use pncad::document::Bodies;
-use pncad::document::ExtrudeSide;
 
 use pncad::document::{CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use viewer::frame::Tone;
 use viewer::session::{DocSession, SessionOp};
 use viewer::tree::{self, RowStatus};
@@ -83,7 +81,7 @@ fn only_the_row_whose_own_operation_refused_is_actionable() {
     let tol = Tol::witness();
     let (doc, extrude, moved) = common::broken_document(tol);
     // A second, unrelated body, so an `Ok` row is in the population.
-    let (doc, other_profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, other_profile) = common::square_profile(&doc, 0.02, tol);
     let mut session = DocSession::inline(doc, tol);
 
     // Unpumped: nothing has been evaluated, so nothing is actionable.
@@ -120,13 +118,12 @@ fn an_independent_subgraph_completes_beside_a_failure() {
     let (doc, extrude, _moved) = common::broken_document(tol);
     // A second, unrelated body in the same document: GQ2's ratified
     // "a failure poisons only its descendants".
-    let (doc, other_profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, other_profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, other_extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
             profile: other_profile.into(),
             distance: common::len(0.005),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -276,8 +273,9 @@ fn a_refused_bundle_names_its_placement_and_reads_every_chained_row_downstream()
 
 /// **A refused bundle blames its placement though it evaluated before.**
 ///
-/// A rest leaves the shelf loose and EVALUATES — the memo now holds an
-/// `Ok` for the shelf — and then the rest is taken off and a mate the
+/// A rest places the shelf and EVALUATES — the memo now holds an
+/// `Ok` for the shelf — and then the rest is taken off (the shelf given
+/// a space of its own at the identity) and a mate the
 /// evaluation refuses put in its place. The shelf's row reports the
 /// refusal: a placement's content key carries its bundle, so the memo
 /// cannot serve last evaluation's `Ok` into the run whose fault names
@@ -296,9 +294,12 @@ fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
     assert_eq!(
         common::status_of(&session.tree_rows(), bench.shelf_i),
         RowStatus::Ok,
-        "the premise: one rest leaves the shelf loose, which is no refusal"
+        "the premise: one rest places the shelf, which is no refusal"
     );
-    let removed = session.perform(SessionOp::RemoveConstraint { mate: held });
+    // The rest off, by a space of the shelf's own at the identity.
+    let removed = session.perform(SessionOp::IntoOwnSpace {
+        placement: bench.shelf_i,
+    });
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     let added = common::commit_mate(
         &mut session,
@@ -330,9 +331,10 @@ fn a_refused_bundle_badges_the_placement_that_evaluated_before_it() {
 /// a stale one, and the repair re-runs on the faulted run as prior.**
 ///
 /// The shelf's bundle refuses one mate where it evaluates, then, that
-/// mate removed, another against the other post. The memo serves only
-/// `Ok` priors, so the second fault is the second mate's and never the
-/// first's again; removing it returns the shelf to `Ok`, re-run.
+/// mate taken off (the shelf given a space of its own at the identity),
+/// another against the other post. The memo serves only `Ok` priors, so
+/// the second fault is the second mate's and never the first's again;
+/// taking it off returns the shelf to `Ok`, re-run.
 #[test]
 fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
     let tol = Tol::witness();
@@ -353,7 +355,9 @@ fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
         common::asm::no_centre_op(&bench, bench.post_a),
     );
     let f1 = fault(&session);
-    let removed = session.perform(SessionOp::RemoveConstraint { mate: first });
+    let removed = session.perform(SessionOp::IntoOwnSpace {
+        placement: bench.shelf_i,
+    });
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     let second = common::commit_mate(
         &mut session,
@@ -370,7 +374,9 @@ fn two_faults_in_succession_on_one_placement_never_serve_a_stale_one() {
         RowStatus::Failed { .. }
     ));
 
-    let removed = session.perform(SessionOp::RemoveConstraint { mate: second });
+    let removed = session.perform(SessionOp::IntoOwnSpace {
+        placement: bench.shelf_i,
+    });
     assert!(removed.refusal.is_none(), "{:?}", removed.refusal);
     session.pump();
     let ev = session.evaluation_arc().expect("a result landed");
@@ -465,19 +471,19 @@ fn a_union_over_a_chained_copy_points_at_the_refused_placement() {
 /// copy, and for the union is poisoned through the refused shelf, and
 /// the tree draws both downstream of it. The properties panel's verdict
 /// on a picked face, the
-/// mate tool's dropped pick, the sketch-on-face seat, the duplicate
-/// door and the blend loader each carry a standing, and each must
+/// mate tool's dropped pick, the duplicate door and the blend loader
+/// each carry a standing, and each must
 /// carry the TREE's. The product's gather refusal is drawn by none of
 /// them: the tree badges the refused copy at its row, and the at-rest
 /// badge takes no verdict on a product that did not gather.
 #[test]
 fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     use pncad::document::{NodeStanding, ProductError};
-    use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate};
+    use pncad::select::{Resolution, ResolveIndeterminate};
     use viewer::blend::{BlendEvent, BlendTarget, BlendTool};
     use viewer::combine::DuplicateFault;
     use viewer::matetool::{MateTool, MateToolEvent};
-    use viewer::session::{FaceFrameFault, FaceSelection, Selection, Standing};
+    use viewer::session::{FaceSelection, Selection, Standing};
 
     let tol = Tol::witness();
     let bench = common::asm::bench("panels-agree", tol);
@@ -563,23 +569,6 @@ fn every_surface_names_the_row_the_tree_names_for_a_chained_node() {
     }
     // Each refusal carrying the standing whole says its nodes as the
     // document holds them: post_a by its kind, never `node <tag>`.
-    let post_a_said = doc.spoken(bench.post_a).to_string();
-    let seat = viewer::session::face_frame_seat(Some((doc, ev)), Some(&face));
-    match &seat {
-        Err(
-            fault @ FaceFrameFault::Unresolved {
-                error: InterrogateError::Standing(standing),
-                ..
-            },
-        ) => {
-            assert_eq!(*standing, post_a, "the sketch-on-face seat");
-            assert!(
-                fault.to_string().contains(&post_a_said),
-                "the seat's refusal speaks post_a: {fault}"
-            );
-        }
-        other => panic!("the seat refuses on the standing, got {other:?}"),
-    }
     match viewer::combine::duplicate_step(doc, ev, &bench.post_a.into(), tol) {
         Err(DuplicateFault::NoValue { standing, .. }) => {
             assert_eq!(standing, post_a, "the duplicate door, post_a");
@@ -861,12 +850,11 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
 
     let row = |id: u64, status: RowStatus| tree::TreeRow {
         id: RecipeNodeId::new(0, id),
-        spoken: spoken(RecipeNodeId::new(0, id), Some("Transform")),
-        pose: None,
+        spoken: spoken(RecipeNodeId::new(0, id), Some("Place")),
+        which: None,
         depth: 0,
         placed: false,
         status,
-        note: None,
         repair_at: None,
         readout: None,
         version_offer: None,
@@ -888,92 +876,6 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
     );
 }
 
-/// **A profile refused for its frame's direction links to the frame.**
-///
-/// The frame's own direction slot is what refused, at the nominal the
-/// profile reads, while the frame lands at the box's lane value — so
-/// the frame's row reads `Ok` and only the link gets a reader from the
-/// profile's words to the node they say to fix.
-#[test]
-fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
-    use std::collections::BTreeMap;
-
-    use pncad::analysis::{BoxAxis, ParamBox};
-    use pncad::document::{Datum, Dimension, Formula, FreeVar, Node, NodeErrorKind, VarName};
-
-    let tol = Tol::witness();
-    let span = VarName::from_static("span");
-    let doc = common::declared(
-        "tree-frame-direction",
-        &span,
-        FreeVar::continuous(Dimension::Scalar, 0.0),
-        tol,
-    );
-    let (doc, frame) = common::inserted(
-        &doc,
-        Node::Datum(Datum::Frame {
-            origin: common::len3([0.0; 3]),
-            u: [
-                Formula::named(span.clone(), Dimension::Scalar),
-                common::scl(0.0),
-                common::scl(0.0),
-            ],
-            v: common::scl3([0.0, 1.0, 0.0]),
-        }),
-        tol,
-    );
-    let (doc, profile) = common::inserted(&doc, common::square(frame, 0.04), tol);
-    let mut axes = BTreeMap::new();
-    axes.insert(
-        doc.var_named(span.as_str()).expect("declared"),
-        BoxAxis::Varying { lo: 1.0, hi: 1.0 },
-    );
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions {
-            param_box: Some(std::sync::Arc::new(ParamBox::from_axes(axes))),
-            ..EvalOptions::default()
-        },
-        tol,
-    );
-    assert!(
-        matches!(
-            ev.node_error(profile).map(|e| &e.kind),
-            Some(NodeErrorKind::FrameDirection { frame: named, .. }) if *named == frame
-        ),
-        "the fixture raises the arm under test: {:?}",
-        ev.result(profile)
-    );
-
-    let rows = tree::rows(&doc, Some(&ev), &viewer::parts::PartFiles::default());
-    assert!(
-        matches!(common::row_of(&rows, frame).status, RowStatus::Ok),
-        "{rows:?}"
-    );
-    assert!(
-        matches!(
-            common::row_of(&rows, profile).status,
-            RowStatus::Failed { .. }
-        ),
-        "{rows:?}"
-    );
-    assert_eq!(
-        common::row_of(&rows, profile)
-            .repair_at
-            .as_ref()
-            .map(|at| at.id()),
-        Some(frame),
-        "the profile's row links to the frame whose slot refused"
-    );
-    assert_eq!(
-        common::row_of(&rows, frame).repair_at,
-        None,
-        "an `Ok` row links nowhere"
-    );
-}
-
 /// **An empty value says so on its own row, and the node that refuses
 /// it links nowhere.** Each failing arm below names an input that
 /// evaluated to a legal value the failing node's own choice does not
@@ -982,13 +884,13 @@ fn a_profile_refused_for_its_frames_direction_links_to_the_frame() {
 /// the cause.
 ///
 /// One document, built up: an intersect of two blocks that do not
-/// meet, first alone and then under a transform; a
+/// meet, first alone and then under a pattern; a
 /// split whose tool plane clears the block, with a `Part` reading its
 /// empty side; and a `Part` indexed past a pattern's count.
 #[test]
 fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     use pncad::document::{
-        BooleanValue, Datum, Doc, Node, NodeErrorKind, PartSelect, PatternKind, ProfileProgram,
+        BooleanValue, Doc, Node, NodeErrorKind, PartSelect, PatternKind, ProfileProgram,
         RecipeNodeId, SplitSide, ValuePayload,
     };
     use pncad::select::SplitHalf;
@@ -1002,26 +904,26 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     };
 
     let doc: Doc<ProfileProgram> = Doc::empty_derived("tree-empty-readout", tol);
-    let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
     let block = |doc: &Doc<ProfileProgram>, x: f64| {
-        let (doc, profile) =
-            common::inserted(doc, common::rectangle(plane, [x, 0.0], 0.02, 0.02), tol);
+        let (doc, profile) = common::inserted(doc, common::rectangle([x, 0.0], 0.02, 0.02), tol);
         common::inserted(
             &doc,
             Node::Extrude {
                 profile: profile.into(),
                 distance: common::len(0.02),
-                side: ExtrudeSide::Along,
             },
             tol,
         )
     };
     let (doc, near) = block(&doc, 0.0);
     let (doc, far) = block(&doc, 0.1);
+    // The far block in the near one's space, where it was drawn: the
+    // operand every combine below reads for it.
+    let (doc, far_placed) = crate::fixture::slid(doc, near, far, [0.0; 3]);
     let (doc, apart) = common::inserted(
         &doc,
         Node::Intersect {
-            members: Bodies::Spelled(vec![near.into(), far.into()]),
+            members: Bodies::Spelled(vec![near.into(), far_placed.into()]),
         },
         tol,
     );
@@ -1056,48 +958,38 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     );
 
     // A consumer of the empty value: `EmptyOperand`.
-    let (doc, moved) = common::inserted(
-        &doc,
-        Node::transform(
-            apart,
-            pncad::document::Step::Rigid {
-                translation: [common::len(0.01), common::len(0.0), common::len(0.0)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: common::ang(0.0),
+    let pattern_of = |doc: &Doc<ProfileProgram>, input: pncad::document::Operand| {
+        common::inserted(
+            doc,
+            Node::Pattern {
+                input,
+                count: pncad::document::Formula::count(2),
+                kind: PatternKind::Linear {
+                    direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                    spacing: common::len(0.05),
+                },
             },
-        ),
-        tol,
-    );
+            tol,
+        )
+    };
+    let (doc, moved) = pattern_of(&doc, apart.into());
 
-    // A tool plane above the block: the split's above side is empty,
-    // and a transform reading it refuses `EmptyHalf`.
-    let (doc, tool) = common::inserted(
-        &doc,
-        Node::Datum(Datum::Plane {
-            origin: [common::len(0.0), common::len(0.0), common::len(0.05)],
-            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        }),
-        tol,
-    );
+    // A tool plane above the block, read off its own geometry: the
+    // split's above side is empty, and a pattern reading it refuses
+    // `EmptyHalf`.
+    let tool =
+        editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.05], [0.0, 0.0, 1.0], tol);
     let (doc, split) = common::inserted(
         &doc,
         Node::Split {
             target: near.into(),
-            tool: tool.into(),
+            tool,
         },
         tol,
     );
-    let (doc, above) = common::inserted(
+    let (doc, above) = pattern_of(
         &doc,
-        Node::transform(
-            pncad::document::Operand::output(split, SplitHalf::Above.port()),
-            pncad::document::Step::Rigid {
-                translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: common::ang(0.0),
-            },
-        ),
-        tol,
+        pncad::document::Operand::output(split, SplitHalf::Above.port()),
     );
 
     // Beside them, values with material: a subtract that leaves a
@@ -1106,23 +998,17 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
         &doc,
         Node::Subtract {
             from: near.into(),
-            tool: far.into(),
+            tool: far_placed.into(),
         },
         tol,
     );
-    let (doc, through) = common::inserted(
-        &doc,
-        Node::Datum(Datum::Plane {
-            origin: [common::len(0.0), common::len(0.0), common::len(0.01)],
-            normal: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        }),
-        tol,
-    );
+    let through =
+        editor_core::test_support::plane_on(&doc, near, [0.0, 0.0, 0.01], [0.0, 0.0, 1.0], tol);
     let (doc, halved) = common::inserted(
         &doc,
         Node::Split {
             target: near.into(),
-            tool: through.into(),
+            tool: through,
         },
         tol,
     );
@@ -1193,7 +1079,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
     assert_eq!(
         common::row_of(&rows, apart).readout,
         Some(Readout::Empty(Emptiness::Whole)),
-        "the intersect still says so under a transform"
+        "the intersect still says so under a pattern"
     );
     assert_eq!(
         common::row_of(&rows, pattern).readout,
@@ -1262,10 +1148,11 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
 }
 
 /// **A placement's row carries its constraints as children**, in bundle
-/// order, each by its address — a mate and each value naming it; the
-/// world, which every document holds and nothing deletes, has no row;
-/// and removing a mate through its child row's op takes it, and the
-/// values naming it, off the row.
+/// order, each by its address — a mate and the values on the freedoms
+/// it leaves; the world, which every document holds and nothing
+/// deletes, has no row; and removing the mate through its child row's
+/// op writes the bundle whole without it, each freedom it fixed written
+/// `0`, so the copy stays pinned and the row carries values alone.
 #[test]
 fn a_placement_row_carries_its_constraints_as_children() {
     use viewer::tree::ConstraintRow;
@@ -1276,12 +1163,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
     common::asm::unpin(&mut session, bench.post_b);
     let seat = common::commit_mate(
         &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            common::asm::middle_seat_values(),
-        ),
+        common::asm::seat_op(&bench, bench.post_b, common::asm::middle_seat_values()),
     );
 
     let rows = session.tree_rows();
@@ -1299,10 +1181,10 @@ fn a_placement_row_carries_its_constraints_as_children() {
         common::row_of(&rows, bench.post_b).constraints,
         ids.into_iter()
             .zip([
-                "constraint 1: Rest mate",
+                "constraint 1: mate",
                 "constraint 2: slide along x value",
                 "constraint 3: slide along y value",
-                "constraint 4: spin value",
+                "constraint 4: spin about z value",
             ])
             .map(|(mate, said)| ConstraintRow {
                 mate,
@@ -1311,30 +1193,40 @@ fn a_placement_row_carries_its_constraints_as_children() {
             .collect::<Vec<_>>(),
         "post_b's row carries the seat that places it, and its values"
     );
-    let pin = common::asm::world_pin_of(session.committed_doc(), bench.shelf_i);
+    let shelf: Vec<_> = crate::fixture::bundle(session.committed_doc(), bench.shelf_i)
+        .iter()
+        .enumerate()
+        .map(|(at, c)| ConstraintRow {
+            mate: pncad::document::MateRef::new(bench.shelf_i, c.id),
+            said: format!(
+                "constraint {}: {} value",
+                at + 1,
+                c.value().expect("the shelf's pin is values").coord.name()
+            ),
+        })
+        .collect();
+    assert_eq!(shelf.len(), 6, "the shelf's pin sets every freedom");
     assert_eq!(
         common::row_of(&rows, bench.shelf_i).constraints,
-        vec![ConstraintRow {
-            mate: pin,
-            said: "constraint 1: world mate".to_owned(),
-        }],
-        "the shelf's row carries the pin it stands on"
+        shelf,
+        "the shelf's row carries the values it stands on"
     );
 
     let outcome = session.perform(SessionOp::RemoveConstraint { mate: seat });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
+    let bundle = crate::fixture::bundle(session.committed_doc(), bench.post_b);
+    assert!(
+        bundle.iter().all(|c| c.value().is_some()),
+        "the seat is gone, the copy pinned by values: {bundle:?}"
+    );
     let rows = session.tree_rows();
     assert_eq!(
-        common::row_of(&rows, bench.post_b).constraints,
-        Vec::new(),
-        "the removed mate leaves the row, its values with it"
+        common::row_of(&rows, bench.post_b).constraints.len(),
+        bundle.len(),
+        "the row carries the bundle the door wrote"
     );
-    assert_eq!(
-        common::status_of(&rows, bench.post_b),
-        RowStatus::Ok,
-        "a copy no constraint pins is loose, which is no refusal"
-    );
+    assert_eq!(common::status_of(&rows, bench.post_b), RowStatus::Ok);
     std::fs::remove_dir_all(&bench.dir).expect("removable");
 }
 

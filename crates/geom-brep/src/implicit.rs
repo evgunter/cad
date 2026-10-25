@@ -850,9 +850,8 @@ fn scan_arc<T: Real>(s: &Surface<T>, conic: &Conic<T>, t0: T, t1: T) -> ArcScan<
 /// spanning the arc and the sample hull is widened by the chord-dip
 /// charge of one sub-arc: a C² function leaves the chord of a
 /// sub-interval of width `h` by at most `max|F″|·h²/8`, and `f2`
-/// encloses `|F″|` over this arc. It is `arc_extent`'s doctrine in
-/// residual space, and the consumer's two-endpoint chord dip is its
-/// `K = 1` instance. The frame precondition is [`Conic`]'s.
+/// encloses `|F″|` over this arc. The consumer's two-endpoint chord
+/// dip is its `K = 1` instance. The frame precondition is [`Conic`]'s.
 ///
 /// Returns `(lo, hi)` in METERS (the residual's own linearized units),
 /// or `None` for the kinds with no curvature bound at all (cone,
@@ -2493,7 +2492,7 @@ mod tests {
         // the range it widens.
         assert!(
             seen_lo - lo < 0.1 * (seen_hi - seen_lo) && hi - seen_hi < 0.1 * (seen_hi - seen_lo),
-            "the charge dominates the range it widens: [{lo}, {hi}] around              [{seen_lo}, {seen_hi}]"
+            "the charge dominates the range it widens: [{lo}, {hi}] around [{seen_lo}, {seen_hi}]"
         );
         // The cone keeps the frontier door: no harmonic form and no
         // curvature bound either.

@@ -20,16 +20,15 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
-    AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EntityKind, Entry,
-    EvalOptions, Evaluation, Formula, MateFault, MateRef, MateSide, Node, NodeErrorKind,
-    NodeResult, NodeStanding, PartFault, PatternKind, ProductError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, SlideAxis, StableName, Value,
+    AssemblyError, CapEnd, Coord, DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Formula,
+    MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult, NodeStanding, PartFault,
+    PatternKind, ProductError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName,
+    TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, gate, insert, len, on_frame, run, scl, xform};
+use fixture::{ang, gate, insert, len, on_frame, run, scl};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -49,7 +48,6 @@ fn box_part(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -81,21 +79,15 @@ const U_OUTLINE: [(f64, f64); 8] = [
 /// subtract is the body the part places in its world.
 fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, body) = box_part(label, 4.0, 4.0);
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, 1.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![U_OUTLINE.to_vec()],
-    );
+    let (doc, p) = insert(doc, Node::Profile(fixture::desc(vec![U_OUTLINE.to_vec()])));
     let (doc, b) = insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
+    let (doc, b) = fixture::slid(doc, body, b, [0.0, 0.0, 1.0]);
     insert(
         doc,
         Node::Subtract {
@@ -124,7 +116,7 @@ fn scene(label: &str, top_part: (ProfileDoc, RecipeNodeId)) -> Scene {
     let (top_ref, _) = store.insert_part(top_part, Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
     Scene {
         doc,
@@ -155,33 +147,16 @@ fn seat(
     base_top: SitedFace,
     bottom: SitedFace,
 ) -> (ProfileDoc, MateRef) {
-    let (mut doc, rest) = fixture::constrain_at(
+    fixture::mated(
         doc,
         top,
-        fixture::rest(bottom, base_top, ContactClass::Rest),
-    );
-    for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), len(1.0)),
-        (Coord::Slide(SlideAxis::Y), len(1.0)),
-        (Coord::Spin, ang(0.0)),
-    ] {
-        doc = editor_core::apply(
-            &doc,
-            &DocEdit::AddValue {
-                placement: top,
-                value: Box::new(Value {
-                    mate: rest.id,
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-        .doc;
-    }
-    (doc, rest)
+        fixture::rest(bottom, base_top),
+        &[
+            (Coord::Slide(TargetAxis::X), len(1.0)),
+            (Coord::Slide(TargetAxis::Y), len(1.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+        ],
+    )
 }
 
 /// The placement `mate` refuses with its `on` pose's own refusal, and
@@ -285,8 +260,8 @@ fn a_tied_face_refuses_at_its_placement() {
 
 /// **A part that does not resolve refuses at its instance, and what
 /// reads it is poisoned.** The top part lives in another store: the
-/// block's instance fails in the resolver's own voice, a transform
-/// over it and a pattern over that are poisoned, and every copy of the
+/// block's instance fails in the resolver's own voice, a placed copy
+/// of it and a pattern over that are poisoned, and every copy of the
 /// pattern a placement copies is poisoned too. The gather refuses the
 /// document at the first failed placement — the block — before any
 /// mate is read.
@@ -308,9 +283,22 @@ fn a_poisoned_operand_never_reaches_the_gate() {
     );
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve5-poisoned"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
+    // A copy of the top's copy, lifted by values, which read no
+    // geometry of a copy that does not evaluate.
+    let (doc, xf) = insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
+            editor_core::Operand::Node(top),
+        )]),
+    );
+    let doc = fixture::pin(
+        doc,
+        xf,
+        &editor_core::Frame::translation([0.0, 0.0, 10.0]),
+        &opts,
+    );
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -338,7 +326,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         );
         let (next, placed) = insert(
             next,
-            Node::place(vec![editor_core::BodyRead::plain(
+            crate::fixture::stood(vec![editor_core::BodyRead::plain(
                 editor_core::Operand::Node(part),
             )]),
         );
@@ -367,7 +355,7 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         "the instance fails in the resolver's own voice: {:?}",
         ev.result(top)
     );
-    for (node, what) in [(xf, "the transform"), (pattern, "the pattern")]
+    for (node, what) in [(xf, "the lifted copy"), (pattern, "the pattern")]
         .into_iter()
         .chain(copies.iter().map(|&c| (c, "a placed copy")))
     {

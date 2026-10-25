@@ -4,7 +4,7 @@ kind: issue
 title: PatternRuleSpec mirrors two of PatternKind's three arms and nothing tells it when the kernel enum grows
 status: open
 opened: 2026-09-14
-priority: P1
+priority: P3
 cost: E
 ---
 
@@ -75,3 +75,7 @@ the point rather than a detail:
 That the partiality is wrong. The plan's ruling stands and this file
 does not reopen it. The defect is that the mirror does not survive the
 kernel enum growing.
+
+## 2026-10-21 — re-banded
+
+P1 → P3. An alarm against a future silent drift: tooling that prevents silent bugs, P3's band.

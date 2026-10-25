@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-16
 priority: P1
 refs: [a-placement-is-the-bundle-of-mates]
+parent: assemble-is-an-operator-and-the-product-is-a-slot
 ---
 
 

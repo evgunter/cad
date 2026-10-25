@@ -23,14 +23,14 @@ use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use crate::revolve_common::{axis_y, validated};
 use geom::Curve3;
-use geom_brep::{EdgeDescription, Pcurve, SectionError};
+use geom_brep::{EdgeDescription, Pcurve};
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Revolution, revolve};
 use topo::splitting::{
     SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitResult, split,
 };
-use topo::{Body, DATUM_UNIT_NORM, ValidationError, validate, validate_closed, validate_geometric};
+use topo::{Body, POSE_UNIT_NORM, ValidationError, validate, validate_closed, validate_geometric};
 
 /// The cone's half-angle: the radius changes by 1/2 per unit height.
 fn alpha() -> f64 {
@@ -82,7 +82,7 @@ const FRUSTUM_VOLUME: f64 = 7.0 * PI / 12.0;
 /// A cut normal minted the way a caller holding a direction mints one.
 fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
     let band = Band::linear(Tol::witness()).expect("the witness tolerance forms a band");
-    UnitVec3::new(v, DATUM_UNIT_NORM, band).expect("a cut normal has a length")
+    UnitVec3::new(v, POSE_UNIT_NORM, band).expect("a cut normal has a length")
 }
 
 /// The plane through `(0, qy, 0)` with normal `(sin φ, cos φ, 0)`.
@@ -94,9 +94,12 @@ fn plane(phi: f64, qy: f64) -> SplitPlane<f64> {
 }
 
 fn vol(b: &Body<f64>) -> f64 {
-    topo::props::mass_properties(b, Tol::witness())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 /// The volume of the solid of revolution `r(y)`, `y ∈ [0, 1]`, on the
@@ -153,7 +156,7 @@ fn halves(result: &SplitResult<f64>, what: &str) -> (Body<f64>, Body<f64>) {
             panic!("{what}: tier 3: {errs:?}");
         }
     }
-    (above.clone(), below.clone())
+    (topo::Body::clone(above), topo::Body::clone(below))
 }
 
 /// The cut's section on a half: its conic edges are wall × plane
@@ -268,29 +271,29 @@ fn cuts_through_a_cap_and_the_apex_region() {
 }
 
 /// Past the ellipse: a plane parallel to a generator cuts a parabola, a
-/// steeper one a hyperbola, and each refuses naming its conic (R1). A
-/// tilt within a few ε of the parabola escalates on the conic-type
-/// trilean, from either side, rather than being snapped to a conic.
+/// steeper one a hyperbola, and the split refuses each naming its conic:
+/// the arc is a NURBS chord with no certificate on a cone yet. A tilt
+/// within a few ε of the parabola escalates on the conic-type trilean,
+/// from either side, rather than being snapped to a conic.
 #[test]
 fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
     let f = narrowing();
     let parabola = FRAC_PI_2 - alpha();
-    for (phi, conic) in [(parabola, "PARABOLA"), (1.3, "HYPERBOLA")] {
+    for (phi, conic) in [
+        (parabola, geom_brep::OpenConic::Parabola),
+        (1.3, geom_brep::OpenConic::Hyperbola),
+    ] {
         let err = split(
             &sweep::test_support::finished("the operand", f.body.clone(), Tol::witness()),
             &plane(phi, 0.5),
             Tol::witness(),
         )
         .unwrap_err();
-        let SplitError::Join(SplitJoinError::Section {
-            source: SectionError::RoutesToGeneralRung { why, .. },
-            ..
-        }) = &err
-        else {
-            panic!("{conic}: expected the section refusal, got {err:?}");
+        let SplitError::Join(SplitJoinError::OpenConicChord { conic: named, .. }) = &err else {
+            panic!("{conic:?}: expected the open-conic refusal, got {err:?}");
         };
-        assert!(why.contains(conic), "{conic}: {why}");
-        assert!(err.to_string().contains(conic), "{conic}: {err}");
+        assert_eq!(*named, conic);
+        assert!(err.to_string().contains(conic.named()), "{conic:?}: {err}");
     }
     let eps = Tol::witness().get().eps;
     for k in [-3.0, 3.0] {
@@ -322,7 +325,17 @@ fn a_plane_missing_the_cone_splits_the_body() {
         let result = split(&tower, &plane(phi, 0.5), Tol::witness())
             .unwrap_or_else(|e| panic!("{what}: {e}"));
         let (above, below) = halves(&result, &what);
-        let props = |b: &Body<f64>| topo::props::mass_properties(b, Tol::witness()).unwrap();
+        let props = |b: &Body<f64>| {
+            topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(b),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+        };
         let (pa, pb) = (props(&above), props(&below));
         let slack = pa.volume_pad + pb.volume_pad + 1e-12;
         assert!(
@@ -340,13 +353,12 @@ fn a_plane_missing_the_cone_splits_the_body() {
 
 /// The halves of a cut tilted about `x` — a section whose height peaks
 /// inside its arcs, not at their ends on the seams — answer the solid
-/// containment door correctly or refuse `PartialConeFace`, never a
-/// wrong verdict. The three points are outside the half they are asked
+/// containment door correctly. The three points are outside the half they are asked
 /// of, between the section's true height and the window its vertices
 /// fold; a cone trim reading that window answered `In` for each.
 #[test]
 fn a_tilted_cone_cut_is_never_misread_by_containment() {
-    use topo::{PointInSolidError, SolidContainment, point_in_solid};
+    use topo::{SolidContainment, point_in_solid};
     let f = narrowing();
     let n = Vec3::new(0.0, 0.4f64.cos(), 0.4f64.sin());
     let cut = SplitPlane {
@@ -371,7 +383,6 @@ fn a_tilted_cone_cut_is_never_misread_by_containment() {
             match point_in_solid(part, q, band, Tol::witness()) {
                 Ok(SolidContainment::In) if inside => {}
                 Ok(SolidContainment::Out) if !inside => {}
-                Err(PointInSolidError::PartialConeFace { .. }) => {}
                 other => panic!("{q:?} (inside: {inside}): {other:?}"),
             }
         }
@@ -534,7 +545,13 @@ fn steep_frusta_in_a_generic_pose_split_at_a_shallow_tilt() {
             assert_eq!(validate_closed(part), Ok(()), "{what}: tier 2");
         }
         halves(&result, &what);
-        let props = |b: &Body<f64>| topo::props::mass_properties(b, tol).unwrap();
+        let props = |b: &Body<f64>| {
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
+                tol,
+            )
+            .unwrap()
+        };
         let (pw, pa, pb) = (props(&operand), props(above), props(below));
         let whole = PI * h / 3.0 * (r0 * r0 + r0 * r1 + r1 * r1);
         let slack = 1e-12 * whole;

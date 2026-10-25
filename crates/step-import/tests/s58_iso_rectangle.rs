@@ -63,8 +63,11 @@ fn imports_and_measures(name: &str, exact: f64) {
     };
     topo::validate_geometric(&body, Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must pass tier 3: {e:?}"));
-    let mp = topo::mass_properties(&body, Tol::witness())
-        .unwrap_or_else(|e| panic!("{name} must measure: {e:?}"));
+    let mp = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{name} must measure: {e:?}"));
     assert_eq!(
         mp.volume_pad, 0.0,
         "{name}: the closed-form lane's pad is 0"
@@ -114,7 +117,11 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
         panic!("xsplit.step (rectangular sub-faces) must import as a solid");
     };
     let exact = cross_volume();
-    let before = topo::mass_properties(&body, Tol::witness()).expect("the sub-faced body measures");
+    let before = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the sub-faced body measures");
     let rel = (before.volume - exact).abs() / exact;
     assert!(
         rel < 1e-12 && before.volume_pad == 0.0,
@@ -141,7 +148,11 @@ fn merge_coplanar_faces_no_longer_turns_an_exact_body_into_a_wrong_one() {
     );
 
     // The door: the merged body measures what it measured before.
-    let after = topo::mass_properties(&body, Tol::witness()).expect("the merged body measures");
+    let after = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the merged body measures");
     let rel = (after.volume - exact).abs() / exact;
     assert!(
         rel < 1e-12 && after.volume_pad == 0.0,

@@ -2439,7 +2439,7 @@ fn canonicalize_chart<T: Decide>(
             // slit is a band's seam, joining the band's two boundaries,
             // and the band's surgery cuts it. A wrapping chart whose sides
             // do not both wind (a hole whose nesting misreads) is no band
-            // and refuses below as the slit it is; `ChartRead` reads to
+            // and refuses below as the slit it is; `Chart` reads to
             // just short of the period, so no verb path reaches that
             // misread today and no row pins it.
             band_seams.push(proven(&body.half_edges, he1, EntityId::HalfEdge).edge);
@@ -2489,7 +2489,7 @@ fn band_seam<T: Decide>(
     sides: [&[HeKey]; 2],
     band: Band,
 ) -> Result<bool, ShellError<T>> {
-    let Some(read) = crate::chart::ChartRead::of(chart) else {
+    let Some(read) = crate::chart::Chart::of(chart) else {
         return Ok(false);
     };
     for side in sides {
@@ -2524,7 +2524,7 @@ fn oriented_points<T: Decide>(body: &Body<T>, run: &[HeKey]) -> Vec<geom_core::P
 /// angle unwrapped step by step. A cycle through the axis (no lever to
 /// read the angle by) does not.
 fn winds_once<T: Decide>(
-    chart: &crate::chart::ChartRead<T>,
+    chart: &crate::chart::Chart<T>,
     points: &[geom_core::Point3<T>],
     band: Band,
 ) -> Result<bool, ShellError<T>> {
@@ -2553,7 +2553,7 @@ fn winds_once<T: Decide>(
 /// Whether the chart `faces` wear WRAPS its period: some cycle of their
 /// common boundary — their loops' half-edges along edges not interior to
 /// them, chained end to start — winds the chart's `u` once, read through
-/// [`crate::chart::ChartRead`] and unwrapped step by step along the
+/// [`crate::chart::Chart`] and unwrapped step by step along the
 /// cycle. A pole cap's rim winds; a window, however wide, comes back to
 /// where it started. A plane has no period, and a spline chart no
 /// closed-form read, so neither wraps here.
@@ -2565,7 +2565,7 @@ fn wraps_its_period<T: Decide + crate::props::AtRestPolicy>(
     let surface = body.face_surface_linked(faces[0], proven(&body.faces, faces[0], EntityId::Face));
     let (Some(_), Some(chart)) = (
         crate::pcurves::chart_period(surface, band),
-        crate::chart::ChartRead::of(surface),
+        crate::chart::Chart::of(surface),
     ) else {
         return Ok(false);
     };
@@ -3587,7 +3587,7 @@ fn encloses<T: Decide>(
 /// Point runs read into `surface`'s chart, laid flat in metres: a
 /// plane's points as they are (its chart is the plane), a surface of
 /// revolution's as `(u·ρ, v·λ, 0)` through
-/// [`crate::chart::ChartRead`] — `ρ` the first point's distance from
+/// [`crate::chart::Chart`] — `ρ` the first point's distance from
 /// the axis and `λ` the length one unit of `v` spans. One scale for
 /// every point, so the runs are compared in one flat picture.
 ///
@@ -3609,7 +3609,7 @@ fn chart_read<T: Decide>(
             runs.iter().flat_map(|run| run.iter().copied()).collect(),
         ));
     }
-    let Some(chart) = crate::chart::ChartRead::of(surface) else {
+    let Some(chart) = crate::chart::Chart::of(surface) else {
         return Ok(None);
     };
     let Some(&first) = runs.iter().find_map(|run| run.first()) else {
@@ -3624,8 +3624,11 @@ fn chart_read<T: Decide>(
     let mut reference: Option<T> = None;
     for run in runs {
         let mut us: Vec<T> = Vec::with_capacity(run.len());
+        let mut vs: Vec<T> = Vec::with_capacity(run.len());
         for &p in *run {
-            let raw = chart.u_of(p);
+            let uv = chart.uv_of(p);
+            vs.push(uv.y);
+            let raw = uv.x;
             us.push(match us.last() {
                 // The step from the previous point, brought into (−π, π].
                 Some(&prev) => {
@@ -3659,10 +3662,10 @@ fn chart_read<T: Decide>(
             // `Sym`, never as an identity.
             Some(at) => tau * ((at - mean) / tau + T::from_f64(0.5)).floor(),
         };
-        for (&p, u) in run.iter().zip(us) {
+        for (u, v) in us.into_iter().zip(vs) {
             out.push(geom_core::Point3::new(
                 (u + shift) * lever,
-                chart.v_of(p) * v_lever,
+                v * v_lever,
                 T::zero(),
             ));
         }
@@ -3778,6 +3781,7 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
+        | ReplaceFaceError::TogetherConicArc { edge, .. }
         | ReplaceFaceError::EdgeSection { edge, .. }
         | ReplaceFaceError::DeclaredEdgeTilted { edge }
         | ReplaceFaceError::MixedEdge { edge, .. }

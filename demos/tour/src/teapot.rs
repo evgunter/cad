@@ -25,7 +25,7 @@
 //!   here would be claiming a certification nothing issued.
 //! - **the spout** — a CANAL: seven annular sections standing on the
 //!   tangent frames of a circular arc, skinned by ONE `Node::Loft`,
-//!   built about its own spine and placed by `Node::Transform`. It
+//!   built about its own spine and placed against the pot. It
 //!   bends, it tapers, and its wall thins with it, so no revolve
 //!   reaches it at any axis. That is finding 5, and the shape and the
 //!   finding moved together.
@@ -199,11 +199,11 @@
 //!    shape the kernel cannot build.
 //!
 //!    **What the loft costs instead, and it is a different debt.** The
-//!    SPINE IS NOT IN THE DOCUMENT. `spout_frames` computes seven
-//!    frames from [`SPOUT_BEND`] and writes their components as
-//!    literals, so a reader of the saved document sees seven
-//!    placements and no arc, and changing the bend means re-deriving
-//!    all seven rather than editing one number. That is
+//!    SPINE IS NOT IN THE DOCUMENT. `spout_stations` computes six
+//!    stations from [`SPOUT_BEND`] and writes their spins and slides as
+//!    literals, so a reader of the saved document sees six stations and
+//!    no arc, and changing the bend means re-deriving
+//!    all six rather than editing one number. That is
 //!    `twisted_tube`'s own star one scene over, and a spine datum a
 //!    loft could read its placements off is what would close it.
 //!
@@ -217,58 +217,38 @@
 //!    scene used before the spout bent. The same cancellation runs
 //!    over the lateral area, where `∮(1 − κ r cosθ) dθ = 2π`.
 //!
-//!    So the closed form survives the bend, and what the comparison
-//!    can then measure is the LOFT FIT: a cubic skin through
-//!    [`SPOUT_STATIONS`] stations against the swept tube it
-//!    interpolates. **On the volume it measures exactly that, at
-//!    2.30e-6, where this scene's pot and lid are asserted at 1e-12.
-//!    On the area it cannot, and the scene says so instead of
-//!    pretending otherwise** — see below.
+//!    So the closed form survives the bend, but it is the closed form
+//!    of the swept tube, and the body is a cubic skin through
+//!    [`SPOUT_STATIONS`] stations that INTERPOLATES that tube. **On the
+//!    volume the two differ by the LOFT FIT, 2.1e-6 of it**, inside the
+//!    cubic's own error scale `2·(5/384)·Δ⁴` = 7.6e-6 at the stations'
+//!    angular step `Δ`. On the area they differ by 2.2e-5, which is not
+//!    a fit measurement, and the scene reports it rather than gating it.
 //!
-//!    **The sections are ROUND, and what that costs at a tight ε is a
-//!    volume NUMBER rather than a certificate.** A circle is RATIONAL,
-//!    so these lateral walls are rational patches, and a rational
-//!    patch is a QUADRATURE face whose enclosure is chased to a
-//!    reporting target derived from ε. At ε = 1e-12 the schedule's
-//!    own last-round bound proves that target unreachable, so
-//!    `mass_properties` refuses `QuadratureBudget` after round 0
-//!    (`rounds: 1`, no work spent).
+//!    **So the scene keeps two references apart.** The skin's OWN
+//!    volume and area, integrated over the body's own surfaces by a
+//!    dense Gauss–Legendre rule (`patch_quadrature`), are what the
+//!    kernel's certified enclosure must hold. The frustum is held to
+//!    that reference at the fit's scale. The fit's miss is some
+//!    fourteen thousand of the enclosure's half-widths at ε = 1e-12, so
+//!    an enclosure asked to hold the frustum is asked to hold the wrong
+//!    body.
 //!
-//!    **Tier 3 admits the body anyway.** Its +V check consumes only
-//!    the SIGN of the volume enclosure — the tier's own docs say
-//!    deciding that sign "is an act of certification rather than a
-//!    measurement" — and this body's enclosure excludes zero at the
-//!    very round the chase stops on, its lower end about ten of its
-//!    own half-widths clear at ε = 1e-12.
-//!    So the scene certifies at every ε, and where it has no number
-//!    to print the tour's ribbon prints the certified bracket
-//!    instead. The spout's own probe measures through the same door —
-//!    the certificate tier 3 hands back, continued by `measure` — so
-//!    on that refusal it reports the bracket it was refused on, and
-//!    holds the closed form to it.
-//!
-//!    More budget is not the fix, and that is measured: at
-//!    `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early exit stops firing, so
-//!    the bound is hull-dominated rather than floor-dominated — and
-//!    the face then runs for over half an hour without finishing.
-//!
-//!    This scene was briefly re-authored with OCTAGONAL sections,
-//!    which had a volume number at every ε: a polygon's sides are
-//!    straight, so its walls are polynomial and take the integral
-//!    lane's exact per-span rule. That is reverted. The shape a potter
-//!    draws is round, and a demo bent around the kernel's reporting
-//!    floor hides the floor —
-//!    `memories/demo-purpose.md` says awkwardness is a LIBRARY
-//!    FINDING, never hidden. What the octagon bought is kept as
-//!    knowledge and stated where it belongs: the integral lane has an
-//!    exact per-span rule the rational lane has none of, which is why
-//!    `twisted_tube` next door can be a loft and a solid at every ε.
-//!
-//!    So what the comparison measures, where the door opens at all, is
-//!    the BRACKET: the straightened frustum inside the kernel's own
-//!    certified enclosure. That oracle self-calibrates with ε, and the
-//!    scene PROBES rather than asserting through a door that may not
-//!    open.
+//!    **The sections are ROUND, so the volume is an ENCLOSURE.** A
+//!    circle is RATIONAL, so these lateral walls are rational patches,
+//!    and a rational patch is a QUADRATURE face whose certified
+//!    enclosure is chased to a reporting target derived from ε. Every
+//!    ε the tour runs meets that target: at ε = 1e-12 the volume's
+//!    half-width is 8.1e-12 m³. Where a tighter ε refuses
+//!    `QuadratureBudget`, tier 3 still certifies the body on the
+//!    enclosure's SIGN — the tier's own docs say deciding that sign "is
+//!    an act of certification rather than a measurement" — and the
+//!    scene measures through the certificate the tier hands back, so it
+//!    holds the skin's reference to the narrowest bracket the
+//!    certificate or its continuation kept. A polygon's sides are
+//!    straight, so octagonal sections would make polynomial walls with
+//!    the integral lane's exact per-span rule, the one `twisted_tube`
+//!    next door takes; the shape a potter draws is round.
 //!
 //! # What this scene deliberately does NOT do
 //!
@@ -282,9 +262,10 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    Bodies, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
-    LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
+    Axis3, Bodies, CancelToken, Coord, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Formula,
+    LoftSection, LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, StationMove, TargetAxis, TubeWindow, ValuePayload, apply,
+    evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point3, Tol, Vec3};
@@ -412,38 +393,15 @@ const _: () = assert!(SPOUT_STATIONS == 7);
 /// `lofted-circle-sections-are-unmeshable-and-say-so-three-steps-late`,
 /// and `CircleSplit(4)` is the door through it.
 ///
-/// **The sections are ROUND, and at a tight ε that costs this body
-/// its volume NUMBER.** A circle is RATIONAL, so these lateral walls
-/// are rational patches, and a rational patch is a QUADRATURE face
-/// whose certified enclosure is chased to `QUAD_TARGET_LEN_FACTOR·ε`.
-/// At ε = 1e-12 that target is 1.024e-9, and the schedule's own
-/// last-round bound proves it unreachable, so `mass_properties`
-/// refuses `QuadratureBudget` after round 0 — `rounds: 1`, no work
-/// spent.
-///
-/// **Tier 3 certifies the body all the same, which is why this
-/// authoring is the honest one.** Its +V check consumes only the SIGN
-/// of the volume enclosure — the tier's own docs say deciding that
-/// sign "is an act of certification rather than a measurement" — and
-/// this body's enclosure excludes zero at the round the chase stops
-/// on, its lower end about ten of its own half-widths clear at
-/// ε = 1e-12. So the solid is certified at every ε and what it lacks
-/// at 1e-12 is a number, which the tour's ribbon reports as the
-/// certified bracket rather than dying on.
-///
-/// Raising the round cap does not fix it either, measured: at
-/// `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early-exit stops firing (so the
-/// bound is hull-dominated, not floor-dominated) and the face then
-/// runs for over half an hour without finishing. More budget is not
-/// the answer; not demanding the precision is.
-///
-/// This scene was briefly re-authored with OCTAGONAL sections to get
-/// a number at every ε, and that worked — a polygon's sides are
-/// straight, so its walls are polynomial and take the integral lane's
-/// exact per-span rule. It is reverted here because the shape a potter
-/// draws is round, and because a demo bent around the kernel's
-/// reporting floor hides the floor. `memories/demo-purpose.md` is the
-/// rule: awkwardness is a LIBRARY FINDING, never hidden.
+/// **The sections are ROUND, so this body's volume is an ENCLOSURE.**
+/// A circle is RATIONAL, so these lateral walls are rational patches,
+/// and a rational patch is a QUADRATURE face whose certified enclosure
+/// is chased to `QUAD_TARGET_LEN_FACTOR·ε`. Every ε the tour runs meets
+/// that target, and the scene holds the enclosure to the skin's own
+/// integrated volume (`patch_quadrature`). Where a tighter ε refuses
+/// `QuadratureBudget`, tier 3 still certifies the body on the
+/// enclosure's SIGN, and the scene holds the same reference to the
+/// bracket the certificate keeps.
 const SPOUT_ARCS: u32 = 4;
 /// **The spout's total bend**, root tangent to tip tangent: half a
 /// right angle. The canal leaves the belly on [`SPOUT_DIR`] and
@@ -515,11 +473,6 @@ const DELTA: f64 = 2e-4;
 /// A length in the canonical metres this document is authored in.
 fn len(v: f64) -> Formula {
     Formula::literal(v, Dimension::Length).expect("a finite length")
-}
-
-/// A dimensionless component — the spelling a direction takes.
-fn scl(v: f64) -> Formula {
-    Formula::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
 
 /// An angle in radians, the unit this scene's turns are written in.
@@ -656,43 +609,55 @@ const LID_RIMS: [(u32, f64, f64, &str); 3] = [
     (4, R_KNOB, Y_TOP, "the knob's top (cylinder x plane)"),
 ];
 
-/// **The spout's spine, as a list of section PLANES** — built in the
-/// spout's own frame, where the canal leaves the origin along `+y` and
-/// bends toward `+x` through [`SPOUT_BEND`]. The placement below
-/// carries `+y` onto [`SPOUT_DIR`], so the root arrives on the 3-4-5
-/// direction and the tip a half right angle further up.
+/// **The spout's spine, as a list of section PLANES** — built where the
+/// canal leaves its root along the spout's `+y` and bends toward `+x`
+/// through [`SPOUT_BEND`]. The placement below carries `+y` onto
+/// [`SPOUT_DIR`], so the root arrives on the 3-4-5 direction and the tip
+/// a half right angle further up.
 ///
 /// The spine is a circular ARC of radius `SPOUT_LEN / SPOUT_BEND`, so
 /// the stations are equally spaced along it by construction rather
 /// than by a resampling step.
 ///
-/// **Each frame's normal is the spine's tangent, exactly.** A
-/// `Datum::Frame`'s normal is `u × v`; with `u = +z` and
-/// `v = (cos a, −sin a, 0)` that cross product is `(sin a, cos a, 0)`,
-/// which IS the tangent at station `a`. So a section is perpendicular
-/// to the spine because of what the frame says, not because a fitting
-/// step made it nearly so.
+/// **Each plane's normal is the spine's tangent, exactly.** Station
+/// `a`'s plane stands at `(r(1 − cos a), r sin a, 0)` with axes
+/// `u = +z` and `v = (cos a, −sin a, 0)`, whose normal `u × v` is
+/// `(sin a, cos a, 0)` — the tangent at station `a`. The first section
+/// is drawn on the spout's own `xy` ([`spout_values`] turns it to where the
+/// first plane stands); a later one's station is that plane in the
+/// first's own axes — a spin of `−a` about its `x`, then slides of
+/// `r(1 − cos a)` along its `y` and `r sin a` along its `z` — so a
+/// section is perpendicular to the spine because of what the station
+/// says, not because a fitting step made it nearly so.
 ///
-/// Returned with each station's OUTER radius, because the two lofts
-/// below share these frames: the canal and its solid twin are the same
-/// spine and the same sections, differing in one loop.
-fn spout_frames(doc: &mut Doc<ProfileProgram>, tol: Tol) -> Vec<(RecipeNodeId, f64)> {
+/// Returned with each station's OUTER radius.
+fn spout_stations() -> Vec<(Vec<StationMove<Formula>>, f64)> {
     let r_spine = SPOUT_LEN / SPOUT_BEND;
     (0..SPOUT_STATIONS)
         .map(|i| {
             #[allow(clippy::cast_precision_loss)]
             let t = i as f64 / (SPOUT_STATIONS - 1) as f64;
-            let (sa, ca) = (t * SPOUT_BEND).sin_cos();
-            let plane = insert(
-                doc,
-                Node::Datum(Datum::Frame {
-                    origin: [len(r_spine * (1.0 - ca)), len(r_spine * sa), len(0.0)],
-                    u: [scl(0.0), scl(0.0), scl(1.0)],
-                    v: [scl(ca), scl(-sa), scl(0.0)],
-                }),
-                tol,
-            );
-            (plane, SPOUT_R1.mul_add(t, SPOUT_R0 * (1.0 - t)))
+            let a = t * SPOUT_BEND;
+            let (sa, ca) = a.sin_cos();
+            let station = if i == 0 {
+                Vec::new()
+            } else {
+                vec![
+                    StationMove::Spin {
+                        about: Axis3::X,
+                        by: ang(-a),
+                    },
+                    StationMove::Slide {
+                        along: Axis3::Y,
+                        by: len(r_spine * (1.0 - ca)),
+                    },
+                    StationMove::Slide {
+                        along: Axis3::Z,
+                        by: len(r_spine * sa),
+                    },
+                ]
+            };
+            (station, SPOUT_R1.mul_add(t, SPOUT_R0 * (1.0 - t)))
         })
         .collect()
 }
@@ -706,7 +671,7 @@ fn spout_frames(doc: &mut Doc<ProfileProgram>, tol: Tol) -> Vec<(RecipeNodeId, f
 /// what makes a bend volume-neutral.
 fn spout_loft(
     doc: &mut Doc<ProfileProgram>,
-    frames: &[(RecipeNodeId, f64)],
+    stations: &[(Vec<StationMove<Formula>>, f64)],
     tol: Tol,
 ) -> RecipeNodeId {
     // **Circles, split into [`SPOUT_ARCS`] arcs**, which is the shape a
@@ -715,36 +680,68 @@ fn spout_loft(
     // wall with a C⁰ crease); the rationality that comes with it is
     // what tier 3 currently cannot certify at ε = 1e-12, and that is a
     // kernel finding this scene exhibits rather than dodges.
-    let profiles = frames
-        .iter()
-        .map(|&(plane, outer)| {
-            let arcs = |radius: f64| LoopProgram::CircleSplit {
-                centre: lpt(0.0, 0.0),
-                radius: len(radius),
-                n: SPOUT_ARCS,
-                phase: ang(0.0),
-            };
-            let loops = vec![arcs(outer), arcs(outer * SPOUT_BORE)];
-            insert(
-                doc,
-                Node::Profile(ProfileProgram {
-                    frame: plane.into(),
-                    loops,
-                    ids: Vec::new(),
-                }),
-                tol,
-            )
-            .into()
+    let mut sections = stations.iter().map(|(station, outer)| {
+        let arcs = |radius: f64| LoopProgram::CircleSplit {
+            centre: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
+            radius: len(radius),
+            n: SPOUT_ARCS,
+            phase: Formula::zero(Dimension::Angle),
+        };
+        let loops = vec![arcs(*outer), arcs(outer * SPOUT_BORE)];
+        let profile = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops,
+                ids: Vec::new(),
+            }),
+            tol,
+        );
+        (profile, station.clone())
+    });
+    let (first, _) = sections.next().expect("a loft has a first section");
+    let then = sections
+        .map(|(profile, station)| LoftSection {
+            profile: profile.into(),
+            station,
         })
         .collect();
     insert(
         doc,
         Node::Loft {
-            profiles,
+            first: first.into(),
+            then,
             v_degree: Formula::count(3),
         },
         tol,
     )
+}
+
+/// **The spout's values on the pot's axes**: the spout's own axes
+/// turned into the bent frame its spine is described in (`x` onto `+z`,
+/// `y` onto `+x`, `z` onto `+y`: a quarter turn back about `x`, then
+/// one back about `y`), that frame turned by [`spout_turn`] about `+z`,
+/// and slid to [`SPOUT_ROOT`].
+fn spout_values() -> Vec<(Coord, Formula)> {
+    let mut values = vec![
+        (Coord::Spin(TargetAxis::X), crate::world::turn(4, true)),
+        (Coord::Spin(TargetAxis::Y), crate::world::turn(4, true)),
+        (Coord::Spin(TargetAxis::Z), ang(spout_turn())),
+    ];
+    values.extend(crate::world::slides([
+        SPOUT_ROOT.x,
+        SPOUT_ROOT.y,
+        SPOUT_ROOT.z,
+    ]));
+    values
+}
+
+/// **The handle's values on the pot's axes**: its spine centre slid onto
+/// the belly wall, its axes the pot's.
+fn handle_values() -> Vec<(Coord, Formula)> {
+    crate::world::slides([HANDLE_C.x, HANDLE_C.y, HANDLE_C.z])
 }
 
 /// **The turn that takes the spout's own `+y` axis onto
@@ -779,9 +776,11 @@ struct Recipe {
     /// The spout about its OWN axis — the node whose bands name the
     /// root annulus the placement is measured on.
     spout_body: RecipeNodeId,
-    /// The spout, placed.
+    /// The spout, placed against the pot.
     spout: RecipeNodeId,
-    /// The handle.
+    /// The handle in its own coordinates.
+    handle_body: RecipeNodeId,
+    /// The handle, placed against the pot.
     handle: RecipeNodeId,
     /// The two joins the operand gate has no arm for.
     handle_union: RecipeNodeId,
@@ -802,20 +801,16 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
     applied.record.minted.expect("insert mints an id")
 }
 
-/// One full revolve of `loop_` about the sketch frame's own `+v`
-/// through its origin, which this document places on world `+y`: the
-/// axis is written in the frame's 2-D coordinates, so it cannot leave
-/// the plane the meridian is drawn on.
-fn revolved(
-    doc: &mut Doc<ProfileProgram>,
-    plane: RecipeNodeId,
-    loop_: LoopProgram<Formula>,
-    tol: Tol,
-) -> RecipeNodeId {
+/// One full revolve of `loop_` about the meridian's own `+y` through
+/// its origin: the axis is written in the meridian's 2-D coordinates,
+/// so it cannot leave the plane the meridian is drawn on. A meridian
+/// point `(x, y)` is the revolve's own point `(x, y, 0)`, so the pot
+/// stands on its own `+y` — the placement every camera, cell and
+/// budget row of this scene was taken from.
+fn revolved(doc: &mut Doc<ProfileProgram>, loop_: LoopProgram<Formula>, tol: Tol) -> RecipeNodeId {
     let profile = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![loop_],
             ids: Vec::new(),
         }),
@@ -825,7 +820,10 @@ fn revolved(
         doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_through: [len(0.0), len(0.0)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
@@ -871,30 +869,11 @@ fn rim_arcs(node: RecipeNodeId, vertex: ProfileVertexRef) -> [StableName; 2] {
     [band_rim(node, vertex), band_rim_pi(node, vertex)]
 }
 
-/// **The sketch frame every meridian here is drawn on.**
-///
-/// u = +X (the radius), v = +Y (the axis), so a meridian point
-/// `(x, y)` is the world point `(x, y, 0)` and the pot stands on +Y —
-/// the world placement every camera, cell and budget row of this scene
-/// was taken from.
-fn sketch_frame(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    insert(
-        doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    )
-}
-
 fn build_doc(tol: Tol) -> Recipe {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot", tol);
-    let plane = sketch_frame(&mut doc, tol);
 
     // ---- the vessel ----
-    let bellied = revolved(&mut doc, plane, vessel_meridian(), tol);
+    let bellied = revolved(&mut doc, vessel_meridian(), tol);
     // The mouth is the meridian's mouth-disc segment, NAMED. A full
     // revolve sweeps a planar wall whole — no seam meridian cuts it —
     // so the mouth disc is ONE face, its `Band`.
@@ -920,7 +899,7 @@ fn build_doc(tol: Tol) -> Recipe {
     );
 
     // ---- the lid ----
-    let plain_lid = revolved(&mut doc, plane, lid_meridian(), tol);
+    let plain_lid = revolved(&mut doc, lid_meridian(), tol);
     // THREE rims, THREE DIFFERENT coaxial arms, in ONE request. The
     // radius is per REQUEST, not per edge, and each later rim's
     // seam-piece identities are re-read against the partially-carved
@@ -947,40 +926,27 @@ fn build_doc(tol: Tol) -> Recipe {
     );
 
     // ---- the spout: a CANAL lofted about its own bent spine, then
-    // placed. The placement is unchanged from when this was a revolved
-    // frustum, and that is deliberate: the shape moved and the
-    // isometry receipt below did not have to.
-    let frames = spout_frames(&mut doc, tol);
-    let spout_body = spout_loft(&mut doc, &frames, tol);
-    let spout = insert(
-        &mut doc,
-        Node::transform(
-            spout_body,
-            pncad::document::Step::Rigid {
-                translation: [len(SPOUT_ROOT.x), len(SPOUT_ROOT.y), len(SPOUT_ROOT.z)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(spout_turn()),
-            },
-        ),
+    // placed against the pot: the pot offers no planar face on its own
+    // `xy`, so the spout's root is mated to a frame read off the pot.
+    let stations = spout_stations();
+    let spout_body = spout_loft(&mut doc, &stations, tol);
+    let placed = crate::world::against(
+        &doc,
+        pncad::document::Operand::output(bellied, 0),
+        spout_body,
+        spout_values(),
         tol,
     );
+    doc = placed.doc;
+    let spout = placed.placement;
 
     // ---- the handle ----
-    // The frame the handle is bent in: its centre the bend's, its
-    // normal the bend's axis, its x the radial its window starts from.
-    let spine = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(HANDLE_C.x), len(HANDLE_C.y), len(HANDLE_C.z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
-    let handle = insert(
+    // Bent about its own `z` through its own origin, its window starting
+    // from its own `x`; placed against the pot with its centre on the
+    // belly wall.
+    let handle_body = insert(
         &mut doc,
         Node::Tube {
-            frame: spine.into(),
             major_radius: len(HANDLE_R),
             window: TubeWindow::Arc {
                 t0: ang(-(FRAC_PI_2 + HANDLE_OVER)),
@@ -990,6 +956,17 @@ fn build_doc(tol: Tol) -> Recipe {
         },
         tol,
     );
+    // Placed into the pot's space with its own frame at the handle's
+    // pose there.
+    let placed = crate::world::against(
+        &doc,
+        pncad::document::Operand::output(bellied, 0),
+        handle_body,
+        handle_values(),
+        tol,
+    );
+    doc = placed.doc;
+    let handle = placed.placement;
 
     // ---- the two joins, as document requests ----
     let union_node = |doc: &mut Doc<ProfileProgram>, b| {
@@ -1013,6 +990,7 @@ fn build_doc(tol: Tol) -> Recipe {
         lid,
         spout_body,
         spout,
+        handle_body,
         handle,
         handle_union,
         spout_union,
@@ -1031,8 +1009,7 @@ fn build_doc(tol: Tol) -> Recipe {
 /// models is not part of that recipe.
 fn wall_one_pot(tol: Tol) -> Body<f64> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-wall-1", tol);
-    let plane = sketch_frame(&mut doc, tol);
-    let belly = revolved(&mut doc, plane, torus_belly_meridian(), tol);
+    let belly = revolved(&mut doc, torus_belly_meridian(), tol);
     let hollow = insert(
         &mut doc,
         Node::shell(
@@ -1077,11 +1054,16 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
                 .expect("nothing reads it, so it deletes")
                 .doc
         });
-    [r.handle, r.lid, r.cup, r.spout]
-        .into_iter()
-        .fold(tidied, |doc, body| {
-            crate::world::place_in_world(&doc, body, tol).doc
-        })
+    [
+        (r.handle_body, handle_values()),
+        (r.lid, Vec::new()),
+        (r.cup, Vec::new()),
+        (r.spout_body, spout_values()),
+    ]
+    .into_iter()
+    .fold(tidied, |doc, (body, values)| {
+        crate::world::in_world_by(&doc, body, values, tol).doc
+    })
 }
 
 /// The body a node evaluated to.
@@ -1283,6 +1265,99 @@ fn annulus(ro: f64, ri: f64) -> f64 {
     PI * (ro * ro - ri * ri)
 }
 
+/// The `n`-point Gauss–Legendre rule on `[-1, 1]`, as `(node, weight)`:
+/// Newton on the three-term recurrence from Tricomi's initial guess.
+fn gauss_legendre(n: usize) -> Vec<(f64, f64)> {
+    let nf = n as f64;
+    (1..=n)
+        .map(|k| {
+            let mut x = (PI * (k as f64 - 0.25) / (nf + 0.5)).cos();
+            let mut dp = 0.0;
+            for _ in 0..100 {
+                let (mut p0, mut p1) = (1.0, x);
+                for j in 2..=n {
+                    let jf = j as f64;
+                    (p0, p1) = (p1, ((2.0 * jf - 1.0) * x * p1 - (jf - 1.0) * p0) / jf);
+                }
+                dp = nf * (x * p1 - p0) / (x * x - 1.0);
+                let dx = p1 / dp;
+                x -= dx;
+                if dx.abs() <= 1e-16 {
+                    break;
+                }
+            }
+            (x, 2.0 / ((1.0 - x * x) * dp * dp))
+        })
+        .collect()
+}
+
+/// **The volume of a body whose faces are two planes and any number of
+/// NURBS patches, and the area of its patches**, integrated over the
+/// body's OWN surfaces with an `order`-point Gauss–Legendre rule on
+/// every knot span: the reference a fitted skin has where it has no
+/// closed form.
+///
+/// The volume is the divergence theorem, `V = ⅓ ∮ (x − p)·n dA`, with
+/// `p` a point on BOTH planes: `(x − p)·n` vanishes on each, so the
+/// caps contribute nothing and only the patches are integrated. Every
+/// span of a patch is a smooth rational piece, where the rule converges
+/// geometrically in `order`.
+fn patch_quadrature(body: &Body<f64>, order: usize) -> (f64, f64) {
+    let rule = gauss_legendre(order);
+    let planes: Vec<(Point3<f64>, Vec3<f64>)> = body
+        .faces()
+        .filter_map(|(_, f)| match body.get_surface(f.surface) {
+            Some(Surface::Plane { origin, normal, .. }) => Some((*origin, *normal)),
+            _ => None,
+        })
+        .collect();
+    let [(o1, n1), (o2, n2)] = planes[..] else {
+        panic!("a quadrature over two caps, got {} planes", planes.len())
+    };
+    // The point of the two planes' common line nearest the origin.
+    let (c, d1, d2) = (
+        n1.dot(n2),
+        n1.dot(o1 - Point3::origin()),
+        n2.dot(o2 - Point3::origin()),
+    );
+    let p = Point3::origin()
+        + n1 * ((d1 - c * d2) / (1.0 - c * c))
+        + n2 * ((d2 - c * d1) / (1.0 - c * c));
+    let breaks = |knots: &[f64]| {
+        let mut b = knots.to_vec();
+        b.dedup();
+        b
+    };
+    let (mut flux, mut area) = (0.0, 0.0);
+    for (_, f) in body.faces() {
+        let n = match body.get_surface(f.surface) {
+            Some(Surface::Plane { .. }) => continue,
+            Some(Surface::Nurbs(n)) => n,
+            other => panic!("a quadrature over planes and NURBS, got {other:?}"),
+        };
+        let sense = if f.sense { 1.0 } else { -1.0 };
+        let (bu, bv) = (
+            breaks(n.knot_values_u().values()),
+            breaks(n.knot_values_v().values()),
+        );
+        for u in bu.windows(2) {
+            for v in bv.windows(2) {
+                let (hu, hv) = (0.5 * (u[1] - u[0]), 0.5 * (v[1] - v[0]));
+                for &(xu, wu) in &rule {
+                    for &(xv, wv) in &rule {
+                        let jet = n.ders(u[0] + hu * (1.0 + xu), v[0] + hv * (1.0 + xv));
+                        let normal = jet.du.cross(jet.dv) * sense;
+                        let w = wu * wv * hu * hv;
+                        flux += w * (jet.point - p).dot(normal);
+                        area += w * normal.norm();
+                    }
+                }
+            }
+        }
+    }
+    (flux / 3.0, area)
+}
+
 /// The station where the foot cylinder meets the belly sphere, at
 /// inward offset `d`: the sphere shrinks concentrically and the
 /// cylinder shrinks radially, so their meeting slides ALONG the
@@ -1346,8 +1421,7 @@ type Census = (usize, usize, usize);
 /// in it would be three bodies the scene does not model.
 fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String, Option<Census>)> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-rims", tol);
-    let plane = sketch_frame(&mut doc, tol);
-    let lid = revolved(&mut doc, plane, lid_meridian(), tol);
+    let lid = revolved(&mut doc, lid_meridian(), tol);
     let rims: Vec<[StableName; 2]> = LID_RIMS
         .iter()
         .map(|&(v, ..)| rim_arcs(lid, vertex_at(&doc, lid, v, tol)))
@@ -1651,7 +1725,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let v_cav = pot_volume(WALL);
     let v_want = v_out - v_cav;
     let a_want = pot_area(0.0) + pot_area(WALL);
-    let props = pncad::topo::mass_properties(&pot, tol).expect("the pot's props");
+    // Finished once: the props and the shell roles below both read it.
+    let pot_at_rest = crate::booleans::at_rest(&pot, tol);
+    let props = pncad::topo::mass_properties(&pot_at_rest, tol).expect("the pot's props");
     assert!(
         ((props.volume - v_want) / v_want).abs() < 1e-12,
         "pot V = {} vs the wall's own closed form {v_want}",
@@ -1663,7 +1739,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         props.surface_area
     );
     assert_eq!(props.volume_pad, 0.0, "closed forms need no pad");
-    let classes = pncad::topo::classify_shells(&pot, tol).expect("per-shell classification");
+    let classes =
+        pncad::topo::classify_shells(&pot_at_rest, tol).expect("per-shell classification");
     let voids: Vec<_> = classes
         .iter()
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
@@ -1898,7 +1975,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the note narrates V = 5369π/3·256⁻³ = {v_note} and A = (453 + 52√10)π·256⁻² = \
          {a_note}; the stations now give {v_lid} and {a_lid}"
     );
-    let sharp_lid_props = pncad::topo::mass_properties(&plain_lid, tol).expect("the lid's props");
+    let sharp_lid_props =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&plain_lid, tol), tol)
+            .expect("the lid's props");
     assert!(
         ((sharp_lid_props.volume - v_lid) / v_lid).abs() < 1e-12,
         "lid V = {} vs the closed form {v_lid}",
@@ -1909,7 +1988,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "lid A = {} vs the closed form {a_lid}",
         sharp_lid_props.surface_area
     );
-    let lid_props = pncad::topo::mass_properties(&rolled, tol).expect("the rolled lid");
+    let lid_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&rolled, tol), tol)
+        .expect("the rolled lid");
     let dv_lid = sharp_lid_props.volume - lid_props.volume;
     // Three convex rims now, so the bound is the three corner squares
     // swept round their own rims.
@@ -1922,14 +2002,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // ---- the spout: built about its own axis, then placed ----
     //
-    // The document's placement vocabulary is AXIS-ANGLE and the 3-4-5
-    // turn is not a binary-exact angle, so what the residual costs is
-    // MEASURED — off the placed BODY, never re-derived from the same
-    // trigonometry the placement used. The subject is the root
-    // annulus: the band of the spout meridian's own segment 0, named
-    // at the revolve that minted it and read at the TRANSFORM, since a
-    // transform contributes no role segment and reading a carried name
-    // there is reading the placed face.
+    // The placement is a mate to a frame read off the pot plus values
+    // taken by `atan2` and projection, and the 3-4-5 turn is not a
+    // binary-exact angle, so what the residual costs is MEASURED — off
+    // the placed BODY, never re-derived from the same trigonometry the
+    // placement used. The subjects are the loft's caps, named at the
+    // loft and read at the placement under its `Placed` segment.
     //
     // TWO subjects, the root annulus and the tip one, and the guard
     // below is why there are two and why neither is the spout's own
@@ -1960,8 +2038,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         face_frame(&ev, r.spout_body, &tip_name).expect("the tip annulus, before the placement");
     let unplaced =
         face_frame(&ev, r.spout_body, &root_name).expect("the root annulus, before the placement");
-    let tip_placed = face_frame(&ev, r.spout, &tip_name).expect("the tip annulus, after it");
-    let placed = face_frame(&ev, r.spout, &root_name).expect("the root annulus, after it");
+    // A copy's face is named under its placement.
+    let copied = |name: &StableName| StableName {
+        kind: name.kind,
+        node: r.spout,
+        path: vec![pncad::prelude::RoleSeg::Placed {
+            of: pncad::prelude::NameRef::new(name.clone()),
+        }],
+    };
+    let tip_placed =
+        face_frame(&ev, r.spout, &copied(&tip_name)).expect("the tip annulus, after it");
+    let placed = face_frame(&ev, r.spout, &copied(&root_name)).expect("the root annulus, after it");
     // WHICH cap is the root is read rather than assumed: the spout is
     // built with station 0 AT its own origin, so the root cap is the
     // one standing there and the tip cap is a whole spine-length away.
@@ -1975,21 +2062,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // whose columns are the direction's own components, which is what
     // this scene used to hand `transform_rigid` and is independent of
     // the angle the document stores.
+    // The spout's own point `p` in the bent frame its spine is
+    // described in ([`spout_values`]), turned.
     let turn = |p: Vec3<f64>| {
         Vec3::new(SPOUT_DIR.y, -SPOUT_DIR.x, 0.0) * p.x + SPOUT_DIR * p.y + Vec3::unit_z() * p.z
     };
-    let root_exact = turn(Vec3::new(
-        unplaced.origin.x,
-        unplaced.origin.y,
-        unplaced.origin.z,
-    )) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
+    let bent = |p: Point3<f64>| Vec3::new(p.y, p.z, p.x);
+    let root_exact =
+        turn(bent(unplaced.origin)) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
     let root_residual =
         (Vec3::new(placed.origin.x, placed.origin.y, placed.origin.z) - root_exact).norm();
-    let tip_exact = turn(Vec3::new(
-        tip_unplaced.origin.x,
-        tip_unplaced.origin.y,
-        tip_unplaced.origin.z,
-    )) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
+    let tip_exact =
+        turn(bent(tip_unplaced.origin)) + Vec3::new(SPOUT_ROOT.x, SPOUT_ROOT.y, SPOUT_ROOT.z);
     let tip_residual = (Vec3::new(
         tip_placed.origin.x,
         tip_placed.origin.y,
@@ -2019,7 +2103,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     //   * ORIENTATION evidence comes from BOTH caps' normals, and a
     //     translation cannot rotate a normal — so the root cap still
     //     carries turn evidence, of a kind its position could not.
-    let off_axis = tip_unplaced.origin.x.hypot(tip_unplaced.origin.y);
+    let off_axis = bent(tip_unplaced.origin)
+        .x
+        .hypot(bent(tip_unplaced.origin).y);
     assert!(
         off_axis > 1e-3,
         "the tip annulus stands at {:?}, on the rotation's own fixed axis — a residual \
@@ -2075,8 +2161,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (sin_t, cos_t) = spout_turn().sin_cos();
     let spout = body_at(&ev, r.spout);
 
-    // **The closed form a BENT tube still has, and what it costs to
-    // ask for it on a fitted skin.**
+    // **Two references, and only one of them is this body's.**
     //
     // There is no elementary volume for a cubic skin through seven
     // annuli. There IS one for the thing that skin approximates, and
@@ -2086,15 +2171,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // `(1 − κ·x) dA ds` with `x` toward the curvature centre, and
     // `∫x dA` over a centred section is zero — so the curvature term
     // integrates away and what is left is `∫A ds`, the STRAIGHTENED
-    // tube's volume. The same cancellation runs over the lateral area,
-    // where `∮(1 − κ r cosθ) dθ = 2π`. So the oracle is the straight
-    // frustum, said in the canal's own three numbers: outer radii
-    // `R0 → R1`, a bore that is `SPOUT_BORE` of each, and the SPINE
-    // LENGTH as the height.
-    //
-    // The sections are circles, so the frustum forms this scene
-    // already uses for its lid stand unchanged, with the bore's
-    // FRACTION doing the hollowing.
+    // tube's volume. So the closed form is the straight frustum, said
+    // in the canal's own three numbers: outer radii `R0 → R1`, a bore
+    // that is `SPOUT_BORE` of each, and the SPINE LENGTH as the height.
     let bore = SPOUT_BORE;
     let v_spout = (1.0 - bore * bore) * frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN);
     let a_spout = frustum_lateral(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
@@ -2102,58 +2181,62 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         + annulus(SPOUT_R0, bore * SPOUT_R0)
         + annulus(SPOUT_R1, bore * SPOUT_R1);
 
-    // **AND HERE IS WHAT THIS SCENE NOW EXHIBITS RATHER THAN AVOIDS.**
-    //
+    // The skin's OWN volume is what a certified enclosure of this body
+    // must hold, and the frustum is not it: the two differ by the LOFT
+    // FIT. So the skin's reference is integrated over its own surfaces
+    // ([`patch_quadrature`]) at two orders, and their difference is the
+    // reference's error estimate. The caps are the authored annuli.
+    let (v_lo, a_lo) = patch_quadrature(&spout, 12);
+    let (v_skin, a_walls) = patch_quadrature(&spout, 24);
+    let a_skin = a_walls + annulus(SPOUT_R0, bore * SPOUT_R0) + annulus(SPOUT_R1, bore * SPOUT_R1);
+    let (v_err, a_err) = ((v_skin - v_lo).abs(), (a_walls - a_lo).abs());
+
+    // **The frustum is held to the skin at the FIT's scale.** A cubic
+    // spline through stations `Δ` apart in the bend's angle misses a
+    // smooth curve by `(5/384)·Δ⁴` of its own scale, and a section's
+    // area is quadratic in its scale, so the volume misses by about
+    // twice that. That is a property of the geometry, and holds at
+    // every ε.
+    let fit_step = SPOUT_BEND / (SPOUT_STATIONS - 1) as f64;
+    let fit_scale = 2.0 * (5.0 / 384.0) * fit_step.powi(4);
+    let v_fit = ((v_skin - v_spout) / v_spout).abs();
+    assert!(
+        v_fit <= fit_scale,
+        "the skin's V = {v_skin} misses the straightened frustum's {v_spout} by {v_fit:e} of \
+         it, past the cubic fit's scale {fit_scale:e}"
+    );
+    let a_fit = ((a_skin - a_spout) / a_spout).abs();
+
     // These walls are RATIONAL — [`SPOUT_ARCS`] carries why, and why
     // that is the honest authoring — so they are QUADRATURE faces.
     // `mass_properties` publishes a certified ENCLOSURE rather than a
     // number, where every analytic body on this page publishes a pad
-    // of exactly 0. That enclosure is chased to a REPORTING target
-    // derived from ε, and **at ε = 1e-12 it is not reachable**: the
-    // schedule's own last-round bound proves it after round 0, so this
-    // reading refuses `QuadratureBudget`.
-    //
-    // Tier 3 admits the body regardless — its +V check consumes only
-    // the SIGN of this enclosure, decided at the very round the chase
-    // stops on, with the lower end about ten half-widths clear of zero
-    // at 1e-12 — so the refusal here is a missing NUMBER and not a
-    // missing certificate.
-    //
-    // So the scene measures THROUGH that certificate: the gate hands
-    // it back, and `measure` continues it to the reporting target. On
-    // the budget refusal, the answer carries the narrowest bracket the
-    // certificate or its continuation held, and the probe reports it;
-    // any other refusal is a body with no volume at all, and stays
-    // fail-loud.
-    //
-    // What is asserted is the bracket either way: the straightened
-    // frustum lies inside the kernel's own certified enclosure — the
-    // reporting-target one where the target is met, and the narrowest
-    // bracket the certificate or its continuation held where it is
-    // not. That oracle self-calibrates with
-    // ε — a looser tolerance buys a wider bracket and the claim stays
-    // exactly as strong as the certificate — which is what a fixed
-    // relative bound could not do, and what a fixed bound measured at
-    // one ε got wrong when this scene first shipped.
+    // of exactly 0, and that enclosure is chased to a REPORTING target
+    // derived from ε. The scene measures through the certificate tier
+    // 3 hands back, continued by `measure`. Where the target is met
+    // the enclosure must hold the skin's own reference; where it is
+    // refused on budget, the narrowest bracket the certificate or its
+    // continuation held must; any other refusal is a body with no
+    // volume at all, and stays fail-loud.
     let spout_certificate = pncad::topo::validate_geometric_certificate(&spout, tol)
         .unwrap_or_else(|e| panic!("the spout's tier 3 refused: {e:?}"));
     let spout_gated = spout_certificate.enclosure();
     let spout_measured = spout_certificate.measure();
     let spout_reading = match spout_measured {
         Ok(p) => {
-            let v_gap = (p.volume - v_spout).abs();
-            let a_gap = (p.surface_area - a_spout).abs();
+            let v_gap = (p.volume - v_skin).abs();
+            let a_gap = (p.surface_area - a_skin).abs();
             assert!(
-                v_gap <= p.volume_pad,
-                "the canal's V = {} vs the straightened frustum's {v_spout}: they differ \
-                 by {v_gap:e} m^3, OUTSIDE the certified enclosure's own half-width {:e}",
+                v_gap <= p.volume_pad + v_err,
+                "the canal's V = {} vs its own skin's {v_skin} (± {v_err:e}): they differ by \
+                 {v_gap:e} m^3, OUTSIDE the certified enclosure's own half-width {:e}",
                 p.volume,
                 p.volume_pad
             );
             assert!(
-                a_gap <= p.area_pad,
-                "the canal's A = {} vs the straightened frustum's {a_spout}: they differ \
-                 by {a_gap:e} m^2, OUTSIDE the certified enclosure's own half-width {:e}",
+                a_gap <= p.area_pad + a_err,
+                "the canal's A = {} vs its own skin's {a_skin} (± {a_err:e}): they differ by \
+                 {a_gap:e} m^2, OUTSIDE the certified enclosure's own half-width {:e}",
                 p.surface_area,
                 p.area_pad
             );
@@ -2168,9 +2251,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 p.area_pad
             );
             format!(
-                "V = {:.9} m^3 against the straightened frustum's {v_spout:.9} — inside \
-                 the kernel's own certified enclosure, {v_gap:e} against a half-width of \
-                 {:e}; A = {:.9} against {a_spout:.9}, {a_gap:e} against {:e}",
+                "V = {:.9} m^3 against the skin's own {v_skin:.9} — inside the kernel's \
+                 own certified enclosure, {v_gap:.1e} against a half-width of {:.1e}; A = {:.9} \
+                 against {a_skin:.9}, {a_gap:.1e} against {:.1e}. The straightened frustum's \
+                 V = {v_spout:.9} sits {v_fit:.1e} of itself off the skin's, which is the loft \
+                 FIT, inside the cubic's {fit_scale:.1e}; its A = {a_spout:.9} sits {a_fit:.1e} off",
                 p.volume, p.volume_pad, p.surface_area, p.area_pad
             )
         }
@@ -2178,20 +2263,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket: Some(b),
             refusal,
         }) => {
-            // The bracket is the certificate's own — at 1e-12, ±9 % on
-            // this body: the gate's walk left no spout face open (each
-            // converged or refused at round 0), so the continuation
-            // resumes nothing and holds nothing narrower. Asserted bit
-            // for bit, so a spout that starts leaving a face open says
-            // so here.
-            assert_eq!(
-                [b.volume_lo.to_bits(), b.volume_hi.to_bits()],
-                [
-                    spout_gated.volume_lo.to_bits(),
-                    spout_gated.volume_hi.to_bits()
-                ],
-                "the spout's refusal bracket [{}, {}] is not the gate's [{}, {}]: the \
-                 continuation resumed a face the gate left open",
+            // The gate settles the sign with the faces
+            // whose schedule can still meet the target left open; the
+            // continuation refines those in arena order up to the first
+            // face carrying its budget refusal, so the bracket is the
+            // gate's or a narrower one, and never wider.
+            assert!(
+                b.volume_hi - b.volume_lo <= spout_gated.volume_hi - spout_gated.volume_lo,
+                "the spout's refusal bracket [{}, {}] is wider than the gate's [{}, {}]",
                 b.volume_lo,
                 b.volume_hi,
                 spout_gated.volume_lo,
@@ -2199,24 +2278,22 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             );
             let half = 0.5 * (b.volume_hi - b.volume_lo);
             assert!(
-                b.volume_lo <= v_spout && v_spout <= b.volume_hi,
-                "the straightened frustum's V = {v_spout} lies OUTSIDE the canal's \
-                 certified bracket [{}, {}]",
+                b.volume_lo <= v_skin - v_err && v_skin + v_err <= b.volume_hi,
+                "the skin's own V = {v_skin} (± {v_err:e}) lies OUTSIDE the canal's certified \
+                 bracket [{}, {}]",
                 b.volume_lo,
                 b.volume_hi
             );
             format!(
                 "mass properties REFUSED TYPED at this tolerance — {refusal} — so there is no \
-                 volume NUMBER to compare. These walls are RATIONAL, so they are QUADRATURE \
-                 faces whose enclosure is chased to a REPORTING width derived from eps, and \
-                 at a tight enough eps that chase is proven unreachable after round 0. What \
-                 is missing is a number and not a certificate: tier 3 admitted this body at \
-                 this same eps on the SIGN of the enclosure, and the certificate it handed \
-                 back keeps that bracket through the refusal — V in [{:.9}, {:.9}] m^3, whose \
-                 lower end clears zero by {:.1e} half-widths, and which holds the \
-                 straightened frustum's V = {v_spout:.9}. The frustum's A = {a_spout:.9} m^2 \
-                 has no bracket to sit in here: the certificate's area is the +V check's \
-                 lever, not an enclosure",
+                 volume NUMBER to compare. What is missing is a number and not a certificate: \
+                 tier 3 admitted this body at this same eps on the SIGN of the enclosure, and \
+                 the certificate it handed back, continued as far as the schedule reaches, \
+                 keeps a bracket through the refusal — V in [{:.9}, {:.9}] m^3, whose lower \
+                 end clears zero by {:.1e} half-widths, and which holds the skin's own \
+                 V = {v_skin:.9}. The straightened frustum's V = {v_spout:.9} sits {v_fit:.1e} \
+                 of itself off the skin's, which is the loft FIT, inside the cubic's \
+                 {fit_scale:.1e}",
                 b.volume_lo,
                 b.volume_hi,
                 b.volume_lo / half,
@@ -2231,7 +2308,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let handle = body_at(&ev, r.handle);
     let v_handle = sweep * HANDLE_R * PI * HANDLE_TUBE * HANDLE_TUBE;
     let a_handle = sweep * HANDLE_R * 2.0 * PI * HANDLE_TUBE + 2.0 * PI * HANDLE_TUBE * HANDLE_TUBE;
-    let handle_props = pncad::topo::mass_properties(&handle, tol).expect("the handle's props");
+    let handle_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&handle, tol), tol)
+        .expect("the handle's props");
     assert!(
         ((handle_props.volume - v_handle) / v_handle).abs() < 1e-12,
         "handle V = {} vs Pappus on the disc {v_handle}",
@@ -2310,7 +2388,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         1,
         "the mouth disc comes back as ONE rim face"
     );
-    let cup_props = pncad::topo::mass_properties(&cup, tol).expect("the cup's props");
+    let cup_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol)
+        .expect("the cup's props");
     // The cup is the sealed wall LESS the disc of wall the mouth cap
     // was: opening lifts the cavity's cap from the mouth plane's own
     // station minus a wall, up to the plane.
@@ -2363,11 +2442,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "ONE recipe document: Profile -> Revolve -> Node::Shell(t = 7.8125 mm, the \
               mouth disc BY NAME) for the vessel; Profile -> Revolve -> \
               ONE Node::Fillet over the flange rim, the dome foot and the knob top, \
-              each by its two half-arcs' names, for the lid; Datum::Frame x7 -> Profile(2 circle loops) \
-              x7 -> Node::Loft(v_degree 3) -> Node::Transform for the \
-              spout, with the same frames lofted a second time WITHOUT the bore as its \
-              volume's denominator; \
-              Datum::Axis -> Node::Tube for the handle. Two walls pinned: both unions, \
+              each by its two half-arcs' names, for the lid; Profile(2 circle loops) x7 -> \
+              Node::Loft(v_degree 3, six stations) -> Place against the pot (its root cap \
+              on a frame read off the pot) for the spout; \
+              Node::Tube -> Place against the pot (its spine's axis on a frame read off \
+              the pot) for the handle. Two walls pinned: both unions, \
               as Node::Union nodes that refuse at evaluate",
         delta: DELTA,
         note: Some(format!(
@@ -2455,30 +2534,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              spine through the sections' own centres is VOLUME-NEUTRAL, because the \
              curvature term of the volume element weighs the section's first moment and \
              a centred section's is zero. The same cancellation runs over the lateral \
-             area. So the oracle is the STRAIGHTENED tube — outer radii R0 → R1, a bore \
-             {SPOUT_BORE} of each, the spine length as the height — and the canal is \
-             held to it INSIDE THE KERNEL'S OWN CERTIFIED ENCLOSURE rather than at a \
-             relative bound: {spout_reading}. THE SECTIONS ARE ROUND, AND WHAT THAT \
-             COSTS AT A TIGHT EPS IS A VOLUME NUMBER RATHER THAN A CERTIFICATE. A circle \
-             is RATIONAL, so these lateral walls are rational patches, and a rational \
-             patch is a QUADRATURE face whose enclosure is chased to a REPORTING target \
-             derived from eps. At eps = 1e-12 the schedule's own last-round bound proves \
-             that target unreachable, so mass_properties refuses QuadratureBudget after \
-             round 0 -- rounds: 1, no work spent. TIER 3 ADMITS THE BODY ANYWAY, which is \
-             what makes this authoring the honest one: its +V check consumes only the \
-             SIGN of that enclosure, and the enclosure excludes zero at the very round \
-             the chase stops on -- at eps = 1e-12 by the margin the reading above \
-             prints -- so the scene certifies at every eps and the volume ribbon prints \
-             the certified bracket where it has no number to print. The reading above measures through the certificate the \
-             tier hands back, so where the number is refused it reports that same \
-             bracket and holds the frustum to it. More budget would not \
-             buy the number back and that is measured: at one more round the early exit \
-             stops firing and the face then runs over half an hour without finishing. An \
-             OCTAGONAL authoring had a number at every eps -- straight sides make \
-             polynomial walls, which take the integral lane's exact per-span rule, the \
-             same reason `twisted_tube` next door can be a loft and a solid at every eps \
-             -- and it is reverted, because the shape a potter draws is round and a demo \
-             bent around the kernel's reporting floor hides the floor. The handle checks by \
+             area. So the CLOSED FORM is the STRAIGHTENED tube — outer radii R0 → R1, a \
+             bore {SPOUT_BORE} of each, the spine length as the height — but the body is \
+             a cubic skin that INTERPOLATES that tube, and the two differ by the loft \
+             fit. So the canal is held, INSIDE THE KERNEL'S OWN CERTIFIED ENCLOSURE, to \
+             its own skin's volume integrated over its own surfaces, and the frustum is \
+             held to that at the fit's scale: {spout_reading}. THE SECTIONS ARE ROUND, SO \
+             THE VOLUME IS AN ENCLOSURE. A circle is RATIONAL, so these lateral walls are \
+             rational patches, and a rational patch is a QUADRATURE face whose enclosure \
+             is chased to a REPORTING target derived from eps; where a tight enough eps \
+             refuses that target on budget, tier 3 still certifies the body on the \
+             enclosure's SIGN, and the reading holds the skin's volume to the bracket the \
+             certificate keeps. The handle checks by \
              Pappus on its own disc. The document says a placement in AXIS-ANGLE and the \
              3-4-5 turn is not a binary-exact angle, so what that costs is MEASURED off \
              the PLACED BODY: the TIP cap, a whole spine-length off the turn's fixed \

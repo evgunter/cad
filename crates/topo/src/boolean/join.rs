@@ -2905,16 +2905,13 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
             b_face: b.0,
             b_kind: b.1.kind(),
         },
-        FrameError::OutsideInventory { conic, section } => {
-            BooleanError::GermSectionOutsideInventory {
-                a_face: a.0,
-                a_kind: a.1.kind(),
-                b_face: b.0,
-                b_kind: b.1.kind(),
-                conic,
-                section,
-            }
-        }
+        FrameError::OpenConic { conic } => BooleanError::GermSectionOpenConic {
+            a_face: a.0,
+            a_kind: a.1.kind(),
+            b_face: b.0,
+            b_kind: b.1.kind(),
+            conic,
+        },
         FrameError::DegenerateTorus {
             convention,
             verdict,
@@ -2967,12 +2964,11 @@ pub(super) enum FrameError {
     /// definitely off the axis, or a cylinder pair whose locus is a
     /// space quartic: skew axes, or intersecting axes at unequal radii).
     NoArm,
-    /// The section is a conic outside the inventory by decision (R1).
-    OutsideInventory {
+    /// The section is an open conic, whose arcs are NURBS carriers the
+    /// Boolean has no crossing layer for.
+    OpenConic {
         /// The conic.
-        conic: geom_brep::OutsideConic,
-        /// The table's refusal, which names it.
-        section: geom_brep::SectionError,
+        conic: geom_brep::OpenConic,
     },
     /// The pair's torus is decided outside its ring convention
     /// (`R > r > 0`): the Boolean's [`BooleanError::DegenerateTorus`],
@@ -3537,9 +3533,9 @@ fn section_refusal(e: geom_brep::SectionError) -> FrameError {
 /// circle's centre and axis; a plane through the apex that dips into
 /// the cone cuts two generators, proved straight. The apex's touching
 /// outcomes under a minted germ are the desync the sphere arm's tangent
-/// point is. A parabola or a hyperbola is out of the conic inventory by
-/// decision (R1), and its refusal carries the table's own naming of the
-/// conic ([`FrameError::OutsideInventory`]).
+/// point is. A parabola or a hyperbola is served by the table in closed
+/// form, its arcs NURBS carriers the Boolean cannot yet cross, so it
+/// refuses naming the conic ([`FrameError::OpenConic`]).
 ///
 /// Read over the cone face's reach ([`FrameExtent::Cone`], the only
 /// extent [`frame_extent`] hands a plane×cone pair); any other extent is
@@ -3574,15 +3570,12 @@ fn pk_germ_frame<T: Decide>(
         ) => Err(FrameError::Desync(
             "germ pair's plane×cone section is not a locus",
         )),
+        Ok(geom_brep::PlaneConeSection::OpenConic(section)) => Err(FrameError::OpenConic {
+            conic: section.conic(),
+        }),
         Ok(_) => Err(FrameError::Desync(
             "plane×cone classification carried a carrier its conic is not",
         )),
-        Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => match e.outside_conic() {
-            Some(conic) => Err(FrameError::OutsideInventory { conic, section: e }),
-            None => Err(FrameError::Desync(
-                "the plane×cone table routed a pair to the general rung naming no conic",
-            )),
-        },
         Err(e) => Err(section_refusal(e)),
     }
 }
@@ -4900,6 +4893,19 @@ fn cut_pair<T: Decide>(
 /// wall b | face). So the sliver, the face's piece across that gap,
 /// lies outside the other solid, and the flush region on the opposite
 /// side.
+///
+/// **Only where the op keeps the sliver.** The output stage then pairs
+/// the slit's two walls across it into one edge
+/// ([`super::slit::merge_slivers`]). Where the op drops it, `side`'s
+/// face flush with the slit's keeps the flush region instead, and the
+/// slit with it: the op keeps one of the two flush faces, and the cut
+/// through the dropped one ends at the slit's tip, which the fate cut
+/// does not read (`fate::cut`). That refuses
+/// [`BooleanError::SlitFaceGlued`] here, before the fate stage.
+///
+/// **A loop whose regions no witness reads** reads its regions' germs
+/// at its seam instead ([`seam_germ_side`]), where a limit met nothing:
+/// a region face narrower than the band holds no point off it.
 fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
@@ -4927,42 +4933,194 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     // a limit either loop's witnesses met still refuses as its own.
     let undecided = |x: &Reading| matches!(x, Reading::Undecided(t) if !t.kept.met_a_limit());
     if undecided(&o) && undecided(&r) {
-        if sliver_along_a_slit(red, side, face, ring)? {
-            r = Reading::Side(SideCode::Out);
-        } else if sliver_along_a_slit(red, side, face, outer)? {
-            o = Reading::Side(SideCode::Out);
+        let found = match sliver_along_a_slit(red, side, face, ring)? {
+            Some(slit) => Some((slit, &mut r)),
+            None => sliver_along_a_slit(red, side, face, outer)?.map(|slit| (slit, &mut o)),
+        };
+        if let Some(((operand, slit_face), reading)) = found {
+            if super::finish::kept_side(red.op, side) != SideCode::Out {
+                return Err(BooleanError::SlitFaceGlued {
+                    operand,
+                    face: slit_face,
+                });
+            }
+            *reading = Reading::Side(SideCode::Out);
+        }
+    }
+    if undecided(&o) && undecided(&r) {
+        for (l, reading) in [(outer, &mut o), (ring, &mut r)] {
+            if let Some(s) = seam_germ_side(body, face, l, other_pristine, band)? {
+                *reading = Reading::Side(s);
+            }
         }
     }
     loop_roles(face, (outer, o), (ring, r))
 }
 
-/// Whether every region face flanking section loop `l` of null face
+/// The other operand's slit or ring, as its operand and carrying face,
+/// where every region face flanking section loop `l` of null face
 /// `face`, on `side`, is a sliver ([`super::slit::sliver_halves`]) along
-/// a slit or ring of the other operand's: both its ends are tips of that
-/// operand's slits in one face ([`slit_tip_on`]), so its one segment is
-/// the slit's line.
+/// it: both its ends are tips of that operand's slits in that one face
+/// ([`slit_tip_on`]), so its one segment is the slit's line.
 fn sliver_along_a_slit<T: Decide>(
     red: &BooleanReduction<T>,
     side: Operand,
     face: FaceKey,
     l: LoopKey,
-) -> Result<bool, BooleanError> {
+) -> Result<Option<(Operand, FaceKey)>, BooleanError> {
     let body = match side {
         Operand::A => &red.a,
         Operand::B => &red.b,
     };
-    let regions = region_faces(body, face, l)?;
-    Ok(!regions.is_empty()
-        && regions.iter().all(|&f| {
-            let Some(halves) = super::slit::sliver_halves(body, f) else {
-                return false;
-            };
-            let tips = halves.map(|h| {
-                body.get_half_edge(h)
-                    .and_then(|d| slit_tip_on(red, side, [d.start]))
+    let mut slit = None;
+    for f in region_faces(body, face, l)? {
+        let Some(halves) = super::slit::sliver_halves(body, f) else {
+            return Ok(None);
+        };
+        let tips = halves.map(|h| {
+            body.get_half_edge(h)
+                .and_then(|d| slit_tip_on(red, side, [d.start]))
+        });
+        match tips {
+            [Some(a), Some(b)] if a == b && a.0 == side.other() && slit.is_none_or(|s| s == a) => {
+                slit = Some(a);
+            }
+            _ => return Ok(None),
+        }
+    }
+    Ok(slit)
+}
+
+/// **The side a section loop's regions leave its seam on**, where no
+/// witness of theirs decides. A chord lies on the other boundary; where
+/// its midpoint lies strictly inside one face `F` of `other`, the
+/// material beside it is the half-space behind `F`, and the region face
+/// `R` the chord's mate bounds leaves the chord along its inward
+/// direction ([`crate::stands::inward`]). `R` crosses no surface of
+/// `other` (probing waits for quiescence), so it lies on the side of
+/// `F` that direction points to: Out where its dot with `F`'s outward
+/// normal is positive, In where negative, read at the chord's length.
+/// Zero is a region flush with `F`, and reads nothing; so does a chord
+/// on a curve, a midpoint that no one face holds strictly inside, or
+/// any margin in band. Every chord that reads is read, so where the
+/// chord walk starts cannot matter.
+///
+/// A planar region face whose rim lies on the other boundary holds no
+/// witness off the band where it is narrower than `2Kε`, and its one
+/// interior candidate may lie in band where it is wider; its germ is the
+/// angle of two carriers that cross. The dihedral's lever door
+/// (`geom_brep::classify_dihedral`) does not serve: it reads `|sin θ|`,
+/// whether two carriers cross, and not which side of one the other
+/// leaves to.
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] where two chords read the
+/// loop's regions on opposite sides: they flank one crossing, so that is
+/// a kernel defect; and the walk's and [`holding_face_normal`]'s own.
+fn seam_germ_side<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    l: LoopKey,
+    other: &Body<T>,
+    band: Band,
+) -> Result<Option<SideCode>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let point = |v: VertexKey| {
+        body.get_vertex(v)
+            .and_then(|vd| body.get_point(vd.point).copied())
+            .ok_or(desync("section vertex has no point"))
+    };
+    let mut side = None;
+    for (mate, region) in region_halves(body, face, l)? {
+        let m = body
+            .get_half_edge(mate)
+            .ok_or(desync("section mate no longer resolves"))?;
+        if !crate::census::edge_is_line(body, m.edge) {
+            continue;
+        }
+        let Ok((_, n_r)) = super::solid_contain::face_plane(body, region) else {
+            continue;
+        };
+        let end = body
+            .half_edge_end(mate)
+            .ok_or(desync("section mate has no end"))?;
+        let (p0, p1) = (point(m.start)?, point(end)?);
+        let len = p0.distance(p1);
+        let into_region = crate::stands::inward(n_r, (p1 - p0) * (T::from_f64(1.0) / len));
+        let Some(n_f) = holding_face_normal(other, p0.lerp(p1, T::from_f64(0.5)), band)? else {
+            continue;
+        };
+        let read = match decide(SEAM_GERM_SIDE, Margin::of(into_region.dot(n_f) * len), band) {
+            Ok(Sign::Positive) => SideCode::Out,
+            Ok(Sign::Negative) => SideCode::In,
+            Ok(Sign::Zero) | Err(_) => continue,
+        };
+        if side.is_some_and(|s| s != read) {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "a section loop's chords read its regions on both sides of the other operand",
             });
-            matches!(tips, [Some(a), Some(b)] if a == b && a.0 == side.other())
-        }))
+        }
+        side = Some(read);
+    }
+    Ok(side)
+}
+
+/// [`seam_germ_side`]'s sign of a region's germ against a face.
+const SEAM_GERM_SIDE: &str = "bool_join_seam_germ_side";
+/// [`holding_face_normal`]'s on-plane margin.
+const SEAM_GERM_ON_PLANE: &str = "bool_join_seam_germ_on_plane";
+
+/// The outward normal at `q` of the one face of `other` that holds `q`
+/// strictly inside ([`super::contain::face_placement`]); `None` where no
+/// face does, two do, or a placement or the normal reads nothing there.
+///
+/// # Errors
+///
+/// [`BooleanError::JoinDesync`] where the holding face no longer
+/// resolves, and [`BooleanError::ClassificationInvariant`] where its
+/// normal reads `q` off the surface its placement put `q` on.
+///
+/// # Panics
+///
+/// On a stale face, as [`super::ops::place_witness`] does.
+fn holding_face_normal<T: Decide>(
+    other: &Body<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<Vec3<T>>, BooleanError> {
+    use super::contain::{CurvedPlacement, FaceContainment, PlacementError};
+    let mut held = None;
+    for (f, _) in other.faces() {
+        match super::contain::face_placement(other, f, q, band, SEAM_GERM_ON_PLANE) {
+            Ok(CurvedPlacement::Trim(Some(FaceContainment::In))) => {
+                if held.replace(f).is_some() {
+                    return Ok(None);
+                }
+            }
+            Ok(CurvedPlacement::OffCarrier | CurvedPlacement::Trim(Some(FaceContainment::Out))) => {
+            }
+            Err(PlacementError::Door(super::ContainError::StaleFace(face))) => {
+                super::contain::driver_face_stale(face)
+            }
+            Ok(CurvedPlacement::Trim(_)) | Err(_) => return Ok(None),
+        }
+    }
+    let Some(held) = held else {
+        return Ok(None);
+    };
+    match crate::face_normal::face_outward_normal_at(other, held, q, band) {
+        Ok(Some(n)) => Ok(Some(n.vec())),
+        Ok(None) => Err(BooleanError::JoinDesync {
+            what: "the face holding a section chord no longer resolves",
+        }),
+        Err(crate::face_normal::NormalAtError::OffSurface) => {
+            Err(BooleanError::ClassificationInvariant {
+                what: "a section chord's holding face reads it off the surface it was placed on",
+            })
+        }
+        Err(_) => Ok(None),
+    }
 }
 
 /// The (IN, OUT) loop order from each loop's ladder reading. Either
@@ -4983,14 +5141,15 @@ fn sliver_along_a_slit<T: Decide>(
 ///
 /// **Neither deciding** is the ladder's frontier, refused
 /// [`SplitJoinError::SectionLoopUndecided`]: every witness of both
-/// loops' regions read the other boundary or too near it. A crossing's
-/// two flanks can both do that only where no region face offers an
-/// interior witness off it: a curved face
-/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`),
-/// or a planar face on each of whose edges the inward line from the
-/// midpoint meets no line or conic carrier beyond the band
-/// (`crate::stands`, rung 3): for example one whose nearest boundary
-/// there is a spline or a spiric, or one narrower than the band.
+/// loops' regions read the other boundary or too near it, and no chord
+/// read a germ ([`seam_germ_side`]). A crossing's two flanks can both do
+/// that only where no region face offers an interior witness off it.
+/// One such face is curved
+/// (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
+/// Another is planar, with an inward line from each edge's midpoint that
+/// meets no line or conic carrier beyond the band (`crate::stands`,
+/// rung 3), such as one whose nearest boundary there is a spline or a
+/// spiric.
 /// No in-band reading is named as the cause: it is about one point. A
 /// witness refused near a face the door cannot read is, as it is for a
 /// shell ([`super::shell_witness`]).
@@ -5029,6 +5188,23 @@ fn region_faces<T: Decide>(
     face: FaceKey,
     l: LoopKey,
 ) -> Result<Vec<FaceKey>, BooleanError> {
+    let mut out: Vec<FaceKey> = Vec::new();
+    for (_, region) in region_halves(body, face, l)? {
+        if !out.contains(&region) {
+            out.push(region);
+        }
+    }
+    Ok(out)
+}
+
+/// Each half-edge of section loop `l` of null face `face` as its mate
+/// and the region face that mate bounds, in loop order; a mate on `face`
+/// itself is left out.
+fn region_halves<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    l: LoopKey,
+) -> Result<Vec<(HalfEdgeKey, FaceKey)>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let LoopBoundary::Cycle { first } = body
         .get_loop(l)
@@ -5037,7 +5213,7 @@ fn region_faces<T: Decide>(
     else {
         return Err(desync("completed section loop is empty"));
     };
-    let mut out: Vec<FaceKey> = Vec::new();
+    let mut out = Vec::new();
     for ch in body
         .loop_cycle(first)
         .ok_or(desync("completed section loop not walkable"))?
@@ -5047,12 +5223,12 @@ fn region_faces<T: Decide>(
             .get_half_edge(mate)
             .ok_or(desync("section mate no longer resolves"))?
             .parent_loop;
-        let region_face = body
+        let region = body
             .get_loop(region_loop)
             .ok_or(desync("region loop no longer resolves"))?
             .face;
-        if region_face != face && !out.contains(&region_face) {
-            out.push(region_face);
+        if region != face {
+            out.push((mate, region));
         }
     }
     Ok(out)
@@ -6768,7 +6944,7 @@ mod frame_dispatch_tests {
             Err(FrameError::NoArm) => "NoArm",
             Err(FrameError::Desync(_)) => "a desync",
             Err(FrameError::Escalated { .. }) => "an escalation",
-            Err(FrameError::OutsideInventory { .. }) => "a conic outside the inventory",
+            Err(FrameError::OpenConic { .. }) => "an open conic",
             Err(FrameError::Spiric { .. }) => "a general spiric",
             Err(FrameError::DegenerateTorus { .. }) => "a torus off its ring convention",
         }

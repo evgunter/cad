@@ -19,7 +19,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use editor_core::{
     BooleanValue, CancelToken, DocumentId, EvalOptions, Evaluation, Frame, Node, NodeResult,
     ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
@@ -129,7 +128,6 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body)
@@ -237,7 +235,7 @@ fn a_lone_multi_solid_source_is_named() {
     let o = with_resolver(store);
     let (doc, source) = fixture::insert_pinned(
         ProfileDoc::empty(DocumentId::derive("per-part-3-a"), Tol::witness()),
-        Node::instantiate_part(b),
+        crate::fixture::mated_instance(b),
         &o,
     );
     let mut ev = fixture::run(&doc, &o);

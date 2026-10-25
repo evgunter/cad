@@ -13,8 +13,8 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::{
-    EntityKey, EntityKind, EvalOptions, ExtrudeSide, LoopProgram, NameRef, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, StableName,
+    EntityKey, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use fixture::{len, minted, on_frame, table, tol};
 use topo::Body;
@@ -23,30 +23,33 @@ use topo::Body;
 const A: f64 = 0.006;
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol())
-        .expect("closed-form mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("closed-form mass properties")
+    .volume
 }
 
 fn extrude(profile: RecipeNodeId, distance: f64) -> editor_core::AuthoredNode {
     Node::Extrude {
         profile: profile.into(),
         distance: len(distance),
-        side: ExtrudeSide::Along,
     }
 }
 
 /// A round profile of radius [`A`] at `(y, z)` on the plane `x = x0`,
-/// extruded `length` along `x`.
-fn rod(doc: ProfileDoc, x0: f64, (y, z): (f64, f64), length: f64) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = fixture::insert(
-        doc,
-        fixture::frame([x0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
-    );
+/// extruded `length` along `x`, placed against `target`: the placement.
+fn rod(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    x0: f64,
+    (y, z): (f64, f64),
+    length: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(y), len(z)],
                 radius: len(A),
@@ -54,7 +57,13 @@ fn rod(doc: ProfileDoc, x0: f64, (y, z): (f64, f64), length: f64) -> (ProfileDoc
             ids: Vec::new(),
         }),
     );
-    fixture::insert(doc, extrude(p, length))
+    let (doc, rod) = fixture::insert(doc, extrude(p, length));
+    fixture::against(
+        doc,
+        target,
+        rod,
+        &fixture::axes_at([x0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+    )
 }
 
 /// The unit block.
@@ -73,7 +82,7 @@ fn block(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
 fn bored_block() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("blind_bore", tol());
     let (doc, block) = block(doc);
-    let (doc, bore) = rod(doc, -0.1, (0.988, 0.988), 0.6);
+    let (doc, bore) = rod(doc, block, -0.1, (0.988, 0.988), 0.6);
     fixture::insert(
         doc,
         Node::Subtract {
@@ -89,12 +98,13 @@ fn pinned_die() -> (ProfileDoc, RecipeNodeId) {
     let (doc, block) = block(doc);
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, 0.5],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.25, 0.25), (0.75, 0.25), (0.75, 0.75), (0.25, 0.75)]],
     );
     let (doc, pocket) = fixture::insert(doc, extrude(p, 1.0));
+    let (doc, pocket) = fixture::slid(doc, block, pocket, [0.0, 0.0, 0.5]);
     let (doc, die) = fixture::insert(
         doc,
         Node::Subtract {
@@ -102,7 +112,7 @@ fn pinned_die() -> (ProfileDoc, RecipeNodeId) {
             tool: pocket.into(),
         },
     );
-    let (doc, pin) = rod(doc, 0.1, (0.262, 0.512), 0.4);
+    let (doc, pin) = rod(doc, block, 0.1, (0.262, 0.512), 0.4);
     fixture::insert(
         doc,
         Node::Union {

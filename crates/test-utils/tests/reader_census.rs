@@ -316,6 +316,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // token construction sites, code view
     },
     Entry {
+        path: "crates/sweep/src/lib.rs",
+        disposition: Shared, // caller's re-description door call census, code view
+    },
+    Entry {
         path: "crates/sweep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },

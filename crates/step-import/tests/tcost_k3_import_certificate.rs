@@ -137,6 +137,9 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
         ),
     };
 
+    // Validated outside the count: tier 3 measures the volume too, and
+    // the count is of the one measurement.
+    let body = topo::test_support::finished("the measured body", body.clone(), tol);
     let mut measured = None;
     let one = quad_verdicts(|| measured = Some(topo::mass_properties(&body, tol)));
     let measured = measured.expect("the closure ran").expect(

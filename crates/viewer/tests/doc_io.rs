@@ -11,7 +11,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 
 use pncad::document::SlotId;
 use pncad::geom_core::Tol;
@@ -249,11 +248,7 @@ fn a_gallery_document_opens_evaluates_and_saves_back() {
     session.pump();
 
     let rows = session.tree_rows();
-    assert_eq!(
-        rows.len(),
-        4,
-        "sketch frame, profile, revolve and its placement"
-    );
+    assert_eq!(rows.len(), 3, "profile, revolve and its placement");
     assert!(
         !viewer::tree::has_faults(&rows),
         "a gallery document evaluates clean: {:?}",
@@ -325,14 +320,12 @@ fn overlapping_copies_still_draw_and_land_a_finding() {
     let mut doc = pncad::document::Doc::empty_derived("gui-overlap", tol);
     let mut copies = Vec::new();
     for _ in 0..2 {
-        let plane = common::insert_into(&mut doc, common::xy_frame(), tol);
-        let profile = common::insert_into(&mut doc, common::square(plane, 1.0), tol);
+        let profile = common::insert_into(&mut doc, common::square(1.0), tol);
         let extrude = common::insert_into(
             &mut doc,
             pncad::document::Node::Extrude {
                 profile: profile.into(),
                 distance: common::len(1.0),
-                side: ExtrudeSide::Along,
             },
             tol,
         );

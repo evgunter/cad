@@ -4,7 +4,7 @@ kind: issue
 title: a refused A5 gate consumes the landing's body, so the display fit gathers that document again
 status: open
 opened: 2026-09-05
-priority: P1
+priority: P4
 cost: D
 ---
 
@@ -58,3 +58,7 @@ halves: the gather succeeded (`product_fault` is `None`) and the body
 is gone. So this item is about the COST, not about an untested
 branch — when editor-core's door changes, that row is what says the
 body came back.
+
+## 2026-10-21 — re-banded
+
+P1 → P4. A one-off cost on a rare path (a refused A5 gate), with no behaviour wrong and the fix on editor-core's ground.

@@ -51,8 +51,11 @@ fn certifies_exactly(name: &str) {
     };
     topo::validate_geometric(&body, Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must pass tier 3: {e:?}"));
-    let mp = topo::mass_properties(&body, Tol::witness())
-        .unwrap_or_else(|e| panic!("{name} must measure: {e:?}"));
+    let mp = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{name} must measure: {e:?}"));
     assert_eq!(
         mp.volume_pad, 0.0,
         "{name}: the closed-form lane's pad is 0"

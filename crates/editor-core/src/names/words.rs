@@ -18,7 +18,7 @@
 //! - **A join** is a carry through a read the body joins ([`RoleSeg::From`]),
 //!   said with its node, outermost first: a subtract's tool as "…, cut
 //!   in at Subtract 1669", a union's or an intersect's member as "…,
-//!   joined at Union d1aa from Transform 3218", "…, intersected at
+//!   joined at Union d1aa from Place 3218", "…, intersected at
 //!   Intersect 77c1 from Extrude e548". A carry through a subtract's
 //!   `from` or a blend's or shell's target is the body's own
 //!   continuation and is silent. By tag, or where the document does not

@@ -2,10 +2,11 @@
 id: frame-from-unit-aim-takes-perp-and-its-norm-as-an-unverifiable-pair
 kind: issue
 title: frame_from_unit_aim takes perp and cross_len as a pair the callee cannot verify — a witness for 'this length is that vector's norm' is the next shape
-status: open
+status: closed
 opened: 2026-09-15
 priority: P1
 cost: E
+closed: 2026-10-21
 ---
 
 
@@ -49,3 +50,7 @@ quantity and its divide being two evaluations of one expression rather
 than one. PROPS' ground; filed rather than changed because the filing
 unit was pinned to bit-identity and that D9 argument is this row's
 owner's to make.
+
+## Closed
+
+2026-10-21, FRAME orchestrator. Answered by the shape this row called narrower: `frame_from_unit_aim` is gone, and its successor `RigidMotion::from_aim(origin, aim, perp_raw, site, band)` (`geom-core/src/linalg/rigid_motion.rs`) takes `perp` alone and decides and divides it itself through `UnitVec3::new`, so no `(perp, cross_len)` pair crosses the boundary. `point_at` and `path_start_frame` both call it.

@@ -332,21 +332,20 @@ fn a_split_at_the_pole_carries_a_reset() {
     split_at_the_pole::<Interval>("Interval");
 }
 
-/// **Near a pole, the face description refuses before it reads a
-/// winding it cannot trust.** The half cap's meridian split `c·K·ε` off
-/// the pole puts a joint there, and `chart_boundary` reads each face's
-/// loops at the split body:
-/// - `c = 0`: on the pole, refused as a singular joint (the room fence
-///   behind it would refuse too, as a different finding);
+/// **Near a pole, the loop windings refuse before they read a winding
+/// they cannot trust.** The half cap's meridian split `c·K·ε` off the
+/// pole puts a joint there, and `loop_windings` reads each face's loops
+/// at the split body:
+/// - `c = 0`: on the pole, a loop reported singular, its winding unread;
 /// - `c = 0.5`: within the band of the pole (`singular_at` undecided),
-///   refused as a singular joint, never let through to the winding;
+///   refused as escalated, never let through to the winding;
 /// - `c = 2`: off the pole, but the chord two of the joint's chart ends
 ///   would span a quarter period apart, `√2·(2·K·ε − 2ε)`, is not past
 ///   four times the band, so a mark there may have named the other
 ///   sheet: refused for want of room;
 /// - `c = 4`: the room is past it, so the joint's integer is the joint's
-///   own and the description reads the winding, which goes through the
-///   twin (`LoopWraps`).
+///   own and the winding is read, which goes through the twin: a loop
+///   whose lift does not close.
 ///
 /// The body itself reads clean at rest in all four.
 fn near_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
@@ -355,7 +354,7 @@ fn near_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
     let k_eps = tol.k() * tol.eps();
     for (c, want) in [
         (0.0, "singular"),
-        (0.5, "singular"),
+        (0.5, "escalated"),
         (2.0, "room"),
         (4.0, "wraps"),
     ] {
@@ -367,11 +366,12 @@ fn near_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
         );
         for (face, record) in body.faces() {
             let chart = body.get_surface(record.surface).unwrap().clone();
-            let read = topo::pcurves::chart_boundary(&body, face, &chart, band);
+            let read = topo::pcurves::loop_windings(&body, face, &chart, band);
             let got = match read {
-                Err(topo::PcurveMintError::SingularChartJoint { .. }) => "singular",
+                Ok(ref loops) if loops.iter().any(|w| w.singular) => "singular",
+                Err(topo::PcurveMintError::Escalated { .. }) => "escalated",
                 Err(topo::PcurveMintError::JointWithoutRoom { .. }) => "room",
-                Err(topo::PcurveMintError::LoopWraps { .. }) => "wraps",
+                Ok(ref loops) if loops.iter().any(|w| !w.zero) => "wraps",
                 other => panic!("{lane} c = {c}: {face:?} reads {other:?}"),
             };
             assert_eq!(got, want, "{lane} c = {c}: {face:?}");
@@ -380,7 +380,7 @@ fn near_the_pole<T: Real + SpanLocate + AtRestPolicy + Bounds>(lane: &str) {
 }
 
 #[test]
-fn near_a_pole_the_description_refuses_before_the_winding() {
+fn near_a_pole_the_windings_refuse_before_the_winding() {
     near_the_pole::<f64>("f64");
     near_the_pole::<Interval>("Interval");
 }

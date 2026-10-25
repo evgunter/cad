@@ -2,10 +2,12 @@
 id: cone-nappe-is-decided-in-five-places
 kind: issue
 title: which nappe of a cone a face or point lies on is decided by five predicates in four files — one fact, five spellings, none reconciled
-status: open
+status: parked
 opened: 2026-09-08
 priority: P1
-cost: D
+cost: H
+design: true
+blocked_on: [5500, 5674]
 ---
 
 
@@ -79,3 +81,67 @@ when the cone face's flux and area got one home,
 Blind spot: a nappe read through a sign of `(p − apex)·axis` that is
 not passed to a named predicate (a bare comparison, or a `copysign`)
 is not matched by this sweep.
+
+## Moved by CHART (2026-10-24)
+
+Branch `chart/ringed-curved-doors` (PR 5664) deletes
+`bool_cone_trim_nappe` and `bool_cone_trim_side` with the cone chart
+trim, and `bool_cone_apex_nappe` with `cone_apex_closure`. Its region
+reading, `topo::boolean::ruled_region`, decides which nappe a POINT lies
+on under one name, `bool_ruled_region_nappe`, at four sites, each the
+sign of `(y − apex)·â`:
+
+- `RuledFaceRegion::nappe`: the query's, and a generator's target from
+  the apex;
+- `RuledFaceRegion::reaches_nappe`: a conic edge's middle, a line edge's
+  two ends;
+- `RuledFaceRegion::landings`: a conic's root on a ruling leg's meridian
+  plane.
+
+The ray lane's cone arm reads a hit's nappe under `bool_ray_cone_nappe`.
+
+Routing these through `offset_nappe::face_nappe_reading` was weighed in
+PR 5664's review and does not fit. That door answers a FACE's nappe and
+refuses a face whose corners straddle the apex. The region reads a
+point's nappe on faces that may reach both nappes, and its own answers
+must hold there. So these sites join the per-point granularity this row
+already names: the count moved, but the row is not settled.
+
+## Re-census (PRED orchestrator, 2026-10-25, main `2d5677e1`)
+
+There are now fourteen named sites in ten files, and no agreement test
+between any two predicates (`sweep/tests/shell6_nappe_home.rs` pins the
+offset doors against each other only).
+
+| granularity | names |
+| --- | --- |
+| face | `offset_nappe`; `props_cone_nappe` |
+| vertex or window end | `offset_apex_nappe` |
+| edge | `props_cone_ellipse_nappe` |
+| point | `pcurve_cone_chart_nappe` ×4; `pcurve_projected_nappe`; `chart_point_cone_nappe` (geom); `split_ring_path_nappe`; `bool_cone_root_nappe`; `bool_ray_cone_nappe`; `bool_ruled_region_nappe` ×3 |
+
+The per-point sites differ in what they do in band:
+- `chart_point_cone_nappe` folds `Err(_)` into the opening nappe;
+- `split_ring_path_nappe` charges slack;
+- `ruled_region` escalates (`decide_nonzero`).
+
+That difference is the row's real content: whether one point-granularity
+home can serve both the escalating and the folding dispositions is a
+design question.
+
+Parked on two open PRs that rewrite sites here. PR 5500 (PCERT) moves
+`pcurve_cone_chart_nappe` to `decide_reported`, and PR 5674 (CHART)
+restructures `ruled_region`. A unit built before both merge would be
+rebuilt.
+
+## Sweep note (PRED `D292` lane, 2026-10-25)
+
+`crates/geom-brep/src/props/curved.rs`, `require_cone_ellipse`, decides
+`props_cone_ellipse_nappe` on `h_low`: the least over 128 pieces of a
+per-piece lower bound on `|(P(t) − apex)·â|`, a SAMPLED directional
+extent of the ellipse arc along the cone's axis. The exact extent now
+has a door, `geom::curves::boxes::conic_arc_extent_along(carrier, t0,
+t1, apex, axis)`, and `lo.max(-hi)` of it is the arc's least `|h|`
+wherever that is positive — the nappe question this row is about. The
+per-piece `|h|` stays needed there for the elevation bound's
+denominator; only the nappe decision could read the door.

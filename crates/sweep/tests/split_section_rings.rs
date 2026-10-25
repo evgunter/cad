@@ -54,7 +54,12 @@ fn rings(half: &Body<f64>) -> usize {
 }
 
 fn volume(half: &Body<f64>) -> f64 {
-    topo::mass_properties(half, tol()).unwrap().volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(half), tol()),
+        tol(),
+    )
+    .unwrap()
+    .volume
 }
 
 /// **A bore the plane crosses all round is a ring of the one section
@@ -232,7 +237,16 @@ fn a_bored_brick_splits_at_every_tilt_and_offset() {
                 // A tilted ellipse wall's quadrature may escalate at a
                 // tight ε (`props_quad_converged`); that pose's volume is
                 // then not read, and the count below says how many were.
-                let volumes = [&below, &above].map(|h| topo::mass_properties(h, tol()));
+                let volumes = [&below, &above].map(|h| {
+                    topo::mass_properties(
+                        &topo::test_support::finished(
+                            "the measured body",
+                            topo::Body::clone(h),
+                            tol(),
+                        ),
+                        tol(),
+                    )
+                });
                 let quadrature = |r: &Result<topo::MassProperties<f64>, topo::MassPropsError>| {
                     matches!(
                         r,
@@ -629,7 +643,12 @@ fn a_plane_through_a_notch_tip_splits_exactly() {
     let second = [(0.5, 4.5), (1.0, 2.0), (1.5, 4.5)].map(|(x, y)| Point2::new(x, y));
     let two = cut("second notch", &v, &prism(&second, -1.0, 3.0));
     for (name, body) in [("one notch", &v), ("two notches", &two)] {
-        let whole = mass_properties(body, tol()).unwrap().volume;
+        let whole = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume;
         if name == "one notch" {
             // The notch's part inside the block is the triangle
             // (4/3, 4) (2, 2) (8/3, 4), area 4/3, two high.
@@ -1462,7 +1481,13 @@ fn a_split_across_a_ringed_wall_mints_each_segment_on_one_curve() {
     }
     let pocket =
         2.0 * half * ((half * (1.0 - half * half).sqrt() + half.asin()) - 2.0 * half * 0.5);
-    let [pb, pa] = [&below, &above].map(|h| mass_properties(h, tol()).unwrap());
+    let [pb, pa] = [&below, &above].map(|h| {
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(h), tol()),
+            tol(),
+        )
+        .unwrap()
+    });
     let total = pb.volume + pa.volume;
     assert!(
         (total - (2.0 * PI - pocket)).abs() <= pb.volume_pad + pa.volume_pad,

@@ -17,11 +17,11 @@
 
 use crate::fixture;
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Evaluation, ExtrudeSide,
-    Frame, Node, NodeResult, ProfileDoc, RecipeNodeId, evaluate,
+    CancelToken, CapEnd, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, NodeResult,
+    ProfileDoc, RecipeNodeId, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{at_the_door, insert, len, on_frame, on_pool, square};
+use fixture::{insert, len, on_frame, on_pool, square};
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, Probe};
 
@@ -38,22 +38,26 @@ fn bits(s: &MarginSample) -> Sample {
     )
 }
 
-/// A block: a square of half-side `half` on a frame at `at`, extruded
-/// `height` along +z.
-fn block(doc: ProfileDoc, at: [f64; 3], half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
+/// A block: a square of half-side `half` about `(cx, cy)` on its own
+/// xy, extruded `height` up its own z.
+fn block(
+    doc: ProfileDoc,
+    (cx, cy): (f64, f64),
+    half: f64,
+    height: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
-        at,
+        [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, half)],
+        vec![square(cx, cy, half)],
     );
     insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -63,7 +67,7 @@ fn block(doc: ProfileDoc, at: [f64; 3], half: f64, height: f64) -> (ProfileDoc, 
 fn stored_part(label: &str) -> (EvalOptions, DocRef, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut store = PartStore::new();
-    let (doc_ref, body) = store.insert_part(block(doc, [0.0; 3], 0.5, 1.0), Tol::witness());
+    let (doc_ref, body) = store.insert_part(block(doc, (0.0, 0.0), 0.5, 1.0), Tol::witness());
     (with_resolver(store), doc_ref, body)
 }
 
@@ -74,7 +78,8 @@ enum Rest {
     /// Each pinned at the identity too.
     Pinned,
     /// The second placed by a rest of its bottom cap on the first's
-    /// top cap, so the solve reads the part (its faces' poses).
+    /// top cap, the freedoms it leaves written 0, so the solve reads
+    /// the part (its faces' poses).
     Mated,
 }
 
@@ -92,15 +97,11 @@ fn assembly(
 ) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     if lead {
-        doc = block(doc, [3.0, 0.0, 0.0], 0.3, 0.7).0;
+        doc = block(doc, (3.0, 0.0), 0.3, 0.7).0;
     }
     let mut ids = Vec::new();
-    for i in 0..n {
-        let node = match (i, rest) {
-            (0, _) | (_, Rest::Pinned) => Node::instantiate_part(*part),
-            (_, Rest::Mated) => fixture::mated_instance(*part),
-        };
-        let (next, id) = insert(doc, node);
+    for _ in 0..n {
+        let (next, id) = insert(doc, fixture::mated_instance(*part));
         doc = next;
         ids.push(id);
     }
@@ -108,11 +109,8 @@ fn assembly(
         let mate = fixture::rest(
             fixture::head(in_part(ids[1], *body, CapEnd::Start)),
             fixture::head(in_part(ids[0], *body, CapEnd::End)),
-            ContactClass::Rest,
         );
-        doc = at_the_door(&doc, mate)
-            .unwrap_or_else(|(_, fault)| panic!("the door admits the mate: {fault}"))
-            .0;
+        doc = fixture::constrain(doc, mate).0;
     }
     doc
 }
@@ -168,7 +166,7 @@ fn the_part_leads(label: &str, n: usize, rest: Rest) -> (Vec<Sample>, usize) {
     let bare = assembly(&format!("{label}-bare"), false, &part, n, rest);
     let lead = block(
         ProfileDoc::empty(DocumentId::derive(&format!("{label}-lead")), Tol::witness()),
-        [3.0, 0.0, 0.0],
+        (3.0, 0.0),
         0.3,
         0.7,
     )
@@ -207,7 +205,7 @@ fn a_part_instanced_three_times_is_entered_once_ahead_of_every_node() {
 fn stored_block(store: &mut PartStore, label: &str, half: f64, height: f64) -> DocRef {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     store
-        .insert_part(block(doc, [0.0; 3], half, height), Tol::witness())
+        .insert_part(block(doc, (0.0, 0.0), half, height), Tol::witness())
         .0
 }
 
@@ -226,7 +224,7 @@ fn a_nested_assembly_records_the_serial_walks_sequence_under_the_parallel_map() 
     let leaf = stored_block(&mut store, &format!("{label}-leaf"), 0.5, 1.0);
     let other = stored_block(&mut store, &format!("{label}-other"), 0.4, 0.6);
     let mid = ProfileDoc::empty(DocumentId::derive(&format!("{label}-mid")), Tol::witness());
-    let (mid, _) = insert(mid, Node::instantiate_part(leaf));
+    let (mid, _) = insert(mid, crate::fixture::mated_instance(leaf));
     let (mid, apart) = insert(mid, fixture::mated_instance(leaf));
     let mid = fixture::pin(
         mid,
@@ -237,9 +235,9 @@ fn a_nested_assembly_records_the_serial_walks_sequence_under_the_parallel_map() 
     let mid = store.insert(mid, Tol::witness());
     let opts = with_resolver(store);
     let mut top = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    top = block(top, [3.0, 0.0, 0.0], 0.3, 0.7).0;
+    top = block(top, (3.0, 0.0), 0.3, 0.7).0;
     for part in [mid, leaf, other, mid, leaf, other] {
-        top = insert(top, Node::instantiate_part(part)).0;
+        top = insert(top, crate::fixture::mated_instance(part)).0;
     }
     let (serial_ev, serial) = recorded(&top, &opts, false);
     assert_eq!(

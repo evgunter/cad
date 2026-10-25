@@ -700,11 +700,9 @@ pub use stl::{
 // what a document stores; a node an edit carries is an `AuthoredNode`.
 // The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
-// surface (`crate::document`). `Datum` and `VarEnv` ride here
-// because a datum node is the frame a
-// `GeomPred::DatumDistance` selection is written against, and
-// `select_where` takes a `VarEnv`, so both are needed to write a
-// position filter at all.
+// surface (`crate::document`). `VarEnv` rides here because
+// `select_where` takes one, so it is needed to write a position filter
+// at all.
 // `VarName`, `FreeVar` and `VarDecl` ride here because they are what
 // `DocEdit::DeclareVar` and `Formula::named` take, and `VarDef` because it
 // is what a document's variable reads back as, so a prelude user
@@ -720,8 +718,8 @@ pub use stl::{
 // read out of a file gets. `VarNameFault` is the same thing for
 // `VarName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
-    AuthoredNode, CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation,
-    Expr, FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
+    AuthoredNode, CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
+    FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
     PatternKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
     RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDecl,
     VarDef, VarEnv, VarName, VarNameFault, apply, evaluate, parse_formula, unparse,
@@ -736,14 +734,14 @@ pub use editor_core::{NameTextError, StableName};
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
 pub use crate::select::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
-    CurveKind, CurveKindSet, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
-    PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    RunLine, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense,
-    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, denotation, edge_carrier_kind, edge_frame, edge_name,
-    face_carrier_kind, face_frame, face_name, select, select_where, vertex_position,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactFinding, ContactRefusal, ContactVerdict, CurveKind,
+    CurveKindSet, DeclaredContact, Denotation, EntityKind, GeomPred, GlueClass, InterrogateError,
+    MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, PieceRun, Pose,
+    ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, RunLine,
+    SEL_PLANE_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
+    SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    attribute, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame,
+    face_name, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

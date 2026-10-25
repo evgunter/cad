@@ -59,15 +59,9 @@ use editor_core::{
 use geom_core::{Point2, Tol};
 use profile::{Open, Start, Step};
 
-/// Every document below is a frame and then the profile drawn on it:
-/// the frame's id, as the insert door mints it into the empty document.
-fn plane() -> RecipeNodeId {
-    fixture::insert(empty(), fixture::xy_frame()).1
-}
-
-/// The profile of a document [`doc_of`] built: its second node.
+/// The profile of a document [`doc_of`] built: its one node.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.ids()[1]
+    doc.ids()[0]
 }
 
 fn empty() -> ProfileDoc {
@@ -143,21 +137,14 @@ fn doc_of(program: LoopProgram<Formula>) -> ProfileDoc {
 }
 
 /// The same document as its edit log, for the save/load row.
-fn edits_of(program: LoopProgram<Formula>) -> [DocEdit<ProfileProgram>; 2] {
-    [
-        DocEdit::InsertNode {
-            node: Box::new(fixture::xy_frame()),
-            fresh: Vec::new(),
-        },
-        DocEdit::InsertNode {
-            node: Box::new(Node::Profile(ProfileProgram {
-                frame: plane().into(),
-                loops: vec![program],
-                ids: Vec::new(),
-            })),
-            fresh: Vec::new(),
-        },
-    ]
+fn edits_of(program: LoopProgram<Formula>) -> [DocEdit<ProfileProgram>; 1] {
+    [DocEdit::InsertNode {
+        node: Box::new(Node::Profile(ProfileProgram {
+            loops: vec![program],
+            ids: Vec::new(),
+        })),
+        fresh: Vec::new(),
+    }]
 }
 
 fn slot(doc: &ProfileDoc, step: u32, arg: StepArg) -> ExprPath {
@@ -348,12 +335,10 @@ fn two_notations_of_one_leg_are_one_program_and_one_geometry() {
         "the two recordings really do say different things about their notation"
     );
     let a = ProfileProgram {
-        frame: plane().into(),
         loops: vec![millimetres.clone()],
         ids: Vec::new(),
     };
     let b = ProfileProgram {
-        frame: plane().into(),
         loops: vec![metres.clone()],
         ids: Vec::new(),
     };

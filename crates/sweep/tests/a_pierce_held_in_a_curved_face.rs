@@ -15,12 +15,11 @@
 //! - **A plane face holds it over a curved pierced face**: two prisms,
 //!   one's edge lying in the other's side face, joined, and a lying
 //!   cylinder whose top that edge pierces.
-//! - **A wall whose trim cannot be read there**: the joined rod and
-//!   square pocketed beside the point, so the wall carries the pocket's
-//!   ring, which the cylinder's trim does not read. The point may lie
-//!   in the face, so nothing is guessed: the plate against it refuses
-//!   `HeldPierceUnbuilt` typed, either operand first, and pocketing
-//!   after the join builds.
+//! - **A ringed wall holds it**: the joined rod and square pocketed
+//!   beside the point, so the wall carries the pocket's ring, which the
+//!   wall's region reads with its outer loop
+//!   (`topo::boolean::ruled_region`). The plate against it builds,
+//!   either operand first, and so does pocketing after the join.
 //! - **A wall the ruling pierces twice**: the joined rod and square
 //!   against a slab whose two faces the ruling pierces inside the wall.
 //!   Both points are read before either is minted, so every op and
@@ -53,7 +52,7 @@ use core::f64::consts::PI;
 use geom_core::{Point2, Point3, Tol};
 use sweep::test_support::{brick, corners, finished, prism_at};
 use sweep::{ExtrudeSide, Extrusion, extrude};
-use topo::{AtRestBody, BooleanError, BooleanErrorKind, BooleanResult};
+use topo::{AtRestBody, BooleanResult};
 
 /// The rod's radius and axis.
 const R: f64 = 0.4;
@@ -72,8 +71,8 @@ const RC: f64 = 2.0;
 /// in-solid walk reads every probe of every body. Over `LYING_WHOLE` it
 /// runs past both either way, and each leaves a ring: the walk leaves
 /// the bodies' outside unread there (`VolumeUncertified`), and a fold
-/// that rings the wall before the second prism comes refuses where that
-/// prism's edge crosses the ringed wall (`CurvedPierceUnsupported`).
+/// that rings the wall before the second prism comes reads that prism's
+/// edge against the ringed wall's region.
 const LYING_CAPPED: (f64, f64) = (1.47, 3.0);
 const LYING_WHOLE: (f64, f64) = (0.5, 3.0);
 /// The plate.
@@ -516,18 +515,16 @@ fn every_op(
 /// each step's records serve the next, so tier 3′ reads every contact
 /// the fold made. Each order builds a body [`sound`] against `holds` and
 /// `volume`, `read_pct`% of the probes read, that passes tier 3′, or
-/// where `curved` refuses only [`curved_unread`]; or refuses at a step
-/// the kind `refuses` names for its order.
+/// where `curved` refuses only [`curved_unread`].
 fn every_order(
     what: &str,
     members: &[AtRestBody<f64>],
     holds: &dyn Fn([f64; 3]) -> bool,
     volume: f64,
     read_pct: usize,
-    refuses: &dyn Fn(&[usize]) -> Option<BooleanErrorKind>,
     curved: bool,
 ) {
-    'order: for order in topo::test_support::meeting::orders(members.len()) {
+    for order in topo::test_support::meeting::orders(members.len()) {
         let what = format!("{what}, member order {order:?}");
         let mut body = members[order[0]].clone();
         let mut carried = topo::OperandRecords::default();
@@ -537,26 +534,21 @@ fn every_order(
                 records_a: carried,
                 ..topo::BooleanInputs::default()
             };
-            let r = match (
-                topo::boolean_op_with(
-                    topo::BooleanOp::Union,
-                    &body,
-                    &members[i],
-                    &inputs,
-                    topo::SweepStrategy::Realized,
-                    tol(),
-                ),
-                refuses(&order),
+            let r = match topo::boolean_op_with(
+                topo::BooleanOp::Union,
+                &body,
+                &members[i],
+                &inputs,
+                topo::SweepStrategy::Realized,
+                tol(),
             ) {
-                (Err(e), Some(want)) if e.kind() == want => continue 'order,
-                (Ok(BooleanResult::Body(r)), _) => r,
-                (other, want) => panic!("{what}: step {k}: {other:?}, where it refuses {want:?}"),
+                Ok(BooleanResult::Body(r)) => r,
+                other => panic!("{what}: step {k}: {other:?}"),
             };
             carried = r.contacts.carried();
             body = r.body.clone();
             last = Some(r);
         }
-        assert!(refuses(&order).is_none(), "{what}: built where it refuses");
         let r = last.expect("at least two members");
         sound(&what, &r.body, holds, volume, read_pct);
         let errors = topo::validate_pseudomanifold(&r.body, &r.contacts, tol())
@@ -634,7 +626,6 @@ fn a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order() {
             &|q| in_pair(q) || in_plate(q),
             6.0 + rod_volume + sq_volume - common,
             99,
-            &|_| None,
             false,
         );
     }
@@ -647,9 +638,8 @@ fn a_cylinder_wall_holding_the_pierce_builds_in_every_op_and_order() {
 /// every member order builds, every probe read. Over [`LYING_WHOLE`],
 /// every op builds, its probes read where the walk reads them (the
 /// union reads 1116 of 1134, the cylinder less the pair its inside
-/// alone, 495); the fold builds where the prisms join first, and the
-/// orders that ring the wall before the second prism comes refuse
-/// `CurvedPierceUnsupported`.
+/// alone, 495); and every member order of the fold builds, the orders
+/// that ring the wall before the second prism comes included.
 #[test]
 fn a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order() {
     let prisms = line_prisms();
@@ -696,32 +686,26 @@ fn a_plane_face_holding_the_pierce_over_a_cylinder_builds_in_every_op_and_order(
                 &|name, _| name == "union",
             );
         }
-        // Members 0 and 1 are the prisms, 2 the cylinder: over the whole
-        // span, an order that joins the cylinder before the second prism
-        // refuses there.
-        let rings_first = |order: &[usize]| order[2] != 2 && span == LYING_WHOLE;
         every_order(
             &format!("the two prisms and the lying cylinder over {span:?}"),
             &[bodies[0].clone(), bodies[1].clone(), lying],
             &|q| in_prisms(q) || in_cylinder(q),
             lying_volume + prisms_volume - common,
             read_pct,
-            &|order| rings_first(order).then_some(BooleanErrorKind::CurvedPierceUnsupported),
             true,
         );
     }
 }
 
-/// **A wall whose trim cannot be read at the point refuses typed**: the
-/// joined rod and square pocketed beside the ruling, at bearing 2 rad
-/// on the wall face the ruling lies in, so that face carries the
-/// pocket's ring, which the cylinder's trim does not read. The point may
-/// lie in the face, and nothing is guessed: the plate against the
-/// pocketed pair refuses `HeldPierceUnbuilt`, not placed, either operand
-/// first. Pocketing last builds, sound against the closed forms less the
-/// pocket's part of the rod.
+/// **A ringed wall holding the point builds**: the joined rod and
+/// square pocketed beside the ruling, at bearing 2 rad on the wall face
+/// the ruling lies in, so that face carries the pocket's ring. The
+/// wall's region reads the ring with the outer loop, so the point is
+/// placed: the plate against the pocketed pair builds, either operand
+/// first, and so does pocketing last, each sound against the closed
+/// forms less the pocket's part of the rod.
 #[test]
-fn a_ringed_wall_holding_the_pierce_refuses_typed_and_pocketing_last_builds() {
+fn a_ringed_wall_holding_the_pierce_builds_either_operand_first_and_pocketed_last() {
     let plate = finished(
         "the plate",
         brick(PLATE[0], PLATE[1], PLATE[2], tol()),
@@ -756,23 +740,21 @@ fn a_ringed_wall_holding_the_pierce_refuses_typed_and_pocketing_last_builds() {
         let sq = prism(&foot, SQ_Z);
         let pair = joined(&format!("turn {turn}: rod ∪ square"), &rod(), &sq);
         let pocketed = cut(&pair, &format!("turn {turn}: the pair"));
+        let holds = |q| (in_rod(q) || in_prism(&foot, SQ_Z, q) || in_plate(q)) && !in_pocket(q);
+        let volume = 6.0 + rod_volume + sq_volume - common - pocketed_volume;
         for (what, a, b) in [
             ("the pocketed pair ∪ the plate", &pocketed, &plate),
             ("the plate ∪ the pocketed pair", &plate, &pocketed),
         ] {
-            match topo::union(a, b, tol()) {
-                Err(e @ BooleanError::HeldPierceUnbuilt { placed: false, .. }) => {
-                    assert_eq!(e.kind(), BooleanErrorKind::HeldPierceUnbuilt);
-                }
-                other => panic!("turn {turn}: {what}: {other:?}"),
-            }
+            let what = format!("turn {turn}: {what}");
+            sound(&what, &joined(&what, a, b), &holds, volume, 99);
         }
         let whole = joined(&format!("turn {turn}: the pair ∪ the plate"), &pair, &plate);
         sound(
             &format!("turn {turn}: pocketed last"),
             &cut(&whole, &format!("turn {turn}: the pair and the plate")),
-            &|q| (in_rod(q) || in_prism(&foot, SQ_Z, q) || in_plate(q)) && !in_pocket(q),
-            6.0 + rod_volume + sq_volume - common - pocketed_volume,
+            &holds,
+            volume,
             99,
         );
     }
@@ -838,7 +820,6 @@ fn a_wall_the_ruling_pierces_twice_builds_in_every_op_and_order() {
             &|q| in_pair(q) || in_slab(q),
             slab_volume + rod_volume + sq_volume - common,
             99,
-            &|_| None,
             false,
         );
     }

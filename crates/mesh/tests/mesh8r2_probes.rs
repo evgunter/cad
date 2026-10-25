@@ -141,7 +141,7 @@ fn tilted_halves() -> (Body<f64>, Body<f64>) {
     else {
         panic!("both sides carry material");
     };
-    (a.clone(), b.clone())
+    (Body::clone(a), Body::clone(b))
 }
 
 /// **Does the examination stay quiet on bodies that MESH CLEANLY but

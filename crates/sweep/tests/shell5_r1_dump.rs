@@ -92,12 +92,17 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
                 "[dump] {label}: naming outer={:?} inner={:?} inner_edges={:?} inner_vertices={:?} rims={:?} dead={:?}",
                 n.outer, n.inner, n.inner_edges, n.inner_vertices, n.rims, n.dead
             );
-            match topo::mass_properties(b, Tol::witness()) {
-                Ok(p) => println!(
-                    "[dump] {label}: volume={:?} area={:?}",
-                    p.volume, p.surface_area
-                ),
-                Err(e) => println!("[dump] {label}: props Err {e:?}"),
+            // A body tier 3 refuses prints its refusal (and its tier-3 line
+            // below) and is not measured.
+            match topo::AtRestBody::validate(topo::Body::clone(b), Tol::witness()) {
+                Err(errors) => println!("[dump] {label}: not at rest {errors:?}"),
+                Ok(finished) => match topo::mass_properties(&finished, Tol::witness()) {
+                    Ok(p) => println!(
+                        "[dump] {label}: volume={:?} area={:?}",
+                        p.volume, p.surface_area
+                    ),
+                    Err(e) => println!("[dump] {label}: props Err {e:?}"),
+                },
             }
             println!(
                 "[dump] {label}: tier3={:?}",

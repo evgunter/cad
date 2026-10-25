@@ -4,7 +4,7 @@ kind: issue
 title: Focusing and leaving a form's number field writes back the rounded value its text shows
 status: open
 opened: 2026-09-19
-priority: P0
+priority: P4
 cost: E
 ---
 
@@ -36,3 +36,19 @@ compare the parsed buffer with the formatted text of the held value
 (not with the value), or keep full precision in the edit buffer. A row
 driving focus in and out of an untouched field through
 `egui::Context::run` and asserting the held value's bits is the test.
+
+## 2026-10-21 — mostly closed by the readout rule (P0 → P4)
+
+The case above no longer happens. `widgets::number_text`
+(`crates/viewer/src/widgets.rs:307`) now falls back to
+`readout::number` whenever the fixed-decimal spelling does not
+`readout::reads_back` to the value, so a field over 0.00123 m shows a
+spelling that reads back to it, and a focus round trip writes that.
+
+What remains: `reads_back` accepts a text within
+`readout::tolerance` (the finer of 0.1·ε and 5·10⁻⁴ of the value), so a
+round trip can still change a value's bits by at most that much, and a
+draft compared by value may still read as moved. That is far below the
+modeling tolerance, so the shape is invisible. The test this row asks
+for (focus in and out of an untouched field, assert the bits) is still
+the way to settle whether anything is left to fix or the row closes.

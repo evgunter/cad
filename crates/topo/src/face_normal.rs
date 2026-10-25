@@ -337,14 +337,15 @@ fn face_nappe_or_double<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Option<geom_brep::Nappe> {
-    use crate::replace_face::ReplaceFaceError;
-    match crate::offset_nappe::face_nappe(body, face, band) {
+    use crate::offset_nappe::NappeRefusal;
+    match crate::offset_nappe::face_nappe_reading(body, face, band) {
         Ok(nappe) => Some(nappe),
-        Err(ReplaceFaceError::NappeStraddles { .. } | ReplaceFaceError::Escalated { .. }) => None,
-        Err(other) => unreachable!(
-            "the nappe of a cone face this door resolved answered a refusal it does not give: \
-             {other:?}"
-        ),
+        Err(NappeRefusal::Straddles { .. } | NappeRefusal::Escalated(_)) => None,
+        Err(NappeRefusal::Stale) => {
+            unreachable!(
+                "{face:?} is a cone face this door resolved, so its nappe reading resolves it"
+            )
+        }
     }
 }
 

@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use topo::{Body, EdgeJoin, EdgeKey};
 
-use super::emit::{NamingError, name1};
+use super::emit::{JoinShape, NamingError, name1};
 use super::role::{EntityKind, RoleSeg, StableName};
 use super::table::EntityKey;
 use crate::node::RecipeNodeId;
@@ -56,7 +56,7 @@ pub(crate) fn joined_name(
 ///
 /// # Errors
 ///
-/// [`NamingError::Emission`] where a cover holds an edge the door
+/// [`NamingError::UnsupportedJoin`] where a cover holds an edge the door
 /// minted outright (the ruling's stop case), or as `member` refuses.
 ///
 /// # Panics
@@ -85,9 +85,9 @@ pub(crate) fn name_joins<T: geom_core::Real>(
                     images.push((name1(EntityKind::Edge, node, seg), tied));
                 }
                 Member::Outright => {
-                    return Err(NamingError::Emission {
-                        what: "a door joined an edge it minted outright, which no input cell \
-                               reads",
+                    return Err(NamingError::UnsupportedJoin {
+                        edge: kept,
+                        shape: JoinShape::Outright,
                     });
                 }
             }

@@ -23,7 +23,7 @@ escalated typed refusal, never a raw comparison.
 
 | Decisions | Lives in |
 |---|---|
-| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
+| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
@@ -54,20 +54,31 @@ and the exact quartic `Curve3::Spiric` (the axis-parallel plane×torus
 section, one oval in the torus's own minor angle — minted by
 `plane_torus_section`'s axis-parallel arm, which the offset-axial
 door's rim mint calls; a plane through the axis cuts the more exact
-`Circle`, and `Curve3::spiric` refuses it), whose residuals are zero by
-construction because the kernel derived them from their pair; rung 3,
+`Circle`, and `Curve3::spiric` refuses it); rung 3,
 a pair with no closed form (a spline operand), whose carrier is
 evidence of any kind — a fitted cubic `Curve3::Nurbs` where the kernel
 marched it, a closed form where a file stated one or recognition
-promoted one — carrying the C2 certificate. A closed form is zero by
-construction only on rungs 1–2; declared on a rung-3 pair, it is
-checked like any other carrier. Parabola and hyperbola are
-outside the inventory by decision: a plane×cone section of either kind
-refuses typed, naming its conic. Conics round-trip to rational-quadratic NURBS only as
-an export/tessellation form, never as the kernel carrier (the axes and
-centre are what dispatch consumes). There is no polyline rung.
+promoted one — carrying the C2 certificate. The rung is the pair's, read off the C5
+table, never the carrier's: what a carrier owes (C2) depends on its
+pair's pose and not on its kind or on who minted it. The kind inventory is closed at the
+kinds above: a section that has a closed form and no kind is minted
+exactly into the NURBS container. A plane×cone parabola or hyperbola is
+such a section, minted from the pair in closed form as a
+rational-quadratic arc (weights `(1, w, 1)`, `w = 1` the parabola,
+`w > 1` the hyperbola), never marched. The line, circle and ellipse
+carriers stay kinds; they round-trip to rational-quadratic NURBS only as
+an export/tessellation form. There is no polyline rung.
 
-**C2 — The certificate of a carrier the kernel did not derive has three limbs, all mandatory.**
+**C2 — The certificate of an `Intersection` carrier has three limbs.**
+Limbs 1 and 2 are owed by every carrier, of every kind, however it was
+minted. Limb 3 is owed unless the pair's section function, for this
+pose, states the two numbers the tube would prove: a lower bound on the
+sine of the surfaces' crossing angle over the carrier's stretch of the
+section, and the clearance of the ε over that sine around the stretch
+from every other piece of the two surfaces' ε-overlap (the section's
+other components, and any near-miss region where the surfaces approach
+without crossing). Limb 2 within ε of both surfaces then puts the
+carrier on the named component, which the witness mid-pin identifies.
 (1) On-locus residual at the fixed `CERT_SAMPLES` schedule: `|f(C(t))|`
 in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 `|C(t) − S(u*,v*)|` at the projected foot point; any point of the
@@ -687,7 +698,8 @@ A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
-plane×cylinder, plane×cone (all but the parabola and hyperbola),
+plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
+each arc minted per window, `ConicBranch::arc`),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
 axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
 plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
@@ -953,12 +965,21 @@ curved-cut faces are certified quadrature (C9, `props/quad.rs`):
 harmonic pcurve boundaries, polynomial and rational patch flux; a cone
 face needs none, its flux `apex·VA` and area `|axis·VA|/sin α` closed in
 the boundary's vector area; rational
-pcurve channels refuse `QuadratureUnsupported`; exhaustion is
-`QuadratureBudget`, never a silent Gaussian. A plane cap or torus wall
+pcurve channels refuse `QuadratureUnsupported`. A face refines until
+its caller's predicate over the enclosure resolves (a sign, a relation,
+or a resolution, each stated by the caller), refinement stops paying, or the
+per-face work bound is reached. It returns the narrowest certified
+enclosure it reached, with the reason it stopped (`[tolerance.measure]`):
+never a silent Gaussian, and never a refusal for width alone. A plane cap or torus wall
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
 area and the wall's chart Green form along the spiric are elliptic
 integrals in the torus minor angle, enclosed by a fifth-order Taylor
-rule whose only non-ring operation is `√`, on the same schedule. A sphere face bounded
+rule (`props/taylor.rs`) that reads the spiric's integrands with no
+operation past the ring ones but `√`, on the same schedule. A plane
+cap bounded by a rational spline rim takes the same rule
+(`props/rational_rim.rs`): its vector area is `(1/2)∫ B × B′/w²` per
+Bézier span, `B` the homogeneous numerator about the reference, and the
+closed form keeps its typed refusal for a door with no quadrature lane. A sphere face bounded
 by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
@@ -974,12 +995,27 @@ region is the side of its boundary that holds such a pole
 (`sphere_region_material_sign`); a region with two or more boundary
 loops is read by the sign of its area. A region with no boundary covers
 the sphere and encodes no side: covered once, it is a shell whose
-orientation checks 7 and 10 read; covered more than once, its faces
-overlap and nothing here reads it. A region whose boundary carries both
+orientation checks 7 and 10 read. A region whose boundary carries both
 poles, or whose poles lie on no member's loop, encodes no side: the
 pole-free reading would assume the rule above, which validity does not
 yet enforce. For a region of one face the flipped bit describes the
-complement, another valid body. A loop with a pole off it on each side
+complement, another valid body. Where a region's faces overlap, tier 3
+refuses it by its cover census (`sphere_region_cover`), read for every
+seam region of two faces or more, whatever its members' own boundaries
+encode: each member's Gauss–Bonnet area on the side its bit claims,
+summed, less the area its boundary claims (the sphere, with no
+boundary), is a whole number of spheres, so the members claim the region
+a whole number of times, once for a region covered once. A cover of the
+sphere twice over is claimed twice. A region whose members all carry the
+wrong bit is claimed `Σ χ_f − χ_R + 1` times, `χ` the Euler
+characteristic of each member and of the region as spheres with holes:
+`n + m − 1` times for `n` one-loop faces bounded by `m` loops, so twice
+for a both-poles pair, and `n − 1` times for a ball of `n` lunes turned
+inside out, which the census refuses from three lunes on. The
+measurement door reads the same seam regions without tier 3
+(`topo/src/props.rs`, `seam_refusals`), so it refuses the regions tier 3
+refuses, and a region whose faces' bits disagree, which tier 3 refuses
+as check 4's lamina. A loop with a pole off it on each side
 encodes no side: under either sense its face holds a pole, which is
 validity's to refuse. Nor does a loop whose poles both read undecided: a
 pole within the ambiguity band of a great or near-great carrier's plane

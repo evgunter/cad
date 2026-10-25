@@ -24,7 +24,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 
 use std::sync::Arc;
 
@@ -33,7 +32,6 @@ use pncad::document::{
     ProfileProgram, SitedRef, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::evalseam::EvalDone;
 use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
@@ -174,16 +172,15 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    common::asm::unpin(&mut session, bench.post_b);
-    common::commit_mate(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Tangent,
-            common::asm::middle_seat_values(),
-        ),
-    );
+    // Both posts seated at one spot under the shelf: they interpenetrate,
+    // and the gate refuses.
+    for post in [bench.post_a, bench.post_b] {
+        common::asm::unpin(&mut session, post);
+        common::commit_mate(
+            &mut session,
+            common::asm::seat_op(&bench, post, common::asm::middle_seat_values()),
+        );
+    }
     assert!(
         matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
         "this row's premise is a refused gate: {:?}",
@@ -262,14 +259,12 @@ fn a_gather_refusal_lands_with_a_fault_and_no_report() {
 fn a_stranded_placement_lands_with_a_fault_and_no_report() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-stranded-landing", tol);
-    let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
-    let (doc, profile) = common::inserted(&doc, common::square(plane, 0.02), tol);
+    let (doc, profile) = common::inserted(&doc, common::square(0.02), tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.02),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -327,7 +322,7 @@ fn a_document_with_no_body_lands_a_clean_report() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced, loose }) if unplaced.is_empty() && loose.is_empty()
+            Some(ProductError::EmptyProduct { unplaced, .. }) if unplaced.is_empty()
         ),
         "the gather's own answer: {:?}",
         session.product_fault()
@@ -341,11 +336,10 @@ fn a_document_with_no_body_lands_a_clean_report() {
     assert!(session.at_rest().is_none(), "and there is no badge");
 }
 
-/// **A loose ASSEMBLY takes no at-rest badge either.** An instance
-/// whose bundle pins nothing is a loose copy, not in the world — the
-/// measure read at it places nothing — so the gather says
-/// `EmptyProduct`, naming the loose instance, while the document still
-/// holds an `InstantiatePart`.
+/// **An ASSEMBLY with nothing in the world takes no at-rest badge
+/// either.** An instance placed into a space of its own is not in the
+/// world — the measure read at it places nothing — so the gather says
+/// `EmptyProduct` while the document still holds an `InstantiatePart`.
 /// The landing reads that refusal as an absence for the registry, and
 /// the A5 badge agrees with it: there is no product for the gate to
 /// judge, and an at-rest badge reading "at rest: product: …" would
@@ -363,6 +357,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     let bench = common::asm::bench("body-less-assembly", tol);
     let mut asm = ProfileDoc::empty(DocumentId::derive("body-less-assembly"), tol);
     let post = common::insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
+    let mut asm = crate::fixture::into_new_space(asm, post).0;
     let top = common::asm::in_part(post, &bench.post_top);
     common::insert_into(
         &mut asm,
@@ -384,10 +379,9 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     assert!(
         matches!(
             session.product_fault(),
-            Some(ProductError::EmptyProduct { unplaced, loose })
-                if unplaced.is_empty() && loose == &vec![post]
+            Some(ProductError::EmptyProduct { unplaced, .. }) if unplaced.is_empty()
         ),
-        "the premise: nothing pins the instance, and the gather names it loose: {:?}",
+        "the premise: nothing is placed into the world: {:?}",
         session.product_fault()
     );
     assert!(
@@ -397,7 +391,7 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     assert_eq!(
         session.at_rest(),
         None,
-        "and the A5 badge agrees: a loose assembly is not a refusal"
+        "and the A5 badge agrees: an assembly with nothing in the world is not a refusal"
     );
 }
 
@@ -419,16 +413,15 @@ fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
     let tol = Tol::witness();
     let bench = common::asm::bench("refused-gather-assembly", tol);
     let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
-    let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
+    let (mut asm, profile) = common::square_profile(&asm, 0.04, tol);
     // The instance stands on the world by its own pin.
-    common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    common::insert_into(&mut asm, crate::fixture::mated_instance(bench.post), tol);
     let extrude = common::insert_into(
         &mut asm,
         Node::Extrude {
             profile: profile.into(),
             distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );

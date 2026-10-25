@@ -13,7 +13,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::len;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
     Doc, DocEdit, EditError, Node, RecipeNodeId, SpokenNode, apply, cascade_delete_order,
@@ -30,10 +29,6 @@ impl editor_core::ProfilePayload for FakeProfile {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
-        _: &mut dyn FnMut(
-            editor_core::OperandSlot,
-            &editor_core::Operand,
-        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
@@ -76,7 +71,6 @@ fn extrude(doc: &TDoc, profile: RecipeNodeId) -> (TDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.01),
-            side: ExtrudeSide::Along,
         },
     )
 }

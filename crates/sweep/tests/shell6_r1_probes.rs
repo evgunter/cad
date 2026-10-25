@@ -92,9 +92,12 @@ fn corners(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("props")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("props")
+    .volume
 }
 
 fn frustum_volume(r0: f64, r1: f64, h: f64) -> f64 {

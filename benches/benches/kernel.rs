@@ -291,10 +291,14 @@ fn kernel_ops(c: &mut Criterion) {
                 })
             });
         });
+        // The door measures a finished body; it is validated once, outside
+        // the timed loop.
+        let at_rest = pncad::topo::AtRestBody::validate(body.clone(), Tol::witness())
+            .expect("the washer certifies");
         group.bench_function(id("mass_props/washer"), |b| {
             b.iter(|| {
                 pool.install(|| {
-                    mass_properties(black_box(&body), Tol::witness()).expect("mass properties")
+                    mass_properties(black_box(&at_rest), Tol::witness()).expect("mass properties")
                 })
             });
         });

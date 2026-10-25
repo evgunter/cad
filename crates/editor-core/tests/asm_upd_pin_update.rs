@@ -21,7 +21,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -111,7 +110,6 @@ fn part_version(id: DocumentId, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body).0
@@ -161,21 +159,12 @@ fn repinned(
         .apply(&DocEdit::UpdateReference { node, new_pin }, Tol::witness())
         .expect("the update applies")
         .doc;
-    let doc = fixture::bundle(&doc, node).into_iter().fold(doc, |doc, c| {
-        fixture::step(
-            doc,
-            DocEdit::RemoveConstraint {
-                placement: node,
-                constraint: c.id,
-            },
-        )
-        .0
-    });
+    let doc = fixture::stand_again(doc, node);
     fixture::pin(doc, node, &Frame::translation([dx, 0.0, 0.0]), o)
 }
 
 /// The reference a node carries — the value every row reads back.
-fn pin_at(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> DocRef {
+fn pin_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> DocRef {
     match doc.node(node) {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
         other => panic!("expected an instantiate node, got {other:?}"),
@@ -183,9 +172,12 @@ fn pin_at(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> DocRef {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// The assembly's whole-product volume, gathered through the shelf.
@@ -218,13 +210,13 @@ fn row1a_update_moves_the_pin_and_only_the_pin() {
         )
         .expect("the update is accepted");
 
-    assert_eq!(pin_at(&applied.doc, ids[0]).pin, v2, "the version moved");
-    assert_eq!(pin_at(&applied.doc, ids[0]).id, id, "the identity did not");
+    assert_eq!(pin_of(&applied.doc, ids[0]).pin, v2, "the version moved");
+    assert_eq!(pin_of(&applied.doc, ids[0]).id, id, "the identity did not");
     assert!(applied.record.structural, "a pin move is recipe shape");
     assert_eq!(applied.record.minted, None, "an update mints no node");
     // Undo is keeping the prior value: the document held across the
     // edit still names the prior version.
-    assert_eq!(pin_at(&doc, ids[0]).pin, v1, "the pre-edit value is intact");
+    assert_eq!(pin_of(&doc, ids[0]).pin, v1, "the pre-edit value is intact");
 }
 
 /// Row 1b — the update replays: a log ending in one `UpdateReference`
@@ -237,7 +229,7 @@ fn row1b_the_update_replays_bit_identically() {
 
     let mut rec = fixture::Recorder::new();
     let asm_id = rec.doc.id();
-    let node = rec.insert(Node::instantiate_part(DocRef { id, pin: v1 }));
+    let node = rec.insert(crate::fixture::mated_instance(DocRef { id, pin: v1 }));
     rec.push(DocEdit::UpdateReference { node, new_pin: v2 });
 
     let replayed = ProfileDoc::replay(asm_id, &rec.edits, Tol::witness()).expect("the log replays");
@@ -245,7 +237,7 @@ fn row1b_the_update_replays_bit_identically() {
         replayed.bit_eq(&rec.doc),
         "replay reproduces the updated document bit for bit"
     );
-    assert_eq!(pin_at(&replayed, node).pin, v2);
+    assert_eq!(pin_of(&replayed, node).pin, v2);
 }
 
 /// Row 1c — the three refusals, each constructed, each typed, each
@@ -368,7 +360,7 @@ fn row2_elaboration_updates_every_matching_site_and_only_those() {
         ],
         "one edit per x site, in document order, none for y"
     );
-    assert_eq!(pin_at(&doc, ids[0]).pin, x1, "the elaboration applied none");
+    assert_eq!(pin_of(&doc, ids[0]).pin, x1, "the elaboration applied none");
 
     let mut moved = doc.clone();
     for e in &edits {
@@ -377,10 +369,10 @@ fn row2_elaboration_updates_every_matching_site_and_only_those() {
             .expect("the group applies")
             .doc;
     }
-    assert_eq!(pin_at(&moved, ids[0]).pin, x2);
-    assert_eq!(pin_at(&moved, ids[2]).pin, x2);
+    assert_eq!(pin_of(&moved, ids[0]).pin, x2);
+    assert_eq!(pin_of(&moved, ids[2]).pin, x2);
     assert_eq!(
-        pin_at(&moved, ids[1]),
+        pin_of(&moved, ids[1]),
         DocRef { id: y, pin: y1 },
         "y is untouched"
     );
@@ -603,7 +595,7 @@ fn row5b_the_nested_case_serves_the_new_content_through_two_seams() {
     let vol_after = product_volume(&updated, &opts);
     assert!((vol_after - 4.0).abs() < 1e-9, "one v2 solid: {vol_after}");
     assert_eq!(
-        pin_at(&updated, ids[0]).id,
+        pin_of(&updated, ids[0]).id,
         sub_id,
         "the top document names the sub-assembly, never the part"
     );
@@ -621,7 +613,7 @@ fn assembly_under(
     let mut doc = ProfileDoc::empty(id, Tol::witness());
     let mut ids = Vec::new();
     for r in refs {
-        let (next, node) = fixture::insert_pinned(doc, Node::instantiate_part(*r), o);
+        let (next, node) = fixture::insert_pinned(doc, crate::fixture::mated_instance(*r), o);
         doc = next;
         ids.push(node);
     }
@@ -677,16 +669,7 @@ fn row5c_a_warm_prior_never_serves_the_old_content_after_an_update() {
     // The second site moves over the STAGED prior: the old version is
     // now named nowhere, and nothing serves it. The new one the staged
     // run evaluated, and carried.
-    let done = staged
-        .apply(
-            &DocEdit::UpdateReference {
-                node: ids[0],
-                new_pin: r2.pin,
-            },
-            Tol::witness(),
-        )
-        .expect("the update applies")
-        .doc;
+    let done = repinned(staged, ids[0], r2.pin, 0.0, &opts);
     let warm_done = run_warm(&done, &warm_staged, &opts);
     assert_eq!(
         warm_done.part_evaluations, 0,
@@ -774,10 +757,11 @@ fn row6_the_assembly_pin_moves_on_update_and_states_history() {
 
     // An unrelated edit keeps moving the pin exactly as it did — the
     // update arm smuggles no path into the canonical bytes.
-    let unrelated = DocEdit::RemoveConstraint {
-        placement: ids[0],
-        constraint: fixture::bundle(&before, ids[0])[0].id,
-    };
+    // The instance's bundle rewritten whole: the identity bundle slid a
+    // unit along x.
+    let mut slid = editor_core::stand();
+    slid.values[0].1 = fixture::len(1.0);
+    let unrelated = slid.write(ids[0]);
     let update = DocEdit::UpdateReference {
         node: ids[0],
         new_pin: v2,
@@ -819,7 +803,7 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
 
     let mut rec = fixture::Recorder::new();
     let asm_id = rec.doc.id();
-    let node = rec.insert(Node::instantiate_part(DocRef { id, pin: v1 }));
+    let node = rec.insert(crate::fixture::mated_instance(DocRef { id, pin: v1 }));
     rec.push(DocEdit::UpdateReference { node, new_pin: v2 });
 
     // Snapshot = the EMPTY document, log = everything: the load
@@ -832,7 +816,7 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
     .expect("the document saves");
     let loaded = load(&text, Tol::witness()).expect("the document loads");
     assert_eq!(loaded.edits.len(), rec.edits.len(), "the log persisted");
-    assert_eq!(pin_at(&loaded.doc, node).pin, v2, "the replay lands on v2");
+    assert_eq!(pin_of(&loaded.doc, node).pin, v2, "the replay lands on v2");
     assert!(
         loaded.doc.bit_eq(&rec.doc),
         "the loaded document is the recorded one, bit for bit"
@@ -846,7 +830,7 @@ fn row7_a_logged_update_round_trips_and_undoes_across_the_load() {
     )
     .expect("the shortened log replays");
     assert_eq!(
-        pin_at(&undone, node).pin,
+        pin_of(&undone, node).pin,
         v1,
         "dropping the update restores the prior version"
     );

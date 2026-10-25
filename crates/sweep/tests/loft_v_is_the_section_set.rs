@@ -335,7 +335,7 @@ fn an_arc_walled_loft_is_the_same_under_every_spelling() {
         vec![bulge_loop(chain)]
     };
     // The geometry only: this body refuses at assembly under any
-    // parameterization (`work/carve/a-rational-wall-beside-an-integral-one-skins-its-shared-corner-off-unit-weight.md`).
+    // parameterization (`work/iso/a-loft-whose-arc-bulge-varies-per-section-refuses-its-arc-rim.md`).
     let spelled = |start, reversed| {
         let sections = bulges.map(|b| section(b, start, reversed));
         let params = loft_parameters(&sections, &places, 2, Tol::witness())

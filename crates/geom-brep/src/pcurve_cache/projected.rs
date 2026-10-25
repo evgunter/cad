@@ -134,7 +134,7 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve3, Surface};
 use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
-use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3};
 
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::offset::Nappe;
@@ -1990,17 +1990,13 @@ pub(super) fn projected_envelope<T: Decide>(
         _ => return Err(refuse("the stored carrier is not the edge's carrier kind")),
     };
     let (u_arm, v_arm) = match *surface {
-        Surface::Cylinder { radius, .. } => (radius, T::one()),
-        Surface::Cone { half_angle, .. } => (boxed.v_reach() * half_angle.sin().abs(), T::one()),
-        Surface::Sphere { radius, .. } => (radius, radius),
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => (major_radius + minor_radius, minor_radius),
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             unreachable!("answered above")
         }
+        Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Sphere { .. }
+        | Surface::Torus { .. } => super::chart_sup_arms_at(surface, boxed)?,
     };
     // Consecutive branch centres on one branch: each piece holds its
     // sector at the break it shares with the next, so their centres are
@@ -2071,7 +2067,7 @@ pub(super) fn projected_envelope<T: Decide>(
     };
     terms.add(
         EnvelopeTerm::FidelityU,
-        off_period(image.u_off, shift, period_u) * u_arm,
+        u_arm.to_meters(off_period(image.u_off, shift, period_u)),
     );
     let v_reach = boxed.v_reach();
     let v_off = match period_v {
@@ -2080,7 +2076,7 @@ pub(super) fn projected_envelope<T: Decide>(
     };
     terms.add(
         EnvelopeTerm::FidelityV,
-        (v_off + (image.v_sign - sign).abs() * v_reach) * v_arm,
+        v_arm.to_meters(v_off + (image.v_sign - sign).abs() * v_reach),
     );
     match (image.chart, &twin) {
         (ProjectedChart::Cone { sin, cos, .. }, Surface::Cone { half_angle, .. }) => {
@@ -2231,18 +2227,18 @@ pub(super) fn run_projected_checks<T: Decide>(
         // `interval_span_winding`, which counts a carrier's turns, and a
         // spline carrier's parameter is no angle, so it has no turns to
         // count (`work/pcert/projected-period-gate-stands-in-for-a-winding-bound-a-spline-carrier-has-none.md`).
-        let (u_arm, _) = super::chart_arms_at(surface, &boxed)?;
+        let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed)?;
         let swept = image.sweep_box(t0, t1);
         let mut gates = vec![(
             swept.u_max - swept.u_min,
-            u_arm.get(),
+            u_arm,
             PcurveCheck::AzimuthPeriod,
             PcurveCertifyError::AzimuthPeriodExceeded,
         )];
         if let Surface::Torus { minor_radius, .. } = *surface {
             gates.push((
                 swept.v_max - swept.v_min,
-                minor_radius,
+                SupSpeed::new(minor_radius),
                 PcurveCheck::TubePeriod,
                 PcurveCertifyError::TubePeriodExceeded,
             ));
@@ -2250,7 +2246,7 @@ pub(super) fn run_projected_checks<T: Decide>(
         for (extent, arm, check, exceeded) in gates {
             match decide(
                 "pcurve_azimuth_period",
-                Margin::levered(T::tau() - extent, arm),
+                Margin::metered_sup(T::tau() - extent, arm),
                 band,
             )
             .map_err(|cause| PcurveCertifyError::Escalated {

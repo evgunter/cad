@@ -237,6 +237,23 @@ fn three_prime(
         let ends = [plus.start, next.start].map(point);
         (0..sides.len()).any(|k| ends.iter().all(|&q| on_side(q, k)))
     };
+    // Whether `f`'s carrier is the glued rectangle's plane.
+    let in_glued_plane = |f: topo::FaceKey| {
+        let Some(&[o, c]) = sides.first() else {
+            return false;
+        };
+        let Some(&[_, d]) = sides.get(1) else {
+            return false;
+        };
+        let n = (c - o).cross(d - c);
+        let n = n / n.norm();
+        let surface = r
+            .body
+            .get_face(f)
+            .and_then(|f| r.body.get_surface(f.surface));
+        matches!(surface, Some(geom::Surface::Plane { origin, normal, .. })
+            if (*origin - o).dot(n).abs() < 1e-6 && normal.cross(n).norm() < 1e-9)
+    };
     for e in &errors {
         let ok = match e {
             ValidationError::UnrecordedContact { contact, .. } => match *contact {
@@ -247,6 +264,10 @@ fn three_prime(
                     true
                 }
                 CensusContact::VertexOnFace { vertex, .. } => at_meet(vertex) || at_far(vertex),
+                // The glued pieces' own area contact, one face pair.
+                CensusContact::ConformalPatch { ref finding } => {
+                    in_glued_plane(finding.pair.a) && in_glued_plane(finding.pair.b)
+                }
                 CensusContact::EdgeFaceOverlap { edge, .. } => along || on_ray(edge),
                 _ => false,
             },
@@ -402,10 +423,11 @@ fn builds_along(
 /// - `SlitLineCrossed`: the plate less the void lying under the top
 ///   holds the void's ray as a zero-area ring of the top, and a partner
 ///   round the lying pyramid has an edge along it, so three sheets meet
-///   on the ring's line and two germs lie along its ray
-///   (`work/cleave/a-boolean-places-two-germs-along-a-slit-line.md`).
-///   On main the ring was one edge, wall | wall, lying in the top, its
-///   wedge claiming the top's material (the rider form).
+///   on the ring's line. Their union keeps only the top there, on both
+///   sides of the ring: it closes the top across the line, which the
+///   join does not build
+///   (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
+///   The other ops place the two germs apart and build.
 /// - `EdgeInFace`: an edge lies in a face whose material parts it, and
 ///   the parting is not built. A pyramid on the void's face, in the arch
 ///   or round its island: `y − x` leaves the pyramid's edge in the
@@ -430,27 +452,11 @@ const REFUSING: &[(&str, BooleanErrorKind)] = &[
         BooleanErrorKind::LineWedges,
     ),
     (
-        "around the lying pyramid, mirrored into the void, x − y",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, y − x",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
         "around the lying pyramid, mirrored into the void, x ∪ y",
         BooleanErrorKind::SlitLineCrossed,
     ),
     (
         "around the lying pyramid, mirrored into the void, y ∪ x",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, x ∩ y",
-        BooleanErrorKind::SlitLineCrossed,
-    ),
-    (
-        "around the lying pyramid, mirrored into the void, y ∩ x",
         BooleanErrorKind::SlitLineCrossed,
     ),
     (

@@ -101,17 +101,23 @@ fn wrapping_loops(body: &Body<f64>) -> Vec<LoopKey> {
         .collect()
 }
 
-/// What `chart_boundary` answers for every face of `body`, by result
-/// KIND (`Ok`, or which refusal variant), in face order: a reversal
-/// reverses every loop, and this reader pins that it does not change
-/// whether a refusal fires.
-fn boundary_kinds(body: &Body<f64>) -> Vec<(FaceKey, Result<(), Discriminant<PcurveMintError>>)> {
+/// What `loop_windings` answers for every face of `body`: each loop's
+/// `(singular, zero)`, or which refusal variant, in face order. A
+/// reversal reverses every loop, and this reader pins that it changes
+/// neither whether a loop closes nor whether a refusal fires.
+#[allow(clippy::type_complexity)]
+fn winding_kinds(
+    body: &Body<f64>,
+) -> Vec<(
+    FaceKey,
+    Result<Vec<(bool, bool)>, Discriminant<PcurveMintError>>,
+)> {
     let band = Band::linear(tol()).unwrap();
     body.faces()
         .map(|(fk, face)| {
             let chart = body.get_surface(face.surface).unwrap();
-            let kind = topo::chart_boundary(body, fk, chart, band)
-                .map(|_| ())
+            let kind = topo::loop_windings(body, fk, chart, band)
+                .map(|read| read.iter().map(|w| (w.singular, w.zero)).collect())
                 .map_err(|e| discriminant(&e));
             (fk, kind)
         })
@@ -122,7 +128,7 @@ fn boundary_kinds(body: &Body<f64>) -> Vec<(FaceKey, Result<(), Discriminant<Pcu
 /// every loop keeps its anchor, the element on each half-edge is the
 /// inverse of the one on its source successor, every loop winds as far
 /// as it did, tier 3 of the reverted body reports exactly the
-/// complement, `chart_boundary` answers the same kind for every face,
+/// complement, `loop_windings` answers the same for every face,
 /// and the involution restores the bits.
 fn assert_reverted(label: &str, body: &Body<f64>) {
     assert_eq!(
@@ -160,9 +166,9 @@ fn assert_reverted(label: &str, body: &Body<f64>) {
         );
     }
     assert_eq!(
-        boundary_kinds(&reverted),
-        boundary_kinds(body),
-        "{label}: chart_boundary answers the same kind for every face of the reversed body"
+        winding_kinds(&reverted),
+        winding_kinds(body),
+        "{label}: loop_windings answers the same for every face of the reversed body"
     );
     assert_eq!(
         format!("{:?}", reverted.revert().unwrap()),

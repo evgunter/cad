@@ -202,7 +202,7 @@ fn parts(case: &Case, solid: &Solid) -> Vec<(Option<Part>, Body<f64>)> {
             let SplitPart::Body(half) = kept else {
                 panic!("{}: material on both sides of the cut", case.name);
             };
-            (Some(part), half)
+            (Some(part), half.into_body())
         })
         .collect()
 }

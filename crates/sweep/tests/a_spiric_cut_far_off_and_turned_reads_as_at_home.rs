@@ -217,7 +217,12 @@ fn pads_over_rotations(body: &topo::Body<f64>) -> Vec<f64> {
         .map(|k| {
             let mut b = body.clone();
             topo::test_support::rotate_shell_faces(&mut b, k);
-            topo::mass_properties(&b, tol).unwrap().volume_pad
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(&b), tol),
+                tol,
+            )
+            .unwrap()
+            .volume_pad
         })
         .collect()
 }

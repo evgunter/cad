@@ -2,11 +2,14 @@
 id: topo-transform-rewritten-is-a-hashset-the-crate-doc-argues-against
 kind: issue
 title: transform.rs's rewritten set is the one HashSet in topo, and the crate doc spends a paragraph concluding a SecondaryMap would be cheaper and D9-consistent
-status: open
+status: closed
 opened: 2026-09-11
 refs: [S40]
 priority: P1
 cost: E
+closed: 2026-10-24
+pr: 5651
+branch: offset/transform-rewritten-secondary-map
 ---
 
 
@@ -58,3 +61,7 @@ deliberately and does not claim it — so the crate-doc paragraph is a
 sentence-level follow-on in the same PR that moves the set, announced
 rather than fenced. If SHELL would rather not hold this, moving it is a
 `git mv` and this section is the record of why it arrived.
+
+## Closed
+
+PR 5651. `map_isometry`'s `rewritten` set is a `SecondaryMap<CurveKey, ()>`. The crate doc's `# Determinism (D9)` paragraph now states only the invariant, that topo contains no `HashMap`/`HashSet`. That invariant also needed `wedge_reach.rs`'s face-points cache converted (production code, a second undocumented exception), along with the hash collections in `review_m1_pr4.rs`'s `shell_components` and in two integration tests. `crates/topo` now has no hash collections at all. The PR body lists every hit.

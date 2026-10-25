@@ -26,8 +26,7 @@
 //!   into, always `usize`. Every count in the crate is
 //!   [`ceil_count`]`(span, step)` or a rule applied to one
 //!   (`curved::pole_columns` lifts the single singular value
-//!   `nu == 2` — an equality, not a floor, and its own doc says why;
-//!   `NurbsCellGrid::band_schedule` snaps a malign band's).
+//!   `nu == 2` — an equality, not a floor, and its own doc says why).
 //!
 //! **The rule, in one sentence:** *"step" names an `f64` increment and
 //! nothing else; a `usize` count is never called a step, and neither is

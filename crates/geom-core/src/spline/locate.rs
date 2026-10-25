@@ -139,8 +139,7 @@ pub trait SpanLocate: sealed::Sealed + Real {
     /// (interval-natured scalars), so a point scalar reaches it there
     /// by no path. **It is not unreachable for a point scalar in
     /// general**, and nothing here may be read as saying so: callers
-    /// hull two chart parameters directly — `topo`'s `chart_edge`
-    /// mints an `Envelope` image that way on both of its arms — and at
+    /// hull two chart parameters directly, and at
     /// `f64`, `Probe` or `Dual<f64>` the answer is the poison value,
     /// which then propagates through `Real::min`/`max` by the NaN
     /// policy that `crate::real` pins. A hull of two distinct point

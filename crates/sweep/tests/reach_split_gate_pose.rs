@@ -19,7 +19,7 @@ use profile::{ArcSweep, bulge_from_center, test_support::bulge_loop};
 use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
 use topo::splitting::{SplitError, SplitPart, SplitPlane, SplitReduceError, split};
-use topo::{AtRestBody, Body, DATUM_UNIT_NORM, transform_rigid};
+use topo::{AtRestBody, Body, POSE_UNIT_NORM, transform_rigid};
 
 /// One fixture: the revolved profile about `y`, its radius at height
 /// `y` (the slice integral's integrand), and the unarmed face's
@@ -194,7 +194,7 @@ fn half_volume(f: &Fixture, s: f64, n: Vec3<f64>, d: f64) -> f64 {
 
 fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
     let band = Band::linear(Tol::witness()).unwrap();
-    UnitVec3::new(v, DATUM_UNIT_NORM, band).unwrap()
+    UnitVec3::new(v, POSE_UNIT_NORM, band).unwrap()
 }
 
 /// The planes, in the body's own frame, as `(n, point on the plane)`:
