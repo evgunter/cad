@@ -1053,7 +1053,11 @@ mod tests {
             (0..=n)
                 .map(|i| {
                     let t = i as f64 / n as f64;
-                    let wobble = if i == 0 || i == n { 0.0 } else { jitter * (7.0 * t).sin() };
+                    let wobble = if i == 0 || i == n {
+                        0.0
+                    } else {
+                        jitter * (7.0 * t).sin()
+                    };
                     t + wobble / n as f64
                 })
                 .collect()
@@ -1099,7 +1103,10 @@ mod tests {
         for half_angle in [0.1_f64, 0.6, 1.2] {
             for (rho_max, delta) in [(1.0_f64, 1e-3), (0.05, 1e-5), (3.0, 1e-4)] {
                 let h = cone_grid_step(delta, half_angle, rho_max);
-                assert!(h < MAX_ANGULAR_STEP, "α {half_angle} ρ {rho_max}: the cap binds");
+                assert!(
+                    h < MAX_ANGULAR_STEP,
+                    "α {half_angle} ρ {rho_max}: the cap binds"
+                );
                 let v_max = rho_max / half_angle.sin();
                 let cert = crate::cert::cert_cone(
                     half_angle,
@@ -1132,7 +1139,9 @@ mod tests {
                 ((spent - delta) / delta).abs() < 1e-6,
                 "r {r} δ {delta}: the step spends {spent} of the bound"
             );
-            let at = |u: f64, v: f64| Point3::new(r * v.cos() * u.cos(), r * v.cos() * u.sin(), r * v.sin());
+            let at = |u: f64, v: f64| {
+                Point3::new(r * v.cos() * u.cos(), r * v.cos() * u.sin(), r * v.sin())
+            };
             let mut equator = 0.0_f64;
             for v0 in [-0.5 * h, 0.3, 1.0, 1.5 - h] {
                 let (a, b, c, d) = (at(0.0, v0), at(h, v0), at(0.0, v0 + h), at(h, v0 + h));

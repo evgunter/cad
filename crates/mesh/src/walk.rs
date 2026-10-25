@@ -1999,14 +1999,8 @@ mod tests {
             positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
-        let chords = crate::chords::compute_chords(
-            &body,
-            0.05,
-            &vids,
-            &mut positions,
-            &mut bounds,
-        )
-        .unwrap();
+        let chords =
+            crate::chords::compute_chords(&body, 0.05, &vids, &mut positions, &mut bounds).unwrap();
         let (fk, face) = body
             .faces()
             .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Sphere { .. })))

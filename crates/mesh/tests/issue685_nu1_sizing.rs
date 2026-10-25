@@ -108,4 +108,3 @@ fn an_apex_free_single_column_cone_patch_is_the_same_strip() {
         "two columns at the finer delta: the honoured schedule"
     );
 }
-

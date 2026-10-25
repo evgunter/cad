@@ -1028,8 +1028,7 @@ mod tests {
             .unwrap();
             for target in [1e-2, 1e-4, 1e-6] {
                 let count = |n: &NurbsCurve3<f64>| {
-                    nurbs_chord_count(n, d1 - d0, target, EdgeKey::default())
-                        .expect("in inventory")
+                    nurbs_chord_count(n, d1 - d0, target, EdgeKey::default()).expect("in inventory")
                 };
                 assert_eq!(
                     count(&constant),
