@@ -57,7 +57,10 @@ fn multiples(band: Band) -> Vec<f64> {
     let mut out = vec![0.0];
     for edge in [band.zero(), band.escalate()] {
         for k in [0.5, 3.0, 20.0] {
-            out.extend([k * edge / band.zero(), -k * edge / band.zero()]);
+            out.extend([
+                k * (edge / band.zero()).round(),
+                -k * (edge / band.zero()).round(),
+            ]);
         }
     }
     out

@@ -386,7 +386,7 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
         for k in [0.5, 3.0, 20.0] {
             for sign in [1.0, -1.0] {
                 let d = sign * k * edge / radius;
-                spans.push((sign * k * edge / eps, (t0, t0 + TAU + d)));
+                spans.push((sign * k * (edge / eps).round(), (t0, t0 + TAU + d)));
             }
         }
     }

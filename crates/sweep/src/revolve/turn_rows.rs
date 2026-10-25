@@ -48,7 +48,10 @@ fn defects(band: Band, rate: f64) -> Vec<(f64, f64)> {
     for edge in [band.zero(), band.escalate()] {
         for k in [0.5, 3.0, 20.0] {
             for sign in [1.0, -1.0] {
-                out.push((sign * k * edge / band.zero(), sign * k * edge / rate));
+                out.push((
+                    sign * k * (edge / band.zero()).round(),
+                    sign * k * edge / rate,
+                ));
             }
         }
     }
