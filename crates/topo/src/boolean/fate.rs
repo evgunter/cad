@@ -1209,7 +1209,10 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
             match end_at(red, fe.holder, x, root, div_d)? {
                 End::At(_) => {}
                 End::Touch(t) => {
-                    if !touch_points.iter().any(|&(h, k, _)| (h, k) == (fe.holder, t)) {
+                    if !touch_points
+                        .iter()
+                        .any(|&(h, k, _)| (h, k) == (fe.holder, t))
+                    {
                         let key = kept_body
                             .get_vertex(t)
                             .map(|v| v.point)

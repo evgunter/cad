@@ -952,7 +952,6 @@ fn a_box_flush_under_a_ringed_top_builds_in_every_op() {
     }
 }
 
-
 /// **A flush partner whose outline crosses or meets the slit intersects
 /// it in either order**: the floor and the partner's bottom coincide,
 /// ∩ keeps one copy, and the dropped one is cut where its holder
@@ -993,9 +992,16 @@ fn a_flush_partner_crossing_the_slit_intersects_it_in_either_order() {
             built(&format!("{what}, a ∩ b"), intersect(a, b, tol)),
             built(&format!("{what}, b ∩ a"), intersect(b, a, tol)),
         ];
-        assert!((v[0] - v[1]).abs() < 1e-9, "{what}: |a ∩ b| {v:?} in the two orders");
+        assert!(
+            (v[0] - v[1]).abs() < 1e-9,
+            "{what}: |a ∩ b| {v:?} in the two orders"
+        );
         if let Some(want) = want {
-            assert!((v[0] - want).abs() < 1e-9, "{what}: volume {}, closed form {want}", v[0]);
+            assert!(
+                (v[0] - want).abs() < 1e-9,
+                "{what}: volume {}, closed form {want}",
+                v[0]
+            );
         }
         v[0]
     };
@@ -1005,7 +1011,12 @@ fn a_flush_partner_crossing_the_slit_intersects_it_in_either_order() {
             prism(
                 pose,
                 "the partner",
-                &[(b[0].0, b[1].0), (b[0].1, b[1].0), (b[0].1, b[1].1), (b[0].0, b[1].1)],
+                &[
+                    (b[0].0, b[1].0),
+                    (b[0].1, b[1].0),
+                    (b[0].1, b[1].1),
+                    (b[0].0, b[1].1),
+                ],
                 b[2],
                 &|x, y, z| [x, y, z],
             )
@@ -1056,10 +1067,21 @@ fn a_flush_partner_crossing_the_slit_intersects_it_in_either_order() {
             panic!("{}: the box and the wedge", pose.label);
         };
         let lumps = lumps.body;
-        let partner = posed_box("the partner", [(-0.5, 2.5), (-0.5, 1.5), (0.5, 1.0)], pose, tol);
+        let partner = posed_box(
+            "the partner",
+            [(-0.5, 2.5), (-0.5, 1.5), (0.5, 1.0)],
+            pose,
+            tol,
+        );
         let what = format!("the two lumps, {}", pose.label);
-        let v = built(&format!("{what}, lumps ∩ partner"), intersect(&lumps, &partner, tol));
-        assert!((v - 0.875).abs() < 1e-9, "{what}: volume {v}, closed form 0.875");
+        let v = built(
+            &format!("{what}, lumps ∩ partner"),
+            intersect(&lumps, &partner, tol),
+        );
+        assert!(
+            (v - 0.875).abs() < 1e-9,
+            "{what}: volume {v}, closed form 0.875"
+        );
         match intersect(&partner, &lumps, tol) {
             Err(e) => assert_eq!(
                 e.kind(),

@@ -82,3 +82,11 @@ The plate with the ring against the flush box `[1,2]×[0.5,1.5]×[lo,1]`,
 closed-form volumes; pinned by
 `a_keel_on_the_floor_subtracts_as_a_slit::a_box_flush_under_a_ringed_top_builds_in_every_op`.
 The row's status is FLUSH's to change.
+
+**Since PR 5545's fix pass.** The cells above still build, and the
+dropped floor's substituted rows match main row for row on every cell
+main builds (the review's probe, 2043 cells per ε). The partners whose
+outline crosses or meets the slit also build in both orders of ∩:
+`[0,2] × [0,4] × [0,½]` against the closed and the one-end slit, and
+`[1,5] × [1,3] × [0,½]` against the one-end slit
+(`a_flush_partner_crossing_the_slit_intersects_it_in_either_order`).
