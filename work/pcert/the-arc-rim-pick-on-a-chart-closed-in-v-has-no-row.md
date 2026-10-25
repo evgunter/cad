@@ -79,4 +79,4 @@ and the joint elements it no longer decides whether the walk closes.
 
 `seam_tube` itself does not mint: its cap arcs' fitted images fold back
 across the chart at the seam vertex, which is
-`work/iso/a-general-image-ending-on-a-closed-charts-seam-takes-its-foot-on-the-first-branch`.
+`work/isotail/a-general-image-ending-on-a-closed-charts-seam-takes-its-foot-on-the-first-branch`.

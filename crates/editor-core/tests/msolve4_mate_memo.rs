@@ -10,25 +10,24 @@
 //! an edit elsewhere has since changed.
 //!
 //! Every row goes through ordinary doors — `DocEdit::AddConstraint`,
-//! `DocEdit::AddValue`, `DocEdit::RemoveConstraint`, `evaluate` with the
+//! `DocEdit::SetConstraints`, `DocEdit::RemoveConstraint`, `evaluate` with the
 //! previous evaluation as the prior — and reads the answer off the
 //! evaluation and off `solve_document`, never off the key function.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use std::sync::Arc;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
-    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
-    SitedFace, SlideAxis, Space, Value, evaluate,
+    CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, MateFault, MateRef,
+    Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, SitedFace, TargetAxis,
+    evaluate,
 };
-use fixture::{ang, insert, len, on_frame, solve, step};
+use fixture::{insert, len, on_frame, solve, step};
 use geom_core::Tol;
 
 // ---- substrate ----
@@ -53,7 +52,6 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -108,7 +106,7 @@ fn scene(label: &str) -> Scene {
     );
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top_a) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, top_b) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, top_c) = insert(doc, fixture::mated_instance(block_ref));
@@ -135,70 +133,56 @@ impl Scene {
         fixture::head_at(block, in_part(block, self.block_body, end))
     }
 
-    /// Adds `mate` to `block`'s bundle, answering its address.
-    fn add(&mut self, block: RecipeNodeId, mate: editor_core::Mate<Formula>) -> MateRef {
-        let (doc, id) = fixture::constrain_at(self.doc.clone(), block, mate);
+    /// Writes `mate` as `block`'s bundle, each freedom it leaves set
+    /// ([`fixture::mated`]), answering the mate's address.
+    fn add(
+        &mut self,
+        block: RecipeNodeId,
+        mate: editor_core::Mate<Formula>,
+        values: &[(Coord, Formula)],
+    ) -> MateRef {
+        let (doc, id) = fixture::mated(self.doc.clone(), block, mate, values);
         self.doc = doc;
         id
     }
 
-    /// Sets the freedom `coord` of `mate` to `by`.
-    fn value(&mut self, mate: MateRef, coord: Coord, by: Formula) {
-        let applied = editor_core::apply(
-            &self.doc,
-            &DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: mate.id,
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("the value is admitted: {e}"));
-        self.doc = applied.doc;
-    }
-
-    /// `block`'s bottom cap resting on the base's top cap `h` above it:
-    /// a plane mate, which leaves the block a loose copy free to slide
-    /// and spin on the cap.
+    /// `block`'s bottom cap resting on the base's top cap `h` above it,
+    /// square to the base: a plane mate and the constant `0` on each
+    /// freedom it leaves.
     fn rest_on_base(&mut self, block: RecipeNodeId, h: f64) -> MateRef {
         let mate = fixture::mate(
             fixture::plane(self.block_cap(block, CapEnd::Start)),
             standoff(self.base_top(), h),
-            ContactClass::Rest,
         );
-        self.add(block, mate)
+        self.add(block, mate, &[])
     }
 
     /// `block` seated on the base's top cap with its origin over
     /// `(x, y)` and its axes the base's: the rest and its three values,
     /// which pin it.
     fn seat_on_base(&mut self, block: RecipeNodeId, x: f64, y: f64) -> MateRef {
-        let rest = self.rest_on_base(block, 0.0);
-        self.value(rest, Coord::Slide(SlideAxis::X), len(x));
-        self.value(rest, Coord::Slide(SlideAxis::Y), len(y));
-        self.value(rest, Coord::Spin, ang(0.0));
-        rest
+        let mate = fixture::mate(
+            fixture::plane(self.block_cap(block, CapEnd::Start)),
+            standoff(self.base_top(), 0.0),
+        );
+        self.add(
+            block,
+            mate,
+            &[
+                (Coord::Slide(TargetAxis::X), len(x)),
+                (Coord::Slide(TargetAxis::Y), len(y)),
+            ],
+        )
     }
 
     /// `upper`'s bottom cap seated on `lower`'s top cap, flush, in
     /// `upper`'s bundle: pinned in `lower`'s space.
     fn stack(&mut self, lower: RecipeNodeId, upper: RecipeNodeId) -> MateRef {
-        let rest = self.add(
-            upper,
-            fixture::rest(
-                self.block_cap(upper, CapEnd::Start),
-                self.block_cap(lower, CapEnd::End),
-                ContactClass::Rest,
-            ),
+        let rest = fixture::rest(
+            self.block_cap(upper, CapEnd::Start),
+            self.block_cap(lower, CapEnd::End),
         );
-        self.value(rest, Coord::Slide(SlideAxis::X), len(0.0));
-        self.value(rest, Coord::Slide(SlideAxis::Y), len(0.0));
-        self.value(rest, Coord::Spin, ang(0.0));
-        rest
+        self.add(upper, rest, &[])
     }
 
     /// Adds `mate` to `block`'s bundle past the bundle rule — the state
@@ -225,7 +209,6 @@ impl Scene {
         let mate = fixture::mate(
             fixture::plane(self.block_cap(block, CapEnd::Start)),
             standoff(self.base_top(), h),
-            ContactClass::Rest,
         );
         self.add_past_the_door(block, mate)
     }
@@ -359,8 +342,8 @@ fn an_upstream_refusal_poisons_the_unedited_placement_pinned_to_it() {
     let first = s.eval(None);
     assert_ok(&first, s.top_b, "the upper block");
     assert_eq!(
-        first.space(s.top_b),
-        Space::Loose { root: s.top_a },
+        s.doc.node_space(s.top_b),
+        s.doc.node_space(s.top_a),
         "the premise: the upper block lives in the lower block's space"
     );
 
@@ -427,38 +410,36 @@ fn removing_the_overconstraint_returns_the_faulted_placement_to_ok() {
     );
 }
 
-/// **A space change on an unedited placement reaches its value through
-/// the memo, and moves its content key.**
+/// **A move of the body an unedited placement is mated to reaches its
+/// value through the memo, and moves its content key.**
 ///
-/// The upper block is stacked on a loose lower block, so it lives in
-/// the lower block's space; seating the lower block on the base puts
-/// both in the world's. The upper block's bundle never changes.
+/// The upper block is stacked on the lower block, standing where its
+/// body stands; seating the lower block on the base moves it, and the
+/// upper block with it. The upper block's bundle never changes.
 ///
-/// *Breaks if* the upper block is served from the memo with the loose
-/// space it had.
+/// *Breaks if* the upper block is served from the memo where it stood.
 #[test]
-fn a_space_change_on_an_unedited_placement_reaches_its_value() {
+fn a_moved_target_reaches_an_unedited_placements_value() {
     let mut s = scene("msolve4-space");
     s.stack(s.top_a, s.top_b);
     let first = s.eval(None);
-    assert_eq!(
-        first.space(s.top_b),
-        Space::Loose { root: s.top_a },
-        "the upper block lives in the loose lower block's space"
-    );
+    let before = solve(&s.doc, &s.opts, Tol::witness())
+        .relative(s.top_b)
+        .expect("the upper block is placed");
 
     s.seat_on_base(s.top_a, 1.0, 1.0);
     let second = s.eval(Some(&first));
 
-    assert_eq!(
-        solve(&s.doc, &s.opts, Tol::witness()).space(s.top_b),
-        Some(Space::World),
-        "the premise: the solve moved the unedited placement into the world"
+    let after = solve(&s.doc, &s.opts, Tol::witness())
+        .relative(s.top_b)
+        .expect("the upper block is placed");
+    assert_ne!(
+        before.translation, after.translation,
+        "the premise: the unedited placement moved with its target"
     );
-    assert_eq!(
-        second.space(s.top_b),
-        Space::World,
-        "the unedited placement's evaluation carries the new space, not the memo's old one"
+    assert!(
+        !reused_value(&first, &second, s.top_b),
+        "the unedited placement is not served from the memo"
     );
     assert_ne!(
         key(&first, s.top_b, "before"),

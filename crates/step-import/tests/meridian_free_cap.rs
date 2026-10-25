@@ -58,7 +58,12 @@ fn an_imported_rim_only_sphere_cap_passes_every_tier_and_the_mesh_lane_refuses_i
              working: turn this row into the normalization's own"
         );
         assert_eq!(topo::validate_geometric(&body, tol), Ok(()), "{name}");
-        let volume = topo::mass_properties(&body, tol).unwrap().volume;
+        let volume = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), tol),
+            tol,
+        )
+        .unwrap()
+        .volume;
         assert!(
             (volume - exact).abs() <= 1e-9 * exact,
             "{name}: volume {volume} vs the closed form {exact}"

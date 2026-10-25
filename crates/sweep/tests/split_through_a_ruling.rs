@@ -25,7 +25,7 @@ use std::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use topo::splitting::{SplitPart, SplitPlane, split};
-use topo::{AtRestBody, Body, ContactRecords, mass_properties};
+use topo::{AtRestBody, ContactRecords, mass_properties};
 
 /// Tilts off tangency, both senses and both sides of the axis.
 const TILTS: [f64; 8] = [0.05, 0.4, 1.0, FRAC_PI_2, 2.0, 3.0, -0.4, -1.2];
@@ -106,15 +106,20 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> SplitPlane<f64> {
 /// One side holds the volume wanted and passes every tier.
 fn holds(label: &str, side: &str, part: &SplitPart<f64>, want: f64) {
     let tol = Tol::witness();
-    let b: &Body<f64> = part
-        .body()
-        .unwrap_or_else(|| panic!("{label}: no {side} side, want {want}"));
-    topo::validate(b).unwrap_or_else(|e| panic!("{label}: {side}: tier 1: {e:?}"));
-    topo::validate_closed(b).unwrap_or_else(|e| panic!("{label}: {side}: tier 2: {e:?}"));
-    topo::validate_geometric(b, tol).unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
-    topo::validate_pseudomanifold(b, &ContactRecords::default(), tol)
+    let b = topo::test_support::finished(
+        "b",
+        topo::Body::clone(
+            part.body()
+                .unwrap_or_else(|| panic!("{label}: no {side} side, want {want}")),
+        ),
+        tol,
+    );
+    topo::validate(&b).unwrap_or_else(|e| panic!("{label}: {side}: tier 1: {e:?}"));
+    topo::validate_closed(&b).unwrap_or_else(|e| panic!("{label}: {side}: tier 2: {e:?}"));
+    topo::validate_geometric(&b, tol).unwrap_or_else(|e| panic!("{label}: {side}: tier 3: {e:?}"));
+    topo::validate_pseudomanifold(&b, &ContactRecords::default(), tol)
         .unwrap_or_else(|e| panic!("{label}: {side}: tier 3′: {e:?}"));
-    let v = mass_properties(b, tol)
+    let v = topo::mass_properties(&b, tol)
         .unwrap_or_else(|e| panic!("{label}: {side}: mass properties: {e:?}"))
         .volume;
     assert!(

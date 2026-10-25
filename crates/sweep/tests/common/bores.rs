@@ -107,6 +107,6 @@ pub fn halves_at_rest(what: &str, body: &Body<f64>, plane: &SplitPlane<f64>) -> 
             Ok(()),
             "{what} {side}: tier 3"
         );
-        half
+        half.into_body()
     })
 }

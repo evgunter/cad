@@ -56,8 +56,8 @@ fn the_spike_document_becomes_a_drawable_scene() {
     let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
     assert_eq!(
         doc.len(),
-        4,
-        "the sketch frame, one profile node, one extrude and its placement"
+        3,
+        "one profile node, one extrude and its placement"
     );
     assert_eq!(
         doc.placements()
@@ -79,16 +79,31 @@ fn the_spike_document_becomes_a_drawable_scene() {
     );
     assert_eq!(mesh.normals().len(), mesh.positions().len());
 
-    let bounds = mesh.bounds();
+    let bounds = mesh.bounds().expect("the plate draws");
     for (axis, extent) in [
         (Axis::X, PLATE[0]),
         (Axis::Y, PLATE[1]),
         (Axis::Z, PLATE[2]),
     ] {
+        // The box is over the `f32` corners drawn, so it is the
+        // plate to within the narrowing's rounding.
         let measured = bounds.max(axis) - bounds.min(axis);
         assert!(
-            (measured - extent).abs() < 1e-12,
+            (measured - extent).abs() < 1e-8,
             "extent on {axis:?}: {measured} vs {extent}"
+        );
+    }
+    // And it is the box of what is DRAWN: every corner the GPU holds,
+    // widened back, lies inside it, and touches each face.
+    for (index, axis) in [Axis::X, Axis::Y, Axis::Z].into_iter().enumerate() {
+        let drawn = mesh.positions().iter().map(|p| f64::from(p[index]));
+        let (lo, hi) = drawn.fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), v| {
+            (lo.min(v), hi.max(v))
+        });
+        assert_eq!(
+            (bounds.min(axis), bounds.max(axis)),
+            (lo, hi),
+            "on {axis:?} the bounds are the drawn corners' own range"
         );
     }
 }
@@ -191,7 +206,7 @@ fn a_camera_framed_on_the_scene_contains_every_vertex() {
     let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let mesh = scene::scene_of(&doc, delta(1.0e-4), tol).expect("the plate tessellates");
     let aspect = 16.0 / 9.0;
-    let camera = Camera::framing(&mesh.bounds(), aspect).expect("the scene frames");
+    let camera = Camera::framing(mesh.bounds(), aspect).expect("the scene frames");
     for (i, p) in mesh.positions().iter().enumerate() {
         let point =
             pncad::geom_core::Point3::new(f64::from(p[0]), f64::from(p[1]), f64::from(p[2]));

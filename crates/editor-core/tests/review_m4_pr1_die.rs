@@ -1,7 +1,7 @@
 //! ADVERSARIAL REVIEW R7 — the die acceptance, independently
 //! re-authored with a DIFFERENT edit order (prelude nodes permuted;
-//! all 21 Transforms inserted before any Subtract, instead of the
-//! PR's interleaved Transform+Subtract pairs). Verifies:
+//! all 21 placements inserted before any Subtract, instead of the
+//! PR's interleaved placement+Subtract pairs). Verifies:
 //!  - replay bit-identity holds for BOTH authorings;
 //!  - the two docs are payload-ISOMORPHIC under the id relabeling
 //!    induced by the authoring orders (slot floats bit-equal);
@@ -11,8 +11,7 @@
 //!    first insert, so their mints do), no param/ε deltas.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{ang, len, scl};
-use editor_core::ExtrudeSide;
+use crate::fixture::{ang, len};
 use editor_core::{
     Dimension, Doc, DocEdit, Formula, FreeVar, Node, NodeChange, RecipeNodeId, VarName, eval,
 };
@@ -29,10 +28,6 @@ impl editor_core::ProfilePayload for FakeProfile {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
-        _: &mut dyn FnMut(
-            editor_core::OperandSlot,
-            &editor_core::Operand,
-        ) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
@@ -123,16 +118,45 @@ fn step(doc: TDoc, log: &mut Vec<TEdit>, edit: TEdit) -> (TDoc, Option<RecipeNod
     (applied.doc, applied.record.minted)
 }
 
-fn transform_node(pip: RecipeNodeId, p: &([f64; 3], [f64; 3], f64)) -> Node<FakeProfile, Formula> {
-    let (t, r, a) = p;
-    Node::transform(
-        pip,
-        editor_core::Step::Rigid {
-            translation: [len(t[0]), len(t[1]), len(t[2])],
-            axis: [scl(r[0]), scl(r[1]), scl(r[2])],
-            angle: ang(*a),
+/// A placed copy of the pip at `p`, in the cube's space `space`: a
+/// placement of it whose bundle is the pip's motion as values alone —
+/// its slides along the space's axes and its turn about one of them —
+/// written whole. Returns the document and the placement.
+fn place_pip(
+    doc: TDoc,
+    log: &mut Vec<TEdit>,
+    pip: RecipeNodeId,
+    space: editor_core::VarId,
+    p: &([f64; 3], [f64; 3], f64),
+) -> (TDoc, RecipeNodeId) {
+    use editor_core::{Coord, Operand, TargetAxis};
+    let (t, axis, a) = p;
+    let axes = [TargetAxis::X, TargetAxis::Y, TargetAxis::Z];
+    let slides = axes
+        .into_iter()
+        .zip(t)
+        .map(|(at, by)| (Coord::Slide(at), len(*by)));
+    let spins = axes.into_iter().zip(axis).map(|(at, k)| {
+        let by = if *k == 0.0 { 0.0 } else { k * a };
+        (Coord::Spin(at), ang(by))
+    });
+    let placed = editor_core::Placed {
+        mates: Vec::new(),
+        values: slides.chain(spins).collect(),
+    };
+    let (doc, placement) = step(
+        doc,
+        log,
+        TEdit::InsertNode {
+            node: Box::new(editor_core::Node::place(
+                vec![editor_core::BodyRead::plain(Operand::Node(pip))],
+                Operand::Var(space),
+                placed.bundle(),
+            )),
+            fresh: Vec::new(),
         },
-    )
+    );
+    (doc, placement.expect("a placement mints"))
 }
 
 fn subtract_node(a: RecipeNodeId, b: RecipeNodeId) -> Node<FakeProfile, Formula> {
@@ -146,7 +170,7 @@ struct Authored {
     doc: TDoc,
     log: Vec<TEdit>,
     /// Ids by role: [cube_profile, cube_extrude, pip_profile,
-    /// pip_extrude], then 21 transforms, then 21 subtracts.
+    /// pip_extrude], then 21 placements, then 21 subtracts.
     roles: Vec<RecipeNodeId>,
 }
 
@@ -158,7 +182,7 @@ fn depth_param() -> TEdit {
 }
 
 /// The PR's authoring order: param, cube pair, pip pair, then 21
-/// interleaved (Transform, Subtract) pairs.
+/// interleaved (placement, Subtract) pairs.
 fn author_theirs() -> Authored {
     let mut log = Vec::new();
     let (doc, _) = step(
@@ -181,7 +205,6 @@ fn author_theirs() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap().into(),
                 distance: len(2.0 * HALF),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -201,44 +224,37 @@ fn author_theirs() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap().into(),
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
     );
     let pip_e = pip_e.unwrap();
     let mut body = cube.unwrap();
-    let (mut transforms, mut subtracts) = (Vec::new(), Vec::new());
+    let in_cube = doc.node_space(body).expect("the cube is in its own space");
+    let (mut copies, mut subtracts) = (Vec::new(), Vec::new());
     for p in placements() {
-        let (d2, placed) = step(
-            doc,
-            &mut log,
-            TEdit::InsertNode {
-                node: Box::new(transform_node(pip_e, &p)),
-                fresh: Vec::new(),
-            },
-        );
+        let (d2, placed) = place_pip(doc, &mut log, pip_e, in_cube, &p);
         let (d3, cut) = step(
             d2,
             &mut log,
             TEdit::InsertNode {
-                node: Box::new(subtract_node(body, placed.unwrap())),
+                node: Box::new(subtract_node(body, placed)),
                 fresh: Vec::new(),
             },
         );
         doc = d3;
         body = cut.unwrap();
-        transforms.push(placed.unwrap());
+        copies.push(placed);
         subtracts.push(cut.unwrap());
     }
     let mut roles = vec![cube_p.unwrap(), cube.unwrap(), pip_p.unwrap(), pip_e];
-    roles.extend(transforms);
+    roles.extend(copies);
     roles.extend(subtracts);
     Authored { doc, log, roles }
 }
 
 /// MY authoring order: cube profile, pip profile, param, pip extrude,
-/// cube extrude — then ALL 21 transforms, then ALL 21 subtracts.
+/// cube extrude — then ALL 21 placements, then ALL 21 subtracts.
 fn author_mine() -> Authored {
     let mut log = Vec::new();
     let (doc, cube_p) = step(
@@ -265,7 +281,6 @@ fn author_mine() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: pip_p.unwrap().into(),
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
@@ -277,28 +292,23 @@ fn author_mine() -> Authored {
             node: Box::new(Node::Extrude {
                 profile: cube_p.unwrap().into(),
                 distance: len(2.0 * HALF),
-                side: ExtrudeSide::Along,
             }),
             fresh: Vec::new(),
         },
     );
     let pip_e = pip_e.unwrap();
-    let mut transforms = Vec::new();
+    let in_cube = doc
+        .node_space(cube.unwrap())
+        .expect("the cube is in its own space");
+    let mut copies = Vec::new();
     for p in placements() {
-        let (d2, placed) = step(
-            doc,
-            &mut log,
-            TEdit::InsertNode {
-                node: Box::new(transform_node(pip_e, &p)),
-                fresh: Vec::new(),
-            },
-        );
+        let (d2, placed) = place_pip(doc, &mut log, pip_e, in_cube, &p);
         doc = d2;
-        transforms.push(placed.unwrap());
+        copies.push(placed);
     }
     let mut body = cube.unwrap();
     let mut subtracts = Vec::new();
-    for &t in &transforms {
+    for &t in &copies {
         let (d2, cut) = step(
             doc,
             &mut log,
@@ -312,7 +322,7 @@ fn author_mine() -> Authored {
         subtracts.push(cut.unwrap());
     }
     let mut roles = vec![cube_p.unwrap(), cube.unwrap(), pip_p.unwrap(), pip_e];
-    roles.extend(transforms);
+    roles.extend(copies);
     roles.extend(subtracts);
     Authored { doc, log, roles }
 }
@@ -341,7 +351,30 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
             mine.doc.upstream(m_id),
             "upstream of {t_id:?}→{m_id:?}"
         );
-        assert_eq!(tn.slots(), mn.slots());
+        // A placement's constraints are minted per authoring: its slots
+        // correspond through the constraints' order.
+        let constraint_ids = |n: &Node<_>| match n {
+            Node::Place { constraints, .. } => constraints.iter().map(|c| c.id).collect(),
+            _ => Vec::new(),
+        };
+        let cmap: BTreeMap<editor_core::ConstraintId, editor_core::ConstraintId> =
+            constraint_ids(tn)
+                .into_iter()
+                .zip(constraint_ids(mn))
+                .collect();
+        let relabel = |slot: editor_core::SlotId| match slot {
+            editor_core::SlotId::ValueSlide { constraint } => editor_core::SlotId::ValueSlide {
+                constraint: cmap[&constraint],
+            },
+            editor_core::SlotId::ValueSpin { constraint } => editor_core::SlotId::ValueSpin {
+                constraint: cmap[&constraint],
+            },
+            other => other,
+        };
+        assert_eq!(
+            tn.slots().into_iter().map(relabel).collect::<Vec<_>>(),
+            mn.slots()
+        );
         for slot in tn.slots() {
             let tv = eval::<f64>(
                 &theirs.doc.slot_expansion(t_id, slot).unwrap(),
@@ -349,7 +382,7 @@ fn assert_role_isomorphic(theirs: &Authored, mine: &Authored) {
             )
             .unwrap();
             let mv = eval::<f64>(
-                &mine.doc.slot_expansion(m_id, slot).unwrap(),
+                &mine.doc.slot_expansion(m_id, relabel(slot)).unwrap(),
                 &mine.doc.var_env(),
             )
             .unwrap();

@@ -58,16 +58,16 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
     let cap = faces_on(&body, geom::SurfaceKind::Sphere);
     assert_eq!(cap.len(), 2, "the revolve wears the cap on two half-faces");
     let shelled = open(&body, &cap, t).expect("the cap opens");
-    let cup = &shelled.body;
+    let cup = topo::test_support::finished("cup", topo::Body::clone(&shelled.body), tol);
 
-    assert_eq!(topo::validate_geometric(cup, tol), Ok(()), "tier 3");
+    assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
     assert_eq!(cup.shells().count(), 1, "the rim fuses the cavity in");
     assert_eq!(
-        (rings_of(cup), genus_of(cup)),
+        (rings_of(&cup), genus_of(&cup)),
         (0, 0),
         "a seamed band carries no ring, and a cup is genus 0"
     );
-    let band = faces_on(cup, geom::SurfaceKind::Sphere);
+    let band = faces_on(&cup, geom::SurfaceKind::Sphere);
     assert_eq!(
         band, cap,
         "both half-faces survive as the band, under their keys"
@@ -98,7 +98,7 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
     let outer = PI * r * r * h + cap_volume(rho, rho - (rho * rho - r * r).sqrt());
     let reach = (rho * rho - a * a).sqrt();
     let cavity = PI * a * a * (centre + reach - t) + cap_volume(rho, rho - reach);
-    let props = topo::mass_properties(cup, tol).expect("the band's props");
+    let props = topo::mass_properties(&cup, tol).expect("the band's props");
     assert!(
         (props.volume - (outer - cavity)).abs() <= 1e-12 + props.volume_pad,
         "cup volume: got {} (pad {}), want {}",
@@ -107,7 +107,7 @@ fn a_spherical_cap_opens_to_a_seamed_band() {
         outer - cavity
     );
     for delta in [1e-2, 1e-3] {
-        mesh::tessellate(cup, delta, tol)
+        mesh::tessellate(&cup, delta, tol)
             .unwrap_or_else(|e| panic!("the band must triangulate at delta = {delta}, got {e:?}"));
     }
 }
@@ -128,8 +128,8 @@ fn a_voids_cap_opens_to_a_seamed_band_of_its_twin() {
     assert_eq!(cap.len(), 2, "the void's cap is two half-faces");
     let t = 0.05;
     let shelled = open(&hollow, &cap, t).expect("the void's cap opens");
-    let body = &shelled.body;
-    assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
+    let body = topo::test_support::finished("body", topo::Body::clone(&shelled.body), tol);
+    assert_eq!(topo::validate_geometric(&body, tol), Ok(()), "tier 3");
     let rim = &shelled.naming.rims[0];
     assert_eq!(rim.side, topo::RimShell::Void);
     for &face in &cap {
@@ -138,7 +138,7 @@ fn a_voids_cap_opens_to_a_seamed_band_of_its_twin() {
         let data = body.get_face(twin).expect("the twin survives as a branch");
         assert!(data.rings.is_empty(), "a seamed band carries no ring");
     }
-    assert_eq!(rings_of(body), 0, "no ring anywhere");
+    assert_eq!(rings_of(&body), 0, "no ring anywhere");
 
     let (_, _, centre) = capped_vessel(0.5, 0.6, 60.0);
     let w = |a: f64, b: f64, sphere: f64| {
@@ -147,7 +147,7 @@ fn a_voids_cap_opens_to_a_seamed_band_of_its_twin() {
     };
     let outer_wall = w(0.5, 0.0, rho) - w(0.5 - t, t, rho - t);
     let cup = w(0.3 + t, 0.2 - t, rho - 0.2) - w(0.3, 0.2, rho - 0.2);
-    let props = topo::mass_properties(body, tol).expect("props");
+    let props = topo::mass_properties(&body, tol).expect("props");
     assert!(
         (props.volume - (outer_wall + cup)).abs() <= 1e-12 + props.volume_pad,
         "volume: got {} (pad {}), want {}",
@@ -155,7 +155,7 @@ fn a_voids_cap_opens_to_a_seamed_band_of_its_twin() {
         props.volume_pad,
         outer_wall + cup
     );
-    mesh::tessellate(body, 1e-2, tol).expect("the void's band triangulates");
+    mesh::tessellate(&body, 1e-2, tol).expect("the void's band triangulates");
 }
 
 /// **A cap that bulges past its equator does not open**: the cavity's
@@ -186,15 +186,15 @@ fn a_d_section_window_opens_to_a_ring_and_the_mesh_refuses_it() {
     let wall = faces_on(&body, geom::SurfaceKind::Cylinder);
     assert_eq!(wall.len(), 1, "the half-cylinder is one face");
     let shelled = open(&body, &wall, t).expect("the window opens");
-    let cut = &shelled.body;
-    assert_eq!(topo::validate_geometric(cut, tol), Ok(()), "tier 3");
+    let cut = topo::test_support::finished("cut", topo::Body::clone(&shelled.body), tol);
+    assert_eq!(topo::validate_geometric(&cut, tol), Ok(()), "tier 3");
     assert_eq!(cut.shells().count(), 1, "the rim fuses the cavity in");
     let rim = cut.get_face(wall[0]).expect("the designated face survives");
     assert_eq!(rim.rings, vec![shelled.naming.rims[0].ring], "one ring");
 
     let segment = r * r * (t / r).acos() - t * (r * r - t * t).sqrt();
     let want = PI * r * r / 2.0 * h - segment * (h - 2.0 * t);
-    let props = topo::mass_properties(cut, tol).expect("a ringed cylinder wall's props");
+    let props = topo::mass_properties(&cut, tol).expect("a ringed cylinder wall's props");
     assert!(
         (props.volume - want).abs() <= 1e-9 + props.volume_pad,
         "volume: got {} (pad {}), want {want}",
@@ -202,7 +202,7 @@ fn a_d_section_window_opens_to_a_ring_and_the_mesh_refuses_it() {
         props.volume_pad
     );
     assert!(
-        mesh::tessellate(cut, 1e-2, tol).is_err(),
+        mesh::tessellate(&cut, 1e-2, tol).is_err(),
         "the tessellator reads no ringed cylinder wall yet"
     );
 }
@@ -215,16 +215,16 @@ fn a_d_section_window_opens_to_a_ring_and_the_mesh_refuses_it() {
 #[test]
 fn a_sphere_window_opens_to_a_ring_and_passes_tier_3() {
     let tol = Tol::witness();
-    let body = dome_sector(1.0, 120.0);
+    let body = topo::test_support::finished("body", dome_sector(1.0, 120.0), tol);
     let zone = faces_on(&body, geom::SurfaceKind::Sphere);
     assert_eq!(zone.len(), 1, "the sector's sphere face is one window");
     let shelled = open(&body, &zone, 0.05).expect("the window opens");
-    let cut = &shelled.body;
-    assert_eq!(topo::validate_geometric(cut, tol), Ok(()), "tier 3");
+    let cut = topo::test_support::finished("cut", topo::Body::clone(&shelled.body), tol);
+    assert_eq!(topo::validate_geometric(&cut, tol), Ok(()), "tier 3");
     let rim = cut.get_face(zone[0]).expect("the designated face survives");
     assert_eq!(rim.rings, vec![shelled.naming.rims[0].ring], "one ring");
     let before = topo::mass_properties(&body, tol).unwrap().volume;
-    let after = topo::mass_properties(cut, tol).unwrap().volume;
+    let after = topo::mass_properties(&cut, tol).unwrap().volume;
     assert!(
         0.0 < after && after < before,
         "the shell removes material: {after} of {before}"
@@ -293,7 +293,11 @@ fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
         let corner = apex + dir * (slide + a * slope);
         let sealed_cavity = column(corner) + PI * a * a * a * slope / 3.0;
         let volume = |b: &Body<f64>| {
-            let p = topo::mass_properties(b, tol).expect("props");
+            let p = topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
+                tol,
+            )
+            .expect("props");
             (p.volume, p.volume_pad)
         };
 
@@ -406,7 +410,11 @@ fn a_tangent_dome_shells_at_its_tangent_circle() {
             vertex_at(&hollow, a, h).is_some(),
             "r = {r}: the cavity's corner is on the tangent circle"
         );
-        let props = topo::mass_properties(&hollow, tol).expect("props");
+        let props = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+            tol,
+        )
+        .expect("props");
         assert!(
             (props.volume - sealed_want).abs() <= 1e-12 * r.powi(3) + props.volume_pad,
             "r = {r}: volume {} (pad {}), want {sealed_want}",
@@ -417,9 +425,13 @@ fn a_tangent_dome_shells_at_its_tangent_circle() {
             .unwrap_or_else(|e| panic!("r = {r}: the hollow triangulates, got {e:?}"));
 
         let floor = faces_on(&body, geom::SurfaceKind::Plane);
-        let cup = open(&body, &floor, t)
-            .unwrap_or_else(|e| panic!("r = {r}: the floor opens, got {e:?}"))
-            .body;
+        let cup = topo::test_support::finished(
+            "cup",
+            open(&body, &floor, t)
+                .unwrap_or_else(|e| panic!("r = {r}: the floor opens, got {e:?}"))
+                .body,
+            tol,
+        );
         assert_eq!(
             topo::validate_geometric(&cup, tol),
             Ok(()),
@@ -482,7 +494,11 @@ fn a_dome_short_of_tangent_shells_at_its_upper_root() {
                 .any(|y| (y - corner).abs() < 0.1 * (corner - centre)),
             "gap = {gap:e}: the cavity's corner is on the upper root {corner}, got {got:?}"
         );
-        let props = topo::mass_properties(&hollow, tol).expect("props");
+        let props = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+            tol,
+        )
+        .expect("props");
         let want = outer - cavity;
         assert!(
             (props.volume - want).abs() <= 1e-12 + props.volume_pad,
@@ -610,10 +626,10 @@ fn a_two_face_window_that_does_not_wrap_opens_to_a_ring() {
     let wall = faces_on(&body, geom::SurfaceKind::Cylinder);
     assert_eq!(wall.len(), 2, "the half-cylinder is split in two");
     let shelled = open(&body, &wall, t).expect("the split window opens");
-    let cut = &shelled.body;
-    assert_eq!(topo::validate_geometric(cut, tol), Ok(()), "tier 3");
-    assert_eq!(rings_of(cut), 1, "one ring");
-    let rim = faces_on(cut, geom::SurfaceKind::Cylinder);
+    let cut = topo::test_support::finished("cut", topo::Body::clone(&shelled.body), tol);
+    assert_eq!(topo::validate_geometric(&cut, tol), Ok(()), "tier 3");
+    assert_eq!(rings_of(&cut), 1, "one ring");
+    let rim = faces_on(&cut, geom::SurfaceKind::Cylinder);
     assert_eq!(rim.len(), 1, "the two faces merge into one rim");
     assert_eq!(
         cut.get_face(rim[0]).map(|f| f.rings.len()),
@@ -642,7 +658,7 @@ fn a_two_face_window_that_does_not_wrap_opens_to_a_ring() {
     );
     let segment = r * r * (t / r).acos() - t * (r * r - t * t).sqrt();
     let want = PI * r * r / 2.0 * h - segment * (h - 2.0 * t);
-    let props = topo::mass_properties(cut, tol).expect("props");
+    let props = topo::mass_properties(&cut, tol).expect("props");
     assert!(
         (props.volume - want).abs() <= 1e-9 + props.volume_pad,
         "volume: got {} (pad {}), want {want}",
@@ -723,10 +739,14 @@ fn a_tubes_wall_opens_to_two_seamed_bands() {
             "{what}: the wall runs between two circles"
         );
         let shelled = open(&body, &wall, t).unwrap_or_else(|e| panic!("{what} opens: {e:?}"));
-        let cut = &shelled.body;
-        assert_eq!(topo::validate_geometric(cut, tol), Ok(()), "{what}: tier 3");
+        let cut = topo::test_support::finished("cut", topo::Body::clone(&shelled.body), tol);
         assert_eq!(
-            (cut.shells().count(), genus_of(cut)),
+            topo::validate_geometric(&cut, tol),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        assert_eq!(
+            (cut.shells().count(), genus_of(&cut)),
             (1, 1),
             "{what}: the rim fuses the cavity in, and the opened tube is genus 1"
         );
@@ -741,7 +761,7 @@ fn a_tubes_wall_opens_to_two_seamed_bands() {
             rim.rim, wall[0],
             "{what}: the designated face is the first band"
         );
-        let mut bands = walls_of(cut, radius);
+        let mut bands = walls_of(&cut, radius);
         bands.sort();
         let mut want = vec![wall[0], hole.face];
         want.sort();
@@ -774,13 +794,13 @@ fn a_tubes_wall_opens_to_two_seamed_bands() {
         );
         for (rows, band) in [(&rim.ring_edges, wall[0]), (&hole.ring_edges, hole.face)] {
             assert!(
-                boundaries_of(cut, band).contains(&rows[0].0),
+                boundaries_of(&cut, band).contains(&rows[0].0),
                 "{what}: each ring's twin circle bounds its own band"
             );
         }
 
         let want = outer - cavity;
-        let props = topo::mass_properties(cut, tol).expect("the bands' props");
+        let props = topo::mass_properties(&cut, tol).expect("the bands' props");
         assert!(
             (props.volume - want).abs() <= 1e-12 + props.volume_pad,
             "{what}: volume: got {} (pad {}), want {want}",
@@ -788,7 +808,7 @@ fn a_tubes_wall_opens_to_two_seamed_bands() {
             props.volume_pad
         );
         for delta in [1e-2, 1e-3] {
-            mesh::tessellate(cut, delta, tol).unwrap_or_else(|e| {
+            mesh::tessellate(&cut, delta, tol).unwrap_or_else(|e| {
                 panic!("{what}: the bands must triangulate at delta = {delta}, got {e:?}")
             });
         }
@@ -827,9 +847,9 @@ fn a_voids_band_wall_opens_to_two_bands_of_its_twin() {
         let wall = walls_of(&hollow, radius);
         assert_eq!(wall.len(), 1, "{what}: one face");
         let shelled = open(&hollow, &wall, t).unwrap_or_else(|e| panic!("{what} opens: {e:?}"));
-        let body = &shelled.body;
+        let body = topo::test_support::finished("body", topo::Body::clone(&shelled.body), tol);
         assert_eq!(
-            topo::validate_geometric(body, tol),
+            topo::validate_geometric(&body, tol),
             Ok(()),
             "{what}: tier 3"
         );
@@ -842,7 +862,7 @@ fn a_voids_band_wall_opens_to_two_bands_of_its_twin() {
         let [hole] = &rim.holes[..] else {
             panic!("{what}: one hole row, got {:?}", rim.holes)
         };
-        let mut bands = walls_of(body, radius);
+        let mut bands = walls_of(&body, radius);
         bands.sort();
         let mut want = vec![rim.rim, hole.face];
         want.sort();
@@ -851,14 +871,14 @@ fn a_voids_band_wall_opens_to_two_bands_of_its_twin() {
             "{what}: the twin's two bands, on the designated radius"
         );
         let want = outer_wall + dilated - annulus(vi, vo, vh);
-        let props = topo::mass_properties(body, tol).expect("props");
+        let props = topo::mass_properties(&body, tol).expect("props");
         assert!(
             (props.volume - want).abs() <= 1e-12 + props.volume_pad,
             "{what}: volume: got {} (pad {}), want {want}",
             props.volume,
             props.volume_pad
         );
-        mesh::tessellate(body, 1e-2, tol)
+        mesh::tessellate(&body, 1e-2, tol)
             .unwrap_or_else(|e| panic!("{what}: the bands triangulate, got {e:?}"));
     }
 }

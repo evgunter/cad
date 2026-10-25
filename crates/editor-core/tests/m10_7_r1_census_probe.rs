@@ -17,7 +17,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -27,7 +26,7 @@ use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
     Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName, evaluate,
 };
-use fixture::{Recorder, len, scl, xy_frame};
+use fixture::{Recorder, len, scl};
 use geom_core::Tol;
 use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 
@@ -52,10 +51,8 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
         }),
     });
     let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
-    let plane = r.insert(xy_frame());
     let pt = |x: Formula, y: Formula| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             pt(Formula::div(w(), scl(2.0)).unwrap(), len(0.0)),
@@ -81,7 +78,6 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     Ok(r.doc)
 }

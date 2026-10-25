@@ -134,8 +134,8 @@ fn reverse_data_section(text: &str) -> String {
 enum Posture {
     /// Bounds returned.
     Certified(topo::MassProperties<f64>, Vec<topo::test_support::FaceTerm>),
-    /// The schedule cannot reach `1024·ε` — typed, with its width (the
-    /// last round's own, or the bound the loop refused on after round 0).
+    /// The lane stops short of `1024·ε` — typed, with the width of the
+    /// narrowest enclosure it reached.
     Budget,
     /// The convergence predicate could not be decided in-band.
     Escalated,

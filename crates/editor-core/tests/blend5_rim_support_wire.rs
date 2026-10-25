@@ -13,7 +13,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     EntityKind, Node, PersistError, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg, StableName,
@@ -61,7 +60,6 @@ fn both_roles() -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, _fillet) = insert(
@@ -95,8 +93,8 @@ fn both_rim_roles_round_trip() {
         "the retired kind vocabulary is gone: {text}"
     );
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
-    // Frame, profile, the block, then the fillet over it.
-    let (block, fillet) = (back.ids()[2], back.ids()[3]);
+    // Profile, the block, then the fillet over it.
+    let (block, fillet) = (back.ids()[1], back.ids()[2]);
     let selection = match back.node(fillet) {
         Some(Node::Fillet { selection, .. }) => back
             .selection(*selection)

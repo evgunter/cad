@@ -27,7 +27,10 @@
 //!   vertex or another edge (passes 2′ and 5′, through
 //!   `geom_brep::curve_pair`); same-key opposed-sense curved
 //!   pairs (the conformal arm, [`sweep_conformal_patches`], through
-//!   the chart-region predicate); face–face records (the patch
+//!   the chart-region predicate); two planar faces of different solids
+//!   meeting over an area, one pair (the planar arm,
+//!   [`planar_face_pairs`], read before the sweeps, which then ask
+//!   nothing of the cells bounding it); face–face records (the patch
 //!   certifier on one carrier or two planes, the `Tangent` table along
 //!   the closed-form tangent line on two other carriers, the line
 //!   placed in both faces). A proper pierce
@@ -168,44 +171,33 @@
 //! The records this rule reconstructs FROM are vertex–vertex and
 //! vertex–face pairs. An edge–face record of a straight edge in a
 //! plane is confirmed by this same reconstruction and backs no event of
-//! its own, so what an overlap needs is unchanged by its presence. A
-//! body's records also hold face–face pairs, and each bullet
-//! below has a corresponding face rung — `Declared::vv_face_backed` /
-//! `vf_face_backed` / `ve_face_backed`, which back a subordinate
-//! vertex event from a declared FACE pair holding the entities it
-//! relates on the pair's two sides, and `ee_face_backed`, which stands
-//! in for a collinear overlap's edge–edge record where a declared face
-//! pair holds the two edges. Those rungs are named in the bullets
-//! rather than left out of the derivation that licenses them. There
-//! are four rungs and not one per bullet: a bound whose event is a
-//! vertex on an edge's interior reads `ve_face_backed` whichever
-//! overlap it bounds, edge-edge or edge-on-face.
+//! its own, so what an overlap needs is unchanged by its presence.
 //!
-//! **The ruled strength is UNIFIED** (CONTACT-DESIGN C3/C4's
-//! post-ratification annotation; `crates/topo/README.md`):
-//! *a declared pair answers exactly for its verified interface — the
-//! overlap region, with material opposition being what "interface"
-//! means for a crossing.* Two consult sites hold that strength: the
-//! crossing rung ([`ee_cross_backed`], born at it) and
-//! [`ef_bound_backed`]'s face-pair arms
-//! ([`Declared::vf_face_backed_confined`]). Every other rung is
-//! structural-incidence and region-unconfined — GRANDFATHERED BY NAME,
-//! each to be migrated one at a time with its own measurement:
-//! [`Declared::vv_face_backed`] at [`sweep_vertex_vertex`],
-//! [`Declared::vf_face_backed`] at [`sweep_vertex_face`],
-//! [`Declared::ve_face_backed`] at [`sweep_vertex_edge`] and
-//! [`sweep_vertex_curved_edge`],
-//! [`Declared::ee_face_backed`] at [`ee_collinear_lane`] and
-//! [`sweep_curved_edge_edge`], and
-//! [`ee_bound_backed`]'s face-pair arms. The face pairs every rung reads
-//! are the ones the body's face–face records name, not user
-//! declarations.
-//! A grandfathered rung asks whether a declared face pair HOLDS the
-//! entities of the event — one on each side, through boundary
-//! membership and an edge's incidence to the faces it bounds — and
-//! never where on those faces the event lies, so it backs an event on
-//! the entities it holds even where that event lies outside the
-//! pair's own overlap region.
+//! **A confirmed face pair is decided once** (`[assertions]`). The
+//! confirmed pairs ([`Declared::confirmed`]) are each face–face record
+//! that confirms ([`Declared::confirm`]: both patch doors, or the
+//! confirm pass's own reading of a point touch or a tangent line) and
+//! each planar pair of
+//! two solids the face-pair arm finds meeting over an area
+//! ([`planar_face_pairs`]), recorded or not. A touch of a cell bounding
+//! one face of a confirmed pair against a cell bounding the other (a
+//! vertex through the faces its boundary holds, an edge through its two
+//! sides, a face as itself) is the pair's where it lies in the closure
+//! of their overlap ([`Declared::holds`]), and the pair answers for it,
+//! an in-band reading included ([`Declared::confine`]). Where the
+//! closures of two faces meet away from their overlap (a non-convex
+//! pair), the touch is decided as a pair of its own. The overlap of a
+//! pair on two carriers is the point or the run of the tangent line
+//! they touch along, and its closure is read the same way
+//! ([`in_overlap_closure`]). A vertex inside the other face of a pair
+//! meeting over an area, and an edge's run through it, lie in the
+//! closure by incidence alone ([`Declared::vf_face_backed`],
+//! [`pair_edge_face`]); the bounds of a continuous overlap read the
+//! confined rung ([`ee_bound_backed`], [`ef_bound_backed`]). A record
+//! whose pair does not confirm (no area, no touch along a line or at a
+//! point, a wrong pair) answers for nothing; its own state is the
+//! confirm pass's report.
+//!
 //! Continuous overlaps — two collinear edges sharing a positive-length
 //! segment, an edge resting in a face's region — are confirmed by
 //! **reconstruction from their bounding vertex events**:
@@ -215,15 +207,16 @@
 //!   whose interface it lies on, or both its bounds structural (each
 //!   one point key); it is certified iff that holds and each of its
 //!   two bounds is backed. Where both edges hold a vertex at the bound,
-//!   that means the pair is v-v-declared, or backed by a declared face
-//!   pair holding the two vertices on its two boundaries
-//!   (`vv_face_backed`), or is one vertex or two on one point —
+//!   that means the pair is v-v-declared, or backed by a confirmed face
+//!   pair holding the two vertices on its two boundaries, the bound in
+//!   the closure of its overlap ([`Declared::holds`]), or is one vertex
+//!   or two on one point —
 //!   structural. Where only one edge holds a vertex there — the
 //!   endpoint rests on the other edge's INTERIOR — the bound is a
 //!   vertex-on-edge event and is backed as that lane's events are: its
-//!   `(vertex, edge)` record, or a declared face pair holding the vertex
-//!   on one boundary and naming a face the other edge bounds
-//!   (`ve_face_backed`). Derivation: the
+//!   `(vertex, edge)` record, or a confirmed face pair holding the
+//!   vertex on one boundary and naming a face the other edge bounds,
+//!   there too. Derivation: the
 //!   overlap of two collinear spans is an interval whose each bound is
 //!   an endpoint of at least one span, so one of the two arms applies
 //!   at every bound. Between two backed bounds the carriers coincide
@@ -281,11 +274,12 @@
 //!   vertex it joined away. An edge split moves the record onto the piece
 //!   the vertex rests on; carried into a later op, it backs the event
 //!   there.
-//! - **The face rung**: a declared face pair holding the vertex on one
-//!   boundary and naming a face the edge bounds (`ve_face_backed`) holds
-//!   the whole event — the vertex on one side of the interface, the
-//!   edge on the other — exactly as `vv_face_backed` holds a coincident
-//!   vertex pair. At rest nothing refines, so a seat whose two faces
+//! - **The face rung**: a confirmed face pair holding the vertex on one
+//!   boundary and naming a face the edge bounds holds the whole event
+//!   where it lies in the closure of the pair's overlap
+//!   ([`Declared::holds`]) — the vertex on one side of the interface, the
+//!   edge on the other — exactly as it holds a coincident vertex pair
+//!   there. At rest nothing refines, so a seat whose two faces
 //!   share a boundary induces this event raw, and the declaration that
 //!   says the faces rest says it once for everything the seat induces
 //!   — including where the event is a BOUND of a continuous overlap
@@ -309,7 +303,8 @@ use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
 use geom_brep::curve_pair::{Hit, MeetFault, Span as CarrierSpan, meet};
-use geom_core::k_stats::Magnitude;
+use geom_core::k_stats::{Magnitude, decide_reported, straddle};
+use geom_core::one_line::on_one_line;
 use geom_core::{
     Band, Bounds, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3,
 };
@@ -359,6 +354,19 @@ struct Span<T: Real> {
     p0: Point3<T>,
     dir: Vec3<T>,
     at: (T, T),
+    /// The span's two end points: an edge's stored vertices, as given,
+    /// or a stretch's ends evaluated on its edge's line.
+    ends: [Point3<T>; 2],
+    /// The point keys `ends` are read from, where they are a body's
+    /// vertices; `None` for a span no body holds, and for a stretch's
+    /// ends.
+    points: [Option<PointKey>; 2],
+    /// The metres `ends` were computed at ([`geom_core::one_line`]'s
+    /// `produced`): zero for stored vertices.
+    produced: T,
+    /// Whether `ends` are stored vertices, read as given (an edge's, or a
+    /// segment's given points), not points computed on a line.
+    stored: bool,
 }
 
 impl<T: Real> Span<T> {
@@ -384,6 +392,10 @@ impl<T: Real> Spans<T> for EdgeGeo<T> {
             p0: self.p0,
             dir: self.dir,
             at: (T::zero(), self.len),
+            ends: [self.p0, self.p1],
+            points: self.points,
+            produced: T::zero(),
+            stored: true,
         }
     }
 }
@@ -391,6 +403,15 @@ impl<T: Real> Spans<T> for EdgeGeo<T> {
 /// The stretch `at` of an edge's own line, `s` measured from its start
 /// along its direction: a span read on the edge's stored start and
 /// direction, so its direction is never formed from its own ends.
+///
+/// A stretch is only ever [`collinear_overlap`]'s `a`, read by its stored
+/// start and its interval, so its ends' `produced` is unread today. It
+/// stays because it is what those computed ends carry: were a stretch
+/// ever `b`, its projections would be charged for it, and the
+/// span-scale claim at [`SPAN_PRECISION_RECOURSE`] (the charge grows
+/// with the spans' lengths, not with where they lie) would need
+/// revisiting, since `produced` grows with the distance from the
+/// origin.
 struct Stretch<'a, T: Real> {
     edge: &'a EdgeGeo<T>,
     at: (T, T),
@@ -398,9 +419,16 @@ struct Stretch<'a, T: Real> {
 
 impl<T: Real> Spans<T> for Stretch<'_, T> {
     fn span(&self) -> Span<T> {
+        let e = self.edge;
+        let from = (e.p0 - Point3::origin()).norm();
         Span {
+            p0: e.p0,
+            dir: e.dir,
             at: self.at,
-            ..self.edge.span()
+            ends: [e.p0 + e.dir * self.at.0, e.p0 + e.dir * self.at.1],
+            points: [None; 2],
+            produced: from + from + self.at.0.abs() + self.at.1.abs(),
+            stored: false,
         }
     }
 }
@@ -907,9 +935,12 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     let geo = snapshot(body);
-    let declared = Declared::index(&geo, contacts);
+    let mut declared = Declared::index(&geo, contacts);
     let cands = Candidates::build(body, &geo, band, strategy, plant);
+    let found = planar_face_pairs(body, &geo, band, region, &cands);
+    declared.confirm(body, &geo, band, region, &found);
     sweep_vertex_vertex(
+        body,
         &geo,
         &declared,
         band,
@@ -918,6 +949,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
         &mut errors,
     );
     sweep_vertex_edge(
+        body,
         &geo,
         &declared,
         band,
@@ -948,7 +980,6 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
         &geo,
         &declared,
         band,
-        region,
         &cands,
         trace.as_deref_mut(),
         &mut errors,
@@ -958,7 +989,6 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
         &geo,
         &declared,
         band,
-        region,
         &cands,
         trace.as_deref_mut(),
         &mut errors,
@@ -972,6 +1002,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
         trace.as_deref_mut(),
         &mut errors,
     );
+    report_found_pairs(&found, &declared, &mut errors);
     sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
     sweep_same_solid_tangent_lines(body, &declared, band, &cands, &mut errors);
     sweep_self_touch_points(body, &geo, &declared, band, &mut errors);
@@ -991,15 +1022,24 @@ struct Declared {
     ve: BTreeSet<(VertexKey, EdgeKey)>,
     /// Recorded edge-edge pairs, both orientations.
     ee: BTreeSet<(EdgeKey, EdgeKey)>,
-    /// Face-granularity keys (M9-2): the face pairs the body's
-    /// face–face records name, both orientations. A face-pair
-    /// record backs the events SUBORDINATE to it — a boundary vertex
-    /// of one declared face resting on the other, the coincident
-    /// vertex pairs and segment bounds along their interface, and a
-    /// collinear overlap of two edges it holds — exactly as a v-v/v-f
-    /// declaration backs its own event; the record's own geometric
-    /// confirmation is the confirm pass's (two-directional, as ever).
+    /// The face pairs the body's face–face records name, both
+    /// orientations: what the conformal arms ask before reporting a
+    /// pair as unrecorded. The record's own confirmation is the confirm
+    /// pass's.
     faces: BTreeSet<(FaceKey, FaceKey)>,
+    /// **The confirmed face pairs**, both orientations: each recorded
+    /// pair that confirms ([`Declared::confirm`]), and each planar pair
+    /// the face-pair arm found ([`planar_face_pairs`]). A confirmed
+    /// pair is the census's one decision about its area contact, so it
+    /// answers for a touch of a cell bounding one of its faces against a
+    /// cell bounding the other where that touch lies in the closure of
+    /// their overlap (`[assertions]`, [`Declared::holds`]).
+    confirmed: BTreeSet<(FaceKey, FaceKey)>,
+    /// The confirmed pairs that meet over an area ([`PairContact::Area`]),
+    /// both orientations: a point of one face's closure inside the other
+    /// lies in the closure of their overlap, so incidence is their whole
+    /// location test where the touch is inside a face.
+    area: BTreeSet<(FaceKey, FaceKey)>,
 }
 
 impl Declared {
@@ -1010,6 +1050,8 @@ impl Declared {
             ve: BTreeSet::new(),
             ee: BTreeSet::new(),
             faces: BTreeSet::new(),
+            confirmed: BTreeSet::new(),
+            area: BTreeSet::new(),
         };
         // Every kind, by name: a new kind fails to compile here until
         // the census says what it backs.
@@ -1050,79 +1092,135 @@ impl Declared {
         out
     }
 
-    /// The face rung for a v-v event: some declared face pair holds
-    /// `a` on one boundary and `b` on the other.
-    fn vv_face_backed(&self, geo: &Geo<impl Real>, a: VertexKey, b: VertexKey) -> bool {
-        let (Some(fa), Some(fb)) = (geo.vertex_faces.get(&a), geo.vertex_faces.get(&b)) else {
-            return false;
-        };
-        fa.iter()
-            .any(|&ga| fb.iter().any(|&gb| self.faces.contains(&(ga, gb))))
-    }
-
-    /// The face rung for a v-on-f event: some declared face pair
-    /// holds `v` on its boundary and names `f` as the other side.
-    fn vf_face_backed(&self, geo: &Geo<impl Real>, v: VertexKey, f: FaceKey) -> bool {
-        geo.vertex_faces
-            .get(&v)
-            .is_some_and(|gs| gs.iter().any(|&g| self.faces.contains(&(g, f))))
-    }
-
-    /// The face rung for a vertex-on-edge event: the v-on-f rung
-    /// against either face the edge bounds. An edge is structurally
-    /// incident to `f_plus` and `f_minus`, so a declared pair holding
-    /// `v` on one boundary and naming a face of `e` on the other holds
-    /// the whole event — the vertex on one side of the interface, the
-    /// edge on the other.
-    ///
-    /// Strength, stated rather than left to be read off the code: this
-    /// rung is STRUCTURAL-INCIDENCE, exactly as strong as the two
-    /// rungs it is built from and no stronger. It asks whether the
-    /// declared pair holds the two entities, never WHERE on the pair
-    /// the event lies, so it backs an event anywhere on the incident
-    /// entities — including outside the declared faces' own overlap
-    /// region. That reach is no longer the doctrine, it is the
-    /// GRANDFATHER (module docs: the unified strength is the ruled
-    /// sentence, the crossing rung its first instance, and the census
-    /// deliberately holds its rungs to two standards while the named
-    /// migrations land one measured step at a time).
-    fn ve_face_backed<T: Real>(
-        &self,
+    /// Confirms the recorded face pairs, once per unordered pair, and
+    /// adds the pairs the face-pair arm `found`, which its own two doors
+    /// confirmed. A record confirms where both patch doors answer in
+    /// either frame order ([`pair_verified`]), or where the confirm
+    /// pass's own reading of it ([`confirm_face_pair`]: the patch, a
+    /// point touch, or the tangent line two carriers derive) finds
+    /// nothing; each is the pair's verified interface.
+    fn confirm<T: Decide>(
+        &mut self,
+        body: &Body<T>,
         geo: &Geo<T>,
-        v: VertexKey,
-        (f_plus, f_minus): (FaceKey, FaceKey),
-    ) -> bool {
-        self.vf_face_backed(geo, v, f_plus) || self.vf_face_backed(geo, v, f_minus)
+        band: Band,
+        region: Option<RegionLane<T>>,
+        found: &[FoundPair],
+    ) {
+        let confirms = |fa, fb| {
+            pair_verified(body, fa, fb, band, region) || {
+                let mut read = Vec::new();
+                confirm_face_pair(body, geo, fa, fb, band, region, &mut read);
+                read.is_empty()
+            }
+        };
+        let recorded = self
+            .faces
+            .iter()
+            .filter(|(fa, fb)| fa < fb)
+            .filter(|&&(fa, fb)| confirms(fa, fb))
+            .copied();
+        let found = found.iter().map(|p| (p.a, p.b));
+        let both: Vec<_> = recorded.chain(found).collect();
+        for (fa, fb) in both {
+            self.confirmed.insert((fa, fb));
+            self.confirmed.insert((fb, fa));
+            if matches!(
+                pair_contact(body, geo, fa, fb, band),
+                Some(PairContact::Area)
+            ) {
+                self.area.insert((fa, fb));
+                self.area.insert((fb, fa));
+            }
+        }
     }
 
-    /// [`Declared::vf_face_backed`] at the UNIFIED strength: a declared
-    /// pair `(g, f)` holding `v` on `g`'s boundary backs the event only
-    /// where the pair verifies ([`pair_verified`]). That is the whole
-    /// confinement, read as the closed intersection of the two regions,
-    /// the licence [`ee_cross_backed`] documents: at both call sites the
-    /// event's point lies on `v` and so in `g`'s closed region, and on
-    /// the edge resting in `f` (or on an edge `f` bounds) and so in
-    /// `f`'s, and Door 1 has made the two carriers one. A touching event
-    /// has no crossing to take a side on, so there is no side test.
-    /// Planar-first, as the crossing rung: a curved pair answers nothing
-    /// here.
-    fn vf_face_backed_confined<T: Decide>(
+    /// **Whether a confirmed pair holds a touch where it lies**
+    /// (`[assertions]`): some confirmed pair with one face in `x` and
+    /// the other in `y` holds `q`, the touch of the `cells`, in the
+    /// closure of its overlap ([`in_overlap_closure`]). `Some(false)`
+    /// where none does; `None` where none does and a pair's reading
+    /// refused (pushed).
+    #[allow(clippy::too_many_arguments)] // the touch, its two sides and the run's state
+    fn holds<T: Decide>(
         &self,
         body: &Body<T>,
         geo: &Geo<T>,
-        v: VertexKey,
-        f: FaceKey,
+        cells: (EntityId, EntityId),
+        (x, y): (&[FaceKey], &[FaceKey]),
+        q: Point3<T>,
         band: Band,
-        region: Option<RegionLane<T>>,
-    ) -> bool {
-        geo.vertex_faces.get(&v).is_some_and(|gs| {
-            gs.iter().any(|&g| {
-                self.faces.contains(&(g, f))
-                    && planar_face(geo, g).is_some()
-                    && planar_face(geo, f).is_some()
-                    && pair_verified(body, g, f, band, region)
-            })
-        })
+        errors: &mut Vec<ValidationError>,
+    ) -> Option<bool> {
+        let mut refused = false;
+        for &fx in x {
+            for &fy in y {
+                if self.confirmed.contains(&(fx, fy)) {
+                    match in_overlap_closure(body, geo, (fx, fy), cells, q, band, errors) {
+                        Some(true) => return Some(true),
+                        Some(false) => {}
+                        None => refused = true,
+                    }
+                }
+            }
+        }
+        (!refused).then_some(false)
+    }
+
+    /// **A lane's reading of a touch of a cell bounding a face in `x`
+    /// against one bounding a face in `y`, at `q`**: what the lane finds
+    /// stands unless a confirmed pair holds `q` ([`Declared::holds`]),
+    /// which answers for it, an in-band reading included. Where no
+    /// pair could be read there, the refusal stands in the finding's
+    /// place. A lane that finds nothing asks no pair, nor does one whose
+    /// cells no confirmed pair names.
+    ///
+    /// `q` answers for everything the lane finds, so a lane reads one
+    /// touch: a point, or a run of two straight edges on one line, whose
+    /// open run lies in the closure wholly or not at all (the two cones
+    /// are the same along it), so its middle answers for it.
+    #[allow(clippy::too_many_arguments)] // the touch, its two sides, the lane and the run's state
+    fn confine<T: Decide>(
+        &self,
+        body: &Body<T>,
+        geo: &Geo<T>,
+        cells: (EntityId, EntityId),
+        sides: (&[FaceKey], &[FaceKey]),
+        q: Point3<T>,
+        band: Band,
+        errors: &mut Vec<ValidationError>,
+        lane: impl FnOnce(&mut Vec<ValidationError>),
+    ) {
+        let named = sides
+            .0
+            .iter()
+            .any(|&fx| sides.1.iter().any(|&fy| self.confirmed.contains(&(fx, fy))));
+        if !named {
+            return lane(errors);
+        }
+        let mut found = Vec::new();
+        lane(&mut found);
+        if found.is_empty() {
+            return;
+        }
+        let mut read = Vec::new();
+        match self.holds(body, geo, cells, sides, q, band, &mut read) {
+            Some(true) => {}
+            Some(false) => errors.extend(found),
+            None => errors.extend(read),
+        }
+    }
+
+    /// A vertex against a face: a confirmed pair meeting over an area
+    /// holds `v` on its boundary and names `f` as the other side.
+    /// Incidence is the whole test: the touch this answers for is `v`
+    /// inside `f`, and a point of one face's closure inside the other
+    /// lies in the closure of their overlap. A pair meeting along a line
+    /// or at a point answers by location ([`Declared::confine`]).
+    fn vf_face_backed(&self, geo: &Geo<impl Real>, v: VertexKey, f: FaceKey) -> bool {
+        geo.vertex_faces
+            .get(&v)
+            .is_some_and(|gs| gs.iter().any(|&g| self.area.contains(&(g, f))))
     }
 
     /// The rung for a touch at a **conventional vertex**: it has no
@@ -1155,26 +1253,6 @@ impl Declared {
     /// coincidence it decided Zero (D10), as an edge-edge record.
     fn ee_recorded(&self, a: EdgeKey, b: EdgeKey) -> bool {
         self.ee.contains(&(a, b))
-    }
-
-    /// The face rung for a collinear overlap: some declared face pair
-    /// names a face `a` bounds on one side and a face `b` bounds on the
-    /// other. GRANDFATHERED, at [`Declared::vv_face_backed`]'s
-    /// structural-incidence strength: it asks whether the pair holds
-    /// the two edges, never where the overlap lies, so it backs an
-    /// overlap outside the pair's own overlap region (two coplanar
-    /// faces touching along one line share no area, and their edges'
-    /// overlap is backed all the same).
-    fn ee_face_backed<T: Real>(&self, a: &EdgeGeo<T>, b: &EdgeGeo<T>) -> bool {
-        self.sides_face_backed((a.f_plus, a.f_minus), (b.f_plus, b.f_minus))
-    }
-
-    /// [`Declared::ee_face_backed`] on the two edges' sides, for an edge
-    /// the planar snapshot does not hold (pass 5′).
-    fn sides_face_backed(&self, a: (FaceKey, FaceKey), b: (FaceKey, FaceKey)) -> bool {
-        [a.0, a.1]
-            .iter()
-            .any(|&fa| [b.0, b.1].iter().any(|&fb| self.faces.contains(&(fa, fb))))
     }
 }
 
@@ -1280,7 +1358,7 @@ fn pair_holds_edges<T: Decide>(
 
 /// The VERIFIED-INTERFACE half of the confinement: the declared pair
 /// itself answers through the SAME two doors the confirm pass runs —
-/// Door 1 (`contact_pair_verdict`, class `Rest`: carrier identity
+/// Door 1 (`rest_pair_verdict`: carrier identity
 /// through the kind ladder, senses opposed) and Door 2 (the
 /// chart-region overlap through the [`RegionLane`] the pass holds, the
 /// verdict carried between them, `interior_witness`'s rescue included) — and
@@ -1316,15 +1394,7 @@ fn pair_region_verified<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> bool {
-    let Ok(verdict) = crate::boolean::contact_pair_verdict(
-        body,
-        fa,
-        body,
-        fb,
-        crate::contact::ContactClass::Rest,
-        None,
-        band,
-    ) else {
+    let Ok(verdict) = crate::boolean::rest_pair_verdict(body, fa, body, fb, band) else {
         return false;
     };
     matches!(
@@ -1345,6 +1415,384 @@ fn pair_verified<T: Decide>(
 ) -> bool {
     pair_region_verified(body, fa, fb, band, region)
         || pair_region_verified(body, fb, fa, band, region)
+}
+
+/// One corner of a planar face at a point of its boundary: the face's
+/// material there, swept counterclockwise about the face's outward
+/// normal from `from` to `to`, each the departure along a boundary edge
+/// scaled to the edge.
+#[derive(Clone, Copy)]
+struct Corner<T: Real> {
+    from: Vec3<T>,
+    to: Vec3<T>,
+}
+
+impl<T: Decide> Corner<T> {
+    /// Whether the direction `d` leaves the corner's point strictly
+    /// into its material about `axis` ([`OVERLAP_CORNER`]'s reading);
+    /// `None` where a sign escalated (pushed).
+    fn holds(
+        self,
+        axis: Vec3<T>,
+        d: Vec3<T>,
+        band: Band,
+        errors: &mut Vec<ValidationError>,
+    ) -> Option<bool> {
+        match crate::validate::wedge_holds_named(&OVERLAP_CORNER, axis, self.from, self.to, d, band)
+        {
+            Ok(holds) => Some(holds),
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                None
+            }
+        }
+    }
+
+    /// The same material read about the opposite normal.
+    fn reversed(self) -> Self {
+        Self {
+            from: self.to,
+            to: self.from,
+        }
+    }
+
+    /// A direction strictly inside the corner, wherever its bounds
+    /// turn under a whole turn: `axis × (from̂ − tô)` is the bisector
+    /// of the counterclockwise sweep from `from` to `to`.
+    fn middle(self, axis: Vec3<T>) -> Vec3<T> {
+        let (a, b) = (self.from.norm(), self.to.norm());
+        axis.cross(self.from / a - self.to / b) * (a * b / (a + b))
+    }
+}
+
+/// Whether two corners about one `axis` share material: two arcs of a
+/// circle share an interior point exactly where one holds an end or a
+/// middle of the other ([`line_wedges`]' reading). `None` where no
+/// probe holds and one escalated (pushed).
+fn corners_meet<T: Decide>(
+    axis: Vec3<T>,
+    x: Corner<T>,
+    y: Corner<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let mut undecided = false;
+    for (w, probe) in [(x, y), (y, x)] {
+        for d in [probe.from, probe.to, probe.middle(axis)] {
+            match w.holds(axis, d, band, errors) {
+                Some(true) => return Some(true),
+                Some(false) => {}
+                None => undecided = true,
+            }
+        }
+    }
+    (!undecided).then_some(false)
+}
+
+/// [`corners_meet`]'s predicate names.
+const OVERLAP_CORNER: crate::validate::WedgeNames = crate::validate::WedgeNames {
+    after_leaving: "pm_census_overlap_corner_after_leaving",
+    before_arriving: "pm_census_overlap_corner_before_arriving",
+    turn: "pm_census_overlap_corner_turn",
+    straight: "pm_census_overlap_corner_straight",
+};
+
+/// A face's material about a point of its closure, in the plane
+/// tangent to it there.
+#[derive(Clone, Copy)]
+enum Cone<T: Real> {
+    /// All round: the point is inside the face, or on a seam the face
+    /// lies on both sides of.
+    Full,
+    /// One corner.
+    Corner(Corner<T>),
+}
+
+/// Why [`face_cone`] read no cone.
+enum Unread {
+    /// A decision escalated.
+    Escalated(Indeterminate),
+    /// The reading is not built: a face meeting the point more than
+    /// once (a pinch, whose corners pair up across passes), a spline's
+    /// departure, an edge the face does not hold.
+    Unbuilt,
+}
+
+/// `f`'s cone at `q`, which `at` placed in its closure: half the
+/// tangent plane at an edge, the angle its two edges make at a vertex,
+/// each edge departing along its tangent there.
+fn face_cone<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    f: FaceKey,
+    at: FaceContainment,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Cone<T>, Unread> {
+    let face_of = |he| {
+        body.half_edges
+            .get(he)
+            .and_then(|h| body.loops.get(h.parent_loop))
+            .map(|l| l.face)
+    };
+    match at {
+        FaceContainment::In => Ok(Cone::Full),
+        FaceContainment::OnEdge(e) => {
+            let edge = body.edges.get(e).ok_or(Unread::Unbuilt)?;
+            let plus = match (
+                face_of(edge.he_plus) == Some(f),
+                face_of(edge.he_minus) == Some(f),
+            ) {
+                (true, true) => return Ok(Cone::Full),
+                (true, false) => true,
+                (false, true) => false,
+                (false, false) => return Err(Unread::Unbuilt),
+            };
+            let along = match geo.line_edge(e) {
+                Some(g) => g.dir * g.len,
+                None => {
+                    let mut refused = Vec::new();
+                    match curved::tangent_on_interior(body, e, q, band, &mut refused) {
+                        Some(Some(along)) => along,
+                        _ => {
+                            return Err(refused
+                                .into_iter()
+                                .find_map(|r| match r {
+                                    ValidationError::CensusEscalated { cause } => Some(cause),
+                                    _ => None,
+                                })
+                                .map_or(Unread::Unbuilt, Unread::Escalated));
+                        }
+                    }
+                }
+            };
+            let from = if plus { along } else { -along };
+            Ok(Cone::Corner(Corner { from, to: -from }))
+        }
+        FaceContainment::OnVertex(v) => {
+            let face = body.get_face(f).ok_or(Unread::Unbuilt)?;
+            let mut corners = Vec::new();
+            for cycle in face_cycles(body, face) {
+                let cycle = cycle.map_err(|_| Unread::Unbuilt)?;
+                let n = cycle.len();
+                for (i, &he) in cycle.iter().enumerate() {
+                    let start = body.half_edges.get(he).ok_or(Unread::Unbuilt)?.start;
+                    if geo.same_point(start, v) {
+                        corners.push((he, cycle[(i + n - 1) % n]));
+                    }
+                }
+            }
+            let [(leaving, before)] = corners[..] else {
+                return Err(Unread::Unbuilt);
+            };
+            let departure = |he| crate::validate::side(body, he).and_then(|(_, _, d)| d);
+            let arriving = crate::validate::mate(body, before).ok_or(Unread::Unbuilt)?;
+            match (departure(leaving), departure(arriving)) {
+                (Some(from), Some(to)) => Ok(Cone::Corner(Corner { from, to })),
+                _ => Err(Unread::Unbuilt),
+            }
+        }
+        FaceContainment::Out => Err(Unread::Unbuilt),
+    }
+}
+
+/// Where `q` lies against `f`, of any kind: `Some(None)` where no door
+/// reads it; `None` where the door refused (pushed).
+fn placed<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    f: FaceKey,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<FaceContainment>> {
+    match planar_face(geo, f) {
+        Some(g) => contain(body, g, q, band, errors).map(Some),
+        None => read_containment(
+            f,
+            crate::boolean::curved_face_containment(body, f, q, band),
+            errors,
+        ),
+    }
+}
+
+/// **Whether `q` lies in the closure of a confirmed pair's overlap**
+/// (`[assertions]`): the closed region of each face holds it, and the
+/// overlap reaches it ([`pair_contact`] says which overlap):
+///
+/// - **over an area** (one carrier): a face that holds `q` inside
+///   answers for the other's closure alone; where both hold it on their
+///   boundary, their cones there share material in the tangent plane,
+///   so points of both interiors lie arbitrarily near;
+/// - **along a line**: the line leaves `q` into both cones, one way or
+///   the other, so points of the line inside both faces lie arbitrarily
+///   near;
+/// - **at a point**: the closures share that point alone, so a touch in
+///   both is at it.
+///
+/// The pair's two faces touch with opposed senses (Door 1, or the
+/// tangent table's sides), so `y`'s cone is read about `x`'s outward
+/// normal reversed.
+///
+/// `Some(false)` where either face holds `q` out, or the overlap does
+/// not reach it; `None` where a reading escalated or refused (pushed),
+/// and where the reading is not built — a contact [`pair_contact`] does
+/// not read, a face no containment door reads, or a cone [`face_cone`]
+/// does not read — refused as [`ValidationError::CensusUndecidable`]
+/// naming the two `cells`.
+#[allow(clippy::too_many_arguments)] // the pair, the touch and the run's state
+fn in_overlap_closure<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    (fx, fy): (FaceKey, FaceKey),
+    (a, b): (EntityId, EntityId),
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    let unbuilt = |errors: &mut Vec<ValidationError>| {
+        errors.push(ValidationError::CensusUndecidable {
+            a,
+            b,
+            what: "a touch of two faces' boundaries, the faces a pair the census decided, \
+                   where it cannot read whether the touch lies in the closure of their overlap",
+        });
+        None
+    };
+    let Some(contact) = pair_contact(body, geo, fx, fy, band) else {
+        return unbuilt(errors);
+    };
+    let Some(cx) = placed(body, geo, fx, q, band, errors)? else {
+        return unbuilt(errors);
+    };
+    if cx == FaceContainment::Out {
+        return Some(false);
+    }
+    let Some(cy) = placed(body, geo, fy, q, band, errors)? else {
+        return unbuilt(errors);
+    };
+    if cy == FaceContainment::Out {
+        return Some(false);
+    }
+    let along = match contact {
+        // The two closures share the touch point alone.
+        PairContact::Point => return Some(true),
+        PairContact::Area => {
+            if cx == FaceContainment::In || cy == FaceContainment::In {
+                return Some(true);
+            }
+            None
+        }
+        PairContact::Line(dir) => Some(dir),
+    };
+    let axis = match crate::face_normal::face_outward_normal_at(body, fx, q, band) {
+        Ok(Some(n)) => n.vec(),
+        Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
+            errors.push(ValidationError::CensusEscalated { cause: diag });
+            return None;
+        }
+        Ok(None) | Err(_) => return unbuilt(errors),
+    };
+    let cone = |f, at| match face_cone(body, geo, f, at, q, band) {
+        Ok(cone) => Ok(cone),
+        Err(Unread::Escalated(cause)) => Err(Some(cause)),
+        Err(Unread::Unbuilt) => Err(None),
+    };
+    let cones = match (cone(fx, cx), cone(fy, cy)) {
+        (Ok(x), Ok(Cone::Corner(y))) => (x, Cone::Corner(y.reversed())),
+        (Ok(x), Ok(Cone::Full)) => (x, Cone::Full),
+        (Err(Some(cause)), _) | (_, Err(Some(cause))) => {
+            errors.push(ValidationError::CensusEscalated { cause });
+            return None;
+        }
+        (Err(None), _) | (_, Err(None)) => return unbuilt(errors),
+    };
+    match (along, cones) {
+        (None, (Cone::Full, _) | (_, Cone::Full)) => Some(true),
+        (None, (Cone::Corner(x), Cone::Corner(y))) => corners_meet(axis, x, y, band, errors),
+        // A line contact's overlap is the run of the line inside both
+        // faces: the touch is in its closure where the line leaves it
+        // into both, one way or the other.
+        (Some(dir), (x, y)) => {
+            let mut undecided = false;
+            for d in [dir, -dir] {
+                let mut inside = |c: Cone<T>| match c {
+                    Cone::Full => Some(true),
+                    Cone::Corner(w) => w.holds(axis, d * w.from.norm(), band, errors),
+                };
+                match (inside(x), inside(y)) {
+                    (Some(true), Some(true)) => return Some(true),
+                    (Some(false), _) | (_, Some(false)) => {}
+                    _ => undecided = true,
+                }
+            }
+            (!undecided).then_some(false)
+        }
+    }
+}
+
+/// What a confirmed pair's two faces share.
+#[derive(Clone, Copy)]
+enum PairContact<T: Real> {
+    /// An area: the two faces lie on one carrier.
+    Area,
+    /// A point: a sphere touching a plane or a sphere.
+    Point,
+    /// A line, along the unit direction: two other carriers tangent
+    /// along the closed-form line they derive.
+    Line(Vec3<T>),
+}
+
+/// The contact a confirmed pair's carriers make, read as the confirm
+/// pass reads it ([`confirm_face_pair`]); `None` where it reads none.
+fn pair_contact<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    fx: FaceKey,
+    fy: FaceKey,
+    band: Band,
+) -> Option<PairContact<T>> {
+    use crate::boolean::{CarrierEqError, CarrierRelation};
+    // One carrier with opposed senses, the only one a confirmed pair
+    // can have ([`in_overlap_closure`] reads `y`'s cone reversed); two
+    // planes are one carrier or none.
+    let planes = planar_face(geo, fx).is_some() && planar_face(geo, fy).is_some();
+    match crate::boolean::carrier_pair_relation(body, fx, body, fy, false, band) {
+        Ok(
+            Ok(CarrierRelation::SameOpposite)
+            | Err(CarrierEqError::Undecided {
+                relation: CarrierRelation::SameOpposite,
+                ..
+            }),
+        ) => return Some(PairContact::Area),
+        Ok(Ok(CarrierRelation::Distinct)) if !planes => {}
+        _ => return None,
+    }
+    // A point touch on the point lane's own carriers ([`point::face_face`]):
+    // a sphere and a plane, or two spheres. A sphere against any other
+    // carrier (a ball seated in a bore meets it along a circle) is the
+    // line lane's, which derives no line for it.
+    let kind = |f: FaceKey| {
+        body.get_face(f)
+            .map(|d| body.face_surface_linked(f, d).kind())
+    };
+    match (kind(fx), kind(fy)) {
+        (
+            Some(geom::SurfaceKind::Sphere),
+            Some(geom::SurfaceKind::Plane | geom::SurfaceKind::Sphere),
+        )
+        | (Some(geom::SurfaceKind::Plane), Some(geom::SurfaceKind::Sphere)) => {
+            return Some(PairContact::Point);
+        }
+        _ => {}
+    }
+    match crate::boolean::tangent_pair_at_rest(body, fx, fy, band) {
+        Ok(crate::boolean::RestTangent::Line {
+            carrier: geom::Curve3::Line { dir, .. },
+            ..
+        }) => Some(PairContact::Line(dir.normalize())),
+        _ => None,
+    }
 }
 
 /// The exact sweeps' admission test for one edge, in ONE place.
@@ -1858,6 +2306,20 @@ impl<T: Real> Geo<T> {
     /// vertex (`boolean::reduce::PendingRow`). The census reads keys,
     /// not lineage, so it cannot tell a pinch from a value decision and
     /// does not ask for the record.
+    /// The line edges bounding `f`.
+    fn sides_of(&self, f: FaceKey) -> impl Iterator<Item = &EdgeGeo<T>> + '_ {
+        self.edges
+            .iter()
+            .filter(move |e| e.f_plus == f || e.f_minus == f)
+    }
+
+    /// The faces whose boundary holds `v`.
+    fn faces_of(&self, v: VertexKey) -> Vec<FaceKey> {
+        self.vertex_faces
+            .get(&v)
+            .map_or_else(Vec::new, |fs| fs.iter().copied().collect())
+    }
+
     fn same_point(&self, a: VertexKey, b: VertexKey) -> bool {
         a == b
             || matches!(
@@ -1944,6 +2406,7 @@ fn gap_zero_reading<T: Decide>(
 /// Census pass 1: vertex–vertex coincidence (candidate pairs, arena
 /// order).
 fn sweep_vertex_vertex<T: Decide>(
+    body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
@@ -1955,7 +2418,7 @@ fn sweep_vertex_vertex<T: Decide>(
         for j in cands.trees.verts.later(i) {
             let &(kb, pb) = candidate(&geo.verts, j);
             let before = errors.len();
-            pair_vertex_vertex(geo, declared, band, (ka, pa), (kb, pb), errors);
+            pair_vertex_vertex(body, geo, declared, band, (ka, pa), (kb, pb), errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.vv.note(
                     (EntityId::Vertex(ka), EntityId::Vertex(kb)),
@@ -1968,6 +2431,7 @@ fn sweep_vertex_vertex<T: Decide>(
 
 /// One vertex pair of pass 1.
 fn pair_vertex_vertex<T: Decide>(
+    body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
@@ -1975,29 +2439,43 @@ fn pair_vertex_vertex<T: Decide>(
     (kb, pb): (VertexKey, Point3<T>),
     errors: &mut Vec<ValidationError>,
 ) {
-    let Some(zero) = gap_zero_reading("pm_census_vv_gap", Margin::norm3(pa - pb), band, errors)
-    else {
-        return;
-    };
-    if let Some(margin) = zero
-        && !geo.same_point(ka, kb)
-        && !declared.vv.contains(&(ka, kb))
-        && !declared.vv_face_backed(geo, ka, kb)
-        && !declared.at_conventional(geo, ka, EntityId::Vertex(kb))
-        && !declared.at_conventional(geo, kb, EntityId::Vertex(ka))
-    {
-        errors.push(ValidationError::UnrecordedContact {
-            contact: CensusContact::VertexVertex { a: ka, b: kb },
-            witness: witness(pa),
-            margin: Some(margin),
-        });
-    }
+    let cells = (EntityId::Vertex(ka), EntityId::Vertex(kb));
+    let sides = (geo.faces_of(ka), geo.faces_of(kb));
+    declared.confine(
+        body,
+        geo,
+        cells,
+        (&sides.0, &sides.1),
+        pa,
+        band,
+        errors,
+        |errors| {
+            let Some(zero) =
+                gap_zero_reading("pm_census_vv_gap", Margin::norm3(pa - pb), band, errors)
+            else {
+                return;
+            };
+            if let Some(margin) = zero
+                && !geo.same_point(ka, kb)
+                && !declared.vv.contains(&(ka, kb))
+                && !declared.at_conventional(geo, ka, EntityId::Vertex(kb))
+                && !declared.at_conventional(geo, kb, EntityId::Vertex(ka))
+            {
+                errors.push(ValidationError::UnrecordedContact {
+                    contact: CensusContact::VertexVertex { a: ka, b: kb },
+                    witness: witness(pa),
+                    margin: Some(margin),
+                });
+            }
+        },
+    );
 }
 
 /// Census pass 2: vertex on an edge's **interior** — backed by its
 /// `(vertex, edge)` record or the face rung (module docs, D4), and
 /// otherwise a hard finding.
 fn sweep_vertex_edge<T: Decide>(
+    body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
@@ -2012,7 +2490,7 @@ fn sweep_vertex_edge<T: Decide>(
                 continue; // structural adjacency
             }
             let before = errors.len();
-            pair_vertex_edge(geo, declared, band, (vk, q), e, errors);
+            pair_vertex_edge(body, geo, declared, band, (vk, q), e, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ve.note(
                     (EntityId::Vertex(vk), EntityId::Edge(e.key)),
@@ -2025,6 +2503,7 @@ fn sweep_vertex_edge<T: Decide>(
 
 /// One non-adjacent vertex–edge pair of pass 2.
 fn pair_vertex_edge<T: Decide>(
+    body: &Body<T>,
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
@@ -2032,20 +2511,32 @@ fn pair_vertex_edge<T: Decide>(
     e: &EdgeGeo<T>,
     errors: &mut Vec<ValidationError>,
 ) {
-    if let Some(Some((_, margin))) = on_edge_interior_reading(q, e, band, errors)
-        && !declared.ve_recorded(vk, e.key)
-        && !declared.ve_face_backed(geo, vk, (e.f_plus, e.f_minus))
-        && !declared.at_conventional(geo, vk, EntityId::Edge(e.key))
-    {
-        errors.push(ValidationError::UnrecordedContact {
-            contact: CensusContact::VertexOnEdge {
-                vertex: vk,
-                edge: e.key,
-            },
-            witness: witness(q),
-            margin: Some(margin),
-        });
-    }
+    let cells = (EntityId::Vertex(vk), EntityId::Edge(e.key));
+    let sides = (geo.faces_of(vk), [e.f_plus, e.f_minus]);
+    declared.confine(
+        body,
+        geo,
+        cells,
+        (&sides.0, &sides.1),
+        q,
+        band,
+        errors,
+        |errors| {
+            if let Some(Some((_, margin))) = on_edge_interior_reading(q, e, band, errors)
+                && !declared.ve_recorded(vk, e.key)
+                && !declared.at_conventional(geo, vk, EntityId::Edge(e.key))
+            {
+                errors.push(ValidationError::UnrecordedContact {
+                    contact: CensusContact::VertexOnEdge {
+                        vertex: vk,
+                        edge: e.key,
+                    },
+                    witness: witness(q),
+                    margin: Some(margin),
+                });
+            }
+        },
+    );
 }
 
 /// Census pass 2′: a vertex on a **curved** edge's interior, the
@@ -2136,20 +2627,33 @@ fn pair_vertex_curved_edge<T: Decide>(
     if !ends.iter().all(|&(_, p)| clear_of_end(p)) || !curved::may_rest_on(body, ek, q, band) {
         return;
     }
-    if let Some(Some(margin)) = curved::on_curved_interior_reading(body, ek, q, band, errors)
-        && !declared.ve_recorded(vk, ek)
-        && !declared.ve_face_backed(geo, vk, sides)
-        && !declared.at_conventional(geo, vk, EntityId::Edge(ek))
-    {
-        errors.push(ValidationError::UnrecordedContact {
-            contact: CensusContact::VertexOnEdge {
-                vertex: vk,
-                edge: ek,
-            },
-            witness: witness(q),
-            margin: Some(margin),
-        });
-    }
+    let cells = (EntityId::Vertex(vk), EntityId::Edge(ek));
+    let faces = (geo.faces_of(vk), [sides.0, sides.1]);
+    declared.confine(
+        body,
+        geo,
+        cells,
+        (&faces.0, &faces.1),
+        q,
+        band,
+        errors,
+        |errors| {
+            if let Some(Some(margin)) =
+                curved::on_curved_interior_reading(body, ek, q, band, errors)
+                && !declared.ve_recorded(vk, ek)
+                && !declared.at_conventional(geo, vk, EntityId::Edge(ek))
+            {
+                errors.push(ValidationError::UnrecordedContact {
+                    contact: CensusContact::VertexOnEdge {
+                        vertex: vk,
+                        edge: ek,
+                    },
+                    witness: witness(q),
+                    margin: Some(margin),
+                });
+            }
+        },
+    );
 }
 
 /// Whether `q` lies on `e`'s interior: [`on_edge_interior_reading`]
@@ -2341,45 +2845,60 @@ fn pair_vertex_face<T: Decide>(
     f: &FaceGeo<T>,
     errors: &mut Vec<ValidationError>,
 ) {
-    // Boundary coincidences are pass-1/2 findings; Out and
-    // escalations (pushed) need nothing more here.
-    let on_plane = |margin, errors: &mut Vec<ValidationError>| {
-        if contain(body, f, q, band, errors) == Some(FaceContainment::In)
-            && !declared.vf.contains(&(vk, f.key))
-            && !declared.vf_face_backed(geo, vk, f.key)
-        {
-            errors.push(ValidationError::UnrecordedContact {
-                contact: CensusContact::VertexOnFace {
-                    vertex: vk,
-                    face: f.key,
-                },
-                witness: witness(q),
-                margin,
-            });
-        }
-    };
-    let residual = (q - f.origin).dot(f.normal);
-    let mut refused = Vec::new();
-    match signed_zero_reading(
-        "pm_census_vf_residual",
-        Margin::of(residual),
-        band,
-        &mut refused,
-    ) {
-        Some(Some(margin)) => on_plane(Some(margin), errors),
-        Some(None) => {}
-        None => {
-            let on = |()| {
-                let mut found = Vec::new();
-                on_plane(None, &mut found);
-                found
-            };
-            if let Some(carried) = read_undecided([()], on) {
-                errors.extend(refused);
-                errors.extend(carried);
-            }
-        }
+    if declared.vf_face_backed(geo, vk, f.key) {
+        return;
     }
+    let cells = (EntityId::Vertex(vk), EntityId::Face(f.key));
+    let sides = (geo.faces_of(vk), [f.key]);
+    declared.confine(
+        body,
+        geo,
+        cells,
+        (&sides.0, &sides.1),
+        q,
+        band,
+        errors,
+        |errors| {
+            // Boundary coincidences are pass-1/2 findings; Out and
+            // escalations (pushed) need nothing more here.
+            let on_plane = |margin, errors: &mut Vec<ValidationError>| {
+                if contain(body, f, q, band, errors) == Some(FaceContainment::In)
+                    && !declared.vf.contains(&(vk, f.key))
+                {
+                    errors.push(ValidationError::UnrecordedContact {
+                        contact: CensusContact::VertexOnFace {
+                            vertex: vk,
+                            face: f.key,
+                        },
+                        witness: witness(q),
+                        margin,
+                    });
+                }
+            };
+            let residual = (q - f.origin).dot(f.normal);
+            let mut refused = Vec::new();
+            match signed_zero_reading(
+                "pm_census_vf_residual",
+                Margin::of(residual),
+                band,
+                &mut refused,
+            ) {
+                Some(Some(margin)) => on_plane(Some(margin), errors),
+                Some(None) => {}
+                None => {
+                    let on = |()| {
+                        let mut found = Vec::new();
+                        on_plane(None, &mut found);
+                        found
+                    };
+                    if let Some(carried) = read_undecided([()], on) {
+                        errors.extend(refused);
+                        errors.extend(carried);
+                    }
+                }
+            }
+        },
+    );
 }
 
 /// Trilean comparison for span bookkeeping (`None` = escalated,
@@ -2461,20 +2980,17 @@ fn any_boundary_vertex_at<T: Decide>(
 /// D3 backing for one bound of an edge-on-face overlap (module docs),
 /// at the two granularities a bound can have.
 ///
-/// Its face-pair arms hold the unified strength: a declared pair backs
-/// the bound only where the pair verifies, the bound lying in the
-/// closed intersection of its two regions by incidence
-/// ([`Declared::vf_face_backed_confined`]). Each is read after the
-/// record and structural arms of its bound, because the region doors it
-/// runs are the dearest reads here; it pushes nothing.
+/// Its face-pair arms read the confirmed pairs ([`Declared::confirmed`]):
+/// a pair answers for the bound where the bound lies in the closure of
+/// its overlap ([`Declared::holds`]); what that reading refuses is
+/// pushed, and backs nothing.
 ///
 /// Where a boundary edge of `f` crosses the edge at the bound, the
 /// event is that `EdgeEdgeCross`, and it takes that lane's backing: an
 /// op's edge-edge record, or the crossing rung ([`ee_cross_backed`]). A
 /// curved boundary edge's crossing is pass 5′'s event
 /// ([`sweep_curved_edge_edge`]), and backs this bound by its record
-/// alone: the face rung pass 5′ grandfathers holds no region, and this
-/// rung's face-pair arms are confined.
+/// alone.
 ///
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
@@ -2488,8 +3004,8 @@ fn any_boundary_vertex_at<T: Decide>(
 /// event is a vertex-on-edge, and it takes that lane's backing
 /// (its `(vertex, edge)` record, or the same declared face pair one
 /// incidence step further out, inside its interface), as
-/// [`ee_bound_backed`]'s asymmetric arm reads it (grandfathered there)
-/// for a collinear overlap. A bound is a bound
+/// [`ee_bound_backed`]'s asymmetric arm reads it for a collinear
+/// overlap. A bound is a bound
 /// of the overlap because some entity ends there; which side's entity
 /// that is, is a fact about the configuration, not about what a
 /// declaration can hold.
@@ -2510,7 +3026,6 @@ fn ef_bound_backed<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) -> bool {
     let q = e.p0 + e.dir * cut.s;
@@ -2519,7 +3034,7 @@ fn ef_bound_backed<T: Decide>(
             return declared.ee_recorded(e.key, g)
                 || geo.line_edge(g).is_some_and(|g| {
                     matches!(
-                        ee_cross_backed(body, geo, declared, e, g, q, band, region, errors),
+                        ee_cross_backed(body, geo, declared, e, g, q, band, errors),
                         CrossingBacking::Backed
                     )
                 });
@@ -2527,11 +3042,28 @@ fn ef_bound_backed<T: Decide>(
         CutAt::CurvedCrossing(g) => return declared.ee_recorded(e.key, g),
         CutAt::Vertex => {}
     }
-    let confined = |v, g| declared.vf_face_backed_confined(body, geo, v, g, band, region);
+    // A confirmed pair answers where it holds the bound ([`Declared::holds`]);
+    // what its reading refuses is pushed, and backs nothing.
+    let mut refused = Vec::new();
+    let mut confined = |v, cell, y: &[FaceKey]| {
+        let cells = (EntityId::Vertex(v), cell);
+        declared.holds(
+            body,
+            geo,
+            cells,
+            (&geo.faces_of(v), y),
+            q,
+            band,
+            &mut refused,
+        ) == Some(true)
+    };
     let Some(ve) = edge_vertex_at(e, cut.s, band, errors) else {
-        return any_boundary_vertex_at(f, geo, q, band, errors, |w| {
-            declared.ve_recorded(w, e.key) || confined(w, e.f_plus) || confined(w, e.f_minus)
+        let backed = any_boundary_vertex_at(f, geo, q, band, errors, |w| {
+            declared.ve_recorded(w, e.key)
+                || confined(w, EntityId::Edge(e.key), &[e.f_plus, e.f_minus])
         });
+        errors.extend(refused);
+        return backed;
     };
     if declared.vf.contains(&(ve, f.key))
         || f.boundary.contains(&ve)
@@ -2542,9 +3074,11 @@ fn ef_bound_backed<T: Decide>(
     {
         return true;
     }
-    any_boundary_vertex_at(f, geo, q, band, errors, |w| {
+    let backed = any_boundary_vertex_at(f, geo, q, band, errors, |w| {
         geo.same_point(ve, w) || declared.vv.contains(&(ve, w))
-    }) || confined(ve, f.key)
+    }) || confined(ve, EntityId::Face(f.key), &[f.key]);
+    errors.extend(refused);
+    backed
 }
 
 /// Census pass 4: edge × face — transversal pierces (undeclarable) and
@@ -2555,7 +3089,6 @@ fn sweep_edge_face<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
     errors: &mut Vec<ValidationError>,
@@ -2567,7 +3100,7 @@ fn sweep_edge_face<T: Decide>(
                 continue; // structural adjacency
             }
             let before = errors.len();
-            pair_edge_face(body, geo, declared, band, region, e, f, errors);
+            pair_edge_face(body, geo, declared, band, e, f, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ef.note(
                     (EntityId::Edge(e.key), EntityId::Face(f.key)),
@@ -2580,6 +3113,14 @@ fn sweep_edge_face<T: Decide>(
 
 /// One edge–face pair of pass 4, the edge not bounding the face.
 ///
+/// A confirmed pair meeting over an area ([`Declared::area`]) that holds
+/// a face the edge bounds and `f` answers for the pair by incidence:
+/// such an edge lies in `f`'s plane, so it pierces nothing, and its run
+/// through `f`'s interior lies in the closure of the pair's overlap, as
+/// do the run's bounds, its limits. A pair meeting along a line or at a
+/// point answers for no edge here: the lane reads the edge like any
+/// other, and its bounds are vertex events placed by location.
+///
 /// An end whose residual is in the band's edge is read by
 /// [`read_undecided`], under every sign it could take
 /// ([`EfPair::on_signs`]).
@@ -2589,11 +3130,16 @@ fn pair_edge_face<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
     e: &EdgeGeo<T>,
     f: &FaceGeo<T>,
     errors: &mut Vec<ValidationError>,
 ) {
+    if [e.f_plus, e.f_minus]
+        .iter()
+        .any(|&g| declared.area.contains(&(g, f.key)))
+    {
+        return;
+    }
     let r = [e.p0, e.p1].map(|p| (p - f.origin).dot(f.normal));
     let read = r
         .map(|r| geom_core::k_stats::decide_reported("pm_census_ef_residual", Margin::of(r), band));
@@ -2602,7 +3148,6 @@ fn pair_edge_face<T: Decide>(
         geo,
         declared,
         band,
-        region,
         e,
         f,
         r,
@@ -2730,7 +3275,6 @@ struct EfPair<'a, T: Decide> {
     geo: &'a Geo<T>,
     declared: &'a Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
     e: &'a EdgeGeo<T>,
     f: &'a FaceGeo<T>,
     r: [T; 2],
@@ -2782,7 +3326,6 @@ impl<T: Decide> EfPair<'_, T> {
                 self.geo,
                 self.declared,
                 self.band,
-                self.region,
                 errors,
             ),
             // One endpoint on the plane: pass-1/2/3 territory.
@@ -3040,7 +3583,11 @@ fn span_clear<T: Decide>(
             if on_edge_interior_reading(p, &s, band, errors)?.is_some() {
                 return Some(false);
             }
-            let side = segment((p, at[(i + 1) % at.len()]));
+            let j = (i + 1) % at.len();
+            let mut side = segment((p, at[j]));
+            // The side's ends are the ring's stored vertices: their point
+            // keys go with them, as an edge's do.
+            side.points = [ring[i], ring[j]].map(|v| geo.vpoint.get(&v).copied());
             if interiors_meet(&s, &side, band, errors)? {
                 return Some(false);
             }
@@ -3074,12 +3621,11 @@ fn ef_overlap_lane<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     for cell in ef_overlap_cells(body, e, f, geo, band, errors) {
         let bound = |cut, errors: &mut Vec<ValidationError>| {
-            ef_bound_backed(body, e, f, cut, geo, declared, band, region, errors)
+            ef_bound_backed(body, e, f, cut, geo, declared, band, errors)
         };
         if !(bound(cell.lo, errors) && bound(cell.hi, errors)) {
             errors.push(ValidationError::UnrecordedContact {
@@ -3563,7 +4109,6 @@ fn sweep_edge_edge<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
     cands: &Candidates,
     mut trace: Option<&mut CensusTrace>,
     errors: &mut Vec<ValidationError>,
@@ -3572,7 +4117,7 @@ fn sweep_edge_edge<T: Decide>(
         for j in cands.trees.edges.later(i) {
             let eb = candidate(&geo.edges, j);
             let before = errors.len();
-            pair_edge_edge(body, geo, declared, band, region, ea, eb, errors);
+            pair_edge_edge(body, geo, declared, band, ea, eb, errors);
             if let Some(t) = trace.as_deref_mut() {
                 t.ee.note(
                     (EntityId::Edge(ea.key), EntityId::Edge(eb.key)),
@@ -3590,17 +4135,25 @@ fn pair_edge_edge<T: Decide>(
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
-    region: Option<RegionLane<T>>,
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
     errors: &mut Vec<ValidationError>,
 ) {
+    let cells = (EntityId::Edge(ea.key), EntityId::Edge(eb.key));
+    let sides = [ea.f_plus, ea.f_minus];
+    let sides = (&sides[..], &[eb.f_plus, eb.f_minus][..]);
     match ee_meeting(ea, eb, band, errors) {
         Some(Some(Meeting::Cross(margin))) => {
-            ee_crossing_lane(body, geo, declared, ea, eb, margin, band, region, errors);
+            let q = ee_cross_point(ea, eb);
+            declared.confine(body, geo, cells, sides, q, band, errors, |errors| {
+                ee_crossing_lane(body, geo, declared, ea, eb, margin, band, errors);
+            });
         }
         Some(Some(Meeting::Overlap(span, margin))) => {
-            ee_collinear_lane(ea, eb, span, margin, geo, declared, band, errors);
+            let q = ea.p0 + ea.dir * geom::mid_param(span.0, span.1);
+            declared.confine(body, geo, cells, sides, q, band, errors, |errors| {
+                ee_collinear_lane(body, ea, eb, span, margin, geo, declared, band, errors);
+            });
         }
         Some(None) | None => {}
     }
@@ -3643,11 +4196,9 @@ fn ee_meeting<T: Decide>(
 /// ([`curved::interiors_meeting`], the one reading of two carrier spans'
 /// meetings): each curved edge against the line edges and the later
 /// curved edges whose padded boxes meet its own. A meeting on both
-/// interiors is owed the pair's edge-edge record (D1), or a declared face
-/// pair holding the two edges ([`Declared::sides_face_backed`], the
-/// grandfathered rung of pass 5's overlap lane: the crossing rung,
-/// [`ee_cross_backed`], is planar-first and answers no curved pair, so
-/// a crossing takes the rung pass 2′ takes for its vertex). Unbacked,
+/// interiors is owed the pair's edge-edge record (D1), unless a confirmed
+/// face pair holding the two edges holds the meeting point in the
+/// closure of its overlap ([`Declared::confine`]). Unbacked,
 /// a crossing or touch at a point is an `EdgeEdgeCross` and an overlap
 /// along one curve an `EdgeEdgeOverlap`, each an `UnrecordedContact`. An overlap's bounds are
 /// vertex events, ends of one edge resting on the other or on each
@@ -3695,7 +4246,15 @@ fn sweep_curved_edge_edge<T: Decide>(
             );
         for (b, sides_b) in others {
             let before = errors.len();
-            pair_curved_edge_edge(body, declared, band, (a, sides_a), (b, sides_b), errors);
+            pair_curved_edge_edge(
+                body,
+                geo,
+                declared,
+                band,
+                (a, sides_a),
+                (b, sides_b),
+                errors,
+            );
             if let Some(t) = trace.as_deref_mut() {
                 t.cee.note(
                     (EntityId::Edge(a), EntityId::Edge(b)),
@@ -3709,6 +4268,7 @@ fn sweep_curved_edge_edge<T: Decide>(
 /// One curved edge–edge pair of pass 5′.
 fn pair_curved_edge_edge<T: Decide>(
     body: &Body<T>,
+    geo: &Geo<T>,
     declared: &Declared,
     band: Band,
     (a, sides_a): (EdgeKey, (FaceKey, FaceKey)),
@@ -3718,18 +4278,22 @@ fn pair_curved_edge_edge<T: Decide>(
     let Some(Some(met)) = curved::interiors_meeting(body, a, b, band, errors) else {
         return;
     };
-    if declared.ee_recorded(a, b) || declared.sides_face_backed(sides_a, sides_b) {
+    if declared.ee_recorded(a, b) {
         return;
     }
-    let contact = if met.overlap {
-        CensusContact::EdgeEdgeOverlap { a, b }
-    } else {
-        CensusContact::EdgeEdgeCross { a, b, side: None }
-    };
-    errors.push(ValidationError::UnrecordedContact {
-        contact,
-        witness: witness(met.point),
-        margin: Some(met.margin),
+    let cells = (EntityId::Edge(a), EntityId::Edge(b));
+    let sides = (&[sides_a.0, sides_a.1][..], &[sides_b.0, sides_b.1][..]);
+    declared.confine(body, geo, cells, sides, met.point, band, errors, |errors| {
+        let contact = if met.overlap {
+            CensusContact::EdgeEdgeOverlap { a, b }
+        } else {
+            CensusContact::EdgeEdgeCross { a, b, side: None }
+        };
+        errors.push(ValidationError::UnrecordedContact {
+            contact,
+            witness: witness(met.point),
+            margin: Some(met.margin),
+        });
     });
 }
 
@@ -3755,7 +4319,9 @@ fn parallel_overlap<T: Decide>(
 /// An in-band parallel screen (`screen`, its escalation):
 /// `Some(())`, settled with nothing pushed, where the overlap reading
 /// definitely refuses an overlap; `None`, the screen's escalation
-/// pushed, otherwise.
+/// pushed, otherwise, or the overlap's own where it was read past its
+/// charge and did not decide ([`is_span_precision`]): that is the
+/// precision limit, and its story is its own.
 ///
 /// Neither of the screen's verdicts then finds a meeting. Its parallel
 /// verdict reads this overlap. Its other verdict asks for a crossing
@@ -3773,10 +4339,24 @@ fn settle_in_band<T: Decide>(
     screen: Vec<ValidationError>,
     errors: &mut Vec<ValidationError>,
 ) -> Option<()> {
-    if let Some(None) = collinear_overlap(a, b, band, &mut Vec::new()) {
+    let mut overlap = Vec::new();
+    if let Some(None) = collinear_overlap(a, b, band, &mut overlap) {
         return Some(());
     }
-    errors.extend(screen);
+    // An overlap read past its charge that did not decide is the
+    // precision limit, whose story is its own, not the screen's.
+    let precision: Vec<_> = overlap
+        .into_iter()
+        .filter(|e| {
+            matches!(e, ValidationError::CensusEscalated { cause }
+                if is_span_precision(cause.predicate))
+        })
+        .collect();
+    errors.extend(if precision.is_empty() {
+        screen
+    } else {
+        precision
+    });
     None
 }
 
@@ -3838,10 +4418,12 @@ enum CrossingBacking {
 ///    faces' `Face::sense` bits, levered by
 ///    [`geom_brep::folded_lever_arm`] over the shorter edge — the
 ///    same arm the parallel gate meters). No new numerics; and
-/// 3. the pair itself is VERIFIED — [`pair_region_verified`], the
-///    confirm pass's two doors, tried in both frame orders (the
-///    certified answers are frame-invariant, `world_carrier`'s lemma;
-///    trying both keeps the rung total over the record's spelling).
+/// 3. the pair itself is CONFIRMED ([`Declared::confirmed`]): a record
+///    that confirms ([`Declared::confirm`]), or a pair the planar
+///    face-pair arm found, and the crossing lies in the closure of its
+///    overlap ([`in_overlap_closure`], `[assertions]`). The side test
+///    reads every recorded pair too, so a declared pair that holds the
+///    crossing with the materials on one side names that verdict.
 ///
 /// The side test is read BEFORE the verified-overlap doors, and the
 /// order is load-bearing rather than convenient: Door 1 CONTRADICTS a
@@ -3854,7 +4436,7 @@ enum CrossingBacking {
 ///
 /// **Two-pass shape, so the posture is a total function of the
 /// geometry and never of `FaceKey` order**: pass 1 walks each
-/// UNORDERED declared pair once (`Declared::index` stores both
+/// UNORDERED recorded or confirmed pair once (`Declared::index` stores both
 /// orientations; every screen and the side algebra are symmetric in
 /// the pair) and collects its outcome; pass 2 emits — every
 /// undecided candidate's escalation exactly once, whether or not some
@@ -3863,17 +4445,15 @@ enum CrossingBacking {
 /// else same-side over undecided (definite evidence over an
 /// escalation), else unanswered.
 ///
-/// **What region containment replaced, named**: the grandfathered
-/// rungs confine by STRUCTURAL INCIDENCE (the pair must hold the
-/// event's entities); this rung confines by the carrier instead —
-/// nothing checks that `ea`/`eb` are boundary edges of `fa`/`fb`, and
-/// the CLOSED containment admits a pair whose region only
-/// corner-touches the crossing point. That is the unified sentence's
-/// licence read literally — the pair answers for every event at its
-/// verified interface, whoever's entities carry it — and after the
-/// edge screen the interface really does carry the whole crossing;
-/// the trade (incidence out, carrier-confinement in) is this
-/// paragraph, not an accident.
+/// **What region containment replaced, named**: the other rungs read
+/// a confirmed pair through STRUCTURAL INCIDENCE (the pair must hold
+/// the event's entities); this rung reads it through the carrier
+/// instead — nothing checks that `ea`/`eb` are boundary edges of
+/// `fa`/`fb`, so the pair answers for every crossing at its verified
+/// interface, whoever's entities carry it. Both confine by location
+/// alike: the crossing is the pair's only in the closure of its
+/// overlap, so a pair whose regions only corner-touch the crossing
+/// point does not answer for it.
 ///
 /// Curved pairs are outside the planar-first rung and never answer;
 /// `EdgeFacePierce` takes NO rung at all: a transverse dive is
@@ -3887,14 +4467,15 @@ fn ee_cross_backed<T: Decide>(
     eb: &EdgeGeo<T>,
     q: Point3<T>,
     band: Band,
-    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) -> CrossingBacking {
     // Pass 1: one collected outcome per unordered candidate pair.
     let mut backed = false;
     let mut same_side = false;
     let mut undecided: Vec<Indeterminate> = Vec::new();
-    for &(fa, fb) in &declared.faces {
+    let candidates: BTreeSet<(FaceKey, FaceKey)> =
+        declared.faces.union(&declared.confirmed).copied().collect();
+    for (fa, fb) in candidates {
         if fa >= fb {
             continue; // unordered walk (both orientations are stored)
         }
@@ -3942,11 +4523,13 @@ fn ee_cross_backed<T: Decide>(
                 }
             };
         if side == CrossingSideVerdict::OppositeSides {
-            if pair_verified(body, fa, fb, band, region) {
-                backed = true;
-            }
-            // An opposite-sides pair that does not verify answers for
+            // An opposite-sides pair that is not confirmed answers for
             // nothing; its own state is the confirm pass's report.
+            if declared.confirmed.contains(&(fa, fb)) {
+                let cells = (EntityId::Edge(ea.key), EntityId::Edge(eb.key));
+                backed |=
+                    in_overlap_closure(body, geo, (fa, fb), cells, q, band, errors) == Some(true);
+            }
         } else {
             same_side = true;
         }
@@ -4127,10 +4710,11 @@ fn ee_cross_point<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
 }
 
 /// The midpoint of two collinear edges' overlap: a point on both
-/// edges, where a collinear overlap's touch is read.
+/// edges, where a collinear overlap's touch is read. `eb`'s ends are the
+/// one reading's projections ([`geom_core::one_line`]), clipped to
+/// `ea`'s span by value.
 fn ee_overlap_midpoint<T: Real>(ea: &EdgeGeo<T>, eb: &EdgeGeo<T>) -> Point3<T> {
-    let s0 = (eb.p0 - ea.p0).dot(ea.dir);
-    let s1 = s0 + eb.len * eb.dir.dot(ea.dir);
+    let (s0, s1) = on_one_line(ea.dir, (ea.p0, ea.p1), (eb.p0, eb.p1), T::zero()).b;
     let lo = s0.min(s1).max(T::zero());
     let hi = s0.max(s1).min(ea.len);
     ea.p0 + ea.dir * geom::mid_param(lo, hi)
@@ -4260,14 +4844,13 @@ fn ee_crossing_lane<T: Decide>(
     eb: &EdgeGeo<T>,
     margin: MarginDiag,
     band: Band,
-    region: Option<RegionLane<T>>,
     errors: &mut Vec<ValidationError>,
 ) {
     if declared.ee_recorded(ea.key, eb.key) {
         return;
     }
     let q = ee_cross_point(ea, eb);
-    match ee_cross_backed(body, geo, declared, ea, eb, q, band, region, errors) {
+    match ee_cross_backed(body, geo, declared, ea, eb, q, band, errors) {
         CrossingBacking::Backed => {}
         CrossingBacking::Unanswered => {
             errors.push(ValidationError::UnrecordedContact {
@@ -4300,6 +4883,177 @@ fn ee_crossing_lane<T: Decide>(
     }
 }
 
+/// The census's own rows for two spans' ends read past their charge
+/// ([`span_charge`]): each comparison's lower and upper bound, and the
+/// straddle between them. An escalation under any of them is the
+/// representation's rounding at the spans' length, not a
+/// near-coincidence of the geometry, and its doors say so
+/// ([`is_span_precision`]).
+pub(crate) const SPAN_ORDER_CHARGED: &str = "pm_census_span_order_charged";
+/// [`SPAN_ORDER_CHARGED`]'s row for the overlap's length.
+pub(crate) const EE_OVERLAP_CHARGED: &str = "pm_census_ee_overlap_charged";
+/// The straddle row of [`SPAN_ORDER_CHARGED`] and [`EE_OVERLAP_CHARGED`].
+pub(crate) const SPAN_ROUNDING: &str = "pm_census_span_rounding";
+
+/// The recourse of a census span read past its charge
+/// ([`is_span_precision`]), at every door it reaches: the decision's own
+/// lever. The charge grows with the spans' lengths, not with where they
+/// lie, so the lever is shorter edges, never a move apart; and since the
+/// refusal has that lever, it never advises loosening ε (D4 ¶1 (i)).
+pub(crate) const SPAN_PRECISION_RECOURSE: &str = "make the straight edges along that line \
+     shorter, splitting them where they run long: at their length, their ends' rounding passes \
+     this tolerance's room";
+
+/// **Whether an escalation is a census span read past its charge**
+/// ([`SPAN_ORDER_CHARGED`], [`EE_OVERLAP_CHARGED`], [`SPAN_ROUNDING`]):
+/// a precision limit, whose recourse is shorter edges
+/// ([`SPAN_PRECISION_RECOURSE`]), never a move apart.
+pub(crate) fn is_span_precision(predicate: Option<&str>) -> bool {
+    matches!(
+        predicate,
+        Some(SPAN_ORDER_CHARGED | EE_OVERLAP_CHARGED | SPAN_ROUNDING)
+    )
+}
+
+/// **The charge the census's span comparisons carry**: `None` where they
+/// read uncharged, `Some(noise)` where the projections' charge is large
+/// enough to matter. The threshold (`pm_census_span_precision`) is the
+/// room the charge leaves, `(K − 1)·ε − noise`, read in metres of the
+/// spans' summed length (divided by [`geom_core::rounding_charge`]'s
+/// rate): definitely positive reads uncharged, and anything else, in
+/// band included, charged.
+///
+/// **Why the uncharged reading is sound inside the room.** Each margin
+/// [`projected_overlap`] reads is within the charge `n` of its real
+/// value. With `n ≤ (K − 1)·ε`, a definite verdict (`|m| > Kε`) has its
+/// real sign past `Kε − n ≥ ε`, and a Zero (`|m| ≤ ε`) is never a real
+/// definite (`ε + n ≤ Kε`). (An in-band real may still read Zero: the
+/// band's own Zero, not a flip.) The charge is at the spans' own scale,
+/// so only spans kilometres long at a fine `ε` leave the room: about
+/// `5·10³` m of summed length at `ε = 10⁻¹²`, wherever they lie.
+///
+/// **Why the charged reading is sound everywhere**, so the threshold may
+/// fall either way in its band: each comparison decides both `m − n`
+/// and `m + n` ([`charged_cmp`]), and answers only where they agree.
+/// Past the room `n > ε`, so no rounded margin reads Zero on both
+/// bounds: ends that are one point are read as one without their
+/// projections ([`one_point`]), by their shared point key or, for two
+/// stored vertices, by the census's own coincidence reading of the pair.
+/// Two ends that coincide where one is computed on a line (a
+/// [`Stretch`]'s) escalate on a precision row ([`is_span_precision`]):
+/// that is honest, since the computed end's bits cannot tell it from one
+/// in band of the other.
+///
+/// **Unlogged** (`k_stats::check_unlogged`, ledger row F25 of
+/// `docs/predicate-dimension-audit.md`): the threshold picks how
+/// precisely the census reads, and states nothing about the body. Logged,
+/// an in-band threshold would record an escalation beside a reading that
+/// went on to decide.
+fn span_charge<T: Decide>(noise: T, band: Band) -> Option<T> {
+    // The charge and the room it leaves, read back in metres of summed
+    // span length through the charge's own rate: a margin the band can
+    // read, since the room itself, `(K − 1)·ε`, never passes `Kε`.
+    let per_metre = geom_core::rounding_charge(T::one());
+    let room = (T::from_f64(band.escalate() - band.zero()) - noise) / per_metre;
+    match geom_core::k_stats::check_unlogged("pm_census_span_precision", room, band, "F25") {
+        Ok(Sign::Positive) => None,
+        _ => Some(noise),
+    }
+}
+
+/// `a` against `b` read past the charge `n` (`name`'s bounds, decided
+/// through the funnel): the verdict where `a − b − n` and `a − b + n`
+/// agree, and the straddle between them ([`SPAN_ROUNDING`]) where they
+/// do not. `None` escalated (pushed).
+fn charged_cmp<T: Decide>(
+    name: &'static str,
+    m: T,
+    n: T,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Sign> {
+    let read = |margin: T| decide_reported(name, Margin::of(margin), band);
+    let escalated = |cause, errors: &mut Vec<ValidationError>| {
+        errors.push(ValidationError::CensusEscalated { cause });
+        None
+    };
+    let lower = match read(m - n) {
+        Ok(d) => d,
+        Err(cause) => return escalated(cause, errors),
+    };
+    let upper = match read(m + n) {
+        Ok(d) => d,
+        Err(cause) => return escalated(cause, errors),
+    };
+    if lower.sign == upper.sign {
+        Some(lower.sign)
+    } else {
+        escalated(straddle(SPAN_ROUNDING, lower, upper, band), errors)
+    }
+}
+
+/// One end of a span on the reading's axis: where it projects, and the
+/// point key it was read from (`None` for a span no body holds).
+#[derive(Clone, Copy)]
+struct End<T: Real> {
+    at: T,
+    key: Option<PointKey>,
+    /// The stored vertex the end is, read as given; `None` for a point
+    /// computed on a line (a stretch's end).
+    stored: Option<Point3<T>>,
+}
+
+/// Whether two ends are one point: `Some(true)` the same point key,
+/// read without a coordinate (topology is the truth there), or two
+/// stored vertices the census's own coincidence reading
+/// (`pm_census_vv_gap`, the vertex pass's question of the same pair)
+/// reads as one, whatever their keys: bit-identical stored coordinates
+/// read zero there exactly. `Some(false)` otherwise; `None` where that
+/// reading escalated (pushed), a near-coincidence of the geometry the
+/// vertex pass refuses the same way.
+fn one_point<T: Decide>(
+    x: End<T>,
+    y: End<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
+    if x.key.is_some() && x.key == y.key {
+        return Some(true);
+    }
+    let (Some(p), Some(q)) = (x.stored, y.stored) else {
+        return Some(false);
+    };
+    Some(gap_zero_reading("pm_census_vv_gap", Margin::norm3(p - q), band, errors)?.is_some())
+}
+
+/// `x` against `y` along the axis: [`tri_cmp`] where `charge` is
+/// `None`, and past it, `Equal` where the two ends are [`one_point`] and
+/// [`charged_cmp`] on [`SPAN_ORDER_CHARGED`] otherwise. (Uncharged, one
+/// point's two readings differ only by rounding: `a`'s far end is the
+/// chord's norm, `b`'s end on it a projection, a few ulps of the span
+/// apart. That is inside the charge, so within the room it reads Zero.)
+fn span_cmp<T: Decide>(
+    x: End<T>,
+    y: End<T>,
+    charge: Option<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<core::cmp::Ordering> {
+    let Some(n) = charge else {
+        return tri_cmp(x.at, y.at, band, errors);
+    };
+    if one_point(x, y, band, errors)? {
+        return Some(core::cmp::Ordering::Equal);
+    }
+    Some(
+        match charged_cmp(SPAN_ORDER_CHARGED, x.at - y.at, n, band, errors)? {
+            Sign::Positive => core::cmp::Ordering::Greater,
+            Sign::Negative => core::cmp::Ordering::Less,
+            Sign::Zero => core::cmp::Ordering::Equal,
+        },
+    )
+}
+
 /// The positive-length overlap `[lo, hi]` of two parallel edges on
 /// `ea`'s axis, where they are collinear: `Some(Some(_))` an overlap;
 /// `Some(None)` where they are not collinear, or the overlap is a point
@@ -4316,10 +5070,37 @@ fn collinear_overlap<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<((T, T), MarginDiag)>> {
     let (ea, eb) = (ea.span(), eb.span());
-    let (base, turn) = ((eb.p0 - ea.p0).dot(ea.dir), eb.dir.dot(ea.dir));
-    let (t0, t1) = (base + eb.at.0 * turn, base + eb.at.1 * turn);
+    // `b`'s projections are the one reading's ([`geom_core::one_line`]),
+    // read from `a`'s stored start, the origin of `a`'s own interval
+    // `at`: of stored vertices as given (`produced` zero), or of a
+    // stretch's ends charged for their evaluation.
+    let along = on_one_line(
+        ea.dir,
+        (ea.p0, ea.ends[1]),
+        (eb.ends[0], eb.ends[1]),
+        eb.produced,
+    );
+    let charge = span_charge(along.noise, band);
+    let (t0, t1) = along.b;
+    let end = |at, key, stored: bool, p| End {
+        at,
+        key,
+        stored: stored.then_some(p),
+    };
     let mut held = Vec::new();
-    let span = projected_overlap(&ea, (t0, t1), band, &mut held);
+    let span = projected_overlap(
+        (
+            end(ea.at.0, ea.points[0], ea.stored, ea.ends[0]),
+            end(ea.at.1, ea.points[1], ea.stored, ea.ends[1]),
+        ),
+        (
+            end(t0, eb.points[0], eb.stored, eb.ends[0]),
+            end(t1, eb.points[1], eb.stored, eb.ends[1]),
+        ),
+        charge,
+        band,
+        &mut held,
+    );
     if matches!(span, Some(None)) {
         return Some(None);
     }
@@ -4358,41 +5139,55 @@ fn overlap_gap<T: Real>(ea: &Span<T>, eb: &Span<T>, (t0, t1): (T, T)) -> Margin<
     Margin::norm3(start + turn * along)
 }
 
-/// `[t0, t1]` on `ea`'s axis clipped to its span: `Some(Some((lo, hi)))`
-/// a positive length (`pm_census_ee_overlap`), `Some(None)` a point or
-/// empty, `None` escalated (pushed).
+/// `b`'s ends on `a`'s axis clipped to `a`'s span `(0, len)`:
+/// `Some(Some((lo, hi)))` a positive length (`pm_census_ee_overlap`),
+/// `Some(None)` a point or empty, `None` escalated (pushed). Every
+/// comparison is of two of the ends, so each is within the projections'
+/// charge of its real value, and reads past `charge` where
+/// [`span_charge`] gives one ([`span_cmp`], [`EE_OVERLAP_CHARGED`]); an
+/// overlap whose two ends are [`one_point`] is a point there, read
+/// without a coordinate.
 fn projected_overlap<T: Decide>(
-    ea: &Span<T>,
-    (t0, t1): (T, T),
+    (a0, a1): (End<T>, End<T>),
+    (b0, b1): (End<T>, End<T>),
+    charge: Option<T>,
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<(T, T)>> {
-    let (blo, bhi) = match tri_cmp(t0, t1, band, errors)? {
-        core::cmp::Ordering::Greater => (t1, t0),
-        _ => (t0, t1),
+    let (blo, bhi) = match span_cmp(b0, b1, charge, band, errors)? {
+        core::cmp::Ordering::Greater => (b1, b0),
+        _ => (b0, b1),
     };
-    let lo = match tri_cmp(blo, ea.at.0, band, errors)? {
+    let lo = match span_cmp(blo, a0, charge, band, errors)? {
         core::cmp::Ordering::Greater => blo,
-        _ => ea.at.0,
+        _ => a0,
     };
-    let hi = match tri_cmp(bhi, ea.at.1, band, errors)? {
+    let hi = match span_cmp(bhi, a1, charge, band, errors)? {
         core::cmp::Ordering::Less => bhi,
-        _ => ea.at.1,
+        _ => a1,
     };
-    match decide("pm_census_ee_overlap", Margin::of(hi - lo), band) {
-        Ok(Sign::Positive) => Some(Some((lo, hi))),
-        Ok(_) => Some(None),
-        Err(cause) => {
-            errors.push(ValidationError::CensusEscalated { cause });
-            None
+    let sign = match charge {
+        Some(n) => {
+            if one_point(lo, hi, band, errors)? {
+                Sign::Zero
+            } else {
+                charged_cmp(EE_OVERLAP_CHARGED, hi.at - lo.at, n, band, errors)?
+            }
         }
-    }
+        None => match decide("pm_census_ee_overlap", Margin::of(hi.at - lo.at), band) {
+            Ok(sign) => sign,
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                return None;
+            }
+        },
+    };
+    Some((sign == Sign::Positive).then_some((lo.at, hi.at)))
 }
 
 /// **A collinear overlap of two line edges**: a pair whose interiors
-/// meet, so it is owed its edge-edge record (D1), or a declared face
-/// pair whose interface it lies on ([`Declared::ee_face_backed`]), and
-/// the record is confirmed by reconstruction from its bounds: between
+/// meet, so it is owed its edge-edge record (D1), and the record is
+/// confirmed by reconstruction from its bounds: between
 /// two backed bounds, two lines sharing two points are one line. Two
 /// straight edges ending at one point key at both bounds
 /// ([`Bound::Shared`] at each) are one segment by structure, which owes
@@ -4405,6 +5200,7 @@ fn projected_overlap<T: Decide>(
 /// bound is never inferred.
 #[allow(clippy::too_many_arguments)] // the overlap and its reading, plus the lane's state
 fn ee_collinear_lane<T: Decide>(
+    body: &Body<T>,
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
     (lo, hi): (T, T),
@@ -4414,15 +5210,14 @@ fn ee_collinear_lane<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
-    let low = ee_bound_backed(ea, eb, lo, geo, declared, band, errors);
+    let low = ee_bound_backed(body, ea, eb, lo, geo, declared, band, errors);
     let high = match low {
         Bound::Unbacked => Bound::Unbacked,
-        _ => ee_bound_backed(ea, eb, hi, geo, declared, band, errors),
+        _ => ee_bound_backed(body, ea, eb, hi, geo, declared, band, errors),
     };
     let backed = low != Bound::Unbacked && high != Bound::Unbacked;
-    let recorded = (low, high) == (Bound::Shared, Bound::Shared)
-        || declared.ee_recorded(ea.key, eb.key)
-        || declared.ee_face_backed(ea, eb);
+    let recorded =
+        (low, high) == (Bound::Shared, Bound::Shared) || declared.ee_recorded(ea.key, eb.key);
     if !(backed && recorded) {
         errors.push(ValidationError::UnrecordedContact {
             contact: CensusContact::EdgeEdgeOverlap {
@@ -4449,7 +5244,9 @@ fn ee_collinear_lane<T: Decide>(
 /// a vertex is a vertex-on-edge event and takes that lane's backing
 /// (its `(vertex, edge)` record, or the same declared face pair one
 /// incidence step further out).
+#[allow(clippy::too_many_arguments)] // the bound, its two edges and the run's state
 fn ee_bound_backed<T: Decide>(
+    body: &Body<T>,
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
     s: T,
@@ -4462,18 +5259,34 @@ fn ee_bound_backed<T: Decide>(
     let q = ea.p0 + ea.dir * s;
     let sb = (q - eb.p0).dot(eb.dir);
     let vb = edge_vertex_at(eb, sb, band, errors);
+    let mut holds = |cells, x: &[FaceKey], y: &[FaceKey]| {
+        declared.holds(body, geo, cells, (x, y), q, band, errors) == Some(true)
+    };
     let backed = match (va, vb) {
         (Some(va), Some(vb)) if geo.same_point(va, vb) => return Bound::Shared,
         (Some(va), Some(vb)) => {
-            declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
+            declared.vv.contains(&(va, vb))
+                || holds(
+                    (EntityId::Vertex(va), EntityId::Vertex(vb)),
+                    &geo.faces_of(va),
+                    &geo.faces_of(vb),
+                )
         }
         (Some(va), None) => {
             declared.ve_recorded(va, eb.key)
-                || declared.ve_face_backed(geo, va, (eb.f_plus, eb.f_minus))
+                || holds(
+                    (EntityId::Vertex(va), EntityId::Edge(eb.key)),
+                    &geo.faces_of(va),
+                    &[eb.f_plus, eb.f_minus],
+                )
         }
         (None, Some(vb)) => {
             declared.ve_recorded(vb, ea.key)
-                || declared.ve_face_backed(geo, vb, (ea.f_plus, ea.f_minus))
+                || holds(
+                    (EntityId::Vertex(vb), EntityId::Edge(ea.key)),
+                    &geo.faces_of(vb),
+                    &[ea.f_plus, ea.f_minus],
+                )
         }
         // Neither edge resolves a vertex at the bound: an escalated
         // span (already pushed), never a backing.
@@ -4497,6 +5310,104 @@ enum Bound {
     Unbacked,
 }
 
+/// One planar face pair the face-pair arm confirmed: its two faces, in
+/// the arm's order, and the margin Door 1 decided their one carrier by.
+struct FoundPair {
+    a: FaceKey,
+    b: FaceKey,
+    margin: MarginDiag,
+}
+
+/// **The planar face-pair arm** (`[assertions]`): two planar faces of
+/// different solids meeting over an area are one pair, decided once.
+///
+/// - **Door 1**: the undeclared carrier reading
+///   (`boolean::carrier_pair::carrier_pair_reading`) decides one carrier
+///   with opposed senses, a margin decided Zero.
+/// - **Door 2**: the declared-pair overlap door, on Door 1's verdict
+///   ([`RegionLane::declared_overlap`], in either frame order as
+///   [`pair_verified`] reads it), decides a definitely positive area.
+///
+/// A pair either door does not confirm is not this arm's: a definite
+/// apart, a shared line and no area (the region door's
+/// `TouchingBoundary` with no interior witness), an in-band margin, or
+/// a pass holding no region door. Its cells' meetings are read by the
+/// sweeps like any others, so it is never silent.
+///
+/// The pairs are found before the sweeps run, so a confirmed pair
+/// answers for its boundary cells whether or not it is recorded; the
+/// caller reports each one no record names ([`report_found_pairs`]).
+fn planar_face_pairs<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    band: Band,
+    region: Option<RegionLane<T>>,
+    cands: &Candidates,
+) -> Vec<FoundPair> {
+    let Some(lane) = region else {
+        return Vec::new();
+    };
+    let mut found = Vec::new();
+    for (i, fa) in geo.faces.iter().enumerate() {
+        for j in cands.trees.faces.later(i) {
+            let fb = candidate(&geo.faces, j);
+            let (Some(sa), Some(sb)) = (body.solid_of_face(fa.key), body.solid_of_face(fb.key))
+            else {
+                continue;
+            };
+            if sa == sb {
+                continue;
+            }
+            let Ok(Ok((crate::boolean::CarrierRelation::SameOpposite, verdict, Some(margin)))) =
+                crate::boolean::carrier_pair::carrier_pair_reading(
+                    body, fa.key, body, fb.key, false, band,
+                )
+            else {
+                continue;
+            };
+            let area = |x, y| {
+                matches!(
+                    lane.declared_overlap(body, x, body, y, verdict, band),
+                    Ok(crate::chart_region::ChartOverlap::PositiveArea)
+                )
+            };
+            if area(fa.key, fb.key) || area(fb.key, fa.key) {
+                found.push(FoundPair {
+                    a: fa.key,
+                    b: fb.key,
+                    margin,
+                });
+            }
+        }
+    }
+    found
+}
+
+/// Each pair the planar face-pair arm found that no face–face record
+/// names: an `UnrecordedContact` of the one pair, carrying Door 1's
+/// margin, which is the row the at-rest census records it by
+/// ([`census_contact_row`]).
+fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec<ValidationError>) {
+    for pair in found {
+        if declared.faces.contains(&(pair.a, pair.b)) {
+            continue;
+        }
+        let finding = crate::contact::ContactFinding {
+            pair: crate::contact::DeclaredContact {
+                a: pair.a,
+                b: pair.b,
+                class: crate::contact::GlueClass::Rest,
+            },
+            verdict: crate::contact::ContactVerdict::Definite,
+        };
+        errors.push(ValidationError::UnrecordedContact {
+            contact: CensusContact::ConformalPatch { finding },
+            witness: CONFORMAL_REGION_WITNESS.to_owned(),
+            margin: Some(pair.margin),
+        });
+    }
+}
+
 /// **The conformal face-pair arm** (M9-2, C2's structural rung run as
 /// a census sweep): for every pair of CURVED faces sharing one
 /// `SurfaceKey` with OPPOSED senses — the only configuration that is
@@ -4506,11 +5417,9 @@ enum Bound {
 ///
 /// Scope, stated exactly:
 ///
-/// - **Curved faces only.** Planar conformal interfaces are already
-///   fully evidenced at vertex granularity by the exact sweeps (their
-///   every boundary event is a v-v/v-f/segment finding those passes
-///   report and records back), so the face-pair arm exists for the
-///   inventory the exact sweeps cannot read.
+/// - **Curved faces only.** Two planar faces of different solids
+///   meeting over an area are the planar arm's
+///   ([`planar_face_pairs`]).
 /// - **Shared key only.** C2's identity lemma makes every true
 ///   conformal contact same-carrier for analytic kinds, and within
 ///   ONE body the structural rung IS key identity; value-equal
@@ -4587,7 +5496,7 @@ fn sweep_conformal_patches<T: Decide>(
                                 pair: crate::contact::DeclaredContact {
                                     a: fa,
                                     b: fb,
-                                    class: crate::contact::ContactClass::Rest,
+                                    class: crate::contact::GlueClass::Rest,
                                 },
                                 verdict: crate::contact::ContactVerdict::Definite,
                             };
@@ -4634,6 +5543,7 @@ fn sweep_conformal_patches<T: Decide>(
                         | ChartRegionError::TouchingBoundary
                         | ChartRegionError::DegenerateLoop { .. }
                         | ChartRegionError::RayExhausted
+                        | ChartRegionError::EdgeScale
                         | ChartRegionError::WitnessSegmentCapExceeded { .. }
                         | ChartRegionError::WitnessCellCapExceeded { .. }
                         | ChartRegionError::Corrupt),
@@ -4818,7 +5728,7 @@ fn same_solid_tangent_pair<T: Decide>(
                     pair: crate::contact::DeclaredContact {
                         a,
                         b,
-                        class: crate::contact::ContactClass::Tangent,
+                        class: crate::contact::GlueClass::Tangent,
                     },
                     verdict,
                 },
@@ -4843,7 +5753,7 @@ fn same_solid_tangent_pair<T: Decide>(
             _ => errors.push(pair_lane_refused(
                 a,
                 b,
-                ContactRefusal::Contradicted { diag, steer: None },
+                ContactRefusal::Contradicted { diag },
             )),
         },
         Err(refusal) => errors.push(pair_lane_refused(a, b, refusal)),
@@ -5249,8 +6159,6 @@ pub(crate) enum Undecided {
     TouchDegenerate,
     /// Arm 2: a touch at a corner whose edge length is not a number.
     TouchChordScale,
-    /// Arm 2: a face-pair contact record backing sideless events.
-    RecordedFacePair,
     /// Arm 2: every vertex of the contained instance on the boundary.
     AllOn,
     /// Arm 2: the contained instance has no vertex.
@@ -5264,9 +6172,6 @@ pub(crate) enum Undecided {
     /// or gave nothing to read — for a vertex its pre-pass placed off the
     /// boundary.
     WitnessGrazed,
-    /// Arm 2: a vertex near the end of a narrow cylinder wall's window,
-    /// which the point-in-solid door's window reading cannot place.
-    WitnessNarrowWindow,
     /// Arm 2: a ray the point-in-solid door cast met a torus face where
     /// the kernel's count of its crossings came apart.
     WitnessRootCount,
@@ -5421,10 +6326,6 @@ impl Undecided {
                  Recourse: rescale the model so every edge length is an ordinary number, \
                  or move them until their bounding boxes no longer overlap"
             }
-            Self::RecordedFacePair => {
-                "a contact record between their faces touches only at corners the check \
-                 cannot yet place. There is no way through yet for this record"
-            }
             Self::AllOn => {
                 "every corner of one lies on the other's boundary, so the corners cannot \
                  place it. There is no way through yet for a designed resting fit; \
@@ -5441,12 +6342,6 @@ impl Undecided {
                 "a corner of one is off the other's boundary, but no test ray from it \
                  settled where it lies: each grazed that boundary or could not be read. \
                  Recourse: move the parts until their bounding boxes no longer overlap"
-            }
-            Self::WitnessNarrowWindow => {
-                "a corner of one lies near the end of a narrow cylinder wall of the other, \
-                 where the check's reading of the wall's window cannot place it. Recourse: \
-                 move the parts until their bounding boxes no longer overlap; a limit of the \
-                 kernel's narrow-window reading, worth reporting"
             }
             Self::WitnessRootCount => {
                 "a test ray from a corner of one met a torus face of the other where the \
@@ -5486,8 +6381,7 @@ impl Undecided {
         use crate::boolean::PointInSolidError as E;
         use crate::splitting::PointInLoopError as L;
         match e {
-            E::Escalated { .. } | E::JunctionSidesDisagree { .. } => Self::WitnessTooClose(None),
-            E::NarrowWindowUnread { .. } => Self::WitnessNarrowWindow,
+            E::Escalated { .. } => Self::WitnessTooClose(None),
             E::RootCountDisagrees { .. } => Self::WitnessRootCount,
             E::Loop(L::Escalated { decision, .. }) => Self::WitnessTooClose(Some(*decision)),
             E::RayExhausted | E::Loop(L::RayExhausted { .. }) => Self::WitnessGrazed,
@@ -5519,9 +6413,13 @@ enum Said {
     Touch(TouchSite),
     /// An edge through a face's interior: a crossing.
     Pierce,
-    /// A curved touch: a conformal patch (the conformal arm finds
-    /// same-carrier CURVED pairs only), or a tangent line.
+    /// A curved touch: a conformal patch the curved arm found, or a
+    /// tangent line.
     CurvedTouch,
+    /// Two faces meeting over an area: a rest where the pair is
+    /// confirmed ([`Declared::confirmed`]), whose two doors read one
+    /// carrier with the materials on either side of it.
+    FacePair(FaceKey, FaceKey),
     /// A candidate an arm left unexamined (arm 1's refusal, an
     /// unsupported face pair).
     Unexamined,
@@ -5551,8 +6449,12 @@ impl Named {
                     CensusContact::EdgeFacePierce { edge, face } => {
                         Self::Two(EntityId::Edge(edge), EntityId::Face(face), Said::Pierce)
                     }
-                    CensusContact::ConformalPatch { ref finding }
-                    | CensusContact::FaceFaceTangent { ref finding } => Self::Two(
+                    CensusContact::ConformalPatch { ref finding } => Self::Two(
+                        EntityId::Face(finding.pair.a),
+                        EntityId::Face(finding.pair.b),
+                        Said::FacePair(finding.pair.a, finding.pair.b),
+                    ),
+                    CensusContact::FaceFaceTangent { ref finding } => Self::Two(
                         EntityId::Face(finding.pair.a),
                         EntityId::Face(finding.pair.b),
                         Said::CurvedTouch,
@@ -5605,7 +6507,10 @@ impl Named {
 enum Recorded {
     /// A v-on-f or v-v record: a touch site the analysis reads.
     Site(TouchSite),
-    /// A curve or patch face-pair record: it backs events without a side.
+    /// A curve or patch face-pair record. It answers for the events on
+    /// its boundary only once confirmed, and a confirmed pair is a rest
+    /// ([`Said::FacePair`]); an unconfirmed one answers for nothing, so
+    /// every event it touches stands as a finding the analysis reads.
     FacePair,
 }
 
@@ -5707,7 +6612,7 @@ mod metric {
     /// point within the slack of the one read, so no sector's offset
     /// can flip it; a Zero stays the band's coincidence, the slack being
     /// within it. `None` where the reading is about the sector's own
-    /// apex ([`face_piece`]), so nothing is moved and the one read is
+    /// apex ([`face_piece`](super::face_piece)), so nothing is moved and the one read is
     /// the reading.
     #[derive(Clone, Copy)]
     pub(super) struct Reading<T> {
@@ -7750,7 +8655,7 @@ mod rest {
     /// Whether the piece `c0`–`c1` crosses a face of `other` along a ray
     /// inside both: its ends decidedly on opposite sides of the face's
     /// plane, and the point between them on the plane inside the face's
-    /// sector ([`Sector::place`]: strictly inside a wedge, or on a ray two
+    /// sector ([`Sector::place`](super::Sector::place): strictly inside a wedge, or on a ray two
     /// of its wedges share) and on none of the `rays` of either link that
     /// lie on the face — a cut, where another face of one link reaches
     /// the ray and neither material is a half-space there. Only the
@@ -8534,8 +9439,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
     //
     // `records_on_their_word` is the declared-only pair's reading (the
     // loop's argument says why): its records are read only for a
-    // decided crossing, and a record the analysis cannot read or a face
-    // pair is taken on its word.
+    // decided crossing, and a record the analysis cannot read is taken
+    // on its word. A face-pair record is read by no analysis here: it
+    // answers for its boundary's events only once confirmed, a rest,
+    // and otherwise leaves them standing as findings.
     let blocks = |standing_errors: &[ValidationError],
                   sa: SolidKey,
                   sb: SolidKey,
@@ -8552,6 +9459,8 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                     Said::Touch(site) => touch(site),
                     Said::Pierce => Some(Undecided::Crossing),
                     Said::CurvedTouch => Some(Undecided::TouchUnreadable),
+                    Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b)))
+                        .then_some(Undecided::TouchUnreadable),
                     Said::Unexamined => Some(Undecided::Unexamined),
                 },
                 Named::Two(x, y, said) if owns(x) && solid_of_entity(x) == solid_of_entity(y) => {
@@ -8560,7 +9469,7 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                             Some(Undecided::Crossing)
                         }
                         Said::Unexamined => Some(Undecided::Unexamined),
-                        Said::Touch(_) | Said::CurvedTouch => None,
+                        Said::Touch(_) | Said::CurvedTouch | Said::FacePair(..) => None,
                     }
                 }
                 Named::Two(..) => None,
@@ -8596,9 +9505,6 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 what if strict => undecided_touch = undecided_touch.or(what),
                 _ => {}
             }
-        }
-        if !records_on_their_word && records.iter().any(|r| matches!(r, Recorded::FacePair)) {
-            return Some(Undecided::RecordedFacePair);
         }
         undecided_touch
     };
@@ -9079,16 +9985,15 @@ fn confirm_face_pair<T: Decide>(
         return;
     }
     let refused = |refusal| match refusal {
-        crate::contact::ContactRefusal::Contradicted { diag, steer } => {
+        crate::contact::ContactRefusal::Contradicted { diag } => {
             ValidationError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
                     a,
                     b,
-                    class: crate::contact::ContactClass::Tangent,
+                    class: crate::contact::GlueClass::Tangent,
                 },
                 witness: TANGENT_LOCUS_WITNESS.to_owned(),
                 margin: diag,
-                steer,
             }
         }
         refusal => pair_lane_refused(a, b, refusal),
@@ -9511,16 +10416,15 @@ fn rest_door_one<T: Decide>(
 ) -> Result<(crate::contact::ContactVerdict, geom_core::MarginDiag), ValidationError> {
     crate::boolean::rest_pair_reading(body, face_a, body, face_b, band).map_err(|refusal| {
         match refusal {
-            crate::contact::ContactRefusal::Contradicted { diag, steer } => {
+            crate::contact::ContactRefusal::Contradicted { diag } => {
                 ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
                         a: face_a,
                         b: face_b,
-                        class: crate::contact::ContactClass::Rest,
+                        class: crate::contact::GlueClass::Rest,
                     },
                     witness: CARRIER_COMPARISON_WITNESS.to_owned(),
                     margin: diag,
-                    steer,
                 }
             }
             crate::contact::ContactRefusal::Escalated { diag }
@@ -9716,6 +10620,257 @@ fn recordable(
     Some((pair, row, contact))
 }
 
+/// **The flush pairs between groups of a body at rest**
+/// ([`flush_at_rest`]).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct FlushAtRest {
+    /// A row for each flush pair: its two faces, decided one carrier
+    /// with the same material side ([`crate::Relation::SameOriented`]),
+    /// at the margin that decided it. No record cites one: a record is
+    /// a touch, and a flush pair's interiors do not meet.
+    pub rows: Vec<crate::Coincidence>,
+    /// The pairs the door could not decide, each named: a carrier, a
+    /// shared boundary or an overlap read in the band
+    /// ([`ValidationError::CensusUndecidable`]), or an overlap the
+    /// region door refused typed ([`ValidationError::CensusUnsupported`],
+    /// [`ValidationError::CensusLaneUnsupported`] where the scalar holds
+    /// no region door).
+    pub findings: Vec<ValidationError>,
+}
+
+/// What [`flush_at_rest`] says of a pair it could not decide.
+const FLUSH_UNDECIDED: &str = "whether they lie flush, on one plane facing the same way with \
+    their boundaries meeting, is within the tolerance band. Move one of them clear of the \
+    band, or onto the plane";
+
+/// What [`flush_at_rest`] says of a pair whose interiors it cannot read
+/// ([`InteriorsUnread::Unbuilt`]).
+const FLUSH_UNREAD: &str = "they lie on one plane facing the same way with their boundaries \
+    meeting, but whether their interiors meet cannot be read for this shape (a face with an \
+    arc, or one meeting a corner point twice). There is no way through yet for this shape";
+
+/// **The flush pairs between groups of a body at rest** (`[assertions]`):
+/// two planar faces of different groups on one carrier, facing the same
+/// way, whose boundaries meet while their interiors do not. No contact,
+/// so no record, but a coincidence the census infers from values: a row
+/// of its own, which the `unproven-coincidence` check reports unless the
+/// document establishes it.
+///
+/// - **Door 1**: the undeclared carrier reading decides one carrier with
+///   the senses aligned, a margin decided Zero.
+/// - **The witness**: an edge of each face's boundary overlapping along
+///   a positive length ([`parallel_overlap`]): the shared boundary
+///   segment.
+/// - **Door 2**: the declared-pair overlap door, on Door 1's verdict,
+///   finds no area both interiors hold (`Empty`). A pair whose trims
+///   share a boundary is refused `TouchingBoundary` by the region walk;
+///   its interior-witness rung then certifies a point strictly inside
+///   both (`PositiveArea`) or declines, and a decline carries the
+///   refusal. On that refusal the faces' own reading decides
+///   ([`planar_interiors_meet`]): interiors certified apart are a flush
+///   row; interiors that meet are none; a reading in band, or one not
+///   built, is the pair's finding. A positive area is no flush pair: the
+///   two materials overlap there, which the census reads as
+///   interference.
+///
+/// `group` partitions the solids as [`record_at_rest`]'s does; a pair
+/// inside one group, or with a solid in none, is not read. `region` is
+/// the scalar's region doors ([`crate::AtRestPolicy::flush_at_rest`]).
+pub(crate) fn flush_at_rest<T: Decide + Bounds>(
+    body: &Body<T>,
+    group: &dyn Fn(crate::SolidKey) -> Option<u32>,
+    band: Band,
+    region: Option<RegionLane<T>>,
+) -> FlushAtRest {
+    let geo = snapshot(body);
+    let pad = sweep_pad(band);
+    let faces = Class::build(
+        CensusStrategy::Realized,
+        geo.faces
+            .iter()
+            .map(|f| face_box(body, f.key, pad, band).unwrap_or_else(|_| Aabb::poison()))
+            .collect(),
+    );
+    let sides = |f| geo.sides_of(f);
+    let group_of = |f: FaceKey| body.solid_of_face(f).and_then(group);
+    let mut out = FlushAtRest::default();
+    for (i, fa) in geo.faces.iter().enumerate() {
+        for j in faces.later(i) {
+            let fb = candidate(&geo.faces, j);
+            let (Some(ga), Some(gb)) = (group_of(fa.key), group_of(fb.key)) else {
+                continue;
+            };
+            if ga == gb {
+                continue;
+            }
+            let undecided = || ValidationError::CensusUndecidable {
+                a: EntityId::Face(fa.key),
+                b: EntityId::Face(fb.key),
+                what: FLUSH_UNDECIDED,
+            };
+            let door_one = match crate::boolean::carrier_pair::carrier_pair_reading(
+                body, fa.key, body, fb.key, false, band,
+            ) {
+                Ok(Ok((crate::boolean::CarrierRelation::SameOriented, verdict, Some(margin)))) => {
+                    Some((verdict, margin))
+                }
+                Ok(Err(
+                    crate::boolean::CarrierEqError::Undecided {
+                        relation: crate::boolean::CarrierRelation::SameOriented,
+                        ..
+                    }
+                    | crate::boolean::CarrierEqError::Escalated { .. },
+                )) => None,
+                _ => continue,
+            };
+            let mut shared = false;
+            let mut escalated = false;
+            for ea in sides(fa.key) {
+                for eb in sides(fb.key) {
+                    match parallel_overlap(ea, eb, band, &mut Vec::new()) {
+                        Some(Some(_)) => shared = true,
+                        Some(None) => {}
+                        None => escalated = true,
+                    }
+                }
+            }
+            let Some((verdict, margin)) = door_one else {
+                if shared || escalated {
+                    out.findings.push(undecided());
+                }
+                continue;
+            };
+            if !shared {
+                if escalated {
+                    out.findings.push(undecided());
+                }
+                continue;
+            }
+            let Some(lane) = region else {
+                out.findings.push(ValidationError::CensusLaneUnsupported {
+                    subject: CensusSubject::FacePair(fa.key, fb.key),
+                });
+                continue;
+            };
+            let overlap = |x, y| lane.declared_overlap(body, x, body, y, verdict, band);
+            let row = crate::Coincidence {
+                cells: [fa.key, fb.key].map(|face| crate::RowCell::Result {
+                    cell: crate::Cell::Face(face),
+                }),
+                relation: crate::Relation::SameOriented,
+                site: crate::DecisionSite::CensusAtRest,
+                margin,
+                discharge: crate::Discharge::of(margin),
+            };
+            match overlap(fa.key, fb.key) {
+                Ok(crate::chart_region::ChartOverlap::PositiveArea) => {}
+                Ok(crate::chart_region::ChartOverlap::Empty) => out.rows.push(row),
+                // The walk refused at the shared boundary: the faces'
+                // own reading decides whether their interiors meet.
+                Err(ChartRegionError::TouchingBoundary) => {
+                    match planar_interiors_meet(body, &geo, fa, fb, band) {
+                        Ok(false) => out.rows.push(row),
+                        Ok(true) => {}
+                        Err(InteriorsUnread::Undecided) => out.findings.push(undecided()),
+                        Err(InteriorsUnread::Unbuilt) => {
+                            out.findings.push(ValidationError::CensusUndecidable {
+                                a: EntityId::Face(fa.key),
+                                b: EntityId::Face(fb.key),
+                                what: FLUSH_UNREAD,
+                            });
+                        }
+                    }
+                }
+                Err(ChartRegionError::Escalated(_)) => out.findings.push(undecided()),
+                Err(cause) => out.findings.push(ValidationError::CensusUnsupported {
+                    subject: CensusSubject::FacePair(fa.key, fb.key),
+                    cause: CensusUnsupportedCause::ChartRegion(cause),
+                }),
+            }
+        }
+    }
+    out
+}
+
+/// Why [`planar_interiors_meet`] read no verdict.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InteriorsUnread {
+    /// A reading it needed landed in the band.
+    Undecided,
+    /// The reading is not built: a face with an arc, or a cone
+    /// [`face_cone`] does not read (a face meeting the point twice).
+    Unbuilt,
+}
+
+/// **Whether two planar faces on one plane, facing the same way, share
+/// interior**: some vertex of one lies strictly inside the other, two of
+/// their edges cross properly (two half-planes whose lines cross share a
+/// quadrant), or at a vertex of one on the other's boundary their cones
+/// share material ([`corners_meet`]). Where the interiors meet, a point
+/// of the meeting's boundary is one of the three, so `Ok(false)` is a
+/// certificate that they do not.
+fn planar_interiors_meet<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    fa: &FaceGeo<T>,
+    fb: &FaceGeo<T>,
+    band: Band,
+) -> Result<bool, InteriorsUnread> {
+    if !(fa.polygon && fb.polygon) {
+        return Err(InteriorsUnread::Unbuilt);
+    }
+    let axis = crate::face_normal::face_outward_normal(body, fa.key)
+        .ok_or(InteriorsUnread::Unbuilt)?
+        .vec();
+    let mut read = Vec::new();
+    let mut unread = None;
+    let note = |why: InteriorsUnread, unread: &mut Option<InteriorsUnread>| {
+        if *unread != Some(InteriorsUnread::Unbuilt) {
+            *unread = Some(why);
+        }
+    };
+    for (x, y) in [(fa, fb), (fb, fa)] {
+        for &v in &x.boundary {
+            let p = *geo.vmap.get(&v).ok_or(InteriorsUnread::Unbuilt)?;
+            let Some(at) = contain(body, y, p, band, &mut read) else {
+                note(InteriorsUnread::Undecided, &mut unread);
+                continue;
+            };
+            if at == FaceContainment::Out {
+                continue;
+            }
+            let cones = (
+                face_cone(body, geo, x.key, FaceContainment::OnVertex(v), p, band),
+                face_cone(body, geo, y.key, at, p, band),
+            );
+            match cones {
+                (Ok(Cone::Full), _) | (_, Ok(Cone::Full)) => return Ok(true),
+                (Ok(Cone::Corner(cx)), Ok(Cone::Corner(cy))) => {
+                    match corners_meet(axis, cx, cy, band, &mut read) {
+                        Some(true) => return Ok(true),
+                        Some(false) => {}
+                        None => note(InteriorsUnread::Undecided, &mut unread),
+                    }
+                }
+                (Err(Unread::Unbuilt), _) | (_, Err(Unread::Unbuilt)) => {
+                    note(InteriorsUnread::Unbuilt, &mut unread);
+                }
+                _ => note(InteriorsUnread::Undecided, &mut unread),
+            }
+        }
+    }
+    for ea in geo.sides_of(fa.key) {
+        for eb in geo.sides_of(fb.key) {
+            match ee_meeting(ea, eb, band, &mut read) {
+                Some(Some(Meeting::Cross(_))) => return Ok(true),
+                Some(Some(Meeting::Overlap(..)) | None) => {}
+                None => note(InteriorsUnread::Undecided, &mut unread),
+            }
+        }
+    }
+    unread.map_or(Ok(false), Err)
+}
+
 /// **The two solids a finding decides interfere**: an instance's vertex
 /// inside the other's material, an edge piercing a face, or a crossing
 /// whose side test read `SameSide`. `None` for every other finding,
@@ -9806,7 +10961,10 @@ pub fn census_entity_solid<T: Real>(body: &Body<T>, entity: EntityId) -> Option<
 /// **The census's coincidence a finding reports, as the row recording
 /// it** ([`crate::DecisionSite::CensusAtRest`]): a contact no record
 /// backs whose Zero the census decided, its cells in the body's own keys
-/// and its margin that Zero's. `None` for every other finding, and for a
+/// and its margin that Zero's; a face pair the planar arm found is one
+/// carrier, opposed ([`crate::Relation::SameOpposite`]), every other
+/// contact a cell on the other's carrier. `None` for every other finding,
+/// for a curved conformal patch, whose arm reads no margin, and for a
 /// contact no Zero decided or that may be interpenetration rather than a
 /// coincidence: a pierce, and a crossing whose side test read `SameSide`
 /// or did not decide.
@@ -9821,28 +10979,31 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
         return None;
     };
     use crate::Cell::{Edge, Face, Vertex};
-    let cells = match *contact {
-        CensusContact::VertexVertex { a, b } => [Vertex(a), Vertex(b)],
-        CensusContact::VertexOnFace { vertex, face } => [Vertex(vertex), Face(face)],
-        CensusContact::VertexOnEdge { vertex, edge } => [Vertex(vertex), Edge(edge)],
-        CensusContact::EdgeFaceOverlap { edge, face } => [Edge(edge), Face(face)],
+    use crate::Relation::{OnCarrier, SameOpposite};
+    let (cells, relation) = match *contact {
+        CensusContact::VertexVertex { a, b } => ([Vertex(a), Vertex(b)], OnCarrier),
+        CensusContact::VertexOnFace { vertex, face } => ([Vertex(vertex), Face(face)], OnCarrier),
+        CensusContact::VertexOnEdge { vertex, edge } => ([Vertex(vertex), Edge(edge)], OnCarrier),
+        CensusContact::EdgeFaceOverlap { edge, face } => ([Edge(edge), Face(face)], OnCarrier),
         CensusContact::EdgeEdgeOverlap { a, b }
         | CensusContact::EdgeEdgeCross {
             a,
             b,
             side: None | Some(CrossingSideVerdict::OppositeSides),
-        } => [Edge(a), Edge(b)],
+        } => ([Edge(a), Edge(b)], OnCarrier),
+        CensusContact::ConformalPatch { finding } => {
+            ([Face(finding.pair.a), Face(finding.pair.b)], SameOpposite)
+        }
         CensusContact::EdgeEdgeCross {
             side: Some(CrossingSideVerdict::SameSide | CrossingSideVerdict::Undecided),
             ..
         }
         | CensusContact::EdgeFacePierce { .. }
-        | CensusContact::ConformalPatch { .. }
         | CensusContact::FaceFaceTangent { .. } => return None,
     };
     Some(crate::Coincidence {
         cells: cells.map(|cell| crate::RowCell::Result { cell }),
-        relation: crate::Relation::OnCarrier,
+        relation,
         site: crate::DecisionSite::CensusAtRest,
         margin: *margin,
         discharge: crate::Discharge::of(*margin),
@@ -9851,7 +11012,7 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
 
 /// The at-rest confirmation of a face–face record, as a patch (C3):
 /// through the two doors its certification obligation names — the
-/// `Rest` carrier/sense door (`contact_pair_verdict`: carrier identity
+/// `Rest` carrier/sense door (`rest_pair_verdict`: carrier identity
 /// through the kind ladder with the record standing as the declaration,
 /// senses opposed, aligned coincidence contradicted) and the
 /// chart-region overlap predicate (region overlap in the shared chart
@@ -9935,6 +11096,7 @@ fn confirm_patch<T: Decide>(
             | ChartRegionError::TouchingBoundary
             | ChartRegionError::DegenerateLoop { .. }
             | ChartRegionError::RayExhausted
+            | ChartRegionError::EdgeScale
             | ChartRegionError::WitnessSegmentCapExceeded { .. }
             | ChartRegionError::WitnessCellCapExceeded { .. }
             | ChartRegionError::Corrupt),
@@ -10347,7 +11509,7 @@ mod tests {
         // verify — the recourse is a quotable declaration.
         let pair = (hit.pair.a.min(hit.pair.b), hit.pair.a.max(hit.pair.b));
         assert_eq!(pair, (w1.min(w2), w1.max(w2)));
-        assert_eq!(hit.pair.class, crate::contact::ContactClass::Rest);
+        assert_eq!(hit.pair.class, crate::contact::GlueClass::Rest);
         assert_eq!(hit.verdict, crate::contact::ContactVerdict::Definite);
     }
 
@@ -10811,7 +11973,8 @@ mod tests {
             crate::Cites::decided(0),
         ));
         let geo = snapshot(&seat.body);
-        let declared = Declared::index(&geo, &records);
+        let mut declared = Declared::index(&geo, &records);
+        declared.confirm(&seat.body, &geo, band(), Some(RegionLane::certified()), &[]);
         let on = |e: &&EdgeGeo<f64>, pick: fn(Point3<f64>) -> bool| {
             [e.p0, e.p1].into_iter().all(|p| p.z == 0.5 && pick(p))
         };
@@ -10827,35 +11990,202 @@ mod tests {
             .expect("the shelf's y = 0.30 underside edge");
         let q = Point3::new(0.30, 0.30, 0.5);
         let mut errors = Vec::new();
-        let region = Some(RegionLane::certified());
-        let intact = ee_cross_backed(
-            &seat.body,
-            &geo,
-            &declared,
-            ea,
-            eb,
-            q,
-            band(),
-            region,
-            &mut errors,
-        );
+        let intact = ee_cross_backed(&seat.body, &geo, &declared, ea, eb, q, band(), &mut errors);
         assert!(
             matches!(intact, CrossingBacking::Backed) && errors.is_empty(),
             "the intact seat backs the crossing: {errors:?}"
         );
         let surface = seat.body.get_face(seat.post_top).expect("the cap").surface;
         seat.body.surfaces.remove(surface).expect("its surface");
-        ee_cross_backed(
-            &seat.body,
-            &geo,
-            &declared,
-            ea,
-            eb,
-            q,
-            band(),
-            region,
-            &mut errors,
+        ee_cross_backed(&seat.body, &geo, &declared, ea, eb, q, band(), &mut errors);
+    }
+
+    /// **Two coplanar faces facing one way: meeting interiors read as
+    /// meeting.** Each pair of blocks is grafted as two solids and their
+    /// two tops (`z = 1`, both facing up) are read by
+    /// `planar_interiors_meet`. Three pairs share interior, each through
+    /// a different arm: a corner of one strictly inside the other, a
+    /// plus whose edges cross with no corner inside, and two identical
+    /// squares, whose every corner sits on the other's corner with the
+    /// same material. One pair only touches along an edge, and is read
+    /// apart. Red if the reading answers "apart" for interiors that
+    /// meet: the flush arm would then write a row for faces sharing area.
+    #[test]
+    fn planar_interiors_meet_reads_each_way_two_tops_share_interior() {
+        let tol = Tol::witness();
+        let tops = |a: &[(f64, f64)], b: &[(f64, f64)]| {
+            let pa = crate::test_support_fixtures::prism_z::<f64>(a, 0.0, 1.0, tol);
+            let pb = crate::test_support_fixtures::prism_z::<f64>(b, 0.0, 1.0, tol);
+            let mut body = pa.body;
+            let keys = crate::graft_disjoint_all_keyed(&mut body, &pb.body).unwrap();
+            let geo = snapshot(&body);
+            let top_b = keys.face(pb.top_face).unwrap();
+            let fa = planar_face(&geo, pa.top_face).expect("a planar top");
+            let fb = planar_face(&geo, top_b).expect("b planar top");
+            planar_interiors_meet(&body, &geo, fa, fb, band())
+        };
+        let sq = |x0: f64, y0: f64, x1: f64, y1: f64| [(x0, y0), (x1, y0), (x1, y1), (x0, y1)];
+        assert_eq!(
+            tops(&sq(0.0, 0.0, 2.0, 2.0), &sq(1.0, 1.0, 3.0, 3.0)),
+            Ok(true),
+            "a corner inside the other"
         );
+        assert_eq!(
+            tops(&sq(0.0, 1.0, 3.0, 2.0), &sq(1.0, 0.0, 2.0, 3.0)),
+            Ok(true),
+            "a plus: edges crossing, no corner inside"
+        );
+        assert_eq!(
+            tops(&sq(0.0, 0.0, 1.0, 1.0), &sq(0.0, 0.0, 1.0, 1.0)),
+            Ok(true),
+            "identical squares: every corner on a corner, the same material"
+        );
+        assert_eq!(
+            tops(&sq(0.0, 0.0, 1.0, 1.0), &sq(1.0, 0.0, 2.0, 1.0)),
+            Ok(false),
+            "touching along an edge: apart"
+        );
+    }
+
+    /// **A touch the census cannot place is refused, never absorbed.**
+    /// A block rests on a pinched cap (its loop passes the origin twice)
+    /// with a corner at the pinch. The planar arm confirms the seat's
+    /// pair, and the corner meets the cap's two pinch vertices, but the
+    /// cap's cone there is two corners, which the location reading does
+    /// not pair up: the touch is refused as undecidable rather than
+    /// answered for by the pair. Red if `Declared::confine` drops the
+    /// refusal.
+    #[test]
+    fn a_touch_at_a_pinch_of_a_confirmed_pair_is_refused_undecidable() {
+        let tol = Tol::witness();
+        let profile = [
+            (-3.0, -3.0),
+            (-1.0, -3.0),
+            (0.0, 0.0),
+            (-1.0, 2.0),
+            (1.0, 2.0),
+            (0.0, 0.0),
+            (1.0, -3.0),
+            (3.0, -3.0),
+            (3.0, 3.0),
+            (-3.0, 3.0),
+        ];
+        let cap = crate::test_support_fixtures::prism_z::<f64>(&profile, 0.0, 1.0, tol);
+        let mut body = cap.body;
+        for vs in [&cap.bottom, &cap.top] {
+            let keep = body.get_vertex(vs[2]).unwrap().point;
+            let gone = body.get_vertex(vs[5]).unwrap().point;
+            body.vertices.get_mut(vs[5]).unwrap().point = keep;
+            body.points.remove(gone);
+        }
+        let block = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+            1.0,
+            2.0,
+            tol,
+        );
+        crate::graft_disjoint_all_keyed(&mut body, &block.body).unwrap();
+        let errors = census_and_certify(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            tol,
+            Some(RegionLane::certified()),
+        );
+        assert!(
+            errors.iter().any(|e| matches!(
+                e,
+                ValidationError::CensusUndecidable { what, .. }
+                    if what.contains("cannot read whether the touch lies")
+            )),
+            "the touch at the pinch is refused: {errors:?}"
+        );
+        assert!(
+            !errors.iter().any(|e| matches!(
+                e,
+                ValidationError::UnrecordedContact {
+                    contact: CensusContact::VertexVertex { .. },
+                    ..
+                }
+            )),
+            "and stands in the finding's place: {errors:?}"
+        );
+    }
+
+    /// **A confirmed pair elsewhere backs no crossing.** A post under
+    /// the shelf whose cap's `x = 0.30` edge crosses the shelf
+    /// underside's `y = 0.30` edge, and a second post resting flush under
+    /// the shelf away from it. Confirmed alone, the second post's pair
+    /// does not hold the crossing point, so the crossing is unanswered;
+    /// the first post's own pair, confirmed, backs it. Red if
+    /// `pair_holds_point` lets a pair answer for a point off its regions.
+    #[test]
+    fn a_confirmed_pair_elsewhere_backs_no_crossing() {
+        let tol = Tol::witness();
+        let prism = |pts: &[(f64, f64)], z0, z1| {
+            crate::test_support_fixtures::prism_z::<f64>(pts, z0, z1, tol)
+        };
+        let post = prism(
+            &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
+            0.0,
+            0.5,
+        );
+        let flush = prism(
+            &[(0.70, 0.05), (0.80, 0.05), (0.80, 0.25), (0.70, 0.25)],
+            0.0,
+            0.5,
+        );
+        let shelf = prism(
+            &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
+            0.5,
+            0.54,
+        );
+        let post_top = post.top_face;
+        let mut body = post.body;
+        let fkeys = crate::graft_disjoint_all_keyed(&mut body, &flush.body).unwrap();
+        let flush_top = fkeys.face(flush.top_face).unwrap();
+        let skeys = crate::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
+        let shelf_bottom = skeys.face(shelf.bottom_face).unwrap();
+        let geo = snapshot(&body);
+        let on = |e: &&EdgeGeo<f64>, pick: fn(Point3<f64>) -> bool| {
+            [e.p0, e.p1].into_iter().all(|p| p.z == 0.5 && pick(p))
+        };
+        let ea = geo
+            .edges
+            .iter()
+            .find(|e| on(e, |p| p.x == 0.30 && p.y >= 0.20))
+            .expect("the cap's x = 0.30 edge");
+        let eb = geo
+            .edges
+            .iter()
+            .find(|e| on(e, |p| p.y == 0.30 && p.x <= 0.9))
+            .expect("the underside's y = 0.30 edge");
+        let q = Point3::new(0.30, 0.30, 0.5);
+        let backing = |pair: (FaceKey, FaceKey)| {
+            let mut records = ContactRecords::default();
+            records.push(crate::Cited::new(
+                crate::Contact::of(crate::Cell::Face(pair.0), crate::Cell::Face(pair.1)).unwrap(),
+                crate::Cites::decided(0),
+            ));
+            let mut declared = Declared::index(&geo, &records);
+            declared.confirm(&body, &geo, band(), Some(RegionLane::certified()), &[]);
+            assert!(
+                declared.confirmed.contains(&pair),
+                "the pair confirms: {pair:?}"
+            );
+            let mut errors = Vec::new();
+            let backing = ee_cross_backed(&body, &geo, &declared, ea, eb, q, band(), &mut errors);
+            assert!(errors.is_empty(), "{errors:?}");
+            backing
+        };
+        assert!(matches!(
+            backing((flush_top, shelf_bottom)),
+            CrossingBacking::Unanswered
+        ));
+        assert!(matches!(
+            backing((post_top, shelf_bottom)),
+            CrossingBacking::Backed
+        ));
     }
 
     /// **The consult on the mate9 Door-2 isolator pair** (kitty-corner,
@@ -10964,15 +12294,16 @@ mod tests {
             let ea = edge(Point3::new(-1.0, -phi, 0.0), Point3::new(1.0, phi, 0.0));
             let eb = edge(turn(-1.0, phi, 0.0), turn(1.0, -phi, 0.0));
             let mut errors = Vec::new();
+            let mut declared = Declared::index(&geo, &records);
+            declared.confirm(&body, &geo, band, Some(RegionLane::certified()), &[]);
             let backing = ee_cross_backed(
                 &body,
                 &geo,
-                &Declared::index(&geo, &records),
+                &declared,
                 ea,
                 eb,
                 Point3::origin(),
                 band,
-                Some(RegionLane::certified()),
                 &mut errors,
             );
             assert!(
@@ -12045,9 +13376,11 @@ mod tests {
     /// pin 3, at this door).
     #[test]
     fn planted_degradation_is_caught() {
-        // The second cube's corner rests in the interior of the first's
-        // x = 1 face: a vertex-on-face event, unrecorded.
-        let flush = two_cubes(Vec3::new(1.0, 0.25, 0.25));
+        // The second cube, turned an eighth of a turn, stands on one
+        // vertical edge against the first's x = 1 face: its corner rests
+        // in that face's interior, a vertex-on-face event, unrecorded,
+        // and no area of the two meets.
+        let flush = two_cubes_turned(Vec3::new(1.0, 0.5, 0.25), -core::f64::consts::FRAC_PI_4);
         let records = ContactRecords::default();
         let (_, ideal) = census_traces(
             &flush,
@@ -12203,16 +13536,7 @@ mod tests {
             declared.vf.insert((e.v0, top.key));
         }
         let mut errors = Vec::new();
-        pair_edge_face(
-            &body,
-            &geo,
-            &declared,
-            band(),
-            Some(RegionLane::certified()),
-            &e,
-            top,
-            &mut errors,
-        );
+        pair_edge_face(&body, &geo, &declared, band(), &e, top, &mut errors);
         errors
     }
 
@@ -15220,7 +16544,7 @@ mod tests {
             tol,
         );
         let result = crate::split(&operand, &plane, tol).expect("the notched block splits");
-        let mut above = result.above.body().expect("above has material").clone();
+        let mut above = Body::clone(result.above.body().expect("above has material"));
         let tip = Point3::new(4.0, 1.0, 0.0);
         let copies: Vec<VertexKey> = above
             .vertices()
@@ -15679,6 +17003,7 @@ mod records_by_carrier {
                 (0.0, 1.0),
                 tol,
             );
+            crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, tol);
             let block = brick::<f64>((x, x + 1.0), (-0.5, 0.5), (0.0, 1.0), tol);
             let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
             let side = block
@@ -15723,7 +17048,7 @@ mod records_by_carrier {
                 e,
                 ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
-                        class: crate::contact::ContactClass::Tangent,
+                        class: crate::contact::GlueClass::Tangent,
                         ..
                     },
                     ..
@@ -15957,6 +17282,7 @@ mod two_carrier_records {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         let wall = cyl_wall_sheet(&mut body, CylFrame::canonical(1.0), u, v, tol);
+        crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, tol);
         let block = brick::<f64>((1.0, 2.0), (-0.5, 0.5), bz, tol);
         let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
         let side = block
@@ -16036,7 +17362,7 @@ mod two_carrier_records {
             u_ref: -geom_core::Vec3::unit_z(),
         };
         let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
-        body.get_face_mut(wall).unwrap().sense = true;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
         let placed = |x: f64| {
             crate::boolean::face_placement(
                 &body,
@@ -16243,8 +17569,8 @@ mod two_carrier_records {
         let mut frame = CylFrame::canonical(0.5);
         frame.origin = geom_core::Point3::new(0.5, 0.0, 0.0);
         let b = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.0, 1.0), tol);
-        body.get_face_mut(a).unwrap().sense = true;
-        body.get_face_mut(b).unwrap().sense = false;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, a, true, Tol::witness());
+        crate::test_support_fixtures::set_sheet_sense(&mut body, b, false, Tol::witness());
         let bare = census_and_certify(&body, &ContactRecords::default(), band(), tol, None);
         assert!(
             names(&bare, a, b),
@@ -16330,7 +17656,7 @@ mod two_carrier_records {
                 u_ref: -geom_core::Vec3::unit_z(),
             };
             let wall = cyl_wall_sheet(&mut body, frame, u, wx, tol);
-            body.get_face_mut(wall).unwrap().sense = true;
+            crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
             Rig { body, wall, top }
         }
 
@@ -16465,7 +17791,12 @@ mod two_carrier_records {
         /// of each row.
         fn census_opposed(outline: &[(f64, f64)]) -> (Rig, Vec<(f64, bool, Vec<ValidationError>)>) {
             let mut r = rig(outline, (0.5, 3.5), (-0.5, 0.5));
-            r.body.get_face_mut(r.wall).unwrap().sense = false;
+            crate::test_support_fixtures::set_sheet_sense(
+                &mut r.body,
+                r.wall,
+                false,
+                Tol::witness(),
+            );
             let rows = census(&r);
             (r, rows)
         }
@@ -16516,7 +17847,12 @@ mod two_carrier_records {
         /// or `confirmed` where nothing names the pair.
         fn reading(outline: &[(f64, f64)], wx: (f64, f64), sense: bool) -> [String; 2] {
             let mut r = rig(outline, wx, (-0.5, 0.5));
-            r.body.get_face_mut(r.wall).unwrap().sense = sense;
+            crate::test_support_fixtures::set_sheet_sense(
+                &mut r.body,
+                r.wall,
+                sense,
+                Tol::witness(),
+            );
             let b = Band::linear(Tol::witness()).unwrap();
             let (a, t) = (r.wall, r.top);
             let is = |x: FaceKey, y: FaceKey| (x, y) == (a, t) || (x, y) == (t, a);
@@ -16997,7 +18333,12 @@ mod two_carrier_records {
                     u_ref: -geom_core::Vec3::unit_z(),
                 };
                 let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (-2.0, 2.0), tol);
-                body.get_face_mut(wall).unwrap().sense = true;
+                crate::test_support_fixtures::set_sheet_sense(
+                    &mut body,
+                    wall,
+                    true,
+                    Tol::witness(),
+                );
                 let b = Band::linear(tol).unwrap();
                 let line = crate::boolean::tangent_pair_at_rest(&body, wall, cap, b);
                 let desc = match &line {
@@ -17543,6 +18884,291 @@ mod edge_pairs_as_segments {
         segment((pt(a), pt(b)))
     }
 
+    /// **Spans too long for this band read their ends charged, and
+    /// decide where the charge allows.** Two collinear edges three
+    /// kilometres long, overlapping by half, at `ε = 10⁻¹²`: their
+    /// lengths from the first one's start sum to `9·10³` m, past the
+    /// `(K − 1)·ε / (SHORT_CHAIN_ULPS·u) ≈ 5·10³` m at which the
+    /// projections' charge reaches the room [`span_charge`] keeps, so the
+    /// census reads each end comparison past the charge. The overlap is
+    /// `1.5·10³` m, far past it, so they read an overlap, with no
+    /// escalation, as they do uncharged at `ε = 10⁻⁹`. Moved to meet end
+    /// to end with the second starting `2·10⁻¹¹` m back, inside the
+    /// charge (about `2·10⁻¹¹` m at their summed `1.2·10⁴` m), the
+    /// overlap's bounds do not decide, and the escalation is the
+    /// precision's ([`is_span_precision`]).
+    #[test]
+    fn spans_too_long_for_the_band_read_their_ends_charged() {
+        let ea = seg([0.0, 0.0, 0.0], [3e3, 0.0, 0.0]);
+        let eb = seg([1.5e3, 0.0, 0.0], [4.5e3, 0.0, 0.0]);
+        for at in [AT_1E12, AT_1E9] {
+            assert!(
+                span_charge(
+                    on_one_line(ea.dir, (ea.p0, ea.p1), (eb.p0, eb.p1), 0.0).noise,
+                    band(at)
+                )
+                .is_some()
+                    == (at == AT_1E12),
+                "charged only at 1e-12"
+            );
+            let mut errors = Vec::new();
+            let read = collinear_overlap(&ea, &eb, band(at), &mut errors);
+            assert!(
+                matches!(read, Some(Some(_))) && errors.is_empty(),
+                "kilometre spans overlapping by half at {at:?}: {read:?} {errors:?}"
+            );
+        }
+        let eb = seg([3e3 - 2e-11, 0.0, 0.0], [6e3, 0.0, 0.0]);
+        let mut errors = Vec::new();
+        let read = collinear_overlap(&ea, &eb, band(AT_1E12), &mut errors);
+        assert!(read.is_none(), "an overlap inside the charge: {read:?}");
+        assert!(
+            matches!(
+                errors.as_slice(),
+                [ValidationError::CensusEscalated { cause }]
+                    if is_span_precision(cause.predicate)
+            ),
+            "{errors:?}"
+        );
+    }
+
+    /// Two collinear edges `(a0, a1)` and `(b0, b1)` whose four ends are
+    /// the body's point keys `keys`, a shared key a shared vertex.
+    fn keyed(
+        (a0, a1): ([f64; 3], [f64; 3]),
+        (b0, b1): ([f64; 3], [f64; 3]),
+        keys: [usize; 4],
+    ) -> (EdgeGeo<f64>, EdgeGeo<f64>) {
+        let mut arena = slotmap::SlotMap::<PointKey, ()>::with_key();
+        let minted: Vec<PointKey> = (0..4).map(|_| arena.insert(())).collect();
+        let key = |i: usize| Some(minted[keys[i]]);
+        let mut ea = seg(a0, a1);
+        let mut eb = seg(b0, b1);
+        ea.points = [key(0), key(1)];
+        eb.points = [key(2), key(3)];
+        (ea, eb)
+    }
+
+    /// **Ends that are one point read as one point past the charge.**
+    /// Two 3 km collinear edges end to end, the second starting where
+    /// the first ends, at `ε = 10⁻¹²`: their summed `1.2·10⁴` m reads
+    /// charged, and no rounded margin there reads Zero on both of its
+    /// bounds. The touch is read without the projections: by the shared
+    /// point key, and with distinct keys or none at the same stored
+    /// coordinates, by the census's coincidence reading of the two stored
+    /// vertices. Each pair has no overlap and no escalation.
+    #[test]
+    fn ends_that_are_one_point_read_as_one_point_past_the_charge() {
+        let (a, b) = (
+            ([0.0, 0.0, 0.0], [3e3, 0.0, 0.0]),
+            ([3e3, 0.0, 0.0], [6e3, 0.0, 0.0]),
+        );
+        let shared = keyed(a, b, [0, 1, 1, 2]);
+        let distinct = keyed(a, b, [0, 1, 2, 3]);
+        let none = (seg(a.0, a.1), seg(b.0, b.1));
+        for (what, (ea, eb)) in [
+            ("shared key", shared),
+            ("distinct keys", distinct),
+            ("no keys", none),
+        ] {
+            let mut errors = Vec::new();
+            let read = collinear_overlap(&ea, &eb, band(AT_1E12), &mut errors);
+            assert!(
+                matches!(read, Some(None)) && errors.is_empty(),
+                "{what}: {read:?} {errors:?}"
+            );
+        }
+    }
+
+    /// **A touch at a computed end straddles past the threshold, and only
+    /// there.** A [`Stretch`] of an edge `L` long on the x axis, its whole
+    /// length, its far end computed on the line (`p0 + dir·L`), against
+    /// an edge starting at the first edge's stored end, at `ε = 10⁻¹²`.
+    /// The summed length is `4L`, and the charge reaches `(K − 1)·ε` at
+    /// `L ≈ 1.27·10³` m. Below it they read uncharged, the touch a point;
+    /// past it the computed end's bits cannot tell it from one in band of
+    /// the stored end, so it escalates on a precision row
+    /// ([`is_span_precision`]), the honest verdict.
+    #[test]
+    fn a_touch_at_a_computed_end_straddles_past_the_threshold() {
+        for (len, escalates) in [(1.2e3, false), (1.3e3, true)] {
+            let e = seg([0.0; 3], [len, 0.0, 0.0]);
+            let s = Stretch {
+                edge: &e,
+                at: (0.0, len),
+            };
+            let eb = seg([len, 0.0, 0.0], [2.0 * len, 0.0, 0.0]);
+            let mut errors = Vec::new();
+            let read = collinear_overlap(&s, &eb, band(AT_1E12), &mut errors);
+            if escalates {
+                assert!(
+                    read.is_none()
+                        && matches!(errors.as_slice(), [ValidationError::CensusEscalated { cause }]
+                            if is_span_precision(cause.predicate)),
+                    "L = {len}: {read:?} {errors:?}"
+                );
+            } else {
+                assert!(
+                    matches!(read, Some(None)) && errors.is_empty(),
+                    "L = {len}: {read:?} {errors:?}"
+                );
+            }
+        }
+    }
+
+    /// **An overlap in band is read in band.** The review's pair, at
+    /// `ε = 10⁻¹²` and a summed length of about `3.6·10³` m (inside the
+    /// room, so uncharged): `b` starts `1.1534·10⁻¹²` m before `a`'s end
+    /// in ℝ (exact, to 80 digits), a real overlap in `(ε, Kε]`. The
+    /// census escalates `pm_census_ee_overlap` on a margin in band. The
+    /// band's own Zero would have been as sound, and the review read
+    /// exactly that where `a`'s length was its projection, before it took
+    /// the span's one spelling: the derivation at [`span_charge`] rules
+    /// out only a flip past the band.
+    #[test]
+    fn an_overlap_in_band_is_read_in_band() {
+        // The review's coordinates, as their `f64` bits.
+        let p = |x: [u64; 3]| {
+            Point3::new(
+                f64::from_bits(x[0]),
+                f64::from_bits(x[1]),
+                f64::from_bits(x[2]),
+            )
+        };
+        let a0 = p([
+            0x3ffc_3ed6_50d0_dc4b,
+            0x4006_5df9_b61b_6691,
+            0xbfe0_8fc3_ccb8_398c,
+        ]);
+        let a1 = p([
+            0x4086_9448_e746_2e47,
+            0x408b_f539_b453_bcd8,
+            0xc068_1fa3_f060_fa21,
+        ]);
+        let b0 = p([
+            0x4086_9448_e746_2e41,
+            0x408b_f539_b453_bcd0,
+            0xc068_1fa3_f060_fa1a,
+        ]);
+        let b1 = p([
+            0x4089_2339_2954_2701,
+            0x408f_1f9f_ea3f_045d,
+            0xc06a_db35_24e2_0874,
+        ]);
+        let (sa, sb) = (segment((a0, a1)), segment((b0, b1)));
+        assert!(
+            span_charge(
+                on_one_line(sa.dir, (a0, a1), (b0, b1), 0.0).noise,
+                band(AT_1E12)
+            )
+            .is_none()
+        );
+        let mut errors = Vec::new();
+        let read = collinear_overlap(&sa, &sb, band(AT_1E12), &mut errors);
+        assert!(read.is_none(), "{read:?}");
+        assert!(
+            matches!(errors.as_slice(), [ValidationError::CensusEscalated { cause }]
+                if cause.predicate == Some("pm_census_ee_overlap")),
+            "{errors:?}"
+        );
+    }
+
+    /// **Where the census reads, no verdict flips past the band,
+    /// charged or not.** Collinear pairs of stored, non-exact `f64`
+    /// points at `ε = 10⁻¹²`, `b` overlapping `a`'s end by `0` … `60·ε`
+    /// (scaled with the span past 2 km) and lying within `ε` of `a`'s
+    /// line in ℝ (`Interval`): half spans `1.5`–`3.5` km long near the
+    /// origin, which read charged ([`span_charge`]), and half up to
+    /// `10⁴` m out. Wherever [`collinear_overlap`] reads, a real overlap
+    /// past `Kε` is never read as none, and an overlap read is never one
+    /// whose real length is at most `ε`: the derivation at
+    /// [`span_charge`] gives no more: an in-band real may read Zero or
+    /// escalate (`an_overlap_in_band_is_read_in_band`), and the oracle's
+    /// enclosure is too wide to see that slice in any case.
+    #[test]
+    fn where_the_census_reads_no_comparison_misreads() {
+        use geom_core::Interval;
+        let mut rng = test_utils::fuzz::start("census-overlap-misreads");
+        let (z, k) = AT_1E12;
+        let (mut read_pairs, mut charged) = (0usize, 0usize);
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            // Half the draws are spans a few kilometres long near the
+            // origin: long enough to read charged, and near enough that
+            // their coordinates round inside ε, so the line oracle below
+            // admits them.
+            let long = rng.range(0.0, 1.0) < 0.5;
+            let far = 10f64.powf(if long {
+                rng.range(0.0, 2.0)
+            } else {
+                rng.range(0.0, 4.0)
+            });
+            let a0 = pt([
+                far * rng.range(-1.0, 1.0),
+                far * rng.range(-1.0, 1.0),
+                far * rng.range(-1.0, 1.0),
+            ]);
+            let d = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            )
+            .normalize();
+            let len = if long {
+                rng.range(1.5e3, 3.5e3)
+            } else {
+                far * rng.range(0.1, 2.0)
+            };
+            let a1 = a0 + d * len;
+            // The overlap scales with the span past 2 km, so a charged
+            // pair's draws fall both inside its charge and past it.
+            let b0 = a1 - d * (rng.range(0.0, 60.0) * z * (len / 2e3).max(1.0));
+            let b1 = b0 + d * (len * rng.range(0.1, 1.0));
+            let iv = |p: Point3<f64>| {
+                Point3::new(
+                    Interval::from_f64(p.x),
+                    Interval::from_f64(p.y),
+                    Interval::from_f64(p.z),
+                )
+            };
+            let (ia0, ia1) = (iv(a0), iv(a1));
+            let chord = ia1 - ia0;
+            let unit = chord * (Interval::one() / chord.norm());
+            let w = iv(b0) - ia0;
+            // The distance from `a`'s line as `|w × chord| / |chord|`: no
+            // rounded unit in it, so its enclosure stays inside ε at
+            // kilometre spans.
+            if (w.cross(chord).norm() / chord.norm()).hi() > z {
+                continue;
+            }
+            let over = chord.norm() - w.dot(unit);
+            let (sa, sb) = (segment((a0, a1)), segment((b0, b1)));
+            let mut errors = Vec::new();
+            let read = collinear_overlap(&sa, &sb, band(AT_1E12), &mut errors);
+            if read.is_none() {
+                continue;
+            }
+            read_pairs += 1;
+            let noise = on_one_line(sa.dir, (a0, a1), (b0, b1), 0.0).noise;
+            charged += usize::from(span_charge(noise, band(AT_1E12)).is_some());
+            let none = matches!(read, Some(None));
+            assert!(
+                !(none && over.lo() > k),
+                "a real overlap past Kε read as none: {over:?} — {}",
+                test_utils::fuzz::replay()
+            );
+            assert!(
+                !(matches!(read, Some(Some(_))) && over.hi() <= z),
+                "a real overlap of at most ε read as an overlap: {over:?} — {}",
+                test_utils::fuzz::replay()
+            );
+        }
+        assert!(read_pairs > 1000, "only {read_pairs} pairs read");
+        assert!(
+            charged > 100 && read_pairs - charged > 100,
+            "{charged} of {read_pairs} pairs read charged: both readings must be drawn"
+        );
+    }
+
     /// Whether the two edges' interiors meet, as the confirm pass reads
     /// it, with how many escalations the reading pushed.
     fn meet(ea: &EdgeGeo<f64>, eb: &EdgeGeo<f64>, at: (f64, f64)) -> (Option<bool>, usize) {
@@ -17893,8 +19519,8 @@ mod same_solid_tangent_lines {
         let (fa, _) = cyl_wall_sheet_keyed(&mut body, a, CylKey::Bare, (-ua, ua), (0.0, 1.0), tol);
         let (fb, _) = cyl_wall_sheet_keyed(&mut body, b, CylKey::Bare, (-ub, ub), (0.2, 0.8), tol);
         crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
-        body.get_face_mut(fa).unwrap().sense = sense_a;
-        body.get_face_mut(fb).unwrap().sense = sense_b;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, fa, sense_a, Tol::witness());
+        crate::test_support_fixtures::set_sheet_sense(&mut body, fb, sense_b, Tol::witness());
         if one_solid {
             body.merge_all_solids().unwrap();
         }

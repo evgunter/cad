@@ -86,7 +86,11 @@ fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
 
 /// Exact mass equality against a dyadic oracle.
 fn assert_exact(body: &topo::Body<f64>, pin: corpus::MassPin, what: &str) {
-    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let m = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties");
     assert_eq!(
         m.volume, pin.volume,
         "{what}: volume is not the closed form"
@@ -425,6 +429,38 @@ fn a_planar_void_designation_opens_and_its_rim_is_named_for_it() {
 // 3. The refusal families
 // ---------------------------------------------------------------
 
+/// The vessel's pot hollowed with `open` designated, standing nowhere:
+/// a shell the kernel refuses has no copy to place.
+fn unplaced_vessel(
+    open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, profile) = fixture::insert(
+        ProfileDoc::empty_derived("lib_g17_unplaced_vessel", Tol::witness()),
+        Node::Profile(editor_core::ProfileProgram {
+            loops: vec![vessel::meridian()],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, pot) = fixture::insert(
+        doc,
+        fixture::revolve_about(
+            profile,
+            (0.0, 0.0),
+            fixture::along_y(),
+            fixture::ang(std::f64::consts::TAU),
+        ),
+    );
+    let open = open(&doc, pot);
+    fixture::insert(
+        doc,
+        Node::shell(
+            editor_core::Operand::output(pot, 0),
+            fixture::len(vessel::WALL),
+            open,
+        ),
+    )
+}
+
 /// The typed refusal a shell node produced at `f64`.
 fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
     let mut ev = evaluate::<f64>(
@@ -513,13 +549,13 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // (d) half a chart: the belly is a sphere zone the revolve builds
     // as two bands on one surface, and its piece names one of them, so
     // the kernel's `OpenFaceChartPartial` names the band left behind.
-    let v = vessel::document_with_open(|doc, pot| {
+    let (doc, shell) = unplaced_vessel(|doc, pot| {
         vec![
             editor_core::band(pot, vessel::mouth(doc, pot)),
             editor_core::band(pot, fixture::piece(doc, pot, 0, vessel::SEG_BELLY as usize)),
         ]
     });
-    let e = refusal(&v.doc, v.result.unwrap());
+    let e = refusal(&doc, shell);
     match &e {
         NodeErrorKind::Shell(inner) => match **inner {
             ShellError::OpenFaceChartPartial { .. } => {}
@@ -715,14 +751,18 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));
-    let body = body_of(&ev, sealed);
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, sealed)),
+        Tol::witness(),
+    );
     assert_eq!(
-        topo::validate_geometric(body, Tol::witness()),
+        topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
         "tier 3"
     );
     assert_eq!(body.shells().count(), 2, "an outer and a cavity shell");
-    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     let want = 4.0 / 3.0 * std::f64::consts::PI * (PIP_R.powi(3) - (PIP_R - t).powi(3));
     // `sweep`'s `pole_ball_shells` rule: rounding scales with R³, the
     // pad is the quadrature's own bound.
@@ -744,11 +784,6 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
 fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
     use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget, Qualifier};
     let mut r = corpus::Recorder::new();
-    let plane = r.insert(fixture::frame(
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-    ));
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(fixture::len2([0.25, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(fixture::len2([0.5, 0.0]))),
@@ -757,7 +792,6 @@ fn a_tubes_wall_opens_into_two_bands_and_its_seam_pieces_are_named() {
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![meridian],
         ids: Vec::new(),
     }));

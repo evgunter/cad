@@ -28,41 +28,35 @@ use topo::{
     Body, FaceContainment, FaceKey, SolidContainment, curved_face_containment, point_in_solid,
 };
 
-/// The sketch frame a bead is revolved in: origin `o`, sketch axes
-/// `u` (radial at azimuth 0) and `v` (the revolve axis), and `w = u × v`.
-struct Pose {
-    o: Point3<f64>,
-    u: Vec3<f64>,
-    v: Vec3<f64>,
-    w: Vec3<f64>,
-}
+/// The sketch frame a bead is revolved in: sketch axes `u` (radial at
+/// azimuth 0) and `v` (the revolve axis), and `w = u × v`.
+struct Pose(RigidMotion<f64>);
 
 impl Pose {
     /// The world frame at `o`, or a frame tilted off every world axis.
     fn new(tilted: bool, o: Point3<f64>) -> Self {
-        let (u, v) = if tilted {
-            (Vec3::new(0.7, 0.3, -0.2), Vec3::new(-0.1, 0.8, 0.55))
+        Self(if tilted {
+            RigidMotion::gram_schmidt(
+                o,
+                Vec3::new(0.7, 0.3, -0.2),
+                Vec3::new(-0.1, 0.8, 0.55),
+                "full_turn_wall",
+                band(),
+            )
+            .unwrap()
         } else {
-            (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0))
-        };
-        let f = RigidMotion::gram_schmidt(o, u, v, "full_turn_wall", band()).unwrap();
-        Self {
-            o,
-            u: f.u().get(),
-            v: f.v().get(),
-            w: f.w().get(),
-        }
+            RigidMotion::axes_xy(o)
+        })
     }
 
     /// The point at radius `rho` from the axis, height `y`, azimuth `a`.
     fn at(&self, rho: f64, y: f64, a: f64) -> Point3<f64> {
-        self.o + self.u * (rho * a.cos()) + self.v * y + self.w * (rho * a.sin())
+        let f = self.0;
+        f.origin() + f.u().get() * (rho * a.cos()) + f.v().get() * y + f.w().get() * (rho * a.sin())
     }
 
     fn plane(&self) -> SketchPlane<f64> {
-        SketchPlane::from_frame(
-            RigidMotion::gram_schmidt(self.o, self.u, self.v, "full_turn_wall", band()).unwrap(),
-        )
+        SketchPlane::from_frame(self.0)
     }
 }
 
@@ -414,5 +408,93 @@ fn a_washers_full_turn_walls_are_height_bands() {
                 );
             }
         }
+    }
+}
+
+/// **A point on a full-turn wall's seam is on the seam's edge, between
+/// the rims, and outside past them.** The washer's bore and outer wall,
+/// and the outer wall of a trapezoid `ρ ∈ [1, 2]` at `y = 0` to
+/// `ρ ∈ [1, 1.5]` at `y = 1` revolved a full turn (a cone frustum), each
+/// carry a self-mated seam at azimuth 0. The face door places a point on
+/// the seam on that edge (`OnEdge`), as on any edge of the face; the
+/// region the seam runs through, which leaves the seam out, is
+/// `topo::boolean::ruled_region`'s row on a built wall's strut.
+#[test]
+fn a_point_on_a_full_turn_walls_seam_is_on_its_edge() {
+    let b = band();
+    let revolved = |corners: [Point2<f64>; 4]| {
+        let vp = Profile::new(
+            SketchPlane::xy(),
+            vec![profile::ProfileLoop::polygon(corners)],
+        )
+        .validate(Tol::witness())
+        .unwrap();
+        let axis = RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        };
+        let body = revolve(&vp, axis, Revolution::Full, Tol::witness())
+            .unwrap()
+            .body;
+        assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()));
+        body
+    };
+    let pose = Pose::new(false, Point3::new(0.0, 0.0, 0.0));
+    let washer = revolved([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
+    for rho in [1.0, 2.0] {
+        let walls = crate::mate2_common::walls_at(&washer, rho);
+        assert_eq!(walls.len(), 1, "one full-turn wall at radius {rho}");
+        for (y, on) in [
+            (0.1, true),
+            (0.5, true),
+            (0.9, true),
+            (1.5, false),
+            (-0.5, false),
+        ] {
+            let got = curved_face_containment(&washer, walls[0], pose.at(rho, y, 0.0), b).unwrap();
+            assert!(
+                if on {
+                    matches!(got, Some(FaceContainment::OnEdge(_)))
+                } else {
+                    got == Some(FaceContainment::Out)
+                },
+                "the seam at radius {rho}, height {y}: {got:?}"
+            );
+        }
+    }
+    let frustum = revolved([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(1.5, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
+    let cones: Vec<FaceKey> = frustum
+        .faces()
+        .filter(|(_, f)| matches!(frustum.get_surface(f.surface), Some(Surface::Cone { .. })))
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(cones.len(), 1, "one full-turn cone wall");
+    for (y, on) in [
+        (0.1, true),
+        (0.5, true),
+        (0.9, true),
+        (1.5, false),
+        (-0.5, false),
+    ] {
+        let rho = 2.0 - 0.5 * y;
+        let got = curved_face_containment(&frustum, cones[0], pose.at(rho, y, 0.0), b).unwrap();
+        assert!(
+            if on {
+                matches!(got, Some(FaceContainment::OnEdge(_)))
+            } else {
+                got == Some(FaceContainment::Out)
+            },
+            "the cone's seam at height {y}: {got:?}"
+        );
     }
 }

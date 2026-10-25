@@ -30,8 +30,8 @@
 //! `OffsetFitError::PatchBound`'s and `OffsetFitError::Band`'s; the
 //! other four `OffsetFitError` wrappers carry one value each.
 //!
-//! Where a raise site fills a field with prose — a `what`, a `detail`,
-//! a steer — the sample carries the prose a real run renders, and a
+//! Where a raise site fills a field with prose — a `what` or a `detail`
+//! — the sample carries the prose a real run renders, and a
 //! field with several real values is sampled at each one this module
 //! names. Arena keys are the default (null) keys.
 #![allow(clippy::expect_used)] // one fixed band, well-formed by construction
@@ -49,9 +49,7 @@ use strum::IntoEnumIterator as _;
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{
-    ContactClass, ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
-};
+use crate::contact::{ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, GlueClass};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -163,6 +161,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             segments: crate::chart_region::WITNESS_SEGMENT_CAP,
             cells: crate::chart_region::WITNESS_CELL_CAP,
         },
+        ChartRegionError::EdgeScale,
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {
@@ -176,11 +175,9 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     let mut v = vec![
         ContactRefusal::Contradicted {
             diag: contradiction_margin("contact_rest_senses_opposed"),
-            steer: None,
         },
         ContactRefusal::Contradicted {
             diag: contradiction_margin("carrier_cyl_radius"),
-            steer: Some(FIT_DEFERRAL),
         },
         ContactRefusal::Escalated { diag: diag() },
         ContactRefusal::Undeclared { diag: diag() },
@@ -256,20 +253,6 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             cause: uncrossable(),
         },
         S::WallOutlineUnsupported { face },
-        S::JunctionSidesDisagree {
-            face,
-            sides: (MarginDiag::value(2e-9), MarginDiag::value(-1.6e-9)),
-            band: Band::new(1e-9, 1.5e-9).expect("a well-formed band"),
-        },
-        S::NarrowWindowUnread {
-            face,
-            diag: Indeterminate {
-                margin: MarginDiag::value(5e-10),
-                band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
-                predicate: Some("bool_wall_trim"),
-                terminal_sliver: false,
-            },
-        },
         S::RootCountDisagrees {
             face,
             certified: 2,
@@ -707,25 +690,16 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             key: EntityId::HalfEdge(half_edge),
         },
         PcurveMintError::NoCarrier { half_edge },
-        PcurveMintError::EmptyOuter { face },
         PcurveMintError::LoopDiscontinuity { half_edge },
         PcurveMintError::LoopNotClosed { face },
-        PcurveMintError::SingularChartJoint {
-            face,
-            r#loop,
-            half_edge,
-        },
         PcurveMintError::JointWithoutRoom {
             face,
             r#loop,
             half_edge,
         },
-        PcurveMintError::OuterSpansPeriod,
-        PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
         PcurveMintError::Unminted { face },
         PcurveMintError::RowInterval { half_edge },
-        PcurveMintError::UncertifiedImage { half_edge },
         PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,
@@ -761,6 +735,9 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::HolesExceedFace,
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
+        PropsError::SeamRegionOvercovered { times: 2 },
+        PropsError::SeamRegionCoverUnresolved,
+        PropsError::SeamRegionSensesDisagree,
         PropsError::RingWoundWithFace,
         PropsError::ChartLoopOpen,
         PropsError::LoopsWindChart,
@@ -971,7 +948,7 @@ fn census_contacts() -> Vec<CensusContact> {
                 pair: DeclaredContact {
                     a: face,
                     b: face,
-                    class: ContactClass::Tangent,
+                    class: GlueClass::Tangent,
                 },
                 verdict: ContactVerdict::Definite,
             },
@@ -981,7 +958,7 @@ fn census_contacts() -> Vec<CensusContact> {
                 pair: DeclaredContact {
                     a: face,
                     b: face,
-                    class: ContactClass::Rest,
+                    class: GlueClass::Rest,
                 },
                 verdict: ContactVerdict::Definite,
             },
@@ -1310,6 +1287,8 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             r#loop: loop_,
         },
         ValidationError::CurvedSenseInverted { face },
+        ValidationError::SeamRegionOvercovered { face, times: 2 },
+        ValidationError::SeamRegionCoverUnresolved { face },
         ValidationError::NegativeVolume { solid },
         ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
@@ -1587,38 +1566,31 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     // Door 1's whole-surface verdict (a Rest record) and the tangent
     // line of a face-face record on two carriers (a Tangent record),
-    // each with and without the designed-clearance steer.
+    // each.
     for (class, witness, predicate) in [
         (
-            ContactClass::Rest,
+            GlueClass::Rest,
             crate::census::CARRIER_COMPARISON_WITNESS,
             "carrier_sphere_radius",
         ),
         (
-            ContactClass::Tangent,
+            GlueClass::Tangent,
             crate::census::TANGENT_LOCUS_WITNESS,
             "contact_tangent_opposed",
         ),
     ] {
-        for steer in [None, Some(FIT_DEFERRAL)] {
-            s.push((
-                format!(
-                    "ContactContradicted/{}{}",
-                    class.name(),
-                    if steer.is_some() { "/steered" } else { "" }
-                ),
-                ValidationError::ContactContradicted {
-                    declaration: DeclaredContact {
-                        a: face,
-                        b: face,
-                        class,
-                    },
-                    witness: witness.to_owned(),
-                    margin: contradiction_margin(predicate),
-                    steer,
+        s.push((
+            format!("ContactContradicted/{}", class.name()),
+            ValidationError::ContactContradicted {
+                declaration: DeclaredContact {
+                    a: face,
+                    b: face,
+                    class,
                 },
-            ));
-        }
+                witness: witness.to_owned(),
+                margin: contradiction_margin(predicate),
+            },
+        ));
     }
     let mut causes: Vec<(String, CensusUnsupportedCause)> = Vec::new();
     for e in chart_region_errors() {
@@ -1851,6 +1823,30 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
 mod tests {
     use geom_brep::recourse::Reading;
     use geom_core::FileCoincidence;
+
+    /// **No sample renders a run of spaces or a line break**: the marks
+    /// of a string literal continued onto its next line without its `\`,
+    /// which keeps the line break and the next line's indentation, one
+    /// space or many, in the text. Read over every tier-3 finding and
+    /// every measurement refusal, so over every `PropsError`
+    /// (`MassPropsError::Face`'s own words), whose words tier 3 does not
+    /// render.
+    #[test]
+    fn no_sample_renders_a_run_of_spaces() {
+        let rendered = super::validation_error_samples()
+            .into_iter()
+            .map(|(label, e)| (label, e.to_string()))
+            .chain(
+                super::mass_props_errors()
+                    .into_iter()
+                    .map(|e| (format!("{e:?}"), e.to_string())),
+            );
+        let problems: Vec<_> = rendered
+            .filter(|(_, text)| text.contains("  ") || text.contains('\n'))
+            .map(|(label, text)| format!("{label}: {text:?}"))
+            .collect();
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
+    }
 
     /// **Every certification refusal ends alike at rest and at the import
     /// door but for the file's ε_in and its culprit** (D4 ¶1: one

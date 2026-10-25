@@ -4,6 +4,8 @@ kind: issue
 title: geom-core: equal_split_points drops a point that rounds onto a span end but inserts one that rounds onto another split point, so a narrow span refuses a refinement that is only a tightening
 status: open
 opened: 2026-10-20
+priority: P3
+cost: M
 ---
 
 

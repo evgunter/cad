@@ -24,7 +24,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use corpus::die_composed;
@@ -58,7 +57,6 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -248,10 +246,10 @@ fn composed_ids(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) 
         doc.operation_of(read)
             .expect("an operand read has a producer")
     };
-    // The tool is the pip, a Transform of the ball; the ball's names
-    // ride it through unchanged, so the names carry the revolve's id.
+    // The tool is the pip, a placement of the ball; the ball's names
+    // ride it under its `Placed` layer, still carrying the revolve's id.
     let ball = match doc.node(operand(tool.read)) {
-        Some(Node::Transform { input, .. }) => operand(*input),
+        Some(Node::Place { shapes, .. }) => operand(shapes[0].read),
         other => panic!("the die's tool is the placed ball, got {other:?}"),
     };
     (operand(from.read), ball, pipped)

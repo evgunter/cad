@@ -2,10 +2,11 @@
 id: wall-piece-coverage-reads-a-collapsing-cosine-margin
 kind: issue
 title: A narrow wall piece's coverage is read on the cosine-window margin, which collapses to the zero band for a hit definitely clear of both its ends
-status: open
+status: closed
 opened: 2026-10-10
 priority: P2
 cost: M
+closed: 2026-10-24
 ---
 
 
@@ -45,3 +46,11 @@ collapse. The face-level window check in `point_on_wall_in_face` and
 `wall_hit` reads the same construction and collapses the same way on a
 narrow face; whether those want the linearized margin too is the F8 unit's
 question.
+
+
+## Closed by CHART (2026-10-24)
+
+The code this row is about is deleted. On branch `chart/ringed-curved-doors`
+(`curved-face-containment-answers-none-on-a-ringed-face`), cylinder and cone
+faces are read from their boundary edges (`topo::boolean::ruled_region`) by
+both point doors, with no chart window, outline class or period guard.

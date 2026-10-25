@@ -27,7 +27,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
@@ -71,9 +70,10 @@ fn opts(doc: &ProfileDoc, seed: Option<&'static str>) -> EvalOptions {
     }
 }
 
-/// The variable `doc` declares as `n`, or an id it never minted.
+/// The variable `doc` declares as `n`, or an id it never minted (not
+/// `(0, 0)`, the world's space, which every document holds).
 fn var(doc: &ProfileDoc, n: &str) -> editor_core::VarId {
-    doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))
+    doc.var_named(n).unwrap_or(editor_core::VarId::new(999, 7))
 }
 
 /// `doc`'s variable `n` as a refusal speaks it.
@@ -190,16 +190,13 @@ fn width_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
         ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall (chain
     // order: bottom, right, top, left).

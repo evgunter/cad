@@ -95,7 +95,7 @@ fn probe_dihedral_crossing_planes_contradict_despite_zero_kappa() {
 /// the plane) is definitely off the cylinder; the bridge must not
 /// carry a declared tangency across a real gap.
 #[test]
-fn probe_separated_pair_contradicts_and_steers_to_fit() {
+fn probe_separated_pair_contradicts() {
     let cyl = Surface::Cylinder {
         origin: Point3::new(0.0, 0.0, 1.001),
         axis: Vec3::new(1.0, 0.0, 0.0),
@@ -106,16 +106,10 @@ fn probe_separated_pair_contradicts_and_steers_to_fit() {
     let locus = line([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
     let err = tangent_locus_relation(&cyl, true, &flat, true, &locus, -1.0, 1.0, true, band())
         .expect_err("a 1 mm gap must contradict a declared tangency");
-    match err {
-        ContactRefusal::Contradicted { steer, .. } => {
-            assert_eq!(
-                steer,
-                Some(topo::FIT_DEFERRAL),
-                "a separation-shaped lie steers to Fit"
-            );
-        }
-        other => panic!("expected Contradicted, got {other:?}"),
-    }
+    assert!(
+        matches!(err, ContactRefusal::Contradicted { .. }),
+        "expected Contradicted, got {err:?}"
+    );
 }
 
 /// PROBE 4 (claim 1): the mm-vs-metre twin on the sphere rung. The
@@ -266,7 +260,7 @@ fn probe_census_gate_refuses_a_fabricated_face_pair() {
             e,
             ValidationError::ContactContradicted {
                 declaration: topo::DeclaredContact {
-                    class: topo::ContactClass::Rest,
+                    class: topo::GlueClass::Rest,
                     ..
                 },
                 ..

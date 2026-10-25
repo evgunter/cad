@@ -91,7 +91,12 @@ fn interval_offset_charts_together_sphere_zone() {
         core::f64::consts::PI * 2.0 * (rr * rr * half - half * half * half / 3.0)
     };
     let want = zone(big, h / 2.0) - zone(big - t, h / 2.0 - t);
-    let got = topo::mass_properties(&hollow, tol).expect("props").volume;
+    let got = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+        tol,
+    )
+    .expect("props")
+    .volume;
     contains("sphere-zone wall", got, want);
 }
 
@@ -149,7 +154,12 @@ fn interval_offset_charts_together_partial_wedge() {
         f(top) - f(d) - d * (top - d)
     };
     let want = core::f64::consts::PI * r * r * h / 4.0 - two_chord(r - t, t) * (h - 2.0 * t);
-    let got = topo::mass_properties(&hollow, tol).expect("props").volume;
+    let got = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+        tol,
+    )
+    .expect("props")
+    .volume;
     contains("wedge wall", got, want);
 }
 
@@ -188,7 +198,12 @@ fn interval_offset_charts_together_cone_frustum() {
         );
     contains(
         "cone frustum wall",
-        topo::mass_properties(&hollow, tol).expect("props").volume,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+            tol,
+        )
+        .expect("props")
+        .volume,
         want,
     );
 }
@@ -218,7 +233,12 @@ fn interval_offset_charts_together_drum() {
     let want = pi * r * r * h - pi * (r - t) * (r - t) * (h - 2.0 * t);
     contains(
         "drum wall",
-        topo::mass_properties(&hollow, tol).expect("props").volume,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+            tol,
+        )
+        .expect("props")
+        .volume,
         want,
     );
 }

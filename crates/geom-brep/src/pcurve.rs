@@ -37,6 +37,7 @@
 use geom::Surface;
 use geom::{Curve3, FitError, FitOutcome, NurbsCurve2};
 use geom_core::Point2;
+use geom_core::predicate::Band;
 use geom_core::spline::KnotVector;
 
 /// Typed refusal of a pcurve constructor.
@@ -229,13 +230,7 @@ pub fn ellipse_pcurve_on_cylinder(
             expected: "an Ellipse carrier onto its Cylinder chart",
         });
     };
-    let &Surface::Cylinder {
-        origin: o,
-        axis: ax,
-        u_ref: cu,
-        ..
-    } = cylinder
-    else {
+    let Surface::Cylinder { .. } = cylinder else {
         return Err(PcurveError::WrongLane {
             expected: "an Ellipse carrier onto its Cylinder chart",
         });
@@ -247,27 +242,27 @@ pub fn ellipse_pcurve_on_cylinder(
     if span > core::f64::consts::TAU {
         return Err(PcurveError::SpanExceedsPeriod);
     }
-    let cv = ax.cross(cu);
-    // The chart coordinates of a carrier point: azimuth from atan2 in
-    // the cylinder frame (unwrapped continuously from the previous
-    // sample — the graph is monotone in θ, steps < π by the schedule),
-    // height along the axis.
+    // The chart coordinates of a carrier point (`Surface::chart_point`
+    // at the least band: its decisions here only pick which name of the
+    // azimuth a sample reads). The first sample's azimuth is named in
+    // the angle window (C4); each later one is unwrapped onto the branch
+    // of the sample before it, the graph being monotone in θ with steps
+    // under π on the schedule.
     let mut points = Vec::with_capacity(PCURVE_FIT_SAMPLES as usize);
     let mut prev_u = 0.0f64;
     for i in 0..PCURVE_FIT_SAMPLES {
         let theta = crate::certify::schedule_param(t0, t1, i, PCURVE_FIT_SAMPLES);
-        let p = carrier.eval(theta);
-        let w = p - o;
-        let radial = w - ax * w.dot(ax);
-        let mut u = geom_core::Real::atan2(radial.dot(cv), radial.dot(cu));
+        let Point2 { x: mut u, y: v } = cylinder
+            .chart_point(carrier.eval(theta), Band::least())
+            .map_err(|_| PcurveError::WrongLane {
+                expected: "an Ellipse carrier onto its Cylinder chart",
+            })?
+            .uv;
         if i > 0 {
-            // Unwrap: shift by whole periods to land within (−π, π]
-            // of the previous sample.
             let tau = core::f64::consts::TAU;
             u += ((prev_u - u) / tau).round() * tau;
         }
         prev_u = u;
-        let v = w.dot(ax);
         points.push(Point2::new(u, v));
     }
     Ok(NurbsCurve2::approximate(&points, degree, tolerance)?)

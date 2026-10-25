@@ -14,13 +14,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanValue, CapEnd, EntityKind, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
     ValuePayload,
 };
-use fixture::{fname, insert, len, on_frame};
+use fixture::{fname, insert};
 use geom_core::Tol;
 use topo::validate_pseudomanifold;
 
@@ -41,29 +40,35 @@ fn run(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     ev
 }
 
-/// An axis-aligned block on the xy plane at height z0, extruded dz.
-fn block(
+/// An axis-aligned block on its own xy, extruded `dz`: a root.
+fn block(doc: ProfileDoc, x: (f64, f64), y: (f64, f64), dz: f64) -> (ProfileDoc, RecipeNodeId) {
+    crate::blocks::block(doc, x, y, dz)
+}
+
+/// [`block`] placed against `target`, `z0` up: the block and its
+/// placement, whose output is the operand.
+fn block_at(
     doc: ProfileDoc,
+    target: RecipeNodeId,
     x: (f64, f64),
     y: (f64, f64),
     z0: f64,
     dz: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-    );
-    insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: len(dz),
-            side: ExtrudeSide::Along,
-        },
-    )
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, b) = block(doc, x, y, dz);
+    let (doc, at) = fixture::slid(doc, target, b, [0.0, 0.0, z0]);
+    (doc, b, at)
+}
+
+/// `of` as the copy at `placement` names it.
+fn placed(placement: RecipeNodeId, of: StableName) -> StableName {
+    StableName {
+        kind: of.kind,
+        node: placement,
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(of),
+        }],
+    }
 }
 
 fn boolean_value(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> &BooleanValue<f64> {
@@ -77,8 +82,8 @@ fn boolean_value(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> &Bool
 /// (the v-v kiss at (1,1,1) is DISCOVERED by the op and recorded in
 /// the result's contacts). Returns (doc, a, b, union).
 fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, _, b) = block_at(doc, a, (1.0, 2.0), (1.0, 2.0), 1.0, 1.0);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -93,8 +98,8 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
 /// union passes 3′.
 #[test]
 fn a_reused_kiss_carries_its_record_into_the_next_union() {
-    let (doc, _, _, base) = kiss_base(ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness()));
-    let (doc, mover) = block(doc, (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
+    let (doc, a, _, base) = kiss_base(ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness()));
+    let (doc, _, mover) = block_at(doc, a, (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
     let (doc, u2) = insert(
         doc,
         Node::Union {
@@ -123,8 +128,8 @@ fn a_reused_kiss_carries_its_record_into_the_next_union() {
 #[test]
 fn flush_plane_pair_glues() {
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, _, b) = block_at(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -136,7 +141,16 @@ fn flush_plane_pair_glues() {
         panic!("the union is a body");
     };
     assert_eq!(
-        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         1.5
     );
     assert_eq!(
@@ -154,8 +168,8 @@ fn flush_plane_pair_glues() {
 
     // Decoupled variant (no coincident planes): a transversal union.
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, _, b) = block_at(doc, a, (0.5, 1.5), (0.25, 0.75), 0.25, 1.25);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -168,7 +182,16 @@ fn flush_plane_pair_glues() {
     };
     // 1 + (b = 1·0.5·1.25) − (overlap = 0.5·0.5·0.75) = 1.4375.
     assert_eq!(
-        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         1.4375
     );
 }
@@ -182,8 +205,8 @@ fn flush_plane_pair_glues() {
 #[test]
 fn crossing_slots_recipe_document_evaluates_and_resolves() {
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
-    let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b1_block, b1) = block_at(doc, slab, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, s1) = insert(
         doc,
         Node::Subtract {
@@ -197,10 +220,10 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         s1,
         RoleSeg::From {
             read: fixture::out(&doc, b1),
-            of: fname(b1, RoleSeg::Cap(CapEnd::Start)).into(),
+            of: placed(b1, fname(b1_block, RoleSeg::Cap(CapEnd::Start))).into(),
         },
     );
-    let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
+    let (doc, _, b2) = block_at(doc, slab, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
     let (doc, s2) = insert(
         doc,
         Node::Subtract {
@@ -214,7 +237,16 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
     };
     // #90's oracle: 9 − two 0.5-deep slots + shared middle.
     assert_eq!(
-        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
     assert_eq!(
@@ -277,8 +309,8 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
 #[test]
 fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, _, b) = block_at(doc, a, (0.5, 1.5), (0.25, 1.25), 0.0, 1.0);
     let (doc, u) = insert(
         doc,
         Node::Union {
@@ -290,7 +322,16 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
         panic!("the flush-caps union is a body");
     };
     assert_eq!(
-        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         1.625
     );
     // Both caps merged: two octagonal caps and eight walls, where two
@@ -336,8 +377,8 @@ fn l_corner_caps_merge_at_the_recipe_door_tier3_green() {
 #[test]
 fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
     let doc = ProfileDoc::empty_derived("m4_pr5_declare", Tol::witness());
-    let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, b2) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
+    let (doc, slab) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, _, b2) = block_at(doc, slab, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.0);
     let (doc, s1) = insert(
         doc,
         Node::Subtract {
@@ -345,7 +386,7 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
             tool: b2.into(),
         },
     );
-    let (doc, b1) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, _, b1) = block_at(doc, slab, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
     let (doc, s2) = insert(
         doc,
         Node::Subtract {
@@ -358,7 +399,16 @@ fn crossing_slots_swapped_order_names_the_floor_corner_for_both_edges() {
         panic!("swapped crossing slots is a body");
     };
     assert_eq!(
-        topo::mass_properties(body, Tol::witness()).unwrap().volume,
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&**body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
+        .unwrap()
+        .volume,
         9.0 - (3.0 * 0.5 + 3.0 * 0.5 - 0.5) * 1.0
     );
     assert_eq!(

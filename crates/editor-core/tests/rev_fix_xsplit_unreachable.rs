@@ -65,7 +65,7 @@ fn rested_names(doc: &ProfileDoc, mate: &editor_core::Mate) -> Option<(StableNam
         [one] => Some(fixture::side_name(doc, one)),
         _ => None,
     };
-    Some((face(mate.on)?, face(*mate.to.pose()?)?))
+    Some((face(mate.on)?, face(mate.to)?))
 }
 
 fn linear(spacing: f64) -> PatternKind<Formula> {
@@ -234,7 +234,6 @@ fn three_shapes() -> (ProfileDoc, EvalOptions) {
 fn foreign_master() -> (ProfileDoc, EvalOptions) {
     let o = blocks_reach(&["rev-xs-f-a", "rev-xs-f-c", "rev-xs-f-d"]);
     let doc = ProfileDoc::empty(DocumentId::derive("rev-xs-foreign"), Tol::witness());
-    let (doc, _datum) = insert(doc, fixture::xy_frame());
     let (doc, a, _) = pinned_block(doc, "rev-xs-f-a");
     let (doc, pa) = insert(
         doc,

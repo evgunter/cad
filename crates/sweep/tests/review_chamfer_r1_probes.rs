@@ -164,7 +164,15 @@ fn a_general_box_matches_an_independent_closed_form() {
         // box, and at a = b = c it must agree with that form — that it
         // can fail to is the detection value of this row.
         let want = a * b * c - 2.0 * d * d * (a + b + c) + 16.0 / 3.0 * d.powi(3);
-        let props = topo::mass_properties(&out.body, Tol::witness()).expect("props");
+        let props = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&out.body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("props");
         assert!(
             (props.volume - want).abs() <= 1e-12 * want,
             "volume {} vs independent closed form {want} (a={a} b={b} c={c} d={d})",
@@ -225,7 +233,15 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
         .unwrap_or_else(|e| panic!("the wedge chamfers at {d}: {e}"));
         assert_chamfer_shape(&out.body, (18, 36, 20));
         assert_every_face_outward(&out.body);
-        let props = topo::mass_properties(&out.body, Tol::witness()).expect("props");
+        let props = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&out.body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("props");
         let uncut = 0.5 * base * t * h;
         assert!(
             props.volume > 0.0 && props.volume < uncut,
@@ -391,7 +407,15 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
     );
     assert_eq!(out.blend_faces.len(), 12, "a strip per box edge");
     assert_eq!(out.corner_faces.len(), 8, "a patch per corner");
-    let props = topo::mass_properties(&out.body, Tol::witness()).expect("props");
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&out.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .expect("props");
     // The cube term is spelled out here, deliberately
     // NOT `common::oracles::chamfered_cube_volume`, for the reason above:
     // this suite is `verbs_chamfer`'s reviewer pair and its closed
@@ -454,7 +478,15 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
                 Ok(()),
                 "tier 3"
             );
-            let props = topo::mass_properties(&out.body, Tol::witness()).expect("props");
+            let props = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&out.body),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .expect("props");
             let uncut = 0.5 * 2.0 * 0.4 * 1.0;
             assert!(
                 props.volume > 0.0 && props.volume < uncut,

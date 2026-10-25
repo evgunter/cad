@@ -14,20 +14,19 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::corpus;
-use crate::fixture::{Recorder, ang, len, scl};
+use crate::fixture::{Recorder, len, scl};
 
 use editor_core::{
-    CancelToken, Datum, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry, EvalOptions,
+    CancelToken, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry, EvalOptions,
     Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, Operand, PartSelect,
     PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide,
     StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
 };
-use geom_core::{Affine3, Dual, Mat3, Tol, Vec3};
-use topo::{Body, BooleanResult, mass_properties, transform_rigid};
+use geom_core::{Dual, Tol};
+use topo::{Body, BooleanResult, transform_rigid};
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     eval_after(doc, None)
@@ -43,10 +42,10 @@ fn eval_after(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) ->
     )
 }
 
-/// The unit box `[0, 1]³`, or one shifted along x by `x0`.
-fn unit_box(r: &mut Recorder, x0: f64) -> RecipeNodeId {
+/// The unit box `[0, 1]³`.
+fn unit_box(r: &mut Recorder) -> RecipeNodeId {
     let p = r.profile(
-        [x0, 0.0, 0.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
@@ -54,16 +53,19 @@ fn unit_box(r: &mut Recorder, x0: f64) -> RecipeNodeId {
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     })
 }
 
-/// A horizontal tool plane at height `z`, normal +z.
-fn plane_z(r: &mut Recorder, z: f64) -> RecipeNodeId {
-    r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(z)],
-        normal: [scl(0.0), scl(0.0), scl(1.0)],
-    }))
+/// A unit box placed against `root`, shifted along its x by `x0`: the
+/// placement.
+fn unit_box_at(r: &mut Recorder, root: RecipeNodeId, x0: f64) -> RecipeNodeId {
+    let b = unit_box(r);
+    r.against(root, b, &editor_core::Frame::translation([x0, 0.0, 0.0]))
+}
+
+/// A horizontal tool plane at height `z`, normal +z, read off `body`.
+fn plane_z(r: &Recorder, body: RecipeNodeId, z: f64) -> editor_core::pose::RoleRead<Operand> {
+    crate::fixture::plane_on(&r.doc, body, [0.0, 0.0, z], [0.0, 0.0, 1.0])
 }
 
 fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect<Formula>) -> RecipeNodeId {
@@ -94,22 +96,29 @@ fn pattern3(r: &mut Recorder, input: RecipeNodeId) -> RecipeNodeId {
     })
 }
 
+/// A copy of `input` in the world, `dz` up: the placement, a reader of
+/// `input`.
 fn lift(r: &mut Recorder, input: impl Into<Operand>, dz: f64) -> RecipeNodeId {
-    r.insert(Node::transform(
-        input,
-        editor_core::Step::Rigid {
-            translation: [len(0.0), len(0.0), len(dz)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ))
+    r.in_world(input, &editor_core::Frame::translation([0.0, 0.0, dz]))
 }
 
-/// The `Body` value of a node — a Part's, a transform's — as the Arc it
-/// holds.
+/// `name`, as the placement `p` names its copy of the entity.
+fn placed(p: RecipeNodeId, name: &StableName) -> StableName {
+    StableName {
+        kind: name.kind,
+        node: p,
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(name.clone()),
+        }],
+    }
+}
+
+/// The `Body` value of a node — a Part's, a placement's one copy — as
+/// the Arc it holds.
 fn body_arc(ev: &Evaluation<f64>, id: RecipeNodeId) -> &Arc<Body<f64>> {
     match &ev.value(id).expect("a value").payload {
         ValuePayload::Body(b) => b,
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => &copies.bodies[0],
         other => panic!("node {} is a {}, not a body", id.0, other.kind_name()),
     }
 }
@@ -239,20 +248,20 @@ fn edge_keys(
 const LIFT: f64 = 2.0;
 const RADIUS: f64 = 0.05;
 
-/// **A1 — the half IS the half.** For each half: a transform, a union
+/// **A1 — the half IS the half.** For each half: a placement, a union
 /// and a fillet of the split's port are, description for description,
 /// the kernel's own doors run on the body read off the split's value;
 /// and the memo serves the split to the consumers added later.
 #[test]
-fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
+fn a1_the_half_is_the_half_through_a_placement_a_boolean_and_a_fillet() {
     for h in SplitHalf::ALL {
         let mut r = Recorder::new();
-        let cube = unit_box(&mut r, 0.0);
-        let other = unit_box(&mut r, 3.0);
-        let tool = plane_z(&mut r, 0.5);
+        let cube = unit_box(&mut r);
+        let other = unit_box_at(&mut r, cube, 3.0);
+        let tool = plane_z(&r, cube, 0.5);
         let split = r.insert(Node::Split {
             target: cube.into(),
-            tool: tool.into(),
+            tool,
         });
         let moved = lift(&mut r, port(split, h), LIFT);
         let first = eval(&r.doc);
@@ -289,11 +298,22 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
             SplitHalf::Below => &below,
         };
 
-        // Each consumer against the kernel door fed the side directly.
-        let map = Affine3::from_parts(
-            Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), 0.0),
-            Vec3::new(0.0, 0.0, LIFT),
-        );
+        // Each consumer against the kernel door fed the side directly:
+        // the placement at the pose its mate solves to, which is the
+        // lift up z.
+        let pose = crate::fixture::solve(&r.doc, &EvalOptions::default(), Tol::witness())
+            .placement(&r.doc, moved)
+            .expect("the lift solves");
+        let lifted = editor_core::Frame::translation([0.0, 0.0, LIFT]);
+        let near = pose
+            .columns
+            .iter()
+            .flatten()
+            .chain(&pose.translation)
+            .zip(lifted.columns.iter().flatten().chain(&lifted.translation))
+            .all(|(a, b)| (a - b).abs() <= 1e-12);
+        assert!(near, "{h:?}: the lift is {LIFT} up z: {pose:?}");
+        let map = pose.affine::<f64>();
         let placed = transform_rigid(
             side,
             &geom_core::test_support::rigid(&map, Tol::witness()),
@@ -303,7 +323,7 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         assert_eq!(
             bits(body_arc(&ev, moved)),
             bits(&placed),
-            "{h:?}: transform"
+            "{h:?}: placement"
         );
         let fused = kernel_union(side, body_of(&ev, other));
         assert_eq!(bits(body_of(&ev, joined)), bits(&fused), "{h:?}: boolean");
@@ -330,7 +350,7 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
 #[test]
 fn a2_the_instance_is_the_instance() {
     let mut r = Recorder::new();
-    let cube = unit_box(&mut r, 0.0);
+    let cube = unit_box(&mut r);
     let pat = pattern3(&mut r, cube);
     let p0 = part(&mut r, pat, instance(0));
     let p1 = part(&mut r, pat, instance(1));
@@ -379,8 +399,8 @@ fn edges_of_body(ev: &Evaluation<f64>, node: RecipeNodeId, body: u32) -> Vec<Sta
 
 /// **A3 — names pass through, and only the selected body's.** A fillet
 /// spelled against the split's own above-half edge rows resolves on a
-/// read of the above port, every name uniquely, and a transform of
-/// that read carries exactly those rows; a below-half name read there
+/// read of the above port, every name uniquely, and a placement of
+/// that read carries exactly those rows, each under its `Placed` layer; a below-half name read there
 /// refuses through the N5 ladder, never re-anchored to a congruent
 /// above-half edge; a selector for instance 2 against `Part(1)` refuses
 /// `Vanished` the same way; `Part(1)`'s table is the master's row count
@@ -389,11 +409,11 @@ fn edges_of_body(ev: &Evaluation<f64>, node: RecipeNodeId, body: u32) -> Vec<Sta
 fn a3_names_pass_through_and_only_the_selected_bodys() {
     // The split's own rows, by output body.
     let mut r = Recorder::new();
-    let cube = unit_box(&mut r, 0.0);
-    let tool = plane_z(&mut r, 0.5);
+    let cube = unit_box(&mut r);
+    let tool = plane_z(&r, cube, 0.5);
     let split = r.insert(Node::Split {
         target: cube.into(),
-        tool: tool.into(),
+        tool,
     });
     let moved = lift(&mut r, port(split, SplitHalf::Above), 0.0);
     let base = eval(&r.doc);
@@ -422,7 +442,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     assert!(ev.value(rounded).is_some(), "{:?}", error_of(&ev, rounded));
     for name in &selection {
         assert_eq!(
-            denotation(&ev, moved, name),
+            denotation(&ev, moved, &placed(moved, name)),
             Ok(Denotation::Unique),
             "{name} resolves through the port as it did on the split"
         );
@@ -436,7 +456,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
     // re-anchored to a congruent above-half edge.
     for name in &below_rows {
         assert_eq!(
-            denotation(&ev, moved, name),
+            denotation(&ev, moved, &placed(moved, name)),
             Err(editor_core::InterrogateError::NoSuchName),
             "{name} is the other half's"
         );
@@ -451,7 +471,7 @@ fn a3_names_pass_through_and_only_the_selected_bodys() {
 
     // The pattern side.
     let mut r = Recorder::new();
-    let cube = unit_box(&mut r, 0.0);
+    let cube = unit_box(&mut r);
     let pat = pattern3(&mut r, cube);
     let p1 = part(&mut r, pat, instance(1));
     let base = eval(&r.doc);
@@ -499,13 +519,17 @@ fn a4_every_refusal_is_typed() {
     // A plane that misses the box: a read of the empty side refuses
     // `EmptyHalf`, a read of the other evaluates.
     let mut r = Recorder::new();
-    let cube = unit_box(&mut r, 0.0);
-    let tool = plane_z(&mut r, 2.0);
+    let cube = unit_box(&mut r);
+    let tool = plane_z(&r, cube, 2.0);
     let split = r.insert(Node::Split {
         target: cube.into(),
-        tool: tool.into(),
+        tool,
     });
-    let above = lift(&mut r, port(split, SplitHalf::Above), 0.0);
+    // The empty side offers no geometry to place by: its reader is a
+    // placement with no mate yet.
+    let above = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
+        port(split, SplitHalf::Above),
+    )]));
     let below = lift(&mut r, port(split, SplitHalf::Below), 0.0);
     let ev = eval(&r.doc);
     assert!(
@@ -524,7 +548,7 @@ fn a4_every_refusal_is_typed() {
     // The index at the count and negative; then the count lowered under
     // a live index.
     let mut r = Recorder::new();
-    let cube = unit_box(&mut r, 0.0);
+    let cube = unit_box(&mut r);
     let pat = pattern3(&mut r, cube);
     let at_count = part(&mut r, pat, instance(3));
     let negative = part(&mut r, pat, instance(-1));
@@ -588,11 +612,11 @@ fn a4_every_refusal_is_typed() {
     // door: a plain body and a split's half are one body each, and a
     // split named alone is two.
     let mut r = Recorder::new();
-    let cube = unit_box(&mut r, 0.0);
-    let tool = plane_z(&mut r, 0.5);
+    let cube = unit_box(&mut r);
+    let tool = plane_z(&r, cube, 0.5);
     let split = r.insert(Node::Split {
         target: cube.into(),
-        tool: tool.into(),
+        tool,
     });
     let pat = pattern3(&mut r, cube);
     let index_of = |of: Operand| {
@@ -664,11 +688,11 @@ fn a4_every_refusal_is_typed() {
 #[test]
 fn a5_the_content_key_separates_the_halves_and_the_instances() {
     let mut r = Recorder::new();
-    let cube = unit_box(&mut r, 0.0);
-    let tool = plane_z(&mut r, 0.5);
+    let cube = unit_box(&mut r);
+    let tool = plane_z(&r, cube, 0.5);
     let split = r.insert(Node::Split {
         target: cube.into(),
-        tool: tool.into(),
+        tool,
     });
     let above = lift(&mut r, port(split, SplitHalf::Above), 0.0);
     let below = lift(&mut r, port(split, SplitHalf::Below), 0.0);
@@ -717,16 +741,20 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
 #[test]
 fn a7_the_product_of_a_lone_placed_half_is_that_half() {
     let mut r = Recorder::new();
-    let cube = unit_box(&mut r, 0.0);
-    let tool = plane_z(&mut r, 0.5);
+    let cube = unit_box(&mut r);
+    let tool = plane_z(&r, cube, 0.5);
     let split = r.insert(Node::Split {
         target: cube.into(),
-        tool: tool.into(),
+        tool,
     });
     r.place(port(split, SplitHalf::Above));
     let ev = eval(&r.doc);
-    let body = product(&r.doc, &ev, Tol::witness()).expect("the product gathers");
-    let m = mass_properties(&body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        product(&r.doc, &ev, Tol::witness()).expect("the product gathers"),
+        Tol::witness(),
+    );
+    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     assert_eq!(m.volume, 0.5, "the upper half of the unit box, exactly");
     let (side, _) = sides(&ev, split);
     assert_eq!(bits(&body), bits(&side));
@@ -795,27 +823,21 @@ fn the_part_select_document_evaluates_at_dual64() {
     );
 }
 
-/// A prism from a polygon at height `z0`, extruded `dz`.
-fn prism(r: &mut Recorder, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> RecipeNodeId {
-    let p = r.profile([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
+/// A prism from a polygon on its own xy, extruded `dz`.
+fn prism(r: &mut Recorder, pts: Vec<(f64, f64)>, dz: f64) -> RecipeNodeId {
+    let p = r.profile([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![pts]);
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(dz),
-        side: ExtrudeSide::Along,
     })
 }
 
 /// `lib_g14_split_walls::u_cutter_tie`, the reviewers' fixture: a
 /// 4×4×4 block minus a U-shaped cutter whose two prongs cross one wall
 /// — a body whose table carries genuine N2 ties, symmetric about
-/// `y = 2`.
-fn u_cutter_tie(r: &mut Recorder) -> RecipeNodeId {
-    let a = prism(
-        r,
-        vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
-        0.0,
-        4.0,
-    );
+/// `y = 2`. Returns the subtract and the block, its root.
+fn u_cutter_tie(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
+    let a = prism(r, vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], 4.0);
     let b = prism(
         r,
         vec![
@@ -828,13 +850,14 @@ fn u_cutter_tie(r: &mut Recorder) -> RecipeNodeId {
             (5.0, 1.5),
             (2.0, 1.5),
         ],
-        1.0,
         2.0,
     );
-    r.insert(Node::Subtract {
+    let b = r.against(a, b, &editor_core::Frame::translation([0.0, 0.0, 1.0]));
+    let sub = r.insert(Node::Subtract {
         from: a.into(),
         tool: b.into(),
-    })
+    });
+    (sub, a)
 }
 
 /// The tie rows of a table: name and candidates.
@@ -863,14 +886,11 @@ fn ties(
 #[test]
 fn a_tie_the_split_separates_is_unique_through_each_port() {
     let mut r = Recorder::new();
-    let sub = u_cutter_tie(&mut r);
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(2.0), len(0.0)],
-        normal: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let (sub, root) = u_cutter_tie(&mut r);
+    let tool = crate::fixture::plane_on(&r.doc, root, [0.0, 2.0, 0.0], [0.0, 1.0, 0.0]);
     let split = r.insert(Node::Split {
         target: sub.into(),
-        tool: tool.into(),
+        tool,
     });
     let above = lift(&mut r, port(split, SplitHalf::Above), 0.0);
     let below = lift(&mut r, port(split, SplitHalf::Below), 0.0);
@@ -899,7 +919,7 @@ fn a_tie_the_split_separates_is_unique_through_each_port() {
         assert_eq!(candidates.len(), 2, "{name}: one candidate per half");
         for (p, h) in [(above, SplitHalf::Above), (below, SplitHalf::Below)] {
             assert_eq!(
-                denotation(&ev, p, name),
+                denotation(&ev, p, &placed(p, name)),
                 Ok(Denotation::Unique),
                 "{name} is unique through the {h:?} port"
             );
@@ -919,7 +939,7 @@ fn a_tie_the_split_separates_is_unique_through_each_port() {
 #[test]
 fn a_part_of_an_instance_of_a_tied_master_keeps_the_tie() {
     let mut r = Recorder::new();
-    let sub = u_cutter_tie(&mut r);
+    let (sub, _) = u_cutter_tie(&mut r);
     let pat = r.insert(Node::Pattern {
         input: sub.into(),
         count: Formula::count(3),
@@ -968,7 +988,7 @@ fn a_part_of_an_instance_of_a_tied_master_keeps_the_tie() {
 fn project_narrows_a_tie_by_the_flush_rule() {
     use editor_core::{EntityRef, NameTable};
     let mut r = Recorder::new();
-    let cube = unit_box(&mut r, 0.0);
+    let cube = unit_box(&mut r);
     let ev = eval(&r.doc);
     let keys: Vec<topo::FaceKey> = body_of(&ev, cube).faces().map(|(k, _)| k).take(4).collect();
     assert_eq!(keys.len(), 4);

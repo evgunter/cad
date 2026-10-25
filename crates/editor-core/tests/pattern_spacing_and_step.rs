@@ -5,7 +5,7 @@
 //! step, so a spacing below zero refuses and names the direction that
 //! steps the other way; a zero (or tolerance-small) spacing refuses
 //! because every copy would land on the master. A circular rule's
-//! step keeps its right-hand sign about the datum axis, and refuses
+//! step keeps its right-hand sign about its axis, and refuses
 //! at zero, at a full turn and past one. Each check runs where a step
 //! reads the value, so a one-copy rule reads none.
 //!
@@ -17,7 +17,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -30,9 +29,9 @@ use fixture::{ang, len, scl};
 use corpus::{eval, failures};
 
 /// A block off the z axis (so a turn about it moves the copies), and
-/// the z-axis datum a circular rule turns it about; `th`, when given,
+/// the z axis, read off its geometry, a circular rule turns it about; `th`, when given,
 /// is declared an angle parameter first.
-fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, RecipeNodeId) {
+fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, Axis) {
     let mut r = corpus::Recorder::new();
     if let Some((name, radians)) = th {
         r.push(DocEdit::DeclareVar {
@@ -40,10 +39,6 @@ fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, Recipe
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, radians)),
         });
     }
-    let axis = r.insert(Node::Datum(editor_core::Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
     let p = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -53,10 +48,13 @@ fn block(th: Option<(&VarName, f64)>) -> (corpus::Recorder, RecipeNodeId, Recipe
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
+    let axis = fixture::axis_on(&r.doc, solid, [0.0; 3], [0.0, 0.0, 1.0]);
     (r, solid, axis)
 }
+
+/// The z axis, read off the block's own geometry.
+type Axis = editor_core::pose::RoleRead<editor_core::Operand>;
 
 fn linear(direction: [f64; 3], spacing: f64) -> PatternKind<Formula> {
     PatternKind::Linear {
@@ -66,18 +64,14 @@ fn linear(direction: [f64; 3], spacing: f64) -> PatternKind<Formula> {
 }
 
 /// A pattern (or, with `union`, a placed union) of the block.
-fn patterned(
-    count: i64,
-    kind: impl FnOnce(RecipeNodeId) -> PatternKind<Formula>,
-    union: bool,
-) -> Built {
+fn patterned(count: i64, kind: impl FnOnce(Axis) -> PatternKind<Formula>, union: bool) -> Built {
     built(count, kind, union, None)
 }
 
 /// A pattern of the block whose rule reads the angle parameter `th`.
 fn driven(
     count: i64,
-    kind: impl FnOnce(RecipeNodeId) -> PatternKind<Formula>,
+    kind: impl FnOnce(Axis) -> PatternKind<Formula>,
     th: (&VarName, f64),
 ) -> Built {
     built(count, kind, false, Some(th))
@@ -85,7 +79,7 @@ fn driven(
 
 fn built(
     count: i64,
-    kind: impl FnOnce(RecipeNodeId) -> PatternKind<Formula>,
+    kind: impl FnOnce(Axis) -> PatternKind<Formula>,
     union: bool,
     th: Option<(&VarName, f64)>,
 ) -> Built {
@@ -352,11 +346,8 @@ fn a_driven_step_past_a_turn_says_what_it_evaluated_to() {
 }
 
 /// A circular rule about the block's axis at `step`.
-fn circular(step: Formula) -> impl FnOnce(RecipeNodeId) -> PatternKind<Formula> {
-    move |axis| PatternKind::Circular {
-        axis: axis.into(),
-        step,
-    }
+fn circular(step: Formula) -> impl FnOnce(Axis) -> PatternKind<Formula> {
+    move |axis| PatternKind::Circular { axis, step }
 }
 
 /// `text` parsed as a parameter-free expression.
@@ -408,7 +399,7 @@ fn a_one_copy_rule_reads_no_step() {
         let ring = patterned(
             1,
             |axis| PatternKind::Circular {
-                axis: axis.into(),
+                axis,
                 step: ang(TAU),
             },
             union,
@@ -443,7 +434,7 @@ fn a_placed_union_refuses_the_spacing_not_the_placements() {
     let step = patterned(
         3,
         |axis| PatternKind::Circular {
-            axis: axis.into(),
+            axis,
             step: ang(0.0),
         },
         true,

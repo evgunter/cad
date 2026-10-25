@@ -12,13 +12,14 @@ use crate::common::interval::iv;
 use core::f64::consts::PI;
 use geom::Curve3;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Sign, Vec3};
+use profile::SketchPlane;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
     assert_naming_totality, block, brick, finished, prism, prism_on, realized, sketch_from_axes,
 };
 use topo::boolean::BooleanOp;
-use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
+use topo::{Body, EdgeKey, query, validate_geometric};
 
 use crate::band_one_cycle_members::{assert_taken, cup_faces};
 use crate::band_planar_cut_off::{
@@ -43,12 +44,7 @@ fn parallelogram<T: geom_core::Decide + topo::AtRestPolicy>() -> Body<T> {
 /// under the end curve — an elliptic arc under the fillet.
 #[test]
 fn a_pocket_floor_edge_at_slanted_walls_adds_its_section_on_both_verbs() {
-    let plane = sketch_from_axes(
-        Point3::new(0.0, 0.0, 0.5),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        tol(),
-    );
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.5));
     let pocket = prism_on(
         plane,
         vec![
@@ -288,7 +284,7 @@ fn edge_at(body: &Body<Interval>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
 /// `(1 − π/4)·r²·2`.
 #[test]
 fn the_oblique_fillet_carves_at_the_certified_scalar() {
-    let body = parallelogram::<Interval>();
+    let body = topo::test_support::finished("body", parallelogram::<Interval>(), tol());
     let e = edge_at(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     let out = fillet_edges(
         &sweep::test_support::at_rest(&body, tol()),
@@ -313,8 +309,12 @@ fn the_oblique_fillet_carves_at_the_certified_scalar() {
         );
     }
     let (p0, p1) = (
-        mass_properties(&body, tol()).expect("interval props"),
-        mass_properties(&out.body, tol()).expect("interval props"),
+        topo::mass_properties(&body, tol()).expect("interval props"),
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol(),
+        )
+        .expect("interval props"),
     );
     let removed = p0.volume - p1.volume;
     let pad = p0.volume_pad + p1.volume_pad;

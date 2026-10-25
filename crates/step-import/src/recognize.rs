@@ -225,6 +225,9 @@ fn try_plane(patch: &NurbsSurface<f64>, eps_in: f64) -> Option<(Surface<f64>, f6
         normal = -normal;
     }
     let normal = plus_zero(normal);
+    // The file's coordinates are this import's input: the frame they
+    // are written in is the only one it has, so a reference picked off
+    // them is a function of the input.
     let (u_ref, _) = normal.orthonormal_basis();
     let plane = Surface::Plane {
         origin: plus_zero_point(origin),

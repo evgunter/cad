@@ -1,4 +1,4 @@
-//! The View pane: display tolerance, datums and the camera's state.
+//! The View pane: display tolerance and the camera's state.
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
@@ -32,15 +32,6 @@ impl ViewerBehavior<'_> {
         }
         ui.label(format!("faces: {}", stats.faces));
         ui.label(format!("triangles: {}", stats.triangles));
-        ui.separator();
-        // **Datum visibility, and why it is a switch at all.**
-        // Construction geometry is drawn over the part, which is
-        // where it has to be for a plane to say what it cuts — and it
-        // is also in the way once a document has several. A view
-        // setting rather than a document one: which datums exist is
-        // the recipe's business, and whether this window draws them is
-        // this window's.
-        ui.checkbox(self.show_datums, "show datums");
         ui.separator();
         for line in camera_readout(self.camera, *self.notation) {
             ui.label(line);

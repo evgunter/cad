@@ -354,14 +354,18 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     // (i) What the same chamfer REMOVES from a cube of side a.
     let cube_body = cube(a, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
-    let chamfered_cube = chamfer_edges(
-        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
-        &cube_edges,
-        D,
+    let chamfered_cube = topo::test_support::finished(
+        "chamfered_cube",
+        chamfer_edges(
+            &sweep::test_support::at_rest(&cube_body, Tol::witness()),
+            &cube_edges,
+            D,
+            Tol::witness(),
+        )
+        .expect("a cube chamfers")
+        .body,
         Tol::witness(),
-    )
-    .expect("a cube chamfers")
-    .body;
+    );
     let cube_vol = topo::mass_properties(&chamfered_cube, Tol::witness())
         .expect("closed-form props")
         .volume;
@@ -377,19 +381,27 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
+    let body = topo::test_support::finished(
+        "body",
+        cut("cavity", &cut("vent", &block, &vent), &cavity),
+        Tol::witness(),
+    );
     let plain = topo::mass_properties(&body, Tol::witness())
         .expect("closed-form props")
         .volume;
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
-    let carved = chamfer_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &edges,
-        D,
+    let carved = topo::test_support::finished(
+        "carved",
+        chamfer_edges(
+            &sweep::test_support::at_rest(&body, Tol::witness()),
+            &edges,
+            D,
+            Tol::witness(),
+        )
+        .expect("the cavity chamfers")
+        .body,
         Tol::witness(),
-    )
-    .expect("the cavity chamfers")
-    .body;
+    );
     let gained = topo::mass_properties(&carved, Tol::witness())
         .expect("closed-form props")
         .volume
@@ -461,7 +473,11 @@ fn r1_one_request_carries_both_convexity_signs() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
+    let body = topo::test_support::finished(
+        "body",
+        cut("cavity", &cut("vent", &block, &vent), &cavity),
+        Tol::witness(),
+    );
 
     let poly = [
         Point2::new(1.0, 1.0),
@@ -512,9 +528,16 @@ fn r1_one_request_carries_both_convexity_signs() {
     // it from the shared home; what it checks is the SIGN each side
     // carries, which no closed form can supply.
     let chamfer_of = |a: f64| chamfered_cube_removed(a, D);
-    let after = topo::mass_properties(&out.body, Tol::witness())
-        .expect("closed-form props")
-        .volume;
+    let after = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&out.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .expect("closed-form props")
+    .volume;
     let want = before + chamfer_of(2.0) - chamfer_of(4.0);
     assert!(
         (after - want).abs() <= 1e-12 * want,
@@ -540,7 +563,11 @@ fn r1_one_fillet_request_carries_both_convexity_signs() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
     let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
-    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
+    let body = topo::test_support::finished(
+        "body",
+        cut("cavity", &cut("vent", &block, &vent), &cavity),
+        Tol::witness(),
+    );
     let poly = [
         Point2::new(1.0, 1.0),
         Point2::new(3.0, 1.0),
@@ -582,9 +609,16 @@ fn r1_one_fillet_request_carries_both_convexity_signs() {
     // scale. The form is `common::oracles`'; what this row checks is
     // the two signs in one carve.
     let fillet_of = |a: f64| a.powi(3) - rounded_box_volume(a - 2.0 * D, D);
-    let after = topo::mass_properties(&out.body, Tol::witness())
-        .expect("closed-form props")
-        .volume;
+    let after = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&out.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .expect("closed-form props")
+    .volume;
     let want = before + fillet_of(2.0) - fillet_of(4.0);
     assert!(
         (after - want).abs() <= 1e-12 * want,

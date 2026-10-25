@@ -407,7 +407,7 @@ mod tie_tests {
             &prof,
             sweep::Extrusion::Distance {
                 depth: 1.0_f64,
-                side: crate::ExtrudeSide::Along,
+                side: sweep::ExtrudeSide::Along,
             },
             Tol::witness(),
         )
@@ -456,7 +456,10 @@ mod tie_tests {
         assert!(
             matches!(
                 named,
-                Err(NamingError::Emission { what }) if what.contains("minted outright")
+                Err(NamingError::UnsupportedJoin {
+                    shape: crate::names::JoinShape::Outright,
+                    ..
+                })
             ),
             "the stop case refuses typed"
         );

@@ -1682,6 +1682,48 @@ impl<L: LeafSet> ExprTree<L> {
             _ => None,
         }
     }
+
+    /// **The rational fraction of a turn this angle is, as written**
+    /// (D10 `[variables.literals]`: a rational fraction of a turn is a
+    /// constant): `turn` and `0`, times or over constant rationals,
+    /// their sums, differences and negations, and readers of the angle
+    /// variables `turns` answers for. `None` for a tree of any other
+    /// form, of another dimension, or whose fraction is past the
+    /// rational bound.
+    pub fn constant_turns(&self, turns: impl Fn(VarId) -> Option<Ratio>) -> Option<Ratio> {
+        use crate::tree::{Operands as O, Visit};
+        use ExprKind as K;
+        if self.dim != Dimension::Angle {
+            return None;
+        }
+        let zero = Ratio::integer(0).ok()?;
+        let one = Ratio::integer(1).ok()?;
+        crate::tree::fold(
+            self,
+            |expr| {
+                Ok(match &expr.kind {
+                    K::Ratio(r) => Visit::Value(*r),
+                    K::Turn => Visit::Value(one),
+                    K::Zero => Visit::Value(zero),
+                    K::Var(var) if expr.dim == Dimension::Angle => {
+                        Visit::Value(turns(*var).ok_or(())?)
+                    }
+                    K::Neg(a) => Visit::One(a),
+                    K::Add(a, b) | K::Sub(a, b) | K::Mul(a, b) | K::Div(a, b) => Visit::Two(a, b),
+                    _ => return Err(()),
+                })
+            },
+            |expr, operands| match (&expr.kind, operands) {
+                (K::Neg(_), O::One(a)) => Ok(a.neg()),
+                (K::Add(..), O::Two(a, b)) => a.checked_add(b).ok_or(()),
+                (K::Sub(..), O::Two(a, b)) => a.checked_add(b.neg()).ok_or(()),
+                (K::Mul(..), O::Two(a, b)) => a.checked_mul(b).ok_or(()),
+                (K::Div(..), O::Two(a, b)) => a.checked_div(b).ok_or(()),
+                _ => Err(()),
+            },
+        )
+        .ok()
+    }
 }
 
 /// The address of an expression subtree inside a document (spec D5):
@@ -1751,6 +1793,10 @@ pub struct VarEnv<T> {
     /// variable's the person never named. An operation's output is here
     /// too: its refusal ([`EvalError::OutputRead`]) is its reader's.
     pub written: std::collections::BTreeSet<VarId>,
+    /// The bound angle variables whose definition is a rational fraction
+    /// of a turn ([`Expr::constant_turns`]), by variable: what a
+    /// rotation reads its sine and cosine from ([`eval_angle`]).
+    pub turns: std::collections::BTreeMap<VarId, Ratio>,
 }
 
 impl<T> VarEnv<T> {
@@ -1778,6 +1824,7 @@ impl<T> Default for VarEnv<T> {
             bindings: std::collections::BTreeMap::new(),
             refused: std::collections::BTreeMap::new(),
             written: std::collections::BTreeSet::new(),
+            turns: std::collections::BTreeMap::new(),
         }
     }
 }
@@ -1995,6 +2042,31 @@ pub(crate) fn refuse_non_finite<T: Decide>(value: T) -> Result<T, EvalError> {
         Ok(value)
     } else {
         Err(EvalError::NonFiniteResult)
+    }
+}
+
+/// **An angle variable evaluated, with the form it was written in**:
+/// [`eval_var`]'s value at `Angle`, carrying the fraction of a turn its
+/// definition is where it is one ([`VarEnv::turns`]), so a rotation by
+/// it reads its sine and cosine from the fraction
+/// ([`geom_core::Angle`]).
+///
+/// # Errors
+///
+/// [`eval_var`]'s.
+pub fn eval_angle<T: Decide>(
+    var: VarId,
+    params: &VarEnv<T>,
+) -> Result<geom_core::Angle<T>, EvalError> {
+    let value = eval_var(var, Dimension::Angle, params)?;
+    Ok(angle_of(value, params.turns.get(&var).copied()))
+}
+
+/// `value` read as an angle written as `turns` of a turn, where it was.
+pub(crate) fn angle_of<T: geom_core::Real>(value: T, turns: Option<Ratio>) -> geom_core::Angle<T> {
+    match turns.and_then(|q| geom_core::Turns::new(q.num(), q.den())) {
+        Some(turns) => geom_core::Angle::of_turns(value, turns),
+        None => geom_core::Angle::radians(value),
     }
 }
 

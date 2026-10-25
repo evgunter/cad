@@ -38,7 +38,7 @@ use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{brick, prism_at, prism_on, realized, revolved_about_y, rim_arcs_at};
 use topo::boolean::BooleanOp;
-use topo::{Body, EdgeKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -92,9 +92,12 @@ fn the_edge(body: &Body<f64>, on: impl Fn(Vec3<f64>) -> bool) -> EdgeKey {
 
 /// A definite refusal's reading.
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, tol())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// The volume a convex fillet of radius `r` removes along the washer's

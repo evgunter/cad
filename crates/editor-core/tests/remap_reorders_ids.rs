@@ -17,7 +17,7 @@
 
 use crate::blocks::{block, failure, run};
 use crate::corpus::body_of;
-use crate::fixture::{ends, face_vertices, insert, point, table};
+use crate::fixture::{ends, face_vertices, in_world, insert, point, table};
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -72,13 +72,16 @@ fn build(blocks: &[B], ops: &[Op], creation: &[usize]) -> Built {
     let mut doc = ProfileDoc::empty_derived("remap-reorders-ids", Tol::witness());
     let mut keyed = BTreeMap::new();
     let mut ids = vec![RecipeNodeId::new(0, 0); blocks.len()];
+    // Every block a copy in the world at its height, placed as it is
+    // created: the creation order is the placements' mint order too.
     for &i in creation {
         let (x, y, z) = blocks[i];
         let before = doc.clone();
-        let (d, id) = block(doc, x, y, z.0, z.1 - z.0);
+        let (d, id) = block(doc, x, y, z.1 - z.0);
+        let (d, placed) = in_world(d, id, &editor_core::Frame::translation([0.0, 0.0, z.0]));
         keyed.insert(format!("b{i}"), added(&before, &d));
         doc = d;
-        ids[i] = id;
+        ids[i] = placed;
     }
     let mut out: Vec<RecipeNodeId> = Vec::new();
     for (k, op) in ops.iter().enumerate() {

@@ -91,10 +91,10 @@ pub fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     let cyl = sweep::test_support::finished("the cylinder", cyl, tol);
     let res = split(&cyl, &plane, tol).unwrap();
     if let SplitPart::Body(above) = &res.above {
-        out.push(("cut_cylinder_above".into(), above.clone()));
+        out.push(("cut_cylinder_above".into(), topo::Body::clone(above)));
     }
     if let SplitPart::Body(below) = &res.below {
-        out.push(("cut_cylinder_below".into(), below.clone()));
+        out.push(("cut_cylinder_below".into(), topo::Body::clone(below)));
     }
     // Washer: rectangle revolved a full turn (torus-free, cylinder walls).
     let w = bulge_loop(vec![

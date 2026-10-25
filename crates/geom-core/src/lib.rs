@@ -48,9 +48,9 @@ pub use interval::Interval;
 #[cfg(feature = "probe")]
 pub use k_stats::{MarginSample, Probe, SampleOutcome};
 pub use linalg::{
-    Affine3, FrameError, FrameInput, FrameVector, LeveredUnitError, Mat3, MotionPart, OrthoAxis,
-    OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, TurnError,
-    UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
+    Affine3, Angle, FrameError, FrameInput, FrameVector, LeveredUnitError, Mat3, MotionPart,
+    OrthoAxis, OrthonormalizeError, Point2, Point3, RigidMotion, RigidMotionError, TurnError,
+    Turns, UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec2, Vec3, decide_unit_direction,
     not_rigid_reading,
 };
 pub use predicate::{
@@ -66,7 +66,7 @@ pub use predicate::{
 pub use readable::Readable;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_exact_zero, is_finite_length,
-    is_underflowed_length, is_zero_length,
+    is_underflowed_length, is_zero_length, pow2,
 };
 pub use running::{Rounded, SHORT_CHAIN_ULPS, UNIT_ROUNDOFF, rounding_charge};
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};

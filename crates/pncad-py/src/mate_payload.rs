@@ -36,14 +36,14 @@
 //! A NESTED REFUSAL crosses as its own word rather than being
 //! flattened into this record's other attributes:
 //! [`MateFaultPayload::inner_variant`] is the lever refusal's word on
-//! `Unleverable` and the world read's on `WorldRead`.
+//! `Unleverable`.
 
 use pncad::document::{
-    ConstraintId, Coord, DocumentId, LeverRefusal, MateFault, MateRef, MateSide, NoChartWhy,
-    ReachRefusal, RecipeNodeId, VarKind,
+    ConstraintId, DocumentId, LeverRefusal, MateFault, MateRef, MateSide, NoChartWhy, ReachRefusal,
+    RecipeNodeId, VarKind,
 };
 
-use crate::tags::{lever_refusal_tag, node_error_tag, world_read_fault_tag};
+use crate::tags::{lever_refusal_tag, node_error_tag};
 
 /// What one [`MateFault`] arm carries, every field present.
 ///
@@ -66,11 +66,10 @@ pub struct MateFaultPayload<'a> {
     /// The node whose copied body a lever's reach was asked of.
     pub shape: Option<RecipeNodeId>,
     /// The placement a bundle's fault is about: the one a constraint
-    /// over-constrains, or whose constraints target different spaces.
+    /// over-constrains, or whose bundle leaves a freedom unwritten.
     pub placement: Option<RecipeNodeId>,
     /// The constraints of [`Self::placement`] the fault names: each an
-    /// equation of which the rest of the bundle already fixes, or the
-    /// bundle's constraints whose targets differ.
+    /// equation of which the rest of the bundle already fixes.
     pub constraints: Option<&'a [ConstraintId]>,
     /// How many of the copy's six freedoms an over-constrained bundle
     /// leaves.
@@ -81,8 +80,8 @@ pub struct MateFaultPayload<'a> {
     pub expected_document: Option<DocumentId>,
     /// The document the solve is of.
     pub found_document: Option<DocumentId>,
-    /// **The nested refusal's own word**: the lever refusal's, or the
-    /// world read's. An arm with no nested refusal has none.
+    /// **The nested refusal's own word**: the lever refusal's. An arm
+    /// with no nested refusal has none.
     pub inner_variant: Option<&'static str>,
     /// The kind of pose a mate's `on` reads, where the two kinds
     /// differ.
@@ -91,12 +90,6 @@ pub struct MateFaultPayload<'a> {
     pub to_kind: Option<VarKind>,
     /// **The value a value's fault is about**, by its address.
     pub value_ref: Option<MateRef>,
-    /// The constraint id a value names that is no mate of its bundle.
-    pub named: Option<ConstraintId>,
-    /// The freedom a value sets.
-    pub coord: Option<Coord>,
-    /// The kind of the mate whose kind fixes the freedom a value sets.
-    pub mate_kind: Option<VarKind>,
     /// Why a value's freedom has no chart.
     pub why: Option<NoChartWhy>,
 }
@@ -108,7 +101,7 @@ impl<'a> MateFaultPayload<'a> {
     /// The destructuring is exhaustive with no `..`, so a field added
     /// to the record and not answered here fails to compile — the
     /// same alarm the match over [`MateFault`] is, one level in.
-    pub fn presence(&self) -> [(&'static str, bool); 19] {
+    pub fn presence(&self) -> [(&'static str, bool); 16] {
         let Self {
             mate,
             side,
@@ -125,9 +118,6 @@ impl<'a> MateFaultPayload<'a> {
             on_kind,
             to_kind,
             value_ref,
-            named,
-            coord,
-            mate_kind,
             why,
         } = self;
         [
@@ -146,9 +136,6 @@ impl<'a> MateFaultPayload<'a> {
             ("on_kind", on_kind.is_some()),
             ("to_kind", to_kind.is_some()),
             ("value_ref", value_ref.is_some()),
-            ("named", named.is_some()),
-            ("coord", coord.is_some()),
-            ("mate_kind", mate_kind.is_some()),
             ("why", why.is_some()),
         ]
     }
@@ -179,9 +166,6 @@ impl<'a> MateFaultPayload<'a> {
         on_kind: None,
         to_kind: None,
         value_ref: None,
-        named: None,
-        coord: None,
-        mate_kind: None,
         why: None,
     };
 }
@@ -212,12 +196,10 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             found_document: Some(*found),
             ..none
         },
-        MateFault::ClassNotAdmitted { mate } | MateFault::NotOnTheCopy { mate } => {
-            MateFaultPayload {
-                mate: Some(*mate),
-                ..none
-            }
-        }
+        MateFault::NotOnTheCopy { mate } => MateFaultPayload {
+            mate: Some(*mate),
+            ..none
+        },
         // No lever could be formed. A reach not in hand names the
         // instance or the copied shape it is about beside the refusal's
         // word, and a face that cannot be bounded names its kind in
@@ -254,12 +236,9 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             free: Some(*free),
             ..none
         },
-        MateFault::TargetsDiffer {
-            placement,
-            constraints,
-        } => MateFaultPayload {
+        MateFault::Unpinned { placement, free } => MateFaultPayload {
             placement: Some(*placement),
-            constraints: Some(constraints),
+            free: Some(*free),
             ..none
         },
         MateFault::KindsDiffer { mate, on, to } => MateFaultPayload {
@@ -268,24 +247,7 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
             to_kind: Some(*to),
             ..none
         },
-        // The world read's own refusal crosses as its word.
-        MateFault::WorldRead { mate, fault } => MateFaultPayload {
-            mate: Some(*mate),
-            inner_variant: Some(world_read_fault_tag(fault)),
-            ..none
-        },
-        // A value's faults: the value is the subject, by its address.
-        MateFault::ValueNamesNoMate { value, mate } => MateFaultPayload {
-            value_ref: Some(*value),
-            named: Some(*mate),
-            ..none
-        },
-        MateFault::NotAFreedom { value, coord, kind } => MateFaultPayload {
-            value_ref: Some(*value),
-            coord: Some(*coord),
-            mate_kind: Some(*kind),
-            ..none
-        },
+        // A value's fault: the value is the subject, by its address.
         MateFault::NoChart { value, why } => MateFaultPayload {
             value_ref: Some(*value),
             why: Some(*why),

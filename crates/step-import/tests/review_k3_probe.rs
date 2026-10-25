@@ -41,7 +41,11 @@ fn k3_scale_corruption_old_accepted_new_catches() {
         Ok(()),
         "tier 3 must pass"
     );
-    let props = topo::mass_properties(&body, Tol::witness()).unwrap();
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let expect = expect_sidecar("notched");
     let expected_m3 = expect.kernel_volume_mm3 * 1e-9;
     let ulp = expected_m3.next_up() - expected_m3;

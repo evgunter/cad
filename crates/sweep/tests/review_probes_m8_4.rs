@@ -291,7 +291,7 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
 /// reaches. The mint fed a pair with no plane in it that does name the
 /// edge's faces, now certifiable through the NURBS × NURBS lane, is
 /// untested
-/// (`work/iso/the-m8-4-mint-with-a-non-plane-pair-is-untested.md`).
+/// (`work/isotail/the-m8-4-mint-with-a-non-plane-pair-is-untested.md`).
 #[test]
 fn probe_f_uncertifiable_pair_refuses_at_attachment() {
     // ε-independent: adjacency is decided on keys, at any tolerance, so

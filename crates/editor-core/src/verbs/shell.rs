@@ -394,6 +394,7 @@ fn fold_replace_face_error<T: Real>(
             what,
         },
         R::TogetherAxialEdge { edge, what } => R::TogetherAxialEdge { edge, what },
+        R::TogetherConicArc { edge, conic } => R::TogetherConicArc { edge, conic },
         R::DegenerateTorus { edge, refusal } => R::DegenerateTorus { edge, refusal },
         R::Escalated { source } => R::Escalated { source },
         R::Op { edge, error } => R::Op { edge, error },
@@ -531,7 +532,7 @@ mod tests {
             &prof,
             sweep::Extrusion::Distance {
                 depth: 1.0_f64,
-                side: crate::ExtrudeSide::Along,
+                side: sweep::ExtrudeSide::Along,
             },
             Tol::witness(),
         )

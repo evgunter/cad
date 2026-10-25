@@ -272,8 +272,16 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
     match topo::offset_charts_together(&mut cavity, &moves, band(), tol) {
         Err(e) => println!("  cavity REFUSED: {e:?}"),
         Ok(_) => {
-            let outer = topo::mass_properties(body, tol).map(|p| p.volume);
-            let inner = topo::mass_properties(&cavity, tol).map(|p| p.volume);
+            let outer = topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
+                tol,
+            )
+            .map(|p| p.volume);
+            let inner = topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(&cavity), tol),
+                tol,
+            )
+            .map(|p| p.volume);
             println!("  {what}: outer {outer:?} cavity {inner:?}");
             for (k, p) in cavity.vertex_points() {
                 println!("    {k:?} -> [{:.6}, {:.6}, {:.6}]", p.x, p.y, p.z);
@@ -293,7 +301,11 @@ fn sf2b_bellied_pot_sealed_and_opened() {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] SEALED hollows: {} shells, props {:?}",
             p.shells().count(),
-            topo::mass_properties(&p, tol).map(|x| (x.volume, x.surface_area))
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(&p), tol),
+                tol
+            )
+            .map(|x| (x.volume, x.surface_area))
         ),
         Err(e) => println!("[pot] SEALED REFUSED: {e:?}"),
     }
@@ -310,7 +322,11 @@ fn sf2b_bellied_pot_sealed_and_opened() {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] OPENED: {} shells, props {:?}",
             p.shells().count(),
-            topo::mass_properties(&p, tol).map(|x| (x.volume, x.surface_area))
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(&p), tol),
+                tol
+            )
+            .map(|x| (x.volume, x.surface_area))
         ),
         Err(e) => println!("[pot] OPENED REFUSED: {e:?}"),
     }

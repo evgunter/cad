@@ -2,8 +2,12 @@
 id: quad-rational-integrand-second-derivative-reads-the-quotient-rule-by-hand
 kind: issue
 title: The rational flux lane's f_dd of N/w³ is the interval quotient rule over hulls; the quotient statement reads it per piece
-status: open
+status: closed
 opened: 2026-10-13
+priority: P1
+cost: M
+closed: 2026-10-22
+pr: 5582
 ---
 
 
@@ -38,3 +42,21 @@ call. The cost side is the degree: `N` is already a triple product, so
 A row comparing the two readings' `f_dd` widths on
 `rational_quarter_cylinder_brackets_the_closed_form`'s face would
 size the gain before anything moves.
+
+## Closed
+
+PR 5582. `geom_core::spline::derivative::cell_measure_quotients` reads, per span cell in the cell's own frame:
+- the area element `M̃/W³`;
+- its slopes;
+- the flux's second partials, as quotients on exact dyadic pieces.
+
+`area_on` and `flux_second_on` restrict them to a quad cell. The rational lane's hand-written interval quotient rules are deleted. Floors fell 5–1430×, the quarter torus and the two-span half cylinder certify at the default ε, and the area bracket no longer moves under translation.
+
+Soundness fix: the flux midpoint rule is read at an interval around the exact midpoint, clamped to the cell, and a cell's span is known by construction (`span_cells`). Dual review (DR row PR-5582): no unilateral MAJOR; both MAJORs fixed and pinned.
+
+Residue rows:
+- `the-integral-composite-reads-its-midpoint-rule-at-a-rounded-midpoint` (P1; not reproduced by either reviewer);
+- `quad-rational-position-bound-is-a-quotient-of-hulls` (P3);
+- `quad-rational-area-reads-the-statement-per-hull-block` (P3);
+- `an-integral-patch-with-knots-hugging-its-edges-trips-the-area-gauge` (P2, pre-existing);
+- TCOST's `curves-review-m5-pr4-f1-costs-50x-by-seed`.

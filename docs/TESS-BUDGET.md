@@ -7,10 +7,10 @@ the shipped point selection is now the cell minimizer on the same
 certified ellipse under the ratified A = 16 first-fundamental-form
 aspect cap (`mesh::nurbs_cert::ASPECT_CAP` and
 `NurbsFaceBound::split_steps` are the statement of record), with
-the realized-lattice sliver machinery in force over it — the
+the trimmed lane triangulating over the face's lattice metric — the
 post-fix split ratio reads ~1.0 at constraint-inactive cells and
-the CSV's `cap_bands`/`snap_bands` columns say which constraint
-bound the rest.** #320 asked whether the NURBS-wall grid
+the CSV's `cap_bands` column says where the cap bound the rest
+(`snap_bands` always reads 0).** #320 asked whether the NURBS-wall grid
 sizing is "honestly tight … or systematically over-conservative", and
 asked for measurement first. This document is that measurement, the
 instrument that produced it, and what the numbers said a fix would
@@ -176,7 +176,7 @@ re-derived (spec D-4) so BOTH regression kinds stay visible:
 * `opt_cells`, `span_opt_cells` — as before (cheapest split under the
   whole-patch bound / per cell). `grid_cells / span_opt_cells` is the
   gate's per-face recoverable-slack ratio, now carrying the split
-  factor PLUS the banding and malign-snap forfeits, summed.
+  factor PLUS the banding forfeit, summed.
 
 What guards `band_schedule` itself: (i) the per-triangle certificate —
 `NurbsCellGrid::cert` reads the raw per-cell bounds independent of the
@@ -720,16 +720,22 @@ and `mesh::nurbs_cert::ASPECT_CAP` are the shipped statement of record.
 
 ### The sliver hazard the schedule is built around
 
-An anisotropic lattice strip admits a Delaunay-legal sliver of
-certificate ~`(aspect²+1)/8·δ_s` beside ANY off-lattice point — trim
-chords, band interfaces' foreign columns, anchor tops, refinement
-centroids — and no local insertion converges. What keeps slivers out on
-ruled walls is lattice ALIGNMENT, not spacing: the per-v-band schedule
-(`NurbsCellGrid::band_schedule`) snaps `nuc` to the whole-patch count
-where aspect demands it, and the split selection projects to an exact
-patch count run to a fixpoint. Read both aspect bounds at their
-constants, `mesh::nurbs_cert::SAFE_ASPECT` and `ASPECT_CAP`, never from
-a second copy: they are different quantities and both bind.
+A lattice strip that is anisotropic where the CDT runs admits a
+Delaunay-legal sliver of certificate ~`(aspect²+1)/8·δ_s` beside ANY
+off-lattice point — trim chords, band interfaces' foreign columns,
+anchor tops, refinement centroids — and no local insertion converges.
+Delaunay is not stretch-invariant, so the trimmed lane does not run it
+in raw UV: it runs it in the face's lattice metric (`(u/k, v)`, `k` a
+power of two near the bands' mean realized aspect,
+`mesh::nurbs_cert::lattice_metric`), where a ruled wall's strip is near
+square. That is what keeps slivers out on ruled walls.
+
+Bands are not aligned to a shared column count: each keeps its own
+(`NurbsCellGrid::band_schedule`; the measurement that alignment keeps
+no face sound over the metric is `work/tess/the-lower-malign-arm-is-unwitnessed`).
+A band whose residual over the metric is large still slivers; such a
+face refuses typed (`CertificateExceeded`). The one aspect bound is
+`mesh::nurbs_cert::ASPECT_CAP`, on 3-D cell shape.
 
 Two live caveats. The cheapest split is a strip at a parameter aspect
 nothing would choose, so `opt_cells` is an UPPER BOUND on a practical

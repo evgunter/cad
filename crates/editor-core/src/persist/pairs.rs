@@ -1,5 +1,5 @@
 //! Structural-key map encoding (spec D3: appearance keys are
-//! [`StableName`]s "serialized structurally", each with the body read
+//! [`crate::StableName`]s "serialized structurally", each with the body read
 //! it is read in — [`AppearanceKey`], NAMES N1). JSON maps require
 //! string keys, so name-keyed maps persist as a LIST of `[key, value]`
 //! pairs — the key stays a structural tree. Strict on load: a

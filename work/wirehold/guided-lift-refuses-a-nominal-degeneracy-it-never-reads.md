@@ -2,12 +2,12 @@
 id: guided-lift-refuses-a-nominal-degeneracy-it-never-reads
 kind: issue
 title: Under ProfileLift::Guided the profile is placed by frame_plane_lane and never reads the nominal, yet a nominal direction degeneracy still refuses it; a DERIVED frame in the same position builds
-status: parked
+status: closed
 opened: 2026-09-12
 refs: [2435]
 priority: P0
 cost: H
-blocked_on: [transform-retires-into-a-placement]
+closed: 2026-10-23
 ---
 
 
@@ -70,3 +70,14 @@ the same three sites.
 Read against the tree at `fd218851f9`. `profile_plane_f64` still runs under every lift and raises `FrameDirection` on `FramePlacement::Unreadable`. Stage 3 D makes a profile 2-D and retires `Node::Datum`, so the authored frame this refusal reads goes; probably moot. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+## Closed (2026-10-23)
+
+Moot in D, as the 10-17 triage expected. `ProfileLift`,
+`profile_plane_f64`, `FramePlacement`, `frame_plane_lane` and the
+`"datum frame x axis"` role no longer exist anywhere under `crates/`, and
+`Node::Datum` retired in `5bae0fff20`. A profile is 2-D now:
+`wire_profile` builds every value on `profile::SketchPlane::xy()`
+(`crates/editor-core/src/eval/wire.rs:1586-1592`). No lift reads an
+authored frame's nominal, and no authored frame is left for a nominal
+refusal to read, so the Guided/Pinned asymmetry cannot occur.
