@@ -10,14 +10,15 @@ This page states how the mesher sizes its output to keep that promise.
 
 `[mesh.sizing]`
 
-**Each lane sizes its grid so that the worst triangle its own
-triangulation can admit certifies within δ and above δ/2, by a theorem
-stated and pinned at that lane's step function.** A lane never
-over-refines. Where a step inverts the lane's certificate continuously
-it is the coarsest that the theorem allows, and its worst triangle
-lands at δ. A lane whose schedule is discrete (a repeated halving, say)
-may land anywhere in (δ/2, δ]. There is no global safety factor, and
-unspent δ beyond that factor of two is a defect, not a margin.
+**Each lane sizes its grid as coarse as it can without extra work:
+the coarsest step its own theorem grants for the worst triangle its
+triangulation can admit, stated and pinned at that lane's step
+function.** There is no global safety factor and no headroom. A lane
+never over-refines for margin. It also buys no extra machinery only to
+close the last gap to δ. Where the step inverts the lane's certificate
+directly, its worst triangle lands at δ. Where the schedule is discrete
+(a repeated halving, say), it lands where that schedule's coarsest
+admissible step puts it.
 
 - **The theorem is the lane's.** It names the worst admissible
   triangle and bounds it in closed form:
@@ -26,9 +27,9 @@ unspent δ beyond that factor of two is a defect, not a margin.
   - the Delaunay sliver beside an off-lattice point where the
     triangulation admits one.
 
-  It is pinned, in the shape of
-  `torus_grid_steps_meet_the_bound_with_equality`: with equality at a
-  continuous step, and inside (δ/2, δ] at a discrete one. A constant that
+  It is pinned in the shape of
+  `torus_grid_steps_meet_the_bound_with_equality`: the step is the
+  coarsest the lane's own schedule admits. A constant that
   follows from a lane's theorem is written as derived from it, never
   by hand: the NURBS lane's residual line `MAX_RESIDUAL_SQ` is its
   sliver theorem solved for the aspect.

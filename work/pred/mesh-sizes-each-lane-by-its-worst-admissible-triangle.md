@@ -1,7 +1,7 @@
 ---
 id: mesh-sizes-each-lane-by-its-worst-admissible-triangle
 kind: unit
-title: Build [mesh.sizing]: each lane's worst admissible triangle certifies in (δ/2, δ] by a pinned theorem; δ/2 and the sphere's 1.25 retire; sphere and cone rims chorded to the grid
+title: Build [mesh.sizing]: each lane's worst admissible triangle is sized at the coarsest step its pinned theorem grants; δ/2 and the sphere's 1.25 retire; sphere and cone rims chorded to the grid
 status: open
 opened: 2026-10-25
 priority: P1
@@ -16,8 +16,8 @@ Ruled by Ev on PR 5708 (`S29`). The rule is `crates/mesh/README.md`
 - `nurbs_cert::MAX_RESIDUAL_SQ` is written as derived from the NURBS
   lane's sliver theorem.
 - Each lane's worst-admissible-triangle theorem is stated at its step
-  function and pinned. With equality at a continuous step, as the
-  torus is now; inside (δ/2, δ] at a discrete one.
+  function and pinned: the coarsest step the lane's own schedule
+  admits, without extra machinery bought only to close the gap to δ.
 - Sphere and cone rim chords are tightened to the face's grid step
   through the chord pass's tightening door, as the torus already is.
   This also answers TESS's
