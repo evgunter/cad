@@ -154,13 +154,19 @@ fn cone_ellipse(span: (f64, f64), band: Band) -> Outcome {
 /// semi-axis `1`; the door now reads the turn between that floor and the
 /// sup over the turn's defect, as certification does.
 ///
-/// **The expected deltas**, each listed: with the defect at the fast
-/// side (`θ = π/2`, speed 16), where the floor reads the defect `Zero`
-/// and the sup reads it in the band (`0.5·ε` of the floor's length, and
-/// `3·ε` and `5·ε` of the sup's), the arc was admitted and now escalates — over-wound and
-/// short alike, since neither bound settles whether the extent is a
-/// whole turn or short of one. Nothing moves between admitted and
-/// refused, and the slow side (`θ = 0`, speed 1) does not move.
+/// **The expected deltas**, each listed, all with the defect at the fast
+/// side (`θ = π/2`, speed 16); the slow side (`θ = 0`, speed 1) does not
+/// move, and nothing moves between admitted and refused:
+/// - where the floor reads the defect `Zero` and the sup reads it in the
+///   band (`0.5·ε` of the floor's length, and `3·ε` and `5·ε` of the
+///   sup's), the arc was admitted and now escalates — over-wound and
+///   short alike, since neither bound settles whether the extent is a
+///   whole turn or short of one;
+/// - where the floor reads a short arc's headroom in the band and the sup
+///   reads it definitely positive (`3·ε` and `5·ε` short of the floor's
+///   length, `20·ε` and `30·ε` short of the sup's), the arc escalated and
+///   is now admitted: it is short of a turn in its parameter
+///   ([`geom_core::period::TurnUndecided::not_over_at_sup`]).
 #[test]
 fn the_cone_ellipse_door_agrees_with_the_old_pair() {
     let band = band();
@@ -169,13 +175,19 @@ fn the_cone_ellipse_door_agrees_with_the_old_pair() {
         "props_cone_ellipse_span_winding",
     ];
     // (side, the rate the defect is a multiple of, k)
-    let deltas: [(&str, f64, f64); 6] = [
+    let escalates: [(&str, f64, f64); 6] = [
         ("fast", 1.0, 0.5),
         ("fast", 1.0, -0.5),
         ("fast", 16.0, 3.0),
         ("fast", 16.0, -3.0),
         ("fast", 16.0, 5.0),
         ("fast", 16.0, -5.0),
+    ];
+    let admits: [(&str, f64, f64); 4] = [
+        ("fast", 1.0, -3.0),
+        ("fast", 1.0, -5.0),
+        ("fast", 16.0, -20.0),
+        ("fast", 16.0, -30.0),
     ];
     let mut seen = 0;
     for (side, centre, sup) in [("fast", FRAC_PI_2, 16.0), ("slow", 0.0, 1.0)] {
@@ -185,13 +197,20 @@ fn the_cone_ellipse_door_agrees_with_the_old_pair() {
                 let span = (t0, t0 + TAU + d);
                 let old = old_span(span, 1.0, band, names);
                 let new = cone_ellipse(span, band);
-                if deltas.contains(&(side, rate, k)) {
+                if escalates.contains(&(side, rate, k)) {
                     seen += 1;
                     assert_eq!(old, Outcome::Admitted, "{side} {k}: the listed delta");
                     assert!(
                         matches!(new, Outcome::Escalated(_)),
                         "{side} {k}: the listed delta, got {new:?}"
                     );
+                } else if admits.contains(&(side, rate, k)) {
+                    seen += 1;
+                    assert!(
+                        matches!(old, Outcome::Escalated(_)),
+                        "{side} {k}: the listed delta, was {old:?}"
+                    );
+                    assert_eq!(new, Outcome::Admitted, "{side} {k}: the listed delta");
                 } else {
                     assert_eq!(new, old, "{side} at rate {rate}, k = {k}: unlisted");
                 }
@@ -206,7 +225,11 @@ fn the_cone_ellipse_door_agrees_with_the_old_pair() {
             "{side}: reversed"
         );
     }
-    assert_eq!(seen, deltas.len(), "every listed delta is a case");
+    assert_eq!(
+        seen,
+        escalates.len() + admits.len(),
+        "every listed delta is a case"
+    );
 }
 
 /// **The oracle**: the apex loop's sweep as it was spelled, the headroom
@@ -298,9 +321,7 @@ fn the_rim_only_closure_agrees_with_the_old_excess() {
         .chain([(0.0, -core::f64::consts::PI)])
     {
         let du = TAU + d;
-        let Some(extent) = Extent::hull([0.0, du]) else {
-            unreachable!("two values")
-        };
+        let extent = Extent::between(0.0, du);
         let old = old_rim_only_closed(du, arm, band);
         let new = outcome(require_rim_only_closed::<f64>(&[], extent, arm, band));
         match (old, new) {
@@ -323,37 +344,18 @@ fn old_pole_arc_full<T: Decide>(span: T, radius: T, band: Band) -> Result<bool, 
         .map_err(escalated)
 }
 
-/// **A sphere arc's whole-circle read agrees with its old test, but for
-/// the listed delta**, on every defect at a radius that is not one.
-///
-/// **The expected delta**: an arc definitely over a turn read as no
-/// whole circle; it now refuses (`props_sphere_pole_arc_full`). The arc's
-/// own span door refuses such an arc first, at this rate and band
-/// ([`the_circle_span_doors_agree_with_the_old_pair`]), so no loop
-/// reaches it.
+/// **A sphere arc's whole-circle read agrees with its old test, bit for
+/// bit**, on every defect at a radius that is not one: a whole turn is a
+/// full circle, any other settled reading is not.
 #[test]
 fn the_pole_arc_full_read_agrees_with_the_old_test() {
     let band = band();
     let radius = 3.0;
-    let mut over = 0;
     for (k, d) in defects(band, radius).into_iter().chain([(0.0, -1.0)]) {
         let span = TAU + d;
-        let Some(extent) = Extent::hull([0.0, span]) else {
-            unreachable!("two values")
-        };
         let old = old_pole_arc_full(span, radius, band);
-        let new = pole_arc_full(extent, radius, band).map_err(|e| outcome::<()>(Err(e)));
-        if k >= 20.0 {
-            over += 1;
-            assert_eq!(old, Ok(false), "k = {k}: the listed delta");
-            assert_eq!(
-                new,
-                Err(Outcome::Refused("props_sphere_pole_arc_full")),
-                "k = {k}: the listed delta"
-            );
-        } else {
-            assert_eq!(new, old, "k = {k}");
-        }
+        let new = pole_arc_full(Extent::between(0.0, span), radius, band)
+            .map_err(|e| outcome::<()>(Err(e)));
+        assert_eq!(new, old, "k = {k}");
     }
-    assert_eq!(over, 3, "every listed delta is a case");
 }

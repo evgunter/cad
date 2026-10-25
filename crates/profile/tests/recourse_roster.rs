@@ -591,6 +591,7 @@ fn each_lever_row_ends_in_its_lever_on_a_value_reading() {
     const SIZED: &str = "Recourse: move the geometry, or, if this size is intended, tighten the \
                          tolerance below 5e-10 m";
     let rows: &[(&str, &str)] = &[
+        ("arc_sweep_length", MOVE),
         ("arc_sweep_range", MOVE),
         ("canonical_order_y", MOVE),
         ("full_turn_sense", MOVE),

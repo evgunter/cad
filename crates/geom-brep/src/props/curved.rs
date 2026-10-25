@@ -27,7 +27,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_core::period::{Bounded, Exact, Extent, NotForward, Turn, TurnRate, TurnRows, Within};
+use geom_core::period::{Bounded, Exact, Extent, NotForward, TurnRate, TurnRows};
 use geom_core::{
     Band, Decide, InfSpeed, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign,
     UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
@@ -887,7 +887,7 @@ impl<T: Decide> Rim<T> {
         r_c: T,
         band: Band,
     ) -> Result<Self, PropsError> {
-        let (dt, _) = require_rim_span(e, r_c, band)?;
+        let dt = require_rim_span(e, r_c, band)?;
         Ok(Self {
             d_u_sign,
             dt,
@@ -1878,9 +1878,9 @@ fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsE
         },
     )?;
     let sweep = "props_cone_apex_loop_sweep";
-    match Period::new(T::tau()).turn(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
-        Ok(Turn::Short(_) | Turn::Whole(_)) => Ok(()),
-        Ok(Turn::Over(_)) => Err(PropsError::ConeLoop { what: sweep }),
+    match Period::new(T::tau()).not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(PropsError::ConeLoop { what: sweep }),
         Err(undecided) => Err(escalated(undecided.diag)),
     }
 }
@@ -2966,9 +2966,9 @@ fn require_rim_only_closed<T: Decide>(
     band: Band,
 ) -> Result<(), PropsError> {
     let name = "props_rim_only_closed";
-    match Period::new(T::tau()).turn(TurnRows::exact(name), du, Exact::new(arm), band) {
-        Ok(Turn::Whole(_)) => {}
-        Ok(Turn::Short(_) | Turn::Over(_)) => return Err(Premise::Inventory.refusal(name)),
+    match Period::new(T::tau()).whole_turn(TurnRows::exact(name), du, Exact::new(arm), band) {
+        Ok(true) => {}
+        Ok(false) => return Err(Premise::Inventory.refusal(name)),
         Err(undecided) => {
             return Err(PropsError::Escalated {
                 cause: undecided.diag,
@@ -3434,7 +3434,7 @@ fn sphere_loop<T: Decide>(
             Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
             band,
         )?;
-        let (extent, _) = require_circle_span(
+        let extent = require_circle_span(
             (e.t0, e.t1),
             r_c,
             band,
@@ -4030,20 +4030,15 @@ fn pole_side<T: Decide>(
 }
 
 /// Whether a sphere arc of `extent` on a circle of `radius` is a whole
-/// circle (`props_sphere_pole_arc_full`, the turn rule). Its span was
-/// decided not over at this rate and band ([`sphere_loop`]), so a
-/// reading past a turn refuses.
+/// circle (`props_sphere_pole_arc_full`, the turn rule's whole turn).
 fn pole_arc_full<T: Decide>(extent: Extent<T>, radius: T, band: Band) -> Result<bool, PropsError> {
-    let name = "props_sphere_pole_arc_full";
-    match Period::new(T::tau()).turn(TurnRows::exact(name), extent, Exact::new(radius), band) {
-        Ok(Turn::Whole(_)) => Ok(true),
-        Ok(Turn::Short(_)) => Ok(false),
-        Ok(Turn::Over(_)) => Err(PropsError::SphereLoop { what: name }),
-        Err(undecided) => Err(PropsError::Escalated {
+    let rows = TurnRows::exact("props_sphere_pole_arc_full");
+    Period::new(T::tau())
+        .whole_turn(rows, extent, Exact::new(radius), band)
+        .map_err(|undecided| PropsError::Escalated {
             cause: undecided.diag,
             check: PropsCheck::Inventory,
-        }),
-    }
+        })
 }
 
 /// Whether the point `p`, on `arc`'s carrier, lies within its stored
@@ -4067,7 +4062,7 @@ fn require_rim_span<T: Decide>(
     e: &LoopEdge<T>,
     r_c: T,
     band: Band,
-) -> Result<(Extent<T>, Within), PropsError> {
+) -> Result<Extent<T>, PropsError> {
     require_circle_span(
         (e.t0, e.t1),
         r_c,
@@ -4108,7 +4103,7 @@ fn require_circle_span<T: Decide>(
     band: Band,
     [forward, winding]: [&'static str; 2],
     refuse: fn(&'static str) -> PropsError,
-) -> Result<(Extent<T>, Within), PropsError> {
+) -> Result<Extent<T>, PropsError> {
     require_span_within_period(
         span,
         InfSpeed::new(radius),
@@ -4128,11 +4123,10 @@ fn require_circle_span<T: Decide>(
 /// decided under the asker's own names with certification's rates and
 /// band, hence its dispositions: the forward half admits only a
 /// definite `Positive` span (certification's `IntervalNotForward`), the
-/// turn admits [`Turn::Short`] and [`Turn::Whole`] and refuses
-/// [`Turn::Over`]; an undecided reading escalates. The rate is the
-/// asker's, read off the decided extent (a bounded rate's sup is over
-/// the turn's defect); the extent and its turn are returned for the
-/// asker that reads them again.
+/// turn is asked "not over" ([`Period::not_over`]), refusing an extent
+/// over a turn; an undecided reading escalates. The rate is the asker's,
+/// read off the decided extent (a bounded rate's sup is over the turn's
+/// defect); the extent is returned for the asker that reads it again.
 ///
 /// Each asker brings its own rates and names:
 ///
@@ -4160,7 +4154,7 @@ fn require_span_within_period<T: Decide, R: TurnRate<T>>(
     forward: &'static str,
     band: Band,
     refuse: fn(&'static str) -> PropsError,
-) -> Result<(Extent<T>, Within), PropsError> {
+) -> Result<Extent<T>, PropsError> {
     let escalated = |cause| PropsError::Escalated {
         cause,
         check: PropsCheck::Inventory,
@@ -4170,12 +4164,13 @@ fn require_span_within_period<T: Decide, R: TurnRate<T>>(
         NotForward::Zero(_) | NotForward::Reversed(_) => refuse(forward),
     })?;
     let (rate, rows) = rate(extent);
-    let turn = Period::new(T::tau())
-        .turn(rows, extent, rate, band)
-        .map_err(|undecided| escalated(undecided.diag))?;
-    match turn.within() {
-        Some(within) => Ok((extent, within)),
-        None => Err(refuse(rows.turn)),
+    if Period::new(T::tau())
+        .not_over(rows, extent, rate, band)
+        .map_err(|undecided| escalated(undecided.diag))?
+    {
+        Ok(extent)
+    } else {
+        Err(refuse(rows.turn))
     }
 }
 
@@ -5419,7 +5414,7 @@ mod rim_level_review_probe {
         let band = Band::linear(Tol::witness()).expect("band");
         let rim = Rim {
             d_u_sign: Sign::Positive,
-            dt: Extent::hull([0.0, 1.0]).expect("two values"),
+            dt: Extent::between(0.0, 1.0),
             level: RimLevel::Unit(0.5, 0.5),
         };
         // Rim is `Unit`, the ends are `Length`.
@@ -5468,7 +5463,7 @@ mod rim_level_review_probe {
         let d = band.zero() * 0.8;
         let rim = Rim {
             d_u_sign: Sign::Positive,
-            dt: Extent::hull([0.0, 1.0]).expect("two values"),
+            dt: Extent::between(0.0, 1.0),
             level: RimLevel::Unit(d, d),
         };
         let got = require_rims_at_extremes(

@@ -135,7 +135,7 @@ use core::fmt;
 
 use crate::swept::CapPlaneError;
 use geom_core::k_stats::NonzeroSign;
-use geom_core::period::{Exact, Extent, Period, Turn, TurnRows};
+use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
@@ -964,9 +964,9 @@ fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool,
             _ => RevolveError::AngleEscalated { source },
         })?;
     let rows = TurnRows::exact("revolve_angle_headroom");
-    match Period::new(T::tau()).turn(rows, angle, Exact::new(r_max), band) {
-        Ok(Turn::Short(_)) => Ok(sign == NonzeroSign::Positive),
-        Ok(Turn::Whole(_) | Turn::Over(_)) => Err(RevolveError::FullRangeAngle),
+    match Period::new(T::tau()).strictly_partial(rows, angle, Exact::new(r_max), band) {
+        Ok(true) => Ok(sign == NonzeroSign::Positive),
+        Ok(false) => Err(RevolveError::FullRangeAngle),
         Err(undecided) => Err(RevolveError::AngleEscalated {
             source: undecided.diag,
         }),

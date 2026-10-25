@@ -144,7 +144,7 @@
 
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
-use geom_core::period::{Exact, Extent, NotForward, Period, Turn, TurnRows};
+use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Margin, Point2, Sign, Vec2,
     is_underflowed_length,
@@ -1754,7 +1754,7 @@ fn window_mid<T: Decide + Bounds>(uv: &FaceUv<T>) -> T {
 /// [`ChartRegionError::Escalated`] when the span sits in the sliver
 /// band — a nearly-full wrap is neither a band nor a general window
 /// and must not be silently classified as either.
-fn wrap_band<T: Decide + Bounds>(
+pub(crate) fn wrap_band<T: Decide + Bounds>(
     outer: &[Point2<T>],
     radius: T,
     band: Band,
@@ -1798,11 +1798,26 @@ fn wrap_band<T: Decide + Bounds>(
     // forward from the least to the greatest; it is decided so rather
     // than hulled again, which would wrap the corners' expressions in a
     // `min` and a `max`.
+    // A span not forward (none, or one in the band near zero) is
+    // certainly no whole turn, so it is no band, and an in-band reading's
+    // escalation is superseded by that answer.
     let fwd = "chart_region_cyl_wrap_forward";
-    let span = match Extent::forward(fwd, outer[ul].x, outer[uh].x, InfSpeed::new(radius), band) {
-        Ok(span) => span,
-        Err(NotForward::Zero(_) | NotForward::Reversed(_)) => return Ok(None),
-        Err(NotForward::Undecided(diag)) => return Err(ChartRegionError::Escalated(diag)),
+    let (span, recording) = geom_core::k_stats::detached(|| {
+        Extent::forward(fwd, outer[ul].x, outer[uh].x, InfSpeed::new(radius), band)
+    });
+    let span = match span {
+        Ok(span) => {
+            geom_core::k_stats::splice(recording);
+            span
+        }
+        Err(NotForward::Undecided(_)) => {
+            geom_core::k_stats::splice_superseded(recording);
+            return Ok(None);
+        }
+        Err(NotForward::Zero(_) | NotForward::Reversed(_)) => {
+            geom_core::k_stats::splice(recording);
+            return Ok(None);
+        }
     };
     Ok(cyl_wrap_whole(span, radius, band)?.then(|| (outer[vl].y, outer[vh].y)))
 }
@@ -2833,11 +2848,9 @@ pub(crate) fn cyl_wrap_whole<T: Decide>(
     band: Band,
 ) -> Result<bool, ChartRegionError> {
     let rows = TurnRows::exact("chart_region_cyl_wrap");
-    match Period::new(T::tau()).turn(rows, span, Exact::new(radius), band) {
-        Ok(Turn::Whole(_)) => Ok(true),
-        Ok(Turn::Short(_) | Turn::Over(_)) => Ok(false),
-        Err(undecided) => Err(ChartRegionError::Escalated(undecided.diag)),
-    }
+    Period::new(T::tau())
+        .whole_turn(rows, span, Exact::new(radius), band)
+        .map_err(|undecided| ChartRegionError::Escalated(undecided.diag))
 }
 
 /// Whether a face pair's azimuth hull is definitely over one turn at
@@ -2848,11 +2861,10 @@ pub(crate) fn seam_span_over<T: Decide>(
     band: Band,
 ) -> Result<bool, ChartRegionError> {
     let rows = TurnRows::exact("chart_region_seam_span");
-    match Period::new(T::tau()).turn(rows, span, Exact::new(radius), band) {
-        Ok(Turn::Over(_)) => Ok(true),
-        Ok(Turn::Short(_) | Turn::Whole(_)) => Ok(false),
-        Err(undecided) => Err(ChartRegionError::Escalated(undecided.diag)),
-    }
+    Period::new(T::tau())
+        .not_over(rows, span, Exact::new(radius), band)
+        .map(|not_over| !not_over)
+        .map_err(|undecided| ChartRegionError::Escalated(undecided.diag))
 }
 
 /// Shoelace + perimeter of a chart polygon (evaluation lane): `2A`

@@ -132,7 +132,7 @@
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
-use geom_core::period::{Bounded, Exact, Extent, Period, Turn, TurnRow, TurnRows, TurnUndecided};
+use geom_core::period::{Bounded, Exact, Extent, Period, TurnRows, TurnUndecided};
 use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
 use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
@@ -1068,52 +1068,29 @@ fn chart_of<T: Decide>(
     })
 }
 
-/// A chart channel's rate for check 2's period gate.
-#[derive(Clone, Copy)]
-enum ChannelRate<T> {
-    /// The chart's stretch in the channel is one constant.
-    Exact(Exact<T>),
-    /// The stretch varies over the box, between these bounds.
-    Bounded(Bounded<T>),
-}
-
 /// The period gate's row, and the straddle of a bounded channel's two
 /// readings.
 const PERIOD_ROWS: TurnRows<&str> =
     TurnRows::bounded("pcurve_azimuth_period", "pcurve_azimuth_period_straddle");
 
-impl<T: Decide> ChannelRate<T> {
-    /// The turn rule on `extent` at this rate. "Not over" is the
-    /// question: a bounded straddle whose sup reads the headroom
-    /// definitely positive is a sweep definitely short of a turn in
-    /// the parameter, its metric shortfall within the band at the inf,
-    /// so it is short, and the straddle it rests on is superseded
-    /// ([`geom_core::k_stats::splice_superseded`]).
-    fn turn(self, extent: Extent<T>, band: Band) -> Result<Turn, TurnUndecided> {
-        let one_turn = Period::new(T::tau());
-        match self {
-            Self::Exact(rate) => {
-                one_turn.turn(TurnRows::exact(PERIOD_ROWS.turn), extent, rate, band)
-            }
-            Self::Bounded(rate) => {
-                let (turn, recording) =
-                    geom_core::k_stats::detached(|| one_turn.turn(PERIOD_ROWS, extent, rate, band));
-                match turn {
-                    Err(TurnUndecided {
-                        on: TurnRow::Straddle,
-                        over_at_sup: false,
-                        diag,
-                    }) => {
-                        geom_core::k_stats::splice_superseded(recording);
-                        Ok(Turn::Short(diag.margin))
-                    }
-                    turn => {
-                        geom_core::k_stats::splice(recording);
-                        turn
-                    }
-                }
-            }
-        }
+/// The period gate's row at an exact channel.
+const PERIOD_EXACT: TurnRows<()> = TurnRows::exact(PERIOD_ROWS.turn);
+
+/// Check 2's disposition of one channel's "not over": a sweep over a
+/// turn refuses as `exceeded`, an undecided one escalates under `check`.
+fn period_gate(
+    not_over: Result<bool, TurnUndecided>,
+    check: PcurveCheck,
+    exceeded: PcurveCertifyError,
+) -> Result<(), PcurveCertifyError> {
+    match not_over {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(exceeded),
+        Err(undecided) => Err(PcurveCertifyError::Escalated {
+            check,
+            sample: 0,
+            cause: undecided.diag,
+        }),
     }
 }
 
@@ -2278,52 +2255,37 @@ pub(super) fn run_projected_checks<T: Decide>(
         // spline carrier's parameter is no angle, so it has no turns to
         // count (`work/pcert/projected-period-gate-stands-in-for-a-winding-bound-a-spline-carrier-has-none.md`).
         //
-        // Each channel's sweep is read against one turn by the turn rule
-        // ([`Period::turn`]) at that channel's chart rate: exact where
+        // Each channel's sweep is asked "not over" by the turn rule
+        // ([`Period::not_over`]) at that channel's chart rate: exact where
         // the chart's stretch in it is constant (a cylinder's azimuth, a
         // torus's tube), bounded where it varies over the box (the
         // sphere's, torus's and cone's azimuth: `azimuth_lever_inf` to
         // the sup arm).
         let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed)?;
         let swept = image.sweep_box(t0, t1);
-        let hull = |lo: T, hi: T| {
-            let Some(extent) = Extent::hull([lo, hi]) else {
-                unreachable!("a hull of two values is one")
-            };
-            extent
+        let one_turn = Period::new(T::tau());
+        let azimuth = Extent::between(swept.u_min, swept.u_max);
+        let not_over = match *surface {
+            Surface::Cylinder { radius, .. } => {
+                one_turn.not_over(PERIOD_EXACT, azimuth, Exact::new(radius), band)
+            }
+            _ => {
+                let inf = super::azimuth_lever_inf(surface, boxed.v_min, boxed.v_max);
+                one_turn.not_over(PERIOD_ROWS, azimuth, Bounded::new(inf, u_arm), band)
+            }
         };
-        let azimuth = match *surface {
-            Surface::Cylinder { radius, .. } => ChannelRate::Exact(Exact::new(radius)),
-            _ => ChannelRate::Bounded(Bounded::new(
-                super::azimuth_lever_inf(surface, boxed.v_min, boxed.v_max),
-                u_arm,
-            )),
-        };
-        let mut gates = vec![(
-            hull(swept.u_min, swept.u_max),
-            azimuth,
+        period_gate(
+            not_over,
             PcurveCheck::AzimuthPeriod,
             PcurveCertifyError::AzimuthPeriodExceeded,
-        )];
+        )?;
         if let Surface::Torus { minor_radius, .. } = *surface {
-            gates.push((
-                hull(swept.v_min, swept.v_max),
-                ChannelRate::Exact(Exact::new(minor_radius)),
+            let tube = Extent::between(swept.v_min, swept.v_max);
+            period_gate(
+                one_turn.not_over(PERIOD_EXACT, tube, Exact::new(minor_radius), band),
                 PcurveCheck::TubePeriod,
                 PcurveCertifyError::TubePeriodExceeded,
-            ));
-        }
-        for (extent, rate, check, exceeded) in gates {
-            let escalated = |cause| PcurveCertifyError::Escalated {
-                check,
-                sample: 0,
-                cause,
-            };
-            match rate.turn(extent, band) {
-                Ok(Turn::Short(_) | Turn::Whole(_)) => {}
-                Ok(Turn::Over(_)) => return Err(exceeded),
-                Err(undecided) => return Err(escalated(undecided.diag)),
-            }
+            )?;
         }
     }
 

@@ -865,20 +865,21 @@ impl<T: Decide> ConicArc<T> {
     ///
     /// - **Wound past a period** — no edge at all — where the rule reads
     ///   [`Turn::Over`].
-    /// - **An arc** wherever the sup reading is not definitely over: any
-    ///   overlap is then within the escalation band along the edge, the
-    ///   slack a circle has always had (a `Zero` or an in-band `Δ·r` is
-    ///   an arc), and points on it lie within that band of the edge's
-    ///   vertex. A gap, of any length, is an arc like any other: the
-    ///   distance trim reads a whole circle, a near-whole one and a
-    ///   short one alike — on a whole turn its two ends coincide at the
-    ///   edge's one vertex — so no gap is read as closed.
-    /// - **Between the two** — an ellipse whose overlap is definitely
-    ///   longer than the band by its upper bound but not by its lower —
-    ///   the span escalates, on the rule's row ([`TurnUndecided`]).
-    ///   Reading it as an arc would put a stretch of the edge on both
+    /// - **An arc** wherever the rule settles `Short` or `Whole`, and
+    ///   wherever the sup reads the headroom definitely positive
+    ///   ([`TurnUndecided::not_over_at_sup`], the one home of that
+    ///   admission): the edge is then short of a turn in its parameter. A
+    ///   gap, of any length, is an arc like any other: the distance trim
+    ///   reads a whole circle, a near-whole one and a short one alike —
+    ///   on a whole turn its two ends coincide at the edge's one vertex —
+    ///   so no gap is read as closed.
+    /// - **Any other undecided reading** — a circle's in-band `Δ·r`, an
+    ///   ellipse whose sup reads the headroom in the band or definitely
+    ///   negative — escalates, on the rule's row ([`TurnUndecided`]).
+    ///   Reading it as an arc could put a stretch of the edge on both
     ///   sides of its own trim, and a point ON it would read off the
-    ///   edge.
+    ///   edge. A certified edge read at its certification's band reaches
+    ///   neither: check 2 settled its turn on these readings.
     pub(crate) fn of(
         carrier: &geom::Curve3<T>,
         turn: Option<&geom_brep::CertifiedTurn<T>>,
@@ -950,20 +951,16 @@ impl<T: Decide> ConicArc<T> {
         // and a scaffold that does read the turn records it itself
         // (`carrier_loop`).
         match turn {
-            Err(TurnUndecided {
-                over_at_sup: false, ..
-            }) => geom_core::k_stats::splice_superseded(recording),
+            Err(undecided) if undecided.not_over_at_sup() => {
+                geom_core::k_stats::splice_superseded(recording);
+            }
             _ => geom_core::k_stats::splice(recording),
         }
         let span_turn = match turn {
             Ok(Turn::Over(_)) => return Err(ConicArcError::WoundPastPeriod),
             Ok(Turn::Short(_)) => Ok(Within::Short),
             Ok(Turn::Whole(_)) => Ok(Within::Whole),
-            Err(TurnUndecided {
-                diag,
-                on,
-                over_at_sup: true,
-            }) => {
+            Err(undecided @ TurnUndecided { diag, on, .. }) if !undecided.not_over_at_sup() => {
                 return Err(ConicArcError::Escalated(ReadEscalation {
                     escalation: match on {
                         TurnRow::Turn => Escalation::Margin,

@@ -191,7 +191,7 @@
 //!   face offers an aim that reads, **`bool_point_in_solid_infinity`**,
 //!   the selection's signed volume scaled to a length (`V/A`), does.
 
-use geom_core::period::{Exact, Extent, Period, Turn, TurnRows, Within};
+use geom_core::period::{Exact, Extent, Period, TurnRows, Within};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -1187,15 +1187,15 @@ pub(crate) fn trim_window_short<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let Some(window) = Extent::hull([raw.0, raw.1]) else {
-        unreachable!("a hull of two values is one")
-    };
     let rows = TurnRows::exact("bool_sphere_trim_period");
-    match Period::new(T::tau()).turn(rows, window, Exact::new(radius), band) {
-        Ok(Turn::Short(_)) => Ok(true),
-        Ok(Turn::Whole(_) | Turn::Over(_)) => Ok(false),
-        Err(undecided) => Err(undecided.diag),
-    }
+    Period::new(T::tau())
+        .strictly_partial(
+            rows,
+            Extent::between(raw.0, raw.1),
+            Exact::new(radius),
+            band,
+        )
+        .map_err(|undecided| undecided.diag)
 }
 
 /// **A sphere face's exact chart rectangle**, for the face class the

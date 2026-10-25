@@ -67,7 +67,7 @@
 //! [`ArcData`](super::program::ArcData) enum.
 
 use geom_core::k_stats::decide;
-use geom_core::period::{Exact, Extent, NotForward, Period, Turn, TurnRows};
+use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
 use geom_core::{Band, Decide, InfSpeed, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::arc_fillet::{ArcFilletTrims, FilletSide, SideCarrier};
@@ -432,9 +432,9 @@ pub(crate) fn sweep_gates<T: Decide>(r: T, angle: T, band: Band) -> Result<(), P
             }
         })?;
     let rows = TurnRows::exact("path_arc_sweep_full");
-    match Period::new(T::tau()).turn(rows, sweep, Exact::new(r), band) {
-        Ok(Turn::Short(_)) => Ok(()),
-        Ok(Turn::Whole(_) | Turn::Over(_)) => Err(PathError::ArcSweepNotShortOfFullTurn { angle }),
+    match Period::new(T::tau()).strictly_partial(rows, sweep, Exact::new(r), band) {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(PathError::ArcSweepNotShortOfFullTurn { angle }),
         Err(undecided) => Err(PathError::Escalated {
             source: undecided.diag,
         }),

@@ -57,7 +57,7 @@
 //! about the shared axis maps that to 3-D verbatim.
 
 use geom_core::k_stats::decide;
-use geom_core::period::{Exact, Extent, NotForward, Period, Turn, TurnRows};
+use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
 use geom_core::predicate::BandError;
 use geom_core::{
     Affine3, Band, Decide, Indeterminate, InfSpeed, Margin, Mat3, Point2, Point3, Real,
@@ -326,9 +326,9 @@ pub(super) fn arc_window<T: Decide>(t0: T, t1: T, arm: T, band: Band) -> Result<
         }
     })?;
     let rows = TurnRows::exact(TubeDecision::WindowHeadroom.predicate());
-    match Period::new(T::tau()).turn(rows, span, Exact::new(arm), band) {
-        Ok(Turn::Short(_)) => Ok(span.get()),
-        Ok(Turn::Whole(_) | Turn::Over(_)) => Err(TubeError::FullRangeWindow),
+    match Period::new(T::tau()).strictly_partial(rows, span, Exact::new(arm), band) {
+        Ok(true) => Ok(span.get()),
+        Ok(false) => Err(TubeError::FullRangeWindow),
         Err(undecided) => Err(escalated(TubeDecision::WindowHeadroom, undecided.diag)),
     }
 }

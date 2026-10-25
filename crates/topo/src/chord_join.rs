@@ -123,7 +123,7 @@
 //! ruling, which refuses.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
-use geom_core::period::{Exact, Extent, Period, Turn, TurnRows};
+use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -5153,15 +5153,11 @@ pub(crate) fn run_window_over<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<bool, Indeterminate> {
-    let Some(window) = Extent::hull([lo, hi]) else {
-        unreachable!("a hull of two values is one")
-    };
     let rows = TurnRows::exact("split_ring_chart_window");
-    match Period::new(T::tau()).turn(rows, window, Exact::new(radius), band) {
-        Ok(Turn::Over(_)) => Ok(true),
-        Ok(Turn::Short(_) | Turn::Whole(_)) => Ok(false),
-        Err(undecided) => Err(undecided.diag),
-    }
+    Period::new(T::tau())
+        .not_over(rows, Extent::between(lo, hi), Exact::new(radius), band)
+        .map(|not_over| !not_over)
+        .map_err(|undecided| undecided.diag)
 }
 
 /// [`ring_side`] on a cylinder wall's chart: which side of

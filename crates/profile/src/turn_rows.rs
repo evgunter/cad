@@ -156,8 +156,12 @@ fn new_range(arc: Arc2<f64>, range: Range, band: Band) -> Outcome {
 /// in both senses, near zero and near a full turn. The product and the
 /// two margins it is split into (the arc length, then the gap to a turn)
 /// agree to a factor `1 − |Δθ|/τ` near zero and `|Δθ|/τ` near a turn,
-/// so no case here moves; an in-band escalation's margin is the arc
+/// so no verdict here moves; an in-band escalation's margin is the arc
 /// length or the gap, where it was their product's.
+///
+/// **The expected delta**: a sweep in the band near zero escalates under
+/// the arc length's own row, `arc_sweep_length`, where it escalated under
+/// `arc_sweep_range`.
 #[test]
 fn the_arc_sweep_range_agrees_with_the_old_product() {
     let band = band();
@@ -175,13 +179,24 @@ fn the_arc_sweep_range_agrees_with_the_old_product() {
         near_turn.extend([TAU + d, -(TAU + d)]);
         near_zero.push(d);
     }
+    let mut renamed = 0;
     for &sweep in near_turn.iter().chain(&near_zero) {
-        assert_eq!(
+        let (new, old) = (
             new_range(arc(sweep), Range::Chord, band),
             old_range(arc(sweep), Range::Chord, band),
-            "a chord arc, Δθ = {sweep}"
         );
+        if near_zero.contains(&sweep) && old == Outcome::Escalated(Some("arc_sweep_range")) {
+            renamed += 1;
+            assert_eq!(
+                new,
+                Outcome::Escalated(Some("arc_sweep_length")),
+                "Δθ = {sweep}: the listed delta"
+            );
+        } else {
+            assert_eq!(new, old, "a chord arc, Δθ = {sweep}");
+        }
     }
+    assert_eq!(renamed, 4, "the in-band sweeps near zero: ±3·ε and ±5·ε");
     // A full turn's range is asked only past `full_turn`'s reach gate,
     // so never of a sweep near zero.
     for sweep in near_turn {
@@ -191,4 +206,60 @@ fn the_arc_sweep_range_agrees_with_the_old_product() {
             "a full turn, Δθ = {sweep}"
         );
     }
+}
+
+/// **Each reading of `arc_sweep_range`'s check has its own row**, so a
+/// recorded sign says which reading it is: the arc length's sign is the
+/// turn sense (`arc_sweep_length`, a clockwise arc `Negative` and
+/// accepted, a zero sweep `Zero` and refused), and the gap's says where
+/// the sweep stands against a turn (`arc_sweep_range`, `Positive` on a
+/// chord arc accepted, `Negative` past a turn refused, `Zero` on a full
+/// turn accepted).
+#[test]
+fn each_reading_of_the_range_check_has_its_own_row() {
+    use geom_core::k_stats::Bracket;
+    let band = band();
+    let arc = |sweep| Arc2 {
+        centre: Point2::new(0.0, 0.0),
+        radius: 2.5,
+        sweep,
+    };
+    let signs = |sweep: f64, range: Range| {
+        let bracket = Bracket::open();
+        let out = new_range(arc(sweep), range, band);
+        let rec = bracket.finish();
+        let on = |name: &str| -> Vec<Sign> {
+            rec.verdicts
+                .iter()
+                .filter(|v| v.predicate == name)
+                .map(|v| v.sign)
+                .collect()
+        };
+        (out, on("arc_sweep_length"), on("arc_sweep_range"))
+    };
+    let want = |sign: Sign| vec![sign];
+    assert_eq!(
+        signs(-PI / 2.0, Range::Chord),
+        (
+            Outcome::Admitted,
+            want(Sign::Negative),
+            want(Sign::Positive)
+        ),
+        "a clockwise chord arc"
+    );
+    assert_eq!(
+        signs(1.5 * TAU, Range::Chord),
+        (Outcome::Refused, want(Sign::Positive), want(Sign::Negative)),
+        "a chord arc past a turn"
+    );
+    assert_eq!(
+        signs(0.0, Range::Chord),
+        (Outcome::Refused, want(Sign::Zero), vec![]),
+        "a zero sweep"
+    );
+    assert_eq!(
+        signs(TAU, Range::FullTurn),
+        (Outcome::Admitted, want(Sign::Positive), want(Sign::Zero)),
+        "a full turn"
+    );
 }
