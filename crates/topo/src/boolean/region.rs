@@ -812,6 +812,20 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
     .unwrap();
 }
 
+/// A fixture edge's extent, as certification would decide it forward.
+#[cfg(test)]
+pub(crate) fn fixture_extent(t0: f64, t1: f64) -> Option<Extent<f64>> {
+    let band = Band::new(1e-9, 1e-8).ok()?;
+    Extent::forward(
+        "test_region_extent",
+        t0,
+        t1,
+        geom_core::InfSpeed::new(1.0),
+        band,
+    )
+    .ok()
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -968,18 +982,4 @@ mod tests {
             "a whole turn"
         );
     }
-}
-
-/// A fixture edge's extent, as certification would decide it forward.
-#[cfg(test)]
-pub(crate) fn fixture_extent(t0: f64, t1: f64) -> Option<Extent<f64>> {
-    let band = Band::new(1e-9, 1e-8).ok()?;
-    Extent::forward(
-        "test_region_extent",
-        t0,
-        t1,
-        geom_core::InfSpeed::new(1.0),
-        band,
-    )
-    .ok()
 }

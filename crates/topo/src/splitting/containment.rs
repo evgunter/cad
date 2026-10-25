@@ -2212,13 +2212,13 @@ mod tests {
 
     /// [`ConicArc::of`] over a fixture span, its extent decided forward
     /// as certification decides it.
-    fn conic_of(
-        carrier: &geom::Curve3<f64>,
-        (t0, t1): (f64, f64),
+    fn conic_of<T: Decide>(
+        carrier: &geom::Curve3<T>,
+        (t0, t1): (T, T),
         rows: ConicRows,
         band: Band,
-    ) -> Result<Option<ConicArc<f64>>, ConicArcError> {
-        let extent = Extent::forward("test_conic_extent", t0, t1, InfSpeed::new(1.0), band)
+    ) -> Result<Option<ConicArc<T>>, ConicArcError> {
+        let extent = Extent::forward("test_conic_extent", t0, t1, InfSpeed::new(T::one()), band)
             .expect("a forward fixture span");
         ConicArc::of(carrier, (t0, t1), extent, rows, band)
     }
