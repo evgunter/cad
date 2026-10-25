@@ -1196,7 +1196,8 @@ fn the_period_gate_reads_the_sweep_and_refuses_past_a_turn() {
 /// reaching a pole refuses; the net's geometry past the edge's ends is
 /// not the edge's). A great-circle arc whose far part runs over the
 /// sphere's pole: an edge on its first fifth derives and certifies, and
-/// the whole net refuses on the pole.
+/// the whole net refuses on the pole, at the mint, as the projected
+/// lane's capability gap ("not yet", `general_lane_refusal`).
 #[test]
 fn an_edge_reads_only_its_own_interval_of_the_net() {
     let sphere = unit_sphere();
@@ -1219,11 +1220,13 @@ fn an_edge_reads_only_its_own_interval_of_the_net() {
     assert!(
         matches!(
             whole,
-            Err(PcurveCertifyError::SectorRefused { .. }
-                | PcurveCertifyError::Escalated {
-                    check: PcurveCheck::Sector,
-                    ..
-                })
+            Err(PcurveCertifyError::NoGeneralLane {
+                gap: crate::LaneGap::Pose { .. },
+                ..
+            } | PcurveCertifyError::Escalated {
+                check: PcurveCheck::GeneralLane,
+                ..
+            })
         ),
         "the whole net over the pole: {whole:?}"
     );
