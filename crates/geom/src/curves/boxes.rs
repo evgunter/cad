@@ -93,13 +93,17 @@ impl<T: Real> ConicFrame<T> {
         }
     }
 
+    /// `axis × u_ref`, the `t = π/2` reference direction.
+    fn v_ref(&self) -> Vec3<T> {
+        self.axis.cross(self.u_ref)
+    }
+}
+
+impl<T: Bounds> ConicFrame<T> {
     /// The frame with every scalar entered as the [`Interval`] of its
     /// bracket. The second reference direction is crossed AFTER the
     /// lift, so its rounding is the interval's and not `T`'s.
-    fn lifted(self) -> ConicFrame<Interval>
-    where
-        T: Bounds,
-    {
+    fn lifted(self) -> ConicFrame<Interval> {
         let point = |p: Point3<T>| Point3::new(lift(p.x), lift(p.y), lift(p.z));
         let vector = |v: Vec3<T>| Vec3::new(lift(v.x), lift(v.y), lift(v.z));
         ConicFrame {
@@ -109,11 +113,6 @@ impl<T: Real> ConicFrame<T> {
             semi_u: lift(self.semi_u),
             semi_v: lift(self.semi_v),
         }
-    }
-
-    /// `axis × u_ref`, the `t = π/2` reference direction.
-    fn v_ref(&self) -> Vec3<T> {
-        self.axis.cross(self.u_ref)
     }
 }
 

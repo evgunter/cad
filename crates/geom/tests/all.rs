@@ -75,6 +75,8 @@ mod curves_compose;
 mod curves_curvo_oracle;
 #[path = "curves/decoration_certified_coords.rs"]
 mod curves_decoration_certified_coords;
+#[path = "curves/directional_extent.rs"]
+mod curves_directional_extent;
 #[path = "curves/domain_door.rs"]
 mod curves_domain_door;
 #[path = "curves/elevation_conditioning.rs"]
