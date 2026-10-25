@@ -2905,16 +2905,13 @@ pub(super) fn frame_refusal<T: geom_core::Real>(
             b_face: b.0,
             b_kind: b.1.kind(),
         },
-        FrameError::OutsideInventory { conic, section } => {
-            BooleanError::GermSectionOutsideInventory {
-                a_face: a.0,
-                a_kind: a.1.kind(),
-                b_face: b.0,
-                b_kind: b.1.kind(),
-                conic,
-                section,
-            }
-        }
+        FrameError::OpenConic { conic } => BooleanError::GermSectionOpenConic {
+            a_face: a.0,
+            a_kind: a.1.kind(),
+            b_face: b.0,
+            b_kind: b.1.kind(),
+            conic,
+        },
         FrameError::DegenerateTorus {
             convention,
             verdict,
@@ -2967,12 +2964,11 @@ pub(super) enum FrameError {
     /// definitely off the axis, or a cylinder pair whose locus is a
     /// space quartic: skew axes, or intersecting axes at unequal radii).
     NoArm,
-    /// The section is a conic outside the inventory by decision (R1).
-    OutsideInventory {
+    /// The section is an open conic, whose arcs are NURBS carriers the
+    /// Boolean has no crossing layer for.
+    OpenConic {
         /// The conic.
-        conic: geom_brep::OutsideConic,
-        /// The table's refusal, which names it.
-        section: geom_brep::SectionError,
+        conic: geom_brep::OpenConic,
     },
     /// The pair's torus is decided outside its ring convention
     /// (`R > r > 0`): the Boolean's [`BooleanError::DegenerateTorus`],
@@ -3537,9 +3533,9 @@ fn section_refusal(e: geom_brep::SectionError) -> FrameError {
 /// circle's centre and axis; a plane through the apex that dips into
 /// the cone cuts two generators, proved straight. The apex's touching
 /// outcomes under a minted germ are the desync the sphere arm's tangent
-/// point is. A parabola or a hyperbola is out of the conic inventory by
-/// decision (R1), and its refusal carries the table's own naming of the
-/// conic ([`FrameError::OutsideInventory`]).
+/// point is. A parabola or a hyperbola is served by the table in closed
+/// form, its arcs NURBS carriers the Boolean cannot yet cross, so it
+/// refuses naming the conic ([`FrameError::OpenConic`]).
 ///
 /// Read over the cone face's reach ([`FrameExtent::Cone`], the only
 /// extent [`frame_extent`] hands a plane×cone pair); any other extent is
@@ -3574,15 +3570,12 @@ fn pk_germ_frame<T: Decide>(
         ) => Err(FrameError::Desync(
             "germ pair's plane×cone section is not a locus",
         )),
+        Ok(geom_brep::PlaneConeSection::OpenConic(section)) => Err(FrameError::OpenConic {
+            conic: section.conic(),
+        }),
         Ok(_) => Err(FrameError::Desync(
             "plane×cone classification carried a carrier its conic is not",
         )),
-        Err(e @ geom_brep::SectionError::RoutesToGeneralRung { .. }) => match e.outside_conic() {
-            Some(conic) => Err(FrameError::OutsideInventory { conic, section: e }),
-            None => Err(FrameError::Desync(
-                "the plane×cone table routed a pair to the general rung naming no conic",
-            )),
-        },
         Err(e) => Err(section_refusal(e)),
     }
 }
@@ -6790,7 +6783,7 @@ mod frame_dispatch_tests {
             Err(FrameError::NoArm) => "NoArm",
             Err(FrameError::Desync(_)) => "a desync",
             Err(FrameError::Escalated { .. }) => "an escalation",
-            Err(FrameError::OutsideInventory { .. }) => "a conic outside the inventory",
+            Err(FrameError::OpenConic { .. }) => "an open conic",
             Err(FrameError::Spiric { .. }) => "a general spiric",
             Err(FrameError::DegenerateTorus { .. }) => "a torus off its ring convention",
         }

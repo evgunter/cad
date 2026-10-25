@@ -2,10 +2,11 @@
 id: a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim
 kind: issue
 title: A ray in band of an edge a curved face bounds, or of a planar face's curved edge, is still set aside by each face's own trim walk
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P2
 cost: H
+branch: flush/curved-edge-ray
 ---
 
 

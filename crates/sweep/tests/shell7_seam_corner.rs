@@ -30,7 +30,7 @@ use topo::{Body, ReplaceFaceError, ShellError};
 
 use super::common::shell_operands::vessel;
 use super::shell7_common::*;
-use crate::common::charts::hollow_moves;
+use crate::common::charts::{charts, hollow_moves};
 use crate::common::latitude_seam::{ring_on_cap, ring_on_wall};
 use crate::common::stations::construction_state;
 use crate::common::torus_walls::{assert_hollow_volume, disc_cut_volume};
@@ -785,30 +785,123 @@ fn a_partial_two_arc_torus_hollows_to_its_measured_volume() {
     );
 }
 
-/// **A three-quarter-turn cone frustum refuses `TogetherEdgeDisagreement`**
-/// (R1's finding, `work/shell/partial-cone-frustum-three-quarter-turn-
-/// refuses-edge-disagreement.md`): `sf2b_axial` only turns the frustum
-/// a quarter, and at three quarters the wall/cap generator's two ends
-/// disagree by more than a millimetre — pinned here so the standing
-/// refusal is visible, with its measured gap.
+/// **A three-quarter-turn cone frustum refuses at the axial door's
+/// gate** (`work/shelf/partial-cone-frustum-three-quarter-turn-
+/// refuses-edge-disagreement.md`): the cavity moves the meridian caps
+/// off the axis, so each wall/cap edge's moved section is a hyperbola,
+/// a NURBS arc on a cone no tube certifies yet. The door names the
+/// conic before any corner is solved, where the generator's two ends
+/// used to disagree by more than a millimetre.
 #[test]
-fn a_three_quarter_turn_cone_frustum_refuses_edge_disagreement() {
+fn a_three_quarter_turn_cone_frustum_refuses_at_the_gate() {
     let body = polyline(
         &[(0.0, 0.0), (1.0, 0.0), (0.5, 2.0), (0.0, 2.0)],
         Revolution::Partial(3.0 * FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
     let e = topo::shell(&finished("the operand", body.clone(), tol()), 0.05, tol())
-        .expect_err("measured: refuses");
+        .expect_err("the moved caps cut the cone in a hyperbola");
     let ShellError::Face { error, .. } = &e else {
         panic!("expected the axial door's refusal, got {e}");
     };
-    let ReplaceFaceError::TogetherEdgeDisagreement { gap, .. } = **error else {
-        panic!("expected TogetherEdgeDisagreement, got {error}");
-    };
-    println!("[measured] three-quarter frustum: edge disagreement gap = {gap}");
     assert!(
-        (1.0e-3..2.0e-3).contains(&gap),
-        "the measured millimetre-scale gap, got {gap}"
+        matches!(
+            **error,
+            ReplaceFaceError::TogetherConicArc {
+                conic: geom_brep::OpenConic::Hyperbola,
+                ..
+            }
+        ),
+        "expected the gate's hyperbola refusal, got {error}"
     );
+}
+
+/// **A partial frustum moving only its cone keeps every cone–cap edge a
+/// generator line.** The meridian caps stay at `0` and hold the axis, so
+/// each holds the moved cone's apex too, and the moved pair's section is
+/// its generator pair: the axial door's cone-and-cap arm picks the line
+/// the old edge stood beside and runs it the old way, read at the door
+/// itself (`offset_charts_together`). At a quarter turn
+/// and a three-quarter turn, outward and inward, the body builds, passes
+/// tier 3, carries a `Line` on every edge between the cone and a
+/// meridian cap, and holds the frustum's closed form at the moved radii
+/// `r + d/cos α` over its share `turn/2π` of the full turn.
+#[test]
+fn a_partial_frustum_moving_only_its_cone_keeps_its_generators() {
+    let (r0, r1, h) = (1.0_f64, 0.5_f64, 2.0_f64);
+    let alpha = ((r0 - r1) / h).atan();
+    for (what, turn) in [
+        ("a quarter turn", FRAC_PI_2),
+        ("a three-quarter turn", 3.0 * FRAC_PI_2),
+    ] {
+        for d in [0.05, -0.05] {
+            let mut body = polyline(
+                &[(0.0, 0.0), (r0, 0.0), (r1, h), (0.0, h)],
+                Revolution::Partial(turn),
+            );
+            let surface = |body: &Body<f64>, f: topo::FaceKey| {
+                body.get_surface(body.get_face(f).unwrap().surface)
+                    .unwrap()
+                    .clone()
+            };
+            // Every chart at `0` but the cone's, moved `d` out of the
+            // material along its stored normal.
+            let moves: Vec<topo::ChartMove<f64>> = charts(&body)
+                .into_iter()
+                .map(|faces| {
+                    let face = body.get_face(faces[0]).expect("a live face");
+                    let distance = match body.get_surface(face.surface) {
+                        Some(Surface::Cone { .. }) if face.sense => d,
+                        Some(Surface::Cone { .. }) => -d,
+                        _ => 0.0,
+                    };
+                    topo::ChartMove { faces, distance }
+                })
+                .collect();
+            assert_eq!(
+                moves.iter().filter(|m| m.distance != 0.0).count(),
+                1,
+                "{what}: one cone chart"
+            );
+            let band = geom_core::Band::linear(tol()).expect("band");
+            topo::offset_charts_together(&mut body, &moves, band, tol())
+                .unwrap_or_else(|e| panic!("{what}, d {d}: the cone-only move refused: {e}"));
+            assert_eq!(
+                topo::validate_geometric(&body, tol()),
+                Ok(()),
+                "{what}, d {d}: tier 3"
+            );
+            let mut generators = 0;
+            for (edge, data) in body.edges() {
+                let [f, g] = topo::edge_faces(&body, edge);
+                let (sf, sg) = (surface(&body, f), surface(&body, g));
+                let meridian = |s: &Surface<f64>| matches!(s, Surface::Plane { normal, .. } if normal.y.abs() <= 1e-12);
+                let cone_cap = (matches!(sf, Surface::Cone { .. }) && meridian(&sg))
+                    || (matches!(sg, Surface::Cone { .. }) && meridian(&sf));
+                if cone_cap {
+                    generators += 1;
+                    let carrier = body
+                        .get_curve_geom(data.curve)
+                        .and_then(topo::CurveGeom::certified)
+                        .map(|c| c.carrier().clone());
+                    assert!(
+                        matches!(carrier, Some(Curve3::Line { .. })),
+                        "{what}, d {d}: the cone–cap edge {edge:?} is a generator line, got \
+                         {carrier:?}"
+                    );
+                }
+            }
+            assert_eq!(generators, 2, "{what}, d {d}: two cone–cap edges");
+            let (m0, m1) = (r0 + d / alpha.cos(), r1 + d / alpha.cos());
+            let want = turn * h * (m0 * m0 + m0 * m1 + m1 * m1) / 6.0;
+            let got = topo::mass_properties(&finished("the moved body", body, tol()), tol())
+                .expect("props")
+                .volume;
+            println!("[measured] {what}, d {d}: volume {got} against {want}");
+            assert!(
+                (got - want).abs() <= 1e-12 * want,
+                "{what}, d {d}: volume {got} against the closed form {want}"
+            );
+        }
+    }
 }

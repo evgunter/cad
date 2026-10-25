@@ -78,7 +78,7 @@ its own arm back off with the rest left on.
 | class | poses | chain | end of the road with every door peeled |
 |---|---|---|---|
 | **plane × cone, ellipse or circle** | R1, R2, R7, B4, C1, X3, T1 | **D1** (cone-first orders) or **D2** (other-first) → D1/D2 → D3 → D4 → D5 → D6 → D7 | **bodies**, all correct (§0.2), ∪ and cone ∖ other included where the result keeps a ring on the cone face (R2, T1): D7's arm reads it (§1.7). |
-| **plane × cone, hyperbola or parabola** | B1, C2, C3, C4 | **D1/D2** → D3, where `plane_cone_section` refuses the conic | the conic refusal (by decision, below) |
+| **plane × cone, hyperbola or parabola** | B1, C2, C3, C4 | **D1/D2** → D3, where `plane_cone_section` serves the open conic | the conic refusal (below) |
 | **cone × cylinder, general pose** | R3, R4, B3 | **D1/D2** → D3, `(Cone, Cylinder)` has no frame | `GermFrameUnsupported`: `cone-pairs-in-general-pose-have-no-section-arm` |
 | **coaxial, events on the caps only** | R5, B2 | **D6** first: no germ lands on the cone face | **bodies**, all correct, once D6 lets the cone pairs through |
 | **the apex** | R8; R9; X1, X2; R6 | R8 `CrossingAtConeApex`, R9 `CurvedPierceUnsupported`, both in the sweep, by design. **X1, X2:** past D1, `Escalated { Corner(Straight) }` at `sector_straight`, the apex vertex's cone sector read with a poisoned normal. **R6:** past D1–D5, `Join(Escalated { chord_arc_leave_germ, MarginDiag::Invalid })` | typed refusals; X1, X2 and R6 refuse under the wrong name (§1.2, §1.6) |
@@ -215,10 +215,10 @@ ellipse per Ev's 2026-10-01 ruling):
 | `PlaneConeSection` | frame |
 |---|---|
 | `TiltedEllipse`, `AxisNormalCircle` | `Some((center, axis))`, the conic's own |
-| `ApexLinePair` | `Ok(None)`, proved straight (two generators). The table serves it only where the pair stands within the zero band of the real plane's section over the cone face's reach (`pn_apex_pair_reach`: the far start `\|δ\|/D`, or the bound over the face's window along the axis, which a face clear of the apex holds to about the asymptote's offset): in the band the frame escalates, past it the section is the hyperbola refused below |
+| `ApexLinePair` | `Ok(None)`, proved straight (two generators). The table serves it only where the pair stands within the zero band of the real plane's section over the cone face's reach (`pn_apex_pair_reach`: the far start `\|δ\|/D`, or the bound over the face's window along the axis, which a face clear of the apex holds to about the asymptote's offset): in the band the frame escalates, past it the section is the hyperbola below |
 | `ApexTangentLine`, `ApexPoint` | `FrameError::Desync`: a touching configuration the reduction should not have paired, exactly as the sphere arm's `TangentPoint` |
 | `Err(Escalated)`, or the ellipse constructor's `Escalated` or `CircularAxes` | `FrameError::Escalated`: the classifier read a definite tilt, but the carrier cannot tell the curve from a circle |
-| parabola, hyperbola (`Err`, by decision R1) | **a typed refusal naming the conic**, not a desync |
+| `OpenConic`, a parabola or hyperbola | **a typed refusal naming the conic**, not a desync: its arcs are NURBS carriers the Boolean has no crossing layer for |
 
 **The extent** `plane_cone_section` meters its aperture and conic-type
 margins at is the frame's own `FrameExtent::Reach`: the cone face's
@@ -227,7 +227,7 @@ measure the cone's split lane levers the same section at
 (`chord_join::section_reach`). It is the only extent the arm takes; any
 other is a desync (Q4).
 
-**The by-decision refusal.** Measured, the commonest pose of all — an
+**The open-conic refusal.** Measured, the commonest pose of all — an
 axis-aligned brick across a cone wall (B1, the brick
 `[0.6, 2] × [0.3, 0.8] × [−0.2, 0.2]`) — cuts hyperbolas and stops
 here, in every op and member order. So does any plane parallel to the
@@ -237,11 +237,11 @@ whose edge along `z` at `(0.6, 0.2)` touches the wall's circle of
 radius `0.6` at `z = 0`, refuses
 `CurvedPierceUnsupported { edge: EdgeKey(5v1) }` in every op, and
 moving that face to `y = 0.25` or `x = 0.7` brings back the conic
-refusal. This is
-`crates/geom-brep/README.md` C1/C5's ruling (the hyperbola and parabola
-are out of the conic inventory), not a missing arm. The refusal must say
-so: `BooleanError::GermSectionOutsideInventory`, carrying the
-`SectionError` that names the conic, not `JoinDesync` (Q3).
+refusal. The
+table serves the conic (`crates/geom-brep/README.md` C1: its arcs are
+minted per window as rational-quadratic NURBS), and the Boolean has no
+crossing layer for a NURBS carrier, so the refusal names the conic:
+`BooleanError::GermSectionOpenConic`, not `JoinDesync` (Q3).
 
 **Cone × cylinder** (R3, R4, B3) stays `NoArm`. Its frame is
 `cone-pairs-in-general-pose-have-no-section-arm`, whose spec it is.
@@ -285,7 +285,7 @@ apex's distance off the plane and `c = â·n̂`. The first term is the
 would-be circle's radius; the second is the reach that `pn_conic_type`
 is metered at. The circle is built where the axis meets the plane.
 Neither term reads the stored origin. R6 now refuses with the
-hyperbola's typed refusal (R1).
+hyperbola's typed refusal.
 
 ### 1.7 D6 and D7: not this spec's arms
 
@@ -498,10 +498,11 @@ production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
   `CrossingAtConeApex`? That is a design choice about which poses the
   kernel answers, so it is Ev's.
 - **Q3 The conic refusal's type.** A new arm,
-  `BooleanError::GermSectionOutsideInventory`, carrying the
-  `SectionError`. `CurvedBooleanUnsupported` says "not supported yet",
-  and its recourse names other kinds of face; the conic is refused by
-  decision, and its recourse is to cut the cone all the way round.
+  `BooleanError::GermSectionOpenConic`, carrying the conic.
+  `CurvedBooleanUnsupported` says "not supported yet", and its recourse
+  names other kinds of face; the open conic is refused because its arc
+  is a NURBS carrier the Boolean has no crossing layer for, and its
+  recourse is to cut the cone all the way round.
 - **Q4 The frame's extent** for `plane_cone_section`'s aperture and
   conic-type margins: the face's reach (`FrameExtent::Reach`), and
   nothing else. The levered margin is `L·sin θ` (C3's plane turned by

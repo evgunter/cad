@@ -231,3 +231,55 @@ report). Built as three units (plan.md), the exemption last and alone so
 Ev's reservation can drop it cheaply. SELECT's
 `closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`
 is claimed as unit 1 (moved here).
+
+## 2026-10-25 — conic unit 1 stops on DL1; unit 2 un-parks (OFFSET orchestrator)
+
+Unit 1's lane (`offset/limb2-for-every-carrier`, head `452e7d8757`, no PR)
+stopped before opening a PR, rightly. Limb 2 for every closed-form carrier
+needs the `NurbsLane`. `AtRestPolicy::nurbs_lane` is `None` at `Dual64`,
+per DUAL-DESIGN DL1 ("a Dual is tangent transport and never certifies",
+ratified #1146), so 39 of 63 dual rows refuse. It also measured the cost:
+a full circle's limb 2 takes 5.7 ms, a spiric 8–17 ms, and 13 curved-boolean
+rows run 12× slower. Ev's new C2 ("limbs 1–2 owed by every carrier") and
+DL1 conflict at the dual. That is a design fork, so unit 1 parks on the
+lane's fork row and the row goes to designers. The lane also filed the
+cost row and the spiric-net row (the net is tight enough; long ovals halve
+to clear).
+
+My error: unit 2 was parked on unit 1, but the arc is a NURBS carrier and
+already owes limb 2 through the existing path. Unit 2 is un-parked and
+dispatched.
+
+## 2026-10-25 — conic unit 2 merges (OFFSET orchestrator)
+
+PR 5692 closes `the-plane-cone-arc-is-minted-exactly-and-the-axial-door-reads-the-moved-section`.
+The plane×cone parabola and hyperbola are exact rational-quadratic arcs.
+The old "by decision" refusal is now typed refusals that name the conic.
+The axial door refuses the hyperbolic case at its gate, and a cone-only
+move keeps its generator lines. Tier: concurrent dual (letter H). Both
+reviews came back APPROVE-WITH-FIXES with no MAJOR, about 100k fuzzed
+poses between them. Tally 0, confirmed by blinded coding (byte 13). The
+row is `docs/dual-review-log/rows/PR-5692.md`. The union's fix pass is at
+`fff330083c`.
+
+Consequences:
+- Unit 3 parks on SELECT's chord-extent row, now P1. A short lever decides
+  Zero (a definite verdict) more easily, so it is possibly unsound once an
+  arc can rest.
+- STEP import of HYPERBOLA/PARABOLA is filed on EXCH.
+
+Process lesson: I removed the first implementer's worktree to free disk
+before its PR merged, so the lane could not be resumed for its fix pass.
+Keep a lane's worktree until its PR merges; delete target dirs, not
+worktrees.
+
+Still on Ev: `[ev]` PR 5689, where unit 1 parks on the dual/limb-2 fork.
+
+## 2026-10-25 — board after unit 2 (OFFSET orchestrator)
+
+`offset-lane-has-no-conic-carrier` parks on its two remaining units. Unit 1
+waits on Ev's `[ev]` PR 5689. Unit 3 waits on SELECT's chord-extent row
+(P1). `closed-form-limb-2-costs-milliseconds-per-curved-edge` parks on the
+dual fork, since 5689 may move limb 2 to rest and change what the cost
+row is about. That leaves no dispatchable P0 or P1 on this slate. The
+orchestrator holds the track while `[ev]` PR 5689 is open.

@@ -218,7 +218,7 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
             Err(topo::MassPropsError::Face { .. }) => {
                 assert!(
                     certified.volume_pad > 0.0,
-                    "{name}: the structural door refused a face the certified door did not                      need the quadrature for"
+                    "{name}: the structural door refused a face the certified door did not need the quadrature for"
                 );
                 refused.push(name.clone());
             }

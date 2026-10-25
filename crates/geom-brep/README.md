@@ -23,7 +23,7 @@ escalated typed refusal, never a raw comparison.
 
 | Decisions | Lives in |
 |---|---|
-| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
+| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
@@ -698,7 +698,8 @@ A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
-plane×cylinder, plane×cone (all but the parabola and hyperbola),
+plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
+each arc minted per window, `ConicBranch::arc`),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
 axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
 plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of
@@ -973,7 +974,12 @@ never a silent Gaussian, and never a refusal for width alone. A plane cap or tor
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
 area and the wall's chart Green form along the spiric are elliptic
 integrals in the torus minor angle, enclosed by a fifth-order Taylor
-rule whose only non-ring operation is `√`, on the same schedule. A sphere face bounded
+rule (`props/taylor.rs`) that reads the spiric's integrands with no
+operation past the ring ones but `√`, on the same schedule. A plane
+cap bounded by a rational spline rim takes the same rule
+(`props/rational_rim.rs`): its vector area is `(1/2)∫ B × B′/w²` per
+Bézier span, `B` the homogeneous numerator about the reference, and the
+closed form keeps its typed refusal for a door with no quadrature lane. A sphere face bounded
 by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops
