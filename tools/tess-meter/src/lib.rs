@@ -843,7 +843,8 @@ impl From<&CellMeasure> for Bound {
 /// rather than a hope.** Two kernel gates run strictly before
 /// `mesh::budget::note_face` and admit strictly less than this refuses:
 /// `mesh::tessellate` returns `InvalidChordalTolerance` unless
-/// `chordal` is finite and positive, and `δ_s` is `chordal · 0.5`; and
+/// `chordal` is finite and positive, and the NURBS lane's lattice budget
+/// `δ_s` is `chordal · 0.5` (`mesh::nurbs_cert::lattice_budget`); and
 /// `nurbs_cert`'s `nurbs_face_bound` and `nurbs_cell_grid` both return
 /// `UnsupportedNurbsFace` (*"second-derivative hull is
 /// unbounded/refused"*) unless every component of the bound is finite.

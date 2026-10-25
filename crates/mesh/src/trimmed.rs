@@ -152,13 +152,39 @@ use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
 
-/// Retry budget for the rebuild loop (module docs).
+/// Retry budget for the rebuild loop (module docs). **Termination.**
 ///
 /// One round budget covers both retry kinds — the grid-on-constraint
 /// drops and the certificate-driven refinement — and it is a
 /// typed-refusal backstop rather than a tuning knob: exhausting it
 /// raises [`TessellateError`], it never coarsens or accepts a mesh.
 const MAX_GRID_RETRIES: usize = 6;
+
+/// **The trimmed cylinder's unproved headroom**: the lane sizes its
+/// lattice, and the chord pass chords this face's edges
+/// (`chords::edge_target`), at this share of δ rather than at δ.
+///
+/// The lane has no worst-triangle theorem (`crates/mesh/README.md`
+/// `[mesh.sizing]`). Its lattice cell-halves would certify at the
+/// sagitta of the column step, but the trim polygon's points sit
+/// anywhere in a cell, and a constrained Delaunay triangle beside a
+/// trim chord can span more than one column — nothing yet bounds by
+/// how much. The certificate refuses typed where it is exceeded; this
+/// factor is what keeps that refusal rare, and it is a debt
+/// (`work/tess/the-trimmed-cylinder-lane-has-no-worst-triangle-theorem.md`):
+/// the fix is the theorem, not a retuned factor.
+pub(crate) const UNPROVED_HEADROOM: f64 = 0.5;
+
+/// Whether face `fk` on `surface` is a trimmed cylinder: the trimmed
+/// lane's cylinder arm, which `tessellate`'s dispatch routes to this
+/// lane by [`has_trim_carrier`].
+pub(crate) fn is_trimmed_cylinder(
+    body: &Body<f64>,
+    fk: FaceKey,
+    surface: &Surface<f64>,
+) -> Result<bool, TessellateError> {
+    Ok(matches!(surface, Surface::Cylinder { .. }) && has_trim_carrier(body, fk)?)
+}
 
 /// The per-chart data of the two constructing lanes (module docs):
 /// which certificate each emitted triangle checks, and which pcurve
@@ -288,12 +314,13 @@ pub(crate) fn tessellate_trimmed(
         });
     }
 
-    // Grid sizing (heuristic; the certificates are the guarantee —
-    // crate docs): cylinder — sagitta-tight in u, rows every r·hu
-    // metres in v, a uniform grid over the trim box; NURBS — the
-    // Hessian-budget steps (`nurbs_cert`) applied PER KNOT-SPAN CELL
-    // from each cell's own certified bound (TESS-SPAN), grid lines on
-    // the cell boundaries. The chord pass's boundary tightening keeps
+    // Grid sizing: cylinder — sagitta-tight in u at
+    // `UNPROVED_HEADROOM`·δ, rows every r·hu metres in v, a uniform
+    // grid over the trim box; NURBS — the Hessian-budget steps
+    // (`nurbs_cert`) at the lane's lattice budget
+    // (`nurbs_cert::lattice_budget`), applied PER KNOT-SPAN CELL from
+    // each cell's own certified bound (TESS-SPAN), grid lines on the
+    // cell boundaries. The chord pass's boundary tightening keeps
     // the whole-patch steps (the reported D-2 choice — `nurbs_cert`
     // module docs).
     let (mut u0, mut u1, mut v0, mut v1) = (f64::MAX, f64::MIN, f64::MAX, f64::MIN);
@@ -305,7 +332,7 @@ pub(crate) fn tessellate_trimmed(
     }
     let (mut candidates, nurbs_stats, metric) = match lane {
         Lane::Cylinder { radius, .. } => {
-            let hu = sagitta_step(tol.delta_s, radius);
+            let hu = sagitta_step(tol.delta * UNPROVED_HEADROOM, radius);
             let nu = ceil_count(u1 - u0, hu)?;
             let nv = ceil_count(v1 - v0, radius * hu)?;
             // The other half of #678's shape, checked where the count
@@ -346,7 +373,12 @@ pub(crate) fn tessellate_trimmed(
             )
         }
         Lane::Nurbs { ref grid, .. } => {
-            let (mut cand, stats) = per_cell_candidates(grid, (u0, u1), (v0, v1), tol.delta_s)?;
+            let (mut cand, stats) = per_cell_candidates(
+                grid,
+                (u0, u1),
+                (v0, v1),
+                crate::nurbs_cert::lattice_budget(tol.delta),
+            )?;
             if let Some(c) = &creases {
                 c.cut_candidates(&mut cand);
             }
@@ -442,11 +474,12 @@ pub(crate) fn tessellate_trimmed(
     if crate::budget::armed()
         && let (Some(stats), Lane::Nurbs { grid, patch }) = (nurbs_stats, &lane)
     {
+        let budget = crate::nurbs_cert::lattice_budget(tol.delta);
         crate::budget::note_face(crate::budget::FaceMeasure {
             face: fk,
             u: (u0, u1),
             v: (v0, v1),
-            delta_s: tol.delta_s,
+            delta_s: budget,
             grid_cells: stats.grid_cells,
             bands: stats.bands,
             cap_bands: stats.cap_bands,
@@ -460,7 +493,7 @@ pub(crate) fn tessellate_trimmed(
             mvv: patch.mvv,
             mu1: patch.mu1,
             mv1: patch.mv1,
-            patch_steps: patch.grid_steps(tol.delta_s),
+            patch_steps: patch.grid_steps(budget),
             cells: grid
                 .cells()
                 .map(|c| crate::budget::CellMeasure {
@@ -471,7 +504,7 @@ pub(crate) fn tessellate_trimmed(
                     mvv: c.bound.mvv,
                     mu1: c.bound.mu1,
                     mv1: c.bound.mv1,
-                    steps: c.bound.grid_steps(tol.delta_s),
+                    steps: c.bound.grid_steps(budget),
                 })
                 .collect(),
             worst_cert: measure.worst,
@@ -1142,7 +1175,7 @@ fn per_cell_candidates(
     grid: &NurbsCellGrid,
     u: (f64, f64),
     v: (f64, f64),
-    delta_s: f64,
+    budget: f64,
 ) -> Result<(Vec<(f64, f64)>, ScheduleStats), TessellateError> {
     let mut cand: Vec<(f64, f64)> = Vec::new();
     let mut stats = ScheduleStats {
@@ -1153,7 +1186,7 @@ fn per_cell_candidates(
         metric: 1.0,
     };
     let du = u.1 - u.0;
-    let schedule = grid.band_schedule(u, v, delta_s)?;
+    let schedule = grid.band_schedule(u, v, budget)?;
     stats.metric = schedule.metric;
     for b in schedule.bands {
         stats.grid_cells += b.nuc * b.nvc;

@@ -154,3 +154,41 @@ fn sphere_pole_faces_are_floored_too_though_they_never_needed_it() {
          columns; 56 is that mesh"
     );
 }
+
+/// **A frustum's small rim, joined to a far row, certifies within δ**
+/// (`work/tess/a-cone-rim-chord-joined-to-a-higher-row-certifies-above-delta-s.md`).
+/// Radii 0.05 and 1.5 at half-angle 40°, at a coarse δ: the small rim
+/// sized on its own radius takes a chord spacing several grid columns
+/// wide, and the first grid row sits at about four times its radius,
+/// so a rim-chord triangle certifies at about `cos α · (ρ_row/ρ_small)`
+/// of the rim's own sag. The chord pass chords a cone's rims on the
+/// face's grid step, so every triangle stays inside one column and the
+/// cone theorem (`sizing::cone_grid_step`) covers it.
+#[test]
+fn a_frustum_small_rim_joined_to_a_far_row_certifies() {
+    use geom_core::Point2;
+    use profile::RawLoop;
+    let (small, big) = (0.05_f64, 1.5_f64);
+    let height = (big - small) / 40.0_f64.to_radians().tan();
+    let lp = profile::ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(big, 0.0),
+        Point2::new(small, height),
+        Point2::new(0.0, height),
+    ]);
+    let body = sweep::revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        sweep::Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let pi = core::f64::consts::PI;
+    let slant = (big - small).hypot(height);
+    let volume = pi * height / 3.0 * (big * big + big * small + small * small);
+    let area = pi * (big + small) * slant + pi * (big * big + small * small);
+    for delta in [0.0085, 0.008, 0.005, 0.002] {
+        check_mesh_acceptance(&body, delta, Some((volume, area)));
+    }
+}

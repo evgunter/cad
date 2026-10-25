@@ -7,7 +7,7 @@
 //! certifies, and the v-schedule the empty grid range would discard is
 //! not computed. The measurement behind it: emitting the scheduled
 //! rows multiplied the patch's triangles 5–9× at identical densely
-//! sampled deviation (2.409e-2 m at every `nu == 1` δ below — the rim
+//! sampled deviation (2.409e-2 m wherever the rim is one chord — the rim
 //! chord's azimuthal sagitta, which rows in the ruling direction
 //! cannot touch).
 //!
@@ -45,24 +45,24 @@ fn cone_patch_triangles(body: &topo::Body<f64>, delta: f64) -> usize {
         .sum()
 }
 
-/// The measurement's own δ sweep, pinned. The first four rows are the
-/// `nu == 1` regime (single strip; the boundary sits at δ ≈ 0.0682,
-/// where `hu = 2·acos(1 − δ/2)` meets the π/6 span); the rest are the
-/// honoured schedule, 678's pole floor included (`nu` = 3 at 0.05
-/// through 0.025, then rising).
+/// The decision boundary's δ sweep, pinned. The first four rows are the
+/// `nu == 1` regime (single column; the boundary sits at δ ≈ 0.0241,
+/// where `hu = 2·acos(1 − δ/(ρ_max·cos α))` meets the π/6 span, and at
+/// 0.025 the rim's own sagitta already cuts it in two chords); the rest
+/// are the honoured schedule, 678's pole floor included (`nu` = 3 at
+/// 0.024, then rising).
 #[test]
 fn the_pi6_cone_wedge_is_pinned_at_the_measured_deltas() {
     let body = cone_wedge(1.0, core::f64::consts::FRAC_PI_6);
     for (delta, expected) in [
         (0.25, 1),
         (0.1, 1),
-        (0.07, 1),
-        (0.0682, 1),
-        (0.05, 14),
-        (0.025, 18),
-        (0.01, 31),
-        (0.004, 93),
-        (0.001, 361),
+        (0.05, 1),
+        (0.025, 2),
+        (0.024, 10),
+        (0.01, 18),
+        (0.004, 27),
+        (0.001, 110),
     ] {
         assert_eq!(
             cone_patch_triangles(&body, delta),
@@ -80,14 +80,10 @@ fn the_pi6_cone_wedge_is_pinned_at_the_measured_deltas() {
 #[test]
 fn an_apex_free_single_column_cone_patch_is_the_same_strip() {
     // Triangle revolved π/6: cone face from (2, 0)–(1, 1), apex off
-    // the profile at (0, 2), ρ_max = 2, vspan = √2. At δ = 0.25,
-    // hu = 2·acos(1 − 0.125/2) ≈ 0.710842 ≥ π/6: one column — and at
-    // this ρ_max the discarded schedule's own nv was already 1, but
-    // only by a 0.53% margin (hv = ρ_max·hu ≈ 1.421685 against
-    // vspan ≈ 1.414214), so that parenthetical is one small sizing
-    // drift from flipping while this row's pins stand either way. At
-    // δ = 0.1, hu ≈ 0.448 < π/6: two columns, the schedule honoured
-    // (nv = 2, one interior point).
+    // the profile at (0, 2), ρ_max = 2, α = π/4, vspan = √2. At
+    // δ = 0.25, hu = 2·acos(1 − 0.25/√2) is the π/4 cap ≥ π/6: one
+    // column. At δ = 0.04, hu ≈ 0.477 < π/6: two columns, the schedule
+    // honoured (nv = 2, one interior point; both rims two chords).
     let lp = profile::ProfileLoop::polygon([
         Point2::new(1.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -107,8 +103,9 @@ fn an_apex_free_single_column_cone_patch_is_the_same_strip() {
         "one column, no apex: the boundary rectangle's two triangles"
     );
     assert_eq!(
-        cone_patch_triangles(&body, 0.1),
-        5,
+        cone_patch_triangles(&body, 0.04),
+        6,
         "two columns at the finer delta: the honoured schedule"
     );
 }
+

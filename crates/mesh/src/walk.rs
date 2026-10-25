@@ -2001,7 +2001,7 @@ mod tests {
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let chords = crate::chords::compute_chords(
             &body,
-            crate::sizing::sizing_target(0.05),
+            0.05,
             &vids,
             &mut positions,
             &mut bounds,

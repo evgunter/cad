@@ -42,8 +42,9 @@
 //! Two additive slacks sit outside all bounds, documented in the crate
 //! docs: boundary vertices carry the kernel's ≤ ε carrier residual
 //! (they lie on certified carriers, not exactly on the surface), and
-//! f64 rounding of the evaluations. Sizing targets δ/2 so neither
-//! decides in practice.
+//! f64 rounding of the evaluations. Sizing takes no margin for them
+//! (`crates/mesh/README.md` `[mesh.sizing]`), so a triangle they carry
+//! past δ refuses typed rather than certifies.
 
 use geom_core::{Point3, Vec3};
 

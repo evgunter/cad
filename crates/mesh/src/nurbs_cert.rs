@@ -88,7 +88,7 @@
 //! exactly when it lies inside the certified ellipse
 //!
 //! ```text
-//! muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s .
+//! muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ b .
 //! ```
 //!
 //! **Since TESS-SPLIT the shipped point selection is the
@@ -225,19 +225,19 @@ impl NurbsFaceBound {
         0.25 * (self.muu * au.powi(2) + 2.0 * self.muv * au * av + self.mvv * av.powi(2))
     }
 
-    /// The `(h_u, h_v)` UV grid steps for sizing target `delta_s` —
+    /// The `(h_u, h_v)` UV grid steps for sizing target `budget` —
     /// [`Self::split_steps`] without the constraint-activity flag.
     /// `f64::INFINITY` for a direction nothing constrains
     /// ([`crate::sizing::ceil_count`] turns that into one cell).
-    pub(crate) fn grid_steps(&self, delta_s: f64) -> (f64, f64) {
-        let s = self.split_steps(delta_s);
+    pub(crate) fn grid_steps(&self, budget: f64) -> (f64, f64) {
+        let s = self.split_steps(budget);
         (s.hu, s.hv)
     }
 
     /// **The split selection** (TESS-SPLIT, the ratified aspect policy
     /// — `docs/TESS-BUDGET.md`, PR #568): the cell-minimizing point on
     /// the certified ellipse
-    /// `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s`, subject to the 3-D
+    /// `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ b`, subject to the 3-D
     /// aspect cap [`ASPECT_CAP`].
     ///
     /// # The closed form
@@ -247,9 +247,9 @@ impl NurbsFaceBound {
     /// counterfactual scan parametrizes the same ellipse by the
     /// RECIPROCAL, `t = h_v/h_u` — the two are separate derivations
     /// in separate cargo roots by design, and their `t`s must never
-    /// be compared directly); then `h_v = √(δ_s/q(t))` with
+    /// be compared directly); then `h_v = √(b/q(t))` with
     /// `q(t) = muu·t² + 2·muv·t + mvv`, and the cell count over a box
-    /// is proportional to `1/(h_u·h_v) = q(t)/(t·δ_s)`. Minimizing
+    /// is proportional to `1/(h_u·h_v) = q(t)/(t·b)`. Minimizing
     /// `g(t) = q(t)/t = muu·t + 2·muv + mvv/t` (convex for
     /// `muu, mvv ≥ 0`) gives the interior optimum `t* = √(mvv/muu)`
     /// where both exist; the cross term `muv` shifts no optimum (it is
@@ -309,7 +309,7 @@ impl NurbsFaceBound {
     ///   and take the balanced point `t = 1` — a decided fallback for
     ///   a face that is degenerate as geometry, chosen over refusing
     ///   because the certificate still holds at any chosen point.
-    pub(crate) fn split_steps(&self, delta_s: f64) -> SplitSteps {
+    pub(crate) fn split_steps(&self, budget: f64) -> SplitSteps {
         let (muu, muv, mvv) = (self.muu, self.muv, self.mvv);
         if muu == 0.0 && mvv == 0.0 && muv == 0.0 {
             return SplitSteps {
@@ -358,7 +358,7 @@ impl NurbsFaceBound {
         // of finite positives (t is positive and finite by
         // construction of every arm above).
         let q = muv.mul_add(2.0 * t, muu.mul_add(t.powi(2), mvv));
-        let hv = (delta_s / q).sqrt();
+        let hv = (budget / q).sqrt();
         SplitSteps {
             hu: t * hv,
             hv,
@@ -384,7 +384,9 @@ pub(crate) struct SplitSteps {
 
 /// **The 3-D aspect cap `A = 16`** on the split selection's grid cell,
 /// measured through the first fundamental form
-/// ([`NurbsFaceBound::split_steps`]).
+/// ([`NurbsFaceBound::split_steps`]). **Quality**: a heuristic that
+/// keeps the split from choosing a long thin strip, not a promise
+/// about triangle shape (`crates/mesh/README.md`).
 ///
 /// RATIFIED at 16 (docs/TESS-BUDGET.md "The split schedule's aspect
 /// policy", PR #568): one octave beyond the 4–8 range typical mesh
@@ -647,43 +649,61 @@ impl BandCounts {
     }
 }
 
-/// The square of the residual aspect past which a band's off-row
-/// points sliver over the lattice metric ([`NurbsCellGrid::band_schedule`]
-/// raises such a band's rows to it).
+/// **The NURBS lane's worst-triangle theorem, and the split of δ it
+/// is spent at.** The lane's lattice is sized on the budget
+/// `b = LATTICE_SHARE·δ` ([`lattice_budget`]): a band sized by
+/// [`NurbsFaceBound::split_steps`] spends
+/// `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ b` as `x + z + y`
+/// (`x = muu·h_u² = s_u·b`, `z = 2·muv·h_u·h_v`, `y = mvv·h_v²`).
 ///
-/// **Derived, over every split of the sizing budget.** A band sized by
-/// [`NurbsFaceBound::split_steps`] spends the budget
-/// `muu·h_u² + 2·muv·h_u·h_v + mvv·h_v² ≤ δ_s` as `x + z + y`
-/// (`x = muu·h_u² = s_u·δ_s`, `z = 2·muv·h_u·h_v`, `y = mvv·h_v²`).
-/// Over the lattice metric a band of residual aspect `1/a` (`a ≥ 1`)
-/// has rows `a` columns tall. A point between two of its rows has an
-/// empty circle about one row across, so a Delaunay triangle on it
-/// spans at most a box `a·s_u × s_v` (`s ≤ h`). That holds for two
-/// off-row vertices too: adjacent chord points of a slanted trim edge
-/// can span the circle's diameter. Its certificate
-/// ([`NurbsFaceBound::cert`]) is then
+/// **The worst admissible triangle is the off-row sliver.** Over the
+/// lattice metric a band of residual aspect `1/a` (`a ≥ 1`) has rows
+/// `a` columns tall. A point between two of its rows has an empty
+/// circle about one row across, so a Delaunay triangle on it spans at
+/// most a box `a·s_u × s_v` (`s ≤ h`). That holds for two off-row
+/// vertices too: adjacent chord points of a slanted trim edge can span
+/// the circle's diameter. Its certificate ([`NurbsFaceBound::cert`]) is
+/// then
 ///
-/// `¼(muu·a²·s_u² + 2·muv·a·s_u·s_v + mvv·s_v²) ≤ ¼(a²·x + a·z + y) ≤ a²/4 · δ_s`,
+/// `¼(muu·a²·s_u² + 2·muv·a·s_u·s_v + mvv·s_v²) ≤ ¼(a²·x + a·z + y) ≤ a²/4 · b`,
 ///
 /// since `a² ≥ a ≥ 1`. The worst split puts the budget in `u`. That is
 /// the aspect cap's split on a ruled wall (`mvv = 0`, `s_u ≤ 1`): on the
 /// uneven-station cylinder every band is cap-bound, with `s_u` 0.90–0.999,
-/// short of 1 only by the ceil on the counts. The schedule sizes against
-/// `δ_s = δ/2` ([`crate::sizing::sizing_target`]), so the sliver
-/// certifies under δ for every split exactly when `a² ≤ 8`. The only
-/// slack is the ceil (`s_u < 1`). The centroid retries of
-/// `trimmed::MAX_GRID_RETRIES` are a backstop, not part of the bound.
+/// short of 1 only by the ceil on the counts. A lattice cell-half
+/// (`a = 1`) certifies at `b/4`.
+///
+/// So the sliver lands at δ exactly when `a²·LATTICE_SHARE/4 = 1`, and
+/// [`MAX_RESIDUAL_SQ`] is that solved for the aspect. Every point of
+/// that curve puts the worst triangle at δ; the share chooses between
+/// a coarser lattice and fewer raised rows, and is the lane's sizing
+/// split, not a margin. The only slack is the ceil (`s_u < 1`). The
+/// centroid retries of `trimmed::MAX_GRID_RETRIES` are a backstop,
+/// not part of the bound.
 ///
 /// A single off-row vertex has margin: the empty circle keeps its
-/// triangles within `(a + 1)/2` columns, which would allow
-/// `a ≤ 4√2 − 1 ≈ 4.66`. The two-vertex case does not, so it cannot
-/// carry the line.
+/// triangles within `(a + 1)/2` columns, which at this share would
+/// allow `a ≤ 4√2 − 1 ≈ 4.66`. The two-vertex case does not, so it
+/// cannot carry the line.
 ///
 /// `nurbs_cert::tests::a_strip_lattice_off_row_sliver_stays_inside_the_box_bound`
 /// tests the bound on a real CDT, and
-/// `nurbs_cert::tests::the_residual_line_bounds_the_strip_sliver_by_delta_over_every_split`
+/// `nurbs_cert::tests::the_residual_line_lands_the_strip_sliver_at_delta_over_every_split`
 /// pins the arithmetic.
-pub(crate) const MAX_RESIDUAL_SQ: f64 = 8.0;
+pub(crate) const LATTICE_SHARE: f64 = 0.5;
+
+/// The NURBS lane's lattice budget for chordal tolerance `delta`
+/// ([`LATTICE_SHARE`]): what [`NurbsFaceBound::grid_steps`] is sized
+/// on, in the lane and in the chord pass's tightening alike.
+pub(crate) fn lattice_budget(delta: f64) -> f64 {
+    delta * LATTICE_SHARE
+}
+
+/// The square of the residual aspect past which a band's off-row
+/// points sliver over the lattice metric ([`NurbsCellGrid::band_schedule`]
+/// raises such a band's rows to it): the sliver theorem at
+/// [`LATTICE_SHARE`] solved for the aspect, `a² = 4/LATTICE_SHARE`.
+pub(crate) const MAX_RESIDUAL_SQ: f64 = 4.0 / LATTICE_SHARE;
 
 /// The shipped band schedule ([`NurbsCellGrid::band_schedule`]): the
 /// bands, and the lattice metric the trimmed lane triangulates in.
@@ -1006,7 +1026,7 @@ impl NurbsCellGrid {
     /// its band's own certified region.
     ///
     /// **No column snap.** A strip lattice admits a Delaunay-legal
-    /// sliver of certificate up to `aspect²/4 · δ_s` beside any point
+    /// sliver of certificate up to `aspect²/4 · b` beside any point
     /// off its columns (a neighbour band's columns on the shared cut
     /// line, a rim chord point, a refinement centroid), and no local
     /// insertion cures it. The trimmed lane triangulates over the
@@ -1045,7 +1065,7 @@ impl NurbsCellGrid {
         &self,
         u: (f64, f64),
         v: (f64, f64),
-        delta_s: f64,
+        budget: f64,
     ) -> Result<BandSchedule, TessellateError> {
         let du = u.1 - u.0;
         let mut edges = vec![v.0];
@@ -1057,7 +1077,7 @@ impl NurbsCellGrid {
             // The band is found by the slab midpoint — strictly inside
             // one band, since no interior cut crosses a slab.
             let bound = self.row_bound(self.row_of(0.5 * (va + vb)));
-            let steps = bound.split_steps(delta_s);
+            let steps = bound.split_steps(budget);
             let nuc = crate::sizing::ceil_count(du, steps.hu)?;
             let nvc = crate::sizing::ceil_count(vb - va, steps.hv)?;
             bands.push(BandCounts {
@@ -2376,17 +2396,17 @@ pub(crate) mod tests {
         );
     }
 
-    /// **The residual line bounds the strip sliver by δ over every split**
-    /// ([`MAX_RESIDUAL_SQ`]). A band sized to `δ_s` with a share `s` of
-    /// the budget in `u` (`muu·h_u² = s·δ_s`, `mvv·h_v² = (1 − s)·δ_s`)
+    /// **The residual line lands the strip sliver at δ over every split**
+    /// ([`MAX_RESIDUAL_SQ`]). A band sized to `b` with a share `s` of
+    /// the budget in `u` (`muu·h_u² = s·b`, `mvv·h_v² = (1 − s)·b`)
     /// admits a sliver spanning `a` columns and one row. Just under
     /// `a = √MAX_RESIDUAL_SQ` its certificate is within δ at every share;
-    /// just past it, at the all-`u` share (the cap-bound ruled wall),
-    /// it exceeds δ.
+    /// at the line, at the all-`u` share (the cap-bound ruled wall), it
+    /// is δ; just past it, it exceeds δ.
     #[test]
-    fn the_residual_line_bounds_the_strip_sliver_by_delta_over_every_split() {
+    fn the_residual_line_lands_the_strip_sliver_at_delta_over_every_split() {
         let delta = 1e-3;
-        let delta_s = crate::sizing::sizing_target(delta);
+        let budget = lattice_budget(delta);
         let line = MAX_RESIDUAL_SQ.sqrt();
         let strip = |s: f64, a: f64| {
             let b = NurbsFaceBound {
@@ -2396,8 +2416,8 @@ pub(crate) mod tests {
                 mu1: 1.0,
                 mv1: 1.0,
             };
-            let hu = (s * delta_s / b.muu).sqrt();
-            let hv = ((1.0 - s) * delta_s / b.mvv).sqrt();
+            let hu = (s * budget / b.muu).sqrt();
+            let hv = ((1.0 - s) * budget / b.mvv).sqrt();
             b.cert([[0.0, 0.0], [a * hu, 0.0], [0.5 * a * hu, hv]])
         };
         for i in 0..=100 {
@@ -2405,6 +2425,11 @@ pub(crate) mod tests {
             let c = strip(s, line * (1.0 - 1e-9));
             assert!(c <= delta, "share {s}: {c:e} > δ {delta:e}");
         }
+        let at = strip(1.0, line);
+        assert!(
+            ((at - delta) / delta).abs() < 1e-12,
+            "all-u share at the line: {at:e}, not δ {delta:e}"
+        );
         let past = strip(1.0, line * (1.0 + 1e-9));
         assert!(
             past > delta,
@@ -2418,14 +2443,14 @@ pub(crate) mod tests {
     /// points are added between two rows: one point, or two adjacent chord
     /// points joined by a constraint, as a slanted trim edge leaves them.
     /// Over every placement, the worst triangle's certificate stays within
-    /// `¼(a²·s_u + (1 − s_u))·δ_s` and within δ. This holds for the
+    /// `¼(a²·s_u + (1 − s_u))·b` and within δ. This holds for the
     /// cap-bound split (`s_u = 1`, `mvv = 0`) and for a split that keeps a
     /// `v` share.
     #[test]
     fn a_strip_lattice_off_row_sliver_stays_inside_the_box_bound() {
         use spade::{ConstrainedDelaunayTriangulation, Point2, Triangulation};
         let delta = 1e-3;
-        let delta_s = crate::sizing::sizing_target(delta);
+        let budget = lattice_budget(delta);
         let a = MAX_RESIDUAL_SQ.sqrt();
         let mut ratio = 0.0f64;
         for (s_u, mvv) in [(1.0, 0.0), (0.9, 3.0)] {
@@ -2436,13 +2461,13 @@ pub(crate) mod tests {
                 mu1: 1.0,
                 mv1: 1.0,
             };
-            let hu = (s_u * delta_s / b.muu).sqrt();
+            let hu = (s_u * budget / b.muu).sqrt();
             let hv = if mvv > 0.0 {
-                ((1.0 - s_u) * delta_s / mvv).sqrt()
+                ((1.0 - s_u) * budget / mvv).sqrt()
             } else {
                 1.0
             };
-            let bound = 0.25 * (a.powi(2) * s_u + (1.0 - s_u)) * delta_s;
+            let bound = 0.25 * (a.powi(2) * s_u + (1.0 - s_u)) * budget;
             // CDT `(X, Y)` is UV `(X·a·h_u, Y·h_v)`.
             let uv = |p: Point2<f64>| [p.x * a * hu, p.y * hv];
             let mut worst = 0.0f64;
@@ -2537,9 +2562,9 @@ pub(crate) mod tests {
         // ~1.18 vs [1/16, 16]),
         // and the chosen steps coincide with the retired grouping's —
         // the fixture pins the schedule, not the selection.
-        let delta_s = 2e-3;
+        let budget = 2e-3;
         let schedule = grid
-            .band_schedule((0.0, 1.0), (0.0, 1.0), delta_s)
+            .band_schedule((0.0, 1.0), (0.0, 1.0), budget)
             .expect("schedules");
         assert_eq!(schedule.metric, 1.0, "{schedule:?}");
         let bands = schedule.bands;
@@ -2611,7 +2636,7 @@ pub(crate) mod tests {
     /// row that can, and it does it on a described face.
     #[test]
     fn ruled_wall_degenerate_arm_is_exact() {
-        let delta_s = 1e-3;
+        let budget = 1e-3;
         let (muv, mvv) = (2.4, 51.3);
         let (mu1, mv1) = (0.9, 7.3);
         let ruled = NurbsFaceBound {
@@ -2621,12 +2646,12 @@ pub(crate) mod tests {
             mu1,
             mv1,
         };
-        let s = ruled.split_steps(delta_s);
+        let s = ruled.split_steps(budget);
         assert!(s.cap, "the cap is what binds a ruled wall");
-        // Bitwise: t = ρ·A on the ellipse, hv = √(δ_s/q(t)), hu = t·hv.
+        // Bitwise: t = ρ·A on the ellipse, hv = √(b/q(t)), hu = t·hv.
         let t = (mv1 / mu1) * ASPECT_CAP;
         let q = muv.mul_add(2.0 * t, mvv);
-        let hv = (delta_s / q).sqrt();
+        let hv = (budget / q).sqrt();
         assert_eq!(s.hv.to_bits(), hv.to_bits(), "exact arm hv");
         assert_eq!(s.hu.to_bits(), (t * hv).to_bits(), "exact arm hu");
         // The generic arm at a subnormal muu lands on the same point
@@ -2639,7 +2664,7 @@ pub(crate) mod tests {
             mu1,
             mv1,
         };
-        let d = dusty.split_steps(delta_s);
+        let d = dusty.split_steps(budget);
         assert!(d.cap);
         assert!(
             (d.hu - s.hu).abs() <= 1e-6 * s.hu && (d.hv - s.hv).abs() <= 1e-6 * s.hv,
@@ -2657,13 +2682,13 @@ pub(crate) mod tests {
             mu1: mv1,
             mv1: mu1,
         };
-        let m = mirror.split_steps(delta_s);
+        let m = mirror.split_steps(budget);
         assert!(m.cap);
         let tm = (mu1 / mv1) / ASPECT_CAP;
         // q spelled exactly as the selection spells it (mul_add order),
         // so the pin is bitwise: mirror.muu = 51.3, mirror.mvv = 0.
         let qm = muv.mul_add(2.0 * tm, mvv.mul_add(tm.powi(2), 0.0));
-        let hvm = (delta_s / qm).sqrt();
+        let hvm = (budget / qm).sqrt();
         assert_eq!(m.hv.to_bits(), hvm.to_bits(), "mirror arm hv");
         assert_eq!(m.hu.to_bits(), (tm * hvm).to_bits(), "mirror arm hu");
     }
@@ -2674,7 +2699,7 @@ pub(crate) mod tests {
     /// than beyond it (the strip the unconstrained optimum would be).
     #[test]
     fn the_cap_binds_and_the_ruled_wall_gets_cheaper() {
-        let delta_s = 1e-3;
+        let budget = 1e-3;
         let b = NurbsFaceBound {
             muu: 0.0,
             muv: 2.4,
@@ -2682,7 +2707,7 @@ pub(crate) mod tests {
             mu1: 1.1,
             mv1: 2.9,
         };
-        let s = b.split_steps(delta_s);
+        let s = b.split_steps(budget);
         assert!(s.cap);
         let aspect = (s.hu * b.mu1) / (s.hv * b.mv1);
         assert!(
@@ -2691,7 +2716,7 @@ pub(crate) mod tests {
         );
         // The retired grouping's point, spelled here as the
         // counterfactual it now is.
-        let amgm = |group: f64| (delta_s / (2.0 * group)).sqrt();
+        let amgm = |group: f64| (budget / (2.0 * group)).sqrt();
         let (ou, ov) = (amgm(b.muu + b.muv), amgm(b.mvv + b.muv));
         let cells = |hu: f64, hv: f64| (1.0 / hu).ceil().max(1.0) * (1.0 / hv).ceil().max(1.0);
         let (new_cells, old_cells) = (cells(s.hu, s.hv), cells(ou, ov));
@@ -2886,8 +2911,8 @@ pub(crate) mod tests {
             let (u0, u1) = s.knots_u_f64_interim().domain();
             let (v0, v1) = s.knots_v_f64_interim().domain();
             for delta in deltas {
-                let delta_s = delta / 2.0;
-                let (hu, hv) = b.grid_steps(delta_s);
+                let budget = lattice_budget(delta);
+                let (hu, hv) = b.grid_steps(budget);
                 let cells = |span: f64, h: f64| -> usize {
                     let raw = (span / h).ceil();
                     if raw.is_finite() && raw >= 1.0 {
@@ -3799,8 +3824,8 @@ pub(crate) mod tests {
         let (u0, u1) = s.knots_u_f64_interim().domain();
         let (v0, v1) = s.knots_v_f64_interim().domain();
         for delta in [1.0, 2e-1] {
-            let delta_s = delta / 2.0;
-            let (hu, hv) = b.grid_steps(delta_s);
+            let budget = lattice_budget(delta);
+            let (hu, hv) = b.grid_steps(budget);
             // Grid capped at 96 cells/direction: the extreme-weight
             // bound is very conservative, so the budget grid would run
             // to millions of cells; the per-triangle claim d ≤ cert(uv)
@@ -4349,7 +4374,7 @@ pub(crate) mod tests {
     /// and whole-chart division counts for the retired MAGNITUDE
     /// reading (pinned from the measurement taken before it was
     /// removed) beside the shipped SIGNED one, at the tour's own
-    /// delta_s decade.
+    /// budget decade.
     ///
     /// `#[ignore]`d: a measurement, not an assertion.
     ///
@@ -4403,8 +4428,8 @@ pub(crate) mod tests {
                 wavy_rational(),
             ),
         ];
-        for delta_s in [1e-2, 4e-3, 1e-3] {
-            println!("\ndelta_s = {delta_s:.0e}");
+        for budget in [1e-2, 4e-3, 1e-3] {
+            println!("\nbudget = {budget:.0e}");
             println!(
                 "{:<18} {:>6} {:>13} {:>13} {:>9} {:>9} {:>7}",
                 "face", "read", "h_u", "h_v", "div_u", "div_v", "cells"
@@ -4412,7 +4437,7 @@ pub(crate) mod tests {
             for (name, old, s) in &retired {
                 let new = nurbs_face_bound(s, FaceKey::default()).expect("covered");
                 for (tag, b) in [("mag", *old), ("signed", new)] {
-                    let (hu, hv) = b.grid_steps(delta_s);
+                    let (hu, hv) = b.grid_steps(budget);
                     // The chart is the unit square in both directions
                     // for every fixture here.
                     let du = if hu.is_finite() && hu > 0.0 {
