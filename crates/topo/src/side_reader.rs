@@ -783,8 +783,11 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
     let mut out = Vec::new();
     for (face, f) in body.faces() {
         for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-            let Some(LoopBoundary::Cycle { first }) = body.get_loop(l).map(|lp| lp.boundary) else {
-                continue;
+            let first = match body.get_loop(l).map(|lp| lp.boundary) {
+                Some(LoopBoundary::Cycle { first }) => first,
+                // A lone ring vertex has no edge to frame, and a loop that
+                // does not resolve none to read.
+                Some(LoopBoundary::Empty { .. }) | None => continue,
             };
             for h in body.loop_walk(first).closed("loop", first) {
                 let Some(he) = body.get_half_edge(h) else {

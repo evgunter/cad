@@ -20,6 +20,11 @@ use sweep::test_support::{
 };
 use topo::{Body, ContactRecords, SolidContainment};
 
+test_utils::gated_to![
+    "crates/topo/src/boolean/solid_contain.rs",
+    "crates/topo/src/boolean/solid_contain/curved_edges.rs",
+];
+
 /// The bodies, each with a curved boundary, built through the public
 /// doors, each asserted legal at tier 3′ with no contacts.
 fn bodies(tol: Tol) -> Vec<(&'static str, Body<f64>)> {
@@ -129,10 +134,6 @@ fn rays_in_band_of_a_curved_edge_read_it_once() {
 /// side.
 #[test]
 fn no_ray_about_a_curved_edge_reads_the_wrong_side() {
-    test_utils::gated_to![
-        "crates/topo/src/boolean/solid_contain.rs",
-        "crates/topo/src/boolean/solid_contain/curved_edges.rs",
-    ];
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the run's band");
     let k_eps = tol.k() * tol.eps();
@@ -174,10 +175,6 @@ fn no_ray_about_a_curved_edge_reads_the_wrong_side() {
 /// the edges they pass within the band of.
 #[test]
 fn points_about_a_cylinders_edges_read_right_or_not_at_all() {
-    test_utils::gated_to![
-        "crates/topo/src/boolean/solid_contain.rs",
-        "crates/topo/src/boolean/solid_contain/curved_edges.rs",
-    ];
     let tol = Tol::witness();
     let band = Band::linear(tol).expect("the run's band");
     let k_eps = tol.k() * tol.eps();

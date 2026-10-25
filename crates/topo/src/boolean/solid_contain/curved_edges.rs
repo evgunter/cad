@@ -250,9 +250,10 @@ fn narrow<T: Decide>(
         for &face in &m.faces {
             let f = body.get_face(face).ok_or(corrupt(face))?;
             for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-                let Some(LoopBoundary::Cycle { first }) = body.get_loop(l).map(|lp| lp.boundary)
-                else {
-                    continue;
+                let first = match body.get_loop(l).map(|lp| lp.boundary) {
+                    Some(LoopBoundary::Cycle { first }) => first,
+                    Some(LoopBoundary::Empty { .. }) => continue,
+                    None => return Err(corrupt(face)),
                 };
                 for h in body.loop_walk(first).closed("loop", first) {
                     let he = body.get_half_edge(h).ok_or(corrupt(face))?;
