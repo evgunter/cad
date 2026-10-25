@@ -3828,9 +3828,8 @@ fn line_touch_reaches<T: Decide>(
             if a.key == b.key {
                 continue;
             }
-            match parallel_overlap(*a, *b, band, &mut errors)? {
-                Some(_) => return Some(true),
-                None => {}
+            if parallel_overlap(*a, *b, band, &mut errors)?.is_some() {
+                return Some(true);
             }
         }
     }
@@ -8613,7 +8612,13 @@ mod rest {
         // differ. A pair is read at its pieces' middles, then along the
         // ladder [`judge`] reads a piece at: where it reads, it reads the
         // pieces' one cell each.
-        let ladder = [0.5, 0.25, 0.75, 0.0625, 0.9375].map(T::from_f64);
+        let ladder = [
+            T::from_f64(0.5),
+            T::from_f64(0.25),
+            T::from_f64(0.75),
+            T::from_f64(0.0625),
+            T::from_f64(0.9375),
+        ];
         let at = |(k, (c0, c1)): (usize, Segment<T>), t: T| (k, c0 + (c1 - c0) * t);
         let mut tied = vec![false; probes.len()];
         if let Some(first) = tied.first_mut() {
