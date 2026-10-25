@@ -442,14 +442,18 @@ fn both_sweeps_evaluate_in_one_document() {
 /// written whole, so ids moved, and with them the names and value
 /// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
 /// held, so no point moved.
+///
+/// RE-BLESSED, every row, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x538c_32e6_1493_8739),
-        ("corner_table", 0x7dd6_2ea6_289b_019e),
-        ("cut_cylinder", 0xa204_ea8f_4f36_b852),
-        ("boss_union", 0x1018_cfdc_0f05_c44c),
-        ("kitchen_sink", 0x99b3_96f7_8787_0655),
+        ("die", 0xcce3_bc80_9945_6069),
+        ("corner_table", 0x52f5_b074_394d_558a),
+        ("cut_cylinder", 0x6d29_36f1_c1b7_91f0),
+        ("boss_union", 0x38bf_314c_4171_f132),
+        ("kitchen_sink", 0xae5c_e25a_29f9_dfaa),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
