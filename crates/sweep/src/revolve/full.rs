@@ -185,22 +185,16 @@ pub(super) fn build_full<T: Decide + topo::AtRestPolicy>(
         fill(pi_meridians, &grafted.pi_meridians);
         fill(pi_rims, &grafted.pi_rims);
     }
-    if out
-        .cavities
-        .iter()
-        .any(|c| matches!(c.origin, CavityOrigin::Pocket { .. }))
-    {
-        // Loop 0's walls in swept order of their first segment, the
-        // filled shell's and the pockets' interleaved as the loop
-        // holds them.
-        let mut position = vec![0; outer.n_canon];
-        for (j, run) in outer.members.iter().enumerate() {
-            for &m in run {
-                position[m] = j;
-            }
+    // Loop 0's walls in swept order of their first segment: a wire
+    // starts at the end of an axis run, and the filled shell's and the
+    // pockets' walls interleave as the loop holds them.
+    let mut position = vec![0; outer.n_canon];
+    for (j, run) in outer.members.iter().enumerate() {
+        for &m in run {
+            position[m] = j;
         }
-        out.bands[0].sort_by_key(|band| position[band.segments[0]]);
     }
+    out.bands[0].sort_by_key(|band| position[band.segments[0]]);
 
     // **Unconditional, and it is the door's whole postcondition.** The
     // phase builders above run under a surgery scope, so tier 1 is not
