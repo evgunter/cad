@@ -7,7 +7,7 @@ opened: 2026-10-10
 priority: P1
 cost: M
 parent: topo-mints-indeterminates-outside-the-funnel
-blocked_on: [glue-disagreements-and-held-contradictions-after-stage-4, period-headroom-margin-has-no-shared-home, cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect, material-arm-split-ends-as-a-hand-minted-invalid]
+blocked_on: [glue-disagreements-and-held-contradictions-after-stage-4, cone-nappe-is-decided-in-five-places, chart-region-mints-indeterminates-after-a-definite-sign, chart-definite-diag-labels-an-interval-lower-end-as-an-f64-value, boolean-unreadable-norm-ends-as-a-kernel-defect, material-arm-split-ends-as-a-hand-minted-invalid]
 ---
 
 Unit 6 of `topo-mints-indeterminates-outside-the-funnel`'s re-scope
