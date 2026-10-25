@@ -95,6 +95,8 @@ mod d290_r2_e2e;
 mod decoration_plane_mint;
 #[path = "ellipse_signed_semi_axis_gate.rs"]
 mod ellipse_signed_semi_axis_gate;
+#[path = "certify_turn_rule.rs"]
+mod certify_turn_rule;
 #[path = "end_samples_read_the_carrier.rs"]
 mod end_samples_read_the_carrier;
 #[path = "exhaust_lane_meters.rs"]
