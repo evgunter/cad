@@ -312,3 +312,107 @@ fn the_stored_turn_is_the_edges_own_interval() {
         }
     }
 }
+
+/// What a reader of a certified circle's span did with it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Read {
+    Proceeds,
+    Refuses,
+    Escalates,
+}
+
+/// **The certified readers read the turn the certificate stored, and
+/// agree with the decisions they retired**: `topo`'s point split
+/// (`bool_split_span_period`, not over), the sphere trim's meridian
+/// (`bool_sphere_trim_meridian_span`, strictly partial) and `sweep`'s
+/// seam split (the raw `(τ − span).lo() <= 0` read, strictly partial).
+/// Each old read is an oracle, run on every circle edge that certifies
+/// at the run's band, with the span `τ ± k·e/r` for `k ∈ {0.5, 3, 20}`
+/// at both band edges `e`, a full turn and a quarter, at a radius that
+/// is not one; and every edge the split's old read would refuse or
+/// escalate does not certify, so no edge reaches the arms it retired.
+/// The readers decide at the band their edges certify at: `topo` and
+/// `sweep` certify every stored edge at `Band::linear` of the run's one
+/// `Tol`, and read it under the same.
+///
+/// **The expected delta**, the seam split's: a span short of a turn by
+/// `0.5·ε` of the radius's length is a whole turn at the band, which the
+/// seam split now refuses where its raw read (any positive headroom)
+/// proceeded.
+#[test]
+fn the_certified_readers_agree_with_the_reads_they_retired() {
+    use geom_core::k_stats::decide;
+    use geom_core::period::Within;
+    use geom_core::{Margin, Sign};
+    let band = Band::linear(geom_core::Tol::witness()).unwrap();
+    let eps = band.zero();
+    let radius = 2.0;
+    let circle = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let certify = |(t0, t1): (f64, f64)| {
+        let spec = EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1).unwrap();
+        let (start, end) = (spec.carrier.eval(t0), spec.carrier.eval(t1));
+        EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
+    };
+    let headroom = |(t0, t1): (f64, f64)| Margin::levered(TAU - (t1 - t0), radius);
+    let old_split = |span| match decide("bool_split_span_period", headroom(span), band) {
+        Ok(Sign::Positive | Sign::Zero) => Read::Proceeds,
+        Ok(Sign::Negative) => Read::Refuses,
+        Err(_) => Read::Escalates,
+    };
+    let old_meridian = |span| match decide("bool_sphere_trim_meridian_span", headroom(span), band) {
+        Ok(Sign::Positive) => Read::Proceeds,
+        Ok(Sign::Zero | Sign::Negative) => Read::Refuses,
+        Err(_) => Read::Escalates,
+    };
+    let old_seam = |(t0, t1): (f64, f64)| {
+        if TAU - (t1 - t0) <= 0.0 {
+            Read::Refuses
+        } else {
+            Read::Proceeds
+        }
+    };
+    let partial = |turn: Within| match turn {
+        Within::Short => Read::Proceeds,
+        Within::Whole => Read::Refuses,
+    };
+    let t0 = 0.7;
+    let mut spans = vec![(f64::NAN, (t0, t0 + TAU)), (f64::NAN, (t0, t0 + HALF_PI))];
+    for edge in [band.zero(), band.escalate()] {
+        for k in [0.5, 3.0, 20.0] {
+            for sign in [1.0, -1.0] {
+                let d = sign * k * edge / radius;
+                spans.push((sign * k * (edge / eps).round(), (t0, t0 + TAU + d)));
+            }
+        }
+    }
+    let mut seen = 0;
+    for (k, span) in spans {
+        let Ok(edge) = certify(span) else {
+            assert_ne!(
+                old_split(span),
+                Read::Proceeds,
+                "k = {k}: refused, as the split's read"
+            );
+            continue;
+        };
+        let turn = edge.certificate().turn.expect("a circle's turn").turn();
+        assert_eq!(old_split(span), Read::Proceeds, "k = {k}: the split");
+        assert_eq!(partial(turn), old_meridian(span), "k = {k}: the meridian");
+        if k == -0.5 {
+            seen += 1;
+            assert_eq!(
+                (old_seam(span), partial(turn)),
+                (Read::Proceeds, Read::Refuses),
+                "k = {k}: the seam split's listed delta"
+            );
+        } else {
+            assert_eq!(partial(turn), old_seam(span), "k = {k}: the seam split");
+        }
+    }
+    assert_eq!(seen, 1, "the listed delta is a case");
+}

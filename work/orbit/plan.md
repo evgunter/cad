@@ -15,9 +15,7 @@ against 30 with its six charter rows closed. Nothing dispatched.
 | P1 | `a-torus-near-a-tilted-cut-stops-at-the-extent-scan` | H | A torus near or across a tilted cut's ellipse rim stops at the extent scan or the join's germ frame: its oblique plane and wall pairs have no section arm |
 | P1 | `a-torus-touch-along-a-whole-parallel-refuses-r-tan` | M +design | A torus touching a coaxial or axis-normal partner along a whole parallel refuses R-tan |
 | P1 | `a-torus-touch-at-a-definite-non-elliptic-point-refuses-r-tan` | M +design | A torus touch that is isolated but not at an elliptic point refuses R-tan |
-| P1 | `the-lilys-stem-and-arch-walls-have-no-certificate-arm` | M | The lily's stem glue builds through the join and refuses at the interior-loop guard: two tori with parallel axes apart have no section-certificate arm |
 | P1 | `closed-sphere-escape-is-re-charted-by-rotation-beside-the-meridian-cut` | H | A closed sphere group's escape is re-charted by rotating the group while a trimmed face's is cut along its meridian: two answers to one escape |
-| P1 | `delete-the-boolean-operand-edge-gate` | M | delete gate_operand_edges once every site behind the sweep refuses a spline or spiric edge typed |
 | P1 | `separation-grants-disjointness-only-along-world-axes` | M | topo::separation grants two placements or solids disjoint only by world-axis box non-overlap, so whether it certifies depends on how they are turned |
 | P1 | `sphere-pair-meeting-inside-both-faces-refuses-spheres-meet` | M | Two sphere faces meeting in a circle inside both, with no edge crossing, refuse SpheresMeet: the meridian cut serves only the plane arm |
 
@@ -31,11 +29,9 @@ so it is a port of a door that already exists. Then the sphere pair
 (`sphere-pair-meeting-inside-both-faces-refuses-spheres-meet`) and the
 escape row beside it, which share the meridian cut. The two torus
 touch rows carry `design: true`: designers first
-(`memories/orchestration-model.md`). The edge-gate deletion goes last: the
-sites it still protects are ROOTS'
-`join-and-continuation-sites-blame-the-edge-gate-for-a-spline-edge` and
-GAUGE's `a-nurbs-edges-sector-departure-is-its-chord`, and PR 3984's
-backed-out attempt (c4f3840bd) is the prior art.
+(`memories/orchestration-model.md`). The edge-gate deletion and the
+lily's torus × torus certificate arm are no longer on this slate: they
+moved on 2026-10-25 to SPLICE and SECT (`work/orbit/log.md`).
 
 ## Ratified ground (cited, not re-litigated)
 

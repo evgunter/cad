@@ -43,3 +43,11 @@ The rule is D4 ¶1 (i)/(iv) in `docs/DESIGN.md`.
 A closed check type on `RingContactEscalated` ending through a
 `SizedDecision`; a ruling on the split's story; a margin on the two
 chart-region arms if their valued tighten is wanted.
+
+## Split (2026-10-25)
+
+The `MaterialArmOutcome::Split` ending (the second bullet, and the
+"ruling on the split's story") is now
+`material-arm-split-ends-as-a-hand-minted-invalid` (P1): its hand-minted
+`INVALID` is what CLEAVE's `the-indeterminate-seal` waits on. This row
+keeps `RingContactEscalated` and the two chart-region arms.
