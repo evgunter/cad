@@ -2916,12 +2916,13 @@ struct EdgeMeets<T> {
     gaps: Vec<Option<Indeterminate>>,
 }
 
-/// **An edge the ray meets**, half a crossing for each of its faces: its
-/// faces, the advance where the ray passes it, the span its passage lies
-/// in along the ray, and which carrier crossing of each face it stands
-/// for.
+/// **An edge the ray meets**, half a crossing for each of its faces: the
+/// edge, its faces, the advance where the ray passes it, the span its
+/// passage lies in along the ray, and which carrier crossing of each
+/// face it stands for.
 #[derive(Clone, Copy)]
 struct Met<T> {
+    edge: crate::entity::EdgeKey,
     faces: [FaceKey; 2],
     at: T,
     span: (T, T),
@@ -3053,6 +3054,7 @@ fn edge_meets<T: Decide>(
         }
         meets.meet(
             Met {
+                edge: pass.edge,
                 faces,
                 at,
                 span: (at, at),

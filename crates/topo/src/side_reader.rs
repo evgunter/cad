@@ -752,13 +752,29 @@ pub(crate) fn each_aim_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<Stri
     out
 }
 
-/// **Rays aimed at and beside every edge**: for each face and each edge
-/// of its loops, a ray aimed at the edge's middle offset `o` into the
-/// face (along `N × τ`, `N` its outward normal there and `τ` its loop's
-/// tangent), for each `o` of `offsets`, read as an aimed ray is. Each
-/// line is `edge kind, the two faces' surface kinds, offset: reading`.
+/// **A frame at a point of an edge, on one of its faces**: what the
+/// probes aim at and about an edge ([`edge_frames`]).
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn edge_rays_report(body: &Body<f64>, offsets: &[f64], band: Band) -> Vec<String> {
+pub struct EdgeFrame {
+    /// The edge's carrier kind, its key and its two faces' surface kinds.
+    pub label: String,
+    /// The face.
+    pub face: FaceKey,
+    /// The point of the edge.
+    pub point: Point3<f64>,
+    /// The unit direction into the face there, `N × τ`.
+    pub into: Vec3<f64>,
+    /// The face's outward unit normal there.
+    pub normal: Vec3<f64>,
+}
+
+/// **Each edge's frames, on each of its faces**, at each fraction of
+/// `fractions` along the edge's span (`N` the face's outward normal at
+/// the point, `τ` its loop's tangent): the probes aim rays at and about
+/// an edge from them. An edge whose face has no normal at the point is
+/// left out.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
     let kind = |f: FaceKey| {
         body.get_face(f)
             .and_then(|fc| body.get_surface(fc.surface))
@@ -784,39 +800,60 @@ pub(crate) fn edge_rays_report(body: &Body<f64>, offsets: &[f64], band: Band) ->
                 else {
                     continue;
                 };
-                let mate = edge.claim(h).map(|c| c.mate);
-                let other = mate
-                    .and_then(|m| body.get_half_edge(m))
+                let other = edge
+                    .claim(h)
+                    .and_then(|c| body.get_half_edge(c.mate))
                     .and_then(|m| body.get_loop(m.parent_loop))
                     .map(|lp| lp.face);
                 let (t0, t1) = curve.params();
-                let mid = geom::mid_param(t0, t1);
-                let p = curve.carrier().eval(mid);
-                let mut tau = curve.carrier().deriv(mid).normalize();
-                if edge.he_minus == h {
-                    tau = tau * -1.0;
-                }
-                let Ok(Some(normal)) =
-                    crate::face_normal::face_outward_normal_at(body, face, p, band)
-                else {
-                    out.push(format!("{:?} {face:?}: no normal at the edge", he.edge));
-                    continue;
-                };
-                let n = normal.vec();
-                let w = n.cross(tau).normalize();
-                for &o in offsets {
-                    let aim = p + w * o;
-                    out.push(format!(
-                        "{:?} {:?} [{} | {}] o={:e}: {}",
-                        curve.carrier().kind(),
-                        he.edge,
-                        kind(face),
-                        other.map_or("?".to_owned(), kind),
-                        o,
-                        ray_at_report(body, face, aim, n, band)
-                    ));
+                for &x in fractions {
+                    let t = t0 + (t1 - t0) * x;
+                    let point = curve.carrier().eval(t);
+                    let mut tau = curve.carrier().deriv(t).normalize();
+                    if edge.he_minus == h {
+                        tau = tau * -1.0;
+                    }
+                    let Ok(Some(normal)) =
+                        crate::face_normal::face_outward_normal_at(body, face, point, band)
+                    else {
+                        continue;
+                    };
+                    let normal = normal.vec();
+                    out.push(EdgeFrame {
+                        label: format!(
+                            "{:?} {:?} [{} | {}]",
+                            curve.carrier().kind(),
+                            he.edge,
+                            kind(face),
+                            other.map_or("?".to_owned(), kind),
+                        ),
+                        face,
+                        point,
+                        into: normal.cross(tau).normalize(),
+                        normal,
+                    });
                 }
             }
+        }
+    }
+    out
+}
+
+/// **Rays aimed at and beside every edge**: for each face and each edge
+/// of its loops, a ray aimed at the edge's middle offset `o` into the
+/// face ([`edge_frames`]), for each `o` of `offsets`, read as an aimed
+/// ray is. Each line is `edge kind, the two faces' surface kinds,
+/// offset: reading`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn edge_rays_report(body: &Body<f64>, offsets: &[f64], band: Band) -> Vec<String> {
+    let mut out = Vec::new();
+    for f in edge_frames(body, &[0.5], band) {
+        for &o in offsets {
+            out.push(format!(
+                "{} o={o:e}: {}",
+                f.label,
+                ray_at_report(body, f.face, f.point + f.into * o, f.normal, band)
+            ));
         }
     }
     out

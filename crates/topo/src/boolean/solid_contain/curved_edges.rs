@@ -5,13 +5,17 @@
 //! carrier's crossings on this ray (a planar face whose plane it
 //! crosses, a trimmed curved face's roots).
 //!
-//! - **Where the ray passes the edge.** From each carrier crossing of
-//!   either face, the ray's point is carried to its closest approach to
-//!   the edge's carrier by alternate feet: the point's foot on the carrier
-//!   ([`geom::Curve3::foot`], the one foot reading), then that foot's
-//!   projection back onto the ray. Two faces on one carrier (a seam
-//!   split) cross it at one root, so their one point is read against the
-//!   seam once.
+//! - **Where the ray passes the edge.** Each carrier crossing of either
+//!   face is read against the edge's carrier first, and one definitely
+//!   off it is clear of the edge there. From one that is not, the ray's
+//!   point is carried to its closest approach to the carrier by alternate
+//!   feet: the point's foot on the carrier ([`geom::Curve3::foot`], the
+//!   one foot reading), then that foot's projection back onto the ray.
+//!   Near the carrier the foot is well placed; far from it (a point on a
+//!   circle's axis) it need not be, and a crossing that far off reads
+//!   nothing about the edge. Two faces on one carrier (a seam split)
+//!   cross it at one root, so their one point is read against the seam
+//!   once.
 //! - **Whether it meets it.** That ray point is read against the edge's
 //!   span as the census reads it ([`crate::census::edge_span`]): on the
 //!   carrier ([`geom::Curve3::foot`]'s `on_carrier`, zero in the band, off
@@ -30,6 +34,12 @@
 //! An edge both of whose sides are one face (a seam inside a face) is no
 //! boundary of it. One met at two places along the ray, or whose face
 //! offers no crossing to stand for it, reads nothing there.
+//!
+//! **Clear is read at the crossings.** An edge every crossing of whose
+//! faces reads clear of it is decided clear, and each face reads its own
+//! crossing there. A ray shallow to both faces of an edge can pass within
+//! the band of the edge with both crossings definitely off it; each face's
+//! own reading then lies in band of the edge, and sets the ray aside.
 
 use super::{
     Cross, EdgeMeets, FaceGeo, Mark, Met, PlaneCross, PointInSolidError, RayHit, RayRows, RootCross,
@@ -204,6 +214,7 @@ pub(super) fn read<T: Decide>(
                 };
                 meets.meet(
                     Met {
+                        edge: e,
                         faces,
                         at,
                         span: (lo, hi),
@@ -214,12 +225,94 @@ pub(super) fn read<T: Decide>(
             }
         }
     }
+    narrow(body, planes, (q, d), band, meets)
+}
+
+/// **A face met at one edge, read again at its other edges from where
+/// the ray passes that edge**: a curved edge, or a line edge beside a
+/// curved face, of either face the ray passes within the band of from
+/// there is a second edge the face is met at, a wedge, and both are
+/// marked (as [`EdgeMeets::meet`] marks one). The edges' own reading
+/// starts at their faces' crossings, which a ray shallow to both faces
+/// leaves definitely off an edge it passes within the band of; from a
+/// point where the ray passes within the band of the face, an edge of a
+/// face narrower than the band there is near.
+fn narrow<T: Decide>(
+    body: &Body<T>,
+    planes: &[PlaneCross<T>],
+    (q, d): (Point3<T>, Vec3<T>),
+    band: Band,
+    meets: &mut EdgeMeets<T>,
+) -> Result<(), RayFault<PointInSolidError>> {
+    let corrupt = |face| RayFault::Fatal(PointInSolidError::CorruptFace { face });
+    let met = meets.met.clone();
+    for m in &met {
+        for &face in &m.faces {
+            let f = body.get_face(face).ok_or(corrupt(face))?;
+            for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                let Some(LoopBoundary::Cycle { first }) = body.get_loop(l).map(|lp| lp.boundary)
+                else {
+                    continue;
+                };
+                for h in body.loop_walk(first).closed("loop", first) {
+                    let he = body.get_half_edge(h).ok_or(corrupt(face))?;
+                    let e = he.edge;
+                    // A line edge between two crossed planes is read
+                    // exactly ([`super::edge_meets`]); one met is marked
+                    // where it was met.
+                    if e == m.edge || meets.lines.contains(&e) || met.iter().any(|w| w.edge == e) {
+                        continue;
+                    }
+                    let mate = body
+                        .edges
+                        .get(e)
+                        .and_then(|edge| edge.claim(h))
+                        .ok_or(corrupt(face))?
+                        .mate;
+                    let other = body
+                        .get_half_edge(mate)
+                        .and_then(|mh| body.get_loop(mh.parent_loop))
+                        .ok_or(corrupt(face))?
+                        .face;
+                    if other == face
+                        || crate::census::edge_is_line(body, e)
+                            && planes.iter().any(|c| c.face == other)
+                            && planes.iter().any(|c| c.face == face)
+                    {
+                        continue;
+                    }
+                    let Some(span) = crate::census::edge_span(body, e, band) else {
+                        continue;
+                    };
+                    let faces = [face, other];
+                    match passes(&span, q, d, q + d * m.at, band) {
+                        Passes::Met(s, gap) => {
+                            let mark = gap.map_or(Mark::Graze, Mark::Wedge);
+                            meets.marks.push(RayHit::marked(faces, s, mark));
+                            meets.marks.push(RayHit::marked(m.faces, m.at, mark));
+                        }
+                        Passes::End(s) => {
+                            meets.marks.push(RayHit::marked(faces, s, Mark::Graze));
+                        }
+                        Passes::Undecided => {
+                            meets.marks.push(RayHit::marked(m.faces, m.at, Mark::Graze));
+                        }
+                        Passes::Clear => {}
+                    }
+                }
+            }
+        }
+    }
     Ok(())
 }
 
-/// **What the ray `q + s·d` reads against `span` from `seed`**, a point
-/// of it (module docs): carried to its closest approach by alternate
-/// feet, then read on the carrier and against the span's ends.
+/// **What the ray `q + s·d` reads against `span` from `seed`**, a
+/// carrier crossing on it (module docs). A crossing definitely off the
+/// edge's carrier (on the carrier's lower bound, where it has a closed
+/// form) is clear of it there. One that is not lies near the
+/// carrier, where its foot is well placed, and is carried to the ray's
+/// closest approach by alternate feet, which is read on the carrier and
+/// against the span's ends.
 fn passes<T: Decide>(
     span: &crate::census::EdgeSpan<T>,
     q: Point3<T>,
@@ -228,7 +321,21 @@ fn passes<T: Decide>(
     band: Band,
 ) -> Passes<T> {
     let carrier = span.carrier();
-    let (mut near, mut r) = (span.middle(), seed);
+    let mut near = span.middle();
+    // The carrier's closed-form lower bound on the crossing's distance
+    // from it, as its on-carrier reading decides off (a spline's is that
+    // reading's own walk): a crossing far off the carrier asks no foot.
+    let clear = match carrier.clearance(seed) {
+        Some(lower) => decide("curve_carrier_clear", Margin::of(lower), band) == Ok(Sign::Positive),
+        None => matches!(
+            carrier.foot(seed, near).on_carrier(band),
+            Ok(geom::OnCarrier::Off)
+        ),
+    };
+    if clear {
+        return Passes::Clear;
+    }
+    let mut r = seed;
     for _ in 0..FEET {
         near = carrier.foot(r, near).t();
         r = q + d * (carrier.eval(near) - q).dot(d);

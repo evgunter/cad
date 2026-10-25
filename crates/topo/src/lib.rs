@@ -402,6 +402,19 @@ pub mod test_support {
         crate::side_reader::ray_at_report(body, face, aim, normal, band)
     }
 
+    pub use crate::side_reader::EdgeFrame;
+
+    /// Each edge's frames on each of its faces, at each fraction of
+    /// `fractions` along it (`side_reader`): the probes aim at and about
+    /// an edge from them.
+    pub fn edge_frames(
+        body: &Body<f64>,
+        fractions: &[f64],
+        band: geom_core::Band,
+    ) -> Vec<EdgeFrame> {
+        crate::side_reader::edge_frames(body, fractions, band)
+    }
+
     /// Rays aimed at and beside every edge, `offsets` into each face
     /// (`side_reader`): the curved edge-meeting ray's probes read it.
     pub fn edge_rays(body: &Body<f64>, offsets: &[f64], band: geom_core::Band) -> Vec<String> {

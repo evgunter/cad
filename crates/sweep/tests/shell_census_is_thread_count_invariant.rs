@@ -131,7 +131,7 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("side_at_infinity_bool_ruled_region_roots_slack Zero", 20),
         ("side_at_infinity_bool_ruled_region_span Negative", 42),
         ("side_at_infinity_bool_ruled_region_span Positive", 82),
-        ("side_at_infinity_curve_carrier_clear Positive", 14),
+        ("side_at_infinity_curve_carrier_clear Positive", 34),
         ("side_at_infinity_curve_carrier_gap Positive", 14),
         ("side_at_infinity_curve_foot_branch Negative", 5),
         ("side_at_infinity_curve_foot_branch Positive", 5),
@@ -141,6 +141,8 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("side_at_infinity_edge Positive", 12),
         ("side_at_infinity_order Negative", 2),
         ("side_at_infinity_order Positive", 1),
+        ("side_at_infinity_pm_census_curved_speed_floor Positive", 6),
+        ("side_at_infinity_pm_census_curved_speed_hi Positive", 6),
         ("side_at_infinity_point_in_arc_loop_arm Positive", 5),
         (
             "side_at_infinity_point_in_arc_loop_conic_advance Negative",
@@ -164,7 +166,7 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         ("side_at_infinity_point_in_arc_loop_side Negative", 4),
         ("side_at_infinity_point_in_arc_loop_side Positive", 2),
         ("side_at_infinity_point_in_arc_loop_side Zero", 2),
-        ("side_at_infinity_vertex Positive", 8),
+        ("side_at_infinity_vertex Positive", 12),
     ]
     .into_iter()
     .map(|(k, n)| (k.to_string(), n))
