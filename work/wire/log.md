@@ -6993,3 +6993,9 @@ Signed (WIRE orchestrator).
   - `to_u32`'s bound is SlotMap's u32 slot cap. `output_body` stays fallible: pattern counts are uncapped and on D10 ground. `loop_coordinates` stays fallible and was filed.
   - Four rows filed, two of them in other programs (seamrank, doctail: track_caller inside closures).
   - Review dispatched (`wire-emithelpers-rev`).
+- 2026-10-25 (WIRE orchestrator) After the usage reset, `wire-bridges` and `wire-emithelpers-rev` resumed.
+  - PR 5530 review: mergeable, four MINORs. Fix pass sent:
+    - section()'s closures defeat track_caller;
+    - first-hop dead-key arms need a proven-live reason (chord_faces guards a dead face);
+    - output_body joins the loop_coordinates row;
+    - stale docs, vestigial Results, borders' hand copy of edge_ends.
