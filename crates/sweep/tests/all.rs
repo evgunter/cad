@@ -1256,3 +1256,5 @@ mod review_5697_r2_points;
 mod review_5697_r2_rays;
 #[path = "review_5697_r2_seams.rs"]
 mod review_5697_r2_seams;
+#[path = "review_5697_r2_reader.rs"]
+mod review_5697_r2_reader;
