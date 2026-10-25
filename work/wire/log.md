@@ -7000,3 +7000,8 @@ Signed (WIRE orchestrator).
     - output_body joins the loop_coordinates row;
     - stale docs, vestigial Results, borders' hand copy of edge_ends.
 - 2026-10-25 (WIRE orchestrator) FORK-ORIENT opened (draw 28, even: Opus is A, Fable is B) on `a-unions-line-of-several-edges-is-oriented-by-its-least-edge`. Opus and Fable designers are dispatched. The brief names the seamrank axis Ev turned down, and the canonical Reverse rule, as known traps. PR 5700 (state sync) merged.
+- 2026-10-25 (WIRE orchestrator) `wire-bridges` opened PR 5535 (head 727d143153).
+  - The union refusal was a kernel record duplicate: `seam_edges` listed an edge that two zips glue twice (ops.rs dedup, NS5).
+  - The intersect refusal was emit_union re-spelling N2's corner copies bare; the new `name_corner_copies` follows the rule N2 already states.
+  - `ADMITTED_OPERAND_ORDER` is empty. A sliver-below-default-K row was filed.
+  - A FULL review (`wire-bridges-rev`) is dispatched.
