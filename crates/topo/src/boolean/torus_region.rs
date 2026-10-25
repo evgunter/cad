@@ -160,10 +160,10 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
 const CORNER: &str = "bool_torus_region_corner";
 
 /// A circle edge's boundary reading's rows (module docs).
-const BOUNDARY: ConicRows = ConicRows {
-    span: "bool_torus_region_arc_span",
-    straddle: "bool_torus_region_arc_straddle",
-};
+const BOUNDARY: ConicRows = ConicRows::bounded(
+    "bool_torus_region_arc_span",
+    "bool_torus_region_arc_straddle",
+);
 
 /// An oval edge's boundary reading's rows (module docs).
 const SPIRIC: SpiricRows = SpiricRows {
@@ -468,10 +468,14 @@ impl<T: Decide> Region<T> for TorusFaceRegion<T> {
     /// ([`SpiricArc::contact`]).
     fn on_edge(&self, edge: &Edge<T>, p: Point3<T>, band: Band) -> Result<bool, RegionRefusal> {
         match edge.carrier {
-            geom::Curve3::Circle { .. } => {
-                let span = (edge.t0, edge.t1);
-                circle_edge_hit(&edge.carrier, span, BOUNDARY, p, self.outer, band)
-            }
+            geom::Curve3::Circle { .. } => circle_edge_hit(
+                &edge.carrier,
+                edge.turn.as_ref(),
+                BOUNDARY,
+                p,
+                self.outer,
+                band,
+            ),
             geom::Curve3::Spiric {
                 center,
                 axis,
@@ -762,6 +766,7 @@ mod tests {
             },
             t0: 0.0,
             t1: TAU,
+            turn: crate::boolean::region::fixture_turn(0.0, TAU),
             forward,
         }
     }
@@ -837,6 +842,7 @@ mod tests {
             },
             t0: 0.0,
             t1: TAU,
+            turn: crate::boolean::region::fixture_turn(0.0, TAU),
             forward,
         };
         TorusFaceRegion {
@@ -975,6 +981,7 @@ mod tests {
                 },
                 t0: 0.0,
                 t1: TAU,
+                turn: crate::boolean::region::fixture_turn(0.0, TAU),
                 forward,
             };
             let point = |phi: f64, t: f64| {
@@ -1077,6 +1084,7 @@ mod tests {
             },
             t0,
             t1,
+            turn: crate::boolean::region::fixture_turn(t0, t1),
             forward: true,
         }
     }
@@ -1149,6 +1157,7 @@ mod tests {
             },
             t0: -2.5,
             t1: 2.5,
+            turn: crate::boolean::region::fixture_turn(-2.5, 2.5),
             forward: true,
         };
         let region = holding(oval.clone());

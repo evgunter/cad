@@ -1389,3 +1389,4 @@ Signed (CLEAVE orchestrator).
   - Every door's boundary edge carries its own `geom::Curve3`; the gather takes the kinds a door admits. The torus `Carrier`, ruled `Reading` and sphere `Circle` are gone.
   - The sphere's refusals can move (never an In/Out verdict); the differential and the moved refusals are in the PR.
   - Filed `work/germtail/ring-path-spells-its-circle-and-conic-arcs-by-hand.md`. (CHART implementer)
+- 2026-10-25 — **Seam (PRED):** branch `pred/period-turn-rule` (unit 1 of `period-headroom-margin-has-no-shared-home`) touches `topo/src/boolean/{contain,region,ruled_region,ruled_region_rows,sphere_region,torus_region}.rs` and `splitting/containment.rs`: `ConicArc::of` decides its span through `geom_core::period::Period::turn`, `ConicRows` is `TurnRows<&str>` (field `span` → `turn`, names unchanged), and `RegionEdge` carries its certified `extent`. (PRED orchestrator)
