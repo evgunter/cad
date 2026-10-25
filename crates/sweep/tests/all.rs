@@ -711,6 +711,8 @@ mod review_s12_adv;
 mod review_s6_probe;
 #[path = "review_verbs_rim_lever_probes.rs"]
 mod review_verbs_rim_lever_probes;
+#[path = "revolve_axis_gaps.rs"]
+mod revolve_axis_gaps;
 #[path = "revolve_ball.rs"]
 mod revolve_ball;
 #[path = "revolve_cone.rs"]

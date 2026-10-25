@@ -4,7 +4,7 @@ kind: issue
 title: An axis offset in the band folds to NoArm at the cylinder × sphere frame and escalates at the parallel cylinder arm
 status: open
 opened: 2026-10-04
-priority: P3
+priority: P1
 cost: E
 refs: [4031, cylinder-sphere-tangency-is-decided-twice-and-its-offset-computed-three-times]
 design: true

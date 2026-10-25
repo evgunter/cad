@@ -2,10 +2,11 @@
 id: step-export-reclassifies-shell-roles-with-its-own-planar-flux
 kind: issue
 title: step-export decides a multi-shell solid's outer/void roles with its own planar flux and a raw f64 sign, refusing every curved shell that topo::classify_shells_of already classifies
-status: open
+status: closed
 opened: 2026-09-28
 priority: P1
 cost: M
+closed: 2026-10-25
 refs: [3393, step-export-refuses-every-hollow-body]
 ---
 
@@ -105,3 +106,26 @@ volume's sign only where no face offers an aim that reads. It refuses
 `RayInBand`/`Ray` beside the volume's refusals. Routing step-export
 through it, this row's fix, now inherits that reader; the refusal
 mapping gains those two arms.
+
+## Closed (2026-10-25)
+
+Fixed by PRED S18 (PR 5684). The export door takes a finished body
+(`step_string(&topo::AtRestBody<f64>, ..)`), and
+`crates/step-export/src/writer.rs` (`void_refusal`) reads the first
+multi-shell solid's shells through `topo::classify_shells_of`: at rest
+such a solid is one `Outer` plus `Void`s (tier 3, check 10), so it
+refuses `VoidShellUnsupported`, naming the void and its volume
+enclosure. `volume.rs`, `CurvedShellClassification` and
+`ShellVolumeIndeterminate` are deleted.
+
+The first behaviour change above landed at the gate, not the writer: a
+planar shell whose role is in band refuses at validation
+(`ValidationError::ShellRoleUndecided`, check 10), so the caller's
+`AtRestBody::validate` names it and the writer is never handed the
+body. What the writer's `ShellUnclassified` still carries is the door's
+measurement of a shell's volume at the reporting target
+(`ShellClassifyError::Props`), which the gate's sign read does not
+need. The rows this item named flip to `VoidShellUnsupported` and say
+so: `sweep`'s shelled tube, the tour's four hollow-body pins, klein's
+wall 6. The hollow-body refusal itself stays with
+`step-export-refuses-every-hollow-body`.

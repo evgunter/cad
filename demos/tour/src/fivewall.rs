@@ -419,10 +419,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     |e| {
                         matches!(
                             e,
-                            pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                            pncad::step_export::StepExportError::VoidShellUnsupported { .. }
                         )
                     },
-                    "the writer's outward/void classifier has grown a curved arm. This \
+                    "the writer writes BREP_WITH_VOIDS now. This \
                      is the FIFTH probe of that one gate — retire it with klein's WALL \
                      6, the `ring` scene's, `tubewall`'s `hollowtorus` and \
                      `torusvessel`'s, which are all the same gate",

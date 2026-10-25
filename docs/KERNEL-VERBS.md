@@ -255,7 +255,7 @@ the table.
   STEP row below rather than escaping it — now a receipt, not an
   expectation: the `hollowtorus` tour scene (`demos/tour/src/tubewall.rs`)
   declares the writer's frontier at the body and probes it on every
-  pass, and the export refuses `CurvedShellClassification` (the scene
+  pass, and the export refuses `VoidShellUnsupported` (the scene
   pins the variant, not the `kind` payload) exactly as the hollow
   ring's does. Self-retiring in klein's wall-6 shape — a different
   refusal, or a success, fails the tour. Issue #986 — the scene is
@@ -521,10 +521,10 @@ the table.
   itself SHIPPED (VERBS-RING retired `FullRevolveHoles`: a full
   revolve of a holed profile builds the multi-shell solid through the
   shared void-insertion door — the register's old defect row here),
-  but the STEP writer's outward/void shell classifier has closed
-  forms for planar faces only, so a multi-shell CURVED solid refuses
-  `CurvedShellClassification` — the known standing gate of
-  OFFSET-DESIGN O6's demo-gates list, which every hollow curved part
+  but the STEP writer reads its cavity as the void it is and refuses
+  it, `VoidShellUnsupported`, since it does not write
+  `BREP_WITH_VOIDS` (`work/export/step-export-refuses-every-hollow-body.md`)
+  — the standing gate of OFFSET-DESIGN O6's demo-gates list, which every hollow part
   (this ring, the full-period `tube_along_arc_hollow` shell
   since VERBS-TUBEWALL, and the shelled teapot, which reached it as
   predicted) hits at export. (Wall 6, re-baselined: it now pins THIS
@@ -534,8 +534,8 @@ the table.
   `hollowtorus` scene's on the parameter door's. The `teapot` scene
   was a fourth until #1082's repair: its vessel ships OPENED now, and
   a cup is ONE shell, which this gate never reaches. Three separate
-  bodies through three doors, and a widened classifier releases all of
-  them;
+  bodies through three doors, and a void-writing exporter releases all
+  of them;
   what the teapot's adds is that the gate is now on record for a body
   built by asking for a hollow PART rather than for a shape chosen to
   reach it.
