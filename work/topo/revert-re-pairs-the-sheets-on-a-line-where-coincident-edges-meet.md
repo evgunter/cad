@@ -201,3 +201,16 @@ still build those bodies: the void door, the shell verb's inner twin
 only shared segments, so a partial overlap reverts unrefused, and each
 gates its result at tier 3 alone, which reads one edge at a time. This row's
 re-pairing is still what makes them right.
+
+## 2026-10-25: two void-door calls build an unpaired line (RESTREAD, `restread/coincident-wedges`)
+
+A second instance, across two calls of the void door rather than
+inside one cavity: two lune prisms inserted one after the other into a
+brick (`insert_void` each), whose cusp edges kiss on one line, leave
+two full-turn slit edges whose material overlaps. Each call reverts its
+cavity alone, so neither sees the other's edge on the line. Tier 3
+passes the body, and tier 3′ refuses it
+`CoincidentWedgesOverlapUndecided { why: Degenerate }` once the kiss
+is recorded (`crates/sweep/tests/two_wedge_ends_on_one_line.rs`). The
+re-pairing owed here covers a line the destination already holds an
+edge on, as well as the cavity's own.

@@ -61,7 +61,7 @@ passes 3′ with no sides read.
 
 Pass 5's collinear lane now reads the two edges' material wedges
 wherever it certifies a collinear overlap, a recorded pair included
-(`census.rs` `ee_collinear_lane`, `coincident_wedges`, through
+(`census.rs` `ee_collinear_lane`, `ee_overlap_sides`, through
 `census::line_wedges`), and refuses an overlap
 `CoincidentWedgesOverlap`. So the edge–edge bullet above stands for
 two curved edges (pass 5′,

@@ -83,6 +83,6 @@ piece's far side, times the height), tier 3 clean, its cusp read by
 tier 3's wedge-end arm: the pin is now
 `a_difference_leaving_a_cusp_along_the_ruling_builds`. Where a cusp or
 slit edge does share a line with another edge, the gate refuses typed
-(`LineWedgeFault::WedgeEnd`, D1: a consumer with no wedge-end answer
+(`LineWedgeFault::Unread { why: Degenerate }`, D1: a consumer with no wedge-end answer
 refuses at the consumer), not as an in-band escalation. The row's
 question, build or refuse, is answered for this shape: it builds.

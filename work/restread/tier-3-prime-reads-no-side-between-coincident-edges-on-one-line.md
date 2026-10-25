@@ -69,7 +69,7 @@ above) is the place to choose one: either `rest::judge` over two
 
 2026-10-21, branch `restread/coincident-wedges`. Pass 5's collinear
 lane reads two line edges' material wedges wherever it certifies their
-overlap (`census.rs` `ee_collinear_lane`, `coincident_wedges`), through
+overlap (`census.rs` `ee_collinear_lane`, `ee_overlap_sides`), through
 CLEAVE's `census::line_wedges` at the middle of the shared span: no
 new reader. A decided overlap refuses `CoincidentWedgesOverlap`,
 whatever backs the pair. A reading not taken refuses

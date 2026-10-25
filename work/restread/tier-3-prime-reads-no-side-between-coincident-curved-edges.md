@@ -16,7 +16,7 @@ lane (branch `restread/coincident-wedges`), by reading.
 
 Tier 3′ now reads the material wedges of two coincident line edges
 wherever pass 5 certifies their overlap (`census.rs`
-`ee_collinear_lane`, `coincident_wedges`, through `line_wedges`). Pass
+`ee_collinear_lane`, `ee_overlap_sides`, through `line_wedges`). Pass
 5′ (`census.rs` `sweep_curved_edge_edge`) certifies an overlap of two
 curved edges along one curve by its records or a declared face pair
 (`Declared::sides_face_backed`) and reads no side. `line_wedges` reads

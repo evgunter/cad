@@ -55,13 +55,13 @@ the side check over the two coincident edges is RESTREAD's
 ## 2026-10-21: tier 3′ refuses two coincident cusp edges undecided (RESTREAD, `restread/coincident-wedges`)
 
 Tier 3′ now reads the wedges of two line edges overlapping on one line
-(`census.rs` `coincident_wedges`, through `census::line_wedges`). A
+(`census.rs` `ee_overlap_sides`, through `census::line_wedges`). A
 cusp edge's two sheets meet at a zero angle, which `line_wedges` reads
-as `WedgeRefusal::WedgeEnd` and the census refuses as
+as `WedgeRefusal::Unread(_, TouchUnread::Degenerate)` and the census refuses as
 `CoincidentWedgesOverlapUndecided { why: TouchUnread::Degenerate }`.
 So the body this row builds refuses at tier 3′ until the reading takes
 a cusp's side at second order (sectors 0 and 2π, the restread row's
 "Evidence: the tangent pinch"). No shipped body carries two coincident
 cusp edges today (topo and sweep, slow set included, at the default ε
-and 1e-12). The builder owes that reading in `coincident_wedges`, or a
+and 1e-12). The builder owes that reading in `ee_overlap_sides`, or a
 second-order arm in `line_wedges`.

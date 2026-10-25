@@ -17,7 +17,7 @@ lane (branch `restread/coincident-wedges`), from that row's evidence
 The census asks one question in two places: whether two materials
 meeting along one line overlap there.
 
-- Two coincident line edges: `census.rs` `coincident_wedges`, through
+- Two coincident line edges: `census.rs` `ee_overlap_sides`, through
   `census::line_wedges`, which reads each edge's wedge from its two
   face normals at one point and tests membership through tier 3's
   pinch-corner reading (`validate::wedge_holds_named`).
