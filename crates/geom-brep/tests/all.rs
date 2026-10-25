@@ -269,6 +269,8 @@ test_utils::every_suite_file_is_aggregated!();
 mod r2_probes;
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+#[path = "review_r1_turn_probes.rs"]
+mod review_r1_turn_probes;
 
 #[path = "r1_perimeter_probes.rs"]
 mod r1_perimeter_probes;
