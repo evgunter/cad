@@ -274,3 +274,12 @@ Keep a lane's worktree until its PR merges; delete target dirs, not
 worktrees.
 
 Still on Ev: `[ev]` PR 5689, where unit 1 parks on the dual/limb-2 fork.
+
+## 2026-10-25 — board after unit 2 (OFFSET orchestrator)
+
+`offset-lane-has-no-conic-carrier` parks on its two remaining units. Unit 1
+waits on Ev's `[ev]` PR 5689. Unit 3 waits on SELECT's chord-extent row
+(P1). `closed-form-limb-2-costs-milliseconds-per-curved-edge` parks on the
+dual fork, since 5689 may move limb 2 to rest and change what the cost
+row is about. That leaves no dispatchable P0 or P1 on this slate. The
+orchestrator holds the track while `[ev]` PR 5689 is open.
