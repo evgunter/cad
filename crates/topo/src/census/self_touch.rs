@@ -833,3 +833,182 @@ fn a_line_touch_through_the_point_reads_as_its_line() {
         }
     }
 }
+
+// ---- rev5704-r1 review probes.
+
+/// A disc in the plane spanned by `x` and `e2` with outward `m`, its
+/// four corners at `2·(cos, sin)(rot + k·π/2)`.
+fn r1_disc(e2: Vec3<f64>, m: Vec3<f64>, rot: f64) -> Link<f64> {
+    let e1 = Vec3::new(1.0, 0.0, 0.0);
+    let mut ring: Vec<P> = (0..4)
+        .map(|k| {
+            let t = rot + f64::from(k) * std::f64::consts::FRAC_PI_2;
+            P::origin() + (e1 * t.cos() + e2 * t.sin()) * 2.0
+        })
+        .collect();
+    let m = m.normalize();
+    if (ring[1] - ring[0]).cross(ring[2] - ring[0]).dot(m) < 0.0 {
+        ring.reverse();
+    }
+    synthetic(
+        P::origin(),
+        At::Face,
+        ring,
+        &[(m, vec![vec![0, 1, 2, 3]])],
+        &[],
+        band(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn r1_three_discs_through_one_line() {
+    let r2 = std::f64::consts::FRAC_1_SQRT_2;
+    let s = |rot| r1_disc(Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0), rot);
+    let t = |rot| r1_disc(Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.0, 1.0, 0.0), rot);
+    let w = |rot, sign: f64| {
+        r1_disc(
+            Vec3::new(0.0, r2, -r2),
+            Vec3::new(0.0, -1.0, -1.0) * sign,
+            rot,
+        )
+    };
+    let rows: Vec<(&str, Link<f64>)> = vec![
+        ("two on axis", whole(vec![s(0.0), t(0.0)])),
+        ("two off axis", whole(vec![s(0.3), t(0.2)])),
+        ("three on axis", whole(vec![s(0.0), t(0.0), w(0.0, 1.0)])),
+        ("three off axis", whole(vec![s(0.3), t(0.2), w(0.1, 1.0)])),
+        ("three on axis, W flipped", whole(vec![s(0.0), t(0.0), w(0.0, -1.0)])),
+        ("three, only S on axis", whole(vec![s(0.0), t(0.2), w(0.1, 1.0)])),
+        ("three, S and T on axis", whole(vec![s(0.0), t(0.0), w(0.1, 1.0)])),
+    ];
+    for (what, link) in rows {
+        eprintln!("R1PROBE {what}: {:?}", rest::one_material(&link, band()));
+    }
+}
+
+/// The unit cube with parts grafted into its solid.
+fn r1_cube_with(parts: &[([f64; 3], [f64; 3], [f64; 3], [f64; 3])]) -> Body<f64> {
+    let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol());
+    let first = body.vertices.keys().next().unwrap();
+    let keep = census_entity_solid(&body, EntityId::Vertex(first)).unwrap();
+    for &(o, a, b, c) in parts {
+        let part = crate::test_support_fixtures::mapped_cube::<f64>(
+            move |u, v, w| {
+                let k = |i: usize| o[i] + u * a[i] + v * b[i] + w * c[i];
+                P::new(k(0), k(1), k(2))
+            },
+            tol(),
+        );
+        let gone = crate::instance::graft_disjoint(&mut body, &part).unwrap();
+        for sh in body.solids.remove(gone).unwrap().shells {
+            body.shells[sh].solid = keep;
+            body.solids[keep].shells.push(sh);
+        }
+        body.solid_provenance.remove(gone);
+    }
+    body
+}
+
+/// Every unrecorded contact the census names, recorded.
+fn r1_record_all(errors: &[ValidationError]) -> ContactRecords {
+    use crate::Cell;
+    errors
+        .iter()
+        .filter_map(|e| match e {
+            ValidationError::UnrecordedContact { contact, .. } => {
+                let (x, y) = match contact {
+                    CensusContact::VertexVertex { a, b } => (Cell::Vertex(*a), Cell::Vertex(*b)),
+                    CensusContact::VertexOnFace { vertex, face } => {
+                        (Cell::Vertex(*vertex), Cell::Face(*face))
+                    }
+                    CensusContact::VertexOnEdge { vertex, edge } => {
+                        (Cell::Vertex(*vertex), Cell::Edge(*edge))
+                    }
+                    CensusContact::EdgeFaceOverlap { edge, face } => {
+                        (Cell::Edge(*edge), Cell::Face(*face))
+                    }
+                    CensusContact::EdgeEdgeOverlap { a, b } => (Cell::Edge(*a), Cell::Edge(*b)),
+                    _ => return None,
+                };
+                Some(crate::Cited::new(
+                    crate::Contact::of(x, y).unwrap(),
+                    crate::Cites::decided(0),
+                ))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn r1_a_line_touch_hides_a_sunk_corner_at_its_end() {
+    let p = [0.5, 0.5, 1.0];
+    // B: a corner at `p` sunk into the cube's material.
+    let sunk = (p, [0.02, 0.15, -0.05], [0.15, 0.02, -0.05], [0.02, 0.02, -0.2]);
+    // C: a block cornered at `p`, its edge along +x lying in the top
+    // face, standing above it.
+    let resting = (p, [0.0, -0.2, 0.2], [0.3, 0.0, 0.0], [0.05, 0.05, 0.3]);
+    for (what, parts) in [
+        ("B alone", vec![sunk]),
+        ("C alone", vec![resting]),
+        ("B and C", vec![sunk, resting]),
+    ] {
+        let body = r1_cube_with(&parts);
+        let first = census_and_certify(&body, &ContactRecords::default(), band(), tol(), None);
+        let records = r1_record_all(&first);
+        let got = census_and_certify(&body, &records, band(), tol(), None);
+        eprintln!("R1PROBE {what}: {} records; findings {got:?}", records.len());
+    }
+}
+
+fn r1_report(what: &str, r: Result<BooleanResult<f64>, crate::BooleanError>) {
+    match r {
+        Ok(BooleanResult::Body(r)) => {
+            let solids = r.body.solids.len();
+            let shells = r.body.shells.len();
+            let records = r.contacts.vertex_face().count();
+            eprintln!(
+                "R1PROBE {what}: solids {solids} shells {shells} vf records {records}: {:?}",
+                validate_pseudomanifold(&r.body, &r.contacts, tol())
+            );
+        }
+        other => eprintln!("R1PROBE {what}: op {:?}", other.map(|_| ())),
+    }
+}
+
+#[test]
+fn r1_boolean_self_touches() {
+    let slab = || block((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
+    r1_report(
+        "a pyramid standing on its apex on a slab (union)",
+        union(&slab(), &pyramid([2.0, 2.0, 1.0], 1.0, 2.0), tol()),
+    );
+    let tall = || block((0.0, 4.0), (0.0, 4.0), (0.0, 3.0));
+    r1_report(
+        "a cavity's apex touching the top from inside",
+        subtract(&tall(), &pyramid([2.0, 2.0, 3.0], 1.0, -2.0), tol()),
+    );
+    r1_report(
+        "a cavity's apex touching the floor from inside",
+        subtract(&tall(), &pyramid([2.0, 2.0, 0.0], 1.0, 2.0), tol()),
+    );
+    // The mould of a pyramid standing on a plate: the block less the
+    // plate and the pyramid on it, apex up to the block's top.
+    let plate = block((1.0, 3.0), (1.0, 3.0), (0.0, 0.5));
+    let on = built(
+        "pyramid on plate",
+        union(&plate, &pyramid([2.0, 2.0, 3.0], 0.8, -2.5), tol()),
+    );
+    r1_report("the mould of a pyramid on a plate", subtract(&tall(), &on, tol()));
+    // Two pyramids apex to apex inside a slab: a void pinched at a point.
+    let mid = || block((0.0, 4.0), (0.0, 4.0), (0.0, 4.0));
+    let up = built(
+        "upper void",
+        subtract(&mid(), &pyramid([2.0, 2.0, 2.0], 1.0, 1.0), tol()),
+    );
+    r1_report(
+        "two voids apex to apex",
+        subtract(&up, &pyramid([2.0, 2.0, 2.0], 1.0, -1.0), tol()),
+    );
+}
