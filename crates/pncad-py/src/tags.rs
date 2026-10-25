@@ -1549,7 +1549,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
         BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
-        BooleanErrorKind::GermSectionOutsideInventory => "germ_section_outside_inventory",
+        BooleanErrorKind::GermSectionOpenConic => "germ_section_open_conic",
         BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
         BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",

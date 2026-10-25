@@ -23,7 +23,7 @@ use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use crate::revolve_common::{axis_y, validated};
 use geom::Curve3;
-use geom_brep::{EdgeDescription, Pcurve, SectionError};
+use geom_brep::{EdgeDescription, Pcurve};
 use geom_core::{Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use sweep::{Revolution, revolve};
@@ -271,29 +271,29 @@ fn cuts_through_a_cap_and_the_apex_region() {
 }
 
 /// Past the ellipse: a plane parallel to a generator cuts a parabola, a
-/// steeper one a hyperbola, and each refuses naming its conic (R1). A
-/// tilt within a few ε of the parabola escalates on the conic-type
-/// trilean, from either side, rather than being snapped to a conic.
+/// steeper one a hyperbola, and the split refuses each naming its conic:
+/// the arc is a NURBS chord with no certificate on a cone yet. A tilt
+/// within a few ε of the parabola escalates on the conic-type trilean,
+/// from either side, rather than being snapped to a conic.
 #[test]
 fn the_parabola_and_hyperbola_refuse_naming_their_conic() {
     let f = narrowing();
     let parabola = FRAC_PI_2 - alpha();
-    for (phi, conic) in [(parabola, "PARABOLA"), (1.3, "HYPERBOLA")] {
+    for (phi, conic) in [
+        (parabola, geom_brep::OpenConic::Parabola),
+        (1.3, geom_brep::OpenConic::Hyperbola),
+    ] {
         let err = split(
             &sweep::test_support::finished("the operand", f.body.clone(), Tol::witness()),
             &plane(phi, 0.5),
             Tol::witness(),
         )
         .unwrap_err();
-        let SplitError::Join(SplitJoinError::Section {
-            source: SectionError::RoutesToGeneralRung { why, .. },
-            ..
-        }) = &err
-        else {
-            panic!("{conic}: expected the section refusal, got {err:?}");
+        let SplitError::Join(SplitJoinError::OpenConicChord { conic: named, .. }) = &err else {
+            panic!("{conic:?}: expected the open-conic refusal, got {err:?}");
         };
-        assert!(why.contains(conic), "{conic}: {why}");
-        assert!(err.to_string().contains(conic), "{conic}: {err}");
+        assert_eq!(*named, conic);
+        assert!(err.to_string().contains(conic.named()), "{conic:?}: {err}");
     }
     let eps = Tol::witness().get().eps;
     for k in [-3.0, 3.0] {

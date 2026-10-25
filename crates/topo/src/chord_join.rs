@@ -422,6 +422,17 @@ pub enum SplitJoinError {
         /// The table's refusal.
         source: geom_brep::SectionError,
     },
+    /// The plane cuts a cone face in a parabola or a hyperbola. The
+    /// table serves either in closed form and mints its arcs per window
+    /// as rational-quadratic NURBS (`geom_brep`'s C1), but such a chord
+    /// on a cone has no certificate yet (the uniqueness tube has no cone
+    /// enclosure), so the face is not divided along it.
+    OpenConicChord {
+        /// The face being divided.
+        face: FaceKey,
+        /// The conic.
+        conic: geom_brep::OpenConic,
+    },
     /// A cone face's chart window would be read across its APEX, where
     /// every azimuth maps to one point and no branch pin carries: the
     /// walk reached the apex, or the face meets it in a way no single
@@ -738,6 +749,13 @@ impl core::fmt::Display for SplitJoinError {
             Self::Section { source, .. } => {
                 write!(f, "the section through a curved face refused: {source}")
             }
+            Self::OpenConicChord { conic, .. } => write!(
+                f,
+                "the plane cuts the cone face along {}, an arc that cannot yet be \
+                 certified on a cone. Recourse: tilt the plane so it cuts the cone all the \
+                 way round",
+                conic.named()
+            ),
             Self::ApexUnlifted { .. } => write!(
                 f,
                 "a cone face's azimuth window would be read across its apex, where the chart \
@@ -1695,6 +1713,12 @@ fn plane_wall_case<T: Decide>(
                     "apex-point plane×cone classification under a minted chord — the plane \
                  touches the cone at its apex alone",
                 )),
+                geom_brep::PlaneConeSection::OpenConic(section) => {
+                    Err(SplitJoinError::OpenConicChord {
+                        face,
+                        conic: section.conic(),
+                    })
+                }
             };
         }
     };
