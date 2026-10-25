@@ -258,7 +258,8 @@ fn discs_rays(rng: &mut test_utils::fuzz::Rng, per: usize, tol: Tol) -> Vec<Stri
 /// first review, MAJOR 2), on the thin discs. The seed is a pinned
 /// counterexample: on PR 5697's first head its draws read wrong at ε
 /// 1e-9, 1e-6 and 1e-12 alike, half-walls' rims each standing for one
-/// root of the cylinder.
+/// root of the cylinder. A sweep, in the slow set; the counterexample's
+/// one ray is pinned fast by [`one_root_two_rims_stand_for_reads_nothing_twice`].
 #[test]
 fn a_root_two_half_walls_share_is_counted_once() {
     let tol = Tol::witness();

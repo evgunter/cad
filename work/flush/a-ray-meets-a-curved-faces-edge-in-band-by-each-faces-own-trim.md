@@ -181,17 +181,19 @@ analytic truth.
 `crates/sweep/tests/a_ray_meets_a_curved_edge_once_for_both_faces.rs`,
 over `curved_edge_corpus.rs`. Each body is asserted at tier 3′ with no
 contacts at every ε row. Every crossing of a ray is held to the body's
-analytic membership on either side, in two face orders:
+analytic membership on either side, in two face orders, which must
+also refuse with one fault kind:
 - `every_crossing_of_a_ray_about_a_curved_edge_counts_right` (shape 1):
   the corpus's cheap part, the thin discs and the kinked bore included;
 - `every_crossing_of_a_ray_about_the_corpuss_edges_counts_right`
   (shape 1): the whole corpus, revolves and booleans;
 - `a_ray_shallow_to_a_face_past_its_curved_edge_reads_right`: the first
   review's scan of the kinked bore, 3042 rays;
-- `a_root_two_half_walls_share_is_counted_once`: the thin discs on a
-  pinned seed (16, 14 and 16 wrong on the first head at the three ε);
+- `a_root_two_half_walls_share_is_counted_once` (slow set): the thin
+  discs on a pinned seed (16, 14 and 16 wrong on the first head at the
+  three ε);
 - `one_root_two_rims_stand_for_reads_nothing_twice`: the first review's
-  ray;
+  ray, the fast pin of the same fault;
 - `rays_in_band_of_a_curved_edge_read_it_once`: aimed rays at Kε/3 and
   Kε read the right side or nothing, never set aside on a face's own
   boundary, and at least 40% read.
