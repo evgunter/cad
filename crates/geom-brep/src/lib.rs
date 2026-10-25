@@ -118,8 +118,9 @@ pub use dihedral::{
 pub use edge_nurbs::{
     AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
     IncidenceRefusal, PlaneNurbsIncidence, PlaneNurbsLimbs, PlaneNurbsRefusal, Rung3Limb,
-    analytic_rung3, arc_rim_candidates, first_within, is_analytic, nurbs_pair_limbs, pick_arc_rim,
-    plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
+    analytic_rung3, arc_rim_candidates, arc_rim_measured, first_within, is_analytic,
+    nurbs_pair_limbs, pick_arc_rim, plane_nurbs_incidence, plane_nurbs_limbs, probe_pick,
+    sub_arc_joint,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, NormalAlignment, OutwardNormal, ParallelNormal,
@@ -143,13 +144,13 @@ pub use implicit::{
     implicit_residual, min_radius_of_curvature, min_radius_of_curvature_toward,
 };
 pub use intersect::{
-    ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, OutsideConic, PairRoute,
-    ParallelAxes, PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection,
-    Rung, SectionError, SectionRadius, SphereSphereSection, cone_cylinder_section,
-    cylinder_axes_coplanar, cylinder_axes_parallel, cylinder_cylinder_section,
-    cylinder_sphere_section, parallel_axes_at, plane_cone_section, plane_cylinder_section,
-    plane_cylinder_section_read, plane_sphere_section, plane_torus_section, route, route_pose,
-    sphere_sphere_section, tilted_section_major,
+    ConeCylinderSection, ConicArcError, ConicBranch, CylinderSphereSection, EqualCylinderSection,
+    OpenConic, OpenConicSection, PairRoute, ParallelAxes, PlaneConeSection, PlaneCylinderSection,
+    PlaneSite, PlaneSphereSection, PlaneTorusSection, Rung, SectionError, SectionPlane,
+    SectionRadius, SphereSphereSection, cone_cylinder_section, cylinder_axes_coplanar,
+    cylinder_axes_parallel, cylinder_cylinder_section, cylinder_sphere_section, parallel_axes_at,
+    plane_cone_section, plane_cylinder_section, plane_cylinder_section_read, plane_sphere_section,
+    plane_torus_section, route, route_pose, sphere_sphere_section, tilted_section_major,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey, SurfacePair};
 pub use locus::{
@@ -179,7 +180,7 @@ pub use pcurve_cache::{
     PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveKind, Period, ProjectedChart,
     ProjectedImage, SectorChannel, SpiricImage, WalkStop, WallTorus, angle_rate, chart_iso_family,
     chart_pcurve, chart_pcurve_over, chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
-    harmonic_form_of,
+    chart_sup_arms_at, harmonic_form_of, iso_arc_spans,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

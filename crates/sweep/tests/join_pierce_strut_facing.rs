@@ -41,7 +41,7 @@
 use geom_core::{Point3, Tol};
 use topo::test_support as fixtures;
 use topo::validate::validate_geometric;
-use topo::{AtRestBody, Body, BooleanError, BooleanResult, LoopBoundary, mass_properties};
+use topo::{AtRestBody, Body, BooleanError, BooleanResult, LoopBoundary};
 
 use crate::common::differential::outcome;
 use crate::common::pinch_cones::{
@@ -202,7 +202,14 @@ fn assert_pose(pose: &str, m: [f64; 3]) {
         fixtures::prism::<f64>(&PROFILE, 1.0, tol()).body,
     );
     let cube = finished("the cube", cube_beyond(m));
-    let vol = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
+    let vol = |b: &Body<f64>| {
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume
+    };
     let (va, vb, shared) = (vol(&prism), vol(&cube), prism_beyond(m));
     let (pa, pb) = (prism_pieces(), cube_pieces(m));
     for (order, x, y, vx, px, py) in [

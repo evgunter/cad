@@ -74,7 +74,7 @@ pub(crate) fn compose<F: Finding + ?Sized>(f: &mut fmt::Formatter<'_>, finding: 
 /// kinds. A [`Finding`] is three parts and reaches this through
 /// [`render_list`], which composes them. A payload that is ALREADY one
 /// composed sentence — a kernel `ValidationError`, an
-/// [`crate::MintRefusal`] — renders through its own `Display` and
+/// [`crate::AtRestFinding`] — renders through its own `Display` and
 /// comes here directly: composing it again would invent a second
 /// vocabulary for a refusal that has one, which is what
 /// [`Finding::recourse`] returning `""` exists to avoid one rung down.

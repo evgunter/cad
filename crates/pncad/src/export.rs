@@ -40,7 +40,7 @@ use step_export::{StepExportError, StepOptions, step_string};
 pub enum ExportError {
     /// The node has no value in this evaluation.
     Standing(NodeStanding),
-    /// The node's value is not a single body (`profile`, `datum`,
+    /// The node's value is not a single body (`profile`, `pose`,
     /// `split`, `instances`, ...).
     NotABody {
         /// The node whose value was refused.
@@ -58,18 +58,9 @@ pub enum ExportError {
     /// The body was denoted but the STEP writer refused it.
     Step(StepExportError),
     /// The whole-document door's gather refused: an empty world
-    /// (naming the unplaced bodies and the loose copies), a stranded
-    /// placement, a failed placement, or a kernel refusal while
-    /// gathering.
+    /// (naming the unplaced bodies), a stranded placement, a failed
+    /// placement, or a kernel refusal while gathering.
     Product(ProductError),
-    /// **Loose copies** (D10, Spaces): STEP writes one world, and these
-    /// copies live in loose spaces of their own, which their bundles do
-    /// not pin to it — each by the loose copy whose space it is.
-    Loose {
-        /// Every loose space the export would have to write, by its
-        /// loose copy, in document order.
-        copies: Vec<RecipeNodeId>,
-    },
 }
 
 impl Say for ExportError {
@@ -92,23 +83,6 @@ impl Say for ExportError {
             }
             ExportError::Step(e) => write!(f, "export: the STEP writer refused: {e}"),
             ExportError::Product(e) => write!(f, "export: {}", Said(e, by)),
-            ExportError::Loose { copies } => {
-                write!(
-                    f,
-                    "export: STEP writes one world, and these copies are loose, in spaces their \
-                     bundles do not pin to it:"
-                )?;
-                for copy in copies {
-                    write!(f, " {};", by.node(*copy))?;
-                }
-                write!(
-                    f,
-                    " {}",
-                    editor_core::Recourse(
-                        "add the constraints that pin each to a copy in the world, or to the world"
-                    )
-                )
-            }
         }
     }
 }
@@ -143,18 +117,15 @@ impl core::error::Error for ExportError {}
 ///
 /// # Errors
 ///
-/// Every arm of [`ExportError`]: the evaluation-side refusals above,
-/// [`ExportError::Loose`] for a node that lives in a loose copy's
-/// space, or [`ExportError::Step`] carrying the writer's own refusal.
+/// Every arm of [`ExportError`]: the evaluation-side refusals above, or
+/// [`ExportError::Step`] carrying the writer's own refusal. A body is
+/// written in its space's coordinates, as it stands there.
 pub fn step_for_node(
     evaluation: &Evaluation<f64>,
     node: RecipeNodeId,
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
-    if let Some(root) = evaluation.space(node).loose() {
-        return Err(ExportError::Loose { copies: vec![root] });
-    }
     let value = evaluation.usable(node).map_err(ExportError::Standing)?;
     let body = match &value.payload {
         ValuePayload::Body(body) => body,
@@ -188,8 +159,6 @@ pub fn step_for_node(
 ///
 /// # Errors
 ///
-/// [`ExportError::Loose`] naming every loose copy, which the product
-/// leaves out and STEP's one world cannot hold;
 /// [`ExportError::Product`] carrying the gather's own typed refusal
 /// (an empty world naming the unplaced bodies, a placement whose body
 /// is gone, a failed placement, a kernel graft or validity refusal), or
@@ -200,18 +169,6 @@ pub fn export_document_step(
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, ExportError> {
-    // A world beside loose copies is refused rather than written
-    // without them; a world of loose copies alone is the gather's
-    // `EmptyProduct`, which names them.
-    let copies = evaluation.loose_roots();
-    if !copies.is_empty()
-        && doc
-            .placements()
-            .iter()
-            .any(|&p| evaluation.space(p).loose().is_none())
-    {
-        return Err(ExportError::Loose { copies });
-    }
     let body = editor_core::product(doc, evaluation, tol).map_err(ExportError::Product)?;
     step_string(&body, options, tol).map_err(ExportError::Step)
 }

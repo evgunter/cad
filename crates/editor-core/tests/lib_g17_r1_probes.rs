@@ -103,8 +103,12 @@ fn a_thick_wall_bump_builds_below_half_the_side_and_refuses_at_it() {
         match ev.nodes.get(&shell) {
             Some(NodeResult::Ok(_)) => {
                 assert!(t < cup::L / 2.0, "t={t} must not build");
-                let b = body_of(&ev, shell);
-                let m = topo::mass_properties(b, Tol::witness()).unwrap();
+                let b = topo::test_support::finished(
+                    "b",
+                    topo::Body::clone(body_of(&ev, shell)),
+                    Tol::witness(),
+                );
+                let m = topo::mass_properties(&b, Tol::witness()).unwrap();
                 let want = cup::closed_forms(cup::L, cup::H, t);
                 assert_eq!(b.faces().count(), 11);
                 assert_eq!(b.shells().count(), 1);
@@ -190,6 +194,8 @@ fn the_rim_follows_a_rebound_designation() {
     )
     .expect("rebind")
     .doc;
+    // The world copy stood on the face the rebind designates.
+    let out = re_stood(out, shell);
     let ev = eval::<f64>(&out);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let table = ev.table_at(shell).unwrap();
@@ -242,11 +248,32 @@ fn a_thickness_only_edit_moves_the_content_key_and_the_memo() {
         &editor_core::EvalOptions::default(),
         Tol::witness(),
     );
-    let body = body_of(&with_prior, shell);
-    let m = topo::mass_properties(body, Tol::witness()).unwrap();
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&with_prior, shell)),
+        Tol::witness(),
+    );
+    let m = topo::mass_properties(&body, Tol::witness()).unwrap();
     assert_eq!(
         m.volume,
         cup::closed_forms(cup::L, cup::H, cup::T_BUMPED).volume,
         "the memo served the pre-edit hollow"
     );
+}
+
+/// `doc` with `body`'s world placement written afresh: a copy standing
+/// over the body as it now is.
+fn re_stood(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
+    let stale: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| {
+            matches!(doc.node(p), Some(Node::Place { shapes, .. })
+                if shapes.iter().any(|s| doc.operation_of(s.read) == Some(body)))
+        })
+        .collect();
+    let doc = stale.into_iter().fold(doc, |doc, p| {
+        crate::fixture::step(doc, DocEdit::DeleteNode { id: p }).0
+    });
+    crate::fixture::place(doc, body).0
 }

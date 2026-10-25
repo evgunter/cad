@@ -64,11 +64,14 @@ fn shells_per_solid(body: &Body<f64>) -> Vec<usize> {
 }
 
 fn roles(what: &str, body: &Body<f64>, tol: Tol) -> Vec<ShellRole> {
-    classify_shells(body, tol)
-        .unwrap_or_else(|e| panic!("{what}: every shell classifies, got {e:?}"))
-        .iter()
-        .map(|c| c.role)
-        .collect()
+    classify_shells(
+        &topo::test_support::finished("the measured body", (body).clone(), tol),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("{what}: every shell classifies, got {e:?}"))
+    .iter()
+    .map(|c| c.role)
+    .collect()
 }
 
 /// `refusal` is the near-coincidence of a pair of cells `t` apart.
@@ -483,7 +486,10 @@ fn a_union_leaving_a_needle_cavity_holds_it_as_a_void() {
 /// (`V ≤ 9e-16`) it lies within it, and the needle refuses as a
 /// capability limit of the scalar, `VolumeSignUnresolved { Scalar }`,
 /// never as a thinness gate or a defect — except where an aimed ray reads
-/// its side first, which at ε 1e-9 is the turned needle 21ε across alone.
+/// its side first. At ε 1e-9 one reads every needle 21ε and 30ε across;
+/// below `2Kε` every ray through a needle meets a wedge (a face it passes
+/// within the band of two edges of) and reads nothing, except one aimed
+/// at an end of the inside-out needle along the axes.
 #[test]
 fn a_needles_orientation_through_the_structural_doors() {
     let tol = Tol::witness();
@@ -497,17 +503,18 @@ fn a_needles_orientation_through_the_structural_doors() {
             (false, format!("needle {m}ε"), needle(w, tol)),
             (true, format!("turned needle {m}ε"), turned_needle(w, tol)),
         ] {
-            let reads = at_1e6 || (turned && m == 21.0);
+            let reads = at_1e6 || m > 2.0 * tol.k();
             let solid = body.solids().next().expect("one solid").0;
             let inside_out = body.revert().expect("the needle reverts");
             let unresolved = Err(vec![ValidationError::VolumeSignUnresolved {
                 solid,
                 limit: topo::SignLimit::Scalar,
             }]);
-            let (plain, inverted) = if reads {
-                (Ok(()), Err(vec![ValidationError::NegativeVolume { solid }]))
+            let plain = if reads { Ok(()) } else { unresolved.clone() };
+            let inverted = if reads || !turned {
+                Err(vec![ValidationError::NegativeVolume { solid }])
             } else {
-                (unresolved.clone(), unresolved)
+                unresolved
             };
             assert_eq!(
                 topo::validate_geometric_structural(&body, tol),

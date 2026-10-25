@@ -49,7 +49,7 @@
 
 use geom::Surface;
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EntityId, Face, FaceKey};
@@ -85,25 +85,69 @@ pub fn face_nappe<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Nappe, ReplaceFaceError<T>> {
-    let data = body
-        .get_face(face)
-        .ok_or(ReplaceFaceError::StaleFace { face })?;
-    let Surface::Cone { apex, axis, .. } = body.face_surface_linked(face, data) else {
-        return Ok(Nappe::Opening);
-    };
-    let (station_min, station_max) = corner_stations(body, face, data, *apex, *axis);
-    let esc = |source| ReplaceFaceError::Escalated { source };
-    let lo = decide("offset_nappe", Margin::of(station_min), band).map_err(esc)?;
-    let hi = decide("offset_nappe", Margin::of(station_max), band).map_err(esc)?;
-    match (lo, hi) {
-        (Sign::Zero | Sign::Positive, Sign::Positive) => Ok(Nappe::Opening),
-        (Sign::Negative, Sign::Negative | Sign::Zero) => Ok(Nappe::Mirror),
-        _ => Err(ReplaceFaceError::NappeStraddles {
+    face_nappe_reading(body, face, band).map_err(|refusal| match refusal {
+        NappeRefusal::Stale => ReplaceFaceError::StaleFace { face },
+        NappeRefusal::Escalated(source) => ReplaceFaceError::Escalated { source },
+        NappeRefusal::Straddles {
+            station_min,
+            station_max,
+        } => ReplaceFaceError::NappeStraddles {
             face,
             station_min,
             station_max,
             what: "a cone face whose corners stand on both sides of its apex, or all at it, so \
                    it lies on neither side of the apex alone",
+        },
+    })
+}
+
+/// Why [`face_nappe_reading`] names no nappe: the three refusals
+/// [`face_nappe`] gives, as their own type, so a reader that is not the
+/// replace-face door matches them exhaustively.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum NappeRefusal<T: Real> {
+    /// `face` does not resolve.
+    Stale,
+    /// An extreme corner station lands in the ambiguity band.
+    Escalated(geom_core::Indeterminate),
+    /// The corners stand on both sides of the apex, or all at it.
+    Straddles {
+        /// The lowest corner station.
+        station_min: T,
+        /// The highest corner station.
+        station_max: T,
+    },
+}
+
+/// [`face_nappe`], read as its own type ([`NappeRefusal`]).
+///
+/// # Errors
+///
+/// [`NappeRefusal`].
+///
+/// # Panics
+///
+/// [`face_nappe`]'s.
+pub(crate) fn face_nappe_reading<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<Nappe, NappeRefusal<T>> {
+    let data = body.get_face(face).ok_or(NappeRefusal::Stale)?;
+    let Surface::Cone { apex, axis, .. } = body.face_surface_linked(face, data) else {
+        return Ok(Nappe::Opening);
+    };
+    let (station_min, station_max) = corner_stations(body, face, data, *apex, *axis);
+    let lo =
+        decide("offset_nappe", Margin::of(station_min), band).map_err(NappeRefusal::Escalated)?;
+    let hi =
+        decide("offset_nappe", Margin::of(station_max), band).map_err(NappeRefusal::Escalated)?;
+    match (lo, hi) {
+        (Sign::Zero | Sign::Positive, Sign::Positive) => Ok(Nappe::Opening),
+        (Sign::Negative, Sign::Negative | Sign::Zero) => Ok(Nappe::Mirror),
+        _ => Err(NappeRefusal::Straddles {
+            station_min,
+            station_max,
         }),
     }
 }

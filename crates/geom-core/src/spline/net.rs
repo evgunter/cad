@@ -508,7 +508,7 @@ impl TensorCoeffs<'_> {
     /// the [`Derived::Vector`] arm carrying [`TensorCoeffs::diff_u`]
     /// against the derived vector.
     #[must_use]
-    pub fn derived_u(&self) -> Derived<'_, TensorCoeffs<'_>> {
+    pub fn derived_u(&self) -> Derived<TensorCoeffs<'_>> {
         self.ku.derived().map(|ku| TensorCoeffs {
             ku: Cow::Owned(ku),
             kv: Cow::Borrowed(&self.kv),
@@ -518,7 +518,7 @@ impl TensorCoeffs<'_> {
 
     /// The `v` partial by cause, per [`TensorCoeffs::derived_u`].
     #[must_use]
-    pub fn derived_v(&self) -> Derived<'_, TensorCoeffs<'_>> {
+    pub fn derived_v(&self) -> Derived<TensorCoeffs<'_>> {
         self.kv.derived().map(|kv| TensorCoeffs {
             ku: Cow::Borrowed(&self.ku),
             kv: Cow::Owned(kv),

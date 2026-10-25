@@ -12,10 +12,10 @@
 //! and a reading or kill that refuses later refuses on the clone), and
 //! a body that carried pcurve rows has them re-derived, so no row is
 //! left keyed by a dead cell. A door that is not the boolean carries
-//! its refusal typed ([`JoinRefusal`]). The offset doors, the split,
-//! the shell and the blend join on their own staging
-//! (`Body::join_edges_within`), the offset doors and the blend over
-//! their own scope alone.
+//! its refusal typed ([`JoinRefusal`]); the split's halves reach it
+//! through the merge door. The offset doors, the shell and the blend
+//! join on their own staging (`Body::join_edges_within`), the offset
+//! doors and the blend over their own scope alone.
 //!
 //! The boolean's output stages run it after the merge ([`join_stage`])
 //! and write, per join, the substitution rows that carry every contact
@@ -703,8 +703,15 @@ pub enum JoinRefusal {
         closed: bool,
     },
     /// The kill, the re-description or the re-mint refused on a body
-    /// that passed tier 2: a kernel or file defect, by the refusal's
-    /// kind.
+    /// that passed tier 2: every other [`BooleanError`] the join
+    /// raises ([`JoinRefusal::of`]). That mixes causes: Euler
+    /// certification's limit, which user geometry reaches at a build;
+    /// the pair rule's refusal over the joined span (a seam's lever
+    /// rung, its undecided jet, a mixed seam); and the bug-only
+    /// [`BooleanError::JoinDesync`]. A build ends in the last resort
+    /// ([`geom_core::KERNEL_LIMIT_RECOURSE`]), the one ending honest
+    /// across that mix; read over a body at rest or a file, it is a
+    /// stored contradiction and ends in the door's defect ending.
     Kernel {
         /// The boolean refusal's kind.
         kind: super::BooleanErrorKind,
@@ -734,15 +741,23 @@ impl JoinRefusal {
     }
 }
 
-impl core::fmt::Display for JoinRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let undecided = |f: &mut core::fmt::Formatter<'_>, diag: &Indeterminate| {
-            write!(
-                f,
-                "{JOIN_SUBJECT} is undecided ({}). {}",
-                diag.payload(),
-                diag.ending(JOIN_LEVER)
-            )
+impl JoinRefusal {
+    /// This refusal's text read at `at`: a reading in band ends in the
+    /// join's lever, a poisoned one with the door's unreadable-margin
+    /// note ([`geom_brep::recourse::unreadable_margin_note`]), a refused
+    /// kill or re-mint as [`Self::Kernel`] says, and a defect in the
+    /// door's defect ending ([`geom_brep::recourse::defect_ending`]).
+    #[must_use]
+    pub fn render(&self, at: impl Into<geom_brep::recourse::ReadAt>) -> String {
+        use geom_brep::recourse::{ReadAt, Reading, defect_ending, unreadable_margin_note};
+        let at = at.into();
+        let defect = defect_ending(at);
+        let undecided = |diag: &Indeterminate| {
+            let ending = match at {
+                ReadAt::Run(Reading::Build) => diag.ending(JOIN_LEVER),
+                _ => diag.ending_noted(JOIN_LEVER, unreadable_margin_note(at)),
+            };
+            format!("{JOIN_SUBJECT} is undecided ({}). {ending}", diag.payload())
         };
         match self {
             Self::Undecided(JoinUndecided {
@@ -752,18 +767,15 @@ impl core::fmt::Display for JoinRefusal {
             | Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Undecided(diag)),
                 ..
-            }) => undecided(f, diag),
+            }) => undecided(diag),
             Self::Undecided(JoinUndecided {
                 reading: JoinReading::ChartClass(geom_brep::IsoFamilyRefusal::Image(e)),
                 ..
-            }) => write!(
-                f,
+            }) => format!(
                 "two edges meeting at a vertex on one surface have no chart image to read \
-                 their family off ({e}). {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                 their family off ({e}). {defect}"
             ),
-            Self::CarrierUnsupported { carrier, closed } => write!(
-                f,
+            Self::CarrierUnsupported { carrier, closed } => format!(
                 "two edges meet at a vertex on one {} carrier, which the join cannot run an \
                  edge on {} yet (work/hone/joining-a-spline-carrier-is-unbuilt); there is no \
                  way through this yet",
@@ -774,13 +786,23 @@ impl core::fmt::Display for JoinRefusal {
                     "through the vertex"
                 }
             ),
-            Self::Kernel { kind } => write!(
-                f,
+            Self::Kernel { kind } => format!(
                 "the join of two edges meeting at a vertex on one curve refused ({}). {}",
                 kind_word(*kind),
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
+                match at {
+                    ReadAt::Run(Reading::Build) => geom_core::KERNEL_LIMIT_RECOURSE,
+                    _ => defect,
+                }
             ),
         }
+    }
+}
+
+/// Read at a build: every operation that reports it joins the edges of
+/// a body it built.
+impl core::fmt::Display for JoinRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.render(geom_brep::recourse::Reading::Build))
     }
 }
 
@@ -799,7 +821,9 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// Atomic: the joins run on a clone, which is adopted only once every
     /// join is made and, where the body carried pcurve rows, they are
     /// re-derived whole, so no row is left keyed by a killed half-edge.
-    /// On any refusal the body is as found.
+    /// On any refusal the body is as found. The clone is under one
+    /// surgery scope ([`crate::surgery`]) for every kill, so the door
+    /// derives tier 1 once, before it adopts.
     ///
     /// # Panics
     ///
@@ -824,14 +848,16 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         }
         // Staged: a refusal past the first kill leaves `self` as found.
         let mut work = self.clone();
-        let (joined, _) = join_all(&mut work, band, tol, &|_| true, &BTreeSet::new())?;
+        let mut staged = work.begin_surgery();
+        let (joined, _) = join_all(&mut staged, band, tol, &|_| true, &BTreeSet::new())?;
         // A kill leaves the rows keyed by its half-edges; a body that
         // carried rows has them re-derived whole (`pcurves::mint_pcurves`
         // clears the map first), so none is left keyed by a dead cell.
-        if !work.pcurves.is_empty() || !work.joints.is_empty() {
-            crate::pcurves::mint_pcurves(&mut work, tol)
+        if !staged.pcurves.is_empty() || !staged.joints.is_empty() {
+            crate::pcurves::mint_pcurves(&mut staged, tol)
                 .map_err(|source| BooleanError::Pcurves { source })?;
         }
+        staged.sweep_and_close();
         self.adopt(work);
         Ok(joined)
     }
@@ -840,7 +866,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// the caller has staged: the join of a door that owes no write
     /// outside the entities its call writes (the offset doors, and the
     /// blend over the shells it carved), or of one that joins its own
-    /// fresh output in place (the split's halves, the shell). Not staged itself —
+    /// fresh output in place (the shell). Not staged itself —
     /// a refusal past the first kill leaves `self` part-joined, for the
     /// caller to discard with its staging — and no reading outside
     /// `within` is taken, so a vertex the call does not hold can neither
@@ -848,6 +874,10 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// over the joined edges' faces alone: the killed edges' rows are
     /// dropped and [`crate::pcurves::mint_pcurves_of`] runs on the faces
     /// each kept edge bounds, where the body carries rows at all.
+    ///
+    /// The kills run under one surgery scope ([`crate::surgery`]), so a
+    /// run of joins derives tier 1 once, at its close; a run that joins
+    /// nothing writes nothing and sweeps nothing.
     ///
     /// # Panics
     ///
@@ -864,21 +894,27 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         tol: Tol,
         within: &dyn Fn(VertexKey) -> bool,
     ) -> Result<Vec<EdgeJoin>, BooleanError> {
-        let (joined, dead) = join_all(self, band, tol, within, &BTreeSet::new())?;
-        if joined.is_empty() || (self.pcurves.is_empty() && self.joints.is_empty()) {
+        let mut body = self.begin_surgery();
+        let (joined, dead) = join_all(&mut body, band, tol, within, &BTreeSet::new())?;
+        if joined.is_empty() {
+            // No kill ran: the body is as the caller handed it, so this
+            // call has no postcondition to sweep.
             return Ok(joined);
         }
-        self.drop_rows(dead);
-        let mut faces = BTreeSet::new();
-        for j in &joined {
-            if let Some(e) = self.get_edge(j.kept) {
-                faces.extend(self.face_of_half_edge(e.he_plus));
-                faces.extend(self.face_of_half_edge(e.he_minus));
+        if !(body.pcurves.is_empty() && body.joints.is_empty()) {
+            body.drop_rows(dead);
+            let mut faces = BTreeSet::new();
+            for j in &joined {
+                if let Some(e) = body.get_edge(j.kept) {
+                    faces.extend(body.face_of_half_edge(e.he_plus));
+                    faces.extend(body.face_of_half_edge(e.he_minus));
+                }
             }
+            let faces: Vec<_> = faces.into_iter().collect();
+            crate::pcurves::mint_pcurves_of(&mut body, &faces, tol)
+                .map_err(|source| BooleanError::Pcurves { source })?;
         }
-        let faces: Vec<_> = faces.into_iter().collect();
-        crate::pcurves::mint_pcurves_of(self, &faces, tol)
-            .map_err(|source| BooleanError::Pcurves { source })?;
+        body.sweep_and_close();
         Ok(joined)
     }
 }
@@ -1254,6 +1290,93 @@ mod join_door {
         assert_eq!(joinable_vertices(&body, band).unwrap(), vec![made.vertex]);
         assert_ne!(body.arena_counts(), whole, "the split stands");
     }
+
+    /// A unit brick with one edge cut into `k + 1` pieces, and the two
+    /// faces that edge bounds.
+    fn brick_with_splits(k: usize) -> (Body<f64>, [crate::FaceKey; 2]) {
+        let tol = Tol::witness();
+        let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let faces_of = |body: &Body<f64>, e| {
+            let d = body.get_edge(e).unwrap();
+            [d.he_plus, d.he_minus].map(|h| body.face_of_half_edge(h).unwrap())
+        };
+        let still = faces_of(&body, body.edges().next().unwrap().0);
+        for _ in 0..k {
+            // The longest piece between the two faces, cut at its middle.
+            let (e, (t0, t1)) = body
+                .edges()
+                .filter(|&(e, _)| faces_of(&body, e) == still)
+                .map(|(e, d)| {
+                    let span = body
+                        .get_curve_geom(d.curve)
+                        .and_then(crate::CurveGeom::certified)
+                        .unwrap()
+                        .params();
+                    (e, span)
+                })
+                .max_by(|a, b| (a.1.1 - a.1.0).total_cmp(&(b.1.1 - b.1.0)))
+                .unwrap();
+            body.split_edge(e, 0.5 * (t0 + t1), tol).unwrap();
+        }
+        (body, still)
+    }
+
+    /// **A join derives tier 1 once, however many vertices it joins.**
+    /// Each door ends with a join over the `k` vertices cutting one edge
+    /// of a brick; the whole-body tier-1 derivations the call runs
+    /// (`validate::TIER1_DERIVATIONS`) are the same at every `k`, where
+    /// a kill outside the join's scope adds a walk per vertex.
+    #[test]
+    fn a_join_sweeps_tier_1_once_however_many_it_joins() {
+        type Door = fn(&mut Body<f64>, [crate::FaceKey; 2]) -> usize;
+        // Every face of the solid, as the simultaneous doors require:
+        // the cut edge's two faces held, every other face moved in.
+        fn moved(body: &Body<f64>, still: [crate::FaceKey; 2]) -> Vec<crate::ChartMove<f64>> {
+            body.faces()
+                .map(|(f, _)| crate::ChartMove {
+                    faces: vec![f],
+                    distance: if still.contains(&f) { 0.0 } else { -0.1 },
+                })
+                .collect()
+        }
+        fn band() -> Band {
+            Band::linear(Tol::witness()).unwrap()
+        }
+        let doors: [(&str, Door); 3] = [
+            ("join_edges", |body, _| {
+                body.join_edges(band(), Tol::witness()).unwrap().len()
+            }),
+            ("replace_face_offset", |body, still| {
+                crate::replace_face_offset(body, still[0], 0.25, Tol::witness())
+                    .unwrap()
+                    .joins
+                    .len()
+            }),
+            ("offset_planes_together", |body, still| {
+                crate::offset_planes_together(body, &moved(body, still), band(), Tol::witness())
+                    .unwrap()
+                    .joins
+                    .len()
+            }),
+        ];
+        for (name, door) in doors {
+            let derivations: Vec<usize> = [3, 5]
+                .into_iter()
+                .map(|k| {
+                    let (mut body, still) = brick_with_splits(k);
+                    let before = crate::validate::TIER1_DERIVATIONS.with(core::cell::Cell::get);
+                    let joined = door(&mut body, still);
+                    let after = crate::validate::TIER1_DERIVATIONS.with(core::cell::Cell::get);
+                    assert_eq!(joined, k, "{name} joins every cut vertex at k = {k}");
+                    after - before
+                })
+                .collect();
+            assert_eq!(
+                derivations[0], derivations[1],
+                "{name}: tier-1 derivations at k = 3 and k = 5 ({derivations:?})"
+            );
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1394,5 +1517,47 @@ mod undecided_text {
              its description-driven iso/fitted lanes instead of this door, and an image outside \
              the chart's harmonic family belongs to the fitted lane where one exists"
         );
+    }
+}
+
+#[cfg(test)]
+mod kernel_text {
+    //! **A refused kill or re-mint ends by its door**: at a build, the
+    //! kernel-limit last resort, since user geometry reaches Euler
+    //! certification's limit there; at rest, the kernel-or-file defect
+    //! ending; at the import door, the file's.
+
+    use geom_brep::recourse::Reading;
+    use geom_core::FileCoincidence;
+
+    use super::JoinRefusal;
+
+    #[test]
+    fn a_refused_join_ends_by_its_door() {
+        let refusal = JoinRefusal::Kernel {
+            kind: crate::BooleanErrorKind::Euler,
+        };
+        let lead = "the join of two edges meeting at a vertex on one curve refused (Euler). ";
+        let rows = [
+            (
+                "a build",
+                refusal.to_string(),
+                "Recourse: loosen the tolerance, as a last resort; this refusal may indicate \
+                 a kernel bug worth reporting",
+            ),
+            (
+                "at rest",
+                refusal.render(Reading::AtRest),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                "the import door",
+                refusal.render(FileCoincidence::new(1e-6)),
+                geom_core::DAMAGED_FILE_ENDING,
+            ),
+        ];
+        for (door, got, ending) in rows {
+            assert_eq!(got, format!("{lead}{ending}"), "{door}");
+        }
     }
 }

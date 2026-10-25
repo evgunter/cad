@@ -72,9 +72,12 @@ use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::props::mass_properties(body, Tol::witness())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
@@ -590,7 +593,10 @@ fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
 /// convergence predicate may escalate. Anything else is a real failure.
 fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
     let target = 1024.0 * Tol::witness().get().eps;
-    match topo::props::mass_properties(body, Tol::witness()) {
+    match topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    ) {
         Ok(m) => {
             // ACCURACY: the certified enclosure must CONTAIN the
             // independent oracle (`want` is the extruded twin's closed
@@ -606,23 +612,29 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
             // easier as the enclosure degrades, so a loosening pad
             // cannot absorb it without tripping this. Keyed to ε
             // because the schedule is fixed and the pad is what the
-            // schedule achieves. It is twice the `2·target` it was while
-            // every face was read about the world origin: each face is
-            // read about a vertex of its shell (`topo::props`'
-            // `shell_reference`), and a face's pad scales, against the
-            // origin's, by about the shell's diameter over the face's
-            // own distance from the origin, unbounded and
-            // order-dependent
-            // (`work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`).
-            // The lofted concave prism measured 2.07e-3 at 1e-6, 2.02
-            // times the target: the ceiling is the measure with
-            // headroom, not a bound the rule guarantees.
+            // schedule achieves. Each face is read about a vertex of the
+            // shell's first quadrature face (`topo::props`'
+            // `shell_reference`), so a quadrature face's lever is the
+            // extent of the shell's quadrature faces
+            // (`m8_3_rational_volume`'s ceiling). The lofted concave
+            // prism measured 8.96e-4 at 1e-6, 0.87 times the target: the
+            // ceiling is the measure with headroom, not a bound the rule
+            // guarantees.
             let ceiling = 4.0 * target;
             assert!(
                 m.volume_pad.is_finite() && m.volume_pad < ceiling,
                 "{row}: volume pad {} vs {ceiling:e}",
                 m.volume_pad
             );
+            // The measure the ceiling's comment cites, held where it was taken.
+            if row == "the lofted concave prism" && Tol::witness().get().eps == 1e-6 {
+                assert!(
+                    (m.volume_pad / LOFTED_CONCAVE_PAD_AT_1E6 - 1.0).abs() < 0.01,
+                    "{row}: volume pad {} moved from the {LOFTED_CONCAVE_PAD_AT_1E6} the \
+                     ceiling's comment cites",
+                    m.volume_pad
+                );
+            }
         }
         Err(topo::MassPropsError::Face {
             source:
@@ -1099,3 +1111,7 @@ fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     let oracle = |q| loft_contains(&swept, q);
     assert_walls_face_out(&swept, &oracle, &samples, 0.05, 4);
 }
+
+/// The lofted concave prism's volume pad at ε 1e-6, the measure the
+/// rational-volume ceiling's comment cites.
+const LOFTED_CONCAVE_PAD_AT_1E6: f64 = 8.956_6e-4;

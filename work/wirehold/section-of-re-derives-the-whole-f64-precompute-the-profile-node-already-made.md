@@ -2,12 +2,11 @@
 id: section-of-re-derives-the-whole-f64-precompute-the-profile-node-already-made
 kind: issue
 title: NodeValue does not carry the profile node's ProfilePre structure record, so profile_edges_of has no caller that can hand it one (wire::section_of, which re-derived it whole, left in PR 4741)
-status: parked
+status: open
 opened: 2026-09-12
 refs: [2435]
 priority: P1
 cost: H
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 

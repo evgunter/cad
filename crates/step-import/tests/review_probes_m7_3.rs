@@ -116,7 +116,7 @@ fn probe_refit_seam_refuses_typed() {
             );
             // The import door reads the limb's own miss against the
             // file's ε_in: past it, no stopgap is named and the refusal
-            // ends at rest, at every tolerance it refuses at.
+            // names the file, at every tolerance it refuses at.
             assert!(
                 measured > file.eps_in(),
                 "the plant is past the file's ε_in {:e}: {measured:e}",
@@ -124,10 +124,10 @@ fn probe_refit_seam_refuses_typed() {
             );
             assert!(
                 rendered.ends_with(
-                    "the carrier is not on both surfaces. There is no way through: this is a \
-                     kernel defect or a damaged file; report it"
+                    "the carrier is not on both surfaces. There is no way through: the file is \
+                     damaged; report it to the program that wrote it"
                 ),
-                "a miss past ε_in ends at rest at the import door: {rendered}"
+                "a miss past ε_in names the file at the import door: {rendered}"
             );
             assert!(
                 msg.contains(&rendered),

@@ -405,33 +405,22 @@ fn every_op_on_a_cone_wall_answers_its_truth_or_refuses_typed() {
                 ),
             ] {
                 // ∪ and A ∖ B keep a cone face bounded by the cube's tilted
-                // sections, whose trim `point_in_solid` cannot always read
-                // (`PartialConeFace`); inside one wall face, that face
-                // carries the cube's footprint as a ring. On the widening wall
-                // one grid point refuses there; on the narrowing wall 153 do,
-                // and 152 in ∩ and B ∖ A. Measured in both places at every ε
-                // row.
+                // sections; inside one wall face, that face carries the
+                // cube's footprint as a ring.
                 let keeps_the_wall = matches!(op_label, "∪" | "A ∖ B");
-                let partial = match (wall, keeps_the_wall) {
-                    ("widening", true) => 1,
-                    ("widening", false) => 0,
-                    (_, true) => 153,
-                    (_, false) => 152,
-                };
                 let rings = usize::from(keeps_the_wall && place == "inside one wall face");
                 assert_eq!(
                     ringed_cone_faces(&got),
                     rings,
                     "the turned cube {place} on the {wall} wall, {op_label}: ringed cone faces"
                 );
-                solid_truth::assert_is_but(
+                solid_truth::assert_is(
                     &format!("the turned cube {place} on the {wall} wall, {op_label}"),
                     &got,
                     Want::Body(v, 1e-5),
                     &|q| op.depth(x, y, q),
                     &[],
                     &points,
-                    partial,
                 );
             }
         }

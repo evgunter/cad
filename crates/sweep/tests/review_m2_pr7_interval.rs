@@ -16,7 +16,7 @@ use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point2, Real};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, mass_properties};
+use topo::Body;
 
 fn v(x: f64, y: f64, b: f64) -> (Point2<Interval>, Interval) {
     (p2(x, y), Interval::from_f64(b))
@@ -49,8 +49,11 @@ fn assert_encloses(what: &str, enclosure: Interval, analytic: f64) {
 }
 
 fn check(body: &Body<Interval>, what: &str, volume: f64, area: f64) {
-    let props =
-        mass_properties(body, Tol::witness()).expect("interval mass properties must compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("interval mass properties must compute");
     assert_encloses(&format!("{what} volume"), props.volume, volume);
     assert_encloses(&format!("{what} area"), props.surface_area, area);
 }

@@ -14,7 +14,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     AssemblyError, CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, EvalOutcome, Evaluation,
@@ -49,7 +48,6 @@ fn part_of(id: DocumentId, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     fixture::place(doc, body).0
@@ -64,32 +62,21 @@ fn assembly_of(
     o: &EvalOptions,
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc = ProfileDoc::empty(id, Tol::witness());
-    let (doc, a) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), o);
-    let (doc, b) = insert(doc, Node::instantiate_part(part_ref));
+    let (doc, a) = fixture::insert_pinned(doc, crate::fixture::mated_instance(part_ref), o);
+    let (doc, b) = insert(doc, crate::fixture::mated_instance(part_ref));
     let doc = fixture::pin(doc, b, &Frame::translation([4.0, 0.0, 0.0]), o);
     (doc, vec![a, b])
 }
 
 /// `placement` pinned to the world at `pose`: its bundle replaced by
-/// one world pin.
+/// one world mate.
 fn pinned_at(
     doc: ProfileDoc,
     placement: RecipeNodeId,
     pose: &Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = fixture::bundle(&doc, placement)
-        .into_iter()
-        .fold(doc, |doc, c| {
-            fixture::step(
-                doc,
-                DocEdit::RemoveConstraint {
-                    placement,
-                    constraint: c.id,
-                },
-            )
-            .0
-        });
+    let doc = fixture::stand_again(doc, placement);
     fixture::pin(doc, placement, pose, o)
 }
 
@@ -106,10 +93,13 @@ fn plain(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Eval
 }
 
 fn volume_bits(body: &topo::Body<f64>) -> u64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass properties")
-        .volume
-        .to_bits()
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
+    .to_bits()
 }
 
 /// A product's shape as a comparable value: the topological census

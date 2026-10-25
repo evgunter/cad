@@ -23,8 +23,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::blocks::{failure, run};
 use crate::corpus::body_of;
-use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus};
-use crate::fixture::{ang, face_vertices, insert, len, scl, table};
+use crate::emit_shared_rim_several::{
+    Bx, construction, document, own_name, permutations, probe_corpus,
+};
+use crate::fixture::{face_vertices, len, table};
 
 use editor_core::{CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, StableName};
 
@@ -240,10 +242,9 @@ pub(crate) fn cases() -> Vec<Case> {
 const EDITED: &[(&str, usize, f64)] = &[("r1two", 1, 0.05), ("r1flush", 2, 0.05)];
 
 impl Case {
-    /// This case with block `i` behind a `Transform` translated `dx`
-    /// along x: for two values of `dx`, the same recipe, node for node
-    /// and step for step, with only a value changed, as a value edit
-    /// leaves it.
+    /// This case with block `i`'s placement slid `dx` along x: for two
+    /// values of `dx`, the same recipe, node for node and step for
+    /// step, with only a value changed, as a value edit leaves it.
     fn moved(&self, i: usize, dx: f64) -> Case {
         Case {
             label: format!("{} moved {dx}", self.label),
@@ -307,33 +308,36 @@ pub(crate) fn runs_in(
     ),
 ) {
     let (doc, mut ids) = document(&case.blocks, &case.creation);
-    let doc = match case.shift {
-        None => doc,
-        // The shift is a value edit of one transform — its slot keeps
-        // the variable it reads, whose value moves, so nothing is minted
-        // — and every shift of a case is one document's history and
-        // names one set of nodes.
+    // The shift is a value edit of one placement's slide along x — a
+    // slot edit — made after the unions are inserted, so every shift of
+    // a case names one set of nodes. The root block is shifted through
+    // a copy of it placed over itself.
+    let (doc, shift) = match case.shift {
+        None => (doc, None),
         Some((i, dx)) => {
-            let (doc, tr) = insert(
-                doc,
-                Node::transform(
-                    ids[i],
-                    editor_core::Step::Rigid {
-                        translation: [len(0.0), len(0.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: ang(0.0),
-                    },
-                ),
-            );
+            let (doc, tr) = match doc.node(ids[i]) {
+                Some(Node::Place { .. }) => (doc, ids[i]),
+                _ => crate::fixture::xform(doc, ids[i], [0.0; 3], [0.0, 0.0, 1.0], 0.0),
+            };
             ids[i] = tr;
-            let var = doc
-                .slot(tr, editor_core::SlotId::Translation(editor_core::Axis3::X))
-                .expect("a transform reads its translation");
+            let slot = crate::fixture::value_slot(
+                &doc,
+                tr,
+                editor_core::Coord::Slide(editor_core::TargetAxis::X),
+            );
+            (doc, Some((tr, slot, dx)))
+        }
+    };
+    let shifted = |doc: editor_core::ProfileDoc| match shift {
+        None => doc,
+        Some((node, slot, dx)) => {
             crate::fixture::step(
                 doc,
-                editor_core::DocEdit::SetVarValue {
-                    var: var.into(),
-                    value: editor_core::FreeValue::Continuous(dx),
+                editor_core::DocEdit::SetParam {
+                    node,
+                    slot,
+                    value: len(dx).into(),
+                    fresh: Vec::new(),
                 },
             )
             .0
@@ -349,6 +353,7 @@ pub(crate) fn runs_in(
             for olab in permutations(&(0..outer.len()).collect::<Vec<_>>()) {
                 let members: Vec<RecipeNodeId> = olab.iter().map(|&i| outer[i]).collect();
                 let (docx, top) = crate::fixture::union_over(d1.clone(), &members);
+                let docx = shifted(docx);
                 let ev = run(&docx);
                 each(
                     &format!("{inner:?}{olab:?}"),
@@ -364,6 +369,7 @@ pub(crate) fn runs_in(
     for order in permutations(&(0..case.blocks.len()).collect::<Vec<_>>()) {
         let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
         let (docx, union) = crate::fixture::union_over(doc.clone(), &members);
+        let docx = shifted(docx);
         let ev = run(&docx);
         each(&format!("{order:?}"), &docx, &ev, &ids, &[("U", union)]);
     }
@@ -660,14 +666,15 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
                 crate::fixture::member_entity(
                     union,
                     crate::fixture::out(&doc, m),
-                    StableName {
-                        kind: EntityKind::Edge,
-                        node: m,
-                        path: vec![RoleSeg::RimEdge(
+                    own_name(
+                        &doc,
+                        m,
+                        EntityKind::Edge,
+                        vec![RoleSeg::RimEdge(
                             CapEnd::Start,
-                            crate::fixture::piece(&doc, m, 0, 0).into(),
+                            crate::fixture::piece(&doc, construction(&doc, m), 0, 0).into(),
                         )],
-                    },
+                    ),
                     EntityKind::Edge,
                 )
             })
@@ -692,8 +699,9 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
 /// edge a face crossed as far as it had cut it by then (`#k of n` of THAT
 /// step), which is fold history and names no published piece. Over every
 /// case and order, each edge a vertex's seam cites in the union's space
-/// is a member edge with no rank, never a set of them, and the vertex
-/// lies on that edge in the member's own body. On main 112 cited edges carried a fold rank;
+/// is a member edge with no rank, or the set of several flush on one
+/// line through the vertex, and the vertex lies on each such edge in its
+/// member's own body. On main 112 cited edges carried a fold rank;
 /// ranked over the finished body without this rewrite, 318 cited a rank
 /// no published row carries.
 #[test]
@@ -727,15 +735,19 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                             }
                             _ => continue,
                         };
+                        let sides = sides
+                            .into_iter()
+                            .flat_map(|side| match side.path.as_slice() {
+                                [RoleSeg::Merged(line)] if side.kind == EntityKind::Edge => {
+                                    line.iter().collect()
+                                }
+                                _ => vec![side],
+                            });
                         for side in sides {
                             if side.kind != EntityKind::Edge || side.node != union {
                                 continue;
                             }
                             let here = format!("{} {tag} {at}: {name:?}", case.label);
-                            assert!(
-                                !matches!(side.path.first(), Some(RoleSeg::Merged(_))),
-                                "{here} cites a set of edges, not one it lies on: {side:?}"
-                            );
                             let Some(RoleSeg::From { read, of }) = side.path.first() else {
                                 continue;
                             };
@@ -788,13 +800,16 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         &[0, 1, 2],
     );
     let (a, b, c) = (ids[0], ids[1], ids[2]);
-    let rim = |m: RecipeNodeId| StableName {
-        kind: EntityKind::Edge,
-        node: m,
-        path: vec![RoleSeg::RimEdge(
-            CapEnd::End,
-            crate::fixture::piece(&doc, m, 0, 0).into(),
-        )],
+    let rim = |m: RecipeNodeId| {
+        own_name(
+            &doc,
+            m,
+            EntityKind::Edge,
+            vec![RoleSeg::RimEdge(
+                CapEnd::End,
+                crate::fixture::piece(&doc, construction(&doc, m), 0, 0).into(),
+            )],
+        )
     };
     // x-span → the name there, for every edge along the rim line.
     let along = |order: [editor_core::RecipeNodeId; 3]| {

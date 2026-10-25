@@ -2,12 +2,13 @@
 id: a-mate-relates-two-poses
 kind: issue
 title: D10 stage 3 PR C: a mate equates two poses of one kind and holds no number; values set the freedoms mates leave; MatePrimitive, MateFrame, FrameBase, AxisSense, the rider and PlanarRest.offset retire
-status: review
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: H
 refs: [intent-stage3-is-built, an-ineffective-pose-move-is-not-reported-unobservable]
 branch: intent/s3-c-a-mate-relates-two-poses
+closed: 2026-10-18
 ---
 
 INTENT stage 3, PR C. Spec: `docs/INTENT-STAGE3-SPEC.md` §4. Built on FORK-S3M (fork log row 97, PR 4326).
@@ -31,3 +32,7 @@ Waits on A (`poses-are-variables`) and B (`a-placement-is-the-bundle-of-mates`, 
 ## Owed by stage 3 A: the pose families' representatives
 
 Stage 3 A put `Spherical` (a point's), `Parallel` (a direction's), `Translation` and `PlaneTranslation` into the one `Subgroup` lattice (`crates/editor-core/src/mate/coset.rs`), with their table rows, membership and properties, but no representative construction: `intersect` refuses a pair involving one of them `FoldStop::NoRepresentative { held, added }`, naming the two families, and the mate solve asserts no mate reaches it. This row owns those representative arms: the first mate that folds a point or a direction builds them, retires `SubgroupFamily::folded_by_mates`, and turns the solve's `unreachable!` into the ordinary arm. The refusal is pinned by `intent_s3_a_poses::a_fold_reaching_a_pose_family_refuses_naming_the_pair`.
+
+## Closed
+
+PR #5267 merged on 2026-10-18 and built it.

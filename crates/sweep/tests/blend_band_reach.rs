@@ -17,7 +17,7 @@ use geom_core::{Band, Point2, Point3, Tol};
 use sweep::Revolution;
 use sweep::blend::{BlendError, BlendRequest, fillet_edges};
 use sweep::test_support::{band_reach, corners, finished, revolved_about_y, rim_arcs_at};
-use topo::{AtRestBody, Body, mass_properties, validate_geometric};
+use topo::{AtRestBody, Body, validate_geometric};
 
 use crate::common::cavity::{brick, cavity_edges, rod, vented_cavity};
 
@@ -74,7 +74,15 @@ fn a_concave_fillet_refuses_to_grow_into_an_island_on_one_shell() {
             format!(
                 "built: tier 3 {:?}, V {:?}",
                 validate_geometric(&f.body, tol()),
-                mass_properties(&f.body, tol()).map(|m| m.volume)
+                topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&f.body),
+                        tol()
+                    ),
+                    tol()
+                )
+                .map(|m| m.volume)
             )
         })
         .expect_err("the band reaches the island");
@@ -126,7 +134,15 @@ fn the_reach_meters_an_island_that_is_a_second_solid() {
         .map(|f| {
             format!(
                 "built: V {:?}",
-                mass_properties(&f.body, tol()).map(|m| m.volume)
+                topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&f.body),
+                        tol()
+                    ),
+                    tol()
+                )
+                .map(|m| m.volume)
             )
         })
         .expect_err("the band reaches the island");

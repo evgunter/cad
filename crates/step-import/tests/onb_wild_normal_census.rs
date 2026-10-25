@@ -3,7 +3,7 @@
 //!
 //! These planes are minted by `step_import`'s recogniser
 //! (`recognize.rs`, which takes the frame from
-//! `Vec3::orthonormal_basis` like `newell_plane` does) over normals the
+//! `Vec3::orthonormal_basis`) over normals the
 //! FILE supplies, so this is the row where a normal sitting on the
 //! construction's seam arrives from outside rather than from the
 //! kernel's own arithmetic. The classification lives in

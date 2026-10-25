@@ -7,7 +7,7 @@ unchanged. Nothing dispatched.
 
 ## The slate
 
-**16.5 budget points** against a ceiling of 30. One row is unpriced
+**21.5 budget points** against a ceiling of 30. One row is unpriced
 and is charged 2.5.
 
 | pri | item | cost | title |
@@ -20,6 +20,8 @@ and is charged 2.5.
 | P3 | `the-glue-door-re-witnesses-a-declared-tangent-pair` | E | The glue door re-runs the tangency witness on a pair already declared Tangent |
 | P3 | `the-lane-free-rounding-bound-charges-a-thin-face-its-spread-squared` | M | The lane-free rounding bound charges a thin face its spread squared |
 | P3 | `the-volume-backstops-plus-v-posture-reads-a-sign-the-side-reader-cannot` | E | The volume backstop's vol(R) ≥ 0 posture reads tier 3's +V sign off a summed volume, which the side-at-infinity reader cannot answer |
+| P3 | `a-small-toruss-aims-land-on-its-faces-shared-seam-where-the-quartic-reads-in-band` | M | a small torus's aims land on its faces' shared seam where the quartic reads in band (PR 5422's residue) |
+| P3 | `d10-says-no-word-on-what-a-wedge-is-or-how-far-a-rays-refusal-reaches` | M | design, for Ev: the wedge's definition, the ray's ~3Kε refusal reach, a winding number for containment (PR 5422's reviews) |
 | P4 | `a-line-edges-span-bounded-by-a-conic-crossing-is-not-recorded` | M | A line edge's span in a face bounded by a crossing of the face's conic boundary edge is not recorded |
 
 ## Order

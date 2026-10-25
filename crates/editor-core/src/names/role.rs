@@ -1328,16 +1328,18 @@ pub enum RoleSeg {
     },
     /// A vertex where two or more lines meet (N2): the RUN of those
     /// lines in name order, each a [`RunLine`]. A line is an edge cut at
-    /// the vertex, edges that run flush on one line counted once as the
-    /// least of them, with its [`Sense`] against the closed bodies of the
-    /// other entries' members; at a union it is also a seam through the
+    /// the vertex, edges that run flush on one line counted once (at a
+    /// union as their `Merged` set, at a pair boolean as the least of
+    /// them), with its [`Sense`] against the closed bodies of the other
+    /// entries' members; at a union it is also a seam through the
     /// vertex whose two faces bound none of those edges, cited as a seam
     /// edge is and carrying no sense. Several vertices with one run carry
     /// a `Fragment(OrderAlong)` along the run's least edge, or where it
     /// holds none along a seam in it whose pieces lie on one open carrier.
     EdgeCrossing(Vec<RunLine>),
-    /// An F7 merged face, or an edge a boolean's output stage joined
-    /// across several operand or member edges (`names/README.md`,
+    /// An F7 merged face, an edge a boolean's output stage joined
+    /// across several operand or member edges, or a union's edge or
+    /// vertex that several members hold at once (`names/README.md`,
     /// "Flush edges at a union"): the sorted, FLAT set of constituent
     /// names retires into this name (N3; canonical order = name order). A
     /// constituent is never itself a BARE merged name, through any
@@ -1360,17 +1362,12 @@ pub enum RoleSeg {
     // split role says which half — the variable a reader reads does.
     /// A split output body: the body of the half whose table holds it.
     SplitBody,
-    /// A section face: the split-minted face on the tool plane bounding
-    /// its half; `section` is the position in that half's section
-    /// completion order — a function of the recipe + the recorded
-    /// `split_join_order_*` verdicts (the exact-order sort), so
-    /// covariant in N4's sense (reorderings are recorded flips).
-    SectionFace {
-        /// Position in section completion order (covariance: module
-        /// docs of `topo::splitting::order` — the sort runs through
-        /// named exact-order predicates).
-        section: u32,
-    },
+    /// The tool plane, as the parent of the faces a split's cut drew in
+    /// a half (N2, a Split's section faces): one such face is the bare
+    /// `SectionFace`, several are each told apart by `Fragment(Borders)`,
+    /// and a merged group holding the plane cites it bare among its
+    /// constituents (N3).
+    SectionFace,
     /// A section-boundary edge: where the section meets an operand
     /// face (argument: the operand face's name). Each half owns its own
     /// coincident copy, in its own table.
@@ -1751,13 +1748,6 @@ pub(crate) fn read_edge(seg: &RoleSeg) -> Option<VarId> {
 /// the input's names come through.
 #[derive(Debug)]
 pub(crate) enum VerbatimEdge<'a> {
-    /// Every body of `input`, body `k` in to body `k` out, moved: a
-    /// [`Node::Transform`](crate::node::Node::Transform). A selection
-    /// in effect above it rides through to `input` unchanged.
-    Whole {
-        /// The read of the value placed.
-        input: crate::VarId,
-    },
     /// The one body of `of` that `select` names, projected: a
     /// [`Node::Part`](crate::node::Node::Part).
     Selected {
@@ -1768,41 +1758,61 @@ pub(crate) enum VerbatimEdge<'a> {
     },
     /// The entities of the split target the split leaves intact: a
     /// [`Node::Split`](crate::node::Node::Split). Which ones those are
-    /// is the geometry's answer, not the recipe's, so no walk follows
-    /// this edge and it carries no input.
-    Intact,
+    /// is the geometry's answer, not the recipe's: a walk that holds a
+    /// name the split carries follows it to `target`, and one that asks
+    /// which names come through does not follow it.
+    Intact {
+        /// The split target's read.
+        target: crate::VarId,
+    },
+    /// Every entity of the body reflected: a
+    /// [`Node::Mirror`](crate::node::Node::Mirror). Its names are the
+    /// source's, but its material is the source's image across `plane`,
+    /// so a walk that reads a pose follows this edge only as a map: one
+    /// that fixes the plane, and so every entity on it.
+    Reflected {
+        /// The source's read.
+        body: crate::VarId,
+        /// The mirror plane.
+        plane: &'a crate::pose::RoleRead<crate::VarId>,
+    },
 }
 
-/// **The name-carrying edge `node` is, if any**: a transform, a part's
-/// projection, a split's intact entities (N1's pass-through ops).
-/// Every other node is classified as re-minting what it carries.
+/// **The name-carrying edge `node` is, if any**: a part's projection,
+/// a split's intact entities, a mirror's image (N1's pass-through ops). Every other node
+/// is classified as re-minting what it carries.
 ///
-/// Two walks read the set here: split's test of which cut placement's
-/// copy carries a name (`refactor::split`'s `in_world`, which follows
-/// `Whole` edges alone) and the mate member walk (`mate::member::walk`);
-/// they differ only in where each stops. The
-/// compiler holds the three together: this match is exhaustive, so a
-/// new node kind does not compile until it is classified here, and
-/// both walks match [`VerbatimEdge`] without a wildcard, so a new kind
-/// of edge does not compile until each decides what to do with it.
+/// Three walks read the set here: split's test of which cut placement's
+/// copy carries a name (`refactor::split`'s `in_world`), the mate
+/// member walk (`mate::member::walk`) and the coincidence door's walk
+/// to a cell's construction (`coincide::construction`); they differ
+/// only in where each stops. The compiler holds the four together:
+/// this match is exhaustive, so a new node kind does not compile until
+/// it is classified here, and each walk matches [`VerbatimEdge`]
+/// without a wildcard, so a new kind of edge does not compile until
+/// each decides what to do with it.
 ///
 /// What the compiler cannot hold — that this classification agrees
 /// with what the evaluator actually passes through (`eval::wire`'s
-/// `wire_transform`, `wire_part`, `wire_split`) — is held at runtime
-/// by `tests/names_verbatim_edge_evaluator.rs`, per edge over an
-/// evaluated corpus: a `Whole` or `Selected` node publishes only names
-/// headed by other nodes, an `Intact` one publishes both kinds, and a
-/// `None` node heads every row itself. Every node kind the corpus can
-/// evaluate is sampled with rows, except the kinds that publish none
-/// at all, which that suite names and holds at zero.
+/// `wire_part`, `wire_split`) — is held at runtime by
+/// `tests/names_verbatim_edge_evaluator.rs`, per edge over an evaluated
+/// corpus: a `Selected` node publishes only names headed by other
+/// nodes, an `Intact` one publishes both kinds, and a `None` node heads
+/// every row itself. Every node kind the corpus can evaluate is sampled
+/// with rows, except the kinds that publish none at all, which that
+/// suite names and holds at zero.
 pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
-        Node::Transform { input, .. } => Some(VerbatimEdge::Whole { input: *input }),
         Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
-        Node::Split { .. } => Some(VerbatimEdge::Intact),
-        Node::Datum(_)
-        | Node::Profile(_)
+        Node::Split { target, .. } => Some(VerbatimEdge::Intact {
+            target: target.read,
+        }),
+        Node::Mirror { body, plane } => Some(VerbatimEdge::Reflected {
+            body: body.read,
+            plane,
+        }),
+        Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
@@ -1818,6 +1828,7 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Pattern { .. }
         | Node::Place { .. }
         | Node::World
+        | Node::Space
         | Node::PlacedUnion { .. }
         | Node::InstantiatePart { .. }
         | Node::Measure { .. }
@@ -1871,7 +1882,7 @@ macro_rules! inert_seg {
             | $crate::names::RoleSeg::Cap(_)
             | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::SplitBody
-            | $crate::names::RoleSeg::SectionFace { .. }
+            | $crate::names::RoleSeg::SectionFace
     };
 }
 
@@ -2496,7 +2507,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::Pole(_)
             | $crate::names::RoleSeg::AxisEdge(_)
             | $crate::names::RoleSeg::SplitBody
-            | $crate::names::RoleSeg::SectionFace { .. }
+            | $crate::names::RoleSeg::SectionFace
             | $crate::names::RoleSeg::SectionEdge { .. }
             | $crate::names::RoleSeg::SplitFragment { .. }
             | $crate::names::RoleSeg::CrossingVertex { .. }

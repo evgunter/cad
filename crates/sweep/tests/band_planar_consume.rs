@@ -21,6 +21,7 @@
 use core::f64::consts::PI;
 
 use crate::common::interval::iv;
+use geom_core::RigidMotion;
 use geom_core::{Bounds, Interval, Point2, Point3, Real, Tol, Vec3};
 use profile::{ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::{Blended, chamfer_edges, fillet_edges};
@@ -304,9 +305,12 @@ fn a_bore_inside_the_planar_bands_sliver_goes_with_it_at_interval() {
             "{verb:?} at Interval: the bored block's carve is that of the block with no hole"
         );
         let v0 = mass_properties(&body, tol).expect("interval props").volume;
-        let v1 = mass_properties(&out.body, tol)
-            .expect("interval props")
-            .volume;
+        let v1 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol),
+            tol,
+        )
+        .expect("interval props")
+        .volume;
         let want = section(verb, D) - PI * a * a;
         let dv = v0 - v1;
         assert!(
@@ -674,12 +678,7 @@ fn a_tilted_bore_inside_the_chamfers_prism_goes_with_it() {
 fn a_hole_whose_mouth_lies_inside_a_concave_sliver_refuses_as_a_bound() {
     let (d, a) = BORE;
     let pin = prism_on(
-        sketch_from_axes(
-            Point3::new(-0.1, 0.25 + d, 0.5 + d),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        ),
+        SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(-0.1, 0.25 + d, 0.5 + d))),
         vec![(Point2::new(-a, 0.0), 1.0), (Point2::new(a, 0.0), 1.0)],
         0.45,
         tol(),

@@ -13,7 +13,7 @@
 //! The triangle and `r1_depth` are R1's own so that its document reads
 //! apart from the unit suites' in one aggregated binary. The sugar
 //! that carries no claim is shared:
-//! `common::{ang, edited, inserted, len, scl, tempdir, xy_frame}`.
+//! `common::{ang, edited, inserted, len, scl, tempdir}`.
 //!
 //! Shapes per implementer-discipline §8: every row here is a
 //! static-witness row (deterministic fixtures authored through the
@@ -25,14 +25,13 @@
 #![allow(clippy::panic)]
 
 use pncad::document::AuthoredNode;
-use pncad::document::ExtrudeSide;
 use pncad::document::{
     Dimension, Doc, DocEdit, EvalOutcome, Formula, FreeVar, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, SlotId, VarName,
 };
 use pncad::geom_core::Tol;
 
-use crate::common::{ang, edited, inserted, len, row_of, scl, tempdir, xy_frame};
+use crate::common::{edited, inserted, len, row_of, scl, tempdir};
 use viewer::evalseam::EvalDone;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
@@ -49,9 +48,8 @@ fn depth_param() -> VarName {
 
 /// A triangle, for the same reason as `depth_param` — it reads apart
 /// from the unit suites' square. No row asserts on the shape.
-fn triangle(plane: RecipeNodeId, side: f64) -> AuthoredNode {
+fn triangle(side: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (0.0, side)]).expect("finite corners"),
         ],
@@ -71,15 +69,13 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, triangle(plane, 0.03), tol);
+    let (doc, profile) = inserted(&doc, triangle(0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: Formula::mul(Formula::named(depth_param(), Dimension::Length), scl(3.0))
                 .expect("length * scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -314,14 +310,12 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         },
         tol,
     );
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, triangle(plane, 0.03), tol);
+    let (doc, profile) = inserted(&doc, triangle(0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.005), // literal to begin with,
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -374,14 +368,12 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
 fn r1_document_edits_are_refused_while_a_gesture_is_in_flight() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-gesture-fence", tol);
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, triangle(plane, 0.03), tol);
+    let (doc, profile) = inserted(&doc, triangle(0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.005),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -442,30 +434,18 @@ fn r1_document_edits_are_refused_while_a_gesture_is_in_flight() {
 fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-poison-chain", tol);
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, triangle(plane, 0.03), tol);
+    let (doc, profile) = inserted(&doc, triangle(0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             // Well-dimensioned at the door, non-finite at evaluation.
             distance: Formula::div(len(0.005), scl(0.0)).expect("length / scalar"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
-    let transform = |input| {
-        Node::transform(
-            input,
-            pncad::document::Step::Rigid {
-                translation: [len(0.001), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        )
-    };
-    let (doc, child) = inserted(&doc, transform(extrude), tol);
-    let (doc, grandchild) = inserted(&doc, transform(child), tol);
+    let (doc, child) = crate::common::placed_at(&doc, extrude, [0.001, 0.0, 0.0], tol);
+    let (doc, grandchild) = crate::common::placed_at(&doc, child, [0.001, 0.0, 0.0], tol);
 
     let mut session = DocSession::inline(doc, tol);
     session.pump();

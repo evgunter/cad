@@ -96,6 +96,9 @@ pub struct EditPayload<'a> {
     /// A count the refusal names: the nodes a definition expands to,
     /// or the names a selection holds.
     pub count: Option<usize>,
+    /// The count the edit HANDED, beside the one the node holds
+    /// ([`Self::count`]): a loft's sections against its re-pointing.
+    pub given: Option<usize>,
     /// The position a selection's shape fault is reported at. The
     /// fault decides which position it is: a repeated face's first
     /// occurrence, the edge that does not sort strictly before the one
@@ -111,8 +114,6 @@ pub struct EditPayload<'a> {
     pub value: Option<f64>,
     /// The doc-parameter value a kind-mismatching value edit offered.
     pub offered: Option<FreeValue>,
-    /// A placement frame's linear determinant.
-    pub determinant: Option<f64>,
     /// Which of a node's placement frames: a step of a transform's
     /// chain, or an explicit rule's listed placement.
     pub index: Option<usize>,
@@ -159,11 +160,11 @@ impl EditPayload<'_> {
             found_kind,
             expected_kind,
             count,
+            given,
             first,
             again,
             value,
             offered,
-            determinant,
             index,
             constraint,
             path,
@@ -186,11 +187,11 @@ impl EditPayload<'_> {
             ("found_kind", found_kind.is_some()),
             ("expected_kind", expected_kind.is_some()),
             ("count", count.is_some()),
+            ("given", given.is_some()),
             ("first", first.is_some()),
             ("again", again.is_some()),
             ("value", value.is_some()),
             ("offered", offered.is_some()),
-            ("determinant", determinant.is_some()),
             ("index", index.is_some()),
             ("constraint", constraint.is_some()),
             ("path", path.is_some()),
@@ -225,11 +226,11 @@ impl EditPayload<'_> {
         found_kind: None,
         expected_kind: None,
         count: None,
+        given: None,
         first: None,
         again: None,
         value: None,
         offered: None,
-        determinant: None,
         index: None,
         constraint: None,
         path: None,
@@ -239,11 +240,11 @@ impl EditPayload<'_> {
     };
 }
 
-/// The position a placement frame's site names — a step of a
-/// transform's chain, or an explicit rule's listed placement.
+/// The position a placement frame's site names: an explicit rule's
+/// listed placement.
 fn frame_index(at: FrameSite) -> Option<usize> {
     match at {
-        FrameSite::Listed { index } | FrameSite::Step { index } => Some(index),
+        FrameSite::Listed { index } => Some(index),
     }
 }
 
@@ -278,11 +279,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         EditError::SetMembersOnNonList { node }
         | EditError::LoftSectionsSpelled { node }
         | EditError::SetProgramOnNonProfile { node }
-        | EditError::SetExtrudeSideOnNonExtrude { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
         | EditError::WorldIsUndeletable { node }
         | EditError::ConstraintOnNonPlacement { node }
+        | EditError::SpaceMismatch { node, a: _, b: _ }
         | EditError::PlacementRuleMismatch { node, shape: _ }
         | EditError::EmptyPlacementList { node }
         | EditError::UpdateOnNonInstance { node }
@@ -303,12 +304,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         // A constraint's address: the placement is the subject, and the
         // id beside it names the constraint.
-        EditError::UnknownConstraint { node, constraint }
-        | EditError::MateNamedByValue {
-            node,
-            mate: constraint,
-            ..
-        } => EditPayload {
+        EditError::UnknownConstraint { node, constraint } => EditPayload {
             node: Some(node.id()),
             constraint: Some(*constraint),
             ..none
@@ -518,6 +514,16 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: var.name(),
             ..none
         },
+        EditError::LoftSectionCount {
+            node,
+            sections,
+            given,
+        } => EditPayload {
+            node: Some(node.id()),
+            count: Some(*sections),
+            given: Some(*given),
+            ..none
+        },
         EditError::DefinitionTooLarge { var, nodes } => EditPayload {
             param: var.name(),
             count: Some(*nodes),
@@ -667,16 +673,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         // The frame's site crosses as its position: a step or a
         // listed placement's index, none for an instance's own frame.
-        EditError::ImproperPlacement {
-            node,
-            at,
-            determinant,
-        } => EditPayload {
-            node: Some(node.id()),
-            determinant: Some(*determinant),
-            index: frame_index(*at),
-            ..none
-        },
         EditError::NonFinitePlacement { node, at }
         | EditError::NonRigidPlacement { node, at, .. } => EditPayload {
             node: Some(node.id()),

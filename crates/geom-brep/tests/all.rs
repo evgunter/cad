@@ -137,6 +137,8 @@ mod onb_wall_frame_interval;
 mod onpair_plane_nurbs;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
+#[path = "plane_cone_arc.rs"]
+mod plane_cone_arc;
 #[path = "pn_apex_pair_over_a_span.rs"]
 mod pn_apex_pair_over_a_span;
 #[path = "pn_apex_reach.rs"]
@@ -321,8 +323,6 @@ mod span_reach_differential;
 mod span_reach_hunt;
 #[path = "tangent_gap_hull_charges_both_sags.rs"]
 mod tangent_gap_hull_charges_both_sags;
-#[path = "tcost_k1_budget_exit.rs"]
-mod tcost_k1_budget_exit;
 #[path = "torus_chart_guards.rs"]
 mod torus_chart_guards;
 #[path = "torus_meridian_radial.rs"]

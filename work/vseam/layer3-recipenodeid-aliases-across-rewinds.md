@@ -1,13 +1,13 @@
 ---
 id: layer3-recipenodeid-aliases-across-rewinds
 kind: issue
-title: Layer-3 state holding RecipeNodeIds aliases across history rewinds (id reuse)
+title: The RecipeNodeId aliasing hazard is gone under digest ids; the counter-era prose and two of DI1's rows remain
 status: open
 opened: 2026-08-31
 github: 1384
 refs: [1375]
-priority: P0
-cost: H
+priority: P4
+cost: E
 ---
 
 ## From GitHub issue 1384
@@ -81,3 +81,41 @@ against `Doc::has_minted` (EDIT's door, built on PR #2905) after a
 rewind. VIEW, which owned that ground, has left the tracker, and VSEAM
 claims `crates/viewer/src/history.rs`. EDIT's side, the door the walk
 reads, is done. Id kept; priority unchanged.
+
+## 2026-10-21 — re-priced after `[ev]` #3871 (P0 → P4, H → E)
+
+The 2026-10-02 log notes asked for this row to be re-priced and it was
+not; this section does it. Everything above it describes the
+counter-era hazard and the minting-entry walk, and both are history now.
+
+**The wrong answer is gone.** `RecipeNodeId` is a digest of the mint
+chain (`crates/editor-core/IDENTITY.md` DI1, N1): a different insert
+mints a different id, so a held id can no longer come to denote a node
+nobody picked. DI1 as ruled on #3871 has a holder keep the bare id and
+ask the document in hand (`Doc::has_minted`, then `Doc::node`); the
+minting-entry walk is retired and is not owed.
+
+**The replacement window is closed.** `ViewerApp::perform_batch`
+(`crates/viewer/src/app.rs`) computes `replaced` for both `Open` and
+`NewDocument` and calls `document_replaced`, which drops the drafts'
+and the tools' holds. Rows: `a_replaced_document_drops_the_held_face`
+and `a_replaced_document_drops_the_open_tools_picks` (`app.rs`).
+
+**What is left:**
+
+- **Prose that still states the counter-era hazard**, now false:
+  `seats.rs`'s "Survival, and the hazard it does not cover" (ids as "a
+  small per-document counter" that "re-mint the same small ids");
+  `revolvetool.rs:21`, `combine.rs:18` and `:886`, `blend.rs:614`, and
+  `crates/viewer/tests/creation_ops.rs:924`, each citing issue #1384;
+  and `Doc::has_minted`'s doc (`crates/editor-core/src/doc.rs`, above
+  `:1060`), which still describes "DI1's walk" and "descent first, then
+  liveness". The last is editor-core's ground (EDIT), so it travels as
+  a hand-off or with EDIT's next unit there.
+- **Rows pinning DI1's bullets**, where none exists yet: undoing past
+  the mint drops a pick and redoing restores it (`select_pick.rs:805`
+  covers the undo half for a selection), and a sibling branch's
+  different insert leaves a held id foreign while a byte-identical one
+  keeps it.
+
+That is prose and test hygiene, so P4.

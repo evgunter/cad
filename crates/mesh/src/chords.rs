@@ -34,10 +34,17 @@
 //!   3-D chord but many UV steps). A `Fitted` image has no certified
 //!   speed bound here and refuses typed (the trimmed lane's module
 //!   docs name its consumer).
+//! - Crease joints: an arc rim of `m ≥ 2` sub-arcs meets its face's C⁰
+//!   creases at the sub-arc joints, and the trimmed lane cuts its
+//!   triangles along those creases, so the count is rounded up to a
+//!   multiple of `m`: point `q·k` of `q·m` then sits at the joint's own
+//!   parameter, `t₀ + Δt·geom_brep::sub_arc_joint(k, m)`, the expression
+//!   `sweep::skin::segment_curve` places the joint knot with.
 //!
 //! An adjacent surface reaches a chord count only through
-//! [`adjacent_surface`], and the two tightenings above are its two
-//! call sites — the `Circle` arm's torus boundary step and
+//! [`adjacent_surface`], and the two tightenings above (not the crease
+//! joints, which round a count already tightened) are its two call
+//! sites — the `Circle` arm's torus boundary step and
 //! [`nurbs_tighten`].
 //! The claim is therefore about one function's callers, which a reader
 //! settles by grepping this file for the name. **Nothing in the tree
@@ -171,8 +178,7 @@ pub(crate) fn compute_chords(
         ids.push(start_id);
         ts.push(t0);
         for i in 1..n {
-            #[allow(clippy::cast_precision_loss)]
-            let t = t0 + span * (i as f64 / n as f64);
+            let t = t0 + span * geom_brep::sub_arc_joint(i, n);
             #[allow(clippy::cast_possible_truncation)]
             let id = positions.len() as u32;
             positions.push(curve.carrier().eval(t));
@@ -206,22 +212,9 @@ fn nurbs_chord_count(
     delta_s: f64,
     ek: EdgeKey,
 ) -> Result<usize, TessellateError> {
-    let rational = n.weights().iter().any(|w| *w != 1.0);
-    // The convex-combination licence (the surface arm's rule): every
-    // hull fact below needs strictly positive finite weights.
-    if rational
-        && !n
-            .weights()
-            .iter()
-            .all(|w| geom_core::spline::weight_in_regime(*w))
-    {
-        return Err(TessellateError::UnsupportedCurve {
-            edge: ek,
-            note: "rational B-spline carrier with a non-positive or non-finite weight — \
-                   an illegal rational description: the convex-combination licence \
-                   every hull fact rests on requires strictly positive weights",
-        });
-    }
+    // Every weight is strictly positive and finite: the door's own
+    // condition, and the convex-combination licence each hull fact below
+    // reads. Which arm bounds `C″` is the second-derivative door's.
     let kv = n.knots_f64_interim();
     let p = kv.degree();
     if p < 2 {
@@ -345,6 +338,9 @@ fn nurbs_tighten(
     let (t0, t1) = params;
     let span = t1 - t0;
     let sides = sides_of(body, ek)?;
+    // The sub-arc count every adjacent arc rim needs the schedule to
+    // be a multiple of (the `IsoArc` arm below).
+    let mut joints = 1;
     for side in [sides.plus, sides.minus] {
         let (hek, fk) = (side.half_edge, side.face);
         let surface = adjacent_surface(body, fk)?;
@@ -380,15 +376,39 @@ fn nurbs_tighten(
             // A closed-form sup over the whole span, like the other
             // two arms — no sampling.
             Pcurve::IsoArc {
-                pd, angle, breaks, ..
+                pd,
+                t0: arc_t0,
+                angle,
+                breaks,
+                ..
             } => {
-                let spans = breaks.control_count().saturating_sub(1);
+                let spans = geom_brep::iso_arc_spans(breaks);
                 if spans == 0 {
                     return Err(TessellateError::UnsupportedCurve {
                         edge: ek,
                         note: "an arc-rim pcurve with no sub-arc structure — a malformed \
                                cache, not a chord-schedule question",
                     });
+                }
+                // THE CREASE CHORD POINT. Two sub-arcs meet at a knot
+                // of multiplicity two, a C⁰ crease of the chart in `u`,
+                // and the trimmed lane needs a boundary point exactly
+                // there to cut its triangles at it. A schedule of
+                // `q·spans` points puts point `q·k` at
+                // `t0 + span·sub_arc_joint(k, spans)`, the joint's own
+                // parameter, so the count is rounded up to a multiple
+                // below. That needs the rim's turn to be this edge's
+                // interval, bit for bit.
+                if spans > 1 {
+                    if *arc_t0 != t0 || *angle != span {
+                        return Err(TessellateError::UnsupportedCurve {
+                            edge: ek,
+                            note: "an arc-rim pcurve whose turn is not its edge's parameter \
+                                   interval, so no chord point lands on its sub-arc joints \
+                                   (the C⁰ creases of its NURBS face)",
+                        });
+                    }
+                    joints = lcm(joints, spans);
                 }
                 #[allow(clippy::cast_precision_loss)]
                 let m = spans as f64;
@@ -453,7 +473,16 @@ fn nurbs_tighten(
             .max(ceil_count(su * span, hu)?)
             .max(ceil_count(sv * span, hv)?);
     }
-    Ok(n)
+    Ok(n.div_ceil(joints) * joints)
+}
+
+/// The least common multiple of two sub-arc counts.
+fn lcm(a: usize, b: usize) -> usize {
+    let (mut x, mut y) = (a, b);
+    while y != 0 {
+        (x, y) = (y, x % y);
+    }
+    a / x * b
 }
 
 /// The per-axis UV speed sups `(s_u, s_v)` of a **general
@@ -499,9 +528,7 @@ fn nurbs_tighten(
 /// IS its polynomial wrap and the differenced control net is exactly
 /// its derivative net; a genuinely varying weight vector's derivative
 /// is a quotient whose coefficients are not that net, and refuses
-/// typed. Asking "constant" rather than "every weight is 1" is
-/// `work/trim/rational-gates-test-unit-weights-not-constancy.md`'s fix
-/// shape, which names this file.
+/// typed ([`geom::NurbsCurve2::constant_weight`]).
 ///
 /// **What this function does NOT check, because the type already
 /// does.** A degree-0 image and an interior multiplicity above the
@@ -514,12 +541,7 @@ fn general_uv_speeds(
     params: (f64, f64),
     ek: EdgeKey,
 ) -> Result<(f64, f64), TessellateError> {
-    let weights = image.weights();
-    let w0 = weights.first().copied().unwrap_or(f64::NAN);
-    // `!(w0 > 0.0)` catches NaN; the positivity is the convex-
-    // combination licence the constant has to carry with it.
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if !(w0 > 0.0) || !w0.is_finite() || weights.iter().any(|w| *w != w0) {
+    if image.constant_weight().is_none() {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "NURBS-face half-edge carries a RATIONAL general curve-in-UV pcurve — \
@@ -841,10 +863,6 @@ mod tests {
     /// identically to the unit-weight one; a VARYING weight vector's
     /// derivative is a quotient whose coefficients are not the
     /// differenced net, and refuses typed.
-    ///
-    /// The constancy half is
-    /// `work/trim/rational-gates-test-unit-weights-not-constancy.md`'s
-    /// own fix shape, which names this file.
     #[test]
     fn a_constant_weight_image_answers_and_a_varying_one_refuses() {
         let base = interior_max_cubic();
@@ -961,6 +979,37 @@ mod tests {
             })
             .collect();
         NurbsCurve3::interpolate(&pts, 3).unwrap()
+    }
+
+    /// **A constant weight is the integral arm's.** The wiggle's net
+    /// with every weight one constant (`2`, `3`, `0.1`) is the same
+    /// polynomial curve, so its chord
+    /// count is the unit-weight curve's at every target (the control
+    /// hull reads the net alone); the rational arm's quotient bound on
+    /// the same curve is its own, and looser.
+    #[test]
+    fn a_constant_weight_carrier_counts_as_its_polynomial() {
+        let unit = wiggle();
+        let (d0, d1) = unit.domain();
+        for c in [2.0, 3.0, 0.1] {
+            let constant = NurbsCurve3::new(
+                unit.knot_values().clone(),
+                unit.control().to_vec(),
+                vec![c; unit.control().len()],
+            )
+            .unwrap();
+            for delta_s in [1e-2, 1e-4, 1e-6] {
+                let count = |n: &NurbsCurve3<f64>| {
+                    nurbs_chord_count(n, d1 - d0, delta_s, EdgeKey::default())
+                        .expect("in inventory")
+                };
+                assert_eq!(
+                    count(&constant),
+                    count(&unit),
+                    "weights {c}, δ_s = {delta_s:e}"
+                );
+            }
+        }
     }
 
     /// The hull-bounded sagitta generalization: the chord count sizes
@@ -1135,9 +1184,8 @@ mod tests {
 
     /// The refusal row the flip keeps: an ILLEGAL rational carrier
     /// (non-positive weight) cannot even be described —
-    /// `NurbsCurve3::new` refuses at the door, so
-    /// [`nurbs_chord_count`]'s own licence check is a defensive
-    /// backstop rather than a reachable lane.
+    /// `NurbsCurve3::new` refuses at the door, which is why
+    /// [`nurbs_chord_count`] carries no licence check of its own.
     #[test]
     fn illegal_rational_carrier_weight_refuses_at_the_door() {
         let n = wiggle();

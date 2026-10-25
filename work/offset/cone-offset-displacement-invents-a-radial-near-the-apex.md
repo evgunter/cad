@@ -4,6 +4,8 @@ kind: issue
 title: ConeOffset::displacement normalizes an undecided radial, inventing a direction near the apex
 status: open
 opened: 2026-10-01
+priority: P2
+cost: M
 ---
 
 

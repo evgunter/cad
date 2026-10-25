@@ -39,7 +39,10 @@ use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId, Said, Say, 
 use pncad::select::SplitHalf;
 
 use crate::blend::{BlendEvent, BlendTool};
-use crate::combine::{BooleanTool, DuplicateTool, PartTool, PatternTool, SplitTool, TransformTool};
+use crate::combine::{
+    BooleanTool, DuplicateTool, MirrorEvent, MirrorTool, PartTool, PatternTool, SplitTool,
+    TransformTool,
+};
 use crate::matetool::{MateTool, MateToolEvent};
 use crate::pickindex::PickKinds;
 use crate::revolvetool::RevolveTool;
@@ -59,11 +62,11 @@ vocabulary! {
         /// The boolean tool: any number of bodies for union and
         /// intersect, two for subtract.
         Boolean,
-        /// The split tool: a body and a datum plane.
+        /// The split tool: a body and its cutting plane's numbers.
         Split,
         /// The transform tool: one body.
         Transform,
-        /// The pattern tool: a body and (circular only) an axis.
+        /// The pattern tool: a body and its rule's numbers.
         Pattern,
         /// The blend tool: one body and a SET of its edges.
         Blend,
@@ -72,6 +75,8 @@ vocabulary! {
         Part,
         /// The duplicate tool: one body.
         Duplicate,
+        /// The mirror tool: a body and the face it is reflected across.
+        Mirror,
     }
 
     /// Every kind, for the test suites that sweep them — which are
@@ -103,6 +108,7 @@ impl ToolKind {
             Self::Blend => "blend",
             Self::Part => "projection",
             Self::Duplicate => "duplicate",
+            Self::Mirror => "mirror",
         }
     }
 
@@ -149,7 +155,9 @@ impl ToolKind {
     /// none of them narrows anything.
     pub fn pick_kinds(self) -> PickKinds {
         match self {
-            Self::Mate => PickKinds::FacesOnly,
+            // The mirror tool's plane is a face, and its body is picked
+            // by a face or in the tree.
+            Self::Mate | Self::Mirror => PickKinds::FacesOnly,
             Self::Blend => PickKinds::EdgesOnly,
             Self::Revolve
             | Self::Boolean
@@ -178,7 +186,8 @@ impl ToolKind {
             | Self::Pattern
             | Self::Blend
             | Self::Part
-            | Self::Duplicate => committed_by(op) == Some(self),
+            | Self::Duplicate
+            | Self::Mirror => committed_by(op) == Some(self),
         }
     }
 }
@@ -191,6 +200,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         SessionOp::AddRevolve { .. } => Some(ToolKind::Revolve),
         SessionOp::AddBoolean { .. } => Some(ToolKind::Boolean),
         SessionOp::AddSplit { .. } => Some(ToolKind::Split),
+        SessionOp::AddMirror { .. } => Some(ToolKind::Mirror),
         SessionOp::AddTransform { .. } => Some(ToolKind::Transform),
         // Two ops, one tool: the output choice picks the door, and
         // either one landing is this tool's edit committed. The blend
@@ -210,6 +220,7 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
+        | SessionOp::IntoOwnSpace { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -241,8 +252,8 @@ fn committed_by(op: &SessionOp) -> Option<ToolKind> {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::NewDocument { .. }
-        | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddInstance { .. }
@@ -269,6 +280,9 @@ pub enum ToolNotice {
     /// target — its own event vocabulary, which is about a SET rather
     /// than about seats.
     Blend(BlendEvent),
+    /// The mirror tool lost its plane — a face, which survives by
+    /// resolving rather than by seat.
+    Mirror(MirrorEvent),
     /// A seated tool lost a pick.
     Seated {
         /// Which tool.
@@ -286,6 +300,7 @@ impl Say for ToolNotice {
         let said = match self {
             Self::Mate(event) => ToolKind::Mate.says(event),
             Self::Blend(event) => ToolKind::Blend.says(&Said(event, by)),
+            Self::Mirror(event) => ToolKind::Mirror.says(event),
             Self::Seated { tool, event } => tool.says(event),
         };
         f.write_str(&said)
@@ -300,13 +315,11 @@ fn compose(name: &str, what: &impl core::fmt::Display) -> String {
 vocabulary! {
     /// **A panel or field that commits and is not one of the modal
     /// tools** ([`ToolKind`]), named by what it does: the creation
-    /// pane's add-datum, add-profile and extrude forms, the profile
+    /// pane's add-profile and extrude forms, the profile
     /// editor's apply and revert, and the label field a create form and
     /// the properties pane each carry.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub enum FormKind {
-        /// The creation pane's add-datum form.
-        AddDatum,
         /// The creation pane's add-profile form.
         AddProfile,
         /// The creation pane's extrude form.
@@ -328,7 +341,6 @@ impl FormKind {
     /// The form's name, as its sentences open.
     pub fn label(self) -> &'static str {
         match self {
-            Self::AddDatum => "add datum",
             Self::AddProfile => "add profile",
             Self::Extrude => "extrude",
             Self::EditProfile => "edit profile",
@@ -441,6 +453,8 @@ pub enum OpenTool {
     Part(PartTool),
     /// The duplicate tool.
     Duplicate(DuplicateTool),
+    /// The mirror tool.
+    Mirror(MirrorTool),
 }
 
 impl OpenTool {
@@ -457,6 +471,7 @@ impl OpenTool {
             Self::Blend(_) => ToolKind::Blend,
             Self::Part(_) => ToolKind::Part,
             Self::Duplicate(_) => ToolKind::Duplicate,
+            Self::Mirror(_) => ToolKind::Mirror,
         }
     }
 }
@@ -525,6 +540,7 @@ impl Tools {
             ToolKind::Blend => OpenTool::Blend(BlendTool::new()),
             ToolKind::Part => OpenTool::Part(PartTool::new()),
             ToolKind::Duplicate => OpenTool::Duplicate(DuplicateTool::new()),
+            ToolKind::Mirror => OpenTool::Mirror(MirrorTool::new()),
         });
     }
 
@@ -614,6 +630,15 @@ impl Tools {
         }
     }
 
+    /// The open mirror tool, by reference (the read-door rule on
+    /// [`Tools`]).
+    pub fn mirror(&self) -> Option<&MirrorTool> {
+        match &self.open {
+            Some(OpenTool::Mirror(tool)) => Some(tool),
+            _ => None,
+        }
+    }
+
     /// The open blend tool, by reference (the read-door rule on
     /// [`Tools`]).
     pub fn blend(&self) -> Option<&BlendTool> {
@@ -667,8 +692,9 @@ impl Tools {
     /// faces, so an edge pick is not one of its picks), the
     /// blend tool takes the EDGE (it blends edges, and its target is
     /// the drawn body the edge was picked on rather than the feature
-    /// that minted it), and every seated tool takes
-    /// [`Selection::seat_node`] — a tree click directly, a face or edge
+    /// that minted it), the mirror tool takes a face as its plane and a
+    /// tree click as its body (`MirrorTool::pick_plane`), and every
+    /// seated tool takes [`Selection::seat_node`] — a tree click directly, a face or edge
     /// pick as the node whose drawn body the ray met.
     ///
     /// **Feeding answers**, because a pick can be DECLINED: the blend
@@ -726,9 +752,34 @@ impl Tools {
                 Some(OpenTool::Duplicate(tool)) => {
                     on_body_pick(selection, |node, body| tool.pick_at(doc, node, body));
                 }
+                Some(OpenTool::Mirror(tool)) => match selection.face() {
+                    Some(face) => tool.pick_plane(doc, face.clone()),
+                    None => on_node_pick(selection, |node| tool.pick(doc, node)),
+                },
             }
         }
         notices
+    }
+
+    /// **The open tool's picked names re-seated** after an operation
+    /// that moved them ([`crate::session::Renamed`]); a tool whose
+    /// picks are bodies holds no name to move.
+    pub fn rename(&mut self, renamed: &crate::session::Renamed) {
+        match &mut self.open {
+            Some(OpenTool::Mate(tool)) => tool.rename(renamed),
+            Some(OpenTool::Blend(tool)) => tool.rename(renamed),
+            Some(OpenTool::Mirror(tool)) => tool.rename(renamed),
+            None
+            | Some(
+                OpenTool::Revolve(_)
+                | OpenTool::Boolean(_)
+                | OpenTool::Split(_)
+                | OpenTool::Transform(_)
+                | OpenTool::Pattern(_)
+                | OpenTool::Part(_)
+                | OpenTool::Duplicate(_),
+            ) => {}
+        }
     }
 
     /// **The open tool's held nodes, spoken again from `doc`**, the
@@ -748,6 +799,7 @@ impl Tools {
             Some(OpenTool::Pattern(tool)) => tool.respeak(doc),
             Some(OpenTool::Part(tool)) => tool.respeak(doc),
             Some(OpenTool::Duplicate(tool)) => tool.respeak(doc),
+            Some(OpenTool::Mirror(tool)) => tool.respeak(doc),
         }
     }
 
@@ -765,6 +817,7 @@ impl Tools {
             Some(OpenTool::Transform(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Pattern(tool)) => tool.choose_half(seat, half),
             Some(OpenTool::Duplicate(tool)) => tool.choose_half(seat, half),
+            Some(OpenTool::Mirror(tool)) => tool.choose_half(seat, half),
         }
     }
 
@@ -811,6 +864,21 @@ impl Tools {
             OpenTool::Pattern(tool) => tool.reconcile(doc),
             OpenTool::Part(tool) => tool.reconcile(doc),
             OpenTool::Duplicate(tool) => tool.reconcile(doc),
+            // The body seat answers from the document; the plane, a
+            // face, from the landed pair, as the mate tool's picks do.
+            OpenTool::Mirror(tool) => {
+                let seat = tool
+                    .reconcile(doc)
+                    .into_iter()
+                    .map(|event| ToolNotice::Seated {
+                        tool: ToolKind::Mirror,
+                        event,
+                    });
+                let plane = landed
+                    .and_then(|(landed_doc, eval)| tool.reconcile_plane(landed_doc, eval))
+                    .map(ToolNotice::Mirror);
+                return seat.chain(plane).collect();
+            }
             OpenTool::Blend(tool) => {
                 return tool
                     .reconcile(doc, landed)

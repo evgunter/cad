@@ -4,7 +4,7 @@ kind: issue
 title: Dragging a profile argument in the folded argument rows freezes the profile's outline
 status: open
 opened: 2026-09-19
-priority: P0
+priority: P1
 cost: E
 ---
 
@@ -41,3 +41,9 @@ Either way, a headless row should show the outline following a live
 drag. The per-field row
 (`the-profile-editors-fields-carry-no-per-argument-affordances`) would
 remove the second door altogether.
+
+## 2026-10-21 — re-banded P0 → P1
+
+A preview defect for the duration of a drag. Nothing is committed wrong,
+and the row was filed as likely rather than seen on screen. P1's GUI
+band, not P0's.

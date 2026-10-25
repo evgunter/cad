@@ -106,20 +106,45 @@ use geom_core::Tol;
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum SplitPart<T: Real> {
-    /// The side's material, as an independent body.
-    Body(Body<T>),
+    /// The side's material, as an independent body, finished: the split
+    /// gated it at rest ([`crate::AtRestPolicy::gate_at_rest_kept`]) and
+    /// keeps the verdict, as a Boolean's result does
+    /// ([`crate::BooleanBody::body`]). A caller wanting the body by value
+    /// takes [`crate::AtRestBody::into_body`].
+    Body(crate::AtRestBody<T>),
     /// No material on this side.
     Empty,
 }
 
 impl<T: Real> SplitPart<T> {
     /// The body, if this side has material.
-    pub fn body(&self) -> Option<&Body<T>> {
+    pub fn body(&self) -> Option<&crate::AtRestBody<T>> {
         match self {
             Self::Body(b) => Some(b),
             Self::Empty => None,
         }
     }
+}
+
+/// One side of the split pipeline's own result, before the side is gated
+/// at rest ([`SplitPart`] once it is).
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
+pub(crate) enum RawPart<T: Real> {
+    /// The side's material, as the pipeline built it.
+    Body(Body<T>),
+    /// No material on this side.
+    Empty,
+}
+
+/// The split pipeline's own result: [`SplitResult`] before its sides are
+/// gated at rest (`super::split`).
+#[derive(Debug)]
+pub(crate) struct RawSplit<T: Real> {
+    pub(crate) above: RawPart<T>,
+    pub(crate) below: RawPart<T>,
+    pub(crate) naming: SplitNaming,
+    pub(crate) coincidences: Vec<crate::Coincidence>,
 }
 
 /// The result of a plane split: both sides, functionally.
@@ -170,7 +195,7 @@ impl<T: Decide> SplitResult<T> {
             (PlaneSide::Below, self.below.body()),
         ]
         .into_iter()
-        .filter_map(|(side, body)| body.map(|b| (side, b)))
+        .filter_map(|(side, body)| body.map(|b| (side, &**b)))
         .collect();
         let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
         let carried = records.carried_onto(0, &self.lineage(), &bodies, band, region)?;
@@ -202,6 +227,7 @@ impl<T: Real> SplitResult<T> {
         let bodies: Vec<&Body<T>> = [self.above.body(), self.below.body()]
             .into_iter()
             .flatten()
+            .map(|b| &**b)
             .collect();
         let section = |f: FaceKey| self.naming.holds_section(f);
         let joins: Vec<crate::boolean::EdgeJoin> =
@@ -367,6 +393,30 @@ pub struct SplitNaming {
     /// two-piece cylinder wall cut across its axis. Those faces stay as
     /// the cut left them, their boundaries re-described ([`end_maximal`]).
     pub merge_skipped: Vec<(PlaneSide, crate::merge_faces::SkippedMerge)>,
+    /// Which ring holds which island, in each side as it ends
+    /// ([`end_maximal`]): `(ring, island)` for each of the side's plane
+    /// pieces ([`Self::plane_pieces`]) whose outer loop lies in a ring of
+    /// another, with the innermost such ring, read by the section nesting
+    /// rule ([`section_loops::nest`]). A piece in no ring has no row.
+    pub islands: Vec<(crate::entity::LoopKey, FaceKey)>,
+}
+
+/// A side's faces that hold part of the tool plane
+/// ([`SplitNaming::plane_pieces`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlanePieces {
+    /// The operand faces the side's merges linked to the plane: each
+    /// face, other than a section face, that a group holding a section
+    /// kept or absorbed, read through [`SplitNaming::face_fragments`] to
+    /// the operand face it descends from, and transitively each such
+    /// face of a group that shares one.
+    pub roots: std::collections::BTreeSet<FaceKey>,
+    /// The faces those groups kept.
+    pub kept: std::collections::BTreeSet<FaceKey>,
+    /// The side's live faces that hold part of the plane: the kept faces,
+    /// every section face, and every other piece of a linked operand face
+    /// that no merge kept, in the body's face order.
+    pub faces: Vec<FaceKey>,
 }
 
 impl SplitNaming {
@@ -397,6 +447,58 @@ impl SplitNaming {
                 .iter()
                 .any(|(_, g)| g.kept == face && g.absorbed.iter().copied().any(section))
     }
+
+    /// `side`'s faces in `body` that hold part of the tool plane, and the
+    /// operand faces its merges linked to the plane ([`PlanePieces`]).
+    /// The plane links a merge group that holds a section as an operand
+    /// face links the groups that share it, so a piece of the plane is a
+    /// section face, a face a linked group kept, or a piece of a linked
+    /// operand face lying in the plane beside them.
+    #[must_use]
+    pub fn plane_pieces<T: Real>(&self, side: PlaneSide, body: &Body<T>) -> PlanePieces {
+        let section = |f: FaceKey| self.sections.iter().any(|&(s, _)| s == f);
+        let groups: Vec<(bool, FaceKey, std::collections::BTreeSet<FaceKey>)> = self
+            .merge_groups
+            .iter()
+            .filter(|(s, _)| *s == side)
+            .map(|(_, g)| {
+                let cells = core::iter::once(g.kept).chain(g.absorbed.iter().copied());
+                let holds = cells.clone().any(section);
+                let roots = cells
+                    .filter(|&c| !section(c))
+                    .map(|c| self.face_fragments.root(c))
+                    .collect();
+                (holds, g.kept, roots)
+            })
+            .collect();
+        let mut out = PlanePieces::default();
+        let mut linked = vec![false; groups.len()];
+        loop {
+            let mut grew = false;
+            for (i, (holds, kept, roots)) in groups.iter().enumerate() {
+                if !linked[i] && (*holds || !roots.is_disjoint(&out.roots)) {
+                    linked[i] = true;
+                    grew = true;
+                    out.kept.insert(*kept);
+                    out.roots.extend(roots.iter().copied());
+                }
+            }
+            if !grew {
+                break;
+            }
+        }
+        let kept_anywhere = |f: FaceKey| self.merge_groups.iter().any(|(_, g)| g.kept == f);
+        out.faces = body
+            .faces()
+            .map(|(f, _)| f)
+            .filter(|&f| {
+                out.kept.contains(&f)
+                    || section(f)
+                    || (!kept_anywhere(f) && out.roots.contains(&self.face_fragments.root(f)))
+            })
+            .collect();
+        out
+    }
 }
 
 /// Ends `side`'s `body` with maximal faces, except where a recorded skip
@@ -414,10 +516,11 @@ impl SplitNaming {
 /// of the skipped faces' re-description. [`SplitFinishError::Corrupt`]
 /// where the merge names a placeholder face: a side carved from a
 /// finished operand has none.
-pub(super) fn end_maximal<T: crate::props::AtRestPolicy>(
+pub(super) fn end_maximal<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     side: PlaneSide,
     naming: &mut SplitNaming,
+    normal: Vec3<T>,
     tol: Tol,
 ) -> Result<(), SplitFinishError> {
     // Taken before the kills, which drop it (`SplitNaming::joined_lineage`).
@@ -457,6 +560,53 @@ pub(super) fn end_maximal<T: crate::props::AtRestPolicy>(
         .merge_skipped
         .extend(merged.skipped.into_iter().map(|s| (side, s)));
     naming.record_joins(side, &split_from, merged.joins);
+    record_islands(body, side, naming, normal, tol)
+}
+
+/// Records which ring of `side`'s finished plane pieces holds which
+/// other piece ([`SplitNaming::islands`]), by the section nesting rule
+/// over the rings and the pieces' outer loops. It decides only where the
+/// side holds a ring and two pieces, the one case a ring's part of the
+/// plane can border a piece other than its own.
+///
+/// # Errors
+///
+/// [`SplitFinishError::NestingContradiction`] where two rings each read
+/// as enclosing the other around an island; [`SplitFinishError::Corrupt`]
+/// where a loop does not walk.
+fn record_islands<T: Decide>(
+    body: &Body<T>,
+    side: PlaneSide,
+    naming: &mut SplitNaming,
+    normal: Vec3<T>,
+    tol: Tol,
+) -> Result<(), SplitFinishError> {
+    let pieces = naming.plane_pieces(side, body).faces;
+    let mut rings = Vec::new();
+    let mut outlines = Vec::with_capacity(pieces.len());
+    for &f in &pieces {
+        let face = body.get_face(f).ok_or(SplitFinishError::Corrupt)?;
+        rings.extend(face.rings.iter().map(|&r| (r, r)));
+        outlines.push((f, face.outer));
+    }
+    if rings.is_empty() || pieces.len() < 2 {
+        return Ok(());
+    }
+    let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
+    let side_normal = section_loops::section_normal(normal, side);
+    let nesting = section_loops::nest(body, rings, outlines, side_normal, band).map_err(
+        |fault| match fault {
+            section_loops::NestFault::Torn => SplitFinishError::Corrupt,
+            section_loops::NestFault::Contradiction(island) => {
+                SplitFinishError::NestingContradiction { hole: island }
+            }
+        },
+    )?;
+    for (ring, held) in nesting.regions {
+        naming
+            .islands
+            .extend(held.into_iter().map(|island| (ring, island)));
+    }
     Ok(())
 }
 
@@ -476,6 +626,7 @@ impl Default for SplitNaming {
             joined_lineage: Default::default(),
             merge_groups: Default::default(),
             merge_skipped: Default::default(),
+            islands: Default::default(),
         }
     }
 }
@@ -587,11 +738,12 @@ pub enum SplitFinishError {
     /// dihedral along the edge over the edge's own arm, is the one left
     /// where the two arms decide differently in the band.
     KnifeEdge(KnifeEdge),
-    /// Two section faces each read as enclosing the other around a
-    /// hole: their outlines were decided disjoint, and disjoint
-    /// outlines cannot (kernel bug, loudly).
+    /// Two section loops each read as enclosing the other around a hole
+    /// or an island: they were decided disjoint, and disjoint loops
+    /// cannot (kernel bug, loudly).
     NestingContradiction {
-        /// The hole's section face (in the discarded scratch body).
+        /// The hole's section face (in the discarded scratch body), or
+        /// the island's plane piece (in its side's body).
         hole: FaceKey,
     },
     /// A slit trace's slit, read definitely, lies in no section region of
@@ -924,7 +1076,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     completed: &[CompletedSection],
     face_fragments: crate::lineage::FaceDivisions,
     tol: Tol,
-) -> Result<SplitResult<T>, SplitFinishError> {
+) -> Result<RawSplit<T>, SplitFinishError> {
     // **The phase boundary, asserted.** The reduce and join phases
     // hold their scope on this same body through the one guardless
     // pair in `splitting` (`split_scratch`), and nothing about a
@@ -971,6 +1123,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
         joined_lineage: Default::default(),
         merge_groups: Vec::new(),
         merge_skipped: Vec::new(),
+        islands: Vec::new(),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
@@ -1150,9 +1303,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     body.sweep_and_close();
     let above = carve(&reassembled, solid, &above_shells)?;
     let below = carve(&reassembled, solid, &below_shells)?;
-    Ok(SplitResult {
-        above: SplitPart::Body(above),
-        below: SplitPart::Body(below),
+    Ok(RawSplit {
+        above: RawPart::Body(above),
+        below: RawPart::Body(below),
         naming,
         coincidences: red.coincidences,
     })
@@ -1678,7 +1831,7 @@ fn whole_body_side<T: Decide>(
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     plane: &super::SplitPlane<T>,
     tol: Tol,
-) -> Result<SplitResult<T>, SplitFinishError> {
+) -> Result<RawSplit<T>, SplitFinishError> {
     let mut side = None;
     for (v, _) in body.vertices() {
         match sides.get(v) {
@@ -1717,15 +1870,15 @@ fn whole_body_side<T: Decide>(
         }
     }
     match side {
-        Some(PlaneSide::Above) => Ok(SplitResult {
-            above: SplitPart::Body(body),
-            below: SplitPart::Empty,
+        Some(PlaneSide::Above) => Ok(RawSplit {
+            above: RawPart::Body(body),
+            below: RawPart::Empty,
             naming: SplitNaming::default(),
             coincidences: Vec::new(),
         }),
-        Some(_) => Ok(SplitResult {
-            above: SplitPart::Empty,
-            below: SplitPart::Body(body),
+        Some(_) => Ok(RawSplit {
+            above: RawPart::Empty,
+            below: RawPart::Body(body),
             naming: SplitNaming::default(),
             coincidences: Vec::new(),
         }),
@@ -2022,7 +2175,7 @@ mod torn_hop_rows {
         crate::test_support_fixtures::describe_as_intersections(&mut cube, tol);
         let cube = crate::test_support::finished("the cube", cube, tol);
         let split = crate::splitting::split(&cube, &plane, tol).unwrap();
-        let mut body = split.below.body().unwrap().clone();
+        let mut body = crate::Body::clone(split.below.body().unwrap());
         let face = body
             .faces()
             .find(|(_, f)| {
@@ -2104,7 +2257,7 @@ mod smooth_arm_rows {
         crate::test_support_fixtures::describe_as_intersections(&mut cube, tol());
         let cube = crate::test_support::finished("the cube", cube, tol());
         let split = crate::splitting::split(&cube, &plane, tol()).unwrap();
-        let mut body = split.below.body().unwrap().clone();
+        let mut body = crate::Body::clone(split.below.body().unwrap());
         let face = body
             .faces()
             .find(|(_, f)| {

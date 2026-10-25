@@ -14,7 +14,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use bvh::Ray;
-use editor_core::ExtrudeSide;
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::test_support::{AXES, aimed, det_and_conditioning};
 use geom_core::{Point2, Point3, Tol};
@@ -35,7 +34,7 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
         &profile,
         Extrusion::Distance {
             depth: h,
-            side: ExtrudeSide::Along,
+            side: sweep::ExtrudeSide::Along,
         },
         Tol::witness(),
     )

@@ -98,6 +98,10 @@ pub use editor_core::{
 // must take with it, in an order the door accepts. A GUI both states
 // the cost of the button and builds the sequence behind it from this.
 pub use editor_core::cascade_delete_order;
+// "Sketch on this face" (DM1): the profile, its extrude, the copy placed
+// on the face and the union, as one action (`Recording::sketch_on_face`
+// composes it into a longer one).
+pub use editor_core::{SketchOutcome, SketchedOnFace, sketch_on_face};
 
 // Node vocabulary. A union or intersect takes one `Bodies` argument (a
 // family read, or spelled reads); a subtract is binary. `CountMismatch`
@@ -109,9 +113,10 @@ pub use editor_core::cascade_delete_order;
 // `CopyKey`; a placement's constraints are addressed by their
 // `ConstraintId`.
 pub use editor_core::{
-    Axis3, Bodies, BodyRead, ConstraintId, CopyKey, CountMismatch, Datum, ExtrudeSide, InputFault,
-    ListFault, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
-    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SlotId, SlotKind, TubeWindow, VectorSlot,
+    Axis3, Bodies, BodyRead, ConstraintId, CopyKey, CountMismatch, InputFault, ListFault,
+    LoftSection, MintId, Node, Operand, OperandSlot, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, SlotId, SlotKind, StationMove, TubeWindow,
+    VectorSlot,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -119,17 +124,13 @@ pub use editor_core::{
 // beside a refusal it carries whole, and the full-width id a machine
 // channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
-    node_kind_noun, spoken_by, spoken_within,
+    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenSpace,
+    SpokenVar, held_by, node_kind_noun, spoken_by, spoken_within,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the
 // kernel stores and speaks, never identity.
 pub use editor_core::{Label, LabelFault};
-
-// Placement: the chain a `Node::Transform` holds — rigid steps of
-// expressions and literal frames — and its steps.
-pub use editor_core::{Placement, Step};
 
 // The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
 // A `Node::Measure` holds one `MeasurePrimitive`; the builder (`measure`,
@@ -141,7 +142,7 @@ pub use editor_core::{Placement, Step};
 // value with. `AssertionVerdict` and `UnevaluatedReason` are the READING
 // half — the payload an evaluated assertion carries — and E10's whole
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
-// the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
+// the funnel site name, carried like `SEL_PLANE_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
 // `MeasureUnavailableAt` and `ClearanceRefusal` are carried for the
 // reason a payload's payload always is: they are what
@@ -229,7 +230,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // `FreshEntry` is an entry of an edit's fresh table: a variable the
 // edit mints for its formulas, under a name when two readers share it
 // (an unnamed variable has one reader, VR2).
-// `SpokenVar` is a variable as a refusal speaks it.
+// `SpokenVar` is a variable as a refusal speaks it, and `SpokenSpace` a
+// space.
 // `FreeValue` is the value half of a free variable, and the reason it is
 // curated is the door it opens: `DocEdit::SetVarValue` writes a new
 // number into a standing variable and carries the whole definition —
@@ -288,10 +290,10 @@ pub use editor_core::DocParamField;
 // enum that carries them.
 // `PoseValue`'s direction fields are `geom_core::UnitVec3`, reached
 // through the re-exported `geom_core` crate rather than curated here:
-// a consumer cannot read a datum's normal, or build a datum at all,
+// a consumer cannot read a pose's normal, or build a pose at all,
 // without naming the type that makes it unit, and it names it at the
 // crate that mints it — the constructor's refusal (`UnitVec3Error`,
-// there too) is the only way a datum direction is rejected.
+// there too) is the only way a pose direction is rejected.
 // `NodeRefusal` rides with `NodeErrorKind` for the same reason: it is
 // what `MateFault::PlacerRefused` and `EditError::PlacementAxis` carry
 // an evaluation refusal in, so a consumer can match either variant but
@@ -318,9 +320,9 @@ pub use editor_core::DocParamField;
 // `turns`, how the copies of a step a turn or more would land.
 pub use editor_core::{
     BooleanValue, CancelToken, CarriedChain, CarriedIn, CarriedLevel, DirectionRefusal,
-    EvalOptions, EvalOutcome, Evaluation, FramePlacement, Mispaired, NodeError, NodeErrorClass,
-    NodeErrorKind, NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide,
-    StepTurns, ValuePayload, evaluate,
+    EvalOptions, EvalOutcome, Evaluation, Mispaired, NodeError, NodeErrorClass, NodeErrorKind,
+    NodeRefusal, NodeResult, NodeStanding, NodeValue, PoseValue, SplitSide, StepTurns,
+    ValuePayload, evaluate,
 };
 // A placement's copies, keyed (`ValuePayload::Copies`): each copy by
 // its key, with its own names.
@@ -366,14 +368,14 @@ pub use editor_core::ContentBits;
 // the placements' document order, read through `Doc::placements` and
 // authored by `DocEdit::place` —
 // the one door that places, and the one Python's `Doc.place` is.
-// `product` is the whole-document gather of those copies. `LooseSpace`
-// is one loose copy's space, gathered by itself for the at-rest gate to
-// check, and `loose_spaces` gathers every one. `AtRestRow` is one of the product's at-rest decisions,
-// beside whose pair it is (`AtRestBy`): a mate's, or two copies' the
-// census found touching.
+// `product` is the whole-document gather of those copies. `SpaceGather`
+// is one `new_space()`'s copies gathered by themselves for the at-rest
+// check, and `space_gathers` gathers every one. `AtRestRow` is one of
+// the product's at-rest decisions, beside the two copies whose pair the
+// census decided.
 pub use editor_core::{
-    AtRestBy, AtRestRow, LooseSpace, Product, ProductError, ProductErrorKind, ProductRefusal,
-    Refusal, SourceFinding, loose_spaces, product, product_recorded,
+    AtRestRow, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, SourceFinding,
+    SpaceGather, product, product_recorded, space_gathers,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -383,8 +385,8 @@ pub use editor_core::{
 #[cfg(debug_assertions)]
 pub use editor_core::gathers_on_this_thread;
 
-// Instantiated parts. `Frame` is the rigid motion a `Placement`
-// evaluates to;
+// Instantiated parts. `Frame` is the rigid motion a placement solves
+// to;
 // `PartResolver` is the document seam evaluation crosses to reach a
 // referenced document, `ResolveFailure`/`ResolveFault` its classified
 // refusal, and `PartFault` the evaluation-side cause an
@@ -398,22 +400,27 @@ pub use editor_core::{
 
 // Mates: a placement's constraints (`Constraint`, addressed by a
 // `MateRef`), each a `Mate` of two poses of one kind — `on` read off
-// the copy's geometry, `to` a `Target`: a pose of the space the copy
-// joins, or the world read inside the mate (`WorldRead`) — or a
-// `Value` setting one freedom (`Coord`, a `SlideAxis` or the spin) its
-// mate leaves. The solve's outcome (`SolvedPoses`, each copy's
-// `Space`; a pose kind's symmetry `Subgroup` and its `SubgroupFamily`,
-// whose meeting decides a bundle), and `MateFault` — the typed refusal
-// every door carries. `pin_at` pins a copy to the world at a pose over
-// its own geometry; `place_at` is the "place part" gesture's
-// constraints (`PlacedBy` saying whether the copy had a planar face to
-// rest). `unobservable` reports each number an evaluation shows moves
-// nothing (`Unobservable`): a pose move inside its pose's own symmetry,
-// a spin value about a line its copy is round about. `member_of` is A11's member vocabulary itself
+// the copy's geometry, `to` a pose of the space the placement places
+// into — or a `Value` setting one freedom (`Coord`: a slide along, or
+// a spin about, one of the target space's axes as `TargetAxis` names
+// it), which names no mate: the bundle's mates together leave it, and
+// it charts on the target space's axes swung onto the one mated
+// direction. The solve's outcome (`SolvedPoses`, each copy's target
+// space and motion; a pose kind's symmetry `Subgroup` and its
+// `SubgroupFamily`, whose meeting decides a bundle), and `MateFault` —
+// the typed refusal every door carries. A placement's bundle is a
+// `Placed` — its mates and its values — built by the one pure
+// constructor `Placed::of` (each freedom the mates leave and no value
+// sets written the constant `0`), and `Placed::bundle` writes it
+// whole; `stand` is the identity bundle. `unobservable` reports each
+// number an evaluation shows moves nothing (`Unobservable`): a pose
+// move inside its pose's own symmetry, a spin value about a line its
+// copy is round about. `member_of` is A11's member vocabulary itself
 // (`Member` is its answer); `member_reading` is the same walk with the
 // name it reached at the member's instance, and `head_face` the face
-// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` is the
-// recourse sentence a bundle's refusal ends on.
+// of the member's part a head names. `OVERCONSTRAINED_RECOURSE` and
+// `UNPINNED_RECOURSE` are the recourse sentences a bundle's refusals
+// end on.
 /// Why a mate could not form its lever, which
 /// [`MateFault::Unleverable`] carries — by the payload rule this list
 /// states at `NodeRefusal`.
@@ -434,56 +441,28 @@ pub use editor_core::{
 /// here rather than being spelled on a list that owns its vocabulary.
 pub use editor_core::LeverRefusal;
 pub use editor_core::{
-    Anchor, Constraint, ConstraintKind, Coord, FreedomRefusal, MAX_WORLD_READ_DEPTH, Mate,
-    MateFault, MateRef, MateSide, Member, NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal,
-    PlacedBy, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, SlideAxis, SolvedPoses, Space,
-    Subgroup, SubgroupFamily, Target, Unobservable, Value, WorldPin, WorldRead, WorldReadFault,
-    head_face, head_of, member_of, member_reading, pin_at, pinned_at, place_at, reference_about,
-    relative_freedom_components, solve_document, unobservable,
+    Constraint, ConstraintKind, Coord, FrameMove, Mate, MateFault, MateRef, MateSide, Member,
+    NoChartWhy, OVERCONSTRAINED_RECOURSE, PinRefusal, Placed, Placing, PoseRefusal, PoseSymmetry,
+    ReachRefusal, SolvedPoses, Subgroup, SubgroupFamily, TargetAxis, UNPINNED_RECOURSE,
+    Unobservable, Value, corner_frame, corner_frame_in, head_face, head_of, member_of,
+    member_reading, moved_frame, reference_about, relative_freedom_components, solve_document,
+    stand, unobservable,
 };
 
-// The class-admission table (`ClassAdmission`, read through
-// `class_admission`, with `CLASS_DEFERRAL` as the deferral sentence its
-// refusals cite): HOW FAR each contact class gets in v1, as one value
-// both enforcement doors read. A mate-authoring consumer needs it
-// BEFORE committing — the table is what says a class will refuse at
-// the solve or mint door, so exposing it here is what lets a tool
-// offer only what the vocabulary can execute instead of discovering
-// the refusal after the edit lands.
-pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
-
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
-// product, mints every solved mate's declaration into its contact
-// record set, and runs the kernel's own tier-3′ door over the two
-// together — the answer to "is this assembly valid at rest", which the
-// authoring vocabulary above can otherwise construct and not check.
-// `Assembly` is the validated result (body, names, certified records,
-// and one `MintedDeclaration` per mate); `AssemblyError` is the typed
-// refusal, and its arms are not interchangeable — a caller must tell a
-// verdict AGAINST the document (`AtRest`) from the declared
-// direction's frontier (`Uncertified`), which is what `AtRestFinding`
-// and `Attribution` carry per finding. `RefusedRef` says why a mate
-// reference named no product face.
-// `assemble_gathered` is that gate over a product the caller already
-// holds — the canonical door, of which `assemble` is the gather plus a
-// call to it. A caller with several consumers of one product gathers
-// once and finishes here, since this door CONSUMES the product.
-// A declaration a document BELOW this one authored crosses the
-// instantiation seam with its records: `CarriedDeclaration` is the row
-// that says whose mate it was, `Route` is by what path this document
-// reached it (one type, on every carrier of that fact), `Relation` is
-// what a finding says about a declaration it names — this document's
-// own or a part's — and `CarriedDeclarations` is what an instantiated
-// value carries up. `AssemblyError::CarriedMintRefusal` is the
-// outermost gate's refusal over inner mates that could not be minted
-// at all, and `CarriedRefusal` is one of its rows; `MintRefusal` is one
-// row of the gate's refusal over this document's own mates. Both arms
-// raise EVERY row they hold, so the row types are what the gate's
-// answer is made of and a consumer matching that answer must name
-// them. `NO_AT_REST_RECORD_RECOURSE` is the recourse sentence a
-// `NoAtRestRecord` row ends on, carried for the reason
-// `OVERCONSTRAINED_RECOURSE` is: a caller asserting that a refusal reaches its recourse must not
-// do it by re-typing the sentence.
+// product, whose census records every touch between copies as a row and
+// a record citing it, and reads the census's verdict — the answer to "is
+// this assembly valid at rest", which the authoring vocabulary above can
+// otherwise construct and not check. `Assembly` is the validated result
+// (body, names, certified records); `AssemblyError` is the typed
+// refusal, and `AtRestFinding` is one kernel finding of its `AtRest`
+// arm. `assemble_gathered` is that gate over a product the caller
+// already holds — the canonical door, of which `assemble` is the gather
+// plus a call to it. A caller with several consumers of one product
+// gathers once and finishes here, since this door CONSUMES the product.
+// `Route` is by what path a row of a document BELOW this one reached
+// this document (one type, on every carrier of that fact), and
+// `CarriedFindings` is what an instantiated value carries up.
 // An overlap between two copies' material is not a refusal but an
 // `InterferenceFinding` on `Assembly::interference` (D10): its copies
 // (`CopyRef`), its `Overlap` (the bounding faces as `FaceSite`s, or
@@ -494,26 +473,27 @@ pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 // `CarriedAtRestFinding` a row of `AssemblyError::CarriedAtRest`, the
 // outermost gate's refusal over what the part's own gate refuses.
 pub use editor_core::{
-    Assembly, AssemblyError, AtRestFinding, Attribution, CarriedAtRestFinding, CarriedDeclaration,
-    CarriedDeclarations, CarriedInterference, CarriedRefusal, CopyRef, FaceSite,
-    InterferenceFinding, MintRefusal, MintedDeclaration, NO_AT_REST_RECORD_RECOURSE, Overlap,
-    RefusedRef, Relation, Route, Unlocalized, assemble, assemble_gathered,
+    Assembly, AssemblyError, AtRestFinding, CarriedAtRestFinding, CarriedFindings,
+    CarriedInterference, CopyRef, FaceSite, InterferenceFinding, Overlap, Route, Unlocalized,
+    assemble, assemble_gathered,
 };
 
-// Split and inline: the first-class
+// Split, inline and flatten: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new
 // document (identity supplied by the caller — `DocumentId::derive` or
 // `workspace::random_document_id`) and leaves an instance behind;
 // `inline` splices a referenced document back in through a
-// `PartResolver`. Both return the new document VALUES plus the
+// `PartResolver`, into a new space placed under the instance's bundle;
+// `flatten` folds an identity placement out of such a space back into
+// its target. Both return the new document VALUES plus the
 // ordinary recorded edits producing them; persistence of the results
 // is the workspace write side (`workspace::Workspace::create` /
 // `resave`). `InterfaceRecord`/`InterfaceCrossing` are the split
 // seam's crossing-declaration record, inhabited by
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
-    InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, StepMap, Uncarried, inline, split,
+    FlattenError, FlattenOutcome, InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord,
+    NodeMap, SplitError, SplitOutcome, StepMap, Uncarried, flatten, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

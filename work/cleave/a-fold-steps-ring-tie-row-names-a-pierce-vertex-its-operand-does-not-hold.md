@@ -4,6 +4,7 @@ kind: issue
 title: A union fold step's ring-tie row names a pierce vertex the reduction minted off every edge split, so no operand table names it and the union holds it out of its log
 status: open
 opened: 2026-10-19
+priority: P1
 ---
 
 
@@ -36,3 +37,12 @@ A cited one still refuses.
 piercing operand's face that holds the strut), and the ring tie spelled
 as the `Meet` of the two pierces' cells and the pierced face
 (`PierceRingRecord::face`). Then the union's hold-out goes.
+
+## Raised to P1 (WIRE orchestrator, 2026-10-20)
+
+D9 as ratified on PR 5411 says no input should be able to lead to a
+known panic. This is a known-reached kernel defect: the corner-boss
+union reaches `ROW_CELL_NOT_IN_TABLE`. editor-core's `held_out` currently
+absorbs it silently ([loud-failure]). WIRE's conversion deletes
+`held_out` and makes the site a panic, which is right only once this is
+fixed. WIRE holds that step until this row closes.

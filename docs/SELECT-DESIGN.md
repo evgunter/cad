@@ -134,7 +134,7 @@ GeomPred =                       -- a CONJUNCTION of atoms
   | AdjacentKinds(SurfaceKindSet, SurfaceKindSet)  -- exact,
       -- unordered pair across an edge (equivariant by symmetry)
   | DatumDistance { datum: RecipeNodeId, cmp: Cmp, value: Expr }
-      -- decided (funnel site sel_datum_distance)
+      -- decided (funnel site sel_plane_distance)
   -- reserved, unbuilt: Convex / Reflex (GS-Q2)
 
 select_where<T: Decide>(

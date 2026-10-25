@@ -224,11 +224,7 @@ fn close<T: Decide>(
     };
     let (g, departure) = onto_arc_geom(pos.at, arrival, start_pos, tol)?;
     let start_ang = depart(&mut core, pos, departure, tol)?;
-    let arriving = Incoming {
-        ang: arrival,
-        arm: leg_arm(g.carrier, g.chord),
-        carrier: g.carrier,
-    };
+    let arriving = Incoming::fresh(arrival, leg_arm(g.carrier, g.chord), g.carrier);
     seam_joint(&mut core, how, &arriving, start_ang, tol)?;
     core.claim(bound_at, PieceRole::Leg);
     core.close_leaving(g.arc, FirstSeg::Arc)?;

@@ -6,10 +6,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::HashMap;
-
 use geom::Curve3;
 use geom_core::{Point3, Tol};
+use slotmap::SecondaryMap;
 use topo::{Body, EdgeKey, ReplaceFaceError, VertexKey};
 
 use crate::fixture::m7_8::m7_8_cube;
@@ -18,7 +17,7 @@ use crate::fixture::m7_8::m7_8_cube;
 type SplineEdge = (Curve3<f64>, (f64, f64), [VertexKey; 2]);
 
 /// Each spline-carried edge of `body`.
-fn spline_edges(body: &Body<f64>) -> HashMap<EdgeKey, SplineEdge> {
+fn spline_edges(body: &Body<f64>) -> SecondaryMap<EdgeKey, SplineEdge> {
     body.edges()
         .filter_map(|(k, e)| {
             let curve = body.get_curve_geom(e.curve)?.certified()?;
@@ -122,7 +121,7 @@ fn an_outward_cap_offset_runs_past_the_spline_carriers_end() {
         panic!("expected the past-the-end refusal, got {e}");
     };
     assert!(
-        spline_edges(&body).contains_key(&edge),
+        spline_edges(&body).contains_key(edge),
         "{edge:?} is a wall edge"
     );
     assert!(

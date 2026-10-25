@@ -2,12 +2,11 @@
 id: CONTACT-13
 kind: unit
 title: the census reads every declared meeting: one meeting ledger, only a Rest clears, curved star faces read through their reach box (Ev, PR 3422)
-status: parked
+status: open
 opened: 2026-09-29
 priority: P0
 cost: H
 branch: contact/13-meeting-ledger
-blocked_on: [intent-stage4-is-built]
 ---
 
 

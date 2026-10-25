@@ -763,7 +763,6 @@ mod tests {
             axis: v(0.0, 0.0, 1.0),
             semi_u: 2.0,
             semi_v: -1.0,
-            u_ref: v(1.0, 0.0, 0.0),
             params: (0.0, core::f64::consts::TAU),
         }));
         assert!(inf_on(z_axis(), &ring).unwrap() <= 1.0, "the minor vertex");

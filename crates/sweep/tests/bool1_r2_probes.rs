@@ -131,7 +131,7 @@ fn transverse_resplit_of_a_restated_product_stays_tier3() {
     let first = split_at_y(&body, 1.0);
     let below1 = first.below.body().expect("below of split #1");
     tier3(below1, "coplanar split below");
-    let below1 = sweep::test_support::finished("the lower half", below1.clone(), Tol::witness());
+    let below1 = below1.clone();
 
     // Transverse second cut straight through the restated edges' span.
     let second = topo::split(

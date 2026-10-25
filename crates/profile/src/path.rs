@@ -31,8 +31,9 @@
 //! (a second director on a Directed tip is ill-typed); the INCOMING
 //! direction is never a slot — it is intrinsic data on a leg end,
 //! consultable by [`tangent`](PartialPath::tangent) /
-//! [`turn`](PartialPath::turn), the junction check and the straight
-//! continuation, settable by nothing.
+//! [`turn`](PartialPath::turn), the junction check, the straight
+//! continuation and `lands_on_ray` (the declared continuation's on-ray
+//! reading, PATHS-DESIGN §2c), settable by nothing.
 //!
 //! # Closure
 //!
@@ -69,11 +70,14 @@
 //! equivalent raw vertex-and-bulge chain would — the line×line
 //! fillet trim geometry is literally shared code
 //! (`sugar::line_line_fillet_trims`), so the two doors emit
-//! bit-identical fillet geometry. The #101 verify layer
-//! ([`crate::Profile::validate`]) runs UNCHANGED on the lowered
-//! output: every constructed joint is verified at build —
-//! verified-never-trusted; nothing is trusted because the algebra
-//! produced it.
+//! bit-identical fillet geometry. Nothing is trusted because the
+//! algebra produced it: the lowered loop's shape and joints are
+//! validated as a table's are ([`crate::ConstructedProfile`]), and its
+//! arcs' consistency, which validation does not decide again for a
+//! constructed loop, holds over the reals by its construction and is
+//! checked at the scalar it was built in, by an exact scalar's
+//! registered identities or by this door reading a point scalar's
+//! stored arc back against what was authored before it stores it.
 //!
 //! One canonicalization is worth naming (it defines which coordinates
 //! the authoring determines *exactly*, the differential tests' bit
@@ -369,14 +373,15 @@ use core::marker::PhantomData;
 use geom_core::k_stats::decide;
 use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{
-    Arc2, Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2, is_finite_length,
+    Arc2, Band, Decide, Indeterminate, KERNEL_DEFECT_ENDING, Margin, Point2, Real, Sign, Tol, Vec2,
+    is_finite_length,
 };
 
 use crate::path::program::{ClosedLoop, ConstructedLoop, Step, Target};
 use crate::seg;
 use crate::sugar::{ArcSweep, LineFilletTrims, TrimRefusal, line_line_fillet_trims};
 use crate::validate::{
-    FILLET_FLATTENED_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
+    ARC_SCENE_RESOLUTION_RECOURSE, FILLET_FLATTENED_RECOURSE, FILLET_SCENE_RESOLUTION_RECOURSE,
     FILLET_STORED_FORM_INBAND_RECOURSE, FilletLeg, FilletLegCarrier, JUNCTION_TANGENT_LEVER,
     NoCornerReason, fillet_recourse_for,
 };
@@ -958,8 +963,9 @@ pub enum PathError<T: Real> {
     /// **The declared point-target continuation's consistency
     /// refusal**: [`continue_to(target)`](PartialPath::continue_to)
     /// declares the leg to be the straight continuation of the run
-    /// LANDING on `target`, and the target does not lie on the
-    /// departing point's ray.
+    /// LANDING on `target`, and the target does not lie on the run's
+    /// line: the line bound where the run's direction was bound, which
+    /// the departing point's `lands_on_ray` reads (PATHS-DESIGN §2c).
     ///
     /// This is authored data contradicting itself — the arc verbs'
     /// consistency class ([`ArcCenterNotEquidistant`](Self::ArcCenterNotEquidistant)
@@ -1348,6 +1354,72 @@ pub enum PathError<T: Real> {
         /// The classified radius, meters.
         radius: T,
     },
+    /// **An arc the path built is off what was authored**, read back
+    /// at a point scalar (`seg::read_back_arc`): its start off its
+    /// carrier, its landing off its end vertex, a `Via` arc's carrier off
+    /// its through-point, or the other arc between its ends than the
+    /// turn it was authored to. The miss stands clear of the read's own
+    /// rounding by the band, on a scene the authored data's magnitude
+    /// resolves. Every construction's arc meets all four over the reals,
+    /// so this is its arithmetic losing digits: a kernel defect, not the
+    /// input.
+    ArcMissesAuthoredPoint {
+        /// The segment the arc is: its step and role.
+        piece: crate::structure::Piece,
+        /// The verb that step called.
+        verb: program::Verb,
+        /// The read: `path_arc_start_on_carrier`, `path_arc_landing`,
+        /// `path_arc_through_point` or `path_arc_branch`.
+        predicate: &'static str,
+        /// The authored point the read is about, meters: the start or
+        /// end vertex, or a `Via` arc's `q`.
+        point: Point2<T>,
+        /// How far the stored arc is off what was authored, meters (for
+        /// the branch, the length of the arc it built instead).
+        miss: T,
+        /// The magnitude the read was taken at, meters.
+        scale: T,
+        /// The rounding the read carries at that magnitude, meters.
+        resolution: T,
+        /// The stored arc's turn, radians.
+        turn: T,
+        /// The turn sense the construction authored, where it authors
+        /// one apart from its sweep.
+        authored: Option<ArcSweep>,
+    },
+    /// **The same miss, where the scene cannot call it a defect**: the
+    /// authored data's magnitude does not resolve the read, the miss is
+    /// within the read's own rounding at its magnitude, or the read is
+    /// not finite. The miss may be the input's conditioning or the
+    /// construction's, which a point scalar cannot tell apart. Refused,
+    /// not passed: a stored arc off what was authored is unusable either
+    /// way, and the report names the step, the read and the miss so a
+    /// construction that lost digits can still be told from a scene at
+    /// its resolution.
+    ArcMissBelowSceneResolution {
+        /// The segment the arc is: its step and role.
+        piece: crate::structure::Piece,
+        /// The verb that step called.
+        verb: program::Verb,
+        /// The read: `path_arc_start_on_carrier`, `path_arc_landing`,
+        /// `path_arc_through_point` or `path_arc_branch`.
+        predicate: &'static str,
+        /// The authored point the read is about, meters: the start or
+        /// end vertex, or a `Via` arc's `q`.
+        point: Point2<T>,
+        /// How far the stored arc is off what was authored, meters (for
+        /// the branch, the length of the arc it built instead).
+        miss: T,
+        /// The magnitude the read was taken at, meters.
+        scale: T,
+        /// The rounding the read carries at that magnitude, meters.
+        resolution: T,
+        /// The stored arc's turn, radians.
+        turn: T,
+        /// The turn sense the construction authored, where it authors
+        /// one apart from its sweep.
+        authored: Option<ArcSweep>,
+    },
     /// The far-end-anchor form (`.angle(θ).to(p)` / `.toward(..).to(p)`)
     /// was reached with no opened fillet — at the ENTRY, where the
     /// direction is bound but no side is waiting to be terminated. The
@@ -1474,6 +1546,10 @@ pub enum PathErrorKind {
     ArcCenterNotEquidistant,
     /// [`PathError::DegenerateArcCenter`].
     DegenerateArcCenter,
+    /// [`PathError::ArcMissesAuthoredPoint`].
+    ArcMissesAuthoredPoint,
+    /// [`PathError::ArcMissBelowSceneResolution`].
+    ArcMissBelowSceneResolution,
     /// [`PathError::FarEndAnchorWithoutFillet`].
     FarEndAnchorWithoutFillet,
     /// [`PathError::Escalated`].
@@ -1524,6 +1600,8 @@ impl<T: Real> PathError<T> {
             Self::DegenerateArcChord { .. } => PathErrorKind::DegenerateArcChord,
             Self::ArcCenterNotEquidistant { .. } => PathErrorKind::ArcCenterNotEquidistant,
             Self::DegenerateArcCenter { .. } => PathErrorKind::DegenerateArcCenter,
+            Self::ArcMissesAuthoredPoint { .. } => PathErrorKind::ArcMissesAuthoredPoint,
+            Self::ArcMissBelowSceneResolution { .. } => PathErrorKind::ArcMissBelowSceneResolution,
             Self::FarEndAnchorWithoutFillet => PathErrorKind::FarEndAnchorWithoutFillet,
             Self::Escalated { .. } => PathErrorKind::Escalated,
             Self::Band(_) => PathErrorKind::Band,
@@ -1684,10 +1762,11 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::ContinuationTargetOffRay { across, along } => write!(
                 f,
-                "the declared straight continuation\'s target is not on the departing ray: it \
-                 misses by {across} m across the ray, {along} m along it. Recourse: move the \
-                 target onto the ray (or widen the input tolerance); if a TURN was meant, \
-                 author the direction (.turn(delta)/.angle(theta)) and use line_to",
+                "the declared straight continuation\'s target is not on its run\'s line (the \
+                 line bound where the run\'s direction was bound): it misses by {across} m \
+                 across the line, {along} m along it from the departing point. Recourse: move \
+                 the target onto the run\'s line; if a TURN was \
+                 meant, author the direction (.turn(delta)/.angle(theta)) and use line_to",
                 across = num(across),
                 along = num(along)
             ),
@@ -1923,6 +2002,46 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  m): the carrier has no radius, so the winding selects nothing",
                 radius = num(radius)
             ),
+            Self::ArcMissesAuthoredPoint {
+                piece,
+                verb,
+                predicate,
+                point,
+                miss,
+                scale,
+                resolution,
+                turn,
+                authored,
+            } => {
+                read_back_sentence(f, piece, verb, predicate, point, miss, turn, *authored)?;
+                write!(
+                    f,
+                    ", clear of the {resolution} m its read rounds to at {scale} m \
+                     ('{predicate}'). {KERNEL_DEFECT_ENDING}",
+                    resolution = num(resolution),
+                    scale = num(scale)
+                )
+            }
+            Self::ArcMissBelowSceneResolution {
+                piece,
+                verb,
+                predicate,
+                point,
+                miss,
+                scale,
+                resolution,
+                turn,
+                authored,
+            } => {
+                read_back_sentence(f, piece, verb, predicate, point, miss, turn, *authored)?;
+                write!(
+                    f,
+                    "; at {scale} m its read rounds to {resolution} m, too coarse to call \
+                     this a defect ('{predicate}'). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}",
+                    resolution = num(resolution),
+                    scale = num(scale)
+                )
+            }
             Self::FarEndAnchorWithoutFillet => write!(
                 f,
                 "the far-end-anchor form ends an ARRIVAL side at its own anchor, and no \
@@ -1962,24 +2081,22 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 match source.predicate {
                     Some("path_continuation_target_offset") => write!(
                         f,
-                        "the declared straight continuation's target is neither on the \
-                     departing ray nor definitely off it: {payload}. Recourse: move the \
-                     target onto the ray, or widen the input tolerance (K·ε) so this miss is \
-                     admissible",
+                        "the declared straight continuation's target is neither on its \
+                     run's line nor definitely off it: {payload}. Recourse: move the target \
+                     onto the run's line",
                         payload = source.payload()
                     ),
                     Some("path_seam_arrival_turn" | "path_seam_arrival_side") => write!(
                         f,
                         "the declared seam arrival is neither continuing the entry\'s outgoing \
                      direction nor definitely off it: {payload}; the declaration is the target. \
-                     Recourse: move the geometry so the two directions agree, or widen the \
-                     input tolerance (K·ε); LOWERING the tolerance is the wrong direction here",
+                     Recourse: move the geometry so the two directions agree",
                         payload = source.payload()
                     ),
                     Some("path_leg_length") => write!(
                         f,
                         "an authored leg extent could not be told from zero: {payload}. \
-                     Recourse: author a longer leg, or widen the input tolerance (K·ε)",
+                     Recourse: author a longer leg",
                         payload = source.payload()
                     ),
                     // The STORED-FORM read's own classifications
@@ -2200,14 +2317,235 @@ impl<T: Real> Dir<T> {
     }
 }
 
-/// A directed point's intrinsic incoming data: the arriving leg's end
-/// tangent, the leg's lever arm (extent capped by its carrier radius —
-/// the junction check's meters lever), and its carrier kind.
-#[derive(Clone, Copy, Debug)]
-struct Incoming<T: Real> {
-    ang: Dir<T>,
-    arm: T,
-    carrier: Option<ArcData<T>>,
+use directed::{Bound, Incoming, Run};
+
+/// **The directed point's intrinsic data, behind its one API** (PATHS-DESIGN
+/// §2c): its tangent, and `lands_on_ray`, the on-ray reading of a point
+/// target. The point's position is its tip's ([`PosData::at`]).
+///
+/// The representations are a family no verb can see. One is the bare
+/// (position, tangent); the other is the line of the straight run the
+/// point ends ([`Run`]), handed on by every straight continuation, so
+/// `lands_on_ray` on a run of continuations reads the line bound where
+/// the run's direction was bound, never re-anchored at an accepted
+/// vertex. The run is a private field and [`Run`] has no accessor: no
+/// verb can branch on, refuse on, or depend on which representation a
+/// point holds, and the module's privacy is what says so.
+mod directed {
+    use super::{ArcData, Dir, PathError, Point2, Real, Tol, linear_band};
+    use geom_core::k_stats::decide;
+    use geom_core::{Decide, Margin, Sign};
+
+    /// The line a straight run rides: its first vertex and the
+    /// direction bound there. Opaque: what reads it reads its two
+    /// displacements ([`Run::across`], [`Run::along`]), never its
+    /// fields, so no reader can tell which vertex anchors it.
+    #[derive(Clone, Copy, Debug)]
+    pub(super) struct Run<T: Real> {
+        anchor: Point2<T>,
+        dir: Dir<T>,
+    }
+
+    impl<T: Real> Run<T> {
+        /// `p`'s lateral displacement from this line, in metres: the
+        /// one spelling of the anchored-ray reading that the declared
+        /// continuation (`lands_on_ray`) and the fillet run-out
+        /// ([`super::PendingRunOut::rides`]) each decide under a key of
+        /// their own.
+        pub(super) fn across(&self, p: Point2<T>) -> T {
+            self.dir.unit.perp_dot(p - self.anchor)
+        }
+
+        /// How far along this line's direction `p` stands from `from`,
+        /// in metres.
+        pub(super) fn along(&self, from: Point2<T>, p: Point2<T>) -> T {
+            self.dir.unit.dot(p - from)
+        }
+
+        /// The line bound at `anchor` along `dir`: a straight leg whose
+        /// direction was bound where it starts begins a run there.
+        pub(super) fn bound(anchor: Point2<T>, dir: Dir<T>) -> Self {
+            Self { anchor, dir }
+        }
+
+        /// The same line run the other way: the reverse-tangent
+        /// continuation's (`.cusp()`), which negates the direction and
+        /// keeps the line.
+        pub(super) fn reversed(self) -> Self {
+            Self {
+                anchor: self.anchor,
+                dir: self.dir.reversed(),
+            }
+        }
+    }
+
+    /// **A bound direction**, the tip's angle slot: the direction, and
+    /// the run it rides where it was inherited bitwise (`.tangent()`,
+    /// `.cusp()`), so a straight leg off it continues that run
+    /// (PATHS-DESIGN §2c). The run is private: it is held only beside
+    /// its direction, read by [`Bound::run_at`] alone, and `None`
+    /// wherever the direction was bound afresh.
+    #[derive(Clone, Copy, Debug)]
+    pub(super) struct Bound<T: Real> {
+        pub(super) dir: Dir<T>,
+        run: Option<Run<T>>,
+    }
+
+    impl<T: Real> Bound<T> {
+        /// A direction bound where it is authored.
+        pub(super) fn fresh(dir: Dir<T>) -> Self {
+            Self { dir, run: None }
+        }
+
+        /// A direction inherited bitwise, riding `run`.
+        pub(super) fn inherited(dir: Dir<T>, run: Run<T>) -> Self {
+            Self {
+                dir,
+                run: Some(run),
+            }
+        }
+
+        /// The run a straight leg from `at` along this direction rides:
+        /// the inherited one, or one begun at `at`, where the direction
+        /// was bound.
+        pub(super) fn run_at(&self, at: Point2<T>) -> Run<T> {
+            self.run.unwrap_or(Run::bound(at, self.dir))
+        }
+    }
+
+    /// A directed point's intrinsic incoming data: the arriving leg's
+    /// end tangent, the leg's lever arm (extent capped by its carrier
+    /// radius — the junction check's meters lever), its carrier kind,
+    /// and the run its straight continuations ride (private: read only
+    /// by [`Incoming::lands_on_ray`] and handed on by
+    /// [`Incoming::run_from`]).
+    #[derive(Clone, Copy, Debug)]
+    pub(super) struct Incoming<T: Real> {
+        pub(super) ang: Dir<T>,
+        pub(super) arm: T,
+        pub(super) carrier: Option<ArcData<T>>,
+        run: Option<Run<T>>,
+    }
+
+    impl<T: Real> Incoming<T> {
+        /// A point whose direction was bound where it ends: the bare
+        /// representation, its run starting at its own position.
+        pub(super) fn fresh(ang: Dir<T>, arm: T, carrier: Option<ArcData<T>>) -> Self {
+            Self {
+                ang,
+                arm,
+                carrier,
+                run: None,
+            }
+        }
+
+        /// The end of a straight continuation along `run`: the
+        /// representation it was itself checked against.
+        pub(super) fn continuing(run: Run<T>, ang: Dir<T>, arm: T) -> Self {
+            Self {
+                ang,
+                arm,
+                carrier: None,
+                run: Some(run),
+            }
+        }
+
+        /// The run a straight continuation from this point at `at`
+        /// rides: the run it ends, or one starting here along its
+        /// tangent.
+        pub(super) fn run_from(&self, at: Point2<T>) -> Run<T> {
+            self.run.unwrap_or(Run {
+                anchor: at,
+                dir: self.ang,
+            })
+        }
+    }
+
+    impl<T: Decide> Incoming<T> {
+        /// **The declared point-target continuation's one decision**: is
+        /// the authored `target` ON this point's ray? Returns how far
+        /// ALONG it from `at` (the point's position) the target sits,
+        /// the leg length the declaration implies, or refuses.
+        ///
+        /// The ray is the run's ([`Incoming::run_from`]): on a run of
+        /// continuations, the line bound at the run's first vertex. So
+        /// every vertex of a declared straight run lies within the band
+        /// of that one line, and n accepted misses are n misses of it,
+        /// never a sum (PATHS-DESIGN §4).
+        ///
+        /// Two facts are gated, and they are separate facts, so they get
+        /// separate refusals. The LATERAL miss decides whether the
+        /// target is on the run's LINE, and it is classified on the same
+        /// linear band every other decision in this kernel uses, with
+        /// the same reading: below ε_precision the target and the line
+        /// are the same place at the precision anything here
+        /// represents, so the declaration is consistent; above ε_input
+        /// (= K·ε) they are definitely different places, and the
+        /// authored data contradicts itself; between them nothing is
+        /// decidable, so the band escalates rather than guesses. The
+        /// refusal edge IS ε_input, which is the band the input-quality
+        /// role names — this is a question about authored input, not
+        /// about what the kernel can build — and it is reached through
+        /// the funnel rather than by comparing against K·ε directly,
+        /// because a bare comparison would swallow the escalation band
+        /// and decide where the numbers cannot.
+        ///
+        /// The margin is metered with NO lever: `across` is already the
+        /// target's own displacement from the line in meters — the
+        /// distance the authored point would have to move — so
+        /// [`Margin::of`](geom_core::Margin::of) is the honest door.
+        /// (§4 item 1 levers its turn margin because ITS datum is an
+        /// angle; an angle is a pure number until an arm says what it
+        /// displaces. Levering here would mean dividing this length by
+        /// the leg to get an angle and multiplying it back, which can
+        /// only lose bits and would make the threshold depend on how far
+        /// away the author put the point.)
+        ///
+        /// The ALONG component is the leg's half-line-ness, measured
+        /// from the departing position, and it is the same fact
+        /// `line(len)` gates on its authored length: a target behind the
+        /// departure, or on top of it, is a leg of non-positive length
+        /// ([`PathError::NonpositiveLeg`]), not a target that misses.
+        ///
+        /// **Sibling measurement, cross-declared** (R1 S1): this,
+        /// [`super::tangent_arc_geom`] and [`super::PendingRunOut::rides`]'s
+        /// ray arm compute the same kind of displacement — `across =
+        /// û⊥·(target − anchor)` (and `along = û·d` here and in the
+        /// tangent arc; `rides` measures its advance from the chain head
+        /// instead), then a banded decision — under three different
+        /// predicate keys. They are kept separate deliberately rather
+        /// than shared, because the keys are the point: this site
+        /// classifies `across` as a declared target's MISS
+        /// (`path_continuation_target_offset`, an authored-data
+        /// disagreement), the tangent-arc site classifies the same
+        /// number as a degenerate-arc condition, and the run-out site as
+        /// which step an emitted segment is named for
+        /// (`path_run_out_carrier`). The funnel key is what tells a
+        /// margin telemetry reader which question was being answered, so
+        /// collapsing them would lose the distinction that makes the
+        /// funnel worth having.
+        pub(super) fn lands_on_ray(
+            &self,
+            at: Point2<T>,
+            target: Point2<T>,
+            tol: Tol,
+        ) -> Result<T, PathError<T>> {
+            let run = self.run_from(at);
+            let across = run.across(target);
+            let along = run.along(at, target);
+            let band = linear_band(tol)?;
+            match decide("path_continuation_target_offset", Margin::of(across), band) {
+                Ok(Sign::Zero) => {}
+                Ok(_) => return Err(PathError::ContinuationTargetOffRay { across, along }),
+                Err(source) => return Err(PathError::Escalated { source }),
+            }
+            match decide("path_leg_length", Margin::of(along), band) {
+                Ok(Sign::Positive) => Ok(along),
+                Ok(_) => Err(PathError::NonpositiveLeg { length: along }),
+                Err(source) => Err(PathError::Escalated { source }),
+            }
+        }
+    }
 }
 
 /// A junction bound but not yet read: the arriving leg's data, the
@@ -2230,7 +2568,7 @@ struct PendingJunction<T: Real> {
 #[derive(Clone, Debug)]
 struct Tip<T: Real> {
     pos: Option<PosData<T>>,
-    ang: Option<Dir<T>>,
+    ang: Option<Bound<T>>,
     /// Whether the bound angle was inherited by `.tangent()` (the
     /// constructed-tangency continuations; drives the §4 item 4 checks).
     ang_by_tangent: bool,
@@ -2272,10 +2610,10 @@ enum ArrivalCarrier<T: Real> {
 struct PendingRunOut<T: Real> {
     /// The step the fillet's pieces are credited to.
     step: usize,
-    /// The arrival ray's anchor.
-    anchor: Point2<T>,
-    /// The arrival ray's direction.
-    dir: Dir<T>,
+    /// The arrival ray: the line through the arrival anchor along the
+    /// arrival direction, read through the one anchored-ray reading
+    /// ([`Run`]).
+    ray: Run<T>,
     /// The witness of the resolution that emitted the fillet arc.
     tol: Tol,
 }
@@ -2284,8 +2622,9 @@ impl<T: Decide> PendingRunOut<T> {
     /// Whether the segment of `kind` from `from` to `to` lies on this
     /// run's arrival ray, continuing it from the chain head `from`: a
     /// straight segment whose end is on the ray's line (the lateral
-    /// miss `on_ray_extent` classifies, from the same anchor) and whose
-    /// advance from the head is definitely positive. An arc never
+    /// miss from the fillet's arrival anchor, the same reading
+    /// `lands_on_ray` takes from its run's anchor, [`Run::across`]) and
+    /// whose advance from the head is definitely positive. An arc never
     /// rides a ray.
     ///
     /// Every margin is decided under `path_run_out_carrier` and an
@@ -2300,10 +2639,10 @@ impl<T: Decide> PendingRunOut<T> {
             Ok(sign) => Ok(sign),
             Err(source) => Err(PathError::Escalated { source }),
         };
-        if on(Margin::of(self.dir.unit.perp_dot(to - self.anchor)))? != Sign::Zero {
+        if on(Margin::of(self.ray.across(to)))? != Sign::Zero {
             return Ok(false);
         }
-        Ok(on(Margin::of(self.dir.unit.dot(to - from)))? == Sign::Positive)
+        Ok(on(Margin::of(self.ray.along(from, to)))? == Sign::Positive)
     }
 }
 
@@ -2935,14 +3274,15 @@ fn side_arc<T: Real>(
     winding: ArcSweep,
     facts: crate::Facts,
 ) -> BuiltArc<T> {
-    BuiltArc {
-        arc: Arc2 {
+    BuiltArc::new(
+        Arc2 {
             centre,
             radius,
             sweep: center_sweep(a, b, centre, radius, winding),
         },
         facts,
-    }
+    )
+    .sensed(winding)
 }
 
 /// **The `Center` mode's one conversion**: the arc from the tip `a`
@@ -2974,7 +3314,7 @@ fn center_arc<T: Real>(
 /// turn reaches ±π only with `q` on the chord's line outside it, which
 /// the door's collinear gate refuses first.
 fn via_arc<T: Real>(a: Point2<T>, q: Point2<T>, b: Point2<T>) -> Option<BuiltArc<T>> {
-    crate::bulge_leg(a, b, crate::bulge_from_via(a, q, b))
+    crate::bulge_leg(a, b, crate::bulge_from_via(a, q, b)).map(|built| built.through(Some(q)))
 }
 
 /// **The tangent arc's one conversion**: the arc leaving `a` along the
@@ -2997,14 +3337,14 @@ fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
     let (along, across) = (u.dot(d), u.perp_dot(d));
     let x = crate::sugar::split_half_tan(across, along, d.norm());
     let rho = d.norm_squared() / (T::from_f64(2.0) * across);
-    BuiltArc {
-        arc: Arc2 {
+    BuiltArc::new(
+        Arc2 {
             centre: a + Vec2::new(-u.y, u.x) * rho,
             radius: rho.abs(),
             sweep: T::from_f64(4.0) * x.atan(),
         },
-        facts: crate::Facts::Registered,
-    }
+        crate::Facts::Registered,
+    )
 }
 
 /// **The tangent arc's geometry**: the leg from `at` leaving along
@@ -3019,8 +3359,8 @@ fn tangent_arc<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> BuiltArc<T> {
 ///
 /// **Sibling measurement, cross-declared** (R1 S1): the
 /// `d`/`along`/`across`/decide opening here is the same displacement
-/// [`PartialPath::on_ray_extent`] and [`PendingRunOut::rides`]'s ray
-/// arm compute, each under its own predicate key. See `on_ray_extent`
+/// [`Incoming::lands_on_ray`] and [`PendingRunOut::rides`]'s ray
+/// arm compute, each under its own predicate key. See `lands_on_ray`
 /// for why the three are kept apart rather than shared.
 fn tangent_arc_geom<T: Decide>(
     at: Point2<T>,
@@ -3041,9 +3381,12 @@ fn tangent_arc_geom<T: Decide>(
     // on the line would read its radius off a sub-band `across` — a
     // carrier ~1e16 across at f64, an unbounded enclosure at Interval.
     let band = linear_band(tol)?;
-    let on_line = match decide("path_collinear_target", Margin::of(across), band) {
-        Ok(Sign::Zero) => true,
-        Ok(_) => false,
+    // The target's side of the departure line is the arc's turn sense:
+    // left of the departure is counter-clockwise.
+    let (on_line, sense) = match decide("path_collinear_target", Margin::of(across), band) {
+        Ok(Sign::Zero) => (true, ArcSweep::Ccw),
+        Ok(Sign::Positive) => (false, ArcSweep::Ccw),
+        Ok(Sign::Negative) => (false, ArcSweep::Cw),
         Err(source) => return Err(PathError::Escalated { source }),
     };
     if on_line {
@@ -3057,7 +3400,7 @@ fn tangent_arc_geom<T: Decide>(
             Err(source) => return Err(PathError::Escalated { source }),
         }
     }
-    let arc = (!on_line).then(|| tangent_arc(at, u, p));
+    let arc = (!on_line).then(|| tangent_arc(at, u, p).sensed(sense));
     let chord = d.norm_squared().sqrt();
     let end_ang = reflected_across(u, d);
     Ok(TangentArcGeom {
@@ -3089,6 +3432,7 @@ fn onto_arc_geom<T: Decide>(
             sweep: -built.arc.sweep,
             ..built.arc
         },
+        sense: built.sense.map(ArcSweep::reversed),
         ..built
     });
     let geom = TangentArcGeom {
@@ -3236,7 +3580,7 @@ fn seam_joint<T: Decide>(
 
 /// **The declared seam ARRIVAL's check** — the inverted twin of
 /// [`junction_check`]'s tangent arm, and the mirror of
-/// [`PartialPath::on_ray_extent`]: there the ray is declared and the
+/// [`Incoming::lands_on_ray`]: there the ray is declared and the
 /// TARGET checked against it, here the arrival is declared and the
 /// arriving DIRECTION checked against the entry's outgoing one.
 ///
@@ -3376,8 +3720,9 @@ fn emit_straight_leg<T: Decide>(
     at: Point2<T>,
     ang: Dir<T>,
     len: T,
+    run: Run<T>,
 ) -> Result<Tip<T>, PathError<T>> {
-    emit_straight_leg_at(core, at + ang.unit * len, ang)
+    emit_straight_leg_at(core, at + ang.unit * len, ang, run)
 }
 
 /// The same emission where the END is the datum rather than the extent
@@ -3389,36 +3734,32 @@ fn emit_straight_leg<T: Decide>(
 /// path, authored once), and it is what makes the closer close: `Start`
 /// as the target reaches the entry vertex exactly, not to within a
 /// band. The RAY is still what the tip carries out, because the ray is
-/// the carrier the declaration names; the accepted lateral miss is the
-/// whole of the difference between the two, and it is bounded by the
-/// check that let the target through.
+/// the carrier the declaration names. The difference between the leg
+/// and the line is the two vertices' accepted misses, one at each end and
+/// possibly on opposite sides of it, so at most `2ε` across the leg, each
+/// bounded by the check that let its target through.
 ///
-/// **That bound is PER LEG, and this is where to read it.** The tip
-/// leaves on the declared ray while the vertex sits up to one accepted
-/// miss off it, so a RUN of declared continuations can accumulate: n
-/// legs each accepting a same-side miss below ε put the run's end up to
-/// n·ε off the ray it started on, and every per-leg check is green,
-/// correctly. R1's review measured it — forty legs at 0.5·ε reach 20·ε,
-/// two full ε_input.
-///
-/// This is a recorded LIMIT, not a hole, because the run-level
-/// certifier exists and is loud: the data gate sees the accumulated bow
-/// that no per-leg check can and ESCALATES on `chord_side` rather than
-/// accepting it. Escalation, not silence and not a guess.
-/// `the_per_leg_band_composes_and_the_data_gate_catches_the_sum` pins
-/// that verdict; PATHS-DESIGN §4 records it beside the band decisions.
-/// Tightening the per-leg band would not change the shape of this — any
-/// per-step tolerance composes — so the answer is the gate, which is
-/// already the design's answer for run-level facts.
+/// **That bound is PER RUN, because the line does not move.** The
+/// vertex sits up to one accepted miss off the declared line, so the end
+/// point is handed `run`, the line its own target was checked against
+/// ([`Incoming::continuing`]): the next continuation's `lands_on_ray`
+/// reads that line again, bound at the run's first vertex, never one
+/// re-anchored at this vertex. So every vertex of a declared straight
+/// run lies within the band of one line, and n accepted misses are n
+/// misses of it, never a sum (PATHS-DESIGN §4). A leg whose direction
+/// was bound where it starts hands on the run it begins there
+/// ([`Run::bound`]). `bool11_probes`'
+/// `a_runs_misses_are_read_against_its_own_line_and_never_sum` pins it.
 fn emit_straight_leg_at<T: Decide>(
     core: &mut Core<T>,
     end: Point2<T>,
     ang: Dir<T>,
+    run: Run<T>,
 ) -> Result<Tip<T>, PathError<T>> {
     let head = core.head()?;
     core.push_line(end)?;
     let arm = (end - head).norm_squared().sqrt();
-    Ok(leg_end_tip(end, ang, arm, None))
+    Ok(directed_tip(end, Incoming::continuing(run, ang, arm)))
 }
 
 /// Maps the shared fillet closed form's refusals into the algebra's
@@ -3474,14 +3815,14 @@ fn one_corner<T: Real>(at: Point2<T>, radius: T, reason: CornerReason<T>) -> Pat
 /// half turn) — with `facts`, which the caller derives by
 /// [`fillet_facts`].
 fn fillet_arc<T: Real>(carrier: ArcData<T>, bulge: T, facts: crate::Facts) -> BuiltArc<T> {
-    BuiltArc {
-        arc: Arc2 {
+    BuiltArc::new(
+        Arc2 {
             centre: carrier.center,
             radius: carrier.radius.abs(),
             sweep: T::from_f64(4.0) * bulge.atan(),
         },
         facts,
-    }
+    )
 }
 
 /// **What a fillet arc's construction proves of its endpoints.** Where
@@ -3728,11 +4069,34 @@ impl<T: Decide> Core<T> {
     }
 
     /// Finishes the loop, after re-reading every fillet arc in it the
-    /// way validation will ([`Core::fillets_carry_their_tangency`]):
-    /// the door's output is a loop whose fillet declarations the stored
-    /// form carries, or it is a refusal.
+    /// way validation will ([`Core::fillets_carry_their_tangency`]),
+    /// whose refusals name a fillet's own levers, and then reading every
+    /// arc back against what was authored ([`arc_reads_back`]): the
+    /// door's output is a loop whose fillet declarations the stored form
+    /// carries and whose arcs pass through their authored points, or it
+    /// is a refusal.
     fn build(self, tol: Tol) -> Result<ClosedLoop<T>, PathError<T>> {
         self.fillets_carry_their_tangency(tol)?;
+        let band = linear_band(tol)?;
+        let n = self.verts.len();
+        for (k, &(start, leaving)) in self.verts.iter().enumerate() {
+            if let Some(built) = leaving {
+                let piece =
+                    self.pieces
+                        .get(k)
+                        .copied()
+                        .flatten()
+                        .ok_or(PathError::UnderdeterminedLeg {
+                            site: "an arc segment of a closed chain that no emission named",
+                        })?;
+                let verb = self.program.get(piece.step).map(Step::verb).ok_or(
+                    PathError::UnderdeterminedLeg {
+                        site: "an arc segment named by a step the program does not hold",
+                    },
+                )?;
+                arc_reads_back(built, start, self.verts[(k + 1) % n].0, band, piece, verb)?;
+            }
+        }
         Ok(self.finish(tol))
     }
 
@@ -3859,7 +4223,9 @@ impl<T: Decide> Core<T> {
         let cross = u1.perp_dot(u2);
         let turn = decide("path_corner_turn", Margin::levered(cross, wn), band)
             .map_err(|source| PathError::Escalated { source })?;
-        let Some(sgn) = crate::sugar::turn_side::<T>(turn) else {
+        let Some((sgn, sense)) =
+            crate::sugar::turn_side::<T>(turn).zip(crate::sugar::turn_sense(turn))
+        else {
             return Err(PathError::NoCornerForFillet {
                 reason: PathNoCornerReason::CarriersParallel,
                 radius: pending.radius,
@@ -3919,7 +4285,8 @@ impl<T: Decide> Core<T> {
             arc,
             trims.bulge,
             fillet_facts(crate::Facts::Registered, trims.fit_in),
-        );
+        )
+        .sensed(sense);
         register_incoming_tangency(&built, trims.t1, u1, sgn * pending.radius, tol);
         // (5) incoming side emission: Positive fit emits the straight
         // piece + constructed joint (exactly the raw fillet's rule); Zero
@@ -3977,8 +4344,7 @@ impl<T: Decide> Core<T> {
                 self.construct_last();
                 self.run_out = Some(PendingRunOut {
                     step: meta.bound_at,
-                    anchor: arr_pos,
-                    dir: arr_ang,
+                    ray: Run::bound(arr_pos, arr_ang),
                     tol,
                 });
             }
@@ -4005,7 +4371,7 @@ impl<T: Decide> Core<T> {
         t: &arc_fillet::ArcFilletTrims<T>,
         merge: bool,
         meta: &PendingMeta<T>,
-        run: Option<(T, crate::Facts)>,
+        run: Option<verbs::SideRun<T>>,
     ) -> Result<(), PathError<T>> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
@@ -4021,10 +4387,11 @@ impl<T: Decide> Core<T> {
                 Some((_, sweep)) if merge => self.extend_arc_to(t.t1, sweep)?,
                 Some((centre, sweep)) => {
                     let head = self.head()?;
-                    let (radius, head_on_circle) = run.ok_or(PathError::UnderdeterminedLeg {
+                    let run = run.ok_or(PathError::UnderdeterminedLeg {
                         site: "an arc side's run without its opened arc side",
                     })?;
-                    let arc = side_arc(head, t.t1, centre, radius, sweep, head_on_circle);
+                    let arc = side_arc(head, t.t1, centre, run.radius, sweep, run.head_on_circle)
+                        .through(run.through);
                     // The incoming carrier is the BINDER's own argument
                     // wherever the arrival finally emits it.
                     if meta.incoming_radius {
@@ -4093,6 +4460,8 @@ impl<T: Decide> Core<T> {
             Some(BuiltArc {
                 arc,
                 facts: crate::Facts::Decided,
+                sense: Some(sweep),
+                ..leg
             }),
         );
         self.verts[n - 1].0 = t1;
@@ -4120,8 +4489,7 @@ impl<T: Decide> Core<T> {
             if let ArrivalCarrier::Ray { anchor, dir } = carrier {
                 self.run_out = Some(PendingRunOut {
                     step: bound_at,
-                    anchor,
-                    dir,
+                    ray: Run::bound(anchor, dir),
                     tol,
                 });
             }
@@ -4186,12 +4554,18 @@ fn in_state<T: Real, P, A>(core: Core<T>, tip: Tip<T>) -> PartialPath<T, P, A> {
     }
 }
 
-/// A directed-point tip minted by a leg end.
+/// A directed-point tip minted by a leg end whose direction was bound
+/// where it ends: the bare representation, starting afresh.
 fn leg_end_tip<T: Real>(at: Point2<T>, ang: Dir<T>, arm: T, carrier: Option<ArcData<T>>) -> Tip<T> {
+    directed_tip(at, Incoming::fresh(ang, arm, carrier))
+}
+
+/// A directed-point tip at `at` holding `incoming`.
+fn directed_tip<T: Real>(at: Point2<T>, incoming: Incoming<T>) -> Tip<T> {
     Tip {
         pos: Some(PosData {
             at,
-            incoming: Some(Incoming { ang, arm, carrier }),
+            incoming: Some(incoming),
         }),
         ang: None,
         ang_by_tangent: false,
@@ -4237,7 +4611,7 @@ impl Open {
             core,
             Tip {
                 pos: None,
-                ang: Some(dir),
+                ang: Some(Bound::fresh(dir)),
                 ang_by_tangent: false,
             },
         )
@@ -4255,7 +4629,7 @@ impl Open {
 /// amplifying its own noise into the ray. Only the RATIO of the
 /// components carries meaning, so the recourse is free — scale them up.
 ///
-/// **Finiteness before sign.** Components past [`Vec2::normalize`]'s
+/// **Finiteness before sign.** Components past [`Vec2::norm`]'s
 /// ~1e154 overflow band make the norm ∞, which is maximally DEFINITE
 /// to the classifier: deciding the sign first answers `Positive` and
 /// the two divisions below hand back `(0, 0)`. `(1e200, 0)` returned
@@ -4363,7 +4737,15 @@ fn circle_kernel<T: Decide>(
         Point2::new(center.x + radius, center.y),
         Point2::new(center.x - radius, center.y),
     ];
-    Ok(circle_loop(&vertices, center, radius, half, tol))
+    circle_loop(
+        &vertices,
+        center,
+        radius,
+        half,
+        tol,
+        band,
+        program::Verb::Circle,
+    )
 }
 
 /// The kernel behind the table's split-circle row: the lowered loop
@@ -4394,7 +4776,15 @@ fn circle_split_kernel<T: Decide>(
             Point2::new(center.x + radius * c, center.y + radius * s)
         })
         .collect();
-    Ok(circle_loop(&vertices, center, radius, sweep, tol))
+    circle_loop(
+        &vertices,
+        center,
+        radius,
+        sweep,
+        tol,
+        band,
+        program::Verb::CircleSplit,
+    )
 }
 
 /// **The circle forms' one conversion**: the vertices on the authored
@@ -4408,23 +4798,35 @@ fn circle_split_kernel<T: Decide>(
 /// vertex is the centre plus the radius along a unit direction, and
 /// the next is that direction rotated by `sweep` (a half turn for
 /// `circle`; 2π/n, spelled 4·atan(tan(π/2n)), for `circle_split`), over
-/// the reals at every value of the centre, radius and phase.
-fn circle_loop<T: Real>(
+/// the reals at every value of the centre, radius and phase; each is
+/// read back before the loop is stored ([`arc_reads_back`]), as piece
+/// `k` of the one step the `verb` row records.
+fn circle_loop<T: Decide>(
     vertices: &[Point2<T>],
     centre: Point2<T>,
     radius: T,
     sweep: T,
     tol: Tol,
-) -> ProfileLoop<T> {
+    band: Band,
+    verb: program::Verb,
+) -> Result<ProfileLoop<T>, PathError<T>> {
     let n = vertices.len();
-    let arc = BuiltArc {
-        arc: Arc2 {
+    let arc = BuiltArc::new(
+        Arc2 {
             centre,
             radius: radius.abs(),
             sweep,
         },
-        facts: crate::Facts::Registered,
-    };
+        crate::Facts::Registered,
+    )
+    .sensed(ArcSweep::Ccw);
+    for k in 0..n {
+        let piece = crate::structure::Piece {
+            step: 0,
+            role: crate::structure::PieceRole::Piece(u32::try_from(k).unwrap_or(u32::MAX)),
+        };
+        arc_reads_back(arc, vertices[k], vertices[(k + 1) % n], band, piece, verb)?;
+    }
     let chain: Vec<(Point2<T>, Segment<T>)> = (0..n)
         .map(|k| {
             let (start, end) = (vertices[k], vertices[(k + 1) % n]);
@@ -4432,7 +4834,96 @@ fn circle_loop<T: Real>(
             (start, Segment::Arc(arc.arc))
         })
         .collect();
-    ProfileLoop::from_chain(chain)
+    Ok(ProfileLoop::from_chain(chain))
+}
+
+/// The opening of [`PathError::ArcMissesAuthoredPoint`]'s and its
+/// sibling's sentences: the step, the verb, and what was built against
+/// what was authored, for their `predicate`.
+#[allow(clippy::too_many_arguments)]
+fn read_back_sentence<T: Real>(
+    f: &mut core::fmt::Formatter<'_>,
+    piece: &crate::structure::Piece,
+    verb: &program::Verb,
+    predicate: &str,
+    point: &Point2<T>,
+    miss: &T,
+    turn: &T,
+    authored: Option<ArcSweep>,
+) -> core::fmt::Result {
+    let (x, y) = (num(&point.x), num(&point.y));
+    if predicate == seg::BRANCH_READ {
+        let sense = match authored {
+            Some(ArcSweep::Ccw) => "a counter-clockwise turn",
+            Some(ArcSweep::Cw) => "a clockwise turn",
+            None => "the other turn",
+        };
+        return write!(
+            f,
+            "{piece} ({verb}) was authored as {sense} to ({x}, {y}) and built a turn of \
+             {turn} rad, the other arc between its ends",
+            turn = num(turn)
+        );
+    }
+    let what = match predicate {
+        seg::START_READ => "its start vertex",
+        seg::THROUGH_POINT_READ => "the through-point it was authored by",
+        _ => "its end vertex",
+    };
+    write!(
+        f,
+        "{piece} ({verb}) built an arc {miss} m off {what} ({x}, {y})",
+        miss = num(miss)
+    )
+}
+
+/// **A constructed arc, read back against what was authored**, before
+/// the chain stores it ([`seg::read_back_arc`]): its start on its
+/// carrier, its landing on `end`, a `Via` arc's carrier through `q`, and
+/// its branch against the turn sense it was authored to, at a point
+/// scalar. Every construction proves these over the reals, or holds
+/// them to an inline decision; a miss read here is its arithmetic, or a
+/// scene that cannot resolve the read, and refuses naming `piece`,
+/// `verb` and the authored point the read was about.
+fn arc_reads_back<T: Decide>(
+    built: BuiltArc<T>,
+    start: Point2<T>,
+    end: Point2<T>,
+    band: Band,
+    piece: crate::structure::Piece,
+    verb: program::Verb,
+) -> Result<(), PathError<T>> {
+    let point = |predicate: &str| match predicate {
+        seg::START_READ => start,
+        seg::THROUGH_POINT_READ => built.through.unwrap_or(end),
+        seg::BRANCH_READ => built.through.unwrap_or(end),
+        _ => end,
+    };
+    seg::read_back_arc(&built, start, end, band).map_err(|issue| match issue {
+        seg::ReadBackIssue::Defect(m) => PathError::ArcMissesAuthoredPoint {
+            piece,
+            verb,
+            predicate: m.predicate,
+            point: point(m.predicate),
+            miss: m.miss,
+            scale: m.scale,
+            resolution: m.resolution,
+            turn: built.arc.sweep,
+            authored: built.sense,
+        },
+        seg::ReadBackIssue::BelowSceneResolution(m) => PathError::ArcMissBelowSceneResolution {
+            piece,
+            verb,
+            predicate: m.predicate,
+            point: point(m.predicate),
+            miss: m.miss,
+            scale: m.scale,
+            resolution: m.resolution,
+            turn: built.arc.sweep,
+            authored: built.sense,
+        },
+        seg::ReadBackIssue::Escalated(source) => PathError::Escalated { source },
+    })
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
@@ -4444,7 +4935,7 @@ impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
         p: Point2<T>,
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<Plain>, A>, PathError<T>> {
-        match (self.tip.ang, self.core.pending.is_some()) {
+        match (self.tip.ang.map(|b| b.dir), self.core.pending.is_some()) {
             (Some(theta), true) => {
                 self.core
                     .resolve_fillet(p, theta, ArrivalKind::Continues, tol)?;
@@ -4489,22 +4980,31 @@ impl<T: Decide, P: PosMarker> PartialPath<T, P, NoAng> {
                 self.core.start_ang = Some(dir);
             }
         }
-        self.tip.ang = Some(dir);
+        self.tip.ang = Some(Bound::fresh(dir));
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
     }
 }
 
 impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
+    /// The direction the tip inherits bitwise, with the run it rides
+    /// (the direction-inheriting verbs: a straight leg off it continues
+    /// that run), reversed together for `.cusp()`.
+    fn inherited(&self, reversed: bool) -> Option<Bound<T>> {
+        let pos = self.tip.pos.as_ref()?;
+        let inc = pos.incoming?;
+        let run = inc.run_from(pos.at);
+        Some(if reversed {
+            Bound::inherited(inc.ang.reversed(), run.reversed())
+        } else {
+            Bound::inherited(inc.ang, run)
+        })
+    }
+
     /// The kernel behind the table's tangent-inheritance row (recording
     /// is the row's, not the kernel's).
     fn tangent_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
-        self.tip.ang = self
-            .tip
-            .pos
-            .as_ref()
-            .and_then(|p| p.incoming.as_ref())
-            .map(|inc| inc.ang);
+        self.tip.ang = self.inherited(false);
         self.tip.ang_by_tangent = true;
         self.core.construct_last();
         in_state(self.core, self.tip)
@@ -4518,12 +5018,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// cusp), so a reverse-tangent joint needs no second kind of
     /// construction.
     fn cusp_kernel(mut self) -> PartialPath<T, HasPos<WithIncoming>, HasAng> {
-        self.tip.ang = self
-            .tip
-            .pos
-            .as_ref()
-            .and_then(|p| p.incoming.as_ref())
-            .map(|inc| inc.ang.reversed());
+        self.tip.ang = self.inherited(true);
         self.tip.ang_by_tangent = true;
         self.core.construct_last();
         in_state(self.core, self.tip)
@@ -4543,7 +5038,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         )?;
         let theta = turned(inc.ang.unit, delta);
         self.core.pend_junction(&inc, theta, tol)?;
-        self.tip.ang = Some(theta);
+        self.tip.ang = Some(Bound::fresh(theta));
         self.tip.ang_by_tangent = false;
         Ok(in_state(self.core, self.tip))
     }
@@ -4591,95 +5086,20 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // the joint at this vertex is tangent by construction, exactly
         // as `.tangent()`'s is, and validation verifies it.
         self.core.construct_last();
-        let tip = emit_straight_leg(&mut self.core, at, inc.ang, len)?;
+        let tip = emit_straight_leg(&mut self.core, at, inc.ang, len, inc.run_from(at))?;
         Ok(in_state(self.core, tip))
     }
 
-    /// The departing RAY of a straight continuation: the point it
-    /// leaves from and the tangent it leaves along, both binding bits.
-    fn continuation_ray(&self, site: &'static str) -> Result<(Point2<T>, Dir<T>), PathError<T>> {
+    /// The departing directed point of a straight continuation: its
+    /// position and its intrinsic data, both binding bits.
+    fn departing(&self, site: &'static str) -> Result<(Point2<T>, Incoming<T>), PathError<T>> {
         let pos = self
             .tip
             .pos
             .as_ref()
             .ok_or(PathError::UnderdeterminedLeg { site })?;
         let inc = pos.incoming.ok_or(PathError::UnderdeterminedLeg { site })?;
-        Ok((pos.at, inc.ang))
-    }
-
-    /// **The declared point-target continuation's one decision**: is the
-    /// authored target ON the departing ray? Returns how far ALONG it
-    /// the target sits — the leg length the declaration implies — or
-    /// refuses.
-    ///
-    /// Two facts are gated, and they are separate facts, so they get
-    /// separate refusals. The LATERAL miss decides whether the target is
-    /// on the ray's LINE, and it is classified on the same linear band
-    /// every other decision in this kernel uses, with the same reading:
-    /// below ε_precision the target and the ray are the same place at
-    /// the precision anything here represents, so the declaration is
-    /// consistent; above ε_input (= K·ε) they are definitely different
-    /// places, and the authored data contradicts itself; between them
-    /// nothing is decidable, so the band escalates rather than guesses.
-    /// The refusal edge IS ε_input, which is the band the input-quality
-    /// role names — this is a question about authored input, not about
-    /// what the kernel can build — and it is reached through the funnel
-    /// rather than by comparing against K·ε directly, because a bare
-    /// comparison would swallow the escalation band and decide where the
-    /// numbers cannot.
-    ///
-    /// The margin is metered with NO lever: `across` is already the
-    /// target's own displacement from the ray in meters — the distance
-    /// the authored point would have to move — so [`Margin::of`] is the
-    /// honest door. (§4 item 1 levers its turn margin because ITS datum
-    /// is an angle; an angle is a pure number until an arm says what it
-    /// displaces. Levering here would mean dividing this length by the
-    /// leg to get an angle and multiplying it back, which can only lose
-    /// bits and would make the threshold depend on how far away the
-    /// author put the point.)
-    ///
-    /// The ALONG component is the ray's half-line-ness, and it is the
-    /// same fact `line(len)` gates on its authored length: a target
-    /// behind the departure, or on top of it, is a leg of non-positive
-    /// length ([`PathError::NonpositiveLeg`]), not a target that misses.
-    /// **Sibling measurement, cross-declared** (R1 S1): this,
-    /// [`tangent_arc_geom`] and
-    /// [`PendingRunOut::rides`]'s ray arm compute the SAME displacement
-    /// — `d = target − at`, `across = û⊥·d` (and `along = û·d` here
-    /// and in the tangent arc; `rides` measures its advance from the
-    /// chain head instead, `û·(to − head)`), then a banded decision —
-    /// under three different predicate keys.
-    ///
-    /// They are kept separate deliberately rather than shared, because
-    /// the keys are the point: this site classifies `across` as a
-    /// declared target's MISS (`path_continuation_target_offset`, an
-    /// authored-data disagreement), the tangent-arc site classifies the
-    /// same number as a degenerate-arc condition, and the run-out site
-    /// as which step an emitted segment is named for
-    /// (`path_run_out_carrier`). The funnel key is what tells a margin
-    /// telemetry reader which question was being answered, so
-    /// collapsing them would lose the distinction that makes the funnel
-    /// worth having.
-    fn on_ray_extent(
-        at: Point2<T>,
-        ang: Dir<T>,
-        target: Point2<T>,
-        tol: Tol,
-    ) -> Result<T, PathError<T>> {
-        let d = target - at;
-        let along = ang.unit.dot(d);
-        let across = ang.unit.perp_dot(d);
-        let band = linear_band(tol)?;
-        match decide("path_continuation_target_offset", Margin::of(across), band) {
-            Ok(Sign::Zero) => {}
-            Ok(_) => return Err(PathError::ContinuationTargetOffRay { across, along }),
-            Err(source) => return Err(PathError::Escalated { source }),
-        }
-        match decide("path_leg_length", Margin::of(along), band) {
-            Ok(Sign::Positive) => Ok(along),
-            Ok(_) => Err(PathError::NonpositiveLeg { length: along }),
-            Err(source) => Err(PathError::Escalated { source }),
-        }
+        Ok((pos.at, inc))
     }
 
     /// The kernel behind the table's point-target continuation row
@@ -4699,15 +5119,15 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         target: Point2<T>,
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        let (at, ang) = self.continuation_ray("continue_to on a tip without incoming data")?;
-        Self::on_ray_extent(at, ang, target, tol)?;
+        let (at, inc) = self.departing("continue_to on a tip without incoming data")?;
+        inc.lands_on_ray(at, target, tol)?;
         // The continuation verbs CONSTRUCT the zero-turn joint they
         // mint (Ev, in-chat, 2026-09-02; D1: every zero-turn joint is a
         // tangent joint). The departure is the incoming ray itself, so
         // the joint at this vertex is tangent by construction, exactly
         // as `.tangent()`'s is, and validation verifies it.
         self.core.construct_last();
-        let tip = emit_straight_leg_at(&mut self.core, target, ang)?;
+        let tip = emit_straight_leg_at(&mut self.core, target, inc.ang, inc.run_from(at))?;
         Ok(in_state(self.core, tip))
     }
 
@@ -4715,7 +5135,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// point-target continuation whose target is [`Start`].
     ///
     /// One check is the point row's — the entry vertex must lie on the
-    /// departing ray — and it replaces the closer's departure junction
+    /// run's line (`lands_on_ray`) — and it replaces the closer's departure junction
     /// check outright: there is no authored direction here to classify,
     /// so §4 item 1 has nothing to say and no departure junction is
     /// classified at all. The SEAM check still runs,
@@ -4735,8 +5155,8 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let start_pos = self.core.start_pos.ok_or(PathError::UnderdeterminedLeg {
             site: "close before the entry position is bound",
         })?;
-        let (at, ang) =
-            self.continuation_ray("continue_to(Start) on a tip without incoming data")?;
+        let (at, inc) = self.departing("continue_to(Start) on a tip without incoming data")?;
+        let ang = inc.ang;
         // NO open-fillet guard here, and that is a decision rather than
         // an omission — the three straight-continuation kernels
         // (`straight_continuation_kernel`, `continue_to_point_kernel`
@@ -4762,7 +5182,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         // is written about authoring an arc with the fillet that trims
         // it. Borrowing it for a straight continuation named the wrong
         // fact even in the branch that could never run.
-        Self::on_ray_extent(at, ang, start_pos, tol)?;
+        inc.lands_on_ray(at, start_pos, tol)?;
         let start_ang = *self.core.start_ang.get_or_insert(ang);
         // NO vertex is minted here. `Start` is the entry vertex, which
         // the loop already carries; a closing leg is the segment BACK
@@ -4774,19 +5194,22 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         let head = self.core.head()?;
         let arm = (start_pos - head).norm_squared().sqrt();
         // The seam is classified with the DECLARED ray (`ang`), while
-        // the segment actually emitted runs head → start_pos. Those two
-        // directions differ by the accepted lateral miss over the arm,
-        // at most `across/arm` — one band unit by construction, because
-        // `on_ray_extent` above refused anything larger.
+        // the segment actually emitted runs head → start_pos. Both ends
+        // lie within the band's zero of the run's line (`lands_on_ray`
+        // above refused anything larger, and the head was accepted the
+        // same way), so the two directions differ by at most `2ε/arm`.
         //
         // The bounded consequence, stated so it is not rediscovered: a
-        // seam within one band unit of the boundary can be pushed from a
-        // definite verdict into ESCALATION by this difference. It cannot
-        // flip accept ↔ refuse, because crossing from one definite
-        // verdict to the other would take more than the band's whole
-        // width. Escalation is the honest outcome for a junction that
-        // close to the edge, so the direction of the error is the safe
-        // one.
+        // seam within two band units of the boundary can be pushed from
+        // a definite verdict into ESCALATION by this difference. It
+        // cannot flip accept ↔ refuse while K > 3, because crossing from
+        // one definite verdict to the other takes the band's whole
+        // width, `(K − 1)·ε`, which passes `2ε` only there. The ambiguity
+        // multiplier admits any K > 1 (`CAD_AMBIGUITY_K`), and at K ≤ 3 a
+        // seam within the band's width of its boundary can flip: that is
+        // the argument's limit. Escalation is the honest outcome for a
+        // junction that close to the edge, so where the argument holds
+        // the direction of the error is the safe one.
         //
         // `line_to(Start)` classifies from the REALIZED direction
         // instead, having computed it from the two points; that is the
@@ -4805,11 +5228,7 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming {
-                ang,
-                arm,
-                carrier: None,
-            },
+            &Incoming::fresh(ang, arm, None),
             start_ang,
             tol,
         )?;
@@ -4838,7 +5257,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         let ang = self.tip.ang.ok_or(PathError::UnderdeterminedLeg {
             site: "directed tip without an angle",
         })?;
-        Ok((pos.at, ang))
+        Ok((pos.at, ang.dir))
     }
 
     /// The kernel behind the table's straight-leg row (recording is the
@@ -4855,7 +5274,10 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
             Ok(_) => return Err(PathError::NonpositiveLeg { length: len }),
             Err(source) => return Err(PathError::Escalated { source }),
         }
-        let tip = emit_straight_leg(&mut self.core, at, ang, len)?;
+        // The leg rides the run its direction inherited (`.tangent()`,
+        // `.cusp()`), or begins one here, where its direction was bound.
+        let run = self.tip.ang.map_or(Run::bound(at, ang), |b| b.run_at(at));
+        let tip = emit_straight_leg(&mut self.core, at, ang, len, run)?;
         Ok(in_state(self.core, tip))
     }
 
@@ -4942,11 +5364,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, HasAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming {
-                ang: g.end_ang,
-                arm,
-                carrier: g.carrier,
-            },
+            &Incoming::fresh(g.end_ang, arm, g.carrier),
             start_ang,
             tol,
         )?;
@@ -5018,11 +5436,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming {
-                ang: gamma,
-                arm,
-                carrier: None,
-            },
+            &Incoming::fresh(gamma, arm, None),
             start_ang,
             tol,
         )?;
@@ -5057,12 +5471,15 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         let chord_len = self.arc_chord(end, tol)?;
         let band = linear_band(tol)?;
         let offset = (end - at).perp_dot(via - at) / chord_len;
-        match decide("path_arc_via_offset", Margin::of(offset), band) {
+        // `via` left of the chord puts the arc on the chord's left, which
+        // a clockwise turn from `at` traverses.
+        let sense = match decide("path_arc_via_offset", Margin::of(offset), band) {
             Ok(Sign::Zero) => return Err(PathError::ArcViaCollinear { offset }),
-            Ok(_) => {}
+            Ok(Sign::Positive) => ArcSweep::Cw,
+            Ok(Sign::Negative) => ArcSweep::Ccw,
             Err(source) => return Err(PathError::Escalated { source }),
-        }
-        Ok(via_arc(at, via, end))
+        };
+        Ok(via_arc(at, via, end).map(|built| built.sensed(sense)))
     }
 
     /// The `Center` mode's arc: both radii gated definitely positive,
@@ -5121,7 +5538,12 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         end: Point2<T>,
         bulge: T,
     ) -> Result<Option<BuiltArc<T>>, PathError<T>> {
-        Ok(crate::bulge_leg(self.tip_pos()?.at, end, bulge))
+        Ok(
+            crate::bulge_leg(self.tip_pos()?.at, end, bulge).map(|built| BuiltArc {
+                bulge_authored: true,
+                ..built
+            }),
+        )
     }
 
     /// The leg's derived tangents ([`chord_tangents`] for its stored
@@ -5196,11 +5618,7 @@ impl<T: Decide, F: Flavor> PartialPath<T, HasPos<F>, NoAng> {
         seam_joint(
             &mut self.core,
             seam,
-            &Incoming {
-                ang: end_t,
-                arm,
-                carrier,
-            },
+            &Incoming::fresh(end_t, arm, carrier),
             start_ang,
             tol,
         )?;
@@ -5217,9 +5635,13 @@ impl<T: Decide> PartialPath<T, NoPos, HasAng> {
         anchor: Point2<T>,
         tol: Tol,
     ) -> Result<PartialPath<T, HasPos<WithIncoming>, NoAng>, PathError<T>> {
-        let dir = self.tip.ang.ok_or(PathError::UnderdeterminedLeg {
-            site: "far-end anchor on a tip without a bound direction",
-        })?;
+        let dir = self
+            .tip
+            .ang
+            .ok_or(PathError::UnderdeterminedLeg {
+                site: "far-end anchor on a tip without a bound direction",
+            })?
+            .dir;
         if self.core.pending.is_none() {
             return Err(PathError::FarEndAnchorWithoutFillet);
         }
@@ -5629,7 +6051,7 @@ mod tests {
     }
 
     /// **The overflow end of both 2-D director doors.** Components
-    /// past `Vec2::normalize`'s ~1e154 band make the norm ∞, which is
+    /// past `Vec2::norm`'s ~1e154 band make the norm ∞, which is
     /// maximally DEFINITE to the classifier, and the division that
     /// follows collapses the ray to zero. Measured at the merge base,
     /// both doors reported SUCCESS:
@@ -6164,8 +6586,7 @@ mod tests {
             // The arrival ray: along +x through (0.5, 0).
             core.run_out = Some(PendingRunOut {
                 step: 0,
-                anchor: Point2::new(0.5, 0.0),
-                dir: Dir::from_unit(Vec2::new(1.0, 0.0)),
+                ray: Run::bound(Point2::new(0.5, 0.0), Dir::from_unit(Vec2::new(1.0, 0.0))),
                 tol,
             });
             core.record(Step::LineTo(Target::Point(to)));
@@ -6728,5 +7149,746 @@ mod fillet_stored_form {
                 }
             }
         }
+    }
+}
+
+/// **A constructed arc is read back against what was authored, at the
+/// door** ([`arc_reads_back`]). #5403's three silent misses, spelled
+/// here as they stood before it: the tangent arc's, the `Center` arc's
+/// and the `Via` arc's quarter-tangent through
+/// [`crate::sugar::split_half_tan`]'s first arm alone,
+/// `across/(len + along)`, which cancels past a half turn. Each probe
+/// is #5403's: a target 2.7 m of arc short of the full turn.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod stored_arc_landing {
+    use super::*;
+    use crate::structure::{Piece, PieceRole};
+    use crate::sugar::{ArcSweep, centre_split, split_half_tan_near};
+    use core::f64::consts::{FRAC_PI_2, TAU};
+    use geom_core::{Bounds, Interval};
+
+    const CHORD: f64 = 2.7;
+
+    const PIECE: Piece = Piece {
+        step: 1,
+        role: PieceRole::Leg,
+    };
+
+    /// The tangent probe: the tip at the origin heading `+x`, the target
+    /// at chord 2.7 behind it on the carrier of radius `r`.
+    fn tangent_probe(r: f64) -> (Point2<f64>, Vec2<f64>, Point2<f64>) {
+        (
+            Point2::new(0.0, 0.0),
+            Vec2::new(1.0, 0.0),
+            Point2::new(-CHORD, CHORD * CHORD / (2.0 * r)),
+        )
+    }
+
+    /// The `Center` probe: the tip at the origin, the centre at `(0, r)`,
+    /// the end 2.7 m of arc short of the full counter-clockwise turn.
+    fn centre_probe(r: f64) -> (Point2<f64>, Point2<f64>, Point2<f64>) {
+        let centre = Point2::new(0.0, r);
+        let (s, c) = (-FRAC_PI_2 + TAU - CHORD / r).sin_cos();
+        (
+            Point2::new(0.0, 0.0),
+            centre,
+            Point2::new(centre.x + r * c, centre.y + r * s),
+        )
+    }
+
+    /// The `Via` probe: the carrier tangent to `+x` at the origin with
+    /// radius `r`, through its top `q = (0, 2r)`, to the end 2.7 m of
+    /// arc short of the full turn.
+    fn via_probe(r: f64) -> (Point2<f64>, Point2<f64>, Point2<f64>) {
+        let turn = TAU - CHORD / r;
+        (
+            Point2::new(0.0, 0.0),
+            Point2::new(0.0, 2.0 * r),
+            Point2::new(r * turn.sin(), r * (1.0 - turn.cos())),
+        )
+    }
+
+    /// [`tangent_arc`] with the cancelling quarter-tangent.
+    fn cancelling_tangent<T: Real>(a: Point2<T>, u: Vec2<T>, b: Point2<T>) -> Arc2<T> {
+        let d = b - a;
+        let (along, across) = (u.dot(d), u.perp_dot(d));
+        let rho = d.norm_squared() / (T::from_f64(2.0) * across);
+        Arc2 {
+            centre: a + Vec2::new(-u.y, u.x) * rho,
+            radius: rho.abs(),
+            sweep: T::from_f64(4.0) * split_half_tan_near(across, along, d.norm()).atan(),
+        }
+    }
+
+    /// [`center_arc`], counter-clockwise, with the cancelling
+    /// quarter-tangent.
+    fn cancelling_centre<T: Real>(a: Point2<T>, b: Point2<T>, centre: Point2<T>) -> Arc2<T> {
+        let radius = (a - centre).norm();
+        let (across, along) = centre_split(a, b, centre, T::one());
+        Arc2 {
+            centre,
+            radius,
+            sweep: T::from_f64(4.0) * split_half_tan_near(across, along, radius).atan(),
+        }
+    }
+
+    /// [`via_arc`] with the cancelling quarter-tangent: lowered from its
+    /// chord, so it lands on `b` whatever X is, and X moves its carrier
+    /// off `q`.
+    fn cancelling_via(a: Point2<f64>, q: Point2<f64>, b: Point2<f64>) -> BuiltArc<f64> {
+        let (d1, d2) = (q - a, b - q);
+        let x = split_half_tan_near(d1.perp_dot(d2), d1.dot(d2), d1.norm() * d2.norm());
+        BuiltArc::lowered(a, b, x).through(Some(q))
+    }
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The largest magnitude at which a read of `ulps` rounding stays
+    /// inside the band ([`seg::resolution_headroom`] at zero).
+    fn resolvable(ulps: f64) -> f64 {
+        seg::resolution_headroom(0.0, ulps, band())
+    }
+
+    /// The probe radius at this run's ε: the first of a ladder at which
+    /// the cancelling arc misses past twice the band, on a scene that
+    /// resolves twice that magnitude.
+    fn probe_radius(ulps: f64, miss: impl Fn(f64) -> f64) -> f64 {
+        let ladder = (4..=16).map(|k| 10f64.powf(f64::from(k) / 2.0));
+        ladder
+            .clone()
+            .find(|&r| miss(r) > 2.0 * band().escalate() && 2.0 * r < resolvable(ulps))
+            .unwrap_or_else(|| {
+                let misses: Vec<(f64, f64)> = ladder.map(|r| (r, miss(r))).collect();
+                panic!(
+                    "no ladder radius gives a resolvable miss past the band ({:e}): {misses:?}",
+                    band().escalate()
+                )
+            })
+    }
+
+    fn tangent_miss(r: f64) -> f64 {
+        let (a, u, b) = tangent_probe(r);
+        cancelling_tangent(a, u, b).landing(a).distance(b)
+    }
+
+    fn centre_miss(r: f64) -> f64 {
+        let (a, c, b) = centre_probe(r);
+        cancelling_centre(a, b, c).landing(a).distance(b)
+    }
+
+    fn via_miss(r: f64) -> f64 {
+        let (a, q, b) = via_probe(r);
+        let arc = cancelling_via(a, q, b).arc;
+        (arc.rim(q) - arc.radius).abs()
+    }
+
+    fn built<T: Real>(arc: Arc2<T>) -> BuiltArc<T> {
+        BuiltArc::new(arc, crate::Facts::Registered)
+    }
+
+    fn read<T: Decide>(
+        arc: BuiltArc<T>,
+        a: Point2<T>,
+        b: Point2<T>,
+        verb: program::Verb,
+    ) -> Result<(), PathError<T>> {
+        arc_reads_back(arc, a, b, band(), PIECE, verb)
+    }
+
+    /// The refusal's miss, where the read refused as a kernel defect
+    /// naming `predicate`, the step and the verb.
+    fn defect(
+        result: Result<(), PathError<f64>>,
+        predicate: &str,
+        verb: program::Verb,
+        what: &str,
+    ) -> f64 {
+        match result {
+            Err(PathError::ArcMissesAuthoredPoint {
+                piece,
+                verb: said,
+                predicate: read,
+                miss,
+                ..
+            }) => {
+                assert_eq!(
+                    (piece, said, read),
+                    (PIECE, verb, predicate),
+                    "{what}: the refusal names its step, verb and read"
+                );
+                miss
+            }
+            other => panic!("{what}: the read-back answered {other:?}"),
+        }
+    }
+
+    /// The cancelling tangent arc refuses at `f64` as a kernel defect;
+    /// the door's own arc, on the same probe, passes.
+    #[test]
+    fn a_cancelling_tangent_arc_refuses_at_f64() {
+        let r = probe_radius(seg::LANDING_ULPS, tangent_miss);
+        let (a, u, b) = tangent_probe(r);
+        let verb = program::Verb::TangentArcTo;
+        let miss = defect(
+            read(built(cancelling_tangent(a, u, b)), a, b, verb),
+            seg::LANDING_READ,
+            verb,
+            "the cancelling tangent arc",
+        );
+        assert_eq!(
+            miss,
+            tangent_miss(r),
+            "the refusal reports the miss it read"
+        );
+        assert!(
+            read(tangent_arc(a, u, b), a, b, verb).is_ok(),
+            "the door's tangent arc at r = {r:e} passes"
+        );
+    }
+
+    /// The cancelling `Center` arc refuses at `f64` as a kernel defect;
+    /// the door's own arc about the same centre passes.
+    #[test]
+    fn a_cancelling_centre_arc_refuses_at_f64() {
+        let r = probe_radius(seg::LANDING_ULPS, centre_miss);
+        let (a, c, b) = centre_probe(r);
+        let verb = program::Verb::ArcTo;
+        // The door's own `Center` construction (decided, wound Ccw) with
+        // only its sweep spelled the cancelling way.
+        let cancelling = BuiltArc {
+            arc: cancelling_centre(a, b, c),
+            ..center_arc(a, b, c, ArcSweep::Ccw)
+        };
+        assert_eq!(
+            cancelling.facts,
+            crate::Facts::Decided,
+            "premise: a decided arc"
+        );
+        let miss = defect(
+            read(cancelling, a, b, verb),
+            seg::LANDING_READ,
+            verb,
+            "the cancelling centre arc",
+        );
+        let arc = cancelling.arc;
+        let towards = b - arc.centre;
+        let onto = arc.centre + towards * (arc.rim(a) / towards.norm());
+        assert_eq!(
+            miss,
+            arc.landing(a).distance(onto),
+            "the refusal reports the sweep's miss it read: the landing against the end vertex \
+             moved onto its circle"
+        );
+        assert!(
+            read(center_arc(a, b, c, ArcSweep::Ccw), a, b, verb).is_ok(),
+            "the door's centre arc at r = {r:e} passes"
+        );
+    }
+
+    /// The cancelling `Via` arc lands on its end vertex, so only its
+    /// through-point read sees it: it refuses at `f64` as a kernel
+    /// defect off `q`, and the door's own `Via` arc passes.
+    #[test]
+    fn a_cancelling_via_arc_refuses_off_its_through_point_at_f64() {
+        let r = probe_radius(seg::READ_BACK_RIM_ULPS, via_miss);
+        let (a, q, b) = via_probe(r);
+        let verb = program::Verb::ArcTo;
+        let arc = cancelling_via(a, q, b);
+        assert!(
+            read(arc.through(None), a, b, verb).is_ok(),
+            "premise: the cancelling Via arc at r = {r:e} lands on its end vertex"
+        );
+        let miss = defect(
+            read(arc, a, b, verb),
+            seg::THROUGH_POINT_READ,
+            verb,
+            "the cancelling Via arc",
+        );
+        assert_eq!(miss, via_miss(r), "the refusal reports the miss it read");
+        let door = via_arc(a, q, b).unwrap();
+        assert_eq!(
+            door.through.map(|p| (p.x, p.y)),
+            Some((q.x, q.y)),
+            "the Via leg carries its q"
+        );
+        assert!(
+            read(door, a, b, verb).is_ok(),
+            "the door's Via arc at r = {r:e} passes"
+        );
+    }
+
+    /// **The `Via` arc near a full turn holds its `q`**: the read-back
+    /// sweep's (`tests/arc_read_back_sweep.rs`) first counterexample, an
+    /// arc 4.4e-5 rad short of the full turn at R = 1.4e4 m, which sat
+    /// 4.8e-8 m off its `q` while `bulge_from_via` read its turn's
+    /// cross term off the two long, nearly opposed chords at `q`. The
+    /// door's arc now holds `q` to 8 ulps of the read's magnitude, and
+    /// the read passes wherever those 8 ulps stay under ε.
+    #[test]
+    fn the_sweeps_via_arc_near_a_full_turn_holds_its_through_point() {
+        let (centre, r) = (
+            Point2::new(1103.8818785097276, 1390.3359303537966),
+            1.4351494718012413e4,
+        );
+        let (start, turn, through) = (5.8899133812414, -6.283141957025729, 0.6992541876608326);
+        let at = |t: f64| {
+            let (s, c) = t.sin_cos();
+            Point2::new(centre.x + r * c, centre.y + r * s)
+        };
+        let (a, b, q) = (at(start), at(start + turn), at(start + through * turn));
+        let door = via_arc(a, q, b).unwrap();
+        let scale = door
+            .arc
+            .radius
+            .max(seg::reach(door.arc.centre))
+            .max(seg::reach(q));
+        let off = (door.arc.rim(q) - door.arc.radius).abs();
+        assert!(
+            off <= 8.0 * scale * f64::EPSILON,
+            "the Via arc is {off:e} m off its q, past 8 ulps of {scale:e}"
+        );
+        let answer = read(door, a, b, program::Verb::ArcTo);
+        if 8.0 * scale * f64::EPSILON <= band().zero() {
+            assert!(
+                answer.is_ok(),
+                "the door's Via arc passes its read-back: {answer:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    answer,
+                    Ok(())
+                        | Err(PathError::ArcMissBelowSceneResolution { .. }
+                            | PathError::Escalated { .. })
+                ),
+                "past the read's resolution the door's Via arc refuses only as the scene's: \
+                 {answer:?}"
+            );
+        }
+    }
+
+    /// At `Interval` the cancelling arcs are wide, not wrong: each
+    /// stored enclosure lands around the end vertex, so the read, which
+    /// an exact scalar does not run, has no miss to find there.
+    #[test]
+    fn a_cancelling_arc_at_interval_encloses_its_end_vertex() {
+        let iv = |p: Point2<f64>| Point2::new(Interval::from_f64(p.x), Interval::from_f64(p.y));
+        let holds = |end: Point2<Interval>, b: Point2<f64>, what: &str| {
+            for (e, t) in [(end.x, b.x), (end.y, b.y)] {
+                assert!(
+                    e.lo() <= t && t <= e.hi(),
+                    "{what}: the landing [{:e}, {:e}] does not hold {t:e}",
+                    e.lo(),
+                    e.hi()
+                );
+            }
+        };
+        let verb = program::Verb::TangentArcTo;
+        let r = probe_radius(seg::LANDING_ULPS, tangent_miss);
+        let (a, u, b) = tangent_probe(r);
+        let (ai, bi) = (iv(a), iv(b));
+        let ui = Vec2::new(Interval::from_f64(u.x), Interval::from_f64(u.y));
+        let arc = cancelling_tangent(ai, ui, bi);
+        assert!(
+            read(built(arc), ai, bi, verb).is_ok(),
+            "exact scalar: no read"
+        );
+        holds(arc.landing(ai), b, "the cancelling tangent arc");
+        let r = probe_radius(seg::LANDING_ULPS, centre_miss);
+        let (a, c, b) = centre_probe(r);
+        let (ai, bi) = (iv(a), iv(b));
+        let arc = cancelling_centre(ai, bi, iv(c));
+        assert!(
+            read(built(arc), ai, bi, verb).is_ok(),
+            "exact scalar: no read"
+        );
+        holds(arc.landing(ai), b, "the cancelling centre arc");
+    }
+
+    /// A miss the scene cannot tell from its own rounding still
+    /// refuses, as the scene-resolution sibling, naming its step, read
+    /// and recourse: the door's tangent arc on a carrier at four times
+    /// the magnitude whose landing rounding reaches the band, read
+    /// against an end vertex moved 1.5·Kε off it, inside that rounding.
+    /// The cancelling arcs' misses stand clear of their rounding and
+    /// refuse as defects ([`a_cancelling_tangent_arc_refuses_at_f64`]),
+    /// so the two together pin which side of the gate each answer is
+    /// on.
+    #[test]
+    fn a_miss_the_scene_cannot_resolve_refuses_as_the_scene_resolution_sibling() {
+        let r = 4.0 * resolvable(seg::LANDING_ULPS);
+        let (a, u, b) = tangent_probe(r);
+        let arc = tangent_arc(a, u, b).arc;
+        let verb = program::Verb::TangentArcTo;
+        let off = Point2::new(b.x, b.y + 1.5 * band().escalate());
+        let b = off;
+        assert!(
+            arc.landing(a).distance(b) > band().escalate(),
+            "premise: the arc at r = {r:e} misses past the band"
+        );
+        let refusal = read(built(arc), a, b, verb).unwrap_err();
+        match &refusal {
+            PathError::ArcMissBelowSceneResolution {
+                piece,
+                predicate,
+                scale,
+                resolution,
+                ..
+            } => {
+                assert_eq!(
+                    (*piece, *predicate),
+                    (PIECE, seg::LANDING_READ),
+                    "the sibling names its step and read"
+                );
+                assert!(
+                    *scale >= r && *resolution > band().escalate(),
+                    "the sibling reports a magnitude ({scale:e}) whose rounding ({resolution:e}) \
+                     reaches the band"
+                );
+            }
+            other => panic!("a miss at r = {r:e} answered {other:?}"),
+        }
+        let said = refusal.to_string();
+        assert!(
+            said.contains("step 1's leg (tangent_arc_to)")
+                && said.contains("its end vertex")
+                && said.contains(crate::validate::ARC_SCENE_RESOLUTION_RECOURSE),
+            "the sibling's sentence names the step, the point and the recourse: {said}"
+        );
+    }
+
+    /// **An authored bulge that reads as a line is not read back**: a
+    /// `Bulge` leg of 1e-320 on a centimetre chord, whose radius
+    /// overflows, so its carrier is not a circle; its sagitta, 5e-323 m,
+    /// reads Zero, and the bulge is the authored data, so validation
+    /// reads the segment as the line it was authored as. The same
+    /// stored arc from a construction that authored an arc is read, and
+    /// its poisoned carrier escalates.
+    #[test]
+    fn an_authored_bulge_that_reads_as_a_line_is_not_read_back() {
+        let (a, b) = (Point2::new(0.0, 0.0), Point2::new(0.01, 0.0));
+        let flat = BuiltArc::lowered(a, b, 1e-320);
+        let authored = BuiltArc {
+            bulge_authored: true,
+            ..flat
+        };
+        let verb = program::Verb::ArcTo;
+        assert!(
+            read(authored, a, b, verb).is_ok(),
+            "an authored line-like bulge passes"
+        );
+        assert!(
+            matches!(read(flat, a, b, verb), Err(PathError::Escalated { .. })),
+            "a constructed arc stored flat and poisoned is read and escalates"
+        );
+    }
+
+    /// **A `Via` arc a defect flattened is read against its `q`**: a
+    /// 10 m chord stored with bulge 1e-12, so its stored form reads as a
+    /// line, while its authored `q` sits 1 m off the chord. The door
+    /// reads it whatever its stored form looks like, and it refuses off
+    /// `q`.
+    #[test]
+    fn a_flattened_via_arc_is_read_against_its_through_point() {
+        let (a, b, q) = (
+            Point2::new(0.0, 0.0),
+            Point2::new(10.0, 0.0),
+            Point2::new(5.0, 1.0),
+        );
+        let flat = BuiltArc::lowered(a, b, 1e-12)
+            .through(Some(q))
+            .sensed(ArcSweep::Cw);
+        let verb = program::Verb::ArcTo;
+        defect(
+            read(flat, a, b, verb),
+            seg::THROUGH_POINT_READ,
+            verb,
+            "the flattened Via arc",
+        );
+        let door = via_arc(a, q, b).unwrap().sensed(ArcSweep::Cw);
+        assert!(read(door, a, b, verb).is_ok(), "the door's Via arc passes");
+    }
+
+    /// **A stored radius off its start vertex refuses**: the door's
+    /// quarter arc with its radius 1 mm long, both ends still on the
+    /// circle about its centre at the stored sweep's angles, so the
+    /// landing reads Zero and only the start read sees the radius.
+    #[test]
+    fn a_stored_radius_off_its_start_vertex_refuses() {
+        let (a, b, c) = (
+            Point2::new(10.0, 0.0),
+            Point2::new(0.0, 10.0),
+            Point2::new(0.0, 0.0),
+        );
+        let door = center_arc(a, b, c, ArcSweep::Ccw);
+        let verb = program::Verb::ArcTo;
+        assert!(
+            read(door, a, b, verb).is_ok(),
+            "the door's centre arc passes"
+        );
+        let long = BuiltArc {
+            arc: Arc2 {
+                radius: door.arc.radius + 1e-3,
+                ..door.arc
+            },
+            ..door
+        };
+        let miss = defect(
+            read(long, a, b, verb),
+            seg::START_READ,
+            verb,
+            "the long radius",
+        );
+        assert!(
+            (miss - 1e-3).abs() < 1e-12,
+            "the start read reports the 1 mm: {miss:e}"
+        );
+    }
+
+    /// **The complementary arc refuses on its branch**: the arc on the
+    /// same carrier between the same ends, the other way round, lands
+    /// exactly, and is what a quarter-tangent X spelled −1/X builds
+    /// (4·atan(−1/X) = 4·atan(X) ∓ 2π). Each construction authors its
+    /// turn sense from data other than X, and the door reads the stored
+    /// sweep's branch against it: the `Via` leg (the side of the chord
+    /// `q` lies on), the `Center` leg (its winding) and the tangent arc
+    /// (the side of the departure its target lies on), each spelled with
+    /// X → −1/X, refuse `path_arc_branch` at `f64`.
+    #[test]
+    fn a_complementary_arc_refuses_on_its_branch() {
+        let verb = program::Verb::ArcTo;
+        let flip = |built: BuiltArc<f64>| {
+            let x = built.arc.quarter_tan();
+            BuiltArc {
+                arc: Arc2 {
+                    sweep: 4.0 * (-1.0 / x).atan(),
+                    ..built.arc
+                },
+                ..built
+            }
+        };
+        let (a, q, b) = (
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(2.0, 0.0),
+        );
+        let via = via_arc(a, q, b).unwrap().sensed(ArcSweep::Cw);
+        assert!(read(via, a, b, verb).is_ok(), "the door's Via arc passes");
+        assert!(
+            flip(via).arc.landing(a).distance(b) < 1e-12,
+            "premise: the complementary arc lands"
+        );
+        defect(
+            read(flip(via), a, b, verb),
+            seg::BRANCH_READ,
+            verb,
+            "the flipped Via arc",
+        );
+        let c = Point2::new(1.0, 0.0);
+        let centre = center_arc(a, b, c, ArcSweep::Ccw);
+        assert!(
+            read(centre, a, b, verb).is_ok(),
+            "the door's centre arc passes"
+        );
+        defect(
+            read(flip(centre), a, b, verb),
+            seg::BRANCH_READ,
+            verb,
+            "the flipped centre arc",
+        );
+        let u = Vec2::new(0.0, 1.0);
+        let geom = tangent_arc_geom(a, Dir::from_unit(u), b, Tol::witness()).unwrap();
+        let tangent = geom.arc.unwrap();
+        let verb = program::Verb::TangentArcTo;
+        assert!(
+            read(tangent, a, b, verb).is_ok(),
+            "the door's tangent arc passes"
+        );
+        defect(
+            read(flip(tangent), a, b, verb),
+            seg::BRANCH_READ,
+            verb,
+            "the flipped tangent arc",
+        );
+    }
+
+    /// **A decided arc reads its sweep, not the decision's slack**: a
+    /// `Center`-shaped arc (`Facts::Decided`) whose end vertex lies on
+    /// its carrier, with its sweep off by a defect that moves its
+    /// landing along the carrier. Inside the band it escalates, past it
+    /// it refuses, exactly as a registered arc does; only the radial
+    /// part a decision admitted (the end off the carrier by under ε,
+    /// with the sweep exact) passes.
+    #[test]
+    fn a_decided_arcs_sweep_is_read_like_any_other() {
+        let verb = program::Verb::ArcTo;
+        let (eps, esc) = (band().zero(), band().escalate());
+        let (c, r) = (Point2::new(0.0, 0.0), 10.0);
+        let at = |t: f64, rho: f64| Point2::new(c.x + rho * t.cos(), c.y + rho * t.sin());
+        let a = at(0.0, r);
+        let decided = |sweep: f64| {
+            BuiltArc::new(
+                Arc2 {
+                    centre: c,
+                    radius: r,
+                    sweep,
+                },
+                crate::Facts::Decided,
+            )
+            .sensed(ArcSweep::Ccw)
+        };
+        let b = at(1.0, r);
+        for frac in [0.1, 0.5, 0.9] {
+            let miss = eps + frac * (esc - eps);
+            let off = decided(1.0 + miss / r);
+            assert!(
+                matches!(read(off, a, b, verb), Err(PathError::Escalated { .. })),
+                "a decided arc whose sweep misses by {miss:e}, inside the band, escalates"
+            );
+        }
+        defect(
+            read(decided(1.0 + 2.0 * esc / r), a, b, verb),
+            seg::LANDING_READ,
+            verb,
+            "a decided arc past the band",
+        );
+        let admitted = at(1.0, r + 0.9 * eps);
+        assert!(
+            read(decided(1.0), a, admitted, verb).is_ok(),
+            "an end off the carrier by what the decision admitted passes"
+        );
+        // The decision's slack and a sweep error together: the end up to
+        // 0.99ε off the carrier on either side, the sweep off by 0.5ε of
+        // arc (passes) or by 1.2ε to 2.5ε (escalates). The radial part
+        // hides none of the sweep's.
+        for rho in [0.0, 0.5 * eps, 0.99 * eps, -0.5 * eps, -0.99 * eps] {
+            let end = at(1.0, r - rho);
+            assert!(
+                read(decided(1.0 + 0.5 * eps / r), a, end, verb).is_ok(),
+                "a decided end {rho:e} inside the carrier with a 0.5ε sweep error passes"
+            );
+            for sweep in [1.2 * eps, 1.5 * eps, 1.9 * eps, 2.5 * eps] {
+                let off = decided(1.0 + sweep / r);
+                assert!(
+                    matches!(read(off, a, end, verb), Err(PathError::Escalated { .. })),
+                    "a decided end {rho:e} inside the carrier with a {sweep:e} sweep defect \
+                     escalates"
+                );
+            }
+        }
+    }
+
+    /// **A read that overflows is never a defect**: a centimetre chord
+    /// whose stored carrier sits 1e160 m away, so the start read's
+    /// `‖a − centre‖` squares past the range and reads infinite. The
+    /// authored points resolve, but an infinite miss is no measurement,
+    /// so it refuses as the scene's.
+    #[test]
+    fn a_read_that_overflows_is_never_a_defect() {
+        let (a, b) = (Point2::new(0.0, 0.0), Point2::new(0.01, 0.0));
+        let far = BuiltArc::new(
+            Arc2 {
+                centre: Point2::new(0.005, -1e160),
+                radius: 1e160,
+                sweep: 1e-162,
+            },
+            crate::Facts::Registered,
+        );
+        assert!(
+            !(far.arc.rim(a) - far.arc.radius).is_finite(),
+            "premise: the start read overflows"
+        );
+        assert!(
+            matches!(
+                read(far, a, b, program::Verb::ArcTo),
+                Err(PathError::ArcMissBelowSceneResolution { .. })
+            ),
+            "an overflowing read refuses as the scene's"
+        );
+    }
+
+    /// **An arc fillet's complementary arc refuses on its branch**: a
+    /// fillet between a ray and an arc carrier, resolved by the door's
+    /// own resolution, carries the corner's decided turn as its sense;
+    /// the same fillet spelled with X → −1/X lands on the same tangent
+    /// point and refuses `path_arc_branch`.
+    #[test]
+    fn an_arc_fillets_complementary_arc_refuses_on_its_branch() {
+        use arc_fillet::{FilletSide, SideCarrier};
+        let tol = Tol::witness();
+        let trims = arc_fillet::resolve::<f64>(
+            &mut crate::structure::Guide::recording(),
+            FilletSide {
+                anchor: Point2::new(-5.0, 0.0),
+                carrier: SideCarrier::Ray(Vec2::new(1.0, 0.0)),
+            },
+            FilletSide {
+                anchor: Point2::new(10.0, 3.0),
+                carrier: SideCarrier::Circle {
+                    centre: Point2::new(5.0, 3.0),
+                    winding: ArcSweep::Ccw,
+                },
+            },
+            0.5,
+            tol,
+        )
+        .expect("the corner resolves");
+        let fillet = trims.fillet();
+        assert!(
+            fillet.sense.is_some(),
+            "the arc fillet carries its corner's turn"
+        );
+        let verb = program::Verb::FilletArc;
+        let (a, b) = (trims.t1, trims.t2);
+        assert!(
+            read(fillet, a, b, verb).is_ok(),
+            "the door's arc fillet passes"
+        );
+        let x = fillet.arc.quarter_tan();
+        let flipped = BuiltArc {
+            arc: Arc2 {
+                sweep: 4.0 * (-1.0 / x).atan(),
+                ..fillet.arc
+            },
+            ..fillet
+        };
+        defect(
+            read(flipped, a, b, verb),
+            seg::BRANCH_READ,
+            verb,
+            "the flipped arc fillet",
+        );
+    }
+
+    /// A miss inside the band escalates, and so does a poisoned arc;
+    /// an exact landing passes. The door's tangent arc, with its end
+    /// vertex moved off it by half again ε along the chord's normal,
+    /// is the in-band reading.
+    #[test]
+    fn an_in_band_or_poisoned_read_escalates_and_zero_passes() {
+        let verb = program::Verb::TangentArcTo;
+        let (a, u, b) = tangent_probe(10.0);
+        let arc = tangent_arc(a, u, b);
+        assert!(read(arc, a, b, verb).is_ok(), "the door's arc passes");
+        let gap = 0.5 * (band().zero() + band().escalate());
+        let off = Point2::new(b.x, b.y + gap);
+        assert!(
+            matches!(read(arc, a, off, verb), Err(PathError::Escalated { .. })),
+            "a landing {gap:e} m off, inside the band, escalates"
+        );
+        let poisoned = Arc2 {
+            sweep: f64::NAN,
+            ..arc.arc
+        };
+        assert!(
+            matches!(
+                read(built(poisoned), a, b, verb),
+                Err(PathError::Escalated { .. })
+            ),
+            "a poisoned arc escalates"
+        );
     }
 }

@@ -10,7 +10,7 @@
 //! `a`'s retired wall name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::fixture::{insert, table};
 
 use editor_core::{
@@ -21,9 +21,9 @@ use geom_core::Tol;
 #[test]
 fn a_face_cut_and_merged_in_one_pair_step_publishes_no_constituent() {
     let doc = ProfileDoc::empty_derived("emit_pair_cut_and_merged", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, g) = block(doc, (0.3, 0.4), (-1.0, 0.5), -0.5, 2.5);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, g) = block_on(doc, a, (0.3, 0.4), (-1.0, 0.5), -0.5, 2.5);
     let (doc, bg) = insert(
         doc,
         Node::Union {

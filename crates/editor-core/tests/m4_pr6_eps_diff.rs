@@ -51,18 +51,14 @@ const EPS_NEW: &str = "1e-4";
 /// bulge 1.5e-6 (sagitta 7.5e-7 on the unit chord) — a single
 /// `segment_straightness` margin between the two audit ε values.
 fn thin_profile_doc() -> ProfileDoc {
-    let (doc, plane) = insert(
-        ProfileDoc::empty_derived("m4_pr6_eps_diff", Tol::witness()),
-        fixture::xy_frame(),
-    );
     let (doc, _) = insert(
-        doc,
+        ProfileDoc::empty_derived("m4_pr6_eps_diff", Tol::witness()),
         Node::Profile({
             // v4: the thin bulge authors as an arc_to step with its
             // AUTHORED bulge (the program stores exactly the value the
             // retired form stored on the vertex).
             use editor_core::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
-            let mut d = desc(plane, vec![]);
+            let mut d = desc(vec![]);
             d.loops = vec![LoopProgram::Chain(vec![
                 ProgramStep::At(len2([0.0, 0.0])),
                 ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 0.0]))),
@@ -149,18 +145,20 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
     // segment_straightness margin, twice decided per validation pass,
     // in each of the two), and the arc→straight branch change
     // reports its reshaped decision structure as loud DIVERGENCE
-    // rows (arc-only predicates leaving, chord and span probes
-    // recounting: the arc's pair reads, which miss a far crossing of
-    // the side carriers and so read the segment ends, are gone) —
+    // rows (arc-only predicates leaving, chord, span and one-line gap
+    // (`segment_gap`) probes recounting: the arc's pair reads, which
+    // miss a far crossing of the side carriers and so read the segment
+    // ends, are gone, and the straight pairs that replace them each
+    // read their gap first) —
     // never absorbed, never guessed about (vdiff module docs).
     assert_eq!(
         flips.nodes.len(),
         1,
         "exactly one differing node: {flips:?}"
     );
-    // The profile is the fixture's second node: the frame it is drawn
-    // on goes in first. The children built the same document.
-    let profile = thin_profile_doc().ids()[1];
+    // The profile is the fixture's one node. The children built the
+    // same document.
+    let profile = thin_profile_doc().ids()[0];
     let delta = flips.nodes.get(&profile).expect("profile node delta");
     let expected = editor_core::SummaryDelta {
         old_status: RunStatus::Ok,
@@ -210,6 +208,11 @@ fn eps_change_diff_reports_exactly_the_flipped_predicate() {
                 predicate: "line_span".into(),
                 old_count: 24,
                 new_count: 16,
+            },
+            editor_core::SummaryDivergence {
+                predicate: "segment_gap".into(),
+                old_count: 12,
+                new_count: 24,
             },
         ],
     };

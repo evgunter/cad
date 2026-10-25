@@ -326,8 +326,11 @@ fn wild_files_import_and_agree_with_the_oracle() {
             "{name}: tier 3"
         );
 
-        let props =
-            topo::mass_properties(&body, Tol::witness()).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let props = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: {e}"));
         let volume_mm3 = props.volume * 1e9;
         let tolerance = 1e-11 * e.volume_mm3.abs() + props.volume_pad * 1e9;
         assert!(
@@ -466,10 +469,18 @@ fn wild_bodies_are_a_fixed_point_of_our_own_dialect() {
         // not zero; the sharper claims still hold exactly — the
         // census above, and the byte-identical second export below.
         let (v1, v2) = (
-            topo::mass_properties(&body, Tol::witness()).unwrap().volume,
-            topo::mass_properties(&again, Tol::witness())
-                .unwrap()
-                .volume,
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume,
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", again.clone(), Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume,
         );
         assert!(
             (v1 - v2).abs() <= 4.0 * f64::EPSILON * v1.abs(),
@@ -548,7 +559,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
 /// two full-period rim circles with no seam generator between them,
 /// and in the kernel's face model (one outer loop plus rings) the ring
 /// adoption would make of the second rim winds the chart's period, a
-/// loop tier 3's pcurve mint refuses (`topo::PcurveMintError::LoopWraps`).
+/// loop whose chart walk does not close on its start (`topo::loop_windings`).
 /// Until M7-5 that was a NAMED refusal on
 /// both fixtures here; the band seam re-mint (`normalize::band_seam`)
 /// retired it by minting the seam generator at the surface's own

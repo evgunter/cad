@@ -138,7 +138,12 @@ fn wedge_sliver(
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, Tol::witness()).unwrap().volume
+    mass_properties(
+        &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 /// The smallest intersection whose volume these rows trust, in m³. The
@@ -365,15 +370,7 @@ fn a_declared_plane_tilt_is_read_across_the_faces() {
         ),
         "at a 1 m arm the tilt reads in band and the declaration bridges it: {metre:?}"
     );
-    let door = topo::boolean::contact_pair_verdict(
-        &block,
-        top,
-        &wedge,
-        bottom,
-        topo::ContactClass::Rest,
-        None,
-        band,
-    );
+    let door = topo::boolean::rest_pair_verdict(&block, top, &wedge, bottom, band);
     assert!(
         matches!(door, Err(topo::ContactRefusal::Contradicted { .. })),
         "the door reads the tilt across the faces and contradicts it: {door:?}"
@@ -407,15 +404,7 @@ fn wedge_on_the_top(rise: f64, lift: f64) -> Result<topo::ContactVerdict, topo::
         face_with_normal(&block, [0.0, 0.0, 1.0]),
         face_with_normal(&wedge, [0.0, 0.0, -1.0]),
     );
-    topo::boolean::contact_pair_verdict(
-        &block,
-        top,
-        &wedge,
-        bottom,
-        topo::ContactClass::Rest,
-        None,
-        band,
-    )
+    topo::boolean::rest_pair_verdict(&block, top, &wedge, bottom, band)
 }
 
 /// The pair's consumed-extent radius ([`wedge_on_the_top`]).

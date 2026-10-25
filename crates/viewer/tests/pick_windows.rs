@@ -17,8 +17,8 @@
 //! keeps seeing it as the index is refactored underneath it.
 //!
 //! The fixture is chosen for the places a window breaks: a first part,
-//! a last part, one node with THREE bodies, and one name drawn TWICE
-//! (two placed `Transform`s over one extrude carry one body's names), plus
+//! a last part, one node with THREE bodies, and one body drawn TWICE
+//! (two world placements of one extrude carry one body's names), plus
 //! addresses one past the end of a body that IS drawn — the refusal
 //! that must not read the next body.
 
@@ -26,7 +26,6 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use crate::common;
@@ -35,7 +34,7 @@ use pncad::document::{Doc, Evaluation, Formula, Node, ProfileProgram, RecipeNode
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{NodePick, UnnamedEntity};
-use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex};
+use viewer::pickindex::{EdgeId, EdgeNameFault, PatchNameFault, PickIndex};
 use viewer::scene;
 use viewer::session::{DocSession, EdgeSelection, FaceSelection};
 
@@ -49,18 +48,17 @@ fn delta() -> scene::DisplayTolerance {
 /// copies (A10).
 ///
 /// - a linear pattern of three blocks, each copy projected and placed;
-/// - two `Transform`s over one extrude, each placed — one body's names
-///   under two copies' wraps;
+/// - two world placements of one extrude, each at its own pose — one
+///   body's names under two copies' wraps;
 /// - a bare extrude, placed — the last part.
 fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("chrome-pick-windows", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, block) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -87,37 +85,44 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         );
         common::placed(&doc, copy, tol).0
     });
-    let (doc, twinned) = common::framed_square(&doc, 0.015, tol);
+    let (doc, twinned) = common::square_profile(&doc, 0.015, tol);
     let (doc, twinned) = common::inserted(
         &doc,
         Node::Extrude {
             profile: twinned.into(),
             distance: common::len(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
-    let placed = |at: f64| {
-        Node::transform(
-            twinned,
-            pncad::document::Step::Rigid {
-                translation: [common::len(at), common::len(0.2), common::len(0.0)],
-                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                angle: common::ang(0.0),
-            },
+    // Two world placements of one extrude, each at its own pose.
+    let placed = |doc: &pncad::document::Doc<pncad::document::ProfileProgram>, at: f64| {
+        let (doc, placement) = common::inserted(
+            doc,
+            crate::fixture::stood(vec![pncad::document::BodyRead::plain(
+                pncad::document::Operand::from(twinned),
+            )]),
+            tol,
+        );
+        let pose = pncad::document::Frame {
+            translation: [at, 0.2, 0.0],
+            ..pncad::document::Frame::IDENTITY
+        };
+        common::pin(
+            &doc,
+            placement,
+            &pose,
+            &pncad::document::EvalOptions::default(),
+            tol,
         )
     };
-    let (doc, first) = common::inserted(&doc, placed(0.0), tol);
-    let (doc, second) = common::inserted(&doc, placed(0.1), tol);
-    let (doc, _) = common::placed(&doc, first, tol);
-    let (doc, _) = common::placed(&doc, second, tol);
-    let (doc, last) = common::framed_square(&doc, 0.01, tol);
+    let doc = placed(&doc, 0.0);
+    let doc = placed(&doc, 0.1);
+    let (doc, last) = common::square_profile(&doc, 0.01, tol);
     let (doc, last) = common::inserted(
         &doc,
         Node::Extrude {
             profile: last.into(),
             distance: common::len(0.004),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -209,8 +214,15 @@ impl HandWalked {
         }
     }
 
-    fn name_of(&self, id: u32) -> Option<&Result<StableName, UnnamedEntity>> {
-        self.names.get(usize::try_from(id.checked_sub(1)?).ok()?)
+    fn name_of(&self, id: u32) -> Result<&StableName, PatchNameFault> {
+        let Some(flat) = id.checked_sub(1) else {
+            return Err(PatchNameFault::Nothing);
+        };
+        match self.names.get(flat as usize) {
+            None => Err(PatchNameFault::Unassigned { id }),
+            Some(Ok(name)) => Ok(name),
+            Some(Err(error)) => Err(PatchNameFault::Unnamed { id, error: *error }),
+        }
     }
 
     fn ids_of(&self, name: &StableName) -> &[u32] {

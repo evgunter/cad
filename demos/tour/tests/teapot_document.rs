@@ -33,9 +33,9 @@ use core::f64::consts::TAU;
 use pncad::prelude::AuthoredNode;
 
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    Frame, LoopProgram, Node, NodeErrorClass, Operand, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, Value, ValuePayload, apply, evaluate, place_at, split,
+    CancelToken, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
+    LoopProgram, Node, NodeErrorClass, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, ValuePayload, apply, evaluate, split, stand,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
@@ -43,6 +43,16 @@ use pncad::prelude::{EntityKind, MeridianEnd, RoleSeg, StableName, fillet_edges,
 use pncad::profile::ArcSweep;
 use pncad::select::{ProfilePieces, band_rim, band_rim_pi, edge_name};
 use pncad::topo::{AtRestBody, Body, EdgeKey};
+
+/// A copy of `body` finished for the measurement doors, which read a
+/// finished body (Ev's decision on PR 4822).
+fn at_rest(
+    body: &pncad::topo::Body<f64>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::topo::AtRestBody<f64> {
+    pncad::topo::AtRestBody::validate(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
+}
 
 // ---- the lid's stations, from `src/teapot.rs` ----
 const R_NECK: f64 = 3.0 / 64.0;
@@ -63,9 +73,6 @@ const ROLLED: [u32; 3] = [1, 2, 4];
 
 fn len(v: f64) -> Formula {
     Formula::literal(v, Dimension::Length).expect("a finite length")
-}
-fn scl(v: f64) -> Formula {
-    Formula::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
 fn ang(v: f64) -> Formula {
     Formula::literal(v, Dimension::Angle).expect("a finite angle")
@@ -109,40 +116,18 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: AuthoredNode, tol: Tol) -> Recipe
     applied.record.minted.expect("insert mints an id")
 }
 
-/// One copy of `body` placed in the world where it stands — the
-/// "place part" gesture: a loose `Node::place`, then `place_at`'s mate
-/// and the values naming it, each added to the placement's bundle.
+/// One copy of `body` placed in the world where it stands: a
+/// `Node::place` into the world holding `stand`'s identity bundle.
 fn place_in_world(doc: &mut Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) {
-    let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
-        panic!("a placement was inserted")
-    };
-    let placed = place_at(
+    insert(
         doc,
-        &Operand::Var(shapes[0].read),
-        &Frame::IDENTITY,
-        &EvalOptions::default(),
+        Node::place(
+            vec![body.into()],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            stand().bundle(),
+        ),
         tol,
-    )
-    .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
-    let mut step = |edit: DocEdit<ProfileProgram>| {
-        let applied = apply(doc, &edit, tol)
-            .unwrap_or_else(|err| panic!("the placement's edit applies: {err}"));
-        *doc = applied.doc;
-        applied.record.minted_constraints
-    };
-    let mate = step(DocEdit::AddConstraint {
-        placement,
-        mate: Box::new(placed.mate),
-        fresh: Vec::new(),
-    })[0];
-    for (coord, by) in placed.values {
-        step(DocEdit::AddValue {
-            placement,
-            value: Box::new(Value { mate, coord, by }),
-            fresh: Vec::new(),
-        });
-    }
+    );
 }
 
 /// A fresh document carrying the sharp ANNULAR lid, and that node's id.
@@ -157,19 +142,9 @@ fn sharp_lid_in(
     bore: f64,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let plane = insert(
-        &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }),
-        tol,
-    );
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
         }),
@@ -179,7 +154,10 @@ fn sharp_lid_in(
         &mut doc,
         Node::Revolve {
             profile: profile.into(),
-            axis_through: [len(0.0), len(0.0)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             angle: ang(TAU),
         },
@@ -436,8 +414,8 @@ fn one_request_builds_the_kernels_body() {
         bands(&doc_body),
         "the three bands' STORED (station, major, minor) must be identical bits"
     );
-    let p1 = pncad::topo::mass_properties(&kernel, tol).expect("kernel props");
-    let p2 = pncad::topo::mass_properties(&doc_body, tol).expect("document props");
+    let p1 = pncad::topo::mass_properties(&at_rest(&kernel, tol), tol).expect("kernel props");
+    let p2 = pncad::topo::mass_properties(&at_rest(&doc_body, tol), tol).expect("document props");
     assert!(
         ((p1.volume - p2.volume) / p1.volume).abs() < 1e-14
             && ((p1.surface_area - p2.surface_area) / p1.surface_area).abs() < 1e-14,
@@ -700,12 +678,15 @@ fn the_interval_lane_mints_the_f64_names() {
 fn a_split_carries_a_held_slits_band() {
     let tol = Tol::witness();
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-split", tol);
+    // A node nothing reads, which the cut leaves behind.
     let lead = insert(
         &mut doc,
-        Node::Datum(Datum::Frame {
-            origin: [len(1.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
+        Node::Profile(ProfileProgram {
+            loops: vec![
+                LoopProgram::polygon([(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)])
+                    .expect("finite corners"),
+            ],
+            ids: Vec::new(),
         }),
         tol,
     );

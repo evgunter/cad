@@ -86,7 +86,12 @@ fn both_doors_offset_a_corner_kiss_at_either_sign() {
                     _ => topo::offset_surfaces_together(&mut body, &moves, band, tol()).map(|_| ()),
                 };
                 assert!(out.is_ok(), "{what}: {out:?}");
-                let v = mass_properties(&body, tol()).unwrap().volume;
+                let v = mass_properties(
+                    &topo::test_support::finished("the measured body", body.clone(), tol()),
+                    tol(),
+                )
+                .unwrap()
+                .volume;
                 let want = 2.0 * (1.0 + 2.0 * d).powi(3);
                 assert!((v - want).abs() < 1e-9, "{what}: volume {v}, want {want}");
             }

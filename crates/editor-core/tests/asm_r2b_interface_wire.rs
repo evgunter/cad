@@ -14,11 +14,10 @@
 
 use crate::fixture;
 use crate::wire::{doctored, wire_body};
-use editor_core::pose::PoseRole;
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName,
-    InterfaceCrossing, InterfaceRecord, Mate, Node, PersistError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedFace, StableName, Target, WorldRead, apply, load, save,
+    CapEnd, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, FaceName, InterfaceCrossing,
+    InterfaceRecord, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName,
+    apply, load, save,
 };
 use geom_core::Tol;
 
@@ -67,15 +66,10 @@ fn doc_with_a_crossing() -> ProfileDoc {
     let (host, _) = fixture::constrain_at(
         host,
         second,
-        fixture::rest(
-            sited(second, CapEnd::Start),
-            sited(first, CapEnd::End),
-            ContactClass::Rest,
-        ),
+        fixture::rest(sited(second, CapEnd::Start), sited(first, CapEnd::End)),
     );
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            class: ContactClass::Rest,
             outer: face(first, CapEnd::End),
             // The `inner` is spelled in the PART's id space, and the
             // value is chosen to make that visible: `RecipeNodeId(7)`
@@ -88,21 +82,15 @@ fn doc_with_a_crossing() -> ProfileDoc {
     };
     // Related to the world by a mate, as a split's instance is: its
     // start cap rests on the world's xy plane.
-    let host = push(
+    push(
         &host,
-        Box::new(Node::instantiate_part_with(doc_ref, record)),
-    );
-    let instance = *host.ids().last().expect("the record's instance is live");
-    fixture::constrain_at(
-        host,
-        instance,
-        Mate {
-            on: fixture::plane(sited(instance, CapEnd::Start)),
-            to: Target::World(WorldRead::through(PoseRole::Xy)),
-            class: ContactClass::Rest,
-        },
+        Box::new(Node::instantiate_part_with(
+            doc_ref,
+            record,
+            editor_core::Operand::Var(editor_core::VarId::WORLD),
+            editor_core::stand().bundle(),
+        )),
     )
-    .0
 }
 
 /// The record is ON THE WIRE (it was unspellable while the enum was
@@ -114,10 +102,6 @@ fn an_inhabited_interface_record_round_trips() {
     assert!(
         text.contains("crossings"),
         "the record is on the wire: {text}"
-    );
-    assert!(
-        text.contains("\"rest\""),
-        "the class rides the stable spelling a Mate's does: {text}"
     );
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the record round-trips bit for bit");
@@ -135,7 +119,7 @@ fn an_empty_record_stays_absent_from_the_wire() {
     let doc = apply(
         &ProfileDoc::empty(DocumentId::derive("asm-r2b-schema-empty"), Tol::witness()),
         &DocEdit::InsertNode {
-            node: Box::new(Node::instantiate_part(doc_ref)),
+            node: Box::new(crate::fixture::mated_instance(doc_ref)),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -169,8 +153,8 @@ fn saved_crossing() -> (String, RecipeNodeId) {
     (text, instance)
 }
 
-/// **A crossing is THREE fields on the wire** — the class it declares
-/// and its two references, and nothing else.
+/// **A crossing is TWO fields on the wire** — its two references, and
+/// nothing else.
 ///
 /// A crossing carries no provenance — `InterfaceCrossing::Mate`'s own
 /// doc argues why — and this is that absence as BYTES: a field no door
@@ -178,7 +162,7 @@ fn saved_crossing() -> (String, RecipeNodeId) {
 /// SAVED document rather than a serialized value, because a file is
 /// what the row below corrupts and what a stale writer produces.
 #[test]
-fn a_crossing_is_three_fields_on_the_wire() {
+fn a_crossing_is_two_fields_on_the_wire() {
     let (text, instance) = saved_crossing();
     let mut wire = wire_body(&text);
     let mut keys: Vec<String> = crossing_of(&mut wire, instance)
@@ -190,12 +174,12 @@ fn a_crossing_is_three_fields_on_the_wire() {
     keys.sort();
     assert_eq!(
         keys,
-        ["class", "inner", "outer"],
-        "the crossing's wire form is its class and its two references"
+        ["inner", "outer"],
+        "the crossing's wire form is its two references"
     );
 }
 
-/// **A file whose crossing carries a FOURTH field refuses at the load
+/// **A file whose crossing carries a THIRD field refuses at the load
 /// door**, in the door's own `Unreadable` class.
 ///
 /// `InterfaceCrossing` is `deny_unknown_fields`, so its shape is

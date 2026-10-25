@@ -57,11 +57,35 @@ fn flips(label: &str, body: &Body<f64>, failures: &mut Vec<String>) -> usize {
     let count = sets.len();
     for set in sets {
         let flipped = flipped(body, &set);
-        match topo::validate_geometric(&flipped, tol) {
+        // The door reads the same seam regions without tier 3: it refuses
+        // every flip tier 3 does, or measures it inside out, which is
+        // check 7's reading of the door's own sign; and it measures every
+        // flip tier 3 passes. The sign half holds for a body of one shell
+        // only: a whole sphere shell flipped inside a body of several (a
+        // ball less a ball the fuzz drew strictly inside it) measures a
+        // positive wrong total at the raw door. That body never finishes,
+        // so the typed door never reads it, and the hollow-ball row of
+        // `the_door_reads_seam_regions_as_tier_3_does` pins the raw door's
+        // reading of it
+        // (`work/flux/a-sphere-shell-flipped-whole-in-a-multi-shell-body-measures-wrong-at-the-door.md`).
+        // Raw door: the subject is the door's parity with tier 3 over flips tier 3 may refuse.
+        let door = topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
+        let tier3 = topo::validate_geometric(&flipped, tol);
+        match (&tier3, &door) {
+            (Ok(()), Err(e)) => failures.push(format!(
+                "{label}: flipping {set:?} passes tier 3 and the door refuses it: {e:?}"
+            )),
+            (Err(errs), Ok(v)) if *v > 0.0 && body.shells().count() == 1 => failures.push(format!(
+                "{label}: flipping {set:?}: tier 3 refuses ({errs:?}), the door measures {v}"
+            )),
+            _ => {}
+        }
+        match tier3 {
             Ok(()) => failures.push(format!(
                 "{label}: flipping {set:?} passes tier 3 (measures {:?}, unflipped {:?})",
-                topo::mass_properties(&flipped, tol).map(|m| m.volume),
-                topo::mass_properties(body, tol).map(|m| m.volume),
+                // Raw door: a failure message, reading the flip and its unflipped body as the parity above does.
+                topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume),
+                topo::test_support::measure_unvalidated(body, tol).map(|m| m.volume),
             )),
             Err(errs) => {
                 for &face in &set {
@@ -123,6 +147,41 @@ fn every_sphere_face_flip_is_refused_and_named() {
         ] {
             if let Some(res) = res.ok().as_ref().and_then(|r| r.body()) {
                 total += flips(&format!("slab #{i} {name}"), &res.body, &mut failures);
+            }
+        }
+    }
+    // The double cover split until each face reads its own side, and the
+    // valid ball split so (review of PR 5516, R2's `p2`): the door reads
+    // their seam regions as tier 3 does, the bodies themselves included.
+    {
+        use crate::seam_region_common::{
+            split_faces_at_equator, split_meridians_at_equator, split_outside, v,
+        };
+        let ball = finished(
+            "ball",
+            ball_poled(1.0, v([0.0; 3]), v([0.0, 0.0, 1.0]), tol),
+            tol,
+        );
+        let mut control = Body::clone(&ball);
+        split_meridians_at_equator(&mut control, tol);
+        split_faces_at_equator(&mut control, tol);
+        let mut cover = Body::clone(&ball);
+        assert!(split_outside(&mut cover, v([0.0, 1.0, 0.0]), tol));
+        split_meridians_at_equator(&mut cover, tol);
+        split_faces_at_equator(&mut cover, tol);
+        for (name, body) in [("split ball", &control), ("split double cover", &cover)] {
+            total += flips(name, body, &mut failures) + 1;
+            let at_rest = topo::AtRestBody::validate(topo::Body::clone(body), tol);
+            let tier3 = at_rest.is_ok();
+            let door = match &at_rest {
+                Ok(finished) => topo::mass_properties(finished, tol).is_ok(),
+                // Raw door: the subject is the door's parity with tier 3, here over the double cover tier 3 refuses.
+                Err(_) => topo::test_support::measure_unvalidated(body, tol).is_ok(),
+            };
+            if tier3 != door {
+                failures.push(format!(
+                    "{name}: tier 3 passes = {tier3}, the door measures = {door}"
+                ));
             }
         }
     }

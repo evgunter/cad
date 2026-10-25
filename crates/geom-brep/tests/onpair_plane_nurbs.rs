@@ -464,33 +464,130 @@ fn an_arc_rim_whose_exact_image_escalates_escalates() {
     }
 }
 
-/// **A partial rim.** Half the quarter arc lies on the wall, but every
-/// candidate image runs the whole boundary row, so none holds the half
-/// rim at the pick's probe, nor certifies it; the fitted path decides
-/// the rest.
+/// **A partial rim takes the row over the arc the row measures.** Half
+/// the quarter arc lies on the wall. No closed-form image (the edge's
+/// interval onto the whole row) holds it at the pick's probe, nor
+/// certifies it; the measured step's does: the whole row over its own
+/// arc, the quarter rim's own image, in which the half rim's span lies.
+/// The pair certifies through it.
 #[test]
-fn a_partial_arc_rim_does_not_take_the_exact_image() {
+fn a_partial_arc_rim_takes_the_rows_arc() {
     let half = rim(1.0, core::f64::consts::FRAC_PI_4);
-    assert!(
-        matches!(
-            geom_brep::pick_arc_rim(&half.0, (0.0, half.1), &wall(), band()),
-            Ok(None)
-        ),
-        "no full-row image holds a partial rim at the probe"
-    );
     assert!(
         geom_brep::arc_rim_candidates(&quarter_cylinder_wall(), 0.0, half.1)
             .into_iter()
             .all(|p| {
                 geom_brep::PcurveCache::certify(p, 0.0, half.1, &half.0, &wall(), band()).is_err()
             }),
-        "no full-row image certifies a partial rim"
+        "no full-row image over the edge's interval certifies a partial rim"
     );
-    match arc_on_pair(half, None) {
-        Ok(edge) => assert_on_pair(&edge, "the partial rim, by its fitted image"),
-        Err(CertifyError::OnPairArcRim { iso: None, .. }) => {}
-        other => {
-            panic!("a partial rim certifies by its fitted image or refuses both ways: {other:?}")
+    let picked = geom_brep::pick_arc_rim(&half.0, (0.0, half.1), &wall(), band())
+        .expect("the pick decides")
+        .expect("the measured step holds the partial rim");
+    assert_same_arc(&picked, &quarter_image(), "the partial rim's image");
+    geom_brep::PcurveCache::certify(picked, 0.0, half.1, &half.0, &wall(), band())
+        .expect("the row over its own arc certifies the partial rim");
+    let edge = arc_on_pair(half, None).expect("the partial rim certifies on its pair");
+    assert_on_pair(&edge, "the partial rim, by its exact image");
+}
+
+/// `got` and `want` compared as rows ([`test_utils::arc_row`]).
+fn assert_same_arc(got: &geom_brep::Pcurve<f64>, want: &geom_brep::Pcurve<f64>, what: &str) {
+    test_utils::arc_row::assert_same_row(&arc_row(got), &arc_row(want), what);
+}
+
+fn arc_row(image: &geom_brep::Pcurve<f64>) -> test_utils::arc_row::ArcRow {
+    let geom_brep::Pcurve::IsoArc {
+        p0,
+        pd,
+        t0,
+        angle,
+        breaks,
+    } = image
+    else {
+        panic!("an IsoArc image: {image:?}")
+    };
+    test_utils::arc_row::ArcRow {
+        p0: [p0.x, p0.y],
+        pd: [pd.x, pd.y],
+        breaks: format!("{breaks:?}"),
+        t0: *t0,
+        angle: *angle,
+    }
+}
+
+/// **The measured arc is moved onto the branch the edge lies on.** The
+/// half rim stated a whole turn on, `[τ + π/8, τ + 3π/8]`: the row's
+/// start corner reads at azimuth `0`, and the arc that holds the span
+/// starts at `τ`, a turn from the principal read. The pick decides that
+/// turn and the image certifies over the span; read at the principal
+/// branch, the image's arc would hold none of it.
+#[test]
+fn the_measured_arc_takes_the_branch_its_edge_lies_on() {
+    let (carrier, quarter) = rim(1.0, core::f64::consts::FRAC_PI_2);
+    let tau = core::f64::consts::TAU;
+    let (t0, span) = (tau + quarter / 4.0, quarter / 2.0);
+    let picked = geom_brep::pick_arc_rim(&carrier, (t0, span), &wall(), band())
+        .expect("the pick decides")
+        .expect("the measured step holds the rim a turn on");
+    let row = arc_row(&picked);
+    assert!(
+        (row.t0 - tau).abs() < 1e-12 && (row.angle - quarter).abs() < 1e-12,
+        "the row's arc a turn on: ({}, {})",
+        row.t0,
+        row.angle
+    );
+    geom_brep::PcurveCache::certify(picked, t0, t0 + span, &carrier, &wall(), band())
+        .expect("the image certifies over the span a turn on");
+}
+
+/// **A polynomial row states no turn.** The quarter wall's net with unit
+/// weights is no circle's rational form: its rows' interior weight is
+/// `1`, which states a zero turn, so the measured step offers no image
+/// rather than one of zero arc. The wall's own rational rows offer one
+/// per row and direction.
+#[test]
+fn a_polynomial_row_offers_no_measured_arc() {
+    let (carrier, quarter) = rim(1.0, core::f64::consts::FRAC_PI_2);
+    let rational = quarter_cylinder_wall();
+    let control: Vec<Point3<f64>> = rational.control().to_vec();
+    let polynomial = NurbsSurface::new(
+        crate::shared::fixture::kv2(),
+        crate::shared::fixture::kv1(),
+        control,
+        vec![1.0; 6],
+    )
+    .unwrap();
+    let span = (quarter / 4.0, quarter / 2.0);
+    assert_eq!(
+        geom_brep::arc_rim_measured(&carrier, &rational, span, band()).len(),
+        4,
+        "the rational wall: one measured image per row and direction"
+    );
+    assert!(
+        geom_brep::arc_rim_measured(&carrier, &polynomial, span, band()).is_empty(),
+        "a polynomial row offers no measured image"
+    );
+}
+
+/// **An edge running past its image's arc is refused at the span**,
+/// before its samples are read. The quarter rim's image holds every
+/// sub-span of its arc, and refuses a span reaching before its start or
+/// past its end, typed: the envelope bounds nothing off the arc.
+#[test]
+fn an_iso_arc_refuses_a_span_past_its_arc() {
+    let (carrier, quarter) = rim(1.0, core::f64::consts::FRAC_PI_2);
+    let certify = |t0: f64, t1: f64| {
+        geom_brep::PcurveCache::certify(quarter_image(), t0, t1, &carrier, &wall(), band())
+    };
+    certify(0.2, 0.9).expect("a span inside the arc certifies");
+    for (t0, t1) in [(-0.01, 0.9), (0.2, quarter + 0.01)] {
+        match certify(t0, t1) {
+            Err(geom_brep::PcurveCertifyError::IsoUnsupported { what }) => assert!(
+                what.starts_with("an arc rim whose edge runs past its image's arc"),
+                "[{t0}, {t1}]: refused at the span: {what}"
+            ),
+            other => panic!("[{t0}, {t1}] runs past the arc [0, {quarter}]: {other:?}"),
         }
     }
 }
@@ -519,10 +616,10 @@ fn a_wrong_stated_image_is_not_swapped_for_the_pick() {
 
 /// **A split child certifies at rest as it did at the op.** The
 /// `[0, π/4]` half of the quarter rim, with its parent's stored image
-/// stated — whose arc covers it — certifies; the pick's own full-row
-/// image for the child cannot. Re-certification reads the stored image
-/// as the op did (`recertify_via_stated`, tier 3's), so the child the op
-/// admitted is not refused at rest through another image.
+/// stated — whose arc covers it — certifies, and so does the child
+/// alone, through the image the pick measures for it, which is the
+/// parent's. Re-certification reads the stored image as the op did
+/// (`recertify_via_stated`, tier 3's).
 #[test]
 fn a_split_child_recertifies_through_its_parents_stored_image() {
     let (carrier, _) = rim(1.0, core::f64::consts::FRAC_PI_2);
@@ -545,9 +642,13 @@ fn a_split_child_recertifies_through_its_parents_stored_image() {
         Some(&stated),
     )
     .expect("the child certifies through its parent's image");
+    let alone = EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, 1.0, band(), lane())
+        .expect("the child alone certifies through the image picked for it");
     assert!(
-        EdgeCurve::certify_via(spec, ends.0, ends.1, surfaces, 1.0, band(), lane()).is_err(),
-        "no image picked for the child alone certifies it"
+        (alone.certificate().max_residual - child.certificate().max_residual).abs() < 1e-12,
+        "the picked image and the parent's are one row: {} / {}",
+        alone.certificate().max_residual,
+        child.certificate().max_residual
     );
     child
         .recertify_via_stated(ends.0, ends.1, surfaces, 1.0, band(), lane(), Some(&stated))

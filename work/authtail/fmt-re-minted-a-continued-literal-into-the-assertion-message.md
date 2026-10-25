@@ -2,10 +2,11 @@
 id: fmt-re-minted-a-continued-literal-into-the-assertion-message
 kind: issue
 title: A backslash-continued assertion message reaches the reader with two 14-space runs in it
-status: open
+status: closed
 opened: 2026-09-21
 priority: P4
 cost: E
+closed: 2026-10-25
 ---
 
 
@@ -58,3 +59,20 @@ territory, not `author`'s — `work/author/program.md`'s `paths` does not
 list it. The row is filed here because the line is AUTH-2's own and
 this is the program that will recognise it; re-home it if that reads
 wrong.
+
+## Re-pointed (2026-10-23)
+
+The cited message is gone. `7d2fb96455` (VGEOM, 2026-09-22) rewrote
+`the_second_hand_over_of_one_typed_text_changes_nothing`. The row's own
+grep, `'[a-z,—] \{6,\}[a-z]'` over `crates/viewer/{src,tests}`, now finds
+three other literals with the same run of spaces:
+
+- `crates/viewer/src/widgets.rs:3431` ("parsed on the frame the edit ends and again on              the next"), added by that same commit;
+- `crates/viewer/src/gpu.rs:2340` (`draw_range`'s vertex-count message, from `7b55bfedee`);
+- `crates/viewer/tests/panel_edits.rs:1721` ("instead of carrying its value          to the liter…").
+
+The row stands for these three.
+
+## Closed
+
+2026-10-25. The three literals now read as one line each. The row's grep, run over `crates/*/{src,tests}` instead of the viewer alone, found two more of the class: `crates/sweep/tests/cert_m2r1_passes.rs` (SWEEP's ground) and `crates/topo/tests/readback_sense_kind.rs`. Both are fixed here as drive-bys. The grep's remaining hits are literals whose spaces are intended: code snippets in pncad-py and topo source-scan tests, and column headers in probe `println!`s. The grep cannot see a run shorter than six spaces, nor one that follows punctuation outside `[a-z,—]`.

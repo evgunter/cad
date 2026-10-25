@@ -1,7 +1,7 @@
 ---
 id: cap-plane-refusals-end-as-typed-kernel-defects
 kind: issue
-title: sweep: CapPlaneError's Orientation and EdgeOn end in KERNEL_DEFECT_ENDING for states a validated profile never reaches
+title: sweep: CapPlaneError's Orientation and EdgeOn, and LoftError's SeamStructure and SectionStructure, name the kernel alone for states a validated input never reaches
 status: open
 opened: 2026-10-20
 parent: a-typed-kernel-defect-ending-may-launder-a-bug-d2-forbids
@@ -30,3 +30,10 @@ ending out as a literal, so a sweep for the constant does not find it.
 - **Class 2**: `unreachable!` or `debug_assert` per `[failure.taxonomy]` rows 4–5, answering row 0 first; the tests that pin the text move to `#[should_panic]`.
 
 Re-check each `likely` or `unsure` argument before acting on it; one that fails moves the site to class 1.
+
+## Second-pass sites
+
+(Census second pass, as of main 69ab780194: `## Census, second pass` in the parent row.)
+
+- `crates/sweep/src/loft.rs` `LoftError` `Display`, `SeamStructure` (~295, "kernel bug, not an input fault"). Doors: the loft verbs. **Class 2, likely**: a wall that validated re-wraps.
+- `loft.rs` `LoftError` `Display`, `SectionStructure` (~300). **Class 2, likely**: `validate_loft` refuses counts and mismatched sections first (`SkinError::SectionShapeMismatch`), and a loopless section never leaves profile validation (`stacking_fold`'s doc).

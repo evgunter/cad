@@ -1944,12 +1944,13 @@ fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
 }
 
 /// **The gap is charged with the rounding its ends carry**: the
-/// evaluation that produced them from the carrier and their own
-/// coordinates (`geom_core::one_line`, "The charge"). At `ε = 10⁻¹²` a
-/// span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one on the same
-/// line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the escalation but
-/// within the rounding of ends evaluated and lying ten kilometres out
-/// (about `1.4·10⁻¹⁰` charged), is not read apart, and `g = 2·10⁻¹⁰` is.
+/// evaluation that produced them from the carrier, and the projections
+/// at the spans' own lengths (`geom_core::one_line`, "The charge"). At
+/// `ε = 10⁻¹²` a span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one
+/// on the same line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the
+/// escalation but within the rounding of ends evaluated ten kilometres
+/// out (about `7.1·10⁻¹¹` charged, nearly all of it the evaluation), is
+/// not read apart, and `g = 2·10⁻¹⁰` is.
 /// Two spans on one carrier
 /// through the origin, large by their parameter near 1586 m and
 /// `9.8·10⁻¹²` apart, below the escalation, are not read apart either.

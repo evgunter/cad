@@ -286,19 +286,14 @@ pub struct PatchCell {
     pub m_inf: f64,
 }
 
-/// Whether a patch is rational under the kernel's definition (any
-/// weight not bitwise `1.0`) — the arm selection, on f64 STRUCTURE.
-pub fn is_rational(n: &NurbsSurface<f64>) -> bool {
-    n.weights().iter().any(|w| *w != 1.0)
-}
-
 /// `n` with its weights at unit scale
 /// ([`geom_core::spline::weight_scale::unit_scale_exact`]), or `n`
 /// itself where that rescale is a no-op or would drop a bit. The
 /// rescaled net describes the same surface; what it buys is range for
 /// the weight powers the enclosures form (`w²` here, up to `w⁴` in
 /// [`crate::offset_fit`]'s composite). Which arm reads a net is decided
-/// on the DESCRIBED weights ([`is_rational`]), before this runs.
+/// on the DESCRIBED weights ([`NurbsSurface::constant_weight`]), before
+/// this runs.
 pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface<f64>> {
     let Some((_, scaled)) = unit_scale_exact(n.weights()) else {
         return Cow::Borrowed(n);
@@ -330,13 +325,63 @@ pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface
 /// illegal rational description, a rational direction of degree above
 /// 18 ([`PatchBoundError::DegreeAboveCeiling`], module docs "Refusal").
 pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
-    check_direction(n.knots_u_f64_interim())?;
-    check_direction(n.knots_v_f64_interim())?;
-    if is_rational(n) {
+    gate(n, false)?;
+    if n.constant_weight().is_none() {
         rational_cells(n, RATIONAL_CERT_SPLITS)
     } else {
         integral_cells(n)
     }
+}
+
+/// [`patch_cells`] for a consumer that keeps its own reads off a C⁰
+/// crease: the rational arm admits an interior knot of multiplicity
+/// equal to the degree (degree ≥ 2), where [`check_direction`]
+/// refuses one.
+///
+/// **Why the rational arm can, and the integral arm cannot.** The
+/// rational arm reads each span cell's own control window
+/// ([`rational_cells`]): a span's Bernstein block, its weights and its
+/// derivatives all live inside the span, so a crease at the span's end
+/// is the end of one block and the start of the next, and each cell
+/// bounds the one-sided partials of its own side exactly. The integral
+/// arm differences the whole net first, and a derivative across a knot
+/// of multiplicity `p` is discontinuous there, which no clamped vector
+/// describes; it keeps [`check_direction`]'s refusal. Which arm reads
+/// a net is [`NurbsSurface::constant_weight`]'s, so a creased net of one
+/// constant weight `c`, `1` or any other, is the integral arm's and
+/// refuses: the polynomial patch it is has the same crease the unit net
+/// does.
+///
+/// **What the caller owns.** Every cell bounds its own span; no bound
+/// holds for a region that crosses a crease, so the max over cells on
+/// both sides does not certify a box straddling one. The mesher's
+/// `NurbsCellGrid::cert` refuses such a box, and its trimmed lane cuts
+/// every triangle at the crease.
+///
+/// # Errors
+///
+/// As [`patch_cells`], with [`PatchBoundError::Crease`] left only to
+/// the integral arm.
+pub fn patch_cells_across_creases(
+    n: &NurbsSurface<f64>,
+) -> Result<Vec<PatchCell>, PatchBoundError> {
+    if n.constant_weight().is_some() {
+        return patch_cells(n);
+    }
+    gate(n, true)?;
+    rational_cells(n, RATIONAL_CERT_SPLITS)
+}
+
+/// [`check_direction`] on both directions, with a degree-≥ 2 crease
+/// let through when `admit_crease`.
+fn gate(n: &NurbsSurface<f64>, admit_crease: bool) -> Result<(), PatchBoundError> {
+    for kv in [n.knots_u_f64_interim(), n.knots_v_f64_interim()] {
+        match check_direction(kv) {
+            Err(PatchBoundError::Crease) if admit_crease => {}
+            other => other?,
+        }
+    }
+    Ok(())
 }
 
 /// [`patch_cells`] on an EXPLICIT schedule, in **both** arms: the
@@ -373,7 +418,7 @@ pub fn patch_cells_refined(
 ) -> Result<Vec<PatchCell>, PatchBoundError> {
     check_direction(n.knots_u_f64_interim())?;
     check_direction(n.knots_v_f64_interim())?;
-    if is_rational(n) {
+    if n.constant_weight().is_none() {
         rational_cells(n, splits)
     } else {
         integral_cells_refined(n, splits)
@@ -491,13 +536,13 @@ impl Second {
     /// [`PatchBoundError::DerivedKnots`] at [`Derived::Discontinuous`]
     /// ([`NARROW_SPAN`](crate::recourse::NARROW_SPAN)).
     fn of(
-        derived: Derived<'_, TensorCoeffs<'_>>,
+        derived: Derived<TensorCoeffs<'_>>,
         diff: impl FnOnce(&TensorCoeffs<'_>) -> Net,
     ) -> Result<Self, PatchBoundError> {
         match derived {
             Derived::Vector(t) => Ok(Self::Net(diff(&t))),
             Derived::SpanConstant(_) => Ok(Self::Zero),
-            Derived::Discontinuous { .. } => Err(PatchBoundError::DerivedKnots),
+            Derived::Discontinuous(_) => Err(PatchBoundError::DerivedKnots),
         }
     }
 
@@ -663,18 +708,20 @@ fn centre(vectors: &[[Interval; 3]]) -> [Interval; 3] {
     })
 }
 
-/// The INTEGRAL arm (all weights bitwise `1.0`): the plain hull
-/// assembly on the spatial nets — no quotient rule intervenes, so the
-/// enclosure IS the coefficient hull.
+/// The INTEGRAL arm (one constant weight,
+/// [`NurbsSurface::constant_weight`]): the plain hull assembly on the
+/// spatial nets — no quotient rule intervenes, so the enclosure IS the
+/// coefficient hull.
 fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
     integral_cells_on(&comp_nets(n))
 }
 
 /// [`integral_cells`] after refining every nonempty span into `splits`
-/// equal pieces, IN INTERVAL ARITHMETIC: an integral net's weights are unit, so the
-/// net is already homogeneous and [`refine_split`]'s schedule applies to
-/// it directly. The cells therefore enclose the described patch, where an
-/// `f64` refinement would have them enclose the refined-`f64` one.
+/// equal pieces, IN INTERVAL ARITHMETIC: an integral net's spatial net
+/// is the polynomial patch itself ([`NurbsSurface::constant_weight`]),
+/// so [`refine_split`]'s schedule applies to it directly. The cells
+/// therefore enclose the described patch, where an `f64` refinement
+/// would have them enclose the refined-`f64` one.
 ///
 /// # Errors
 ///
@@ -812,7 +859,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 unreachable!(
                     "`cell_second_quotients` refused a block it always forms: its refusals \
                      (geom-core `cell_pieces`, `cell_whole`, `product`) are structural, and \
-                     this block is a span window of a C¹-gated patch of degrees ({}, {}) \
+                     this block is a span window of a patch of degrees ({}, {}) \
                      whose `3·max(p, q)` passed the {QUOTIENT_MAX_DEGREE} ceiling above",
                     kv_u.degree(),
                     kv_v.degree()
@@ -872,14 +919,14 @@ fn signed_box(q: &QuotientPiece<Interval, 3>) -> [Interval; 3] {
 
 /// The quotient's norm sup over its piece, read from above; `NaN` when
 /// it does not certify.
-fn certified_sup(q: &QuotientPiece<Interval, 3>) -> f64 {
+pub(crate) fn certified_sup(q: &QuotientPiece<Interval, 3>) -> f64 {
     let s = q.sup_norm();
     if s.is_certified() { s.hi() } else { f64::NAN }
 }
 
 /// The quotient's norm inf over its piece, read from below; `0.0` when
 /// it does not certify or does not separate the piece from zero.
-fn certified_inf(q: &QuotientPiece<Interval, 3>) -> f64 {
+pub(crate) fn certified_inf(q: &QuotientPiece<Interval, 3>) -> f64 {
     let s = q.inf_norm();
     if s.is_certified() {
         s.lo().max(0.0)
@@ -957,6 +1004,69 @@ fn on_window<X>(su: Span<'_>, sv: Span<'_>, at: impl Fn(usize, usize) -> X) -> V
 pub(crate) mod tests {
     use super::*;
     use geom_core::spline::weight_scale::pow2_scaled;
+
+    /// **The rational arm reads a crease as the end of one span and the
+    /// start of the next.** A half cylinder, two rational quarter arcs
+    /// in `u` joined at a double knot (a C⁰ crease at degree 2), has
+    /// exactly the cells of its two halves built as separate patches:
+    /// each cell reads its own span's window and nothing across the
+    /// crease. [`patch_cells`] refuses the whole (`Crease`), and
+    /// [`patch_cells_across_creases`] still refuses an integral one,
+    /// whose arm differences the whole net.
+    #[test]
+    fn a_rational_crease_reads_as_two_patches() {
+        let w = core::f64::consts::FRAC_1_SQRT_2;
+        let arc = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (-1.0, 1.0), (-1.0, 0.0)];
+        let patch = |ku: Vec<f64>, rows: &[(f64, f64)], ws: &[f64]| {
+            let ku = KnotVector::clamped(ku, 2).expect("kv");
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("kv");
+            let mut control = Vec::new();
+            let mut weights = Vec::new();
+            for (&(x, y), &wt) in rows.iter().zip(ws) {
+                for z in [0.0, 1.0] {
+                    control.push(geom_core::Point3::new(x, y, z));
+                    weights.push(wt);
+                }
+            }
+            NurbsSurface::new(ku, kv, control, weights).expect("ok")
+        };
+        let whole = patch(
+            vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0],
+            &arc,
+            &[1.0, w, 1.0, w, 1.0],
+        );
+        let left = patch(
+            vec![0.0, 0.0, 0.0, 0.5, 0.5, 0.5],
+            &arc[..3],
+            &[1.0, w, 1.0],
+        );
+        let right = patch(
+            vec![0.5, 0.5, 0.5, 1.0, 1.0, 1.0],
+            &arc[2..],
+            &[1.0, w, 1.0],
+        );
+        assert!(matches!(patch_cells(&whole), Err(PatchBoundError::Crease)));
+        let read = |cells: Vec<PatchCell>| -> Vec<String> {
+            cells.iter().map(|c| format!("{c:?}")).collect()
+        };
+        let mut halves = read(patch_cells(&left).expect("left"));
+        halves.extend(read(patch_cells(&right).expect("right")));
+        assert_eq!(
+            read(patch_cells_across_creases(&whole).expect("whole")),
+            halves
+        );
+        // A constant weight is the integral arm's, `1` or not.
+        for c in [1.0, 2.0] {
+            let integral = patch(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], &arc, &[c; 5]);
+            assert!(
+                matches!(
+                    patch_cells_across_creases(&integral),
+                    Err(PatchBoundError::Crease)
+                ),
+                "weights {c}"
+            );
+        }
+    }
 
     /// **The degree ceilings are the statement's, and each arm meets its
     /// own.** An integral bidegree `(19, 2)` Bézier certifies: its area
@@ -1094,6 +1204,42 @@ pub(crate) mod tests {
                 });
                 assert_eq!(format!("{got:?}"), want, "{name} at 2^{k}: the cells moved");
             }
+        }
+    }
+
+    /// **A constant weight is the integral arm's.** The quarter
+    /// cylinder's net with every weight one constant (`2`, `3`, `0.1`) is
+    /// the polynomial patch on that net (`constant_weight`). Its cells,
+    /// plain and refined, are the unit-weight net's to the bit, since
+    /// that arm reads the control net alone; the rational arm would cut
+    /// each span into its own pieces.
+    #[test]
+    fn a_constant_weight_takes_the_integral_arm() {
+        let cylinder = quarter_cylinder();
+        let constant = |w: f64| {
+            NurbsSurface::new(
+                cylinder.knots_u_f64_interim().clone(),
+                cylinder.knots_v_f64_interim().clone(),
+                cylinder.control().to_vec(),
+                vec![w; 6],
+            )
+            .expect("door")
+        };
+        let unit = constant(1.0);
+        let want = format!("{:?}", patch_cells(&unit).expect("unit"));
+        let want_refined = format!("{:?}", patch_cells_refined(&unit, 4).expect("unit"));
+        for w in [2.0, 3.0, 0.1] {
+            let net = constant(w);
+            assert_eq!(
+                format!("{:?}", patch_cells(&net).expect("constant")),
+                want,
+                "weight {w}: the cells are not the unit net's"
+            );
+            assert_eq!(
+                format!("{:?}", patch_cells_refined(&net, 4).expect("constant")),
+                want_refined,
+                "weight {w}: the refined cells are not the unit net's"
+            );
         }
     }
 

@@ -32,7 +32,7 @@
 //!
 //! An operand's arena storage permuted is not among them: `topo` has no
 //! helper that permutes a body
-//! (`work/wire/topo-has-no-arena-permuting-helper-for-a-storage-order-name-check.md`).
+//! (`work/namecheck/topo-has-no-arena-permuting-helper-for-a-storage-order-name-check.md`).
 //!
 //! Each test settles two lists. Its admissions are the cases a
 //! perturbation moves today, each with its exact count of differing
@@ -48,17 +48,18 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
-use crate::blocks::{Spans, block, block_of, failure, run};
+use crate::blocks::{Spans, block, block_of, block_on, block_on_of, failure, run};
 use crate::fixture::{
-    ang, ends, face_edges, face_vertices, frame, insert, len, on_frame, point, scl,
+    against, ang, axes_at, desc, ends, face_edges, face_vertices, in_world_by, insert, len, point,
+    turned_to,
 };
 use crate::union_member_orders_decide_alike as decide_alike;
 use crate::union_pinch_member_order::{self as pinch_order, Sector};
 use crate::wire_legal_union_refusals as sunk;
 use editor_core::pose::{PoseRole, RoleRead};
 use editor_core::{
-    Bodies, BooleanValue, Datum, DocEdit, EntityKey, Entry, ExtrudeSide, Formula, LoopProgram,
-    MintId, Node, NodeMap, Operand, ProfileDoc, RecipeNodeId, StepId, StepMap, ValuePayload, VarId,
+    Bodies, BooleanValue, DocEdit, EntityKey, Entry, Formula, LoopProgram, MintId, Node, NodeMap,
+    Operand, ProfileDoc, RecipeNodeId, StepId, StepMap, TargetAxis, ValuePayload, VarId,
     remap_name,
 };
 use geom_core::Tol;
@@ -110,6 +111,15 @@ impl Ledger {
         self.spans
             .push((start, next_ordinal(&doc), label.to_string()));
         (doc, out)
+    }
+
+    /// `node` recorded as `label` alone, ahead of the step that minted
+    /// it: a node whose step mints a number of other ids the
+    /// perturbation varies (a split's tool, read inline) keeps one
+    /// canonical id.
+    fn alone(&mut self, node: RecipeNodeId, label: &str) {
+        let o = node.0.ordinal();
+        self.spans.insert(0, (o, o + 1, label.to_string()));
     }
 
     fn place(&self, ordinal: u32) -> Option<(&str, u32)> {
@@ -203,7 +213,23 @@ fn next_ordinal(doc: &ProfileDoc) -> u32 {
     let nodes = doc.ids().into_iter().map(|n| n.0.ordinal());
     let steps = mint.steps().map(|s| s.0.ordinal());
     let vars = mint.vars().map(|v| v.0.ordinal());
-    nodes.chain(steps).chain(vars).max().unwrap_or(0) + 1
+    let constraints = doc
+        .ids()
+        .into_iter()
+        .filter_map(|n| match doc.node(n) {
+            Some(Node::Place { constraints, .. }) => {
+                Some(constraints.iter().map(|c| c.id.0.ordinal()))
+            }
+            _ => None,
+        })
+        .flatten();
+    nodes
+        .chain(steps)
+        .chain(vars)
+        .chain(constraints)
+        .max()
+        .unwrap_or(0)
+        + 1
 }
 
 /// One entity a name denotes, as the comparisons read it.
@@ -566,25 +592,33 @@ fn two_tilted_wedges(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     pinch_order::tilted_holes(doc, &topo::test_support::meeting::two_wedges())
 }
 
-/// An upright prism over `corners` on the frame at `origin` spanned by
-/// `u` and `v`, extruded `d` along its normal.
+/// A prism over `corners` on its own xy, extruded `d` along its own z;
+/// with `on`, its copy placed against that body on the frame at
+/// `origin` spanned by `u` and `v`.
 fn framed_prism(
     doc: ProfileDoc,
+    on: Option<RecipeNodeId>,
     origin: [f64; 3],
     u: [f64; 3],
     v: [f64; 3],
     corners: &[(f64, f64)],
     d: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(doc, origin, u, v, vec![corners.to_vec()]);
-    insert(
+    let (doc, p) = insert(doc, Node::Profile(desc(vec![corners.to_vec()])));
+    let (doc, prism) = insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(d),
-            side: ExtrudeSide::Along,
         },
-    )
+    );
+    match on {
+        None => {
+            crate::fixture::own_frame(origin, u, v);
+            (doc, prism)
+        }
+        Some(root) => against(doc, root, prism, &axes_at(origin, u, v)),
+    }
 }
 
 const X: [f64; 3] = [1.0, 0.0, 0.0];
@@ -604,7 +638,7 @@ fn two_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
         (4.0, 2.0),
         (0.0, 2.0),
     ];
-    let (doc, a) = framed_prism(doc, [0.0; 3], X, Y, &ell, 1.0);
+    let (doc, a) = framed_prism(doc, None, [0.0; 3], X, Y, &ell, 1.0);
     let step = [
         (0.0, -1.0),
         (3.0, -1.0),
@@ -613,7 +647,7 @@ fn two_prisms(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
         (1.0, 2.0),
         (0.0, 2.0),
     ];
-    let (doc, b) = framed_prism(doc, [1.0, 0.0, 0.0], Y, Z, &step, 2.0);
+    let (doc, b) = framed_prism(doc, Some(a), [1.0, 0.0, 0.0], Y, Z, &step, 2.0);
     (doc, vec![a, b])
 }
 
@@ -760,7 +794,11 @@ fn nary(fixture: Members, op: Nary, order: &[usize], before: bool) -> Published 
     let mut ledger = Ledger::default();
     let mut doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
     if before {
-        doc = insert(doc, crate::fixture::xy_frame()).0;
+        doc = insert(
+            doc,
+            Node::Profile(desc(vec![crate::fixture::square(0.0, 0.0, 0.5)])),
+        )
+        .0;
     }
     let (doc, m) = ledger.authored(doc, "fixture", fixture);
     let listed: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
@@ -937,7 +975,7 @@ const BRIDGE_LISTED_FIRST: &str = "work/wire/a-pair-union-of-a-bridge-listed-fir
 /// The bridging prism folded last, after the plate and both wedges,
 /// refuses the union's fold step.
 const BRIDGE_FOLDED_LAST: &str =
-    "work/wire/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
+    "work/wirerest/a-union-folding-a-bridging-prism-last-refuses-its-fold-step.md";
 
 /// A bridge met with the union of the wedges and the other bridge
 /// refuses: vertices share a name that is no single seam.
@@ -984,15 +1022,15 @@ fn sunk_boss_cut(tool: &[Spans], pose: CutPose) -> Published {
     let (mut doc, mut blocks) = ledger.authored(doc, "tool", |mut d| {
         let mut blocks = Vec::new();
         for &spans in tool {
-            let (e, (b, _)) = sunk::tool_block(d, spans);
+            let (e, b) = sunk::tool_block(d, plate, spans);
             d = e;
             blocks.push(b);
         }
         (d, blocks)
     });
     if pose.far {
-        let (d, (b, _)) = ledger.authored(doc, "far", |d| {
-            sunk::tool_block(d, ((9.0, 10.0), (9.0, 10.0), 0.0, 1.0))
+        let (d, b) = ledger.authored(doc, "far", |d| {
+            sunk::tool_block(d, plate, ((9.0, 10.0), (9.0, 10.0), 0.0, 1.0))
         });
         doc = d;
         blocks.push(b);
@@ -1026,11 +1064,16 @@ fn sunk_boss_cut(tool: &[Spans], pose: CutPose) -> Published {
 // Splits
 // ------------------------------------------------------------------ //
 
-/// A split's target: an outline drawn on `xy`, extruded 1 along `z` or
-/// revolved a full turn about `y`, or a union of the n-ary corpus.
+/// A split's target: an outline drawn on its own `xy`, extruded 1
+/// along `z` or revolved a full turn about `y`, or a union of the
+/// n-ary corpus.
 #[derive(Clone, Copy)]
 enum Target {
     Prism(&'static [(f64, f64)]),
+    /// [`Target::Prism`], its copy standing in the world spun `−turn/4`
+    /// about `y`: the outline's `x` along `z`, so the prism runs along
+    /// `-x`.
+    PrismAlongZ(&'static [(f64, f64)]),
     Turned(&'static [(f64, f64)]),
     Union(Members),
 }
@@ -1039,13 +1082,12 @@ enum Target {
 /// one, and the node split.
 fn target(doc: ProfileDoc, t: Target) -> (ProfileDoc, (Option<RecipeNodeId>, RecipeNodeId)) {
     match t {
-        Target::Prism(outline) | Target::Turned(outline) => {
-            let (doc, p) = on_frame(doc, [0.0; 3], X, Y, vec![outline.to_vec()]);
-            let node = if matches!(t, Target::Prism(_)) {
+        Target::Prism(outline) | Target::PrismAlongZ(outline) | Target::Turned(outline) => {
+            let (doc, p) = insert(doc, Node::Profile(desc(vec![outline.to_vec()])));
+            let node = if matches!(t, Target::Prism(_) | Target::PrismAlongZ(_)) {
                 Node::Extrude {
                     profile: p.into(),
                     distance: len(1.0),
-                    side: ExtrudeSide::Along,
                 }
             } else {
                 Node::Revolve {
@@ -1056,6 +1098,13 @@ fn target(doc: ProfileDoc, t: Target) -> (ProfileDoc, (Option<RecipeNodeId>, Rec
                 }
             };
             let (doc, s) = insert(doc, node);
+            let (doc, s) = if matches!(t, Target::PrismAlongZ(_)) {
+                let quarter = Formula::turn_over(4).expect("a quarter turn");
+                let back = Formula::neg(quarter).expect("an angle negates");
+                in_world_by(doc, s, turned_to([0.0; 3], &[(TargetAxis::Y, back)]))
+            } else {
+                (doc, s)
+            };
             (doc, (Some(p), s))
         }
         Target::Union(members) => {
@@ -1109,14 +1158,43 @@ const SPLITS: &[SplitCase] = &[
     ),
 ];
 
-/// A split's tool.
+/// A split's tool, in the world's coordinates.
 #[derive(Clone, Copy)]
 enum Tool {
-    /// A `Datum::Plane` through `origin` with `normal`.
+    /// The plane through `origin` with `normal`.
     Plane([f64; 3], [f64; 3]),
     /// A frame's xy plane: the frame through `origin` spanned by `u`
     /// and `v`.
     FrameXy([f64; 3], [f64; 3], [f64; 3]),
+}
+
+impl Tool {
+    /// The tool read off `t`'s node `node`: a plane off a face it is
+    /// parallel to where the target has one ([`crate::fixture::plane_on`],
+    /// exact), every other plane and a frame's xy off a frame on the
+    /// target. A [`Target::PrismAlongZ`]'s tool is given in its prism's
+    /// own coordinates, the world's turned back.
+    fn read(self, doc: &ProfileDoc, t: Target, node: RecipeNodeId) -> RoleRead<Operand> {
+        let own = |p: [f64; 3]| match t {
+            Target::PrismAlongZ(_) => [p[2], p[1], -p[0]],
+            _ => p,
+        };
+        let body = Operand::output(node, 0);
+        let (origin, u, v) = match self {
+            Self::Plane(origin, normal) => {
+                let (origin, normal) = (own(origin), own(normal));
+                let axis = normal.iter().filter(|c| **c != 0.0).count() == 1;
+                if axis && !(matches!(t, Target::Turned(_)) && normal[1] == 0.0) {
+                    return crate::fixture::plane_on(doc, body, origin, normal);
+                }
+                return crate::fixture::plane_on_frame(doc, body, origin, normal);
+            }
+            Self::FrameXy(origin, u, v) => (own(origin), own(u), own(v)),
+        };
+        let frame =
+            editor_core::test_support::frame_on(doc, &body, &axes_at(origin, u, v), Tol::witness());
+        RoleRead::through(frame, PoseRole::Xy)
+    }
 }
 
 /// One split: both halves' tables, and their bodies' face, edge and
@@ -1135,22 +1213,7 @@ fn split(
     let mut ledger = Ledger::default();
     let doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
     let (doc, (profile, node)) = ledger.authored(doc, "target", |d| target(d, t));
-    let (doc, tool) = ledger.authored(doc, "tool", |d| match tool {
-        Tool::Plane(origin, normal) => {
-            let (d, plane) = insert(
-                d,
-                Node::Datum(Datum::Plane {
-                    origin: origin.map(len),
-                    normal: normal.map(scl),
-                }),
-            );
-            (d, plane.into())
-        }
-        Tool::FrameXy(origin, u, v) => {
-            let (d, f) = insert(d, frame(origin, u, v));
-            (d, RoleRead::through(Operand::output(f, 0), PoseRole::Xy))
-        }
-    });
+    let tool = tool.read(&doc, t, node);
     let (doc, sp) = ledger.authored(doc, "split", |d| {
         insert(
             d,
@@ -1160,6 +1223,7 @@ fn split(
             },
         )
     });
+    ledger.alone(sp, "split node");
     let doc = edit(doc, profile);
     let ev = run(&doc);
     let tables = [0, 1].map(|port| published_in(&ev, &doc, sp, port, &ledger));
@@ -1213,13 +1277,13 @@ fn spun(origin: [f64; 3], normal: [f64; 3], deg: f64) -> Tool {
 }
 
 /// **3. A split plane's frame**: flipping its normal swaps its halves
-/// and renames nothing in them; moving its origin along it renames
-/// nothing; and spinning a frame whose xy plane splits about the
-/// normal renames nothing.
+/// and renames nothing in them; and moving its origin along it, or
+/// spinning it about the normal, renames nothing.
 ///
-/// A `Datum::Plane` is an origin and a normal: it has no in-plane axis
-/// to spin, so the spin is asked of a frame's xy plane, the other tool
-/// a split takes, whose x and y axes are authored.
+/// A plane read off a face is the face's plane slid along its normal:
+/// it has no origin to move and no in-plane axis to spin, so the move
+/// and the spin are asked of a frame's xy plane, read off a frame on
+/// the target whose origin and axes are authored.
 #[test]
 fn a_split_planes_frame_moves_no_name() {
     let mut found = Found::default();
@@ -1231,13 +1295,13 @@ fn a_split_planes_frame_moves_no_name() {
         );
         let flipped = split(t, Tool::Plane(o, n.map(|c| -c)), &unedited).tables;
         let a = along(n);
+        let framed = split(t, spun(o, n, 0.0), &unedited).tables;
         let moved = split(
             t,
-            Tool::Plane([0, 1, 2].map(|i| o[i] + 0.4 * a[i]), n),
+            spun([0, 1, 2].map(|i| o[i] + 0.4 * a[i]), n, 0.0),
             &unedited,
         )
         .tables;
-        let framed = split(t, spun(o, n, 0.0), &unedited).tables;
         let spun = split(t, spun(o, n, 37.0), &unedited).tables;
         for port in 0..2 {
             let half = format!("half {port}");
@@ -1251,7 +1315,7 @@ fn a_split_planes_frame_moves_no_name() {
             found.compare(
                 &format!("{what} / moved along"),
                 &half,
-                &first[port],
+                &framed[port],
                 &moved[port],
                 Compare::Geometry,
             );
@@ -1296,12 +1360,13 @@ fn prism_and_tilted_cube(doc: ProfileDoc, deg: f64) -> (ProfileDoc, Vec<RecipeNo
 /// vertical line through its corner at the pinch, (1.5, 1).
 fn pinch_turned(doc: ProfileDoc, deg: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block_of(doc, pinch_order::PLATE_SPANS);
-    let (doc, p1) = block_of(doc, pinch_order::P1);
+    let (doc, p1) = block_on_of(doc, plate, pinch_order::P1);
     let ((x0, x1), (y0, y1), z0, dz) = pinch_order::P2;
     let (w, h) = (x1 - x0, y1 - y0);
     let foot = [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)];
     let (doc, p2) = framed_prism(
         doc,
+        Some(plate),
         [x0, y0, z0],
         turned(X, Z, deg),
         turned(Y, Z, deg),
@@ -1315,10 +1380,10 @@ fn pinch_turned(doc: ProfileDoc, deg: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// sector turned `deg` about the contact line.
 fn crossing_turned(doc: ProfileDoc, deg: f64) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, plate) = block_of(doc, pinch_order::PLATE_SPANS);
-    let (doc, a) = pinch_order::sector_of(doc, pinch_order::WEDGE_A);
-    let (doc, b) = pinch_order::sector_of(doc, pinch_order::WEDGE_B);
+    let (doc, a) = pinch_order::sector_of(doc, plate, pinch_order::WEDGE_A);
+    let (doc, b) = pinch_order::sector_of(doc, plate, pinch_order::WEDGE_B);
     let (a0, a1, z) = pinch_order::CROSSING_A;
-    let (doc, c) = pinch_order::sector_of(doc, (a0 + deg, a1 + deg, z));
+    let (doc, c) = pinch_order::sector_of(doc, plate, (a0 + deg, a1 + deg, z));
     (doc, vec![plate, a, b, c])
 }
 
@@ -1364,6 +1429,27 @@ fn pentagon_split_turned(deg: f64) -> Halves {
         &unedited,
     )
 }
+
+/// The notched block, drawn along `z`, split by the plane `y = 1.5`,
+/// which cuts three sections from each half, turned `deg` about `z`.
+fn notched_split_turned(deg: f64) -> Halves {
+    split(
+        Target::PrismAlongZ(crate::split_pinch_keeps::NOTCHED),
+        Tool::Plane([0.0, 1.5, 0.0], turned(Y, Z, deg)),
+        &unedited,
+    )
+}
+
+/// A split whose plane is posed by a tilt, by name.
+type TurnedSplit = fn(f64) -> Halves;
+
+const TURNED_SPLITS: &[(&str, TurnedSplit)] = &[
+    ("notched pentagon, plane turned", pentagon_split_turned),
+    (
+        "notched block's three sections, plane turned",
+        notched_split_turned,
+    ),
+];
 
 /// Compares `subject`'s poses at [`TILTS`] with its pose at 0°, each
 /// as `pose` builds it: its tables and its bodies' counts. A pose whose
@@ -1422,15 +1508,16 @@ fn a_tilt_within_one_topology_moves_no_name() {
             "{what}: {compared} tilts keep the topology"
         );
     }
-    let what = "notched pentagon, plane turned";
-    let compared = tilt(&mut found, what, &|deg| {
-        let h = pentagon_split_turned(deg);
-        (h.tables.to_vec(), h.counts)
-    });
-    assert!(
-        compared >= COMPARED_TILTS,
-        "{what}: {compared} tilts keep the topology"
-    );
+    for &(what, pose) in TURNED_SPLITS {
+        let compared = tilt(&mut found, what, &|deg| {
+            let h = pose(deg);
+            (h.tables.to_vec(), h.counts)
+        });
+        assert!(
+            compared >= COMPARED_TILTS,
+            "{what}: {compared} tilts keep the topology"
+        );
+    }
     found.settle(ADMITTED_TILT, VACUOUS_TILT);
 }
 
@@ -1444,20 +1531,48 @@ const VACUOUS_TILT: &[Vacuous] = &[];
 // Authoring histories
 // ------------------------------------------------------------------ //
 
-/// One member of a role-built fixture.
+/// One member of a role-built fixture, its copy standing in the world,
+/// so the members may be authored in any order.
 #[derive(Clone, Copy)]
 enum Part {
-    /// A [`block_of`] these spans.
+    /// A [`block`] over these spans, slid up to its base.
     Block(Spans),
-    /// A [`pinch_order::sector_of`] this sector.
+    /// A [`pinch_order::sector_in_world`] this sector.
     Sector(Sector),
+    /// The block of these spans, extruded down from its top: the same
+    /// solid as [`Part::Block`]'s, its lateral edges running the other
+    /// way. Drawn on its own xy with `y` reversed and turned a half turn
+    /// about `x`, its top slid to `z0 + dz`.
+    Downward(Spans),
 }
 
 impl Part {
     fn author(self, doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
         match self {
-            Self::Block(s) => block_of(doc, s),
-            Self::Sector(s) => pinch_order::sector_of(doc, s),
+            Self::Block((x, y, z0, dz)) => {
+                let (doc, b) = block(doc, x, y, dz);
+                in_world_by(doc, b, turned_to([0.0, 0.0, z0], &[]))
+            }
+            Self::Sector(s) => pinch_order::sector_in_world(doc, s),
+            Self::Downward(((x0, x1), (y0, y1), z0, dz)) => {
+                let (doc, p) = insert(
+                    doc,
+                    Node::Profile(desc(vec![vec![(x0, -y1), (x1, -y1), (x1, -y0), (x0, -y0)]])),
+                );
+                let (doc, b) = insert(
+                    doc,
+                    Node::Extrude {
+                        profile: p.into(),
+                        distance: len(dz),
+                    },
+                );
+                let half = Formula::turn_over(2).expect("a half turn");
+                in_world_by(
+                    doc,
+                    b,
+                    turned_to([0.0, 0.0, z0 + dz], &[(TargetAxis::X, half)]),
+                )
+            }
         }
     }
 }
@@ -1486,6 +1601,7 @@ const UNIT_BLOCK: Part = Part::Block(((1.0, 2.0), (0.5, 1.5), 0.5, 1.0));
 const PLATE: Part = Part::Block(pinch_order::PLATE_SPANS);
 const P1: Part = Part::Block(pinch_order::P1);
 const P2: Part = Part::Block(pinch_order::P2);
+const P2_DOWNWARD: Part = Part::Downward(pinch_order::P2);
 const KISS_A: Part = Part::Block(decide_alike::KISS[0]);
 const KISS_B: Part = Part::Block(decide_alike::KISS[1]);
 const WEDGE_A: Part = Part::Sector(pinch_order::WEDGE_A);
@@ -1528,6 +1644,11 @@ const HISTORIES: &[Roles] = &[
     (
         "plate pinch",
         &[("plate", PLATE), ("p1", P1), ("p2", P2)],
+        Combine::Nary(Nary::Union),
+    ),
+    (
+        "plate pinch, p2 extruded down",
+        &[("plate", PLATE), ("p1", P1), ("p2", P2_DOWNWARD)],
         Combine::Nary(Nary::Union),
     ),
     (
@@ -1624,34 +1745,51 @@ fn an_authoring_history_moves_no_name() {
     found.settle(ADMITTED_HISTORY, VACUOUS_HISTORY);
 }
 
+/// **A body and its exact copy name every entity by both reads** (N0's
+/// NS4: two operands with identical tables are told apart by their
+/// reads, never ordered): their union is one body, each face, edge and
+/// vertex the same entity in both, so each is `Merged` of two names
+/// whose heads are `From` the two members' reads.
+#[test]
+fn a_body_and_its_copy_name_every_entity_by_both_reads() {
+    let doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
+    let (doc, one) = UNIT_BLOCK.author(doc);
+    let (doc, copy) = UNIT_BLOCK.author(doc);
+    let (doc, op) = insert(doc, Nary::Union.node(&[one, copy]));
+    let ev = run(&doc);
+    let reads = BTreeSet::from([
+        crate::fixture::out(&doc, one),
+        crate::fixture::out(&doc, copy),
+    ]);
+    let var = ev.output_var(op, 0).expect("the union defines its port");
+    let table = ev.table(var).expect("the union's table");
+    let mut named = 0;
+    for (name, _) in table.iter() {
+        if name.kind == editor_core::EntityKind::Body {
+            continue;
+        }
+        let cited: BTreeSet<VarId> = match name.path.as_slice() {
+            [editor_core::RoleSeg::Merged(set)] => set
+                .iter()
+                .filter_map(|c| match c.path.as_slice() {
+                    [editor_core::RoleSeg::From { read, .. }] => Some(*read),
+                    _ => None,
+                })
+                .collect(),
+            _ => BTreeSet::new(),
+        };
+        assert_eq!(cited, reads, "{name:?} is not named for both copies");
+        named += 1;
+    }
+    assert_eq!(named, 26, "a block's 6 faces, 12 edges and 8 vertices");
+}
+
 /// The history cases that move today.
-const ADMITTED_HISTORY: &[Admitted] = &[
-    (
-        "a block and its copy / authored in another order",
-        40,
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "a block and its copy, met / authored in another order",
-        40,
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "the plate less a block and its copy / authored in another order",
-        96,
-        COPY_MINTED_FIRST,
-    ),
-    (
-        "plate pinch / authored in another order",
-        18,
-        LEG_MINTED_FIRST,
-    ),
-    (
-        "twins on the plate / authored in another order",
-        18,
-        LEG_MINTED_FIRST,
-    ),
-];
+const ADMITTED_HISTORY: &[Admitted] = &[(
+    "plate pinch, p2 extruded down / authored in another order",
+    18,
+    LINE_ORIENTED_BY_LEAST,
+)];
 
 /// The history cases that compare no table today.
 const VACUOUS_HISTORY: &[Vacuous] = &[
@@ -1670,21 +1808,17 @@ const VACUOUS_HISTORY: &[Vacuous] = &[
     ),
 ];
 
+/// A union's line of several flush member edges is oriented by its
+/// least edge, which orders by read, so where the edges run opposite
+/// ways its crossing's sense reads which member was minted first.
+const LINE_ORIENTED_BY_LEAST: &str =
+    "work/wire/a-unions-line-of-several-edges-is-oriented-by-its-least-edge.md";
+
 /// A plate less blocks that meet on a line through it refuses
 /// `LineWedges`: the contact is two coincident edges whose material
 /// wedges overlap.
 const LINE_WEDGES: &str =
     "work/topo/revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet.md";
-
-/// A boolean of a body and its exact copy names each entity of the
-/// result from the copy minted first.
-const COPY_MINTED_FIRST: &str =
-    "work/wire/a-boolean-of-a-body-and-its-copy-names-its-entities-from-the-copy-minted-first.md";
-
-/// Where two members' legs cross a face at one pinch point, the vertex
-/// is named the crossing of the leg minted first.
-const LEG_MINTED_FIRST: &str =
-    "work/wire/a-pinch-where-two-legs-cross-one-face-is-named-by-the-leg-minted-first.md";
 
 // ------------------------------------------------------------------ //
 // Far features
@@ -1696,8 +1830,10 @@ fn with_far_member(fixture: Members, far: bool) -> Published {
     let doc = ProfileDoc::empty_derived("name-invariance", Tol::witness());
     let (doc, mut m) = ledger.authored(doc, "fixture", fixture);
     let doc = if far {
-        let (doc, b) =
-            ledger.authored(doc, "far", |d| block(d, (9.0, 10.0), (9.0, 10.0), 0.0, 1.0));
+        let root = m[0];
+        let (doc, b) = ledger.authored(doc, "far", |d| {
+            block_on(d, root, (9.0, 10.0), (9.0, 10.0), 0.0, 1.0)
+        });
         m.push(b);
         doc
     } else {

@@ -610,7 +610,20 @@ BOUNDS_ALLOWLIST=(
   # `props/quad_lane.rs`, and its fourteen occurrences are there under
   # the same ruling; `props.rs` keeps the assemblers, `QuadLane`,
   # `ShellDoor` and the wiring rows.
-  'crates/topo/src/props.rs 9 M5 PR 11, the certified-quadrature plumbing'
+  # 9 -> 11 (FLUX F1, Ev's decision on PR 4822): `mass_properties` and
+  # `classify_shells` take a finished body (`&AtRestBody`), and the
+  # walks they ran move beneath them, unchanged, as `raw_door`'s
+  # `measure_body` and `classify_body` (`Decide + CertifiedBounds`, one
+  # each). They are the same door at the same scalars: the typed door
+  # calls each, and the only other way out of the crate is
+  # `topo::test_support`'s re-exports (the raw door and the transitional
+  # alias), which carry this seam's bound unrestated.
+  # 11 -> 12 (FLUX F1's review, PR 5590): `classify_shells_of`, the
+  # restricted door, takes a finished body too, and its walk moves
+  # beneath it as `raw_door::classify_body_of` (`Decide +
+  # CertifiedBounds`), the same certified lane `classify_shells_through`
+  # reads; the `_structural` twins it moved with are plain `Decide`.
+  'crates/topo/src/props.rs 12 M5 PR 11, the certified-quadrature plumbing'
   # quad_lane.rs 14 -> 15: `closed_form` re-derives a closed-form
   # face's flux at the interval scalar, lifting the face's geometry
   # through `Interval::from_certified` (`Decide + CertifiedBounds`), and
@@ -626,7 +639,15 @@ BOUNDS_ALLOWLIST=(
   # `cut_face_rounds`, under `QuadLane::certified`'s first field, so it
   # is the same plumbing at the same door and is never formed at a
   # dual; it reads no bracket of `T` itself.
-  'crates/topo/src/props/quad_lane.rs 16 M5 PR 11, the certified-quadrature plumbing'
+  # 16 -> 18: `cut_face_lane` (`Decide + Bounds + CertifiedEnclosure`,
+  # two occurrences) is `cut_face_rounds`' body with the caller's
+  # per-round question handed in: the lanes no longer read the
+  # reporting target, so `cut_face_rounds` is now the interim adapter
+  # that asks it and `cut_face_lane` the dispatch it wraps. It is
+  # reached only from `cut_face_rounds`, under `QuadLane::certified`'s
+  # first field, so it is the same plumbing at the same door and is
+  # never formed at a dual.
+  'crates/topo/src/props/quad_lane.rs 18 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   # 15 -> 17: `chain_turns` is predicate 4's loop moved out of
   # `run_battery_for` whole (its junction-end pick the one bracket read,
@@ -783,8 +804,10 @@ BOUNDS_ALLOWLIST=(
   # code over the C10 tree, under the driver amendment like `separation`.
   # The seventh is `collinear_overlaps`, the edge-edge pass's candidates
   # over the same edge boxes, lifted out for ∖'s reading of coincident
-  # edges.
-  'crates/topo/src/census.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
+  # edges. The eighth is `flush_at_rest`, its candidates the planar faces
+  # whose boxes meet in a tree over the same `face_box` reads: the bound
+  # reaches the box and nothing else, each candidate read exactly.
+  'crates/topo/src/census.rs 8 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/face_boxes.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the

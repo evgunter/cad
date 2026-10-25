@@ -4,12 +4,10 @@
 //!
 //! The door decides of a constraint what its recipe alone decides: a
 //! mate's `on` reads the copy its placement defines
-//! (`MateFault::NotOnTheCopy`), its world read is a pose
-//! (`MateFault::WorldRead`), its two poses are of one kind
-//! (`MateFault::KindsDiffer`), and its class is admitted; a value names
-//! a mate of its bundle (`MateFault::ValueNamesNoMate`), its mate's kind
-//! leaves the freedom it sets (`MateFault::NotAFreedom`), and the
-//! freedom has a chart (`MateFault::NoChart`). It refuses
+//! (`MateFault::NotOnTheCopy`), its two poses are of one kind
+//! (`MateFault::KindsDiffer`); a value's
+//! freedom is one its bundle's mates leave, else it fixes an equation
+//! they already fix (`MateFault::Overconstrained`). It refuses
 //! `EditError::MateRefused` carrying the fault unaltered, and the load
 //! door asks the same of every constraint a snapshot holds. THE DOORS
 //! DECIDE EDITS AND THE EVALUATION DECIDES STATES: what needs the poses'
@@ -27,16 +25,14 @@
 
 use crate::fixture;
 use crate::wire;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SlideAxis, SnapshotError, Target, VarKind,
-    WorldRead, WorldReadFault, load, save,
+    CapEnd, Coord, DocEdit, DocumentId, EditError, EvalOptions, MateFault, MateRef, Node,
+    PersistError, ProfileDoc, RecipeNodeId, SnapshotError, TargetAxis, VarKind, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, at_the_door, at_the_door_of, insert, insert_pinned, len, on_frame, step};
+use fixture::{ang, at_the_door_of, insert, insert_pinned, len, on_frame, step};
 use geom_core::Tol;
 
 // ---- Substrate ----
@@ -57,7 +53,6 @@ fn box_part(label: &str, half: f64, height: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -74,7 +69,7 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
     let mut ids = Vec::new();
     for i in 0..n {
         let (next, id) = if i == 0 {
-            insert_pinned(doc, Node::instantiate_part(doc_ref), &opts)
+            insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &opts)
         } else {
             insert(doc, fixture::mated_instance(doc_ref))
         };
@@ -92,11 +87,7 @@ fn cap(of: RecipeNodeId, body: RecipeNodeId, end: CapEnd) -> editor_core::SitedF
 /// `b`'s bottom cap resting on `a`'s top cap, both instances of the
 /// part whose body is `body`: a mate `b`'s bundle holds.
 fn mate(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> editor_core::Mate<Formula> {
-    fixture::rest(
-        cap(b, body, CapEnd::Start),
-        cap(a, body, CapEnd::End),
-        ContactClass::Rest,
-    )
+    fixture::rest(cap(b, body, CapEnd::Start), cap(a, body, CapEnd::End))
 }
 
 /// `b`'s bottom cap's plane equated with the point of `a`'s top cap: a
@@ -109,69 +100,83 @@ fn kinds_differ(
     fixture::mate(
         fixture::plane(cap(b, body, CapEnd::Start)),
         fixture::point_of(cap(a, body, CapEnd::End)),
-        ContactClass::Rest,
     )
 }
 
-/// **The constraint `at` names, as written**: every read and value
-/// spelled as authored — an anonymous pose as its definition — ready to
-/// be added again.
-fn written_constraint(doc: &ProfileDoc, at: MateRef) -> editor_core::Constraint<Formula> {
-    let node = doc
-        .node(at.placement)
-        .expect("a live placement")
-        .written(doc);
-    let (Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. }) = node else {
-        panic!("{at:?} names a placement");
-    };
-    constraints
-        .into_iter()
-        .find(|c| c.id == at.id)
-        .unwrap_or_else(|| panic!("{at:?} is a constraint of its placement"))
+/// `mate` alone, as a bundle: what the door asks of a mate before it
+/// asks the bundle to pin its copy.
+fn lone(mate: editor_core::Mate<Formula>) -> Vec<editor_core::Constraint<Formula>> {
+    vec![editor_core::Constraint::of_mate(
+        editor_core::ConstraintId::placeholder(1),
+        mate,
+    )]
 }
 
-/// The edit that adds `mate` to `placement`'s bundle.
+/// The edit that writes `mate` alone as `placement`'s bundle — one the
+/// door refuses on the mate's own datum before it reads the bundle.
 fn add(
     placement: RecipeNodeId,
     mate: editor_core::Mate<Formula>,
 ) -> DocEdit<editor_core::ProfileProgram> {
-    DocEdit::AddConstraint {
+    DocEdit::SetConstraints {
         placement,
-        mate: Box::new(mate),
+        constraints: lone(mate),
         fresh: Vec::new(),
     }
 }
 
-/// The edit that adds a value of `coord` on `mate` to `placement`'s
-/// bundle.
-fn add_value(
-    placement: RecipeNodeId,
-    mate: editor_core::ConstraintId,
-    coord: Coord,
-    by: Formula,
-) -> DocEdit<editor_core::ProfileProgram> {
-    DocEdit::AddValue {
-        placement,
-        value: Box::new(editor_core::Value { mate, coord, by }),
-        fresh: Vec::new(),
-    }
-}
-
-/// `edit` through the door: the document and the constraint it minted, or the fault the door refused with.
-#[allow(clippy::result_large_err)]
-fn through_door(
+/// The edit that writes `mate` as `placement`'s bundle with each
+/// freedom it leaves set to 0 ([`fixture::squared`]), so it pins.
+fn seat(
     doc: &ProfileDoc,
     placement: RecipeNodeId,
-    edit: &DocEdit<editor_core::ProfileProgram>,
-) -> Result<(ProfileDoc, MateRef), MateFault> {
-    match doc.apply(edit, Tol::witness()) {
+    mate: editor_core::Mate<Formula>,
+) -> DocEdit<editor_core::ProfileProgram> {
+    DocEdit::SetConstraints {
+        placement,
+        constraints: fixture::squared(doc, mate, &[]).bundle(),
+        fresh: Vec::new(),
+    }
+}
+
+/// `constraints` written onto `placement` whole through the door: the
+/// document and the constraints it minted, or the placement and fault
+/// the door refused with.
+#[allow(clippy::result_large_err)]
+fn whole_door(
+    doc: &ProfileDoc,
+    placement: RecipeNodeId,
+    constraints: Vec<editor_core::Constraint<Formula>>,
+) -> Result<(ProfileDoc, Vec<MateRef>), (RecipeNodeId, MateFault)> {
+    match doc.apply(
+        &DocEdit::SetConstraints {
+            placement,
+            constraints,
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    ) {
         Ok(applied) => {
-            let id = applied.record.minted_constraints[0];
-            Ok((applied.doc, MateRef::new(placement, id)))
+            let ids = applied
+                .record
+                .minted_constraints
+                .iter()
+                .map(|&id| MateRef::new(placement, id))
+                .collect();
+            Ok((applied.doc, ids))
         }
-        Err(EditError::MateRefused { fault, .. }) => Err(*fault),
+        Err(EditError::MateRefused { node, fault, .. }) => Err((node.id(), *fault)),
         Err(other) => panic!("the door refused otherwise: {other:?}"),
     }
+}
+
+/// A value of `coord`, by `by`, at placeholder `at` of a bundle written
+/// whole.
+fn value_at(at: u32, coord: Coord, by: Formula) -> editor_core::Constraint<Formula> {
+    editor_core::Constraint::of_value(
+        editor_core::ConstraintId::placeholder(at),
+        editor_core::Value { coord, by },
+    )
 }
 
 // ---- A1: the door's refusal, naming the placement ----
@@ -185,7 +190,7 @@ fn through_door(
 fn a1_a_mate_of_two_kinds_refuses_at_insert_naming_the_placement() {
     let (doc, ids, _, body) = instances("msolve10-a1-kinds", 2);
     let (named, fault) =
-        at_the_door(&doc, kinds_differ(body, ids[0], ids[1])).expect_err("refused");
+        whole_door(&doc, ids[1], lone(kinds_differ(body, ids[0], ids[1]))).expect_err("refused");
     let MateFault::KindsDiffer { mate: held, on, to } = fault else {
         panic!("expected the kinds to differ, got {fault:?}");
     };
@@ -242,151 +247,38 @@ fn a1_a_mate_whose_on_reads_another_copy_refuses_not_on_the_copy() {
     );
 }
 
-/// **A world read that is no pose refuses `WorldRead`** naming the
-/// construction its kinds refuse: a flip of the world's origin, which
-/// as a point has no sense.
-#[test]
-fn a1_a_world_read_that_is_no_pose_refuses_world_read() {
-    let (doc, ids, _, body) = instances("msolve10-a1-world", 2);
-    let flipped_origin = editor_core::Mate {
-        on: fixture::point_of(cap(ids[1], body, CapEnd::Start)),
-        to: Target::World(WorldRead::through(editor_core::pose::PoseRole::Origin).flip()),
-        class: ContactClass::Rest,
-    };
-    let fault = fixture::door_refusal(&doc, flipped_origin);
-    assert!(
-        matches!(
-            fault,
-            MateFault::WorldRead {
-                mate,
-                fault: WorldReadFault::FlippedPoint,
-            } if mate.placement == ids[1]
-        ),
-        "{fault:?}"
-    );
-}
-
-/// **A world read nested past its bound refuses `TooDeep`** before its
-/// kinds are read: the world's frame spun about z one turn more than
-/// [`editor_core::MAX_WORLD_READ_DEPTH`] allows, read at its origin.
-/// The read is written inside its mate, so the door's bound is what
-/// holds a saved mate within the load door's nesting limit.
+/// **A value is asked of its bundle, at the door** (row 190: a value
+/// names no mate): a slide along a plane mate's normal is a freedom the
+/// mate fixes, so the bundle refuses `Overconstrained`, naming the
+/// value and the mate; a ball's rotation is a chain of spins about the
+/// target space's axes, admitted; and a spin about an axis mate whose
+/// target is the line two copies' caps meet in is admitted too, since
+/// the chart is the target space's whatever bodies the target reads.
 ///
-/// *Breaks if* the door admits a read deeper than the bound (a save
-/// could then write a file the load door refuses), or reads the kinds
-/// of one first.
+/// *Breaks if* a value's freedom is admitted beside a mate that fixes
+/// it, or a value is charted on a body its mate's target reads.
 #[test]
-fn a1_a_world_read_past_its_bound_refuses_too_deep() {
-    let (doc, ids, _, body) = instances("msolve10-a1-world-deep", 2);
-    let mut world = WorldRead::Frame;
-    // Each spin about z (two deep) adds one; the role adds one more.
-    for _ in 0..editor_core::MAX_WORLD_READ_DEPTH - 2 {
-        world = world.spin(
-            WorldRead::through(editor_core::pose::PoseRole::Z),
-            fixture::ang(0.0),
-        );
-    }
-    let to = WorldRead::Role {
-        pose: Box::new(world),
-        role: editor_core::pose::PoseRole::Origin,
-    };
-    let depth = to.depth();
-    assert_eq!(depth, editor_core::MAX_WORLD_READ_DEPTH + 1);
-    let too_deep = editor_core::Mate {
-        on: fixture::point_of(cap(ids[1], body, CapEnd::Start)),
-        to: Target::World(to),
-        class: ContactClass::Rest,
-    };
-    let fault = fixture::door_refusal(&doc, too_deep);
-    assert!(
-        matches!(
-            fault,
-            MateFault::WorldRead {
-                mate,
-                fault: WorldReadFault::TooDeep { depth: d },
-            } if mate.placement == ids[1] && d == depth
-        ),
-        "{fault:?}"
-    );
-}
-
-/// **A value's own admission refuses at insert**: a value naming no
-/// constraint of its bundle, or a value rather than a mate
-/// (`ValueNamesNoMate`); a value on a freedom its mate's kind fixes — a
-/// plane mate's slide along its normal (`NotAFreedom { kind:
-/// Some(Plane) }`); a point mate's rotation (`NoChart {
-/// PointRotation }`); and a mate whose `to` reads two bodies, whose
-/// frames do not agree on which reference to chart from (`NoChart {
-/// TwoBodies }`). The freedom the kind leaves is admitted beside each,
-/// so each refusal is the value's and not the fixture's.
-#[test]
-fn a1_a_values_own_admission_refuses_at_insert() {
+fn a1_a_value_is_admitted_by_its_bundle() {
     let (doc, ids, _, body) = instances("msolve10-a1-values", 3);
-    let (doc, rest) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
-    let (doc, slid) = through_door(
-        &doc,
-        ids[1],
-        &add_value(ids[1], rest.id, Coord::Slide(SlideAxis::X), len(0.25)),
-    )
-    .expect("a plane mate leaves its in-plane slide");
+    let plane = mate(body, ids[0], ids[1]);
+    let mut bundle = lone(plane);
+    bundle.push(value_at(2, Coord::Slide(TargetAxis::Z), len(0.25)));
+    let (_, fault) = whole_door(&doc, ids[1], bundle).expect_err("refused");
+    assert!(
+        matches!(&fault, MateFault::Overconstrained { constraints, .. } if constraints.len() == 2),
+        "{fault:?}"
+    );
 
-    let unheld = editor_core::ConstraintId(editor_core::MintId::new(0, 0x5eed));
-    for named in [unheld, slid.id] {
-        let fault = through_door(
-            &doc,
-            ids[1],
-            &add_value(ids[1], named, Coord::Spin, ang(0.1)),
-        )
-        .expect_err("refused");
-        assert!(
-            matches!(fault, MateFault::ValueNamesNoMate { value, mate }
-                if value.placement == ids[1] && mate == named),
-            "{named}: {fault:?}"
-        );
+    // A ball's rotation, written beside it as a chain.
+    let ball = fixture::mate(
+        fixture::point_of(cap(ids[2], body, CapEnd::Start)),
+        fixture::point_of(cap(ids[1], body, CapEnd::End)),
+    );
+    let mut bundle = lone(ball);
+    for (at, axis) in (2..).zip(TargetAxis::ALL) {
+        bundle.push(value_at(at, Coord::Spin(axis), ang(0.1)));
     }
-
-    let fault = through_door(
-        &doc,
-        ids[1],
-        &add_value(ids[1], rest.id, Coord::Slide(SlideAxis::Z), len(0.25)),
-    )
-    .expect_err("refused");
-    assert!(
-        matches!(
-            fault,
-            MateFault::NotAFreedom {
-                coord: Coord::Slide(SlideAxis::Z),
-                kind: VarKind::Plane,
-                ..
-            }
-        ),
-        "{fault:?}"
-    );
-
-    let (doc, ball) = fixture::constrain(
-        doc,
-        fixture::mate(
-            fixture::point_of(cap(ids[2], body, CapEnd::Start)),
-            fixture::point_of(cap(ids[1], body, CapEnd::End)),
-            ContactClass::Rest,
-        ),
-    );
-    let fault = through_door(
-        &doc,
-        ids[2],
-        &add_value(ids[2], ball.id, Coord::Spin, ang(0.1)),
-    )
-    .expect_err("refused");
-    assert!(
-        matches!(
-            fault,
-            MateFault::NoChart {
-                why: editor_core::NoChartWhy::PointRotation,
-                ..
-            }
-        ),
-        "{fault:?}"
-    );
+    whole_door(&doc, ids[2], bundle).expect("a ball's chain of spins pins it");
 
     // An axis mate whose target is the line two copies' faces meet in.
     let (doc, lines, _, body) = instances("msolve10-a1-two-bodies", 3);
@@ -394,90 +286,17 @@ fn a1_a_values_own_admission_refuses_at_insert() {
         a: editor_core::pose::RoleRead::plain(fixture::plane(cap(lines[0], body, CapEnd::End))),
         b: editor_core::pose::RoleRead::plain(fixture::plane(cap(lines[1], body, CapEnd::End))),
     }));
-    let (doc, coaxial) = fixture::constrain_at(
-        doc,
-        lines[2],
-        fixture::mate(
-            fixture::axis(cap(lines[2], body, CapEnd::Start)),
-            meet,
-            ContactClass::Rest,
-        ),
-    );
-    let fault = through_door(
-        &doc,
-        lines[2],
-        &add_value(lines[2], coaxial.id, Coord::Spin, ang(0.1)),
-    )
-    .expect_err("refused");
-    assert!(
-        matches!(
-            fault,
-            MateFault::NoChart {
-                why: editor_core::NoChartWhy::TwoBodies,
-                ..
-            }
-        ),
-        "{fault:?}"
-    );
-}
-
-/// **A mate re-written re-asks the values naming it**: an axis mate
-/// read off one copy's cap, with a spin value, is admitted; re-pointing
-/// its target onto the line two copies' caps meet in (a read off two
-/// bodies) refuses at the slot door as the value's `NoChart {
-/// TwoBodies }`, as `AddValue` refuses it on that target — whichever
-/// was written last, the door's verdict on the value is the load
-/// door's, and no document it admits fails to save.
-///
-/// *Breaks if* a mate re-pointed is admitted alone (the document saves
-/// no more: the save walk asks every value).
-#[test]
-fn a1_a_mate_re_pointed_re_asks_the_values_naming_it() {
-    let (doc, lines, _, body) = instances("msolve10-a1-re-pointed", 3);
-    let (doc, coaxial) = fixture::constrain_at(
-        doc,
-        lines[2],
-        fixture::mate(
-            fixture::axis(cap(lines[2], body, CapEnd::Start)),
-            fixture::axis(cap(lines[0], body, CapEnd::End)),
-            ContactClass::Rest,
-        ),
-    );
-    let (doc, _) = through_door(
-        &doc,
-        lines[2],
-        &add_value(lines[2], coaxial.id, Coord::Spin, ang(0.1)),
-    )
-    .expect("a spin on a one-body target is admitted");
-    let meet = editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Meet {
-        a: editor_core::pose::RoleRead::plain(fixture::plane(cap(lines[0], body, CapEnd::End))),
-        b: editor_core::pose::RoleRead::plain(fixture::plane(cap(lines[1], body, CapEnd::End))),
-    }));
-    let refused = doc.apply(
-        &DocEdit::SetParam {
-            node: lines[2],
-            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Side {
-                constraint: coaxial.id,
-                side: editor_core::MateSide::To,
-            }),
-            value: editor_core::SlotValue::Read(meet),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    );
-    assert!(
-        matches!(
-            &refused,
-            Err(EditError::MateRefused { fault, .. }) if matches!(
-                **fault,
-                MateFault::NoChart {
-                    why: editor_core::NoChartWhy::TwoBodies,
-                    ..
-                }
-            )
-        ),
-        "{refused:?}"
-    );
+    let mut bundle = lone(fixture::mate(
+        fixture::axis(cap(lines[2], body, CapEnd::Start)),
+        meet,
+    ));
+    bundle.push(value_at(2, Coord::Slide(TargetAxis::Z), len(0.0)));
+    bundle.push(value_at(
+        3,
+        Coord::Spin(editor_core::TargetAxis::Z),
+        ang(0.1),
+    ));
+    whole_door(&doc, lines[2], bundle).expect("a target over two bodies has one chart");
 }
 
 // ---- The history and the log ----
@@ -489,15 +308,16 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     let (doc, ids, _, body) = instances("msolve10-a1-history", 2);
     let before = doc.clone();
     let (named, fault) =
-        at_the_door(&doc, kinds_differ(body, ids[0], ids[1])).expect_err("refused");
+        whole_door(&doc, ids[1], lone(kinds_differ(body, ids[0], ids[1]))).expect_err("refused");
     let MateFault::KindsDiffer { mate: refused, .. } = fault else {
         panic!("{fault:?}");
     };
     assert_eq!(named, ids[1]);
     assert_eq!(doc.ids(), before.ids());
-    assert!(
-        fixture::bundle(&doc, named).is_empty(),
-        "the bundle holds nothing"
+    assert_eq!(
+        fixture::bundle(&doc, named),
+        fixture::bundle(&before, named),
+        "the bundle holds what it held"
     );
     let (after, minted) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
     assert_ne!(minted, refused, "another mate, another id");
@@ -506,7 +326,11 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
         "nothing was minted for the refusal"
     );
     assert_eq!(after.ids(), before.ids());
-    assert_eq!(fixture::bundle(&after, ids[1]).len(), 1);
+    assert_eq!(
+        fixture::bundle(&after, ids[1]).len(),
+        4,
+        "the rest and the three values it leaves"
+    );
     let (unasked, _) = fixture::constrain(before, mate(body, ids[0], ids[1]));
     assert_eq!(
         after.mint(),
@@ -525,7 +349,7 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
 fn a3_replay_round_trips_an_admitted_mate_and_refuses_a_door_refusal_at_load() {
     let (doc, ids, _, body) = instances("msolve10-a3-log", 2);
     let snapshot = doc.clone();
-    let edit = add(ids[1], mate(body, ids[0], ids[1]));
+    let edit = seat(&doc, ids[1], mate(body, ids[0], ids[1]));
     let applied = doc.apply(&edit, Tol::witness()).expect("admitted");
     let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
@@ -575,15 +399,16 @@ fn a3_replay_round_trips_an_admitted_mate_and_refuses_a_door_refusal_at_load() {
 fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
     let (doc, ids, _, body) = instances("msolve10-a3-overconstrained", 2);
     let snapshot = doc.clone();
-    let bottom = add(ids[1], mate(body, ids[0], ids[1]));
-    let top = add(
-        ids[1],
-        fixture::rest(
+    let bottom = seat(&doc, ids[1], mate(body, ids[0], ids[1]));
+    // The second rest added to the pinned bundle beside the first.
+    let top = DocEdit::AddConstraint {
+        placement: ids[1],
+        mate: Box::new(fixture::rest(
             cap(ids[1], body, CapEnd::End),
             cap(ids[0], body, CapEnd::End),
-            ContactClass::Rest,
-        ),
-    );
+        )),
+        fresh: Vec::new(),
+    };
     let doc = doc
         .apply(&bottom, Tol::witness())
         .expect("the door admits the first rest")
@@ -598,7 +423,7 @@ fn a3_a_second_rest_refuses_at_the_door_and_on_replay() {
     assert!(
         matches!(
             &**fault,
-            MateFault::Overconstrained { placement, constraints, free: 1 }
+            MateFault::Overconstrained { placement, constraints, free: 0 }
                 if *placement == ids[1] && constraints.len() == 2 && constraints.contains(&held)
         ),
         "{fault:?}"
@@ -623,18 +448,15 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     let (doc, ids, _, body) = instances("msolve10-a3-snapshot", 2);
     let (doc, mate_id) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
-    // The one mate whose target is a pose (the first instance's world
-    // mate reads the world): its `on` and `to` reads exchanged, so
-    // every variable keeps its one reader.
+    // The one mate: its `on` and `to` reads exchanged, so every
+    // variable keeps its one reader.
     fn swap(v: &mut serde_json::Value, swapped: &mut usize) {
         match v {
             serde_json::Value::Object(map) => {
-                if map.contains_key("on")
-                    && map.get("to").is_some_and(|to| to.get("pose").is_some())
-                {
+                if map.contains_key("on") && map.contains_key("to") {
                     let on = map["on"].clone();
-                    map["on"] = map["to"]["pose"].clone();
-                    map["to"]["pose"] = on;
+                    map["on"] = map["to"].clone();
+                    map["to"] = on;
                     *swapped += 1;
                 }
                 for value in map.values_mut() {
@@ -651,10 +473,7 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     }
     let mut swapped = 0_usize;
     let doctored = wire::doctored(&text, |w| swap(w, &mut swapped));
-    assert_eq!(
-        swapped, 1,
-        "the snapshot's one pose-to-pose mate was swapped"
-    );
+    assert_eq!(swapped, 1, "the snapshot's one mate was swapped");
     match load(&doctored, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::MateRefused {
             node,
@@ -669,7 +488,6 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
     let swapped_mate = fixture::mate(
         fixture::flip(fixture::plane(cap(ids[0], body, CapEnd::End))),
         fixture::plane(cap(ids[1], body, CapEnd::Start)),
-        ContactClass::Rest,
     );
     let (named, door) = at_the_door_of(&doc, ids[1], swapped_mate).expect_err("refused");
     assert_eq!(named, ids[1]);
@@ -686,12 +504,8 @@ fn a3_a_doctored_snapshot_whose_mate_is_not_on_its_copy_refuses_at_load() {
 fn a_door_fault(fault: &MateFault) -> bool {
     matches!(
         fault,
-        MateFault::ClassNotAdmitted { .. }
-            | MateFault::NotOnTheCopy { .. }
+        MateFault::NotOnTheCopy { .. }
             | MateFault::KindsDiffer { .. }
-            | MateFault::WorldRead { .. }
-            | MateFault::ValueNamesNoMate { .. }
-            | MateFault::NotAFreedom { .. }
             | MateFault::NoChart { .. }
             | MateFault::Overconstrained { .. }
     )
@@ -702,8 +516,8 @@ fn a_door_fault(fault: &MateFault) -> bool {
 type Row = (&'static str, ProfileDoc, EvalOptions);
 
 /// **The corpus**: shapes of constraint a document can hold, through
-/// the doors that admit them — a sound pair, a chain, a class that
-/// solves and mints nothing, a value on a mate, and a state the
+/// the doors that admit them — a sound pair, a chain, a value on a
+/// mate, and a state the
 /// evaluation refuses: a target stranded past a pattern's count after
 /// the mate is in.
 fn corpus() -> Vec<Row> {
@@ -720,23 +534,14 @@ fn corpus() -> Vec<Row> {
         ("msolve10-corpus-chain", doc, opts)
     });
     rows.push({
-        let (doc, ids, opts, body) = instances("msolve10-corpus-tangent", 2);
-        let m = editor_core::Mate {
-            class: ContactClass::Tangent,
-            ..mate(body, ids[0], ids[1])
-        };
-        let (doc, _) = fixture::constrain(doc, m);
-        ("msolve10-corpus-tangent", doc, opts)
-    });
-    rows.push({
         let (doc, ids, opts, body) = instances("msolve10-corpus-value", 2);
-        let (doc, rest) = fixture::constrain(doc, mate(body, ids[0], ids[1]));
-        let (doc, _) = through_door(
-            &doc,
+        // A plane mate leaves its spin.
+        let (doc, _) = fixture::mated(
+            doc,
             ids[1],
-            &add_value(ids[1], rest.id, Coord::Spin, ang(0.3)),
-        )
-        .expect("a plane mate leaves its spin");
+            mate(body, ids[0], ids[1]),
+            &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.3))],
+        );
         ("msolve10-corpus-value", doc, opts)
     });
     rows.push({
@@ -764,7 +569,6 @@ fn corpus() -> Vec<Row> {
                     2,
                     in_part(ids[0], body, CapEnd::End),
                 )),
-                ContactClass::Rest,
             ),
         );
         let (doc, _) = step(
@@ -782,8 +586,8 @@ fn corpus() -> Vec<Row> {
 }
 
 /// **The door admits again every constraint of the corpus, whatever its
-/// evaluation says**: each constraint, removed and added back as
-/// written, is admitted — the door decides only the recipe, and every
+/// evaluation says**: each bundle, written again whole as written, is
+/// admitted — the door decides only the recipe, and every
 /// constraint of a document passed it. Every fault the evaluation
 /// records is one about the poses' values, never a fact the door
 /// decides.
@@ -801,71 +605,29 @@ fn a2_the_door_admits_every_constraint_of_the_corpus_again() {
                 );
                 refused_where_evaluated += 1;
             }
-            let bundle = fixture::bundle(&doc, placement);
-            for c in &bundle {
-                // A world mate is the pin the fixture wrote; a mate a
-                // value names is re-added with its value below.
-                let Some(m) = c.mate() else { continue };
-                if matches!(m.to, Target::World(_))
-                    || bundle
-                        .iter()
-                        .any(|v| v.value().is_some_and(|v| v.mate == c.id))
-                {
-                    continue;
+            // Every bundle pins its copy, so it is re-admitted whole:
+            // the bundle as written, written again over itself.
+            let Some(
+                Node::Place {
+                    constraints: written,
+                    ..
                 }
-                constraints += 1;
-                let at = MateRef::new(placement, c.id);
-                let written = written_constraint(&doc, at);
-                let without = step(
-                    doc.clone(),
-                    DocEdit::RemoveConstraint {
-                        placement,
-                        constraint: c.id,
-                    },
-                )
-                .0;
-                let twin = at_the_door_of(
-                    &without,
-                    placement,
-                    written.mate().cloned().expect("a mate"),
-                );
-                assert!(
-                    twin.is_ok(),
-                    "{label}: the door refused the twin of constraint {} of {placement:?}: {:?}",
-                    c.id,
-                    twin.err()
-                );
-                admitted += 1;
-            }
-            for c in bundle.iter().filter(|c| c.value().is_some()) {
-                constraints += 1;
-                let written = written_constraint(&doc, MateRef::new(placement, c.id));
-                let without = step(
-                    doc.clone(),
-                    DocEdit::RemoveConstraint {
-                        placement,
-                        constraint: c.id,
-                    },
-                )
-                .0;
-                let value = written.value().cloned().expect("a value");
-                let twin = through_door(
-                    &without,
-                    placement,
-                    &DocEdit::AddValue {
-                        placement,
-                        value: Box::new(value),
-                        fresh: Vec::new(),
-                    },
-                );
-                assert!(
-                    twin.is_ok(),
-                    "{label}: the door refused the twin of value {}: {:?}",
-                    c.id,
-                    twin.err()
-                );
-                admitted += 1;
-            }
+                | Node::InstantiatePart {
+                    constraints: written,
+                    ..
+                },
+            ) = doc.node(placement).map(|node| node.written(&doc))
+            else {
+                panic!("{label}: {placement:?} is a placement");
+            };
+            constraints += written.len();
+            let twin = whole_door(&doc, placement, written);
+            assert!(
+                twin.is_ok(),
+                "{label}: the door refused the twin of {placement:?}'s bundle: {:?}",
+                twin.err()
+            );
+            admitted += 1;
         }
         assert!(
             constraints > 0,

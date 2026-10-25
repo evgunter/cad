@@ -264,7 +264,7 @@ fn the_pipped_cube_fillets_in_place_with_rings_carried() {
         Tol::witness(),
     )
     .expect("the surgery fillets the pipped cube");
-    let body = out.body;
+    let body = topo::test_support::finished("body", out.body, Tol::witness());
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2");
     assert_eq!(
@@ -311,8 +311,9 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
     // `decide` as the surgery runs) and taken straight after, so the
     // certification battery below runs unlogged exactly as it did.
     let bracket = Bracket::open();
-    let die = composed_die();
+    let built = composed_die();
     let log = bracket.finish().verdicts;
+    let die = topo::test_support::finished("die", built, Tol::witness());
     assert!(
         log.iter().any(|v| v.predicate == "fillet3_ring_clearance"),
         "K-FUNNEL: fillet3_ring_clearance never reached the funnel"
@@ -380,8 +381,8 @@ fn composed_die() -> Body<f64> {
 /// volume bits, same entity counts.
 #[test]
 fn the_composed_die_replays_bit_identically() {
-    let a = composed_die();
-    let b = composed_die();
+    let a = topo::test_support::finished("a", composed_die(), Tol::witness());
+    let b = topo::test_support::finished("b", composed_die(), Tol::witness());
     let (va, vb) = (
         topo::mass_properties(&a, Tol::witness()).unwrap().volume,
         topo::mass_properties(&b, Tol::witness()).unwrap().volume,

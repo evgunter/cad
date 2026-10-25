@@ -527,7 +527,7 @@ pub(crate) fn copy_rows<T: Decide>(
                 unreachable!("a row the census recorded between copies names a cell of each")
             };
             crate::assembly::AtRestRow {
-                by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
+                copies: (by(ca.min(cb)), by(ca.max(cb))),
                 row: crate::coincide::NamedCoincidence {
                     cells: vec![na, nb],
                     relation: row.relation,
@@ -822,7 +822,7 @@ fn beyond(
     tol: Tol,
 ) -> Result<topo::AtRestBody<f64>, String> {
     use crate::eval::measure::{Carrier, carrier_of, reach_of};
-    use geom_core::{Point2, RigidMotion, Vec3};
+    use geom_core::{Point2, RigidMotion};
     use profile::{Step, Target};
     let band = Band::linear(tol).map_err(|e| e.to_string())?;
     let sense = aggregate
@@ -893,19 +893,18 @@ fn beyond(
         }
         _ => unreachable!("the carrier was matched above"),
     };
-    let frame = [Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0)]
-        .into_iter()
-        .find_map(|reference| {
-            RigidMotion::from_axis_and_reference(
-                base,
-                normal,
-                reference,
-                AT_REST_BEYOND_FRAME,
-                band,
-            )
-            .ok()
-        })
-        .ok_or("the carrier's normal spans no frame")?;
+    // The region is turned with the carrier's own chart, so it moves
+    // with the inputs and not with the computing axes.
+    let reference = match aggregate
+        .get_face(face)
+        .and_then(|f| aggregate.get_surface(f.surface))
+    {
+        Some(topo::Surface::Plane { u_ref, .. } | topo::Surface::Cylinder { u_ref, .. }) => *u_ref,
+        _ => return Err("the carrier's surface is unreadable".to_owned()),
+    };
+    let frame =
+        RigidMotion::from_axis_and_reference(base, normal, reference, AT_REST_BEYOND_FRAME, band)
+            .map_err(|_| "the carrier's chart spans no frame")?;
     let loops = loops
         .iter()
         .map(|steps| profile::replay(steps, tol).map_err(|e| format!("{e:?}")))

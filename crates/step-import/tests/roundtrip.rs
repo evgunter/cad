@@ -53,7 +53,7 @@ fn committed_corpus_row(name: &str) {
     //   * the rounding of each side's sum: each side's volume is a
     //     fixed-order sum of per-face terms, each face read about a
     //     vertex of its shell (`topo::props`' `shell_reference`, the
-    //     start of the shell's first face). Import traversal need not
+    //     start of the shell's first quadrature face). Import traversal need not
     //     match construction order, so the two sides may sum in
     //     different orders and read a face about different vertices:
     //     their terms are not the same values, only the same sum in the
@@ -185,12 +185,18 @@ fn fixed_point() {
             arena_census(&body2),
             "{name}: census identical across the adoption pass"
         );
-        let v1 = topo::mass_properties(&body1, Tol::witness())
-            .unwrap()
-            .volume;
-        let v2 = topo::mass_properties(&body2, Tol::witness())
-            .unwrap()
-            .volume;
+        let v1 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body1.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
+        let v2 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body2.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         assert_eq!(
             v1.to_bits(),
             v2.to_bits(),

@@ -4,11 +4,16 @@
 //! bounded? Two loops answer both here, each keeping its own body, its
 //! own units and its own action on an idle round: the offset fit
 //! ([`crate::offset_fit`]) and limb 2's hull subdivision
-//! (`ssi::certify::subdivide`). Not every such loop in the crate does:
-//! `ssi::refine::refine_by_certificate` compares each round with the
-//! previous one and is bounded by the march's step wall, and the
-//! quadrature loops in `props::quad` stop on a round count
-//! (`QUAD_MAX_ROUNDS`, `QUAD2_MAX_ROUNDS`, `TRIM_MAX_ROUNDS`).
+//! (`ssi::certify::subdivide`). The quadrature lanes in `props::quad`
+//! take the cumulative budget ([`Work`]) as their work wall. None of
+//! them takes the stall today: each splits a round's width into the
+//! part a later round removes and the part none does, so refinement
+//! stopping paying is a reading of the round itself
+//! (`props::quad::Run`'s floor). The stall stays the backstop the
+//! measure door's R2 names, for a lane that cannot split the two. Not every such loop
+//! in the crate reads this home: `ssi::refine::refine_by_certificate`
+//! compares each round with the previous one and is bounded by the
+//! march's step wall.
 //!
 //! - **Paying** is measured against the LOWEST certified bound any
 //!   round reached ([`Descent`]): a round that does not lower it is

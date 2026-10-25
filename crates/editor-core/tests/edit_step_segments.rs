@@ -49,7 +49,6 @@
 #![allow(clippy::panic)]
 #![allow(clippy::unwrap_used)]
 
-use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -380,7 +379,6 @@ fn prism(id: &str, points: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext)
@@ -545,17 +543,17 @@ fn a_reversed_loop_from_any_corner_names_the_walls_its_steps_bound() {
 // segment's plan position.
 
 /// A loft of `sections[i]`'s loops (outer and holes, in the order the
-/// section authors them), section `i` at `z = i`.
+/// section authors them), section `i` at `z = i` up the first's own z.
 fn loft_of_loops(
     id: &str,
     sections: &[Vec<Vec<(f64, f64)>>],
 ) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived(id, tol());
     let mut ids = Vec::new();
-    for (i, loops) in sections.iter().enumerate() {
+    for loops in sections {
         let (d, s) = on_frame(
             doc,
-            [0.0, 0.0, i as f64],
+            [0.0; 3],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             loops.clone(),
@@ -563,10 +561,22 @@ fn loft_of_loops(
         doc = d;
         ids.push(s);
     }
+    let then = ids[1..]
+        .iter()
+        .enumerate()
+        .map(|(i, &s)| editor_core::LoftSection {
+            profile: s.into(),
+            station: vec![editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by: len((i + 1) as f64),
+            }],
+        })
+        .collect();
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: ids.clone().into_iter().map(Into::into).collect(),
+            first: ids[0].into(),
+            then,
             v_degree: Formula::count(1),
         },
     );
@@ -619,6 +629,32 @@ fn loft_wall(
     }
 }
 
+/// How far up the first section's own `z` section `si` of `loft`
+/// stands: the sum of its station's slides along `z`, each a typed
+/// length.
+fn station_z(doc: &ProfileDoc, loft: RecipeNodeId, si: usize) -> f64 {
+    let Some(Node::Loft { then, .. }) = doc.node(loft) else {
+        panic!("{loft:?} is a loft");
+    };
+    let Some(section) = si.checked_sub(1).map(|i| &then[i]) else {
+        return 0.0;
+    };
+    section
+        .station
+        .iter()
+        .map(|m| match m {
+            editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by,
+            } => match doc.free(*by) {
+                Some(editor_core::FreeVar::Continuous { value, .. }) => *value,
+                other => panic!("a station slide is a typed length, got {other:?}"),
+            },
+            other => panic!("a straight-prism loft's station slides along z, got {other:?}"),
+        })
+        .sum()
+}
+
 /// For EACH section of an evaluated straight-prism loft, every step of
 /// every program loop, asked through the ordinary door with the
 /// section's own program, records and naming anchor:
@@ -659,8 +695,11 @@ fn assert_sections_bound_their_walls(
         };
         let r = records(doc, program);
         let placement = pv.validated.plane().placement();
-        let place =
-            |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
+        let up = station_z(doc, loft, si);
+        let place = |p: Point2<f64>| {
+            placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0))
+                + geom_core::Vec3::new(0.0, 0.0, up)
+        };
         let mut walls = BTreeSet::new();
         assert_eq!(want[si].len(), r.verts.len(), "{id}: one case per loop");
         for (li, want) in want[si].iter().enumerate() {
@@ -922,7 +961,7 @@ fn a_loft_whose_outer_and_hole_start_off_their_lex_min_names_its_walls() {
 fn a_reauthored_section_is_answered_after_a_memoized_reevaluation() {
     let before = [vec![rect_ccw()], vec![rect_ccw()]];
     let (a, ids, loft) = loft_of_loops("loft-memo", &before);
-    let loops = crate::fixture::desc(ids[1], vec![rect_cw()]).loops;
+    let loops = crate::fixture::desc(vec![rect_cw()]).loops;
     let fresh = loops
         .iter()
         .map(|lp| vec![None; lp.authored_steps()])
@@ -1041,9 +1080,12 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
             );
         }
     }
-    let volume = topo::mass_properties(body, tol())
-        .expect("mass properties")
-        .volume;
+    let volume = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&**body), tol()),
+        tol(),
+    )
+    .expect("mass properties")
+    .volume;
     let c15 = (core::f64::consts::PI / 12.0).cos();
     let want = (8.0 + 16.0 * c15 * c15) / 6.0;
     assert!(
@@ -1522,11 +1564,9 @@ fn arc_prism(
     }
     steps.push(ProgramStep::LineTo(ProgramTarget::Start));
     let doc = ProfileDoc::empty_derived(id, tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -1536,7 +1576,6 @@ fn arc_prism(
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext, exprs)
@@ -1678,12 +1717,10 @@ fn a_reversed_chains_arcs_are_answered_in_program_indices() {
 #[test]
 fn a_carrier_loop_is_answered_at_every_edge() {
     let doc = ProfileDoc::empty_derived("segment-radii-carrier", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let radius = len(0.5);
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::CircleSplit {
                 centre: [len(0.0), len(0.0)],
                 radius: radius.clone(),
@@ -1823,11 +1860,9 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         "the program answers the fillet's radius at the step that holds it"
     );
     let doc = ProfileDoc::empty_derived("segment-radii-fillet", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![filleted],
             ids: Vec::new(),
         }),
@@ -1837,7 +1872,6 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -1942,11 +1976,9 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
          a through-point instead"
     );
     let doc = ProfileDoc::empty_derived("segment-radii-via-arrival", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![chain],
             ids: Vec::new(),
         }),
@@ -1956,7 +1988,6 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -2213,11 +2244,9 @@ fn rotated_arc_prism(
         ProgramStep::LineTo(ProgramTarget::Start),
     ];
     let doc = ProfileDoc::empty_derived(id, tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -2227,7 +2256,6 @@ fn rotated_arc_prism(
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     (doc, profile, ext, vec![r1, r2])
@@ -2444,11 +2472,9 @@ fn keyed_but_never_attached() -> ProfileDoc {
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let doc = ProfileDoc::empty_derived("segment-radii-extension", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, _) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![program],
             ids: Vec::new(),
         }),
@@ -2497,11 +2523,9 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
         ProgramStep::ContinueTo(ProgramTarget::Start),
     ] {
         let doc = ProfileDoc::empty_derived("segment-radii-closing-fillet", tol());
-        let (doc, plane) = insert(doc, fixture::xy_frame());
         let attempt = doc.apply(
             &editor_core::DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops: vec![head(closer.clone())],
                     ids: Vec::new(),
                 })),
@@ -2611,12 +2635,10 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
          the content key"
     );
     let doc = ProfileDoc::empty_derived("segment-radii-fused-bulge", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let applied = doc
         .apply(
             &editor_core::DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    frame: plane.into(),
                     loops: vec![program],
                     ids: Vec::new(),
                 })),
@@ -2632,7 +2654,6 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -2723,11 +2744,9 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         "the key's feed takes all three spellings"
     );
     let doc = ProfileDoc::empty_derived("segment-radii-three", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![program],
             ids: Vec::new(),
         }),
@@ -2737,7 +2756,6 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -3106,7 +3124,7 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
             centre: [len(0.0), len(0.0)],
             radius: len(1.0),
             n: 4,
-            phase: fixture::ang(0.0),
+            phase: editor_core::Formula::zero(editor_core::Dimension::Angle),
         }],
     );
     let program = row.program();

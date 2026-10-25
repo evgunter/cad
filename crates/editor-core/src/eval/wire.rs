@@ -20,21 +20,14 @@
 //! through member lineage ([`given_pairs`]), with each operand's own
 //! records carried in; the kernel takes them as [`BooleanInputs`].
 //!
-//! **The placement-rule arithmetic.** [`transform_map`],
-//! [`SteppedOperands`], [`stepped_rule_map`] and the direction-role
-//! words beside them ([`TRANSFORM_AXIS_ROLE`], [`DATUM_AXIS_ROLE`];
-//! a linear rule's [`PATTERN_DIRECTION_ROLE`] is read inside its
-//! constructor) are the ONE spelling of "where does a placer put
-//! instance `i`". They are
-//! `pub(crate)` because the mate solve's derived offset
-//! (`crate::mate::member`) re-derives a placer's map from the recipe
-//! and must get the same affine and the same refusal words as the
-//! evaluation does.
+//! **The placement-rule arithmetic.** [`SteppedOperands`] and
+//! [`stepped_rule_map`] are the ONE spelling of "where does a pattern
+//! put instance `i`"; a linear rule's direction is decided under
+//! [`PATTERN_DIRECTION_ROLE`] inside its constructor.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use geom_brep::OutwardNormal;
 use geom_core::{
     Affine3, Band, Decide, OrthoAxis, Point2, Point3, RigidMotion, Sign, Tol, UnitVec3,
     UnitVec3Error, Vec2, Vec3,
@@ -42,14 +35,14 @@ use geom_core::{
 use sweep::{Revolution, RevolveAxis};
 use topo::splitting::SplitPart;
 use topo::transform::transform_rigid;
-use topo::{Body, BooleanInputs, DATUM_UNIT_NORM};
+use topo::{Body, BooleanInputs, POSE_UNIT_NORM};
 
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, NodeErrorKind, NodeResult, PoseValue, SplitSide, ValuePayload};
 use crate::decision::Decision;
 use crate::names::{self, NameTable, SplitHalf};
-use crate::node::{Axis3, Datum, Node, PatternKind, RecipeNodeId, SlotId};
+use crate::node::{Axis3, Node, PatternKind, RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
 use topo::BooleanOp;
 
@@ -76,10 +69,9 @@ pub(crate) struct OpOut<T: Decide> {
     /// fragment groups beside them empty for an op that forms none.
     pub outputs: Vec<super::OutputNames>,
     pub contacts: Arc<topo::ContactRecords>,
-    /// Whose mate authored each of those records, and which mates of
-    /// the documents below could not be minted at all; same arena, same
+    /// The at-rest findings of the documents below; same arena, same
     /// one op.
-    pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    pub carried: Arc<crate::assembly::CarriedFindings>,
     /// How many parts each output body is (`NodeValue::parts`).
     pub parts: usize,
     /// The coincidences the op decided from values, named in its
@@ -90,34 +82,26 @@ pub(crate) struct OpOut<T: Decide> {
     pub cited_inputs: Arc<[crate::coincide::CitedInput]>,
     /// A placement's solved motion (`NodeValue::motion`).
     pub motion: Option<RigidMotion<T>>,
-    /// A placement's space (`NodeValue::space`), `None` for every other
-    /// op, whose value lives in its inputs'.
-    pub space: Option<crate::mate::Space>,
 }
 
 impl<T: Decide> OpOut<T> {
-    /// An op that declares no contact — every op but instantiate.
+    /// An op that carries no part's records — every op but instantiate.
     fn plain(payload: ValuePayload<T>, names: Arc<NameTable>) -> Self {
         Self {
             payload,
             outputs: vec![super::OutputNames::new(names, Arc::default())],
             contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
+            carried: Arc::new(crate::assembly::CarriedFindings::default()),
             parts: 1,
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             motion: None,
-            space: None,
         }
     }
 
-    /// This output, a placement's, sitting at `motion` in `space`.
-    fn moved(self, (motion, space): (Option<RigidMotion<T>>, crate::mate::Space)) -> Self {
-        Self {
-            motion,
-            space: Some(space),
-            ..self
-        }
+    /// This output, a placement's, sitting at `motion` in its target.
+    fn moved(self, motion: Option<RigidMotion<T>>) -> Self {
+        Self { motion, ..self }
     }
 
     /// This output, its records' carried citations naming `inputs` by
@@ -188,8 +172,6 @@ fn read_table<T: Decide>(value: &super::NodeValue<T>) -> Arc<NameTable> {
         .output(0)
         .map_or_else(names::empty, super::OutputNames::shared_table)
 }
-/// A bare payload (datum/profile lanes — empty tables).
-type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
 /// The LANE half of an evaluation's environment: the parameter
 /// environments profile geometry is elaborated over at `T`. They
@@ -202,10 +184,8 @@ pub(crate) struct LaneEnv<'a, T> {
     pub params: &'a crate::expr::VarEnv<T>,
     /// The document's own f64 parameter environment, under no box and
     /// no seed, built once per evaluation beside `params`. Every
-    /// f64-pinned decision the evaluation makes reads it — the nominal
-    /// slots an authored frame's placement is minted from
-    /// ([`mint_frame_placement`]), a profile's program resolution —
-    /// so it is what a content key owes
+    /// f64-pinned decision the evaluation makes reads it — a profile's
+    /// program resolution — so it is what a content key owes
     /// ([`super::tag::slot`]). Nothing under evaluation builds a second
     /// one.
     pub nominal: &'a crate::expr::VarEnv<f64>,
@@ -350,15 +330,14 @@ where
         + super::ProfileLane,
 {
     use crate::OperandSlot as O;
-    // A profile reads its frame, a datum, and an assertion reads no
-    // operand, so neither has a read to project.
+    // A profile and an assertion read no operand, so neither has a
+    // read to project.
     let node = match input {
         OpInput::Profile {
             program, pre, form, ..
         } => {
-            let value = wire_profile(doc, program, results, pre, form, env.lane, tol)?;
-            let rows = crate::coincide::name_junctions(id, &value.validated, &value.pieces)
-                .map_err(NodeErrorKind::Naming)?;
+            let value = wire_profile(program, pre, form, tol)?;
+            let rows = crate::coincide::name_junctions(id, &value.validated, &value.pieces);
             return Ok(
                 OpOut::plain(ValuePayload::Profile(value), names::empty()).with_coincidences(rows)
             );
@@ -403,41 +382,34 @@ where
     // Every read resolves here: an unresolved one refused the node
     // before its op was reached (`eval::read_at`).
     let at = |slot, var| super::read_at(doc, slot, var);
-    let all = |slot: fn(u32) -> O, list: &[crate::VarId]| {
-        list.iter()
-            .enumerate()
-            .map(|(i, &var)| at(slot(u32::try_from(i).unwrap_or(u32::MAX)), var))
-            .collect::<Result<Vec<_>, _>>()
-    };
     match node {
-        Node::Datum(d) => Ok(OpOut::plain(
-            wire_datum(d, doc, results, vals, tol)?,
-            names::empty(),
-        )),
         Node::Profile(_) | Node::Assertion { .. } => {
             unreachable!("`eval_node` gives a profile and an assertion their own `OpInput` arm")
         }
-        Node::Extrude { profile, side, .. } => {
-            wire_extrude(id, at(O::Profile, *profile)?, *side, results, vals, tol)
+        Node::Extrude { profile, .. } => {
+            wire_extrude(id, at(O::Profile, *profile)?, results, vals, tol)
         }
         Node::Revolve { profile, .. } => {
             wire_revolve(id, at(O::Profile, *profile)?, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => {
-            wire_loft(id, &all(O::Section, profiles)?, results, vals, tol)
+        Node::Loft { first, then, .. } => {
+            let sections = core::iter::once(*first)
+                .chain(then.iter().map(|section| section.profile))
+                .enumerate()
+                .map(|(i, var)| at(O::Section(u32::try_from(i).unwrap_or(u32::MAX)), var))
+                .collect::<Result<Vec<_>, _>>()?;
+            let stations: Vec<&[crate::node::StationMove]> = then
+                .iter()
+                .map(|section| section.station.as_slice())
+                .collect();
+            wire_loft(id, &sections, &stations, results, vals, tol)
         }
         Node::Sweep { profile, path, .. } => {
             let (profile, path) = (at(O::Profile, *profile)?, at(O::Path, *path)?);
             wire_sweep(profile, path, results, vals)
         }
-        Node::Tube { frame, window, .. } => {
-            let frame = frame_pose(doc, unprojected, *frame, env.lane.params, tol)?;
-            wire_tube(id, frame, window, vals, tol)
-        }
-        Node::HollowTube { frame, window, .. } => {
-            let frame = frame_pose(doc, unprojected, *frame, env.lane.params, tol)?;
-            wire_hollow_tube(id, frame, window, vals, tol)
-        }
+        Node::Tube { window, .. } => wire_tube(id, window, vals, tol),
+        Node::HollowTube { window, .. } => wire_hollow_tube(id, window, vals, tol),
         Node::Fillet { selection, .. } => wire_blend(
             &crate::verbs::blend::fillet(),
             id,
@@ -473,6 +445,13 @@ where
             results,
             tol,
         ),
+        Node::Mirror { body, plane } => wire_mirror(
+            body.read,
+            at(O::Body, body.read)?,
+            &pose::eval_pose(doc, unprojected, O::Plane, *plane, env.lane.params, tol)?,
+            results,
+            tol,
+        ),
         Node::Subtract { from, tool } => {
             let each = project_each(&[(O::From, from.read), (O::Cut, tool.read)])?;
             let [ra, rb] = [&each[0], &each[1]].map(|p| p.as_ref().unwrap_or(unprojected));
@@ -501,11 +480,9 @@ where
                 tol,
             )
         }
-        Node::Transform { input, placement } => {
-            wire_transform(at(O::Input, *input)?, placement, results, vals, tol)
-        }
         Node::Place {
             shapes,
+            target: _,
             constraints,
         } => {
             // Each shape projected by itself: two halves of one split
@@ -542,10 +519,12 @@ where
                 env,
                 tol,
             )?;
-            wire_place(id, &reads, placed.0.as_ref(), tol).map(|out| out.moved(placed))
+            wire_place(id, &reads, placed.as_ref(), tol).map(|out| out.moved(placed))
         }
-        // The world DENOTES NO BODY and defines no variable.
-        Node::World => unreachable!("the world is scheduled nowhere (`eval::schedule`)"),
+        // A space DENOTES NO BODY.
+        Node::World | Node::Space => {
+            unreachable!("a space is scheduled nowhere (`eval::schedule`)")
+        }
         Node::Pattern { input, kind, .. } => {
             let input = at(O::Input, *input)?;
             let rule = RuleEnv {
@@ -588,6 +567,7 @@ where
         Node::InstantiatePart {
             doc_ref,
             interface,
+            target: _,
             constraints,
         } => {
             // The copy before placement is what its mates' `on` poses
@@ -599,7 +579,7 @@ where
             let own: Results<T> =
                 BTreeMap::from([(id, NodeResult::Ok(super::NodeValue::scratch(unplaced)))]);
             let placed = fold_with(doc, &own, unprojected, id, constraints, reach, env, tol)?;
-            let out = wire_instantiate_part(id, doc_ref, interface, placed.0, env, tol)?;
+            let out = wire_instantiate_part(id, doc_ref, interface, placed, env, tol)?;
             Ok(out.moved(placed))
         }
     }
@@ -618,19 +598,34 @@ fn copy_reach<T: crate::mate::SolveScalar>(
 }
 
 /// [`copy_reach`] of a value's payload: its body's, or the farthest of
-/// its copies'. A value that is no body reaches nowhere.
+/// its bodies' (copies, instances, a split's halves). A value that is no
+/// body, or an empty boolean, reaches nowhere.
 fn payload_reach<T: crate::mate::SolveScalar>(
     payload: &ValuePayload<T>,
     at: RecipeNodeId,
 ) -> Result<f64, crate::mate::LeverRefusal> {
-    match payload {
-        ValuePayload::Body(body) => body_reach(body, at),
-        ValuePayload::Copies(copies) => copies
-            .bodies
-            .iter()
+    let farthest = |bodies: &mut dyn Iterator<Item = &topo::Body<T>>| {
+        bodies
             .map(|body| body_reach(body, at))
-            .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r))),
-        _ => Ok(0.0),
+            .try_fold(0.0_f64, |held, r| r.map(|r| held.max(r)))
+    };
+    match payload {
+        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            body_reach(body, at)
+        }
+        ValuePayload::Copies(copies) => farthest(&mut copies.bodies.iter().map(|b| &**b)),
+        ValuePayload::Instances(bodies) => farthest(&mut bodies.iter().map(|b| &**b)),
+        ValuePayload::Split { above, below } => farthest(
+            &mut [above, below].into_iter().filter_map(|side| match side {
+                SplitSide::Body(b) => Some(&**b),
+                SplitSide::Empty => None,
+            }),
+        ),
+        ValuePayload::Boolean(BooleanValue::Empty)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => Ok(0.0),
     }
 }
 
@@ -655,11 +650,14 @@ fn body_reach<T: crate::mate::SolveScalar>(
 /// C), its `on` poses read in `on_results` (an instance's own copy
 /// before placement among them) and its `to` poses in `to_results`.
 /// Each mate's `on` is read off the copied shapes before placement, in
-/// their own coordinates, and its `to` off the target space's geometry,
-/// or the world read inside the mate; the bundle folded
-/// ([`crate::mate::solve::solve_bundle`]). Answers the copy's motion in
-/// its target space's coordinates (`None` the identity) and the space
-/// it joins: a loose copy roots its own.
+/// their own coordinates, and its `to` off a body in the target space,
+/// in that space's coordinates; the bundle folded
+/// ([`crate::mate::solve::solve_bundle`]), its values charted on the
+/// target space's axes. Every mate's `to` is in the target space, which
+/// the edit door checked and evaluation refuses a node a re-target left
+/// otherwise before it runs ([`NodeErrorKind::SpaceMismatch`]). Answers
+/// the copy's motion in its target space's coordinates (`None` for the
+/// identity bundle, the one placement placed by no map).
 ///
 /// # Errors
 ///
@@ -674,45 +672,35 @@ fn fold_with<T>(
     reach: Result<f64, crate::mate::LeverRefusal>,
     env: &OpEnv<'_, T>,
     tol: Tol,
-) -> Result<(Option<RigidMotion<T>>, crate::mate::Space), NodeErrorKind>
+) -> Result<Option<RigidMotion<T>>, NodeErrorKind>
 where
     T: crate::mate::SolveScalar,
 {
-    use crate::mate::{MateFault, MateRef, MateSide, Space, Target};
+    use crate::mate::{MateFault, MateRef, MateSide};
     let fault = |f: MateFault| NodeErrorKind::Mate(Box::new(f));
-    // The named interim's world pin places its copy where its body
-    // stands, by no map, in every lane: it reads nothing and holds no
-    // number. It stands alone, so anything beside it is already fixed.
-    if crate::mate::solve::world_pin_stands_alone(id, constraints).map_err(NodeErrorKind::Mate)? {
-        return Ok((None, Space::World));
-    }
     let b = band(tol)?;
     let params = env.lane.params;
     let mut mates = Vec::with_capacity(constraints.len());
     let mut values = Vec::new();
-    // Each mate's two poses, its target's sense and the frame of the
-    // body its target is read off: what a value's chart reads.
+    // Each mate's two poses and its target's sense: what the chart of the
+    // one mate fixing a direction reads.
     let mut charted = Vec::new();
-    let mut target_space: Option<Space> = None;
     for c in constraints {
         let mate = MateRef::new(id, c.id);
         let m = match &c.kind {
             crate::mate::ConstraintKind::Mate(m) => m,
-            crate::mate::ConstraintKind::WorldPin(_) => {
-                unreachable!("a bundle holding a world pin is folded above")
-            }
             crate::mate::ConstraintKind::Value(v) => {
                 let slot = match v.coord {
                     crate::mate::Coord::Slide(_) => SlotId::ValueSlide { constraint: c.id },
-                    crate::mate::Coord::Spin => SlotId::ValueSpin { constraint: c.id },
+                    crate::mate::Coord::Spin(_) => SlotId::ValueSpin { constraint: c.id },
                 };
                 let by = crate::expr::eval_var(v.by, v.coord.dimension(), params)
                     .map_err(|source| NodeErrorKind::Expr { slot, source })?;
                 values.push(crate::mate::value::ReadValue {
                     value: mate,
-                    mate: v.mate,
                     coord: v.coord,
                     by,
+                    turns: params.turns.get(&v.by).copied(),
                 });
                 continue;
             }
@@ -737,121 +725,56 @@ where
             tol,
         )
         .map_err(|kind| unevaluated(MateSide::On, kind))?;
-        let (to, space, body) = match &m.to {
-            Target::Pose(var) => {
-                let to = pose::eval_pose(
-                    doc,
-                    to_results,
-                    seat(MateSide::To),
-                    crate::pose::RoleRead::plain(*var),
-                    params,
-                    tol,
-                )
-                .map_err(|kind| unevaluated(MateSide::To, kind))?;
-                let space = doc
-                    .read_ports(*var)
-                    .iter()
-                    .find_map(|(at, _)| match to_results.get(at) {
-                        Some(NodeResult::Ok(value)) => value.space,
-                        _ => None,
-                    })
-                    .unwrap_or(Space::World);
-                // The body's own frame: its placement's motion in the
-                // space, the identity for the space's own geometry. Two
-                // bodies refuse only where a value asks for the chart.
-                let body = crate::mate::solve::chart_body(doc, *var).map(|body| {
-                    body.and_then(|at| match to_results.get(&at) {
-                        Some(NodeResult::Ok(value)) => value.motion.map(|m| m.to_affine()),
-                        _ => None,
-                    })
-                    .unwrap_or_else(geom_core::Affine3::identity)
-                });
-                (to, space, body)
-            }
-            Target::World(world) => {
-                world
-                    .kind()
-                    .map_err(|f| fault(MateFault::WorldRead { mate, fault: f }))?;
-                let to = pose::eval_world(world, params, b)
-                    .map_err(|kind| unevaluated(MateSide::To, kind))?;
-                (to, Space::World, Ok(geom_core::Affine3::identity()))
-            }
-        };
-        match target_space {
-            None => target_space = Some(space),
-            Some(held) if held != space => {
-                return Err(fault(MateFault::TargetsDiffer {
-                    placement: id,
-                    constraints: constraints.iter().map(|c| c.id).collect(),
-                }));
-            }
-            Some(_) => {}
-        }
-        let flipped = crate::mate::solve::target_flipped(doc, &m.to);
-        charted.push((c.id, on.clone(), to.clone(), flipped, body));
+        let on = crate::mate::solve::tightened(on);
+        let to = pose::eval_pose(
+            doc,
+            to_results,
+            seat(MateSide::To),
+            crate::pose::RoleRead::plain(m.to),
+            params,
+            tol,
+        )
+        .map_err(|kind| unevaluated(MateSide::To, kind))?;
+        let to = crate::mate::solve::tightened(to);
+        let flipped = crate::mate::solve::target_flipped(doc, m.to);
+        charted.push((on.clone(), to.clone(), flipped));
         mates.push(crate::mate::solve::ReadMate { mate, on, to });
     }
-    if mates.is_empty() {
-        // A value names a mate of its bundle; with none, its own.
-        if let Some(v) = values.first() {
-            return Err(fault(MateFault::ValueNamesNoMate {
-                value: v.value,
-                mate: v.mate,
-            }));
-        }
-        return Ok((None, Space::Loose { root: id }));
+    let equations = crate::mate::solve::equations_of(doc, constraints);
+    if mates.is_empty() && crate::mate::solve::identity_bundle(doc, constraints) {
+        // The identity bundle places by no map, once the rule has
+        // admitted it.
+        crate::mate::solve::solve_bundle(id, &equations, &mates, &values, None)?;
+        return Ok(None);
     }
-    let reach = reach.map_err(|refusal| {
-        fault(MateFault::Unleverable {
-            mate: mates[0].mate,
-            refusal: Box::new(refusal),
-        })
-    })?;
-    let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
-    // A chart is read only for a mate a value names.
-    let mut charts = std::collections::BTreeMap::new();
-    for (mate, on, to, flipped, body) in charted {
-        let Some(value) = values.iter().find(|v| v.mate == mate) else {
-            continue;
-        };
-        let body = body.map_err(|why| {
-            fault(MateFault::NoChart {
-                value: value.value,
-                why,
+    // The chart of the one mate fixing a direction, read only where a
+    // value is charted on it.
+    let mut chart = None;
+    if !mates.is_empty() {
+        let reach = reach.map_err(|refusal| {
+            fault(MateFault::Unleverable {
+                mate: mates[0].mate,
+                refusal: Box::new(refusal),
             })
         })?;
-        charts.insert(
-            mate,
-            crate::mate::value::Chart::of(&on, &to, flipped, &body, arm, b)?,
-        );
-    }
-    match crate::mate::solve::solve_bundle(
-        id,
-        &crate::mate::solve::equations_of(doc, constraints),
-        &mates,
-        &values,
-        &charts,
-    )? {
-        crate::mate::solve::Folded::Loose => Ok((None, Space::Loose { root: id })),
-        crate::mate::solve::Folded::Pinned(rep) => {
-            // The one at-rest verdict, decided once (fork C-5).
-            let placed = match crate::mate::solve::rest_verdict(&rep, reach, b) {
-                Some(true) if T::carries_no_variation(&rep) => None,
-                Some(true) => T::identity_varying_as(&rep).or(Some(rep)),
-                // A box the band cannot decide at rest spans points the
-                // value lane snaps and points it keeps: its map holds
-                // both.
-                None => T::with_rest(&rep).or(Some(rep)),
-                Some(false) => Some(rep),
-            };
-            Ok((
-                match placed {
-                    Some(map) => crate::mate::solve::marked(map).rigid(b)?,
-                    None => None,
-                },
-                target_space.unwrap_or(Space::World),
-            ))
+        let arm = crate::mate::solve::bundle_arm(reach, &mates).map_err(|f| fault(*f))?;
+        for (on, to, flipped) in charted.iter().filter(|_| !values.is_empty()) {
+            if let Some(found) = crate::mate::value::Chart::of(on, to, *flipped, arm, b)? {
+                chart = Some(found);
+                break;
+            }
         }
+    }
+    match crate::mate::solve::solve_bundle(id, &equations, &mates, &values, chart)? {
+        crate::mate::solve::Folded::Chained(motion) => Ok(Some(motion)),
+        // Every placement but the identity bundle runs its map, at every
+        // value and in every lane: a map the solve composed as motions
+        // is placed as the motion it is, any other admitted from its
+        // entries, by one door.
+        crate::mate::solve::Folded::Pinned(map, composed) => Ok(Some(match composed {
+            Some(composed) => composed.motion(b)?,
+            None => crate::mate::solve::admitted(&map, b)?,
+        })),
     }
 }
 
@@ -907,13 +830,12 @@ where
             });
         }
     }
-    // The identity fast-path is the composition rule's
-    // (`placement::Motion`): taken only for a BIT-exact identity, since
-    // any other value could round, and `transform_rigid` is what
-    // decides whether it stayed rigid.
+    // The identity bundle places the part's body by no map, a clone
+    // ([`place`]); `transform_rigid` decides whether any other map
+    // keeps it rigid.
     let placed = place(&part.body, map.as_ref(), tol)?;
     let table = names::name_in_part(id, &part.names, &placed).map_err(NodeErrorKind::Naming)?;
-    // ASM-R2b D-1: the part's OWN declared contacts survive
+    // ASM-R2b D-1: the part's OWN contact records survive
     // instantiation with their cells UNCHANGED, because
     // `transform_rigid` is key-stable and the identity fast path clones
     // keys verbatim. Re-deriving them from the placed geometry is the
@@ -922,32 +844,7 @@ where
     // The bookkeeping rows ride unchanged for the same reason; what is
     // added here is each row's first hop, this instance
     // ([`crate::assembly::PartRow::through`]).
-    let carried = crate::assembly::CarriedDeclarations {
-        refused: part.refused.as_ref().clone(),
-        minted: part
-            .minted
-            .iter()
-            .map(|row| {
-                let (route, declaration, held) = row.through(id);
-                crate::assembly::CarriedDeclaration {
-                    route,
-                    declaration,
-                    held,
-                }
-            })
-            .collect(),
-        unminted: part
-            .unminted
-            .iter()
-            .map(|row| {
-                let (route, refusal, held) = row.through(id);
-                crate::assembly::CarriedRefusal {
-                    route,
-                    refusal,
-                    held,
-                }
-            })
-            .collect(),
+    let carried = crate::assembly::CarriedFindings {
         interference: part
             .interference
             .iter()
@@ -1017,13 +914,11 @@ where
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
         motion: None,
-        space: None,
     })
 }
 
-/// **A rigid placement of `body`**. `None` is the bit-exact identity
-/// the instantiate door admits: a clone, so no re-certification is
-/// owed.
+/// **A rigid placement of `body`**. `None` is the identity bundle's
+/// placement by no map: a clone, so no re-certification is owed.
 ///
 /// # Errors
 ///
@@ -1194,7 +1089,7 @@ fn finished_operand<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// **A body read for its geometry**: a Body value, or a boolean's
 /// non-empty result — [`placeable_operand`]'s `Body` arm, refusing the
 /// other in its own one-body word. A reader consumes no material (a
-/// datum's face frame reads a face), so a product is read as it is;
+/// pose read off a face reads a face), so a product is read as it is;
 /// the product refusal is [`body_operand`]'s.
 ///
 /// An instance's copies are read as its part product, one body, where
@@ -1246,8 +1141,8 @@ pub(super) fn read_named_body<T: Decide>(
 }
 
 /// **What a placer places**: the two value shapes a rigid map is
-/// defined over. The placers (`Transform`, `Pattern`) are
-/// shape-preserving — `Body → Body`, `Instances → Instances`.
+/// defined over. A pattern is shape-preserving — `Body → Body`,
+/// `Instances → Instances`.
 enum Placeable<T: Decide> {
     /// One body: a `Body` value or a boolean's non-empty result.
     Body(Arc<Body<T>>),
@@ -1268,53 +1163,6 @@ impl<T: Decide> Placeable<T> {
             Self::Instances(bs) => bs,
             Self::Copies(copies) => &copies.bodies,
         }
-    }
-
-    /// **The shape-preserving map**: `f` over every body with its
-    /// index in the value, yielding the SAME shape as a payload. A
-    /// placer decides only what `f` does to one body.
-    fn map(
-        &self,
-        mut f: impl FnMut(&Body<T>, usize) -> Result<Body<T>, NodeErrorKind>,
-        tol: Tol,
-    ) -> Result<ValuePayload<T>, NodeErrorKind>
-    where
-        T: topo::AtRestPolicy,
-    {
-        Ok(match self {
-            Self::Body(b) => ValuePayload::Body(Arc::new(f(b, 0)?)),
-            Self::Instances(bs) => ValuePayload::Instances(
-                bs.iter()
-                    .enumerate()
-                    .map(|(i, b)| f(b, i).map(Arc::new))
-                    .collect::<Result<_, _>>()?,
-            ),
-            Self::Copies(copies) => {
-                let bodies = copies
-                    .bodies
-                    .iter()
-                    .enumerate()
-                    .map(|(i, b)| f(b, i).map(Arc::new))
-                    .collect::<Result<_, _>>()?;
-                // Each copy where it stands, then moved by `f`.
-                let members = copies
-                    .members
-                    .iter()
-                    .map(|member| {
-                        Ok(super::KeyedCopy {
-                            bodies: member_bodies(member, tol)?
-                                .iter()
-                                .enumerate()
-                                .map(|(i, b)| f(b, i).map(Arc::new))
-                                .collect::<Result<_, _>>()?,
-                            motion: None,
-                            ..member.clone()
-                        })
-                    })
-                    .collect::<Result<_, NodeErrorKind>>()?;
-                ValuePayload::Copies(Arc::new(super::Copies { bodies, members }))
-            }
-        })
     }
 }
 
@@ -1376,12 +1224,12 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
 /// a user reads which vector of theirs was refused.
 ///
 /// **Two names, one body** (Ev's ruling on the direction-family home):
-/// the layer that OWNS a value names its length decision. A datum's
-/// directions are decided under [`DATUM_UNIT_NORM`] inside
+/// the layer that OWNS a value names its length decision. A pose's
+/// directions are decided under [`POSE_UNIT_NORM`] inside
 /// [`UnitVec3::new`], because `PoseValue` has no unnormalized
 /// spelling. The mate solve derives its offsets through this function,
-/// so a circular pattern's datum axis is decided under this name on
-/// the solve road and under [`DATUM_UNIT_NORM`] on the evaluation road:
+/// so a circular pattern's axis is decided under this name on
+/// the solve road and under [`POSE_UNIT_NORM`] on the evaluation road:
 /// same arithmetic, two names by road (`crate::mate::solve`,
 /// `docs/K-REPORT.md`).
 pub(crate) fn unit<T: Decide>(
@@ -1411,7 +1259,7 @@ pub(crate) fn unit<T: Decide>(
 /// reads; `escalated` is the arm the door puts an escalation in: the
 /// evaluation's ([`NodeErrorKind::Escalated`]), a placement frame's
 /// rotation axis ([`NodeErrorKind::PlacementAxisEscalated`]), or a pose's
-/// or datum's direction ([`pose_direction_escalated`]).
+/// direction ([`pose_direction_escalated`]).
 fn refusal(
     e: UnitVec3Error,
     role: &'static str,
@@ -1425,20 +1273,14 @@ fn refusal(
     }
 }
 
-/// A pose's or datum's direction length that could not be called,
-/// decided under [`DATUM_UNIT_NORM`]: the arm D10's pose ground keeps,
+/// A pose's direction length that could not be called,
+/// decided under [`POSE_UNIT_NORM`]: the arm D10's pose ground keeps,
 /// [`NodeErrorKind::PoseDirectionEscalated`].
 fn pose_direction_escalated(source: geom_core::Indeterminate) -> NodeErrorKind {
     NodeErrorKind::PoseDirectionEscalated {
-        predicate: DATUM_UNIT_NORM,
+        predicate: POSE_UNIT_NORM,
         source,
     }
-}
-
-/// A Length-valued `[Expr; 3]` triple as a point.
-fn point3<T: Decide>(vals: &SlotValues<T>, f: fn(Axis3) -> SlotId) -> Option<Point3<T>> {
-    let v = slots::vec3(vals, f)?;
-    Some(Point3::new(v.x, v.y, v.z))
 }
 
 /// A named scalar slot of an evaluated node, with the typed backstop
@@ -1451,6 +1293,14 @@ pub(crate) fn need_scalar<T: Decide>(
     slots::scalar(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
 }
 
+/// [`need_scalar`] of an angle slot, with the form it was written in.
+pub(crate) fn need_angle<T: Decide>(
+    vals: &SlotValues<T>,
+    slot: SlotId,
+) -> Result<geom_core::Angle<T>, NodeErrorKind> {
+    slots::angle(vals, slot).ok_or(NodeErrorKind::MissingSlot { slot })
+}
+
 /// A named `[Expr; 3]` slot family of an evaluated node, as a vector
 /// ([`need_scalar`]'s backstop, on the family's x component). Shared
 /// with the mate solve for the same reason.
@@ -1460,13 +1310,6 @@ pub(crate) fn need_vec3<T: Decide>(
 ) -> Result<Vec3<T>, NodeErrorKind> {
     let slot = f(Axis3::X);
     slots::vec3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot })
-}
-
-fn need_point3<T: Decide>(
-    vals: &SlotValues<T>,
-    f: fn(Axis3) -> SlotId,
-) -> Result<Point3<T>, NodeErrorKind> {
-    point3(vals, f).ok_or(NodeErrorKind::MissingSlot { slot: f(Axis3::X) })
 }
 
 /// **A slot the node declares, as its evaluated value.**
@@ -1496,6 +1339,13 @@ fn slot_scalar<T: Decide>(vals: &SlotValues<T>, slot: SlotId) -> T {
     declared(slots::scalar(vals, slot), slot)
 }
 
+/// A declared angle slot, with the form it was written in
+/// ([`declared`]).
+#[track_caller]
+fn slot_angle<T: Decide>(vals: &SlotValues<T>, slot: SlotId) -> geom_core::Angle<T> {
+    declared(slots::angle(vals, slot), slot)
+}
+
 /// A declared count slot ([`declared`]).
 #[track_caller]
 fn slot_count<T: Decide>(vals: &SlotValues<T>, slot: SlotId) -> i64 {
@@ -1514,283 +1364,50 @@ fn slot_point2<T: Decide>(vals: &SlotValues<T>, f: fn(Axis3) -> SlotId) -> Point
 
 /// **A revolve's axis direction in its profile's plane**: the unit
 /// vector at its heading from the profile's x axis, `(cos h, sin h)`.
-/// Unit by construction, up to the rounding of the sine and cosine;
-/// its readers decide it as they decide any authored direction.
+/// Unit by construction, up to the rounding of the sine and cosine,
+/// which a heading written as a fraction of a turn reads exactly
+/// ([`geom_core::Angle`]); its readers decide it as they decide any
+/// authored direction.
 fn axis_heading<T: Decide>(vals: &SlotValues<T>) -> Vec2<T> {
-    let (sin, cos) = slot_scalar(vals, SlotId::AxisHeading).sin_cos();
+    let (sin, cos) = slot_angle(vals, SlotId::AxisHeading).sin_cos();
     Vec2::new(cos, sin)
 }
 
 /// **A direction refusal before it is spelled as a node error** — what
 /// the kernel's door said and which vector said it.
 ///
-/// Separate from its spelling because a refusal is not always raised
-/// where it is made: [`FramePlacement::Unreadable`] CARRIES one to the
-/// reader that needed it. Every road spells it through
-/// [`DirectionRefusal::node_error`].
+/// Separate from its spelling because a pose's direction is decided
+/// where the pose is made and spelled by the reader that needed it.
+/// Every road spells it through [`DirectionRefusal::node_error`].
 #[derive(Debug, Clone, Copy)]
 pub struct DirectionRefusal {
-    /// Which vector refused, in the words a user reads — "datum frame
-    /// x axis", "datum frame y axis".
+    /// Which vector refused, in the words a user reads — "frame x axis",
+    /// "frame y axis".
     pub role: &'static str,
     /// What the kernel's direction door said.
     pub error: UnitVec3Error,
 }
 
 impl DirectionRefusal {
-    /// The node error this refusal spells, under [`DATUM_UNIT_NORM`],
+    /// The node error this refusal spells, under [`POSE_UNIT_NORM`],
     /// because on this road the kernel type owns the value. **The one
-    /// spelling** from a carried or raised refusal to a
-    /// [`NodeErrorKind`]: [`NodeErrorKind::FrameDirection`]'s `Display`
-    /// and its class ([`NodeErrorKind::class`]) read through it, so the
-    /// carried refusal says and is what the frame's own raise says and
-    /// is. `pub` because the carried refusal is: a consumer holding one
-    /// asks for the raise here rather than re-spelling it.
+    /// spelling** from a refusal to a [`NodeErrorKind`]. `pub` because
+    /// the refusal is: a consumer holding one asks for the raise here
+    /// rather than re-spelling it.
     pub fn node_error(self) -> NodeErrorKind {
         refusal(self.error, self.role, pose_direction_escalated)
     }
 }
 
-/// A slot's vector as a datum direction, through the kernel type's own
+/// A vector as a pose's direction, through the kernel type's own
 /// constructor: the decision and its three refusals live there, and
 /// this layer names the ROLE.
-fn datum_unit<T: Decide>(
+fn pose_unit<T: Decide>(
     v: Vec3<T>,
     role: &'static str,
     band: Band,
 ) -> Result<UnitVec3<T>, DirectionRefusal> {
-    UnitVec3::new(v, DATUM_UNIT_NORM, band).map_err(|error| DirectionRefusal { role, error })
-}
-
-/// **What reading an authored frame's slots produced** — the frame, or
-/// the direction door's refusal of `u` or of `v`'s residual.
-///
-/// `NoDirection` is whichever of [`UnitVec3Error`]'s facts the door
-/// reported, not only "these two are parallel": an underflowed length,
-/// or an undecided margin inside the band, which `f64` reaches too.
-///
-/// The refusal is an ANSWER rather than an `Err` so the read is not a
-/// `Result<Result<_, _>, _>`: slot faults are the node's and stay in
-/// the `Err`, while this one is the READ's, and its two callers dispose
-/// of it differently — [`wire_datum`] raises it, the `f64` placement
-/// carries it ([`FramePlacement::Unreadable`]).
-enum FrameRead<T: geom_core::Real> {
-    /// The orthonormal frame.
-    Frame(RigidMotion<T>),
-    /// The direction door refused `u`, or `v`'s residual.
-    NoDirection(DirectionRefusal),
-}
-
-/// **An authored frame from its evaluated slots** — the one spelling
-/// of the read, shared by the frame's own evaluation at the lane
-/// scalar ([`wire_datum`]) and by its f64 placement
-/// ([`mint_frame_placement`]). `u` and `v` are orthonormalized through
-/// [`frame_axes`] with `u` kept: keeping `v` would silently rotate
-/// every profile drawn on the frame when only `v` was edited.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::MissingSlot`] for a slot the values do not carry
-/// (unreachable while `Node::slots` and the wire agree). A refused
-/// DIRECTION is [`FrameRead::NoDirection`], not an error.
-fn frame_from_slots<T: Decide>(
-    vals: &SlotValues<T>,
-    band: Band,
-) -> Result<FrameRead<T>, NodeErrorKind> {
-    let origin = need_point3(vals, SlotId::Origin)?;
-    Ok(
-        match frame_axes(
-            origin,
-            need_vec3(vals, SlotId::U)?,
-            need_vec3(vals, SlotId::V)?,
-            band,
-        ) {
-            Ok(frame) => FrameRead::Frame(frame),
-            Err(refusal) => FrameRead::NoDirection(refusal),
-        },
-    )
-}
-
-/// **Where a frame's profiles take their placement from** — the DM1c
-/// fork, decided ONCE on the frame's own behalf and carried on its
-/// value ([`super::NodeValue::placement`]), so a profile drawn on the
-/// frame READS this instead of evaluating the frame's expressions
-/// again.
-#[derive(Debug, Clone, Copy)]
-#[non_exhaustive]
-pub enum FramePlacement {
-    /// An AUTHORED frame ([`Datum::Frame`]): its nine expressions at
-    /// the document's nominal, resolved and orthonormalized. Its
-    /// profiles' first pass is assembled on THIS ([`prepare_profile`]);
-    /// every lane places them at its own value ([`frame_plane_lane`]).
-    Authored(profile::SketchPlane<f64>),
-    /// An AUTHORED frame whose nominal read REFUSED a direction (`u`,
-    /// or `v`'s residual; see [`FrameRead::NoDirection`]).
-    ///
-    /// Carried rather than raised, because the frame's own evaluation
-    /// succeeded at the lane scalar and every reader of that value
-    /// ([`frame_plane_lane`], the mate solve, a measure, the viewer)
-    /// reads it correctly. The refusal belongs to the reader that
-    /// needed the nominal placement: [`profile_plane_f64`] raises it.
-    Unreadable(DirectionRefusal),
-    /// A DERIVED frame ([`Datum::FaceFrame`], DM1c): nothing to mint.
-    /// Its profiles are placed at the lane ([`frame_plane_lane`]), as
-    /// every frame's are; their 2-D structure record is assembled
-    /// in the conventional `SketchPlane::xy()` ([`prepare_profile`]),
-    /// which no decision reads.
-    Derived,
-}
-
-/// **A frame node's placement, minted once** — [`FramePlacement`] for
-/// a frame node, `None` for every node that is not one.
-///
-/// The match on the RECIPE node's kind is closed, so a new [`Datum`]
-/// variant is a compile error here rather than a node whose profiles
-/// silently place at the lane. `None` means "not a frame" and nothing
-/// else; [`profile_plane_f64`] turns it into a
-/// [`NodeErrorKind::WrongOperand`].
-///
-/// # Why an authored frame is read at `f64`
-///
-/// The placement feeds STRUCTURE selection, which must be
-/// lane-identical (C6): the same document has to select the same
-/// structure at `f64` and at the interval scalar. The frame's LANDED
-/// value answers a different question (what a reader sees, what a
-/// measure measures), so an authored frame is read at two scalars —
-/// the first pass is assembled on THIS read, and every lane places the
-/// profile with [`frame_plane_lane`]'s.
-///
-/// `nominal` is the node's slots already evaluated at
-/// [`LaneEnv::nominal`], so this evaluates no expression.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::MissingSlot`] for a slot the values do not carry,
-/// and the band's own refusal: faults of the NODE, unreadable at every
-/// environment, where a direction refusal is carried as
-/// [`FramePlacement::Unreadable`] instead.
-pub(crate) fn mint_frame_placement(
-    node: &Node<ProfileProgram>,
-    nominal: &SlotValues<f64>,
-    tol: Tol,
-) -> Result<Option<FramePlacement>, NodeErrorKind> {
-    let Node::Datum(datum) = node else {
-        return Ok(None);
-    };
-    match datum {
-        Datum::Frame { .. } => Ok(Some(match frame_from_slots(nominal, band(tol)?)? {
-            FrameRead::Frame(f) => FramePlacement::Authored(profile::SketchPlane::from_frame(f)),
-            FrameRead::NoDirection(refusal) => FramePlacement::Unreadable(refusal),
-        })),
-        Datum::FaceFrame { .. } => Ok(Some(FramePlacement::Derived)),
-        Datum::Plane { .. } | Datum::Axis { .. } | Datum::Point { .. } => Ok(None),
-    }
-}
-
-/// **A profile's `f64` placement — a READ of the frame's result**, not
-/// a second evaluation of the frame's slots: the answer
-/// [`mint_frame_placement`] minted on the frame node. The frame's
-/// content key fixes everything the placement is a function of, so a
-/// memo hit carries the same bits a recompute would mint.
-///
-/// `None` is a DERIVED frame and only that: "not a frame" and
-/// "unreadable" have already been discharged into refusals.
-///
-/// The profile reads the frame's output ([`crate::Doc::upstream`]), so
-/// it precedes every reader in the schedule and a failed frame poisons
-/// them.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::WrongOperand`] when the reference does not name a
-/// frame; [`NodeErrorKind::FrameDirection`] where the frame carried a
-/// direction refusal ([`FramePlacement::Unreadable`]), naming BOTH
-/// `profile` and the frame; and [`NodeErrorKind::MissingInput`] for a reference with no
-/// value.
-pub(crate) fn profile_plane_f64<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    profile: RecipeNodeId,
-    frame: crate::VarId,
-) -> Result<Option<profile::SketchPlane<f64>>, NodeErrorKind> {
-    // A pose definition is bound at its reader, so it has no minted
-    // placement: it places as a derived frame does, at the lane.
-    if doc
-        .var(frame)
-        .is_some_and(|held| held.def().pose().is_some())
-    {
-        return Ok(None);
-    }
-    let plane = super::read_at(doc, crate::OperandSlot::Frame, frame)?;
-    // A node that is not a frame carries no placement: that `None` is
-    // the kind refusal.
-    match operand(results, plane, super::phrase::DATUM_FRAME, |v| v.placement)? {
-        FramePlacement::Authored(placement) => Ok(Some(placement)),
-        FramePlacement::Derived => Ok(None),
-        // Raised here, not at the frame, so a frame nobody draws on
-        // does not poison the document; it names the frame because the
-        // role word alone says which AXIS refused, not whose.
-        FramePlacement::Unreadable(refusal) => Err(NodeErrorKind::FrameDirection {
-            profile,
-            frame: plane,
-            refusal,
-        }),
-    }
-}
-
-/// **The sketch plane at the LANE scalar** — the frame's landed value,
-/// which is where a parameter driving the frame is still carried.
-///
-/// The f64 read above is for STRUCTURE. A document parameter can drive
-/// a frame's origin, and under an interval or dual run it has a
-/// non-degenerate value, which only the frame minted at `T` carries: a
-/// frame crosses no scalar upward. So structure stays f64-pinned and
-/// lane-identical, and the plane, like every magnitude, is lane-live.
-/// At `f64` this read is the authored frame's nominal read, bit for
-/// bit.
-///
-/// A DERIVED frame has no other placement (DM1c): this by-value read
-/// is the only one it has.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::WrongOperand`] when the landed value is not a
-/// frame, through `frame_value`.
-pub(crate) fn frame_plane_lane<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    frame: crate::VarId,
-    env: &crate::expr::VarEnv<T>,
-    tol: Tol,
-) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
-    Ok(profile::SketchPlane::from_frame(frame_pose(
-        doc, results, frame, env, tol,
-    )?))
-}
-
-/// **The frame a node reads**, through the pose evaluator: a frame
-/// datum's value or a frame pose definition bound here.
-fn frame_pose<T: Decide>(
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    frame: crate::VarId,
-    env: &crate::expr::VarEnv<T>,
-    tol: Tol,
-) -> Result<RigidMotion<T>, NodeErrorKind> {
-    match pose::eval_pose(
-        doc,
-        results,
-        crate::OperandSlot::Frame,
-        frame.into(),
-        env,
-        tol,
-    )? {
-        PoseValue::Frame(f) => Ok(f),
-        other => unreachable!(
-            "the door admits a frame alone at a frame seat: {}",
-            other.kind()
-        ),
-    }
+    UnitVec3::new(v, POSE_UNIT_NORM, band).map_err(|error| DirectionRefusal { role, error })
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
@@ -1808,7 +1425,7 @@ pub(crate) fn frame_axes<T: Decide>(
     v_raw: Vec3<T>,
     band: Band,
 ) -> Result<RigidMotion<T>, DirectionRefusal> {
-    RigidMotion::gram_schmidt(origin, u_raw, v_raw, DATUM_UNIT_NORM, band).map_err(|e| {
+    RigidMotion::gram_schmidt(origin, u_raw, v_raw, POSE_UNIT_NORM, band).map_err(|e| {
         DirectionRefusal {
             role: match e.axis {
                 OrthoAxis::U => FRAME_X_ROLE,
@@ -1817,86 +1434,6 @@ pub(crate) fn frame_axes<T: Decide>(
             error: e.error,
         }
     })
-}
-
-fn wire_datum<T: Decide>(
-    d: &Datum,
-    doc: &crate::doc::Doc<ProfileProgram>,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
-    tol: Tol,
-) -> PayloadResult<T> {
-    Ok(ValuePayload::Datum(match d {
-        Datum::Plane { .. } => PoseValue::Plane {
-            origin: need_point3(vals, SlotId::Origin)?,
-            normal: datum_unit(
-                need_vec3(vals, SlotId::Normal)?,
-                PLANE_NORMAL_ROLE,
-                band(tol)?,
-            )
-            .map_err(DirectionRefusal::node_error)?,
-        },
-        Datum::Axis { .. } => PoseValue::Axis {
-            origin: need_point3(vals, SlotId::Origin)?,
-            dir: datum_unit(
-                need_vec3(vals, SlotId::Direction)?,
-                DATUM_AXIS_ROLE,
-                band(tol)?,
-            )
-            .map_err(DirectionRefusal::node_error)?,
-        },
-        Datum::Point { .. } => PoseValue::Point {
-            position: need_point3(vals, SlotId::Origin)?,
-        },
-        // u and v must span a plane; `frame_axes` decides that as a
-        // length at the same door as every other direction.
-        Datum::Frame { .. } => match frame_from_slots(vals, band(tol)?)? {
-            FrameRead::Frame(frame) => PoseValue::Frame(frame),
-            FrameRead::NoDirection(refusal) => return Err(refusal.node_error()),
-        },
-        // **The frame read off a face** (DM1): an authored frame's
-        // value through the same `frame_axes` door. Every step is a
-        // stored fact copied out or an N5 resolution; nothing here
-        // decides a number.
-        Datum::FaceFrame { face, .. } => {
-            let face = select::<T, topo::FaceKey>(doc, results, crate::OperandSlot::Face, *face)?;
-            let body = read_body(results, face.at)?;
-            let [(_, key)] = face.ents.as_slice() else {
-                unreachable!("a face selection holds one face")
-            };
-            let key = *key;
-            // DM1b / DM2: the carrier's KIND is a stored tag; a
-            // comparison of tags, not a predicate.
-            let carrier = topo::readback::face_carrier_kind(&body, key)
-                .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
-            if carrier != geom::SurfaceKind::Plane {
-                return Err(NodeErrorKind::FaceFrameNotPlanar { carrier });
-            }
-            let pose = topo::readback::face_pose(&body, key)
-                .map_err(|error| NodeErrorKind::FaceFrameReadback { error })?;
-            // DM1a: the outward normal is the chart axis folded through
-            // the sense beside the pose — the bit selects, nothing is
-            // computed.
-            let n = OutwardNormal::from_chart(pose.axis, pose.sense).vec();
-            // A plane carrier always fixes its u-reference (readback's
-            // rule 3), so the kind check above makes this unreachable.
-            let u_ref = pose.u_ref.ok_or(NodeErrorKind::FaceFrameReadback {
-                error: topo::readback::ReadbackError::NoCanonicalFrame {
-                    carrier: "planar carrier without a u-reference",
-                },
-            })?;
-            // The spin: sketch +x is the u-reference turned about the
-            // outward normal. `u_ref` lies in the plane, so the rotation
-            // is the two-term form; `v` is the right-handed third leg.
-            let (sin, cos) = need_scalar(vals, SlotId::Spin)?.sin_cos();
-            let u_raw = u_ref * cos + n.cross(u_ref) * sin;
-            let v_raw = n.cross(u_raw);
-            PoseValue::Frame(
-                frame_axes(pose.origin, u_raw, v_raw, band(tol)?)
-                    .map_err(DirectionRefusal::node_error)?,
-            )
-        }
-    }))
 }
 
 /// The program-order coordinates of a profile's `n` loops, as the
@@ -1926,15 +1463,11 @@ fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
 /// ([`ProfilePre::decided`]). VQ6: replay and
 /// validation run under the same tolerance the evaluation pins.
 pub(crate) fn prepare_profile(
-    placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
     ids: &[Vec<crate::node::StepId>],
     tol: Tol,
 ) -> Result<ProfilePre, NodeErrorKind> {
-    // The 2-D record's assembly frame; the conventional frame for a
-    // derived frame's profile (DM1c). No decision below reads it: what
-    // places the profile is the lane's frame (`frame_plane_lane`).
-    let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
+    let plane = profile::SketchPlane::xy();
     let (elaborated, recording) = geom_core::k_stats::detached(|| {
         let mut loops = Vec::with_capacity(resolved.len());
         let mut replay_records = Vec::with_capacity(resolved.len());
@@ -2025,18 +1558,15 @@ pub(crate) fn lane_profile<T: Decide + geom_core::Bounds>(
 }
 
 fn wire_profile<T: Decide + geom_core::Bounds + super::ProfileLane>(
-    doc: &crate::doc::Doc<ProfileProgram>,
     program: &ProfileProgram,
-    results: &Results<T>,
     pre: &ProfilePre,
     form: &ProfileForm<T>,
-    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> Result<Arc<ProfileValue<T>>, NodeErrorKind> {
-    let plane = frame_plane_lane(doc, results, program.frame, lane.params, tol)?;
+    let plane = profile::SketchPlane::xy();
     let validated = match form {
-        // The first pass's validated form is the value, on the plane
-        // minted at the lane, and the node logs what the second pass it
+        // The first pass's validated form is the value, on the
+        // profile's own `xy`, and the node logs what the second pass it
         // skips decides.
         ProfileForm::FirstPass(first) => {
             geom_core::k_stats::relog(&pre.decided);
@@ -2143,12 +1673,11 @@ fn wire_swept<T: Decide + geom_core::Bounds + topo::AtRestPolicy, A>(
     ))
 }
 
-/// **Extrudes a profile along its sketch normal** — the distance slot
+/// **Extrudes a profile along its own normal** — the distance slot
 /// read, and the generic lowering from there.
 fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
-    side: crate::node::ExtrudeSide,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -2156,7 +1685,7 @@ fn wire_extrude<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let distance = slot_scalar(vals, SlotId::Distance);
     wire_swept(
         &crate::verbs::sweep::extrude(),
-        (distance, side),
+        (distance, sweep::ExtrudeSide::Along),
         id,
         profile,
         results,
@@ -2202,13 +1731,13 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     )
 }
 
-/// The spine frame and window a tube door takes, resolved from the
-/// frame the node reads and its slots.
+/// The spine frame and window a tube door takes: the tube's own
+/// coordinates, and its slots.
 ///
 /// The RESOLUTION is shared by the two tube arms; each then calls its
-/// own public door. This layer decides nothing: the frame is the
-/// frame datum's, and the window and wall verdicts stay the door's
-/// own; a check here would be a weaker second opinion.
+/// own public door. This layer decides nothing: the window and wall
+/// verdicts stay the door's own; a check here would be a weaker second
+/// opinion.
 struct TubeArgs<T: geom_core::Real> {
     frame: geom_core::RigidMotion<T>,
     major_radius: T,
@@ -2216,17 +1745,9 @@ struct TubeArgs<T: geom_core::Real> {
     minor_radius: T,
 }
 
-fn tube_args<T: Decide>(
-    frame: RigidMotion<T>,
-    window: &crate::node::TubeWindow,
-    vals: &SlotValues<T>,
-) -> TubeArgs<T> {
-    // The frame is read WHOLE — its origin the spine centre, its
-    // normal the spine axis, its `u` the reference the window's angles
-    // are measured from — as the frame's own door orthonormalized it,
-    // so nothing is decided here.
+fn tube_args<T: Decide>(window: &crate::node::TubeWindow, vals: &SlotValues<T>) -> TubeArgs<T> {
     TubeArgs {
-        frame,
+        frame: RigidMotion::identity(),
         major_radius: slot_scalar(vals, SlotId::TubeMajorRadius),
         window: match window {
             crate::node::TubeWindow::Full => sweep::TubeWindow::Full,
@@ -2251,12 +1772,11 @@ fn tube_args<T: Decide>(
 /// section's structural locators ([`tube_pieces`]).
 fn wire_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(frame, window, vals);
+    let a = tube_args(window, vals);
     let built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
         .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
@@ -2290,12 +1810,11 @@ fn tube_pieces<T: Decide>(
 /// hole-loop vocabulary.
 fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    frame: RigidMotion<T>,
     window: &crate::node::TubeWindow,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(frame, window, vals);
+    let a = tube_args(window, vals);
     let wall = slot_scalar(vals, SlotId::TubeWall);
     let built =
         sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
@@ -2380,9 +1899,12 @@ fn wire_blend<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // A blend's run produces the blend record by construction; another
     // family here is a kernel bug, refused typed.
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-    let rec = naming.ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
-        what: verb.no_records,
-    }))?;
+    let Some(rec) = naming else {
+        unreachable!(
+            "{}, though the blend surgery is the record's only producer and always writes one",
+            verb.no_records
+        )
+    };
     let table = (verb.emitter)(id, target, target_read, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
     let inputs = crate::coincide::RowInputs {
@@ -2470,7 +1992,7 @@ fn wire_shell<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// error variants carry them.
 mod ladder {
     use crate::names::interrogate::{Denoted, TableRefusal, key_in};
-    use crate::names::{NameTable, NamingError, StableName};
+    use crate::names::{NameTable, StableName};
     use crate::program::ProfileProgram;
     use crate::resolve::ResolveError;
 
@@ -2504,7 +2026,7 @@ mod ladder {
     /// author's fault: every door that writes a selection holds its
     /// names at its kind ([`crate::var::Select::fault`]), and every
     /// `NameTable` door that seats a row holds its key at its name's
-    /// kind. It is asserted in debug and refused as the kernel bug it is.
+    /// kind, so it panics.
     pub(super) fn resolve_key<K: Denoted>(
         name: &StableName,
         doc: &crate::doc::Doc<ProfileProgram>,
@@ -2515,19 +2037,15 @@ mod ladder {
         key_in::<K>(table, live.0).map_err(|refusal| match refusal {
             TableRefusal::NoSuchName => refuse(vanished(&live)),
             TableRefusal::Ambiguous { candidates } => refuse(tied(&live, candidates)),
-            TableRefusal::Kind { found } => {
-                debug_assert!(
-                    false,
-                    "a selection's name denotes {} {}, not the {} {} the selection holds",
-                    found.article(),
-                    found.noun(),
-                    K::KIND.article(),
-                    K::KIND.noun()
-                );
-                super::NodeErrorKind::Naming(NamingError::Emission {
-                    what: "a selection's name denotes another entity kind than the selection holds",
-                })
-            }
+            TableRefusal::Kind { found } => unreachable!(
+                "the selection's name {name:?} denotes {} {}, not the {} {} the selection holds, \
+                 though every door that writes a selection holds its names at its kind and \
+                 every table door seats a row at its name's kind",
+                found.article(),
+                found.noun(),
+                K::KIND.article(),
+                K::KIND.noun()
+            ),
         })
     }
 
@@ -2576,9 +2094,12 @@ pub(super) struct Selected<K> {
 ///
 /// [`NodeErrorKind::UnresolvedRead`] for a body read no live operation
 /// defines, [`NodeErrorKind::SelectResolve`] for a name the ladder
-/// refuses, and [`NamingError::Emission`](names::NamingError::Emission)
-/// for a caller whose `K` is not the selection's kind (a wiring bug,
-/// [`resolve_selection`]).
+/// refuses.
+///
+/// # Panics
+///
+/// For a caller whose `K` is not the selection's kind, a wiring bug
+/// ([`resolve_selection`]).
 fn select<T: Decide, K: names::interrogate::Denoted>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -2648,20 +2169,17 @@ fn resolve_selection<K: names::interrogate::Denoted>(
     // it is checked once here against the variable's own kind — which
     // the edit and load doors hold to the seat's — rather than trusted
     // at every call site. A mismatch is this module's wiring, never the
-    // author's: loud in a debug build, typed in a release one.
+    // author's.
     let held = doc
         .var(var)
         .and_then(|held| held.kind().selection())
         .map(|(entity, _)| entity);
     if held != Some(K::KIND) {
-        debug_assert!(
-            false,
-            "the {slot:?} seat is wired to read {} keys from a selection of {held:?}",
+        unreachable!(
+            "the {slot:?} seat is wired to read {} keys from a selection of {held:?}, though \
+             the edit and load doors hold a selection variable's kind to its seat's",
             K::KIND.noun()
         );
-        return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "a seat is wired to read another entity kind than its selection holds",
-        }));
     }
     let ents = selection
         .names
@@ -2884,12 +2402,12 @@ fn wire_assertion<T: Decide>(
 }
 
 /// **The split's lowering**, driven by its correspondence
-/// ([`crate::verbs::split`]): one body and one DATUM operand in, TWO
+/// ([`crate::verbs::split`]): one body and one POSE operand in, TWO
 /// sides out under one record, stamped in one index space.
 ///
 /// # Refusals
 ///
-/// A tool that is not a plane datum is `WrongOperand`, decided before
+/// A tool that is not a plane pose is `WrongOperand`, decided before
 /// any verb exists. Failure of the op itself is
 /// [`NodeErrorKind::Split`] through [`verb_refused`]; nothing here
 /// re-derives the plane.
@@ -2914,7 +2432,8 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let coincidences = out.coincidences;
     let naming = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let side = |part: SplitPart<T>| match part {
-        SplitPart::Body(b) => SplitSide::Body(Arc::new(b)),
+        // The verdict the split's gate kept is not carried in a value yet (F2).
+        SplitPart::Body(b) => SplitSide::Body(Arc::new(b.into_body())),
         SplitPart::Empty => SplitSide::Empty,
     };
     let above = side(out.above);
@@ -2954,6 +2473,47 @@ fn wire_split<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             tool: Some(tool_read),
         },
     )
+}
+
+/// **A mirror** (D10 `[repetition]`): the body `source` defines,
+/// reflected across `plane` by the kernel's reflection door
+/// (`topo::mirror_body`), which keeps every arena key, so the image
+/// carries the source's names, contact records and declaration rows
+/// verbatim, as a copy carries them. Each record cites the body's
+/// record it is, through the read.
+fn wire_mirror<T: Decide + topo::AtRestPolicy>(
+    read: crate::VarId,
+    source: RecipeNodeId,
+    plane: &PoseValue<T>,
+    results: &Results<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let body = body_operand(results, source)?;
+    let PoseValue::Plane { normal, offset } = plane else {
+        unreachable!(
+            "the door admits a plane alone at a mirror's plane, not {}",
+            plane.kind()
+        )
+    };
+    let reflection =
+        topo::Reflection::across_unit(PoseValue::plane_foot(*normal, *offset), *normal);
+    let image = topo::mirror_body(&body, &reflection, tol).map_err(NodeErrorKind::Mirror)?;
+    let value = value_of(results, source)?;
+    let table = read_table(value)
+        .project(0)
+        .map_err(|dup| NodeErrorKind::Naming(names::NamingError::from(dup)))?;
+    names::check_total(&table, &image, 0).map_err(NodeErrorKind::Naming)?;
+    let contacts = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Body { contacts, .. }) => Arc::clone(contacts),
+        _ => Arc::clone(&value.contacts),
+    };
+    Ok(OpOut {
+        contacts: Arc::new(contacts.carried_from(0)),
+        carried: Arc::clone(&value.carried),
+        ..OpOut::plain(ValuePayload::Body(Arc::new(image)), Arc::new(table))
+            .carrying(value.parts)
+            .citing(vec![crate::coincide::CitedInput::Read(read)])
+    })
 }
 
 /// **The projection node** (DM3): ONE body out of a pattern's copies,
@@ -3218,13 +2778,12 @@ fn split_port<T: Decide>(
     };
     let body = split_side(split, half, above, below)?;
     // The half's names are its own output's (N1, the scope).
-    let names =
-        value
-            .output(port)
-            .cloned()
-            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
-                what: SPLIT_HALF_UNNAMED,
-            }))?;
+    let names = value.output(port).cloned().unwrap_or_else(|| {
+        unreachable!(
+            "split {split:?}'s value holds no name table for its {half:?} half (port {port}), \
+             though the split's lowering names each half's output"
+        )
+    });
     projected(split, value, body, names, half.output_body()).map(Some)
 }
 
@@ -3475,25 +3034,34 @@ fn judged_at(
 ///
 /// # Errors
 ///
-/// [`UNION_FOLD_ROW_FOREIGN_CELL`] for a cell named outside the node's
-/// own space, [`UNION_FOLD_ROW_UNSTATED`] for any other decision (a
-/// carrier pair's) whose cells are not one member cell each, and
-/// [`names::member_cells`]'s refusals.
+/// [`crate::coincide::NamedCoincidence::meet`]'s refusals.
+///
+/// # Panics
+///
+/// For a row that is not two cells named in the node's own space, the
+/// only space a fold step's rows are named in, or for a decision other
+/// than a point's on a cell whose cells are not one member cell each: a
+/// fold step runs with the pairwise verdicts given
+/// (`topo::Verdicts::Given`), so a carrier pair's row is the
+/// judgement's and no step returns one.
 fn in_member_space(
     row: crate::coincide::NamedCoincidence,
     own_read: crate::VarId,
     step: u32,
 ) -> Result<crate::coincide::NamedCoincidence, names::NamingError> {
     use crate::coincide::NamedCell;
-    let bug = |what| names::NamingError::Emission { what };
     let spelled = row
         .cells
         .iter()
         .map(|cell| match cell {
             NamedCell::Entity { input, name } if *input == own_read => names::member_cells(name),
-            _ => Err(bug(UNION_FOLD_ROW_FOREIGN_CELL)),
+            _ => unreachable!(
+                "union fold step {step}'s row names {cell:?}, outside the node's own read \
+                 {own_read:?}, though a fold step's rows are named in its two operands' tables, \
+                 both keyed by that read"
+            ),
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Vec<_>>();
     let entity =
         |(input, name): (crate::VarId, names::StableName)| NamedCell::Entity { input, name };
     let single = |cells: &[(crate::VarId, names::StableName)]| match cells {
@@ -3509,7 +3077,11 @@ fn in_member_space(
             origin,
             ..row.clone()
         }),
-        _ => Err(bug(UNION_FOLD_ROW_UNSTATED)),
+        (a, b) => unreachable!(
+            "union fold step {step} decided {relation:?} between cells made of several member \
+             cells ({a:?}, {b:?}), though a step runs with the pairwise verdicts given and \
+             decides no carrier pair itself"
+        ),
     };
     let meet = |spelled: Vec<Vec<_>>| {
         crate::coincide::NamedCoincidence::meet(
@@ -3521,7 +3093,11 @@ fn in_member_space(
     };
     let mut spelled = spelled.into_iter();
     let (Some(p), Some(x), None) = (spelled.next(), spelled.next(), spelled.next()) else {
-        return Err(bug(UNION_FOLD_ROW_UNSTATED));
+        unreachable!(
+            "union fold step {step}'s row holds {} cells, though `name_rows` names a kernel \
+             row's two",
+            row.cells.len()
+        )
     };
     match row.relation {
         // A point the step decided on a cell: one member vertex on one
@@ -3538,8 +3114,8 @@ fn in_member_space(
         // on a cylinder's axis, `CoaxialSphere`), which a fold step does
         // not decide: it runs with the pairwise judgement's verdicts
         // given (`topo::Verdicts::Given`), and a carrier pair's row is
-        // the judgement's. So no cell of one is widened, and it is
-        // refused if a step ever returns one made of several cells.
+        // the judgement's. So no cell of one is widened, and a step
+        // that returns one made of several cells is a kernel bug.
         _ => two(p, x, row.relation),
     }
 }
@@ -3589,8 +3165,8 @@ fn in_member_space(
 /// an empty boolean refuses `EmptyOperand` naming that member. An
 /// intersect whose pair or fold step is empty is the typed empty
 /// result. A union fold step that returns empty from two real bodies is
-/// a kernel bug, at every step including the last: it refuses
-/// [`UNION_STEP_EMPTY`] and names no member, since each one is fine.
+/// a kernel bug, at every step including the last: it panics and names
+/// no member, since each one is fine.
 #[allow(clippy::too_many_arguments)] // one parameter per named input, as `wire_subtract`
 fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
@@ -3634,9 +3210,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             // (`InputFault::IndexedFamily`); one reaching here would
             // union the whole family, so it is refused, not read.
             if family.is_member() {
-                return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_FAMILY_INDEXED,
-                }));
+                unreachable!(
+                    "union {id:?}'s family argument {family:?} carries an index, though every \
+                     door refuses an indexed family argument (`InputFault::IndexedFamily`)"
+                );
             }
             let read = &family.read;
             let at = super::read_at(doc, O::Members, *read)?;
@@ -3682,11 +3259,12 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     let own: Vec<(crate::VarId, &NameTable)> =
         members.iter().map(|m| (m.read, m.table.as_ref())).collect();
     // The node's own read: the space a fold step's rows are read in.
-    let own_read =
-        doc.output(id, 0)
-            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
-                what: UNION_NO_OUTPUT,
-            }))?;
+    let Some(own_read) = doc.output(id, 0) else {
+        unreachable!(
+            "union {id:?} defines no output variable, though the doors that insert an \
+             operation define its outputs with it"
+        )
+    };
     // Every member's read-keyed view, taken once for the pairwise
     // judgement and the fold. The FIRST member enters read-keyed too,
     // so every operand of every step is already in this node's name
@@ -3728,9 +3306,11 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             let verbs::PairOut::Out(out) = out else {
                 return match op {
                     BooleanOp::Intersect => Ok(None),
-                    _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                        what: UNION_PAIR_EMPTY,
-                    })),
+                    _ => unreachable!(
+                        "union {id:?}'s pairwise judgement of members {a} and {b} returned \
+                         empty, though both are finished non-empty bodies and their union holds \
+                         each"
+                    ),
                 };
             };
             // The judgement's rows, whole, named in the two members' own
@@ -3749,7 +3329,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 verbs::VerbRecord::Boolean {
                     naming, verdicts, ..
                 } => {
-                    let verdicts = pair_verdicts(a, b, &verdicts, &out.coincidences, &rows)?;
+                    let verdicts = pair_verdicts(a, b, &verdicts, &out.coincidences, &rows);
                     Ok(Some(((naming, out.body), rows, verdicts)))
                 }
                 _ => Err(NodeErrorKind::Naming(names::NamingError::Emission {
@@ -3820,11 +3400,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             // A union of two REAL bodies cannot be empty, so this is a
             // kernel bug. It is NOT attributed to a member, which would
             // send a caller to edit a member that is fine.
-            verbs::PairOut::Empty => {
-                return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_STEP_EMPTY,
-                }));
-            }
+            verbs::PairOut::Empty => unreachable!(
+                "union {id:?}'s fold step {step} returned empty, though both operands are \
+                 finished non-empty bodies and their union holds each"
+            ),
             verbs::PairOut::Out(out) => {
                 if pairwise {
                     debug_assert_given(&out.coincidences, &inputs);
@@ -3931,31 +3510,44 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                     }
                 }
                 let held = Arc::clone(&acc_records);
-                let refuse = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-                let contacts = contacts.try_recited(
-                    |b| match b {
+                let contacts = contacts
+                    .recited(|b| match b {
                         topo::Backing::Decided(k) if pairwise => {
                             if (k as usize) < decided {
-                                Ok(vec![topo::Backing::Decided(
+                                vec![topo::Backing::Decided(
                                     u32::try_from(base + k as usize).unwrap_or(u32::MAX),
-                                )])
+                                )]
                             } else {
-                                Err(refuse(UNION_STEP_UNDECIDED_CITE))
+                                unreachable!(
+                                    "union {id:?}'s fold step {step} cites its row {k}, though \
+                                     it decided {decided}: a step's records cite the rows it \
+                                     returned"
+                                )
                             }
                         }
-                        decided @ topo::Backing::Decided(_) => Ok(vec![decided]),
+                        decided @ topo::Backing::Decided(_) => vec![decided],
                         topo::Backing::Carried { input: 0, record } => held
                             .rows()
                             .get(record as usize)
                             .map(|c| c.cites.iter().collect())
-                            .ok_or_else(|| refuse(UNION_CARRY_LOST_RECORD)),
-                        topo::Backing::Carried { record, .. } => Ok(vec![topo::Backing::Carried {
+                            .unwrap_or_else(|| {
+                                unreachable!(
+                                    "union {id:?}'s fold step {step} carries accumulation record \
+                                     {record}, which the fold does not hold, though the step's \
+                                     operand A is that accumulation"
+                                )
+                            }),
+                        topo::Backing::Carried { record, .. } => vec![topo::Backing::Carried {
                             input: member,
                             record,
-                        }]),
-                    },
-                    |_| refuse(UNION_CARRY_UNCITED),
-                )?;
+                        }],
+                    })
+                    .unwrap_or_else(|k| {
+                        unreachable!(
+                            "union {id:?}'s fold step {step}'s record {k} cites nothing once \
+                             carried, though every citation maps to one or more"
+                        )
+                    });
                 acc_records = Arc::new(contacts);
                 last = Some((kind, Arc::clone(&acc_records)));
                 // Minted under THIS node's id, its two sides keyed by the
@@ -4006,9 +3598,11 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     // The LAST step's records are the result's: every earlier step's
     // were carried into the step after it.
     let Some((kind, contacts)) = last else {
-        return Err(NodeErrorKind::Naming(names::NamingError::Emission {
-            what: UNION_NO_STEP,
-        }));
+        unreachable!(
+            "union {id:?}'s fold of {} members ran no step, though a fold of two or more runs \
+             one per member after the first",
+            members.len()
+        )
     };
     // The node's rows are its evaluation's decisions (DM4): the judged
     // rows, then every fold step's, a fold row a judged row restates
@@ -4034,10 +3628,10 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 ],
             })
             .collect();
-        let refuse = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
-        Arc::new((*contacts).clone().try_recited(
-            |b| {
-                match b {
+        Arc::new(
+            (*contacts)
+                .clone()
+                .recited(|b| match b {
                     topo::Backing::Decided(k) => at
                         .get(k as usize)
                         .map(|rows| {
@@ -4047,12 +3641,22 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                                 })
                                 .collect()
                         })
-                        .ok_or_else(|| refuse(UNION_STEP_UNDECIDED_CITE)),
-                    carried @ topo::Backing::Carried { .. } => Ok(vec![carried]),
-                }
-            },
-            |_| refuse(UNION_CARRY_UNCITED),
-        )?)
+                        .unwrap_or_else(|| {
+                            unreachable!(
+                                "union {id:?}'s records cite fold row {k}, though the fold \
+                                 returned {} rows",
+                                at.len()
+                            )
+                        }),
+                    carried @ topo::Backing::Carried { .. } => vec![carried],
+                })
+                .unwrap_or_else(|k| {
+                    unreachable!(
+                        "union {id:?}'s record {k} cites nothing once recited onto the node's \
+                         rows, though a held-out fold row is one no record cites"
+                    )
+                }),
+        )
     } else {
         contacts
     };
@@ -4092,41 +3696,6 @@ fn lone_member<T: Decide>(id: RecipeNodeId, one: &Member<T>) -> OpResult<T> {
         Arc::new(table),
     ))
 }
-
-/// A union's or an intersect's family argument carries an index, which
-/// every door refuses.
-const UNION_FAMILY_INDEXED: &str =
-    "a union's or an intersect's family argument carries an index the doors refuse";
-
-/// A union or an intersect the document defines no output for.
-const UNION_NO_OUTPUT: &str = "a union or an intersect defines no output variable";
-
-/// A union fold row's cell is not named in the node's own space, the
-/// only space a fold step's rows are named in.
-const UNION_FOLD_ROW_FOREIGN_CELL: &str =
-    "a union fold row's cell is not named in the node's own space";
-
-/// A union fold step decided a relation other than a point's on a cell
-/// between cells that are not one member cell each.
-const UNION_FOLD_ROW_UNSTATED: &str = "a union fold step decided a relation other than a point's between cells made of several member cells";
-
-/// A union fold step's record cites a row the step did not decide.
-const UNION_STEP_UNDECIDED_CITE: &str = "a union fold step's record cites a row it did not decide";
-
-/// A union fold step's record cites an accumulation record the fold
-/// does not hold.
-const UNION_CARRY_LOST_RECORD: &str =
-    "a union fold step's record cites an accumulation record the fold does not hold";
-
-/// A split's value holds no name table for one of its halves.
-const SPLIT_HALF_UNNAMED: &str = "a split's value holds no name table for one of its halves";
-
-/// A union fold step's record cites nothing once carried into the
-/// node's terms.
-const UNION_CARRY_UNCITED: &str = "a union fold step's record cites nothing in the node's terms";
-
-/// A union's or an intersect's fold of two members or more ran no step.
-const UNION_NO_STEP: &str = "a union fold of two members or more ran no step";
 
 /// **DM4's contact rule: every member pair is judged as its own
 /// two-member union, before the fold** — the one place a union's
@@ -4225,17 +3794,17 @@ struct PairVerdict<T: Decide> {
 /// each with the row of `rows` (the judgement's, as `named` names them)
 /// that records it.
 ///
-/// # Errors
+/// # Panics
 ///
-/// An emission bug ([`UNION_VERDICT_UNRECORDED`]) where a verdict has no
-/// row.
+/// Where a verdict has no row: the boolean records a row for each
+/// verdict it glues by.
 fn pair_verdicts<T: Decide>(
     a: usize,
     b: usize,
     verdicts: &[topo::GlueVerdict<T>],
     rows: &[topo::Coincidence],
     named: &[crate::coincide::NamedCoincidence],
-) -> Result<Vec<PairVerdict<T>>, NodeErrorKind> {
+) -> Vec<PairVerdict<T>> {
     verdicts
         .iter()
         .map(|verdict| {
@@ -4251,9 +3820,16 @@ fn pair_verdicts<T: Decide>(
                     verdict: *verdict,
                     row: row.clone(),
                 })
-                .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
-                    what: UNION_VERDICT_UNRECORDED,
-                }))
+                .unwrap_or_else(|| {
+                    unreachable!(
+                        "the pairwise judgement of members {a} and {b} glued {:?}/{:?} under \
+                         {:?} with no row recording it, though the boolean records the row of \
+                         every verdict it glues by",
+                        verdict.a(),
+                        verdict.b(),
+                        verdict.relation()
+                    )
+                })
         })
         .collect()
 }
@@ -4268,8 +3844,11 @@ fn pair_verdicts<T: Decide>(
 /// # Errors
 ///
 /// An emission bug ([`UNION_VERDICTS_DISAGREE`]) where two verdicts
-/// glue one accumulation face to one member face under two relations,
-/// or an accumulation face carries no lineage.
+/// glue one accumulation face to one member face under two relations.
+///
+/// # Panics
+///
+/// Where an accumulation face carries no lineage ([`member_lineage`]).
 fn given_pairs<T: Decide>(
     verdicts: &[PairVerdict<T>],
     member: usize,
@@ -4283,7 +3862,7 @@ fn given_pairs<T: Decide>(
         (Operand, topo::GlueVerdict<T>),
     > = std::collections::BTreeMap::new();
     for (f, _) in acc.faces() {
-        let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
+        let parents = member_lineage(fold, f);
         for v in verdicts {
             // The accumulation's side of the verdict, and `member`'s face.
             let (held, at) = if v.b == member {
@@ -4325,11 +3904,12 @@ fn given_pairs<T: Decide>(
 /// place in `published`, the node's judged rows. `None` for a row the
 /// step decided.
 ///
-/// # Errors
+/// # Panics
 ///
-/// An emission bug where the row's accumulation face has no lineage
-/// ([`UNION_FACE_NO_LINEAGE`]) or no verdict's row is published
-/// ([`UNION_VERDICT_UNRECORDED`]).
+/// Where the row's accumulation face has no lineage
+/// ([`member_lineage`]), or no verdict's row is published: a given pair
+/// a step restates is one of the verdicts it was handed, each of which
+/// the judgement published.
 fn restated_given<T: Decide>(
     row: &topo::Coincidence,
     given: &[topo::GluedPair<T>],
@@ -4338,14 +3918,13 @@ fn restated_given<T: Decide>(
     fold: &names::UnionFold,
     published: &[crate::coincide::NamedCoincidence],
 ) -> Result<Option<Vec<usize>>, NodeErrorKind> {
-    let bug = |what| NodeErrorKind::Naming(names::NamingError::Emission { what });
     if !given.iter().any(|g| g.restated_by(row)) {
         return Ok(None);
     }
     let Some((f, joining)) = row.face_pair() else {
         return Ok(None);
     };
-    let parents = fold.member_faces(f).ok_or(bug(UNION_FACE_NO_LINEAGE))?;
+    let parents = member_lineage(fold, f);
     let mut rows = Vec::new();
     for v in verdicts {
         let (at, other) = if v.b == member {
@@ -4368,15 +3947,43 @@ fn restated_given<T: Decide>(
                     ..v.row.clone()
                 }
             })
-            .ok_or(bug(UNION_VERDICT_UNRECORDED))?;
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "member {member}'s fold step restates the verdict of members {} and {}, whose \
+                     row the judgement did not publish, though it publishes every verdict's row",
+                    v.a, v.b
+                )
+            });
         if !rows.contains(&i) {
             rows.push(i);
         }
     }
     if rows.is_empty() {
-        return Err(bug(UNION_VERDICT_UNRECORDED));
+        unreachable!(
+            "member {member}'s fold step restates a given pair on {f:?}/{joining:?} that no \
+             verdict it was handed holds, though `given_pairs` hands it only verdicts"
+        );
     }
     Ok(Some(rows))
+}
+
+/// The member faces accumulation face `f` descends from.
+///
+/// # Panics
+///
+/// Where the fold holds no lineage for `f`: the fold records one for
+/// every face of every accumulation it builds.
+#[track_caller]
+fn member_lineage(
+    fold: &names::UnionFold,
+    f: topo::FaceKey,
+) -> &std::collections::BTreeSet<(usize, topo::FaceKey)> {
+    fold.member_faces(f).unwrap_or_else(|| {
+        unreachable!(
+            "union fold accumulation face {f:?} has no member-face lineage, though the fold \
+             records one for every face of every accumulation it builds"
+        )
+    })
 }
 
 /// **A fold step's face-pair rows restate its given pairs** (DM4, the
@@ -4407,29 +4014,9 @@ fn debug_assert_given<T: Decide>(rows: &[topo::Coincidence], inputs: &BooleanInp
     }
 }
 
-/// A pairwise judgement's verdict that none of its published rows
-/// records.
-const UNION_VERDICT_UNRECORDED: &str =
-    "a union's pairwise judgement glued a pair no published row of it records";
-
-/// An accumulation face the fold's lineage does not hold.
-const UNION_FACE_NO_LINEAGE: &str = "a union fold's accumulation face has no member-face lineage";
-
 /// Two of a union's pairwise verdicts glue one accumulation face to one
 /// member face under two relations.
 const UNION_VERDICTS_DISAGREE: &str = "a union's pairwise judgements glue one accumulation face to one member face under two relations";
-
-/// A union's pairwise judgement returned the typed empty from two real
-/// bodies.
-const UNION_PAIR_EMPTY: &str =
-    "a union's pairwise judgement returned empty from two non-empty members";
-
-/// A union fold step returned the typed empty from two real bodies.
-const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-empty operands";
-
-/// The role word a transform's rotation axis is normalized under,
-/// shared by the evaluation and the mate solve.
-pub(crate) const TRANSFORM_AXIS_ROLE: &str = "transform rotation axis";
 
 /// The role word a stepped rule's LINEAR direction is normalized
 /// under, inside [`SteppedOperands::linear`].
@@ -4437,74 +4024,24 @@ const PATTERN_DIRECTION_ROLE: &str = "pattern direction";
 
 /// The role word a frame's authored +x direction is normalized under
 /// ([`frame_axes`]).
-pub(crate) const FRAME_X_ROLE: &str = "datum frame x axis";
+pub(crate) const FRAME_X_ROLE: &str = "frame x axis";
 
 /// The role word a frame's authored +y direction is normalized under,
 /// after Gram-Schmidt ([`frame_axes`]).
-pub(crate) const FRAME_Y_ROLE: &str = "datum frame y axis";
+pub(crate) const FRAME_Y_ROLE: &str = "frame y axis";
 
-/// The role word a plane datum's normal is normalized under.
-pub(crate) const PLANE_NORMAL_ROLE: &str = "datum plane normal";
+/// The role word a plane pose's normal is normalized under.
+pub(crate) const PLANE_NORMAL_ROLE: &str = "plane normal";
 
-/// The role word a DATUM AXIS's direction is normalized under — one
+/// The role word an axis pose's direction is normalized under — one
 /// word on both roads, though the funnel name differs by road (see
 /// [`unit()`]).
-pub(crate) const DATUM_AXIS_ROLE: &str = "datum axis direction";
-
-/// **The rigid map of a placement's rigid step** — the one home of
-/// that construction, read only by [`crate::Placement::motion`], which
-/// the evaluation and the mate solve's derived offset both read, so a
-/// transform under a mate and a transform under the gather move a body
-/// by the same arithmetic.
-///
-/// Rotate about the axis THROUGH THE WORLD ORIGIN by `angle`, then
-/// translate: a rigid motion by construction
-/// ([`RigidMotion::rotation_then_translation`]), so an angle widened to
-/// a box is carried rather than re-decided from the entries.
-///
-/// # Errors
-///
-/// [`NodeErrorKind::Motion`] naming an angle or translation that is
-/// not a finite number.
-pub(crate) fn transform_map<T: Decide>(
-    translation: Vec3<T>,
-    axis: UnitVec3<T>,
-    angle: T,
-) -> Result<RigidMotion<T>, NodeErrorKind> {
-    RigidMotion::rotation_then_translation(axis, angle, translation).map_err(NodeErrorKind::Motion)
-}
-
-/// **The transform node**: ONE rigid map, its placement's motion
-/// ([`crate::Placement::motion`]), shape-preserving over its input's
-/// value ([`Placeable`]), so body `i` of a transform of instances is
-/// bit for bit what the same map does to that body alone.
-///
-/// Identity-preserving pass-through (spec D2): the transform
-/// contributes NO `RolePath` segment. `transform_rigid` is key-stable,
-/// so the input's table holds verbatim — a name still points at the
-/// MINTING node (N1), and output-body indices are instance indices.
-fn wire_transform<T: Decide + topo::AtRestPolicy>(
-    input: RecipeNodeId,
-    placement: &crate::placement::Placement,
-    results: &Results<T>,
-    vals: &SlotValues<T>,
-    tol: Tol,
-) -> OpResult<T> {
-    let value = value_of(results, input)?;
-    let placeable = placeable_operand(value, input)?;
-    let band = band(tol)?;
-    let map = placement
-        .motion_kept(vals, band)?
-        .rigid(band)?
-        .unwrap_or_else(RigidMotion::identity);
-    let payload = placeable.map(|body, _| place(body, Some(&map), tol), tol)?;
-    Ok(OpOut::plain(payload, read_table(value)).carrying(value.parts))
-}
+pub(crate) const AXIS_DIRECTION_ROLE: &str = "axis direction";
 
 /// **A placement's copies** (D10): each shape read, projected to the
 /// value it reads (a split's half, one copy of a placement's copies, a
 /// family's member), placed at the one motion `map` its bundle solved
-/// to (`None` the bit-exact identity) and named under this node.
+/// to (`None` for the identity bundle) and named under this node.
 ///
 /// Over one shape the copy has the shape's shape: a body is one copy
 /// ([`names::name_placed`]), a family is a family, and a placement's
@@ -4648,6 +4185,15 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
                 }
                 true
             }
+            // An instance's copies, read whole: a family of its bodies,
+            // as an inline places the spliced copies of a part's world.
+            ValuePayload::Copies(copies) => {
+                for (i, body) in copies.bodies.iter().enumerate() {
+                    let index = names::output_body(i).map_err(NodeErrorKind::Naming)?;
+                    flat.push((projected(&read_table(value), index)?, placed(body)?));
+                }
+                true
+            }
             _ => return Err(wrong_operand(value, of, super::phrase::BODY_OR_INSTANCES)),
         };
         parts += value.parts;
@@ -4778,7 +4324,7 @@ struct RuleEnv<'a, T: Decide> {
     unprojected: &'a Results<T>,
 }
 
-fn stepped_map<T: Decide>(
+fn stepped_map<T: crate::mate::SolveScalar>(
     kind: &PatternKind,
     rule: &RuleEnv<'_, T>,
     listed: crate::node::CountMismatch,
@@ -4801,7 +4347,7 @@ fn stepped_map<T: Decide>(
             band(tol)?,
         )?,
         PatternKind::Circular { axis, .. } => {
-            let PoseValue::Axis { origin, dir } = pose::eval_pose(
+            let PoseValue::Axis(line) = pose::eval_pose(
                 rule.doc,
                 rule.unprojected,
                 crate::OperandSlot::Axis,
@@ -4813,9 +4359,9 @@ fn stepped_map<T: Decide>(
                 unreachable!("the door admits an axis alone at a circular rule's axis")
             };
             SteppedOperands::circular(
-                origin,
-                dir,
-                need_scalar(vals, SlotId::Step)?,
+                line.foot(),
+                line.dir(),
+                need_angle(vals, SlotId::Step)?,
                 &(rule.written)(SlotId::Step),
                 band(tol)?,
             )?
@@ -4830,11 +4376,11 @@ fn stepped_map<T: Decide>(
 ///
 /// **The layout, placement-major** (D9): output body `j·M + i` is
 /// placement `j` of the master's body `i`, `M` the master's body count
-/// ([`names::flat_body_index`], which the name table is keyed by too).
+/// (`flat_body_index` in `names::emit`, which the name table is keyed by too).
 /// Placement 0 is the master's own bodies verbatim; every master name
 /// wraps `Instance(j)` per placement (A8/N1).
 #[allow(clippy::too_many_arguments)] // the doc resolves the rule's axis
-fn wire_pattern<T: Decide + topo::AtRestPolicy>(
+fn wire_pattern<T: crate::mate::SolveScalar + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -4903,7 +4449,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
 /// Every placement is MAPPED, including index 0: an explicit rule need
 /// not make it the identity.
 #[allow(clippy::too_many_arguments)] // the doc resolves the rule's axis
-fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+fn wire_placed_union<T: crate::mate::SolveScalar + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -5036,6 +4582,7 @@ fn need_count(
 fn wire_loft<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
+    stations: &[&[crate::node::StationMove]],
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
@@ -5054,8 +4601,16 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
         }));
     }
     let v_degree = need_count(vals, SlotId::VDegree, 1, profiles.len() - 1)?;
-    let sections: Vec<profile::ValidatedProfile<T>> =
-        values.iter().map(|v| v.validated.clone()).collect();
+    // The first section is the loft's own plane; each after it stands
+    // where its station carries that plane.
+    let mut sections: Vec<profile::ValidatedProfile<T>> = Vec::with_capacity(values.len());
+    for (k, value) in values.iter().enumerate() {
+        let plane = match k.checked_sub(1) {
+            None => profile::SketchPlane::xy(),
+            Some(after) => station_plane(k, stations[after], vals)?,
+        };
+        sections.push(value.validated.clone().on_plane(plane));
+    }
     let pieces: Vec<super::ProfilePieces> = values.iter().map(|v| v.pieces.clone()).collect();
     // Skin refusals keep their own node-error shape (the §2
     // compatibility contract); assembly refusals arrive as `Loft`.
@@ -5073,11 +4628,44 @@ fn wire_loft<T: Decide + topo::AtRestPolicy>(
     ))
 }
 
+/// **Section `section`'s plane**: the first section's, carried by the
+/// station's moves in order, each a slide along or a spin about one of
+/// the first section's own axes through its origin.
+fn station_plane<T: Decide>(
+    section: usize,
+    station: &[crate::node::StationMove],
+    vals: &SlotValues<T>,
+) -> Result<profile::SketchPlane<T>, NodeErrorKind> {
+    use crate::node::StationMove as M;
+    let axis = |a: Axis3| match a {
+        Axis3::X => UnitVec3::exact_x(),
+        Axis3::Y => UnitVec3::exact_y(),
+        Axis3::Z => UnitVec3::exact_z(),
+    };
+    let mut frame = PoseValue::Frame(RigidMotion::axes_xy(Point3::origin()));
+    for (step, m) in station.iter().enumerate() {
+        frame = match m {
+            M::Slide { along, by: _ } => {
+                let by = need_scalar(vals, SlotId::StationSlide { section, step })?;
+                pose::slide(frame, axis(*along), by)?
+            }
+            M::Spin { about, by: _ } => {
+                let by = need_angle(vals, SlotId::StationSpin { section, step })?;
+                pose::spin(frame, Point3::origin(), axis(*about), by)?
+            }
+        };
+    }
+    let PoseValue::Frame(frame) = frame else {
+        unreachable!("a frame slid and spun is a frame")
+    };
+    Ok(profile::SketchPlane::from_frame(frame))
+}
+
 /// The Sweep node: ONE honest arm.
 ///
 /// Every RECIPE door still runs first — the structural slots, and both
 /// operands read as profiles ([`section_value`]) — because a Sweep on a
-/// datum, or with a bad Count, is a recipe error and must read as one.
+/// pose, or with a bad Count, is a recipe error and must read as one.
 /// The geometry is out of reach: see [`SWEEP_FRONTIER`].
 fn wire_sweep<T: Decide>(
     profile: RecipeNodeId,
@@ -5348,29 +4936,6 @@ mod union_row_tests {
             (topo::Relation::OnCarrier, vec![cell(4, v), cell(1, e)]),
             "a member vertex on a member edge is the two-cell row, as read"
         );
-        // A carrier pair's `OnCarrier` between a member face and a face
-        // the fold merged from two: no fold step decides one, and one
-        // that would be rewritten is refused.
-        let (f1, f2) = (
-            member(1, EntityKind::Face, CapEnd::Start),
-            member(2, EntityKind::Face, CapEnd::End),
-        );
-        let merged = name(
-            EntityKind::Face,
-            union,
-            vec![RoleSeg::Merged(vec![
-                from(union, 1, f1.clone()),
-                from(union, 2, f2.clone()),
-            ])],
-        );
-        let pair = row(
-            in_own(from(union, 3, member(3, EntityKind::Face, CapEnd::End))),
-            in_own(merged),
-        );
-        assert!(
-            in_member_space(pair, own, 3).is_err(),
-            "a face on a face made of two is refused, not rewritten"
-        );
         // A point decided on the very cell it is states nothing.
         let on_itself = NamedCoincidence {
             relation: topo::Relation::Meet,
@@ -5383,6 +4948,34 @@ mod union_row_tests {
             in_member_space(on_itself, own, 3).is_err(),
             "a meeting of one cell is refused"
         );
+    }
+
+    /// **A carrier pair's row is never a fold step's**: an `OnCarrier`
+    /// between a member face and a face the fold merged from two is one
+    /// no step decides, since a step runs with the pairwise verdicts
+    /// given, so one that would be rewritten is a kernel bug.
+    #[test]
+    #[should_panic(expected = "decides no carrier pair itself")]
+    fn a_fold_row_on_a_face_made_of_two_panics() {
+        let union = RecipeNodeId::new(0, 9);
+        let own = VarId::new(1, 9);
+        let in_own = |n: StableName| NamedCell::Entity {
+            input: own,
+            name: n,
+        };
+        let merged = name(
+            EntityKind::Face,
+            union,
+            vec![RoleSeg::Merged(vec![
+                from(union, 1, member(1, EntityKind::Face, CapEnd::Start)),
+                from(union, 2, member(2, EntityKind::Face, CapEnd::End)),
+            ])],
+        );
+        let pair = row(
+            in_own(from(union, 3, member(3, EntityKind::Face, CapEnd::End))),
+            in_own(merged),
+        );
+        let _ = in_member_space(pair, own, 3);
     }
 
     /// **Only an uncited row whose cell its table does not name is held

@@ -121,7 +121,7 @@ fn r2p2_the_apex_window_rows_inner_assertion_short_circuits() {
         ("widening upward (opening)", opening_frustum()),
     ] {
         let faces = cone_faces(&body);
-        let mut work = body.clone();
+        let mut work = topo::Body::clone(&body);
         match topo::replace_faces_offset(&mut work, &faces, -0.04, tol) {
             Err(ReplaceFaceError::ApexWindow {
                 v_min,
@@ -206,7 +206,7 @@ fn r2p5_the_rebaselined_row_asks_the_question_the_old_one_meant() {
         // The gate's own `sense` on the mirror nappe, spelled as a
         // negation rather than a product by −1.
         let realized = -(v_near + shift);
-        let mut work = body.clone();
+        let mut work = topo::Body::clone(&body);
         let got = topo::replace_face_offset(&mut work, face, d, tol);
         println!("[r2p5] d={d:+}: shift={shift} v_near={v_near} realized={realized} -> {got:?}");
         if d < 0.0 {
@@ -262,7 +262,7 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
         ("frustum BELOW its apex (mirror)", R_WIDE, R_NARROW),
         ("frustum ABOVE its apex (opening)", R_NARROW, R_WIDE),
     ] {
-        let body = frustum(r0, r1, H);
+        let body = topo::test_support::finished("body", frustum(r0, r1, H), tol);
         let v_solid = topo::mass_properties(&body, tol).expect("props").volume;
         let closed = frustum_volume(r0, r1, H);
         println!("[r2p7] {what}: solid {v_solid}, closed form {closed}");
@@ -271,7 +271,11 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
             "[r2p7] {what}: the operand itself"
         );
 
-        let hollow = match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
+        let hollow = match topo::shell(
+            &finished("the operand", topo::Body::clone(&body.clone()), tol),
+            T,
+            tol,
+        ) {
             Ok(topo::Shelled { body: h, .. }) => h,
             Err(e) => panic!("[r2p7] {what}: `shell` REFUSED — a user gets nothing: {e}"),
         };
@@ -280,7 +284,12 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
             Ok(()),
             "[r2p7] {what}: the hollowed body must validate"
         );
-        let v_wall = topo::mass_properties(&hollow, tol).expect("props").volume;
+        let v_wall = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&hollow), tol),
+            tol,
+        )
+        .expect("props")
+        .volume;
         let want = frustum_wall_closed_form(r0, r1, H);
         println!(
             "[r2p7] {what}: wall {v_wall} want {want} delta {:e}, cavity {}",
@@ -299,7 +308,7 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
         // The same faces, through the per-chart door a user would reach
         // for to move ONE chart.
         let faces = cone_faces(&body);
-        let mut work = body.clone();
+        let mut work = topo::Body::clone(&body);
         let got = topo::replace_faces_offset(&mut work, &faces, -T, tol);
         println!("[r2p7] {what}: per-chart door on the same faces -> {got:?}");
     }

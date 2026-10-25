@@ -2,9 +2,10 @@
 id: an-iso-arc-certificate-never-checks-the-edge-span-lies-in-its-arc
 kind: issue
 title: The IsoArc certificate never checks that the edge's span lies in the image's arc
-status: open
+status: closed
 priority: P3
 opened: 2026-10-15
+closed: 2026-10-23
 ---
 
 
@@ -32,3 +33,19 @@ and `recertify_via_stated` certify any stated `IsoArc` as it stands, and
 **Fix:** a decided `[t0, t1] ⊆ [at0, at0 + angle]` at the head of the
 `IsoArc` checks (with ε headroom, metered in metres along the arc), its
 definite failure a typed refusal; a row stating a shorter image.
+
+## Closed
+
+`iso/arc-rim-sub-arc` (ISO, the IsoArc half of
+`iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`), as a
+matter of course: that change mints images whose arc is wider than their
+edge's span (a split rim's child takes the row over the row's own arc),
+so the certificate has to decide the span lies in it. `run_iso_arc_checks`
+now decides `at0 ≤ t0` and `t1 ≤ at0 + angle` after check 2's forward
+interval, each metered by the radius (`pcurve_iso_arc_span`); a span in
+the band of an arc end reads as on it, a definite miss refuses
+`IsoUnsupported { "an arc rim whose edge runs past its image's arc …" }`,
+and an undecided one escalates at `ParamSpan`. Pinned by `geom-brep`'s
+`onpair_plane_nurbs::an_iso_arc_refuses_a_span_past_its_arc` (a span
+inside the arc certifies; one reaching before its start or past its end
+refuses typed, before its samples are read).

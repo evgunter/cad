@@ -20,11 +20,10 @@
 
 use crate::fixture::{self, ang, len};
 use editor_core::mate::coset::{Coset, Subgroup, intersect};
-use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
-    BodyRead, ConstraintId, ContactClass, Coord, DocEdit, EditError, EvalOptions, ExtrudeSide,
-    Formula, Mate, MateFault, Node, NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId,
-    SlideAxis, StableName, Target, Value, WorldRead,
+    BodyRead, Coord, DocEdit, EditError, EvalOptions, Formula, Mate, MateFault, Node,
+    NodeErrorKind, NodeResult, Operand, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
 };
 use geom_core::Tol;
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
@@ -35,7 +34,7 @@ fn band() -> Band {
 }
 
 fn unit(v: Vec3<f64>) -> UnitVec3<f64> {
-    UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band()).expect("a direction")
+    UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band()).expect("a direction")
 }
 
 /// A deterministic stream of numbers in `[-1, 1)`, so a row's failure
@@ -223,7 +222,6 @@ fn a_box(id: &str, size: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(size),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -288,42 +286,55 @@ fn spun(pose_: Operand, about: Operand, turn: f64) -> Operand {
 fn placed(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
-        Node::place(vec![BodyRead::plain(Operand::output(body, 0))]),
+        crate::fixture::stood(vec![BodyRead::plain(Operand::output(body, 0))]),
     )
 }
 
-/// The world's xy plane, its normal turned to −z by a half-turn about
-/// x — a plane facing down with no flip in its spelling.
-fn world_floor_facing_down() -> WorldRead<Formula> {
-    WorldRead::through(PoseRole::Xy)
-        .spin(WorldRead::through(PoseRole::X), ang(std::f64::consts::PI))
+/// The top of a floor turned to face `−z` by a half-turn about the
+/// world's `x` — a plane facing down with no flip in its spelling.
+fn floor_facing_down(doc: ProfileDoc) -> (ProfileDoc, Operand) {
+    let (doc, top, _) = fixture::floor(
+        doc,
+        vec![(Coord::Spin(TargetAxis::X), ang(std::f64::consts::PI))],
+    );
+    (doc, top)
 }
 
-/// `value` added to `placement`, its id.
-fn add_value(
+/// The world's `xy`, facing down: a floor's top, flipped, which a box's
+/// bottom face rests on.
+fn floor_flipped(doc: ProfileDoc) -> (ProfileDoc, Operand) {
+    let (doc, top, _) = fixture::floor(doc, Vec::new());
+    (doc, fixture::flip(top))
+}
+
+/// **`mate` written onto `placement` whole, its `values` in the order
+/// given**, then the constant `0` on each freedom they leave
+/// ([`fixture::squared`]): every bundle pins its copy.
+fn seat(
     doc: ProfileDoc,
     placement: RecipeNodeId,
-    mate: ConstraintId,
-    coord: Coord,
-    by: Formula,
-) -> Result<(ProfileDoc, ConstraintId), EditError> {
-    let applied = doc.apply(
-        &DocEdit::AddValue {
-            placement,
-            value: Box::new(Value { mate, coord, by }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )?;
-    let id = applied.record.minted_constraints[0];
-    Ok((applied.doc, id))
+    mate: Mate<Formula>,
+    values: impl IntoIterator<Item = (Coord, Formula)>,
+) -> ProfileDoc {
+    let mut values: Vec<(Coord, Formula)> = values.into_iter().collect();
+    let full = fixture::squared(&doc, mate.clone(), &values);
+    for (coord, by) in full.values {
+        if !values.iter().any(|(at, _)| *at == coord) {
+            values.push((coord, by));
+        }
+    }
+    let placed = editor_core::Placed {
+        mates: vec![mate],
+        values,
+    };
+    fixture::write_bundle(doc, placement, placed.bundle()).0
 }
 
 /// The value's number for `coord`: a length or an angle.
 fn number(coord: Coord, v: f64) -> Formula {
     match coord {
         Coord::Slide(_) => len(v),
-        Coord::Spin => ang(v),
+        Coord::Spin(editor_core::TargetAxis::Z) | Coord::Spin(_) => ang(v),
     }
 }
 
@@ -351,44 +362,36 @@ fn turn_between(a: Mat3<f64>, b: Mat3<f64>) -> f64 {
 /// A box resting on the world floor by its bottom face, with values
 /// `(slide x, slide y, spin)` written in `order`.
 fn box_on_the_floor(values: [f64; 3], order: [usize; 3]) -> (ProfileDoc, RecipeNodeId) {
-    box_resting_on(WorldRead::through(PoseRole::Xy).flip(), values, order)
+    box_resting_on(Vec::new(), values, order)
 }
 
-/// A box resting by its bottom face on the world plane `target`, with
-/// values `(slide x, slide y, spin)` written in `order`.
+/// A box resting by its bottom face on the top of a floor placed by
+/// `moves` (the world's `xy` moved by them, [`fixture::floor`]),
+/// flipped, with values `(slide x, slide y, spin)` written in `order`.
 fn box_resting_on(
-    target: WorldRead<Formula>,
+    moves: Vec<(Coord, Formula)>,
     values: [f64; 3],
     order: [usize; 3],
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, body) = a_box("s3c_floor", 1.0);
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
+    let (doc, top, _) = fixture::floor(doc, moves);
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: fixture::flip(top),
+    };
+    let coords = [
+        Coord::Slide(TargetAxis::X),
+        Coord::Slide(TargetAxis::Y),
+        Coord::Spin(editor_core::TargetAxis::Z),
+    ];
+    let doc = seat(
         doc,
         placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(target),
-            class: ContactClass::Rest,
-        },
+        written,
+        order.map(|k| (coords[k], number(coords[k], values[k]))),
     );
-    let coords = [
-        Coord::Slide(SlideAxis::X),
-        Coord::Slide(SlideAxis::Y),
-        Coord::Spin,
-    ];
-    for k in order {
-        doc = add_value(
-            doc,
-            placement,
-            mate.id,
-            coords[k],
-            number(coords[k], values[k]),
-        )
-        .expect("a plane mate leaves the freedom")
-        .0;
-    }
     (doc, placement)
 }
 
@@ -448,8 +451,8 @@ fn a_plane_mate_leaves_two_slides_and_a_spin_in_any_order() {
 }
 
 /// **Every listing order places the copy to the bit, on a tilted
-/// target too.** The floor read spun 0.3 about `x` and 0.7 about `z`,
-/// then flipped: values `(3.3, 4.7, 0.9)` in all six orders give one
+/// target too.** A floor spun 0.3 about `x` and 0.7 about `z`, its
+/// top flipped: values `(3.3, 4.7, 0.9)` in all six orders give one
 /// map, bit for bit — the values are taken in one order whatever order
 /// they are listed in.
 ///
@@ -457,10 +460,10 @@ fn a_plane_mate_leaves_two_slides_and_a_spin_in_any_order() {
 /// tilted chart's slides round apart in the last bits).
 #[test]
 fn every_order_places_the_copy_to_the_bit_on_a_tilted_target() {
-    let tilted = WorldRead::through(PoseRole::Xy)
-        .spin(WorldRead::through(PoseRole::X), ang(0.3))
-        .spin(WorldRead::through(PoseRole::Z), ang(0.7))
-        .flip();
+    let tilted = vec![
+        (Coord::Spin(TargetAxis::X), ang(0.3)),
+        (Coord::Spin(TargetAxis::Z), ang(0.7)),
+    ];
     let orders = [
         [0, 1, 2],
         [0, 2, 1],
@@ -483,10 +486,10 @@ fn every_order_places_the_copy_to_the_bit_on_a_tilted_target() {
 }
 
 /// **A freedom set twice refuses at the door, whatever else the bundle
-/// leaves.** A box resting on the floor with a slide along `x`: a
-/// second slide along `x` on the same mate sets the freedom the first
-/// already sets, so the door refuses it, naming both, though the spin
-/// is still free (FORK-S3O).
+/// leaves.** A box's bundle resting it on the floor with two slides
+/// along `x` on the one mate: the second sets the freedom the first
+/// already sets, so the door refuses the bundle, naming both, though
+/// the slide along `y` and the spin are still free (FORK-S3O).
 ///
 /// *Breaks if* a value is admitted beside one of its own freedom, or
 /// the door names only the later one.
@@ -495,35 +498,24 @@ fn a_slide_set_twice_refuses_though_a_turn_is_free() {
     let (doc, body) = a_box("s3c_twice", 1.0);
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
-    let (doc, first) = add_value(
-        doc,
-        placement,
-        mate.id,
-        Coord::Slide(SlideAxis::X),
-        len(1.0),
-    )
-    .expect("a plane mate leaves the slide");
-    match add_value(
-        doc,
-        placement,
-        mate.id,
-        Coord::Slide(SlideAxis::X),
-        len(2.0),
-    ) {
+    let (doc, floor) = floor_flipped(doc);
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: floor,
+    };
+    let twice = editor_core::Placed {
+        mates: vec![written],
+        values: vec![
+            (Coord::Slide(TargetAxis::X), len(1.0)),
+            (Coord::Slide(TargetAxis::X), len(2.0)),
+        ],
+    };
+    match doc.apply(&twice.write(placement), Tol::witness()) {
         Err(EditError::MateRefused { fault, .. }) => assert!(
             matches!(
                 &*fault,
                 MateFault::Overconstrained { placement: p, constraints, free: 2 }
-                    if *p == placement && constraints.len() == 2 && constraints.contains(&first)
+                    if *p == placement && constraints.len() == 2
             ),
             "{fault}"
         ),
@@ -554,25 +546,30 @@ fn box_on_the_wall(draft: f64, roll: f64) -> Affine3<f64> {
         roll,
     );
     let (doc, placement) = placed(doc, body);
-    let (doc, mate) = fixture::constrain_at(
+    // The world's `yz`, facing `+x`: a floor turned a quarter turn about
+    // the world's `y`.
+    let (doc, wall, _) = fixture::floor(
+        doc,
+        vec![(
+            Coord::Spin(TargetAxis::Y),
+            Formula::turn_over(4).expect("a quarter turn"),
+        )],
+    );
+    let written = Mate { on: face, to: wall };
+    let doc = doc;
+    let doc = seat(
         doc,
         placement,
-        Mate {
-            on: face,
-            to: Target::World(WorldRead::through(PoseRole::Yz)),
-            class: ContactClass::Rest,
-        },
+        written,
+        [
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (
+                Coord::Spin(editor_core::TargetAxis::Z),
+                ang(30.0_f64.to_radians()),
+            ),
+        ],
     );
-    let mut doc = doc;
-    for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
-        (Coord::Spin, ang(30.0_f64.to_radians())),
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
     solved(&doc, placement)
 }
 
@@ -638,7 +635,7 @@ fn a_prisms_flat_through_zero_turns_by_its_angle() {
 fn the_antipode_is_decided_exactly_and_the_band_refuses() {
     let band = band();
     let x = Vec3::new(1.0, 0.0, 0.0);
-    let unit = |v: Vec3<f64>| UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).unwrap();
+    let unit = |v: Vec3<f64>| UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).unwrap();
     let exact = editor_core::reference_about(unit(Vec3::new(0.0, 0.0, -1.0)), 1.0, band)
         .expect("the antipode decides");
     assert_eq!(
@@ -687,24 +684,22 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     let (doc, body) = a_box("s3c_cap", 1.0);
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
+    let (doc, down) = floor_facing_down(doc);
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: down,
+    };
+    let doc = seat(
         doc,
         placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(world_floor_facing_down()),
-            class: ContactClass::Rest,
-        },
+        written,
+        [
+            Coord::Slide(TargetAxis::X),
+            Coord::Slide(TargetAxis::Y),
+            Coord::Spin(editor_core::TargetAxis::Z),
+        ]
+        .map(|coord| (coord, number(coord, 0.0))),
     );
-    for coord in [
-        Coord::Slide(SlideAxis::X),
-        Coord::Slide(SlideAxis::Y),
-        Coord::Spin,
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, number(coord, 0.0))
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
     let at = solved(&doc, placement);
     assert!(
         turn_between(at.linear, Mat3::identity()) < 1e-12 && at.translation.norm() < 1e-12,
@@ -725,18 +720,17 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
         std::f64::consts::PI.sin(),
     );
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
+    let (doc, down) = floor_facing_down(doc);
+    let written = Mate {
+        on: tilted,
+        to: down,
+    };
+    let doc = seat(
         doc,
         placement,
-        Mate {
-            on: tilted,
-            to: Target::World(world_floor_facing_down()),
-            class: ContactClass::Rest,
-        },
+        written,
+        [(Coord::Spin(editor_core::TargetAxis::Z), ang(0.0))],
     );
-    doc = add_value(doc, placement, mate.id, Coord::Spin, ang(0.0))
-        .expect("a plane mate leaves its spin")
-        .0;
     let ev = fixture::run(&doc, &EvalOptions::default());
     assert!(
         !matches!(ev.result(placement), Some(NodeResult::Failed(_))),
@@ -745,15 +739,19 @@ fn a_cap_at_the_antipode_places_without_a_turn() {
     );
 }
 
-/// **Ruling C-2 — a mate a value names goes only once the value has
-/// gone.** Removing the floor mate while its spin value names it
-/// refuses `MateNamedByValue`; removing the value, then the mate, is
-/// admitted.
+/// **A mate taken out frees what it fixed, and a value taken out is
+/// its freedom written back to `0`** (`DocEdit::RemoveConstraint`, the
+/// bundle written whole again): the box on the floor loses its plane
+/// mate and keeps its two slides and its spin, now on the world's axes,
+/// the lift and the two tilts written the constant `0`; a value taken
+/// out leaves the mate and the other two, and the constant `0` in its
+/// place. Either way the copy stays pinned.
 ///
-/// *Breaks if* the mate goes and leaves a value setting a freedom of
-/// nothing.
+/// *Breaks if* a removal leaves a bundle short of pinning its copy, or
+/// drops a value whose freedom the remaining mates still leave.
 #[test]
-fn a_mate_a_value_names_is_removed_only_after_it() {
+fn a_constraint_taken_out_leaves_its_bundle_pinned() {
+    use editor_core::TargetAxis::{X, Y, Z};
     let (doc, p) = box_on_the_floor([0.0, 0.0, 0.5], [2, 0, 1]);
     let bundle = fixture::bundle(&doc, p);
     let mate = bundle
@@ -769,113 +767,60 @@ fn a_mate_a_value_names_is_removed_only_after_it() {
             },
             Tol::witness(),
         )
+        .unwrap_or_else(|refusal| panic!("the bundle is written whole again: {refusal}"))
+        .doc
     };
-    match remove(&doc, mate) {
-        Err(EditError::MateNamedByValue { mate: named, .. }) => assert_eq!(named, mate),
-        other => panic!("the mate is named by its values: {other:?}"),
-    }
-    let mut doc = doc;
-    for value in bundle.iter().filter(|c| c.value().is_some()) {
-        doc = remove(&doc, value.id).expect("a value goes").doc;
-    }
-    remove(&doc, mate).expect("with its values gone, the mate goes");
-}
-
-/// **The "place part" gesture reproduces its pose.** A box placed at a
-/// pose `P` (turned about a slanted axis, slid off the origin) by
-/// `place_at`: a plane mate on its first planar face to the world plane
-/// that face lies in at `P`, and three values computed from `P` — none
-/// of them zero here. Re-evaluating puts the copy at `P` to the
-/// rounding of one re-composition.
-///
-/// *Breaks if* the gesture writes zero values and leaves the copy at
-/// the plane's foot, or its chart and the solve's disagree.
-#[test]
-fn the_place_gesture_reproduces_its_pose() {
-    let (doc, body) = a_box("s3c_place_at", 1.0);
-    let (doc, placement) = placed(doc, body);
-    let turn = Mat3::rotation_about(Vec3::new(1.0, 2.0, 3.0), 0.7);
-    let shift = Vec3::new(4.0, -1.5, 2.25);
-    let pose = editor_core::Frame::from_affine(Affine3::from_parts(turn, shift));
-    let shape = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => Operand::Var(shapes[0].read),
-        _ => unreachable!("a placement was inserted"),
-    };
-    let placed_by =
-        editor_core::place_at(&doc, &shape, &pose, &EvalOptions::default(), Tol::witness())
-            .expect("a box has a planar face");
-    assert_eq!(placed_by.by, editor_core::PlacedBy::PlanarFace);
-    assert_eq!(placed_by.values.len(), 3, "two slides and a spin");
-    assert!(
-        placed_by
-            .values
+    let coords = |doc: &ProfileDoc| -> Vec<Coord> {
+        fixture::bundle(doc, p)
             .iter()
-            .all(|(_, by)| by.literal_value().is_some_and(|v| v != 0.0)),
-        "the values are computed from P, not assumed zero: {:?}",
-        placed_by.values
-    );
-    let (mut doc, mate) = fixture::constrain_at(doc, placement, placed_by.mate);
-    for (coord, by) in placed_by.values {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("the gesture's values are its mate's freedoms")
-            .0;
-    }
-    let at = solved(&doc, placement);
+            .filter_map(|c| c.value().map(|v| v.coord))
+            .collect()
+    };
+    let freed = remove(&doc, mate);
     assert!(
-        turn_between(at.linear, turn) < 1e-12 && (at.translation - shift).norm() < 1e-12,
-        "the copy stands at P: {at:?}"
+        fixture::bundle(&freed, p)
+            .iter()
+            .all(|c| c.mate().is_none()),
+        "the mate went"
+    );
+    assert_eq!(
+        coords(&freed),
+        [
+            Coord::Spin(Z),
+            Coord::Slide(X),
+            Coord::Slide(Y),
+            Coord::Slide(Z),
+            Coord::Spin(X),
+            Coord::Spin(Y),
+        ],
+        "the values it left are kept, and 0 on the rest"
+    );
+    let value = bundle
+        .iter()
+        .find(|c| c.value().is_some())
+        .expect("a value")
+        .id;
+    let zeroed = remove(&doc, value);
+    assert_eq!(
+        fixture::bundle(&zeroed, p).len(),
+        4,
+        "the mate and three values"
+    );
+    assert!(
+        fixture::bundle(&zeroed, p).iter().any(|c| c.id == mate),
+        "the mate stays"
     );
 }
 
-/// **The gesture pins where its face's chart has no swing.** A box
-/// placed at a turn of `π − ε` about `x`: its first planar face's
-/// normal stands at the chart's one pole by a chord the band cannot
-/// decide (ε levered over the copy's arm), where no value can be
-/// charted, so `place_at` falls back to the pin (`PlacedBy::Pin`) and
-/// the copy stands at `P`; a turn well clear of the pole writes the
-/// plane mate and its values. The turn is the run's ε, not a literal:
-/// a chord the band decides zero takes the antipode's own chart.
+/// **Values on the world's axes reproduce a pose.** A bundle with no
+/// mate whose spins about `x`, `y` and `z` are the pose's angles in that
+/// order, and whose slides are its origin, stands the copy at `P`.
 ///
-/// *Breaks if* the gesture refuses at that band of poses (with a reason
-/// that names no chart) instead of pinning.
-#[test]
-fn the_place_gesture_pins_where_its_chart_has_no_swing() {
-    let (doc, body) = a_box("s3c_place_pole", 1.0);
-    let (doc, placement) = placed(doc, body);
-    let shape = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => Operand::Var(shapes[0].read),
-        _ => unreachable!("a placement was inserted"),
-    };
-    let gesture = |angle: f64| {
-        let turn = Mat3::rotation_about(Vec3::new(1.0, 0.0, 0.0), angle);
-        let pose = editor_core::Frame::from_affine(Affine3::from_parts(turn, Vec3::zero()));
-        let placed =
-            editor_core::place_at(&doc, &shape, &pose, &EvalOptions::default(), Tol::witness())
-                .unwrap_or_else(|refusal| panic!("the gesture places at {angle}: {refusal}"));
-        (turn, placed)
-    };
-    let (_, clear) = gesture(std::f64::consts::PI - 0.5);
-    assert_eq!(clear.by, editor_core::PlacedBy::PlanarFace);
-    let (turn, near) = gesture(std::f64::consts::PI - Tol::witness().eps());
-    assert_eq!(near.by, editor_core::PlacedBy::Pin, "{near:?}");
-    let (doc, _) = fixture::constrain_at(doc, placement, near.mate);
-    let at = solved(&doc, placement);
-    assert!(
-        turn_between(at.linear, turn) < 1e-12 && at.translation.norm() < 1e-12,
-        "the copy stands at P: {at:?}"
-    );
-}
-
-/// **The migration's pin reproduces its pose.** `pin_at` reads a frame
-/// off the copy's first axis-bearing edge and a vertex off it, and
-/// equates it with the world's frame moved to where that frame sits at
-/// `P`: the copy stands at `P`.
-///
-/// *Breaks if* the world read's spins compose in another order than the
-/// angles were taken in.
+/// *Breaks if* the chain's spins compose in another order than they are
+/// written in.
 #[test]
 fn the_migration_pin_reproduces_its_pose() {
-    let (doc, body) = a_box("s3c_pin_at", 1.0);
+    let (doc, body) = a_box("s3c_pinned", 1.0);
     let (doc, placement) = placed(doc, body);
     let turn = Mat3::rotation_about(Vec3::new(-2.0, 0.5, 1.0), 2.1);
     let shift = Vec3::new(-3.0, 0.5, 7.0);
@@ -952,50 +897,71 @@ fn a_number_that_moves_nothing_is_reported() {
     );
 }
 
-/// **Inline refuses a moving landing for a value charted on the part's
-/// world** (C-4). A part whose one copy rests on its world floor by a
-/// mate and three values, instanced in a host and pinned off the
-/// identity: the part's world mates would move with the instance, but a
-/// value is charted on the world's own frame, which stays, so inline
-/// refuses `ValueOnAMovedWorld` naming the value. Pinned at the
-/// identity, the same instance inlines.
+/// **Inline carries a moving landing for a value charted on the part's
+/// world** (ASSEMBLY A4). A part whose box rests on a floor by a mate
+/// and three values, all numbers, instanced in a host and placed off the
+/// identity: inline copies the part verbatim into a space of its own and
+/// places it under the instance's bundle, so the inlined host's world
+/// is the one it had. Placed at the identity, the same instance inlines
+/// too.
 ///
-/// *Breaks if* the inline moves the mate's world read and leaves the
-/// value charted on the unmoved frame (the copy lands at its numbers in
-/// the host's world, not moved with the rest).
+/// *Breaks if* the inline composes the landing into the part's values
+/// (the copy would land at its numbers in the host's world, not moved
+/// with the rest).
 #[test]
-fn inline_refuses_a_moved_landing_under_a_world_value() {
-    let (part, p) = box_on_the_floor([0.5, 0.0, 0.0], [0, 1, 2]);
-    let value = fixture::bundle(&part, p)
-        .iter()
-        .find(|c| c.value().is_some())
-        .expect("a value")
-        .id;
+fn inline_moves_a_landing_under_a_world_value_with_its_instance() {
+    let (part, _) = box_on_the_floor([0.5, 0.0, 0.0], [0, 1, 2]);
     let mut store = fixture::resolver::PartStore::new();
     let part_ref = store.insert(part, Tol::witness());
     let o = fixture::resolver::with_resolver(store.clone());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     let host = ProfileDoc::empty_derived("s3c_inline_host", Tol::witness());
-    let (host, instance) = fixture::insert(host, Node::instantiate_part(part_ref));
+    let (host, instance) = fixture::insert(host, crate::fixture::mated_instance(part_ref));
+    // The world's vertices, sorted: a re-pin re-composes the pose, so
+    // the copy stands where it stood to the rounding of that one step.
+    let world = |doc: &ProfileDoc, o: &EvalOptions| {
+        let body = editor_core::product(doc, &fixture::run(doc, o), Tol::witness())
+            .expect("the world gathers");
+        let mut points: Vec<[f64; 3]> =
+            body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
+        points.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
+        points
+    };
+    let same = |a: Vec<[f64; 3]>, b: Vec<[f64; 3]>| {
+        a.len() == b.len()
+            && a.iter()
+                .zip(&b)
+                .all(|(p, q)| p.iter().zip(q).all(|(x, y)| (x - y).abs() <= 1e-12))
+    };
     let moved = fixture::pin(
         host.clone(),
         instance,
         &editor_core::Frame::translation([3.0, 0.0, 0.0]),
         &o,
     );
-    match editor_core::inline(&moved, instance, &resolver, Tol::witness()) {
-        Err(editor_core::InlineError::ValueOnAMovedWorld {
-            placement,
-            value: named,
-        }) => {
-            assert_eq!(placement.id(), p, "the part placement is named");
-            assert_eq!(named, value, "the value is named");
-        }
-        other => panic!("a moving landing under a world value refuses: {other:?}"),
-    }
+    let inlined = editor_core::inline(&moved, instance, &resolver, Tol::witness())
+        .unwrap_or_else(|e| panic!("a moving landing under a world value inlines: {e}"));
+    assert!(
+        same(
+            world(&inlined.doc, &EvalOptions::default()),
+            world(&moved, &o)
+        ),
+        "the copy moved with the instance"
+    );
     let still = fixture::pinned(host, instance, &o);
-    editor_core::inline(&still, instance, &resolver, Tol::witness())
+    let inlined = editor_core::inline(&still, instance, &resolver, Tol::witness())
         .expect("at the identity the part's world is the host's");
+    assert!(
+        same(
+            world(&inlined.doc, &EvalOptions::default()),
+            world(&still, &o)
+        ),
+        "and at the identity it stays"
+    );
+    assert!(
+        !same(world(&moved, &o), world(&still, &o)),
+        "the pin moved the instance"
+    );
 }
 
 /// `doc` evaluated at scalar `T` under `o`.
@@ -1045,28 +1011,25 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
     );
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
+    let (doc, floor) = floor_flipped(doc);
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: floor,
+    };
     let slide = Formula::named(
         editor_core::VarName::new("s").expect("a name"),
         editor_core::Dimension::Length,
     );
-    for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), slide),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
-        (Coord::Spin, ang(0.0)),
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        [
+            (Coord::Slide(TargetAxis::X), slide),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+        ],
+    );
     let seeded = EvalOptions {
         seed: doc.var_named("s"),
         ..EvalOptions::default()
@@ -1074,56 +1037,89 @@ fn box_slid_by_a_parameter(nominal: f64) -> (ProfileDoc, RecipeNodeId, EvalOptio
     (doc, placement, seeded)
 }
 
-/// **Fork C-5 — a copy at rest is placed by no map, in every lane.** A
-/// box pinned at the identity by `pin_at` stands there to rounding; the
-/// fold decides it at rest and places it by no map in the `f64`, the
-/// interval and the dual lane alike.
+/// **FORK-REST — only the identity bundle is placed by no map, and in
+/// every lane.** Whether a copy is placed by no map is read off its
+/// recipe: the identity bundle ([`editor_core::stand`]: no mate, the
+/// constant `0` on every freedom) is placed by none in the `f64`, the
+/// interval, the dual and the symbolic lane alike (and the probe lane,
+/// under `--features probe`), while a box placed by typed zeros runs
+/// its map in every lane, though the map comes out as the identity.
 ///
-/// *Breaks if* the snap is one lane's (the lanes would disagree on
-/// whether a map is applied), or reads another predicate than
-/// `SolvedPoses::at_identity`'s.
+/// *Breaks if* any lane decides from a value that a copy is at rest
+/// (the lanes would disagree on whether a map is applied), or the
+/// identity bundle is placed by a map.
 #[test]
-fn a_copy_pinned_at_the_identity_is_placed_by_no_map_in_every_lane() {
+fn only_the_identity_bundle_is_placed_by_no_map_in_every_lane() {
+    let lanes = |doc: &ProfileDoc, placement| {
+        let seeded = EvalOptions {
+            seed: doc.var_named("unread"),
+            ..EvalOptions::default()
+        };
+        let plain = EvalOptions::default();
+        let lanes = vec![
+            motion_of(&evaluated::<f64>(doc, &plain), placement).is_none(),
+            motion_of(&evaluated::<geom_core::Interval>(doc, &plain), placement).is_none(),
+            motion_of(&evaluated::<geom_core::Dual64>(doc, &seeded), placement).is_none(),
+            motion_of(&evaluated::<geom_core::Sym<f64>>(doc, &plain), placement).is_none(),
+        ];
+        #[cfg(feature = "probe")]
+        let lanes = {
+            let mut lanes = lanes;
+            lanes.push(motion_of(&evaluated::<geom_core::Probe>(doc, &plain), placement).is_none());
+            lanes
+        };
+        lanes
+    };
+    let every = |placed_by_no_map: bool| {
+        vec![placed_by_no_map; if cfg!(feature = "probe") { 5 } else { 4 }]
+    };
+    let unread = |doc| {
+        fixture::step(
+            doc,
+            DocEdit::DeclareVar {
+                name: editor_core::VarName::new("unread").expect("a name"),
+                def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                    editor_core::Dimension::Length,
+                    1.0,
+                )),
+            },
+        )
+        .0
+    };
     let (doc, body) = a_box("s3c_at_rest", 1.0);
     let (doc, placement) = placed(doc, body);
-    // `pin_at`'s mate itself, not the world pin `fixture::pinned`
-    // writes at the identity: the snap is this row's subject.
-    let mate = fixture::pin_mate(
-        &doc,
+    let stood = fixture::pinned(doc.clone(), placement, &EvalOptions::default());
+    assert_eq!(
+        lanes(&unread(stood), placement),
+        every(true),
+        "the identity bundle is placed by no map"
+    );
+    let typed = TargetAxis::ALL
+        .into_iter()
+        .map(|axis| (Coord::Slide(axis), len(0.0)))
+        .chain(
+            TargetAxis::ALL
+                .into_iter()
+                .map(|axis| (Coord::Spin(axis), ang(0.0))),
+        )
+        .collect();
+    let pinned = fixture::written(
+        doc.clone(),
         placement,
-        &editor_core::Frame::IDENTITY,
-        &EvalOptions::default(),
+        editor_core::Placed::of(&doc, Vec::new(), typed),
     );
-    let (doc, _) = fixture::constrain_at(doc, placement, mate);
-    let (doc, _) = fixture::step(
-        doc,
-        DocEdit::DeclareVar {
-            name: editor_core::VarName::new("unread").expect("a name"),
-            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
-                editor_core::Dimension::Length,
-                1.0,
-            )),
-        },
+    assert_eq!(
+        lanes(&unread(pinned), placement),
+        every(false),
+        "typed zeros run their map"
     );
-    let seeded = EvalOptions {
-        seed: doc.var_named("unread"),
-        ..EvalOptions::default()
-    };
-    assert!(motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none());
-    let boxed = motion_of(
-        &evaluated::<geom_core::Interval>(&doc, &EvalOptions::default()),
-        placement,
-    );
-    assert!(boxed.is_none(), "{boxed:?}");
-    assert!(motion_of(&evaluated::<geom_core::Dual64>(&doc, &seeded), placement).is_none());
 }
 
-/// **Fork C-5 — a copy slid by more than the band is not at rest.** The
-/// same box slid a micrometre along x, a thousand times the band's
-/// zero: its map is kept.
+/// **A copy slid by a micrometre stands there.** The same box slid a
+/// micrometre along x, a thousand times the band's zero: its map is
+/// the slide.
 ///
-/// *Breaks if* the snap reads a band wider than the tolerance's, or
-/// snaps a decided displacement.
+/// *Breaks if* the slide is lost from the copy's map.
 #[test]
 fn a_copy_slid_past_the_band_keeps_its_map() {
     let (doc, placement, _) = box_slid_by_a_parameter(1e-6);
@@ -1132,20 +1128,24 @@ fn a_copy_slid_past_the_band_keeps_its_map() {
     assert!((motion.to_affine().translation.x - 1e-6).abs() < 1e-15);
 }
 
-/// **Fork C-5 — a pose that moves with a parameter keeps its
-/// derivative.** The box slid by `s`, declared at 0: at the nominal it
-/// stands at the identity, but a dual run seeded at `s` carries the
-/// slide's unit tangent, so its map is kept and its translation's
-/// derivative along x is one.
+/// **A pose that moves with a parameter keeps its derivative.** The
+/// box slid by `s`, declared at 0: it is no identity bundle, so it runs
+/// its map in every lane (FORK-REST), the identity at the nominal; a
+/// dual run seeded at `s` carries the slide's unit tangent, and its
+/// translation's derivative along x is one.
 ///
-/// *Breaks if* the dual lane snaps on its value channel alone (the
-/// derivative would read zero).
+/// *Breaks if* the map is dropped at rest (the value lane would place
+/// it by no map), or the dual lane drops the tangent.
 #[test]
 fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
     let (doc, placement, seeded) = box_slid_by_a_parameter(0.0);
-    assert!(
-        motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none(),
-        "at the nominal the copy is at rest"
+    let nominal = motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement)
+        .expect("a bundle reading a variable runs its map at the nominal")
+        .to_affine();
+    assert_eq!(
+        format!("{nominal:?}"),
+        format!("{:?}", Affine3::<f64>::identity()),
+        "at the nominal the map is the identity"
     );
     let motion = motion_of(&evaluated::<geom_core::Dual64>(&doc, &seeded), placement)
         .expect("a seeded pose keeps its map");
@@ -1154,17 +1154,16 @@ fn a_parametric_pose_at_a_nominal_identity_keeps_its_derivative() {
     assert_eq!(x.deriv.to_bits(), 1.0_f64.to_bits(), "{x:?}");
 }
 
-/// **Fork C-5 — a seeded copy at rest has the value lane's bits and
-/// its own tangent.** A box on the world floor spun by `t`, declared at
-/// a whole turn: the `f64` lane's map is the identity to rounding, and
-/// the fold places the copy by no map. A dual run seeded at `t` places
-/// it by a map whose value channel is the identity's exact bits — the
-/// `f64` lane's answer — and whose tangent is the spin's: the turn
-/// about `z` moves the copy's `x` along `y` at unit rate.
+/// **A seeded copy at rest has the value lane's bits and its own
+/// tangent.** A box on the world floor spun by `t`, declared at a whole
+/// turn: it is no identity bundle, so every lane runs its map
+/// (FORK-REST), the `f64` lane's the identity to rounding. A dual run seeded at `t` places it by a map whose value
+/// channel is the `f64` lane's bits and whose tangent is the spin's:
+/// the turn about `z` moves the copy's `x` along `y` at unit rate.
 ///
-/// *Breaks if* the dual lane keeps the unsnapped map (its value channel
-/// rounds off the `f64` lane's), or snaps the map whole (the tangent is
-/// lost).
+/// *Breaks if* a lane drops the map (the value lane's would be no map,
+/// the dual's tangent lost), or the dual's value channel rounds off
+/// the `f64` lane's.
 #[test]
 fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
     let (doc, body) = a_box("s3c_spun_at_rest", 1.0);
@@ -1180,32 +1179,28 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
     );
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
+    let (doc, floor) = floor_flipped(doc);
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: floor,
+    };
     let turn = Formula::named(
         editor_core::VarName::new("t").expect("a name"),
         editor_core::Dimension::Angle,
     );
-    for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
-        (Coord::Spin, turn),
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
-    assert!(
-        motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement).is_none(),
-        "a whole turn is at rest in the value lane"
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        [
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), turn),
+        ],
     );
+    let value_lane = motion_of(&evaluated::<f64>(&doc, &EvalOptions::default()), placement)
+        .expect("a bundle reading a variable runs its map at the nominal")
+        .to_affine();
     let seeded = EvalOptions {
         seed: doc.var_named("t"),
         ..EvalOptions::default()
@@ -1215,13 +1210,14 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
         .to_affine();
     let entries =
         [map.linear.c0, map.linear.c1, map.linear.c2, map.translation].map(|c| [c.x, c.y, c.z]);
-    let identity = [
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 0.0, 0.0],
-    ];
-    for (column, want) in entries.iter().zip(identity) {
+    let want = [
+        value_lane.linear.c0,
+        value_lane.linear.c1,
+        value_lane.linear.c2,
+        value_lane.translation,
+    ]
+    .map(|c| [c.x, c.y, c.z]);
+    for (column, want) in entries.iter().zip(want) {
         for (e, w) in column.iter().zip(want) {
             assert_eq!(e.value.to_bits(), f64::to_bits(w), "{map:?}");
         }
@@ -1232,19 +1228,18 @@ fn a_seeded_copy_at_rest_has_the_value_lanes_bits_and_its_tangent() {
     );
 }
 
-/// **Fork C-5 — a box spanning the band encloses the value lane at its
+/// **A box spanning the band encloses the value lane at its
 /// corners.** A box on the floor spun by `t`, declared at a tenth of ε
-/// rad, boxed over `[ε/10, 6ε/10]` (ε the run's, 1e-9 by default): at
-/// the low corner the copy moves less
-/// than the band's zero and the value lane places it by no map; at the
-/// high one it moves more and keeps its turn. The box's own verdict
-/// spans the band, so its map holds both. A map that wide moves the
-/// copy's edges by about the band's zero, so the box run may refuse to
-/// certify them — an escalation; what it never does is answer a map
-/// that leaves a corner out.
+/// rad, boxed over `[ε/10, 6ε/10]` (ε the run's, 1e-9 by default): the
+/// bundle is no identity bundle, so the value lane runs its map at
+/// each corner (FORK-REST) and keeps its turn at both, the low one
+/// less than the band's zero and the high one more. The box's map holds
+/// both. A map that wide moves the copy's edges by about the band's
+/// zero, so the box run may refuse to certify them — an escalation;
+/// what it never does is answer a map that leaves a corner out.
 ///
-/// *Breaks if* a box the band cannot decide keeps its turned map alone
-/// (the low corner's identity would lie outside the answer).
+/// *Breaks if* a corner's value-lane map lies outside the box's, or the
+/// value lane drops a corner's map.
 #[test]
 fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
     // The corners are tenths of the run's ε, so the low one moves less
@@ -1263,28 +1258,25 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
     );
     let bottom = face_toward(&doc, body, [0.0, 0.0, -1.0]);
     let (doc, placement) = placed(doc, body);
-    let (mut doc, mate) = fixture::constrain_at(
-        doc,
-        placement,
-        Mate {
-            on: plane_of(on_body(body, bottom)),
-            to: Target::World(WorldRead::through(PoseRole::Xy).flip()),
-            class: ContactClass::Rest,
-        },
-    );
+    let (doc, floor) = floor_flipped(doc);
+    let written = Mate {
+        on: plane_of(on_body(body, bottom)),
+        to: floor,
+    };
     let turn = Formula::named(
         editor_core::VarName::new("t").expect("a name"),
         editor_core::Dimension::Angle,
     );
-    for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), len(0.0)),
-        (Coord::Slide(SlideAxis::Y), len(0.0)),
-        (Coord::Spin, turn),
-    ] {
-        doc = add_value(doc, placement, mate.id, coord, by)
-            .expect("a plane mate leaves the freedom")
-            .0;
-    }
+    let doc = seat(
+        doc,
+        placement,
+        written,
+        [
+            (Coord::Slide(TargetAxis::X), len(0.0)),
+            (Coord::Slide(TargetAxis::Y), len(0.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), turn),
+        ],
+    );
     let t = doc.var_named("t").expect("declared");
     let at = |value: f64| {
         let d = fixture::step(
@@ -1303,12 +1295,10 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
             .map_or_else(Affine3::identity, |m| m.to_affine())
     };
     let (low, high) = (at(0.1 * eps), at(0.6 * eps));
-    assert_eq!(
-        format!("{low:?}"),
-        format!("{:?}", Affine3::<f64>::identity()),
-        "the low corner is at rest in the value lane"
+    assert!(
+        low.linear.c0.y != 0.0 && high.linear.c0.y != 0.0,
+        "a bundle reading a variable keeps its turn at each corner: {low:?} {high:?}"
     );
-    assert!(high.linear.c0.y != 0.0, "the high corner keeps its turn");
     let boxed = EvalOptions {
         param_box: Some(std::sync::Arc::new(
             editor_core::analysis::ParamBox::from_axes(std::collections::BTreeMap::from([(
@@ -1351,11 +1341,11 @@ fn a_box_spanning_the_band_encloses_the_value_lane_at_its_corners() {
     }
 }
 
-// ---- The named interim's world pin ----
+// ---- A copy standing where its body stands ----
 
 /// A box whose height is the length `h`, declared at `nominal`, and one
-/// copy of it pinned where it stands by the world pin.
-fn a_box_of_height_pinned_where_it_stands(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
+/// copy of it standing where its body stands ([`editor_core::stand`]).
+fn a_box_of_height_standing(nominal: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, _) = fixture::step(
         ProfileDoc::empty_derived("s3c_world_pin", Tol::witness()),
         DocEdit::DeclareVar {
@@ -1381,39 +1371,37 @@ fn a_box_of_height_pinned_where_it_stands(nominal: f64) -> (ProfileDoc, RecipeNo
                 editor_core::VarName::new("h").expect("a name"),
                 editor_core::Dimension::Length,
             ),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, placement) = placed(doc, body);
-    let (doc, _) = fixture::step(doc, DocEdit::PinWhereItStands { placement });
+    let doc = fixture::pinned(doc, placement, &EvalOptions::default());
     (doc, placement)
 }
 
-/// **A world pin places its copy where its body stands, at every
-/// value** (stage 3 C's named interim). A box whose height is a
-/// variable, its copy pinned by the world pin: the copy is in the world
-/// and placed by no map at the nominal, at another value, and under an
-/// interval box over the height (a tenth of ε wide, so the body itself
-/// certifies), where a pin read off the copy's
-/// geometry would carry the height's width into the copy.
+/// **A copy stands where its body stands, at every value.** A box whose
+/// height is a variable, its copy standing by the identity bundle, which
+/// reads nothing of the copy: the copy is in the world and placed by no
+/// map at the nominal, at another value, and under an interval box over
+/// the height (a tenth of ε wide, so the body itself certifies), where a
+/// pin read off a face the height reaches would carry the height's width
+/// into the copy.
 ///
-/// *Breaks if* the world pin reads the copy's geometry or a number (a
-/// map would appear under the box), or places the copy anywhere but the
+/// *Breaks if* the stand reads the copy's geometry or a number (a map
+/// would appear under the box), or places the copy anywhere but the
 /// world.
 #[test]
-fn a_world_pin_places_its_copy_where_its_body_stands_at_every_value() {
+fn a_copy_stands_where_its_body_stands_at_every_value() {
     for nominal in [1.0, 2.5] {
-        let (doc, placement) = a_box_of_height_pinned_where_it_stands(nominal);
+        let (doc, placement) = a_box_of_height_standing(nominal);
         let ev = evaluated::<f64>(&doc, &EvalOptions::default());
         assert!(motion_of(&ev, placement).is_none(), "at h = {nominal}");
-        match ev.result(placement) {
-            Some(NodeResult::Ok(value)) => {
-                assert_eq!(value.space, Some(editor_core::Space::World));
-            }
-            other => panic!("the placement evaluates: {other:?}"),
-        }
+        assert!(
+            matches!(ev.result(placement), Some(NodeResult::Ok(_))),
+            "the placement evaluates"
+        );
+        assert_eq!(doc.node_space(placement), Some(editor_core::VarId::WORLD));
     }
-    let (doc, placement) = a_box_of_height_pinned_where_it_stands(1.0);
+    let (doc, placement) = a_box_of_height_standing(1.0);
     let h = doc.var_named("h").expect("declared");
     let boxed = EvalOptions {
         param_box: Some(std::sync::Arc::new(
@@ -1434,212 +1422,30 @@ fn a_world_pin_places_its_copy_where_its_body_stands_at_every_value() {
     );
 }
 
-/// **A world pin stands alone in its bundle.** A mate added beside it,
-/// and a world pin added beside a mate, each refuse at the edit door as
-/// a constraint the bundle already fixes (`Overconstrained`, naming the
-/// constraint added).
+/// **Inline carries a standing copy at the identity, and at a moved
+/// landing.** A part whose copy stands where its body stands, instanced
+/// in a host: pinned at the identity, the inlined copy stands where its
+/// body stands; pinned off the identity, the copy stands at the
+/// instance's motion.
 ///
-/// *Breaks if* a bundle holds a world pin and anything else (the fold
-/// would have to choose between them).
+/// *Breaks if* the inline drops the instance's bundle, or composes it
+/// into the part (the copy would stay at the part's identity).
 #[test]
-fn a_world_pin_stands_alone_in_its_bundle() {
-    let (doc, placement) = a_box_of_height_pinned_where_it_stands(1.0);
-    let mate = fixture::pin_mate(
-        &doc,
-        placement,
-        &editor_core::Frame::translation([1.0, 0.0, 0.0]),
-        &EvalOptions::default(),
-    );
-    let beside = doc.apply(
-        &DocEdit::AddConstraint {
-            placement,
-            mate: Box::new(mate),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    );
-    let overconstrained = |result: Result<_, EditError>| match result {
-        Err(EditError::MateRefused { fault, .. }) => {
-            assert!(
-                matches!(*fault, MateFault::Overconstrained { .. }),
-                "{fault:?}"
-            );
-        }
-        other => panic!("refused as overconstrained: {other:?}"),
-    };
-    overconstrained(beside.map(|_| ()));
-    let (doc, body) = a_box("s3c_world_pin_after", 1.0);
-    let (doc, placement) = placed(doc, body);
-    let mate = fixture::pin_mate(
-        &doc,
-        placement,
-        &editor_core::Frame::translation([1.0, 0.0, 0.0]),
-        &EvalOptions::default(),
-    );
-    let (doc, _) = fixture::constrain_at(doc, placement, mate);
-    overconstrained(
-        doc.apply(&DocEdit::PinWhereItStands { placement }, Tol::witness())
-            .map(|_| ()),
-    );
-}
-
-/// **The insert door asks the same rule of a placement it writes**: a
-/// `Place` inserted holding a world pin and a mate refuses as
-/// overconstrained, naming the mate beside the pin, so no edit writes
-/// a bundle the save door would refuse.
-///
-/// *Breaks if* `InsertNode` admits its bundle constraint by constraint
-/// and never asks the bundle's make-up.
-#[test]
-fn an_inserted_placement_holding_a_world_pin_and_a_mate_refuses() {
-    let (doc, body) = a_box("s3c_world_pin_insert", 1.0);
-    let (doc, placement) = placed(doc, body);
-    let mate = fixture::pin_mate(
-        &doc,
-        placement,
-        &editor_core::Frame::translation([1.0, 0.0, 0.0]),
-        &EvalOptions::default(),
-    );
-    let placeholder = ConstraintId(editor_core::MintId::new(0, 0));
-    let node = Node::Place {
-        shapes: vec![BodyRead::plain(Operand::output(body, 0))],
-        constraints: vec![
-            editor_core::mate::Constraint {
-                id: placeholder,
-                kind: editor_core::mate::ConstraintKind::WorldPin(editor_core::WorldPin::Identity),
-            },
-            editor_core::mate::Constraint {
-                id: placeholder,
-                kind: editor_core::mate::ConstraintKind::Mate(mate),
-            },
-        ],
-    };
-    match doc.apply(
-        &DocEdit::InsertNode {
-            node: Box::new(node),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    ) {
-        Err(EditError::MateRefused { fault, .. }) => match *fault {
-            MateFault::Overconstrained { constraints, .. } => {
-                assert_eq!(constraints.len(), 1, "the one mate beside the pin");
-            }
-            other => panic!("refused as overconstrained: {other:?}"),
-        },
-        other => panic!("refused as overconstrained: {other:?}"),
-    }
-}
-
-/// **The load door asks it too**: a saved bundle doctored to hold the
-/// world pin beside the mate an edit put in its place refuses at load,
-/// naming the mate.
-///
-/// *Breaks if* the load door admits a bundle's constraints one by one
-/// and never asks its make-up.
-#[test]
-fn a_loaded_bundle_holding_a_world_pin_and_a_mate_refuses() {
-    let (pinned, placement) = a_box_of_height_pinned_where_it_stands(1.0);
-    let pin = fixture::bundle(&pinned, placement)[0].id;
-    let (doc, _) = fixture::step(
-        pinned.clone(),
-        DocEdit::RemoveConstraint {
-            placement,
-            constraint: pin,
-        },
-    );
-    let mate = fixture::pin_mate(
-        &doc,
-        placement,
-        &editor_core::Frame::translation([1.0, 0.0, 0.0]),
-        &EvalOptions::default(),
-    );
-    let (doc, _) = fixture::constrain_at(doc, placement, mate);
-    let mated = fixture::bundle(&doc, placement)[0].id;
-    // The one bundle a saved document holds, found by what it is: the
-    // only non-empty `constraints` array on the wire.
-    fn the_bundle(v: &mut serde_json::Value) -> Option<&mut Vec<serde_json::Value>> {
-        match v {
-            serde_json::Value::Object(map) => {
-                let here = map
-                    .get("constraints")
-                    .and_then(serde_json::Value::as_array)
-                    .is_some_and(|items| !items.is_empty());
-                if here {
-                    return map
-                        .get_mut("constraints")
-                        .and_then(serde_json::Value::as_array_mut);
-                }
-                map.values_mut().find_map(the_bundle)
-            }
-            serde_json::Value::Array(items) => items.iter_mut().find_map(the_bundle),
-            _ => None,
-        }
-    }
-    let pinned_text = editor_core::save(&pinned, &[], Tol::witness()).expect("saves");
-    let mut pinned_wire = crate::wire::wire_body(&pinned_text);
-    let pin_wire: serde_json::Value = match the_bundle(&mut pinned_wire)
-        .expect("the pinned document holds its bundle")
-        .as_slice()
-    {
-        [pin] => pin.clone(),
-        other => panic!("the pin alone: {other:?}"),
-    };
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
-    let corrupt = crate::wire::doctored(&text, |wire| {
-        the_bundle(wire)
-            .expect("the mated document holds its bundle")
-            .insert(0, pin_wire);
-    });
-    match editor_core::load(&corrupt, Tol::witness()) {
-        Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::MateRefused {
-            constraint,
-            fault,
-            ..
-        })) => {
-            assert_eq!(constraint, mated, "the mate beside the pin is named");
-            assert!(
-                matches!(*fault, MateFault::Overconstrained { ref constraints, .. } if *constraints == vec![mated]),
-                "{fault:?}"
-            );
-        }
-        other => panic!("refused at load as overconstrained: {other:?}"),
-    }
-}
-
-/// **Inline carries a world pin at the identity, and pins its copy at
-/// a moved landing.** A part whose copy is pinned where it stands,
-/// instanced in a host: pinned at the identity, the inlined copy stays
-/// pinned where it stands; pinned off the identity, the world pin holds
-/// no pose to move with the instance, so the copy is pinned at the
-/// instance's motion by `pin_at` (the pin any other pose takes) and
-/// stands there.
-///
-/// *Breaks if* the inline drops the world pin, or carries it under a
-/// moved landing (the copy would stay at the part's identity).
-#[test]
-fn inline_carries_a_world_pin_and_pins_its_copy_at_a_moved_landing() {
-    let (part, _) = a_box_of_height_pinned_where_it_stands(1.0);
+fn inline_carries_a_standing_copy_at_the_identity_and_at_a_moved_landing() {
+    let (part, _) = a_box_of_height_standing(1.0);
     let mut store = fixture::resolver::PartStore::new();
     let part_ref = store.insert(part, Tol::witness());
     let o = fixture::resolver::with_resolver(store.clone());
     let resolver: std::sync::Arc<dyn editor_core::PartResolver> = std::sync::Arc::new(store);
     let host = ProfileDoc::empty_derived("s3c_world_pin_host", Tol::witness());
-    let (host, instance) = fixture::insert(host, Node::instantiate_part(part_ref));
-    let world_pins = |doc: &ProfileDoc| {
-        doc.placements()
-            .into_iter()
-            .flat_map(|at| fixture::bundle(doc, at))
-            .filter(|c| c.world_pin().is_some())
-            .count()
-    };
+    let (host, instance) = fixture::insert(host, crate::fixture::mated_instance(part_ref));
     let still = fixture::pinned(host.clone(), instance, &o);
     let inlined = editor_core::inline(&still, instance, &resolver, Tol::witness())
         .expect("at the identity the part's world is the host's");
-    assert_eq!(
-        world_pins(&inlined.doc),
-        1,
-        "the copy stays pinned where it stands"
+    let at = solved(&inlined.doc, inlined.placement);
+    assert!(
+        turn_between(at.linear, Mat3::identity()) < 1e-12 && at.translation.norm() < 1e-12,
+        "the copy stands where its body stands: {at:?}"
     );
     let moved = fixture::pin(
         host,
@@ -1648,12 +1454,8 @@ fn inline_carries_a_world_pin_and_pins_its_copy_at_a_moved_landing() {
         &o,
     );
     let inlined = editor_core::inline(&moved, instance, &resolver, Tol::witness())
-        .expect("a moved landing pins the copy at the move");
-    assert_eq!(world_pins(&inlined.doc), 0, "no world pin holds the move");
-    let [copy] = inlined.doc.placements()[..] else {
-        panic!("one placement in the host");
-    };
-    let at = solved(&inlined.doc, copy);
+        .expect("a moved landing places the copy at the move");
+    let at = solved(&inlined.doc, inlined.placement);
     assert!(
         turn_between(at.linear, Mat3::identity()) < 1e-12
             && (at.translation - Vec3::new(3.0, 0.0, 0.0)).norm() < 1e-12,
@@ -1661,19 +1463,17 @@ fn inline_carries_a_world_pin_and_pins_its_copy_at_a_moved_landing() {
     );
 }
 
-/// **Inline folds its landing into the world read it moves**: a part
-/// whose copy is pinned by `pin_at` at a generic pose, instanced at a
-/// generic pose and inlined, then instanced again at a third and
-/// inlined in turn, lands its copy at the three poses composed, and
-/// its pin's world read is no deeper than `pin_at` wrote it: each
-/// inline takes the run of world moves off and writes the composed
-/// motion as one run, so flattening a nested assembly level by level
-/// never reaches `MAX_WORLD_READ_DEPTH`.
+/// **A part inlined twice lands at the composed pose**: a part whose
+/// copy stands at a generic pose by values on its world's axes,
+/// instanced at a generic pose and inlined, then instanced again at a
+/// third and inlined in turn, lands its copy at the three poses
+/// composed, each level a placement of its own under the bundle its
+/// instance held, so nothing is composed into a number.
 ///
-/// *Breaks if* inline appends its moves on top of the read's own (the
-/// second inline refuses `TooDeep`, or the depth grows).
+/// *Breaks if* inline composes a landing into the part's values, or
+/// drops a level's bundle.
 #[test]
-fn a_part_inlined_twice_lands_at_the_composed_pose_at_its_pins_depth() {
+fn a_part_inlined_twice_lands_at_the_composed_pose() {
     let pose = |axis: [f64; 3], angle: f64, t: [f64; 3]| Affine3 {
         linear: Mat3::rotation_about(Vec3::new(axis[0], axis[1], axis[2]), angle),
         translation: Vec3::new(t[0], t[1], t[2]),
@@ -1683,18 +1483,22 @@ fn a_part_inlined_twice_lands_at_the_composed_pose_at_its_pins_depth() {
         pose([-2.0, 0.5, 1.0], 1.9, [3.0, 0.25, -0.5]),
         pose([0.3, -1.0, 0.2], -2.4, [-1.5, 2.0, 0.75]),
     ];
-    let depth = |doc: &ProfileDoc| {
-        doc.placements()
-            .into_iter()
-            .flat_map(|at| fixture::bundle(doc, at))
-            .filter_map(|c| match &c.mate()?.to {
-                Target::World(world) => Some(world.depth()),
-                Target::Pose(_) => None,
-            })
-            .max()
-            .expect("the copy is pinned by a world read")
+    let sorted = |mut points: Vec<Vec3<f64>>| {
+        points.sort_by(|a, b| a.to_array().partial_cmp(&b.to_array()).expect("finite"));
+        points
     };
     let (part, body) = a_box("s3c_inline_twice_part", 1.0);
+    let own = match fixture::run(&part, &EvalOptions::default()).result(body) {
+        Some(NodeResult::Ok(v)) => match &v.payload {
+            editor_core::ValuePayload::Body(b) => sorted(
+                b.vertex_points()
+                    .map(|(_, p)| Vec3::new(p.x, p.y, p.z))
+                    .collect(),
+            ),
+            other => panic!("a box is a body: {other:?}"),
+        },
+        other => panic!("the box evaluates: {other:?}"),
+    };
     let (part, placement) = placed(part, body);
     let part = fixture::pin(
         part,
@@ -1702,7 +1506,6 @@ fn a_part_inlined_twice_lands_at_the_composed_pose_at_its_pins_depth() {
         &editor_core::Frame::from_affine(poses[0]),
         &EvalOptions::default(),
     );
-    let pinned_depth = depth(&part);
     let mut store = fixture::resolver::PartStore::new();
     let mut doc = part;
     for (level, &at) in poses[1..].iter().enumerate() {
@@ -1711,116 +1514,38 @@ fn a_part_inlined_twice_lands_at_the_composed_pose_at_its_pins_depth() {
         let resolver: std::sync::Arc<dyn editor_core::PartResolver> =
             std::sync::Arc::new(store.clone());
         let host = ProfileDoc::empty_derived(&format!("s3c_inline_twice_{level}"), Tol::witness());
-        let (host, instance) = fixture::insert(host, Node::instantiate_part(doc_ref));
+        let (host, instance) = fixture::insert(host, crate::fixture::mated_instance(doc_ref));
         let host = fixture::pin(host, instance, &editor_core::Frame::from_affine(at), &o);
         doc = editor_core::inline(&host, instance, &resolver, Tol::witness())
             .unwrap_or_else(|e| panic!("inline {level} lands: {e}"))
             .doc;
-        assert!(
-            depth(&doc) <= pinned_depth,
-            "inline {level} holds the pin's depth {pinned_depth}, not {}",
-            depth(&doc)
-        );
     }
-    let [copy] = doc.placements()[..] else {
-        panic!("one placement in the flattened host");
-    };
-    let at = solved(&doc, copy);
-    let want = poses[2] * poses[1] * poses[0];
-    let off = [at.linear.c0, at.linear.c1, at.linear.c2, at.translation]
+    let product = editor_core::product(
+        &doc,
+        &fixture::run(&doc, &EvalOptions::default()),
+        Tol::witness(),
+    )
+    .expect("the flattened host has a product");
+    let got = sorted(
+        product
+            .vertex_points()
+            .map(|(_, p)| Vec3::new(p.x, p.y, p.z))
+            .collect(),
+    );
+    let composed = poses[2] * poses[1] * poses[0];
+    let want = sorted(
+        own.iter()
+            .map(|&v| composed.linear * v + composed.translation)
+            .collect(),
+    );
+    assert_eq!(got.len(), want.len());
+    let off = got
         .iter()
-        .zip([
-            want.linear.c0,
-            want.linear.c1,
-            want.linear.c2,
-            want.translation,
-        ])
-        .map(|(a, b)| (*a - b).norm())
+        .zip(&want)
+        .map(|(a, b)| (*a - *b).norm())
         .fold(0.0_f64, f64::max);
     assert!(
-        off < 1e-14,
-        "the copy stands at the three poses composed, {off:e} off: {at:?}"
+        off < 1e-12,
+        "the copy stands at the three poses composed, {off:e} off"
     );
-}
-
-/// **An extrude's start cap reads its profile's frame alone**
-/// (`mate::anchor`): a box whose profile's every number and height are
-/// toleranced keeps one anchor no toleranced variable reaches — its start cap,
-/// which the gesture rests on (`Anchor::Fixed`) — while every edge reads
-/// the profile's numbers, so the pin, read off an edge and a vertex,
-/// says its anchor varies.
-///
-/// *Breaks if* the start cap is held to read the profile's numbers
-/// (the gesture's anchor would vary too), or the rule stops reading
-/// the profile's numbers at all (the pin's would not).
-#[test]
-fn a_start_cap_anchors_where_the_profiles_numbers_vary() {
-    let (doc, body) = a_box("s3c_anchor_start_cap", 1.0);
-    // Every non-zero length: the profile's corners and the height. The
-    // frame's origin is zeros and its axes are scalars, so the frame
-    // stays a constant of every lane.
-    let numbers: Vec<editor_core::VarId> = doc
-        .vars()
-        .iter()
-        .filter(|(_, var)| {
-            matches!(
-                var.def(),
-                editor_core::VarDef::Free(editor_core::FreeVar::Continuous {
-                    dim: editor_core::Dimension::Length,
-                    value,
-                    ..
-                }) if *value != 0.0
-            )
-        })
-        .map(|(&id, _)| id)
-        .collect();
-    assert!(numbers.len() >= 4, "the profile holds numbers to tolerance");
-    let mut doc = doc;
-    for var in numbers {
-        doc = fixture::step(
-            doc,
-            DocEdit::SetVarDistribution {
-                var: var.into(),
-                distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
-            },
-        )
-        .0;
-    }
-    let (doc, placement) = placed(doc, body);
-    let Some(Node::Place { shapes, .. }) = doc.node(placement) else {
-        panic!("a placement");
-    };
-    let copy = Operand::Var(shapes[0].read);
-    let pose = editor_core::Frame::translation([2.0, 0.0, 0.0]);
-    let o = EvalOptions::default();
-    let placed = editor_core::place_at(&doc, &copy, &pose, &o, Tol::witness())
-        .expect("the gesture places the box");
-    assert_eq!(
-        (placed.by, placed.anchor),
-        (
-            editor_core::PlacedBy::PlanarFace,
-            editor_core::Anchor::Fixed
-        ),
-        "the gesture rests the start cap, which reads no toleranced number"
-    );
-    let (_, anchor) = editor_core::pinned_at(&doc, &copy, &pose, &o, Tol::witness())
-        .expect("the pin reads a frame off the box");
-    assert_eq!(
-        anchor,
-        editor_core::Anchor::Varying,
-        "every edge reads the profile's toleranced numbers"
-    );
-}
-
-/// **A world pin crosses save and load.** The document saves, loads,
-/// and is bit-equal to the one saved.
-///
-/// *Breaks if* the wire spells the world pin otherwise than it reads
-/// it.
-#[test]
-fn a_world_pin_crosses_save_and_load() {
-    let (doc, _) = a_box_of_height_pinned_where_it_stands(1.0);
-    let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
-    let loaded = editor_core::load(&text, Tol::witness()).expect("loads");
-    assert!(loaded.snapshot.bit_eq(&doc), "the snapshot round-trips");
 }

@@ -240,6 +240,52 @@ fn sans_epsilon(t: &str) -> String {
 /// table only, whose two seams beside the merged floor cite its
 /// `Merged` parent where they cited one floor; its persisted text held.
 ///
+/// **Re-pinned for INTENT stage 3 D** (Transform retires into a
+/// placement), every row, the persisted text with it: each document was
+/// re-spelled without `Datum` or `Transform` (a construction is built in
+/// its own coordinates and placed into the world by a `Place`), so its
+/// nodes, their mint preimages, the names they mint and the saved text
+/// all moved.
+///
+/// **Re-pinned merging main into D**: `corner_table`'s and
+/// `declared_tangency`'s persisted text, their tables held — each
+/// placement's values are written from the evaluated geometry its mate
+/// reads, which main's merge moved by rounding (the chord's director
+/// spelled by its components, the union's fold); `kitchen_sink`'s
+/// tables and text, its lone block's copies hung below the world's xy as
+/// its retired `SetExtrudeSide` edit had them.
+///
+/// **Re-pinned for the identity bundle** (FORK-REST): a copy standing
+/// where its body stands is placed by no mate and the constant `0` on
+/// every freedom, written as one `AddValues`, which mints a different number of ids
+/// from the plane mate and three values it replaces, so every node
+/// minted after a stand moved its id. The persisted text moved in every
+/// document holding a stand, the bundle it saves being new; the name
+/// tables moved in the five documents that mint a node after a stand
+/// (`heat_sink`, `declared_tangency`, `kitchen_sink`, `cut_cylinder`,
+/// `part_select`), as `lib_g16`'s did.
+///
+/// Re-pinned for exact turns (INTENT stage 3 D), name tables and
+/// persisted text: `die_tool` (its ball's exact heading lets the
+/// placement gesture write its spin as the constant `0`, one variable
+/// fewer, so every later id moved); `die_pips`, `die_composed` and the
+/// tour die (pips standing on lines stated from the cube's corner); and
+/// `kitchen_sink` (its revolve upright by a bundle with no mate spun
+/// `turn/4`, its split's plane and pattern's axis read off its faces).
+/// Every other document held, across main's merge at `557e581a64` too.
+///
+/// `die_tool` moved again when its master ball came to stand on the
+/// cube's corner frame (`corner_frame`) by an axis mate whose slide and
+/// spin are the constant `0`, where the retired place-against helper had placed it by a
+/// read-back frame that minted 42 more ids, and its explicit rule's
+/// frames came to be built from the fraction of a turn each is. Every
+/// other document held.
+///
+/// `tube_arc`'s and `hollow_tube_elbow`'s persisted text moved when each
+/// tube came to stand about the world's `+y` by a bundle with no mate
+/// spun `−turn/4`, where it had stood where its body stands; their name
+/// tables held, and so did every other document.
+///
 /// **Re-pinned for a seam's sides and a crossing's lines named in the
 /// boolean's own table, in name order** (N3): the tables of the nine
 /// documents holding a subtract; the persisted text of `die_composed`
@@ -247,44 +293,77 @@ fn sans_epsilon(t: &str) -> String {
 /// by the subtract's seams, and the tour's ids after its fillets with
 /// them. No point moved
 /// (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`).
+///
+/// Re-pinned merging main at `be82e5ad6b` into D, `die`,
+/// `crossing_slots`, the three `nested_islands`, `kitchen_sink`,
+/// `cut_cylinder`, `die_pips`, `die_tool`, `part_select`,
+/// `die_composed` and the tour die: main's N3 names each seam side and
+/// crossing line with the read it came in through, and in D a later
+/// operand is a placed copy, so the names those documents' booleans
+/// spell moved under both changes and each value is neither tree's.
+/// The persisted text moved in `die_composed` and the tour die alone:
+/// their fillets store the pip rim's names.
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
+///
+/// Re-pinned for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids, the names spelled with them and the persisted
+/// text (a `target` on every placement, a `space` row per construction)
+/// moved in every document; `m10_p_fence`'s ids-masked geometry fence
+/// held.
+///
+/// **Re-pinned for PR 5616** (a mirror's seam is the plane's face read
+/// twice), taken merged over D′2 (PR 5613, mates read geometry), which
+/// left this row red on main: D′2 moved every corpus document's ids,
+/// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
+/// seam face plainly, so its ids moved too. Ids only:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held unmoved.
 const PINNED: &[(&str, u64, u64)] = &[
-    ("die", 0xfff9d96b416b369c, 0x7134dab9e0a2c309),
-    ("corner_table", 0xfe4524cd4290cd89, 0x4e4c3ddbafffeae6),
-    ("heat_sink", 0x74fe7181598471d0, 0x548b2f20591251f3),
-    ("crossing_slots", 0x25b0625cf2e5672c, 0xdf3ffbe0e05e610d),
-    ("nested_islands_105", 0x066feef8b80f1a74, 0x97d8297c514a94e9),
+    ("die", 0xdc846f5f9155e5bd, 0xd01338a3985ddb51),
+    ("corner_table", 0xf77d789ea1c04044, 0x255232f74b555158),
+    ("heat_sink", 0x3282865c55da4b17, 0xfdeb3e58c8a10021),
+    ("crossing_slots", 0x244079501a5a494c, 0x7ba67321e479912d),
+    ("nested_islands_105", 0x6abf8ce391d386db, 0x5a9f22f4eba0b1a2),
     (
         "nested_islands_106_depth1",
-        0xd215d79daf13c102,
-        0x647b7eaec4ab6495,
+        0x9de74a6f6210e76e,
+        0x8aab8aeb5f2f4c37,
     ),
     (
         "nested_islands_106_depth2",
-        0x3a11f4c78c2454b5,
-        0x93c042bb07455569,
+        0x36d78b6c74bc7c5f,
+        0xdfac9d3246c220ee,
     ),
-    ("declared_tangency", 0xbaa9e6b3d162774a, 0xc95a317280289284),
-    ("kitchen_sink", 0x1225c4d0874ea978, 0x99e65653180c3b54),
-    ("cut_cylinder", 0x2a8edc5183287fe3, 0x394b95d945b2b646),
-    ("measured_web", 0x4dbe5560756047e3, 0xc90bc32f58fb1b9a),
-    ("boss_union", 0x656bf5121430f4fd, 0x41c28dcbc24fa662),
-    ("die_fillet", 0x9a8baa9d147d7044, 0x70955ca41e0dd922),
-    ("die_chamfer", 0x89e1ab0139eee9ed, 0xe3ce852f108f6840),
-    ("die_pips", 0xf91cef8cb7b82f0a, 0x492d787849b6a4d3),
-    ("heat_sink_fins", 0x4343509df0fa3673, 0x96d24784173da012),
-    ("die_tool", 0x53eb3c60a8f4e4c7, 0x3cb2941aed5896b0),
-    ("face_sketch", 0x668bf6731fcd92d0, 0x537c88785af84d78),
-    ("part_select", 0x37c21b8ec7d5133b, 0xacbfa3bfb57ed085),
-    ("loft_prism", 0x3226abdd88349262, 0x506986cb31940d2e),
-    ("die_composed", 0xd05ef1dd4f687696, 0xb2bcbc07b8eb831b),
-    ("die_composed_tour", 0x7badfb1ed751956d, 0xc494d981f06964b6),
-    ("plate_param", 0x4d4af4940bbcf6b4, 0x43cc904beefda406),
-    ("kiss_carry", 0xeb5729ade9d7fcc7, 0xd53e88f7a7d82914),
-    ("tube_ring", 0xc6c0297620ada5aa, 0x53a256dbdf51810c),
-    ("tube_arc", 0xa5848d87c790784f, 0x1c08285f83ba6ba0),
-    ("hollow_tube_elbow", 0xa3994b42f48c890e, 0xef9cebaf32dbcd40),
-    ("hollow_tube_ring", 0x852d2de738602c6c, 0x2cd16c543b4a39de),
-    ("reshaped_rod", 0xda8a8ae84a325577, 0x3b01a8ce98da651f),
+    ("declared_tangency", 0x0f1a56af1d359d16, 0xe3449eb27d01600d),
+    ("kitchen_sink", 0xe0bf959dd974ef79, 0x67314f11fd339eb8),
+    ("cut_cylinder", 0x20335ac80734c844, 0x68e5f094634624eb),
+    ("measured_web", 0x523c9eaa9885303f, 0x2baa68d3eea22f4b),
+    ("boss_union", 0x50348b372f95dcb9, 0x54f97a3fd55df8f4),
+    ("die_fillet", 0x2571090600df286f, 0xfac56c7156005aa8),
+    ("die_chamfer", 0x2efa0b3d589cd87a, 0x724e1784726a446d),
+    ("die_pips", 0x4988ca4fcecbce22, 0x68455957318ba702),
+    ("heat_sink_fins", 0xcd82b12511739a7f, 0x3ab6e51568139bab),
+    ("die_tool", 0xfc55c6f937ebc013, 0x964062851f3df3c2),
+    ("face_sketch", 0x231413ead65b53e6, 0xb39334629944af1d),
+    ("part_select", 0x3795ababe686f2a5, 0x90348956c2192a74),
+    ("symmetric_plate", 0x1ca43500c37e8201, 0x997fe593588190fb),
+    ("loft_prism", 0x60546f732a16865d, 0xdd019b65b09c11c5),
+    ("die_composed", 0x00a8b6543df3389b, 0x98e6a8d96f19c18a),
+    ("die_composed_tour", 0x86969b7cdbba465d, 0xfbbfffa894195eb4),
+    ("plate_param", 0x8759d41a2ea2c1ee, 0x59b0a99e7e396f57),
+    ("kiss_carry", 0x57e4115535c5c6ff, 0x45850c60100dd9bd),
+    ("tube_ring", 0x0cc87654ef5e03c5, 0x8735373483894d74),
+    ("tube_arc", 0x26df770a47283036, 0x0256f383784aeb85),
+    ("hollow_tube_elbow", 0x559b3d6914a231d0, 0xae1d7169f1f26065),
+    ("hollow_tube_ring", 0xf6efd2d85fbc40cc, 0x2ed2a04899a3024f),
+    ("reshaped_rod", 0x1d8240fbb40c757c, 0xeabc396a48e0fb93),
 ];
 
 #[test]

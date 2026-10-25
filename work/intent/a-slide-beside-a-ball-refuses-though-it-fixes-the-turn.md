@@ -42,3 +42,13 @@ The forks the lift would have to choose between:
 - **(b3) No meeting**, where the slide's plane misses the turn's circle:
   refuse, by a measure the settle would then take (the circle's distance from
   the plane), unlike today's structural settle.
+
+## D′2 re-read (2026-10-23)
+
+D′2 left this refusal as F built it: a slide beside a point mate and a
+direction mate still refuses `NoChart { why: SlideTurnsABall }`
+(`slide_beside_a_ball`, `crates/editor-core/src/mate/solve.rs`; the
+row `intent_s3_b_placements::a_slide_beside_a_ball_refuses_as_having_no_chart`). A lone point mate now leaves a
+spin chain about the target space's axes, but a direction mate fixes
+a direction, so this bundle is charted as before. The lift stays a
+designer-pair question.

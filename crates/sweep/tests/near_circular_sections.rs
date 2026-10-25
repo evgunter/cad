@@ -312,8 +312,11 @@ fn validated_halves(
 fn assert_volume(what: &str, body: &Body<f64>, want: f64) {
     topo::validate_closed(body).unwrap_or_else(|e| panic!("{what}: tiers 1–2: {e:?}"));
     topo::validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
-    let props = topo::mass_properties(body, tol())
-        .unwrap_or_else(|e| panic!("{what}: the volume refused {e:?}"));
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: the volume refused {e:?}"));
     let slack = props.volume_pad + 64.0 * f64::EPSILON * want.abs();
     assert!(
         (props.volume - want).abs() <= slack,
@@ -547,6 +550,44 @@ fn frustum(scale: f64) -> Frustum {
         r0,
         r1,
         apex,
+    }
+}
+
+/// **A zero pad is the closed form's, rounding and all.** A frustum
+/// measures with `volume_pad == 0.0` (every face takes a closed form),
+/// and its volume is off its exact value by the rounding of its faces'
+/// flux terms, which no pad states (`topo::MassProperties`): within
+/// `4·u·|V|`, as built and turned, at every body scale ([`SCALES`]).
+/// Measured at 2.2 or less of `u·|V|`. The bound is in units of the
+/// volume, not of the terms: a walk that read the faces about a point
+/// far from the body would grow its terms and its error together, and
+/// reds here (moving every shell's reference 1 km off does).
+///
+/// A pose carried far is not a row here. There the rigid motion rounds
+/// each vertex by about `u` of its distance, which moves the stored
+/// geometry off the frustum this row's closed form names; that is
+/// the motion's rounding, not the measurement's.
+#[test]
+fn a_frustums_zero_pad_carries_its_closed_forms_rounding() {
+    let u = f64::EPSILON / 2.0;
+    for scale in SCALES {
+        let f = frustum(scale);
+        let want = PI * scale / 3.0 * (f.r0 * f.r0 + f.r0 * f.r1 + f.r1 * f.r1);
+        for (pose, map) in [("as built", Affine3::identity()), ("turned", turn())] {
+            let body = moved_body(&f.body, &map);
+            let props = topo::mass_properties(&body, tol()).expect("it measures");
+            assert_eq!(
+                props.volume_pad, 0.0,
+                "{scale:e} {pose}: every face is closed-form"
+            );
+            let err = (props.volume - want).abs();
+            assert!(
+                err <= 4.0 * u * want,
+                "{scale:e} {pose}: {} against {want}, off by {err:e}, {:.2} of u·|V|",
+                props.volume,
+                err / (u * want)
+            );
+        }
     }
 }
 

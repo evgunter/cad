@@ -251,7 +251,7 @@ impl SegTag {
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
             RoleSeg::SplitBody => Self::SplitBody,
-            RoleSeg::SectionFace { .. } => Self::SectionFace,
+            RoleSeg::SectionFace => Self::SectionFace,
             RoleSeg::SectionEdge { .. } => Self::SectionEdge,
             RoleSeg::SplitFragment { .. } => Self::SplitFragment,
             RoleSeg::CrossingVertex { .. } => Self::CrossingVertex,
@@ -342,7 +342,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         // Side-free segments (kept explicit — see the doc note). A
         // split's half is the variable's, not the name's (N1, the scope).
         RoleSeg::SplitBody
-        | RoleSeg::SectionFace { .. }
+        | RoleSeg::SectionFace
         | RoleSeg::SectionEdge { .. }
         | RoleSeg::SplitFragment { .. }
         | RoleSeg::CrossingVertex { .. }
@@ -874,7 +874,7 @@ pub fn select<T: Decide>(
 ///
 /// # `params`
 ///
-/// [`GeomPred::DatumDistance`] states its value as a [`Formula`](crate::Formula), which
+/// [`GeomPred::PlaneDistance`] states its value as a [`Formula`](crate::Formula), which
 /// cannot be evaluated without the document's parameter bindings
 /// (`Doc::var_env`). The design's signature omits this argument; it
 /// is added here rather than degrading the value to a bare float,
@@ -907,7 +907,7 @@ pub fn select_where<T: Decide>(
     let Some(table) = ev.table(var) else {
         return Ok(Vec::new());
     };
-    let atoms = geompred::prepare(ev, geom, params)?;
+    let atoms = geompred::prepare(ev, var, geom, params, tol)?;
     let band = Band::linear(tol)?;
     let mut out: Vec<StableName> = Vec::new();
     for (name, entry) in table.iter() {
