@@ -830,3 +830,9 @@ The boolean declare surface is gone at every layer. A boolean's one input beside
   - ATREST I review 2 (`session_017MTZg7n4cWyuUCBbypijpe`, on `c8ce05f1`);
   - D′3 (#5636, green at `199c17c187`) waits for 5637;
   - the value-chart unit (`session_01ReeWyLMjbS8q7pwdH5Tpwo`) is building.
+- 2026-10-25 — (AUTHTAIL orchestrator) **Note for INTENT: three spec sentences owed to D′3's viewer port** (`docs/INTENT-STAGE3-SPEC.md` §5′.1 and §5′.3). AUTHTAIL's mirror arrival fork (Opus/Fable designer pair, converged; no DESIGN.md clause changes) rests on them. They are INTENT's to write, with D′3:
+  - **(a) The takeover re-points along the seen path.** It re-points whatever reads the picked body along the path it was seen through: a placement's source, a `⊔`/`∪` operand slot, or the product slot. This generalises the residue-1 gesture rule (INTENT-STAGE2, fork row 85) beyond placements.
+  - **(b) Creation gestures add their result to the product `⊔`** (`SetProduct` from a gesture).
+  - **(c) §5′.1's picture** draws the product slot's body plus the shown spaces, with unread bodies tinted as outside the product. One designer's alternative wording, "a space's bodies that nothing in it reads", is the sink-set rule rows 80 and 85 retired, and should not go into the spec.
+
+  AUTHTAIL also claims `a-mirrors-body-reads-as-in-no-space` with PR 5683, which carries its one `SpaceWalk` arm (the file moves when that PR lands). The arm sits beside D′3's own `SpaceWalk` edits, so expect a one-line merge.
