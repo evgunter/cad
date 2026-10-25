@@ -3226,6 +3226,7 @@ impl<'d, P> SpaceWalk<'d, P> {
             }
             Node::Subtract { from, .. } => self.var(from.read),
             Node::Split { target, .. } => self.var(target.read),
+            Node::Mirror { body, .. } => self.var(body.read),
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 self.var(*selection)
             }

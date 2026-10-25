@@ -99,12 +99,14 @@ the offset fit's `OffsetFitLane::recertify`, the fitted pcurves'
 `FittedLane` — the door their certificate is derived through, which
 no `Dual` can hold, so the pcurve mint and the tier-3 pcurve pass
 refuse typed at the check that asks for it — the hollowing verb's
-`ShellDoor`, the census door, and the lane-owned limbs of the edge
-certificate at every door that certifies an edge, the Euler attach gate
-included, which take the scalar's `EdgeLimbs` policy) runs
+`ShellDoor`, the census door, and the whole edge certificate at every
+door that attaches an edge, the Euler attach gate included: a dual's
+door mints and never checks) runs
 at scalars with certification rights (f64's decide-with-escalation
 lane and `Interval`), and is
-structurally absent at `Dual`. This
+structurally absent at `Dual` — absent by type, not by a runtime value:
+a dual's edges carry the `f64` anchor's certificate as a type the scalar
+names, and nothing a dual instantiates is bounded on a certifying trait. This
 is sound because the sensitivity is OF THE AS-BUILT BODY: the
 dual's value channel is bit-identical to the f64 build (D9), which
 was already validated in the f64 evaluation E4 rides beside;
