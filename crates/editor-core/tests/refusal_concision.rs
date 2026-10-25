@@ -249,18 +249,39 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "CurvedEdgeUnsupported",
-            BooleanError::CurvedEdgeUnsupported {
-                operand: Operand::B,
-                edge,
-            },
-        ),
-        (
-            "CrossingCarrierUnsupported",
-            BooleanError::CrossingCarrierUnsupported {
+            "EdgeCarrierUnsupported(PlanarCrossing)",
+            BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::A,
                 edge,
                 face,
+                site: topo::EdgeCarrierSite::PlanarCrossing,
+            },
+        ),
+        (
+            "EdgeCarrierUnsupported(CurvedCrossing)",
+            BooleanError::EdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+                face,
+                site: topo::EdgeCarrierSite::CurvedCrossing,
+            },
+        ),
+        (
+            "EdgeCarrierUnsupported(GermFrame)",
+            BooleanError::EdgeCarrierUnsupported {
+                operand: Operand::A,
+                edge,
+                face,
+                site: topo::EdgeCarrierSite::GermFrame,
+            },
+        ),
+        (
+            "EdgeCarrierUnsupported(RingRun)",
+            BooleanError::EdgeCarrierUnsupported {
+                operand: Operand::B,
+                edge,
+                face,
+                site: topo::EdgeCarrierSite::RingRun,
             },
         ),
         (

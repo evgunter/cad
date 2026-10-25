@@ -2,11 +2,13 @@
 id: a-nurbs-edges-sector-departure-is-its-chord
 kind: issue
 title: both sector walks take a NURBS edge's chord as its departure direction at an ON vertex
-status: open
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: E
 refs: [3984]
+closed: 2026-10-25
+branch: splice/gate
 ---
 
 
@@ -46,3 +48,25 @@ a row that red on the chord.
 ## Moved to SPLICE (2026-10-25)
 
 From GAUGE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P0: the sector walk is one of the sites the P0 gate deletion waits on.
+
+## Closed
+
+Landed on `splice/gate`. `geom_brep::ConicBend::of` reads a spline as it
+reads a spiric (`BendBounds::Unbounded`: no certified curvature bound,
+so a tangent tie reads no side). With that, a NURBS edge takes the
+curved arm of `ConicDeparture::of` (`walk_tangents`,
+`walk_departure_deriv2`, `geom_brep::edge_extent`) in three walks:
+
+- `boolean/sectors.rs` `orbit_corners`;
+- `splitting/neighborhood.rs` `chord`;
+- `boolean/fate.rs` `leaving`, a third hit of the same shape that the
+  sweep found.
+
+Witnesses, each red on the chord (measured by mutation):
+
+- `boolean::sectors::spline_departure_rows::the_sector_walk_reads_a_splines_tangent`;
+- `splitting::neighborhood::spline_departure_rows::the_split_walk_reads_a_splines_tangent`;
+- `boolean::fate::spline_departure_rows::a_fate_cut_reads_a_splines_tangent`.
+
+Each row reads the Bézier sheet's arc leaving `(0, 0, 0)` along
+`(1, 2, 0)`, where its chord runs along `x̂`.

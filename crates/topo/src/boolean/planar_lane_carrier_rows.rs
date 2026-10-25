@@ -9,12 +9,9 @@
 //!   `v ∈ [−π/2, π/2]`.
 //!
 //! The partner is a brick with a side face across the curve, or a
-//! cylinder wall. `A`'s direction of the sweep runs directly, past the
-//! operand gate that refuses the carrier first in the pipeline, so the
-//! rows read what the sweep's arms themselves do with it. **No public
-//! door reaches these arms with such an edge while that gate stands**
-//! (`reduce::gate_operand_edges`); the rows are what pins them until it
-//! goes (`work/splice/delete-the-boolean-operand-edge-gate.md`).
+//! cylinder wall. `A`'s direction of the sweep runs directly, so the
+//! rows read what the sweep's arms themselves do with it, and which arm
+//! refused (`EdgeCarrierSite`).
 //!
 //! The oracles are closed forms, never the kernel's evaluator: the
 //! Bézier's `x(t) = 2t(1−t)·mx + 2t²`, `y(t) = 4t(1−t)·h`, and the
@@ -24,7 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::boolean::BooleanError;
+use crate::boolean::{BooleanError, EdgeCarrierSite};
 use crate::euler::{FaceSurface, MefSite, MevSite};
 use crate::test_support_fixtures::brick;
 use crate::{Body, FaceKey};
@@ -68,7 +65,7 @@ fn arc_image(mx: f64, h: f64) -> geom_brep::Pcurve<f64> {
 }
 
 /// The sheet, and its arc edge.
-fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
+pub(crate) fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let (p0, p1) = (Point3::new(0.0, 0.0, 0.0), Point3::new(2.0, 0.0, 0.0));
@@ -135,7 +132,7 @@ fn arc_sheet(mx: f64, h: f64) -> (Body<f64>, crate::EdgeKey) {
 /// about `ẑ` over `v ∈ [−π/2, π/2]`, described as the torus's
 /// intersection with the cap's plane, and the chord back. The sheet, and
 /// its arc edge.
-fn spiric_cap() -> (Body<f64>, crate::EdgeKey) {
+pub(crate) fn spiric_cap() -> (Body<f64>, crate::EdgeKey) {
     use core::f64::consts::FRAC_PI_2;
     let tol = Tol::witness();
     let spiric = Curve3::Spiric {
@@ -264,13 +261,16 @@ fn assert_refused(
     got: Result<(Body<f64>, crate::boolean::ReductionContacts), BooleanError>,
     edge: crate::EdgeKey,
     b: &Body<f64>,
+    at: EdgeCarrierSite,
 ) {
     match got.map(|(_, contacts)| contacts) {
-        Err(BooleanError::CrossingCarrierUnsupported {
+        Err(BooleanError::EdgeCarrierUnsupported {
             operand: crate::boolean::Operand::A,
             edge: e,
             face,
+            site,
         }) => {
+            assert_eq!(site, at, "the refusal names the arm that read the edge");
             assert_eq!(e, edge, "the refusal names the curved edge");
             assert!(
                 b.get_face(face).is_some(),
@@ -302,7 +302,7 @@ fn an_arc_dipping_through_a_plane_face_refuses() {
         );
     }
     let (a, e) = arc_sheet(mx, h);
-    assert_refused(sweep_a(&a, &b), e, &b);
+    assert_refused(sweep_a(&a, &b), e, &b, EdgeCarrierSite::PlanarCrossing);
 }
 
 /// **An arc crossing a plane face once refuses, rather than land its
@@ -330,7 +330,7 @@ fn an_arc_crossing_a_plane_face_once_refuses() {
         "the endpoint interpolation lands off the plane: x = {x_interp}"
     );
     let (a, e) = arc_sheet(mx, h);
-    assert_refused(sweep_a(&a, &b), e, &b);
+    assert_refused(sweep_a(&a, &b), e, &b, EdgeCarrierSite::PlanarCrossing);
 }
 
 /// **The same arc against a cylinder wall refuses with the same
@@ -357,7 +357,7 @@ fn an_arc_crossing_a_cylinder_wall_refuses() {
         Tol::witness(),
     );
     let (a, e) = arc_sheet(mx, h);
-    assert_refused(sweep_a(&a, &b), e, &b);
+    assert_refused(sweep_a(&a, &b), e, &b, EdgeCarrierSite::CurvedCrossing);
 }
 
 /// **A spiric that dips through a plane face and back refuses.** Its ends
@@ -380,7 +380,7 @@ fn a_spiric_dipping_through_a_plane_face_refuses() {
     );
     let (b, _) = brick_face((0.0, 1.0), (2.5, 4.0), Vec3::new(0.0, -1.0, 0.0));
     let (a, e) = spiric_cap();
-    assert_refused(sweep_a(&a, &b), e, &b);
+    assert_refused(sweep_a(&a, &b), e, &b, EdgeCarrierSite::PlanarCrossing);
 }
 
 /// **A spiric crossing a cylinder wall refuses with the same variant**,
@@ -405,5 +405,5 @@ fn a_spiric_crossing_a_cylinder_wall_refuses() {
         Tol::witness(),
     );
     let (a, e) = spiric_cap();
-    assert_refused(sweep_a(&a, &b), e, &b);
+    assert_refused(sweep_a(&a, &b), e, &b, EdgeCarrierSite::CurvedCrossing);
 }

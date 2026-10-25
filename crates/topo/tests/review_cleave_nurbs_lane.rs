@@ -245,10 +245,11 @@ fn subtracting_an_enclosed_m7_8_cube_refuses_before_the_void_door() {
 }
 
 /// A disjoint union with the M7-8 cube refuses typed BEFORE its
-/// fallback reaches the assembly graft: the operand gate refuses the
-/// NURBS-carried edge. The row goes red the day the gate admits the
-/// class, which is the day the assembly's carried certificates become
-/// reachable from the boolean.
+/// fallback reaches the assembly graft: the sweep's planar crossing arm
+/// refuses the NURBS-carried edge at a face of the far brick, since a
+/// spline edge claims no box and so is cleared of no face. The row goes
+/// red the day a crossing rung reads the kind, which is the day the
+/// assembly's carried certificates become reachable from the boolean.
 #[test]
 fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
     let tol = Tol::witness();
@@ -259,14 +260,28 @@ fn a_disjoint_union_with_the_m7_8_cube_refuses_before_the_graft() {
         tol,
     );
     match topo::union(&brick, &cube, Tol::witness()) {
-        Err(topo::BooleanError::CurvedEdgeUnsupported {
+        Err(topo::BooleanError::EdgeCarrierUnsupported {
             operand: topo::Operand::B,
-            ..
-        }) => {}
-        Err(e) => panic!("expected the curved-edge refusal, got {e:?}"),
-        Ok(BooleanResult::Empty) => panic!("expected the curved-edge refusal, got Empty"),
+            edge,
+            face,
+            site: topo::EdgeCarrierSite::PlanarCrossing,
+        }) => {
+            assert!(
+                topo::query::edge_carrier_kind(&cube, edge) == Some(topo::query::CurveKind::Nurbs),
+                "the refusal names a spline edge of the cube: {edge:?}"
+            );
+            assert!(
+                brick.get_face(face).is_some(),
+                "the refusal names a face of the brick: {face:?}"
+            );
+        }
+        Err(e) => panic!("expected the planar crossing refusal, got {e:?}"),
+        Ok(BooleanResult::Empty) => panic!("expected the planar crossing refusal, got Empty"),
         Ok(BooleanResult::Body(b)) => {
-            panic!("expected the curved-edge refusal, got a {:?} body", b.kind)
+            panic!(
+                "expected the planar crossing refusal, got a {:?} body",
+                b.kind
+            )
         }
     }
 }

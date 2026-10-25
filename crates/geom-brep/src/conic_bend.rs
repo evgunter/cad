@@ -46,13 +46,14 @@ pub enum BendBounds<T: Real> {
         /// `s` ([`conic_bend_side`]).
         lifts_to: T,
     },
-    /// A spiric section: no curvature bound is certified, so its tie
-    /// with a plane reads no side.
+    /// A spiric section or a spline: no curvature bound is certified, so
+    /// its tie with a plane reads no side.
     Unbounded,
 }
 
-/// **Where an edge on a conic carrier leaves a vertex**, read once for
-/// both vertex-neighbourhood lanes.
+/// **Where an edge on a curved carrier leaves a vertex**, read once for
+/// both vertex-neighbourhood lanes: a conic, a spiric or a spline, each
+/// by its tangent, never its chord.
 #[derive(Clone, Copy, Debug)]
 pub struct ConicDeparture<T: Real> {
     /// The departure's unit tangent scaled to [`Self::extent`]: its
@@ -72,7 +73,7 @@ impl<T: Decide> ConicDeparture<T> {
     ///
     /// # Panics
     ///
-    /// On a line or NURBS carrier ([`ConicBend::of`]).
+    /// On a line carrier ([`ConicBend::of`]).
     #[must_use]
     pub fn of(curve: &crate::EdgeCurve<T>, he_plus: bool, chord: T) -> Self {
         let (t0, t1) = curve.params();
@@ -99,7 +100,7 @@ impl<T: Decide> ConicBend<T> {
     ///
     /// # Panics
     ///
-    /// On a line or NURBS carrier: neither is a conic.
+    /// On a line carrier, which does not bend.
     #[must_use]
     pub fn of(carrier: &geom::Curve3<T>, deriv: Vec3<T>, deriv2: Vec3<T>, span: T) -> Self {
         let speed_sq = deriv.norm_squared();
@@ -141,11 +142,10 @@ impl<T: Decide> ConicBend<T> {
                     lifts_to: T::pi() * T::from_f64(0.5) / most,
                 }
             }
-            geom::Curve3::Spiric { .. } => BendBounds::Unbounded,
-            geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => unreachable!(
-                "`ConicBend::of` reads a conic carrier, not a {:?}",
-                carrier.kind()
-            ),
+            geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => BendBounds::Unbounded,
+            geom::Curve3::Line { .. } => {
+                unreachable!("`ConicBend::of` reads a curved carrier, not a line")
+            }
         };
         Self { curvature, bounds }
     }

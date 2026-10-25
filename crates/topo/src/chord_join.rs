@@ -499,6 +499,15 @@ pub enum SplitJoinError {
         /// Its surface kind.
         kind: geom::SurfaceKind,
     },
+    /// A run edge between two chords on a plane face is a spiric or a
+    /// spline, and the join has no row reading whether such an edge lies
+    /// in the cut's plane: its midpoint's side says nothing of the rest.
+    RunEdgeCarrierUnsupported {
+        /// The face whose loop the run is on.
+        face: FaceKey,
+        /// The edge.
+        edge: EdgeKey,
+    },
     /// Whether a split plane is tangent to a curved face along the
     /// ruling it cuts the face on is in band, at a station of the
     /// must-carry rule over the ruling
@@ -789,6 +798,12 @@ impl core::fmt::Display for SplitJoinError {
                 "a cut passes through a {kind:?} face without reaching its boundary, leaving \
                  a ring whose island the join does not read there. Recourse: move the cut so \
                  it crosses the face's edge, or divide the face there first"
+            ),
+            Self::RunEdgeCarrierUnsupported { .. } => write!(
+                f,
+                "a cut joins two points of a face's boundary across a spiric or spline \
+                 (NURBS) edge, and the join cannot yet tell whether such an edge lies in the \
+                 cut. Recourse: rebuild that solid so its edges are lines, circles or ellipses"
             ),
             Self::TangentChordEscalated { diag, .. } => write!(
                 f,
@@ -2843,17 +2858,13 @@ fn between_edge_is_section<T: Decide>(
     };
     match curve.carrier() {
         geom::Curve3::Line { .. } => Ok(Some(true)),
-        // The join lanes are fenced against the spiric and the spline
-        // (both operand gates refuse the kinds), so a run edge carrying
-        // one is an invariant break, never assumed ON.
         geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-            Err(SplitJoinError::SectionInvariant {
+            Err(SplitJoinError::RunEdgeCarrierUnsupported {
                 face: body
                     .get_loop(he_data.parent_loop)
                     .map(|l| l.face)
                     .ok_or_else(|| corrupt_loop(he_data.parent_loop))?,
-                what: "a join lane reached a spiric or spline run edge (the operand gates \
-                       refuse the kinds)",
+                edge: he_data.edge,
             })
         }
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
@@ -7843,4 +7854,44 @@ mod pole_branch_rows {
     }
 
     use core::f64::consts::{PI, TAU};
+}
+
+/// **A run edge between two chords that is a spiric or a spline
+/// refuses typed, naming the edge and its face**: its midpoint's side
+/// of the cut's plane says nothing of the rest of it. The sweep rows'
+/// sheets (`boolean::reduce::planar_lane_carrier_rows`), each cut by a
+/// plane through the arc's ends, which a midpoint reading would call
+/// off the plane.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod run_edge_carrier_rows {
+    use super::{SectionCtx, SplitJoinError, between_edge_is_section};
+    use crate::boolean::reduce::planar_lane_carrier_rows::{arc_sheet, spiric_cap};
+    use geom_core::{Band, Point3, Tol, UnitVec3, Vec3};
+
+    #[test]
+    fn a_curved_run_edge_refuses_naming_itself() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let cuts = [
+            ("spline", arc_sheet(1.0, 1.0), Vec3::new(0.0, 1.0, 0.0)),
+            ("spiric", spiric_cap(), Vec3::new(0.0, 1.0, 0.0)),
+        ];
+        for (name, (body, edge), normal) in cuts {
+            let he = body.get_edge(edge).unwrap().he_plus;
+            let face = body.face_of_linked(he);
+            let origin = body.half_edge_start_point(he).unwrap();
+            let ctx = SectionCtx {
+                origin: Point3::new(origin.x, origin.y, origin.z),
+                normal: UnitVec3::new(normal, "run_edge_rows", band).unwrap(),
+                plane_key: None,
+                branch: None,
+            };
+            match between_edge_is_section(&body, &ctx, he, band) {
+                Err(SplitJoinError::RunEdgeCarrierUnsupported { face: f, edge: e }) => {
+                    assert_eq!((f, e), (face, edge), "{name}: the face and the edge");
+                }
+                other => panic!("{name}: expected the run-edge refusal, got {other:?}"),
+            }
+        }
+    }
 }

@@ -2900,6 +2900,14 @@ NOT_BOUND = {
     # as its tag word plus prose, and the guard's prose is its own
     # sentence, so a Python caller reads the site in the message.
     "PairRefusalSite": INTERIOR,
+    # `BooleanError::EdgeCarrierUnsupported`'s SITE: which lane met the
+    # spiric or spline edge (the sweep's planar or curved crossing arm,
+    # the join's germ frame or ring run). Carried in Rust so a consumer
+    # matching that variant can name the field's type; interior here
+    # because Python never holds one. The refusal crosses as its tag
+    # word plus prose, and each site's clause is its own, so a Python
+    # caller reads the site in the message.
+    "EdgeCarrierSite": INTERIOR,
     # `NodeErrorKind::FullRangeStep`'s `turns`: whether a step of a
     # turn or more lands every copy on the master or names an angle
     # within the turn. Carried in Rust so a consumer matching that

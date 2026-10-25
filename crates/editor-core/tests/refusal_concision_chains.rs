@@ -1003,7 +1003,7 @@ mod kernel {
             Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
             ApexUnlifted,
             PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RingIslandUnread,
-            TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
+            RunEdgeCarrierUnsupported, TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings,
         ];
     }
@@ -2670,6 +2670,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 J::RingIslandUnread {
                     face,
                     kind: geom::SurfaceKind::Cone,
+                },
+            ),
+            (
+                "RunEdgeCarrierUnsupported",
+                J::RunEdgeCarrierUnsupported {
+                    face,
+                    edge: topo::EdgeKey::default(),
                 },
             ),
             (

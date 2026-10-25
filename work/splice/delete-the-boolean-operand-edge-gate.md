@@ -2,11 +2,13 @@
 id: delete-the-boolean-operand-edge-gate
 kind: unit
 title: delete gate_operand_edges once every site behind the sweep refuses a spline or spiric edge typed
-status: open
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: M
 refs: [3984]
+closed: 2026-10-25
+branch: splice/gate
 ---
 
 
@@ -113,3 +115,63 @@ This gate is what stops three demo joins: klein wall 3, lily wall 8 and teapot w
 ## Moved to SPLICE (2026-10-25)
 
 From ORBIT. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. This row stays P0; the rows it waits on moved with it.
+
+## Closed
+
+Landed on `splice/gate`. `reduce::gate_operand_edges` and
+`BooleanError::CurvedEdgeUnsupported` are deleted. The sites are typed
+first (`join-and-continuation-sites-…`,
+`a-nurbs-edges-sector-departure-…`).
+
+**A drive-by on the sweep's curved arm.** `curved_face_arm` refused a
+NURBS or `Approx` face of `y` naming `x_is`, the edge's operand, so
+every wall below read operand A. It now names `x_is.other()`, witnessed
+by the census's face-ownership check.
+
+**The end-to-end row the emit note owes.** It is
+`editor-core` `names::emit_topo::nurbs_crossings_rank_by_parameter::a_face_across_a_nurbs_edge_refuses_through_the_boolean`:
+the wavy loft united, through the recipe, with a box whose face `x = 1`
+crosses each corner edge three times (first and third with one sense).
+It refuses `EdgeCarrierUnsupported { PlanarCrossing }` on a spline edge
+the loft's table names, against a plane face of the box. It reds the day
+a crossing rung builds that union.
+
+**The census.** `sweep` `spline_spiric_operands::no_spline_or_spiric_operand_builds_wrong`
+runs the loft prism, the lofted cylinder and the spiric-rimmed vessel
+cavity through all four ops, in both orders, against bricks. Measured
+at ε 1e-9, 1e-6 and 1e-12:
+
+- every spline outcome refuses typed and names its own face;
+- the cavity builds 12 ops (far and enclosing bricks) on its
+  additivity oracle, where the gate refused them;
+- the slab through the cavity refuses at the planar arm on a spiric
+  rim.
+
+**The demo walls**, measured with the gate off on main and re-pinned:
+
+- **klein wall 3** refuses `CurvedBooleanUnsupported { operand: B, kind: Nurbs }`
+  at the contact. The sweep reads the seam line of the bulb's outer
+  neck cylinder (r = 0.275, z ∈ [2.58, 3.0]; it ends on the z = 3 rim
+  the loop's top cap meets) against one of the loop's four NURBS walls,
+  which rises from that rim. That is a line against a spline face, and
+  no crossing layer reads one. Neither a far seam nor the cone pierce
+  is read first.
+- **lily wall 8** refuses the same variant, on the sheath, operand B.
+  The blade's base-section rim circle, between a NURBS wall and the
+  planar cap, is read against a NURBS wall of the sheath rising from
+  that same rim.
+- **teapot wall 3** refuses the same variant, on the spout, operand B.
+  A latitude circle between two of the belly's sphere faces is read
+  against a NURBS wall of the spout.
+
+The prose in each scene, `demos/README.md` and the Python north-star
+row says so.
+
+**Split side.** No boolean path reaches
+`splitting::join::certify_section_area` or
+`splitting::finish::describe_section_boundary`: both are reached only
+from `split_scratch` and `split_direct`, and the boolean imports only
+`finish::{carve, single_solid}`. Both rows stay as they are.
+
+**Filed:** `a-spline-rider-reads-as-lying-in-no-plane-face`. It is the
+slit pass's `lies_in`, latent behind the planar arm.

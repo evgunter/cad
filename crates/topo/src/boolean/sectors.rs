@@ -76,11 +76,12 @@ pub(super) enum Reach<T: geom_core::Real> {
         /// The edge's other end.
         far: Point3<T>,
     },
-    /// A fitted (NURBS) edge: its end-to-end chord, levered at the
-    /// chord's length.
+    /// A probe direction with no edge behind it, levered at a stated
+    /// arm (`vtxfac`'s interior probes).
     Extent(T),
-    /// A conic edge: its departure tangent at the base vertex, levered
-    /// at the edge's own extent, and how it bends off that tangent
+    /// A curved edge — a conic, a spiric or a spline: its departure
+    /// tangent at the base vertex, levered at the edge's own extent,
+    /// and how it bends off that tangent
     /// ([`ConicBend`]), which [`pierce_side`] reads where the tangent lies in
     /// a plane face.
     Conic {
@@ -490,11 +491,10 @@ pub(super) fn orbit_corners<T: Decide>(
         );
     }
     // The outgoing direction of an orbit half-edge, scaled to the
-    // edge's honest extent — the M3 chord for `Line` carriers
-    // (bit-identical), the carrier's outgoing TANGENT at the base
-    // vertex scaled by `edge_extent` for conic carriers (M5 PR 9: the
-    // ON-set machinery consumes curved carrier tangents instead of
-    // assuming straight edges — the splitting lane's C12.2 idiom).
+    // edge's honest extent: the chord for a `Line` carrier, the
+    // carrier's outgoing tangent at the base vertex scaled by
+    // `edge_extent` for every curved one, a spline's included (its
+    // chord is not where it leaves).
     let chord = move |he: HalfEdgeKey| -> (Vec3<T>, Reach<T>) {
         let end = body.proven_half_edge_end(he);
         let p_base = body.resolve_vertex_point(vertex, Proven);
@@ -528,13 +528,10 @@ pub(super) fn orbit_corners<T: Decide>(
                     far: p_end,
                 },
             ),
-            geom::Curve3::Nurbs(_) => {
-                let d = p_end - p_base;
-                (d, Reach::Extent(d.norm()))
-            }
             geom::Curve3::Circle { .. }
             | geom::Curve3::Ellipse { .. }
-            | geom::Curve3::Spiric { .. } => {
+            | geom::Curve3::Spiric { .. }
+            | geom::Curve3::Nurbs(_) => {
                 let ConicDeparture { dir, extent, bend } =
                     ConicDeparture::of(curve, he == edge.he_plus, p_end.distance(p_base));
                 (dir, Reach::Conic { extent, bend })
@@ -679,16 +676,13 @@ pub(super) fn NO_CURVATURE<T: Decide>() -> T {
 ///   within the band of the plane. A direction levered at the SHORTER
 ///   chord of the sector would read Zero while a long edge's far end
 ///   stood thousands of bands off.
-/// - [`Reach::Conic`] (a conic edge): the departure tangent levered at
+/// - [`Reach::Conic`] (a curved edge): the departure tangent levered at
 ///   the edge's own extent. A definite sign is exact (the sign of
 ///   `t̂·n̂`). A Zero is a first-order tangency, and reads `On` here:
 ///   the sector passes that call this key their coincidence and
 ///   tangent machinery on first-order ties. The vertex-on-face pass
 ///   reads it one order down ([`pierce_side`], [`conic_side`]).
-/// - [`Reach::Extent`] (a fitted edge): the end-to-end chord levered at
-///   its length, so a Zero puts the far end within the band of the
-///   plane; the chord is a secant, and where the edge goes between its
-///   ends is not read here.
+/// - [`Reach::Extent`] (a probe): the direction levered at its arm.
 /// - [`Reach::Bisector`]: a subdivision direction has no point behind
 ///   it, so it is levered at its sector's arm. Its Zero is not read as
 ///   a verdict where it could decide anything: a bisector's code only
@@ -6932,3 +6926,41 @@ mod tests {
 
 #[cfg(test)]
 mod cone_fuzz;
+
+/// **A spline leaves a vertex along its tangent, not its chord.** The
+/// sweep rows' Bézier sheet (`reduce::planar_lane_carrier_rows`): the
+/// arc from `(0, 0, 0)` through the control point `(1, 2, 0)` to
+/// `(2, 0, 0)` leaves its start along `(1, 2, 0)`, the first leg of its
+/// control net, where its chord runs along `x̂`, in the plane `y = 0`
+/// that holds both its ends.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod spline_departure_rows {
+    use super::super::Operand;
+    use super::{Reach, orbit_corners};
+    use crate::boolean::reduce::planar_lane_carrier_rows::arc_sheet;
+    use geom_core::{Band, Tol, Vec3};
+
+    #[test]
+    fn the_sector_walk_reads_a_splines_tangent() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (body, edge) = arc_sheet(1.0, 1.0);
+        let he = body.get_edge(edge).unwrap().he_plus;
+        let vertex = body.get_half_edge(he).unwrap().start;
+        let corner = orbit_corners(&body, Operand::A, vertex, band)
+            .map(Result::unwrap)
+            .find(|c| c.he == he)
+            .expect("the arc's half leaves its start vertex");
+        let tangent = Vec3::new(1.0, 2.0, 0.0).normalize();
+        assert!(
+            (corner.end.normalize() - tangent).norm() < 1e-12,
+            "the arc leaves along its tangent (1, 2, 0)/√5, got {:?}",
+            corner.end
+        );
+        assert!(
+            matches!(corner.end_reach, Reach::Conic { extent, .. } if (extent - 2.0).abs() < 1e-12),
+            "levered at its extent, the chord's length 2: {:?}",
+            corner.end_reach
+        );
+    }
+}
