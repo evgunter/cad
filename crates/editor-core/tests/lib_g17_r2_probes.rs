@@ -91,14 +91,13 @@ fn p1b_order_on_distinct_charts_moves_the_key_but_nothing_else() {
     // Two opposite faces opened: a square tube, one shell, ten faces
     // (four outer walls, two rims, four cavity walls), and the exact
     // volume `L²H − (L−2t)²H`.
-    let body = body_of(&ea, sa);
+    let body =
+        topo::test_support::finished("body", topo::Body::clone(body_of(&ea, sa)), Tol::witness());
     assert_eq!(body.faces().count(), 10);
     assert_eq!(body.shells().count(), 1);
     let inner = cup::L - 2.0 * cup::T;
     assert_eq!(
-        topo::test_support::unmigrated_measure(body, Tol::witness())
-            .unwrap()
-            .volume,
+        topo::mass_properties(&body, Tol::witness()).unwrap().volume,
         cup::L * cup::L * cup::H - inner * inner * cup::H
     );
 }
@@ -376,7 +375,15 @@ fn p6_rebinding_the_designation_moves_the_rim() {
     assert!(matches!(t.lookup(&rim_bottom), Some(Entry::Unique(_))));
     assert!(t.lookup(&rim_top).is_none());
     assert!(matches!(t.lookup(&inner_top), Some(Entry::Unique(_))));
-    let m = topo::test_support::unmigrated_measure(body_of(&ev, shell), Tol::witness()).unwrap();
+    let m = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(body_of(&ev, shell)),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(m.volume, cup::closed_forms(cup::L, cup::H, cup::T).volume);
 }
 

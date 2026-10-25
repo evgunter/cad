@@ -1474,8 +1474,7 @@ enum WalkRefusal {
     /// A numerical or unbuilt refusal: W2 reads nothing of the face.
     Unread,
     /// A refusal [`crate::pcurves::loop_windings`] never returns: only
-    /// the chart description ([`crate::pcurves::chart_boundary`]) or the
-    /// at-rest pass raises it.
+    /// the at-rest pass raises it.
     NotRaised,
 }
 
@@ -1500,14 +1499,8 @@ fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
         M::Escalated { .. }
         | M::NetStretchUndecided { .. }
         | M::JointWithoutRoom { .. }
-        | M::UncertifiedImage { .. }
         | M::Band(_) => WalkRefusal::Unread,
-        M::EmptyOuter { .. }
-        | M::SingularChartJoint { .. }
-        | M::OuterSpansPeriod
-        | M::OuterSpanPoisoned { .. }
-        | M::LoopWraps { .. }
-        | M::Unminted { .. } => WalkRefusal::NotRaised,
+        M::Unminted { .. } => WalkRefusal::NotRaised,
         M::Certify { error, .. } => match error {
             C::PlaceholderChart
             | C::CarrierOffChart { .. }
@@ -3606,7 +3599,7 @@ pub(super) enum PieceRead {
     /// its own names.
     NotIn,
     /// The read failed: the containment door's refusal, or `None` where
-    /// the curved chart trim gives no verdict.
+    /// a curved face's region gives no verdict.
     Unread(Option<ContainError>),
 }
 
@@ -8508,8 +8501,8 @@ mod tests {
             quad_prism(&turned, 0.7, Tol::witness()),
             quad_prism(&profile, 0.7, Tol::witness()),
         );
-        // Raw door: the measured prisms still carry construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
         let volume = |body: &crate::Body<f64>| {
+            // Raw door: the measured prisms still carry construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
             crate::test_support::measure_unvalidated(body, Tol::witness())
                 .unwrap()
                 .volume

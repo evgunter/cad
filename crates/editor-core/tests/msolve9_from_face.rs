@@ -27,11 +27,10 @@ use std::sync::Arc;
 use editor_core::mate::SurfaceKind;
 use editor_core::pose::{PoseDef, PoseReadFault};
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation,
-    FaceName, Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
-    PartFault, PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId,
-    RoleSeg, SlotId, StableName, VarDef, VarKind, all_faces, face_carrier_kind, face_frame, load,
-    save,
+    CancelToken, CapEnd, DocEdit, DocumentId, EntityKind, EvalOptions, Evaluation, FaceName,
+    Formula, Frame, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult, PartFault,
+    PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RoleSeg, SlotId,
+    StableName, VarDef, VarKind, all_faces, face_carrier_kind, face_frame, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, insert, len, on_frame, run, solve, square, step};
@@ -113,7 +112,6 @@ fn seated_on(
         fixture::rest(
             fixture::head(in_part(block_i, block_body, CapEnd::Start)),
             worn_face(at, face),
-            ContactClass::Rest,
         ),
     )
 }
@@ -375,7 +373,6 @@ fn rest_on_the_face(
         fixture::rest(
             fixture::head(in_part(b, block_body, CapEnd::Start)),
             worn_face(a, face),
-            ContactClass::Rest,
         ),
     );
     (run(&doc, &opts), mate)
@@ -572,7 +569,6 @@ fn a_vanished_name_refuses_where_its_reader_evaluates_never_at_the_door_or_load(
         fixture::rest(
             fixture::head(in_part(other, s.block_body, CapEnd::Start)),
             worn_face(s.post_i, &bogus),
-            ContactClass::Rest,
         ),
     );
     let ev = run(&doc, &s.opts);
@@ -669,7 +665,6 @@ fn an_unresolvable_part_fails_its_instance_in_the_resolvers_voice() {
                 s.post_i,
                 &fixture::resolver::in_world(s.post_body, CapEnd::End),
             ),
-            ContactClass::Rest,
         ),
         &[],
     );
@@ -908,8 +903,8 @@ fn c5_every_tracked_document_loads_on_this_wire_and_re_saves_identically() {
                 .map(|o| o.keys().cloned().collect())
                 .unwrap_or_default();
             assert!(
-                keys == ["class", "on", "to"],
-                "{}: a mate is two poses and a class: {mate}",
+                keys == ["on", "to"],
+                "{}: a mate is two poses: {mate}",
                 path.display()
             );
             seen += 1;

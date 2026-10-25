@@ -102,7 +102,8 @@ fn per_face(body: &topo::Body<f64>) -> (f64, f64) {
 /// The door refuses a ball with one band flipped: the two bands' seam
 /// region's bits disagree, a lamina tier 3 names at check 4.
 fn refused_at_the_door(body: &topo::Body<f64>) {
-    let door = topo::test_support::unmigrated_measure(body, Tol::witness());
+    // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+    let door = topo::test_support::measure_unvalidated(body, Tol::witness());
     assert!(
         matches!(
             door,
@@ -132,8 +133,8 @@ fn refused_at_the_door(body: &topo::Body<f64>) {
 /// move at all — the discrimination is total, not marginal.
 #[test]
 fn props_flux_flips_with_the_rimless_band_sense() {
-    let b = ball();
-    let honest = topo::test_support::unmigrated_measure(&b, Tol::witness()).unwrap();
+    let b = topo::test_support::finished("b", ball(), Tol::witness());
+    let honest = topo::mass_properties(&b, Tol::witness()).unwrap();
     assert!(
         (honest.volume - 4.0 * PI / 3.0).abs() < 1e-9,
         "the unit ball meters 4π/3, got {}",
@@ -175,8 +176,8 @@ fn props_flux_flips_with_the_rimless_band_sense() {
 /// evidence of single application, not merely of symmetry.
 #[test]
 fn offcentre_flipped_ball_still_cancels() {
-    let b = ball_at(5.0);
-    let honest = topo::test_support::unmigrated_measure(&b, Tol::witness()).unwrap();
+    let b = topo::test_support::finished("b", ball_at(5.0), Tol::witness());
+    let honest = topo::mass_properties(&b, Tol::witness()).unwrap();
     assert!(
         (honest.volume - 4.0 * PI / 3.0).abs() < 1e-9,
         "the off-centre unit ball still meters 4π/3, got {}",

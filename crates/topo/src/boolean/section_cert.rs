@@ -50,8 +50,8 @@
 //!   reads [`Sheet::Unread`], and a component nothing else clears
 //!   refuses R-unread rather than R-undec.
 //! - **W3, a witness point `Out`**: one closed-form point of `γ`,
-//!   certified outside `F` or outside `G` (by the chart trim on a curved
-//!   face, by `contfp` on a plane), so `γ ⊄ F ∩ G`.
+//!   certified outside `F` or outside `G` (by the face's region on a
+//!   curved face, by `contfp` on a plane), so `γ ⊄ F ∩ G`.
 //! - **W4, a lone evented component**: `Σ` has exactly one component and
 //!   the pair has an event. The event's vertex lies on `Σ` within the
 //!   band, hence on `γ`, and on an edge of `F` or `G`, so
@@ -157,8 +157,8 @@
 //!   L1 on its own: `F` surrounds its lone vertex on every side, so the
 //!   vertex is a relative boundary point of `γ ∩ F ∩ G` only where it
 //!   also lies on `∂G`, whose edges the sweep does examine; and
-//!   `chart_boundary` reads the face's region as its cycles bound it, so
-//!   W2 covers the vertex too. What the sweep cannot see is a component
+//!   W2 reads the face's region as its cycles bound it, so it covers
+//!   the vertex too. What the sweep cannot see is a component
 //!   in `F ∩ G` whose only boundary point is the lone vertex. That is an
 //!   interior loop to every witness here except that it touches a
 //!   vertex; the no-event decision would refuse it anyway, but nothing

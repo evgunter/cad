@@ -809,7 +809,7 @@ pub enum OrientationUnread {
         /// `None` where the ends decided zero, or opposite signs.
         margin: Option<Indeterminate>,
         /// How many of its faces offered an aim: a planar face's point
-        /// certified inside it, a curved face's chart window's middle.
+        /// certified inside it, a point of a curved face's surface.
         aimed: usize,
         /// The aimed rays set aside, and why: a sharp corner, a crossing
         /// in band of a face's boundary, a graze, or a limit.
@@ -1845,9 +1845,6 @@ pub enum ValidationError {
         /// coincidence at another), so the message states what is true
         /// at all of them ([`crate::contact::CONTRADICTION_REASON`]).
         margin: Indeterminate,
-        /// Extra recourse steering when the counter-evidence has a
-        /// named remedy (AQ6's designed-clearance arm).
-        steer: Option<&'static str>,
     },
     /// Tier 3′: a census predicate escalated (sliver band or poison) —
     /// indeterminate coincidence geometry at rest is a defect (the
@@ -3442,7 +3439,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
     let (why, recourse) = match e {
         M::LoopDiscontinuity { .. }
         | M::LoopNotClosed { .. }
-        | M::SingularChartJoint { .. }
         | M::MissingCache { .. }
         | M::RowInterval { .. } => (WRONG, DEFECT),
         // Every row derives and certifies; the producer did not mint.
@@ -3450,27 +3446,15 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             "a curved face stores no certified boundary description",
             DEFECT,
         ),
-        // A face that stores no rows has no certificate for a fitted
-        // or general image: unminted, or uncovered by every lane yet.
-        M::UncertifiedImage { .. } => (
-            "a face's boundary has no certified description yet",
-            NOT_YET_ENDING,
-        ),
-        M::OuterSpansPeriod | M::LoopWraps { .. } => (
-            "the face wraps all the way round its surface, which the kernel cannot yet map",
-            NOT_YET_ENDING,
-        ),
         // A net closed in `v` whose `v` sections sit in the band's sliver
         // of collapsing: an undecided reading, read as one.
-        M::Escalated { cause, .. }
-        | M::NetStretchUndecided { cause, .. }
-        | M::OuterSpanPoisoned { cause } => {
+        M::Escalated { cause, .. } | M::NetStretchUndecided { cause, .. } => {
             return (
                 CLOSE,
                 geom_brep::recourse::not_yet(RefusedArm::Undecided(cause), Reading::AtRest).into(),
             );
         }
-        // Never produced at rest: only the face description raises it.
+        // Never produced at rest: only the loop windings raise it.
         M::JointWithoutRoom { .. } => (CLOSE, NOT_YET_ENDING),
         M::Band(b) => (classify_band(b), TOLERANCE),
         // A null edge at rest is tier 2's finding, and a row stored on
@@ -3479,16 +3463,11 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
         // Never produced at rest: the pass takes no key from a caller,
         // so a key it named that did not resolve would be its own.
         M::Stale { .. } => ("a key the boundary names does not resolve", DEFECT),
-        // Never produced at rest (the pass skips a placeholder face, and
-        // describes no face's boundary); classified as its Display
-        // states it.
+        // Never produced at rest (the pass skips a placeholder face);
+        // classified as its Display states it.
         M::PlaceholderChart { .. } => (
             geom::PLACEHOLDER_SURFACE,
             crate::pcurves::PLACEHOLDER_RECOURSE,
-        ),
-        M::EmptyOuter { .. } => (
-            "the face's outline is a lone vertex, so it bounds no region",
-            crate::pcurves::EMPTY_OUTER_RECOURSE,
         ),
         M::Certify { error, .. } => {
             // A decision's refused arm ends as its check's routing gives
@@ -3664,31 +3643,6 @@ pub(crate) fn classify_point_in_solid(
             diag,
             ..
         }) => close_to_boundary(Some((*decision).into()), *escalation, diag),
-        // The in-band escalation's story, read definitely (D4 ¶1 (iv)).
-        S::JunctionSidesDisagree { .. } => (
-            format!(
-                "{} is undecided at this tolerance",
-                crate::boolean::placement_subject(None)
-            )
-            .into(),
-            crate::boolean::unnamed_placement_ending(
-                geom_brep::recourse::RefusedArm::SignCertain(None),
-                Reading::AtRest,
-            )
-            .into(),
-        ),
-        // A limit of the kernel's reading, not of the geometry: each
-        // ends on the solid door's own note.
-        S::NarrowWindowUnread { .. } => (
-            "a point the check read lies near the end of a narrow cylinder wall's window, \
-             which the check cannot place it against"
-                .into(),
-            format!(
-                "{MOVE_GEOMETRY}; {}",
-                crate::boolean::solid_contain::NARROW_WINDOW_NOTE
-            )
-            .into(),
-        ),
         S::RootCountDisagrees { .. } => (
             "a test ray from a point the check read met a torus face where the kernel's count \
              of its crossings came apart"
@@ -4287,21 +4241,19 @@ impl fmt::Display for ValidationError {
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
                 "{declaration} names a contact the geometry does not have. \
-                 Recourse: remove that declaration (the mate named with it, where one is), \
+                 Recourse: remove that declaration, \
                  or move the geometry so the contact exists"
             ),
             Self::ContactContradicted {
                 declaration,
                 witness,
-                steer,
                 ..
             } => write!(
                 f,
-                "the declared {} contact is contradicted {witness}: {}. {}{}",
+                "the declared {} contact is contradicted {witness}: {}. {}",
                 declaration.class.name(),
                 crate::contact::CONTRADICTION_REASON,
                 crate::contact::CONTRADICTION_RECOURSE,
-                crate::contact::steer_clause(*steer),
             ),
             // Two long edges' ends read past their rounding: the
             // precision limit, whose recourse is no move apart.
@@ -5222,10 +5174,13 @@ pub(crate) fn closed_by_tier<T: Real>(
 ///     vertex carries is not seen;
 ///   - the curved arm's documented residuals: the rimless sphere band;
 ///     NURBS faces; the quadrature-owned conic-trimmed walls, whose
-///     boundary parse refuses typed and is therefore exempt — such a
-///     body's flips, single-face AND whole-body, certify green today
-///     (executed on the tilted-section cylinder and pinned as
-///     residual).
+///     boundary parse refuses typed and is therefore exempt here. Such
+///     a body's flips are refused by other arms: a lone flip by the
+///     material wedge (`LaminaWedge`, two walls on one cylinder) or by
+///     check 7 and the pinch corners (a wall that is one face), and the
+///     whole-body inversion by check 6's planar arm at the planar faces
+///     (`step-export`'s `m6_6_sense_gate` rows on the tilted-section
+///     cylinder and the tilted-split washer).
 /// - **Shell winding where the witness cannot be read** (check 10's
 ///   silences, the false-refusal direction it must never fail in): a
 ///   shell whose own signed volume does not decide a role (in-band,
@@ -7589,12 +7544,15 @@ pub(crate) fn tier3_local_checks_marked<
     // degenerate/out-of-inventory boundary, conic-trimmed faces the
     // quadrature lane owns, an uncertifiable loop) is EXEMPT here —
     // corrupt structure is tier 1/2's job, an uncomputable volume is
-    // check 7's. The conic-trim exemption is a RECORDED residual, not
-    // a covered class: an ellipse-trimmed wall has a winding-derived
-    // (bit-free) quadrature flux AND an exempt parse, so its flips —
-    // single-face and whole-body — certify green today (executed on
-    // the tilted-section cylinder, pinned as residual; closes when the
-    // ellipse-rim material-side encoding lands). A one-loop sphere
+    // check 7's. The conic-trim exemption is a RECORDED residual of
+    // this arm, not a covered class: an ellipse-trimmed wall has a
+    // winding-derived (bit-free) quadrature flux AND an exempt parse.
+    // Its flips are refused one layer away — a lone flip by the
+    // material wedge (`LaminaWedge`) or check 7 and the pinch corners,
+    // the whole-body inversion by the planar arm above at the planar
+    // faces (`step-export`'s `m6_6_sense_gate` rows); the arm itself
+    // reads it when the ellipse-rim material-side encoding lands. A
+    // one-loop sphere
     // face with both poles on its loop encodes no side alone
     // (`Unencoded`), and is read through its SEAM REGION: the faces on
     // its surface entity it reaches across shared edges
@@ -9443,9 +9401,10 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// through the chart-region predicate), face-granularity backing from
 /// face–face records, and the record certifiers (chart-region overlap
 /// for a face–face record). ASM R2-b
-/// consumes THIS gate (ASM-R2-SPEC-DRAFT:39-58): mate declarations
-/// land in the product body's [`crate::boolean::ContactRecords`] —
-/// same currency, no adapter — and validate here.
+/// consumes THIS gate (ASM-R2-SPEC-DRAFT:39-58): the records the
+/// at-rest census writes for the touches between copies land in the
+/// product body's [`crate::boolean::ContactRecords`] — same currency,
+/// no adapter — and validate here.
 ///
 /// # Errors
 ///

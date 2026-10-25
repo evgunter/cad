@@ -94,9 +94,12 @@ fn spans(len: f64) -> [(&'static str, (f64, f64)); 5] {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, Tol::witness())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 fn placed(b: &Body<f64>, pose: &Affine3<f64>) -> Body<f64> {

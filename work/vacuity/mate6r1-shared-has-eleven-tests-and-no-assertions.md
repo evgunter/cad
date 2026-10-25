@@ -71,3 +71,15 @@ resolver-driven observation,
 `Err(… does not name a face of the product …)` on main and prints
 `Ok(minted = 2)` after the migration — the question the row's own name
 asks, answered for the first time, and also unasserted.
+
+## 2026-10-23 — stage 4 I deletes the mint these rows printed
+
+`mates-declare-no-contact` (INTENT stage 4 I) retires the mate mint and
+its attribution, so `crates/editor-core/tests/mate6r1_shared.rs` is
+deleted whole: every one of its eleven rows printed a mint answer
+(`minted=`, `patches=`, a mint refusal), and none of those answers
+exists any more. `mate6r2_probes.rs` loses P2, P5 and P8, whose subject
+was the mint or its attribution, and keeps five rows (P1, P3, P4, P6,
+P7). What this row still owes is the decision on those five and on
+`mate1_r1_probes` and `rev_fix_xsplit_unreachable`; the eleven
+`mate6r1_shared` rows need none.

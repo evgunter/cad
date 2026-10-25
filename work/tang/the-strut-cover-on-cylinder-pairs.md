@@ -2,11 +2,10 @@
 id: the-strut-cover-on-cylinder-pairs
 kind: issue
 title: The strut source of the one-sided cover admits plane x cylinder only; the cylinder x cylinder row has a measured witness and waits on INTENT stage 4, and sphere x cylinder stops at later doors
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 

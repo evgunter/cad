@@ -559,7 +559,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
 /// two full-period rim circles with no seam generator between them,
 /// and in the kernel's face model (one outer loop plus rings) the ring
 /// adoption would make of the second rim winds the chart's period, a
-/// loop tier 3's pcurve mint refuses (`topo::PcurveMintError::LoopWraps`).
+/// loop whose chart walk does not close on its start (`topo::loop_windings`).
 /// Until M7-5 that was a NAMED refusal on
 /// both fixtures here; the band seam re-mint (`normalize::band_seam`)
 /// retired it by minting the seam generator at the surface's own

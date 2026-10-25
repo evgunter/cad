@@ -159,8 +159,11 @@ pub(crate) fn assert_body(label: &str, body: &Body<f64>, want: f64) {
         Ok(()),
         "{label}: a closed manifold mesh"
     );
-    let p = topo::test_support::unmigrated_measure(body, tol)
-        .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("{label}: mass properties, got {e:?}"));
     assert_eq!(p.volume_pad, 0.0, "{label}: closed-form faces only");
     assert!(
         (p.volume - want).abs() <= 1e-9 * want,

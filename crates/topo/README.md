@@ -21,10 +21,10 @@ feeds a decision, every walk is bounded.
 | Euler operators | `src/euler.rs` (make), `src/euler_kill.rs` (kill duals), `src/euler_ring.rs` (rings/genus), `src/split.rs`, `src/movefac.rs`, `src/revert.rs`, `src/attach.rs` |
 | Validation tiers 1–3, 3′ | `src/validate.rs` (`validate`, `validate_closed`, `validate_geometric`, `validate_pseudomanifold`), `src/face_normal.rs`, `src/sector_face.rs`, `src/sector_shape.rs`, `src/coherence.rs` |
 | Coincidence census, at rest | `src/census.rs` (`census_and_certify`: the BVH pre-filter `Candidates`, the sweeps, the backing rungs, the confirm pass, the cross-solid backstop) |
-| Contact vocabulary | `src/contact.rs` (`ContactClass`, `DeclaredContact`, `ContactVerdict`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`, `FIT_DEFERRAL`) |
-| Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`contact_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
+| Contact vocabulary | `src/contact.rs` (`GlueClass`, `DeclaredContact`, `ContactVerdict`, `ContactRefusal`, `ContactFinding`, `CONTACT_RECOURSE`) |
+| Contact verification (Door 1) | `src/boolean/contact_verify.rs` (`rest_pair_verdict`), `src/boolean/carrier_eq.rs` (the kind-generalized carrier ladder), `src/boolean/plane_eq.rs` (its planar arm) |
 | Chart-region overlap (Door 2) | `src/chart_region.rs` (`chart_region_overlap`, `declared_pair_overlap`, `world_carrier`, `cylinder_pair_overlap`, `interior_witness`), `src/chart.rs`, `src/chart_iso.rs`, `src/pcurves.rs` |
-| Chart-boundary description | `src/chart_bound.rs` (`ChartBound`, `ChartLoop`, `ChartEdge`, `assembled`, `metred`, `MetredBound::certifies_outside`, `MetredRect`), `src/pcurves.rs` (`chart_boundary`) |
+| Chart cells against a face's region | `src/cell_region.rs` (`cell_region`, `station_region`, `CellRegion`): a cell of a face's stored chart decided `Inside`, `Outside` or `Undecided` off the face's edges on their carriers and its point-in-face door; `src/pcurves.rs` (`loop_windings`) |
 | Plane splitting | `src/splitting/` (`classify`, `neighborhood`, `rules`, `insert`, `order`, `join`, `finish`, `section`, `containment`), `src/chord_join.rs`, `src/ring_path.rs`, `src/null.rs` |
 | Booleans | `src/boolean/mod.rs` (reduction, classification, `ReductionContacts`, `BooleanInputs`, the glue), `records.rs` (`ContactRecords`, `Contact`), `reduce.rs`, `vtxfac.rs`, `sectors.rs` (a slit's tip read as its face's full turn, `SlitTips`), `recl.rs`, `tables.rs`, `insert.rs`, `join.rs`, `finish.rs`, `zip.rs`, `slit.rs` (an edge lying in one of the result's faces, parted as the material decides, and a glued slit's two edges merged across the sliver between them), `ops.rs`, `carrier_pair.rs`, `combine.rs`, `voids.rs`, `boxes.rs`, `contain.rs`, `solid_contain.rs`, `surface_group.rs`, `rim_wedge.rs` |
 | Instances, separation | `src/instance.rs` (disjoint graft), `src/separation.rs` (certified no-touch), `src/transform.rs` (rigid placement) |
@@ -225,18 +225,18 @@ their senses ALIGNED are a *continuation*: one surface carried on,
 whether the two abut along a boundary curve or overlap on a patch. The
 kernel derives exactly which.
 
-A continuation is not a contact and not a `ContactClass`: a mate (and every
-record and census reading) speaks `ContactClass`, and a boolean glues a
-pair as a `GlueClass`, which is `Rest | Continuation | Tangent`. A mate
-cannot state a continuation; at rest two flush walls carry no contact,
+A continuation is not a contact: a record and a census reading speak
+`Rest` or `Tangent`, and a boolean glues a pair as a `GlueClass`, which
+is `Rest | Continuation | Tangent` (a declared pair carries its class as
+one, `DeclaredContact`). No mate states a contact; at rest two flush
+walls carry no contact,
 and their alignment is the flush pair the at-rest census records
 (DESIGN.md [assertions]). A glued `Tangent` is the tangency of two distinct carriers
 along a locus the witness lane certifies, and says nothing of the
 materials: whether the pair is a contact (a void crescent between the
 sheets), an overlap (a crescent both materials fill), a seam or a nested
 touch is read where it is consumed, by the lump and by the wedge of the
-result's junction (C7). `ContactClass::Tangent` is the record's and the
-mate's class. A crescent the materials of two distinct solids share is
+result's junction (C7). `GlueClass::Tangent` is the record's class too. A crescent the materials of two distinct solids share is
 interference between them (C6), not a contradicted contact; a crescent
 one solid shares with itself at a point touch is that solid's own
 material, and legal. Inside one solid a shared crescent along a line
@@ -341,16 +341,10 @@ straddle-hull treatment). Built as the document layer's
 `crates/editor-core/src/eval/measure.rs`), argument order the mating
 role, authored rather than inferred.
 
-**C6 — Interference fits.** `Fit { gap: g₀ }` asserts a nonzero nominal
-gap; g₀ = 0 is rejected (zero gap is `Rest`). A verified interference fit
-makes the disjointness/containment/extent gates skip the pair as a
-*recorded* verdict naming the declaration; assembly mass properties
-refuse by default, with an explicit opt-in subtracting closed-form
-overlap volumes; booleans are unchanged; STEP export drops the
-declaration.
+**C6 — Interference fits.** No class states a fit; what an
+interference fit asserts is stage 5's question.
 
-Not implemented: the variant lands with its first consumer. The
-backstop's containment arm decides the nested-instance class by a
+The backstop's containment arm decides the nested-instance class by a
 material test — a nested placement sharing no material clears; an
 instance with a vertex inside another's material is
 `ValidationError::InstanceInterference` — and no declaration admits an
@@ -914,20 +908,17 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 
 ## Until the intent refactor lands
 
-These clauses describe declared contact as the code still has it: a
-mate's `ContactClass`, its minted declaration and the declared rungs
-that back census events. DESIGN `[coincidence]` and `[assertions]`
-replace them, and INTENT stage 4 (a mate's contact class) and stage 5
-(the at-rest check) delete them as they land. C2's and C3's mentions of
+These clauses describe declared contact as the code still has it: the
+declared pairs and rungs that back census events. DESIGN `[coincidence]`
+and `[assertions]` replace them, and INTENT stage 4 and stage 5 (the
+at-rest check) delete them as they land. C2's and C3's mentions of
 a declared rung and a declared pair belong to the same model.
 
-**C4 — Declared contact as data.** A declaration names two faces by
-stable name on the mate that declares it and asserts a `ContactClass`:
+**C4 — Declared contact as data.** A declaration names two faces and
+asserts a class (`DeclaredContact`, its class a `GlueClass`):
 
 - `Rest` — same carrier, opposed senses, gap ≡ 0;
-- `Tangent` — curve or point touch, non-crossing;
-- `Fit { gap }` — carrier-parallel at a signed nominal gap; specified,
-  not built (`FIT_DEFERRAL`).
+- `Tangent` — curve or point touch, non-crossing.
 
 A declaration is verified, never trusted. Each class states a list of
 facts that must verify DEFINITE, the triggers that contradict it, and a
@@ -965,8 +956,8 @@ A boolean's face pairs are the glue its margins decide (`boolean::glue`),
 or, at a step of an n-ary union's fold, the verdicts that union's pairwise
 judgement decided (`BooleanInputs::given`, each pair made from a
 `GlueVerdict` some boolean returned, which nothing ties to the operands
-it is handed to); declarations live on mate
-nodes alone (`crates/editor-core/ASSEMBLY.md`). Bodies carry only verified records,
+it is handed to); no node declares a contact, a mate included
+(`crates/editor-core/ASSEMBLY.md` A3). Bodies carry only verified records,
 in the `BooleanBody` wrapper, never persisted. Replay is scalar-generic;
 an indeterminate verification at an interval scalar aborts.
 
@@ -1003,13 +994,12 @@ everywhere-within-ε overlap enclosure on the shared curved carrier. The
 cylinder arm is built (C3); sphere, cone and torus keep the typed
 divergence, with that shape recorded at the refusal site.
 
-**Attribution at the assembly layer.** Each live `Rest` mate is minted as
-a face–face record (a patch). Findings attribute to mates as Declined
-or Refuted (`StaleContactDeclaration`), or to no mate; all-Declined is
-the `Uncertified` frontier, and any other is a hard `AtRest` error
-(`crates/editor-core/ASSEMBLY.md`). A touch between two copies that no
-mate relates is no finding there: the gather's census records it
-(`record_at_rest`).
+**At the assembly layer.** No mate declares a contact. Every touch
+between two copies that no carried record backs, mated or not, is no
+finding: the gather's census records it (`record_at_rest`) as a row the
+coincidence door proves or the `unproven-coincidence` check reports. A
+pierce or a same-side crossing between two copies is interference (C6)
+(`crates/editor-core/ASSEMBLY.md` A5).
 
 ### Crossing backability (MATE-4B-CROSSING)
 

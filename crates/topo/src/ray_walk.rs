@@ -34,9 +34,8 @@
 //!   count proper crossings of a closed planar boundary; odd ⇒ inside.
 //!   Orientation-blind, which the chord join's ring re-homing and
 //!   validation's ring nesting rely on. Served to a planar loop in
-//!   3-space (`splitting::containment`), a chart-space polygon
-//!   (`chart_region`) and a chart polygon under its own rows
-//!   (`chart_bound`).
+//!   3-space (`splitting::containment`) and a chart-space polygon
+//!   (`chart_region`).
 //! - **The closest crossing** ([`Crossings`], [`advance`]): keep the
 //!   crossing nearest `q` and read the material side from the ray's
 //!   heading there — the 3-D sweep (`boolean::solid_contain`) and a
@@ -614,6 +613,27 @@ pub(crate) struct ParityRows {
     pub advance: &'static str,
 }
 
+/// The two of a [`ParityRows`] that [`on_segment`] reads, for a caller
+/// that reads a segment's boundary and casts no ray through it, so
+/// mints no `side` or `advance`. A new value is a roster change, as a
+/// [`ParityRows`] value is.
+pub(crate) struct SegmentRows {
+    /// As [`ParityRows::segment`].
+    pub segment: &'static str,
+    /// As [`ParityRows::boundary`].
+    pub boundary: &'static str,
+}
+
+impl ParityRows {
+    /// The two rows of a segment's boundary reading.
+    pub(crate) const fn segment_rows(&self) -> SegmentRows {
+        SegmentRows {
+            segment: self.segment,
+            boundary: self.boundary,
+        }
+    }
+}
+
 /// The boundary pre-pass: is `q` within the band of any closed
 /// segment of the cycle `verts`?
 ///
@@ -640,7 +660,7 @@ where
 {
     let n = verts.len();
     for i in 0..n {
-        if on_segment(verts[i], verts[(i + 1) % n], q, rows, band)? {
+        if on_segment(verts[i], verts[(i + 1) % n], q, &rows.segment_rows(), band)? {
             return Ok(true);
         }
     }
@@ -659,7 +679,7 @@ pub(crate) fn on_segment<T, P>(
     a: P,
     b: P,
     q: P,
-    rows: &ParityRows,
+    rows: &SegmentRows,
     band: Band,
 ) -> Result<bool, Indeterminate>
 where
@@ -679,7 +699,7 @@ pub(crate) fn on_segment_margin<T, P>(
     a: P,
     b: P,
     q: P,
-    rows: &ParityRows,
+    rows: &SegmentRows,
     band: Band,
 ) -> Result<Option<geom_core::MarginDiag>, Indeterminate>
 where

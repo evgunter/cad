@@ -24,7 +24,9 @@
 //! import rider finds no circle-rim pair. A single wall flip is now
 //! caught one dimension down (`LaminaWedge`), and a whole-body
 //! inversion at both planar faces — the circle-bounded bottom cap and
-//! the ellipse-bounded section face (`LoopRoleInverted` each).
+//! the ellipse-bounded section face (`LoopRoleInverted` each). A wall
+//! that is one face, with no second wall on its cylinder, refuses its
+//! lone flip by check 7 or at its pinch corners.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -433,4 +435,54 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both
         "the inverted body keeps its positive volume ({v}): no volume gate sees the \
          inversion, only the cap's winding does"
     );
+}
+
+/// **A one-face conic-trimmed wall's flip refuses too.** The washer's
+/// bore and outer wall are each one face with a self-mated seam; split
+/// by a plane tilted 0.3 rad off the axis, each half's two walls are
+/// trimmed by section ellipses, and the curved arm exempts them as it
+/// does `cut_cylinder`'s. No second wall shares either cylinder, so the
+/// wedge arm has no lamina to see; the lone flip refuses all the same,
+/// by check 7 (`NegativeVolume`) on the outer wall and at the bore's
+/// pinch corners (`PinchCornerCrossed`).
+#[test]
+fn a_one_face_conic_trimmed_wall_flip_refuses() {
+    use topo::splitting::{SplitPart, split};
+    let tol = Tol::witness();
+    let body = topo::test_support::finished("the washer", washer(), tol);
+    let plane = topo::test_support::split_plane(
+        geom_core::Point3::new(0.0, 0.5, 0.0),
+        geom_core::Vec3::new(0.3_f64.sin(), 0.3_f64.cos(), 0.0),
+        tol,
+    );
+    let result = split(&body, &plane, tol).unwrap();
+    for (name, part) in [("above", &result.above), ("below", &result.below)] {
+        let SplitPart::Body(half) = part else {
+            panic!("the {name} half carries material");
+        };
+        let half = Body::clone(half);
+        assert!(
+            validate_geometric(&half, tol).is_ok(),
+            "{name}: honest half green"
+        );
+        let walls = faces_where(&half, |s| matches!(s, Surface::Cylinder { .. }));
+        assert_eq!(
+            walls.len(),
+            2,
+            "{name}: the bore and the outer wall, one face each"
+        );
+        for (k, sense) in walls {
+            let flipped = half.flipped_face_sense_for_tests(k).expect("live face key");
+            let errs = validate_geometric(&flipped, tol)
+                .expect_err("a lone one-face conic-trimmed wall flip refuses");
+            assert!(
+                errs.iter().all(|e| if sense {
+                    matches!(e, ValidationError::NegativeVolume { .. })
+                } else {
+                    matches!(e, ValidationError::PinchCornerCrossed { face, .. } if *face == k)
+                }),
+                "{name}: the wall of sense {sense}: {errs:?}"
+            );
+        }
+    }
 }

@@ -30,7 +30,7 @@ use pncad::document::{
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
 use pncad::quantity::{M, MM};
-use pncad::select::{ContactClass, HitTestError, NodePickError, UnnamedEntity};
+use pncad::select::{HitTestError, NodePickError, UnnamedEntity};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{
@@ -792,11 +792,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
              somewhere one does",
         ),
         (
-            frame::at_rest_badge(Some(&AtRestBadge::Certified {
-                minted: 0,
-                loud: 0,
-                quiet: 0,
-            })),
+            frame::at_rest_badge(Some(&AtRestBadge::Certified { loud: 0, quiet: 0 })),
             frame::Subject::Document,
             "the at-rest verdict ends when the document accepts another act",
         ),
@@ -1072,12 +1068,7 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
     common::asm::unpin(&mut session, bench.post_a);
     common::commit_mate(
         &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            common::asm::middle_seat_values(),
-        ),
+        common::asm::seat_op(&bench, bench.post_a, common::asm::middle_seat_values()),
     );
     common::asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
@@ -1498,12 +1489,8 @@ fn the_profiles_badge_counts_what_it_could_not_draw() {
 /// argues explicitly for poisoned rows and that nothing used to say.
 #[test]
 fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
-    let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified {
-        minted: 4,
-        loud: 0,
-        quiet: 0,
-    }))
-    .expect("a certified assembly badges");
+    let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }))
+        .expect("a certified assembly badges");
     assert_eq!(
         certified.tone(),
         frame::Tone::Advisory,
@@ -1515,7 +1502,7 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         "{}",
         certified.label()
     );
-    assert!(certified.label().contains('4'), "{}", certified.label());
+    assert_eq!(certified.label(), "at rest: certified");
 
     // An overlap no assertion quiets is the reader's to answer; one
     // every assertion quiets is reported and asks nothing.
@@ -1523,12 +1510,8 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         (1, 2, frame::Tone::Actionable),
         (0, 2, frame::Tone::Advisory),
     ] {
-        let badge = frame::at_rest_badge(Some(&AtRestBadge::Certified {
-            minted: 0,
-            loud,
-            quiet,
-        }))
-        .expect("a certified assembly badges");
+        let badge = frame::at_rest_badge(Some(&AtRestBadge::Certified { loud, quiet }))
+            .expect("a certified assembly badges");
         assert_eq!(
             badge.tone(),
             tone,
@@ -1657,11 +1640,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     for (which, badge) in [
         (
             "at rest",
-            frame::at_rest_badge(Some(&AtRestBadge::Certified {
-                minted: 0,
-                loud: 0,
-                quiet: 0,
-            })),
+            frame::at_rest_badge(Some(&AtRestBadge::Certified { loud: 0, quiet: 0 })),
         ),
         (
             "product",
@@ -3408,12 +3387,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
 
     // Then they mate it onto the shelf, and that placement is discarded
     // under them by the edit.
-    let mate = asm::seat_op(
-        &bench,
-        bench.post_b,
-        ContactClass::Rest,
-        asm::middle_seat_values(),
-    );
+    let mate = asm::seat_op(&bench, bench.post_b, asm::middle_seat_values());
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let report = &outcome.withdrawn;

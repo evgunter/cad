@@ -8,14 +8,14 @@
 //! every boundary edge through the C5 table.
 //!
 //! - **Face containment on a cone face** answered nothing. It now reads
-//!   the double-cone carrier first, then the face's OWN chart trim — the
-//!   solid door's slant window and azimuth window, asked about one face
-//!   rather than its surface group — and the rows hold what a wrong
+//!   the double-cone carrier first, then the face's OWN region, read from
+//!   its boundary edges (`topo::boolean::ruled_region`), never its
+//!   surface group's — and the rows hold what a wrong
 //!   answer would break: two half-bands of one frustum PARTITION their
 //!   wall, a quarter cone holds its quadrant and not the others, the
 //!   mirror nappe and the carrier past the slant window are outside,
 //!   and the apex-closed bands of one full cone partition their wall
-//!   too, their windows closed at the apex.
+//!   too.
 //! - **The C5 gate** read `route(kind, kind).implemented`. A quarter
 //!   cone's wedge cap passes through the apex, which the plane×cone
 //!   arm serves; offset, it no longer does, and the pair cuts a

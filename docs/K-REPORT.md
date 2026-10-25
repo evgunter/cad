@@ -585,7 +585,8 @@ Six ways a name escapes the old pattern, all live today:
    (`geom`, `geom-brep`, `sweep`, `profile`) can mint a name this way
    as readily as one above it; it used to be `topo`'s dependents only.
 5. **A struct field or a local table.** `ray_walk::ParityRows` (the
-   one carrier this document already listed), `swept.rs`'s
+   one carrier this document already listed) and its two-row
+   `ray_walk::SegmentRows`, `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
 6. **The scan root — a scope error in the method, not a missed site.**
@@ -3250,3 +3251,63 @@ against the branch: all 41 `chart_bound_outer_span` samples move from
 identical, no other row differs, and rule 1 falls from 43 to 2 (the
 two `props_quad_converged` indeterminates).
 
+
+**Roster change (CHART, 2026-10-24): a cylinder or cone face's region.**
+Eighteen names from `topo/src/boolean/ruled_region.rs`, which replaces the
+cylinder and cone chart trims. `bool_wall_trim`, `bool_wall_trim_period`,
+`bool_wall_iso_meridian`, `bool_wall_iso_rim`, `bool_wall_section_tilt`,
+`bool_wall_section_seat`, `bool_wall_piece_span`, `bool_wall_rim_level`,
+`bool_wall_junction`, `bool_curved_contain_period`, `bool_cone_trim`,
+`bool_cone_trim_nappe`, `bool_cone_trim_side`, `bool_cone_trim_period`,
+`bool_cone_chart_box`, `bool_cone_group_slant` and `bool_ray_cone_apex`
+leave the roster; `bool_wall_outline_reach` and `bool_cone_partial_reach`
+stay, as the balls a wall or cone face whose region cannot be read
+refuses inside. Ten are its paths' bare literals, four a
+`FirstHarmonicRows` value (`ROOT_ROWS`), two a `ConicRows` value
+(`BOUNDARY`) and two a `ray_walk::SegmentRows` value (`LINE`) for its
+boundary pre-pass. `SegmentRows` is a new carrier: the two of a
+`ParityRows` that `ray_walk::on_segment` reads, for a caller that casts
+no ray through the segment. `bool_cone_apex_nappe` left the tree with
+`cone_apex_closure` in the same change; it was never on the roster.
+
+| name | carrier |
+|---|---|
+| `bool_ruled_region_frame` | a bare literal: the point's distance from a cylinder's axis, or from a cone's apex (`Zero` reads the point from the apex) |
+| `bool_ruled_region_nappe` | a bare literal: a point's height over the cone's apex along the axis — the query's, a generator's target, a conic edge's middle, a line edge's end, a conic's root on a ruling leg's meridian plane |
+| `bool_ruled_region_component` | a bare literal: which of a meridian plane's two points of an edge a root is, by its offset from the axis along the leg's radial, `2ρ` from the other |
+| `bool_ruled_region_collinear` | a bare literal: whether a line edge lies on a ruling leg's line, by its ends' larger distance from it |
+| `bool_ruled_region_span` | a bare literal: a root's parameter against its edge's span ends, at the conic's smaller semi-axis or the line's unit speed |
+| `bool_ruled_region_at` | a bare literal: a crossing's, or an end of an edge on the leg's line, place along its leg from the leg's start, arc length on a parallel and metres on a ruling |
+| `bool_ruled_region_end` | a bare literal: a place along a leg against the leg's end — a first leg's corner, or a generator's end at the apex |
+| `bool_ruled_region_corner` | a bare literal: an aimed ruling's run to its corner, the side of `p` the target's parallel lies |
+| `bool_ruled_region_order` | a bare literal: two crossings' places along the path |
+| `bool_ruled_region_cross` | a bare literal: the leg's heading against the face side at the closest crossing, at the face's scale |
+| `bool_ruled_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_coaxial` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_extreme` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_arc_span` | `ConicRows` field (`BOUNDARY`): a circle or ellipse edge's gap to a whole turn |
+| `bool_ruled_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle |
+| `bool_ruled_region_edge_length` | `SegmentRows` field (`LINE`): a line edge's own length, the degeneracy gate |
+| `bool_ruled_region_edge` | `SegmentRows` field (`LINE`): the point's distance from a line edge's closed segment |
+
+They pool with nothing: the region is read by the point doors at points
+on a cylinder or a cone.
+
+## CHART addendum (2026-10-24): clearance cells are decided in model space
+
+**Roster change.** The seven `chart_bound_*` names leave the roster:
+the six of the TRIM-3 roster addition (`chart_bound_gap`,
+`chart_bound_outer_span` and the four `ParityRows` fields) with
+`topo/src/chart_bound.rs`, and `chart_bound_joint_room`, the loop
+walk's room fence, renamed `loop_windings_joint_room` for the door it
+now serves (`pcurves::loop_windings`). Five arrive from
+`topo/src/cell_region.rs`, each a named `const &str` (escape route 3):
+`cell_region_vertex_gap`, `cell_region_segment_gap`,
+`cell_region_conic_gap`, `cell_region_ball_gap` and
+`cell_region_singular_gap`, a cell's clearance of one kind of boundary
+feature of its face, or of its carrier's singular set. Their dimensions
+are `docs/predicate-dimension-audit.md`'s rows of the same names. They
+are asked by the clearance sweep per (window, cell), so their
+populations are the sweep's cells times each face's features; they
+pool with nothing, and with each other not at all.

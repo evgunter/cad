@@ -309,12 +309,18 @@ fn the_bracket_rounds_at_six_millimetres() {
 fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
     let tol = Tol::witness();
     let (a, b) = crossing_pair_without_edge_events();
-    let va = topo::test_support::unmigrated_measure(&a, tol)
-        .unwrap()
-        .volume;
-    let vb = topo::test_support::unmigrated_measure(&b, tol)
-        .unwrap()
-        .volume;
+    let va = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&a), tol),
+        tol,
+    )
+    .unwrap()
+    .volume;
+    let vb = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&b), tol),
+        tol,
+    )
+    .unwrap()
+    .volume;
     // The wrong answer the silence used to give, kept as the row's own
     // yardstick: 10π + 20π, the lens counted twice.
     assert!((va + vb - 30.0 * core::f64::consts::PI).abs() < 1e-9);
@@ -554,10 +560,10 @@ fn the_containment_door_reports_the_trim_boundary_rather_than_guessing() {
 /// never read as one. A tilted cut leaves the wall bounded by a section
 /// ELLIPSE, whose height extreme is interior to an edge, so the
 /// rectangle the boundary vertices pin misstates the face in both
-/// directions. The door reads such a wall by its chart outline's parity
-/// along the point's ruling instead, so a point on the carrier is `In`
-/// exactly one wall face below the cut and in none above it — the
-/// rectangle would put both of the points below inside the face.
+/// directions. The door reads such a wall's region from its boundary
+/// edges instead, so a point on the carrier is `In` exactly one wall
+/// face below the cut and in none above it — the rectangle would put
+/// both of the points below inside the face.
 #[test]
 fn a_wall_closed_by_a_tilted_section_is_read_by_its_outline() {
     let tol = Tol::witness();

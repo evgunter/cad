@@ -21,7 +21,6 @@ use pncad::document::Bodies;
 
 use pncad::document::{CancelToken, EvalOptions, NodeResult, evaluate};
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use viewer::frame::Tone;
 use viewer::session::{DocSession, SessionOp};
 use viewer::tree::{self, RowStatus};
@@ -856,7 +855,6 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         depth: 0,
         placed: false,
         status,
-        note: None,
         repair_at: None,
         readout: None,
         version_offer: None,
@@ -1165,12 +1163,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
     common::asm::unpin(&mut session, bench.post_b);
     let seat = common::commit_mate(
         &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            common::asm::middle_seat_values(),
-        ),
+        common::asm::seat_op(&bench, bench.post_b, common::asm::middle_seat_values()),
     );
 
     let rows = session.tree_rows();
@@ -1188,7 +1181,7 @@ fn a_placement_row_carries_its_constraints_as_children() {
         common::row_of(&rows, bench.post_b).constraints,
         ids.into_iter()
             .zip([
-                "constraint 1: Rest mate",
+                "constraint 1: mate",
                 "constraint 2: slide along x value",
                 "constraint 3: slide along y value",
                 "constraint 4: spin about z value",

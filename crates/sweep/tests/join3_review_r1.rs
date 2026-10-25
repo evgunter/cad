@@ -66,9 +66,12 @@ fn tool(plane: SketchPlane<f64>, chain: &[(f64, f64, f64)], h: f64) -> Option<Bo
 }
 
 fn volume(b: &Body<f64>) -> Option<f64> {
-    topo::test_support::unmigrated_measure(b, tol())
-        .ok()
-        .map(|m| m.volume)
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+        tol(),
+    )
+    .ok()
+    .map(|m| m.volume)
 }
 
 fn verdict(r: Result<topo::BooleanResult<f64>, topo::BooleanError>, want: f64) -> String {

@@ -106,9 +106,12 @@ fn assert_half(row: &str, part: &Body<f64>, holds_bore: bool) {
     if let Err(errs) = topo::validate_geometric(part, tol()) {
         panic!("{row}: tier 3 refused the half: {errs:?}");
     }
-    let v = topo::test_support::unmigrated_measure(part, tol())
-        .unwrap_or_else(|e| panic!("{row}: mass properties refused: {e:?}"))
-        .volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(part), tol()),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{row}: mass properties refused: {e:?}"))
+    .volume;
     let want = half_volume(holds_bore);
     assert!(
         (v - want).abs() < 1e-9,

@@ -194,3 +194,25 @@ edges' ends). Correction to the 2026-10-24 tier-1-once entry: the lane
 banded `staging-doors-gated-at-tier-3-still-derive-tier-1-twice` P2, not P3.
 Friction: the box's disk was nearly full from finished lanes' target dirs
 (about 25 GB of OFFSET's own), now removed.
+
+## 2026-10-24 — the conic fork, rounds 2–4 (OFFSET orchestrator)
+
+Ev asked on PR 5652 why exact conics are not NURBS, then: "we're going to
+have to make nurbs usable at some point, and so i don't know what we gain
+from having a zoo of rarely encountered closed-form curves". Round 2,
+each designer shown that verbatim: both dropped the kinds. Rounds 3 and 4
+crossed twice on one point, whether the exact arc's certificate follows
+the carrier's kind (the full NURBS certificate, waiting on the cone's
+metres enclosure; [one-way.readings]) or its class read from its data (the
+sampled check with a written bound; today's closed-form check rests on
+provenance inferred from the variant). Converged on everything else: no
+kinds, an exact rational-quadratic arc in the NURBS container minted in
+closed form, edge identity by description, the axial door reading the
+moved pair's section and refusing at its gate meanwhile. The PR now states
+that in C1 and puts the one split to Ev (row 193 updated). The hex-nut
+boolean waits on a NURBS crossing layer either way.
+
+Filed: CHARTTAIL's `the-cones-rung3-certificate-has-no-metres-enclosure`
+(P1 M, the shared cone blocker, no item named it) and SELECT's
+`closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`
+(P2 M, both designers' finding; its fix follows Ev's answer).
