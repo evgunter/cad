@@ -2029,7 +2029,7 @@ pub(crate) enum WedgeRefusal {
     /// the parts reaches it: the Boolean types it as an escalation of
     /// its input ([`crate::boolean::BooleanDecision::LineWedges`]).
     Undecided(Indeterminate),
-    /// This edge's wedge has no reading, for [`WEDGE_UNREAD`]'s reasons:
+    /// This edge's wedge has no reading, for one of three reasons:
     /// a face of it with no tangent plane where it meets the line, so
     /// no sheet there ([`TouchUnread::Unreadable`]); its two sheets
     /// definitely meeting at a zero angle or a full turn, a cusp or a
@@ -2039,7 +2039,8 @@ pub(crate) enum WedgeRefusal {
     Unread(EdgeKey, TouchUnread),
 }
 
-/// Every reason [`WedgeRefusal::Unread`] carries.
+/// Every reason [`WedgeRefusal::Unread`] carries, for the samples.
+#[cfg(any(test, feature = "test-support"))]
 pub(crate) const WEDGE_UNREAD: [TouchUnread; 3] = [
     TouchUnread::Unreadable,
     TouchUnread::Degenerate,
@@ -6742,10 +6743,8 @@ impl TouchUnread {
                  for this shape"
             }
             Self::Degenerate => {
-                "an edge on the line has its two faces meeting there at no angle or at a \
-                 full turn, a cusp or a knife slit, and the check cannot yet read which side \
-                 of such an edge material lies on. There is no way through yet for this \
-                 shape"
+                "an edge on the line is a cusp or a knife slit, whose side the check cannot \
+                 yet read. There is no way through yet for this shape"
             }
             _ => self.sentence(),
         }
