@@ -74,3 +74,8 @@ An Opus and a Fable designer weighed this row together with `a-held-face-stays-m
 - A headless row asserting a seated body marks exactly its drawn copies' patches, in the style of `tests/focus_highlight.rs`, with a `held_patches` summary beside `focus_patches`.
 - A row showing that a face `Select` op moves the sketch-on-face seat with no panel drawn.
 - A row showing that ticking on-face closes an open mate tool.
+
+**Also in scope, from the mirror review (PR 5683).** Fold these into the change:
+- the three face holders' "last said" containers: mate's `[Option<SpokenNode>; 2]`, the sketch latch's `HeldNodes`, and the mirror's `Option<SpokenNode>`;
+- the mirror's plane riding in the mate's slot `a` of `marks::Held::faces`;
+- the hand-spelled end-cap `StableName` literals in the viewer tests (`combine_ops`, `node_labels`, `mirror_authoring`, `creation_ops` ×3, `sketch_on_face`), which want one helper.

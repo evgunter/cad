@@ -88,6 +88,8 @@ mod doc_io;
 mod docm9_range_vs_probe;
 #[path = "door_at_rest.rs"]
 mod door_at_rest;
+#[path = "duplicate_beside.rs"]
+mod duplicate_beside;
 #[path = "edge_pick.rs"]
 mod edge_pick;
 #[path = "edit_maintenance.rs"]
@@ -116,6 +118,8 @@ mod landing_gathers;
 mod mate_door_and_badge;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+#[path = "mirror_authoring.rs"]
+mod mirror_authoring;
 
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;

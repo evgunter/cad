@@ -69,3 +69,18 @@ gate (a cone wall meeting a meridian cap, named typed before the
 corner solve, as the torus's spiric rim is) rather than letting the
 endpoint meter discover it — it rides the next unit that touches the
 `Line` arm.
+
+## The refusal moved to the door's gate (OFFSET conic-arc unit, 2026-10-25)
+
+The cheaper improvement above landed with the hyperbolic carrier itself
+(branch `offset/conic-arc-and-axial-section`): `plane_cone_section` now
+mints the hyperbola exactly as a rational-quadratic NURBS arc, the axial
+door's rim arm takes a cone wall's section with an axis-parallel cap,
+and an edge whose moved section is that hyperbola refuses at the gate,
+before any corner is solved, as `ReplaceFaceError::TogetherConicArc`
+(the arc owes the uniqueness tube, which has no cone enclosure yet). The
+pin is `crates/sweep/tests/shell7_seam_corner.rs`,
+`a_three_quarter_turn_cone_frustum_refuses_at_the_gate`. The row stays
+parked on its blocker: the frustum shells once the arc certifies
+(OFFSET's `a-classified-pairs-section-states-the-bounds-that-retire-the-tube`,
+or CHARTTAIL's `the-cones-rung3-certificate-has-no-metres-enclosure`).

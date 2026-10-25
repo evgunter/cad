@@ -26,9 +26,9 @@ not the workspace's predicate-name roster** — that is
 `docs/K-REPORT.md` § *"The inventory method, restated"*, whose seven
 orphans are all outside these two crates by construction (`profile`
 ×2, `sweep` ×2, `demos/tour` ×3), a fact *about* this bound and not a
-hole in it. **(2) Not complete inside them.** Of **250** funnel-reaching
-names in the two crates the tables and their prose reach **225**, carry
-an individual `dim` verdict for **123**, and miss **25** entirely; the
+hole in it. **(2) Not complete inside them.** Of **255** funnel-reaching
+names in the two crates the tables and their prose reach **230**, carry
+an individual `dim` verdict for **128**, and miss **25** entirely; the
 25 are listed under *Uncovered names* below the tables and are §D's
 **D46**. The word *every* was this document's for a year and it was
 never true of the second bound; it is retired here rather than
@@ -174,7 +174,7 @@ the call site*. In these two crates that is ten spellings — `decide`,
 `classify` / `classify_len` / `require_zero` / `require_extent` /
 `gap_is_zero` / `signed_is_zero` wrappers.
 
-**Names — the deliverable.** **250** distinct predicate names: **212**
+**Names — the deliverable.** **255** distinct predicate names: **217**
 written as a literal at one of those spellings, and **38 carried** by a
 module-private `const`, a struct field or a local table
 (`sector_shape.rs`'s three consts, `ray_walk::ParityRows` twice over,
@@ -184,22 +184,22 @@ module-private `const`, a struct field or a local table
 
 | the document's relation to a name | count |
 |---|---|
-| carries an individual row with a `dim` verdict | **123** |
+| carries an individual row with a `dim` verdict | **128** |
 | named only in prose, no `dim` column | 3 |
 | reached only through a family cell or slash-list | 99 |
-| **reached, on the most generous reading** | **225** |
+| **reached, on the most generous reading** | **230** |
 | **recorded nowhere, under any reading** | **25** |
 
 **Reach is not verdict, and the asymmetry runs one way.** The 99 family
 matches are a judgement: glosses like *"pm_census vv/ve/vf/ef gaps,
 spans, residuals"* and *"sphere/torus meridian checks"* were read as
 covering every name they plausibly reach, which is the reading most
-favourable to this document. So **225 is a ceiling on REACH**, **25 a
+favourable to this document. So **230 is a ceiling on REACH**, **25 a
 floor on the hole** — a stricter reader moves names out of the 99 and
 into the 25, and nothing can move one out of the 25, because those
 names appear nowhere above this section in any form. And **reach is not
 a dimensional verdict**: the number of names this document has actually
-dimensioned, one row and one `dim` cell each, is **123**. The other 102
+dimensioned, one row and one `dim` cell each, is **128**. The other 102
 are covered by a family gloss or a sentence, which is a claim about a
 family and not a check on a comparand.
 
@@ -219,17 +219,17 @@ convention and the site count is not.
 
 | | |
 |---|---|
-| raw matches of the ten spellings | 322 |
+| raw matches of the ten spellings | 327 |
 | − prose inside doc comments (`boolean/ops.rs:3`, `chord_join.rs:188`, `sector_shape.rs:412`, `:456`) | 4 |
 | − a `format!("decide({rung}"` string inside a test (`chord_join.rs:2481`) | 1 |
 | − two calls to an unrelated local `classify` closure (`splitting/join.rs:278`) | 2 |
-| **= funnel call sites** | **315** |
+| **= funnel call sites** | **320** |
 | − forwarding hops (first argument is a name *parameter* of the enclosing fn or closure, so the name is chosen by its caller) | 13 |
-| **= sites at which a name is fixed** | **302** |
+| **= sites at which a name is fixed** | **307** |
 
 **Both halves of the measurement have a blind spot, and neither is a
 roster alone** (K-REPORT's framing; it reproduces here). A code scan
-misses names not written at a funnel site — the 36 carried ones, 15% of
+misses names not written at a funnel site — the 38 carried ones, 15% of
 the roster. A corpus column misses names the corpus never exercises —
 **83** of the 248 measured then do not appear in the committed M7 baseline at all
 (`props_rim_interior_side`, since retired with the sphere's iso flux
@@ -270,7 +270,7 @@ file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
 **These names carry the K vocabulary and never reach the funnel**, so
-they are correctly outside the 250 and a reader who greps for one
+they are correctly outside the 255 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
 - eight through `predicate: Some("…")`: `carrier_unglued_coincidence`,
   `contact_rest_ladder_invariant`, `contact_rest_senses_opposed`,
@@ -352,7 +352,7 @@ user, inside an `Indeterminate` claiming a predicate by that name had
 been posed and come back poisoned. The census now carries the door's
 own typed refusal instead, and the tag is gone from the tree.
 
-**Why no gate on 123 / 225 / 250 / 302 — the third answer to Q6.**
+**Why no gate on 128 / 230 / 255 / 307 — the third answer to Q6.**
 Not "it is guarded" and not "dating it is enough": a gate would have to
 fix the family-matching convention in code, and that convention is the
 judgement this section is careful to expose rather than freeze. A green
@@ -401,6 +401,9 @@ which is what actually moves the number.
 | intersect.rs:705 | ps_center_gap | r − center-plane distance | m | OK |
 | intersect.rs:834–882 | cc_* (radius eq, axes parallel, coaxial and its floor, gap and its floor, coplanar) | lengths / sin×extent / common-perpendicular; the coaxial distance and the gap each summed with the axes' sin×lever (`decide_across`) | m | OK |
 | intersect.rs:2232/2246/2276/2327/2337 (`plane_cone_section`) | pn_apex_on_plane, pn_apex_section (and its floor), pn_apex_point_reach / pn_apex_pair_reach / pn_apex_tangent_reach, pn_axis_normal, pn_conic_type | m·unit, the apex gap (`pn_apex_on_plane`); trig diff×extent, summed with the apex gap (`pn_apex_section` and its floor, `decide_across`), and alone off the apex (`pn_conic_type`); the apex gap with its own rounding, \|δ̂\| + 2.5·EPSILON·Σ\|(apex − origin)ᵢ·nᵢ\| (m), levered by 1/\|D\|, the off-apex ellipse's farthest point from the apex (`pn_apex_point_reach`) and where the hyperbola's far branch starts (`pn_apex_pair_reach`, the lesser of that and a sum of lengths over the reach's window along the axis, `pair_bound`: a nappe's start less the window's least distance from the apex, clamped at zero, plus the apex gap levered by 2/(σ + √max(σ² − 2s\|δ\|/(ρ·sin α), 0)), plus the served lines' rounding, EPSILON/2·((3 cos α + 4 sin α + 6s·sin α)/σ + 5 sin α/s + 12 sin α + 3) levered by the window's farthest distance from the apex), and by 1/(sin α·s + cos α·\|c\|), where the section starts nearest the apex (`pn_apex_tangent_reach`); sin×rim r | m | OK |
+| intersect/conic_arc.rs (`OpenConicSection::branch_at`) | pn_conic_branch | the seed's signed distance from the hyperbola's conjugate axis in the plane, `((P − F)·û − cδs/K)·sign(δσ)` | m | OK (new in OFFSET conic arc) |
+| intersect/conic_arc.rs (`ConicBranch::arc`) | pn_conic_window_on | a window end's distance from the branch's point at its height | m | OK (new in OFFSET conic arc) |
+| intersect/conic_arc.rs (`ConicBranch::arc`) | pn_conic_window_span | the distance between the window's two minted ends | m | OK (new in OFFSET conic arc) |
 | intersect.rs `plane_torus_section` | torus_tube_positive / ring_torus_convention (read from `geom::ring_torus`, the convention's one home) / axis_in_plane / axis_plane_gap (and its floor) / axis_normal / cap_gap (and its floor) | r; R−r; sin×extent; the stand-off `n·(q − c)`, summed with the meridian circles' lean `r·(a·n)` (`decide_across`): each circle stands at most that sum off the plane, at any extent; sin×(R + r); r − the depth `d/(a·n)` of the plane's crossing of the axis (independent of where its origin is stored), summed with sin×(R + r) (`decide_across`): each circle is minted at that crossing and stands at most sin×(R + r) off the plane | m | OK |
 | intersect.rs:2026/2047/2053/2068/2093/2111 | coc_cylinder_radius / coc_aperture_sin / coc_aperture_cos / coc_axes_parallel / coc_coaxial / coc_coaxial_floor / coc_station_reach | R; sin α×extent; cos α×extent; sin×extent; the apex's distance from the cylinder's axis plus sin×extent, and less it for the floor (`decide_across`); extent − |R·cot α| (extent measured from the apex) | m | OK — the family prefix is `coc_`, not `cc_`: `cc_*` is cylinder×cylinder's glob two rows above and would over-match. `coc_station_reach` is the arm's ADMISSION criterion; the two aperture clauses are a division guard and a convention clause, not conditioning questions |
 | pcurve_cache.rs (`Placement::turns`) | pcurve_chart_placement | (angle − mark)×the angle's lever, the half-period marks about the window's centre (`Period::decide`); one expression, the read's one cut being the window's (`pcurve_chart_cut_side`) | m | OK (levered door) |
@@ -741,6 +744,8 @@ which is what actually moves the number.
 | offset_axial.rs (`branch`) | offset_axial_branch_side | the old corner's offset from the pair's foot projected onto the unit direction to the upper root, `along / reach` (metres). Read only where the two roots tie: a definite side picks the root on that side, `Zero` leaves the foot to `tangent_foot` or the tie refusal | m | OK (new in SHELL apex-and-tangent) |
 | offset_axial.rs (SHELL axial-closed) | offset_axial_rim_side | `(a × n)·(q_mid − c)` for the OLD rim's midpoint, the torus axis `a`, the cap normal `n` and the torus centre `c`: a projection of a metre vector — names which of the section's two torus curves is the rim | m | OK (re-spelled in SHELL axial-closed; new in CURVED-SPIRIC) |
 | offset_axial.rs (SHELL axial-closed) | offset_axial_rim_sense | the old carrier's plane normal (a circle's `axis`, a spiric's `u_ref`) against the section curve's, a cosine of unit vectors levered at the body's radial extent | m | OK (re-spelled in SHELL axial-closed; new in CURVED-SPIRIC) |
+| offset_axial.rs (cone × axis-parallel cap) | offset_axial_generator_side | the old generator's midpoint's distance from the moved pair's second line less its distance from the first | m | OK (new in OFFSET conic arc) |
+| offset_axial.rs (cone × axis-parallel cap) | offset_axial_generator_sense | the old line's unit direction against the chosen one's, a cosine levered at the body's radial extent | m | OK (new in OFFSET conic arc) |
 | offset_axial.rs (`forward_window`) | offset_axial_edge_turn | the turn-kept span less the read one, `keep_turn(s_old, t₁ − t₀) − (t₁ − t₀)` (radians, zero or whole turns) levered at the carrier's speed ceiling (`param_speeds`: a circle's radius; a spiric's `r(R − r)/√((R − r)² − d²)`). Routing only: `Zero` keeps the read end | m | OK (new in SHELL axial-closed) |
 | offset_axial.rs (`forward_window`) | offset_axial_edge_window | a moved edge's window span `t₁ − t₀`, levered at the carrier's speed floor on a periodic carrier (`param_speeds`: a circle's radius, a spiric's tube radius — an arc in metres at least) and unlevered on a line (arc length). `Positive` required; else the edge has no forward window | m | **GAP** on an ellipse or a spline: `param_speeds` answers `None` there, so the window decides unlevered, an ellipse's radians as metres (`work/offset/an-ellipse-edges-offset-window-decides-radians-as-metres.md`). OK on a circle, a spiric and a line (SHELL axial-closed; was `offset_axial_rim_window`, spiric rims only) |
 | offset_axial.rs (`param_on`) | offset_axial_edge_anchor | the distance from `q` to the new carrier's point a half turn on from the old parameter, less its distance to the old parameter's point — metres. `Negative` starts the read a half turn on, `Zero` or `Positive` at the old parameter; an escalation escalates | m | OK (new in SHELL axial-closed) |
@@ -796,7 +801,7 @@ and the other four are named files whose rows predate these names.
 `comparand`, `dim` and `status` filled the way every other row is —
 plus a disposition entry in *Findings* for any that come back FLAG, and
 its `F`-number. A name leaves this section only by acquiring that row;
-the section is empty when the two counts above meet at 250.
+the section is empty when the two counts above meet at 255.
 
 | home | names |
 |---|---|
