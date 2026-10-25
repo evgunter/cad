@@ -154,6 +154,7 @@ REGISTER=(
   "crates/topo/src/boolean/contain.rs|loop_cycle_points||1|unaudited"
   "crates/topo/src/boolean/discard.rs|discard_row||1|unaudited"
   "crates/topo/src/boolean/join.rs|region_faces||1|unaudited"
+  "crates/topo/src/boolean/join.rs|seam_germ_side||1|audited: the discarded variant is refused — an Empty completed section loop is JoinDesync, the answer region_faces gives the same loop"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { return|1|audited: the discarded variant is refused by name — a lone-vertex loop on the face a cut crosses returns FallbackExtentUnsupported naming that face, so no boundary hit of the meridian goes unread"
   "crates/topo/src/boolean/ops.rs|apply_cut_ins|else { continue|1|audited: the walk above refused every lone-vertex loop of this face, and the edge splits between the two walks add half-edges to its cycles only, so no Empty loop reaches this one"
   "crates/topo/src/boolean/ops.rs|boundary_edges||1|unaudited"
