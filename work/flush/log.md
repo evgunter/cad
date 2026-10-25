@@ -560,3 +560,5 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
   - **Not retired:** the aims' exact ties (`cut_cylinder` 62 exact zeros), unparked at P2 H.
   - **Filed:** two P3 rows, moved to FLUSHTAIL (26.5 of 30).
 — (FLUSH orchestrator)
+- 2026-10-25 — **Dispatched the trimmed-sphere and spline aims** (`the-side-at-infinity-reader-offers-no-aim-on-a-trimmed-sphere-or-a-spline`, P2 M, branch `flush/sphere-spline-aims`). The side reader offers no aim on a trimmed sphere or a spline, so a shell made only of those falls to its volume. The fix aims through the sphere region's own interior read and the spline chart's window middle; the untrimmable cone keeps the volume. **Tier: one FULL review**: one reader's aims, readable against the ratified "an aim only steers". It runs after PR 5697 so it does not share `solid_contain.rs` with the curved ray. The aims' ties (P2 H, same file) follow it. Seams: PRED 5710 and QUAD 5628 (`solid_contain.rs`).
+— (FLUSH orchestrator)
