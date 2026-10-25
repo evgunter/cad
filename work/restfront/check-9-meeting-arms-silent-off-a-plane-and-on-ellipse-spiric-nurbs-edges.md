@@ -72,7 +72,7 @@ it there too. (TANG implementer)
 ## Widened to torus walls (FLUX unit E, PR 5567, 2026-10-21)
 
 Since PR 5567 the spiric lane measures a torus wall that holds a spiric
-ring (`geom_brep::props::spiric::spiric_face_rounds`). It reads each
+ring (`geom_brep::props::spiric::rim_face_rounds`). It reads each
 ring's winding against the face (`require_rings_wound_against`, under
 `props_ring_winding`) but not where the ring lies. So a ring outside its
 torus wall, or crossing or overlapping its outer loop, is this row's
