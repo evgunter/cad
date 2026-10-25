@@ -5,8 +5,9 @@ title: the linear band's derivation has a scalar twin: ~15 sites compute (eps, K
 status: open
 opened: 2026-09-04
 refs: [band-helper-duplicated-across-suites]
-priority: P1
-cost: D
+priority: P3
+cost: M
+design: true
 ---
 
 
@@ -110,3 +111,25 @@ literals (PRED), the test wrapper's home (SUITE).
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+## Re-census and re-band (PRED orchestrator, 2026-10-25, main `2d5677e1`)
+
+The class has grown, and every site is test code:
+- **The pair half: about 17 sites.** New since filing:
+  `editor-core/tests/review_m4_pr2.rs`, `m4_pr4_edits.rs`,
+  `topo/tests/review_m4_pr2_transform.rs`, `narrow_needle_containment.rs`,
+  `sphere_twin_rows_interval.rs`, `profile/tests/common/mod.rs`.
+- **The midpoint half: about 100 sites.** The two field-spelled sites
+  this row cited are gone. But `0.5 * (b.zero() + b.escalate())` appears
+  98 times in 60 files, all in test code and 32 of the files in-src test
+  modules. Three more spell `0.5*(1+K)*ε`. The one named home is the
+  test-only `sweep/tests/common::band_midpoint`.
+
+`Band` and `Tol` still have no midpoint or pair door. An infallible
+`Band::midpoint()` would collapse the midpoint half mechanically. The
+pair half stays the door question this row states.
+
+**Re-banded P1 → P3** (unilateral, logged). No production decision
+reads either spelling. The risk is that a test silently stops deciding
+the gap it means to after the band's derivation moves. That is tooling
+that prevents silent bugs (P3), not architecture that entrenches (P1).
