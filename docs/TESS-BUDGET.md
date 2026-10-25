@@ -718,6 +718,15 @@ generalizes both extremes — A is the dial). Executed by TESS-SPLIT
 (#951) over TESS-SPAN's sizing functions; `NurbsFaceBound::split_steps`
 and `mesh::nurbs_cert::ASPECT_CAP` are the shipped statement of record.
 
+**What A is for.** A regularizes the split optimizer: it stops the
+cheapest point on the certified ellipse from collapsing into a strip
+that admits Delaunay slivers beside every off-lattice point (the
+hazard below). It is not a promise about mesh shape. The kernel makes
+none (`[tolerance.chordal]`), and lanes outside the NURBS split, such
+as the cylinder wall's one-row strips (issue 685), are not bound by it.
+A shape promise would be a new decision, lane-independent, made for a
+named consumer.
+
 ### The sliver hazard the schedule is built around
 
 A lattice strip that is anisotropic where the CDT runs admits a
