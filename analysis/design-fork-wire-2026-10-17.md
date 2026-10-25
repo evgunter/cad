@@ -15,3 +15,4 @@
 | FORK-SECTIONID | a-section-faces-index-is-its-completion-order-not-its-identity | 93 | odd: Fable is A, Opus is B |
 | FORK-BLENDEMPTY | a-blend-of-no-edges-refuses-at-evaluation | 196 | even: Opus is A, Fable is B |
 | FORK-NAMESTRATEGY | naming-has-no-single-strategy-and-each-fork-patches-one-entity | 6 | even: Opus is A, Fable is B |
+| FORK-ORIENT | a-unions-line-of-several-edges-is-oriented-by-its-least-edge | 28 | even: Opus is A, Fable is B |
