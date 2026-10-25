@@ -3469,12 +3469,14 @@ pub enum DoorOutcome {
 /// Every shell's quadrature regions ([`quadrature_regions`]), in arena
 /// order, with each carried region's point and carry
 /// ([`References`]; `None` for the first region, which is not carried,
-/// and for one that is not carried at all). Test vocabulary.
+/// and for one that is not carried at all), read through the scalar's own
+/// certified lane ([`AtRestPolicy::quad_lane`]; none carried at a scalar
+/// with none). Test vocabulary.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 #[must_use]
 #[allow(clippy::type_complexity)]
-pub fn region_carries_of<T: Decide + geom_core::CertifiedBounds>(
+pub fn region_carries_of<T: AtRestPolicy>(
     body: &Body<T>,
 ) -> Vec<(ShellKey, Vec<(Vec<FaceKey>, Option<(Point3<T>, Interval)>)>)> {
     let held: std::collections::BTreeSet<FaceKey> =
@@ -3484,7 +3486,9 @@ pub fn region_carries_of<T: Decide + geom_core::CertifiedBounds>(
         .map(|(shell, _)| {
             let quadrature = quadrature_regions(body, shell);
             let c = reference_of(body, shell, &quadrature);
-            let carried = region_carries(body, c, quadrature.clone(), &held, QuadLane::certified());
+            let carried = T::quad_lane().map_or_else(Vec::new, |lane| {
+                region_carries(body, c, quadrature.clone(), &held, lane)
+            });
             let regions = quadrature
                 .into_iter()
                 .map(|faces| {
