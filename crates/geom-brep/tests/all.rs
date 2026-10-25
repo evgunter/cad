@@ -218,6 +218,8 @@ mod review_4553_pxn_probes;
 mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
 mod review_flux_probes_r1;
+#[path = "review_5696_probes.rs"]
+mod review_5696_probes;
 #[path = "review_m2_pr3_certify.rs"]
 mod review_m2_pr3_certify;
 #[path = "review_m2_pr7_props.rs"]
