@@ -6355,6 +6355,60 @@ pub(crate) mod tests {
             }
         }
     }
+
+    /// Review probe (PR 5685): the census CONIC edge reach in aimed
+    /// frames, every coordinate against its row, containment and
+    /// tightness against dense samples of the arc.
+    #[test]
+    fn probe_conic_edge_reach_holds_the_arc_in_an_aimed_frame() {
+        let band = witness_band();
+        let mut worst_short: f64 = 0.0;
+        let mut worst_loose: f64 = 0.0;
+        for (start, span, phi) in [(0.3, 2.3, 0.0), (-1.0, 3.0, 0.7), (2.0, 4.5, -1.3), (0.1, 6.0, 2.0)] {
+            let (body, _) = circle_sector(1.7, start, span, phi);
+            let (edge, curve) = conic_edge(&body);
+            let (t0, t1) = curve.params();
+            for aim in [
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.3, -0.4, 0.87),
+                Vec3::new(-0.8, 0.2, 0.55),
+                Vec3::new(0.6, 0.7, -0.4),
+                Vec3::new(1.0, 0.0, 0.0),
+            ] {
+                let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
+                let frame = BoxFrame::aimed(n);
+                let rows = frame.rows();
+                let (lo, hi) = crate::census::edge_reach_in(&body, edge, &frame).unwrap();
+                let (lo, hi) = ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]);
+                let mut slo = [f64::INFINITY; 3];
+                let mut shi = [f64::NEG_INFINITY; 3];
+                for i in 0..=40_000 {
+                    let t = t0 + (t1 - t0) * f64::from(i) / 40_000.0;
+                    let p = curve.carrier().eval(t);
+                    for k in 0..3 {
+                        let a = rows[k].dot(Vec3::new(p.x, p.y, p.z));
+                        slo[k] = slo[k].min(a);
+                        shi[k] = shi[k].max(a);
+                    }
+                }
+                for k in 0..3 {
+                    worst_short = worst_short.max(lo[k] - slo[k]).max(shi[k] - hi[k]);
+                    worst_loose = worst_loose.max(slo[k] - lo[k]).max(hi[k] - shi[k]);
+                    assert!(
+                        lo[k] <= slo[k] + 1e-14 && hi[k] >= shi[k] - 1e-14,
+                        "[{start},{span},{phi}] aim {aim:?} row {k}: [{}, {}] vs samples [{}, {}]",
+                        lo[k], hi[k], slo[k], shi[k]
+                    );
+                    assert!(
+                        slo[k] - lo[k] <= 1e-8 && hi[k] - shi[k] <= 1e-8,
+                        "[{start},{span},{phi}] aim {aim:?} row {k}: loose [{}, {}] vs samples [{}, {}]",
+                        lo[k], hi[k], slo[k], shi[k]
+                    );
+                }
+            }
+        }
+        println!("probe aimed conic reach: worst short {worst_short:e}, worst loose {worst_loose:e}");
+    }
 }
 
 /// **The chart rectangles' closed forms are their supports**:
