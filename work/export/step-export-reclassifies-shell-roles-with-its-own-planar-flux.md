@@ -2,10 +2,11 @@
 id: step-export-reclassifies-shell-roles-with-its-own-planar-flux
 kind: issue
 title: step-export decides a multi-shell solid's outer/void roles with its own planar flux and a raw f64 sign, refusing every curved shell that topo::classify_shells_of already classifies
-status: open
+status: closed
 opened: 2026-09-28
 priority: P1
 cost: M
+closed: 2026-10-25
 refs: [3393, step-export-refuses-every-hollow-body]
 ---
 
@@ -105,3 +106,17 @@ volume's sign only where no face offers an aim that reads. It refuses
 `RayInBand`/`Ray` beside the volume's refusals. Routing step-export
 through it, this row's fix, now inherits that reader; the refusal
 mapping gains those two arms.
+
+## Closed (2026-10-25)
+
+Fixed by PRED S18 (PR 5684). `crates/step-export/src/writer.rs`
+(`Writer::refuse_void_shells`) finishes a body with a multi-shell solid
+through `topo::AtRestBody::validate` and reads every such solid's
+shells through `topo::classify_shells_of`. A `Void` refuses
+`VoidShellUnsupported`, a body the gate refuses refuses
+`MultiShellNotAtRest`, and the door's own refusal is carried whole as
+`ShellUnclassified`. `volume.rs`, `CurvedShellClassification` and
+`ShellVolumeIndeterminate` are deleted. The rows this item named flip
+to `VoidShellUnsupported` and say so: `sweep`'s shelled tube, the
+tour's four hollow-body pins, klein's wall 6. The hollow-body refusal
+itself stays with `step-export-refuses-every-hollow-body`.
