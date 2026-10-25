@@ -506,7 +506,7 @@ const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 77] = [
+const CORPUS: [(&str, Disposition); 78] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 4, 2)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 4, 2)),
@@ -626,6 +626,15 @@ const CORPUS: [(&str, Disposition); 77] = [
     (
         "tests/fixtures/iso-rect/xsplit.step",
         Pass(1, 1, 18, 40, 24),
+    ),
+    // -- tests/fixtures/m7-8-cube/ -----------------------------------
+    // The unit cube with one bowed NURBS wall whose rims are M7-8
+    // intersections, the input of `placed_m7_8_instance.rs`. Its source
+    // body is not at rest (scaffold chords), and the reader adopts the
+    // file as a finished cube.
+    (
+        "tests/fixtures/m7-8-cube/m7_8_cube.step",
+        Pass(1, 1, 6, 12, 8),
     ),
     // -- tests/fixtures/poleguard/ (issue 896) ------------------------
     // The mesh walk's undeclared-pole guard, import-door half: a

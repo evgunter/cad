@@ -420,7 +420,7 @@ fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
         e,
         pncad::step_export::StepExportError::UnsupportedSurface { .. }
             | pncad::step_export::StepExportError::UnsupportedCurve { .. }
-            | pncad::step_export::StepExportError::CurvedShellClassification { .. }
+            | pncad::step_export::StepExportError::VoidShellUnsupported { .. }
     )
 }
 
@@ -673,15 +673,17 @@ fn run_body(
     // surface vocabulary (plane/cylinder/cone/sphere/torus) with
     // line/circle/ellipse/NURBS carriers, all as EXACT native AP214
     // entities, so a refusal on an ORDINARY body is a regression. It
-    // is not the only outcome any more: the writer's shell classifier
-    // has closed forms for planar faces only, and a scene carrying a
-    // body past that frontier declares it
+    // is not the only outcome: the writer refuses a void shell (it does
+    // not write BREP_WITH_VOIDS), and a scene carrying a hollow body
+    // declares it
     // ([`SceneBody::step_at_frontier`]), which turns the refusal into
     // a pinned probe rather than a failure. Undeclared, it still fails
     // the tour.
     let step_name = format!("{label}.step");
+    let finished = pncad::topo::AtRestBody::validate(sb.body.clone(), tol)
+        .unwrap_or_else(|e| panic!("{label}: the STEP lane's at-rest gate refused: {e:?}"));
     let step_result = pncad::step_export::step_string(
-        &sb.body,
+        &finished,
         &pncad::step_export::StepOptions {
             product_name: label.clone(),
             ..Default::default()
