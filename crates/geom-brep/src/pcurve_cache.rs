@@ -7068,9 +7068,7 @@ fn schedule_residuals<T: Decide>(
 /// Containment is one-sided: a box or a parameter inside its bound by
 /// any amount is contained, and the clearance between two conservative
 /// boxes is nothing built, so only the escape is decided against the
-/// band. `topo::chart_bound`'s span check asks the same one-sided
-/// question in another shape, `matches!(…, Ok(Sign::Positive))` on the
-/// raw gap. NaN propagates ([`Real::max`]).
+/// band. NaN propagates ([`Real::max`]).
 ///
 /// Metered through an infinite sup arm (a sup whose quotient
 /// overflows, or a weight a refinement rounded to zero), a contained

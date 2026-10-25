@@ -20,9 +20,8 @@
 //! A box less a tube leaves a rod in the bore, two solids the census
 //! clears on the rod's depth about the bore's axis. A piece of the wall
 //! under a tilted plane is a legal operand: a ray from the far brick
-//! that meets nothing reads its side off the sign of
-//! the piece's volume, which the quadrature measures through the
-//! ellipse-trimmed wall.
+//! that meets nothing reads the side at infinity off a ray aimed at the
+//! piece.
 //!
 //! The one-site loop the join does not build keeps
 //! `Join(SingleSiteSectionLoop)`: a plane tangent to the wall's cap at
@@ -215,16 +214,16 @@ fn a_tilted_plane_across_a_one_segment_cylinder() {
     );
 }
 
-/// **A far point's side on the tilted plane's wall piece is certified on
-/// the volume's enclosure**: every ray from `(50, 50, 50)` misses the
-/// piece, the closed form has no value for its ellipse-trimmed wall, and
-/// the rays aimed at its planar faces meet the wall's period guard, so
-/// the side is the sign of the volume measured through the quadrature.
-/// That sign is decided on the interval re-derivation of the walk's
-/// enclosures (`bool_point_in_solid_infinity_enclosure`), never on the
-/// walk's own sums alone, which round about the world origin.
+/// **A far point's side on the tilted plane's wall piece is read by a
+/// ray aimed at the piece**: every ray from `(50, 50, 50)` misses the
+/// piece, so the side is the side at infinity, and a ray aimed at one of
+/// the piece's faces reads it: the wall is read from its boundary edges
+/// (`topo::boolean::ruled_region`), so a ray crossing it is answered and
+/// the volume's sign is never asked. The enclosure that sign is
+/// certified on (`bool_point_in_solid_infinity_enclosure`) is then not
+/// read at all.
 #[test]
-fn a_far_points_side_on_the_wall_piece_is_certified_on_the_enclosure() {
+fn a_far_points_side_on_the_wall_piece_is_read_by_an_aimed_ray() {
     let turn = Affine3::rotation_about_axis(
         Point3::origin(),
         Vec3::new(1.0, 0.0, 0.0),
@@ -253,8 +252,8 @@ fn a_far_points_side_on_the_wall_piece_is_certified_on_the_enclosure() {
         .collect::<Vec<_>>();
     assert_eq!(
         certified,
-        [geom_core::Sign::Positive],
-        "the side is decided once, on the certified enclosure: {recorded:?}"
+        [],
+        "an aimed ray reads the side, and the enclosure is not asked: {recorded:?}"
     );
 }
 
@@ -363,5 +362,48 @@ fn a_plane_tangent_at_the_wrap_edges_end_refuses() {
         seam_cylinder(0.0),
         below(Point3::new(1.0, 0.0, 0.0), turn),
         1,
+    );
+}
+
+/// **A fully revolved tube answers `point_in_solid` at every point of a
+/// grid round it.** The profile `(0.25, 0) → (0.5, 0) → (0.5, 1) →
+/// (0.25, 1)` revolved a full turn about `y`: each wall is one face
+/// whose region is read from its rims, so no wall reads a window or a
+/// period. Inside exactly where `0.25 < ρ < 0.5` and `0 < y < 1`, over
+/// a 9³ grid on `[−0.6, 0.6] × [−0.1, 1.1] × [−0.6, 0.6]`, none of whose
+/// points lies on the tube's boundary.
+#[test]
+fn a_full_revolved_tube_answers_every_grid_point() {
+    let p = |x, y| (Point2::new(x, y), 0.0);
+    let tube = revolved_about_y(
+        vec![p(0.25, 0.0), p(0.5, 0.0), p(0.5, 1.0), p(0.25, 1.0)],
+        Revolution::Full,
+        tol(),
+    );
+    let band = geom_core::Band::linear(tol()).expect("the run's band");
+    let mut wrong = Vec::new();
+    for (i, j, k) in (0..9).flat_map(|i| (0..9).flat_map(move |j| (0..9).map(move |k| (i, j, k)))) {
+        let q = Point3::new(
+            -0.6 + 0.15 * f64::from(i),
+            -0.1 + 0.15 * f64::from(j),
+            -0.6 + 0.15 * f64::from(k),
+        );
+        let rho = q.x.hypot(q.z);
+        let inside = rho > 0.25 && rho < 0.5 && q.y > 0.0 && q.y < 1.0;
+        let want = if inside {
+            topo::SolidContainment::In
+        } else {
+            topo::SolidContainment::Out
+        };
+        match topo::point_in_solid(&tube, q, band, tol()) {
+            Ok(got) if got == want => {}
+            got => wrong.push(format!("{q:?}: {got:?}, want {want:?}")),
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} of 729:\n{}",
+        wrong.len(),
+        wrong.join("\n")
     );
 }

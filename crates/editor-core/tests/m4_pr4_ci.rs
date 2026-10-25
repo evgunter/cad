@@ -75,7 +75,7 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// the content key's `VERSION` moved, so every mint id's digest moved
 /// with it. Every row's Debug spelling, ordinals included, is main's
 /// with the mint digests masked: a spelling change.
-const DIAGNOSIS_DIGEST: u64 = 0x8989_b010_dbbb_b8b0;
+const DIAGNOSIS_DIGEST: u64 = 0xec87_4211_ef99_5654;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

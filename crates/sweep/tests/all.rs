@@ -190,6 +190,8 @@ mod bool6r1_probes;
 mod bool6r1_probes_interval;
 #[path = "carved_sphere_operand.rs"]
 mod carved_sphere_operand;
+#[path = "cell_region_bodies.rs"]
+mod cell_region_bodies;
 #[path = "cone_join_lane.rs"]
 mod cone_join_lane;
 #[path = "cone_operand_rows.rs"]
@@ -246,8 +248,8 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
-#[path = "placeholder_chart_boundary.rs"]
-mod placeholder_chart_boundary;
+#[path = "placeholder_loop_windings.rs"]
+mod placeholder_loop_windings;
 #[path = "planar_ring_arc_closure.rs"]
 mod planar_ring_arc_closure;
 #[path = "pocket_ring_steep_ellipse.rs"]
@@ -332,8 +334,6 @@ mod torax_interval;
 mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
-#[path = "trim_3_chart_bound_bodies.rs"]
-mod trim_3_chart_bound_bodies;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]

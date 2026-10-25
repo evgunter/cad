@@ -29,3 +29,11 @@ Independent of the subtract's volume-bound tie a full-depth cut meets
 that tie does not arise here, and this refuses anyway. Possibly the
 same mechanism as `chart-bound-outer-span-decides-a-poisoned-margin.md`
 (an `Invalid` outcome on one side of the vector); unmeasured.
+
+## Note (CHART, 2026-10-24)
+
+`chart_bound_outer_span` left the tree with `topo/src/chart_bound.rs`
+(`clearance-cells-are-decided-in-model-space`), so the diverging row this
+names no longer exists. Whether the box still refuses `FlipCrossing` on
+another row is unmeasured.
+

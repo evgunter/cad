@@ -631,7 +631,6 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
     let pin = editor_core::Mate {
         on: cap.clone(),
         to: cap,
-        class: editor_core::ContactClass::Rest,
     };
     match editor_core::apply(
         &part_doc,

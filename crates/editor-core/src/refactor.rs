@@ -3151,7 +3151,6 @@ pub fn split(
             let Some(mate) = constraint.mate() else {
                 continue;
             };
-            let class = &mate.class;
             let Some((a, b)) = crate::mate::rested_faces(doc, mate) else {
                 continue;
             };
@@ -3183,7 +3182,6 @@ pub fn split(
                 unreachable!("a remap keeps a face a face")
             };
             crossings.push(InterfaceCrossing::Mate {
-                class: *class,
                 outer: outer.clone(),
                 inner,
             });

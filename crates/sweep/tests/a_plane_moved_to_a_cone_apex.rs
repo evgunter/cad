@@ -379,12 +379,9 @@ fn a_cap_moved_into_the_band_of_a_wedge_apex_escalates() {
 ///
 /// The moved body is right: its volume is `V + d·A` (`A` the cap's
 /// area) within `ε·A/4`, it passes tier 3, and `point_in_solid` agrees
-/// with the wedge's membership on a grid over its upper span.
-/// With the cap moved out, containment cannot read the wall's chart
-/// window, whose two rims now span different azimuths, and refuses
-/// `PartialConeFace` at up to 50 of the 216 grid points at the default
-/// ε and 60 at `1e-6`
-/// (`work/inside/a-cone-wall-whose-rims-span-different-azimuths-refuses-containment.md`).
+/// with the wedge's membership at every point of a grid over its upper
+/// span: the wall is read from its boundary edges, whatever azimuths its
+/// two rims span.
 #[test]
 fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
     let tol = Tol::witness();
@@ -474,7 +471,6 @@ fn a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge() {
                 &|q| truth.depth(q),
                 &named,
                 &points,
-                60,
             );
         }
     }

@@ -1353,7 +1353,7 @@ fn pair_holds_edges<T: Decide>(
 
 /// The VERIFIED-INTERFACE half of the confinement: the declared pair
 /// itself answers through the SAME two doors the confirm pass runs —
-/// Door 1 (`contact_pair_verdict`, class `Rest`: carrier identity
+/// Door 1 (`rest_pair_verdict`: carrier identity
 /// through the kind ladder, senses opposed) and Door 2 (the
 /// chart-region overlap through the [`RegionLane`] the pass holds, the
 /// verdict carried between them, `interior_witness`'s rescue included) — and
@@ -1389,15 +1389,7 @@ fn pair_region_verified<T: Decide>(
     band: Band,
     region: Option<RegionLane<T>>,
 ) -> bool {
-    let Ok(verdict) = crate::boolean::contact_pair_verdict(
-        body,
-        fa,
-        body,
-        fb,
-        crate::contact::ContactClass::Rest,
-        None,
-        band,
-    ) else {
+    let Ok(verdict) = crate::boolean::rest_pair_verdict(body, fa, body, fb, band) else {
         return false;
     };
     matches!(
@@ -5315,7 +5307,7 @@ fn report_found_pairs(found: &[FoundPair], declared: &Declared, errors: &mut Vec
             pair: crate::contact::DeclaredContact {
                 a: pair.a,
                 b: pair.b,
-                class: crate::contact::ContactClass::Rest,
+                class: crate::contact::GlueClass::Rest,
             },
             verdict: crate::contact::ContactVerdict::Definite,
         };
@@ -5415,7 +5407,7 @@ fn sweep_conformal_patches<T: Decide>(
                                 pair: crate::contact::DeclaredContact {
                                     a: fa,
                                     b: fb,
-                                    class: crate::contact::ContactClass::Rest,
+                                    class: crate::contact::GlueClass::Rest,
                                 },
                                 verdict: crate::contact::ContactVerdict::Definite,
                             };
@@ -5647,7 +5639,7 @@ fn same_solid_tangent_pair<T: Decide>(
                     pair: crate::contact::DeclaredContact {
                         a,
                         b,
-                        class: crate::contact::ContactClass::Tangent,
+                        class: crate::contact::GlueClass::Tangent,
                     },
                     verdict,
                 },
@@ -5672,7 +5664,7 @@ fn same_solid_tangent_pair<T: Decide>(
             _ => errors.push(pair_lane_refused(
                 a,
                 b,
-                ContactRefusal::Contradicted { diag, steer: None },
+                ContactRefusal::Contradicted { diag },
             )),
         },
         Err(refusal) => errors.push(pair_lane_refused(a, b, refusal)),
@@ -6091,9 +6083,6 @@ pub(crate) enum Undecided {
     /// or gave nothing to read — for a vertex its pre-pass placed off the
     /// boundary.
     WitnessGrazed,
-    /// Arm 2: a vertex near the end of a narrow cylinder wall's window,
-    /// which the point-in-solid door's window reading cannot place.
-    WitnessNarrowWindow,
     /// Arm 2: a ray the point-in-solid door cast met a torus face where
     /// the kernel's count of its crossings came apart.
     WitnessRootCount,
@@ -6265,12 +6254,6 @@ impl Undecided {
                  settled where it lies: each grazed that boundary or could not be read. \
                  Recourse: move the parts until their bounding boxes no longer overlap"
             }
-            Self::WitnessNarrowWindow => {
-                "a corner of one lies near the end of a narrow cylinder wall of the other, \
-                 where the check's reading of the wall's window cannot place it. Recourse: \
-                 move the parts until their bounding boxes no longer overlap; a limit of the \
-                 kernel's narrow-window reading, worth reporting"
-            }
             Self::WitnessRootCount => {
                 "a test ray from a corner of one met a torus face of the other where the \
                  kernel's count of its crossings came apart. Recourse: move the parts until \
@@ -6309,8 +6292,7 @@ impl Undecided {
         use crate::boolean::PointInSolidError as E;
         use crate::splitting::PointInLoopError as L;
         match e {
-            E::Escalated { .. } | E::JunctionSidesDisagree { .. } => Self::WitnessTooClose(None),
-            E::NarrowWindowUnread { .. } => Self::WitnessNarrowWindow,
+            E::Escalated { .. } => Self::WitnessTooClose(None),
             E::RootCountDisagrees { .. } => Self::WitnessRootCount,
             E::Loop(L::Escalated { decision, .. }) => Self::WitnessTooClose(Some(*decision)),
             E::RayExhausted | E::Loop(L::RayExhausted { .. }) => Self::WitnessGrazed,
@@ -9623,16 +9605,15 @@ fn confirm_face_pair<T: Decide>(
         return;
     }
     let refused = |refusal| match refusal {
-        crate::contact::ContactRefusal::Contradicted { diag, steer } => {
+        crate::contact::ContactRefusal::Contradicted { diag } => {
             ValidationError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
                     a,
                     b,
-                    class: crate::contact::ContactClass::Tangent,
+                    class: crate::contact::GlueClass::Tangent,
                 },
                 witness: TANGENT_LOCUS_WITNESS.to_owned(),
                 margin: diag,
-                steer,
             }
         }
         refusal => pair_lane_refused(a, b, refusal),
@@ -10055,16 +10036,15 @@ fn rest_door_one<T: Decide>(
 ) -> Result<(crate::contact::ContactVerdict, geom_core::MarginDiag), ValidationError> {
     crate::boolean::rest_pair_reading(body, face_a, body, face_b, band).map_err(|refusal| {
         match refusal {
-            crate::contact::ContactRefusal::Contradicted { diag, steer } => {
+            crate::contact::ContactRefusal::Contradicted { diag } => {
                 ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
                         a: face_a,
                         b: face_b,
-                        class: crate::contact::ContactClass::Rest,
+                        class: crate::contact::GlueClass::Rest,
                     },
                     witness: CARRIER_COMPARISON_WITNESS.to_owned(),
                     margin: diag,
-                    steer,
                 }
             }
             crate::contact::ContactRefusal::Escalated { diag }
@@ -10652,7 +10632,7 @@ pub fn census_contact_row(finding: &ValidationError) -> Option<crate::Coincidenc
 
 /// The at-rest confirmation of a face–face record, as a patch (C3):
 /// through the two doors its certification obligation names — the
-/// `Rest` carrier/sense door (`contact_pair_verdict`: carrier identity
+/// `Rest` carrier/sense door (`rest_pair_verdict`: carrier identity
 /// through the kind ladder with the record standing as the declaration,
 /// senses opposed, aligned coincidence contradicted) and the
 /// chart-region overlap predicate (region overlap in the shared chart
@@ -11149,7 +11129,7 @@ mod tests {
         // verify — the recourse is a quotable declaration.
         let pair = (hit.pair.a.min(hit.pair.b), hit.pair.a.max(hit.pair.b));
         assert_eq!(pair, (w1.min(w2), w1.max(w2)));
-        assert_eq!(hit.pair.class, crate::contact::ContactClass::Rest);
+        assert_eq!(hit.pair.class, crate::contact::GlueClass::Rest);
         assert_eq!(hit.verdict, crate::contact::ContactVerdict::Definite);
     }
 
@@ -16643,6 +16623,7 @@ mod records_by_carrier {
                 (0.0, 1.0),
                 tol,
             );
+            crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, tol);
             let block = brick::<f64>((x, x + 1.0), (-0.5, 0.5), (0.0, 1.0), tol);
             let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
             let side = block
@@ -16687,7 +16668,7 @@ mod records_by_carrier {
                 e,
                 ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
-                        class: crate::contact::ContactClass::Tangent,
+                        class: crate::contact::GlueClass::Tangent,
                         ..
                     },
                     ..
@@ -16921,6 +16902,7 @@ mod two_carrier_records {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
         let wall = cyl_wall_sheet(&mut body, CylFrame::canonical(1.0), u, v, tol);
+        crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, tol);
         let block = brick::<f64>((1.0, 2.0), (-0.5, 0.5), bz, tol);
         let keys = crate::graft_disjoint_all_keyed(&mut body, &block).unwrap();
         let side = block
@@ -17000,7 +16982,7 @@ mod two_carrier_records {
             u_ref: -geom_core::Vec3::unit_z(),
         };
         let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.5, 3.5), tol);
-        body.get_face_mut(wall).unwrap().sense = true;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
         let placed = |x: f64| {
             crate::boolean::face_placement(
                 &body,
@@ -17207,8 +17189,8 @@ mod two_carrier_records {
         let mut frame = CylFrame::canonical(0.5);
         frame.origin = geom_core::Point3::new(0.5, 0.0, 0.0);
         let b = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (0.0, 1.0), tol);
-        body.get_face_mut(a).unwrap().sense = true;
-        body.get_face_mut(b).unwrap().sense = false;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, a, true, Tol::witness());
+        crate::test_support_fixtures::set_sheet_sense(&mut body, b, false, Tol::witness());
         let bare = census_and_certify(&body, &ContactRecords::default(), band(), tol, None);
         assert!(
             names(&bare, a, b),
@@ -17294,7 +17276,7 @@ mod two_carrier_records {
                 u_ref: -geom_core::Vec3::unit_z(),
             };
             let wall = cyl_wall_sheet(&mut body, frame, u, wx, tol);
-            body.get_face_mut(wall).unwrap().sense = true;
+            crate::test_support_fixtures::set_sheet_sense(&mut body, wall, true, Tol::witness());
             Rig { body, wall, top }
         }
 
@@ -17429,7 +17411,12 @@ mod two_carrier_records {
         /// of each row.
         fn census_opposed(outline: &[(f64, f64)]) -> (Rig, Vec<(f64, bool, Vec<ValidationError>)>) {
             let mut r = rig(outline, (0.5, 3.5), (-0.5, 0.5));
-            r.body.get_face_mut(r.wall).unwrap().sense = false;
+            crate::test_support_fixtures::set_sheet_sense(
+                &mut r.body,
+                r.wall,
+                false,
+                Tol::witness(),
+            );
             let rows = census(&r);
             (r, rows)
         }
@@ -17480,7 +17467,12 @@ mod two_carrier_records {
         /// or `confirmed` where nothing names the pair.
         fn reading(outline: &[(f64, f64)], wx: (f64, f64), sense: bool) -> [String; 2] {
             let mut r = rig(outline, wx, (-0.5, 0.5));
-            r.body.get_face_mut(r.wall).unwrap().sense = sense;
+            crate::test_support_fixtures::set_sheet_sense(
+                &mut r.body,
+                r.wall,
+                sense,
+                Tol::witness(),
+            );
             let b = Band::linear(Tol::witness()).unwrap();
             let (a, t) = (r.wall, r.top);
             let is = |x: FaceKey, y: FaceKey| (x, y) == (a, t) || (x, y) == (t, a);
@@ -17961,7 +17953,12 @@ mod two_carrier_records {
                     u_ref: -geom_core::Vec3::unit_z(),
                 };
                 let wall = cyl_wall_sheet(&mut body, frame, (-0.5, 0.5), (-2.0, 2.0), tol);
-                body.get_face_mut(wall).unwrap().sense = true;
+                crate::test_support_fixtures::set_sheet_sense(
+                    &mut body,
+                    wall,
+                    true,
+                    Tol::witness(),
+                );
                 let b = Band::linear(tol).unwrap();
                 let line = crate::boolean::tangent_pair_at_rest(&body, wall, cap, b);
                 let desc = match &line {
@@ -19142,8 +19139,8 @@ mod same_solid_tangent_lines {
         let (fa, _) = cyl_wall_sheet_keyed(&mut body, a, CylKey::Bare, (-ua, ua), (0.0, 1.0), tol);
         let (fb, _) = cyl_wall_sheet_keyed(&mut body, b, CylKey::Bare, (-ub, ub), (0.2, 0.8), tol);
         crate::pcurves::mint_pcurves(&mut body, tol).unwrap();
-        body.get_face_mut(fa).unwrap().sense = sense_a;
-        body.get_face_mut(fb).unwrap().sense = sense_b;
+        crate::test_support_fixtures::set_sheet_sense(&mut body, fa, sense_a, Tol::witness());
+        crate::test_support_fixtures::set_sheet_sense(&mut body, fb, sense_b, Tol::witness());
         if one_solid {
             body.merge_all_solids().unwrap();
         }

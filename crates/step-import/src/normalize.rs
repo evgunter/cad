@@ -24,10 +24,10 @@
 //! - **The seamless band** (M7-5). A cylinder or torus lateral face
 //!   stated as its two full-period rim bounds with NO seam generator
 //!   at all. The kernel's face model is one outer loop plus rings,
-//!   and a ring that winds the chart's period is a loop tier 3's
-//!   pcurve mint refuses (`topo::PcurveMintError::LoopWraps`), so
-//!   adopting the second rim as a ring would hand back a body that is
-//!   not tier-3 valid. Detection tags
+//!   and a ring that winds the chart's period is a loop whose chart
+//!   walk does not close on its start (`topo::loop_windings`), so
+//!   adopting the second rim as a ring would hand back a face that
+//!   does not lift to a disc of its chart. Detection tags
 //!   the shape at the face gate ([`crate::entities`]); [`band_seam`]
 //!   re-mints it here.
 //!
@@ -783,12 +783,14 @@ fn seam_vertex_on_loop(
 /// unreadable charts, partial walls whose rims agree in direction) is
 /// left for the kernel's own ladder — which catches the CIRCLE-rimmed
 /// analytic class from below (executed on a three-rim wall). The
-/// quadrature-owned conic-trimmed class is a RECORDED residual that
-/// slips both layers: an ellipse-trimmed wall has no circle-rim pair
-/// to read here, and the kernel arm exempts its boundary parse — such
-/// flips import and certify green today (executed on the
-/// tilted-section cylinder; closes with the ellipse-rim material-side
-/// encoding).
+/// quadrature-owned conic-trimmed class is a RECORDED residual of both
+/// orientation readings: an ellipse-trimmed wall has no circle-rim pair
+/// to read here, and the kernel's curved arm exempts its boundary
+/// parse. Tier 3 still refuses its flips through other arms — a lone
+/// flip by the material wedge or check 7 and the pinch corners, a
+/// whole-body inversion at the planar faces (`step-export`'s
+/// `m6_6_sense_gate` rows); the readings themselves close with the
+/// ellipse-rim material-side encoding.
 fn wall_inversion(
     solid: &SolidSpec,
     chart_band: Option<geom_core::Band>,

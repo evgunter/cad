@@ -127,9 +127,9 @@
 pub mod attach;
 pub mod body;
 pub mod boolean;
+pub mod cell_region;
 pub(crate) mod census;
 pub mod chart;
-pub mod chart_bound;
 pub(crate) mod chart_groups;
 pub mod chart_iso;
 pub mod chart_region;
@@ -1004,9 +1004,8 @@ pub use census::{
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
-    ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
-    GlueClass,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactFinding, ContactRefusal,
+    ContactVerdict, DeclaredContact, GlueClass,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -1022,7 +1021,6 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
 pub use chart::{Chart, ChartKind};
-pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
     ChartOverlap, ChartRegionError, RegionLane, WITNESS_CELL_CAP, WITNESS_SEGMENT_CAP,
@@ -1056,7 +1054,8 @@ pub use offset_general::offset_surfaces_together;
 pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{
-    PcurveMintError, SiteRowRefusal, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of,
+    LoopWinding, PcurveMintError, SiteRowRefusal, loop_windings, mint_pcurves, mint_pcurves_of,
+    pcurve_of,
 };
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,

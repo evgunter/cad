@@ -73,6 +73,15 @@ revalue and `m10_bulge` messages name `segment_gap` themselves. So the
 suspected merge is #5542. The rows are still red on 2026-10-23 (run
 39906156937, `be9b907694`).
 
+## 2026-10-24 — one more slow-set red on `chart/orchestrator` (CHART implementer)
+
+`intent_s2_c_world::the_migrated_world_is_the_pre_c_product` fails on
+`chart/orchestrator` at `1a428c9`: "cut_cylinder: the product moved",
+`d2acb2b37c5273db/28` against the recorded `cb8ccadf87044e7f/28`. It
+fails the same on `chart/ringed-curved-doors`, whose product body for
+`cut_cylinder` is bit-identical to the base's: the same counts, the same
+points in the same arena order, the same faces and senses.
+
 ## 2026-10-24 — still red (INTENT nightly triage)
 
 Nightly run 40066431545 (main `3dfb96b91c`) still reds 22 of the 24
@@ -94,3 +103,17 @@ day. Do not take them from this file.
 `ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`:
 `predicates whose margins do not scale with the model:
 ["curve_foot_branch: 6 pairs off, e.g. 9.990e2"]`.
+
+## 2026-10-24 — `every_public_mutation_path_preserves_tier1` red on main (CHART implementer)
+
+`topo` `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
+fails on main at `179e41e4`: "the allowlist names `join_edges`, which is
+no longer a non-asserting public mutation path". `f3a907e7` moved
+`join_edges` and `join_edges_within` into a surgery scope closed by
+`sweep_and_close`, and kept their `ALLOWED` entries. The test reads
+source, so it fails the same on any branch carrying main.
+`the_two_door_tables_cover_the_same_surface` then needs each door in one
+table. PR 5664 (`chart/ringed-curved-doors`) ports the fix: both entries
+leave `ALLOWED` for `pcurves::staleness_posture::DECLARED`'s `Maintains`
+block, beside the other doors that assert through a sweeping scope. It
+is a no-op once main carries the same move.

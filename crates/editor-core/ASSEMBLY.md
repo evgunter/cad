@@ -8,13 +8,11 @@ what checks an assembly at rest is DESIGN `[assertions]`. The census and
 contact vocabulary is `crates/topo/README.md`; the user-facing walk is
 `docs/guide/assembly.md`.
 
-**The intent refactor is in progress here.** A mate in the code still
-carries a contact class and mints a declaration, and the at-rest gate
-still refuses. Those clauses (A3 and A5) are gathered under
+**The intent refactor is in progress here.** The at-rest gate in the
+code still refuses. Those clauses (A3 and A5) are gathered under
 [Until the intent refactor lands](#until-the-intent-refactor-lands) and
-describe the code as it stands. INTENT's stage units delete each part as
-they land (stage 4 a mate's contact class, stage 5 the at-rest gate);
-where they disagree with DESIGN, DESIGN is the design.
+describe the code as it stands. INTENT's stage 5 deletes the gate as it
+lands; where they disagree with DESIGN, DESIGN is the design.
 
 ## Where in the code
 
@@ -22,7 +20,7 @@ where they disagree with DESIGN, DESIGN is the design.
 |---|---|
 | A2 evaluation seam, memo | `src/part.rs` (`PartResolver`, `ResolveFault`), `src/eval/parts.rs` (`PartStore`, `Reached`, `PartFault`); `transform_rigid`, `graft_disjoint_all_keyed` in `crates/topo/src/instance.rs` |
 | A2a pairing doors | `mispaired`, `Mispaired` in `src/ident.rs`; the doors in `src/product.rs`, `src/assembly.rs`, `src/mate/solve.rs`, `src/checks.rs`, `src/resolve/mod.rs`, `src/resolve/pick.rs`; the memo's drop in `src/eval/mod.rs` |
-| A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Value`, `Coord`, `MateRef`, `class_admission`, `MateFault`, `reference_about`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs` (`Placed`, `stand`), `src/mate/corner.rs` (`corner_frame`), `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::SetConstraints`/`AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
+| A3, A11 placements, mates, solve | `Node::Place`, `Node::World`, `InstantiatePart`'s `constraints` in `src/node.rs`; `src/mate.rs` (`Constraint`, `Mate`, `Value`, `Coord`, `MateRef`, `MateFault`, `reference_about`), `src/mate/coset.rs`, `src/mate/solve.rs`, `src/mate/value.rs`, `src/mate/pin.rs` (`Placed`, `stand`), `src/mate/corner.rs` (`corner_frame`), `src/mate/unobservable.rs`; the fold in `src/eval/wire.rs` (`fold_with`); `DocEdit::SetConstraints`/`AddConstraint`/`RemoveConstraint` in `src/edit.rs` |
 | A4, A13 identity, pins, update | `src/ident.rs`, `src/update.rs`, `DocEdit::UpdateReference` in `src/edit.rs` |
 | A4 split, inline and flatten | `src/refactor.rs`; `InterfaceRecord` in `src/node.rs` |
 | A5 at-rest gate | `src/assembly.rs` (`assemble`, `AssemblyError`) |
@@ -136,7 +134,6 @@ refuses.
 Other doors that take such a pair — `stackup` and `sensitivities`,
 `drive::certifying_vector` — do not check it; that gap is the tracker
 row `pair-doors-outside-the-three-do-not-check-document-identity`.
-`assembly::mint` is covered downstream by `product_recorded`.
 
 ## Nodes and mates
 
@@ -262,7 +259,7 @@ flattened import can be re-adopted as an assembly without re-parsing.
 which is the evaluation product, with the A7 record;
 import-as-assembly-document is not implemented. Export writes each
 positive shell as its own `MANIFOLD_SOLID_BREP`; assembly structure and
-declarations are not exported.
+contact records are not exported.
 
 ## Relative freedom and product roots
 
@@ -398,8 +395,7 @@ read.
 operand down to a live placement, through any number of `Part` instance
 selections, `Pattern` levels (each of which the name
 qualifies `Instance`) and `Union`s (each of which the name qualifies
-`From`). It decides what a crossing names and which copy the at-rest
-census attributes a mate's declaration to (`mate::member_of`); the fold
+`From`). It decides what a crossing names (`mate::member_of`); the fold
 reads no walk, since every face is a value where it evaluates.
 
 *What the fold reads.* The fold's inputs are the poses its mates read,
@@ -431,7 +427,7 @@ These clauses describe the code as it stands, in the model DESIGN
 `[placement]` and `[assertions]` replace; each part goes when the INTENT
 unit that retires it lands.
 
-**A3 — The node vocabulary; mates are declarations.**
+**A3 — The node vocabulary; mates place copies.**
 `Node::InstantiatePart { doc_ref, interface, constraints }` instantiates
 a pinned document, and is a placement: its one output `copies` is the
 part's world copies, each keyed by its identity in the part
@@ -449,7 +445,7 @@ A placement's `constraints` are its bundle, each a `Constraint { id,
 kind }` addressed by its placement and the id minted with it
 (`MateRef`), never by its position: a mate or a value (FORK-S3M).
 
-A `Mate { on, to, class }` equates two poses of one kind, and the kind
+A `Mate { on, to }` equates two poses of one kind, and the kind
 is the primitive: `Frame`–`Frame` coincides, `Axis`–`Axis` is coaxial,
 `Plane`–`Plane` rests, `Point`–`Point` is a ball and
 `Direction`–`Direction` is parallel, each pinning the relative pose to a
@@ -460,10 +456,11 @@ coset of the kind's `Subgroup` (A11 (1)).
 - `to` is a pose read off geometry of the space the copy joins. No
   space has roles a mate can read: there is no world frame and no part
   frame to read.
-- `class` is the kernel `topo::ContactClass`.
 - A mate holds no number. Its sense is a `Flip` on one side: a plain
   `Plane`–`Plane` mate equates outward normals, and two faces stacked
   against each other carry a `Flip` on the target.
+- A mate declares no contact. It places a copy; whether two copies
+  touch is the at-rest census's to find (A5).
 
 A `Value { coord, by }` names no mate: it is a coordinate of the
 target space, setting one freedom the bundle's mates leave to a
@@ -484,7 +481,7 @@ slides run along those axes. Zero says the copy's own coordinates agree
 with the target space's as far as the mates allow.
 
 The door admits a constraint on what the recipe shows: two poses of one
-kind, `on` reading the copy, the class, and of the bundle that no
+kind, `on` reading the copy, and of the bundle that no
 constraint fixes an equation the rest already fix and every value sets
 a freedom the mates leave (A11 (1)). The placement folds its bundle
 where it evaluates (`eval::wire::fold_with`), reading every pose as a
@@ -498,142 +495,69 @@ gesture writes the identity bundle (`mate::stand`). A frame read off
 geometry is `mate::corner_frame`'s, which a caller asks before writing
 the moves it means.
 
-Evaluation mints the declaration of each constraint whose two face
-sides read copies of the space being gathered into the product's
-`ContactRecords`, the same currency as the boolean wrapper's;
-declarations are verified, never trusted. `class_admission` is the one
-table both the solve and the mint door read: `Rest` solves and mints;
-`Tangent` solves and refuses at the mint door
-(`MintRefusal::NoAtRestRecord`: the census at rest decides nothing
-along a tangency's locus for its face–face record to cite; recourse
-`NO_AT_REST_RECORD_RECOURSE`); anything else, including the reserved
-and unbuilt `Fit { gap }`, refuses at the solve door.
-
 **A5 — The at-rest gate.** `assembly::assemble` gathers the product
-(`product::product_recorded`), which mints every solved mate's
-declaration as a `MintedDeclaration` and runs the scalar's at-rest policy,
+(`product::product_recorded`), which runs the scalar's at-rest policy,
 `topo::validate_pseudomanifold`'s census, over body plus records, once,
 keeping its findings on the product (`Product::census`); the gate reads
-them and runs no census of its own. A mate places and never checks (D10):
-its record cites the at-rest census's decision that its two faces rest
-on one carrier (`topo::census_rest_decision`, a `CensusAtRest` row on
-the product, which the `unproven-coincidence` check reads and the
-coincidence door proves by the mate's own statement,
-`[coincidence.structural]`), and a pair
-the census refuses mints no record, its finding raised by the gate
-beside the census's own. The gather's own tier-3 verdict rides
-on the product's body (`topo::AtRestBody`), so the gate reads both
-verdicts rather than running either a second time. The gate
-runs no predicate of its own; kernel findings come back as
-`AtRestFinding`s attributed to the mate whose declaration they concern.
-A touch between two copies that no record backs refuses nothing (D1
-(iii), D10): the gather's census records it (`topo::record_at_rest`,
-each copy its own group) as a `CensusAtRest` row of the product
-(`AtRestBy::Copies`) and a record citing it, which the census's next
-pass confirms, and the `unproven-coincidence` check reports each row
-the coincidence door does not prove. Two copies' planar faces meeting
-over an area are one such row, the face pair, and the census asks
-nothing of the edges and corners bounding it. Two faces of two copies
-on one plane, facing the same way, whose boundaries share a segment and
-whose interiors do not meet, are a flush pair: a row of its own
-(`topo::AtRestPolicy::flush_at_rest`) that no record cites, reported
-unless the door proves it. Such a record backs no mate, so it
-quiets no `Separation` finding. A touch inside one copy that no record
-backs is that copy's defect, and refuses, unless it is a part's own
-finding found again (*A part's own census findings*, below).
-`AssemblyError::AtRest` is a verdict against the document;
-`AssemblyError::Uncertified` is the declared direction's frontier
-(every finding declined, none refuted). A disjoint assembly certifies as
-a multi-solid tier-3 body.
+them and runs no census of its own. The gather's own tier-3 verdict
+rides on the product's body (`topo::AtRestBody`), so the gate reads
+both verdicts rather than running either a second time, and runs no
+predicate of its own. A mate places and never checks (D10). Every
+touch between two copies that no carried record backs, a seat a mate
+set up or a touch no mate relates alike, refuses nothing (D1 (iii),
+D10): the gather's census records it (`topo::record_at_rest`, each copy
+its own group) as a `CensusAtRest` row of the product
+(`Product::coincidences`, an `AtRestRow` naming its two copies) and a
+record citing it, which the census's next pass confirms. The coincidence
+door proves a mated seat's row from the mate's own statement
+(`[coincidence.structural]`), and the `unproven-coincidence` check
+reports each row the door does not prove. Two copies' planar faces
+meeting over an area are one such row, the face pair, and the census
+asks nothing of the edges and corners bounding it. Two faces of two
+copies on one plane, facing the same way, whose boundaries share a
+segment and whose interiors do not meet, are a flush pair: a row of its
+own (`topo::AtRestPolicy::flush_at_rest`) that no record cites,
+reported unless the door proves it. A pierce or a same-side crossing is
+no touch: it is an overlap between two copies, reported on
+`Assembly::interference` and never refused. The `Separation` check
+quiets a finding about two copies only where a record cites a row the
+coincidence door's first rung proves from a mate. A touch inside one
+copy that no record backs is that copy's defect, and refuses, unless it
+is a part's own finding found again (*A part's own census findings*,
+below). `AssemblyError::AtRest` is a verdict against the document, each
+`AtRestFinding` the census's own finding with its recourse. A disjoint
+assembly certifies as a multi-solid tier-3 body.
 
-*Where a declaration is minted.* A mate's declaration is minted on the
-world copies of its members, read through those copies' placements
-(#4220). Each side's face is resolved once, at its selection, where the
-mate's own evaluation resolves it: its entity in the body the selection
-reads. The copy is the world placement reading that body, or reading
-the `Part` that picks the entity's copy out of a pattern's bodies,
-that holds the face where the mate reads it (`mate::reads_in`, the
-rule the coincidence door reads the mate by too): the mate's own
-placement's copy for `on`, which its fold moves; for `to`, the body
-itself where it is a placement's output, or a copy standing by the
-identity bundle. A placement moves its body and re-mints nothing, so
-the copy holds the entity under the same key, and the graft carries
-it into the product. Nothing is resolved against the product's table.
-A side whose body no placement reads has no world copy, and the mate
-mints nothing: such a mate relates a boolean's operands in the
-workbench, which is the boolean's coincidence door's business, not an
-at-rest fact of the product. Nor does one whose every copy another
-bundle moves off where the mate reads it: the mate states nothing
-about such a copy. Two copies holding the face refuse
-`RefusedRef::Ambiguous`, since a declaration names one pair of faces,
-and a mate with no value in the evaluation refuses
-`MintRefusal::Unevaluated` rather than passing the gate silently.
-
-*Across the seam.* A sub-assembly's declarations ride through the seam
-as records (`PartValue::contacts`), and so does the bookkeeping that
-names them: `PartValue::minted`/`unminted` carry each inner mate's
-declaration, and each mate the inner document could not mint, into
-`Product::carried`/`carried_unminted`, each tagged with the `Route` it
-arrived by (the instantiating node, the document that minted it, and the
-instances below). A declaration's faces are re-keyed at every graft
-through the graft's own descendant map, exactly as its record is; a mint
-refusal names no entity, so it carries verbatim. Nothing is re-verified
-or re-minted across the seam: verification runs once, at the outermost
-gate.
-
-*Attribution.* A finding against a carried declaration attributes
-`Attribution::Carried`, naming that mate, that document and that route,
-in the same `Relation` (`refuted` or `declined`) the own-minted arms
-use; so a carried decline reaches `AssemblyError::Uncertified` under its
-own name. A finding no declaration this document holds a row for
-answers for, its own or a part's, carries no attribution
-(`AtRestFinding::attribution` is `None`): a finding about no
-declaration at all (a structural defect, an overlap or a touch no
-record backs inside one copy, an unrecorded touch of a pair the census
-could not clear, a census that could not look), never a declaration
-that lost its row. Every declaration in the tree keeps its row,
-because the only path a record can take without its row (a boolean over a source) is one no instance
-carrying a declaration can reach: such an instance is a product of
-several parts, whose part count the placers and a sub-assembly that
-instantiates it carry through (`NodeValue::parts`), and every op that
-fuses or reshapes one body refuses a product
-(`NodeErrorKind::ProductOperand`, naming the explicit union as the
-recourse).
-
-*Carried mint refusals.* An inner mate that could not be minted refuses
-the outer gate (`AssemblyError::CarriedMintRefusal`), carrying every
-such row in gather order, before this document's own unminted rows and
-before the at-rest gate: an outer assembly is unusable while an inner
-part's contact is unverified.
+*Across the seam.* A sub-assembly's records ride through the seam
+(`PartValue::contacts`), with the rows they cite
+(`PartValue::coincidences`). A record's faces are re-keyed at every
+graft through the graft's own descendant map. Nothing is re-verified
+across the seam: verification runs once, at the outermost gate.
 
 *A part's own census findings.* A part crosses the seam as one copy, so
 the census over the instantiating product finds the part's own findings
 again inside that copy. The part's verdict crosses with it instead, the
 at-rest stage of its own gate over its world (`assembly::seam_verdict`,
 at the part store): each overlap between two of its copies rides
-`PartValue::interference`, and a refusal of its gate's over a finding
-none of its declarations answers for rides `PartValue::at_rest` whole,
-its attributed findings with it, both routed like a carried
-declaration. A refusal whose every finding the part's gate ties to one
-of its declarations does not cross this way: those declarations'
-records do, and the outer census verifies them again (*Attribution*),
-so a carried decline still reaches `Uncertified`. A part whose gate
-refuses before that stage (a mint refusal, its own or carried, or an
-at-rest refusal carried from below) crosses no census finding of its
-own: what refuses it crosses on its own rows. The pairs of solids the
-crossing findings are about ride `PartValue::census_pairs`, re-keyed
-through every graft by the graft's own solid order
-(`Product::census_pairs`). At the gate, each verdict about one of those
-pairs is the part's, and is not a finding of this document's
-(`checks::at_rest::less_carried`). Each carried finding is reported once
-per part row, by the first route in gather order, so a part placed
-twice, or in the world and in another space, reports its overlap once.
-A carried overlap is reported on `Assembly::carried_interference` and
-never refuses (D10). A carried refusal refuses the outer gate as the
-part's (`AssemblyError::CarriedAtRest`), after `CarriedMintRefusal` and
-before this document's own refusals: a placement carries its source's
-census findings, which stay the source's, and a finding is reported
-once, as the deciding space's (D10, `[placement.placement]`). A finding that names no pair of solids (a census
+`PartValue::interference`, and a refusal of its gate's rides
+`PartValue::at_rest` whole, each finding routed (`Route`: the
+instantiating node, the document that found it, and the instances
+below). A part whose gate refuses before that stage (an at-rest refusal
+carried from below) crosses no census finding of its own: what refuses
+it crosses on its own rows. The pairs of solids the crossing findings
+are about ride `PartValue::census_pairs`, re-keyed through every graft
+by the graft's own solid order (`Product::census_pairs`). At the gate,
+each verdict about one of those pairs is the part's, and is not a
+finding of this document's (`checks::at_rest::less_carried`). Each
+carried finding is reported once per part row, by the first route in
+gather order, so a part placed twice, or in the world and in another
+space, reports its overlap once. A carried overlap is reported on
+`Assembly::carried_interference` and never refuses (D10). A carried
+refusal refuses the outer gate as the part's
+(`AssemblyError::CarriedAtRest`), before this document's own refusals:
+a placement carries its source's census findings, which stay the
+source's, and a finding is reported once, as the deciding space's (D10,
+`[placement.placement]`). A finding that names no pair of solids (a census
 escalation, a pair it had no lane for, a stale record of a vertex or an
 edge) matches nothing when the outer census finds it again inside the
 copy (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
@@ -686,10 +610,10 @@ caps, which the gather records as rows of the two copies.
 - **AQ4 — per-instance arguments.** Not implemented. Intended form:
   `InstantiatePart { …, args }` applying the pinned recipe at `args`.
 - **AQ5 — in-context capture semantics.** Open.
-- **AQ6 — cross-document `Rest` verification.** Retires with a mate's
-  contact class and C6's `Fit` (INTENT stage 4). Until then, answered in the kernel:
-  the trilean verdict and the designed-clearance steer toward `Fit`
-  (`fit_steer` in `crates/topo/src/boolean/contact_verify.rs`).
+- **AQ6 — cross-document `Rest` verification.** Not a question: a mate
+  declares no contact, and a touch between copies is a census row the
+  coincidence door proves. C6's interference fits are stage 5's
+  question.
 - **AQ8 — the crossing record's reachability.** A kept constraint whose
   target is a cut copy crosses the cut, and populates `InterfaceRecord`,
   so no conversion door is needed. **Only a mate both of whose sides

@@ -42,7 +42,9 @@ first half-edge starts past `π` goes negative: a
 wall 2 the band `[-π/2, 0]`, measured from `window_of`. That row now
 exists
 (`trim_3_windows_interval::a_negative_band_is_not_intersected_with_the_canonical_turn`)
-and the rule is decided directly by `clearance::root_rule`'s unit rows.
+and since clearance decides its cells off each face's edges in model
+space (`topo::cell_region`) there is no root rule left to decide: the
+window is the canonical whole turn.
 
 ## What is still uncovered
 

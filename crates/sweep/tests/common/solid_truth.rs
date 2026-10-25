@@ -20,7 +20,7 @@
 use core::f64::consts::{PI, TAU};
 
 use geom_core::{Affine3, Band, Point3, Tol, Vec3};
-use topo::{Body, BooleanError, BooleanResult, PointInSolidError, SolidContainment};
+use topo::{Body, BooleanError, BooleanResult, SolidContainment};
 
 /// How deep a point must sit, inside or out, for its truth to count.
 pub const MARGIN: f64 = 1e-4;
@@ -181,28 +181,6 @@ pub fn assert_is(
     named: &[Point3<f64>],
     points: &[Point3<f64>],
 ) -> f64 {
-    assert_is_but(label, got, want, truth, named, points, 0)
-}
-
-/// [`assert_is`] on a body with a cone face bounded by a tilted section,
-/// whose `point_in_solid` refuses `PartialConeFace` at the grid points
-/// whose rays it cannot clear
-/// (`work/inside/cone-chart-trim-reads-a-tilted-section-as-its-vertex-window.md`):
-/// at most `partial_cone_refusals` of `points` may refuse so, each row's
-/// measured count, and never a named point.
-///
-/// # Panics
-///
-/// As [`assert_is`], and on more refusals than allowed.
-pub fn assert_is_but(
-    label: &str,
-    got: &Result<BooleanResult<f64>, BooleanError>,
-    want: Want,
-    truth: &dyn Fn(Point3<f64>) -> f64,
-    named: &[Point3<f64>],
-    points: &[Point3<f64>],
-    partial_cone_refusals: usize,
-) -> f64 {
     let r = got
         .as_ref()
         .unwrap_or_else(|e| panic!("{label}: wanted {want:?}, refused {e:?}"));
@@ -215,15 +193,9 @@ pub fn assert_is_but(
             );
             0.0
         }
-        (Want::Body(v, tolerance), BooleanResult::Body(bb)) => assert_body_is(
-            label,
-            &bb.body,
-            (v, tolerance),
-            truth,
-            named,
-            points,
-            partial_cone_refusals,
-        ),
+        (Want::Body(v, tolerance), BooleanResult::Body(bb)) => {
+            assert_body_is(label, &bb.body, (v, tolerance), truth, named, points)
+        }
         (want, r) => panic!(
             "{label}: wanted {want:?}, got {}",
             match r {
@@ -234,7 +206,7 @@ pub fn assert_is_but(
     }
 }
 
-/// [`assert_is_but`]'s check on a returned body: its `mass_properties`
+/// [`assert_is`]'s check on a returned body: its `mass_properties`
 /// volume is `v` within `tolerance`, it passes tier 3, and its
 /// `point_in_solid` agrees with `truth` as there. Returns the volume.
 ///
@@ -248,7 +220,6 @@ pub fn assert_body_is(
     truth: &dyn Fn(Point3<f64>) -> f64,
     named: &[Point3<f64>],
     points: &[Point3<f64>],
-    partial_cone_refusals: usize,
 ) -> f64 {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
@@ -269,21 +240,15 @@ pub fn assert_body_is(
             "{label}: the named point {p:?} sits on the truth's boundary"
         );
     }
-    let (mut checked, mut refused) = (0, 0);
-    for (i, &p) in named.iter().chain(points).enumerate() {
+    let mut checked = 0;
+    for &p in named.iter().chain(points) {
         let d = truth(p);
         if d.abs() <= MARGIN {
             continue;
         }
         let want_in = d > 0.0;
-        let got_c = match topo::point_in_solid(body, p, band, tol) {
-            Ok(c) => c,
-            Err(PointInSolidError::PartialConeFace { .. }) if i >= named.len() => {
-                refused += 1;
-                continue;
-            }
-            Err(e) => panic!("{label}: point_in_solid at {p:?} refused {e:?}"),
-        };
+        let got_c = topo::point_in_solid(body, p, band, tol)
+            .unwrap_or_else(|e| panic!("{label}: point_in_solid at {p:?} refused {e:?}"));
         let ok = match got_c {
             SolidContainment::In => want_in,
             SolidContainment::Out => !want_in,
@@ -296,9 +261,8 @@ pub fn assert_body_is(
         checked += 1;
     }
     assert!(
-        checked > named.len() && refused <= partial_cone_refusals,
-        "{label}: {checked} points answered, {refused} refused `PartialConeFace` \
-         (at most {partial_cone_refusals})"
+        checked > named.len(),
+        "{label}: {checked} points answered, no grid point among them"
     );
     got_v
 }
