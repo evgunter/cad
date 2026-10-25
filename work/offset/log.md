@@ -286,7 +286,7 @@ orchestrator holds the track while `[ev]` PR 5689 is open.
 
 ## 2026-10-25 — the dual-limb fork converges on structural pairing (OFFSET orchestrator)
 
-PR 5689 (`[ev]`, row 195) answers Ev's question about the dual entering
+PR 5689 (`[ev]`, row 196) answers Ev's question about the dual entering
 certification. Both designers agree:
 - the edge door splits into mint (generic) and certify (bounded on the
   certification trait), so a dual mints and never checks, by type;
