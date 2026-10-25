@@ -266,3 +266,13 @@ fn r2_width_admits_a_reversed_or_bare_extent() {
     eprintln!("r2: a -4 extent reads {got:?}");
     assert!(matches!(got, Ok(Turn::Short(_))), "a negative extent reads Short: {got:?}");
 }
+
+/// Claim 6: the sealed trait's hidden `read` takes a bare headroom from
+/// any crate, past the `Extent` door.
+#[test]
+fn r2_turn_rate_read_takes_a_bare_headroom() {
+    use geom_core::period::TurnRate as _;
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let got = geom_core::period::Exact(1.0_f64).read(TurnRows::exact("r2_turn"), TAU + 5.0, band);
+    assert!(matches!(got, Ok(Turn::Short(_))), "{got:?}");
+}
