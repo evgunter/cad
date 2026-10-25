@@ -2125,6 +2125,10 @@ fn attribute(
         // solid's cells, which no minted face pair names.
         | ValidationError::FaceThroughEdgeWedge { .. }
         | ValidationError::FaceThroughEdgeWedgeUndecided { .. }
+        // A solid touching itself at a point, read for sides: one
+        // solid's link, which no minted face pair names.
+        | ValidationError::BoundaryCrossesItself { .. }
+        | ValidationError::BoundaryCrossesItselfUndecided { .. }
         // A kernel defect in one face's boundary reading, about no pair.
         | ValidationError::ArcEndOffCorner { .. }
         | ValidationError::InstanceInterference { .. }

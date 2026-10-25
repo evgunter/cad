@@ -4053,6 +4053,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::CensusUndecidable": "ValidationFinding.variant",
     "ValidationError::FaceThroughEdgeWedge": "ValidationFinding.variant",
     "ValidationError::FaceThroughEdgeWedgeUndecided": "ValidationFinding.variant",
+    "ValidationError::BoundaryCrossesItself": "ValidationFinding.variant",
+    "ValidationError::BoundaryCrossesItselfUndecided": "ValidationFinding.variant",
     "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
     "ValidationError::CuspEdgesMissing": "ValidationFinding.variant",

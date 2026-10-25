@@ -73,7 +73,9 @@
 //!   [`sweep_cross_solid_backstop`].
 //! - **Discovered within one solid**: two faces on distinct carriers
 //!   touching along their closed-form tangent line through both
-//!   interiors ([`sweep_same_solid_tangent_lines`]).
+//!   interiors ([`sweep_same_solid_tangent_lines`]); and a point where
+//!   a solid touches itself whose link there bounds no one material
+//!   ([`sweep_self_touch_points`]).
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
 //!   distinct-key curved pairs (the backstop is cross-solid), and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
@@ -133,25 +135,27 @@
 //! an edge lying in a face of its own solid ([`edge_in_own_face`]): a
 //! backed overlap still refuses where the face passes through the
 //! edge's material wedge, read by the touch analysis's one test
-//! ([`rest::judge`]) over each cell's outward normals.
+//! ([`rest::judge`]) over each cell's outward normals. The third is the
+//! reading of a point where a solid touches itself
+//! ([`sweep_self_touch_points`]): passes 1–3 back such a touch on its
+//! position alone, and the solid's whole link at the point is read once
+//! for whether it bounds one material ([`rest::one_material`]).
 //!
-//! **Pass 4's findings in arm 2.** A
+//! **Self-touch findings in arm 2.** A
 //! [`ValidationError::FaceThroughEdgeWedge`], or its undecided twin, is
 //! a touch inside one solid and blocks no solid pair of its own. A face
 //! sheet inside the edge's wedge leaves the material a set with a
 //! bounded side, wrongly paired at the edge, which placement still
 //! reads against. A wedge inside the face's material winds the region
-//! there to two, so the shell crosses itself elsewhere. That crossing
-//! blocks where it stands as a pierce or an edge cross of the solid,
-//! but two planar faces can cross showing only vertex-on-face events: a
-//! triangle `(0,0,0), (4,1,1), (4,-1,-1)` in `y = z` crosses one
-//! `(2,0,0), (-2,2,0), (-2,-2,0)` in `z = 0` along `[(0,0,0), (2,0,0)]`,
-//! each with a vertex inside the other, and a vertex-on-face touch
-//! inside one solid blocks nothing. Such a body is still refused by its
-//! own finding, and by [`ValidationError::UnrecordedContact`] unless
-//! the touches are recorded; what it can lack is arm 2's cross-solid
-//! finding beside them
-//! (`work/restread/tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid.md`).
+//! there to two, so the shell crosses itself elsewhere, and that
+//! crossing blocks where it stands: as a pierce or an edge cross of the
+//! solid, or, where two planar faces cross showing only vertex-on-face
+//! events (a triangle `(0,0,0), (4,1,1), (4,-1,-1)` in `y = z` crossing
+//! one `(2,0,0), (-2,2,0), (-2,-2,0)` in `z = 0` along `[(0,0,0),
+//! (2,0,0)]`, each with a vertex inside the other), as a
+//! [`ValidationError::BoundaryCrossesItself`] at those touches, which
+//! [`Named::of`] reads as a pierce of the solid. Its undecided twin
+//! leaves the solid unexamined against its pairs.
 //!
 //! **Certification (F1/F2(iii))**: the census never blesses — every
 //! finding must be *backed* by a declaration and every declaration
@@ -970,6 +974,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     );
     sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
     sweep_same_solid_tangent_lines(body, &declared, band, &cands, &mut errors);
+    sweep_self_touch_points(body, &geo, &declared, band, &mut errors);
     sweep_cross_solid_backstop(body, &geo, &declared, band, tol, &cands, trace, &mut errors);
     confirm_records(body, &geo, contacts, band, region, &mut errors);
     errors
@@ -3127,12 +3132,14 @@ struct Cut<T> {
     at: CutAt,
 }
 
-/// One cell of an edge-on-face overlap: two consecutive cuts, and the
-/// midpoint the face holds `In`.
+/// One cell of an edge-on-face overlap: two consecutive cuts, the
+/// midpoint the face holds `In`, and whether the cell reaches the edge's
+/// start and its end.
 struct Cell<T: Real> {
     lo: Cut<T>,
     hi: Cut<T>,
     mid: Point3<T>,
+    ends: [bool; 2],
 }
 
 /// The rows the face's loop is built under for the crossing cuts: a
@@ -3205,7 +3212,8 @@ fn ef_overlap_cells<T: Decide>(
             j -= 1;
         }
     }
-    for pair in cuts.windows(2) {
+    let last = cuts.len().saturating_sub(2);
+    for (k, pair) in cuts.windows(2).enumerate() {
         let (lo, hi) = (pair[0], pair[1]);
         // The sort decided each adjacent pair's order on this same
         // difference, so this reads `Zero` (an empty cell) or `Positive`;
@@ -3225,9 +3233,90 @@ fn ef_overlap_cells<T: Decide>(
             // cell, vertex passes cover it.
             continue;
         }
-        out.push(Cell { lo, hi, mid });
+        out.push(Cell {
+            lo,
+            hi,
+            mid,
+            ends: [k == 0, k == last],
+        });
     }
     out
+}
+
+/// **Whether a line touch of `solid` reaches the point of `keys`**: two
+/// of the solid's line edges there on one line, overlapping (pass 5's
+/// reading, [`parallel_overlap`]), or one ending there lying in a face of
+/// the solid that holds the point, its overlap reaching that end (pass
+/// 4's cells, [`ef_overlap_cells`]). An edge is read where it ends on the
+/// point or a tie holds the point inside it. A point a line touch reaches
+/// is no isolated touch, and the line's rules read its sides (D1 tier
+/// 3). `None` where a reading did not decide.
+fn line_touch_reaches<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    ties: &Ties,
+    solid: crate::SolidKey,
+    keys: &BTreeSet<PointKey>,
+    band: Band,
+) -> Option<bool> {
+    let on = |v: &VertexKey| geo.vpoint.get(v).is_some_and(|k| keys.contains(k));
+    let mine = |id| census_entity_solid(body, id) == Some(solid);
+    let ending: Vec<&EdgeGeo<T>> = geo
+        .edges
+        .iter()
+        .filter(|e| (on(&e.v0) || on(&e.v1)) && mine(EntityId::Edge(e.key)))
+        .collect();
+    let through: Vec<&EdgeGeo<T>> = ties
+        .ve
+        .iter()
+        .filter(|(v, e)| on(v) && mine(EntityId::Edge(*e)))
+        .filter_map(|&(_, e)| geo.line_edge(e))
+        .collect();
+    let mut errors = Vec::new();
+    for (i, a) in ending.iter().enumerate() {
+        for b in ending[i + 1..].iter().chain(&through) {
+            if a.key == b.key {
+                continue;
+            }
+            match parallel_overlap(*a, *b, band, &mut errors)? {
+                Some(_) => return Some(true),
+                None => {}
+            }
+        }
+    }
+    let mut faces = BTreeSet::new();
+    for (&v, fs) in &geo.vertex_faces {
+        if on(&v) {
+            faces.extend(fs.iter().copied());
+        }
+    }
+    faces.extend(through.iter().flat_map(|e| [e.f_plus, e.f_minus]));
+    faces.extend(ties.vf.iter().filter(|(v, _)| on(v)).map(|&(_, f)| f));
+    for e in &ending {
+        let (near, far) = if on(&e.v0) { (0, e.p1) } else { (1, e.p0) };
+        for &fk in &faces {
+            if fk == e.f_plus || fk == e.f_minus || !mine(EntityId::Face(fk)) {
+                continue;
+            }
+            let Some(f) = planar_face(geo, fk) else {
+                continue;
+            };
+            match decide(
+                "pm_census_ef_residual",
+                Margin::of((far - f.origin).dot(f.normal)),
+                band,
+            ) {
+                Ok(Sign::Zero) => {}
+                Ok(_) => continue,
+                Err(_) => return None,
+            }
+            let cells = ef_overlap_cells(body, e, f, geo, band, &mut errors);
+            if cells.iter().any(|c| c.ends[near]) {
+                return Some(true);
+            }
+        }
+    }
+    errors.is_empty().then_some(false)
 }
 
 /// Every point strictly inside `e`'s span where `f`'s boundary crosses
@@ -5488,6 +5577,18 @@ impl Named {
                 EntityId::Face(*face),
                 Said::Touch(TouchSite::EdgeInFace(*edge, *face)),
             ),
+            // A solid's boundary crossing itself at a point, or not read
+            // there: no placement reads against that solid's material.
+            ValidationError::BoundaryCrossesItself { solid, .. } => Self::Two(
+                EntityId::Solid(*solid),
+                EntityId::Solid(*solid),
+                Said::Pierce,
+            ),
+            ValidationError::BoundaryCrossesItselfUndecided { solid, .. } => Self::Two(
+                EntityId::Solid(*solid),
+                EntityId::Solid(*solid),
+                Said::Unexamined,
+            ),
             // Two faces of one solid: that solid's own defect, which
             // leaves no other solid's boundary unread.
             ValidationError::CuspEdgesMissing { a, b, .. } => {
@@ -5513,7 +5614,8 @@ enum Recorded {
 // A touch is read once per solid pair and touch point, and each side is
 // its solid's whole LINK there ([`Link`]): every face of the solid
 // through the point, as its sector. One test of two polygonal cones
-// decides the pair ([`rest::judge`]).
+// decides the pair ([`rest::judge`]); a solid touching itself at a point
+// is read with its one link ([`rest::one_material`]).
 //
 // Every sign it decides as a verdict is a point's signed distance from
 // a plane, in metres, and it comes through ONE door: [`metric`], whose
@@ -5571,6 +5673,8 @@ mod pierce_fuzz;
 mod point;
 #[cfg(test)]
 mod segment_fuzz;
+#[cfg(test)]
+mod self_touch;
 
 /// **The one door every verdict sign of the touch analysis comes
 /// through.** A [`Distance`] has a private field and one constructor,
@@ -5671,8 +5775,10 @@ enum TouchVerdict {
 
 /// **Why the touch analysis read no side** at a touch: the one home of
 /// its refusal reasons, which a cross-solid touch renders as
-/// [`Undecided`] and an edge lying in a face of its own solid as
-/// [`ValidationError::FaceThroughEdgeWedgeUndecided`].
+/// [`Undecided`], an edge lying in a face of its own solid as
+/// [`ValidationError::FaceThroughEdgeWedgeUndecided`], and a solid
+/// touching itself at a point as
+/// [`ValidationError::BoundaryCrossesItselfUndecided`].
 ///
 /// **NOT carried to the façade's curated list, and that is a decision
 /// rather than an omission** (`scripts/payload-rung-sweep.py` names this
@@ -5736,9 +5842,12 @@ impl TouchUnread {
         }
     }
 
-    /// The reason and its recourse, where an edge lies in a face of its
-    /// own solid ([`ValidationError::FaceThroughEdgeWedgeUndecided`]).
-    pub(crate) fn in_own_face(self) -> &'static str {
+    /// The reason and its recourse, where a solid's own cells touch: an
+    /// edge lying in a face of its own solid
+    /// ([`ValidationError::FaceThroughEdgeWedgeUndecided`]), or the solid
+    /// touching itself at a point
+    /// ([`ValidationError::BoundaryCrossesItselfUndecided`]).
+    pub(crate) fn in_own_solid(self) -> &'static str {
         match self {
             Self::InBand => concat!(
                 geom_core::undecided!("which side of each other their material lies on"),
@@ -6118,6 +6227,90 @@ fn edge_in_own_face<T: Decide>(
             witness: witness(p),
             why,
         }),
+    }
+}
+
+/// **Every point where a solid touches itself, read for sides**: one
+/// reading per solid and point, wherever the ties (records and the
+/// standing findings, [`Ties`]) or a shared point key name two cells of
+/// one solid there — a vertex on its own face (pass 3), on its own edge
+/// (pass 2), or two of its vertices on one point (pass 1). Those passes
+/// read position only; the side is read here, once, over the solid's
+/// whole link at the point ([`Link::at_point`], [`rest::one_material`]).
+/// A decided failure is [`ValidationError::BoundaryCrossesItself`], any
+/// other unread verdict its undecided twin. A point a line touch of the
+/// solid reaches ([`line_touch_reaches`]) is not an isolated touch: the
+/// line's rules read it (pass 4's [`edge_in_own_face`], pass 5's
+/// coincident edges).
+fn sweep_self_touch_points<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    let ties = Ties::of(declared, errors);
+    let solid = |id| census_entity_solid(body, id);
+    let one = |x: EntityId, y: EntityId| solid(x).filter(|&s| solid(y) == Some(s));
+    let mut seeds: Vec<(crate::SolidKey, VertexKey)> = Vec::new();
+    for &(a, b) in &ties.vv {
+        seeds.extend(one(EntityId::Vertex(a), EntityId::Vertex(b)).map(|s| (s, a)));
+    }
+    for &(v, e) in &ties.ve {
+        seeds.extend(one(EntityId::Vertex(v), EntityId::Edge(e)).map(|s| (s, v)));
+    }
+    for &(v, f) in &ties.vf {
+        seeds.extend(one(EntityId::Vertex(v), EntityId::Face(f)).map(|s| (s, v)));
+    }
+    let mut on_key: std::collections::BTreeMap<(crate::SolidKey, PointKey), Vec<VertexKey>> =
+        std::collections::BTreeMap::new();
+    for (&v, &k) in &geo.vpoint {
+        if let Some(s) = solid(EntityId::Vertex(v)) {
+            on_key.entry((s, k)).or_default().push(v);
+        }
+    }
+    seeds.extend(
+        on_key
+            .into_iter()
+            .filter(|(_, vs)| vs.len() > 1)
+            .map(|((s, _), vs)| (s, vs[0])),
+    );
+    let mut read = BTreeSet::new();
+    for (s, v) in seeds {
+        let (Some(keys), Some(&at)) = (touch_keys(geo, &ties, &[v]), geo.vmap.get(&v)) else {
+            errors.push(ValidationError::BoundaryCrossesItselfUndecided {
+                solid: s,
+                witness: geo.vmap.get(&v).map_or_else(String::new, |&p| witness(p)),
+                why: TouchUnread::Corrupt,
+            });
+            continue;
+        };
+        let Some(&least) = keys.first() else { continue };
+        if !read.insert((s, least)) {
+            continue;
+        }
+        let verdict = match line_touch_reaches(body, geo, &ties, s, &keys, band) {
+            Some(true) => continue,
+            Some(false) => match Link::at_point(body, geo, &ties, s, &keys, at, band) {
+                Ok(link) => rest::one_material(&link, band),
+                Err(v) => v,
+            },
+            None => TouchVerdict::Unread(TouchUnread::InBand),
+        };
+        match verdict {
+            TouchVerdict::Rest(_) => {}
+            TouchVerdict::Crossing => errors.push(ValidationError::BoundaryCrossesItself {
+                solid: s,
+                witness: witness(at),
+            }),
+            TouchVerdict::Unread(why) => {
+                errors.push(ValidationError::BoundaryCrossesItselfUndecided {
+                    solid: s,
+                    witness: witness(at),
+                    why,
+                });
+            }
+        }
     }
 }
 
@@ -7023,17 +7216,13 @@ impl<T: Decide> Link<T> {
     /// the other sectors an even number of times, or in front and odd.
     /// The arc is the segment `q`–`w` seen from `p`, under half a turn
     /// (both ends ahead of the plane normal to their bisector), so it
-    /// meets each plane through `p` at most once and `T`'s only at `w`.
-    /// Each other sector is read from its plane's sides at `q` and `w`:
-    /// on one side, not crossed; on opposite sides, crossed iff the
-    /// segment's point on the plane lies inside the sector; one end on
-    /// the plane (within `zero`), not crossed iff the stretch of the arc
-    /// where it could then meet the plane misses the sector
-    /// ([`Sector::misses`]). A reference
-    /// any reading of which is in band, on a sector's bound, or on a
-    /// second sector at `w` is passed over for the next; `None` where
-    /// none reads, or where `q` itself is in band of a plane or on a
-    /// bound.
+    /// meets each plane through `p` at most once and `T`'s only at `w`,
+    /// and each other sector is read as [`Link::crossing`] reads it.
+    /// Parity is the material only where the link's winding takes two
+    /// values ([`rest::one_material`]). A reference any reading of which
+    /// is in band, on a sector's bound, or on a second sector at `w` is
+    /// passed over for the next; `None` where none reads, or where `q`
+    /// itself is in band of a plane or on a bound.
     fn reads(&self, q: Point3<T>, rd: Reading<T>) -> Option<Material> {
         let p = self.p;
         // `q`'s strict side of each plane; `None` for a plane `q` lies
@@ -7070,47 +7259,110 @@ impl<T: Decide> Link<T> {
                     if k == t {
                         continue;
                     }
-                    let Some(at_w) = self.side(s, w, rd) else {
+                    let Some(crossed) = self.crossing(s, sides[k], q, w, rd) else {
                         continue 'reference;
                     };
-                    let (oq, ow) = (s.outward.dot(q - p), s.outward.dot(w - p));
-                    // A Zero reads within the band's zero, the slack added.
-                    let zero = T::from_computed(rd.band.zero()) + rd.slack();
-                    let at = |t: T| q + (w - q) * t;
-                    // An end read Zero lies within `zero` of the plane on
-                    // either side, so a crossing, if any, lies on the
-                    // stretch of the arc where the plane can then be met:
-                    // read as not crossed only where that whole stretch
-                    // misses the sector.
-                    let crossed = match (sides[k], at_w) {
-                        (None, Sign::Zero) => continue 'reference,
-                        (None, sw) => {
-                            let ow = if sw == Sign::Positive { ow } else { -ow };
-                            if !s.misses(p, (q, at(zero / (zero + ow))), rd) {
-                                continue 'reference;
-                            }
-                            false
-                        }
-                        (Some(sq), Sign::Zero) => {
-                            let z = if sq == Sign::Positive { zero } else { -zero };
-                            if !s.misses(p, (at(oq / (oq + z)), w), rd) {
-                                continue 'reference;
-                            }
-                            false
-                        }
-                        (Some(at_q), at_w) if at_q == at_w => false,
-                        (Some(_), _) => match s.place(p, on_plane(q, w, oq, ow), rd) {
-                            Some(Place::Inside) => true,
-                            Some(Place::Outside) => false,
-                            _ => continue 'reference,
-                        },
-                    };
-                    held ^= crossed;
+                    held ^= crossed != 0;
                 }
                 return Some(if held { Material::In } else { Material::Out });
             }
         }
         None
+    }
+
+    /// **The arc from `w` to `q` against sector `s`**, as the winding it
+    /// adds: `1` where it crosses `s` into the material behind it, `-1`
+    /// where it crosses out, `0` where it does not cross. `sq` is `q`'s
+    /// strict side of `s`'s plane, `None` for `q` on the plane outside
+    /// the sector. On one side, not crossed; on opposite sides, crossed
+    /// iff the arc's point on the plane lies inside the sector. An end
+    /// read Zero lies within `zero` of the plane on either side, so a
+    /// crossing, if any, lies on the stretch of the arc where the plane
+    /// can then be met: not crossed only where that whole stretch misses
+    /// the sector ([`Sector::misses`]). `None` where that does not
+    /// decide.
+    fn crossing(
+        &self,
+        s: &Sector<T>,
+        sq: Option<Sign>,
+        q: Point3<T>,
+        w: Point3<T>,
+        rd: Reading<T>,
+    ) -> Option<i32> {
+        let p = self.p;
+        let at_w = self.side(s, w, rd)?;
+        let (oq, ow) = (s.outward.dot(q - p), s.outward.dot(w - p));
+        // A Zero reads within the band's zero, the slack added.
+        let zero = T::from_computed(rd.band.zero()) + rd.slack();
+        let at = |t: T| q + (w - q) * t;
+        match (sq, at_w) {
+            (None, Sign::Zero) => None,
+            (None, sw) => {
+                let ow = if sw == Sign::Positive { ow } else { -ow };
+                s.misses(p, (q, at(zero / (zero + ow))), rd).then_some(0)
+            }
+            (Some(sq), Sign::Zero) => {
+                let z = if sq == Sign::Positive { zero } else { -zero };
+                s.misses(p, (at(oq / (oq + z)), w), rd).then_some(0)
+            }
+            (Some(at_q), at_w) if at_q == at_w => Some(0),
+            (Some(at_q), _) => match s.place(p, on_plane(q, w, oq, ow), rd) {
+                Some(Place::Inside) if at_q == Sign::Negative => Some(1),
+                Some(Place::Inside) => Some(-1),
+                Some(Place::Outside) => Some(0),
+                _ => None,
+            },
+        }
+    }
+
+    /// **The winding just in front of sector `on` at `q`, less the
+    /// winding just in front of sector `from` at `w`**, each point
+    /// strictly inside its own sector: the signed sum of
+    /// [`Link::crossing`] along the minor arc from `w` to `q`, `w`
+    /// carried along its ray to `q`'s distance as [`Link::reads`] carries
+    /// its reference. The arc leaves `from` on `q`'s side and reaches
+    /// `on` from `w`'s, and the material behind a sector winds one more
+    /// than the side in front of it. `None` where a reading is in band,
+    /// the arc is not under half a turn, an end lies on the other's
+    /// plane, or `q` lies on a third sector, or on its bound.
+    fn winds(
+        &self,
+        (on, q): (usize, Point3<T>),
+        (from, w): (usize, Point3<T>),
+        rd: Reading<T>,
+    ) -> Option<i32> {
+        if on == from {
+            return None;
+        }
+        let p = self.p;
+        let w = p + (w - p) * ((q - p).norm() / (w - p).norm());
+        let half = ((q - p).normalize() + (w - p).normalize()).normalize();
+        for x in [q, w] {
+            if metric::sign_over(TOUCH_ARC, Distance::of(x, p, half), rd) != Some(Sign::Positive) {
+                return None;
+            }
+        }
+        let behind = |sign: Sign| match sign {
+            Sign::Negative => Some(1),
+            Sign::Positive => Some(0),
+            Sign::Zero => None,
+        };
+        let mut n = behind(self.side(&self.sectors[from], q, rd)?)?
+            - behind(self.side(&self.sectors[on], w, rd)?)?;
+        for (k, s) in self.sectors.iter().enumerate() {
+            if k == on || k == from {
+                continue;
+            }
+            let sq = match self.side(s, q, rd)? {
+                Sign::Zero => match s.place(p, q, rd)? {
+                    Place::Outside => None,
+                    Place::Inside | Place::Bound => return None,
+                },
+                sign => Some(sign),
+            };
+            n += self.crossing(s, sq, q, w, rd)?;
+        }
+        Some(n)
     }
 }
 
@@ -7147,8 +7399,8 @@ pub(crate) fn bare_cone_reads(
 /// **The one door a rest comes through.** [`Rest`](rest::Rest) has a
 /// private field and is neither `Copy` nor `Clone`, so nothing outside
 /// this module can build one or replay one: a rest exists only where
-/// [`judge`](rest::judge) ran the readings over two links and they
-/// held, once.
+/// [`judge`](rest::judge) ran the readings over two links, or
+/// [`one_material`](rest::one_material) over one, and they held, once.
 mod rest {
     use super::{
         Band, Decide, Link, Material, Place, Point3, Reading, Segment, Sign, TouchUnread,
@@ -7361,6 +7613,134 @@ mod rest {
         } else if notes.degenerate {
             TouchVerdict::Unread(TouchUnread::Degenerate)
         } else if notes.in_band {
+            TouchVerdict::Unread(TouchUnread::InBand)
+        } else {
+            TouchVerdict::Rest(Rest { _sealed: () })
+        }
+    }
+
+    /// **Whether one solid's link at a point where it touches itself
+    /// bounds one material** (D1 tier 3, `crates/topo/README.md`): no two
+    /// of its sheets cross, and its winding over the sphere of directions
+    /// takes two consecutive values. Each sector is cut into pieces at
+    /// every ray of the link, as [`judge`] cuts them. Then:
+    ///
+    /// 1. **Crossing** if a piece crosses another sector of the link
+    ///    ([`crosses`], the link read against itself less the piece's own
+    ///    sector), confirmed inside the ball.
+    /// 2. Otherwise **Crossing** if two pieces read different windings
+    ///    just in front of them ([`Link::winds`], probed at their
+    ///    middles or along [`judge`]'s ladder), the same difference read
+    ///    again with both probes drawn into the ball.
+    /// 3. Otherwise **Rest** where every probe is tied to the first by
+    ///    readings of difference zero.
+    ///
+    /// **Sound.** No sheet crosses a piece off the rays it is cut at, so
+    /// each piece has one region in front of it and one behind, the one
+    /// behind winding one more. Every region borders a piece, so a common
+    /// winding `m` in front of every piece leaves every region `m` or
+    /// `m + 1`. **Complete.** A crossing sheet is (1); two values in front
+    /// of two pieces are three values between them, which (2) reads on
+    /// any reading that decides.
+    ///
+    /// A probe on another sector of the link (a slit, or a sheet doubled)
+    /// refuses [`TouchUnread::Degenerate`]; a reading in band, or a probe
+    /// no decided reading ties to the others, [`TouchUnread::InBand`].
+    /// The link is first held to close ([`Link::closes`]).
+    pub(super) fn one_material<T: Decide>(link: &Link<T>, band: Band) -> TouchVerdict {
+        // Every point is read against the link's own planes and rays, so
+        // each reading is moved by the tie twice over ([`judge`]).
+        let rd = Reading {
+            band,
+            slack: Some(link.tie * T::from_f64(4.0)),
+        };
+        match link.closes(rd) {
+            Some(true) => {}
+            Some(false) => return TouchVerdict::Unread(TouchUnread::Unanalysed),
+            None => return TouchVerdict::Unread(TouchUnread::InBand),
+        }
+        let mut notes = Notes::default();
+        let near = |q| within(link.p, q, link.ball);
+        let rays = link.rays();
+        let mut probes: Vec<(usize, Segment<T>)> = Vec::new();
+        for (k, s) in link.sectors.iter().enumerate() {
+            let pieces = match link.pieces(s, &rays, rd) {
+                Ok(pieces) => pieces,
+                Err(v) => return v,
+            };
+            let others: Vec<usize> = (0..link.sectors.len()).filter(|&j| j != k).collect();
+            for (c0, c1) in pieces {
+                if crosses(link, &others, &rays, (c0, c1), rd, &mut notes) {
+                    let mut scratch = Notes::default();
+                    if crosses(link, &others, &rays, (near(c0), near(c1)), rd, &mut scratch) {
+                        return TouchVerdict::Crossing;
+                    }
+                    notes.in_band = true;
+                }
+                let probe = c0 + (c1 - c0) * T::from_f64(0.5);
+                for &j in &others {
+                    let t = &link.sectors[j];
+                    if link.side(t, probe, rd) != Some(Sign::Zero) {
+                        continue;
+                    }
+                    match t.place(link.p, probe, rd) {
+                        Some(Place::Outside) => {}
+                        Some(Place::Inside | Place::Bound) => notes.degenerate = true,
+                        None => notes.in_band = true,
+                    }
+                }
+                probes.push((k, (c0, c1)));
+            }
+        }
+        if notes.degenerate {
+            return TouchVerdict::Unread(TouchUnread::Degenerate);
+        }
+        // Tie every probe to the first, each through any probe already
+        // tied: the windings in front of them all equal, or two that
+        // differ. A pair is read at its pieces' middles, then along the
+        // ladder [`judge`] reads a piece at: where it reads, it reads the
+        // pieces' one cell each.
+        let ladder = [0.5, 0.25, 0.75, 0.0625, 0.9375].map(T::from_f64);
+        let at = |(k, (c0, c1)): (usize, Segment<T>), t: T| (k, c0 + (c1 - c0) * t);
+        let mut tied = vec![false; probes.len()];
+        if let Some(first) = tied.first_mut() {
+            *first = true;
+        }
+        let mut grew = true;
+        while grew {
+            grew = false;
+            for j in 0..probes.len() {
+                if tied[j] {
+                    continue;
+                }
+                for i in 0..probes.len() {
+                    if !tied[i] {
+                        continue;
+                    }
+                    let read = ladder.iter().find_map(|&tj| {
+                        ladder.iter().find_map(|&ti| {
+                            let (q, w) = (at(probes[j], tj), at(probes[i], ti));
+                            link.winds(q, w, rd).map(|d| (d, q, w))
+                        })
+                    });
+                    match read {
+                        Some((0, ..)) => {
+                            tied[j] = true;
+                            grew = true;
+                            break;
+                        }
+                        Some((d, (on, q), (from, w))) => {
+                            if link.winds((on, near(q)), (from, near(w)), rd) == Some(d) {
+                                return TouchVerdict::Crossing;
+                            }
+                            notes.in_band = true;
+                        }
+                        None => {}
+                    }
+                }
+            }
+        }
+        if notes.in_band || tied.contains(&false) {
             TouchVerdict::Unread(TouchUnread::InBand)
         } else {
             TouchVerdict::Rest(Rest { _sealed: () })
@@ -13317,7 +13697,7 @@ mod tests {
 
     /// Where a synthetic link's point sits on its faces.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum At {
+    pub(super) enum At {
         /// At the vertex with this index.
         Vertex(usize),
         /// Inside the edge `edges[0]` names.
@@ -13331,7 +13711,7 @@ mod tests {
     /// built by [`face_piece`]; `edges[0]`'s ends name the edge `p` is
     /// inside, at [`At::Edge`].
     #[allow(clippy::type_complexity)]
-    fn synthetic(
+    pub(super) fn synthetic(
         p: Point3<f64>,
         at: At,
         verts: Vec<Point3<f64>>,

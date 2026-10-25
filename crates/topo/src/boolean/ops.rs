@@ -5613,6 +5613,8 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
         | V::CensusUndecidable { .. }
         | V::FaceThroughEdgeWedge { .. }
         | V::FaceThroughEdgeWedgeUndecided { .. }
+        | V::BoundaryCrossesItself { .. }
+        | V::BoundaryCrossesItselfUndecided { .. }
         | V::ArcEndOffCorner { .. }
         | V::InstanceInterference { .. }
         | V::CuspEdgesMissing { .. } => None,
