@@ -192,3 +192,44 @@ fn the_arc_sweep_range_agrees_with_the_old_product() {
         );
     }
 }
+
+/// REVIEW PROBE (PR 5710, claim 5): `arc_sweep_range`'s two readings
+/// share one K row, so one sign names both an accepted and a refused
+/// arc: a clockwise chord arc records `Negative` (its net sweep) and is
+/// accepted; an arc past a turn records `Negative` (its headroom) and is
+/// refused. A zero sweep records `Zero` and is refused; a full turn
+/// records `Zero` and is accepted.
+#[test]
+fn review_probe_the_two_readings_share_one_row() {
+    use geom_core::k_stats::Bracket;
+    let band = band();
+    let arc = |sweep| Arc2 {
+        centre: Point2::new(0.0, 0.0),
+        radius: 2.5,
+        sweep,
+    };
+    let signs = |sweep: f64, range: Range| {
+        let bracket = Bracket::open();
+        let out = new_range(arc(sweep), range, band);
+        let rec = bracket.finish();
+        let s: Vec<Sign> = rec
+            .verdicts
+            .iter()
+            .filter(|v| v.predicate == "arc_sweep_range")
+            .map(|v| v.sign)
+            .collect();
+        (out, s)
+    };
+    let (cw, cw_signs) = signs(-PI / 2.0, Range::Chord);
+    let (over, over_signs) = signs(1.5 * TAU, Range::Chord);
+    let (zero, zero_signs) = signs(0.0, Range::Chord);
+    let (full, full_signs) = signs(TAU, Range::FullTurn);
+    eprintln!("cw {cw:?} {cw_signs:?}; over {over:?} {over_signs:?}; zero {zero:?} {zero_signs:?}; full {full:?} {full_signs:?}");
+    assert_eq!(cw, Outcome::Admitted);
+    assert!(cw_signs.contains(&Sign::Negative));
+    assert_eq!(over, Outcome::Refused);
+    assert!(over_signs.contains(&Sign::Negative));
+    assert_eq!(full, Outcome::Admitted);
+    assert!(full_signs.contains(&Sign::Zero));
+    assert_eq!(zero, Outcome::Refused);
+}

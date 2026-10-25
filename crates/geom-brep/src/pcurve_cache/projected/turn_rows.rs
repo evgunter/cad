@@ -187,3 +187,104 @@ fn the_azimuth_inf_arm_is_a_floor_per_kind() {
     );
     assert_eq!(inf(&cone, -1.0, 2.0), 0.0, "across the apex");
 }
+
+/// REVIEW PROBE (PR 5710, claim 3): `azimuth_lever_inf` is a floor on
+/// the true azimuth speed over its window, at f64 (a seeded sweep of
+/// windows, each sampled densely) and at Interval (point and widened
+/// windows), on the sphere, the torus and the cone.
+#[test]
+fn review_probe_the_inf_arm_is_a_floor_at_f64_and_interval() {
+    use geom_core::{Bounds, Interval, Real};
+    let o = Point3::origin();
+    let z = Vec3::new(0.0, 0.0, 1.0);
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    let half = core::f64::consts::FRAC_PI_2;
+    let kinds: [(Surface<f64>, fn(f64) -> f64, (f64, f64)); 3] = [
+        (
+            Surface::Sphere { center: o, radius: 2.0, axis: z, u_ref: x },
+            |v: f64| 2.0 * v.cos().abs(),
+            (-half, half),
+        ),
+        (
+            Surface::Torus { center: o, axis: z, major_radius: 3.0, minor_radius: 1.0, u_ref: x },
+            |v: f64| (3.0 + v.cos()).abs(),
+            (-4.0, 4.0),
+        ),
+        (
+            Surface::Cone { apex: o, axis: z, half_angle: 0.5, u_ref: x },
+            |v: f64| v.abs() * 0.5_f64.sin(),
+            (-3.0, 3.0),
+        ),
+    ];
+    let mut seed: u64 = 0x5710;
+    let mut next = || {
+        seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        (seed >> 11) as f64 / (1u64 << 53) as f64
+    };
+    for (s, speed, (lo, hi)) in &kinds {
+        for _ in 0..400 {
+            let a = lo + (hi - lo) * next();
+            let b = lo + (hi - lo) * next();
+            let (v0, v1) = (a.min(b), a.max(b));
+            let inf = super::super::azimuth_lever_inf(s, v0, v1).get();
+            let min = (0..=2000)
+                .map(|i| speed(v0 + (v1 - v0) * f64::from(i) / 2000.0))
+                .fold(f64::INFINITY, f64::min);
+            assert!(inf >= 0.0, "{:?} [{v0}, {v1}]: {inf}", s.kind());
+            assert!(inf <= min * (1.0 + 1e-12) + 1e-15, "{:?} [{v0}, {v1}]: inf {inf} > {min}", s.kind());
+        }
+        // Interval: a point window and a widened one.
+        let f = Interval::from_f64;
+        let si: Surface<Interval> = match *s {
+            Surface::Sphere { .. } => Surface::Sphere {
+                center: Point3::new(f(0.0), f(0.0), f(0.0)),
+                radius: f(2.0),
+                axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+                u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
+            },
+            Surface::Torus { .. } => Surface::Torus {
+                center: Point3::new(f(0.0), f(0.0), f(0.0)),
+                axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+                major_radius: f(3.0),
+                minor_radius: f(1.0),
+                u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
+            },
+            _ => Surface::Cone {
+                apex: Point3::new(f(0.0), f(0.0), f(0.0)),
+                axis: Vec3::new(f(0.0), f(0.0), f(1.0)),
+                half_angle: f(0.5),
+                u_ref: Vec3::new(f(1.0), f(0.0), f(0.0)),
+            },
+        };
+        for (v0, v1) in [(-0.2, half), (0.0, 1.0), (1.0, 1.2), (-1.0, -0.5), (-0.3, 0.3)] {
+            for w in [0.0, 1e-6] {
+                let lo_v = Interval::from_bounds(v0 - w, v0 + w);
+                let hi_v = Interval::from_bounds(v1 - w, v1 + w);
+                let inf = super::super::azimuth_lever_inf(&si, lo_v, hi_v).get();
+                let min = (0..=2000)
+                    .map(|i| speed((v0 - w) + ((v1 + w) - (v0 - w)) * f64::from(i) / 2000.0))
+                    .fold(f64::INFINITY, f64::min);
+                assert!(inf.lo() >= 0.0 && inf.lo() <= min + 1e-15,
+                    "{:?} Interval [{v0}, {v1}] w {w}: inf {:?} vs {min}", s.kind(), (inf.lo(), inf.hi()));
+                assert!(!inf.lo().is_nan(), "not poison");
+            }
+        }
+        let _ = Interval::tau();
+    }
+}
+
+/// REVIEW PROBE (PR 5710, claim 3): at the eccentric pair, a headroom the
+/// sup reads definitely positive is admitted when the inf reads it Zero
+/// (the straddle) but escalates when the inf reads it in the band, though
+/// both put the sweep definitely short of a turn.
+#[test]
+fn review_probe_a_sup_positive_headroom_admits_or_escalates_by_the_inf() {
+    let band = band();
+    let eps = band.zero();
+    let rate = ChannelRate::Bounded(Bounded::new(InfSpeed::new(1.0), SupSpeed::new(16.0)));
+    let short = |k: f64| new_gate(TAU - k * eps, rate, band);
+    // sup reads 16·k·ε: definitely positive (past 10·ε) for every k here.
+    assert_eq!(short(0.9), Outcome::Admitted, "inf Zero, sup positive: straddle admitted");
+    assert_eq!(short(3.0), Outcome::Escalated, "inf in band, sup positive: escalated");
+    assert_eq!(short(5.0), Outcome::Escalated, "inf in band, sup positive: escalated");
+}
