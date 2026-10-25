@@ -4909,6 +4909,10 @@ fn cut_pair<T: Decide>(
 /// through the dropped one ends at the slit's tip, which the fate cut
 /// does not read (`fate::cut`). That refuses
 /// [`BooleanError::SlitFaceGlued`] here, before the fate stage.
+///
+/// **A loop whose regions no witness reads** reads its regions' germs
+/// at its seam instead ([`seam_germ_side`]), where a limit met nothing:
+/// a region face narrower than the band holds no point off it.
 fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
     red: &BooleanReduction<T>,
     side: Operand,
@@ -4950,6 +4954,13 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
             *reading = Reading::Side(SideCode::Out);
         }
     }
+    if undecided(&o) && undecided(&r) {
+        for (l, reading) in [(outer, &mut o), (ring, &mut r)] {
+            if let Some(s) = seam_germ_side(body, face, l, other_pristine, band)? {
+                *reading = Reading::Side(s);
+            }
+        }
+    }
     loop_roles(face, (outer, o), (ring, r))
 }
 
@@ -4987,6 +4998,113 @@ fn sliver_along_a_slit<T: Decide>(
     Ok(slit)
 }
 
+/// **The side a section loop's regions leave its seam on**, where no
+/// witness of theirs decides: the first region face whose germ at a
+/// chord reads definite. A chord lies on the other boundary; where its
+/// midpoint lies strictly inside one face `F` of `other`, the material
+/// beside it is the half-space behind `F`, and the region face `R` the
+/// chord's mate bounds leaves the chord along `d = n_R × t`, `t` the
+/// mate's direction (a face's interior lies to the left of its
+/// half-edges). `R` crosses no surface of `other` (probing waits for
+/// quiescence), so it lies on the side of `F` that `d` points to: Out
+/// where `d · n_F` is positive, In where negative, read at the chord's
+/// length as an edge's dihedral is. Zero is a region flush with `F`,
+/// and reads nothing; so does a chord on a curve, a midpoint that no one
+/// face holds strictly inside, or any margin in band.
+///
+/// A planar region face whose rim lies on the other boundary holds no
+/// witness off the band where it is narrower than `2Kε`, and its one
+/// interior candidate may lie in band where it is wider; its germ is the
+/// angle of two carriers that cross.
+fn seam_germ_side<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    l: LoopKey,
+    other: &Body<T>,
+    band: Band,
+) -> Result<Option<SideCode>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(l)
+        .ok_or(desync("completed section loop no longer resolves"))?
+        .boundary
+    else {
+        return Err(desync("completed section loop is empty"));
+    };
+    let point = |v: VertexKey| {
+        body.get_vertex(v)
+            .and_then(|vd| body.get_point(vd.point).copied())
+            .ok_or(desync("section vertex has no point"))
+    };
+    for ch in body
+        .loop_cycle(first)
+        .ok_or(desync("completed section loop not walkable"))?
+    {
+        let mate = body.mate(ch).ok_or(desync("section half has no mate"))?;
+        let m = body
+            .get_half_edge(mate)
+            .ok_or(desync("section mate no longer resolves"))?;
+        let region = body
+            .get_loop(m.parent_loop)
+            .ok_or(desync("region loop no longer resolves"))?
+            .face;
+        if region == face || !crate::census::edge_is_line(body, m.edge) {
+            continue;
+        }
+        let Ok((_, n_r)) = super::solid_contain::face_plane(body, region) else {
+            continue;
+        };
+        let end = body
+            .half_edge_end(mate)
+            .ok_or(desync("section mate has no end"))?;
+        let (p0, p1) = (point(m.start)?, point(end)?);
+        let len = p0.distance(p1);
+        let into_region = n_r.cross((p1 - p0) * (T::from_f64(1.0) / len));
+        let mid = p0.lerp(p1, T::from_f64(0.5));
+        let Some(n_f) = holding_face_normal(other, mid, band) else {
+            continue;
+        };
+        match decide(SEAM_GERM_SIDE, Margin::of(into_region.dot(n_f) * len), band) {
+            Ok(Sign::Positive) => return Ok(Some(SideCode::Out)),
+            Ok(Sign::Negative) => return Ok(Some(SideCode::In)),
+            Ok(Sign::Zero) | Err(_) => {}
+        }
+    }
+    Ok(None)
+}
+
+/// [`seam_germ_side`]'s sign of a region's germ against a face.
+pub(crate) const SEAM_GERM_SIDE: &str = "bool_seam_germ_side";
+/// [`holding_face_normal`]'s on-plane margin.
+pub(crate) const SEAM_GERM_ON_PLANE: &str = "bool_seam_germ_on_plane";
+
+/// The outward normal at `q` of the one face of `other` that holds `q`
+/// strictly inside ([`super::contain::face_placement`]); `None` where no
+/// face does, two do, or any placement refuses.
+fn holding_face_normal<T: Decide>(other: &Body<T>, q: Point3<T>, band: Band) -> Option<Vec3<T>> {
+    let mut held = None;
+    for (f, _) in other.faces() {
+        match super::contain::face_placement(other, f, q, band, SEAM_GERM_ON_PLANE) {
+            Ok(super::contain::CurvedPlacement::Trim(Some(
+                super::contain::FaceContainment::In,
+            ))) => {
+                if held.replace(f).is_some() {
+                    return None;
+                }
+            }
+            Ok(super::contain::CurvedPlacement::OffCarrier)
+            | Ok(super::contain::CurvedPlacement::Trim(Some(
+                super::contain::FaceContainment::Out,
+            ))) => {}
+            Ok(_) | Err(_) => return None,
+        }
+    }
+    match crate::face_normal::face_outward_normal_at(other, held?, q, band) {
+        Ok(Some(n)) => Some(n.vec()),
+        _ => None,
+    }
+}
+
 /// The (IN, OUT) loop order from each loop's ladder reading. Either
 /// loop's verdict fixes both roles; a loop whose regions lie ON the
 /// other boundary (a declared flush face) reads undecided, and the
@@ -5012,7 +5130,8 @@ fn sliver_along_a_slit<T: Decide>(
 /// or a planar face on each of whose edges the inward line from the
 /// midpoint meets no line or conic carrier beyond the band
 /// (`crate::stands`, rung 3): for example one whose nearest boundary
-/// there is a spline or a spiric, or one narrower than the band.
+/// there is a spline or a spiric, or one narrower than the band whose
+/// seam no germ reads either ([`seam_germ_side`]).
 /// No in-band reading is named as the cause: it is about one point. A
 /// witness refused near a face the door cannot read is, as it is for a
 /// shell ([`super::shell_witness`]).

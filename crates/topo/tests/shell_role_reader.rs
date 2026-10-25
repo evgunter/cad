@@ -59,6 +59,14 @@ fn built(what: &str, result: Result<BooleanResult<f64>, BooleanError>) -> AtRest
         .clone()
 }
 
+fn assert_at_tier_3_prime(what: &str, body: &Body<f64>, tol: Tol) {
+    assert_eq!(
+        topo::validate_pseudomanifold(body, &topo::ContactRecords::default(), tol),
+        Ok(()),
+        "{what}: tier 3′ with no contacts"
+    );
+}
+
 fn shells_per_solid(body: &Body<f64>) -> Vec<usize> {
     body.solids().map(|(_, s)| s.shells.len()).collect()
 }
@@ -441,36 +449,158 @@ fn a_boolean_leaving_a_turned_needle_builds_it_in_every_pose() {
 /// **A needle cavity at the door** (review R2's
 /// `r2_needle_cavity_and_solid_at_the_door`): `brick (−1,2)³ ∖ slab`,
 /// then `∪` a fill that leaves of the slab's cavity a channel `w × w`
-/// across. No face of the channel offers an aim that reads, and its
-/// volume's certified enclosure reads it a cavity: one solid, its
-/// channel a `Void`. Measured at these widths; at 10.5ε to 15ε the union
-/// refuses earlier, at the join's own section loop
-/// (`SectionLoopUndecided`), before any result is read.
+/// across, and the channel's bar alone, `slab ∖ fill` and
+/// `slab ∩ (brick ∖ fill)`. Every pair is definite. The fill's face
+/// toward the channel is `w` wide and its rim lies on the slab's walls,
+/// so no point of it is off the band of those walls; the join reads its
+/// side off its germ at the seam, and builds at every width. No face of
+/// the channel offers an aim that reads, and its volume's certified
+/// enclosure reads it a cavity: one solid, its channel a `Void`.
+///
+/// Turned about `(1, 2, 3)` by 1.1 rad at ε 1e-9, from 12ε up, the same
+/// operands refuse earlier, in the reduction's sector question
+/// (`bool_sector_within`, `bool_sector_coplanar`), whose direction
+/// carries a rounding that grows as `1/w`
+/// (`work/germcert/a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w.md`).
+/// Turned at ε 1e-6, the 30ε bar `slab ∖ fill` refuses
+/// `ResultVolumeImplausible`: the backstop holds the operands' flush
+/// faces bit-exact
+/// (`work/hone/the-subtract-volume-backstop-holds-flush-operands-bit-exact-and-refuses-a-correct-bar.md`).
 #[test]
-fn a_union_leaving_a_needle_cavity_holds_it_as_a_void() {
+fn a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void() {
     let tol = Tol::witness();
     if stood_down(tol) {
         return;
     }
     let e = tol.eps();
-    let big = brick((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol);
-    for m in [21.0, 30.0] {
-        let w = m * e;
-        let what = format!("brick ∖ slab ∪ fill leaving a {m}ε channel at ε {e:e}");
-        let slab = brick((0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w), tol);
-        let fill = brick((0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w), tol);
-        let hollow = built(&what, topo::subtract(&big, &slab, tol));
-        let body = built(&what, topo::union(&hollow, &fill, tol));
-        assert_eq!(
-            shells_per_solid(&body),
-            [2],
-            "{what}: one solid, its channel inside"
-        );
-        assert_eq!(
-            roles(&what, &body, tol),
-            [ShellRole::Outer, ShellRole::Void],
-            "{what}: the channel is a cavity"
-        );
+    let at_1e9 = (e - 1e-9).abs() < 1e-18;
+    let (s, c) = 1.1_f64.sin_cos();
+    let n = 14.0_f64.sqrt();
+    let (ax, ay, az) = (1.0 / n, 2.0 / n, 3.0 / n);
+    let k = 1.0 - c;
+    let turn = [
+        [c + ax * ax * k, ax * ay * k - az * s, ax * az * k + ay * s],
+        [ay * ax * k + az * s, c + ay * ay * k, ay * az * k - ax * s],
+        [az * ax * k - ay * s, az * ay * k + ax * s, c + az * az * k],
+    ];
+    let identity = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+    for (pose, r) in [("axis-aligned", identity), ("turned", turn)] {
+        let place = move |p: [f64; 3]| {
+            let at = |i: usize| r[i][0] * p[0] + r[i][1] * p[1] + r[i][2] * p[2];
+            [at(0), at(1), at(2)]
+        };
+        let block = |x: (f64, f64), y: (f64, f64), z: (f64, f64)| {
+            AtRestBody::validate(
+                common::mapped_cube::<f64>(
+                    move |u, v, w| {
+                        let q = place([
+                            x.0 + u * (x.1 - x.0),
+                            y.0 + v * (y.1 - y.0),
+                            z.0 + w * (z.1 - z.0),
+                        ]);
+                        Point3::new(q[0], q[1], q[2])
+                    },
+                    tol,
+                ),
+                tol,
+            )
+            .expect("an operand at rest")
+        };
+        for m in [10.5, 12.0, 15.0, 21.0, 30.0] {
+            let w = m * e;
+            let what = |op: &str| format!("{op} leaving a {m}ε channel, {pose}, at ε {e:e}");
+            let big = block((-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0));
+            let slab = block((0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w));
+            let fill = block((0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w));
+            let hollow = built(&what("brick ∖ slab"), topo::subtract(&big, &slab, tol));
+            let complement = built(&what("brick ∖ fill"), topo::subtract(&big, &fill, tol));
+            for (name, body) in [
+                ("brick", &big),
+                ("slab", &slab),
+                ("fill", &fill),
+                ("brick ∖ slab", &hollow),
+                ("brick ∖ fill", &complement),
+            ] {
+                assert_at_tier_3_prime(&what(name), body, tol);
+            }
+            let channel: Vec<[f64; 3]> = (0..8)
+                .map(|i| {
+                    let pick =
+                        |bit: usize, lo: f64, hi: f64| if i >> bit & 1 == 0 { lo } else { hi };
+                    place([
+                        pick(0, 0.0, 1.0),
+                        pick(1, 0.5, 0.5 + w),
+                        pick(2, 0.5, 0.5 + w),
+                    ])
+                })
+                .collect();
+            let turned = pose == "turned";
+            for (op, run) in [
+                ("brick ∖ slab ∪ fill", topo::union(&hollow, &fill, tol)),
+                ("slab ∖ fill", topo::subtract(&slab, &fill, tol)),
+                (
+                    "slab ∩ (brick ∖ fill)",
+                    topo::intersect(&slab, &complement, tol),
+                ),
+            ] {
+                let what = what(op);
+                if turned && at_1e9 && m >= 12.0 {
+                    assert!(
+                        matches!(
+                            &run,
+                            Err(BooleanError::Escalated {
+                                decision: BooleanDecision::Coincidence(Coincide::Sectors, _),
+                                diag,
+                            }) if matches!(diag.predicate, Some("bool_sector_within" | "bool_sector_coplanar"))
+                        ),
+                        "{what}: refuses on the sector question, got {:?}",
+                        run.map(|_| ())
+                    );
+                    continue;
+                }
+                if turned && !at_1e9 && m == 30.0 && op == "slab ∖ fill" {
+                    assert!(
+                        matches!(
+                            &run,
+                            Err(BooleanError::ResultVolumeImplausible { which, .. })
+                                if *which == "vol(A ∖ B) ≥ vol(A) − vol(B)"
+                        ),
+                        "{what}: refuses on the backstop, got {:?}",
+                        run.map(|_| ())
+                    );
+                    continue;
+                }
+                let body = built(&what, run);
+                assert_at_tier_3_prime(&what, &body, tol);
+                if op == "brick ∖ slab ∪ fill" {
+                    assert_eq!(
+                        roles(&what, &body, tol),
+                        [ShellRole::Outer, ShellRole::Void],
+                        "{what}: one solid, its channel a cavity"
+                    );
+                    let volume = topo::mass_properties(&body, tol)
+                        .unwrap_or_else(|err| panic!("{what}: measures, got {err:?}"))
+                        .volume;
+                    assert!(
+                        (volume - (27.0 - w * w)).abs() < 1e-2 * w,
+                        "{what}: holds 27 − w², got {volume}"
+                    );
+                    continue;
+                }
+                assert_eq!(shells_per_solid(&body), [1], "{what}: one bar");
+                let corners: Vec<[f64; 3]> =
+                    body.vertex_points().map(|(_, p)| [p.x, p.y, p.z]).collect();
+                assert_eq!(corners.len(), 8, "{what}: the bar's eight corners");
+                for q in &channel {
+                    assert!(
+                        corners
+                            .iter()
+                            .any(|p| (0..3).all(|i| (p[i] - q[i]).abs() < 1e-3 * w)),
+                        "{what}: a corner at {q:?}, got {corners:?}"
+                    );
+                }
+            }
+        }
     }
 }
 
