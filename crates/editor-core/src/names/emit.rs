@@ -15,7 +15,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{BandError, Indeterminate};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SettleError, SplitLineageCycle, VertexKey};
+use topo::{
+    Body, EdgeKey, FaceKey, HalfEdgeKey, LoopKey, SettleError, SplitLineageCycle, VertexKey,
+};
 
 use super::role::{EntityKind, StableName};
 use super::table::{EntityKey, EntityRef, NameTable, SeatingRefusal};
@@ -1473,7 +1475,7 @@ impl Incidence {
             vertex_edges.entry(he.start).or_default().push(he.edge);
             let Some(l) = body.get_loop(he.parent_loop) else {
                 unreachable!(
-                    "incidence walk: half-edge {k:?} names dead loop {:?}; {TIER1}",
+                    "incidence walk: dangling loop {:?} of half-edge {k:?}; {TIER1}",
                     he.parent_loop
                 )
             };
@@ -1494,10 +1496,19 @@ impl Incidence {
     }
 }
 
-/// What every structural read below rests on: the doors hand the
-/// emitters tier-1-valid bodies, so a dead key or a broken link is a
-/// kernel bug.
+/// Why a link a record of the body holds resolves: the doors hand the
+/// emitters tier-1-valid bodies.
 const TIER1: &str = "a tier-1-valid body keeps every key it links live and every half-edge mated";
+
+/// Why a key a caller passes resolves: every caller reads it, in the
+/// same call, off a live record of the same body — its arena
+/// iteration, a link of a live entity, or a row of the table emitted
+/// for it, which names only that body's live entities. A live-key
+/// brand would carry this as a type (`topo`'s `Live`), but it would
+/// spread into every emitter signature naming a key, which do not
+/// otherwise care, so row 0 is "no" here.
+const LIVE_ARGUMENT: &str = "every caller reads the key off a live record of this body in the \
+                             same call";
 
 /// What the rim walk found. A caller MUST write down which of the two
 /// it means, because the two mean different things to different callers.
@@ -1581,19 +1592,19 @@ pub(crate) fn rims_between<T: geom_core::Real>(
 ///
 /// # Panics
 ///
-/// For a dead vertex or a vertex without a point, which a tier-1-valid
-/// body never holds.
+/// For a dead vertex ([`LIVE_ARGUMENT`]: `v` is the caller's key) or a
+/// vertex without a point ([`TIER1`]: a link the vertex holds).
 #[track_caller]
 pub(crate) fn vertex_point<T: geom_core::Real>(
     body: &Body<T>,
     v: VertexKey,
 ) -> geom_core::Point3<T> {
     let Some(vd) = body.get_vertex(v) else {
-        unreachable!("vertex point: dangling vertex {v:?}; {TIER1}")
+        unreachable!("vertex point: dangling vertex {v:?}; {LIVE_ARGUMENT}")
     };
     let Some(p) = body.get_point(vd.point) else {
         unreachable!(
-            "vertex point: vertex {v:?} names dead point {:?}; {TIER1}",
+            "vertex point: dead point {:?} of vertex {v:?}; {TIER1}",
             vd.point
         )
     };
@@ -1605,43 +1616,53 @@ pub(crate) fn vertex_point<T: geom_core::Real>(
 ///
 /// # Panics
 ///
-/// For a dead face, a dead loop of it, or a cycle that does not close,
-/// which a tier-1-valid body never holds.
+/// For a dead face ([`LIVE_ARGUMENT`]: `f` is the caller's key), or
+/// where [`loop_half_edges`] panics on one of its loops ([`TIER1`]).
 #[track_caller]
 pub(crate) fn face_half_edges<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Vec<HalfEdgeKey> {
     let Some(face) = body.get_face(f) else {
-        unreachable!("face walk: dangling face {f:?}; {TIER1}")
+        unreachable!("face walk: dangling face {f:?}; {LIVE_ARGUMENT}")
     };
     let mut out = Vec::new();
     for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        let Some(lp) = body.get_loop(l) else {
-            unreachable!("face walk: dangling loop {l:?} of face {f:?}; {TIER1}")
-        };
-        match lp.boundary {
-            topo::LoopBoundary::Empty { .. } => {}
-            topo::LoopBoundary::Cycle { first } => {
-                let Some(cycle) = body.loop_cycle(first) else {
-                    unreachable!(
-                        "face walk: unwalkable loop {l:?} of face {f:?} from {first:?}; {TIER1}"
-                    )
-                };
-                out.extend(cycle);
-            }
-        }
+        out.extend(loop_half_edges(body, l));
     }
     out
+}
+
+/// The half-edges of loop `l`, in cycle order (none for an empty loop).
+///
+/// # Panics
+///
+/// For a dead loop, or a cycle that does not close ([`TIER1`]): every
+/// caller reads `l` off a live face of `body` ([`face_half_edges`], the
+/// plane pieces' outline walk), a link that face holds.
+#[track_caller]
+pub(crate) fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) -> Vec<HalfEdgeKey> {
+    let Some(lp) = body.get_loop(l) else {
+        unreachable!("face walk: dangling loop {l:?}; {TIER1}")
+    };
+    match lp.boundary {
+        topo::LoopBoundary::Empty { .. } => Vec::new(),
+        topo::LoopBoundary::Cycle { first } => {
+            let Some(cycle) = body.loop_cycle(first) else {
+                unreachable!("face walk: unwalkable loop {l:?} from {first:?}; {TIER1}")
+            };
+            cycle
+        }
+    }
 }
 
 /// The two endpoint vertices of an edge.
 ///
 /// # Panics
 ///
-/// For a dead edge or a broken link from its `he_plus`, which a
-/// tier-1-valid body never holds.
+/// For a dead edge ([`LIVE_ARGUMENT`]: `e` is the caller's key) or a
+/// broken link from its `he_plus` ([`TIER1`]).
 #[track_caller]
 pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
     let Some(edge) = body.get_edge(e) else {
-        unreachable!("edge ends: dangling edge {e:?}; {TIER1}")
+        unreachable!("edge ends: dangling edge {e:?}; {LIVE_ARGUMENT}")
     };
     let Some(plus) = body.get_half_edge(edge.he_plus) else {
         unreachable!(
@@ -1651,7 +1672,7 @@ pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (Vert
     };
     let Some(end) = body.half_edge_end(edge.he_plus) else {
         unreachable!(
-            "edge ends: he_plus {:?} of edge {e:?} has no end; {TIER1}",
+            "edge ends: he_plus has no end: {:?} of edge {e:?}; {TIER1}",
             edge.he_plus
         )
     };
@@ -2891,7 +2912,7 @@ mod walk_tests {
     fn chord_walk(r: &Rim1, body: &Body<f64>) -> BTreeMap<EdgeKey, FaceKey> {
         let sections = [(r.top, PlaneSide::Above)];
         let keys = BTreeSet::from([r.top]);
-        chord_faces(body, &sections, &keys).unwrap()
+        chord_faces(body, &sections, &keys)
     }
 
     #[test]
@@ -2982,12 +3003,61 @@ mod walk_tests {
     }
 
     #[test]
-    #[should_panic(expected = "has no end")]
+    #[should_panic(expected = "edge ends: he_plus has no end")]
     fn edge_ends_panics_on_a_he_plus_with_no_end() {
         let r = rim1();
         let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
         let next = r.body().get_half_edge(he_plus).unwrap().next;
         edge_ends(&r.without(EntityId::HalfEdge(next)), r.edge);
+    }
+
+    #[test]
+    #[should_panic(expected = "incidence walk: dangling loop")]
+    fn the_incidence_walk_panics_on_a_dangling_loop() {
+        let r = rim1();
+        Incidence::of(&r.without(r.wall_loop()));
+    }
+
+    /// The rim edge's start, read off the sound cube.
+    fn rim_start(r: &Rim1) -> VertexKey {
+        edge_ends(r.body(), r.edge).0
+    }
+
+    #[test]
+    fn vertex_point_reads_a_sound_vertex() {
+        let r = rim1();
+        let v = rim_start(&r);
+        let at = *r
+            .body()
+            .get_point(r.body().get_vertex(v).unwrap().point)
+            .unwrap();
+        let p = vertex_point(r.body(), v);
+        assert_eq!(
+            [p.x, p.y, p.z],
+            [at.x, at.y, at.z],
+            "the control reads the vertex's point"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "vertex point: dangling vertex")]
+    fn vertex_point_panics_on_a_dangling_vertex() {
+        let r = rim1();
+        let v = rim_start(&r);
+        vertex_point(&r.without(EntityId::Vertex(v)), v);
+    }
+
+    #[test]
+    #[should_panic(expected = "vertex point: dead point")]
+    fn vertex_point_panics_on_a_vertex_without_a_point() {
+        let r = rim1();
+        let v = rim_start(&r);
+        let point = r.body().get_vertex(v).unwrap().point;
+        let torn = r
+            .body()
+            .with_point_removed_for_tests(point)
+            .expect("the vertex's point is live");
+        vertex_point(&torn, v);
     }
 }
 

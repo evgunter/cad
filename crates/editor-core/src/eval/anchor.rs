@@ -217,27 +217,25 @@ impl ProfilePieces {
     /// For more than two loops, a shape no tube door builds.
     #[track_caller]
     pub(crate) fn section(counts: &[usize]) -> Self {
-        let circle = |l: usize| match l {
-            0 => SectionCircle::Outer,
-            1 => SectionCircle::Bore,
-            _ => unreachable!(
-                "a tube's section has {} loops, though the tube doors build an outer circle and \
-                 at most one bore",
-                counts.len()
-            ),
-        };
         let mut edges = Vec::with_capacity(counts.len());
         let mut vertices = Vec::with_capacity(counts.len());
         for (l, &n) in counts.iter().enumerate() {
-            let circle = circle(l);
-            let roles: Vec<PieceRole> = (0..n)
-                .map(|k| {
-                    PieceRole::Piece(to_u32(
-                        k,
-                        "a tube section's piece index, on a circle a tube door builds as two arcs",
-                    ))
-                })
-                .collect();
+            let circle = match l {
+                0 => SectionCircle::Outer,
+                1 => SectionCircle::Bore,
+                _ => unreachable!(
+                    "a tube's section has {} loops, though the tube doors build an outer circle \
+                     and at most one bore",
+                    counts.len()
+                ),
+            };
+            let mut roles: Vec<PieceRole> = Vec::with_capacity(n);
+            for k in 0..n {
+                roles.push(PieceRole::Piece(to_u32(
+                    k,
+                    "a tube section's piece index, on a circle a tube door builds as two arcs",
+                )));
+            }
             edges.push(
                 roles
                     .iter()

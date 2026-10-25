@@ -315,7 +315,7 @@ pub(crate) fn name_shell<T: geom_core::Real>(
             (body, 0),
             &edges,
             super::emit_topo::Lone::Piece,
-        )?;
+        );
     }
     named_pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;

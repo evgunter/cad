@@ -467,28 +467,24 @@ pub(crate) fn name_revolve<T: Decide>(
                         // Off-axis: the rim's two ends, each the one a
                         // meridian of its chain beside it shares.
                         let ends = edge_ends(body, rim);
-                        let beside = |chain: &[EdgeKey]| -> Result<VertexKey, NamingError> {
-                            let Some(vertex) = [chain[(v + n - 1) % n], chain[v]]
-                                .iter()
-                                .map(|&m| Ok(common_vertex(ends, edge_ends(body, m))))
-                                .collect::<Result<Vec<_>, NamingError>>()?
+                        let beside = |chain: &[EdgeKey]| -> VertexKey {
+                            let mut shared = [chain[(v + n - 1) % n], chain[v]]
                                 .into_iter()
-                                .flatten()
-                                .next()
-                            else {
+                                .filter_map(|m| common_vertex(ends, edge_ends(body, m)));
+                            let Some(vertex) = shared.next() else {
                                 unresolved(rim, l, v)
                             };
-                            Ok(vertex)
+                            vertex
                         };
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::Start, pv(l, v)),
-                            beside(ss)?,
+                            beside(ss),
                         )?;
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)),
-                            beside(es)?,
+                            beside(es),
                         )?;
                     }
                 }
@@ -538,11 +534,7 @@ pub(crate) fn name_revolve<T: Decide>(
                         let Some(seam) = beside
                             .iter()
                             .flatten()
-                            .map(|m| Ok(common_vertex(ends, edge_ends(body, *m))))
-                            .collect::<Result<Vec<_>, NamingError>>()?
-                            .into_iter()
-                            .flatten()
-                            .next()
+                            .find_map(|m| common_vertex(ends, edge_ends(body, *m)))
                         else {
                             unresolved(rim, 0, v)
                         };

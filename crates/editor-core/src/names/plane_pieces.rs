@@ -15,9 +15,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use topo::{Body, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
+use topo::{Body, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 
-use super::emit::NamingError;
+use super::emit::{NamingError, loop_half_edges};
 
 /// The walls of each of `pieces`, in their order: the faces of `body`
 /// across each piece's edges along a divider, each read by `wall`.
@@ -149,27 +149,6 @@ fn piece_face<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> &topo::Face {
         )
     };
     face
-}
-
-/// A plane piece's loop `l`, walked: a loop of a live face of a body
-/// every door keeps tier-1-valid.
-#[track_caller]
-fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) -> Vec<HalfEdgeKey> {
-    let Some(lp) = body.get_loop(l) else {
-        unreachable!("a plane piece's loop {l:?} is not live, though its face holds it")
-    };
-    match lp.boundary {
-        LoopBoundary::Empty { .. } => Vec::new(),
-        LoopBoundary::Cycle { first } => {
-            let Some(cycle) = body.loop_cycle(first) else {
-                unreachable!(
-                    "a plane piece's loop {l:?} does not walk from {first:?}, though a \
-                     tier-1-valid loop's cycle closes"
-                )
-            };
-            cycle
-        }
-    }
 }
 
 /// The face across half-edge `he` of a plane piece: its mate's loop's.

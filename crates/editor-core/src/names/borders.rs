@@ -55,7 +55,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use topo::{Body, Cell, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::chase;
-use super::emit::{NamingError, face_half_edges};
+use super::emit::{NamingError, edge_ends, face_half_edges};
 use super::least_root::LeastRoot;
 
 /// One discarded face, resolved into the result of its step.
@@ -180,19 +180,8 @@ impl<K: Ord + Clone> Obstacles<K> {
             .collect();
         let mut by_ends: BTreeMap<(VertexKey, VertexKey), Vec<EdgeKey>> = BTreeMap::new();
         let mut any_by_ends: BTreeMap<(VertexKey, VertexKey), Vec<EdgeKey>> = BTreeMap::new();
-        for (k, e) in body.edges() {
-            let torn = || -> ! {
-                unreachable!(
-                    "result edge {k:?}'s half-edge {:?} or its end does not resolve: every door \
-                     keeps a body tier-1-valid",
-                    e.he_plus
-                )
-            };
-            let s = body
-                .get_half_edge(e.he_plus)
-                .unwrap_or_else(|| torn())
-                .start;
-            let t = body.half_edge_end(e.he_plus).unwrap_or_else(|| torn());
+        for (k, _) in body.edges() {
+            let (s, t) = edge_ends(body, k);
             if seam_edges.contains(&k) {
                 by_ends.entry((s.min(t), s.max(t))).or_default().push(k);
             }

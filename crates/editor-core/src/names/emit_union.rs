@@ -273,7 +273,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
             (body, 0),
             &g.edges,
             g.lone,
-        )?;
+        );
     }
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
@@ -1907,7 +1907,7 @@ fn rank_along_seam<T: geom_core::Decide>(
             )
         });
         let along = if g.edges.iter().all(|&e| is_straight(body, e)) {
-            let seg = Segment::of_edge(body, first)?;
+            let seg = Segment::of_edge(body, first);
             let mut on = true;
             for &e in &g.edges {
                 let (v0, v1) = edge_ends(body, e);
@@ -1925,7 +1925,7 @@ fn rank_along_seam<T: geom_core::Decide>(
             let mut pieces = Vec::with_capacity(g.edges.len());
             for &e in &g.edges {
                 let (v0, v1) = edge_ends(body, e);
-                pieces.push((carrier_arc(body, e)?, [v0, v1]));
+                pieces.push((carrier_arc(body, e), [v0, v1]));
             }
             track
                 .open_offsets(&pieces, &group, &points, ON_SEAM_LINE, bnd)?
