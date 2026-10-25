@@ -18,9 +18,11 @@
 //! lamina directly, so the opening's entities would be minted only for
 //! the zip to kill them (deviation recorded in the PR).
 //!
-//! **Wire case** (axis contact = one contiguous run of on-axis
-//! segments): the on-axis run is omitted — the profile opens into a
-//! wire whose tips land on the axis as poles/apexes. The wire sweep
+//! **Wire case** (axis contact = one or more contiguous runs of
+//! on-axis segments): the on-axis runs are omitted — the profile opens
+//! into wires whose tips land on the axis as poles/apexes, one for the
+//! outer shell and one per gap between two runs for that gap's cavity
+//! (`build_full`). The wire sweep
 //! struts only interior vertices; tip walls close directly onto the
 //! fixed tip vertices; the zip runs with no `kfmrh` (an axis-anchored
 //! wire adds no handle — genus 0) and no null-edge `mekr` (the tips

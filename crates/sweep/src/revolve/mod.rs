@@ -56,8 +56,8 @@
 //!   typed error. Partial revolves treat on-axis vertices/edges as
 //!   ordinary boundary entities shared by the wedge caps (no strut, no
 //!   wall). Full revolves OMIT on-axis edges (they sweep to nothing):
-//!   a profile whose axis contact is one contiguous run of on-axis
-//!   line segments opens into a **wire** whose tips become poles/
+//!   a profile whose axis contact is contiguous runs of on-axis
+//!   line segments opens into **wires** whose tips become poles/
 //!   apexes (a tip where a plane wall meets the axis is a disc's
 //!   centre, built whole, and no vertex); contact at an isolated
 //!   vertex revolves to a non-manifold pinch and is refused (D1).
@@ -579,8 +579,8 @@ pub enum RevolveError {
         /// Canonical index of the segment.
         segment_index: usize,
     },
-    /// Full revolve of a profile whose axis contact is not a single
-    /// contiguous run of on-axis segments: an isolated on-axis vertex
+    /// Full revolve of a profile whose axis contact is not made of
+    /// contiguous runs of on-axis segments: an isolated on-axis vertex
     /// (or a run-detached one) revolves to a non-manifold solid (D1).
     NonManifoldAxisContact {
         /// Canonical index of the loop.
@@ -911,7 +911,7 @@ impl fmt::Display for RevolveError {
             } => write!(
                 f,
                 "a full revolve of loop {loop_index} would pinch at vertex {vertex_index}, \
-                 where the loop touches the axis outside a single on-axis segment. \
+                 where the loop touches the axis outside an on-axis segment. \
                  Recourse: lay that stretch of the loop along the axis, or use a partial \
                  revolve"
             ),
