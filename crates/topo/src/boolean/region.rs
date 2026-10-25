@@ -1,25 +1,10 @@
-//! **What the region readings share**: the skeleton [`super::sphere_region`],
-//! [`super::torus_region`] and [`super::ruled_region`] read a trimmed
-//! curved face with, each door supplying only its surface's courses and
-//! landings —
-//! the boundary gather ([`boundary`]: every edge of every loop on its
-//! certified [`geom::Curve3`], of a kind the door admits, seams left
-//! out, an uncertified edge refused, null scaffolding stepped over or
-//! refused as the door says), the boundary pre-pass
-//! ([`Region::on_boundary`]), the path roster and its walk ([`walk`],
-//! over a [`Paths`] door's legs), a leg's reading ([`read_leg`], over a
-//! [`Legs`] door's landings, which the sphere's rays read too) and a
-//! path's ([`read_path`]), their crossing offer (`offer`), and the leaves
-//! under them:
-//! the one refusal they answer ([`RegionRefusal`]), the targets their aimed
-//! paths take ([`targets`], at [`TARGET_SHARES`]), the boundary reading of
-//! a circle edge on its own carrier ([`circle_edge_hit`]), a root against
-//! its edge's span ([`span`]), the verdict read at a path's closest
-//! crossing ([`side_at_closest`]), a leg ([`Leg`]: its [`Course`], a
-//! circle [`Round`] or a [`Line`], its [`End`], a landing's place along
-//! it and an edge lying along it), a parallel ([`parallel`]), and a
-//! turn and a root answer ([`turn`], [`found`]).
-//! Each door keeps its own rows and its crossing arithmetic.
+//! **What the region readings share**: the skeleton
+//! [`super::sphere_region`], [`super::torus_region`] and
+//! [`super::ruled_region`] read a trimmed curved face with. The skeleton
+//! gathers the boundary, reads the point against it first, walks the
+//! paths and reads each leg to its closest crossing; a door supplies only
+//! its surface's legs ([`Legs`], and [`Paths`] for a roster of them), its
+//! landings, and its own rows and crossing arithmetic.
 
 use geom_brep::roots::{RootRefusal, Roots};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
@@ -183,7 +168,7 @@ pub(crate) fn side_at_closest<T: Decide>(
 }
 
 /// An angle in `(−π, π]` as a turn in `[0, 2π)`.
-pub(crate) fn turn<T: Decide>(s: T) -> T {
+fn turn<T: Decide>(s: T) -> T {
     (T::zero() - s).select_le_zero(s, s + T::tau())
 }
 
@@ -377,12 +362,15 @@ pub(crate) trait Course<T: Decide> {
     fn place(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault>;
 
     /// Where `y`, an end of an edge lying along the course, lies along
-    /// it: `Some(place)` ahead of the start, `None` behind it.
+    /// it: as a crossing does ([`Course::place`]), unless the course
+    /// says otherwise.
     ///
     /// # Errors
     ///
-    /// An end at the start grazes; an in-band one sets the path aside.
-    fn reach(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault>;
+    /// As [`Course::place`]'s.
+    fn reach(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
+        self.place(y, at, band)
+    }
 
     /// The unit direction of travel at `y`.
     fn heading(&self, y: Point3<T>) -> Vec3<T>;
@@ -467,13 +455,10 @@ impl<T: Decide, C: Course<T>> Leg<T, C> {
                 behind += 1;
                 continue;
             };
-            let Some(end) = self.end else {
+            if self.short_of_end(s, band)? {
                 return Err(RayFault::Graze);
-            };
-            match decide(end.row, Margin::of(end.place - s), band).map_err(in_band)? {
-                Sign::Negative => past += 1,
-                Sign::Positive | Sign::Zero => return Err(RayFault::Graze),
             }
+            past += 1;
         }
         if behind == 2 || past == 2 {
             Ok(())
@@ -626,11 +611,12 @@ pub(crate) fn read_path<T: Decide, D: Paths<T>>(
                 end: Some(corner),
             };
             let mut crossings = Crossings::new();
-            // Past a crossing before the corner, every crossing of the
-            // second leg lies beyond it, decided apart from the corner by
-            // its own rows.
-            if !offer(door, &first, T::zero(), &mut crossings, band)? {
-                offer(door, &then(), corner.place, &mut crossings, band)?;
+            // A crossing before the corner is closer than any past it,
+            // so the second leg is read only where the first meets
+            // nothing, and its crossings are ordered among themselves by
+            // their places along it.
+            if !offer(door, &first, &mut crossings, band)? {
+                offer(door, &then(), &mut crossings, band)?;
             }
             side(door, crossings, band)
         }
@@ -644,7 +630,7 @@ pub(crate) fn read_leg<T: Decide, D: Legs<T>>(
     band: Band,
 ) -> Result<bool, Fault> {
     let mut crossings = Crossings::new();
-    offer(door, leg, T::zero(), &mut crossings, band)?;
+    offer(door, leg, &mut crossings, band)?;
     side(door, crossings, band)
 }
 
@@ -659,14 +645,12 @@ fn side<T: Decide, D: Legs<T>>(
 }
 
 /// **The crossing offer**: every crossing of `leg` with the boundary,
-/// edge by edge, at `offset` plus its place along the leg
-/// ([`Leg::place`]). Each edge's landings are all read
+/// edge by edge, at its place along the leg ([`Leg::place`]). Each edge's landings are all read
 /// ([`Legs::landings`]) before any of them is placed. Whether one was
 /// offered.
 fn offer<T: Decide, D: Legs<T>>(
     door: &D,
     leg: &Leg<T, D::Course>,
-    offset: T,
     crossings: &mut Crossings<T, Hit<T>>,
     band: Band,
 ) -> Result<bool, Fault> {
@@ -677,7 +661,7 @@ fn offer<T: Decide, D: Legs<T>>(
                 continue;
             };
             crossings.push(
-                offset + s,
+                s,
                 Hit {
                     heading: leg.course.heading(y),
                     face_side: door.outward(y).cross(edge.traversal(t)),
@@ -710,7 +694,7 @@ impl<T: Decide> Round<T> {
 
     /// The angle of `y`, a point of the circle, from the start, in
     /// `(−π, π]`.
-    pub(crate) fn angle(&self, y: Point3<T>) -> T {
+    fn angle(&self, y: Point3<T>) -> T {
         let w = y - self.center;
         w.dot(self.e2).atan2(w.dot(self.e1))
     }
@@ -731,9 +715,13 @@ impl<T: Decide> Course<T> for Round<T> {
         let s = self.angle(y);
         ray_walk::apart(at, Margin::of((self.radius * s).abs()), band)
             .map_err(|f| f.map(RegionRefusal::Escalated))?;
-        Ok(Some(self.radius * turn(s)))
+        Ok(Some(self.arc(y)))
     }
 
+    /// Read without a decision. Only a first leg is bounded round a
+    /// circle, and it starts at the query, which the boundary pre-pass
+    /// placed off every edge; an unbounded leg runs along an edge on its
+    /// circle wherever the edge lies.
     fn reach(&self, y: Point3<T>, _: &'static str, _: Band) -> Result<Option<T>, Fault> {
         Ok(Some(self.arc(y)))
     }
@@ -759,15 +747,6 @@ impl<T: Decide> Course<T> for Line<T> {
         {
             Sign::Negative => Ok(None),
             _ => Ok(Some(s)),
-        }
-    }
-
-    fn reach(&self, y: Point3<T>, at: &'static str, band: Band) -> Result<Option<T>, Fault> {
-        let s = (y - self.start).dot(self.dir);
-        match decide(at, Margin::of(s), band).map_err(in_band)? {
-            Sign::Negative => Ok(None),
-            Sign::Positive => Ok(Some(s)),
-            Sign::Zero => Err(RayFault::Graze),
         }
     }
 
@@ -822,4 +801,161 @@ pub(crate) fn with_null_edge(body: &mut Body<f64>, face: FaceKey) {
         crate::NewVertexSide::Above,
     )
     .unwrap();
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use core::f64::consts::{FRAC_PI_2, PI};
+    use slotmap::KeyData;
+
+    fn b() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    const AT: &str = "test_region_at";
+
+    /// A leg ending at `end`, or running its whole course.
+    fn leg<C>(course: C, end: Option<f64>) -> Leg<f64, C> {
+        Leg {
+            course,
+            end: end.map(|place| End {
+                place,
+                row: "test_region_end",
+            }),
+        }
+    }
+
+    fn edge(carrier: geom::Curve3<f64>, (t0, t1): (f64, f64)) -> RegionEdge<f64> {
+        RegionEdge {
+            edge: EdgeKey::from(KeyData::from_ffi(1)),
+            r#loop: LoopKey::default(),
+            carrier,
+            t0,
+            t1,
+            forward: true,
+        }
+    }
+
+    /// The `x` axis from the origin, the line every line row runs on.
+    fn x_line() -> Line<f64> {
+        Line {
+            start: Point3::origin(),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// The segment `[x0, x1]` of the `x` axis.
+    fn x_segment(x0: f64, x1: f64) -> RegionEdge<f64> {
+        let carrier = geom::Curve3::Line {
+            origin: Point3::origin(),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        edge(carrier, (x0, x1))
+    }
+
+    /// The unit circle about `z`, run from `x` toward `y`.
+    fn unit_round() -> Round<f64> {
+        Round {
+            center: Point3::origin(),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            e1: Vec3::new(1.0, 0.0, 0.0),
+            e2: Vec3::new(0.0, 1.0, 0.0),
+        }
+    }
+
+    /// The arc of [`unit_round`]'s circle over `[t0, t1]`.
+    fn unit_arc(t0: f64, t1: f64) -> RegionEdge<f64> {
+        let carrier = geom::Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        edge(carrier, (t0, t1))
+    }
+
+    /// **A landing is placed ahead of the start and short of the end**:
+    /// on a line leg ending at `1`, a landing at `0.5` is placed, one
+    /// behind the start or past the end is off the leg, and one at the
+    /// end grazes. Round a circle the place is the arc length ahead,
+    /// `3π/2` for a landing a quarter turn behind the start.
+    #[test]
+    fn a_landing_is_placed_short_of_the_legs_end() {
+        let line = leg(x_line(), Some(1.0));
+        let at = |x: f64| line.place(Point3::new(x, 0.0, 0.0), AT, b());
+        assert!(
+            matches!(at(0.5), Ok(Some(s)) if s == 0.5),
+            "short of the end"
+        );
+        assert!(matches!(at(-0.5), Ok(None)), "behind the start");
+        assert!(matches!(at(1.5), Ok(None)), "past the end");
+        assert!(matches!(at(1.0), Err(RayFault::Graze)), "at the end");
+        let round = leg(unit_round(), None);
+        let s = round.place(Point3::new(0.0, -1.0, 0.0), AT, b());
+        assert!(
+            matches!(s, Ok(Some(s)) if (s - 1.5 * PI).abs() < 1e-12),
+            "a quarter turn behind is three quarters ahead: {s:?}"
+        );
+    }
+
+    /// **A line leg runs along an edge on its line only where it reaches
+    /// it**: an edge wholly behind the start, or wholly past the end, is
+    /// never reached; one inside the leg, one with an end at the leg's
+    /// end, and one reaching from behind the start past the end are run
+    /// along, which grazes. A leg with no end reaches every edge ahead.
+    #[test]
+    fn a_line_leg_runs_along_an_edge_only_where_it_reaches_it() {
+        let bounded = leg(x_line(), Some(1.0));
+        let along = |l: &Leg<f64, Line<f64>>, x0, x1| l.along(&x_segment(x0, x1), AT, b());
+        assert!(along(&bounded, -3.0, -2.0).is_ok(), "wholly behind");
+        assert!(along(&bounded, 2.0, 3.0).is_ok(), "wholly past");
+        for (x0, x1, what) in [
+            (0.25, 0.75, "inside"),
+            (1.0, 2.0, "from the end"),
+            (-1.0, 2.0, "across the leg"),
+        ] {
+            assert!(
+                matches!(along(&bounded, x0, x1), Err(RayFault::Graze)),
+                "{what}"
+            );
+        }
+        let whole = leg(x_line(), None);
+        assert!(along(&whole, -3.0, -2.0).is_ok(), "behind a whole leg");
+        assert!(
+            matches!(along(&whole, 2.0, 3.0), Err(RayFault::Graze)),
+            "ahead of a whole leg"
+        );
+    }
+
+    /// **A leg round a circle reads an edge on its circle by arc
+    /// length**: a quarter-turn leg does not reach the arc over
+    /// `[π, 3π/2]`, which lies past its end going round (its end at
+    /// `3π/2` is a quarter turn behind the start, three quarters ahead),
+    /// and runs along the arc over `[π/8, π/4]`. A whole turn runs along
+    /// every arc of its circle.
+    #[test]
+    fn a_round_leg_reads_an_edge_on_its_circle_by_arc_length() {
+        let quarter = leg(unit_round(), Some(FRAC_PI_2));
+        assert!(
+            quarter.along(&unit_arc(PI, 1.5 * PI), AT, b()).is_ok(),
+            "past the end"
+        );
+        assert!(
+            matches!(
+                quarter.along(&unit_arc(PI / 8.0, PI / 4.0), AT, b()),
+                Err(RayFault::Graze)
+            ),
+            "inside"
+        );
+        assert!(
+            matches!(
+                leg(unit_round(), None).along(&unit_arc(PI, 1.5 * PI), AT, b()),
+                Err(RayFault::Graze)
+            ),
+            "a whole turn"
+        );
+    }
 }

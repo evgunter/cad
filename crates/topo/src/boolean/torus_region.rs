@@ -305,7 +305,7 @@ impl<T: Decide> TorusFaceRegion<T> {
     ///
     /// [`RegionRefusal`]: `p` in the band of an edge, a torus off the
     /// ring convention or a point on its axis, no path decided
-    /// ([`ray_walk::walk`]), or an arc that bounds nothing.
+    /// ([`crate::ray_walk::walk`]), or an arc that bounds nothing.
     pub(crate) fn contains(&self, p: Point3<T>, band: Band) -> Result<Option<bool>, RegionRefusal> {
         if self.edges.is_empty() {
             return Ok(Some(true));
