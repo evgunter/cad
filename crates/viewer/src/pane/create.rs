@@ -448,6 +448,8 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.split_tool_ui(ui);
             ui.separator();
+            self.mirror_tool_ui(ui);
+            ui.separator();
             self.transform_tool_ui(ui);
             ui.separator();
             self.pattern_tool_ui(ui);
@@ -1105,6 +1107,38 @@ impl ViewerBehavior<'_> {
         });
     }
 
+    /// The mirror tool's panel: the body and the face it is reflected
+    /// across, held as picks ([`crate::combine::MirrorTool`]), and the
+    /// one committed edit.
+    pub(crate) fn mirror_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.mirror().cloned() else {
+            if ui.button(ToolKind::Mirror.button()).clicked() {
+                self.tools.open(ToolKind::Mirror);
+            }
+            return;
+        };
+        crate::widgets::message(
+            ui,
+            ToolKind::Mirror.says(
+                &"pick a face: its body mirrors across it — pick another face to mirror across that one; a drawn body becomes its symmetric part, the body and its image fused",
+            ),
+        );
+        crate::widgets::message_toned(
+            ui,
+            tool.line(self.session.doc()),
+            &self.theme,
+            Tone::Advisory,
+        );
+        let waiting = tool
+            .seats()
+            .awaits_half(0)
+            .then(|| (0, Seat::MirrorBody.name().to_owned()));
+        if let Some((seat, half)) = half_rows(ui, waiting, &self.theme) {
+            self.tools.choose_half(seat, half);
+        }
+        self.tool_commit_row(ui, ToolKind::Mirror, |_, _| Ok(tool.op()?));
+    }
+
     /// The transform tool's panel: one body pick plus the placement
     /// fields, and the one committed edit.
     pub(crate) fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
@@ -1484,7 +1518,8 @@ impl ViewerBehavior<'_> {
     /// pattern and blend tools create one of two kinds, by the choice
     /// their form holds, and the boolean tool one of three, by the
     /// operation it holds; the duplicate tool's last node is a
-    /// projection, and its label lands there.
+    /// projection, and the mirror tool's, for a drawn body, the union
+    /// of its symmetric part; the label lands there.
     fn tool_noun(&self, kind: ToolKind) -> &'static str {
         match kind {
             ToolKind::Mate => MATE_NOUN,
@@ -1495,6 +1530,17 @@ impl ViewerBehavior<'_> {
                 Some(BooleanOp::Subtract) => "Subtract",
             },
             ToolKind::Split => "Split",
+            // A drawn body becomes its symmetric part, whose last node
+            // is the union; an unplaced body's image stands alone.
+            ToolKind::Mirror => match self.tools.mirror().and_then(|tool| tool.seats().read(0)) {
+                Some(body)
+                    if !crate::world::placements_of_read(self.session.committed_doc(), &body)
+                        .is_empty() =>
+                {
+                    "Union"
+                }
+                _ => "Mirror",
+            },
             ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {
                 PatternOutputChoice::Instances => "Pattern",
@@ -2374,6 +2420,33 @@ mod tools_respeak {
                 "the {kind:?} seat names the block by its last label"
             );
         }
+    }
+
+    /// The mirror tool's one face pick holds the body and the plane,
+    /// and both drops name the block by its last label.
+    #[test]
+    fn the_mirror_tool_says_its_lost_body_and_plane_by_their_last_label() {
+        let (session, mut tools, last) = picked_renamed_deleted(ToolKind::Mirror, |block, _| {
+            vec![Selection::Face(face(block))]
+        });
+        let said: Vec<String> = dropped(&session, &mut tools)
+            .into_iter()
+            .map(|notice| match notice {
+                ToolNotice::Seated { event, .. } => {
+                    let crate::seats::SeatEvent::PickLost { node, .. } = event;
+                    node.to_string()
+                }
+                ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { node, .. }) => {
+                    node.to_string()
+                }
+                other => panic!("a mirror drop, not {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            said,
+            [last.clone(), last],
+            "the body seat, then the plane, each by the block's last label"
+        );
     }
 
     #[test]

@@ -1811,6 +1811,7 @@ impl DocSession {
                 origin,
                 normal,
             } => self.add_split(target, &origin, &normal),
+            SessionOp::AddMirror { body, plane } => self.add_mirror(body, &plane),
             SessionOp::AddTransform {
                 input,
                 translation,
@@ -2975,6 +2976,34 @@ impl DocSession {
                 tool,
             }),
             fresh: Vec::new(),
+        })
+    }
+
+    /// **Mirror a body across the plane of a picked face**
+    /// ([`SessionOp::AddMirror`]): the image, and — where the world
+    /// draws the body — the symmetric part, the body and its image
+    /// unioned, taking over the body's drawn copies through the feature
+    /// takeover's re-point ([`repoint`]). An unplaced body's image is
+    /// written alone.
+    fn add_mirror(&mut self, body: Operand, plane: &FaceSelection) -> OpOutcome {
+        if let Err(refusal) = self.require_read(&body, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        let doc = self.committed_doc();
+        let (at, port, face) = crate::world::on_body(doc, plane.node, plane.body, &plane.name);
+        let on = match crate::world::seat_read(doc, at, Some(port)) {
+            (at, Some(port)) => Operand::output(at, port),
+            (at, None) => body_of(doc, at),
+        };
+        let over = self.placements_of(&body);
+        let node = combine::mirror_node(body.clone(), on, face);
+        self.commit_run(|run| {
+            let image = run.insert(node)?;
+            if over.is_empty() {
+                return Ok(());
+            }
+            let part = run.insert(BooleanSpec::Union(vec![body, image.into()]).node())?;
+            repoint(run, over, part).map(drop)
         })
     }
 

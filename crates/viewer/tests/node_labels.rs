@@ -386,6 +386,22 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         },
         "copy",
     );
+    run(
+        &mut session,
+        SessionOp::AddMirror {
+            body: block.into(),
+            plane: FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node: block,
+                    path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End)],
+                },
+                node: block,
+                body: 0,
+            },
+        },
+        "image",
+    );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
         &mut session,

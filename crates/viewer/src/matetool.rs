@@ -350,9 +350,25 @@ impl MateToolState {
 /// **What this tool calls a held pick**: `face of Extrude 000000000003`
 /// — the face of the node whose body the pick was taken on, as the
 /// document speaks it. The panel item ([`MateToolState::line`]) and the
-/// drop notice ([`MateToolEvent`]) both say it.
-fn face_of(node: &SpokenNode) -> String {
+/// drop notice ([`MateToolEvent`]) both say it, and the mirror tool's
+/// plane is said in the same words (`crate::combine::MirrorTool`).
+pub(crate) fn face_of(node: &SpokenNode) -> String {
     format!("face of {node}")
+}
+
+/// **The sentence a dropped face pick is said in**: its role, and the
+/// face as [`face_of`] says it — the mate tool's drop and the mirror
+/// tool's (`crate::combine::MirrorEvent`).
+pub(crate) fn face_lost(
+    f: &mut core::fmt::Formatter<'_>,
+    role: impl core::fmt::Display,
+    node: &SpokenNode,
+) -> core::fmt::Result {
+    write!(
+        f,
+        "the {role} pick (a {}) no longer resolves; the tool dropped it",
+        face_of(node)
+    )
 }
 
 /// A typed tool event the chrome renders — every state change that
@@ -381,12 +397,7 @@ impl core::fmt::Display for MateToolEvent {
     /// full in the value; this is what a person reads.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::PickLost { side, node, .. } => write!(
-                f,
-                "the {} pick (a {}) no longer resolves; the tool dropped it",
-                side.name(),
-                face_of(node)
-            ),
+            Self::PickLost { side, node, .. } => face_lost(f, side.name(), node),
         }
     }
 }
@@ -451,15 +462,19 @@ impl MateProposal {
 /// **A face read as a pose of `kind`**: its plane, or its carrier's
 /// axis.
 fn pose_of(kind: VarKind, face: &SitedFace) -> pncad::document::Operand {
-    let def = match kind {
-        VarKind::Axis => pose::PoseDef::Axis {
+    match kind {
+        VarKind::Axis => pncad::document::Operand::Pose(Box::new(pose::PoseDef::Axis {
             of: face.clone().into(),
-        },
-        _ => pose::PoseDef::Plane {
-            face: face.clone().into(),
-        },
-    };
-    pncad::document::Operand::Pose(Box::new(def))
+        })),
+        _ => plane_of(face.clone().into()),
+    }
+}
+
+/// **A face read as its plane**: `face`, a one-name face selection,
+/// read plainly as the plane of that face — a plane mate's side, and
+/// the plane a mirror reflects across (`crate::combine::mirror_node`).
+pub(crate) fn plane_of(face: pncad::document::Operand) -> pncad::document::Operand {
+    pncad::document::Operand::Pose(Box::new(pose::PoseDef::Plane { face }))
 }
 
 /// The placement whose copy a pick at `at` is on: `at` itself when it
