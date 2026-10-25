@@ -64,4 +64,4 @@ structural door and a `Dual` read answer.
 
 The vase's moved cap measures at every ε row, its area and flux holding
 the disc's. Tier 3 then refuses at a wall, a different gap:
-`work/flux/a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle.md`.
+`work/shell/a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle.md`.

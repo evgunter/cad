@@ -10,7 +10,8 @@ cost: M
 
 
 Filed by FLUX's `flux/rational-rim-vector-area` lane, when the moved cap
-it closes stopped refusing and uncovered the next face.
+it closes stopped refusing and uncovered the next face; moved to SHELL,
+whose producer mints the corners (below).
 
 ## Measured
 
@@ -45,10 +46,19 @@ The vase with its cap moved alone, end to end: the cap's volume share
 is read, but the body's volume is not. Any spline wall a moved cap
 trims to a row hits the same refusal.
 
-## Directions
+## Whose it is
 
-Either the producer (`topo::replace_face_offset`'s rim minting) lands
-the seam's end exactly on the rim's row, or the rectangle lane reads a
-row its corners reach within their certified envelope. The second is
-the cut-loft class's trimmed lane, which already reads `General`
-images.
+The producer's, so SHELL's (`crates/topo/src/replace_face.rs:1376`,
+`replace_face_offset`). The moved plane is `z = 0.05` exactly, and the
+loft's height is `2v`, so its row is `v = 0.05/2 = 0.025` exactly in
+`f64`. The rim is minted one ulp below it, on `0.024999999999999998`,
+and the seam's end lands at `0.024999999999974973`, 2.5e-14 below. The
+patch lane's exact-rectangle certificate is doing its job: the minted
+corners do not meet. Minting the rim on the exact row, and the seam's end
+on the rim, would let the wall take the rectangle lane as it stands.
+
+## For ISO
+
+ISO's vase row (`iso/vase-cap-moves-alone`, the witness above) now gets
+past the cap. The cap measures on `flux/rational-rim-vector-area`, and
+the body stops at this wall instead.
