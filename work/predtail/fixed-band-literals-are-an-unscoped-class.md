@@ -5,8 +5,8 @@ title: 55 sites decide against a hard-coded Band::new(1e-9, 1e-8) instead of the
 status: open
 opened: 2026-09-11
 refs: [band-derivation-has-a-scalar-twin, band-helper-duplicated-across-suites]
-priority: P1
-cost: D
+priority: P3
+cost: H
 ---
 
 
@@ -97,3 +97,19 @@ unexamined class, not as a live contradiction.
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+## Re-census and re-band (PRED orchestrator, 2026-10-25, main `2d5677e1`)
+
+The class has grown from 55 sites to 269 `Band::new(1e-9, 1e-8)` /
+`Band::new(1.0e-9, 1.0e-8)` sites in 115 files:
+- geom-brep 102, topo 84, geom-core 40, editor-core 15;
+- profile 8, geom 7, sweep 7, pncad-py 4, step-import 2.
+
+There are 163 more at other fixed digits, led by `(1e-12, 1e-11)` ×47.
+All of it is test code, except four doc examples in `predicate.rs`.
+About 12 sites carry a stated reason.
+
+The per-site reading pass is unchanged, about five times larger now,
+and should be cut by crate. **Re-banded P1 → P3** (unilateral, logged),
+on the same reasoning as its sibling: what is at risk is a test asking
+the wrong question at a non-default ε. Re-priced **H**.

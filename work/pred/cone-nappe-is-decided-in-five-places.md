@@ -2,10 +2,12 @@
 id: cone-nappe-is-decided-in-five-places
 kind: issue
 title: which nappe of a cone a face or point lies on is decided by five predicates in four files — one fact, five spellings, none reconciled
-status: open
+status: parked
 opened: 2026-09-08
 priority: P1
-cost: D
+cost: H
+design: true
+blocked_on: [5500, 5674]
 ---
 
 
@@ -104,6 +106,33 @@ refuses a face whose corners straddle the apex. The region reads a
 point's nappe on faces that may reach both nappes, and its own answers
 must hold there. So these sites join the per-point granularity this row
 already names: the count moved, but the row is not settled.
+
+## Re-census (PRED orchestrator, 2026-10-25, main `2d5677e1`)
+
+There are now fourteen named sites in ten files, and no agreement test
+between any two predicates (`sweep/tests/shell6_nappe_home.rs` pins the
+offset doors against each other only).
+
+| granularity | names |
+| --- | --- |
+| face | `offset_nappe`; `props_cone_nappe` |
+| vertex or window end | `offset_apex_nappe` |
+| edge | `props_cone_ellipse_nappe` |
+| point | `pcurve_cone_chart_nappe` ×4; `pcurve_projected_nappe`; `chart_point_cone_nappe` (geom); `split_ring_path_nappe`; `bool_cone_root_nappe`; `bool_ray_cone_nappe`; `bool_ruled_region_nappe` ×3 |
+
+The per-point sites differ in what they do in band:
+- `chart_point_cone_nappe` folds `Err(_)` into the opening nappe;
+- `split_ring_path_nappe` charges slack;
+- `ruled_region` escalates (`decide_nonzero`).
+
+That difference is the row's real content: whether one point-granularity
+home can serve both the escalating and the folding dispositions is a
+design question.
+
+Parked on two open PRs that rewrite sites here. PR 5500 (PCERT) moves
+`pcurve_cone_chart_nappe` to `decide_reported`, and PR 5674 (CHART)
+restructures `ruled_region`. A unit built before both merge would be
+rebuilt.
 
 ## Sweep note (PRED `D292` lane, 2026-10-25)
 
