@@ -280,7 +280,7 @@ impl<T: Real> OpenConicSection<T> {
             v: self.v,
             l,
             k: self.k,
-            cos2: self.cos_a * self.cos_a,
+            cos2: self.cos_a.powi(2),
         }
     }
 }
@@ -327,15 +327,15 @@ impl<T: Real> ConicBranch<T> {
     /// The branch's point at slope `μ` from its vertex (module docs).
     #[must_use]
     pub fn point(&self, mu: T) -> Point3<T> {
-        let d = self.k * mu * mu + self.cos2;
-        self.vertex + self.u * (self.l * mu * mu / d) + self.v * (self.l * mu / d)
+        let d = self.k * mu.powi(2) + self.cos2;
+        self.vertex + self.u * (self.l * mu.powi(2) / d) + self.v * (self.l * mu / d)
     }
 
     /// The slope `μ` of the branch's point at `p`'s height (module docs).
     #[must_use]
     pub fn slope_of(&self, p: Point3<T>) -> T {
         let eta = (p - self.vertex).dot(self.v);
-        let root = (self.l * self.l - T::from_f64(4.0) * self.k * eta * eta * self.cos2).sqrt();
+        let root = (self.l.powi(2) - T::from_f64(4.0) * self.k * eta.powi(2) * self.cos2).sqrt();
         T::from_f64(2.0) * eta * self.cos2 / (self.l + root.copysign(self.l))
     }
 }
@@ -358,7 +358,9 @@ impl ConicBranch<f64> {
     /// `X = −L·sinh²(t/2)/K`, `η = b·sinh t`.
     fn hyperbolic_point(&self, t: f64) -> Point3<f64> {
         let sh = (0.5 * t).sinh();
-        self.vertex + self.u * (-self.l * sh * sh / self.k) + self.v * (self.conjugate() * t.sinh())
+        self.vertex
+            + self.u * (-self.l * sh.powi(2) / self.k)
+            + self.v * (self.conjugate() * t.sinh())
     }
 
     /// The hyperbola's span `[t₀, t₁]`: the end tangents meet at
