@@ -157,3 +157,4 @@ Signed (FIX orchestrator).
 
   The build waits for disk: 4.3 GB is free with two lanes building.
 - 2026-10-25 — (PRED orchestrator) Period-headroom unit 2 is PR 5710, frozen at `bf9bc61f73`, CI green. Every remaining site decides through `Period::turn`, and the certified readers read the stored turn. The 'junction-end pick precedent' was found unratified and filed on BAND. A full single review is running on that head.
+- 2026-10-25 — (PRED orchestrator) Dispatched `mesh-sizes-each-lane-by-its-worst-admissible-triangle` on `pred/mesh-sizing-rule` as a **full single review** unit. Lane order: measure first; the cone rim-chord row runs on main before the change. A mis-mesh there would be P0.
