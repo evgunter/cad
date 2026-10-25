@@ -27,7 +27,7 @@ test_utils::gated_to![
 use crate::shared::surf::at_apex;
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
-use geom_brep::intersect::{OutsideConic, PlaneConeSection, SectionError, plane_cone_section};
+use geom_brep::intersect::{OpenConic, PlaneConeSection, SectionError, plane_cone_section};
 use geom_core::{Band, Point3, Tol, Vec3};
 use test_utils::fuzz;
 
@@ -369,9 +369,9 @@ fn mirrored(mut p: Pose) -> Pose {
     p
 }
 
-/// Whether `got` refused naming `conic`.
-fn names(got: &Result<PlaneConeSection<f64>, SectionError>, conic: OutsideConic) -> bool {
-    matches!(got, Err(e) if e.outside_conic() == Some(conic))
+/// Whether `got` is served as `conic`.
+fn names(got: &Result<PlaneConeSection<f64>, SectionError>, conic: OpenConic) -> bool {
+    matches!(got, Ok(PlaneConeSection::OpenConic(s)) if s.conic() == conic)
 }
 
 /// **The item's needle poses** (`sin α = (K + 2)·ε`, unit extent, the
@@ -381,7 +381,7 @@ fn names(got: &Result<PlaneConeSection<f64>, SectionError>, conic: OutsideConic)
 /// m off. Beside them the same miss at an ordinary aperture: `α = π/6`,
 /// `D·extent = (K + 1)·ε`, whose hyperbola starts `ε`-near the apex on
 /// one nappe and `0.9/(K + 1)` m off on the other. None is a line
-/// outcome; each refuses naming its conic.
+/// outcome; each is served as its open conic.
 #[test]
 fn a_needle_section_off_the_apex_is_not_its_lines() {
     let (e, k) = (eps(), Tol::witness().k());
@@ -415,13 +415,13 @@ fn a_needle_section_off_the_apex_is_not_its_lines() {
         );
         let got = pose.served(1.0, band());
         let conic = if pair {
-            OutsideConic::Hyperbola
+            OpenConic::Hyperbola
         } else {
-            OutsideConic::Parabola
+            OpenConic::Parabola
         };
         assert!(
             names(&got, conic),
-            "{name}: the section starts {oracle} m off the apex, so it refuses naming the \
+            "{name}: the section starts {oracle} m off the apex, so it is served as the \
              {conic:?}, got {got:?}"
         );
     }
@@ -435,12 +435,12 @@ type PoseAt = Box<dyn Fn(f64) -> Pose>;
 /// tangent, both faces, gaps across the zero band. A served line outcome
 /// has its section starting inside the band of the apex, runs through
 /// the apex along a generator and stays within the band of the plane;
-/// past the band the section is refused naming its conic, or escalates.
+/// past the band the section is served as its open conic, or escalates.
 #[test]
 fn a_line_outcome_is_served_only_where_its_section_starts_in_the_band() {
     let (e, k) = (eps(), Tol::witness().k());
     let mut served = (0, 0);
-    let mut refused = 0;
+    let mut open = 0;
     for alpha in [
         ((k + 2.0) * e).asin(),
         (30.0 * e).asin(),
@@ -490,8 +490,8 @@ fn a_line_outcome_is_served_only_where_its_section_starts_in_the_band() {
                             vec![l]
                         }
                         Err(SectionError::Escalated(_)) => continue,
-                        Err(r) if r.outside_conic().is_some() => {
-                            refused += 1;
+                        Ok(PlaneConeSection::OpenConic(_)) => {
+                            open += 1;
                             continue;
                         }
                         Ok(_) | Err(_) => continue,
@@ -516,8 +516,8 @@ fn a_line_outcome_is_served_only_where_its_section_starts_in_the_band() {
         }
     }
     assert!(
-        served.0 > 0 && served.1 > 0 && refused > 0,
-        "the family served {served:?} (pairs, tangents) and refused {refused} by conic"
+        served.0 > 0 && served.1 > 0 && open > 0,
+        "the family served {served:?} (pairs, tangents) and {open} open conics"
     );
 }
 
@@ -655,8 +655,8 @@ fn a_bound_inside_the_band_escalates() {
 ///   (its semi-major is at most the reach), so the carrier door refuses
 ///   it typed: never the apex point, and never an escalation of the
 ///   reach.
-/// - The pair's hyperbola and the tangent's near-parabola each refuse
-///   naming their conic.
+/// - The pair's hyperbola and the tangent's near-parabola are each
+///   served as their open conic.
 #[test]
 fn a_bound_just_past_the_band_is_the_section() {
     let (e, k) = (eps(), Tol::witness().k());
@@ -680,13 +680,13 @@ fn a_bound_just_past_the_band_is_the_section() {
             ),
             Apex::Pair | Apex::Tangent => {
                 let conic = if apex == Apex::Pair {
-                    OutsideConic::Hyperbola
+                    OpenConic::Hyperbola
                 } else {
-                    OutsideConic::Parabola
+                    OpenConic::Parabola
                 };
                 assert!(
                     names(&got, conic),
-                    "{label}: refuses naming the {conic:?}, got {got:?}"
+                    "{label}: is served as the {conic:?}, got {got:?}"
                 );
             }
         }
@@ -998,13 +998,11 @@ fn apex_outcomes_agree_with_the_oracle() {
                 lines = vec![l];
                 "tangent line".to_owned()
             }
-            Err(r) => match r.outside_conic() {
-                Some(conic) => format!("refused: {conic:?}"),
-                None => format!(
-                    "refused: {}",
-                    format!("{r:?}").split(['(', ' ', '{']).next().unwrap()
-                ),
-            },
+            Ok(PlaneConeSection::OpenConic(s)) => format!("open: {:?}", s.conic()),
+            Err(r) => format!(
+                "refused: {}",
+                format!("{r:?}").split(['(', ' ', '{']).next().unwrap()
+            ),
         };
         if !lines.is_empty() {
             let start = line_start(&pose, lines.len() == 2);

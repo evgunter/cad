@@ -20,13 +20,11 @@
 
 use crate::fixture;
 use crate::wire;
-use editor_core::ExtrudeSide;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
-    EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SlideAxis, StableName, Value, VarName, apply,
-    load, save,
+    CapEnd, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId, EntityKind,
+    EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, VarName, apply, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, solve, step};
@@ -39,6 +37,7 @@ use test_utils::source;
 const SOLVE: &str = include_str!("../src/mate/solve.rs");
 const VALUE: &str = include_str!("../src/mate/value.rs");
 const PIN: &str = include_str!("../src/mate/pin.rs");
+const CORNER: &str = include_str!("../src/mate/corner.rs");
 const COSET: &str = include_str!("../src/mate/coset.rs");
 const WIRE: &str = include_str!("../src/eval/wire.rs");
 const EVAL: &str = include_str!("../src/eval/mod.rs");
@@ -101,7 +100,8 @@ fn a1_the_solve_builds_no_environment_and_the_fold_reads_its_lanes() {
             &["pub fn solve_document", "fn solve_bundle"][..],
         ),
         ("mate/value.rs", VALUE, &["fn settle"][..]),
-        ("mate/pin.rs", PIN, &["pub fn pin_at"][..]),
+        ("mate/pin.rs", PIN, &["pub fn of<P>"][..]),
+        ("mate/corner.rs", CORNER, &["pub fn corner_frame"][..]),
         ("mate/coset.rs", COSET, &["pub fn intersect"][..]),
     ] {
         let code = shipped(text, heads);
@@ -153,7 +153,6 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -197,49 +196,27 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         )
         .0;
     }
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_ref));
-    let (mut doc, rest) = fixture::constrain_at(
+    let (doc, rest) = fixture::mated(
         doc,
         top,
         fixture::rest(
             head(in_part(top, top_body, CapEnd::Start)),
             head(in_part(base, base_body, CapEnd::End)),
-            ContactClass::Rest,
         ),
+        &[
+            (Coord::Slide(TargetAxis::X), x),
+            (Coord::Slide(TargetAxis::Y), len(1.0)),
+            (Coord::Spin(editor_core::TargetAxis::Z), turn),
+        ],
     );
-    for (coord, by) in [
-        (Coord::Slide(SlideAxis::X), x),
-        (Coord::Slide(SlideAxis::Y), len(1.0)),
-        (Coord::Spin, turn),
-    ] {
-        doc = with_value(doc, rest, coord, by);
-    }
     Scene {
         doc,
         opts,
         top,
         rest,
     }
-}
-
-/// `doc` with the freedom `coord` of `mate` set to `by`.
-fn with_value(doc: ProfileDoc, mate: MateRef, coord: Coord, by: Formula) -> ProfileDoc {
-    apply(
-        &doc,
-        &DocEdit::AddValue {
-            placement: mate.placement,
-            value: Box::new(Value {
-                mate: mate.id,
-                coord,
-                by,
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-    .doc
 }
 
 fn set_value(doc: ProfileDoc, name: &'static str, value: FreeValue) -> ProfileDoc {
@@ -429,16 +406,15 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
             }],
         })
     };
-    let (doc, rest) = fixture::constrain_at(
+    let (doc, _) = fixture::mated(
         doc,
         ids[1],
         fixture::mate(
             fixture::plane(name(ids[1], CapEnd::Start)),
             standoff(name(ids[0], CapEnd::End), 0.5),
-            ContactClass::Rest,
         ),
+        &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.25))],
     );
-    let doc = with_value(doc, rest, Coord::Spin, ang(0.25));
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     (doc, text)
 }
@@ -488,24 +464,25 @@ fn refused_field(text: &str) -> Result<String, String> {
 }
 
 /// The keys of a mate's object and of a value's on the wire.
-const MATE_KEYS: [&str; 3] = ["on", "to", "class"];
-const VALUE_KEYS: [&str; 3] = ["mate", "coord", "by"];
+const MATE_KEYS: [&str; 2] = ["on", "to"];
+const VALUE_KEYS: [&str; 2] = ["coord", "by"];
 
 /// **A stray key on a constraint's objects refuses at the load door**,
 /// in the format's own arm for a field this build lacks, naming the
 /// field: on the mate, on the value, and spelled with a word another
 /// object of the wire owns (`coord` is the value's, not the mate's;
-/// `class` is the mate's, not the value's).
+/// `on` is the mate's, not the value's), and `class` on the mate.
 ///
 /// *Breaks if* either object drops a field it does not know.
 #[test]
 fn a4_a_stray_key_on_a_constraint_refuses_at_the_load_door() {
     let (_, text) = saved_with_a_bundle("msolve7-a4-stray");
     for (keys, key) in [
-        (&MATE_KEYS, "stray"),
-        (&VALUE_KEYS, "stray"),
-        (&MATE_KEYS, "coord"),
-        (&VALUE_KEYS, "class"),
+        (&MATE_KEYS[..], "stray"),
+        (&VALUE_KEYS[..], "stray"),
+        (&MATE_KEYS[..], "coord"),
+        (&VALUE_KEYS[..], "on"),
+        (&MATE_KEYS[..], "class"),
     ] {
         assert_eq!(
             refused_field(&with_a_key_in(&text, keys, key)).as_deref(),
@@ -516,15 +493,21 @@ fn a4_a_stray_key_on_a_constraint_refuses_at_the_load_door() {
 }
 
 /// **Every checked-in document still loads under the attribute** —
-/// the stop clause's measurement, made rather than assumed. None of
-/// the four carries a mate between copies, so the corpus does not
-/// exercise the attribute at all: what it proves is that nothing
-/// checked in is refused, not that the attribute is reached.
+/// the stop clause's measurement, made rather than assumed. Since
+/// INTENT stage 3 D every placement is a bundle of mates and values (a
+/// construction stands in the world by a mate, and `die_tool.pncad`
+/// places one copy against another), so the corpus exercises the
+/// attribute: what it proves is that the bundles checked in load.
 ///
-/// *Breaks if* a tracked document stops loading, or starts carrying a
-/// mate this row would then have to reach.
+/// The documents are authored at the default ε, and at another ε row
+/// the load door refuses each at its last door (`ToleranceConflict`),
+/// after the attribute has read every field. Nothing loads there to
+/// count, so that row says it skips the count.
+///
+/// *Breaks if* a tracked document stops loading, or the corpus stops
+/// carrying a bundle for the attribute to reach.
 #[test]
-fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
+fn a4_every_checked_in_document_loads_and_its_bundles_reach_the_attribute() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let listed = std::process::Command::new("git")
         .args(["ls-files", "-z", "--", "*.pncad"])
@@ -539,6 +522,7 @@ fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
         .map(str::to_owned)
         .collect();
     assert_eq!(walked.len(), 4, "the corpus this row walks: {walked:?}");
+    let (mut loaded_here, mut bundles) = (0, 0);
     for path in &walked {
         let text = std::fs::read_to_string(root.join(path)).expect("readable");
         let loaded = match load(&text, Tol::witness()) {
@@ -549,11 +533,22 @@ fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
             Err(PersistError::ToleranceConflict { .. }) => continue,
             Err(e) => panic!("{path}: loads under the attribute: {e}"),
         };
-        // A world pin is a constraint too, and targets the world: a
-        // mate between copies targets a pose of a space.
-        let mated = fixture::constrained(&loaded.doc);
-        assert!(mated.is_empty(), "{path}: the corpus carries no mate");
+        loaded_here += 1;
+        bundles += fixture::constrained(&loaded.doc).len();
     }
+    if loaded_here == 0 {
+        println!(
+            "SKIPPED at ε {}: no tracked document is authored at this ε, so the load door \
+             refuses each at its last door and there is no bundle to count; the default ε \
+             row counts them",
+            Tol::witness().eps()
+        );
+        return;
+    }
+    assert!(
+        bundles > 0,
+        "the corpus carries bundles the attribute reaches"
+    );
 }
 
 /// **The same bundle without the key loads**, bit for bit: the
@@ -570,5 +565,13 @@ fn a4_the_same_bundle_without_the_key_loads() {
         .flat_map(|p| fixture::bundle(&back, p))
         .filter_map(|c| c.value().map(|v| v.coord))
         .collect();
-    assert_eq!(coords, [Coord::Spin], "the value comes back as written");
+    assert_eq!(
+        coords,
+        [
+            Coord::Spin(TargetAxis::Z),
+            Coord::Slide(TargetAxis::X),
+            Coord::Slide(TargetAxis::Y),
+        ],
+        "the rest's values come back as written: the spin given, then the zeros"
+    );
 }

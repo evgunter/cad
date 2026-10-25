@@ -30,13 +30,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
-    CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    CapEnd, DocRef, DocumentId, EvalOptions, Formula, MateRef, Node, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{in_copy, insert, len, on_frame, scl};
@@ -57,7 +56,6 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -78,8 +76,11 @@ pub(crate) fn pinned_block(
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut store = PartStore::new();
     let (part, body) = store.insert_part(block(label), Tol::witness());
-    let (doc, id) =
-        fixture::insert_pinned(doc, Node::instantiate_part(part), &with_resolver(store));
+    let (doc, id) = fixture::insert_pinned(
+        doc,
+        crate::fixture::mated_instance(part),
+        &with_resolver(store),
+    );
     (doc, id, body)
 }
 
@@ -133,9 +134,8 @@ const COPY: u32 = 2;
 /// [`COPY`]. Returns `(doc, leg, pattern, top, mate, leg_body)`, the
 /// last the leg part's body.
 ///
-/// A bare datum sits AHEAD of the instances and is never cut, so the part
-/// document's id space is offset from the host's — which is what makes
-/// the recorded map's rewrite observable rather than an identity.
+/// The part document mints its own id space, so the recorded map's
+/// rewrite is observable rather than an identity.
 fn four_legs(
     label: &str,
 ) -> (
@@ -148,9 +148,8 @@ fn four_legs(
 ) {
     let o = legs_reach();
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, _kept) = insert(doc, fixture::xy_frame());
     let (leg_ref, leg_body) = block_ref("fix-xs-leg");
-    let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &o);
+    let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(leg_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -207,7 +206,7 @@ pub(crate) fn place_copies(
         );
         fixture::insert_pinned(
             doc,
-            Node::place(vec![editor_core::BodyRead::plain(copy)]),
+            crate::fixture::stood(vec![editor_core::BodyRead::plain(copy)]),
             o,
         )
         .0
@@ -235,6 +234,16 @@ fn copy_placement(doc: &ProfileDoc, pattern: RecipeNodeId, i: u32) -> RecipeNode
         .expect("the copy is placed")
 }
 
+/// [`fixture::mate_members`] for `mate` alone: every copy here also
+/// stands in the world by a mate of its own, whose side lands on its
+/// own instance and is not what these rows ask about.
+fn seam_members(doc: &ProfileDoc, mate: MateRef) -> Vec<(MateRef, RecipeNodeId)> {
+    fixture::mate_members(doc)
+        .into_iter()
+        .filter(|&(m, _)| m == mate)
+        .collect()
+}
+
 fn crossings(
     doc: &editor_core::ProfileDoc,
     instance: RecipeNodeId,
@@ -253,7 +262,7 @@ fn crossings(
 fn a_pattern_headed_mate_is_an_edge_and_reads_the_pattern_input_instance() {
     let (doc, leg, _pattern, top, mate, _) = four_legs("fix-xs-edge");
     assert_eq!(
-        crate::fixture::mate_members(&doc),
+        seam_members(&doc, mate),
         vec![(mate, top), (mate, leg)],
         "the pattern-placed head reads through the pattern's input instance"
     );
@@ -282,13 +291,7 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
     )
     .expect("a cut of the pattern side splits");
     let record = crossings(&across.remainder, across.instance);
-    let [
-        editor_core::InterfaceCrossing::Mate {
-            class,
-            outer,
-            inner,
-        },
-    ] = record.crossings.as_slice()
+    let [editor_core::InterfaceCrossing::Mate { outer, inner }] = record.crossings.as_slice()
     else {
         panic!("the kept constraint is one crossing: {record:?}");
     };
@@ -296,7 +299,6 @@ fn a_pattern_headed_mate_edge_crosses_a_cut_of_its_target_and_severs_a_cut_of_it
     let [top_side] = fixture::face_reads(&doc, mate.on)[..] else {
         panic!("the seat reads the top's face");
     };
-    assert_eq!(*class, ContactClass::Rest, "the crossing keeps its class");
     assert_eq!(
         *outer,
         editor_core::head_of(&doc, top_side)
@@ -422,7 +424,7 @@ fn the_recorded_map_rewrites_a_pattern_head_s_ids_and_never_its_copy_index() {
     let [moved] = moved.as_slice() else {
         panic!("the top's one mate moved into the part with it: {moved:?}");
     };
-    let [a] = fixture::face_reads(&out.part, *moved.to.pose().expect("a pose target"))[..] else {
+    let [a] = fixture::face_reads(&out.part, moved.to)[..] else {
         panic!("the seat's target reads a face");
     };
     let a = editor_core::head_of(&out.part, a).expect("the moved head resolves");
@@ -495,7 +497,7 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 
     // No member at the nested head: only the top's side resolves.
     assert_eq!(
-        crate::fixture::mate_members(&doc),
+        seam_members(&doc, mate),
         vec![(mate, top)],
         "an underqualified head resolves to no member"
     );
@@ -534,7 +536,6 @@ fn an_underqualified_pattern_head_reaches_the_seam_and_contributes_no_crossing()
 #[test]
 fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
     let doc = ProfileDoc::empty(DocumentId::derive("fix-xs-stranded"), Tol::witness());
-    let (doc, _datum) = insert(doc, fixture::xy_frame());
     // A live instance that consumes nothing: it neither places nor
     // projects `leg`, so no walk from it reaches `leg`.
     let (doc, stranger, _) = pinned_block(doc, "fix-xs-st-other");
@@ -549,12 +550,103 @@ fn a_stranded_operand_over_an_instance_head_resolves_to_no_member() {
         fixture::rest(
             fixture::head(in_part(top, top_body, CapEnd::Start)),
             stranded,
-            ContactClass::Rest,
         ),
     );
     assert_eq!(
-        crate::fixture::mate_members(&doc),
+        seam_members(&doc, mate),
         vec![(mate, top)],
         "the stranded target resolves to no member; only the top's side does"
+    );
+}
+
+/// **A top seated on a pattern's copy is proven by its mate.** The
+/// four-legs document seats the top on copy [`COPY`], which a `Place`
+/// copies into the world through a `Part` picking it: the at-rest
+/// census's row of the seat names the leg's cap in that copy, and the
+/// mate's target reads the same cap through the pattern, so the door's
+/// first rung reads the row as the mate's statement and the
+/// `unproven-coincidence` lint reports nothing against the mate.
+///
+/// *Breaks if* the door stops reading a mate side through the `Part`
+/// pick that copies it, or reads it in another copy.
+#[test]
+fn a_top_seated_on_a_pattern_copy_is_proven_by_its_mate() {
+    let (doc, _, _, _, mate, _) = four_legs("fix-xs-seat-door");
+    let ev = fixture::run(&doc, &legs_reach());
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the legs gather");
+    assert!(
+        product
+            .coincidences
+            .iter()
+            .any(|row| row.row.relation == topo::Relation::SameOpposite),
+        "the premise: the census decided the seat: {:?}",
+        product.coincidences
+    );
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("checks run over the legs");
+    assert!(
+        !report
+            .findings
+            .iter()
+            .any(|f| f.check == editor_core::CheckId::UnprovenCoincidence
+                && f.subject == editor_core::FindingSubject::Node(mate.placement)),
+        "the seat on the copy is proven: {report}"
+    );
+}
+
+/// **A seat on a copy its own pin moves is not the mate's statement.**
+/// The four-legs top is seated on copy [`COPY`] as the pattern holds
+/// it, which is where the mate reads its target. Here that copy's
+/// placement is re-pinned half a unit along by a frame mate of its own
+/// rather than the identity bundle, so the copy no longer stands where
+/// the mate reads its face: the mate states nothing about it. The
+/// door's first rung does not read the seat's row (the top's cap on the
+/// copy's) as the mate's statement.
+///
+/// *Breaks if* a mate side is read in a copy whose placement's bundle
+/// moves it off where the mate reads it.
+#[test]
+fn a_seat_on_a_copy_its_own_pin_moves_is_not_the_mates_statement() {
+    let o = legs_reach();
+    let (doc, _, pattern, _, mate, _) = four_legs("fix-xs-seat-moved");
+    let ev = fixture::run(&doc, &o);
+    let product =
+        editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the legs gather");
+    let Some(seat) = product
+        .coincidences
+        .iter()
+        .find(|row| row.row.relation == topo::Relation::SameOpposite)
+    else {
+        panic!(
+            "the premise: the census decided the seat: {:?}",
+            product.coincidences
+        )
+    };
+    let q = copy_placement(&doc, pattern, COPY);
+    let shifted = editor_core::Frame::translation([0.5, 0.0, 0.0]);
+    let doc = fixture::pin(doc, q, &shifted, &o);
+    let ev = fixture::run(&doc, &o);
+    let proof = editor_core::coincide::prove(
+        &doc,
+        &[(mate.placement, std::slice::from_ref(&seat.row))],
+        ev.resolver(),
+        Tol::witness(),
+        &editor_core::CancelToken::new(),
+    )
+    .expect("an uncanceled door")
+    .remove(0)
+    .remove(0);
+    assert!(
+        !matches!(
+            proof,
+            editor_core::Proof::Structural(editor_core::Rung::SameConstruction)
+        ),
+        "the first rung does not read the seat on the moved copy: {proof:?}"
     );
 }

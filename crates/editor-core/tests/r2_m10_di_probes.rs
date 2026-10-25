@@ -38,15 +38,13 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
-use crate::fixture::xy_frame;
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
-    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Datum, Dimension, EvalOptions,
-    Evaluation, LoopProgram, Node, NodeResult, PoseValue, ProductError, ProfileProgram, SplitSide,
-    ValuePayload, assemble, evaluate, product_recorded,
+    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Dimension, EvalOptions, Evaluation,
+    LoopProgram, Node, NodeResult, ProductError, ProfileProgram, SplitSide, ValuePayload, assemble,
+    evaluate, product_recorded,
 };
 use geom::{Curve3, Surface};
 use geom_core::{Bounds, Decide, Dual64, Tol};
@@ -275,31 +273,6 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
             Some(NodeResult::Ok(v)) => {
                 d.u64(3);
                 match &v.payload {
-                    ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
-                        d.u64(10);
-                        d.p3(origin);
-                        d.v3(&normal.get());
-                    }
-                    ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
-                        d.u64(11);
-                        d.p3(origin);
-                        d.v3(&dir.get());
-                    }
-                    ValuePayload::Datum(PoseValue::Point { position }) => {
-                        d.u64(12);
-                        d.p3(position);
-                    }
-                    ValuePayload::Datum(PoseValue::Frame(f)) => {
-                        d.u64(23);
-                        d.p3(&f.origin());
-                        d.v3(&f.u().get());
-                        d.v3(&f.v().get());
-                    }
-                    // Tag 24 is retired with the in-plane axis datum.
-                    ValuePayload::Datum(PoseValue::Direction { dir }) => {
-                        d.u64(26);
-                        d.v3(&dir.get());
-                    }
                     ValuePayload::Profile(p) => {
                         d.u64(13);
                         for lp in p.validated.loops() {
@@ -537,28 +510,23 @@ fn assemble_census_door_matches_f64_at_dual64() {
 fn own_document_builds_at_dual64_with_f64_value_channel() {
     let mut r = fixture::Recorder::new();
     let disc = LoopProgram::circle(0.0, 0.0, 0.75).unwrap();
-    let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![disc],
         ids: Vec::new(),
     }));
     let puck = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: fixture::len(0.5),
-        side: ExtrudeSide::Along,
     });
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [fixture::len(0.1), fixture::len(0.0), fixture::len(0.25)],
-        normal: [
-            fixture::scl(0.25f64.sin()),
-            fixture::scl(0.0),
-            fixture::scl(0.25f64.cos()),
-        ],
-    }));
+    let tool = fixture::plane_on_frame(
+        &r.doc,
+        puck,
+        [0.1, 0.0, 0.25],
+        [0.25f64.sin(), 0.0, 0.25f64.cos()],
+    );
     let _split = r.insert(Node::Split {
         target: puck.into(),
-        tool: tool.into(),
+        tool,
     });
     let doc = r.doc;
 

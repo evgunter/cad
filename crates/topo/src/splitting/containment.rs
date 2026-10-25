@@ -1146,9 +1146,7 @@ pub(crate) fn circle_miss<T: Decide>(
 ///
 /// **A DECIDED membership, and so not
 /// [`geom::periodic_window_may_hold`]'s question** — this paragraph is
-/// the one place that says why, for this trim and for the chart
-/// windows' cosine construction (`boolean::solid_contain`'s
-/// `chart_azimuth_margin`) alike. That door answers "may hold" wherever
+/// the one place that says why, for this trim. That door answers "may hold" wherever
 /// exclusion is unproved, which is the sound answer for a caller
 /// selecting between two bounds that each hold either way. A decided
 /// membership has no such free answer: an uncertain one escalates, and
@@ -1191,7 +1189,12 @@ pub(crate) fn arc_trim<T: Decide>(
 /// never compressed below the angle to the nearer end — for a caller that
 /// has decided the ends by another metric first (an ellipse's exact end
 /// distances, [`ConicArc::hit`]). The one body of the construction.
-fn arc_trim_margin<T: Decide>(p: Point3<T>, a: Point3<T>, apex: Point3<T>, anti: Point3<T>) -> T {
+pub(crate) fn arc_trim_margin<T: Decide>(
+    p: Point3<T>,
+    a: Point3<T>,
+    apex: Point3<T>,
+    anti: Point3<T>,
+) -> T {
     ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
 }
 
@@ -1282,10 +1285,12 @@ impl<T: Decide> LoopEdge<T> {
         band: Band,
     ) -> Result<EdgeContact, ReadEscalation> {
         Ok(match self {
-            Self::Chord => match ray_walk::on_segment_margin(a, b, q, rows.line, band)? {
-                Some(on) => EdgeContact::On(on),
-                None => EdgeContact::Off,
-            },
+            Self::Chord => {
+                match ray_walk::on_segment_margin(a, b, q, &rows.line.segment_rows(), band)? {
+                    Some(on) => EdgeContact::On(on),
+                    None => EdgeContact::Off,
+                }
+            }
             Self::Conic(k) => match k.hit(q, band)? {
                 ConicHit::Off => EdgeContact::Off,
                 ConicHit::Carrier => EdgeContact::Carrier,
@@ -1587,6 +1592,88 @@ pub(crate) fn carrier_ball<T: Decide>(
                 reach = reach.max((*p - center).norm());
             }
             Some((center, reach))
+        }
+    }
+}
+
+/// **A lower bound on the distance from `q` to the arc `span` of
+/// `carrier`**, read on the carrier with no decision, and the reading
+/// that gave it ([`ArcFloor`]): a line's own segment; a circle's or an
+/// ellipse's own arc (`ring_path::Conic::distance_floor`, the arc of
+/// the circle over the same span less the conic's distance from it);
+/// any other carrier's ball ([`carrier_ball`]). A conic carries its
+/// whole annulus's floor beside its arc's. `None` for a spline
+/// with no control points. The one home of the question "is this edge
+/// clear of that point by more than a radius", which the clearance
+/// cell door and the boolean's touch gate both ask.
+pub(crate) fn arc_distance_floor<T: Decide>(
+    carrier: &geom::Curve3<T>,
+    (t0, t1): (T, T),
+    q: Point3<T>,
+) -> Option<ArcFloor<T>> {
+    Some(match *carrier {
+        geom::Curve3::Line { .. } => ArcFloor::Segment(
+            crate::sector_shape::point_segment_distance(carrier.eval(t0), carrier.eval(t1), q),
+        ),
+        geom::Curve3::Circle { center, axis, .. } | geom::Curve3::Ellipse { center, axis, .. } => {
+            let Some(crate::ring_path::LoopArc::Conic(conic)) =
+                crate::ring_path::LoopArc::of(carrier, (t0, t1))
+            else {
+                unreachable!("a circle or an ellipse is a conic arc")
+            };
+            // The whole conic lies in the annulus of its plane between
+            // its semi-axes. That floor is exact where the arc's is not:
+            // near the centre, where `q`'s direction is undecided.
+            let (major, minor) = match *carrier {
+                geom::Curve3::Ellipse { semi_u, semi_v, .. } => {
+                    geom::Curve3::semi_axes_by_size(semi_u, semi_v)
+                }
+                geom::Curve3::Circle { radius, .. } => (radius, radius),
+                _ => unreachable!("a circle or an ellipse"),
+            };
+            let n = axis / axis.norm();
+            let w = q - center;
+            let height = w.dot(n);
+            let across = (w - n * height).norm();
+            let off = (minor - across).max(across - major).max(T::zero());
+            ArcFloor::Conic {
+                annulus: (height.powi(2) + off.powi(2)).sqrt(),
+                arc: conic.distance_floor(q),
+            }
+        }
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+            let (center, reach) = carrier_ball(carrier, (t0, t1))?;
+            ArcFloor::Ball(((q - center).norm() - reach).max(T::zero()))
+        }
+    })
+}
+
+/// Which reading of a carrier [`arc_distance_floor`] took, with its
+/// bounds: each is its own question, so a caller deciding on them keeps
+/// them apart.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum ArcFloor<T> {
+    /// A line's distance to its segment.
+    Segment(T),
+    /// A conic's two floors: its whole annulus's, exact near its centre
+    /// and far off it, and its arc's, which reads the trim.
+    Conic {
+        /// The annulus between the semi-axes, in the conic's plane.
+        annulus: T,
+        /// The arc's own floor.
+        arc: T,
+    },
+    /// The distance to a ball holding the arc.
+    Ball(T),
+}
+
+impl<T> ArcFloor<T> {
+    /// Whether `clear` decides any of the floors clear: either of a
+    /// conic's two, the annulus first.
+    pub(crate) fn clears(self, clear: impl Fn(T) -> bool) -> bool {
+        match self {
+            Self::Segment(d) | Self::Ball(d) => clear(d),
+            Self::Conic { annulus, arc } => clear(annulus) || clear(arc),
         }
     }
 }

@@ -56,7 +56,6 @@ def box(doc, width, depth, height):
                 (Formula.literal(width), Formula.literal(depth)),
                 (Formula.length_in(0, m), Formula.literal(depth)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(0, m)),
         )
     )
     return doc.insert(Node.extrude(profile, Formula.literal(height)))
@@ -166,9 +165,8 @@ class TestAReferenceNamesAVersion(StoreCase):
         # The identity did not move, so the store still holds the
         # document — and the CURRENT pin resolves.
         self.assertEqual(ws.current_pin(doc.id), moved)
-        # Six: the two sketches are drawn on frames, and a frame is a
-        # node the document holds.
-        self.assertEqual(ws.resolve(DocRef(doc.id, moved)).node_count, 6)
+        # Four: two boxes, each a sketch and its extrude.
+        self.assertEqual(ws.resolve(DocRef(doc.id, moved)).node_count, 4)
 
     def test_exactly_one_of_two_pins_can_ever_resolve(self):
         """A workspace is one file per document id, so a stale

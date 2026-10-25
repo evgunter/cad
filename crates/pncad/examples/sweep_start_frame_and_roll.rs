@@ -40,7 +40,12 @@ fn main() {
     for stations in [9usize, 13, 17, 25, 33] {
         match pncad::sweep::sweep_body::<f64>(&section, place, &path, stations, 3, tol) {
             Ok(swept) => {
-                let m = pncad::topo::mass_properties(&swept.body, tol).expect("props");
+                let m = pncad::topo::mass_properties(
+                    &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&swept.body), tol)
+                        .expect("the measured body passes tier 3"),
+                    tol,
+                )
+                .expect("props");
                 println!(
                     "{stations} stations: swept volume {} ± {:.1e}; validate {:?}",
                     m.volume,
@@ -93,7 +98,12 @@ fn main() {
         .collect();
     let sections: Vec<_> = (0..stations).map(|_| section.clone()).collect();
     let loft = pncad::sweep::loft_body::<f64>(&sections, &places, 3, tol).expect("loft");
-    let ml = pncad::topo::mass_properties(&loft.body, tol).expect("props");
+    let ml = pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&loft.body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("props");
     println!(
         "rolled loft volume {} ± {:.1e}; validate {:?}",
         ml.volume,

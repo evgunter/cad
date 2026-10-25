@@ -50,7 +50,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use crate::fixture::len;
 use editor_core::NodeStanding;
@@ -101,7 +100,6 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -245,12 +243,46 @@ struct UCutterTie {
     unique: StableName,
 }
 
+/// The symmetric U cutter: a 4x4x4 block with a U-shaped prism, its
+/// two arms congruent, cut through it 1 up. Returns the subtract.
+fn u_cutter_tie(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, target) = crate::blocks::block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
+    let (doc, u_profile) = fixture::insert(
+        doc,
+        Node::Profile(fixture::desc(vec![vec![
+            (2.0, 1.0),
+            (6.0, 1.0),
+            (6.0, 3.0),
+            (2.0, 3.0),
+            (2.0, 2.5),
+            (5.0, 2.5),
+            (5.0, 1.5),
+            (2.0, 1.5),
+        ]])),
+    );
+    let (doc, cutter) = fixture::insert(
+        doc,
+        Node::Extrude {
+            profile: u_profile.into(),
+            distance: len(2.0),
+        },
+    );
+    let (doc, cutter) = fixture::slid(doc, target, cutter, [0.0, 0.0, 1.0]);
+    fixture::insert(
+        doc,
+        Node::Subtract {
+            from: target.into(),
+            tool: cutter.into(),
+        },
+    )
+}
+
 /// Build and evaluate that fixture. `label` is the derived document's
 /// id, so two rows of this file do not share one.
 fn u_cutter_tied_face(label: &str) -> UCutterTie {
     use editor_core::Entry;
 
-    let (doc, sub) = fixture::u_cutter_tie(ProfileDoc::empty_derived(label, Tol::witness()));
+    let (doc, sub) = u_cutter_tie(ProfileDoc::empty_derived(label, Tol::witness()));
     let ev = eval(&doc);
     let (tied, candidates, unique) = {
         let table = ev.table_at(sub).expect("the U subtract evaluates");
@@ -354,13 +386,15 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Extrude {
             profile: square.into(),
             distance: len(0.0),
-            side: ExtrudeSide::Along,
         },
     );
+    // The good box joins the failed extrude's space, as an operator's
+    // operands share one.
+    let (doc, good_in) = fixture::stood_in(doc, good, failed);
     let (doc, poisoned) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![failed.into(), good.into()]),
+            members: editor_core::Bodies::Spelled(vec![failed.into(), good_in.into()]),
         },
     );
     (doc, good, failed, poisoned)
@@ -602,7 +636,7 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
 
     // A split named alone: its halves are two reads, each its own table
     // (NAMES N1), so the node alone answers no one table.
-    let (split_doc, [_, _, split]) = editor_core::test_support::clipped_cylinder(Tol::witness());
+    let (split_doc, [_, split]) = editor_core::test_support::clipped_cylinder(Tol::witness());
     let split_ev = eval(&split_doc);
 
     // Each entry: what the door was asked, what it must answer, and
@@ -704,7 +738,7 @@ fn the_reachable_ladder_is_driven_through_its_doors() {
 
     // The undriven rungs, with the reason in the doc comment above.
     let undriven = [
-        InterrogateError::NoBodies { payload: "datum" },
+        InterrogateError::NoBodies { payload: "pose" },
         InterrogateError::NoSuchBody { index: 7 },
     ];
     for err in &undriven {

@@ -9,11 +9,12 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
-use crate::fixture::{ang, insert, len, point, scl, step, table};
+use crate::fixture::{self, insert, len, point, step, table};
 use editor_core::{
-    Axis3, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId, StableName,
+    Coord, DocEdit, EntityKey, Entry, Node, ProfileDoc, Qualifier, RoleSeg, SlotId, StableName,
+    TargetAxis,
 };
 use geom_core::Tol;
 
@@ -50,8 +51,8 @@ fn seam_pieces(
 #[test]
 fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
     let doc = ProfileDoc::empty_derived("edge-piece-locality", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, rib) = block(doc, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.5);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, rib) = block_on(doc, plate, (-1.0, 4.0), (1.0, 2.0), 0.5, 1.5);
     let (doc, joined) = insert(
         doc,
         Node::Union {
@@ -60,19 +61,8 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
     );
     // Two notches across the rib's y = 1 seam: the first in place, the
     // second parked away from everything until the edit slides it on.
-    let (doc, n1) = block(doc, (0.5, 0.7), (0.5, 1.5), 0.8, 0.7);
-    let (doc, n2) = block(doc, (2.0, 2.2), (4.5, 5.5), 0.8, 0.7);
-    let (doc, tr) = insert(
-        doc,
-        Node::transform(
-            n2,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, n1) = block_on(doc, plate, (0.5, 0.7), (0.5, 1.5), 0.8, 0.7);
+    let (doc, tr) = block_on(doc, plate, (2.0, 2.2), (4.5, 5.5), 0.8, 0.7);
     let (doc, notches) = insert(
         doc,
         Node::Union {
@@ -90,8 +80,11 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         doc.clone(),
         DocEdit::SetParam {
             node: tr,
-            slot: SlotId::Translation(Axis3::Y),
-            value: len(-4.0).into(),
+            // The value is charted on the plate's flipped start cap, whose
+            // `y` runs along the plate's `−y`: this slides the notch
+            // 4 toward `−y`.
+            slot: crate::fixture::value_slot(&doc, tr, Coord::Slide(TargetAxis::Y)),
+            value: len(4.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -147,7 +140,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
 /// each half, and its rim is joined across the profile's seam.)
 #[test]
 fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_names() {
-    use editor_core::{Datum, Sense, SplitHalf};
+    use editor_core::{Sense, SplitHalf};
 
     let at = |deg: f64| {
         let t = deg.to_radians();
@@ -169,14 +162,13 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
     };
     let doc = ProfileDoc::empty_derived("edge-piece-locality-twice", Tol::witness());
     let (doc, rod) = d_rod(doc, at(225.0));
-    let (nx, ny) = normal(300.0);
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(p.0), len(p.1), len(0.0)],
-            normal: [scl(nx), scl(ny), scl(0.0)],
-        }),
-    );
+    // The plane through P whose normal puts the rim point at `other`,
+    // read off the rod's own geometry.
+    let plane = |doc: &ProfileDoc, other: f64| {
+        let (nx, ny) = normal(other);
+        plane_read(doc, rod, [p.0, p.1, 0.0], [nx, ny, 0.0])
+    };
+    let tool = plane(&doc, 300.0);
     let (doc, cut) = insert(
         doc,
         Node::Split {
@@ -184,22 +176,12 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
             tool: tool.into(),
         },
     );
-    let (nx, ny) = normal(30.0);
     let (doc2, _) = step(
         doc.clone(),
         DocEdit::SetParam {
-            node: tool,
-            slot: SlotId::Normal(Axis3::X),
-            value: scl(nx).into(),
-            fresh: Vec::new(),
-        },
-    );
-    let (doc2, _) = step(
-        doc2,
-        DocEdit::SetParam {
-            node: tool,
-            slot: SlotId::Normal(Axis3::Y),
-            value: scl(ny).into(),
+            node: cut,
+            slot: SlotId::Operand(editor_core::OperandSlot::Tool),
+            value: plane(&doc, 30.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -301,21 +283,34 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
     );
 }
 
+/// **The plane through `origin` normal to `normal`, read off `body`**, as
+/// one `Plane` read: the frame [`fixture::plane_on_frame`] reads (the
+/// normal is tilted off every face), through its `xy`, slid by the
+/// constant zero along its `z` — the spelling a split's tool slot is
+/// re-pointed at.
+fn plane_read(
+    doc: &ProfileDoc,
+    body: editor_core::RecipeNodeId,
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> editor_core::Operand {
+    use editor_core::pose::{PoseDef, PoseRole, RoleRead};
+    let frame = fixture::plane_on_frame(doc, body, origin, normal).read;
+    editor_core::Operand::Pose(Box::new(PoseDef::Slide {
+        pose: RoleRead::through(frame.clone(), PoseRole::Xy),
+        along: RoleRead::through(frame, PoseRole::Z),
+        by: editor_core::Formula::zero(editor_core::Dimension::Length),
+    }))
+}
+
 /// A rod of length 1 along `z` whose profile is the arc of radius 0.3
 /// about the origin from 0° counter-clockwise to `end`, closed by the
 /// chord back.
 pub(crate) fn d_rod(doc: ProfileDoc, end: (f64, f64)) -> (ProfileDoc, editor_core::RecipeNodeId) {
-    use editor_core::{
-        ExtrudeSide, LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    };
-    let (doc, plane) = insert(
-        doc,
-        crate::fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    use editor_core::{LoopProgram, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget};
     let (doc, d) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At([len(0.3), len(0.0)]),
                 ProgramStep::ArcTo(ProgramArcData::Center {
@@ -333,7 +328,6 @@ pub(crate) fn d_rod(doc: ProfileDoc, end: (f64, f64)) -> (ProfileDoc, editor_cor
         Node::Extrude {
             profile: d.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }

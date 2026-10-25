@@ -19,7 +19,7 @@
 use geom_core::{Affine3, Band, Point2, Point3, Tol, UnitVec3, Vec3};
 use sweep::Revolution;
 use sweep::test_support::revolved_about_y;
-use topo::{Body, BooleanError, DATUM_UNIT_NORM, EdgeKey, FaceKey, SweepStrategy, sweep_traces};
+use topo::{Body, BooleanError, EdgeKey, FaceKey, POSE_UNIT_NORM, SweepStrategy, sweep_traces};
 
 const DRUM_RADIUS: f64 = 0.5;
 const TILT: f64 = 0.3;
@@ -38,7 +38,7 @@ fn drum_lower() -> Body<f64> {
         origin: Point3::new(0.0, 0.0, 0.5),
         normal: UnitVec3::new(
             Vec3::new(TILT.sin(), 0.0, TILT.cos()),
-            DATUM_UNIT_NORM,
+            POSE_UNIT_NORM,
             Band::linear(tol).expect("the witness tolerance forms a band"),
         )
         .expect("a cut normal has a length"),
@@ -52,7 +52,7 @@ fn drum_lower() -> Body<f64> {
         2,
         "the rim is two ellipse arcs"
     );
-    below
+    below.into_body()
 }
 
 /// A ring torus `(big, small)` about the axis `axis` through `c`: a full

@@ -11,14 +11,14 @@
 use crate::fixture::{flip, head, len, plane};
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, Mate, Operand,
-    ProfileDoc, RecipeNodeId, RoleSeg, StableName, Target, WorldRead, apply, load, save,
+    CapEnd, ContentPin, DocEdit, DocRef, DocumentId, EntityKind, Operand, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, apply, load, save,
 };
 use geom_core::Tol;
 
 /// A document carrying a mate round-trips through the persistence
 /// door bit for bit — a world read, a flip and a standoff among its
-/// poses — and the mate's class rides its stable spelling.
+/// poses.
 #[test]
 fn a_mate_bearing_document_round_trips() {
     let doc_ref = DocRef {
@@ -60,25 +60,15 @@ fn a_mate_bearing_document_round_trips() {
     let add = |doc: &ProfileDoc, placement, mate| {
         apply(
             doc,
-            &DocEdit::AddConstraint {
-                placement,
-                mate: Box::new(mate),
-                fresh: Vec::new(),
-            },
+            // The mate and a zero on each freedom it leaves, written
+            // whole: every bundle pins its copy.
+            &crate::fixture::squared(doc, mate, &[]).write(placement),
             Tol::witness(),
         )
         .expect("a mate inserts")
         .doc
     };
-    let doc = add(
-        &doc,
-        ids[0],
-        Mate {
-            on: plane(head(name(ids[0]))),
-            to: Target::World(WorldRead::through(PoseRole::Xy)),
-            class: ContactClass::Rest,
-        },
-    );
+    let doc = crate::fixture::stand_again(doc, ids[0]);
     // The second's start cap rests half a unit off the first's: the
     // first's plane slid along its own normal, flipped to face it.
     let a = plane(head(name(ids[0])));
@@ -90,16 +80,12 @@ fn a_mate_bearing_document_round_trips() {
     let doc = add(
         &doc,
         ids[1],
-        crate::fixture::mate(
-            plane(head(name(ids[1]))),
-            flip(standoff),
-            ContactClass::Rest,
-        ),
+        crate::fixture::mate(plane(head(name(ids[1]))), flip(standoff)),
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert!(
-        text.contains("\"rest\""),
-        "the class rides the SAME stable spelling a Declare pair's does: {text}"
+        !text.contains("\"class\""),
+        "a mate writes no class: {text}"
     );
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the mate round-trips bit for bit");

@@ -13,7 +13,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::fixture::{edge_of, out, table};
 
@@ -46,17 +46,65 @@ pub(crate) fn permutations(items: &[usize]) -> Vec<Vec<usize>> {
     out
 }
 
-/// The blocks in creation order `creation`; `ids[i]` is block `i`'s node.
+/// The blocks in creation order `creation`; `ids[i]` is block `i`'s
+/// operand: the first created is the root, and each later one a copy
+/// placed against it, `z` up from the root's own foot.
 pub(crate) fn document(blocks: &[Bx], creation: &[usize]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty_derived("emit_shared_rim_several", Tol::witness());
     let mut ids = vec![RecipeNodeId::new(0, 0); blocks.len()];
+    let mut root: Option<(RecipeNodeId, f64)> = None;
     for &i in creation {
         let (x, y, z) = blocks[i];
-        let (d, id) = block(doc, x, y, z.0, z.1);
+        let (d, id) = match root {
+            None => {
+                let (d, id) = block(doc, x, y, z.1);
+                root = Some((id, z.0));
+                (d, id)
+            }
+            Some((r, z0)) => block_on(doc, r, x, y, z.0 - z0, z.1),
+        };
         doc = d;
         ids[i] = id;
     }
     (doc, ids)
+}
+
+/// **The construction behind operand `m`**: the body a placement
+/// copies, else `m` itself.
+pub(crate) fn construction(doc: &ProfileDoc, m: RecipeNodeId) -> RecipeNodeId {
+    match doc.node(m) {
+        Some(editor_core::Node::Place { shapes, .. }) => doc
+            .operation_of(shapes[0].read)
+            .expect("the placed body is live"),
+        _ => m,
+    }
+}
+
+/// **The name operand `m` gives its entity `path` of kind `kind`**: the
+/// construction's own name, under the placement's `Placed` layer when
+/// `m` is a placement.
+pub(crate) fn own_name(
+    doc: &ProfileDoc,
+    m: RecipeNodeId,
+    kind: EntityKind,
+    path: Vec<RoleSeg>,
+) -> StableName {
+    let c = construction(doc, m);
+    let own = StableName {
+        kind,
+        node: c,
+        path,
+    };
+    if c == m {
+        return own;
+    }
+    StableName {
+        kind,
+        node: m,
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(own),
+        }],
+    }
 }
 
 /// Whether `n` is a published piece of edge `edge` of the member read
@@ -250,13 +298,16 @@ fn the_chord_is_named_for_the_rims_it_lies_along() {
     let (docx, union) = crate::fixture::union_over(doc, &ids);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    let rim = |m: RecipeNodeId, seg: usize| StableName {
-        kind: EntityKind::Edge,
-        node: m,
-        path: vec![RoleSeg::RimEdge(
-            CapEnd::End,
-            crate::fixture::piece(&docx, m, 0, seg).into(),
-        )],
+    let rim = |m: RecipeNodeId, seg: usize| {
+        own_name(
+            &docx,
+            m,
+            EntityKind::Edge,
+            vec![RoleSeg::RimEdge(
+                CapEnd::End,
+                crate::fixture::piece(&docx, construction(&docx, m), 0, seg).into(),
+            )],
+        )
     };
     let micro = |x: f64| (x * 1e6).round() as i64;
     let span = |n: &StableName| {
@@ -375,14 +426,15 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
         crate::fixture::member_entity(
             union,
             out(&docx, m),
-            StableName {
-                kind: EntityKind::Edge,
-                node: m,
-                path: vec![RoleSeg::RimEdge(
+            own_name(
+                &docx,
+                m,
+                EntityKind::Edge,
+                vec![RoleSeg::RimEdge(
                     CapEnd::End,
-                    crate::fixture::piece(&docx, m, 0, 2).into(),
+                    crate::fixture::piece(&docx, construction(&docx, m), 0, 2).into(),
                 )],
-            },
+            ),
             EntityKind::Edge,
         )
     };
@@ -402,14 +454,15 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
         crate::fixture::member_entity(
             union,
             out(&docx, m),
-            StableName {
-                kind: EntityKind::Vertex,
-                node: m,
-                path: vec![RoleSeg::CapVertex(
+            own_name(
+                &docx,
+                m,
+                EntityKind::Vertex,
+                vec![RoleSeg::CapVertex(
                     CapEnd::End,
-                    crate::fixture::vpiece(&docx, m, 0, 3),
+                    crate::fixture::vpiece(&docx, construction(&docx, m), 0, 3),
                 )],
-            },
+            ),
             EntityKind::Vertex,
         )
     };
@@ -568,14 +621,15 @@ fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
     let rim = crate::fixture::member_entity(
         union,
         out(&docx, ids[2]),
-        StableName {
-            kind: EntityKind::Edge,
-            node: ids[2],
-            path: vec![RoleSeg::RimEdge(
+        own_name(
+            &docx,
+            ids[2],
+            EntityKind::Edge,
+            vec![RoleSeg::RimEdge(
                 CapEnd::End,
-                crate::fixture::piece(&docx, ids[2], 0, 0).into(),
+                crate::fixture::piece(&docx, construction(&docx, ids[2]), 0, 0).into(),
             )],
-        },
+        ),
         EntityKind::Edge,
     );
     let listing: Vec<StableName> = table(&ev, union)

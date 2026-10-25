@@ -364,7 +364,19 @@ fn probe_c_a_third_solids_findings_do_not_block_a_pair() {
     topo::graft_disjoint(&mut body, &third).unwrap();
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
-    assert_eq!(errors.len(), 16, "{errors:?}");
+    // Two area contacts, each one face pair: the part on the inner wall,
+    // the third instance on the outer.
+    assert_eq!(errors.len(), 2, "{errors:?}");
+    assert!(
+        errors.iter().all(|e| matches!(
+            e,
+            ValidationError::UnrecordedContact {
+                contact: topo::CensusContact::ConformalPatch { .. },
+                ..
+            }
+        )),
+        "{errors:?}"
+    );
     assert!(placement_findings(&errors).is_empty(), "{errors:?}");
 }
 

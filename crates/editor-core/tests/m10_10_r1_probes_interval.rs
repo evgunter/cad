@@ -22,7 +22,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
-use editor_core::ExtrudeSide;
 use std::time::Instant;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
@@ -36,7 +35,7 @@ use editor_core::{
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, scl, xy_frame};
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{bound, dials, nominal_box, render_over_band};
 
@@ -102,8 +101,6 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         },
     );
 
-    let plane = r.insert(xy_frame());
-
     let neg_c = Formula::neg(plen("chord_half")).expect("a shallow negation");
     let seg_loop = LoopProgram::Chain(vec![
         ProgramStep::At([neg_c, len(0.0)]),
@@ -114,7 +111,6 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         }),
     ]);
     let seg_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![seg_loop],
         ids: Vec::new(),
     }));
@@ -122,11 +118,9 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let seg = r.insert(Node::Extrude {
         profile: seg_profile.into(),
         distance: thickness.clone(),
-        side: ExtrudeSide::Along,
     });
     let bore_centre_y = Formula::mul(plen("chord_half"), scl(0.2)).expect("Length * Scalar");
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), bore_centre_y],
             radius: plen("bore_r"),
@@ -136,9 +130,10 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let bore = r.insert(Node::Extrude {
         profile: bore_profile.into(),
         distance: thickness,
-        side: ExtrudeSide::Along,
     });
 
+    // The bore joins the seg's space where it is drawn.
+    let bore = r.against(seg, bore, &editor_core::Frame::IDENTITY);
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
             &r.doc,

@@ -11,14 +11,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Axis3, CancelToken, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions, Evaluation,
-    FragmentGroups, GroupCutters, NameTable, Node, ProfileDoc, Qualifier, RecipeNodeId, Resolution,
-    ResolveError, RoleSeg, RunCtx, SlotId, StableName, evaluate,
+    CancelToken, Diagnosis, EntityKind, Entry, EvalOptions, Evaluation, FragmentGroups,
+    GroupCutters, NameTable, Node, ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError,
+    RoleSeg, RunCtx, StableName, evaluate,
 };
-use fixture::{ang, insert, len, minted, on_frame, scl, step};
+use fixture::{insert, len, minted};
 use geom_core::Tol;
 use geom_core::k_stats::Verdict;
 
@@ -38,111 +37,92 @@ fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evalua
     )
 }
 
+/// A block on its own xy: a construction, the root of its own space.
 fn block(
     doc: ProfileDoc,
     (x0, x1): (f64, f64),
     (y0, y1): (f64, f64),
-    z0: f64,
     dz: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(
+    let (doc, p) = insert(
         doc,
-        [0.0, 0.0, z0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
+        Node::Profile(fixture::desc(vec![vec![
+            (x0, y0),
+            (x1, y0),
+            (x1, y1),
+            (x0, y1),
+        ]])),
     );
     insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
 
 /// The scenario: plate `a` (3×3×1), bar `b` crossing its end cap
-/// fully in y behind a `Transform`, subtracted at `cut`.
+/// fully in y, placed against the plate, subtracted at `cut`.
 struct Slot {
     doc: ProfileDoc,
-    /// The bar's own extrude, whose faces the cut's seams name.
-    bar: RecipeNodeId,
-    tr: RecipeNodeId,
+    /// The bar's placed copy, which the cut reads.
+    bar: crate::resolve_group_membership::Placed,
     cut: RecipeNodeId,
 }
 
-/// The bar's wall over profile segment `segment` (`block`'s profile
-/// runs counter-clockwise from `(x0, y0)`: wall 0 is y = y0, 1 is
-/// x = x1, 3 is x = x0).
-fn wall(doc: &ProfileDoc, bar: RecipeNodeId, segment: u32) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: bar,
-        path: vec![RoleSeg::Lateral(
-            crate::fixture::piece(doc, bar, 0, segment as usize).into(),
-        )],
+impl Slot {
+    /// The bar's wall over profile segment `segment` as its placed copy
+    /// names it (`block`'s profile runs counter-clockwise from
+    /// `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 3 is x = x0).
+    fn wall(&self, segment: u32) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: self.bar.body,
+            path: vec![RoleSeg::Lateral(
+                crate::fixture::piece(&self.doc, self.bar.body, 0, segment as usize).into(),
+            )],
+        }
+        .in_copy(self.bar.placement)
     }
-}
 
-/// The bar's wall `segment` as the cut's table carries it in, through
-/// the read the cut's tool seat holds: a seam's side (N3).
-fn cutter(doc: &ProfileDoc, cut: RecipeNodeId, bar: RecipeNodeId, segment: u32) -> StableName {
-    let Some(Node::Subtract { tool, .. }) = doc.node(cut) else {
-        panic!("the cut is a subtract");
-    };
-    StableName {
-        kind: EntityKind::Face,
-        node: cut,
-        path: vec![RoleSeg::From {
-            read: tool.read,
-            of: wall(doc, bar, segment).into(),
-        }],
+    /// The bar's wall `segment` as the cut's table carries it in,
+    /// through the read the cut's tool seat holds: a seam's side (N3).
+    fn cutter(&self, segment: u32) -> StableName {
+        let Some(Node::Subtract { tool, .. }) = self.doc.node(self.cut) else {
+            panic!("the cut is a subtract");
+        };
+        StableName {
+            kind: EntityKind::Face,
+            node: self.cut,
+            path: vec![RoleSeg::From {
+                read: tool.read,
+                of: self.wall(segment).into(),
+            }],
+        }
     }
 }
 
 fn slot() -> Slot {
     let doc = ProfileDoc::empty_derived("bool7", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, b0) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
-    let (doc, tr) = insert(
-        doc,
-        Node::transform(
-            b0,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
-    );
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b0) = block(doc, (1.0, 2.0), (-1.0, 4.0), 1.0);
+    let (doc, bar) = crate::resolve_group_membership::placed(doc, a, b0, 0.5);
     let (doc, cut) = insert(
         doc,
         Node::Subtract {
             from: a.into(),
-            tool: tr.into(),
+            tool: bar.placement.into(),
         },
     );
-    Slot {
-        doc,
-        bar: b0,
-        tr,
-        cut,
-    }
+    Slot { doc, bar, cut }
 }
 
 /// Slides the bar along `axis` — the interaction-boundary edit.
-fn slide(s: &Slot, axis: Axis3, to: f64) -> ProfileDoc {
-    step(
-        s.doc.clone(),
-        DocEdit::SetParam {
-            node: s.tr,
-            slot: SlotId::Translation(axis),
-            value: len(to).into(),
-            fresh: Vec::new(),
-        },
-    )
-    .0
+fn slide(s: &Slot, axis: usize, to: f64) -> ProfileDoc {
+    let mut by = [0.0; 3];
+    by[axis] = to;
+    crate::resolve_group_membership::moved(s.doc.clone(), &s.bar, by)
 }
 
 /// The `Borders`-qualified cap pieces of `cut`'s table, left to right.
@@ -300,9 +280,12 @@ struct Hand {
 fn hand() -> Hand {
     let (doc, n) = insert(
         ProfileDoc::empty_derived("bool7-hand", Tol::witness()),
-        fixture::xy_frame(),
+        Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
     );
-    let (doc, m) = insert(doc, fixture::xy_frame());
+    let (doc, m) = insert(
+        doc,
+        Node::Profile(fixture::desc(vec![fixture::square(0.0, 0.0, 0.5)])),
+    );
     let of = minted(EntityKind::Body, n, RoleSeg::OutputBody);
     let wall = |rank| StableName {
         kind: EntityKind::Body,
@@ -344,7 +327,7 @@ fn a_withdrawn_bar_is_answered_by_the_recorded_flip() {
     let s = slot();
     let ev1 = run(&s.doc, None);
     let frags = border_pieces(&ev1, s.cut);
-    let doc2 = slide(&s, Axis3::X, 5.0);
+    let doc2 = slide(&s, 0, 5.0);
     let ev2 = run(&doc2, Some(&ev1));
     assert!(border_pieces(&ev2, s.cut).is_empty(), "the cap is whole");
     let res = crate::fixture::resolve_with_prior_at_mint(
@@ -381,7 +364,7 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
         let s = slot();
         let ev1 = run(&s.doc, None);
         let frags = border_pieces(&ev1, s.cut);
-        let doc2 = slide(&s, Axis3::Y, to);
+        let doc2 = slide(&s, 1, to);
         let ev2 = run(&doc2, Some(&ev1));
         assert!(border_pieces(&ev2, s.cut).is_empty(), "y = {to}");
         let res = crate::fixture::resolve_with_prior_at_mint(
@@ -406,7 +389,7 @@ fn a_collapsed_borders_group_is_diagnosed_group_resized_and_offers_the_survivor(
                 // crosses it too.
                 cutters: GroupCutters::Read {
                     gone: vec![],
-                    new: vec![cutter(&s.doc, s.cut, s.bar, 0)],
+                    new: vec![s.cutter(0)],
                 },
             },
             "y = {to}"
@@ -450,7 +433,7 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
             !pieces.is_empty(),
             "the cut names some edge pieces by their ends"
         );
-        let doc2 = slide(&s, Axis3::Y, to);
+        let doc2 = slide(&s, 1, to);
         let ev2 = run(&doc2, Some(&ev1));
         let gone: Vec<&StableName> = pieces
             .iter()
@@ -484,10 +467,7 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
                     // walls at once, read in name order.
                     cutters: GroupCutters::Read {
                         gone: {
-                            let mut gone = vec![
-                                cutter(&s.doc, s.cut, s.bar, 1),
-                                cutter(&s.doc, s.cut, s.bar, 3),
-                            ];
+                            let mut gone = vec![s.cutter(1), s.cutter(3)];
                             gone.sort();
                             gone
                         },

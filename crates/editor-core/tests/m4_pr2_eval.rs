@@ -8,7 +8,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanValue, CancelToken, EvalOptions, EvalOutcome, Evaluation, NodeResult, ProfileDoc,
@@ -16,7 +15,7 @@ use editor_core::{
 };
 use fixture::{die, len};
 use geom_core::Tol;
-use topo::{Body, mass_properties, validate, validate_closed};
+use topo::{Body, validate, validate_closed};
 
 fn run(
     doc: &editor_core::ProfileDoc,
@@ -60,13 +59,13 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
 //   as `24.0 + 21.0 * 4.0 * 0.25 * DEPTH`, which is that number), plus
 //   a floor on how many documents still carry a pin at all.
 //
-// The one assertion that is a literal 63 rather than the document's own
+// The one assertion that is a literal 56 rather than the document's own
 // length stays in this file: `cancelation_returns_a_typed_partial_\
-// result` asserts `ev.order.len() == 63` and `(63, 0)` on the same
+// result` asserts `ev.order.len() == 56` and `(56, 0)` on the same
 // document, and `poisoning_hits_descendants_only_and_is_walkable`
-// asserts `63 - 3`. So the die's node count is still pinned here: the
-// cube, seven sketch frames, and per pip a profile, an extrude, a
-// transform and a declared subtract.
+// asserts `56 - 3`. So the die's node count is still pinned here: the
+// cube, and per pip a profile, an extrude, a placement and a declared
+// subtract.
 
 // **RETIRED (2026-08-13 test-time audit): `incremental_edit_recomputes\
 // _only_the_downstream_cone`.** It moved the +z pip's Transform x from
@@ -96,7 +95,7 @@ fn final_body(ev: &Evaluation<f64>, id: editor_core::RecipeNodeId) -> &Body<f64>
 //   and full body fingerprint, split sides and pattern instances
 //   included, over the 14-node `rich_doc` (diamond, circular pattern,
 //   revolve, split, and a poisoned subgraph — a wider node vocabulary
-//   than the die's Profile/Extrude/Transform/Subtract).
+//   than the die's Profile/Extrude/Place/Subtract).
 //   Memo-after-an-EDIT bit-identity is separately owned by
 //   `review_m4_pr2::edit_back_restores_bit_identical_bodies` (edit,
 //   re-evaluate, edit back against the stale memo, final body must be
@@ -117,7 +116,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
     let d = die();
     let full = run(&d.doc, None, false);
     // pip_depth 0.125 → 0.0625: every pip master extrude and all 42
-    // downstream pip nodes recompute; the 7 frames, the 7 profiles
+    // downstream pip nodes recompute; the 7 profiles
     // and the cube extrude are reused.
     let edited = d
         .doc
@@ -135,87 +134,26 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .unwrap()
         .doc;
     let memo = run(&edited, Some(&full), false);
-    // The seven frames are reused: a `pip_depth` edit does not
-    // touch a sketch plane.
-    assert_eq!((memo.recomputed, memo.reused), (48, 15));
-    let vol = mass_properties(final_body(&memo, d.final_node), Tol::witness())
-        .unwrap()
-        .volume;
-    assert_eq!(vol, 8.0 - 21.0 * 0.25 * 0.25 * 0.0625); // 7.91796875
-}
-
-/// **A side flip recomputes the flipped extrude's cone, and the memo
-/// serves nothing stale.** An extrude's side is not a slot, so it
-/// reaches the content key as its own word; without it, a warm
-/// evaluation after `SetExtrudeSide` reused all 84 nodes and served the
-/// pre-flip body. Flipping the +z pip master recomputes exactly its
-/// cone — the master, the last transform and the last subtract — and
-/// the warm run equals a cold run of the same document node for node.
-/// Then the undo: the original document, evaluated warm against the
-/// flipped evaluation (what the viewer's undo does — it restores the
-/// prior `Doc` and re-evaluates against the standing memo), recomputes
-/// the same three nodes back and equals the original cold run.
-#[test]
-fn a_side_flip_recomputes_its_cone_and_undo_restores_the_body() {
-    use crate::fixture::value_channel::value_digest;
-    let d = die();
-    let full = run(&d.doc, None, false);
-    let flipped = d
-        .doc
-        .apply(
-            &editor_core::DocEdit::SetExtrudeSide {
-                node: d.pz_extrude,
-                side: ExtrudeSide::Along,
-            },
+    assert_eq!((memo.recomputed, memo.reused), (48, 8));
+    let vol = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(final_body(&memo, d.final_node)),
             Tol::witness(),
-        )
-        .expect("a side flip at an extrude")
-        .doc;
-    let warm = run(&flipped, Some(&full), false);
-    let cold = run(&flipped, None, false);
-    assert_eq!(
-        (warm.recomputed, warm.reused),
-        (3, d.n_nodes - 3),
-        "the flipped master, its transform and the last subtract"
-    );
-    assert_eq!(
-        value_digest(&warm),
-        value_digest(&cold),
-        "warm against cold"
-    );
-    assert_ne!(
-        value_digest(&warm),
-        value_digest(&full),
-        "the flip moved the body; a digest that held would mean the memo served the old one"
-    );
-    for id in &cold.order {
-        assert_eq!(
-            warm.value(*id).map(|v| v.content_key),
-            cold.value(*id).map(|v| v.content_key),
-            "{id:?}: warm and cold keys"
-        );
-    }
-    assert_ne!(
-        warm.value(d.pz_extrude).map(|v| v.content_key),
-        full.value(d.pz_extrude).map(|v| v.content_key),
-        "the side moves the extrude's key"
-    );
-
-    let undone = run(&d.doc, Some(&warm), false);
-    assert_eq!((undone.recomputed, undone.reused), (3, d.n_nodes - 3));
-    assert_eq!(
-        value_digest(&undone),
-        value_digest(&full),
-        "undo against the original"
-    );
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
+    assert_eq!(vol, 8.0 - 21.0 * 0.25 * 0.25 * 0.0625); // 7.91796875
 }
 
 /// **The negative-depth refusal is true whatever drives the depth.**
 /// Here a document parameter does, so there is no minus sign in the
 /// extrude to delete: the sentence quotes the value the depth
 /// evaluated to and says its sign comes from what drives it, and the
-/// recourse — the parameter made positive, the side flipped — builds
-/// the block on the other side of the sketch plane.
+/// recourse — the parameter made positive, the block's copy turned
+/// over — builds the block on the other side of the sketch plane.
 #[test]
 fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     use editor_core::{Dimension, DocEdit, Formula, FreeVar, Node, NodeErrorKind, VarName};
@@ -234,7 +172,6 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
     let block = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: Formula::named(h.clone(), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let ev = run(&r.doc, None, false);
     let text = match ev.nodes.get(&block) {
@@ -243,7 +180,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
                 matches!(
                     e.kind,
                     NodeErrorKind::Extrude(sweep::ExtrudeError::NegativeDepth {
-                        side: ExtrudeSide::Along,
+                        side: sweep::ExtrudeSide::Along,
                         ..
                     })
                 ),
@@ -262,25 +199,27 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         assert!(text.contains(want), "{want:?} in: {text}");
     }
 
-    let mut mended = r.doc.clone();
-    for edit in [
-        DocEdit::DefineVar {
-            var: h.into(),
-            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
-            fresh: Vec::new(),
-        },
-        DocEdit::SetExtrudeSide {
-            node: block,
-            side: ExtrudeSide::Against,
-        },
-    ] {
-        mended = mended
-            .apply(&edit, Tol::witness())
-            .expect("the recourse's edits")
-            .doc;
-    }
+    let mended = r
+        .doc
+        .apply(
+            &DocEdit::DefineVar {
+                var: h.into(),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+        .expect("the recourse's edit")
+        .doc;
+    // The block's copy turned over about its own x: its z reversed.
+    let (mended, turned) = fixture::against(
+        mended,
+        block,
+        block,
+        &fixture::axes_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]),
+    );
     let ev = run(&mended, None, false);
-    let body = match &ev.value(block).expect("the recourse builds").payload {
+    let body = match &ev.value(turned).expect("the recourse builds").payload {
         ValuePayload::Body(b) => b,
         other => panic!("expected a body, got {}", other.kind_name()),
     };
@@ -338,7 +277,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
         other => panic!("expected Failed, got {other:?}"),
     }
 
-    // Descendants ONLY: exactly the +z transform and the final
+    // Descendants ONLY: exactly the +z placement and the final
     // subtract are poisoned, each pointing at the failed extrude.
     let poisoned: Vec<_> = ev
         .nodes
@@ -359,7 +298,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
         .values()
         .filter(|r| matches!(r, NodeResult::Ok(_)))
         .count();
-    assert_eq!(ok_count, 63 - 3); // all but Failed + 2 Poisoned
+    assert_eq!(ok_count, 56 - 3); // all but Failed + 2 Poisoned
 }
 
 #[test]
@@ -371,7 +310,7 @@ fn cancelation_returns_a_typed_partial_result() {
     let ev = evaluate::<f64>(&d.doc, None, &cancel, &opts, Tol::witness());
     assert_eq!(ev.outcome, EvalOutcome::Canceled);
     assert!(ev.nodes.is_empty()); // canceled before the first node
-    assert_eq!(ev.order.len(), 63); // order is data, not schedule
+    assert_eq!(ev.order.len(), 56); // order is data, not schedule
     assert_eq!(ev.epoch, opts.epoch); // the identity token round-trips
 
     // Distinct evaluations carry distinct minted epochs (GQ2's
@@ -389,7 +328,7 @@ fn cancelation_returns_a_typed_partial_result() {
         Tol::witness(),
     );
     assert_eq!(full.outcome, EvalOutcome::Completed);
-    assert_eq!((full.recomputed, full.reused), (63, 0));
+    assert_eq!((full.recomputed, full.reused), (56, 0));
 }
 
 #[test]
@@ -409,12 +348,11 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         Node::Extrude {
             profile: small_p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, big_p) = fixture::on_frame(
         doc,
-        [0.0, 0.0, -1.0],
+        [0.0; 3],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
@@ -424,9 +362,9 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         Node::Extrude {
             profile: big_p.into(),
             distance: len(3.0),
-            side: ExtrudeSide::Along,
         },
     );
+    let (doc, big) = fixture::slid(doc, small, big, [0.0, 0.0, -1.0]);
     let (doc, sub) = fixture::insert(
         doc,
         Node::Subtract {
@@ -458,7 +396,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
 
 #[test]
 fn split_evaluates_both_parts_role_tagged() {
-    use editor_core::{Datum, Node, PoseValue, SplitSide};
+    use editor_core::{Node, PoseValue, SplitSide};
     let doc = ProfileDoc::empty_derived("m4_pr2_eval", Tol::witness());
     let (doc, prof) = fixture::on_frame(
         doc,
@@ -472,32 +410,42 @@ fn split_evaluates_both_parts_role_tagged() {
         Node::Extrude {
             profile: prof.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
-    // The tool: a datum plane z = 0.5 (normal +z).
-    let (doc, plane) = fixture::insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(2.0)],
-        }),
-    );
+    // The tool: the plane z = 0.5 read off the cube, its normal +z
+    // written unnormalized.
+    let tool = fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 2.0]);
     let (doc, split_node) = fixture::insert(
         doc,
         Node::Split {
             target: cube.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     let ev = run(&doc, None, false);
-    // The datum evaluated with a NORMALIZED normal.
-    match &ev.value(plane).unwrap().payload {
-        ValuePayload::Datum(PoseValue::Plane { normal, .. }) => {
+    // The tool binds with a NORMALIZED normal.
+    let Some(Node::Split { tool, .. }) = doc.node(split_node) else {
+        panic!("a split")
+    };
+    match editor_core::eval::bound_pose(
+        &doc,
+        &ev,
+        editor_core::OperandSlot::Tool,
+        *tool,
+        Tol::witness(),
+    ) {
+        Ok(PoseValue::Plane { normal, .. }) => {
+            // The frame read off the cube carries its spins' rounding.
             let normal = normal.get();
-            assert_eq!((normal.x, normal.y, normal.z), (0.0, 0.0, 1.0));
+            assert!(
+                (normal.norm() - 1.0).abs() <= 4.0 * f64::EPSILON
+                    && normal.x.abs() <= 1e-15
+                    && normal.y.abs() <= 1e-15
+                    && normal.z > 0.0,
+                "a unit normal along +z: {normal:?}"
+            );
         }
-        other => panic!("expected datum, got {}", other.kind_name()),
+        other => panic!("expected a plane, got {other:?}"),
     }
     match &ev.value(split_node).unwrap().payload {
         ValuePayload::Split { above, below } => {
@@ -505,11 +453,29 @@ fn split_evaluates_both_parts_role_tagged() {
                 panic!("both sides carry material");
             };
             assert_eq!(
-                mass_properties(above, Tol::witness()).unwrap().volume,
+                topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&**above),
+                        Tol::witness()
+                    ),
+                    Tol::witness()
+                )
+                .unwrap()
+                .volume,
                 2.0 * 2.0 * 1.5
             );
             assert_eq!(
-                mass_properties(below, Tol::witness()).unwrap().volume,
+                topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&**below),
+                        Tol::witness()
+                    ),
+                    Tol::witness()
+                )
+                .unwrap()
+                .volume,
                 2.0 * 2.0 * 0.5
             );
             for b in [above, below] {

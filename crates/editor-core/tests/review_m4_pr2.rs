@@ -5,7 +5,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::fmt::Write as _;
 
@@ -15,7 +14,7 @@ use editor_core::{
 };
 use fixture::{ang, die, insert, len, on_frame, revolve_about, scl, square, step};
 use geom_core::Tol;
-use topo::{Body, mass_properties};
+use topo::Body;
 
 fn run(
     doc: &editor_core::ProfileDoc,
@@ -31,7 +30,11 @@ fn run(
 
 fn fingerprint(b: &Body<f64>) -> String {
     let mut s = String::new();
-    let m = mass_properties(b, Tol::witness()).unwrap();
+    let m = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let _ = writeln!(
         s,
         "V {:016x} A {:016x}",
@@ -82,7 +85,6 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: pa.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, pb) = on_frame(
@@ -97,11 +99,12 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: pb.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let (x, y) = if swap { (b, a) } else { (a, b) };
-    // The start caps are flush.
+    // The start caps are flush: the tool's copy stands against `from`
+    // at the identity.
+    let (doc, y) = crate::fixture::slid(doc, x, y, [0.0; 3]);
     let (doc, s) = insert(
         doc,
         Node::Subtract {
@@ -160,7 +163,6 @@ fn delete_and_reinsert_identical_node_recomputes() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let e0 = run(&doc, None, false);
@@ -174,7 +176,6 @@ fn delete_and_reinsert_identical_node_recomputes() {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     assert_ne!(e_old, e_new, "ids are never reused");
@@ -212,7 +213,6 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         Node::Extrude {
             profile: p.into(),
             distance: bad(),
-            side: ExtrudeSide::Along,
         },
     );
     let (doc, fb) = insert(
@@ -220,26 +220,23 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         Node::Extrude {
             profile: p.into(),
             distance: bad(),
-            side: ExtrudeSide::Along,
         },
     );
+    // The second joins the first's space, as an operator's operands
+    // share one.
+    let (doc, fb_in) = crate::fixture::stood_in(doc, fb, fa);
     let (doc, join) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![fa.into(), fb.into()]),
+            members: editor_core::Bodies::Spelled(vec![fa.into(), fb_in.into()]),
         },
     );
-    // One more hop: a transform downstream of the poisoned join.
+    // One more hop: a copy of the poisoned join.
     let (doc, tail) = insert(
         doc,
-        Node::transform(
-            join,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        ),
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
+            editor_core::Operand::Node(join),
+        )]),
     );
     for parallel in [false, true] {
         let ev = run(&doc, None, parallel);
@@ -355,47 +352,27 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
-    // Diamond: two transforms of base, unioned. Decoupled offsets
-    // (M4 PR 5): the same body through two placements shares its
-    // NAMES on both sides, so flush planes here could not even be
-    // declared by name pair — the stressor shears all three axes so
-    // no plane coincides and no declaration is needed.
-    let tr = |dx: f64, dy: f64, dz: f64| {
-        Node::transform(
-            base,
-            editor_core::Step::Rigid {
-                translation: [len(dx), len(dy), len(dz)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            },
-        )
-    };
-    let (doc, t1) = insert(doc, tr(0.25, 0.125, 0.0625));
-    let (doc, t2) = insert(doc, tr(-0.25, -0.125, -0.0625));
+    // Diamond: two placed copies of base, unioned. The stressor shears
+    // all three axes so no plane coincides.
+    let (doc, t1) = crate::fixture::slid(doc, base, base, [0.25, 0.125, 0.0625]);
+    let (doc, t2) = crate::fixture::slid(doc, base, base, [-0.25, -0.125, -0.0625]);
     let (doc, u) = insert(
         doc,
         Node::Union {
             members: editor_core::Bodies::Spelled(vec![t1.into(), t2.into()]),
         },
     );
-    // Circular pattern of base about a datum axis (data only).
-    let (doc, ax) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    // Circular pattern of base about an axis read off it (data only).
+    let ax = crate::fixture::axis_on(&doc, base, [0.0; 3], [0.0, 0.0, 1.0]);
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
             input: base.into(),
             count: Formula::count(4),
             kind: editor_core::PatternKind::Circular {
-                axis: ax.into(),
+                axis: ax,
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         },
@@ -417,19 +394,13 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
             ang(std::f64::consts::PI),
         ),
     );
-    // Split the union by a datum plane.
-    let (doc, pl) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(1.0), len(1.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    // Split the union by a plane read off its space's root.
+    let pl = crate::fixture::plane_on(&doc, base, [1.0, 1.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, sp) = insert(
         doc,
         Node::Split {
             target: u.into(),
-            tool: pl.into(),
+            tool: pl,
         },
     );
     // Poisoned subgraph: failing extrude + a dependent subtract.
@@ -438,19 +409,21 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         Node::Extrude {
             profile: p.into(),
             distance: Formula::div(len(1.0), scl(0.0)).unwrap(),
-            side: ExtrudeSide::Along,
         },
     );
+    // The tool joins the union's space, as an operator's operands
+    // share one.
+    let (doc, bad_in) = crate::fixture::stood_in(doc, bad, u);
     let (doc, poisoned) = insert(
         doc,
         Node::Subtract {
             from: u.into(),
-            tool: bad.into(),
+            tool: bad_in.into(),
         },
     );
     (
         doc,
-        vec![p, base, t1, t2, u, ax, pat, rp, rev, pl, sp, bad, poisoned],
+        vec![p, base, t1, t2, u, pat, rp, rev, sp, bad, poisoned],
     )
 }
 
@@ -519,19 +492,19 @@ fn four_way_schedule_memo_identity_on_rich_doc() {
     // revolve all Ok; exactly the bad extrude Failed and its subtract
     // Poisoned.
     assert!(seq.value(_ids[4]).is_some(), "union must succeed");
-    assert!(seq.value(_ids[6]).is_some(), "pattern must succeed");
-    assert!(seq.value(_ids[8]).is_some(), "revolve must succeed");
+    assert!(seq.value(_ids[5]).is_some(), "pattern must succeed");
+    assert!(seq.value(_ids[7]).is_some(), "revolve must succeed");
     assert!(
-        seq.value(_ids[10]).is_some(),
+        seq.value(_ids[8]).is_some(),
         "split must succeed: {:?}",
-        seq.nodes.get(&_ids[10])
+        seq.nodes.get(&_ids[8])
     );
     assert!(matches!(
-        seq.nodes.get(&_ids[11]),
+        seq.nodes.get(&_ids[9]),
         Some(NodeResult::Failed(_))
     ));
     assert!(matches!(
-        seq.nodes.get(&_ids[12]),
+        seq.nodes.get(&_ids[10]),
         Some(NodeResult::Poisoned { .. })
     ));
     let par = run(&doc, None, true);
@@ -569,7 +542,16 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
     let ev = run(&doc, None, false);
     match ev.nodes.get(&rev) {
         Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Body(b) => Ok(mass_properties(b, Tol::witness()).unwrap().volume),
+            ValuePayload::Body(b) => Ok(topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&**b),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume),
             other => Err(format!("non-body: {}", other.kind_name())),
         },
         Some(NodeResult::Failed(e)) => Err(format!("{:?}", e.kind)),
@@ -663,12 +645,11 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             Node::Extrude {
                 profile: cp.into(),
                 distance: len(2.0),
-                side: ExtrudeSide::Along,
             },
         );
         let (doc, pp) = on_frame(
             doc,
-            [0.0, 0.0, 2.0],
+            [0.0; 3],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![square(0.0, 0.0, 0.125)],
@@ -678,37 +659,27 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             Node::Extrude {
                 profile: pp.into(),
                 distance: len(0.125),
-                side: ExtrudeSide::Against,
             },
         );
-        let (doc, tr) = insert(
-            doc,
-            if rotate {
-                // The pip is CENTERED on the face-plane origin, so a
-                // π/2 rotation about the world z axis maps the square
-                // onto itself — same pocket — but through inexact
-                // sin/cos bits: the resulting subtract is the honest
-                // non-dyadic bracket of the same oracle.
-                Node::transform(
-                    pip,
-                    editor_core::Step::Rigid {
-                        translation: [len(1.0), len(1.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: ang(std::f64::consts::FRAC_PI_2),
-                    },
-                )
-            } else {
-                Node::transform(
-                    pip,
-                    editor_core::Step::Rigid {
-                        translation: [len(1.0), len(1.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: ang(0.0),
-                    },
-                )
-            },
-        );
-        // The pip's outer cap lies ON the cube's top.
+        // The pip is CENTERED on its own origin, so a π/2 turn about its
+        // own z maps the square onto itself — same pocket — but through
+        // inexact sin/cos bits: the resulting subtract is the honest
+        // non-dyadic bracket of the same oracle. Either way the pip is
+        // sunk into the cube's top from (1, 1).
+        let turn = if rotate {
+            std::f64::consts::FRAC_PI_2
+        } else {
+            0.0
+        };
+        let at = editor_core::Frame::rotate_then_translate(
+            [0.0, 0.0, 1.0],
+            turn,
+            [1.0, 1.0, 2.0 - 0.125],
+            crate::fixture::band(),
+        )
+        .expect("a literal axis");
+        let (doc, tr) = crate::fixture::against(doc, cube, pip, &at);
+        // The pip's end cap lies ON the cube's top.
         let (doc, sub) = insert(
             doc,
             Node::Subtract {
@@ -720,14 +691,22 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     };
     let (d_exact, s_exact) = build(false);
     let (d_rot, s_rot) = build(true);
-    let v_exact = mass_properties(
-        boolean_body(&run(&d_exact, None, false), s_exact),
+    let v_exact = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(boolean_body(&run(&d_exact, None, false), s_exact)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
     .volume;
-    let v_rot = mass_properties(
-        boolean_body(&run(&d_rot, None, false), s_rot),
+    let v_rot = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(boolean_body(&run(&d_rot, None, false), s_rot)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
@@ -749,7 +728,8 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
 #[test]
 fn wire_doors_refuse_typed() {
     let (doc, ids) = rich_doc();
-    let (base, u, ax, pat) = (ids[1], ids[4], ids[5], ids[6]);
+    let (base, u, pat) = (ids[1], ids[4], ids[5]);
+    let ax = crate::fixture::axis_on(&doc, base, [0.0; 3], [0.0, 0.0, 1.0]);
     // Instances fed to a boolean (their flag #5): a boolean reads one
     // body, so the door refuses the kind.
     let refusal = crate::fixture::insert_refused(
@@ -768,13 +748,13 @@ fn wire_doors_refuse_typed() {
         ),
         "{refusal:?}"
     );
-    // Split by an axis datum: the tool reads a plane, so the door
-    // refuses the kind.
+    // Split by an axis: the tool reads a plane, so the door refuses the
+    // kind.
     let refusal = crate::fixture::insert_refused(
         &doc,
         Node::Split {
             target: u.into(),
-            tool: ax.into(),
+            tool: ax.clone(),
         },
     );
     assert!(
@@ -794,7 +774,7 @@ fn wire_doors_refuse_typed() {
             input: base.into(),
             count: Formula::count(0),
             kind: editor_core::PatternKind::Circular {
-                axis: ax.into(),
+                axis: ax,
                 step: ang(1.0),
             },
         },
@@ -819,42 +799,6 @@ fn wire_doors_refuse_typed() {
     }
 }
 
-/// R2: same evaluated floats under DIFFERENT op tags must not collide
-/// — a Plane and an Axis datum with identical slot values must key
-/// apart. The two datums are two nodes with two ids, so the memo's id
-/// lookup alone keeps them apart; the keys are compared directly.
-#[test]
-fn datum_kind_is_key_separated() {
-    let build = |axis: bool| {
-        let doc = ProfileDoc::empty_derived("review_m4_pr2", Tol::witness());
-        let node = if axis {
-            Node::Datum(editor_core::Datum::Axis {
-                origin: [len(0.5), len(0.25), len(0.125)],
-                direction: [scl(0.0), scl(0.0), scl(1.0)],
-            })
-        } else {
-            Node::Datum(editor_core::Datum::Plane {
-                origin: [len(0.5), len(0.25), len(0.125)],
-                normal: [scl(0.0), scl(0.0), scl(1.0)],
-            })
-        };
-        insert(doc, node)
-    };
-    let (d1, n1) = build(false);
-    let (d2, n2) = build(true);
-    let e1 = run(&d1, None, false);
-    let e2 = run(&d2, Some(&e1), false);
-    assert_ne!(
-        e1.value(n1).unwrap().content_key,
-        e2.value(n2).unwrap().content_key,
-        "identical floats under different datum kinds must not collide"
-    );
-    assert!(matches!(
-        &e2.value(n2).unwrap().payload,
-        ValuePayload::Datum(editor_core::PoseValue::Axis { .. })
-    ));
-}
-
 /// R7: the Interval lane's memo — keys built from `repr_bits` must
 /// behave exactly like the f64 lane: full reuse on an identical
 /// re-evaluation, full invalidation of the edited cone, enclosures
@@ -873,14 +817,28 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
     assert_eq!(e2.reused, e1.recomputed + e1.reused);
     // The reused body is the SAME value (Merkle key match), and its
     // volume enclosure brackets the f64 volume.
-    let vf = mass_properties(boolean_body(&run(&doc, None, false), s), Tol::witness())
-        .unwrap()
-        .volume;
+    let vf = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(boolean_body(&run(&doc, None, false), s)),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     let vi = match &e2.value(s).unwrap().payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            mass_properties(body.as_ref(), Tol::witness())
-                .unwrap()
-                .volume
+            topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(body.as_ref()),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume
         }
         other => panic!("expected boolean body, got {}", other.kind_name()),
     };
@@ -923,16 +881,14 @@ fn edit_back_restores_bit_identical_bodies() {
     let e0 = run(&d.doc, None, false);
     let fp0 = fingerprint(boolean_body(&e0, d.final_node));
 
-    // Edit the +z pip transform's x-translation.
-    let (moved, _) = step(
-        d.doc.clone(),
-        DocEdit::SetParam {
-            node: d.pz_transform,
-            slot: SlotId::Translation(editor_core::Axis3::X),
-            value: len(1.25).into(),
-            fresh: Vec::new(),
-        },
-    );
+    // Deepen the +z pip's master.
+    let depth = |by: f64| DocEdit::SetParam {
+        node: d.pz_extrude,
+        slot: SlotId::Distance,
+        value: len(by).into(),
+        fresh: Vec::new(),
+    };
+    let (moved, _) = step(d.doc.clone(), depth(0.1875));
     let e1 = run(&moved, Some(&e0), false);
     assert_ne!(
         fingerprint(boolean_body(&e1, d.final_node)),
@@ -940,24 +896,15 @@ fn edit_back_restores_bit_identical_bodies() {
         "the edit must actually change the body"
     );
 
-    // Edit BACK to the original literal (1.0 = the +z pip x).
-    let (back, _) = step(
-        moved,
-        DocEdit::SetParam {
-            node: d.pz_transform,
-            slot: SlotId::Translation(editor_core::Axis3::X),
-            value: len(1.0).into(),
-            fresh: Vec::new(),
-        },
-    );
+    // Edit BACK to the original value.
+    let (back, _) = step(moved, depth(crate::fixture::DEPTH));
     let e2 = run(&back, Some(&e1), false);
     assert_eq!(
         fingerprint(boolean_body(&e2, d.final_node)),
         fp0,
         "edit-back must restore the ORIGINAL bits (memo through a stale prior)"
     );
-    // Reverted transform + final subtract recompute; the rest reuses —
-    // the die's seven sketch frames among them, since a slot edit on a
-    // transform does not touch a plane.
-    assert_eq!((e2.recomputed, e2.reused), (2, 61));
+    // The reverted master, its placement and the final subtract
+    // recompute; the rest reuses.
+    assert_eq!((e2.recomputed, e2.reused), (3, 53));
 }

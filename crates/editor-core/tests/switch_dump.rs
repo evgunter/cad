@@ -1,6 +1,6 @@
 //! **LIB-SWITCH §8 acceptance instrument: the merge-base payload
 //! diff.** Dumps every corpus document's evaluated GEOMETRY payloads
-//! (bodies, validated profiles, datums — Debug is shortest-round-trip,
+//! (bodies, validated profiles — Debug is shortest-round-trip,
 //! bit-faithful) to `target/switch-dump/<doc>.txt`, and every node's
 //! NAME TABLE (names only, in table order) to
 //! `target/switch-dump/<doc>.names.txt` — separate files so geometry

@@ -15,7 +15,6 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use pncad::document::ExtrudeSide;
 
 use pncad::document::{Dimension, Doc, Formula, Node, ProfileProgram, SlotId};
 use pncad::geom_core::Tol;
@@ -273,13 +272,12 @@ fn a_value_that_fixes_a_failure_is_not_a_boundary() {
 fn the_session_probes_a_real_slots_range() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("valid-range", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len_mm(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -564,13 +562,12 @@ fn thickness_document(tol: Tol) -> Doc<ProfileProgram> {
         },
         tol,
     );
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: Formula::named(common::thickness_param(), Dimension::Length),
-            side: ExtrudeSide::Along,
         },
         tol,
     )

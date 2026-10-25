@@ -61,7 +61,7 @@ described against planes no face wears: `test_support_fixtures.rs`
 (`:1191`, `:1213`, `:1379`), `census.rs` (`:7042`, `:7114`),
 `chord_join.rs`'s tests (`:2660`), and `tests/` (`fixture/mod.rs:323`,
 `m5_pr7_split_meter.rs`, `m6_3_chart_completion.rs:179`,
-`review_ssiflat_r2_probes.rs:352`, `trim_3_chart_bound.rs:478`).
+`review_ssiflat_r2_probes.rs:352`, `projected_row_chart_box.rs`).
 
 ## Why it is not built
 

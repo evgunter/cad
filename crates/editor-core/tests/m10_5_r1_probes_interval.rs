@@ -17,8 +17,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -81,37 +79,26 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     declare_with(r, axis, nominal, half());
 }
 
-fn translated(input: RecipeNodeId, by: [Formula; 3]) -> AuthoredNode {
-    Node::transform(
-        input,
-        editor_core::Step::Rigid {
-            translation: by,
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    )
-}
-
-/// The xy sketch frame, as the `Datum::Frame` node a profile now names.
-///
-/// `ProfileProgram::plane` became a node reference under this branch
-/// (main's move), so every fixture mints the frame first and hands the
-/// profile its id.
-fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::xy_frame())
+/// A copy of `input` slid by `by` along its own axes
+/// ([`crate::m10_5_clearance_interval::slid_by`]).
+/// A copy of `input` slid `by` in `target`'s space.
+fn translated(
+    r: &mut Recorder,
+    target: RecipeNodeId,
+    input: RecipeNodeId,
+    by: [Formula; 3],
+) -> RecipeNodeId {
+    crate::m10_5_clearance_interval::slid_by(r, target, input, by)
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(depth),
-        side: ExtrudeSide::Along,
     })
 }
 
@@ -130,7 +117,7 @@ fn blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         1.0,
     );
     let by = Formula::add(len(1.0), param("gap")).expect("a length");
-    let b = r.insert(translated(a, [by, len(0.0), len(0.0)]));
+    let b = translated(&mut r, a, a, [by, len(0.0), len(0.0)]);
     (r.doc, a, b)
 }
 
@@ -277,7 +264,7 @@ fn l_plate_and_floating_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Reci
         1.0,
     );
     let up = Formula::add(len(1.5), param("lift")).expect("a length");
-    let floated = r.insert(translated(block, [len(0.0), len(0.0), up]));
+    let floated = translated(&mut r, plate, block, [len(0.0), len(0.0), up]);
     (r.doc, plate, block, floated)
 }
 
@@ -298,9 +285,9 @@ fn l_plate_and_floating_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Reci
 /// than classified. Both bounds now read `Holds`, which is the truth
 /// at both.
 ///
-/// A box-only description would not do it: the L's bounding box IS
-/// this window, so a `Holds` here is evidence that the POLYGON, not
-/// the box, is what the engine reads.
+/// A box-only reading would not do it: the L's bounding box IS this
+/// window, so a `Holds` here is evidence that the face's region, not
+/// its box, is what the engine reads.
 #[test]
 fn an_l_shaped_face_holds_where_it_has_no_material() {
     let (doc, plate, block, floated) = l_plate_and_floating_block();
@@ -312,7 +299,10 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     let bottom = Selection {
         at: floated,
         body: 0,
-        faces: FaceScope::Named(vec![fixture::fname(block, RoleSeg::Cap(CapEnd::Start))]),
+        faces: FaceScope::Named(vec![crate::m10_5_clearance_interval::in_placement(
+            floated,
+            fixture::fname(block, RoleSeg::Cap(CapEnd::Start)),
+        )]),
     };
     let leaf = box_of(&doc, "lift");
     let sound = clearance(&doc, &leaf, &top, &bottom, 0.45, Tol::witness());
@@ -326,8 +316,8 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
 
     let tight = clearance(&doc, &leaf, &top, &bottom, 0.52, Tol::witness());
     println!(
-        "[r1] L-plate vs floating block at c = 0.52: windows {:?}, {}",
-        tight.windows(),
+        "[r1] L-plate vs floating block at c = 0.52: decided {:?}, {}",
+        tight.decided(),
         tight.serialize()
     );
     assert!(tight.receipt().holds(), "{:?}", tight.receipt());
@@ -355,9 +345,9 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (1, 580, 579, 228),
+        (1, 626, 625, 228),
         "the measured receipt, pinned — and load-bearing beyond this row's own subject: \
-         a drop rule that lets an in-band or poison margin separate, or a description \
+         a drop rule that lets an in-band or poison margin separate, or a region reading \
          tightened at the 0.05 scale, changes these counts while leaving every verdict \
          in the suite alone (measured, TRIM-3 PR-2's fix pass). Stable across the three \
          eps rows. RE-BASELINED from (1, 610, 609, 224) by PROPS's sign-hull unit: the \
@@ -365,7 +355,16 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
          that chart is the old re-chart turned a quarter turn about the normal — the \
          same window as a point set, halved along the other axis first, so the sweep \
          reaches the same verdict in 579 splits instead of 609 and proves four more \
-         cells outside. Nothing about the drop rule moved: {}",
+         cells outside. Nothing about the drop rule moved. RE-BASELINED from (1, 580, \
+         579, 228) on INTENT stage 3 D: the floated block's spin is the written constant \
+         `0`, now read as its exact sine and cosine at every scalar, so its placement's \
+         turn carries no enclosure dust; the sweep reaches the same verdict in 621 \
+         splits and proves 224 cells outside. RE-BASELINED from (1, 622, 621, 224) when a \
+         minted plane's `u_ref` became a direction its construction holds: the engine \
+         reads the stored chart, which is now charted along the sketch's `x` axis or the \
+         swept segment rather than off the axes, so the same window is cut along other \
+         lines first; the sweep reaches the same verdict in 625 splits and proves 228 \
+         cells outside: {}",
         tight.serialize()
     );
 }
@@ -391,18 +390,15 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.5]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
-    let placed = r.insert(translated(solid, [param("place"), len(0.0), len(0.0)]));
+    let placed = translated(&mut r, solid, solid, [param("place"), len(0.0), len(0.0)]);
     (r.doc, solid, placed)
 }
 
@@ -415,22 +411,13 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// slack, so neither `Violated` nor `Holds` was reachable and a sound
 /// rounded body got a budget refusal for its answer.
 ///
-/// **FLIPPED by TRIM-3 PR-2.** The bump's window `u` is the
-/// description's azimuth hull — the half turn the face actually
-/// occupies — and not the whole turn, so the phantom lower half is
-/// gone before the tree is built. The body's real minimum gap is 0.5,
-/// which the proximity prune then excludes outright.
-///
-/// **`candidates == 0` is the assertion, and it is the root cut's only
-/// e2e observable.** The v6 dual measured that the `Holds` alone
-/// proves nothing about the root: forcing the cylinder `u` back to the
-/// whole turn moves `candidates` `0 -> 1` and the row still passes,
-/// because the per-cell drops carry the verdict from there. So what
-/// this row pins is that the phantom lower half never reached the
-/// proximity tree at all — nothing was subdivided, because nothing
-/// came within reach. The band rule itself is decided directly by
-/// `editor_core::clearance`'s `root_rule` unit rows, and its e2e row
-/// is `trim_3_windows_interval::a_negative_band_is_not_intersected_with_the_canonical_turn`.
+/// **FLIPPED by deciding cells off the face.** The bump's window is
+/// still the whole turn, so the pair reaches the tree
+/// (`candidates == 1`); every cell of the phantom lower half meets no
+/// edge of the bump on its own carrier (the end circles read as their
+/// half arcs, not as whole circles) and its station is out of the face,
+/// so it drops (`outside > 0`) and the touching pair is never
+/// classified. The body's real minimum gap is 0.5.
 #[test]
 fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
     let (doc, solid, _placed) = bumped_block();
@@ -456,30 +443,26 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
         panic!("the bumped block did not build at the interval scalar: {s}");
     }
     println!(
-        "[r1] bumped block candidates = {}, windows = {:?}",
+        "[r1] bumped block candidates = {}, decided = {:?}",
         r.candidates,
-        report.windows()
+        report.decided()
     );
     assert_eq!(
-        r.candidates,
-        0,
-        "the bump's root is its own half turn, so the phantom lower half never comes \
-         within reach of the bottom wall and no pair is subdivided at all — this is the \
-         number a full-turn root moves, and the `Holds` below is not: {}",
+        (r.candidates, r.outside > 0),
+        (1, true),
+        "the bump's whole-turn window reaches the bottom wall, and its phantom cells drop: {}",
         report.serialize()
     );
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
-        "the bump's window is its own half turn now, so nothing on this sound body is at \
-         separation zero: {}",
+        "the phantom lower half is decided out of the bump, so nothing on this sound body is \
+         at separation zero: {}",
         report.serialize()
     );
-    assert_eq!(
-        report.windows().1,
-        0,
-        "every carrier here is a plane or a cylinder, so every window carries a \
-         description: {}",
+    assert!(
+        report.decided() > 0,
+        "the faces' regions were read: some cell was decided against its face: {}",
         report.serialize()
     );
 }
@@ -495,13 +478,14 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
 fn a_partial_revolve_band_reports_its_phantom_turn() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let plane = insert_xy_frame(&mut r);
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    )));
-    // The axis line, in the profile's own coordinates: its v is the
-    // world axis the quarter turns about.
+    let profile = r.insert(Node::Profile(fixture::desc(vec![vec![
+        (1.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+    ]])));
+    // The axis line, in the profile's own coordinates: its y is the
+    // axis the quarter turns about.
     let quarter = r.insert(fixture::revolve_about(
         profile,
         (0.0, 0.0),
@@ -515,14 +499,18 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
         &[(-2.5, 0.0), (-2.1, 0.0), (-2.1, 1.0), (-2.5, 1.0)],
         0.4,
     );
-    let placed = r.insert(translated(
+    // The quarter joins the block's space where it is drawn.
+    let quarter = r.against(block, quarter, &editor_core::Frame::IDENTITY);
+    let placed = translated(
+        &mut r,
+        block,
         block,
         [
             len(0.0),
             len(0.0),
             Formula::add(len(-0.2), param("place")).expect("a length"),
         ],
-    ));
+    );
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let report = clearance(
         &r.doc,
@@ -582,16 +570,16 @@ fn a_partial_revolve_band_reports_its_phantom_turn() {
 fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    // Profile on the xz-plane (u = x̂, v = ẑ): the rectangle r ∈ [1, 2],
-    // z ∈ [0, 1], revolved 90° about ẑ.
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    let profile = r.insert(Node::Profile(fixture::desc(
-        plane,
-        vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
-    )));
-    // The axis line, in the profile's own coordinates: its v is the
-    // world axis the quarter turns about.
-    let quarter = r.insert(fixture::revolve_about(
+    // The rectangle r ∈ [1, 2], z ∈ [0, 1], revolved 90° about its own
+    // y, and its copy standing on the world's xz plane (u = x̂, v = ẑ),
+    // so the quarter turns about ẑ.
+    let profile = r.insert(Node::Profile(fixture::desc(vec![vec![
+        (1.0, 0.0),
+        (2.0, 0.0),
+        (2.0, 1.0),
+        (1.0, 1.0),
+    ]])));
+    let revolve = r.insert(fixture::revolve_about(
         profile,
         (0.0, 0.0),
         crate::fixture::along_y(),
@@ -603,7 +591,13 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         &[(-2.5, -0.2), (-2.1, -0.2), (-2.1, 0.2), (-2.5, 0.2)],
         1.0,
     );
-    let placed = r.insert(translated(block, [len(0.0), param("place"), len(0.0)]));
+    // The quarter stands on the block's xz frame, in the block's space.
+    let quarter = r.against(
+        block,
+        revolve,
+        &fixture::axes_at([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+    );
+    let placed = translated(&mut r, block, block, [len(0.0), param("place"), len(0.0)]);
     let (sq, sb) = (Selection::body_of(quarter), Selection::body_of(placed));
     let started = std::time::Instant::now();
     let report = clearance(
@@ -620,7 +614,7 @@ fn a_partial_revolve_about_z_is_the_control_for_the_hulled_band() {
         report.serialize()
     );
     assert!(report.receipt().holds());
-    println!("[r1] z-axis windows = {:?}", report.windows());
+    println!("[r1] z-axis decided = {:?}", report.decided());
     if let ClearanceVerdict::Violated(v) = report.verdict() {
         println!(
             "[r1] z-axis phantom-turn witness d = {}: {:?} -> {:?}",
@@ -882,14 +876,16 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let placed = r.insert(translated(
+    let placed = translated(
+        &mut r,
+        channel,
         slider,
         [
             Formula::add(len(1.0), param("place")).expect("a length"),
             len(1.0),
             len(0.0),
         ],
-    ));
+    );
     (r.doc, channel, placed)
 }
 
@@ -906,7 +902,7 @@ fn channel_and_slider(place_half: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 /// clearance question at all.
 ///
 /// **FLIPPED by TRIM-3 PR-2**: a coplanar pair whose windows overlap
-/// is exactly the case the boundary description settles, because the
+/// is exactly the case deciding cells against the faces settles, because the
 /// overlap is in cells neither face occupies. The whole-body question
 /// holds at 0.3, which is the truth — the slider clears the channel by
 /// 0.5 on every side.
@@ -922,8 +918,8 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     let leaf = box_of(&doc, "place");
     let whole = clearance(&doc, &leaf, &sc, &ss, 0.3, Tol::witness());
     println!(
-        "[r1 e2e] whole-body c = 0.3: windows {:?}, {}",
-        whole.windows(),
+        "[r1 e2e] whole-body c = 0.3: decided {:?}, {}",
+        whole.decided(),
         whole.serialize()
     );
     assert!(whole.receipt().holds());
@@ -947,13 +943,13 @@ fn e2e_channel_slider_over_an_epsilon_box() {
     );
     assert_eq!(
         (r.candidates, r.discharged, r.splits, r.outside),
-        (10, 972, 962, 296),
+        (10, 1264, 1254, 532),
         "the measured receipt, pinned; like the L-plate row's it is what catches a drop \
-         rule that changes without changing a verdict. Stable across the three eps \
-         rows. RE-BASELINED from (10, 930, 920, 292) by PROPS's sign-hull unit, for the \
-         reason that row states: the stored chart is the retired re-chart turned a \
-         quarter turn, so the subdivision halves the other axis first. The verdict and \
-         both claims above it are unchanged: {}",
+         rule that changes without changing a verdict. RE-BASELINED from \
+         (10, 972, 962, 296) when cells came to be decided off the face's edges in model \
+         space: a cell clears its boundary only once the ball about its centre does, \
+         which is wider than the cell, so cells beside an edge split once or twice more \
+         before they drop. The verdict and both claims above it are unchanged: {}",
         whole.serialize()
     );
     let inner = Selection {
@@ -1155,7 +1151,12 @@ fn what_the_sound_prism_rows_hand_to_the_funnel() {
         ],
         2.0,
     );
-    let _placed = r.insert(translated(dumbbell, [param("place"), len(0.0), len(0.0)]));
+    let _placed = translated(
+        &mut r,
+        dumbbell,
+        dumbbell,
+        [param("place"), len(0.0), len(0.0)],
+    );
     let report = self_intersection(
         &r.doc,
         &box_of(&r.doc, "place"),

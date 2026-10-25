@@ -46,6 +46,28 @@
 //! `crate::chords`), and its first genuine consumer is the
 //! edge×NURBS-face boolean layer (the cut-loft unit).
 //!
+//! # The lattice metric
+//!
+//! Neither lane's CDT runs in raw UV. Delaunay is not
+//! stretch-invariant, and a ruled wall's lattice is a strip whose
+//! columns are many times narrower than its rows (a lofted circle's
+//! wall: `s_u/s_v ≈ 0.03`; a cylinder of radius `r`, whose lattice is
+//! square in 3-D, `≈ 1/r` in (θ, z)); there, any point off the lattice — a trim
+//! chord point between two rows, a band interface's foreign column, a
+//! refinement centroid — has an empty circle many columns wide and a
+//! sliver across them. So points enter the CDT at `(u/k, v)`, with `k`
+//! the lattice metric (`crate::nurbs_cert::lattice_metric`, a power of
+//! two near the mean realized aspect: of the NURBS schedule's bands, or
+//! of the cylinder lane's one uniform lattice), where the lattice is
+//! near square. One face-wide `k` cannot square bands whose aspects
+//! spread far apart, so the NURBS schedule also raises a band's rows
+//! when its columns stay too narrow over `k`
+//! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`], **Rows for
+//! narrow-column bands**). The map is affine, so constraint segments
+//! stay straight; and exact, so every coincidence in UV is one in the
+//! CDT. Only the CDT sees it: `meta`, the creases, the polygon's
+//! orientation and every certificate read UV.
+//!
 //! # C⁰ creases
 //!
 //! A NURBS face may carry interior knots of multiplicity equal to the
@@ -85,15 +107,14 @@
 //! refinement**: after the emit pass, any NURBS triangle whose
 //! certificate exceeds δ — one that would otherwise refuse — queues
 //! its UV centroid as a new candidate and the attempt rebuilds. This
-//! is deliberately a LAST-RESORT backstop, not the sliver cure: the
-//! uniform schedule was accidentally phase-aligned with the chord
-//! pass's boundary points (both sized from the same whole-patch
-//! steps), per-band sizing gives that up, and an anisotropic lattice
-//! strip admits a Delaunay-legal sliver beside ANY off-lattice point
-//! — including a refinement centroid or an anchor column's top, each
-//! measured on the #316 leaf to re-admit the empty circumcircle
-//! beside itself. The load-bearing cure is the schedule's
-//! malign-band alignment
+//! is deliberately a LAST-RESORT backstop, not the sliver cure: in a
+//! lattice that is anisotropic in the CDT's own coordinates, a
+//! centroid is one more off-lattice point and re-admits the empty
+//! circumcircle beside itself (measured on the #316 leaf, and on a
+//! lofted circle's wall, where the ladder walked the sliver inward a
+//! step per round: `work/tess/lofted-rational-walls-refuse-at-some-deltas`).
+//! The cure is the lattice metric and the row raise (above), which
+//! make the lattice near square where the CDT runs
 //! ([`crate::nurbs_cert::NurbsCellGrid::band_schedule`]); an attempt
 //! that still certifies above δ after the shared round budget refuses
 //! typed ([`TessellateError::CertificateExceeded`]) — the
@@ -125,8 +146,8 @@ use topo::{Body, FaceKey};
 
 use crate::cert;
 use crate::chords::ChordPass;
-use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells};
-use crate::planar::{Pinches, Walk, classify_faces, edge_key, shoelace2};
+use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_cells, lattice_metric};
+use crate::planar::{Crossings, Pinches, Walk, classify_faces, edge_key, shoelace2};
 use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::tessellate::{Patch, PatchVertex};
 use crate::types::TessellateError;
@@ -153,8 +174,8 @@ enum Lane {
     /// The M7 trimmed-NURBS lane (closed-form pcurve images, Hessian
     /// interpolation certificate — `crate::nurbs_cert`; since
     /// TESS-SPAN certified per knot-span cell and sized per v-band,
-    /// the whole-patch bound kept beside the cell grid for the
-    /// malign-band column snap and the chord pass's shared schedule).
+    /// the whole-patch bound kept beside the cell grid for the budget
+    /// meter's columns).
     Nurbs {
         grid: NurbsCellGrid,
         patch: NurbsFaceBound,
@@ -282,7 +303,7 @@ pub(crate) fn tessellate_trimmed(
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    let (mut candidates, nurbs_stats) = match lane {
+    let (mut candidates, nurbs_stats, metric) = match lane {
         Lane::Cylinder { radius, .. } => {
             let hu = sagitta_step(tol.delta_s, radius);
             let nu = ceil_count(u1 - u0, hu)?;
@@ -312,18 +333,24 @@ pub(crate) fn tessellate_trimmed(
                  with a single interior column (nu = 2, nv = {nv}) — the shape \
                  #678's non-manifold fan needs (curved::pole_columns)"
             );
-            (uniform_candidates((u0, u1), (v0, v1), nu, nv), None)
+            // The lattice is square in 3-D (`r·hu` by `hu` radians), so
+            // in (θ, v) it is a strip of aspect ~1/r: its CDT runs in the
+            // same lattice metric as the NURBS lane's, from its one
+            // lattice's realized spacing.
+            #[allow(clippy::cast_precision_loss)]
+            let aspect = ((u1 - u0) / nu as f64) / ((v1 - v0) / nv as f64);
+            (
+                uniform_candidates((u0, u1), (v0, v1), nu, nv),
+                None,
+                lattice_metric(std::iter::once(aspect)),
+            )
         }
-        Lane::Nurbs {
-            ref grid,
-            ref patch,
-        } => {
-            let (mut cand, stats) =
-                per_cell_candidates(grid, patch, (u0, u1), (v0, v1), tol.delta_s)?;
+        Lane::Nurbs { ref grid, .. } => {
+            let (mut cand, stats) = per_cell_candidates(grid, (u0, u1), (v0, v1), tol.delta_s)?;
             if let Some(c) = &creases {
                 c.cut_candidates(&mut cand);
             }
-            (cand, Some(stats))
+            (cand, Some(stats), stats.metric)
         }
     };
     // Grid candidates are a fixed, deduplicated, (v, u)-sorted list
@@ -359,11 +386,13 @@ pub(crate) fn tessellate_trimmed(
     // THE FACE'S ONE EXIT. Every path out of the retry loop lands
     // here, so the measurement hand-off below is on all of them —
     // including the two typed REFUSALS, which is the case the
-    // falsification accumulator above exists for. `None` after the
-    // loop is the retries-exhausted path.
+    // falsification accumulator above exists for. It is never `None`
+    // after the loop: an attempt asks for a rebuild only below
+    // `MAX_GRID_RETRIES`, so the last attempt accepts or refuses.
     let mut outcome: Option<Result<Patch, TessellateError>> = None;
     let trimmed = TrimmedFace {
         fk,
+        metric,
         surface,
         lane: &lane,
         polygon: &polygon,
@@ -421,7 +450,10 @@ pub(crate) fn tessellate_trimmed(
             grid_cells: stats.grid_cells,
             bands: stats.bands,
             cap_bands: stats.cap_bands,
-            snap_bands: stats.snap_bands,
+            // No band is projected; the column stays for the CSV's shape
+            // until the budget lane's re-cut drops it
+            // (`work/budget/snap-bands-column-reads-zero-since-the-snap-retired`).
+            snap_bands: 0,
             realized_aspect: stats.realized_aspect,
             muu: patch.muu,
             muv: patch.muv,
@@ -449,13 +481,13 @@ pub(crate) fn tessellate_trimmed(
             dev_samples: measure.dev_samples,
         });
     }
-    // The retries-exhausted path leaves no verdict of its own.
-    outcome.unwrap_or(Err(TessellateError::Triangulation { face: fk }))
+    outcome.unwrap_or_else(|| {
+        unreachable!(
+            "the last attempt accepts or refuses: `TrimmedFace::attempt` asks for a \
+             rebuild only below MAX_GRID_RETRIES"
+        )
+    })
 }
-
-/// Each realised boundary edge's crossing count (the planar #116
-/// pattern), keyed by [`edge_key`].
-type Crossings = HashMap<(usize, usize), u32>;
 
 /// Handle-index → (mesh id or grid candidate index, uv).
 #[derive(Clone, Copy)]
@@ -503,6 +535,9 @@ enum Next {
 /// What every attempt on one face reads and none changes.
 struct TrimmedFace<'a> {
     fk: FaceKey,
+    /// The lattice metric `k`: points enter the CDT at `(u/k, v)`,
+    /// scaling the axis that shrinks ([`Self::cdt_point`]).
+    metric: f64,
     surface: &'a Surface<f64>,
     lane: &'a Lane,
     polygon: &'a [(f64, f64, u32)],
@@ -514,14 +549,18 @@ struct TrimmedFace<'a> {
 /// One attempt's triangulation, between inserting its points and
 /// emitting its triangles.
 struct Cdt {
+    /// The triangulation, in the lattice metric
+    /// ([`TrimmedFace::cdt_point`]).
     cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>>,
-    // The first entry's slot at each handle; [`Pinches`] overrides
-    // a boundary slot per triangle at a pinch handle.
+    /// The first entry's slot at each handle; [`Pinches`] overrides
+    /// a boundary slot per triangle at a pinch handle.
     meta: Vec<(f64, f64, Slot)>,
+    /// The trim polygon's handles, in walk order.
     handles: Vec<FixedVertexHandle>,
-    // Every vertex exactly on a crease, with the crease and its
-    // position along it: the crease lines' constraint chain.
+    /// Every vertex exactly on a crease, with the crease and its
+    /// position along it: the crease lines' constraint chain.
     on_crease: Vec<(f64, f64, FixedVertexHandle)>,
+    /// The walk's pinch handles ([`Pinches`]).
     pinches: Pinches,
 }
 
@@ -533,7 +572,31 @@ struct Emitted {
     refine: Vec<(f64, f64)>,
 }
 
+/// Whether an attempt's worst triangle certificate `worst` meets the
+/// chordal tolerance `delta`: the lane's one verdict. A NaN bound never
+/// certifies, and a bound above `delta` refuses the face typed
+/// ([`TessellateError::CertificateExceeded`]): the backstop that keeps a
+/// sliver loud.
+fn certifies(worst: f64, delta: f64) -> bool {
+    !(worst.is_nan() || worst > delta)
+}
+
 impl TrimmedFace<'_> {
+    /// `(u, v)` in the lattice metric, `(u/k, v)` up to a uniform scale
+    /// (which Delaunay ignores): the axis that SHRINKS is scaled, `u`
+    /// by `1/k` when `k > 1`, `v` by `k` when `k < 1`, so the
+    /// coordinates stay within the chart's own magnitude. `k` is a power
+    /// of two, so the product is exact and every coincidence in UV is
+    /// one in the CDT. Only the CDT sees these: `meta`, the creases,
+    /// the polygon's orientation and every certificate read UV.
+    fn cdt_point(&self, u: f64, v: f64) -> SpadePoint<f64> {
+        if self.metric > 1.0 {
+            SpadePoint::new(u / self.metric, v)
+        } else {
+            SpadePoint::new(u, v * self.metric)
+        }
+    }
+
     /// One attempt of the retry loop (module docs): the points, the
     /// boundary constraints, the crease chain, the emit pass, then
     /// refinement or the verdict.
@@ -564,10 +627,10 @@ impl TrimmedFace<'_> {
         // interior to its kept triangle, hence inside the trim polygon;
         // splitting an offending triangle shrinks the empty region its
         // circumcircle spanned. Fires only for a triangle that would
-        // otherwise REFUSE (bound > δ) — a RARE backstop: the schedule's
-        // malign-band alignment (`band_schedule`) is the load-bearing
-        // sliver cure, because an unaligned insertion cannot converge
-        // against a wide anisotropic strip (measured — anchors and
+        // otherwise REFUSE (bound > δ) — a RARE backstop: the lattice
+        // metric (module docs) is the sliver cure, because an
+        // insertion cannot converge against a strip
+        // still anisotropic where the CDT runs (measured — anchors and
         // centroids each re-admit the empty circle beside themselves).
         // Appending keeps every existing candidate index (the `dropped`
         // set stays valid); a refinement point landing exactly on a
@@ -577,7 +640,7 @@ impl TrimmedFace<'_> {
             candidates.extend(refine);
             return Ok(Next::Rebuild);
         }
-        if measure.worst.is_nan() || measure.worst > self.tol.delta {
+        if !certifies(measure.worst, self.tol.delta) {
             return Err(TessellateError::CertificateExceeded {
                 face: fk,
                 bound: measure.worst,
@@ -639,7 +702,7 @@ impl TrimmedFace<'_> {
         let mut on_crease = Vec::new();
         let mut walk = Walk::new();
         for &(u, v, id) in self.polygon {
-            let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
+            let Ok(h) = cdt.insert(self.cdt_point(u, v)) else {
                 return Err(TessellateError::Triangulation { face: fk });
             };
             walk.enter(&mut meta, h, (u, v, Slot::Boundary(id)), id);
@@ -653,7 +716,7 @@ impl TrimmedFace<'_> {
             if dropped.contains(&k) {
                 continue;
             }
-            let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
+            let Ok(h) = cdt.insert(self.cdt_point(u, v)) else {
                 return Err(TessellateError::Triangulation { face: fk });
             };
             if h.index() == meta.len() {
@@ -1054,9 +1117,7 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 /// tensor** from the ONE shipped schedule derivation,
 /// [`crate::nurbs_cert::NurbsCellGrid::band_schedule`] — per-band
 /// `nuc × nvc` through the aspect-capped split selection
-/// (TESS-SPLIT), with malign bands and their neighbours projected
-/// onto the whole-patch column schedule (the alignment argument
-/// lives there).
+/// (TESS-SPLIT), each band at its own counts.
 ///
 /// * Row lines land exactly on the band cuts (never through the lerp,
 ///   whose rounding would put two almost-coincident lines an ulp
@@ -1066,8 +1127,7 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 ///   cuts). A cut line gets
 ///   points from BOTH adjacent bands' column schedules (their union —
 ///   the shared cut value is the same f64 either side, so the dedup
-///   merges the line itself; snapped neighbours contribute the SAME
-///   columns, which is the point).
+///   merges the line itself).
 /// * Points on the trim box boundary are excluded exactly as the
 ///   uniform grid excluded its `i = 0, nu` indices.
 ///
@@ -1080,7 +1140,6 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
 /// carries the realised total, and the gate compares both.
 fn per_cell_candidates(
     grid: &NurbsCellGrid,
-    patch: &NurbsFaceBound,
     u: (f64, f64),
     v: (f64, f64),
     delta_s: f64,
@@ -1090,22 +1149,22 @@ fn per_cell_candidates(
         grid_cells: 0,
         bands: 0,
         cap_bands: 0,
-        snap_bands: 0,
         realized_aspect: f64::NAN,
+        metric: 1.0,
     };
     let du = u.1 - u.0;
-    for b in grid.band_schedule(*patch, u, v, delta_s)? {
+    let schedule = grid.band_schedule(u, v, delta_s)?;
+    stats.metric = schedule.metric;
+    for b in schedule.bands {
         stats.grid_cells += b.nuc * b.nvc;
         stats.bands += 1;
         stats.cap_bands += usize::from(b.cap);
-        stats.snap_bands += usize::from(b.snapped);
         // The emitted lattice's post-`ceil` parameter aspect `s_u/s_v`
-        // — the quantity SAFE_ASPECT judges — max over bands. The NaN
+        // in raw UV, max over bands. The NaN
         // seed means "no bands yet" and the first band overwrites it;
         // every band's aspect is a finite positive ratio (nonempty
         // extents over counts floored at one).
-        #[allow(clippy::cast_precision_loss)]
-        let aspect = (du / b.nuc as f64) / ((b.vb - b.va) / b.nvc as f64);
+        let aspect = b.aspect(du);
         stats.realized_aspect = if stats.realized_aspect.is_nan() {
             aspect
         } else {
@@ -1144,7 +1203,7 @@ fn per_cell_candidates(
 /// What one face's band schedule did, summarized for the budget meter
 /// (`crate::budget`): the cell count the lane sized, and the
 /// constraint-activity indicator TESS-SPLIT's spec demands — which
-/// bands the aspect cap clamped, which the malign snap projected, and the
+/// bands the aspect cap clamped, and the
 /// worst realized lattice aspect the emitted schedule carries. Nothing
 /// downstream can recover any of these (bands are not in the CSV, and
 /// the selection rule lives only in `nurbs_cert`).
@@ -1156,10 +1215,11 @@ struct ScheduleStats {
     bands: usize,
     /// Bands whose step selection the A cap clamped.
     cap_bands: usize,
-    /// Bands the malign snap projected with changed counts.
-    snap_bands: usize,
     /// Max over bands of the post-`ceil` spacing ratio `s_u/s_v`.
     realized_aspect: f64,
+    /// The schedule's lattice metric
+    /// ([`crate::nurbs_cert::lattice_metric`]).
+    metric: f64,
 }
 
 /// Row-major candidate order: by `v`, then `u` (total order — the
@@ -1597,11 +1657,80 @@ impl Creases {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        ChordPass, Creases, FixedVertexHandle, SpadePoint, chain_creases, id_repeats_apart,
-        trim_polygon,
+        ChordPass, Creases, FixedVertexHandle, SpadePoint, TessellateError, certifies,
+        chain_creases, id_repeats_apart, trim_polygon,
     };
     use spade::{ConstrainedDelaunayTriangulation, Triangulation};
     use topo::FaceKey;
+
+    /// **The MAJOR-1 backstop's end-to-end guard**: a face left with a
+    /// sliver above δ refuses typed [`TessellateError::CertificateExceeded`]
+    /// through `crate::tessellate`, not only at [`certifies`]. No natural
+    /// body refuses once narrow-column bands take rows, so this row turns
+    /// the raise off (`nurbs_cert::tests::ROWS_RAISED`, test-only) and meshes the
+    /// uneven-station cylinder at the δ where it refused before the raise:
+    /// a lane that stopped consulting the verdict would mesh it silently.
+    ///
+    /// The face map runs on rayon, so the switch is set inside a one-thread
+    /// pool, on the worker that runs the face.
+    #[test]
+    fn a_face_left_slivered_refuses_typed_through_tessellate() {
+        use geom_core::Tol;
+        let tau = core::f64::consts::TAU;
+        let bulge = (tau / 16.0).tan();
+        let section = || {
+            vec![profile::test_support::bulge_loop(
+                (0..4)
+                    .map(|k| {
+                        let a = tau * f64::from(k) / 4.0;
+                        (geom_core::Point2::new(a.cos(), a.sin()), bulge)
+                    })
+                    .collect(),
+            )]
+        };
+        let body = sweep::loft_body::<f64>(
+            &[section(), section(), section(), section(), section()],
+            &sweep::test_support::stacked_at(&[0.0, 0.01, 0.02, 0.5, 1.0]),
+            2,
+            Tol::witness(),
+        )
+        .expect("the uneven-station cylinder lofts")
+        .body;
+        let delta = 2.586_047_619_477_458e-3;
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .expect("a one-thread pool");
+        let (slivered, raised) = pool.install(|| {
+            crate::nurbs_cert::tests::ROWS_RAISED.with(|r| r.set(false));
+            let slivered = crate::tessellate(&body, delta, Tol::witness());
+            crate::nurbs_cert::tests::ROWS_RAISED.with(|r| r.set(true));
+            (slivered, crate::tessellate(&body, delta, Tol::witness()))
+        });
+        assert!(
+            matches!(
+                slivered,
+                Err(TessellateError::CertificateExceeded { bound, requested, .. })
+                    if bound > requested
+            ),
+            "rows not raised: the slivered face refuses typed, got {:?}",
+            slivered.map(|m| m.patches.len())
+        );
+        assert!(raised.is_ok(), "rows raised: the same face meshes");
+    }
+
+    /// **The verdict is the backstop** ([`certifies`]): a face whose worst
+    /// triangle certificate exceeds δ, or is NaN, refuses typed. No corpus
+    /// body reaches the refusal since narrow-column bands take rows, so the
+    /// verdict is pinned here directly, at its three edges.
+    #[test]
+    fn a_certificate_above_delta_or_nan_does_not_certify() {
+        assert!(certifies(0.5, 1.0));
+        assert!(certifies(1.0, 1.0), "exactly δ certifies");
+        assert!(!certifies(1.0 + f64::EPSILON, 1.0), "above δ refuses");
+        assert!(!certifies(f64::NAN, 1.0), "NaN refuses");
+        assert!(!certifies(f64::INFINITY, 1.0));
+    }
 
     /// Creases at `at` along `axis` on the unit square.
     fn creases(axis: usize, at: &[f64]) -> Creases {

@@ -2,11 +2,12 @@
 id: a-held-face-stays-marked-while-its-form-is-collapsed
 kind: issue
 title: A held face stays marked while the Add-feature section is collapsed, and the latch stops following the selection
-status: open
+status: parked
 opened: 2026-09-30
 priority: P3
 cost: M
-design: true
+blocked_on: [5636]
+rides_with: a-seated-tools-held-node-is-drawn-nowhere
 ---
 
 
@@ -40,3 +41,7 @@ gated on it. The candidates are: the latch writes outside the rows
 state becomes a value the frame owns, or a collapsed form releases its
 pick. Each moves the latch's contract, which `Drafts::datum_face`'s
 doc states.
+
+## Decided (2026-10-25)
+
+Decided together with `a-seated-tools-held-node-is-drawn-nowhere`, which carries the design. This row rides with it. The body above cites the add-datum form (`datum_face_frame_rows`, `Drafts::datum_face`), which is gone. Its successor is the add-profile form's on-face latch: `Drafts::sketch_face`, written by `sketch_face_rows`. That latch becomes `ToolKind::SketchOnFace`, and the open tool's panel is drawn outside the collapsing sections, which closes both symptoms.

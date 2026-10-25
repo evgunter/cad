@@ -11,11 +11,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, Space, StableName,
+    CapEnd, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -27,6 +26,73 @@ use geom_core::Tol;
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
 
 // ---- Documents ----
+
+/// **The axis through `origin` along `dir` in `body`'s own
+/// coordinates, read off its geometry** under `o` (which reaches the
+/// parts an instance copies): [`fixture::axis_on`] for a body only a
+/// resolver evaluates.
+pub(crate) fn axis_with(
+    doc: &ProfileDoc,
+    body: RecipeNodeId,
+    origin: [f64; 3],
+    dir: [f64; 3],
+    o: &editor_core::EvalOptions,
+) -> editor_core::pose::RoleRead<editor_core::Operand> {
+    let n = geom_core::Vec3::new(dir[0], dir[1], dir[2]);
+    let seed = if n.x.abs() <= n.y.abs().max(n.z.abs()) {
+        geom_core::Vec3::new(1.0, 0.0, 0.0)
+    } else {
+        geom_core::Vec3::new(0.0, 1.0, 0.0)
+    };
+    let u = seed - n * (seed.dot(n) / n.dot(n));
+    let v = n.cross(u);
+    let at = fixture::axes_at(origin, [u.x, u.y, u.z], [v.x, v.y, v.z]);
+    let frame = editor_core::test_support::frame_on_in(doc, o, &body.into(), &at, Tol::witness());
+    editor_core::pose::RoleRead::through(frame, editor_core::pose::PoseRole::Z)
+}
+
+/// **A copy of `body` placed against `target`, slid by `by`**, under
+/// `o` (which reaches the parts an instance copies):
+/// [`fixture::slid`] for bodies only a resolver evaluates. Returns the
+/// document and the placement.
+pub(crate) fn slid_with(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    by: [f64; 3],
+    o: &editor_core::EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    against_with(doc, target, body, &Frame::translation(by), o)
+}
+
+/// **A copy of `body` placed against `target` at `at`** (the copy's
+/// own frame in `target`'s own coordinates), under `o`:
+/// [`fixture::against`] for bodies only a resolver evaluates. Returns
+/// the document and the placement.
+pub(crate) fn against_with(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    body: RecipeNodeId,
+    at: &Frame,
+    o: &editor_core::EvalOptions,
+) -> (ProfileDoc, RecipeNodeId) {
+    let read = editor_core::Operand::from(body);
+    let placed = editor_core::test_support::placed_against_in(
+        &doc,
+        o,
+        &target.into(),
+        &read,
+        at,
+        Tol::witness(),
+    );
+    let (doc, placement) = insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+    );
+    // The mate and its values written whole, into the target's space.
+    let (doc, _) = crate::fixture::write_bundle(doc, placement, placed.bundle());
+    (doc, placement)
+}
 
 fn block_part(
     label: &str,
@@ -48,7 +114,6 @@ fn block_part(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -153,7 +218,7 @@ fn four_legs(
     let top_part = cube(&mut store, &format!("{label}-top"));
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -201,7 +266,7 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     assert_eq!(poses.fault(top), None, "the mates solve — no fault");
     assert_eq!(
         poses.space(top),
-        Some(Space::World),
+        Some(VarId::WORLD),
         "the top is pinned, through the leg, to the world"
     );
 
@@ -242,14 +307,8 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
     let top_part = cube(&mut store, "mate1-circ-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-circ"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
-    let (doc, axis) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Axis {
-            origin: [len(2.0), len(0.0), len(0.0)],
-            direction: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
+    let axis = axis_with(&doc, leg, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], &o);
     let theta = core::f64::consts::FRAC_PI_2;
     let (doc, pattern) = insert(
         doc,
@@ -257,7 +316,7 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
             input: leg.into(),
             count: Formula::count(4),
             kind: PatternKind::Circular {
-                axis: editor_core::pose::RoleRead::plain(axis),
+                axis,
                 step: ang(theta),
             },
         },
@@ -324,7 +383,7 @@ fn mates_never_solve_pattern_parameters() {
     let top_part = cube(&mut store, &format!("{label}-top"));
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -407,7 +466,7 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
     let top_part = cube(&mut store, "mate1-contra-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-contra"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -423,19 +482,11 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
     let copy_end = head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End)));
     let (doc, m0) = constrain(
         doc,
-        rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            copy_end.clone(),
-            ContactClass::Rest,
-        ),
+        rest(head(top_part.cap(top, CapEnd::Start)), copy_end.clone()),
     );
     let fault = fixture::door_refusal(
         &doc,
-        fixture::mate(
-            plane(head(top_part.cap(top, CapEnd::End))),
-            plane(copy_end),
-            ContactClass::Rest,
-        ),
+        fixture::mate(plane(head(top_part.cap(top, CapEnd::End))), plane(copy_end)),
     );
     let editor_core::MateFault::Overconstrained {
         placement,
@@ -450,7 +501,11 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
         constraints.contains(&m0.id) && constraints.len() == 2,
         "each mate is named, neither the later one: {constraints:?}"
     );
-    assert_eq!(free, 1, "two planes in general position leave a slide");
+    assert_eq!(
+        free, 0,
+        "the bundle is written whole: the slide two planes in general position leave is \
+         written 0"
+    );
 }
 
 // ---- The fence: what the vocabulary refuses ----
@@ -469,7 +524,7 @@ fn out_of_vocabulary_pattern_heads_refuse_where_the_placement_evaluates() {
     let top_part = cube(&mut store, "mate1-fence-top");
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-fence"), Tol::witness());
-    let (doc, leg) = insert_pinned(doc, Node::instantiate_part(leg_part.doc_ref), &o);
+    let (doc, leg) = insert_pinned(doc, crate::fixture::mated_instance(leg_part.doc_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -488,7 +543,6 @@ fn out_of_vocabulary_pattern_heads_refuse_where_the_placement_evaluates() {
         rest(
             head(top_part.cap(top, CapEnd::Start)),
             head(in_copy(pattern, 5, leg_part.cap(leg, CapEnd::End))),
-            ContactClass::Rest,
         ),
     );
     let poses = solve(&doc, &o, Tol::witness());
@@ -527,7 +581,7 @@ fn one_copy_twice_is_not_on_the_copy() {
         },
     );
     let copy_end = || head(in_copy(pattern, 2, leg_part.cap(leg, CapEnd::End)));
-    let refusal = at_the_door_of(&doc, leg, rest(copy_end(), copy_end(), ContactClass::Rest));
+    let refusal = at_the_door_of(&doc, leg, rest(copy_end(), copy_end()));
     assert!(
         matches!(
             refusal,
@@ -570,7 +624,6 @@ fn sibling_copies_of_one_instances_pattern_are_not_on_the_copy() {
         rest(
             head(in_copy(pattern, 0, leg_part.cap(leg, CapEnd::End))),
             head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End))),
-            ContactClass::Rest,
         ),
     );
     assert!(

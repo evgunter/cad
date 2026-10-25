@@ -319,11 +319,10 @@ fn clear<T: Decide>(gap: T, radius: T, band: Band) -> bool {
 /// **Whether `edge` of `y` stays definitely farther than `radius` from
 /// `at`.** Its certified box, padded by the sweep's pad, clear of the
 /// ball's box answers at once. Otherwise a lower bound on the distance
-/// is decided against `radius`, per carrier: a segment's own distance;
-/// for an arc, the distance to its whole circle; for an elliptic arc,
-/// the offset from its plane together with the in-plane gap to the
-/// annulus between its semi-axes, where the whole ellipse lies. Any
-/// other carrier is not clear.
+/// is decided against `radius`, read on the edge's own carrier
+/// ([`crate::splitting::containment::arc_distance_floor`]: a segment, a
+/// conic's own arc, any other carrier's ball). A spline with no control
+/// points is not clear.
 ///
 /// # Errors
 ///
@@ -341,46 +340,11 @@ fn edge_clear_of_ball<T: Decide + Bounds>(
         return Ok(true);
     }
     let e = crate::live::proven(&y.edges, edge, EntityId::Edge);
-    // The offset of `at` from the plane through `center` normal to
-    // `axis`, and its distance from `center` within that plane.
-    let split = |center: Point3<T>, axis: Vec3<T>| {
-        let w = at - center;
-        let n = axis / axis.norm();
-        let h = w.dot(n);
-        (h, (w - n * h).norm())
-    };
-    let gap = match *reduce::certified(y.get_curve_geom(e.curve))?.carrier() {
-        geom::Curve3::Line { .. } => {
-            let a = boxes::edge_end_point(y, edge, e.he_plus, "he_plus");
-            let b = boxes::edge_end_point(y, edge, e.he_minus, "he_minus");
-            crate::sector_shape::point_segment_distance(a, b, at)
-        }
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius: r,
-            ..
-        } => {
-            let (h, rho) = split(center, axis);
-            ((rho - r).powi(2) + h.powi(2)).sqrt()
-        }
-        geom::Curve3::Ellipse {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            ..
-        } => {
-            // The annulus between the semi-axis magnitudes, whichever is
-            // stored first.
-            let (hi, lo) = geom::Curve3::semi_axes_by_size(semi_u, semi_v);
-            let (h, rho) = split(center, axis);
-            let g = (rho - hi).max(lo - rho).max(T::zero());
-            (g.powi(2) + h.powi(2)).sqrt()
-        }
-        _ => return Ok(false),
-    };
-    Ok(clear(gap, radius, band))
+    let curve = reduce::certified(y.get_curve_geom(e.curve))?;
+    Ok(
+        crate::splitting::containment::arc_distance_floor(curve.carrier(), curve.params(), at)
+            .is_some_and(|floor| floor.clears(|gap| clear(gap, radius, band))),
+    )
 }
 
 #[cfg(test)]

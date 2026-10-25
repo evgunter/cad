@@ -144,6 +144,7 @@
 
 mod azimuth;
 pub mod carrier_speed;
+mod chart_point;
 mod convention;
 pub mod curves;
 mod datum;
@@ -159,6 +160,8 @@ pub mod surfaces;
 #[doc(hidden)]
 pub mod test_support;
 
+pub use azimuth::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START, Window};
+pub use chart_point::{ChartArm, ChartInverse, ChartPoint, NoClosedInverse};
 pub use convention::{
     ConventionEnd, ConventionMeasure, RepresentabilityMargin, SquareFrame, square_frame,
 };

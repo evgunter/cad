@@ -15,7 +15,7 @@ use editor_core::{
     Bodies, BodyRead, DocEdit, EditError, Evaluation, Formula, Node, NodeError, NodeErrorKind,
     NodeResult, OperandSlot, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, StableName, VarName,
 };
-use fixture::{insert, insert_refused, len, run, scl, step, table};
+use fixture::{insert, insert_refused, len, run, step, table};
 use geom_core::Tol;
 
 /// A unit cube and a linear pattern of three of it along x at spacing
@@ -60,9 +60,16 @@ fn least_x(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
 }
 
 fn volume(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
-    topo::mass_properties(crate::corpus::body_of(ev, id), Tol::witness())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(crate::corpus::body_of(ev, id)),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// Every name in `at`'s table, sorted.
@@ -130,20 +137,14 @@ fn a_union_of_a_family_and_of_its_members_spelled_name_and_build_alike() {
 
 #[test]
 fn an_indexed_read_at_a_body_seat_reads_that_member() {
-    let (doc, _, xs) = family("dm3-member-at-seat");
+    let (doc, cube, xs) = family("dm3-member-at-seat");
     let read = fixture::out(&doc, xs);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(editor_core::Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = fixture::plane_on(&doc, cube, [0.0, 0.0, 0.5], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: member(xs, 1),
-            tool: plane.into(),
+            tool,
         },
     );
     let (doc, lower) = insert(

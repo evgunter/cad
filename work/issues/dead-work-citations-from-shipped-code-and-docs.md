@@ -342,3 +342,21 @@ ZIP closed on 2026-10-11 (`docs/doc-ledger/zip-leaves-the-tracker.md`). Citation
 | `crates/sweep/tests/rest_mate_every_op.rs` | `blind-shaft-in-a-full-turn-bore-revisits-the-seam-vertex` |
 | `crates/sweep/tests/rest_zip_admission.rs` (module doc) | `a-flush-declared-reflex-union-ships-the-wrong-volume` |
 | `crates/sweep/tests/round_tube_on_plate.rs` (module doc) | `a-round-tube-standing-on-a-plate-refuses-seam-orientation` |
+
+## PATHS's closed rows (added 2026-10-21, at PATHS's exit)
+
+PATHS closed on 2026-10-21 (`docs/doc-ledger/paths-leaves-the-tracker.md`). Citations of its live rows were rewritten to their new homes in PROFILE, PROFILEREST, PROFILETAIL, PROFILEPROSE and INLANE. Citations of its CLOSED rows and of its program files in shipped docs now dangle. Each is recoverable at `4abacc6fba`:
+
+| citing file | cited row |
+| --- | --- |
+| `docs/DESIGN-FORK-LOG.md` (row 20) | `store-constructed-carriers` |
+| `docs/DESIGN-FORK-LOG.md` (row 35) | `retire-the-stored-bulge` |
+| `docs/DESIGN-FORK-LOG.md` (row 43) | `sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary` |
+| `docs/DESIGN-FORK-LOG.md` (row 75) | `a-one-segment-loops-revolve-and-loft-wall-wraps-a-period-with-no-seam` |
+| `docs/DESIGN-FORK-LOG.md` (rows 172, 173) | `the-sketch-plane-is-its-frame`, `a-cusp-on-nested-near-concentric-carriers-validates-along-a-long-eps-stretch` |
+| `docs/DESIGN-FORK-LOG.md` (row 175) | `arc-closer-constructed-from-arrival-tangent`, `via-and-center-arc-closers-declared-arrival` |
+| `docs/DESIGN-FORK-LOG.md` (rows 184, 186) | `a-stored-arcs-end-is-never-checked-against-its-authored-vertex`, `a-declared-continuation-run-reads-a-moving-reference` |
+| `docs/DUAL-REVIEW-LOG.md` (DR-5), `docs/dual-review-log/rows/PR-3224.md` | `canonical-segment-type-in-profile` |
+| `docs/MODEL-AB-LOG.md` (the banding entry, PATHS 5000–5099) | `work/paths/program.md` |
+
+No shipped source file (`crates/`, `demos/`) cites a closed PATHS row. Other programs' rows and logs that cite closed PATHS rows are history and are not listed.

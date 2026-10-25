@@ -18,9 +18,7 @@
 
 use core::f64::consts::{FRAC_1_SQRT_2, FRAC_PI_2};
 use geom::{NurbsSurface, Surface};
-use geom_brep::{
-    CertifyError, EdgeDescriptionSpec, PcurveCertifyError, PlaneNurbsRefusal, SsiLimb, SurfacePair,
-};
+use geom_brep::{CertifyError, EdgeDescriptionSpec, PlaneNurbsRefusal, SsiLimb, SurfacePair};
 use geom_core::spline::{KnotVector, Knots};
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
@@ -147,17 +145,18 @@ fn a_rim_against_the_charts_u_takes_its_reversed_row() {
     }
 }
 
-/// **A half-rim reaches the row-and-direction pick, and is refused
-/// there.** Splitting a rim leaves two arcs that lie on the chart's row
-/// `v = 0` but each span half its `u` domain, which the IsoArc map (the
-/// edge's whole carrier onto the whole domain) cannot state. The second
-/// half starts inside the domain, so a row picked off the start would
-/// refuse it before any candidate was judged; both halves are judged,
-/// and refused by the pick.
+/// **A half-rim takes its row over the row's own arc.** Splitting a rim
+/// leaves two arcs that lie on the chart's row `v = 0` but each span half
+/// its `u` domain. The second half starts inside the domain, so a row
+/// picked off the start would refuse it before any candidate was judged;
+/// both halves are judged at the probe, and each derives the row the
+/// parent had, `u` from 0 to 1 over the parent's arc, in which the
+/// half's span lies.
 #[test]
-fn a_half_rim_reaches_the_pick_and_is_refused_there() {
+fn a_half_rim_takes_its_rows_arc() {
     let mut body = semicircle_prism();
     let (wall, [bottom, _]) = arc_wall(&body);
+    let parent = body.pcurve(bottom).unwrap().pcurve().clone();
     let edge = body.get_half_edge(bottom).unwrap().edge;
     let (t0, t1) = body
         .get_curve_geom(body.get_edge(edge).unwrap().curve)
@@ -165,24 +164,34 @@ fn a_half_rim_reaches_the_pick_and_is_refused_there() {
         .unwrap()
         .params();
     let made = body.split_edge(edge, 0.5 * (t0 + t1), tol()).unwrap();
-    let halves = [made.he_plus, made.he_minus, bottom]
+    let halves: Vec<_> = [made.he_plus, made.he_minus, bottom]
         .into_iter()
-        .filter(|h| body.face_of_half_edge(*h) == Some(wall));
-    let mut refused = 0;
+        .filter(|h| body.face_of_half_edge(*h) == Some(wall))
+        .collect();
+    assert_eq!(
+        halves.len(),
+        2,
+        "both halves of the split rim are on the wall"
+    );
+    let Pcurve::IsoArc {
+        t0: arc_t0,
+        angle: arc_angle,
+        ..
+    } = parent
+    else {
+        panic!("the rim's row is an IsoArc: {parent:?}")
+    };
     for h in halves {
-        match derived(&body, h) {
-            Err(PcurveMintError::Certify {
-                error: PcurveCertifyError::IsoUnsupported { what },
-                ..
-            }) => assert!(
-                what.starts_with("no boundary row of this chart, in either u direction"),
-                "{h:?}: the half-rim is refused by the pick: {what}"
-            ),
-            other => panic!("{h:?}: a half-rim has no IsoArc image: {other:?}"),
-        }
-        refused += 1;
+        let image = derived(&body, h).unwrap();
+        assert_eq!(arc(&image), (0.0, 1.0, 0.0, 0.0), "{h:?}: the parent's row");
+        let Pcurve::IsoArc { t0, angle, .. } = image else {
+            unreachable!()
+        };
+        assert!(
+            (t0 - arc_t0).abs() < 1e-12 && (angle - arc_angle).abs() < 1e-12,
+            "{h:?}: the parent's arc ({arc_t0}, {arc_angle}), measured: ({t0}, {angle})"
+        );
     }
-    assert_eq!(refused, 2, "both halves of the split rim are on the wall");
 }
 
 /// **An `Intersection` circle on a spline chart is refused at the
@@ -366,7 +375,7 @@ fn seam_tube() -> (Body<f64>, FaceKey, [HalfEdgeKey; 2]) {
 /// The loop walk is not read here: the wall's cap arcs, circles along
 /// `v`, take `General` images whose foot at the seam vertex lands on the
 /// `v = 0` branch, so their fit folds back across the chart
-/// (`work/iso/a-general-image-ending-on-a-closed-charts-seam-takes-its-foot-on-the-first-branch`).
+/// (`work/isotail/a-general-image-ending-on-a-closed-charts-seam-takes-its-foot-on-the-first-branch`).
 ///
 /// The fixture is PR 5137's.
 #[test]

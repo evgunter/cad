@@ -1,66 +1,99 @@
-//! **Values** (FORK-S3M; rulings C-1 and C-2): one freedom a mate
-//! leaves, set to a number, charted on the two bodies' own frames.
+//! **Values** (FORK-S3M; D10 `[placement.values]`, row 190): one
+//! freedom a bundle's mates leave, set to a number, charted on the
+//! target space's axes.
 //!
-//! A mate's chart ([`Chart`]) is read once from its two poses and the
-//! target body's frame: the mated direction `d` (the target's, its
-//! flip normalised to the copy's side), each body's frame swung onto
-//! `d` by the shortest turn ([`super::reference_about`]), and the
-//! target body's origin. A value is then a function of the copy's
-//! relative pose alone — a spin the angle about `d` from the target's
-//! swung `x` to the copy's, a slide the copy's origin measured from
-//! the target's along the target's swung axis — so no order of the
-//! values is chosen.
+//! A value names no mate. Where a mate fixes a direction, its chart
+//! ([`Chart`]) is read once from that mate's two poses: the mated
+//! direction `d` (the target's, its flip normalised to the copy's
+//! side), the target space's axes swung onto `d` by the shortest turn
+//! ([`super::reference_about`]) and the copy's own axes swung onto its
+//! side of the mate the same way. A value is then a function of the
+//! copy's relative pose alone — `Spin(Z)` the angle about `d` from the
+//! target space's swung `x` to the copy's, a slide the copy's origin
+//! measured from the target space's along a swung axis — so no order
+//! of the values is chosen, and nothing about the body the target
+//! pose is read off enters the chart.
+//!
+//! The shortest turn has no limit at its antipode: it swings `z` onto
+//! `d` about `z × d`, which turns as fast as `d` nears `−z`, so there a
+//! tilt of `d` by `δ` turns the swung `x` by an angle of order
+//! `δ / |d + z|`, up to a half turn, and every slide measured along it
+//! with it — a copy hung under a face whose normal is near `−z` can
+//! move far for a tilt of its target by a sliver. Inside the band about
+//! the pole the chart refuses.
 //!
 //! [`settle`] places a folded bundle's copy at its values: each spin
 //! turns the copy about `d` inside the bundle's residual, then each
 //! slide moves it along its own axis until its measure there is the
-//! value. The bundle rule has
-//! admitted each value's freedom as one the rest of the bundle leaves,
-//! so nothing here asks whether the residual holds it. The values are
-//! taken in one order whatever order they are listed in (spins, then
-//! slides along `x`, `y`, `z`, each by its mate's id), so the listed
-//! order moves no bit.
-
-use std::collections::BTreeMap;
+//! value. The bundle rule has admitted each value's freedom as one the
+//! mates leave, so nothing here asks whether the residual holds it. The
+//! values are taken in one order whatever order they are listed in
+//! (spins, then slides along `x`, `y`, `z`), so the listed order moves
+//! no bit. Where no direction is fixed, the spins are a chain the
+//! author orders ([`chain`]): about the copy's origin with no mate
+//! ([`unmated_motion`]), about the mated point beside a lone point
+//! mate.
 
 use geom_core::linalg::{Affine3, Mat3, Point3, UnitVec3, Vec3};
 use geom_core::predicate::Band;
+use geom_core::{Angle, RigidMotion};
 
 use super::coset::{Arm, Coset, Subgroup, after_turn};
 use super::solve::SolveScalar;
-use super::{Coord, MateFault, MateRef, SlideAxis};
+use super::{Coord, MateRef, TargetAxis};
 use crate::NodeErrorKind;
-use crate::node::ConstraintId;
 use crate::pose::PoseValue;
 
-/// **One mate's chart, in the target space** (ruling C-1).
+/// **The chart of the one mate fixing a direction, in the target
+/// space** (row 190).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Chart<T: geom_core::Real> {
     /// The mated direction: the target's, its flip normalised to the
     /// copy's side.
     d: UnitVec3<T>,
-    /// The target body's swung `x`.
-    x: UnitVec3<T>,
-    /// The target body's swung `y`, `d × x`.
-    y: UnitVec3<T>,
-    /// The target body's origin.
-    origin: Point3<T>,
+    /// The target space's swung `x`, unit.
+    x: Vec3<T>,
+    /// The target space's swung `y`, `d × x`, unit.
+    y: Vec3<T>,
     /// The copy's swung `x`, in the copy's own coordinates.
     copy_x: Vec3<T>,
-    /// A point of the mate's own line, for an axis mate: the line its
-    /// spin turns about.
-    line: Option<Point3<T>>,
+    /// The copy's mated direction, in the copy's own coordinates.
+    copy_d: Vec3<T>,
+    /// Where the mate seats the copy, read off its two values' own
+    /// invariants ([`Seat`]).
+    seat: Seat<T>,
+}
+
+/// **What a mate's two values fix of the copy's translation**, in
+/// closed form: `t` the translation of a placed map whose linear part
+/// `R` carries the copy's mated direction onto `d`.
+#[derive(Debug, Clone, Copy)]
+enum Seat<T: geom_core::Real> {
+    /// A plane mate: `d · t`, the target's offset along `d` less the
+    /// copy's along its own mated direction.
+    Depth(T),
+    /// An axis mate: `t` across `d` is `foot − R · copy_foot`, the two
+    /// lines' points nearest their spaces' origins (each across its
+    /// line, so the difference is across `d`).
+    Line {
+        /// The target line's foot: a point of the line the mate's spin
+        /// turns about.
+        foot: Point3<T>,
+        /// The copy's line's foot, in its own coordinates.
+        copy_foot: Point3<T>,
+    },
+    /// A direction mate fixes no translation.
+    Free,
 }
 
 impl<T: SolveScalar> Chart<T> {
-    /// **The chart of a mate equating `on` with `to`**, `to` read off a
-    /// body whose own frame is `target` in the target space, its sense
-    /// flipped when `flipped`. `None` for a point or a frame mate, which
-    /// has no chart.
+    /// **The chart of a mate equating `on` with `to`**, both read in
+    /// the target space, `to`'s sense flipped when `flipped`. `None` for
+    /// a point or a frame mate, which fixes no one direction.
     ///
-    /// Beside each body's swing (one [`super::reference_about`] verdict
-    /// each), its three directions are minted as a datum's are
-    /// (`DATUM_UNIT_NORM`), and every refusal is the chart's.
+    /// Beside each side's swing (one [`super::reference_about`]
+    /// verdict each), its three directions are minted as a pose's are
+    /// (`POSE_UNIT_NORM`), and every refusal is the chart's.
     ///
     /// # Errors
     ///
@@ -70,16 +103,32 @@ impl<T: SolveScalar> Chart<T> {
         on: &PoseValue<T>,
         to: &PoseValue<T>,
         flipped: bool,
-        target: &Affine3<T>,
         arm: Arm,
         band: Band,
     ) -> Result<Option<Self>, NodeErrorKind> {
-        let (to_dir, on_dir, line) = match (on, to) {
-            (PoseValue::Plane { normal: o, .. }, PoseValue::Plane { normal: t, .. })
-            | (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => (*t, *o, None),
-            (PoseValue::Axis { dir: o, .. }, PoseValue::Axis { origin, dir: t }) => {
-                (*t, *o, Some(*origin))
+        let sense = |c: T| if flipped { T::zero() - c } else { c };
+        let (to_dir, on_dir, seat) = match (on, to) {
+            (
+                PoseValue::Plane {
+                    normal: o,
+                    offset: c_on,
+                },
+                PoseValue::Plane {
+                    normal: t,
+                    offset: c_to,
+                },
+            ) => (*t, *o, Seat::Depth(sense(*c_to - *c_on))),
+            (PoseValue::Direction { dir: o }, PoseValue::Direction { dir: t }) => {
+                (*t, *o, Seat::Free)
             }
+            (PoseValue::Axis(copy), PoseValue::Axis(target)) => (
+                target.dir(),
+                copy.dir(),
+                Seat::Line {
+                    foot: target.foot(),
+                    copy_foot: copy.foot(),
+                },
+            ),
             _ => return Ok(None),
         };
         let (d, copy_d) = if flipped {
@@ -88,161 +137,404 @@ impl<T: SolveScalar> Chart<T> {
             (to_dir, on_dir)
         };
         let unit = |v: Vec3<T>| {
-            UnitVec3::new(v, topo::query::DATUM_UNIT_NORM, band).map_err(|_| {
+            UnitVec3::new(v, topo::query::POSE_UNIT_NORM, band).map_err(|_| {
                 NodeErrorKind::PoseDegenerate {
                     construction: crate::pose::PoseConstruction::Chart,
                 }
             })
         };
-        let own_d = unit(target.linear.transpose() * d.get())?;
-        let x = unit(target.linear * super::reference_about(own_d, arm.get(), band)?)?;
-        let y = unit(d.get().cross(x.get()))?;
+        // The swung `x` is a turn of a unit vector and `y` the cross of
+        // two orthonormal ones, so each is unit over the reals at every
+        // point a box spans: a frame lane keeps each as it is, which a
+        // normalization would widen by its own norm's width, and decides
+        // each direction as the value lane does.
+        let swung = super::reference_about(d, arm.get(), band)?;
+        let x = unit(swung)?;
+        let x = if T::spins_by_frames() { swung } else { x.get() };
+        let across = d.get().cross(x);
+        let y = unit(across)?;
+        let y = if T::spins_by_frames() {
+            across
+        } else {
+            y.get()
+        };
         Ok(Some(Self {
             d,
             x,
             y,
-            origin: Point3::origin() + target.translation,
             copy_x: super::reference_about(copy_d, arm.get(), band)?,
-            line,
+            copy_d: copy_d.get(),
+            seat,
         }))
     }
 
-    /// The spin of the copy at relative pose `m`: the angle about `d`
-    /// from the target's swung `x` to the copy's, as `m` carries it.
-    fn spin(&self, m: &Affine3<T>) -> T {
-        let xc = m.linear * self.copy_x;
-        let x = self.x.get();
-        T::solve_atan2(x.cross(xc).dot(self.d.get()), x.dot(xc))
-    }
-
-    /// The axis a slide runs along.
-    fn axis(&self, along: SlideAxis) -> UnitVec3<T> {
-        match along {
-            SlideAxis::X => self.x,
-            SlideAxis::Y => self.y,
-            SlideAxis::Z => self.d,
+    /// A point of the mate's own line, for an axis mate: the line its
+    /// spin turns about.
+    fn line(&self) -> Option<Point3<T>> {
+        match self.seat {
+            Seat::Line { foot, .. } => Some(foot),
+            Seat::Depth(_) | Seat::Free => None,
         }
     }
 
-    /// **The value a spin takes at relative pose `m`** — what a gesture
-    /// writes to put the copy at `m`.
-    pub(crate) fn spin_at(&self, m: &Affine3<T>) -> T {
-        self.spin(m)
+    /// **The copy's translation along `along` that the mate fixes**, in
+    /// closed form from its two values ([`Seat`]) and the placed map's
+    /// linear part `r`: `None` along a freedom the mate leaves.
+    fn seated(&self, r: &Mat3<T>, along: TargetAxis) -> Option<T> {
+        match (self.seat, along) {
+            (Seat::Depth(depth), TargetAxis::Z) => Some(depth),
+            (Seat::Line { foot, copy_foot }, TargetAxis::X | TargetAxis::Y) => {
+                let across = (foot - Point3::origin()) - *r * (copy_foot - Point3::origin());
+                Some(across.dot(self.axis(along)))
+            }
+            (Seat::Depth(_), _) | (Seat::Line { .. }, TargetAxis::Z) | (Seat::Free, _) => None,
+        }
     }
 
-    /// **The value a slide along `along` takes at relative pose `m`**.
-    pub(crate) fn slide_at(&self, m: &Affine3<T>, along: SlideAxis) -> T {
-        self.slide(m, self.axis(along))
+    /// The spin of the copy at relative pose `m`: the angle about `d`
+    /// from the target space's swung `x` to the copy's, as `m` carries
+    /// it.
+    fn spin(&self, m: &Affine3<T>) -> T {
+        let xc = m.linear * self.copy_x;
+        let x = self.x;
+        T::solve_atan2(x.cross(xc).dot(self.d.get()), x.dot(xc))
+    }
+
+    /// The turn carrying the copy's chart frame onto the target space's
+    /// turned `by` about `d`: the linear part of every map whose spin is
+    /// `by`, read off the two charts alone.
+    fn turned(&self, by: Angle<T>) -> Mat3<T> {
+        let (sin, cos) = by.sin_cos();
+        let (x, y, d) = (self.x, self.y, self.d.get());
+        let to_x = x * cos + y * sin;
+        let to = Mat3::from_cols(to_x, d.cross(to_x), d);
+        to * self.from().transpose()
+    }
+
+    /// The copy's chart frame, in its own coordinates.
+    fn from(&self) -> Mat3<T> {
+        Mat3::from_cols(self.copy_x, self.copy_d.cross(self.copy_x), self.copy_d)
+    }
+
+    /// **The constant turn carrying the copy's chart frame onto the
+    /// target space's swung one.**
+    fn onto(&self) -> Affine3<T> {
+        let to = Mat3::from_cols(self.x, self.y, self.d.get());
+        Affine3::from_parts(to * self.from().transpose(), Vec3::zero())
+    }
+
+    /// **The copy's map at spin `by` and the translation `shift` before
+    /// [`Self::onto`]**: the shift, then the turn by `by` about the
+    /// mated direction, each composed as a motion, so nothing re-derives
+    /// its rigidity from its entries and nothing is decided.
+    fn head_at(&self, by: Angle<T>, shift: Vec3<T>) -> Option<RigidMotion<T>> {
+        let turn = RigidMotion::rotation_by(self.d, by).ok()?;
+        RigidMotion::translation(shift).ok()?.compose(turn).ok()
+    }
+
+    /// Whether the mated direction is an axis of the target space
+    /// exactly.
+    fn on_axes(&self) -> bool {
+        super::solve::on_an_axis(self.d.get()).is_some()
+    }
+
+    /// The axis a slide runs along.
+    fn axis(&self, along: TargetAxis) -> Vec3<T> {
+        match along {
+            TargetAxis::X => self.x,
+            TargetAxis::Y => self.y,
+            TargetAxis::Z => self.d.get(),
+        }
     }
 
     /// The slide of the copy at relative pose `m` along `axis`: its
-    /// origin measured from the target's.
-    fn slide(&self, m: &Affine3<T>, axis: UnitVec3<T>) -> T {
-        ((Point3::origin() + m.translation) - self.origin).dot(axis.get())
+    /// origin measured from the target space's.
+    fn slide(m: &Affine3<T>, axis: Vec3<T>) -> T {
+        m.translation.dot(axis)
     }
 }
 
-/// **One value, read**: its address, the mate it names, its freedom
-/// and its number at the evaluation's scalar.
+/// **One value, read**: its address, its freedom and its number at
+/// the evaluation's scalar.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ReadValue<T> {
     /// The value's address.
     pub(crate) value: MateRef,
-    /// The mate it names.
-    pub(crate) mate: ConstraintId,
     /// Its freedom.
     pub(crate) coord: Coord,
     /// Its number.
     pub(crate) by: T,
+    /// The fraction of a turn a spin's number is written as, where it
+    /// is one ([`crate::expr::VarEnv::turns`]).
+    pub(crate) turns: Option<crate::expr::Ratio>,
 }
 
-/// **A folded bundle's copy placed at its values**: the relative pose
-/// with each value's freedom set, inside what the mates leave. The
-/// bundle rule has admitted every value's freedom
-/// (`super::solve::overconstrained`), so each is held by the residual
-/// by construction, and nothing here decides whether it is: a spin
-/// turns about the residual's own line, or about `d` through the
-/// copy's origin where every line along `d` will do; a slide moves the
-/// copy along its own axis.
-///
-/// **Why a slide moves along its axis alone.** The rule admits a slide
-/// only beside mates that free every translation
-/// (`super::solve::own_freedom`), which only a direction mate does. A
-/// direction mate beside any other mate repeats an equation and is
-/// refused, but for a ball, beside which the slide itself is refused
-/// (`NoChartWhy::SlideTurnsABall`). So every slide a bundle sets is on
-/// one lone mate's chart, along its `x`, `y` or `d`, which are
-/// perpendicular and lie in that mate's residual: one slide's move
-/// changes no other's measure, and no line is left to mint between
-/// them.
+impl<T: geom_core::Real> ReadValue<T> {
+    /// A spin's number as an angle, with the form it was written in.
+    fn angle(&self) -> Angle<T> {
+        crate::expr::angle_of(self.by, self.turns)
+    }
+}
+
+/// **A settled map as the motions its composition made** (a frame
+/// lane's one spin and its slides, [`settle`]): `head`, a motion, then
+/// the constant turn `onto` carrying the copy's chart frame onto the
+/// target's, held as a map until a placement asks for it as a motion
+/// ([`Self::motion`]), so its rigidity is decided by the one door the
+/// value lane asks of its placed map ([`super::solve::admitted`]), and
+/// only there.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Composed<T: geom_core::Real> {
+    /// The shift, then the spin about the mated direction
+    /// ([`Chart::head_at`]).
+    head: RigidMotion<T>,
+    /// The constant turn.
+    onto: Affine3<T>,
+}
+
+impl<T: SolveScalar> Composed<T> {
+    /// The map the composition places by.
+    fn map(&self) -> Affine3<T> {
+        self.head.to_affine() * self.onto
+    }
+
+    /// **The placed map as a motion**: the constant turn admitted by
+    /// the door every placed map passes ([`super::solve::admitted`]),
+    /// then composed after the head.
+    ///
+    /// # Errors
+    ///
+    /// The door's refusal, or a composed origin that overflows.
+    pub(crate) fn motion(&self, band: Band) -> Result<RigidMotion<T>, NodeErrorKind> {
+        let onto = super::solve::admitted(&self.onto, band)?;
+        self.head.compose(onto).map_err(NodeErrorKind::Motion)
+    }
+}
+
+/// **A chain of spins about the target space's own axes** (D10
+/// `[placement.values]`), each turning about the origin, in the order
+/// the bundle lists them: the first written is the first made. Composed
+/// as motions, so nothing is decided; `None` for a chain of no link.
 ///
 /// # Errors
 ///
-/// [`MateFault::NoChart`] for a value whose mate has no chart.
+/// [`NodeErrorKind::Motion`]: an angle that is no bounded number.
+fn chain<T: SolveScalar>(values: &[ReadValue<T>]) -> Result<Option<RigidMotion<T>>, NodeErrorKind> {
+    let mut turned: Option<RigidMotion<T>> = None;
+    for v in values {
+        if let Coord::Spin(axis) = v.coord {
+            let spin =
+                RigidMotion::rotation_by(axis.unit(), v.angle()).map_err(NodeErrorKind::Motion)?;
+            turned = Some(match turned {
+                Some(inner) => spin.compose(inner).map_err(NodeErrorKind::Motion)?,
+                None => spin,
+            });
+        }
+    }
+    Ok(turned)
+}
+
+/// **A bundle with no mate placed by its values** (D10
+/// `[placement.values]`): the chain of spins about the target space's
+/// own axes ([`chain`]), each turning the copy about its own origin,
+/// then the slides along those axes, which set the copy's origin.
+/// Composed as motions, so nothing is decided. The bundle rule has
+/// admitted the values as the six freedoms, each once.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`]: an angle or a translation that is no
+/// bounded number.
+pub(crate) fn unmated_motion<T: SolveScalar>(
+    values: &[ReadValue<T>],
+) -> Result<RigidMotion<T>, NodeErrorKind> {
+    let mut shift = Vec3::zero();
+    for v in values {
+        match v.coord {
+            Coord::Slide(TargetAxis::X) => shift.x = v.by,
+            Coord::Slide(TargetAxis::Y) => shift.y = v.by,
+            Coord::Slide(TargetAxis::Z) => shift.z = v.by,
+            Coord::Spin(_) => {}
+        }
+    }
+    let slid = RigidMotion::translation(shift).map_err(NodeErrorKind::Motion)?;
+    match chain(values)? {
+        Some(turned) => slid.compose(turned).map_err(NodeErrorKind::Motion),
+        None => Ok(slid),
+    }
+}
+
+/// **A lone point mate's copy placed by its chain** (D10
+/// `[placement.values]`): the copy's mated point `on` carried onto the
+/// target's `to`, turned about it by the chain of spins about the target
+/// space's axes in the order written ([`chain`]), so a chain of zeros
+/// leaves the copy's own axes the target space's. Composed as motions.
+///
+/// # Errors
+///
+/// [`NodeErrorKind::Motion`]: an angle or a point that is no bounded
+/// number.
+pub(crate) fn point_motion<T: SolveScalar>(
+    on: Point3<T>,
+    to: Point3<T>,
+    values: &[ReadValue<T>],
+) -> Result<RigidMotion<T>, NodeErrorKind> {
+    let motion = |e| NodeErrorKind::Motion(e);
+    let into = RigidMotion::translation(to - Point3::origin()).map_err(motion)?;
+    let out = RigidMotion::translation(Point3::origin() - on).map_err(motion)?;
+    let turned = match chain(values)? {
+        Some(turned) => into.compose(turned).map_err(motion)?,
+        None => into,
+    };
+    turned.compose(out).map_err(motion)
+}
+
+/// **A folded bundle's copy placed at its values**: the relative pose
+/// with each value's freedom set, inside what the mates leave, on the
+/// chart of the one mate fixing a direction. The bundle rule has
+/// admitted every value's freedom (`super::solve::overconstrained`), so
+/// each is held by the residual by construction, and nothing here
+/// decides whether it is: a spin turns about the residual's own line,
+/// or about `d` through the copy's origin where every line along `d`
+/// will do; a slide moves the copy along its own axis.
+///
+/// **Why a slide moves along its axis alone.** The rule admits a slide
+/// only beside mates that free every translation along it, so every
+/// slide a bundle sets is along the chart's `x`, `y` or `d`, which are
+/// perpendicular and lie in the residual: one slide's move changes no
+/// other's measure, and no line is left to mint between them.
+///
+/// # Errors
+///
+/// A chart degenerate at its values.
 pub(crate) fn settle<T: SolveScalar>(
     coset: Coset<T>,
     values: &[ReadValue<T>],
-    charts: &BTreeMap<ConstraintId, Option<Chart<T>>>,
-) -> Result<Affine3<T>, NodeErrorKind> {
+    chart: Option<Chart<T>>,
+) -> Result<(Affine3<T>, Option<Composed<T>>), NodeErrorKind> {
     let mut m = coset.representative;
     let mut left = coset.subgroup;
-    let chart = |v: &ReadValue<T>| match charts.get(&v.mate) {
-        Some(Some(chart)) => Ok(*chart),
-        _ => Err(NodeErrorKind::Mate(Box::new(MateFault::NoChart {
-            value: v.value,
-            why: super::NoChartWhy::PointRotation,
-        }))),
+    if values.is_empty() {
+        return Ok((m, None));
+    }
+    let Some(chart) = chart else {
+        unreachable!("the bundle rule admits a value beside a mate fixing a direction alone")
     };
     // One order whatever order the values are listed in: spins, then
-    // slides along x, y and z, each by its mate's id, then by its own.
+    // slides along x, y and z, then by id.
     let mut ordered: Vec<&ReadValue<T>> = values.iter().collect();
     ordered.sort_by_key(|v| {
         let rank = match v.coord {
-            Coord::Spin => 0,
-            Coord::Slide(SlideAxis::X) => 1,
-            Coord::Slide(SlideAxis::Y) => 2,
-            Coord::Slide(SlideAxis::Z) => 3,
+            Coord::Spin(_) => 0,
+            Coord::Slide(TargetAxis::X) => 1,
+            Coord::Slide(TargetAxis::Y) => 2,
+            Coord::Slide(TargetAxis::Z) => 3,
         };
-        (rank, v.mate, v.value.id)
+        (rank, v.value.id)
     });
-    let (spins, slides): (Vec<_>, Vec<_>) =
-        ordered.into_iter().partition(|v| v.coord == Coord::Spin);
-    // The premise each slide's move rests on, held loud: a rule that came
-    // to admit slides on two mates would otherwise place the copy off a
-    // mate it holds, saying nothing.
+    let (spins, slides): (Vec<_>, Vec<_>) = ordered
+        .into_iter()
+        .partition(|v| matches!(v.coord, Coord::Spin(_)));
+    // The rule admits a spin about the mated direction alone here, held
+    // loud: the chart turns about `d`.
     assert!(
-        slides
-            .windows(2)
-            .all(|w: &[&ReadValue<T>]| w[0].mate == w[1].mate),
-        "the bundle rule admits slides on one mate's chart alone"
+        spins
+            .iter()
+            .all(|v: &&ReadValue<T>| v.coord == Coord::Spin(TargetAxis::Z)),
+        "a mate's chart is spun about its mated direction alone"
     );
+    let spun = spins.clone();
     // Spins first: every slide after them re-measures the copy's origin.
     for v in spins {
-        let chart = chart(v)?;
-        let by = v.by - chart.spin(&m);
+        let measured = chart.spin(&m);
         // A turn about the copy's own origin keeps its translation as it
         // is: composed as a turn about that point, a box lane would
         // widen it by the turn's own width levered over the origin's
         // distance, twice.
-        m = match residual_turn_point(left).or(chart.line) {
-            Some(at) => Affine3::rotation_about_axis(at, chart.d.get(), by) * m,
+        let turned = match residual_turn_point(left).or(chart.line()) {
+            Some(at) => turn_to(at, chart.d, v, measured) * m,
             None => {
-                let turn = Affine3::rotation_about_axis(Point3::origin(), chart.d.get(), by);
+                let turn = turn_to(Point3::origin(), chart.d, v, measured);
                 Affine3::from_parts(turn.linear * m.linear, m.translation)
             }
         };
+        m = if T::spins_by_frames() {
+            Affine3::from_parts(chart.turned(v.angle()), turned.translation)
+        } else {
+            turned
+        };
         left = after_turn(left).unwrap_or(left);
     }
+    // On a frame lane the translation is set from the chart, as the turn
+    // is: its component along each slide's axis is the value, along an
+    // axis the mate fixes it is the mate's closed form ([`Chart::seated`]),
+    // and along any other it is the copy's measure there, so no
+    // difference of the translation with itself widens it. A measure is
+    // re-read only on a chart whose mated direction is an axis exactly:
+    // re-reading a component along a direction the box widens would
+    // spread the translation's width across the others, which the
+    // differences below leave in place.
+    let set = |a: TargetAxis| {
+        slides
+            .iter()
+            .rev()
+            .find(|v| v.coord == Coord::Slide(a))
+            .map(|v| v.by)
+            .or_else(|| chart.seated(&m.linear, a))
+    };
+    if T::spins_by_frames()
+        && !slides.is_empty()
+        && (chart.on_axes() || TargetAxis::ALL.into_iter().all(|a| set(a).is_some()))
+    {
+        let along = |a: TargetAxis| set(a).unwrap_or_else(|| Chart::slide(&m, chart.axis(a)));
+        let shift = TargetAxis::ALL
+            .into_iter()
+            .fold(Vec3::zero(), |t, a| t + chart.axis(a) * along(a));
+        // A copy turned by one spin is composed as the motion it is:
+        // the shift, then the spin, then the constant turn.
+        if let [spin] = spun.as_slice()
+            && let Some(head) = chart.head_at(spin.angle(), shift)
+        {
+            let composed = Composed {
+                head,
+                onto: chart.onto(),
+            };
+            return Ok((composed.map(), Some(composed)));
+        }
+        return Ok((Affine3::from_parts(m.linear, shift), None));
+    }
     for v in slides {
-        let chart = chart(v)?;
         let Coord::Slide(along) = v.coord else {
             unreachable!("the spins were taken above")
         };
         let axis = chart.axis(along);
-        let gap = v.by - chart.slide(&m, axis);
-        m = Affine3::from_parts(Mat3::identity(), axis.get() * gap) * m;
+        let gap = v.by - Chart::slide(&m, axis);
+        m = Affine3::from_parts(Mat3::identity(), axis * gap) * m;
     }
-    Ok(m)
+    Ok((m, None))
+}
+/// **The turn about the line through `at` along `d` that takes a copy
+/// spun `measured` to `v`'s spin**: by the difference of the two, or,
+/// for a spin written as a fraction of a turn, the measured spin undone
+/// and then the written turn made, each from its own sine and cosine,
+/// so the written one is exact where its form is. A measured spin that
+/// is exactly zero has nothing to undo.
+fn turn_to<T: SolveScalar>(
+    at: Point3<T>,
+    d: UnitVec3<T>,
+    v: &ReadValue<T>,
+    measured: T,
+) -> Affine3<T> {
+    match v.turns {
+        Some(_) if measured.exactly_zero() => {
+            Affine3::rotation_about_unit_axis_by(at, d, v.angle())
+        }
+        Some(_) => {
+            Affine3::rotation_about_unit_axis_by(at, d, v.angle())
+                * Affine3::rotation_about_unit_axis_by(at, d, Angle::radians(-measured))
+        }
+        None => Affine3::rotation_about_axis(at, d.get(), v.by - measured),
+    }
 }
 
 /// **The line a residual's turns about its direction fix**: the

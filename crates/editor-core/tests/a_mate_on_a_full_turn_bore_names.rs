@@ -13,13 +13,38 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, ExtrudeSide, LoopProgram, Node, NodeResult, ProfileDoc,
+    CancelToken, EvalOptions, Evaluation, LoopProgram, Node, NodeResult, ProfileDoc,
     ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, evaluate,
 };
 use geom_core::Tol;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
-use crate::fixture::{ang, frame, insert, len, len2, revolve_about};
+use editor_core::{Coord, Formula, TargetAxis};
+
+use crate::fixture::{ang, insert, len, len2, revolve_about};
+
+/// A copy of `body`'s revolve in `space`, placed by `placed`.
+fn place(
+    doc: ProfileDoc,
+    body: RecipeNodeId,
+    space: editor_core::VarId,
+    placed: editor_core::Placed,
+) -> (ProfileDoc, RecipeNodeId) {
+    let applied = doc
+        .apply(
+            &editor_core::DocEdit::place(
+                vec![editor_core::BodyRead::plain(editor_core::Operand::output(
+                    body, 0,
+                ))],
+                editor_core::Operand::Var(space),
+                placed.bundle(),
+            ),
+            Tol::witness(),
+        )
+        .expect("the collar is placed");
+    let placement = applied.record.minted.expect("a placement mints its node");
+    (applied.doc, placement)
+}
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -37,20 +62,24 @@ fn operand(ev: &Evaluation<f64>, n: RecipeNodeId) -> topo::AtRestBody<f64> {
         ValuePayload::Body(b) => {
             sweep::test_support::finished("the operand", (**b).clone(), Tol::witness())
         }
+        ValuePayload::Copies(copies) if copies.bodies.len() == 1 => sweep::test_support::finished(
+            "the operand",
+            (*copies.bodies[0]).clone(),
+            Tol::witness(),
+        ),
         other => panic!("a sweep's payload is a body, got {}", other.kind_name()),
     }
 }
 
-/// The collar and the shaft: the shaft's vertex at azimuth `a` from
+/// The collar (its placement against the shaft) and the shaft: the
+/// shaft's vertex at azimuth `a` from
 /// the collar's seam (`+x`), spanning `y ∈ [y0, y0 + h]`.
 fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("a_mate_on_a_full_turn_bore", Tol::witness());
-    let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let to = |x: f64, y: f64| ProgramTarget::Point(len2([x, y]));
     let (doc, section) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At(len2([0.3, 0.0])),
                 ProgramStep::LineTo(to(0.6, 0.0)),
@@ -65,13 +94,9 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         doc,
         revolve_about(section, (0.0, 0.0), crate::fixture::along_y(), ang(TAU)),
     );
-    // x along azimuth `a` about `y`, and y chosen so the normal is `+y`.
-    let (c, s) = (a.cos(), a.sin());
-    let (doc, base) = insert(doc, frame([0.0, y0, 0.0], [c, 0.0, -s], [-s, 0.0, -c]));
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: base.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius: len(0.3),
@@ -84,9 +109,24 @@ fn mate(a: f64, y0: f64, h: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile: disc.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     );
+    // The shaft is the root: its own frame stands at `(0, y0, 0)` in
+    // the collar's coordinates, `x` along `(cos a, 0, −sin a)` and `y` along
+    // `(−sin a, 0, −cos a)`, so the collar is placed at that frame's inverse: a
+    // quarter turn about `x`, then `−a` about `z`, slid `−y0` along `z`.
+    let placed = editor_core::Placed::unmated(vec![
+        (
+            Coord::Spin(TargetAxis::X),
+            Formula::turn_over(4).expect("a quarter turn"),
+        ),
+        (Coord::Spin(TargetAxis::Z), ang(-a)),
+        (Coord::Slide(TargetAxis::Z), len(-y0)),
+    ]);
+    let space = doc
+        .operand_space(&shaft.into())
+        .expect("the shaft is in a space");
+    let (doc, collar) = place(doc, collar, space, placed);
     (doc, collar, shaft)
 }
 

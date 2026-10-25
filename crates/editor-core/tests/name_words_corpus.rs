@@ -37,7 +37,7 @@ use std::time::Instant;
 use crate::corpus::{self, Recorder};
 use crate::fixture::{self, len, scl};
 use editor_core::{
-    Diagnosis, EntityKind, EvalOptions, Evaluation, ExtrudeSide, FaceName, Formula, HitTestError,
+    Diagnosis, EntityKind, EvalOptions, Evaluation, FaceName, Formula, HitTestError,
     InterrogateError, NameTable, NameTables, Node, NodeError, NodeErrorKind, PatternKind, PickHit,
     ProfileDoc, RecipeEditRef, RecipeNodeId, ResolveError, RoleSeg, SelectRefusal, Speaker,
     StableName,
@@ -58,7 +58,14 @@ use topo::BooleanOp;
 /// name says two joins where a pair boolean's `a` operand said none.
 /// It says its claimed name by tag, which says each read a carry came
 /// through.
-const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 80)];
+///
+/// Raised 80 → 92 by INTENT stage 3 D (Transform retires into a
+/// placement): every construction is the root of its own space, so a
+/// later operand of a union is placed against the first before it is
+/// joined, and the name says that read too ("joined at Union … from
+/// Place …"), and its claimed name says one more read by tag. Filed as
+/// `name-words-budget-grew-under-placed-copy-wrapping`.
+const OVER_BUDGET: &[(&str, usize)] = &[("NodeErrorKind::CrossingUnverified", 92)];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;
@@ -134,6 +141,20 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// said one of them. The longer sentences are the right names, not a
 /// regression. The percentiles, the maxima and the scoped row held.
 ///
+/// Every number but the p50s and the scoped maximum moved with INTENT
+/// stage 3 D (Transform retires into a placement), and the full row
+/// grew: p99 122 → 128, max 196 → 366, total 411230 → 444393; the
+/// scoped row's p99 fell 43 → 41 and its total rose 55615 → 59553.
+/// Every construction is the root of its own space, so each operand
+/// after a combine's first is placed against the first's root, and its
+/// names come in wrapped `Placed { of }`, said "joined at Union … from
+/// Place …". The longest full name, in `nested_islands_106_depth2`, is
+/// a piece of a lateral edge between two crossings, whose ends say the
+/// edge again: each extra placement read is said three times over in
+/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`;
+/// retiring `RoleSeg::Placed` and `InPart` in D′ is expected to bring
+/// them back, and D′ re-tightens this pin.
+///
 /// The full total rose by 11 970 and its p99 by seven, and the scoped
 /// total by 200, with a seam's sides and a crossing's edge and face named
 /// as the boolean's own table names them (N3): at every subtract each
@@ -141,9 +162,16 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// alone, so two operands holding the same names are told apart. The
 /// longer sentences are the right names, not a regression. The maxima
 /// and the scoped percentiles held.
+///
+/// Merging main at `be82e5ad6b` into D, the two moves met: full p99
+/// 128 → 135, max 366 → 396, total 444393 → 458233; scoped p99 41 → 43,
+/// total 59553 → 59743. Each side a subtract carries in now says its
+/// read as well as the `Placed` copy it came through, and the longest
+/// name says it at each of its ends; the growth is the same placed-copy
+/// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 43, 57, 55_805]),
-    ("full", [19, 129, 196, 423_190]),
+    ("scoped faces", [16, 43, 57, 60_241]),
+    ("full", [19, 135, 396, 461_129]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -243,10 +271,64 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// A seam citing the parent face (N3) moved it with [`NAME_WORDS`], in
 /// `crossing_slots` alone.
 ///
+/// INTENT stage 3 D (Transform retires into a placement) moved it in
+/// every document, with [`NAME_WORDS`]: the documents were re-spelled
+/// without `Datum` or `Transform`, so every tag moved, and every
+/// operand placed against a first operand's root says that placement.
+///
+/// The kitchen sink's lone block hung below the world's xy, as its
+/// retired `SetExtrudeSide` edit had it, moved it in `kitchen_sink`
+/// alone, by tags: its copies are placed at a pose, which mints one id
+/// fewer than standing did, so every tag minted after them moved.
+/// [`NAME_WORDS`] held.
+///
+/// The identity bundle (FORK-REST) moved it by tags, in the documents
+/// that mint a node after a stand (`heat_sink`, `declared_tangency`,
+/// `kitchen_sink`, `cut_cylinder`, `part_select`, the five rows
+/// `lib_g16_corpus_name_digests` moved): a copy standing where its body
+/// stands is placed by no mate and the constant `0` on every freedom,
+/// written as one `AddValues`, which mints a different number of ids from the plane
+/// mate and three values it replaces, so every tag minted after a stand
+/// moved. [`NAME_WORDS`] held.
+///
+/// Exact turns (INTENT stage 3 D) moved it by tags in the five documents
+/// `lib_g16_corpus_name_digests` moved with them: `die_tool` writes its
+/// ball's spin as the constant `0` (one variable fewer); the pips of
+/// `die_pips`, `die_composed` and the tour die stand on lines stated
+/// from the cube's corner; `kitchen_sink`'s revolve stands upright by a
+/// bundle with no mate and its split's plane and pattern's axis are read
+/// off its faces. [`NAME_WORDS`] held.
+///
+/// It moved again by tags in `die_tool` alone, when its master ball came
+/// to stand on the cube's corner frame by an axis mate, which mints 42
+/// fewer ids than the retired place-against helper it replaces. [`NAME_WORDS`] held.
+///
 /// A seam's sides and a crossing's lines named in the boolean's own
 /// table (N3) moved it with [`NAME_WORDS`], in every document holding a
-/// subtract.
-const SAID_DIGEST: u64 = 0x11ae_c07a_9b0c_6bee;
+/// subtract. Measured with [`NAME_WORDS`] merging main at `be82e5ad6b`
+/// into D.
+///
+/// Re-pinned, `die` alone, when its pips came to stand on frames stated
+/// from the cube's corner by whole quarter turns and dyadic slides (a
+/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
+/// written `atan2`'s rounded turns: the die's world vertices are the
+/// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
+/// placements, their ids and the names under them are new.
+///
+/// D′1 (a placement names its target space): the words that moved are
+/// the node tags, every construction minting its space beside its body
+/// and every bundle written whole. With the tags masked, every name of
+/// every document says the words it said on the merge base
+/// (`e605bc0e`), and [`NAME_WORDS`] held: a read of a construction's
+/// body is said by the node alone, its space being no part of what it
+/// holds.
+///
+/// **Re-pinned for PR 5616**, taken merged over D′2 (PR 5613), which
+/// left this row red on main: D′2 moved every corpus document's ids,
+/// and this PR's `test_support::plane_on` reads `symmetric_plate`'s
+/// seam face plainly, so its node tags moved too; the words that moved
+/// are the node tags.
+const SAID_DIGEST: u64 = 0x84aa_4c5d_d24d_3960;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -626,7 +708,7 @@ fn refusals(
             "SelectRefusal::InBand",
             SelectRefusal::InBand {
                 name: Box::new(a.clone()),
-                predicate: "sel_datum_distance",
+                predicate: "sel_plane_distance",
                 source: band(),
             }
             .spoken(doc, tables),
@@ -675,12 +757,17 @@ fn extrude(r: &mut Recorder, profile: RecipeNodeId, distance: f64) -> RecipeNode
     r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(distance),
-        side: ExtrudeSide::Along,
     })
 }
 
-fn moved(r: &mut Recorder, input: RecipeNodeId, by: [f64; 3]) -> RecipeNodeId {
-    r.insert(fixture::xform(input, by, [0.0, 0.0, 1.0], 0.0))
+/// A copy of `input` slid `by` in `target`'s own coordinates.
+fn moved(
+    r: &mut Recorder,
+    target: RecipeNodeId,
+    input: RecipeNodeId,
+    by: [f64; 3],
+) -> RecipeNodeId {
+    r.against(target, input, &editor_core::Frame::translation(by))
 }
 
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
@@ -709,11 +796,15 @@ fn square(x: f64, y: f64, h: f64) -> Vec<(f64, f64)> {
 
 const XY: ([f64; 3], [f64; 3]) = ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
 
-/// A block and a square pin on it, the pin's master extruded once.
+/// The height a pin's base stands at on its block.
+const PIN_Z: f64 = 0.75;
+
+/// A block and a square pin's master, extruded once on its own xy; its
+/// copies stand `PIN_Z` up the block.
 fn block_and_pin(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
     let block = r.profile([0.0; 3], XY.0, XY.1, vec![square(2.0, 1.0, 2.0)]);
     let block = extrude(r, block, 1.0);
-    let pin = r.profile([0.0, 0.0, 0.75], XY.0, XY.1, vec![square(0.5, 0.5, 0.125)]);
+    let pin = r.profile([0.0; 3], XY.0, XY.1, vec![square(0.5, 0.5, 0.125)]);
     (block, extrude(r, pin, 0.5))
 }
 
@@ -731,20 +822,22 @@ fn documents_outside_the_corpus_read_apart_too() {
 
     let mut r = Recorder::new();
     let (block, pin) = block_and_pin(&mut r);
-    let copies = [0.0, 0.75, 1.5, 2.25].map(|x| moved(&mut r, pin, [x, 0.0, 0.0]));
+    let copies = [0.0, 0.75, 1.5, 2.25].map(|x| moved(&mut r, block, pin, [x, 0.0, PIN_Z]));
     let first = boolean(&mut r, BooleanOp::Subtract, block, copies[0]);
     let second = boolean(&mut r, BooleanOp::Subtract, first, copies[1]);
     let (doc, union) = fixture::union_over(r.doc.clone(), &copies[2..]);
     r.doc = doc;
     let cut = boolean(&mut r, BooleanOp::Subtract, second, union);
     docs.push(("copies".to_owned(), r.doc.clone()));
-    let bosses = [[0.0, 1.0, 0.5], [0.75, 1.0, 0.5]].map(|at| moved(&mut r, pin, at));
+    let bosses =
+        [[0.0, 1.0, PIN_Z + 0.5], [0.75, 1.0, PIN_Z + 0.5]].map(|at| moved(&mut r, block, pin, at));
     let once = boolean(&mut r, BooleanOp::Union, cut, bosses[0]);
     boolean(&mut r, BooleanOp::Union, once, bosses[1]);
     docs.push(("copies and bosses".to_owned(), r.doc.clone()));
 
     let mut r = Recorder::new();
     let (block, pin) = block_and_pin(&mut r);
+    let pin = moved(&mut r, block, pin, [0.0, 0.0, PIN_Z]);
     let row = r.insert(
         Node::placed_union(
             pin,
@@ -768,13 +861,10 @@ fn documents_outside_the_corpus_read_apart_too() {
         .expect("a linear pattern"),
     );
     let cut = boolean(&mut r, BooleanOp::Subtract, block, grid);
-    let tool = r.insert(Node::Datum(editor_core::Datum::Plane {
-        origin: [len(0.0), len(0.5), len(0.0)],
-        normal: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let tool = fixture::plane_on(&r.doc, block, [0.0, 0.5, 0.0], [0.0, 1.0, 0.0]);
     r.insert(Node::Split {
         target: cut.into(),
-        tool: tool.into(),
+        tool,
     });
     docs.push(("pattern and split".to_owned(), r.doc.clone()));
 
@@ -789,10 +879,12 @@ fn documents_outside_the_corpus_read_apart_too() {
     };
     let lower = r.profile([0.0; 3], XY.0, XY.1, loops(0.0));
     let lower = extrude(&mut r, lower, 0.5);
-    let upper = r.profile([0.0, 0.0, 0.25], XY.0, XY.1, loops(0.1));
+    let upper = r.profile([0.0; 3], XY.0, XY.1, loops(0.1));
     let upper = extrude(&mut r, upper, 0.5);
-    boolean(&mut r, BooleanOp::Union, lower, upper);
-    let apart = [lower, upper].map(|at| moved(&mut r, at, [6.0, 0.0, 0.0]));
+    let raised = moved(&mut r, lower, upper, [0.0, 0.0, 0.25]);
+    boolean(&mut r, BooleanOp::Union, lower, raised);
+    let apart =
+        [(lower, 0.0), (upper, 0.25)].map(|(at, z)| moved(&mut r, lower, at, [6.0, 0.0, z]));
     let (doc, _) = fixture::union_over(r.doc.clone(), &[apart[0], apart[1], lower]);
     docs.push(("loops and two profiles".to_owned(), doc));
 
@@ -800,14 +892,12 @@ fn documents_outside_the_corpus_read_apart_too() {
         let mut r = Recorder::new();
         let block = r.profile([0.0; 3], XY.0, XY.1, vec![square(2.0, 1.0, 2.0)]);
         let block = extrude(&mut r, block, 1.0);
-        let plane = r.insert(fixture::frame([0.0, 0.0, 0.75], XY.0, XY.1));
         let pin = r.insert(Node::Profile(editor_core::ProfileProgram {
-            frame: plane.into(),
             loops: vec![editor_core::LoopProgram::circle(0.5, 0.5, 0.2).expect("a circle")],
             ids: Vec::new(),
         }));
         let pin = extrude(&mut r, pin, 0.5);
-        let copies = [0.0, 1.0, 2.0].map(|x| moved(&mut r, pin, [x, 0.0, 0.0]));
+        let copies = [0.0, 1.0, 2.0].map(|x| moved(&mut r, block, pin, [x, 0.0, PIN_Z]));
         let first = boolean(&mut r, op, block, copies[0]);
         let second = boolean(&mut r, op, first, copies[1]);
         let third = boolean(&mut r, op, second, copies[2]);
@@ -829,7 +919,7 @@ fn documents_outside_the_corpus_read_apart_too() {
             "the second pin's rim is named at the third Boolean"
         );
         let fillet = r.insert(Node::fillet(third, len(0.05), rim));
-        let twice = [[0.0; 3], [0.0, 5.5, 0.0]].map(|at| moved(&mut r, fillet, at));
+        let twice = [[0.0; 3], [0.0, 5.5, 0.0]].map(|at| moved(&mut r, fillet, fillet, at));
         let (doc, _) = fixture::union_over(r.doc.clone(), &twice);
         docs.push((format!("round pins, {op:?}"), doc));
     }
@@ -915,11 +1005,9 @@ fn respoken_after_a_dropped_step() {
 
     let tol = fixture::tol();
     let doc = ProfileDoc::empty_derived("respoken-after-a-dropped-step", tol);
-    let (doc, plane) = fixture::insert(doc, fixture::xy_frame());
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
         }),
@@ -929,7 +1017,6 @@ fn respoken_after_a_dropped_step() {
         Node::Extrude {
             profile: profile.into(),
             distance: fixture::len(2.0),
-            side: editor_core::ExtrudeSide::Along,
         },
     );
     let crease = lateral_edge(&doc, rod, CREASE);
@@ -1002,6 +1089,7 @@ fn each_boolean_join_says_its_operation() {
     ] {
         let mut r = Recorder::new();
         let (block, pin) = block_and_pin(&mut r);
+        let pin = moved(&mut r, block, pin, [0.0, 0.0, PIN_Z]);
         let at = boolean(&mut r, op, block, pin);
         let ev = fixture::run(&r.doc, &EvalOptions::default());
         let table = ev
@@ -1014,7 +1102,7 @@ fn each_boolean_join_says_its_operation() {
         let from = match op {
             BooleanOp::Subtract => String::new(),
             BooleanOp::Union | BooleanOp::Intersect => {
-                format!(" from Extrude {}", test_utils::refusal::tag(pin.0.digest()))
+                format!(" from Place {}", test_utils::refusal::tag(pin.0.digest()))
             }
         };
         let join = format!(
@@ -1051,8 +1139,8 @@ fn two_copies_of_one_body_read_apart_where_a_sentence_names_both() {
     let mut r = Recorder::new();
     let block = r.profile([0.0; 3], XY.0, XY.1, vec![square(0.5, 0.5, 0.5)]);
     let block = extrude(&mut r, block, 1.0);
-    let one = moved(&mut r, block, [0.0, 0.0, 0.0]);
-    let two = moved(&mut r, block, [0.5, 0.0, 0.0]);
+    let one = moved(&mut r, block, block, [0.0, 0.0, 0.0]);
+    let two = moved(&mut r, block, block, [0.5, 0.0, 0.0]);
     let doc = r.doc;
     let ev = fixture::run(&doc, &EvalOptions::default());
     // The copies' end caps carry one name: the extrude's.

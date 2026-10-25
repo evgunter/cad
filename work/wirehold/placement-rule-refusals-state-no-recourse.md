@@ -2,11 +2,10 @@
 id: placement-rule-refusals-state-no-recourse
 kind: issue
 title: The placement, instance and face-frame refusals the feature tree draws state no recourse
-status: parked
+status: open
 opened: 2026-10-19
 priority: P3
 cost: E
-blocked_on: [transform-retires-into-a-placement]
 ---
 
 

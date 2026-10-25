@@ -275,8 +275,11 @@ pub fn vessel_hollow_volume(t: f64) -> f64 {
 /// bracket's midpoint inherits that lean, well inside the bracket.
 pub fn assert_hollow_volume(label: &str, hollow: &Body<f64>, want: f64) {
     let tol = Tol::witness();
-    let props = topo::mass_properties(hollow, tol)
-        .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(hollow), tol),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
     println!(
         "[measured] {label}: volume {} ± {}, oracle {want}",
         props.volume, props.volume_pad
@@ -331,8 +334,15 @@ pub fn cut_cap_area(t: f64, rho_c: f64, a: f64) -> f64 {
 /// wall area wrong by more than the pad — the spiric lane's `G` channel
 /// — reaches `mass_properties` and goes red.
 pub fn assert_hollow_area(label: &str, hollow: &Body<f64>, want: f64) {
-    let props = topo::mass_properties(hollow, Tol::witness())
-        .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
+    let props = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(hollow),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{label}: the hollow measures, got {e:?}"));
     println!(
         "[measured] {label}: surface area {} ± {}, oracle {want}",
         props.surface_area, props.area_pad

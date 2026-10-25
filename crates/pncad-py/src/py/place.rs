@@ -49,9 +49,8 @@ use pncad::tolerance::Tol;
 /// or `InvalidLeverArm`.
 ///
 /// The classifier half is [`crate::escalation::escalation`] rather
-/// than a fork written here: [`orthonormalize_err`] publishes the
-/// SAME escalation under these same words, and one projection is what
-/// keeps the two from drifting.
+/// than a fork written here: one projection of the escalation, under
+/// these same words, is what keeps its spellings from drifting.
 pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> PyErr {
     use pncad::geom_core::{BandError, FrameError as E};
 
@@ -171,70 +170,6 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
     )
 }
 
-/// A FRAME WITNESS mint's refusal, as the same `FrameError` exception
-/// the ladder constructors raise.
-///
-/// One exception class for "this is no frame", whichever door was
-/// asked: the human message is the kernel's own prose, `variant` is
-/// [`crate::tags::orthonormalize_error_tag`]'s word, and the classifier
-/// payload is [`crate::escalation`]'s, so a caller reads `margin`,
-/// `zero`, `escalate` and `predicate` off an escalated mint exactly as
-/// it reads them off an escalated ladder.
-pub(crate) fn orthonormalize_err(
-    py: Python<'_>,
-    err: &pncad::geom_core::OrthonormalizeError,
-) -> PyErr {
-    use pncad::geom_core::UnitVec3Error;
-
-    let none = || py.None();
-    let text = |s: &str| PyString::new(py, s).unbind().into_any();
-    let real = |x: f64| -> Py<PyAny> {
-        match x.into_pyobject(py) {
-            Ok(value) => value.into_any().unbind(),
-        }
-    };
-    let maybe = |x: Option<f64>| match x {
-        Some(x) => real(x),
-        None => none(),
-    };
-    let (margin, margin_low, margin_high, zero, escalate, predicate) = match err.error {
-        UnitVec3Error::Escalated(i) => {
-            let e = crate::escalation::escalation(&i);
-            (
-                maybe(e.margin),
-                maybe(e.margin_low),
-                maybe(e.margin_high),
-                real(e.zero),
-                real(e.escalate),
-                match e.predicate {
-                    Some(t) => text(t),
-                    None => none(),
-                },
-            )
-        }
-        UnitVec3Error::Degenerate
-        | UnitVec3Error::NonFiniteLength
-        | UnitVec3Error::UnderflowedLength => (none(), none(), none(), none(), none(), none()),
-    };
-    typed_err(
-        py,
-        ErrorClass::Frame,
-        err.to_string(),
-        &[
-            ("variant", text(crate::tags::orthonormalize_error_tag(err))),
-            ("inner_variant", none()),
-            ("margin", margin),
-            ("margin_low", margin_low),
-            ("margin_high", margin_high),
-            ("zero", zero),
-            ("escalate", escalate),
-            ("predicate", predicate),
-            ("field", none()),
-            ("value", none()),
-        ],
-    )
-}
-
 /// A dimensioned triple as the kernel's bare metres.
 fn meters(v: (Length, Length, Length)) -> [f64; 3] {
     [v.0.0.meters(), v.1.0.meters(), v.2.0.meters()]
@@ -253,12 +188,12 @@ fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
 /// `Node.placed_union_at` places a prototype at. It is authored
 /// through the two constructors below rather than field by field,
 /// because a frame's linear part is a MATRIX and hand-writing one is
-/// how a mirror or a shear arrives by accident — and improper frames
-/// (determinant ≤ 0) are refused at the edit door, not admitted.
+/// how a mirror or a shear arrives by accident — and a frame that is
+/// not a rigid motion is refused at the edit door, not admitted. A
+/// mirror is a construction (`Node.mirror`), never a frame.
 ///
 /// The frame is not a rigidity claim: rigidity is a decided predicate
-/// the kernel's placement door owns, and what the edit door checks is
-/// that the coordinates are finite and the determinant positive.
+/// the kernel's placement door owns, and the edit door asks it.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct Frame(pub(crate) d::Frame);
@@ -274,11 +209,8 @@ impl Frame {
     /// Rotate by `angle` about the axis through the WORLD ORIGIN with
     /// direction `axis`, THEN translate by `v`.
     ///
-    /// The order is `Node.transform`'s own (D9), so a placement and a
-    /// modeled transform of the same part agree BIT FOR BIT — which is
-    /// what makes the group-versus-chain equality testable. The axis
-    /// is normalized here, exactly once more than a caller expects,
-    /// for the same reason: same input, same expression, same bits.
+    /// The axis is normalized here, so the same input gives the same
+    /// expression and the same bits wherever it is built.
     ///
     /// A zero (or non-finite) axis has no definite direction and is
     /// refused HERE, naming the axis and its role
@@ -305,6 +237,32 @@ impl Frame {
         )
         .map(Self)
         .map_err(|err| super::doc::edit_err(py, &d::EditError::from(err)))
+    }
+
+    /// Rotate by `num/den` of a turn about the axis through the WORLD
+    /// ORIGIN with direction `axis`, THEN translate by `v`: the
+    /// rotation's sine and cosine read from the fraction, so a whole
+    /// number of quarter turns about a coordinate axis has columns of
+    /// `0` and `±1` exactly. Refuses the axis as `rotate_then_translate`
+    /// does; a zero `den` is a `ValueError`.
+    #[staticmethod]
+    fn rotate_by_turns_then_translate(
+        py: Python<'_>,
+        axis: (f64, f64, f64),
+        num: i64,
+        den: u64,
+        v: (Length, Length, Length),
+    ) -> PyResult<Self> {
+        let turns = pncad::geom_core::Turns::new(num, den).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(
+                "a fraction of a turn has a nonzero denominator",
+            )
+        })?;
+        let band = pncad::geom_core::Band::linear(Tol::witness())
+            .map_err(|error| super::checks::checks_err(py, &d::ChecksError::Band { error }))?;
+        d::Frame::rotate_by_turns_then_translate([axis.0, axis.1, axis.2], turns, meters(v), band)
+            .map(Self)
+            .map_err(|err| super::doc::edit_err(py, &d::EditError::from(err)))
     }
 
     /// The frame at `eye` whose local **+Z aims at** `target`, with
@@ -360,31 +318,6 @@ impl Frame {
         .map_err(|err| frame_err(py, &err))
     }
 
-    /// Reflection across the plane through `point` with `normal`
-    /// — an IMPROPER frame, determinant −1.
-    ///
-    /// It is constructible and it is not placeable: the edit door
-    /// refuses a mirror placement (`improper_placement`), so this
-    /// constructor is how a caller
-    /// obtains the reflection as a VALUE — and how the refusal can be
-    /// exercised at all.
-    #[staticmethod]
-    fn mirror_across_plane(
-        py: Python<'_>,
-        point: (Length, Length, Length),
-        normal: (f64, f64, f64),
-    ) -> PyResult<Self> {
-        let tol = Tol::witness();
-        let [px, py_, pz] = meters(point);
-        pncad::geom_core::linalg::frame::mirror_across_plane::<f64>(
-            pncad::authoring::p3(px, py_, pz),
-            pncad::authoring::v3(normal.0, normal.1, normal.2),
-            tol,
-        )
-        .map(|a| Self(d::Frame::from_affine(a)))
-        .map_err(|err| frame_err(py, &err))
-    }
-
     /// The linear part's columns: `columns[j]` is the image of basis
     /// vector `j` — dimensionless, as the matrix entries are.
     ///
@@ -414,8 +347,8 @@ impl Frame {
         lengths(self.0.translation)
     }
 
-    /// The linear part's determinant — positive for a placement the
-    /// edit door admits, ≤ 0 for the mirrors the edit door refuses.
+    /// The linear part's determinant — `+1`, within rounding, for a
+    /// placement the edit door admits.
     #[getter]
     fn determinant(&self) -> f64 {
         self.0.determinant()
@@ -447,7 +380,7 @@ impl Frame {
 /// generated (`PatternKind`, crossing whole).
 ///
 /// Three rules and no fourth. The two PARAMETRIC ones step — along a
-/// direction, or around a datum axis — and take their count from the
+/// direction, or around an axis — and take their count from the
 /// node's structural slot; the EXPLICIT one lists absolute frames and
 /// **the list IS the count**, which is why the node door that takes it
 /// takes no count at all.
@@ -477,8 +410,9 @@ impl PatternKind {
         }))
     }
 
-    /// Instances stepped `step` apart around `axis`, an upstream
-    /// `datum_axis` node, or a frame's axis read through its role.
+    /// Instances stepped `step` apart around `axis`: an axis read off
+    /// geometry (`PoseDef.axis`), or a frame's axis read through its
+    /// role.
     ///
     /// The step is signed by the right-hand rule about the axis and
     /// lies within a turn: a zero step refuses at `evaluate`
@@ -507,132 +441,9 @@ impl PatternKind {
     }
 }
 
-/// Where a `Node.transform_by` puts its input: a CHAIN of steps, each
-/// a rigid step of expressions or a literal frame (`Placement`,
-/// crossing whole).
-///
-/// The chain composes as a product: `a.compose(b)` is `a ∘ b`, in
-/// `Frame.compose`'s order, so `b` is expressed in the frame `a` builds
-/// and acts on the body first — `aim.compose(spin)` turns the body by
-/// `spin` inside the frame `aim` points.
-///
-/// A rigid step's three components are slot expressions a parameter
-/// can drive; a literal frame is a number, held to the same bar a
-/// placement frame is (finite, proper and rigid) at the edit door.
-#[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone)]
-pub(crate) struct Placement(pub(crate) d::Placement<d::Formula>);
-
-#[pymethods]
-impl Placement {
-    /// One rigid step: rotate by `angle` about the axis through the
-    /// ORIGIN with direction `axis`, then translate by `translation` —
-    /// `Node.transform`'s own convention. Keyword-only, so two vectors
-    /// cannot trade places unread.
-    ///
-    /// `translation`'s components are `Length`s, the axis's
-    /// dimensionless and the angle an `Angle`, checked where the step
-    /// lands (`Node.transform_by`), whose refusal names that step's
-    /// slot.
-    #[staticmethod]
-    #[pyo3(signature = (*, translation, axis, angle))]
-    pub(crate) fn rigid(
-        py: Python<'_>,
-        translation: (SlotArg, SlotArg, SlotArg),
-        axis: (SlotArg, SlotArg, SlotArg),
-        angle: SlotArg,
-    ) -> PyResult<Self> {
-        let (length, scalar) = (d::Dimension::Length, d::Dimension::Scalar);
-        Ok(Self(
-            d::Step::Rigid {
-                translation: [
-                    translation.0.formula(py, length)?,
-                    translation.1.formula(py, length)?,
-                    translation.2.formula(py, length)?,
-                ],
-                axis: [
-                    axis.0.formula(py, scalar)?,
-                    axis.1.formula(py, scalar)?,
-                    axis.2.formula(py, scalar)?,
-                ],
-                angle: angle.formula(py, d::Dimension::Angle)?,
-            }
-            .into(),
-        ))
-    }
-
-    /// The empty chain: the identity, and the unit of `compose` — the
-    /// offset an inserted instance carries on the world.
-    #[staticmethod]
-    fn identity() -> Self {
-        Self(d::Placement::IDENTITY)
-    }
-
-    /// One literal step: exactly `frame`, bit for bit.
-    #[staticmethod]
-    fn literal(frame: &Frame) -> Self {
-        Self(d::Placement::literal(&frame.0))
-    }
-
-    /// One literal step: `Frame.point_at`'s frame, whose local +Z aims
-    /// from `eye` at `target`, rolled by `roll_reference`.
-    #[staticmethod]
-    fn point_at(
-        py: Python<'_>,
-        eye: (Length, Length, Length),
-        target: (Length, Length, Length),
-        roll_reference: (f64, f64, f64),
-    ) -> PyResult<Self> {
-        Frame::point_at(py, eye, target, roll_reference).map(|f| Self(d::Placement::literal(&f.0)))
-    }
-
-    /// One literal step: `Frame.path_start_frame`'s frame, whose local
-    /// +Z is the path `tangent` at `origin`.
-    #[staticmethod]
-    fn path_start_frame(
-        py: Python<'_>,
-        origin: (Length, Length, Length),
-        tangent: (f64, f64, f64),
-    ) -> PyResult<Self> {
-        Frame::path_start_frame(py, origin, tangent).map(|f| Self(d::Placement::literal(&f.0)))
-    }
-
-    /// The composition `self ∘ inner`, in `Frame.compose`'s order:
-    /// `inner` acts on the body first, in the frame `self` builds.
-    fn compose(&self, inner: &Self) -> Self {
-        Self(self.0.compose(&inner.0))
-    }
-
-    /// How many steps the chain holds.
-    fn __len__(&self) -> usize {
-        self.0.steps.len()
-    }
-
-    /// BIT-exact equality, `Frame.__eq__`'s rule over every step: a
-    /// rigid step's expressions and a literal's coordinates compare by
-    /// bits, so `0.0` and `-0.0` are different placements.
-    fn __eq__(&self, other: &Self) -> bool {
-        self.0.bit_eq(&other.0)
-    }
-
-    pub(crate) fn __repr__(&self) -> String {
-        let steps: Vec<&str> = self
-            .0
-            .steps
-            .iter()
-            .map(|step| match step {
-                d::Step::Rigid { .. } => "rigid",
-                d::Step::Literal(_) => "literal",
-            })
-            .collect();
-        format!("Placement([{}])", steps.join(", "))
-    }
-}
-
 /// Register the placement vocabulary on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Frame>()?;
     m.add_class::<PatternKind>()?;
-    m.add_class::<Placement>()?;
     Ok(())
 }

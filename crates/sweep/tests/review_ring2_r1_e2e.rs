@@ -23,7 +23,7 @@ const EXACT_VOLUME: f64 = 9.0;
 #[test]
 fn ring2_r1_end_to_end_certificate_bits() {
     let tol = Tol::witness();
-    let body = loft_prism(tol);
+    let body = topo::test_support::finished("body", loft_prism(tol), tol);
     topo::validate_geometric(&body, tol).expect("the prism is tier-3 valid");
     let props = topo::mass_properties(&body, tol).expect("mass properties");
     println!(

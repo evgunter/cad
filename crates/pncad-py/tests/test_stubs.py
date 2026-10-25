@@ -537,7 +537,7 @@ class TestStubClassDrift(unittest.TestCase):
             ("RimSupport", "Host"),
             ("RimSupport", "Mate"),
             ("Doc", "insert"),
-            ("Datum", "origin"),
+            ("StationMove", "kind"),
             ("Open", "at"),
         ):
             self.assertIn(cls_name, classes, cls_name)

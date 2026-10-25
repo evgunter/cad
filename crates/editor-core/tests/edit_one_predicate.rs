@@ -41,15 +41,13 @@
 
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use crate::wire::doctored;
 use editor_core::CapEnd;
 use editor_core::{
-    ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula,
-    Frame, FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node,
-    PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, Target, VarName,
-    apply, load, save,
+    Dimension, DocEdit, DocRef, DocumentId, EditError, EntityKind, FaceName, Formula, Frame,
+    FrameSite, FreeVar, InterfaceCrossing, InterfaceRecord, Mate, MateRef, Node, PersistError,
+    ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError, StableName, VarName, apply, load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
@@ -60,7 +58,7 @@ use test_utils::fuzz;
 
 // ---- The assertion's bound ----
 
-/// A document carrying an XY frame (0), a profile (1), an extrude (2)
+/// A document carrying a profile (0), an extrude (1)
 /// and a LENGTH variable `gap` — the smallest value an assertion
 /// bounds, which is all its bound is checked against.
 fn with_value() -> (ProfileDoc, editor_core::VarId) {
@@ -74,7 +72,6 @@ fn with_value() -> (ProfileDoc, editor_core::VarId) {
     let _ = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let gap = editor_core::VarName::from_static("gap");
     r.push(DocEdit::DeclareVar {
@@ -94,40 +91,40 @@ fn assertion(value: editor_core::VarId, bound: Formula) -> AuthoredNode {
 }
 
 /// **The value is no scalar — both doors.** An assertion reads its
-/// value at a dimension, so the edit door refuses the frame's output by
-/// kind (`PayloadVarKind`), and the load door the same, read by the
+/// value at a dimension, so the edit door refuses the profile's output
+/// by kind (`PayloadVarKind`), and the load door the same, read by the
 /// payload walk.
 #[test]
 fn an_assertion_over_a_non_scalar_is_refused_at_both_doors() {
     let (doc, value) = with_value();
-    // The sketch frame (the first node) is live and precedes any
-    // assertion, so the only thing wrong with the document is that its
-    // output is no scalar.
-    let frame = doc
+    // The profile (the first node) is live and precedes any assertion,
+    // so the only thing wrong with the document is that its output is
+    // no scalar.
+    let profile = doc
         .output(doc.ids()[0], 0)
-        .expect("a frame defines its pose");
+        .expect("a profile defines its output");
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(assertion(frame, len(1.0))),
+            node: Box::new(assertion(profile, len(1.0))),
             fresh: Vec::new(),
         },
         Tol::witness(),
     ) {
         Err(EditError::PayloadVarKind {
-            declared: editor_core::VarKind::Frame,
+            declared: editor_core::VarKind::Profile,
             ..
         }) => {}
         other => panic!("an assertion over a non-scalar must refuse typed, got {other:?}"),
     }
 
     // The same fact at the load door: a file whose assertion is
-    // re-pointed at the frame.
+    // re-pointed at the profile.
     let (text, id) = saved_assertion(&doc, value, len(1.0));
-    let corrupt = repoint_value(&text, id, value, frame);
+    let corrupt = repoint_value(&text, id, value, profile);
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PayloadVarKind {
-            declared: editor_core::VarKind::Frame,
+            declared: editor_core::VarKind::Profile,
             ..
         })) => {}
         other => panic!("a non-scalar value must refuse typed at load, got {other:?}"),
@@ -263,7 +260,7 @@ fn instances_and_ref_of_a_stored_part(
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..n {
-        let (next, id) = insert_pinned(doc, Node::instantiate_part(doc_ref), &opts);
+        let (next, id) = insert_pinned(doc, crate::fixture::mated_instance(doc_ref), &opts);
         doc = next;
         ids.push(id);
     }
@@ -294,7 +291,6 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -317,7 +313,6 @@ fn mate(body: RecipeNodeId, on: RecipeNodeId, placed: RecipeNodeId) -> Mate<Form
     fixture::rest(
         fixture::head(in_part(placed, body, CapEnd::Start)),
         fixture::head(in_part(on, body, CapEnd::Start)),
-        ContactClass::Rest,
     )
 }
 
@@ -334,9 +329,7 @@ fn saved_mate(label: &str) -> (String, MateRef, [editor_core::VarId; 2]) {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-to-face mate round trips");
     let written = fixture::constraint(&doc, id);
-    let Target::Pose(to) = written.to else {
-        panic!("the mate's target is a pose of the pinned copy");
-    };
+    let to = written.to;
     let face = |pose| match fixture::face_reads(&doc, pose).as_slice() {
         [one] => *one,
         other => panic!("a plane pose reads one face, got {other:?}"),
@@ -411,9 +404,7 @@ fn a_face_to_face_mate_round_trips() {
     let (text, mate, reads) = saved_mate("onepred-matehead-ok");
     let loaded = load(&text, Tol::witness()).expect("a face-to-face mate loads");
     let kept = fixture::constraint(&loaded.doc, mate);
-    let Target::Pose(to) = kept.to else {
-        panic!("the mate survives the round trip, its target a pose");
-    };
+    let to = kept.to;
     assert_eq!(
         [
             fixture::face_reads(&loaded.doc, kept.on),
@@ -449,12 +440,19 @@ fn saved_crossing(label: &str) -> (String, RecipeNodeId) {
     let (doc, doc_ref, ids, body) = instances_and_ref_of_a_stored_part(label, 2);
     let record = InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
-            class: ContactClass::Rest,
             outer: face(in_part(ids[0], body, CapEnd::Start)),
             inner: face(part_face(body)),
         }],
     };
-    let (doc, id) = insert(doc, Node::instantiate_part_with(doc_ref, record));
+    let (doc, id) = insert(
+        doc,
+        Node::instantiate_part_with(
+            doc_ref,
+            record,
+            editor_core::Operand::Var(editor_core::VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    );
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("a face-referenced crossing round trips");
     (text, id)
@@ -572,7 +570,6 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
     };
     let crossing = InterfaceCrossing::Mate {
-        class: ContactClass::Rest,
         outer: face(reference(3)),
         inner: face(reference(5)),
     };
@@ -580,7 +577,6 @@ fn a_crossings_references_are_bare_names_on_the_wire() {
         serde_json::to_value(&crossing).expect("a crossing serializes"),
         serde_json::json!({
             "Mate": {
-                "class": "rest",
                 "outer": { "kind": "Face", "node": "0:0000000000000003", "path": [{ "Cap": "Start" }] },
                 "inner": { "kind": "Face", "node": "0:0000000000000005", "path": [{ "Cap": "Start" }] },
             }
@@ -609,12 +605,10 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
+    let cap = fixture::plane(fixture::head(in_part(ids[0], body, CapEnd::Start)));
     let on_the_world = Mate {
-        on: fixture::plane(fixture::head(in_part(ids[0], body, CapEnd::Start))),
-        to: Target::World(editor_core::WorldRead::through(
-            editor_core::pose::PoseRole::Xy,
-        )),
-        class: ContactClass::Rest,
+        on: cap.clone(),
+        to: cap,
     };
     match apply(
         &doc,
@@ -630,17 +624,14 @@ fn a_constraint_on_a_non_placement_is_refused_at_the_edit_door() {
     }
 }
 
-/// A part document and a transform of its body by `frame`'s literal
-/// step, inserted through the edit door.
+/// A part document and an explicit placed union of its body at
+/// `frame`, its one listed placement, inserted through the edit door.
 fn transformed(label: &str, frame: Frame) -> Result<(ProfileDoc, RecipeNodeId), EditError> {
     let (doc, body) = part(label);
     apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Transform {
-                input: body.into(),
-                placement: editor_core::Placement::literal(&frame),
-            }),
+            node: Box::new(Node::placed_union_at(body, vec![frame])),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -651,8 +642,8 @@ fn transformed(label: &str, frame: Frame) -> Result<(ProfileDoc, RecipeNodeId), 
     })
 }
 
-/// The saved text of a transform by a unit translation along `x`,
-/// which the rows below corrupt, and the transform.
+/// The saved text of a placed union at a unit translation along `x`,
+/// which the rows below corrupt, and the placed union.
 fn saved_transform(label: &str) -> (String, RecipeNodeId) {
     let (doc, transform) =
         transformed(label, Frame::translation([1.0, 0.0, 0.0])).expect("a proper rigid frame");
@@ -661,29 +652,31 @@ fn saved_transform(label: &str) -> (String, RecipeNodeId) {
     (text, transform)
 }
 
-/// The first entry of the first column of a transform's one-step
-/// literal placement, on the wire.
+/// The first entry of the first column of a placed union's one listed
+/// frame, on the wire.
 fn frame_cell(wire: &mut serde_json::Value, transform: RecipeNodeId) -> &mut serde_json::Value {
-    &mut wire["snapshot"]["nodes"][transform.0.to_string()]["Transform"]["placement"]["steps"][0]["Literal"]
-        ["columns"][0][0]
+    &mut wire["snapshot"]["nodes"][transform.0.to_string()]["PlacedUnion"]["kind"]["Explicit"][0]["columns"]
+        [0][0]
 }
 
-/// **An IMPROPER placement frame — both doors.** A mirror is authored
-/// data this build declines to admit (A6, gated on R4's equivariance
-/// audit), and the load door says so in its own arm rather than folding
-/// it in with a coordinate no predicate can read.
+/// **A mirrored placement frame — both doors.** Every pose is proper:
+/// a mirror is a construction (`Node::Mirror`), so a frame that
+/// reflects is one that is not a rigid motion, refused by the
+/// predicate the evaluation moves a body by, on its determinant.
 #[test]
-fn an_improper_placement_is_refused_at_both_doors() {
+fn a_mirrored_placement_is_refused_at_both_doors() {
     let mirror = Frame {
         columns: [[-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
         translation: [0.0, 0.0, 0.0],
     };
-    assert!(mirror.determinant() < 0.0, "the fixture really mirrors");
     match transformed("onepred-improper", mirror) {
-        Err(EditError::ImproperPlacement { determinant, .. }) => {
-            assert!(determinant < 0.0, "the refusal carries the determinant");
+        Err(EditError::NonRigidPlacement { check, .. }) => {
+            assert_eq!(
+                check, "transform_rigid_det_plus_one",
+                "refused on its determinant"
+            );
         }
-        other => panic!("an improper placement must refuse typed, got {other:?}"),
+        other => panic!("a mirrored placement must refuse typed, got {other:?}"),
     }
 
     // The load door's half: a proper frame on the wire, mirrored by
@@ -695,29 +688,34 @@ fn an_improper_placement_is_refused_at_both_doors() {
         *entry = serde_json::json!(-1.0);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementImproper {
-            node, determinant, ..
+        Err(PersistError::Snapshot(SnapshotError::PlacementRule {
+            node,
+            fault: editor_core::PlacementRuleFault::NonRigidFrame { index, check },
+            ..
         })) => {
-            assert_eq!(node.id(), transform);
-            assert!(determinant < 0.0, "the refusal carries the determinant");
+            assert_eq!((node.id(), index), (transform, 0));
+            assert_eq!(
+                check, "transform_rigid_det_plus_one",
+                "refused on its determinant"
+            );
         }
-        other => panic!("an improper frame must refuse typed at load, got {other:?}"),
+        other => panic!("a mirrored frame must refuse typed at load, got {other:?}"),
     }
 }
 
 /// **A proper placement frame that is not rigid — both doors.** A
 /// scaled frame is refused where it is written, by the predicate the
 /// evaluation moves a body by, rather than admitted and refused later
-/// as `NotRigid` on the transform and on everything reading it.
+/// as `NotRigid` on the placed union and on everything reading it.
 #[test]
 fn a_non_rigid_placement_is_refused_at_both_doors() {
     let mut stretched = Frame::IDENTITY;
     stretched.columns[0] = [2.0, 0.0, 0.0];
     assert!(stretched.determinant() > 0.0, "the fixture is proper");
-    let step0 = FrameSite::Step { index: 0 };
+    let step0 = FrameSite::Listed { index: 0 };
     match transformed("onepred-non-rigid", stretched) {
         Err(ref error @ EditError::NonRigidPlacement { at, .. }) => {
-            assert_eq!(at, step0, "the transform's first step");
+            assert_eq!(at, step0, "the placed union's first listed frame");
             let text = error.to_string();
             assert!(
                 text.contains("not definitely rigid") && text.contains("Recourse:"),
@@ -735,8 +733,12 @@ fn a_non_rigid_placement_is_refused_at_both_doors() {
         *entry = serde_json::json!(2.0);
     });
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementNonRigid { node, at, .. })) => {
-            assert_eq!((node.id(), at), (transform, step0));
+        Err(PersistError::Snapshot(SnapshotError::PlacementRule {
+            node,
+            fault: editor_core::PlacementRuleFault::NonRigidFrame { index, .. },
+            ..
+        })) => {
+            assert_eq!((node.id(), index), (transform, 0));
         }
         other => panic!("a scaled frame must refuse typed at load, got {other:?}"),
     }
@@ -787,11 +789,11 @@ fn rekey_witness(text: &str, from: RecipeNodeId, to: RecipeNodeId) -> String {
 /// `WitnessOnNonSketch` and the load door `SnapshotError::WitnessSite`.
 #[test]
 fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
-    // `with_value` lays down a frame, a profile, an extrude and a
-    // variable, in that order: the profile is the only sketch-bearing
-    // node in it, and the extrude is a live node that is not one.
+    // `with_value` lays down a profile, an extrude and a variable, in
+    // that order: the profile is the only sketch-bearing node in it, and
+    // the extrude is a live node that is not one.
     let (doc, _) = with_value();
-    let (sketch, non_sketch) = (doc.ids()[1], doc.ids()[2]);
+    let (sketch, non_sketch) = (doc.ids()[0], doc.ids()[1]);
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -822,7 +824,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
 #[test]
 fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let (doc, _) = with_value();
-    let (sketch, gone) = (doc.ids()[1], doc.ids()[2]);
+    let (sketch, gone) = (doc.ids()[0], doc.ids()[1]);
     // Deleted rather than invented, so the id stays one the document
     // has minted and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `NodeNotMinted`.

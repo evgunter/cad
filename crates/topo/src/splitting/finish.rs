@@ -106,20 +106,45 @@ use geom_core::Tol;
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub enum SplitPart<T: Real> {
-    /// The side's material, as an independent body.
-    Body(Body<T>),
+    /// The side's material, as an independent body, finished: the split
+    /// gated it at rest ([`crate::AtRestPolicy::gate_at_rest_kept`]) and
+    /// keeps the verdict, as a Boolean's result does
+    /// ([`crate::BooleanBody::body`]). A caller wanting the body by value
+    /// takes [`crate::AtRestBody::into_body`].
+    Body(crate::AtRestBody<T>),
     /// No material on this side.
     Empty,
 }
 
 impl<T: Real> SplitPart<T> {
     /// The body, if this side has material.
-    pub fn body(&self) -> Option<&Body<T>> {
+    pub fn body(&self) -> Option<&crate::AtRestBody<T>> {
         match self {
             Self::Body(b) => Some(b),
             Self::Empty => None,
         }
     }
+}
+
+/// One side of the split pipeline's own result, before the side is gated
+/// at rest ([`SplitPart`] once it is).
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug)]
+pub(crate) enum RawPart<T: Real> {
+    /// The side's material, as the pipeline built it.
+    Body(Body<T>),
+    /// No material on this side.
+    Empty,
+}
+
+/// The split pipeline's own result: [`SplitResult`] before its sides are
+/// gated at rest (`super::split`).
+#[derive(Debug)]
+pub(crate) struct RawSplit<T: Real> {
+    pub(crate) above: RawPart<T>,
+    pub(crate) below: RawPart<T>,
+    pub(crate) naming: SplitNaming,
+    pub(crate) coincidences: Vec<crate::Coincidence>,
 }
 
 /// The result of a plane split: both sides, functionally.
@@ -170,7 +195,7 @@ impl<T: Decide> SplitResult<T> {
             (PlaneSide::Below, self.below.body()),
         ]
         .into_iter()
-        .filter_map(|(side, body)| body.map(|b| (side, b)))
+        .filter_map(|(side, body)| body.map(|b| (side, &**b)))
         .collect();
         let bodies: Vec<&Body<T>> = sides.iter().map(|&(_, b)| b).collect();
         let carried = records.carried_onto(0, &self.lineage(), &bodies, band, region)?;
@@ -202,6 +227,7 @@ impl<T: Real> SplitResult<T> {
         let bodies: Vec<&Body<T>> = [self.above.body(), self.below.body()]
             .into_iter()
             .flatten()
+            .map(|b| &**b)
             .collect();
         let section = |f: FaceKey| self.naming.holds_section(f);
         let joins: Vec<crate::boolean::EdgeJoin> =
@@ -1050,7 +1076,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     completed: &[CompletedSection],
     face_fragments: crate::lineage::FaceDivisions,
     tol: Tol,
-) -> Result<SplitResult<T>, SplitFinishError> {
+) -> Result<RawSplit<T>, SplitFinishError> {
     // **The phase boundary, asserted.** The reduce and join phases
     // hold their scope on this same body through the one guardless
     // pair in `splitting` (`split_scratch`), and nothing about a
@@ -1277,9 +1303,9 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
     body.sweep_and_close();
     let above = carve(&reassembled, solid, &above_shells)?;
     let below = carve(&reassembled, solid, &below_shells)?;
-    Ok(SplitResult {
-        above: SplitPart::Body(above),
-        below: SplitPart::Body(below),
+    Ok(RawSplit {
+        above: RawPart::Body(above),
+        below: RawPart::Body(below),
         naming,
         coincidences: red.coincidences,
     })
@@ -1805,7 +1831,7 @@ fn whole_body_side<T: Decide>(
     sides: &SecondaryMap<VertexKey, PlaneSide>,
     plane: &super::SplitPlane<T>,
     tol: Tol,
-) -> Result<SplitResult<T>, SplitFinishError> {
+) -> Result<RawSplit<T>, SplitFinishError> {
     let mut side = None;
     for (v, _) in body.vertices() {
         match sides.get(v) {
@@ -1844,15 +1870,15 @@ fn whole_body_side<T: Decide>(
         }
     }
     match side {
-        Some(PlaneSide::Above) => Ok(SplitResult {
-            above: SplitPart::Body(body),
-            below: SplitPart::Empty,
+        Some(PlaneSide::Above) => Ok(RawSplit {
+            above: RawPart::Body(body),
+            below: RawPart::Empty,
             naming: SplitNaming::default(),
             coincidences: Vec::new(),
         }),
-        Some(_) => Ok(SplitResult {
-            above: SplitPart::Empty,
-            below: SplitPart::Body(body),
+        Some(_) => Ok(RawSplit {
+            above: RawPart::Empty,
+            below: RawPart::Body(body),
             naming: SplitNaming::default(),
             coincidences: Vec::new(),
         }),
@@ -2149,7 +2175,7 @@ mod torn_hop_rows {
         crate::test_support_fixtures::describe_as_intersections(&mut cube, tol);
         let cube = crate::test_support::finished("the cube", cube, tol);
         let split = crate::splitting::split(&cube, &plane, tol).unwrap();
-        let mut body = split.below.body().unwrap().clone();
+        let mut body = crate::Body::clone(split.below.body().unwrap());
         let face = body
             .faces()
             .find(|(_, f)| {
@@ -2231,7 +2257,7 @@ mod smooth_arm_rows {
         crate::test_support_fixtures::describe_as_intersections(&mut cube, tol());
         let cube = crate::test_support::finished("the cube", cube, tol());
         let split = crate::splitting::split(&cube, &plane, tol()).unwrap();
-        let mut body = split.below.body().unwrap().clone();
+        let mut body = crate::Body::clone(split.below.body().unwrap());
         let face = body
             .faces()
             .find(|(_, f)| {

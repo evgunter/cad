@@ -66,9 +66,29 @@ fn one_call_equals_the_defining_composition() {
     let hole_as_outer = revolve(&validated(vec![hole()]), axis_y(), Revolution::Full, tol).unwrap();
 
     assert_all_tiers(&holed.body);
-    let p = topo::mass_properties(&holed.body, tol).unwrap();
-    let po = topo::mass_properties(&solid_outer.body, tol).unwrap();
-    let ph = topo::mass_properties(&hole_as_outer.body, tol).unwrap();
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&holed.body), tol),
+        tol,
+    )
+    .unwrap();
+    let po = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&solid_outer.body),
+            tol,
+        ),
+        tol,
+    )
+    .unwrap();
+    let ph = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&hole_as_outer.body),
+            tol,
+        ),
+        tol,
+    )
+    .unwrap();
     // Volume: exactly the definition. Area: both boundaries count.
     assert!(((p.volume - (po.volume - ph.volume)) / p.volume).abs() < 1e-12);
     assert!(
@@ -114,7 +134,11 @@ fn hole_hugging_the_outer_boundary_at_this_eps() {
     // orders of magnitude before any winding/containment mistake
     // (an inside-out cavity lands near 2·2π·1.5 ≈ 18.8).
     let v_expect = 2.0 * PI * 1.5 * (4.0 * g * (1.0 - g));
-    let p = topo::mass_properties(&t.body, tol).unwrap();
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
+        tol,
+    )
+    .unwrap();
     assert!(
         ((p.volume - v_expect) / v_expect).abs() < 1e-6,
         "{}",
@@ -177,7 +201,11 @@ fn near_axis_hole_refuses_below_the_band_and_builds_above_it() {
     // at r̄=(g+0.5)/2.
     let v_hole = 2.0 * PI * ((g + 0.5) / 2.0) * ((0.5 - g) * 0.5);
     let v_expect = 2.0 * PI * 0.5 - v_hole;
-    let p = topo::mass_properties(&t.body, tol).unwrap();
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
+        tol,
+    )
+    .unwrap();
     assert!(
         ((p.volume - v_expect) / v_expect).abs() < 1e-9,
         "{}",
@@ -247,7 +275,11 @@ fn wire_outer_with_circular_hole_torus_cavity() {
     let v_expect = 12.0 * PI - 2.0 * PI * PI * 0.16;
     let a_torus = 4.0 * PI * PI * 1.0 * 0.4;
     let a_cyl = 2.0 * PI * 2.0 * 3.0 + 2.0 * PI * 4.0;
-    let p = topo::mass_properties(&t.body, tol).unwrap();
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&t.body), tol),
+        tol,
+    )
+    .unwrap();
     assert!(
         ((p.volume - v_expect) / v_expect).abs() < 1e-12,
         "{}",
