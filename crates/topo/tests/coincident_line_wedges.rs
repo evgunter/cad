@@ -1,6 +1,8 @@
-//! Review 1 of PR 5529: valid bodies with coincident line edges that
-//! tier 3′ must still pass once it reads their wedges, and invalid ones
-//! it must refuse.
+//! **Tier 3′ reads coincident line edges' wedges**: valid bodies with
+//! two or more edges on one line pass once their material wedges are
+//! read, every pose, and invalid ones refuse on the line, with arm 2
+//! reading the overlap between two solids as one passing into the
+//! other.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -8,8 +10,8 @@ use crate::common;
 use common::meeting::{Pose, posed_boxes, poses};
 use geom_core::Tol;
 use topo::{
-    AtRestBody, Body, BooleanResult, Cell, CensusContact, ValidationError,
-    subtract, validate_geometric, validate_pseudomanifold,
+    AtRestBody, Body, BooleanResult, Cell, CensusContact, ValidationError, subtract,
+    validate_geometric, validate_pseudomanifold,
 };
 
 fn t() -> Tol {
@@ -85,7 +87,7 @@ fn assert_passes(what: &str, body: &Body<f64>) {
 /// Two bricks kissing along the z-axis (quadrants 1 and 3), equal and
 /// unequal heights, and offset spans: cross-solid, 90° wedges, disjoint.
 #[test]
-fn p1_bricks_kissing_along_a_line_pass() {
+fn bricks_kissing_along_a_line_pass() {
     for pose in poses() {
         for (what, q3z) in [
             ("equal", (0.5, 1.5)),
@@ -112,7 +114,7 @@ fn p1_bricks_kissing_along_a_line_pass() {
 /// each of their coincident edges: disjoint wedges with a coincident
 /// bound.
 #[test]
-fn p2_bricks_flush_on_a_face_pass() {
+fn bricks_flush_on_a_face_pass() {
     for pose in poses() {
         for (what, q2y) in [("equal", (0.0, 1.0)), ("shifted", (0.5, 1.5))] {
             let what = format!("{}, flush {what}", pose.label);
@@ -133,7 +135,7 @@ fn p2_bricks_flush_on_a_face_pass() {
 /// Three solids on one line: two flush plates and a brick on top across
 /// their shared edge (partial along the line).
 #[test]
-fn p3_three_solids_on_one_line_pass() {
+fn three_solids_on_one_line_pass() {
     for pose in poses() {
         let what = format!("{}, three on a line", pose.label);
         let b = posed_boxes(
@@ -169,13 +171,20 @@ fn prism(pose: &Pose, what: &str, profile: &[(f64, f64)], span: (f64, f64)) -> A
 /// A brick in an L's notch: the L's 270° reflex edge and the brick's 90°
 /// corner on one line, complementary wedges with both sheets shared.
 #[test]
-fn p4_a_brick_in_an_l_notch_passes() {
+fn a_brick_in_an_l_notch_passes() {
     for pose in poses() {
         let what = format!("{}, L notch", pose.label);
         let l = prism(
             &pose,
             "the L",
-            &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0), (1.0, 2.0), (0.0, 2.0)],
+            &[
+                (0.0, 0.0),
+                (2.0, 0.0),
+                (2.0, 1.0),
+                (1.0, 1.0),
+                (1.0, 2.0),
+                (0.0, 2.0),
+            ],
             (0.0, 1.0),
         );
         let mut body = l.into_body();
@@ -188,13 +197,29 @@ fn p4_a_brick_in_an_l_notch_passes() {
 /// A slab less an asymmetric trench whose keel rests on the floor: the
 /// Boolean's slit form, two coincident keel edges of unequal wedges.
 #[test]
-fn p5_asymmetric_keels_subtract_as_a_valid_slit() {
+fn asymmetric_keels_subtract_as_a_valid_slit() {
     for pose in poses() {
         for (what, profile, span) in [
-            ("shallow+steep, open", [(2.0, 0.0), (3.9, 0.3), (1.95, 2.0)], (1.5, 4.5)),
-            ("shallow+steep, ring", [(2.0, 0.0), (3.9, 0.3), (1.95, 2.0)], (1.5, 2.5)),
-            ("leaning, open", [(2.0, 0.0), (3.5, 1.0), (3.0, 2.0)], (1.5, 4.5)),
-            ("thin wedge, ring", [(2.0, 0.0), (3.9, 0.01), (1.0, 2.0)], (1.5, 2.5)),
+            (
+                "shallow+steep, open",
+                [(2.0, 0.0), (3.9, 0.3), (1.95, 2.0)],
+                (1.5, 4.5),
+            ),
+            (
+                "shallow+steep, ring",
+                [(2.0, 0.0), (3.9, 0.3), (1.95, 2.0)],
+                (1.5, 2.5),
+            ),
+            (
+                "leaning, open",
+                [(2.0, 0.0), (3.5, 1.0), (3.0, 2.0)],
+                (1.5, 4.5),
+            ),
+            (
+                "thin wedge, ring",
+                [(2.0, 0.0), (3.9, 0.01), (1.0, 2.0)],
+                (1.5, 2.5),
+            ),
         ] {
             let what = format!("{}, {what}", pose.label);
             let slab = prism(
@@ -204,7 +229,9 @@ fn p5_asymmetric_keels_subtract_as_a_valid_slit() {
                 (0.0, 1.0),
             );
             // the trench's (y, z) profile extruded along x
-            use topo::test_support::{FaceGeometry, describe_as_intersections, finished, prism_ops};
+            use topo::test_support::{
+                FaceGeometry, describe_as_intersections, finished, prism_ops,
+            };
             let mut b = Body::<f64>::new();
             prism_ops(
                 &mut b,
@@ -227,46 +254,97 @@ fn p5_asymmetric_keels_subtract_as_a_valid_slit() {
                         );
                     }
                 }
-                other => eprintln!("{what}: the Boolean answered {other:?}"),
+                other => panic!("{what}: the Boolean builds the slit form, not {other:?}"),
             }
         }
     }
 }
 
-/// The disjoint-touch control turned invalid: two bricks overlapping
-/// in a quadrant along a shared line, grafted as two solids. Not a
-/// coincident-wedge case alone (their faces cross), so this only checks
-/// the census refuses.
+/// The kiss of [`bricks_kissing_along_a_line_pass`] turned invalid: two
+/// bricks of one quadrant along the z-axis, the smaller inside the
+/// larger, grafted as two solids. Their faces lie on each other, so the
+/// body refuses on more than its lines, but every line the two share
+/// refuses its wedges decided, the z-axis among them, and arm 2 reads
+/// the two solids as one passing into the other.
 #[test]
-fn p6_bricks_sharing_a_quadrant_refuse() {
-    let pose = Pose::rest();
+fn bricks_sharing_a_quadrant_refuse_on_their_lines() {
     let b = posed_boxes(
         "overlapping",
         &[
             [(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)],
             [(0.0, 0.5), (0.0, 0.5), (0.0, 1.0)],
         ],
-        &pose,
+        &Pose::rest(),
         t(),
     );
     let errs = recorded_verdict("overlapping", &b).expect_err("overlap refuses");
-    eprintln!("p6: {:?}", wedge_findings(&errs));
+    let wedges = wedge_findings(&errs);
+    assert!(
+        wedges
+            .iter()
+            .all(|e| matches!(e, ValidationError::CoincidentWedgesOverlap { .. })),
+        "every shared line's wedges overlap, decided: {wedges:?}"
+    );
+    assert!(
+        wedges.iter().any(|e| matches!(
+            e,
+            ValidationError::CoincidentWedgesOverlap { witness, .. } if witness == "(0.0, 0.0, 0.5)"
+        )),
+        "the z-axis refuses its wedges: {wedges:?}"
+    );
+    assert_eq!(
+        wedges.len(),
+        5,
+        "the five lines the bricks share: {wedges:?}"
+    );
+    assert_eq!(
+        arm_2(&errs),
+        [MIXED_TOUCH],
+        "arm 2 reads the pair as one passing into the other: {errs:?}"
+    );
 }
 
-/// Witness 3 replayed, printing every finding (arm 2's share included).
+/// What arm 2 says of each solid pair it refuses.
+fn arm_2(errs: &[ValidationError]) -> Vec<&str> {
+    errs.iter()
+        .filter_map(|e| match e {
+            ValidationError::CensusUndecidable { what, .. } => Some(*what),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Arm 2's sentence for a touch where one material passes into the
+/// other.
+const MIXED_TOUCH: &str = "one passes into the other where they touch. Recourse: move them so \
+                           they meet without overlapping, or not at all";
+
+/// **A prism leaning into a brick on their shared line**: the brick
+/// over quadrant 1 and a prism over quadrant 2 whose wall leans `δ`
+/// into the brick, `δ` 40 ε and 4000 ε, each its own solid with every
+/// touch recorded. No face crosses another away from the lines: the
+/// three lines the two share each refuse their wedges decided, and arm
+/// 2 reads the overlap for the two solids as one passing into the
+/// other, the touch reading's own verdict, not as a crossing some other
+/// finding reports.
 #[test]
-fn p7_hair_apart_findings() {
+fn a_prism_leaning_into_a_brick_reads_as_passing_into_it() {
     use topo::test_support::{FaceGeometry, describe_as_intersections, finished, prism_ops};
     let tol = t();
-    for k in [-40.0, -4000.0] {
+    for k in [40.0, 4000.0] {
+        let what = format!("leaning {k} ε");
         let d = k * tol.eps();
-        let mut body =
-            posed_boxes("the brick", &[[(0.0, 1.0), (0.0, 1.0), (0.5, 1.5)]], &Pose::rest(), tol)
-                .into_body();
+        let mut body = posed_boxes(
+            "the brick",
+            &[[(0.0, 1.0), (0.0, 1.0), (0.5, 1.5)]],
+            &Pose::rest(),
+            tol,
+        )
+        .into_body();
         let mut b = Body::<f64>::new();
         prism_ops(
             &mut b,
-            &[(0.0, 0.0), (-d, 1.0), (-1.0, 1.0), (-1.0, 0.0)],
+            &[(0.0, 0.0), (d, 1.0), (-1.0, 1.0), (-1.0, 0.0)],
             (0.5, 1.5),
             geom_core::Point3::new,
             FaceGeometry::Certified,
@@ -275,6 +353,20 @@ fn p7_hair_apart_findings() {
         describe_as_intersections(&mut b, tol);
         let prism = finished("the leaning prism", b, tol);
         topo::graft_disjoint(&mut body, &prism).unwrap();
-        eprintln!("p7 k={k}: {:?}", recorded_verdict("p7", &body));
+        let errs = recorded_verdict(&what, &body).expect_err("the lean refuses");
+        let wedges = wedge_findings(&errs);
+        assert!(
+            wedges.len() == 3
+                && wedges
+                    .iter()
+                    .all(|e| matches!(e, ValidationError::CoincidentWedgesOverlap { .. })),
+            "{what}: the three shared lines' wedges overlap, decided: {errs:?}"
+        );
+        assert_eq!(
+            arm_2(&errs),
+            [MIXED_TOUCH],
+            "{what}: arm 2 reads the pair as one passing into the other: {errs:?}"
+        );
+        assert_eq!(errs.len(), 4, "{what}: nothing else refuses: {errs:?}");
     }
 }

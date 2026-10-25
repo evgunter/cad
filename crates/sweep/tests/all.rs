@@ -338,6 +338,8 @@ mod transform_nurbs_walls;
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]
 mod two_tubes_in_the_zero_band;
+#[path = "two_wedge_ends_on_one_line.rs"]
+mod two_wedge_ends_on_one_line;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]

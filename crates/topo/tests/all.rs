@@ -65,8 +65,6 @@ mod probe_support;
 
 #[path = "a_callers_interval_is_refused_at_its_door.rs"]
 mod a_callers_interval_is_refused_at_its_door;
-#[path = "review_5529_r1_probes.rs"]
-mod review_5529_r1_probes;
 #[path = "a_doubled_line_does_not_revert.rs"]
 mod a_doubled_line_does_not_revert;
 #[path = "a_face_inside_an_edges_wedge_refuses_at_tier_3_prime.rs"]
@@ -109,6 +107,8 @@ mod cell_pair_records;
 mod census_g2_carrier;
 #[path = "census_records_what_it_decides.rs"]
 mod census_records_what_it_decides;
+#[path = "coincident_line_wedges.rs"]
+mod coincident_line_wedges;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
 #[path = "cone_apex_sector_joints.rs"]

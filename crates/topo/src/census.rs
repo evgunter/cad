@@ -2029,14 +2029,22 @@ pub(crate) enum WedgeRefusal {
     /// the parts reaches it: the Boolean types it as an escalation of
     /// its input ([`crate::boolean::BooleanDecision::LineWedges`]).
     Undecided(Indeterminate),
-    /// A face of this edge has no tangent plane where it meets the
-    /// line, so it has no sheet to read there.
-    NoSheet(EdgeKey),
-    /// This edge's two sheets definitely meet at a zero angle or a full
-    /// turn: a cusp or a knife slit, D1's wedge ends, which this reading
-    /// has no interior direction for.
-    WedgeEnd(EdgeKey),
+    /// This edge's wedge has no reading, for [`WEDGE_UNREAD`]'s reasons:
+    /// a face of it with no tangent plane where it meets the line, so
+    /// no sheet there ([`TouchUnread::Unreadable`]); its two sheets
+    /// definitely meeting at a zero angle or a full turn, a cusp or a
+    /// knife slit, D1's wedge ends, which this reading has no interior
+    /// direction for ([`TouchUnread::Degenerate`]); or a length too long
+    /// or too short to scale its sheets by ([`TouchUnread::ChordScale`]).
+    Unread(EdgeKey, TouchUnread),
 }
+
+/// Every reason [`WedgeRefusal::Unread`] carries.
+pub(crate) const WEDGE_UNREAD: [TouchUnread; 3] = [
+    TouchUnread::Unreadable,
+    TouchUnread::Degenerate,
+    TouchUnread::ChordScale,
+];
 
 /// One edge's material wedge on the line: its two face sheets (the
 /// unit directions square to the line into each face), the edge's
@@ -2057,7 +2065,8 @@ struct Wedge<T: Real> {
 /// `Ok(None)` says none does. Each edge's census geometry is read once;
 /// its sheets are read per pair at the shared span, so a partial overlap
 /// on a face whose tangent plane turns along a ruling compares the two
-/// wedges at one point.
+/// wedges at one point (restread's
+/// `coincident-line-wedges-are-read-at-one-point-of-a-turning-face`).
 ///
 /// A wedge is the material between an edge's two face sheets, CCW
 /// about the edge's own direction from its minus half's sheet to its
@@ -2073,14 +2082,14 @@ struct Wedge<T: Real> {
 ///
 /// The Boolean's result gate runs it over every line where coincident
 /// edges lie, and tier 3′ over every overlap pass 5 certifies
-/// ([`coincident_wedges`]). A face that crosses the line with no edge
+/// ([`ee_overlap_sides`]). A face that crosses the line with no edge
 /// of its own there is not read: it holds no sheet at the line, and
 /// finding it is pass 4's question ([`edge_in_own_face`]).
 ///
 /// # Errors
 ///
 /// The pair, by its index, whose reading refused ([`WedgeRefusal`]): an
-/// in-band reading, a face with no sheet, or a cusp or slit edge.
+/// in-band reading, or an edge whose wedge has no reading.
 pub(crate) fn line_wedges<T: Decide>(
     body: &Body<T>,
     pairs: &[CollinearOverlap<T>],
@@ -2127,7 +2136,7 @@ fn wedge<T: Decide>(
             Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
                 Err(WedgeRefusal::Undecided(diag))
             }
-            Ok(None) | Err(_) => Err(WedgeRefusal::NoSheet(e.key)),
+            Ok(None) | Err(_) => Err(WedgeRefusal::Unread(e.key, TouchUnread::Unreadable)),
         };
     // The plus half runs along `e.dir` on `f_plus`, the minus half back
     // on `f_minus`; each sheet is the face's normal crossed with its
@@ -2141,10 +2150,14 @@ fn wedge<T: Decide>(
             crate::sector_shape::SectorFault::Rung {
                 rung: crate::sector_shape::SectorRung::Straight { .. },
                 diag,
-            } if diag.margin.rejected_sign().is_some() => WedgeRefusal::WedgeEnd(e.key),
+            } if diag.margin.rejected_sign().is_some() => {
+                WedgeRefusal::Unread(e.key, TouchUnread::Degenerate)
+            }
             crate::sector_shape::SectorFault::Rung { diag, .. } => WedgeRefusal::Undecided(diag),
             crate::sector_shape::SectorFault::NonFiniteChord
-            | crate::sector_shape::SectorFault::UnderflowedChord => WedgeRefusal::NoSheet(e.key),
+            | crate::sector_shape::SectorFault::UnderflowedChord => {
+                WedgeRefusal::Unread(e.key, TouchUnread::ChordScale)
+            }
         },
     )?;
     Ok(Wedge {
@@ -4061,7 +4074,7 @@ fn pair_edge_edge<T: Decide>(
         Some(Some(Meeting::Overlap(span, margin))) => {
             let q = ea.p0 + ea.dir * geom::mid_param(span.0, span.1);
             declared.confine(body, geo, cells, sides, q, band, errors, |errors| {
-                ee_collinear_lane(body, ea, eb, span, margin, geo, declared, band, errors);
+                ee_collinear_lane(body, (ea, eb), (span, margin), geo, declared, band, errors);
             });
         }
         Some(None) | None => {}
@@ -5107,14 +5120,11 @@ fn projected_overlap<T: Decide>(
 /// segment. An overlap with no record, or with a bound
 /// [`ee_bound_backed`] does not back, is an `UnrecordedContact`; a
 /// bound is never inferred. A certified overlap is then read for sides
-/// ([`coincident_wedges`]).
-#[allow(clippy::too_many_arguments)] // the overlap and its reading, plus the lane's state
+/// ([`ee_overlap_sides`]).
 fn ee_collinear_lane<T: Decide>(
     body: &Body<T>,
-    ea: &EdgeGeo<T>,
-    eb: &EdgeGeo<T>,
-    (lo, hi): (T, T),
-    margin: MarginDiag,
+    (ea, eb): (&EdgeGeo<T>, &EdgeGeo<T>),
+    ((lo, hi), margin): ((T, T), MarginDiag),
     geo: &Geo<T>,
     declared: &Declared,
     band: Band,
@@ -5138,7 +5148,7 @@ fn ee_collinear_lane<T: Decide>(
             margin: Some(margin),
         });
     } else {
-        errors.extend(coincident_wedges(body, ea, eb, (lo, hi), band));
+        errors.extend(ee_overlap_sides(body, (ea, eb), (lo, hi), band));
     }
 }
 
@@ -5146,16 +5156,14 @@ fn ee_collinear_lane<T: Decide>(
 /// edges' material wedges, read by [`line_wedges`] at the middle of
 /// their shared span `[lo, hi]` on `ea`'s axis. The material sectors on
 /// one line are disjoint (D1), so an overlap refuses whatever backs the
-/// pair, and a reading not taken refuses named: in band
-/// ([`TouchUnread::InBand`]); a face with no sheet at the line, which
-/// only a curved face lacks ([`TouchUnread::Unreadable`]); or an edge
-/// whose two sheets lie on each other there, a cusp or a knife slit,
-/// whose side a first-order reading does not take
-/// ([`TouchUnread::Degenerate`]). `None` where the wedges are disjoint.
-fn coincident_wedges<T: Decide>(
+/// pair, and a reading not taken refuses named, with the edge whose
+/// wedge did not read where one did not ([`WedgeRefusal`]). `None`
+/// where the wedges are disjoint. A face whose tangent plane turns
+/// along the line is read at that one point only (restread's
+/// `coincident-line-wedges-are-read-at-one-point-of-a-turning-face`).
+fn ee_overlap_sides<T: Decide>(
     body: &Body<T>,
-    ea: &EdgeGeo<T>,
-    eb: &EdgeGeo<T>,
+    (ea, eb): (&EdgeGeo<T>, &EdgeGeo<T>),
     (lo, hi): (T, T),
     band: Band,
 ) -> Option<ValidationError> {
@@ -5166,17 +5174,17 @@ fn coincident_wedges<T: Decide>(
         [eb.key, ea.key]
     };
     let at = witness(ea.p0 + ea.dir * geom::mid_param(lo, hi));
-    let why = match line_wedges(body, &[CollinearOverlap { edges, ends }], band) {
+    let (why, unread) = match line_wedges(body, &[CollinearOverlap { edges, ends }], band) {
         Ok(None) => return None,
         Ok(Some(_)) => {
             return Some(ValidationError::CoincidentWedgesOverlap { edges, witness: at });
         }
-        Err((_, WedgeRefusal::Undecided(_))) => TouchUnread::InBand,
-        Err((_, WedgeRefusal::NoSheet(_))) => TouchUnread::Unreadable,
-        Err((_, WedgeRefusal::WedgeEnd(_))) => TouchUnread::Degenerate,
+        Err((_, WedgeRefusal::Undecided(_))) => (TouchUnread::InBand, None),
+        Err((_, WedgeRefusal::Unread(edge, why))) => (why, Some(edge)),
     };
     Some(ValidationError::CoincidentWedgesOverlapUndecided {
         edges,
+        unread,
         witness: at,
         why,
     })
@@ -6383,9 +6391,15 @@ impl Undecided {
 enum Said {
     /// A planar touch, read through [`TouchSite::verdict`].
     Touch(TouchSite),
-    /// An edge through a face's interior, or two edges' material
-    /// overlapping on one line: a crossing.
+    /// An edge through a face's interior: a crossing.
     Pierce,
+    /// Two coincident edges' wedges on one line, read by
+    /// [`ee_overlap_sides`]: overlapping (`None`), or unread for the
+    /// reason carried. Between two solids it is a touch whose reading
+    /// is already taken, so it says what [`TouchVerdict::refusal`] says
+    /// of that verdict; inside one solid an overlap is its boundary
+    /// crossing itself.
+    Wedges(Option<TouchUnread>),
     /// A curved touch: a conformal patch the curved arm found, or a
     /// tangent line.
     CurvedTouch,
@@ -6452,15 +6466,16 @@ impl Named {
                 EntityId::Face(*face),
                 Said::Touch(TouchSite::EdgeInFace(*edge, *face)),
             ),
-            // Two edges' material on one line: where it overlaps, a
-            // crossing at the line, the solids' own where both edges
-            // are one solid's.
             ValidationError::CoincidentWedgesOverlap { edges: [a, b], .. } => {
-                Self::Two(EntityId::Edge(*a), EntityId::Edge(*b), Said::Pierce)
+                Self::Two(EntityId::Edge(*a), EntityId::Edge(*b), Said::Wedges(None))
             }
-            ValidationError::CoincidentWedgesOverlapUndecided { edges: [a, b], .. } => {
-                Self::Two(EntityId::Edge(*a), EntityId::Edge(*b), Said::Unexamined)
-            }
+            ValidationError::CoincidentWedgesOverlapUndecided {
+                edges: [a, b], why, ..
+            } => Self::Two(
+                EntityId::Edge(*a),
+                EntityId::Edge(*b),
+                Said::Wedges(Some(*why)),
+            ),
             // Two faces of one solid: that solid's own defect, which
             // leaves no other solid's boundary unread.
             ValidationError::CuspEdgesMissing { a, b, .. } => {
@@ -6714,11 +6729,31 @@ impl TouchUnread {
         }
     }
 
+    /// The reason and its recourse, where two coincident edges' wedges
+    /// on one line were not read
+    /// ([`ValidationError::CoincidentWedgesOverlapUndecided`],
+    /// [`crate::BooleanError::LineWedges`]): a face or an edge there,
+    /// read along the line rather than at a point.
+    pub(crate) fn sentence_on_line(self) -> &'static str {
+        match self {
+            Self::Unreadable => {
+                "a face meeting the line is curved there, and the check cannot yet read \
+                 which side of a curved face material lies on. There is no way through yet \
+                 for this shape"
+            }
+            Self::Degenerate => {
+                "an edge on the line has its two faces meeting there at no angle or at a \
+                 full turn, a cusp or a knife slit, and the check cannot yet read which side \
+                 of such an edge material lies on. There is no way through yet for this \
+                 shape"
+            }
+            _ => self.sentence(),
+        }
+    }
+
     /// The reason and its recourse, where tier 3′ reads no side inside
-    /// the body's own cells: an edge lying in a face of its own solid
-    /// ([`ValidationError::FaceThroughEdgeWedgeUndecided`]), or two
-    /// coincident edges on one line
-    /// ([`ValidationError::CoincidentWedgesOverlapUndecided`]).
+    /// the body's own cells at a point: an edge lying in a face of its
+    /// own solid ([`ValidationError::FaceThroughEdgeWedgeUndecided`]).
     pub(crate) fn sentence(self) -> &'static str {
         match self {
             Self::InBand => concat!(
@@ -9154,6 +9189,9 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 Named::Two(x, y, said) if between(x, y) => match said {
                     Said::Touch(site) => touch(site),
                     Said::Pierce => Some(Undecided::Crossing),
+                    Said::Wedges(why) => why
+                        .map_or(TouchVerdict::Crossing, TouchVerdict::Unread)
+                        .refusal(),
                     Said::CurvedTouch => Some(Undecided::TouchUnreadable),
                     Said::FacePair(a, b) => (!declared.confirmed.contains(&(a, b)))
                         .then_some(Undecided::TouchUnreadable),
@@ -9161,10 +9199,10 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
                 },
                 Named::Two(x, y, said) if owns(x) && solid_of_entity(x) == solid_of_entity(y) => {
                     match said {
-                        Said::Touch(TouchSite::EdgeCross(..)) | Said::Pierce => {
-                            Some(Undecided::Crossing)
-                        }
-                        Said::Unexamined => Some(Undecided::Unexamined),
+                        Said::Touch(TouchSite::EdgeCross(..))
+                        | Said::Pierce
+                        | Said::Wedges(None) => Some(Undecided::Crossing),
+                        Said::Unexamined | Said::Wedges(Some(_)) => Some(Undecided::Unexamined),
                         Said::Touch(_) | Said::CurvedTouch | Said::FacePair(..) => None,
                     }
                 }

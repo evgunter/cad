@@ -485,19 +485,22 @@ fn wedges_refuse(
 }
 
 /// **Two wedges on one line a hair apart refuse undecided, named.** The
-/// brick over quadrant 1 and a prism beside it along the z-axis whose
-/// wall leans `δ = 4 ε` off the brick's `x = 0` face, each its own solid
-/// with the touch recorded: whether the prism's sheet lies inside the
-/// brick's wedge is in band, so tier 3′ refuses the pair
-/// `CoincidentWedgesOverlapUndecided { why: InBand }`.
+/// brick over quadrant 1 and a prism beside it along the z-axis, each
+/// its own solid with the touch recorded, both `h = 0.1` tall. The
+/// prism's wall leans `δ = 40 ε` off the brick's `x = 0` face across
+/// its unit width, so every point of the two lies decided apart or
+/// decided on, but the sheets' angle `δ` read at the edge's length `h`
+/// is `4 ε`, in band. The two findings are exactly the wedges' own
+/// `CoincidentWedgesOverlapUndecided { why: InBand }` and arm 2's
+/// reading of it for the two solids, an undecided touch.
 #[test]
 fn two_wedges_a_hair_apart_on_one_line_refuse_undecided() {
     use topo::test_support::{FaceGeometry, describe_as_intersections, finished, prism_ops};
     let tol = t();
-    let d = 4.0 * tol.eps();
+    let (d, h) = (40.0 * tol.eps(), 0.1);
     let mut body = posed_box(
         "the brick",
-        [(0.0, 1.0), (0.0, 1.0), (0.5, 1.5)],
+        [(0.0, 1.0), (0.0, 1.0), (0.5, 0.5 + h)],
         &Pose::rest(),
         tol,
     )
@@ -506,7 +509,7 @@ fn two_wedges_a_hair_apart_on_one_line_refuse_undecided() {
     prism_ops(
         &mut b,
         &[(0.0, 0.0), (-d, 1.0), (-1.0, 1.0), (-1.0, 0.0)],
-        (0.5, 1.5),
+        (0.5, 0.5 + h),
         Point3::new,
         FaceGeometry::Certified,
         tol,
@@ -532,15 +535,22 @@ fn two_wedges_a_hair_apart_on_one_line_refuse_undecided() {
     );
     let errors = validate_pseudomanifold(&body, &records, tol)
         .expect_err("tier 3′ refuses the wedges a hair apart");
+    let [
+        ValidationError::CoincidentWedgesOverlapUndecided {
+            edges: [ea, eb],
+            unread: None,
+            why: topo::TouchUnread::InBand,
+            ..
+        },
+        ValidationError::CensusUndecidable { what, .. },
+    ] = &errors[..]
+    else {
+        panic!("only the wedges refuse, in band, then arm 2: {unrecorded:?} then {errors:?}");
+    };
+    assert_ne!(ea, eb, "two edges");
     assert!(
-        errors.iter().any(|e| matches!(
-            e,
-            ValidationError::CoincidentWedgesOverlapUndecided {
-                why: topo::TouchUnread::InBand,
-                ..
-            }
-        )),
-        "the pair's wedges refuse undecided in band: {unrecorded:?} then {errors:?}"
+        what.starts_with("they touch, and whether they overlap there is undecided"),
+        "arm 2 reads the wedges' in-band reading as an undecided touch: {what}"
     );
 }
 

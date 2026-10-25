@@ -1992,6 +1992,9 @@ pub enum ValidationError {
     CoincidentWedgesOverlapUndecided {
         /// The two edges, in arena order.
         edges: [EdgeKey; 2],
+        /// The one of them whose wedge has no reading; `None` where a
+        /// sign comparing the two landed in band.
+        unread: Option<EdgeKey>,
         /// Where the two were read, as coordinates.
         witness: String,
         /// Why the reading was not taken; the finding renders it with
@@ -4355,7 +4358,7 @@ impl fmt::Display for ValidationError {
                 f,
                 "two edges lie along one line at {witness}, and whether the material each \
                  bounds overlaps the other's is undecided: {}",
-                why.sentence()
+                why.sentence_on_line()
             ),
             Self::InstanceInterference { .. } => write!(
                 f,
