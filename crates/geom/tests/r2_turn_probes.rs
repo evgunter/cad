@@ -103,15 +103,32 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
             (0.05, 0.001),
         ] {
             let inf = a.abs().min(b.abs());
-            for centre in [0.0, 0.3, 0.7, 1.0, 1.4, core::f64::consts::FRAC_PI_2, 2.5, 4.0] {
+            for centre in [
+                0.0,
+                0.3,
+                0.7,
+                1.0,
+                1.4,
+                core::f64::consts::FRAC_PI_2,
+                2.5,
+                4.0,
+            ] {
                 let local = speed(a, b, centre);
-                for (rate_name, rate) in [("inf", inf), ("local", local), ("max", a.abs().max(b.abs()))] {
+                for (rate_name, rate) in [
+                    ("inf", inf),
+                    ("local", local),
+                    ("max", a.abs().max(b.abs())),
+                ] {
                     for k in [
-                        0.0, 0.3, 0.5, 0.9, 0.99, 1.0, 1.01, 1.1, 2.0, 3.0, 9.0, 9.9, 10.0,
-                        10.1, 11.0, 20.0, 100.0, 1e3,
+                        0.0, 0.3, 0.5, 0.9, 0.99, 1.0, 1.01, 1.1, 2.0, 3.0, 9.0, 9.9, 10.0, 10.1,
+                        11.0, 20.0, 100.0, 1e3,
                     ] {
                         for over in [true, false] {
-                            let defect = if over { k * eps / rate } else { -k * eps / rate };
+                            let defect = if over {
+                                k * eps / rate
+                            } else {
+                                -k * eps / rate
+                            };
                             let t0 = centre - 0.5 * defect;
                             let t1 = t0 + TAU + defect;
                             let Ok(extent) =
@@ -140,16 +157,25 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
                             let verdict = match got {
                                 Ok(Turn::Over(_)) => {
                                     assert!(h < 0.0, "{case}");
-                                    assert!(len * slack >= 10.0 * eps, "Over not past the band: {case}");
+                                    assert!(
+                                        len * slack >= 10.0 * eps,
+                                        "Over not past the band: {case}"
+                                    );
                                     "over"
                                 }
                                 Ok(Turn::Short(_)) => {
                                     assert!(h > 0.0, "{case}");
-                                    assert!(len * slack >= 10.0 * eps, "Short not past the band: {case}");
+                                    assert!(
+                                        len * slack >= 10.0 * eps,
+                                        "Short not past the band: {case}"
+                                    );
                                     "short"
                                 }
                                 Ok(Turn::Whole(_)) => {
-                                    assert!(len <= eps * slack, "Whole not within the band: {case}");
+                                    assert!(
+                                        len <= eps * slack,
+                                        "Whole not within the band: {case}"
+                                    );
                                     "whole"
                                 }
                                 Err(u) => {
@@ -157,7 +183,10 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
                                     // where the sup is not definitely over,
                                     // any overlap is within the escalation band.
                                     if h < 0.0 && !u.over_at_sup {
-                                        assert!(len <= 10.0 * eps * slack, "over_at_sup false but overlap past the band: {case}");
+                                        assert!(
+                                            len <= 10.0 * eps * slack,
+                                            "over_at_sup false but overlap past the band: {case}"
+                                        );
                                     }
                                     if u.over_at_sup {
                                         assert!(h < 0.0, "{case}");
@@ -165,7 +194,9 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
                                     "escalated"
                                 }
                             };
-                            *tally.entry((format!("eps {eps:e} a/b {}", a / b), verdict)).or_default() += 1;
+                            *tally
+                                .entry((format!("eps {eps:e} a/b {}", a / b), verdict))
+                                .or_default() += 1;
                         }
                     }
                 }
@@ -202,9 +233,16 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
         let c = spiric(major, minor, offset);
         let (lo, hi) = speed_range(&c);
         let (lo, hi) = (lo.get(), hi.get());
-        assert!(hi.is_finite(), "sup finite: R {major} r {minor} d {offset}: {hi}");
+        assert!(
+            hi.is_finite(),
+            "sup finite: R {major} r {minor} d {offset}: {hi}"
+        );
         let sup2 = turn_defect_speed_hi(&c, 0.3, 1e-9).get();
-        assert_eq!(sup2.to_bits(), hi.to_bits(), "spiric defect sup is the global sup");
+        assert_eq!(
+            sup2.to_bits(),
+            hi.to_bits(),
+            "spiric defect sup is the global sup"
+        );
         let n = 20_000;
         let mut max: f64 = 0.0;
         for i in 0..n {
@@ -215,10 +253,19 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
             let d = ((p.x - q.x).powi(2) + (p.y - q.y).powi(2) + (p.z - q.z).powi(2)).sqrt()
                 / (2.0 * dt);
             max = max.max(d);
-            assert!(d >= lo * (1.0 - 1e-6), "inf: R {major} r {minor} d {offset} t {t}: {d} < {lo}");
+            assert!(
+                d >= lo * (1.0 - 1e-6),
+                "inf: R {major} r {minor} d {offset} t {t}: {d} < {lo}"
+            );
         }
-        assert!(max <= hi * (1.0 + 1e-6), "sup: R {major} r {minor} d {offset}: {max} > {hi}");
-        eprintln!("r2 spiric R {major} r {minor} d {offset}: inf {lo} sampled max {max} sup {hi} (slack x{})", hi / max);
+        assert!(
+            max <= hi * (1.0 + 1e-6),
+            "sup: R {major} r {minor} d {offset}: {max} > {hi}"
+        );
+        eprintln!(
+            "r2 spiric R {major} r {minor} d {offset}: inf {lo} sampled max {max} sup {hi} (slack x{})",
+            hi / max
+        );
         // A whole oval at t0 = 0 and at t0 = 1: the rule's verdict.
         let rows = TurnRows::bounded("r2_turn", "r2_turn_straddle");
         for eps in [1e-6, 1e-9, 1e-12] {
@@ -228,8 +275,18 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
                 let extent = Extent::forward("r2_fwd", t0, t1, InfSpeed::new(lo), band).unwrap();
                 let h = TAU - extent.get();
                 let sup = turn_defect_speed_hi(&c, t0, h);
-                let got = Period::new(TAU).turn(rows, extent, Bounded { inf: InfSpeed::new(lo), sup }, band);
-                eprintln!("r2 spiric whole oval R {major} r {minor} d {offset} eps {eps} t0 {t0}: h {h:e} -> {got:?}");
+                let got = Period::new(TAU).turn(
+                    rows,
+                    extent,
+                    Bounded {
+                        inf: InfSpeed::new(lo),
+                        sup,
+                    },
+                    band,
+                );
+                eprintln!(
+                    "r2 spiric whole oval R {major} r {minor} d {offset} eps {eps} t0 {t0}: h {h:e} -> {got:?}"
+                );
             }
         }
     }
@@ -242,7 +299,10 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
     let got = Period::new(TAU).turn(
         TurnRows::bounded("r2_turn", "r2_turn_straddle"),
         extent,
-        Bounded { inf: InfSpeed::new(0.5), sup: hi },
+        Bounded {
+            inf: InfSpeed::new(0.5),
+            sup: hi,
+        },
         band,
     );
     eprintln!("r2 spiric at |d| = R - r, (0, tau): {got:?}");
@@ -254,7 +314,11 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
 fn r2_width_admits_a_reversed_or_bare_extent() {
     let band = Band::new(1e-9, 1e-8).unwrap();
     let reversed = Extent::width(1.0_f64, 0.0);
-    assert!(reversed.get() < 0.0, "width(hi, lo) is negative: {}", reversed.get());
+    assert!(
+        reversed.get() < 0.0,
+        "width(hi, lo) is negative: {}",
+        reversed.get()
+    );
     let bare = Extent::width(0.0_f64, -5.0);
     let summed = bare + Extent::width(0.0, 1.0);
     let got = Period::new(TAU).turn(
@@ -264,7 +328,10 @@ fn r2_width_admits_a_reversed_or_bare_extent() {
         band,
     );
     eprintln!("r2: a -4 extent reads {got:?}");
-    assert!(matches!(got, Ok(Turn::Short(_))), "a negative extent reads Short: {got:?}");
+    assert!(
+        matches!(got, Ok(Turn::Short(_))),
+        "a negative extent reads Short: {got:?}"
+    );
 }
 
 /// Claim 6: the sealed trait's hidden `read` takes a bare headroom from
