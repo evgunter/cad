@@ -1038,3 +1038,69 @@ fn r2_bare_links() {
     );
     assert_eq!(got, TouchVerdict::Crossing, "pit, needle, needle");
 }
+
+/// **R2 probe: an edge continuing the cube's edge end to end** beside
+/// the nested corner: a collinear pair meeting only at the point is no
+/// line touch, so the point is still read.
+#[test]
+fn r2_an_edge_continuing_the_cubes_edge_end_to_end_still_reads() {
+    let into = ([0.5, 0.1, 0.1], [0.1, 0.5, 0.1], [0.1, 0.1, 0.5]);
+    let back = ([-0.5, 0.0, 0.0], [-0.1, 0.1, 0.5], [-0.1, 0.5, 0.1]);
+    let (first, second) = census_twice(&cube_and_corners(&[back]));
+    eprintln!("R2 back alone: {first:?} / {second:?}");
+    let (first, second) = census_twice(&cube_and_corners(&[into, back]));
+    eprintln!("R2 nested and back: {first:?} / {second:?}");
+    assert!(
+        second
+            .iter()
+            .any(|e| matches!(e, ValidationError::BoundaryCrossesItself { .. })),
+        "R2: end-to-end edges hide the nested corner: {second:?}"
+    );
+}
+
+/// **R2 probe: valid Boolean results with a vertex-on-face self-touch.**
+/// A pyramid standing on its apex on a plate, and a parallelepiped's
+/// corner resting on the plate, each held to the plate by an arch; and
+/// the mould of the pyramid on the plate: a block less that body.
+#[test]
+fn r2_valid_booleans_with_a_vertex_on_a_face_of_their_own_solid() {
+    let plate = || block((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
+    let arch = || {
+        let post = block((0.2, 0.8), (1.6, 2.4), (0.5, 3.6));
+        let beam = block((0.2, 2.4), (1.6, 2.4), (3.0, 3.6));
+        built("r2 arch", union(&post, &beam, tol()))
+    };
+    let held = built(
+        "r2 held pyramid",
+        union(&arch(), &pyramid([2.0, 2.0, 1.0], 1.0, 2.2), tol()),
+    );
+    let body = built("r2 pyramid on its apex", union(&plate(), &held, tol()));
+    eprintln!("R2 pyramid on its apex: solids {}", body.solids.len());
+    let mould = built(
+        "r2 mould",
+        subtract(&block((-1.0, 5.0), (-1.0, 5.0), (-1.0, 4.5)), &body, tol()),
+    );
+    eprintln!(
+        "R2 mould: solids {} shells {}",
+        mould.solids.len(),
+        mould.shells.len()
+    );
+    let corner = crate::test_support::finished(
+        "r2 corner",
+        crate::test_support_fixtures::mapped_cube::<f64>(
+            |u, v, w| {
+                let (a, b, c) = ([0.6, 0.1, 0.4], [-0.1, 0.6, 0.4], [0.1, -0.1, 0.7]);
+                let k = |i: usize| [2.0, 2.0, 1.0][i] + u * a[i] + v * b[i] + w * c[i];
+                P::new(k(0), k(1), k(2))
+            },
+            tol(),
+        ),
+        tol(),
+    );
+    let post = block((0.2, 0.8), (1.6, 2.4), (0.5, 3.6));
+    let beam = block((0.2, 2.6), (1.6, 2.4), (2.0, 3.6));
+    let arch2 = built("r2 arch2", union(&post, &beam, tol()));
+    let held2 = built("r2 held corner", union(&arch2, &corner, tol()));
+    let body2 = built("r2 corner on a plate", union(&plate(), &held2, tol()));
+    eprintln!("R2 corner on a plate: solids {}", body2.solids.len());
+}
