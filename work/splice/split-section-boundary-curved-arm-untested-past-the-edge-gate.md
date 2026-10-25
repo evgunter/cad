@@ -4,7 +4,7 @@ kind: issue
 title: The section-boundary describer's Spiric/Nurbs arm has no test, because the split operand gate refuses those edge kinds first
 status: open
 opened: 2026-10-01
-priority: P3
+priority: P1
 cost: E
 ---
 
@@ -30,3 +30,7 @@ test splits through such an edge and asserts that the edge's stored
 verdict matches the one taken at that on-edge point, not at the chord
 midpoint.
 
+
+## Moved to SPLICE (2026-10-25)
+
+From GAUGE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: it becomes live the moment the gate goes, so it ships with the deletion.

@@ -180,7 +180,7 @@ can close is TANG's call.
 Read at `origin/main` `6000ec92d`. **The row can close.** Every item is
 answered in the tree. The one remainder (spiric and spline edges) is a
 different capability, so it is filed as its own row:
-`work/cleave/carrier-walk-has-no-crossing-row-for-spiric-or-spline-edges.md`.
+`work/splice/carrier-walk-has-no-crossing-row-for-spline-edges.md`.
 
 ### Callers of the polygon walk
 
@@ -270,7 +270,7 @@ Every site this row named reads arc-bearing loops on their carriers
 production caller hands an arc-bearing loop to the polygon walk (TANG
 re-measure, PR 3748). The `<3`-vertex gate and the disc special case
 are gone. Two residues have their own files:
-`work/cleave/carrier-walk-has-no-crossing-row-for-spiric-or-spline-edges.md`
+`work/splice/carrier-walk-has-no-crossing-row-for-spline-edges.md`
 (the spiric/spline remainder) and
 `work/tang/loop-shape-keeps-three-classes-nothing-reads.md` (the
 `LoopShape` cleanup).

@@ -36,3 +36,7 @@ coincidence ground (held under D10 while
 The island's closing along the edge itself, on the face's chart: the
 edge's own curve is the chord, so the winding reads the edge's chart
 image rather than a section plane. Build it once a pose reaches it.
+
+## Moved to SECTTAIL (2026-10-25)
+
+From SECT, cut on its priority seam (SECT measured 46 budget points against 31) in a chat-approved refold. Read SECT's step 3 first: SECT's plan says several of these may close by retirement then.

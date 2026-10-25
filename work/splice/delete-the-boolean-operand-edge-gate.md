@@ -109,3 +109,7 @@ P0).
 ## Re-banded to P0 (on request in chat, 2026-10-25)
 
 This gate is what stops three demo joins: klein wall 3, lily wall 8 and teapot wall 3. Each one refuses a lofted or swept operand because its seams are spline edges, even where the contact itself is plain circles (the klein measurement above). Any body built by loft or sweep is refused by every boolean.
+
+## Moved to SPLICE (2026-10-25)
+
+From ORBIT. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. This row stays P0; the rows it waits on moved with it.

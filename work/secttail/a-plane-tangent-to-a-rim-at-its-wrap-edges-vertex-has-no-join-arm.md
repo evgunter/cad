@@ -52,3 +52,7 @@ a face's two halves at one site into a self-loop chord
 (`closed-in-face-section-loop-has-one-site`, "Also seen by CLEAVE"),
 which may be the shape of the arm. Once circles lower to one segment,
 this is any plane tangent to a round boss's rim at its profile vertex.
+
+## Moved to SECTTAIL (2026-10-25)
+
+From SECT, cut on its priority seam (SECT measured 46 budget points against 31) in a chat-approved refold. Read SECT's step 3 first: SECT's plan says several of these may close by retirement then.

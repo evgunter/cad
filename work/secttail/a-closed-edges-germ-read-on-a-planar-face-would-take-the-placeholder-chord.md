@@ -45,3 +45,7 @@ Either a reason the germ of an edge lying in a face is always read on
 its curved face (and an assertion a bug could break), or a lane for the
 planar attribution: the partner's chord copies the closed edge, as the
 edge's own side does.
+
+## Moved to SECTTAIL (2026-10-25)
+
+From SECT, cut on its priority seam (SECT measured 46 budget points against 31) in a chat-approved refold. Read SECT's step 3 first: SECT's plan says several of these may close by retirement then.

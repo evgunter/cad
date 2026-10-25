@@ -30,7 +30,7 @@ a spiric arc (a torus cut parallel to its axis) or a spline one, and
 which reaches that arc, refuses rather than reading the record.
 
 The containment walk the same `LoopEdge` rows serve gained its spiric
-row in `work/cleave/carrier-walk-has-no-crossing-row-for-spiric-or-spline-edges.md`
+row in `work/splice/carrier-walk-has-no-crossing-row-for-spline-edges.md`
 (closed); the cut here did not. The meeting search
 `census::curved::meetings` (a bisection with a sup-speed clearing
 bound) reads a line against any carrier kind and is one way in.

@@ -51,3 +51,7 @@ read `Ahead`. It was not reached end to end in 108 runs (leans
 `a_partner_at_the_half_turn_reads_ahead_only_where_the_slack_is_in_band`
 pins it. A tangent-projection reading would not clear this one, since
 the antipode lies on the plane, so it needs its own answer.
+
+## Moved to SECTTAIL (2026-10-25)
+
+From SECT, cut on its priority seam (SECT measured 46 budget points against 31) in a chat-approved refold. Read SECT's step 3 first: SECT's plan says several of these may close by retirement then.

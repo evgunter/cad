@@ -42,3 +42,7 @@ The slack charges the partner's offset at the partner
 (`ε·|â·((s − c) × n̂_p)| / |turn(t̂_s)|`, the partner's tangent being its
 germ direction), or a row shows a pose where the difference decides
 and the rule's reading is right there anyway.
+
+## Moved to SECTTAIL (2026-10-25)
+
+From SECT, cut on its priority seam (SECT measured 46 budget points against 31) in a chat-approved refold. Read SECT's step 3 first: SECT's plan says several of these may close by retirement then.

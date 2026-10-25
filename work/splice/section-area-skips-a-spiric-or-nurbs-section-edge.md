@@ -4,7 +4,7 @@ kind: issue
 title: certify_section_area reads a spiric or NURBS section edge as its chord
 status: open
 opened: 2026-10-03
-priority: P3
+priority: P1
 cost: E
 refs: [3984]
 ---
@@ -33,3 +33,7 @@ turns into a silent wrong area the day the gate narrows.
 Match the carrier kind: `Line` takes no correction, a conic takes its
 term, and a spiric or NURBS edge refuses typed (or gets a term of its
 own), with a row that reds on the chord.
+
+## Moved to SPLICE (2026-10-25)
+
+From GAUGE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P3 → P1: it becomes live the moment the gate goes, so it ships with the deletion.

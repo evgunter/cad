@@ -157,7 +157,7 @@ donut, the one-face torus and the seamed torus, and so does TANG's tube.
 Spiric sections keep the typed refusal (U-T4's). The ring lane reads the
 tube's top and bottom circles across the cylinder `ρ = R`. The lily now
 stops past the join, at the interior-loop guard on its two tube walls
-(`work/orbit/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).
+(`work/sect/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).
 
 ## The corner bar's lens (Ev, PR 4895, 2026-10-12)
 
@@ -187,3 +187,7 @@ island's winding
 (`work/germ/a-planar-island-on-a-pinched-oval-refuses-its-winding.md`).
 What this row still carries is U-H1, held by D10.
 
+
+## Moved to SECT (2026-10-25)
+
+From GERM. Moved by `git mv` in the chat-approved refold (2026-10-25) that put the torus pairs with the section-first join they are built on. These are C5 table arms, and SECT's ratified design puts kind dispatch in C5 alone (`work/sect/plan.md`, 'The design'), so the section-first join reads them; the torus pair rows refuse at C5 until they exist.

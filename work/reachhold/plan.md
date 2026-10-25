@@ -20,7 +20,6 @@ Parked, each on its named trigger:
 - `boolean-door-runs-the-census-over-its-result` — on [census-cross-solid-curved-pairs-undecidable-on-shell-results, a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms, a-two-pinch-union-ships-a-pinch-its-records-do-not-declare, a-boolean-drops-its-operands-own-contact-records]
 - `covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only` — on [intent-stage4-is-built]
 - `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip` — on [intent-stage4-is-built]
-- `nurbs-edge-crossing-rung-is-the-ring-composite` — on [cylinder-sphere-germ-pair-has-no-join-lane]
 - `rounded-stack-subtract-and-intersect-refuse-fallback-extent` — on [intent-stage4-is-built]
 - `the-plate-document-never-cuts-its-holes` — on [a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound, a-measured-part-is-not-a-product-root]
 
