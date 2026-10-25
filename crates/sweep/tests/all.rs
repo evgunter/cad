@@ -861,6 +861,7 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "a_boolean_on_a_pole_touching_octant.rs"]
 mod a_boolean_on_a_pole_touching_octant;
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;

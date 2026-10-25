@@ -241,9 +241,12 @@ fn the_solid_ring_meters_its_closed_form() {
     let d = tube_ring::document();
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, d.result.expect("a result node"));
-    let props =
-        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, d.result.expect("a result node"))),
+        Tol::witness(),
+    );
+    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     let (r, minor) = (tube_ring::R, tube_ring::MINOR);
     close(props.volume, 2.0 * PI * PI * r * minor * minor, "ring V");
     close(props.surface_area, 4.0 * PI * PI * r * minor, "ring A");
@@ -257,7 +260,7 @@ fn the_solid_ring_meters_its_closed_form() {
     // adds no third surface. (Measured, not assumed — the first draft
     // of this row said four and this is what the body actually holds.)
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         vec![minor.to_bits(); 2],
         "two half-walls, each storing the authored minor radius {minor} verbatim"
     );
@@ -271,9 +274,12 @@ fn the_hollow_elbow_meters_its_closed_form_and_stores_both_radii() {
     let d = hollow_tube_elbow::document();
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, d.result.expect("a result node"));
-    let props =
-        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, d.result.expect("a result node"))),
+        Tol::witness(),
+    );
+    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
 
     let (r, outer, wall) = (
         hollow_tube_elbow::R,
@@ -299,7 +305,7 @@ fn the_hollow_elbow_meters_its_closed_form_and_stores_both_radii() {
 
     // THE STORAGE CONTRACT, which no volume row can see.
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         both_radii(outer, inner),
         "the inner walls must hold {outer} - {wall} = {inner} as ONE subtraction of the \
          caller's own numbers — a drift here is the profile -> bulge -> radius \
@@ -323,9 +329,12 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
     });
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, tube);
-    let props =
-        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, tube)),
+        Tol::witness(),
+    );
+    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     close(
         props.volume,
         2.0 * PI * PI * r * (outer * outer - inner * inner),
@@ -342,7 +351,7 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
         "a torus shell is an outer shell plus its cavity"
     );
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         both_radii(outer, inner),
         "the full ring stores the same two radii as the windowed elbow"
     );
@@ -360,9 +369,12 @@ fn the_solid_elbow_meters_its_pappus_form() {
     });
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, tube);
-    let props =
-        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, tube)),
+        Tol::witness(),
+    );
+    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     let theta = t1 - t0;
     close(
         props.volume,
@@ -375,7 +387,7 @@ fn the_solid_elbow_meters_its_pappus_form() {
         "solid elbow A",
     );
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         vec![minor.to_bits(); 2],
         "two half-walls, each storing the authored minor radius"
     );
@@ -426,9 +438,16 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let vol = |id| {
-        topo::test_support::unmigrated_measure(body_of(&ev, id), Tol::witness())
-            .expect("mass properties")
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(body_of(&ev, id)),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("mass properties")
+        .volume
     };
     close(
         (t1 - t0) * r * PI * inner * inner,

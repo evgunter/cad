@@ -95,7 +95,11 @@ impl core::ops::Add for Vol {
 }
 
 fn volume(h: &Body<f64>) -> Vol {
-    let m = topo::test_support::unmigrated_measure(h, tol()).unwrap();
+    let m = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(h), tol()),
+        tol(),
+    )
+    .unwrap();
     Vol {
         v: m.volume,
         pad: m.volume_pad,

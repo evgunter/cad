@@ -46,8 +46,11 @@ fn assert_encloses(what: &str, enclosure: Interval, analytic: f64) {
 }
 
 fn check(body: &Body<Interval>, what: &str, volume: f64, area: f64) {
-    let props = topo::test_support::unmigrated_measure(body, Tol::witness())
-        .expect("interval mass properties must compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("interval mass properties must compute");
     assert_encloses(&format!("{what} volume"), props.volume, volume);
     assert_encloses(&format!("{what} area"), props.surface_area, area);
 }
@@ -146,9 +149,16 @@ fn f64_value_within_interval_enclosure() {
         Tol::witness(),
     )
     .unwrap();
-    let enc = topo::test_support::unmigrated_measure(&t_i.body, Tol::witness())
-        .unwrap()
-        .volume;
+    let enc = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t_i.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
 
     let lp_f = bulge_loop(vec![
         (Point2::new(0.0, -1.0), 1.0),
@@ -167,9 +177,16 @@ fn f64_value_within_interval_enclosure() {
         Tol::witness(),
     )
     .unwrap();
-    let v_f = topo::test_support::unmigrated_measure(&t_f.body, Tol::witness())
-        .unwrap()
-        .volume;
+    let v_f = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&t_f.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     // The `Interval` enclosure must CONTAIN the f64 value, and be
     // narrow. Widening the admitted band by the enclosure's own width
     // — which is what this row did — makes every degradation of the

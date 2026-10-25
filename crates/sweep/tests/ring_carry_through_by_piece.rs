@@ -56,9 +56,12 @@ fn carrier(body: &Body<f64>, k: EdgeKey) -> geom::Curve3<f64> {
 }
 
 fn vol(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, tol())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+        tol(),
+    )
+    .unwrap()
+    .volume
 }
 
 /// The unit cube's twelve outer edges, by their line midpoints.

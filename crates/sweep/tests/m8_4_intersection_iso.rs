@@ -642,11 +642,18 @@ fn an_interior_column_intersection_mints_a_general_image() {
     // widened chart has interior knots in its degree-1 `u` direction,
     // and `mesh`'s patch-bound gate refuses that C⁰ crease first
     // (`geom_brep::patch_bound::PatchBoundError::Degree1Crease`). ----
-    let props = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    // Raw door: the measured body is a body whose edge descriptions do not certify, which tier 3 refuses (DescriptionNotAdjacent).
+    let props = topo::test_support::measure_unvalidated(&body, Tol::witness())
         .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-1 body too: {e:?}"));
-    let want =
-        topo::test_support::unmigrated_measure(&prism(INTERIOR_COLUMN_SCALE), Tol::witness())
-            .expect("the oracle prism's own lanes answer it");
+    let want = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&prism(INTERIOR_COLUMN_SCALE)),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .expect("the oracle prism's own lanes answer it");
     println!(
         "M8-4 DEG1 mass_properties on the trimmed chart: volume {:e} ± {:e}, area {:e} ± {:e}",
         props.volume, props.volume_pad, props.surface_area, props.area_pad
@@ -863,10 +870,12 @@ fn a_degree_two_widening_measures_against_the_oracle() {
         findings.is_empty(),
         "the degree-2 body validates at rest: {findings:?}"
     );
-    let props = topo::test_support::unmigrated_measure(&body, Tol::witness())
+    // Raw door: the measured body is a body whose edge descriptions do not certify, which tier 3 refuses (DescriptionNotAdjacent).
+    let props = topo::test_support::measure_unvalidated(&body, Tol::witness())
         .unwrap_or_else(|e| panic!("the trimmed lane answers the degree-2 body: {e:?}"));
-    let oracle = prism(INTERIOR_COLUMN_SCALE);
-    let want = topo::test_support::unmigrated_measure(&oracle, Tol::witness())
+    let oracle =
+        topo::test_support::finished("oracle", prism(INTERIOR_COLUMN_SCALE), Tol::witness());
+    let want = topo::mass_properties(&oracle, Tol::witness())
         .expect("the oracle prism's own lanes answer it");
     let overlaps = |a: (f64, f64), b: (f64, f64)| a.0 <= b.1 && b.0 <= a.1;
     let bracket = |v: f64, pad: f64| (v - pad, v + pad);
@@ -903,7 +912,7 @@ fn a_degree_two_widening_measures_against_the_oracle() {
         .faces()
         .find(|(_, f)| f.surface == obowed)
         .expect("the oracle's bowed wall has a face");
-    let mut ooff = oracle.clone();
+    let mut ooff = topo::Body::clone(&oracle);
     let orc =
         topo::replace_face_offset(&mut ooff, ofk, INTERIOR_COLUMN_SCALE / 16.0, Tol::witness());
     println!("E3 @ eps={eps:e}: offset(General-faced) {got:?}");

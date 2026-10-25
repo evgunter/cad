@@ -248,9 +248,16 @@ fn the_refused_chain_flattened_by_one_level_evaluates_at_the_bound() {
         let leaf_body = product(&leaf, &run(&leaf, &EvalOptions::default()), Tol::witness())
             .expect("the leaf's product gathers");
         let volume = |b: &topo::Body<f64>| {
-            topo::test_support::unmigrated_measure(b, Tol::witness())
-                .expect("mass properties")
-                .volume
+            topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(b),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .expect("mass properties")
+            .volume
         };
         assert_eq!(
             volume(&body).to_bits(),
@@ -561,8 +568,12 @@ fn below_the_top_the_mate_solve_and_the_instances_find_the_rows_the_descent_ente
         "the mated assembly evaluates below the top"
     );
     let volume = |doc: &ProfileDoc, ev| {
-        topo::test_support::unmigrated_measure(
-            &product(doc, ev, Tol::witness()).expect("the product gathers"),
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&product(doc, ev, Tol::witness()).expect("the product gathers")),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
         .expect("mass properties")

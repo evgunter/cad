@@ -48,15 +48,29 @@ fn report(label: &str, r: f64, w: f64, angle: f64) -> Option<Result<f64, topo::M
             return None;
         }
     };
+    let at_rest = topo::AtRestBody::validate(topo::Body::clone(&t.body), Tol::witness());
     let tiers = (
         topo::validate(&t.body),
         topo::validate_closed(&t.body),
-        topo::validate_geometric(&t.body, Tol::witness()),
+        at_rest.as_ref().map(|_| ()).map_err(Clone::clone),
     );
     let solid = r * w * w + 2.0 / 3.0 * w * w;
     let exact = angle * (solid - 2.0 / 3.0 * r * r * r);
     let blind = angle * solid - 2.0 / 3.0 * r * r * r * PI;
-    let mp = topo::test_support::unmigrated_measure(&t.body, Tol::witness()).map(|m| m.volume);
+    let mp = match &at_rest {
+        Ok(finished) => topo::mass_properties(finished, Tol::witness()),
+        Err(errors) => {
+            assert!(
+                errors
+                    .iter()
+                    .all(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. })),
+                "[bool5r1 {label}] tier 3 refuses the lune with more than its volume check: {errors:?}"
+            );
+            // Raw door: tier 3 cannot measure this lune (VolumeUncomputable), and the measurement's own typed refusal of it is the subject.
+            topo::test_support::measure_unvalidated(&t.body, Tol::witness())
+        }
+    }
+    .map(|m| m.volume);
     println!(
         "[bool5r1 {label}] angle = 2pi - {:e}: tiers = {tiers:?}; volume = {mp:?}; exact = {exact:.15e}; \
          with the lune at pi = {blind:.15e}",
