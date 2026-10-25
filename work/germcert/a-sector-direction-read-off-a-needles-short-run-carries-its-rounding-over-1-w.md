@@ -1,7 +1,7 @@
 ---
 id: a-sector-direction-read-off-a-needles-short-run-carries-its-rounding-over-1-w
 kind: issue
-title: A needle channel turned off the axes refuses the reduction's sector question at ε 1e-9 on a direction whose rounding grows as 1/w
+title: A needle channel turned off the axes refuses the reduction's sector question at ε 1e-9, its direction 4.7e-9 rad off its edge, from a source not yet located
 status: open
 opened: 2026-10-25
 priority: P2
@@ -34,18 +34,20 @@ The sector is the fill's floor at its corner: `start` is −x, `end` is
 `arm = 0.3 − w`. The direction read against it lies within
 4.7e-9 rad of −y rather than within rounding of it: `c2 = 4.7e-9`,
 levered to 1.41e-9 at the arm. Across the widths the margins are 1.4,
-1.7, −1.0 and −1.4e-9 (moved pose, 10.5–21ε). They do not grow with w,
-they are absent where the coordinates are exact, and they fall away
-at ε 1e-6, where w is 1000× wider. All of that fits a direction read
-off a run w long, about `u·|p|/w ≈ 7e-9` rad, held at a 0.3 arm. This
+1.7, −1.0 and −1.4e-9 (moved pose, 10.5–21ε). They do not follow `1/w`
+across the widths. They are absent where the coordinates are exact,
+and they fall away at ε 1e-6, where w is 1000× wider. Their size,
+about `u·|p|/w ≈ 7e-9` rad held at a 0.3 arm, is that of a direction
+read off a run w long, but that is a hypothesis. This
 lane did not locate where that direction is minted (`insert::germ_dir`'s
 `n_a × n_b` reads two face normals, which are exact here; a pierce or
 section direction off two points w apart is the likelier source).
 
-**Why it is owed.** [verdicts]: "a formula whose error is amplified by a
-vanishing quantity … is a defect, re-posed or certified, never covered
-by K". The pair this reads is not in band: the direction is along the
-fill's own edge.
+**Why it is owed.** The pair this reads is not in band: the direction
+is along the fill's own edge, and the axis-aligned pose builds. If the
+direction is read off a run w long, [verdicts] makes it a defect: "a
+formula whose error is amplified by a vanishing quantity … is a
+defect, re-posed or certified, never covered by K".
 
 **What is owed.** Find the direction's source. Re-pose it, either read
 off the long run it lies along or levered at the reach it was read
