@@ -11,7 +11,7 @@ Opened 2026-09-20 by SHELL's priority-seam cut
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P1 | `SHELL-3` | H | the clearance engine's body-level half moves into topo behind interval — one engine, two consumers |
+| P0 | `SHELL-3` | H | the clearance engine's body-level half moves into topo behind interval — one engine, two consumers |
 | P1 | `SHELL-4` | H | shell runs the curved wall-clearance gate at certifying scalars — the cavity clone checked embedded before insertion |
 | P1 | `clearance-refusal-names-one-face-twice-across-bodies` | E | ClearanceRefusal prints one FaceKey twice for a cross-body pair, at two renderings over three raise sites, and has no Display at all |
 | P1 | `clearance-reports-a-no-bodies-payload-as-a-bad-body-index` | E | clearance.rs discards two typed causes - InterrogateError::NoBodies reported as a bad body index, and a BandError dropped into the unit variant ToleranceHasNoBand |
