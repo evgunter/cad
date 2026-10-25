@@ -2370,13 +2370,8 @@ mod tests {
             );
             let (mut flux, mut area) = (Interval::zero(), Interval::zero());
             let mut polygon = Interval::zero();
-            let refs = References::points(
-                &body,
-                runs.iter().map(|r| r.face),
-                Some(crate::props::QuadLane::certified()),
-            );
             for run in &runs {
-                let centre = corner_of(&body, lane, &refs, run.face).unwrap();
+                let centre = corner_of(lane, run);
                 let (face, surface) = resolve_face(&body, run.face);
                 let loops = face_loops(&body, face).unwrap();
                 let (c, _) =

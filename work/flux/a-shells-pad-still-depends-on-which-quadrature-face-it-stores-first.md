@@ -77,8 +77,17 @@ that says no shape helps.
 
 ## Resolution
 
-Closed on `flux/shell-pad-per-region`, by the first shape above, with
-the carry read off the region's boundary rather than its faces.
+Closed on `flux/shell-pad-per-region` for regions separated by
+closed-form faces, by the first shape above, with the carry read off the
+region's boundary rather than its faces. A region that spans the lever,
+joined across it by a long quadrature face, still reads its pads with the
+stored order: filed as
+`work/flux/a-shells-pad-still-depends-on-face-order-where-one-quadrature-region-spans-the-lever.md`.
+
+- A region is carried only where it lies far from the shell's point in
+  its own extent (`far_from`, 16 times): nearer, the carry's rounding
+  outweighs what the shorter lever saves, and an ungated carry read four
+  step-import pads up to 5.2× wider than before.
 
 - A shell's quadrature faces are grouped into regions by shared edges
   (`quadrature_regions` in `crates/topo/src/props.rs`).
