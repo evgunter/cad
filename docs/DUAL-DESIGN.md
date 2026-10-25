@@ -109,21 +109,23 @@ nothing a dual instantiates is bounded on a certifying trait. A dual
 keeps its values: each number is a value and its tangent, paired by
 construction, because the sensitivities are measurements taken in dual
 arithmetic over the dual body (and `Dual<Interval>`'s values are a box no
-`f64` anchor holds). The pairing is structural. A validated base-scalar
-evaluation is bound to the document revision it read, and a dual pass is
-a function of it alone, taking no separate document. It walks the anchor's
-own nodes in order, builds each in dual numbers, and compares the node's
-value channel with the anchor's result bit for bit, refusing typed at the
-first node that differs. Nothing is looked up: content keys stay the
-memo's business. The anchor is the dual's certificate. This
+`f64` anchor holds). Nothing pairs the two evaluations node by
+node. The report that reads a sensitivity takes a validated base-scalar
+evaluation and the dual passes, and refuses typed unless their build
+identities are equal: the document's content pin, the parameter bindings
+as bits, the tolerance and the resolved parts' pins. The claim to be of
+the certified shape belongs to that evaluation, where the gates ran; the
+dual contributes tangents and is never read as a shape. Drift is caught in
+production at the report: the pass's value channel is compared bit for bit
+with the base evaluation where the report reads it, and a mismatch refuses
+typed. Content keys stay the memo's business. This
 is sound because the sensitivity is OF THE AS-BUILT BODY: the
 dual's value channel is bit-identical to the f64 build (D9), which
 was already validated in the f64 evaluation E4 rides beside;
 re-validating the same bits through refusing arms adds no
-information and subtracts availability. The E4 driver asserts
-(cheaply, by content key equality of the value channel where it
-needs a hook) that it is differentiating the build the f64 run
-validated.
+information and subtracts availability. The build-identity check and the report's
+comparison are how the E4 driver knows it is differentiating the build
+the f64 run validated.
 
 - Not a weakening: nothing a dual pass produces is consumed as a
   certificate anywhere (DL1); its outputs are E4-marked

@@ -136,9 +136,9 @@ limbs 1–3) is bounded on the certification trait and takes its lane as a
 plain argument. The scalar's policy names what its edges carry: a
 certifying scalar's door mints and certifies; a tangent-transport
 scalar's door (DUAL-DESIGN DL1, DL3) only mints, and no code path at that
-scalar can call a certifying function. A dual body's certificate is
-the `f64` anchor's: the dual pass is a function of that validated
-evaluation and walks its nodes. At `f64` the door certifies in full and rest
+scalar can call a certifying function. A dual body carries no
+certificate: what a dual measures is read against the input-identical
+`f64` evaluation, which holds it (DUAL-DESIGN DL3). At `f64` the door certifies in full and rest
 re-derives the same certificate. An edge with an operand outside the
 tube's enclosure roster (`ssi::enclose::has_implicit_enclosure`) refuses
 the tube by naming that operand (`AnalyticRung3Refusal::NoTubeEnclosure`)
