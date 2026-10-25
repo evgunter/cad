@@ -39,3 +39,13 @@ band, because the old `?` stopped before the copy's swing.
 D′, `a-placement-pins-by-written-values-without-a-mate` (filed on stage 3 D's
 branch), rebuilds the chart without a mate. D′ settles whether the sliver-band
 clause narrows, and this item follows it.
+
+## D′2 re-read (2026-10-23)
+
+D′2 rebuilt the chart on the target space's axes, swung onto the one
+mated direction, and left the sliver-band clause as ratified:
+`Chart::of` (`crates/editor-core/src/mate/value.rs`) still builds both
+swings for any value under a direction-fixing mate, so a lone slide
+still refuses in the band. Whether the clause narrows is still Ev's
+call (D10's ratified sentence); D′2 did not decide it, and this row
+stays open on that question.

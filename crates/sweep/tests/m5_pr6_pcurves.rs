@@ -80,7 +80,7 @@ fn tilted_cut() -> (Body<f64>, Body<f64>) {
     let (SplitPart::Body(a), SplitPart::Body(b)) = (result.above, result.below) else {
         panic!("both sides carry material");
     };
-    (a, b)
+    (a.into_body(), b.into_body())
 }
 
 // ---------------------------------------------------------------------

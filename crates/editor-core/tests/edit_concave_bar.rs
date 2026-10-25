@@ -11,8 +11,8 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::{
-    EntityKey, EntityKind, EvalOptions, ExtrudeSide, LoopProgram, NameRef, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, StableName,
+    EntityKey, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use fixture::{len, minted, on_frame, table, tol};
 use topo::Body;
@@ -21,16 +21,18 @@ use topo::Body;
 const A: f64 = 0.006;
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol())
-        .expect("closed-form mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("closed-form mass properties")
+    .volume
 }
 
 fn extrude(profile: RecipeNodeId, distance: f64) -> editor_core::AuthoredNode {
     Node::Extrude {
         profile: profile.into(),
         distance: len(distance),
-        side: ExtrudeSide::Along,
     }
 }
 
@@ -47,12 +49,13 @@ fn barred_die() -> (ProfileDoc, RecipeNodeId) {
     let (doc, block) = fixture::insert(doc, extrude(p, 1.0));
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, 0.5],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(0.25, 0.25), (0.75, 0.25), (0.75, 0.75), (0.25, 0.75)]],
     );
     let (doc, pocket) = fixture::insert(doc, extrude(p, 1.0));
+    let (doc, pocket) = fixture::slid(doc, block, pocket, [0.0, 0.0, 0.5]);
     let (doc, die) = fixture::insert(
         doc,
         Node::Subtract {
@@ -60,14 +63,9 @@ fn barred_die() -> (ProfileDoc, RecipeNodeId) {
             tool: pocket.into(),
         },
     );
-    let (doc, plane) = fixture::insert(
-        doc,
-        fixture::frame([0.1, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
-    );
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.262), len(0.512)],
                 radius: len(A),
@@ -76,6 +74,13 @@ fn barred_die() -> (ProfileDoc, RecipeNodeId) {
         }),
     );
     let (doc, bar) = fixture::insert(doc, extrude(p, 0.8));
+    // The bar's own xy is the plane `x = 0.1`, its own `z` the block's `x`.
+    let (doc, bar) = fixture::against(
+        doc,
+        block,
+        bar,
+        &fixture::axes_at([0.1, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+    );
     fixture::insert(
         doc,
         Node::Union {

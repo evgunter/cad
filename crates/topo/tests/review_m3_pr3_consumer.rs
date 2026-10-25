@@ -143,7 +143,12 @@ fn tiny_real_sliver_not_wrongly_refused() {
     assert_eq!(validate_closed(below), Ok(()));
     // The sliver: a similar triangle scaled by h/(1+h) in both profile
     // axes, depth 1: V = (1/2)·4·(1+h)·(h/(1+h))² ≈ 2h²/(1+h).
-    let va = mass_properties(above, Tol::witness()).unwrap().volume;
+    let va = mass_properties(
+        &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     let expect = 2.0 * h * h / (1.0 + h);
     assert!(
         (va - expect).abs() <= 1e-6 * expect,
@@ -230,7 +235,11 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
     let above = body_of(&r.above);
     assert_eq!(validate_closed(above), Ok(()), "tier 2 at rest holds");
     assert!(
-        mass_properties(above, Tol::witness()).is_ok(),
+        mass_properties(
+            &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
+            Tol::witness()
+        )
+        .is_ok(),
         "mass props work"
     );
     assert_eq!(

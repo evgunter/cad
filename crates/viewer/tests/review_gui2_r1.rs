@@ -9,7 +9,7 @@
 //! rows call directly, because framing is not what they check — the
 //! resolution is. A fixture whose dimensions came from the same place
 //! the aim did would move with it, and nothing here could see it move.
-//! What carries no oracle is shared: `common::{xy_frame, rectangle,
+//! What carries no oracle is shared: `common::{rectangle,
 //! inserted, len, scl, gallery_ring_at, index_of, down_from, ring_delta}`. The
 //! blocks' own dimensions, the height the rays start above them and
 //! the cursor positions aimed at them stay here, where the aim is
@@ -41,8 +41,7 @@ test_utils::gated_to![
 ];
 
 use crate::common;
-use crate::common::{inserted, len, scl, xy_frame};
-use pncad::document::ExtrudeSide;
+use crate::common::{inserted, len, scl};
 
 use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol};
@@ -68,24 +67,21 @@ fn delta() -> DisplayTolerance {
 /// Answers the document and the two placements, the drawn copies.
 fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-two-blocks", tol);
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, pa) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.02, 0.02), tol);
+    let (doc, pa) = inserted(&doc, common::rectangle([0.0, 0.0], 0.02, 0.02), tol);
     let (doc, a) = inserted(
         &doc,
         Node::Extrude {
             profile: pa.into(),
             distance: len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
-    let (doc, pb) = inserted(&doc, common::rectangle(plane, [0.1, 0.0], 0.04, 0.04), tol);
+    let (doc, pb) = inserted(&doc, common::rectangle([0.1, 0.0], 0.04, 0.04), tol);
     let (doc, b) = inserted(
         &doc,
         Node::Extrude {
             profile: pb.into(),
             distance: len(0.02),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -263,11 +259,7 @@ fn two_copies_draw_under_disjoint_ids_and_every_patch_is_named() {
         let key = ids.key_of(id).expect("assigned ids invert");
         assert_eq!(ids.id_of(key), Some(id), "the two directions agree");
         nodes.insert(key.node);
-        let name = index
-            .name_of(id)
-            .expect("a drawn id has a name slot")
-            .as_ref()
-            .expect("every drawn patch is named");
+        let name = index.name_of(id).expect("every drawn patch is named");
         assert!(
             index.ids_of(name).contains(&id),
             "the name's id list carries the id that named it"
@@ -300,7 +292,7 @@ fn clicks_select_replace_and_clear_and_hover_is_transient() {
     // This suite's own framing: the index's scene bounds, not the
     // unit's plate helper.
     let scene = index.scene().expect("the fixture draws");
-    let camera = Camera::framing(&scene.bounds(), aspect).expect("the fixture frames");
+    let camera = Camera::framing(scene.bounds(), aspect).expect("the fixture frames");
     let cursor_at = |p: Point3<f64>| {
         let ndc = camera
             .project(p, aspect)
@@ -425,14 +417,12 @@ fn deleting_the_owner_kills_the_standing_and_undo_revives_it() {
 fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-pattern", tol);
-    let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.03), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle([0.0, 0.0], 0.03, 0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(0.015),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -530,7 +520,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     };
     let aspect = viewport.aspect().expect("a positive aspect");
     let scene = index.scene().expect("the ring draws");
-    let camera = Camera::framing(&scene.bounds(), aspect).expect("the ring frames");
+    let camera = Camera::framing(scene.bounds(), aspect).expect("the ring frames");
 
     // Aim at the centroid of some triangle of the drawn tessellation
     // whose surface faces the camera — derived from the mesh itself,

@@ -243,6 +243,8 @@ pub(crate) struct Resolver<'a> {
     /// remedy is the per-call ε_in override — D7's own remedy path,
     /// not a hole this reader papers over with a per-literal budget.
     eps_in: f64,
+    /// The band a chart is read at ([`chart::file_band`] of `eps_in`).
+    chart_band: Option<geom_core::Band>,
     /// The next unused entity id, for the structure normalizations that
     /// mint topology the file does not carry (Leg C's edge-free
     /// sphere). Seeded past every id in the file, so a minted vertex or
@@ -1318,7 +1320,7 @@ impl<'a> Resolver<'a> {
         // returns before the outerness walk; the mint's single loop
         // is outer by construction.
         if loops.len() > 1 && !matches!(surface, Surface::Plane { .. }) {
-            if is_periodic_band(&surface, &loops, edges) {
+            if is_periodic_band(&surface, &loops, edges, self.chart_band) {
                 return Ok(vec![FaceSpec {
                     id,
                     surface,
@@ -1401,7 +1403,7 @@ impl<'a> Resolver<'a> {
             .iter()
             .map(|lp| self.ring_samples(lp, edges))
             .collect::<Result<_, _>>()?;
-        let inferred = chart::infer_outer(surface, &rings, self.eps_in);
+        let inferred = chart::infer_outer(surface, &rings, self.eps_in, self.chart_band);
         // **Several stated outer bounds (M7-4).** A closed periodic
         // face — a cylinder's lateral band — genuinely has no outer
         // bound: its two boundary circles are not inside one another,
@@ -1911,6 +1913,7 @@ impl<'a> Resolver<'a> {
         normalize::normalize_shell(
             &mut solid,
             self.eps_in,
+            self.chart_band,
             &mut || self.mint_id(),
             &mut self.normalizations.borrow_mut(),
         )?;
@@ -2020,6 +2023,7 @@ fn is_periodic_band(
     surface: &Surface<f64>,
     loops: &[LoopSpec],
     edges: &BTreeMap<u64, EdgeSpec>,
+    band: Option<geom_core::Band>,
 ) -> bool {
     if !matches!(surface, Surface::Cylinder { .. } | Surface::Torus { .. }) {
         return false;
@@ -2028,8 +2032,8 @@ fn is_periodic_band(
         return false;
     };
     let (Some(wa), Some(wb)) = (
-        loop_u_wrap(surface, a, edges),
-        loop_u_wrap(surface, b, edges),
+        loop_u_wrap(surface, a, edges, band),
+        loop_u_wrap(surface, b, edges, band),
     ) else {
         return false;
     };
@@ -2050,6 +2054,7 @@ fn loop_u_wrap(
     surface: &Surface<f64>,
     lp: &LoopSpec,
     edges: &BTreeMap<u64, EdgeSpec>,
+    band: Option<geom_core::Band>,
 ) -> Option<f64> {
     use core::f64::consts::{PI, TAU};
     // 16 divisions per edge put adjacent samples of a full-period
@@ -2063,7 +2068,7 @@ fn loop_u_wrap(
             let f = k as f64 / DIVISIONS as f64;
             let f = if use_.forward { f } else { 1.0 - f };
             let t = spec.t0 + (spec.t1 - spec.t0) * f;
-            let u = chart::uv_of(surface, spec.carrier.eval(t))?.x;
+            let u = chart::uv_of(surface, spec.carrier.eval(t), band)?.x;
             if let Some(p) = prev {
                 let mut d = u - p;
                 if d > PI {
@@ -3141,6 +3146,7 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
         length_scale: 1.0,
         angle_scale: 1.0,
         eps_in: 0.0,
+        chart_band: None,
         next_id: std::cell::Cell::new(0),
         normalizations: std::cell::RefCell::new(Vec::new()),
         curve_promotions: std::cell::RefCell::new(BTreeMap::new()),
@@ -3159,6 +3165,7 @@ fn unit_pass_resolver(file: &StepFile) -> Resolver<'_> {
 pub(crate) fn resolve(
     file: &StepFile,
     eps_override: Option<f64>,
+    tol: geom_core::Tol,
 ) -> Result<Model, StepImportError> {
     let r = unit_pass_resolver(file);
 
@@ -3180,6 +3187,7 @@ pub(crate) fn resolve(
     // angle scales and its scaled ε_in.
     let roots = content_roots(&r, file)?;
     let units = resolve_units_and_uncertainty(&r, &roots.contexts)?;
+    let eps_in = eps_override.unwrap_or(units.uncertainty_m.unwrap_or(0.0));
     let r = Resolver {
         file,
         length_scale: units.length_scale,
@@ -3189,7 +3197,8 @@ pub(crate) fn resolve(
         // budget here; the shape pass below refuses first when there
         // is nothing to import, and `MissingUncertainty` is raised
         // after it, when a body really was on the table.
-        eps_in: eps_override.unwrap_or(units.uncertainty_m.unwrap_or(0.0)),
+        eps_in,
+        chart_band: chart::file_band(eps_in, tol),
         // Past every stated id, so minted topology cannot collide.
         next_id: std::cell::Cell::new(
             file.data

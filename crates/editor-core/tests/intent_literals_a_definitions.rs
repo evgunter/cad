@@ -23,8 +23,8 @@ use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, CarryForwardDoor, Dimension, Distribution, DocEdit, DocumentId, EditError,
-    EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, InlineError,
-    Maintenance, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
+    EvalError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, InlineError, Maintenance,
+    Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
     ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
     inline, load, save, var_env_over,
 };
@@ -78,9 +78,9 @@ fn w_and_h(seed: &str) -> ProfileDoc {
     declare(&doc, "h", VarDecl::defined(times(2, "w")))
 }
 
-/// A unit square at `cx` extruded by `depth`: the frame, the profile
-/// and the extrude.
-fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 3]) {
+/// A unit square at `cx` extruded by `depth`: the profile and the
+/// extrude.
+fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId; 2]) {
     let (doc, profile) = on_frame(
         doc,
         [0.0; 3],
@@ -88,21 +88,19 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let frame = doc.ids()[doc.ids().len() - 2];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: depth,
-            side: ExtrudeSide::Along,
         },
     );
-    (doc, [frame, profile, extrude])
+    (doc, [profile, extrude])
 }
 
 /// A unit cube at `cx` with every edge blended by `radius`: the blend.
 fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, [_, _, cube]) = block(doc, cx, len(1.0));
+    let (doc, [_, cube]) = block(doc, cx, len(1.0));
     let edges = prism_edges(&doc, cube, 4);
     insert(doc, Node::fillet(cube, radius, edges))
 }
@@ -255,7 +253,7 @@ fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
 fn an_input_edit_closes_the_diff_over_its_definitions() {
     let doc = w_and_h("intent-literals-a-invalidation");
     let doc = declare(&doc, "v", free(0.5));
-    let (doc, [_, _, reads_h]) = block(doc, 0.0, named("h"));
+    let (doc, [_, reads_h]) = block(doc, 0.0, named("h"));
     let (doc, _) = block(doc, 4.0, named("v"));
     let prior = eval_after(&doc, None);
     assert!(failures(&prior).is_empty(), "{:?}", failures(&prior));
@@ -339,14 +337,9 @@ fn a_respelled_definition_reruns_its_flow_bearing_reader() {
 #[test]
 fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
     let disc = |doc: ProfileDoc, radius: Formula| {
-        let (doc, plane) = insert(
-            doc,
-            crate::fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-        );
         let (doc, profile) = insert(
             doc,
             Node::Profile(ProfileProgram {
-                frame: plane.into(),
                 loops: vec![editor_core::LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius,
@@ -359,7 +352,6 @@ fn a_respelled_definition_reruns_the_profile_whose_radius_reads_it() {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         )
     };
@@ -540,7 +532,7 @@ fn a_definition_past_the_expansion_bound_refuses() {
 fn the_anonymous_lifecycle_cascades_through_definitions() {
     let doc = w_and_h("intent-literals-a-cascade");
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    let (doc, [_, _, extrude]) = block(doc, 0.0, named("h"));
+    let (doc, [_, extrude]) = block(doc, 0.0, named("h"));
     let unname = |doc: &ProfileDoc, var: VarId| {
         step(
             doc,
@@ -592,7 +584,8 @@ fn a_variable_read_by_a_named_definition_may_be_anonymous() {
     );
     assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
     assert_eq!(applied.doc.var_name(id(&doc, "w")), None);
-    assert_eq!(applied.doc.vars().len(), 2);
+    // `w`, `h`, and the world's space every document holds.
+    assert_eq!(applied.doc.vars().len(), 3);
 }
 
 /// A definition whose input was deleted refuses at each reader, wrapped
@@ -601,7 +594,7 @@ fn a_variable_read_by_a_named_definition_may_be_anonymous() {
 fn a_definition_reading_a_deleted_variable_refuses_at_its_readers() {
     let doc = w_and_h("intent-literals-a-refused");
     let (w, h) = (id(&doc, "w"), id(&doc, "h"));
-    let (doc, [_, _, extrude]) = block(doc, 0.0, named("h"));
+    let (doc, [_, extrude]) = block(doc, 0.0, named("h"));
     let doc = step(&doc, DocEdit::DeleteVar { var: n("w").into() }).doc;
     let ev = eval_after(&doc, None);
     let Some(NodeResult::Failed(err)) = ev.nodes.get(&extrude) else {
@@ -712,7 +705,7 @@ fn split_and_inline_carry_definitions() {
     .doc;
     let (doc, cut) = block(doc, 0.0, named("h"));
     let (doc, kept) = block(doc, 10.0, named("kept"));
-    let doc = crate::fixture::place_all(doc, &[cut[2], kept[2]]);
+    let doc = crate::fixture::place_all(doc, &[cut[1], kept[1]]);
     let out = split(
         &doc,
         &BTreeSet::from(cut),
@@ -741,7 +734,7 @@ fn split_and_inline_carry_definitions() {
     let host = ProfileDoc::empty(DocumentId::derive("intent-literals-a-host"), Tol::witness());
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     let inlined = inline(
@@ -1009,7 +1002,7 @@ fn part_defining_h(seed: &str) -> (ProfileDoc, PartStore, editor_core::DocRef) {
         "h",
         VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
     );
-    let (part, [_, _, body]) = block(part, 0.0, named("h"));
+    let (part, [_, body]) = block(part, 0.0, named("h"));
     let part = crate::fixture::place(part, body).0;
     let mut store = PartStore::default();
     let doc_ref = store.insert(part.clone(), Tol::witness());
@@ -1034,7 +1027,7 @@ fn inline_refuses_a_definition_the_host_already_holds() {
     );
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     match inline(
@@ -1061,7 +1054,7 @@ fn inline_carries_a_definition_at_the_carried_ids() {
     let host = declare(&host, "z", free(1.0));
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     let inlined = inline(
@@ -1089,6 +1082,75 @@ fn inline_carries_a_definition_at_the_carried_ids() {
     assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
 }
 
+/// **A measure whose value is the length variable `param`**: a unit
+/// cube and its copy slid `param` along the cube's own x, measured from
+/// the cube's vertex at the origin to the copy's own copy of it, which
+/// is `|param − 0|` with no geometry standing between the variable and
+/// the reading. Returns the measure.
+fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
+    use editor_core::{CapEnd, Coord, Dimension, Formula, RoleSeg, StableName, TargetAxis};
+    let name = editor_core::VarName::new(param).expect("a valid name");
+    let profile = r.profile(
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+    );
+    let cube = r.insert(Node::Extrude {
+        profile: profile.into(),
+        distance: len(1.0),
+    });
+    let cap = || {
+        crate::fixture::plane(editor_core::Operand::select(
+            cube,
+            vec![crate::fixture::fname(cube, RoleSeg::Cap(CapEnd::Start))],
+        ))
+    };
+    let copy = r.insert(crate::fixture::stood(vec![cube.into()]));
+    r.constrain(
+        copy,
+        editor_core::Mate {
+            on: cap(),
+            to: cap(),
+        },
+        vec![
+            (
+                Coord::Slide(TargetAxis::X),
+                Formula::named(name, Dimension::Length),
+            ),
+            (
+                Coord::Slide(TargetAxis::Y),
+                Formula::zero(Dimension::Length),
+            ),
+            (
+                Coord::Spin(editor_core::TargetAxis::Z),
+                Formula::zero(Dimension::Angle),
+            ),
+        ],
+    );
+    let ev = eval_after(&r.doc, None);
+    let vertex = editor_core::all_vertices(&ev, cube)
+        .into_iter()
+        .find(|v| {
+            let p = editor_core::vertex_position(&ev, cube, v).expect("a vertex");
+            (p.x, p.y, p.z) == (0.0, 0.0, 0.0)
+        })
+        .expect("the cube has a vertex at the origin");
+    let copied = StableName {
+        kind: vertex.kind,
+        node: copy,
+        path: vec![RoleSeg::Placed {
+            of: editor_core::NameRef::new(vertex.clone()),
+        }],
+    };
+    r.insert(Node::Measure {
+        primitive: editor_core::MeasurePrimitive::Distance {
+            a: editor_core::SitedRef::new(cube, vertex).into(),
+            b: editor_core::SitedRef::new(copy, copied).into(),
+        },
+    })
+}
+
 /// Monte Carlo over a document holding `h := 2·w`, `w` toleranced, and
 /// a measure whose value is each: every draw binds `h` from that draw's
 /// `w`, so `h`'s summary is exactly twice `w`'s (doubling is exact in
@@ -1108,9 +1170,10 @@ fn monte_carlo_binds_a_definition_in_every_draw() {
     let mut r = crate::fixture::Recorder {
         doc,
         edits: Vec::new(),
+        last: None,
     };
     for name in ["w", "h"] {
-        r.measure_of_translation(name);
+        measure_of_translation(&mut r, name);
     }
     let doc = r.doc;
     let config = editor_core::mc::McConfig {

@@ -49,10 +49,10 @@ use core::f64::consts::PI;
 
 use corpus::{body_of, eval, failures, hollow_tube_elbow, tube_ring};
 use editor_core::{
-    Axis3, Datum, Dimension, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram,
+    Axis3, Dimension, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram,
     RecipeNodeId, SlotId, TubeWindow, apply, load, save,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, len};
 use geom_core::Tol;
 use topo::{Body, Surface};
 
@@ -74,48 +74,14 @@ fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(d, e, Tol::witness()).expect("edit applies").doc
 }
 
-/// The frame a tube on the spine axis `axis` with reference `u_ref`
-/// reads: origin the centre, `u` the reference and `v` the axis cross
-/// it, so its normal `u × v` is the axis.
-fn tube_frame(axis: [f64; 3], u_ref: [f64; 3]) -> AuthoredNode {
-    let [a, b, c] = axis;
-    let [x, y, z] = u_ref;
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: u_ref.map(scl),
-        v: [b * z - c * y, c * x - a * z, a * y - b * x].map(scl),
-    })
-}
-
-/// A document holding one frame plus whatever `build` hangs off it —
-/// the two-node shape every tube recipe has. The frame's normal is
-/// `axis_dir` and its `u` the reference `[1, 0, 0]`.
-fn spine_doc(
-    axis_dir: [f64; 3],
-    build: impl FnOnce(RecipeNodeId) -> AuthoredNode,
-) -> (ProfileDoc, RecipeNodeId) {
-    frame_doc(axis_dir, [1.0, 0.0, 0.0], build)
-}
-
-/// [`spine_doc`] with the reference `u_ref`.
-fn frame_doc(
-    axis_dir: [f64; 3],
-    u_ref: [f64; 3],
-    build: impl FnOnce(RecipeNodeId) -> AuthoredNode,
-) -> (ProfileDoc, RecipeNodeId) {
+/// A document holding one tube node, `build`: a tube reads no frame,
+/// so its spine is the circle about its own z through its own origin.
+fn spine_doc(build: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let mut doc = ProfileDoc::empty_derived("lib_tube_node", Tol::witness());
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(tube_frame(axis_dir, u_ref)),
-            fresh: Vec::new(),
-        },
-    );
-    let spine = *doc.ids().last().expect("the datum is there");
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(build(spine)),
+            node: Box::new(build),
             fresh: Vec::new(),
         },
     );
@@ -156,7 +122,6 @@ fn both_radii(outer: f64, inner: f64) -> Vec<u64> {
 
 fn solid_node(major: f64, window: TubeWindow<Formula>, minor: f64) -> AuthoredNode {
     Node::Tube {
-        frame: RecipeNodeId::new(0, 0).into(),
         major_radius: len(major),
         window,
         minor_radius: len(minor),
@@ -165,7 +130,6 @@ fn solid_node(major: f64, window: TubeWindow<Formula>, minor: f64) -> AuthoredNo
 
 fn hollow_node(major: f64, window: TubeWindow<Formula>, minor: f64, wall: f64) -> AuthoredNode {
     Node::HollowTube {
-        frame: RecipeNodeId::new(0, 0).into(),
         major_radius: len(major),
         window,
         minor_radius: len(minor),
@@ -215,17 +179,12 @@ fn the_two_kinds_share_every_slot_but_the_wall() {
     assert!(full.expr(SlotId::TubeWindowStart).is_none());
     assert_eq!(full.slots().len() + 2, s.len());
 
-    // One operand each: the frame. A tube has no profile operand.
+    // No operand: a tube reads no frame and no profile.
     for node in [solid.clone(), hollow.clone()] {
-        let (doc, tube) = spine_doc([0.0, 0.0, 1.0], |frame| on_frame(node, frame));
-        let frame = doc.ids()[0];
-        assert_eq!(
-            doc.node(tube).expect("the tube").operand_rows(),
-            vec![(
-                editor_core::OperandSlot::Frame,
-                doc.output(frame, 0).expect("the frame's output")
-            )],
-            "a tube reads its frame and nothing else"
+        let (doc, tube) = spine_doc(node);
+        assert!(
+            doc.node(tube).expect("the tube").operand_rows().is_empty(),
+            "a tube reads nothing"
         );
     }
     // And no payload names: a tube references no stable name, so a
@@ -262,8 +221,8 @@ fn the_tube_slots_carry_their_dimensions_and_labels() {
         assert!(!slot.is_structural(), "{label} is a continuous parameter");
         assert!(slot.component().is_none(), "{label} is not a vector part");
     }
-    // The reference direction is the frame's, read whole: the tube
-    // carries no direction slot of its own.
+    // The spine is the tube's own z circle: the tube carries no
+    // direction slot.
     assert!(
         solid_node(2.0, TubeWindow::Full, 0.5)
             .expr(SlotId::Direction(Axis3::X))
@@ -282,8 +241,12 @@ fn the_solid_ring_meters_its_closed_form() {
     let d = tube_ring::document();
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, d.result.expect("a result node"));
-    let props = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, d.result.expect("a result node"))),
+        Tol::witness(),
+    );
+    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     let (r, minor) = (tube_ring::R, tube_ring::MINOR);
     close(props.volume, 2.0 * PI * PI * r * minor * minor, "ring V");
     close(props.surface_area, 4.0 * PI * PI * r * minor, "ring A");
@@ -297,7 +260,7 @@ fn the_solid_ring_meters_its_closed_form() {
     // adds no third surface. (Measured, not assumed — the first draft
     // of this row said four and this is what the body actually holds.)
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         vec![minor.to_bits(); 2],
         "two half-walls, each storing the authored minor radius {minor} verbatim"
     );
@@ -311,8 +274,12 @@ fn the_hollow_elbow_meters_its_closed_form_and_stores_both_radii() {
     let d = hollow_tube_elbow::document();
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, d.result.expect("a result node"));
-    let props = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, d.result.expect("a result node"))),
+        Tol::witness(),
+    );
+    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
 
     let (r, outer, wall) = (
         hollow_tube_elbow::R,
@@ -338,7 +305,7 @@ fn the_hollow_elbow_meters_its_closed_form_and_stores_both_radii() {
 
     // THE STORAGE CONTRACT, which no volume row can see.
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         both_radii(outer, inner),
         "the inner walls must hold {outer} - {wall} = {inner} as ONE subtraction of the \
          caller's own numbers — a drift here is the profile -> bulge -> radius \
@@ -354,8 +321,7 @@ fn the_hollow_elbow_meters_its_closed_form_and_stores_both_radii() {
 fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
     let (outer, wall, r) = (0.5, 0.125, 2.0);
     let inner = outer - wall;
-    let (doc, tube) = spine_doc([0.0, 0.0, 1.0], |spine| Node::HollowTube {
-        frame: spine.into(),
+    let (doc, tube) = spine_doc(Node::HollowTube {
         major_radius: len(r),
         window: TubeWindow::Full,
         minor_radius: len(outer),
@@ -363,8 +329,12 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
     });
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, tube);
-    let props = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, tube)),
+        Tol::witness(),
+    );
+    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     close(
         props.volume,
         2.0 * PI * PI * r * (outer * outer - inner * inner),
@@ -381,7 +351,7 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
         "a torus shell is an outer shell plus its cavity"
     );
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         both_radii(outer, inner),
         "the full ring stores the same two radii as the windowed elbow"
     );
@@ -392,16 +362,19 @@ fn the_full_hollow_ring_is_a_torus_shell_with_a_cavity() {
 #[test]
 fn the_solid_elbow_meters_its_pappus_form() {
     let (r, minor, t0, t1) = (2.0, 0.5, 0.25, 1.75);
-    let (doc, tube) = spine_doc([0.0, 1.0, 0.0], |spine| Node::Tube {
-        frame: spine.into(),
+    let (doc, tube) = spine_doc(Node::Tube {
         major_radius: len(r),
         window: arc(t0, t1),
         minor_radius: len(minor),
     });
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
-    let body = body_of(&ev, tube);
-    let props = topo::mass_properties(body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, tube)),
+        Tol::witness(),
+    );
+    let props = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     let theta = t1 - t0;
     close(
         props.volume,
@@ -414,7 +387,7 @@ fn the_solid_elbow_meters_its_pappus_form() {
         "solid elbow A",
     );
     assert_eq!(
-        stored_minor_bits(body),
+        stored_minor_bits(&body),
         vec![minor.to_bits(); 2],
         "two half-walls, each storing the authored minor radius"
     );
@@ -439,16 +412,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(tube_frame([0.0, 1.0, 0.0], [1.0, 0.0, 0.0])),
-            fresh: Vec::new(),
-        },
-    );
-    let spine = *doc.ids().last().expect("datum");
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
             node: Box::new(Node::Tube {
-                frame: spine.into(),
                 major_radius: len(r),
                 window: arc(t0, t1),
                 minor_radius: len(outer),
@@ -461,7 +425,6 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::HollowTube {
-                frame: spine.into(),
                 major_radius: len(r),
                 window: arc(t0, t1),
                 minor_radius: len(outer),
@@ -475,9 +438,16 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let vol = |id| {
-        topo::mass_properties(body_of(&ev, id), Tol::witness())
-            .expect("mass properties")
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(body_of(&ev, id)),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("mass properties")
+        .volume
     };
     close(
         (t1 - t0) * r * PI * inner * inner,
@@ -510,8 +480,7 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
 #[test]
 fn the_window_variant_feeds_the_content_key() {
     let mk = |window: TubeWindow<Formula>| {
-        let (doc, tube) = spine_doc([0.0, 0.0, 1.0], |spine| Node::Tube {
-            frame: spine.into(),
+        let (doc, tube) = spine_doc(Node::Tube {
             major_radius: len(2.0),
             window,
             minor_radius: len(0.5),
@@ -534,8 +503,8 @@ fn the_window_variant_feeds_the_content_key() {
 /// Reached through the recipe NODE, never by calling the kernel door:
 /// the claim is that the node wires these refusals, and a direct
 /// kernel call would prove only that the kernel still has them.
-fn tube_refusal(node: AuthoredNode, axis: [f64; 3]) -> Option<String> {
-    let (doc, tube) = spine_doc(axis, |frame| on_frame(node, frame));
+fn tube_refusal(node: AuthoredNode) -> Option<String> {
+    let (doc, tube) = spine_doc(node);
     let ev = eval::<f64>(&doc);
     match ev.nodes.get(&tube) {
         Some(NodeResult::Failed(e)) => match &e.kind {
@@ -546,25 +515,10 @@ fn tube_refusal(node: AuthoredNode, axis: [f64; 3]) -> Option<String> {
     }
 }
 
-/// `node` reading `frame`.
-fn on_frame(node: AuthoredNode, frame: RecipeNodeId) -> AuthoredNode {
-    let mut node = node;
-    if let Node::Tube { frame: f, .. } | Node::HollowTube { frame: f, .. } = &mut node {
-        *f = frame.into();
-    }
-    node
-}
-
 /// **The window and convention refusals, reachable through BOTH
 /// kinds** — every arm on the shared half of the kernel's enum.
-///
-/// The frame is not among them: the tube reads a frame datum, whose
-/// own door orthonormalizes its directions and refuses a degenerate
-/// pair one node upstream — pinned in
-/// `the_frame_datum_decides_the_reference` below.
 #[test]
 fn the_shared_refusals_are_reachable_from_both_kinds() {
-    let z = [0.0, 0.0, 1.0];
     for (what, s, h) in [
         (
             "a reversed window",
@@ -582,9 +536,8 @@ fn the_shared_refusals_are_reachable_from_both_kinds() {
             hollow_node(0.25, TubeWindow::Full, 0.5, 0.125),
         ),
     ] {
-        let sm =
-            tube_refusal(s, z).unwrap_or_else(|| panic!("{what} must refuse through Node::Tube"));
-        let hm = tube_refusal(h, z)
+        let sm = tube_refusal(s).unwrap_or_else(|| panic!("{what} must refuse through Node::Tube"));
+        let hm = tube_refusal(h)
             .unwrap_or_else(|| panic!("{what} must refuse through Node::HollowTube"));
         // A shared arm reads the SAME from both kinds, word for word:
         // the kernel refuses to guess which caller it was, and the
@@ -594,50 +547,6 @@ fn the_shared_refusals_are_reachable_from_both_kinds() {
             !hm.contains("hollow tube"),
             "{what} is reachable through both doors, so its message must not claim \
              the hollow one: {hm}"
-        );
-    }
-}
-
-/// **The frame datum decides the reference**, not the tube. A long
-/// `u` names the same radial once the frame's door has normalized it,
-/// so the body builds; a `u` on the spine axis leaves the frame no
-/// second direction, and the FRAME refuses, under its own role word,
-/// with the tube poisoned through it — never a tube verdict.
-#[test]
-fn the_frame_datum_decides_the_reference() {
-    let z = [0.0, 0.0, 1.0];
-    for node in [
-        solid_node(2.0, TubeWindow::Full, 0.5),
-        hollow_node(2.0, TubeWindow::Full, 0.5, 0.125),
-    ] {
-        let (doc, tube) = frame_doc(z, [2.0, 0.0, 0.0], |frame| on_frame(node, frame));
-        let ev = eval::<f64>(&doc);
-        assert!(
-            matches!(ev.nodes.get(&tube), Some(NodeResult::Ok(_))),
-            "a long u names the same radial and must build"
-        );
-    }
-    for node in [
-        solid_node(2.0, TubeWindow::Full, 0.5),
-        hollow_node(2.0, TubeWindow::Full, 0.5, 0.125),
-    ] {
-        let (doc, tube) = frame_doc(z, z, |frame| on_frame(node, frame));
-        let frame = doc.ids()[0];
-        let ev = eval::<f64>(&doc);
-        match ev.nodes.get(&frame) {
-            Some(NodeResult::Failed(e)) => assert!(
-                matches!(e.kind, NodeErrorKind::DegenerateDirection { .. }),
-                "a u on the axis line leaves the frame no y axis, got {:?}",
-                e.kind
-            ),
-            other => panic!("a u on the axis line must refuse at the frame, got {other:?}"),
-        }
-        assert!(
-            matches!(
-                ev.nodes.get(&tube),
-                Some(NodeResult::Poisoned { through }) if *through == frame
-            ),
-            "the tube is poisoned through its frame"
         );
     }
 }
@@ -653,16 +562,14 @@ fn the_frame_datum_decides_the_reference() {
 /// store one radius twice and every volume row would still pass.
 #[test]
 fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
-    let z = [0.0, 0.0, 1.0];
-
-    let nonpositive = tube_refusal(hollow_node(2.0, TubeWindow::Full, 0.5, 0.0), z)
+    let nonpositive = tube_refusal(hollow_node(2.0, TubeWindow::Full, 0.5, 0.0))
         .expect("a zero wall is not a wall");
     assert!(
         nonpositive.contains("the hollow tube's wall is not definitely thicker"),
         "{nonpositive}"
     );
 
-    let eats_the_bore = tube_refusal(hollow_node(2.0, TubeWindow::Full, 0.5, 0.5), z)
+    let eats_the_bore = tube_refusal(hollow_node(2.0, TubeWindow::Full, 0.5, 0.5))
         .expect("a wall equal to the outer radius leaves no bore");
     assert!(
         eats_the_bore.contains("the hollow tube's wall leaves no bore"),
@@ -683,7 +590,7 @@ fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
     // onto `minor_radius` at every point in the matrix, while the wall
     // stays a thousand ε above the positivity threshold at every one.
     let wall_over_eps = Tol::witness().eps() * 1e3;
-    let collapsed = tube_refusal(hollow_node(1e18, TubeWindow::Full, 1e16, wall_over_eps), z)
+    let collapsed = tube_refusal(hollow_node(1e18, TubeWindow::Full, 1e16, wall_over_eps))
         .expect("a wall under the outer radius's own ulp collapses the stored gap");
     assert!(
         collapsed.contains("inner and outer radii would be stored as one value"),
@@ -708,47 +615,9 @@ fn the_three_wall_arms_are_reachable_and_only_through_the_hollow_kind() {
     // spine and radii build, because there is no wall in its
     // vocabulary at all.
     assert!(
-        tube_refusal(solid_node(2.0, TubeWindow::Full, 0.5), z).is_none(),
+        tube_refusal(solid_node(2.0, TubeWindow::Full, 0.5)).is_none(),
         "the solid door has no wall arm to reach"
     );
-}
-
-/// **A tube reads a frame**: anything else refuses at the slot door
-/// by kind (DM6), and nothing is written.
-#[test]
-fn a_tube_reading_no_frame_refuses_at_the_door() {
-    let mut doc = ProfileDoc::empty_derived("tube_operand", Tol::witness());
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Datum(Datum::Point {
-                position: [len(0.0), len(0.0), len(0.0)],
-            })),
-            fresh: Vec::new(),
-        },
-    );
-    let point = *doc.ids().last().expect("datum point");
-    let refused = apply(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::Tube {
-                frame: point.into(),
-                major_radius: len(2.0),
-                window: TubeWindow::Full,
-                minor_radius: len(0.5),
-            }),
-            fresh: Vec::new(),
-        },
-        Tol::witness(),
-    );
-    match refused {
-        Err(editor_core::EditError::SlotVarKind {
-            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Frame),
-            found: editor_core::VarKind::Point,
-            ..
-        }) => {}
-        other => panic!("a point read as a tube's frame must refuse by kind, got {other:?}"),
-    }
 }
 
 // ---------------------------------------------------------------

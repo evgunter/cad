@@ -699,19 +699,21 @@ pub fn extruded<T: Decide + topo::AtRestPolicy>(
     .body
 }
 
-/// The K funnel name a FIXTURE's authored frame axes are decided
+/// The K funnel name a FIXTURE's computed frame axes are decided
 /// under. One name for both axes of [`sketch_from_axes`]: which axis a
 /// refusal is about is the refusal's own field, and a fixture that
 /// refuses has a bug rather than a story.
 const FIXTURE_FRAME_AXIS: &str = "fixture_frame_axis";
 
-/// **A sketch plane from an authored pair**, orthonormalized at the
+/// **A sketch plane from a computed pair**, orthonormalized at the
 /// run's band — the fixtures' one spelling of the frame mint, for a
 /// plane that is tilted, rotated or deliberately noisy.
 ///
-/// An axis-aligned fixture does not come here: the exact world frames
-/// (`RigidMotion::axes_xy` and its two siblings) need no decision, and
-/// [`sketch_at`] is the xy one at a station.
+/// An axis-aligned fixture does not come here: it needs no decision.
+/// It is a world frame (`SketchPlane::from_frame(RigidMotion::axes_xy(o))`
+/// and its `yz`, `zx` siblings, or [`SketchPlane::xy_at`]), or a
+/// written turn about an exact axis (`RigidMotion::turned`), composed
+/// where one turn is not enough.
 ///
 /// # Panics
 ///

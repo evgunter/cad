@@ -44,7 +44,11 @@ fn material_side(sense: bool, r: f64) -> bool {
 fn r2_the_cusp_prisms_material_is_the_crescent_by_volume() {
     let tol = Tol::witness();
     let p = crate::tier3_tests::cusp_prism(tol);
-    let props = crate::mass_properties(&p.body, tol).expect("volume meters");
+    let props = crate::mass_properties(
+        &crate::test_support::finished("the measured body", p.body.clone(), tol),
+        tol,
+    )
+    .expect("volume meters");
     let expect = 1.5 * std::f64::consts::PI;
     assert!(
         (props.volume - expect).abs() < 1e-9,
@@ -147,10 +151,16 @@ fn r2_lamina_message_versus_the_measured_volume() {
     // trim, the rimless ball). Build the curved one here on a prism
     // whose two adjacent side faces share one cylinder.
     let p = crate::tier3_tests::cusp_prism(tol);
-    let v_ok = crate::mass_properties(&p.body, tol).unwrap().volume;
+    let v_ok = crate::mass_properties(
+        &crate::test_support::finished("the measured body", p.body.clone(), tol),
+        tol,
+    )
+    .unwrap()
+    .volume;
     let flipped = p.body.flipped_face_sense_for_tests(p.face_side[1]).unwrap();
     let errs = validate_geometric(&flipped, tol).unwrap_err();
-    let v_flipped = crate::mass_properties(&flipped, tol).map(|m| m.volume);
+    // Raw door: the measured body is a body whose loop roles are inverted, which tier 3 refuses (LoopRoleInverted).
+    let v_flipped = crate::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
     println!("R2: cusp prism volume {v_ok}; flat-face-flipped volume {v_flipped:?}");
     println!("R2: flipped-flat verdict {errs:?}");
 }

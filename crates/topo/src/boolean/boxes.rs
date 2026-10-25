@@ -436,7 +436,10 @@ pub(crate) enum BoxFrame<T: Real> {
 }
 
 impl<T: Real> BoxFrame<T> {
-    /// The frame whose first axis is `aim`.
+    /// The frame whose first axis is `aim`. Its other two rows are
+    /// `orthonormal_basis`'s: a box read in it is scratch that no output
+    /// keeps, and every reading of it is the face's support along the
+    /// aim, which those rows do not move.
     pub(crate) fn aimed(aim: UnitVec3<T>) -> Self {
         let (b1, b2) = aim.orthonormal_basis();
         Self::Aimed([aim.get(), b1, b2])
@@ -3001,6 +3004,11 @@ pub(crate) mod tests {
     /// cut by the plane at that height, which is the same circle
     /// whatever surface the face ends up carrying: the description
     /// certifies the CARRIER, and a cone's own rim is that circle.
+    ///
+    /// The face's loop runs clockwise about the chart normal and its
+    /// sense is `true`, so the side its loop bounds is the sense-false
+    /// one: a row that reads which points the face holds gives it a side
+    /// with [`crate::test_support_fixtures::set_sheet_sense`].
     fn revolved_wall(
         rho: &dyn Fn(f64) -> f64,
         u0: f64,
@@ -3814,6 +3822,10 @@ pub(crate) mod tests {
     ///   planar-only corpus does not reach (the hull is the box) and a
     ///   curved reach box reaches once arm 1 has proved its face's
     ///   pairs apart, where it costs probes, never a wrong clear.
+    ///   And `flush_at_rest`'s `face_box` read, a tree over the planar
+    ///   faces whose overlapping boxes are the flush candidates.
+    ///   **Prunes**: a loose box only adds candidates, each read
+    ///   exactly; a box tighter than its face would drop a flush pair.
     /// - `census/depth_gap.rs` — arm 1's depth-gap clear: one
     ///   [`face_box_rule`] read, which picks a face's cover and its
     ///   carrier's depth, and one [`edge_box_rule`] read per boundary
@@ -3861,9 +3873,10 @@ pub(crate) mod tests {
     /// fifth instance gets found by accident.
     #[test]
     fn every_door_that_reads_a_box_is_inventoried() {
-        // `census.rs` counts TEN: the pre-filter's `face_box` read (one
+        // `census.rs` counts ELEVEN: the pre-filter's `face_box` read (one
         // box per face, read by the planar and every-face classes) and
-        // its `edge_box` read, pass 2′'s curved-edge `edge_box` read
+        // its `edge_box` read, the flush door's `face_box` read (the
+        // pruning door over its candidates), pass 2′'s curved-edge `edge_box` read
         // (`census::Candidates::build`, the pruning door) and
         // `collinear_overlaps`' `edge_box` read (the same pruning door),
         // three rule reads of its own and the edge reach's
@@ -3893,7 +3906,7 @@ pub(crate) mod tests {
             ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("boolean/torn_hop_rows.rs", 4),
-            ("census.rs", 10),
+            ("census.rs", 11),
             ("census/depth_gap.rs", 2),
             ("face_boxes.rs", 1),
             ("pieces.rs", 1),
@@ -4339,8 +4352,9 @@ pub(crate) mod tests {
     fn a_cone_band_places_the_mirror_nappe_on_its_carrier() {
         use crate::boolean::contain::{CurvedPlacement, FaceContainment, curved_face_placement};
         let alpha = 30.0_f64.to_radians();
-        let (body, face) = cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
+        let (mut body, face) = cone_wall(alpha, 0.0, 1.0, 0.5, 1.0);
         let band = Band::linear(Tol::witness()).unwrap();
+        crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, Tol::witness());
         let at = |u: f64, z: f64, off: f64| {
             let rho = z.abs() * alpha.tan() + off;
             Point3::new(rho * u.cos(), rho * u.sin(), z)
@@ -6782,7 +6796,7 @@ mod rect_extent_rows {
 /// body**, on a sphere zone sheet whose boundary certifies a side.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod sphere_rect_rows {
+pub(crate) mod sphere_rect_rows {
     use geom::{Curve3, Surface};
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::{Band, Point3, Tol, Vec3};
@@ -6797,7 +6811,7 @@ mod sphere_rect_rows {
     /// The unit sphere's zone over azimuths `[u0, u1]` and heights
     /// `[h0, h1]`: two latitude rims and two meridian arcs, each on its
     /// exact circle, described as the sphere cut by the circle's plane.
-    fn sphere_zone_sheet(
+    pub(crate) fn sphere_zone_sheet(
         (u0, u1): (f64, f64),
         (h0, h1): (f64, f64),
         tol: Tol,

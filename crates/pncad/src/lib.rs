@@ -121,7 +121,7 @@
 //! cross-check the mesh against the exact measure, export. That
 //! ladder is what the guide teaches.
 //!
-//! # A fifteen-line example
+//! # A sixteen-line example
 //!
 //! ```
 //! use geom_core::Tol;
@@ -135,8 +135,9 @@
 //!     .line_to(p2(0.0, 1.0), tol)?
 //!     .line_to(Start, tol)?;
 //! let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()], tol)?;
-//! let body = extrude(&profile, Extrusion::Distance { depth: real(1.0), side: ExtrudeSide::Along }, tol)?;
-//! let props = mass_properties(&body.body, tol)?;
+//! let body = extrude(&profile, Extrusion::Distance { depth: real(1.0), side: ExtrudeSide::Along }, tol)?.body;
+//! let body = AtRestBody::validate(body, tol).map_err(|e| format!("{e:?}"))?; // tier 3, at rest
+//! let props = mass_properties(&body, tol)?;
 //! assert!((props.volume - 1.0).abs() < 1e-12);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```

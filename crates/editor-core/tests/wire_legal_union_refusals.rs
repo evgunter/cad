@@ -16,14 +16,14 @@
 //! judgement passed.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{Spans, block, failure, run};
+use crate::blocks::{Spans, block, block_on, block_on_of, failure, run};
 use crate::corpus::body_of;
 use crate::docm8_flat_merged::split_fixture;
 
-use crate::fixture::{desc, frame, insert, len, point, step, table};
+use crate::fixture::{insert, len, point, step, table, value_slot};
 use editor_core::{
-    Axis3, Bodies, DocEdit, EntityKey, Entry, ExtrudeSide, NamingError, Node, NodeErrorKind,
-    ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, SlotId, StableName,
+    Bodies, Coord, DocEdit, EntityKey, Entry, NamingError, Node, NodeErrorKind, ProfileDoc,
+    Qualifier, RecipeNodeId, RoleSeg, StableName, TargetAxis,
 };
 use geom_core::{Point3, Tol};
 use std::collections::BTreeSet;
@@ -43,9 +43,10 @@ pub(crate) const ALONG: Spans = ((1.4, 2.0), (1.5, 4.0), 0.8, 1.2);
 /// The plate `[0,3]² × [0,1]` and the cylinder boss sunk into it, its
 /// wall two semicircular pieces either side of y = 1.5.
 pub(crate) fn plate_and_boss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, boss) = crate::emit_union_borders::cylinder(
         doc,
+        plate,
         [1.5, 1.5, 0.5],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
@@ -54,42 +55,28 @@ pub(crate) fn plate_and_boss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2])
     (doc, [plate, boss])
 }
 
-/// A tool block over `spans` on a frame of its own an edit can move:
-/// the block and its frame.
+/// A tool block over `spans`, a copy slid onto `plate` by values an
+/// edit can move: the placement, whose output is the copy.
 pub(crate) fn tool_block(
     doc: ProfileDoc,
-    ((x0, x1), (y0, y1), z0, dz): Spans,
-) -> (ProfileDoc, (RecipeNodeId, RecipeNodeId)) {
-    let (d, plane) = insert(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-    let (d, p) = insert(
-        d,
-        Node::Profile(desc(
-            plane,
-            vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
-        )),
-    );
-    let (d, b) = insert(
-        d,
-        Node::Extrude {
-            profile: p.into(),
-            distance: len(dz),
-            side: ExtrudeSide::Along,
-        },
-    );
-    (d, (b, plane))
+    plate: RecipeNodeId,
+    spans: Spans,
+) -> (ProfileDoc, RecipeNodeId) {
+    block_on_of(doc, plate, spans)
 }
 
 /// A plate `[0,3]² × [0,1]` and a cylinder boss sunk into it, its wall
 /// drawn as two semicircular pieces either side of y = 1.5, joined by a
 /// two-member union, minus the union of `tool`'s blocks (or the one
-/// block), each block on a frame of its own an edit can move.
+/// block), each block a copy slid onto the plate by values an edit can
+/// move.
 struct SunkBossCut {
     doc: ProfileDoc,
     boss: RecipeNodeId,
     joined: RecipeNodeId,
     tool: RecipeNodeId,
     cut: RecipeNodeId,
-    frames: Vec<RecipeNodeId>,
+    placements: Vec<RecipeNodeId>,
 }
 
 impl SunkBossCut {
@@ -97,12 +84,10 @@ impl SunkBossCut {
         let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
         let (mut doc, [plate, boss]) = plate_and_boss(doc);
         let mut blocks = Vec::new();
-        let mut frames = Vec::new();
         for &spans in tool {
-            let (d, (b, plane)) = tool_block(doc, spans);
+            let (d, b) = tool_block(doc, plate, spans);
             doc = d;
             blocks.push(b);
-            frames.push(plane);
         }
         let (doc, tool) = match blocks.as_slice() {
             [one] => (doc, *one),
@@ -132,25 +117,28 @@ impl SunkBossCut {
             joined,
             tool,
             cut,
-            frames,
+            placements: blocks,
         }
     }
 
-    /// The same document with block `k`'s frame moved to `y` along y:
-    /// an edit, so every node keeps its id.
+    /// The same document with block `k`'s copy slid to `y` along y: an
+    /// edit of its Slide Y value, so every node keeps its id. The value
+    /// is charted on the plane its copy's start cap is mated to, which
+    /// faces down, so its `y` runs against the world's.
     fn moved(&self, k: usize, y: f64) -> Self {
+        let slot = value_slot(&self.doc, self.placements[k], Coord::Slide(TargetAxis::Y));
         let (doc, _) = step(
             self.doc.clone(),
             DocEdit::SetParam {
-                node: self.frames[k],
-                slot: SlotId::Origin(Axis3::Y),
-                value: len(y).into(),
+                node: self.placements[k],
+                slot,
+                value: len(-y).into(),
                 fresh: Vec::new(),
             },
         );
         Self {
             doc,
-            frames: self.frames.clone(),
+            placements: self.placements.clone(),
             ..*self
         }
     }
@@ -335,9 +323,12 @@ fn two_chords_of_one_seam_are_told_apart_by_their_ends() {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass")
+    .volume
 }
 
 /// **A bar through a sunk boss passes the chord rule and refuses at the
@@ -361,15 +352,16 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 #[test]
 fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
     let doc = ProfileDoc::empty_derived("wire_merged_chord", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
     let (doc, boss) = crate::emit_union_borders::cylinder(
         doc,
+        plate,
         [1.5, 1.5, 0.5],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         1.0,
     );
-    let (doc, bar) = block(doc, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
+    let (doc, bar) = block_on(doc, plate, (1.4, 1.6), (0.5, 2.5), 0.8, 1.2);
     let (doc, joined) = crate::fixture::insert(
         doc,
         editor_core::Node::Union {
@@ -409,9 +401,9 @@ fn a_bar_through_a_sunk_boss_refuses_at_the_unions_parents() {
 #[test]
 fn a_split_fixture_with_a_merged_wall_fuses_in_every_order() {
     let doc = ProfileDoc::empty_derived("wire_seam_vertex", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, s) = block_on(doc, a, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
     for order in [
         vec![a, c, s],
         vec![a, s, c],
@@ -458,9 +450,9 @@ fn a_split_fixture_with_a_merged_wall_fuses_in_every_order() {
 #[test]
 fn a_rim_in_several_pieces_is_named_not_refused() {
     let doc = ProfileDoc::empty_derived("wire_shared_rim", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, g) = block(doc, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, g) = block_on(doc, a, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
 
     let (docx, union) = crate::fixture::union_over(doc, &[a, b, g]);
     let ev = run(&docx);
@@ -549,9 +541,9 @@ fn every_order(
 /// no coplanar pair inside one operand, and no fold step judges a
 /// contact the pairwise pre-pass did not.
 fn area_overlap_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3]) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
-    let (doc, big) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.8, 1.4);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, s) = block_on(doc, a, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
+    let (doc, big) = block_on(doc, a, (-1.0, 2.0), (-1.0, 2.0), 0.8, 1.4);
     (doc, [a, s, big])
 }
 
@@ -587,7 +579,7 @@ fn no_order_of_the_area_overlap_union_with_a_fourth_member_refuses_a_fold_contac
     use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_4", Tol::witness());
     let (doc, [a, s, big]) = area_overlap_fixture(doc);
-    let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
+    let (doc, p) = block_on(doc, a, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
     every_order(
         &doc,
         &[("a", a), ("s", s), ("big", big), ("p", p)],
@@ -629,7 +621,7 @@ fn no_order_of_the_split_fixture_under_a_covering_block_refuses_a_fold_contact()
     use Seen::Fused;
     let doc = ProfileDoc::empty_derived("wire_fold_contact_split", Tol::witness());
     let (doc, [a, c, s]) = split_fixture(doc);
-    let (doc, big) = block(doc, (-0.5, 1.2), (-0.5, 1.5), 0.8, 1.2);
+    let (doc, big) = block_on(doc, a, (-0.5, 1.2), (-0.5, 1.5), 0.8, 1.2);
     // `big` (4.08) plus `a ∪ c` (1.5) less their overlap (1.2 × 1 × 0.2).
     every_order(
         &doc,

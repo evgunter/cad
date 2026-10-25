@@ -1,7 +1,7 @@
 //! Corpus document **tube_ring** — a solid ring torus authored through
 //! `Node::Tube`, the smallest document that exercises the solid door.
 //!
-//! Two nodes: a datum axis and the tube. That IS the recipe — a tube
+//! The tube and its copy in the world. That IS the recipe — a tube
 //! takes no profile, because its cross-section is the door's own
 //! intent parameters rather than a sketch, which is the whole reason
 //! the door exists.
@@ -27,9 +27,9 @@
 //! `Surface::Torus`, not by anything in this file.
 
 use super::PlacePart;
-use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
+use editor_core::{DocEdit, Node, SlotId, TubeWindow};
 
-use super::super::fixture::{len, scl};
+use super::super::fixture::len;
 use super::{CorpusDoc, Recorder};
 
 /// The spine circle's radius, meters (dyadic).
@@ -44,13 +44,7 @@ pub const R_BUMPED: f64 = 2.5;
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
-    let spine = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
     let ring = r.insert(Node::Tube {
-        frame: spine.into(),
         major_radius: len(R),
         window: TubeWindow::Full,
         minor_radius: len(MINOR),

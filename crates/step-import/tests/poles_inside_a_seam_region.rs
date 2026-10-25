@@ -27,7 +27,12 @@ fn a_seam_region_holding_its_poles_inside_its_faces_imports_and_measures() {
         other => panic!("the side-cut ball does not import as a solid: {other:?}"),
     };
     topo::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::mass_properties(&body, tol).unwrap().volume;
+    let volume = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), tol),
+        tol,
+    )
+    .unwrap()
+    .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,
         "the side-cut ball measures {volume}, the closed form is {exact}"
@@ -56,7 +61,12 @@ fn a_seam_region_reads_its_side_at_a_pole_on_another_members_edge() {
         other => panic!("the split side-cut ball does not import as a solid: {other:?}"),
     };
     topo::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::mass_properties(&body, tol).unwrap().volume;
+    let volume = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), tol),
+        tol,
+    )
+    .unwrap()
+    .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,
         "the split side-cut ball measures {volume}, the closed form is {exact}"
@@ -98,9 +108,11 @@ fn a_seam_region_reads_its_side_at_a_pole_on_another_members_edge() {
 /// rule that a chart singularity inside a face is a vertex of it, which
 /// validity does not yet enforce
 /// (`work/restfront/validity-refuses-an-interior-chart-singularity.md`).
-/// The flip is the volume check's: the body is inside out.
+/// Each flipped face claims its complement, which holds the other, so the
+/// cover census refuses the pair as claiming their region twice over,
+/// before the volume checks read the body.
 #[test]
-fn the_side_cut_ball_flipped_whole_is_left_to_the_volume_check() {
+fn the_side_cut_ball_flipped_whole_is_refused_by_its_cover() {
     let tol = Tol::witness();
     let path = format!(
         "{}/tests/fixtures/seam-region/side_cut_equator_split.step",
@@ -124,9 +136,11 @@ fn the_side_cut_ball_flipped_whole_is_left_to_the_volume_check() {
     });
     let errs = topo::validate_geometric(&flipped, tol).unwrap_err();
     assert!(
-        errs.iter()
-            .any(|e| matches!(e, topo::ValidationError::NegativeVolume { .. })),
-        "the flipped ball is inside out: {errs:?}"
+        errs.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::SeamRegionOvercovered { times: 2, .. }
+        )),
+        "the flipped faces overlap: {errs:?}"
     );
     assert!(
         !errs

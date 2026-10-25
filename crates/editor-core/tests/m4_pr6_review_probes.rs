@@ -8,7 +8,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     Attr, AttrKind, BranchCertification, CancelToken, Dimension, DocEdit, EntityKind, EvalOptions,
@@ -33,7 +32,6 @@ fn small() -> (ProfileDoc, String) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
@@ -101,8 +99,8 @@ fn attack_all_ones_nan_slips_save_door() {
 #[test]
 fn tokens_separate_structure_from_data() {
     // These two programs never enter a document — the comparison is
-    // about loop STRUCTURE — so the frame they name is scaffolding.
-    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(RecipeNodeId::new(0, 0), loops);
+    // about loop STRUCTURE.
+    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(loops);
     // Loop shape stays structure-distinct: (2 loops of 1 point) vs
     // (1 loop of 2 points) — different programs, never a value alias.
     let two_loops = quad(vec![vec![(0.0, 0.0)], vec![(1.0, 1.0)]]);
@@ -253,13 +251,14 @@ fn attack_inf_via_big_exponent() {
 /// fingerprint identity (independent of the shipped kitchen sink).
 #[test]
 fn attack_all_fourteen_edit_variants_round_trip() {
-    let quad = |plane: RecipeNodeId| {
-        desc(
-            plane,
-            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-        )
+    let quad = |o: f64| {
+        desc(vec![vec![
+            (o, 0.0),
+            (o + 1.0, 0.0),
+            (o + 1.0, 1.0),
+            (o, 1.0),
+        ]])
     };
-    let frame_at = |o: f64| fixture::frame([o, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
     let mut doc = ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness());
     let mut edits: Vec<DocEdit<ProfileProgram>> = Vec::new();
     let mut push = |doc: &mut ProfileDoc, e: DocEdit<ProfileProgram>| -> Option<RecipeNodeId> {
@@ -277,20 +276,11 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.5)),
         },
     );
-    // 2 InsertNode xN — the two quads sit at different x offsets, so
-    // they are on different planes and each names its own frame.
-    let f0 = push(
-        &mut doc,
-        DocEdit::InsertNode {
-            node: Box::new(frame_at(0.0)),
-            fresh: Vec::new(),
-        },
-    )
-    .unwrap();
+    // 2 InsertNode xN — the two quads sit at different x offsets.
     let p0 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Profile(quad(f0))),
+            node: Box::new(Node::Profile(quad(0.0))),
             fresh: Vec::new(),
         },
     )
@@ -301,16 +291,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: Box::new(Node::Extrude {
                 profile: p0.into(),
                 distance: Formula::named(VarName::from_static("d"), Dimension::Length),
-                side: ExtrudeSide::Along,
             }),
-            fresh: Vec::new(),
-        },
-    )
-    .unwrap();
-    let f1 = push(
-        &mut doc,
-        DocEdit::InsertNode {
-            node: Box::new(frame_at(1.0)),
             fresh: Vec::new(),
         },
     )
@@ -318,7 +299,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let p1 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Profile(quad(f1))),
+            node: Box::new(Node::Profile(quad(1.0))),
             fresh: Vec::new(),
         },
     )
@@ -329,8 +310,23 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: Box::new(Node::Extrude {
                 profile: p1.into(),
                 distance: len(1.5),
-                side: ExtrudeSide::Along,
             }),
+            fresh: Vec::new(),
+        },
+    )
+    .unwrap();
+    // `e1` joins `e0`'s space, as an operator's operands share one.
+    let in_e0 = doc
+        .node_space(e0)
+        .expect("a construction is in its own space");
+    let e1_in = push(
+        &mut doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::place(
+                vec![editor_core::BodyRead::plain(editor_core::Operand::from(e1))],
+                editor_core::Operand::Var(in_e0),
+                editor_core::stand().bundle(),
+            )),
             fresh: Vec::new(),
         },
     )
@@ -339,25 +335,17 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: editor_core::Bodies::Spelled(vec![e0.into(), e1.into()]),
+                members: editor_core::Bodies::Spelled(vec![e0.into(), e1_in.into()]),
             }),
             fresh: Vec::new(),
         },
     )
     .unwrap();
     // A doomed node for DeleteNode.
-    let f_doomed = push(
-        &mut doc,
-        DocEdit::InsertNode {
-            node: Box::new(frame_at(5.0)),
-            fresh: Vec::new(),
-        },
-    )
-    .unwrap();
     let doomed = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Box::new(Node::Profile(quad(f_doomed))),
+            node: Box::new(Node::Profile(quad(5.0))),
             fresh: Vec::new(),
         },
     )
@@ -641,7 +629,7 @@ fn attack_meta_order_canonical() {
     let (doc, _) = small();
     let name = StableName {
         kind: EntityKind::Body,
-        node: doc.ids()[2],
+        node: doc.ids()[1],
         path: vec![RoleSeg::OutputBody],
     };
     let tree = |order: bool| {
@@ -687,7 +675,7 @@ fn duplicate_keys_refuse_in_every_map() {
     let doc = apply(
         &doc,
         &DocEdit::ReWitness {
-            node: doc.ids()[1],
+            node: doc.ids()[0],
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x11],
@@ -699,7 +687,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .doc;
     let body = StableName {
         kind: EntityKind::Body,
-        node: doc.ids()[2],
+        node: doc.ids()[1],
         path: vec![RoleSeg::OutputBody],
     };
     let doc = apply(
@@ -734,7 +722,7 @@ fn duplicate_keys_refuse_in_every_map() {
     // different door (`WitnessSite`).
     let witness_again = format!(
         "\"witnesses\": {{\"{}\": {{\"schema\": 9, \"bytes\": \"22\"}}, ",
-        doc.ids()[1].0
+        doc.ids()[0].0
     );
 
     // (surgery pattern, expected section words)

@@ -324,6 +324,23 @@ impl ProfilePieces {
     pub fn vertex(&self, l: usize, v: usize) -> Option<ProfileVertexRef> {
         self.vertices.get(l)?.get(v).copied()
     }
+
+    /// **Whether the vertex `v` bounds a piece of `run`**: the start or
+    /// the end of one of its canonical segments, so the wall swept over
+    /// `run` holds the strut and the cap vertices over `v`.
+    #[must_use]
+    pub fn bounds(&self, run: &PieceRun, v: &ProfileVertexRef) -> bool {
+        self.edges
+            .iter()
+            .zip(&self.vertices)
+            .any(|(edges, vertices)| {
+                let n = vertices.len();
+                edges.iter().enumerate().any(|(k, e)| {
+                    run.holds(e)
+                        && (vertices.get(k) == Some(v) || vertices.get((k + 1) % n) == Some(v))
+                })
+            })
+    }
 }
 
 /// The profile node's evaluated value: the validated (canonical)
@@ -389,12 +406,7 @@ pub struct ProfileValue<T: geom_core::Real> {
 #[derive(Debug, Clone)]
 pub(crate) struct ProfilePre {
     /// The replayed profile's canonical form at f64, minted by the
-    /// pre-pass's one validation. Its plane is the 2-D record's
-    /// assembly frame: an authored frame's `f64` document read, the
-    /// conventional `SketchPlane::xy()` for a derived frame (DM1c) —
-    /// validation is 2-D and the naming anchor is loop-derived, so no
-    /// decision reads it. A consumer places with the lane's frame
-    /// (`wire::frame_plane_lane`), never with this plane.
+    /// pre-pass's one validation, on the profile's own `xy` plane.
     pub validated_f64: ValidatedProfile<f64>,
     /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,

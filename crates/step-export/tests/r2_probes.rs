@@ -26,7 +26,11 @@ fn r2_lamina_verdicts_versus_measured_volume() {
 
     // --- the conic-trim residual -------------------------------------
     let body = cut_cylinder();
-    let v0 = topo::mass_properties(&body, tol).map(|m| m.volume);
+    let v0 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), tol),
+        tol,
+    )
+    .map(|m| m.volume);
     println!(
         "R2 cut_cylinder: clean volume {v0:?} verdict {:?}",
         validate_geometric(&body, tol).is_ok()
@@ -44,7 +48,8 @@ fn r2_lamina_verdicts_versus_measured_volume() {
     for k in walls {
         let flipped = body.flipped_face_sense_for_tests(k).expect("live face");
         let errs = validate_geometric(&flipped, tol).unwrap_err();
-        let vol = topo::mass_properties(&flipped, tol).map(|m| m.volume);
+        // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+        let vol = topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
         let all_lamina = errs
             .iter()
             .all(|e| matches!(e, ValidationError::LaminaWedge { .. }));
@@ -55,13 +60,18 @@ fn r2_lamina_verdicts_versus_measured_volume() {
 
     // --- the rimless-ball residual -----------------------------------
     let b = ball();
-    let v0 = topo::mass_properties(&b, tol).map(|m| m.volume);
+    let v0 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", b.clone(), tol),
+        tol,
+    )
+    .map(|m| m.volume);
     println!("R2 ball: clean volume {v0:?}");
     let bands: Vec<_> = b.faces().map(|(k, _)| k).collect();
     for k in bands {
         let flipped = b.flipped_face_sense_for_tests(k).expect("live face");
         let errs = validate_geometric(&flipped, tol);
-        let vol = topo::mass_properties(&flipped, tol).map(|m| m.volume);
+        // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+        let vol = topo::test_support::measure_unvalidated(&flipped, tol).map(|m| m.volume);
         println!("R2 ball band {k:?}: volume {vol:?}; verdict {errs:?}");
     }
 }

@@ -58,7 +58,7 @@
 use crate::common;
 
 use geom_core::Tol;
-use topo::{Body, ContactRecords, FaceKey, ValidationError};
+use topo::{Body, CensusContact, ContactRecords, FaceKey, ValidationError};
 
 /// The thin seat (MATE-4a's overhang seat, verbatim): the cap crosses
 /// the shelf's `y = 0.30` boundary edge at H and B and touches it at T,
@@ -131,22 +131,40 @@ fn errors(body: &Body<f64>, a: FaceKey, b: FaceKey) -> Vec<ValidationError> {
 
 /// The bifurcation, both halves, both ways round. On the old schedule
 /// the first row is empty and the second is one `CensusUnsupported` —
-/// two legal seats of one class, opposite outcomes.
+/// two legal seats of one class, opposite outcomes. Door 2 now certifies
+/// both, so what is left is the census's: nothing on the spike seat,
+/// and on the overhang its tangent T, which rests on the shelf edge
+/// outside the closure of the pair's overlap and is a pair of its own.
 #[test]
 fn both_halves_of_the_bifurcation_certify_either_way_round() {
-    for (name, seat) in [
-        ("spike (fat overlap)", spike_overhang_seat as fn() -> _),
-        ("overhang (thin overlap)", overhang_seat as fn() -> _),
+    let nothing = |found: &[ValidationError]| found.is_empty();
+    let the_tangent = |found: &[ValidationError]| {
+        matches!(
+            found,
+            [ValidationError::UnrecordedContact {
+                contact: CensusContact::VertexOnEdge { .. },
+                witness,
+                ..
+            }] if witness == "(0.7, 0.3, 0.5)"
+        )
+    };
+    for (name, seat, left) in [
+        (
+            "spike (fat overlap)",
+            spike_overhang_seat as fn() -> _,
+            &nothing as &dyn Fn(&[ValidationError]) -> bool,
+        ),
+        ("overhang (thin overlap)", overhang_seat, &the_tangent),
     ] {
         let (body, cap, shelf) = seat();
         let forward = errors(&body, cap, shelf);
         assert!(
-            forward.is_empty(),
+            left(&forward),
             "{name}: the declared seat certifies (cap named first): {forward:?}"
         );
         let reversed = errors(&body, shelf, cap);
         assert!(
-            reversed.is_empty(),
+            left(&reversed),
             "{name}: and with the shelf named first, which re-expresses \
              both trims in the shelf's chart: {reversed:?}"
         );

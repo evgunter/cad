@@ -44,14 +44,17 @@ use super::{LoopEdge, PropsError};
 ///   — a closed form in the same sense as the arc's, not a truncated
 ///   approximation (fixed nodes, fixed evaluation order, D9; the only
 ///   error is f64 rounding). Rational carriers keep the typed
-///   refusal — their integrand is not polynomial, and no at-rest
-///   analytic-surface body carries one whose face flux is answered
-///   here (a rational NURBS *wall* declines tier 3 by surface kind
-///   before any boundary integral runs).
+///   refusal here — their integrand `B × B′/w²` is rational per span,
+///   and no fixed rule integrates it exactly. A plane they bound takes
+///   the certified lane instead ([`super::rational_rim`], through
+///   topo's quadrature dispatch), which encloses that integral; this
+///   arm's refusal is what a door with no quadrature lane (the
+///   structural door, a `Dual` read) answers for it.
 ///
 /// # Errors
 ///
-/// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier;
+/// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier (the
+/// certified lane, [`super::rational_rim`], reads it);
 /// [`PropsError::QuadratureUnsupported`] past the Gauss table's
 /// degree inventory.
 pub fn loop_vector_area<T: SpanLocate>(
@@ -155,10 +158,20 @@ fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
     }
 }
 
+/// Is this carrier rational: are its weights not all one plain constant
+/// ([`NurbsCurve3::constant_weight`])? The one spelling of the question
+/// the closed form refuses on ([`nurbs_vector_area`]) and the certified
+/// lane answers ([`super::rational_rim`]).
+#[must_use]
+pub fn is_rational<T: SpanLocate>(curve: &NurbsCurve3<T>) -> bool {
+    curve.constant_weight().is_none()
+}
+
 /// `(1/2)∫_{t0}^{t1} (P(t) − ref)×P′(t) dt` for a **non-rational**
-/// B-spline carrier, exact (module docs of [`loop_vector_area`]: the
-/// per-span polynomial integrand meets the fixed `k`-point Gauss rule
-/// that integrates its degree exactly).
+/// B-spline carrier ([`NurbsCurve3::constant_weight`]), exact (module
+/// docs of [`loop_vector_area`]: the per-span polynomial integrand meets the fixed `k`-point Gauss rule
+/// that integrates its degree exactly). A rational carrier refuses
+/// [`PropsError::Unimplemented`]; [`super::rational_rim`] encloses it.
 ///
 /// Span walking is generic-scalar sound: the covered span range comes
 /// from [`SpanLocate::locate_spans`] at the interval's ends, each
@@ -172,7 +185,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if curve.weights_f64_interim().iter().any(|w| *w != 1.0) {
+    if is_rational(curve) {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);
@@ -253,6 +266,90 @@ mod tests {
         for v in [a.x, a.y, a.z] {
             assert!(v.value.is_nan() && v.deriv.is_nan(), "{a:?}");
         }
+    }
+
+    /// **A constant weight is the polynomial arm's**: the cubic on one
+    /// net with every weight `2` integrates to the unit-weight curve's
+    /// area to the bit (a power of two scales the homogeneous
+    /// evaluation exactly). At `3` and `0.1` it agrees to a few ulps
+    /// and no closer: the arm evaluates through the rational
+    /// evaluator, whose `Σ Nᵢ·c·Pᵢ / Σ Nᵢ·c` rounds once more than the
+    /// unit net's. A net whose weights vary refuses as the rational
+    /// carrier this arm does not integrate, and the certified lane
+    /// ([`super::super::rational_rim`]) encloses it: its bracket holds a
+    /// composite Simpson reference on the definition.
+    #[test]
+    fn a_constant_weight_carrier_integrates_as_its_polynomial() {
+        use geom_core::spline::KnotVector;
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let area = |weights: Vec<f64>| {
+            let curve = NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![p(0.0, 0.0), p(1.0, 2.0), p(2.0, 0.0), p(3.0, 1.0)],
+                weights,
+            )
+            .unwrap();
+            nurbs_vector_area(&curve, 0.1, 0.9, p(0.5, -1.0))
+        };
+        let unit = area(vec![1.0; 4]).unwrap();
+        let twos = area(vec![2.0; 4]).unwrap();
+        assert_eq!(
+            [twos.x, twos.y, twos.z].map(f64::to_bits),
+            [unit.x, unit.y, unit.z].map(f64::to_bits),
+            "weights 2: {twos:?}, unit: {unit:?}"
+        );
+        for c in [3.0, 0.1] {
+            let got = area(vec![c; 4]).unwrap();
+            assert!(
+                got.x == 0.0
+                    && got.y == 0.0
+                    && (got.z - unit.z).abs() <= 16.0 * f64::EPSILON * unit.z.abs(),
+                "weights {c}: {got:?}, unit: {unit:?}"
+            );
+        }
+        assert!(
+            matches!(
+                area(vec![1.0, 2.0, 2.0, 1.0]),
+                Err(PropsError::Unimplemented)
+            ),
+            "a varying weight vector is rational"
+        );
+        let rational = NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+            vec![p(0.0, 0.0), p(1.0, 2.0), p(2.0, 0.0), p(3.0, 1.0)],
+            vec![1.0, 2.0, 2.0, 1.0],
+        )
+        .unwrap();
+        let reference = p(0.5, -1.0);
+        let simpson = {
+            let g = |t: f64| {
+                let (q, d) = rational.ders1(t);
+                0.5 * ((q - reference).cross(d)).z
+            };
+            let (m, lo, hi) = (1 << 16, 0.1, 0.9);
+            let h = (hi - lo) / f64::from(m);
+            let inner: f64 = (1..m)
+                .map(|i| if i % 2 == 1 { 4.0 } else { 2.0 } * g(lo + f64::from(i) * h))
+                .sum();
+            (g(lo) + g(hi) + inner) * h / 3.0
+        };
+        use geom_core::Bounds;
+        use geom_core::interval::certification::Certification;
+        let iv = super::super::bracket::pt;
+        let lane = super::super::rational_rim::rational_edge_q(
+            &rational.map_scalar(iv),
+            iv(0.1),
+            iv(0.9),
+            true,
+            Point3::new(iv(0.5), iv(-1.0), iv(0.0)),
+        )
+        .unwrap();
+        let (z, _) = super::super::rational_rim::rational_vector_area_split(&lane, 128);
+        assert!(
+            z[2].lo() <= simpson && simpson <= z[2].hi() && z[2].width() < 1e-9,
+            "the certified lane holds the rational carrier's area: {:?} ∌ {simpson}",
+            z[2]
+        );
     }
 
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {

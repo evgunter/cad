@@ -203,9 +203,8 @@
 //! them all. The members are the at-rest verdict ([`at_rest_badge`]),
 //! the advisory checks ([`checks_badge`]), the δ the display budget
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
-//! store that keeps no preferences ([`prefs_badge`]), the datums this
-//! view draws nothing of ([`datums_badge`]), the profiles it draws
-//! nothing of ([`profiles_badge`]), the held edges the index cannot
+//! store that keeps no preferences ([`prefs_badge`]), the profiles
+//! the view draws nothing of ([`profiles_badge`]), the held edges the index cannot
 //! name ([`held_edges_badge`]), and the three display seams that
 //! hold a refusal — the scene ([`scene_badge`]), the pick index
 //! ([`index_badge`]) and the projection ([`projection_badge`]).
@@ -758,6 +757,7 @@ pub fn acts(op: &SessionOp) -> bool {
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
+        | SessionOp::IntoOwnSpace { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -790,13 +790,14 @@ pub fn acts(op: &SessionOp) -> bool {
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
         | SessionOp::NewDocument { .. }
-        | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }
@@ -869,6 +870,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::RemoveConstraint { .. }
+        | SessionOp::IntoOwnSpace { .. }
         | SessionOp::SetSlot { .. }
         | SessionOp::SetSlotVariable { .. }
         | SessionOp::DeclineOffer { .. }
@@ -899,13 +901,14 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::CommitFreeMove { .. }
         | SessionOp::CancelFreeMove
         | SessionOp::AddMate { .. }
-        | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::SketchOnFace { .. }
         | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
         | SessionOp::AddSplit { .. }
+        | SessionOp::AddMirror { .. }
         | SessionOp::AddTransform { .. }
         | SessionOp::AddPattern { .. }
         | SessionOp::AddPlacedUnion { .. }
@@ -1090,8 +1093,8 @@ pub fn frame_status(
 /// list. The sweep that routed every writer through the ranking put
 /// four more on it: [`Subject::Camera`] ([`fold_status`]'s refused
 /// fold, delivered at [`crate::pane::viewport::land`]),
-/// [`Subject::Cursor`] (`idpass::IdNews`'s notices: a disagreement, or
-/// an id said beside a refused ray),
+/// [`Subject::Cursor`] (`idpass::IdNews`'s notices: a disagreement, an
+/// id said beside a refused ray, or a readback that answered nothing),
 /// [`Subject::Display`] (the pick index's
 /// refused click and the δ field's two doors, through
 /// [`PICK_INDEX_SEAM`] and [`SCENE_SEAM`]) and [`Subject::Preferences`]
@@ -1252,9 +1255,9 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// **Nothing here composes prose about why a placement or a hide
 /// went.** Each entry carries the [`AdmissionFault`] the prune
 /// discarded on, and this renders it through its own `Display` — the rule the
-/// rest of the crate follows. So the commonest arm names where the copy
-/// lives and why the probe cannot move it (`InTheWorld`: *its placement
-/// pins it there … free-move moves a loose space*), a fuse names the product and the instances
+/// rest of the crate follows. So the commonest arm names the space and
+/// why it is no longer shown (`NotShown`: *no copy is placed into it, or
+/// its bodies are copied into another space*), a fuse names the product and the instances
 /// fused into it, and a deleted instance says the document does not
 /// hold the node — which is the delete arm's whole point, since the id
 /// alone names something the tree no longer draws without saying that
@@ -1264,9 +1267,10 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// and never names: every [`AdmissionFault`] names its own SUBJECT, so
 /// naming the id again in the preamble would say it twice. It does not
 /// promise a vocabulary for that subject: each arm says it as the
-/// spoken node does, its kind included (`InstantiatePart N`, `Place N`,
-/// and `node N` for an id the document does not hold), which is that
-/// enum's own rule and the only honest wording there.
+/// spoken node or the spoken space does, its kind included
+/// (`InstantiatePart N`, `Place N`, `node N` for an id the document does
+/// not hold, `the space of Extrude N`), which is that enum's own rule and
+/// the only honest wording there.
 ///
 /// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
 /// gesture or a frame rather than a node — and a `Withdrawn` cannot
@@ -1289,17 +1293,17 @@ vocabulary! {
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
     pub enum WithdrawalKind {
         /// **A SUBSTITUTION.** The user's hand placement answered "where
-        /// does this part go", and the document that landed answers it
-        /// differently — a pin, a join with another space, a placement it
-        /// refuses — so the probe steps aside and the picture keeps the
-        /// part.
+        /// does this part go", and the document answers it differently —
+        /// its copies placed into another space, the space's bodies
+        /// copied on, the space gone — so the probe steps aside and the
+        /// picture keeps the part.
         ///
-        /// [`crate::display::PruneReport::superseded`] names, by their
-        /// roots, the loose spaces whose COMMITTED free-move frame a prune
-        /// discarded — the G3 supersession, reported by the session rather
-        /// than inferred. Most arrive with a landing, which is when a space
-        /// is known (`DocSession::take_landed_withdrawals`), and the rest
-        /// on [`crate::session::OpOutcome::withdrawn`] (a root gone);
+        /// [`crate::display::PruneReport::superseded`] names, by the
+        /// instance that committed each, the spaces whose COMMITTED
+        /// free-move frame a prune discarded — the G3 supersession,
+        /// reported by the session rather than inferred. A frame is asked
+        /// of the document alone, so it arrives on
+        /// [`crate::session::OpOutcome::withdrawn`] with the edit;
         /// [`crate::display::DisplayState::prune`] is where it happens
         /// ([`crate::display::DisplayState::prune_structural`] for a value
         /// gesture's scratch), and [`crate::display::space_check`] is the
@@ -1479,12 +1483,11 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
         refusal: _,
         withdrawn,
         maintenance,
-        placed,
+        renamed: _,
     } = outcome;
     Withdrawal::all(withdrawn)
         .map(|withdrawal| withdrawal.notice())
         .chain(maintenance.iter().filter_map(maintenance_notice))
-        .chain(placed.iter().filter_map(place_notice))
 }
 
 /// **What a landing's prune withdrew, as notices** — the same notices
@@ -1494,24 +1497,6 @@ pub fn withdrawal_notices(
     report: &crate::display::PruneReport,
 ) -> impl Iterator<Item = Message> + '_ {
     Withdrawal::all(report).map(|withdrawal| withdrawal.notice())
-}
-
-/// **How a place gesture placed its copy, as a notice**, or `None` for
-/// the gesture's ordinary answer: a plane mate on the copy's planar
-/// face, whose values move it. A copy with no planar face is pinned,
-/// with no value to move it by, and one that could not be read stands
-/// loose; each says so, in [`editor_core::PinRefusal`]'s own words for
-/// the second. Nothing else says it again ([`Retold::Never`]): the
-/// tree row says what the bundle holds, not why.
-pub fn place_notice(report: &crate::session::PlaceReport) -> Option<Message> {
-    let text = match &report.by {
-        Ok(editor_core::PlacedBy::PlanarFace) => return None,
-        Ok(editor_core::PlacedBy::Pin) => "the copy has no planar face, so it is pinned where it \
-                                          stands, with no values to move it by"
-            .to_owned(),
-        Err(refusal) => format!("the copy stands loose, placed by nothing: {refusal}"),
-    };
-    Some(Message::new(Subject::Document, text, Retold::Never))
 }
 
 /// **One maintenance row as a notice**, or `None` for a row the line
@@ -1552,7 +1537,13 @@ pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
         // next evaluation, before any poison from upstream, naming the
         // operand.
         Maintenance::StrandedRead { .. } => Retold::Again,
+        // The reader's own row refuses `SpaceMismatch` at the next
+        // evaluation, naming both spaces.
+        Maintenance::StrandedSpace { .. } => Retold::Again,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
+        // Nothing evaluates differently in a way that names it: the
+        // copy simply stops reading the value.
+        Maintenance::ValueDropped { .. } => Retold::Never,
         // An anonymous variable's removal is what rewriting or deleting
         // the slot it was written at means, and a typed value retires
         // one on almost every edit: one that carried no tolerance took
@@ -1582,7 +1573,9 @@ impl core::fmt::Display for Withdrawal<'_> {
             | AdmissionFault::InTheWorld { .. }
             | AdmissionFault::NotEvaluated { .. }
             | AdmissionFault::NoSpace { .. }
-            | AdmissionFault::MovedSpace { .. } => false,
+            | AdmissionFault::MovedSpace { .. }
+            | AdmissionFault::NoSuchSpace { .. }
+            | AdmissionFault::NotShown { .. } => false,
         };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
@@ -1705,8 +1698,8 @@ pub fn fold_status(folded: &Folded) -> StatusUpdate {
 ///
 /// This is a policy over a value, not a report: it never SHOWS
 /// anything. What the cursor has to say is `idpass::IdNews`'s — a
-/// disagreement, or an id said beside a refused ray — raised where the
-/// two picking paths are compared.
+/// disagreement, an id said beside a refused ray, or a readback that
+/// answered nothing — raised where the two picking paths are compared.
 pub fn cursor_status(step: IdStep) -> StatusUpdate {
     match step {
         IdStep::Hold => StatusUpdate::Keep,
@@ -2209,6 +2202,7 @@ pub fn tool_notice(
 ) -> Message {
     let retold = match notice {
         ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
+        ToolNotice::Mirror(crate::combine::MirrorEvent::PlaneLost { .. }) => Retold::Never,
         ToolNotice::Seated {
             event: SeatEvent::PickLost { .. },
             ..
@@ -2277,30 +2271,17 @@ pub fn tool_news(refusal: &PanelRefusal) -> Message {
 /// badge naming itself.
 pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
     Some(match at_rest? {
-        AtRestBadge::Certified {
-            minted,
-            loud,
-            quiet,
-        } => {
+        AtRestBadge::Certified { loud, quiet } => {
             // A loud overlap leads: it is what the reader acts on, and
             // "certified" before it would read as nothing to do.
             let (text, tone) = match (loud, quiet) {
-                (0, 0) => (
-                    format!("at rest: certified ({minted} declaration(s))"),
-                    Tone::Advisory,
-                ),
+                (0, 0) => ("at rest: certified".to_owned(), Tone::Advisory),
                 (0, quiet) => (
-                    format!(
-                        "at rest: certified ({minted} declaration(s), interference: 0 loud, \
-                         {quiet} quiet)"
-                    ),
+                    format!("at rest: certified (interference: 0 loud, {quiet} quiet)"),
                     Tone::Advisory,
                 ),
                 (loud, quiet) => (
-                    format!(
-                        "at rest: interference: {loud} loud, {quiet} quiet \
-                         ({minted} declaration(s) certified)"
-                    ),
+                    format!("at rest: interference: {loud} loud, {quiet} quiet"),
                     Tone::Actionable,
                 ),
             };
@@ -2817,29 +2798,15 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
     })
 }
 
-/// **What the chrome badges about datums this view draws nothing
-/// of**, and `None` when every datum the document holds is on screen
-/// — or when it holds none.
+/// **What the chrome badges about committed profiles the viewport draws
+/// nothing of**, and `None` when it drew every one.
 ///
-/// **The fact it exists to make sayable is a DIFFERENCE.** Every mark
-/// `crate::datums` draws refuses on its own scale, correctly, and a
-/// datum whose every mark refuses contributes no geometry: the
-/// viewport then shows exactly what a document with no datums in it
-/// shows. This is the read that tells the two apart, and it is the
-/// whole of what it claims — `n` datums are in the document and none
-/// of their marks reached the picture.
-///
-/// [`Subject::Camera`], and a badge rather than a sentence, for
-/// [`projection_badge`]'s reasons in both halves. The subject: what
-/// makes the count the wrong answer is the camera moving, which is
-/// also what a reader does about it. No population of causes is named
-/// here, because naming one is a claim and there is no sweep rule
-/// that produces it: what empties a drawing is `crate::datums`'
-/// business and it has at least three ways
-/// (`datums::DatumDraws::vanished` enumerates them), each in its own
-/// band of the datum's magnitude and the view's. The channel: the
-/// count is true on every frame until the view or the document
-/// changes, so it is a read of held state and not news.
+/// A profile is drawn from its validated value at the display
+/// tolerance, and what empties it is a point the flattener cannot
+/// compute — a vertex's own position, an arc's frame, or a point along
+/// an arc (`crate::sketch::committed`) — a fact about the document at
+/// this tolerance, so the subject is the document and the tone
+/// [`Tone::Advisory`]: there is no camera move that brings it back.
 ///
 /// **What it does not do is HOLD.** The three display seams above
 /// keep a refusal until the seam succeeds; this is a per-frame count
@@ -2848,44 +2815,11 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
 /// draw whether or not the viewport is one of them. So it needs no
 /// sweeper, which is the defect
 /// `work/view/projection-fault-has-no-sweeper.md` records against the
-/// field beside it.
-///
-/// **It outlives the view it describes by exactly one frame**, and no
-/// further. The toolbar draws BEFORE the panes, so on the frame the
+/// field beside it. It outlives the view it describes by exactly one
+/// frame: the toolbar draws BEFORE the panes, so on the frame the
 /// viewport stops drawing this badge paints the count the previous
 /// frame made, and the zero written after that frame's panes takes it
-/// on the next. That is the same one-frame lag `crate::app`'s field
-/// docs argue is benign, and it is a bounded lag rather than the
-/// unbounded staleness a latch with no sweeper has.
-///
-/// [`Tone::Actionable`]: a reader can move the camera and get the
-/// datums back, which is exactly the difference from an
-/// [`Tone::Advisory`] report about something nobody can change.
-pub fn datums_badge(vanished: usize) -> Option<Badge> {
-    (vanished > 0).then(|| {
-        // The noun agrees with the count: "1 datums" is the tell that
-        // a sentence was assembled rather than written, and this one
-        // is read at a glance beside the others.
-        let noun = if vanished == 1 { "datum" } else { "datums" };
-        Badge::read(
-            Subject::Camera,
-            format!("datums: {vanished} {noun} this view draws nothing of"),
-            Tone::Actionable,
-        )
-    })
-}
-
-/// **What the chrome badges about committed profiles the viewport draws
-/// nothing of**, and `None` when it drew every one.
-///
-/// A badge, per-frame and unlatched, for [`datums_badge`]'s reasons.
-/// The cause is narrower than a datum's: a profile is drawn from its
-/// validated value at the display tolerance, and what empties it is a
-/// point the flattener cannot compute — a vertex's own position, an
-/// arc's frame, or a point along an arc (`crate::sketch::committed`)
-/// — a fact about the document at this tolerance, so the subject is
-/// the document and the tone [`Tone::Advisory`]: there is no camera
-/// move that brings it back.
+/// on the next.
 pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
     (undrawn > 0).then(|| {
         let noun = if undrawn == 1 { "profile" } else { "profiles" };
@@ -2938,7 +2872,7 @@ impl<T> Spelled<T> {
 /// The held mark lights the drawn edges whose names a tool holds
 /// ([`crate::marks::HeldEdges::mark`]), and a drawn edge with no name
 /// cannot be told held or not, so the mark may be short by it. This is
-/// what says so. Per-frame and unlatched, for [`datums_badge`]'s
+/// what says so. Per-frame and unlatched, for [`profiles_badge`]'s
 /// reasons: the viewport writes it from the marks it composes. The
 /// refusal is the naming layer's bug report, which no reader can act
 /// on, so [`Tone::Advisory`]; its subject is the document's
@@ -3228,7 +3162,7 @@ mod tests {
             max_y: 1.0,
             max_z: 1.0,
         };
-        Camera::framing(&unit, 16.0 / 9.0).expect("a unit box frames")
+        Camera::framing(Some(unit), 16.0 / 9.0).expect("a unit box frames")
     }
 
     /// A fold that applied everything it was given — the shape
@@ -3509,7 +3443,7 @@ mod tests {
             (
                 ProductError::EmptyProduct {
                     unplaced: Vec::new(),
-                    loose: Vec::new(),
+                    elsewhere: Vec::new(),
                 },
                 BadgeSite::NotAFault,
             ),
@@ -3665,9 +3599,10 @@ mod tests {
         Withdrawal::dropped_hide(withdrawn).map(|withdrawal| withdrawal.to_string())
     }
 
-    /// A withdrawal on `instance`, whose copy a placement now pins to the
-    /// world — the commonest arm under DI5, and the one whose `Display`
-    /// says why the probe cannot move it.
+    /// A withdrawal on `instance`, whose copy is placed into the world —
+    /// a fault whose `Display` names the instance and says why the probe
+    /// cannot move it. The rows below are about the rendering, which is
+    /// the same whichever fault a withdrawal carries.
     fn pinned(instance: u64) -> Withdrawn {
         Withdrawn {
             instance: RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
@@ -3739,7 +3674,7 @@ mod tests {
             "the fault renders itself, verbatim: {notice}"
         );
         assert!(
-            notice.contains("Free-move moves a loose space"),
+            notice.contains("Free-move moves another shown space"),
             "so what the typed value already knew reaches the line: {notice}"
         );
 
@@ -3887,9 +3822,9 @@ mod tests {
         assert_eq!(
             one,
             "free move: a committed placement was discarded — \
-             InstantiatePart 000000000003 lives in the world's space: its placement pins it \
-             there (a world pin, or a mate onto a copy in the world), so the free-move probe \
-             refuses. Free-move moves a loose space, a copy nothing pins to the world"
+             InstantiatePart 000000000003 is placed into the world, the product's space, so \
+             the free-move probe refuses. Free-move moves another shown space: place the copy \
+             into a space of its own to probe it"
         );
 
         let two = [pinned(3), pinned(11)];
@@ -4072,7 +4007,7 @@ mod tests {
                 held: Default::default(),
                 refusal: ProductError::EmptyProduct {
                     unplaced: Vec::new(),
-                    loose: Vec::new(),
+                    elsewhere: Vec::new(),
                 }
                 .into(),
             },

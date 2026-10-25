@@ -1104,7 +1104,7 @@ pub(crate) fn vec3_row_ops(
 }
 
 /// One labeled row of three draggable components — every creation
-/// form's vector fields (a datum's origin and normal, a placement's
+/// form's vector fields (a split's origin and normal, a placement's
 /// translation and rotation axis, a pattern's direction).
 ///
 /// **The speed is the caller's** because the unit is: a metre field
@@ -3428,7 +3428,7 @@ mod field_tests {
         assert_eq!(
             field.parses.get(),
             2,
-            "one typed text, parsed on the frame the edit ends and again on              the next"
+            "one typed text, parsed on the frame the edit ends and again on the next"
         );
         assert_eq!(field.value, 1002.0);
     }
@@ -3486,7 +3486,7 @@ mod value_field_tests {
     use crate::props;
     use crate::session::ValueGestureName;
     use crate::session::{DocSession, Refusal, SessionOp};
-    use crate::test_support::{declared, framed_square, inserted, len, scl};
+    use crate::test_support::{declared, inserted, len, scl, square_profile};
     use eframe::egui;
     use pncad::document::{
         Dimension, DimensionError, Doc, Formula, FreeVar, Node, PatternKind, ProfileProgram,
@@ -3580,14 +3580,13 @@ mod value_field_tests {
                 FreeVar::written_length(WrittenLength::canonical_in(0.004, MM)),
                 tol,
             );
-            let (doc, profile) = framed_square(&doc, 0.04, tol);
+            let (doc, profile) = square_profile(&doc, 0.04, tol);
             let (doc, extrude) = inserted(
                 &doc,
                 Node::Extrude {
                     profile: profile.into(),
                     distance: Formula::written_length(WrittenLength::canonical_in(canonical, MM))
                         .expect("a finite written length"),
-                    side: pncad::document::ExtrudeSide::Along,
                 },
                 tol,
             );

@@ -38,10 +38,10 @@
 #    guard counts at the same depth, so a workspace that moved its
 #    crates fails the guard instead of reporting a hollow OK.
 #
-# WHAT THIS DOES NOT PROVE: that no kernel TYPE is persisted. Types
-# defined in the kernel are persisted every day — the document layer
-# describes their bytes itself, in `#[serde(with)]` modules that live
-# above the boundary (`editor-core`'s `persist::kernel_wire`). That is
+# WHAT THIS DOES NOT PROVE: that no kernel TYPE is persisted. A type
+# defined in the kernel may be persisted — the document layer then
+# describes its bytes itself, in a `#[serde(with)]` module that lives
+# above the boundary (`editor-core`'s `persist`). That is
 # the sanctioned shape and this gate is blind to it by design: it
 # polices the DEPENDENCY EDGE, nothing else. Nor does it see a
 # transitive edge — a kernel crate could reach serde through a
@@ -145,7 +145,7 @@ PY
   fi
   if [ -n "$hits" ]; then
     echo "$hits"
-    gate_error "a kernel crate depends on serde — persistence is the document layer's job (DESIGN.md's serde row). Describe the bytes ABOVE the boundary with a \`#[serde(with)]\` module in editor-core's \`persist::kernel_wire\`, or ratify the new layering in DESIGN.md."
+    gate_error "a kernel crate depends on serde — persistence is the document layer's job (DESIGN.md's serde row). Describe the bytes ABOVE the boundary with a \`#[serde(with)]\` module in editor-core's \`persist\`, or ratify the new layering in DESIGN.md."
     exit 1
   fi
   gate_ok "no kernel crate depends on serde"

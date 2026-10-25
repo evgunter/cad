@@ -87,11 +87,11 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
 use crate::camera::cursor_projection;
+use crate::idpass::{IdChannel, IdReply, ReadbackFault};
 use crate::marks::{EdgeLane, EdgeOverlay};
 use crate::pane::viewport::Composed;
 use crate::pickindex::IdMap;
@@ -167,18 +167,14 @@ struct Uniforms {
     /// by the shaded pass's held stripes and the edge pass's held
     /// lane, so the two cannot come out different colours.
     held: [f32; 4],
-    /// **Construction geometry's colour**, linear in `xyz`; `w` is
+    /// **A committed profile's colour**, linear in `xyz`; `w` is
     /// padding and the shader does not read it.
     ///
     /// A whole lane for three numbers, and the padding is the honest
     /// cost of the block staying a struct whose fields the shader
-    /// mirrors one for one. `Theme::datum` is a colour and not a
-    /// [`Mark`], so there is no strength to put in `w`: a datum is
+    /// mirrors one for one. `Theme::profile` is a line colour and not a
+    /// [`Mark`], so there is no strength to put in `w`: a profile is
     /// drawn in this colour, not tinted toward it.
-    datum: [f32; 4],
-    /// **A committed profile's colour**, linear in `xyz`; `w` is
-    /// padding. [`Uniforms::datum`]'s shape for its reason:
-    /// `Theme::profile` is a line colour, drawn as stated.
     profile: [f32; 4],
     /// **What the passes need to measure the screen**: the viewport's
     /// size in physical pixels (`xy`), which the edge pass reads, and
@@ -303,10 +299,7 @@ struct IdPass {
 /// mitred. On an opaque lane the overlap is invisible, and a mitre
 /// needs the neighbouring segment's direction — which is a different
 /// vertex format and a real amount of arithmetic for a join nobody
-/// can see. On the one translucent lane, the datum grid, the overlap
-/// is blended twice and shows as a pixel or two of fuller colour
-/// where two of its lines meet — which on a grid is where the eye
-/// expects a crossing to be anyway.
+/// can see, and every lane is opaque.
 ///
 /// **Lanes are drawn in [`EdgeLane::DRAW_ORDER`]**, one buffer in that
 /// order ([`edge_vertices`]), and the pass writes no depth, so where
@@ -367,10 +360,9 @@ fn lane_colour_wgsl(lane: EdgeLane) -> &'static str {
         // A preview is not in the document, and says so in the probe
         // mark — G3's "not committed" — over the same base.
         EdgeLane::Preview => "tint(base, uniforms.probe)",
-        // NOT tints: a datum and a profile are not material, so there
-        // is no body colour for either to be a state of. Each is drawn
-        // in the theme's own colour for it, as stated.
-        EdgeLane::Datum => "uniforms.datum.xyz",
+        // NOT a tint: a profile is not material, so there is no body
+        // colour for it to be a state of. It is drawn in the theme's
+        // own colour for it, as stated.
         EdgeLane::Profile => "uniforms.profile.xyz",
     }
 }
@@ -426,35 +418,19 @@ struct LaneStyle {
 ///
 /// A judgement, and the range it sits in is narrow at both ends: much
 /// above four points a mark's own width hides the short edges it is
-/// marking, and a line has to be clearly heavier than the datum grid
-/// ([`DATUM_HALF_WIDTH_POINTS`]) to read as the thing in front of it.
-/// Three points is also roughly the weight of the chrome's own text,
+/// marking, and below one point a line drops pixels along a shallow
+/// slope. Three points is also roughly the weight of the chrome's own text,
 /// which is what makes a mark findable at a glance without becoming the
 /// loudest thing in the picture.
 const EDGE_MARK_HALF_WIDTH_POINTS: f32 = 1.5;
-
-/// **Half the width of a datum's lines, in POINTS**: one point thick,
-/// a third of a mark.
-///
-/// A plane is ruled out to its horizon, so its grid is the one lane
-/// that covers the whole picture, and at a mark's weight it read as
-/// the loudest thing on screen. At one point it is the hairline a
-/// grid is. On a display of at least one pixel per point that is at
-/// least one physical pixel, and a quad at least a pixel wide covers a
-/// pixel centre in every column (or row) it crosses, so the line stays
-/// continuous rather than dotting the way a one-pixel `LineList` did.
-/// Under a scale factor below one the quad is narrower than a pixel
-/// and the grid CAN drop pixels along a shallow line; the marks, three
-/// times as wide, stay continuous down to a third of that scale.
-const DATUM_HALF_WIDTH_POINTS: f32 = 0.5;
 
 /// **Half the width of a held edge, in POINTS** — the edge half of the
 /// held mark's shape (`crate::marks::Held`): a hollow line, two rails
 /// with [`HELD_EDGE_HOLLOW`] of the width open between them.
 ///
-/// Wider than a mark so that each rail keeps at least the grid's
-/// weight: a rail thinner than the grid drops pixels the way the grid
-/// warns a hairline can. The selected mark, drawn over it where an
+/// Wider than a mark so that each rail keeps at least half a point: a
+/// rail thinner than that drops pixels along a shallow line. The
+/// selected mark, drawn over it where an
 /// edge is both, then leaves a sliver of each rail showing beside it.
 const HELD_EDGE_HALF_WIDTH_POINTS: f32 = 2.0;
 
@@ -481,22 +457,12 @@ const _: () = assert!(
 /// **Each lane's style.** One match, so a lane cannot be added
 /// without being given one.
 ///
-/// Profiles and previews are drawn at a mark's width and fully opaque,
-/// and the datum grid thin and half-transparent: a profile is what a
-/// person is looking at on a plane, and the plane is what it is drawn
-/// against. **Thickness is the channel that separates them**, with the
-/// grid's opacity on top: a translucent profile would take on the
-/// colour of whatever it crossed — the grid, a shaded face — and a
-/// profile's colour is what says which of the two lanes it is in.
-/// Drawn over the grid in any case ([`EdgeLane::DRAW_ORDER`]), so the
-/// grid never covers one.
+/// Profiles, previews and marks are drawn at a mark's width and fully
+/// opaque: a translucent profile would take on the colour of whatever
+/// it crossed, and a profile's colour is what says which lane it is in.
+/// The held mark is wider and hollow (`crate::marks::Held`).
 fn lane_style(lane: EdgeLane) -> LaneStyle {
     match lane {
-        EdgeLane::Datum => LaneStyle {
-            half_width_points: DATUM_HALF_WIDTH_POINTS,
-            opacity: crate::theme::DATUM_OPACITY,
-            hollow: 0.0,
-        },
         EdgeLane::Held => LaneStyle {
             half_width_points: HELD_EDGE_HALF_WIDTH_POINTS,
             opacity: 1.0,
@@ -570,11 +536,18 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// should not — which is the reason to keep it minimal rather than to
 /// tune it.
 ///
-/// `crate::pickindex`'s `OCCLUSION_SLACK_REL` plays the same
-/// coincident-edge-over-its-own-face role on the CPU pick lane, in a
-/// different numeric domain (f64 world-depth comparison there, f32
-/// clip z here) — a pointer each way, deliberately not one shared
-/// constant.
+/// The CPU pick lane answers the same coincident-edge-over-its-own-face
+/// question with no margin at all: its occlusion probe
+/// (`crate::pickindex::PickIndex::edge_at_for`) orders the chord's own
+/// certified crossing against the surface in front, and that crossing
+/// contains the probe ray's crossings of the triangles the chord point
+/// lies on (the vertex fan near an end), so where the face in front IS
+/// one of those triangles the edge overlaps it by construction. The
+/// one exception is a free-moved copy, whose front spans are its local
+/// ray's carried across unconverted
+/// (`work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`).
+/// A depth buffer holds no interval to order, which is why this lane
+/// needs a lift and that one does not.
 ///
 /// **A quad, unlike a line, reaches ONTO the facets its edge
 /// divides** — which is what sets the magnitude. On a concave edge
@@ -861,9 +834,16 @@ impl ViewportRenderer {
     /// state machine spanning frames, for a query that only runs when
     /// the cursor moves inside the viewport.
     ///
-    /// `None` when there is nothing to draw, when the device refuses
-    /// the wait, or when the mapping fails — every one of which is
-    /// "the GPU has no answer", never a wrong answer.
+    /// **Nothing to draw is an answer**: [`IdMap::NOTHING`], the word
+    /// the pass would have read over an empty picture, so the reader
+    /// is told the cursor is over no geometry, which is true of the
+    /// picture on screen. A device that refuses the wait or a mapping
+    /// that fails is NO answer, and is the [`ReadbackFault`] it is.
+    ///
+    /// **Every exit leaves the readback buffer clean**
+    /// ([`release_after`]): unmapped after a read, rebuilt after a
+    /// fault. So a fault is this query's outcome only, and the next
+    /// query's copy does not meet a buffer still mapped.
     fn read_id_at(
         &mut self,
         device: &wgpu::Device,
@@ -871,11 +851,14 @@ impl ViewportRenderer {
         cursor_ndc: [f32; 2],
         viewport_px: [f32; 2],
         view_projection: &[[f32; 4]; 4],
-    ) -> Option<u32> {
-        let geometry = self.geometry.as_ref()?;
-        if geometry.corners == 0 {
-            return None;
-        }
+    ) -> Result<u32, ReadbackFault> {
+        let Some(geometry) = self
+            .geometry
+            .as_ref()
+            .filter(|geometry| geometry.corners > 0)
+        else {
+            return Ok(IdMap::NOTHING);
+        };
         queue.write_buffer(
             &self.id.uniforms,
             0,
@@ -892,7 +875,6 @@ impl ViewportRenderer {
                 probe: [0.0; 4],
                 focus: [0.0; 4],
                 held: [0.0; 4],
-                datum: [0.0; 4],
                 profile: [0.0; 4],
                 screen: [0.0; 4],
                 edge_lanes: [[0.0; 4]; EdgeLane::DRAW_ORDER.len()],
@@ -964,19 +946,98 @@ impl ViewportRenderer {
             },
         );
         queue.submit(std::iter::once(encoder.finish()));
+        let read = self.map_and_read(device);
+        // Every exit leaves the readback Idle, or the next query's copy
+        // into it fails `queue.submit` (`BufferStillMapped`), which with
+        // no uncaptured-error handler installed panics the UI thread.
+        match release_after(&read) {
+            Release::Unmap => self.id.readback.unmap(),
+            Release::Rebuild => self.id.readback = IdPass::readback(device),
+        }
+        read
+    }
+
+    /// Map the id readback after the pass's copy and read its id,
+    /// leaving the buffer as the outcome left it: mapped on `Ok`, in
+    /// whatever state the device left it on a fault ([`release_after`]
+    /// says what is done with it).
+    fn map_and_read(&self, device: &wgpu::Device) -> Result<u32, ReadbackFault> {
+        let (sent, mapped) = std::sync::mpsc::channel();
         self.id
             .readback
             .slice(..)
-            .map_async(wgpu::MapMode::Read, |_| {});
-        device.poll(wgpu::PollType::wait_indefinitely()).ok()?;
-        let id = {
-            let view = self.id.readback.slice(..).get_mapped_range().ok()?;
-            let bytes: [u8; 4] = view.get(..4)?.try_into().ok()?;
-            u32::from_le_bytes(bytes)
-        };
-        self.id.readback.unmap();
-        Some(id)
+            .map_async(wgpu::MapMode::Read, move |outcome| {
+                // The receiver outlives the wait below, so a send can
+                // only fail once nobody is left to read the outcome.
+                let _ = sent.send(outcome);
+            });
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map_err(|error| ReadbackFault::Wait(error.to_string()))?;
+        map_outcome(mapped.try_recv())?;
+        let view = self
+            .id
+            .readback
+            .slice(..)
+            .get_mapped_range()
+            .map_err(|error| ReadbackFault::Map(error.to_string()))?;
+        id_in(&view)
     }
+}
+
+/// **What the map callback said**, as the readback's fault when it
+/// said anything but success. The callback's own error is the device's
+/// word for a mapping it refused, so it is carried, not discarded: a
+/// later `get_mapped_range` refusal would only say the buffer is not
+/// mapped, which is the consequence and not the reason.
+fn map_outcome(
+    outcome: Result<Result<(), wgpu::BufferAsyncError>, std::sync::mpsc::TryRecvError>,
+) -> Result<(), ReadbackFault> {
+    match outcome {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => Err(ReadbackFault::Map(error.to_string())),
+        Err(std::sync::mpsc::TryRecvError::Empty) => Err(ReadbackFault::Map(
+            "the mapping had not completed when the wait returned".to_owned(),
+        )),
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(ReadbackFault::Map(
+            "the mapping was dropped without an outcome".to_owned(),
+        )),
+    }
+}
+
+/// **What a readback leaves to be done with its buffer.**
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Release {
+    /// The buffer mapped and was read: unmap it.
+    Unmap,
+    /// The readback failed somewhere between the wait and the read,
+    /// so the buffer's state is the device's: still pending a map (a
+    /// refused wait), mapped (a short mapping), or idle (a refused
+    /// mapping). Unmapping is wrong for an idle buffer (its unmap is
+    /// itself a validation error, which panics as the copy would), so
+    /// the buffer is replaced instead; dropping a buffer is allowed in
+    /// any state.
+    Rebuild,
+}
+
+/// The [`Release`] a readback's outcome calls for: a fault never
+/// leaves the buffer to the next query.
+fn release_after(read: &Result<u32, ReadbackFault>) -> Release {
+    match read {
+        Ok(_) => Release::Unmap,
+        Err(_) => Release::Rebuild,
+    }
+}
+
+/// **The id a mapped readback holds**: its first four bytes, little
+/// endian, which is where the copy put the target's one texel. A
+/// mapping shorter than that holds no id and is a [`ReadbackFault`],
+/// never the clear value.
+fn id_in(mapped: &[u8]) -> Result<u32, ReadbackFault> {
+    mapped
+        .first_chunk::<4>()
+        .map(|bytes| u32::from_le_bytes(*bytes))
+        .ok_or(ReadbackFault::Short { len: mapped.len() })
 }
 
 impl IdPass {
@@ -1082,20 +1143,26 @@ impl IdPass {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
-        let readback = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("viewer_id_readback"),
-            size: COPY_ROW_ALIGNMENT,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
         Self {
             pipeline,
             uniforms,
             bind_group,
             target,
             depth,
-            readback,
+            readback: Self::readback(device),
         }
+    }
+
+    /// The staging buffer the id is copied into: one copy row, read
+    /// back by the host. Built again whenever a readback fails
+    /// ([`Release::Rebuild`]).
+    fn readback(device: &wgpu::Device) -> wgpu::Buffer {
+        device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("viewer_id_readback"),
+            size: COPY_ROW_ALIGNMENT,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        })
     }
 }
 
@@ -1249,8 +1316,8 @@ fn edge_vertices(overlay: &EdgeOverlay) -> (Vec<SegmentVertex>, Vec<u32>) {
     let mut marks: Vec<u32> = Vec::with_capacity(positions.capacity());
     for lane in EdgeLane::DRAW_ORDER {
         // Only the mark lanes can belong to a free-moved instance
-        // ([`EdgeOverlay::probed`]): a preview, a profile and a datum
-        // are placed by nothing, so the flag stays clear and the lane
+        // ([`EdgeOverlay::probed`]): a preview and a profile are placed
+        // by nothing, so the flag stays clear and the lane
         // supplies its colour outright.
         let word = if overlay.probed(lane) {
             lane_code(lane) | EDGE_FLAG_PROBE
@@ -1343,15 +1410,12 @@ pub(crate) struct ViewportCallback {
 
 /// One id-buffer question, and where its answer goes.
 ///
-/// The answer travels back through a shared atomic rather than through
-/// `egui_wgpu`'s resources, because the asker is the application and
-/// the answerer is a paint callback: an `Arc` both hold is the whole
-/// channel, with no borrow of the render state in the frame loop.
+/// The answer travels back through an [`IdChannel`] rather than through
+/// `egui_wgpu`'s resources, which says why.
 ///
-/// `serial` is echoed into the high half of [`IdQuery::answer`] so the
-/// application can tell this frame's answer from the previous one's —
-/// an id of `NOTHING` is a real answer, so "unchanged" cannot stand in
-/// for "not yet run".
+/// `serial` is echoed into the [`IdReply`] so the application can tell
+/// this frame's answer from the previous one's — an id of `NOTHING` is
+/// a real answer, so "unchanged" cannot stand in for "not yet run".
 pub(crate) struct IdQuery {
     /// The cursor in normalized device coordinates within the pane.
     pub(crate) cursor_ndc: [f32; 2],
@@ -1359,8 +1423,20 @@ pub(crate) struct IdQuery {
     pub(crate) viewport_px: [f32; 2],
     /// This query's serial.
     pub(crate) serial: u32,
-    /// `serial << 32 | id` once the pass has run.
-    pub(crate) answer: Arc<AtomicU64>,
+    /// Where the reply goes once the pass has run.
+    pub(crate) answer: IdChannel,
+}
+
+impl IdQuery {
+    /// Post `read` as this query's reply, as it is: an id, or the
+    /// readback's fault. This is the one place the pass's outcome
+    /// meets the channel, so no fault is folded into an id on the way.
+    fn reply(&self, read: Result<u32, ReadbackFault>) {
+        self.answer.post(IdReply {
+            serial: self.serial,
+            read,
+        });
+    }
 }
 
 impl ViewportCallback {
@@ -1395,10 +1471,6 @@ impl ViewportCallback {
             probe: mark_lane(self.theme.probe),
             focus: mark_lane(self.theme.focus),
             held: mark_lane(self.theme.held()),
-            datum: {
-                let [r, g, b] = crate::theme::linear(self.theme.datum);
-                [r, g, b, 0.0]
-            },
             profile: {
                 let [r, g, b] = crate::theme::linear(self.theme.profile);
                 [r, g, b, 0.0]
@@ -1440,19 +1512,13 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
             // it cannot ride in the command buffer egui submits after
             // this call returns.
             if let Some(query) = &self.id_query {
-                let id = renderer
-                    .read_id_at(
-                        device,
-                        queue,
-                        query.cursor_ndc,
-                        query.viewport_px,
-                        &self.view_projection,
-                    )
-                    .unwrap_or(IdMap::NOTHING);
-                query.answer.store(
-                    u64::from(query.serial) << 32 | u64::from(id),
-                    Ordering::Relaxed,
-                );
+                query.reply(renderer.read_id_at(
+                    device,
+                    queue,
+                    query.cursor_ndc,
+                    query.viewport_px,
+                    &self.view_projection,
+                ));
             }
         }
         Vec::new()
@@ -1568,8 +1634,6 @@ struct Uniforms {
     probe: vec4<f32>,
     focus: vec4<f32>,
     held: vec4<f32>,
-    // The construction colour, in xyz; w is padding.
-    datum: vec4<f32>,
     // A committed profile's colour, in xyz; w is padding.
     profile: vec4<f32>,
     // Viewport size in physical pixels (xy), a held face's stripe
@@ -2007,11 +2071,10 @@ mod tests {
             held_refused: None,
             held_probed: false,
             preview: segment(2.0),
-            datums: segment(0.0),
             profiles: segment(1.0),
         };
         let (positions, marks) = edge_vertices(&overlay);
-        assert_eq!(positions.len(), 6 * QUAD_CORNERS.len());
+        assert_eq!(positions.len(), 5 * QUAD_CORNERS.len());
         assert_eq!(marks.len(), positions.len());
         let codes: Vec<u32> = marks.iter().map(|word| word & EDGE_LANE_MASK).collect();
         assert!(
@@ -2031,43 +2094,8 @@ mod tests {
                 "the probe flag on a {lane:?} vertex",
             );
         }
-        assert_eq!(codes.first(), Some(&lane_code(EdgeLane::Datum)));
+        assert_eq!(codes.first(), Some(&lane_code(EdgeLane::Profile)));
         assert_eq!(codes.last(), Some(&lane_code(EdgeLane::Selected)));
-    }
-
-    /// **Nothing is drawn fainter or thinner than the datum grid.** The
-    /// grid is the backdrop, so every lane drawn over it is at least as
-    /// wide and as opaque; and the lanes that say what something IS —
-    /// a profile, a preview, a mark — are strictly wider, so a profile
-    /// on its own plane reads as the heavier line even where colour
-    /// cannot tell them apart.
-    #[test]
-    fn the_datum_grid_is_the_faintest_and_thinnest_lane() {
-        let grid = lane_style(EdgeLane::Datum);
-        assert!(grid.opacity > 0.0 && grid.opacity <= 1.0, "{grid:?}");
-        // An absolute bound as well as the relative ones below: the
-        // grid is a hairline, at most one point across, and a grid
-        // drawn at a mark's weight — Ev's complaint — fails here even
-        // if every other lane were widened to stay ahead of it.
-        assert!(
-            grid.half_width_points > 0.0 && 2.0 * grid.half_width_points <= 1.0,
-            "the grid is {} pt wide; a hairline is at most 1 pt",
-            2.0 * grid.half_width_points
-        );
-        for lane in EdgeLane::DRAW_ORDER {
-            if lane == EdgeLane::Datum {
-                continue;
-            }
-            let style = lane_style(lane);
-            assert!(
-                style.half_width_points > grid.half_width_points,
-                "{lane:?} is no wider than the grid"
-            );
-            assert!(
-                style.opacity >= grid.opacity,
-                "{lane:?} is fainter than the grid"
-            );
-        }
     }
 
     /// **The output encode follows the surface, both ways.**
@@ -2197,11 +2225,7 @@ mod tests {
         let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
         for theme in crate::theme::Theme::ALL {
             let block = ViewportCallback {
-                scene: Arc::new(SceneMesh::empty(
-                    bvh::Aabb::from_points([pncad::geom_core::Point3::new(0.0, 0.0, 0.0)])
-                        .expect("one point is a box"),
-                    delta,
-                )),
+                scene: Arc::new(SceneMesh::nothing(delta)),
                 revision: 0,
                 view_projection: [[0.0; 4]; 4],
                 // Nothing here lights anything: the row reads the
@@ -2276,12 +2300,9 @@ mod tests {
             );
         }
 
-        // The empty picture draws nothing: `read_id_at` reads this as
-        // "there is no answer" rather than submitting an empty pass.
-        assert_eq!(
-            corner_count(&SceneMesh::empty(mesh.bounds(), delta)),
-            Some(0)
-        );
+        // The empty picture draws nothing: `read_id_at` answers it
+        // `Ok(IdMap::NOTHING)` without submitting an empty pass.
+        assert_eq!(corner_count(&SceneMesh::nothing(delta)), Some(0));
     }
 
     /// **A vertex table too long to be a draw range is refused, not
@@ -2316,8 +2337,108 @@ mod tests {
         assert_eq!(
             draw_range(too_many),
             None,
-            "`draw_range` answered a draw range for {too_many} vertices, which              it cannot count; the substituted answer is {:?}",
+            "`draw_range` answered a draw range for {too_many} vertices, which it cannot count; the substituted answer is {:?}",
             u32::try_from(too_many).unwrap_or(u32::MAX),
+        );
+    }
+
+    /// **A mapping too short to hold an id is a fault, not the clear
+    /// value**, and a mapping that holds one is read little endian from
+    /// its first four bytes whatever follows. Folded to an `Option` and
+    /// then to [`IdMap::NOTHING`], the short row would read as *nothing
+    /// under the cursor*.
+    #[test]
+    fn a_readback_is_its_first_four_bytes_and_a_short_one_is_a_fault() {
+        let mut row = [0xAB_u8; COPY_ROW_ALIGNMENT as usize];
+        row[..4].copy_from_slice(&[1, 2, 3, 4]);
+        assert_eq!(id_in(&row), Ok(0x0403_0201), "the texel, little endian");
+        assert_eq!(
+            id_in(&[0; 4]),
+            Ok(IdMap::NOTHING),
+            "a cleared texel is the pass's answer over empty space"
+        );
+        for short in [&[][..], &[9, 9, 9][..]] {
+            assert_eq!(
+                id_in(short),
+                Err(ReadbackFault::Short { len: short.len() }),
+                "{} mapped bytes hold no id, and the fault says how many",
+                short.len()
+            );
+        }
+    }
+
+    /// **A mapping the device refused is a fault in its words**, and
+    /// one it never finished is a fault too: only the callback's
+    /// success lets the read go on.
+    #[test]
+    fn a_map_callback_that_did_not_succeed_is_the_readbacks_fault() {
+        use std::sync::mpsc::TryRecvError;
+        assert_eq!(map_outcome(Ok(Ok(()))), Ok(()));
+        assert_eq!(
+            map_outcome(Ok(Err(wgpu::BufferAsyncError))),
+            Err(ReadbackFault::Map(wgpu::BufferAsyncError.to_string())),
+            "the callback's error is carried, not discarded"
+        );
+        for pending in [TryRecvError::Empty, TryRecvError::Disconnected] {
+            assert!(
+                matches!(map_outcome(Err(pending)), Err(ReadbackFault::Map(_))),
+                "a mapping with no outcome after the wait is no answer: {pending:?}"
+            );
+        }
+    }
+
+    /// **A fault never leaves the readback to the next query.** A
+    /// buffer left pending a map, or mapped, fails the next query's
+    /// `queue.submit` (`BufferStillMapped`), and with no
+    /// uncaptured-error handler that is a panic; so every fault
+    /// rebuilds the buffer, and only a read that succeeded unmaps it.
+    /// Which faults a device produces cannot be driven without one.
+    #[test]
+    fn every_readback_fault_rebuilds_the_buffer_and_only_a_read_unmaps_it() {
+        assert_eq!(release_after(&Ok(IdMap::NOTHING)), Release::Unmap);
+        assert_eq!(release_after(&Ok(7)), Release::Unmap);
+        for fault in [
+            ReadbackFault::Wait("lost".to_owned()),
+            ReadbackFault::Map("refused".to_owned()),
+            ReadbackFault::Short { len: 3 },
+        ] {
+            assert_eq!(
+                release_after(&Err(fault.clone())),
+                Release::Rebuild,
+                "{fault}"
+            );
+        }
+    }
+
+    /// **A query's reply is the pass's outcome as it is**: its serial,
+    /// and a fault posted as the fault. A `prepare` that folded the
+    /// fault into [`IdMap::NOTHING`] would post `Ok(0)` here.
+    #[test]
+    fn a_query_posts_its_fault_as_the_fault_under_its_serial() {
+        let answer = IdChannel::new();
+        let query = IdQuery {
+            cursor_ndc: [0.0; 2],
+            viewport_px: [1.0; 2],
+            serial: 7,
+            answer: answer.clone(),
+        };
+        let fault = ReadbackFault::Wait("the device was lost".to_owned());
+        query.reply(Err(fault.clone()));
+        assert_eq!(
+            answer.latest(),
+            Some(IdReply {
+                serial: 7,
+                read: Err(fault)
+            })
+        );
+        query.reply(Ok(IdMap::NOTHING));
+        assert_eq!(
+            answer.latest(),
+            Some(IdReply {
+                serial: 7,
+                read: Ok(IdMap::NOTHING)
+            }),
+            "an empty picture is an answer, posted as one"
         );
     }
 
@@ -2519,7 +2640,7 @@ mod tests {
         use crate::camera::Camera;
         use crate::generation::Generation;
         use crate::pickindex::{PickIndex, PictureKey};
-        use crate::test_support::{framed_square, inserted, len, placed, plate_delta};
+        use crate::test_support::{inserted, len, placed, plate_delta, square_profile};
 
         const SIDE_PX: u32 = 64;
         const SIDE: f64 = 0.04;
@@ -2528,13 +2649,12 @@ mod tests {
 
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("pixel-cube", tol);
-        let (doc, profile) = framed_square(&doc, SIDE, tol);
+        let (doc, profile) = square_profile(&doc, SIDE, tol);
         let (doc, cube) = inserted(
             &doc,
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(SIDE),
-                side: pncad::document::ExtrudeSide::Along,
             },
             tol,
         );
@@ -2578,7 +2698,7 @@ mod tests {
         assert_eq!(faces.len(), 6, "a cube has six faces");
 
         let aspect = 1.0;
-        let framed = Camera::framing(&scene.bounds(), aspect).expect("the cube frames");
+        let framed = Camera::framing(scene.bounds(), aspect).expect("the cube frames");
         let behind = Camera::new(
             framed.target(),
             framed.distance(),
@@ -2642,20 +2762,25 @@ mod tests {
             // The id pass, one query per facing face, as the app asks it.
             for (serial, &(id, face)) in (1..).zip(&facing) {
                 let [x, y, _] = ndc(face);
-                let answer = Arc::new(AtomicU64::new(0));
+                let answer = IdChannel::new();
                 let mut encoder = device.create_command_encoder(&Default::default());
                 let _ = callback(Some(IdQuery {
                     cursor_ndc: [x as f32, y as f32],
                     viewport_px: [SIDE_PX as f32; 2],
                     serial,
-                    answer: Arc::clone(&answer),
+                    answer: answer.clone(),
                 }))
                 .prepare(&device, &queue, &screen, &mut encoder, &mut resources);
-                let answer = answer.load(Ordering::Relaxed);
-                assert_eq!(answer >> 32, u64::from(serial), "{view}: the id pass ran");
+                let answer = answer
+                    .latest()
+                    .unwrap_or_else(|| panic!("{view}: the id pass ran"));
                 assert_eq!(
-                    answer & u64::from(u32::MAX),
-                    u64::from(id),
+                    answer.serial, serial,
+                    "{view}: the id pass answered this query"
+                );
+                assert_eq!(
+                    answer.read,
+                    Ok(id),
                     "{view}: the id pass at the centre of face {id} answers another id — the \
                      face that faces the eye was culled and the one behind it answered"
                 );

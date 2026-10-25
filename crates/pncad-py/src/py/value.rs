@@ -10,7 +10,6 @@
 //! | `Boolean`      | full — unwraps to a `Body`, or `None` when empty |
 //! | `Split`        | full — `above` / `below` as optional bodies |
 //! | `Instances`    | full — a list of bodies |
-//! | `Datum`        | full — typed plane / axis / point with `Length` coordinates |
 //! | `Profile`      | KIND ONLY — sketch geometry does not ship to Python before the v2 switch |
 //!
 //! The kind-only row is a SCOPE decision, not a capability limit.
@@ -489,24 +488,19 @@ impl Body {
 
 #[pymethods]
 impl Body {
-    /// Volume, area, and their certified pads — a certified
-    /// quadrature from round 0 over the whole body.
+    /// Volume, area, and their certified pads.
     ///
-    /// **After a tier-3 gate this is a SECOND one.** Check 7 is itself
-    /// a certified quadrature over the same body at the same band, so
-    /// `validate_geometric()` then `mass_properties()` pays for the
-    /// measurement twice; [`Self::validate_geometric_measured`] is the
-    /// one-quadrature spelling of that pair. This door stays the right
-    /// one for a body that is not being gated here — measuring is not
-    /// validating, and asking for a volume does not imply a caller
-    /// wants tier 3 run.
+    /// **The measurement reads a finished body** (Ev's decision on PR
+    /// 4822), so this is [`Self::validate_geometric_measured`]: tier 3
+    /// gates the body, and its own certified quadrature, continued to
+    /// the reporting target, is the measurement — one quadrature, the
+    /// same bits the typed door reports over the finished body. A body
+    /// the gate refuses raises the gate's `ValidationError` (door
+    /// `validate_geometric`) rather than being measured; a body the gate
+    /// admits whose number the schedule cannot reach raises the
+    /// measurement's refusal with its bracket, as that door does.
     fn mass_properties(&self, py: Python<'_>) -> PyResult<MassProperties> {
-        let tol = Tol::witness();
-        topo::mass_properties(&self.inner, tol)
-            .map(MassProperties::from)
-            // No bracket: this door refuses with no certificate in
-            // hand, so it has none to offer and must not appear to.
-            .map_err(|err| measurement_err(py, &err, Vec::new()))
+        self.validate_geometric_measured(py)
     }
 
     /// Full validation. Raises `ValidationError` listing the failures.
@@ -553,15 +547,13 @@ impl Body {
     /// **Tier 3 and the number it already computed, in ONE certified
     /// quadrature** — the spelling that pays once.
     ///
-    /// `validate_geometric()` then `mass_properties()` is the natural
-    /// pair and it runs the certified quadrature TWICE over the same
-    /// body at the same band: tier 3's +V check IS a certified
-    /// quadrature, and the reporting door starts another one from
-    /// round 0. This door keeps the certificate the gate decided the
-    /// sign on and continues THAT quadrature to the reporting target,
-    /// so the rounds the gate already paid for are not paid again. The
-    /// `MassProperties` it answers is the pair's second call bit for
-    /// bit, in all four fields.
+    /// Tier 3's +V check IS a certified quadrature, and a measurement
+    /// after it would start another from round 0. This door keeps the
+    /// certificate the gate decided the sign on and continues THAT
+    /// quadrature to the reporting target, so the rounds the gate
+    /// already paid for are not paid again; the `MassProperties` it
+    /// answers is the typed door's over the finished body, bit for bit,
+    /// in all four fields. `mass_properties()` is this door.
     ///
     /// **Why a door and not a certificate.** The Rust certificate
     /// BORROWS the body it was derived from, so it cannot be handed
@@ -831,50 +823,6 @@ impl ValidationFinding {
     }
 }
 
-/// A datum: a construction plane, frame, axis, or point.
-#[pyclass(frozen, module = "pncad")]
-pub(crate) struct Datum {
-    /// `"plane"`, `"frame"`, `"axis"`, or `"point"`.
-    #[pyo3(get)]
-    kind: &'static str,
-    /// Plane/frame/axis origin, or the point's position, as metres.
-    #[pyo3(get)]
-    origin: (Length, Length, Length),
-    /// Plane normal, frame normal (x̂ × ŷ), or axis direction; `None`
-    /// for a point.
-    #[pyo3(get)]
-    direction: Option<(f64, f64, f64)>,
-    /// A frame's sketch +x and +y axes, unit and perpendicular; `None`
-    /// for every other kind.
-    ///
-    /// The pair rides ALONGSIDE `direction` rather than replacing it:
-    /// a reader asking which way a datum faces gets the same answer
-    /// for a frame as for a plane, and one asking how the frame is
-    /// TURNED — the datum a plane does not carry — reads the axes.
-    //
-    // The tuple is spelled out rather than hidden behind a
-    // `type SketchAxes = ((f64, f64, f64), (f64, f64, f64))`, and the
-    // reason is that this is a `#[pyo3(get)]` projection: the written
-    // shape IS the object Python receives, and `pncad.pyi` states it
-    // literally as
-    // `Optional[tuple[tuple[float, float, float], tuple[float, float, float]]]`.
-    // An alias would name the pair on the Rust side while the thing the
-    // stub records stayed a bare nested tuple on the Python side, so a
-    // reader checking the binding against the stub would have to chase
-    // the alias to learn nothing new. The field above it, `direction`'s
-    // triple, is literal for the same reason.
-    #[allow(clippy::type_complexity)] // the tuple IS the Python-side contract; see above
-    #[pyo3(get)]
-    axes: Option<((f64, f64, f64), (f64, f64, f64))>,
-}
-
-#[pymethods]
-impl Datum {
-    fn __repr__(&self) -> String {
-        format!("Datum({})", self.kind)
-    }
-}
-
 /// **A measured quantity** (ERROR-DESIGN E3): the value a `Measure`
 /// node evaluated to, with the F1 dimension it was measured in.
 ///
@@ -1079,55 +1027,6 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a split", other.kind_name()),
-                EvalReason::WrongKind,
-                self.node,
-            )),
-        }
-    }
-
-    /// The datum this value denotes.
-    fn datum(&self, py: Python<'_>) -> PyResult<Datum> {
-        match &self.payload {
-            d::ValuePayload::Datum(d::PoseValue::Plane { origin, normal }) => {
-                let n = normal.get();
-                Ok(Datum {
-                    kind: "plane",
-                    origin: lengths(*origin),
-                    direction: Some((n.x, n.y, n.z)),
-                    axes: None,
-                })
-            }
-            d::ValuePayload::Datum(d::PoseValue::Axis { origin, dir }) => {
-                let v = dir.get();
-                Ok(Datum {
-                    kind: "axis",
-                    origin: lengths(*origin),
-                    direction: Some((v.x, v.y, v.z)),
-                    axes: None,
-                })
-            }
-            d::ValuePayload::Datum(d::PoseValue::Point { position }) => Ok(Datum {
-                kind: "point",
-                origin: lengths(*position),
-                direction: None,
-                axes: None,
-            }),
-            d::ValuePayload::Datum(d::PoseValue::Frame(f)) => {
-                let (x, y) = (f.u().get(), f.v().get());
-                let n = f.w().get();
-                Ok(Datum {
-                    kind: "frame",
-                    origin: lengths(f.origin()),
-                    direction: Some((n.x, n.y, n.z)),
-                    axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),
-                })
-            }
-            d::ValuePayload::Datum(d::PoseValue::Direction { .. }) => {
-                unreachable!("a datum node's value is a point, an axis, a plane or a frame")
-            }
-            other => Err(eval_err(
-                py,
-                format!("a `{}` value is not a datum", other.kind_name()),
                 EvalReason::WrongKind,
                 self.node,
             )),
@@ -1498,8 +1397,9 @@ impl Evaluation {
     /// exact atoms are total and cannot refuse, but a DECIDED atom's
     /// in-band margin (`reason="in_band"`), a tied name whose
     /// candidates disagree (`"tied_disagrees"`), an unreadable
-    /// candidate (`"unreadable"`), a non-datum reference
-    /// (`"not_a_datum"`) all refuse rather than silently including or
+    /// candidate (`"unreadable"`), a distance measured from a face that
+    /// is not planar (`"not_a_plane"`) or that the body does not hold
+    /// (`"face_unresolved"`) all refuse rather than silently including or
     /// dropping a candidate. The band this query classifies against is
     /// built before any candidate is read, so an ambient tolerance that
     /// admits none refuses too, under the band constructor's OWN word —
@@ -1615,9 +1515,9 @@ impl Evaluation {
     /// It is the door [`Self::face_frame`] cannot be: a NURBS carrier
     /// has no canonical frame and the frame door refuses it
     /// (`no_canonical_frame`), while its kind is still readable here.
-    /// It is also how a caller checks a face BEFORE building a
-    /// `Node.datum_face_frame` on it, which refuses a non-planar
-    /// carrier at `evaluate`.
+    /// It is also how a caller checks a face BEFORE reading a plane off
+    /// it (`PoseDef.plane`, `GeomPred.plane_distance`), which refuses a
+    /// non-planar carrier.
     ///
     /// Raises `ReadbackError` as [`Self::face_frame`] does, with
     /// `wrong_kind` for an edge or vertex name.
@@ -1678,7 +1578,7 @@ impl Evaluation {
     /// name it minted, and otherwise raises `SelectRefusal`
     /// `node_not_held`: the node took its read with it, and a node
     /// handle cannot say which read that was. A `Var` that is no body
-    /// output (a scalar, a selection, a datum's) raises `SelectRefusal`
+    /// output (a scalar, a selection, a pose) raises `SelectRefusal`
     /// `read_not_an_output`: there is no table to ask. A node with
     /// several body outputs is a `ValueError`, since which one is meant
     /// is the caller's to say.
@@ -1866,26 +1766,6 @@ impl Evaluation {
             .map_err(|err| export_err(py, *node, &err, &self.doc))
     }
 
-    /// **Every loose copy**, by its placement, in id order: a
-    /// placement whose bundle pins less than its copy needs, so it
-    /// lives in a space of its own. The product gathers only the
-    /// world's space, and nothing in one space is compared with
-    /// another's.
-    #[getter]
-    fn loose(&self) -> Vec<NodeId> {
-        self.inner.loose_roots().into_iter().map(NodeId).collect()
-    }
-
-    /// **The space `node`'s value lives in**: `"world"`, or the loose
-    /// copy whose space it is, by its placement. A node that denotes no
-    /// geometry answers `"world"`.
-    fn space(&self, py: Python<'_>, node: &NodeId) -> PyResult<Py<PyAny>> {
-        match self.inner.space(node.0) {
-            d::Space::World => Ok(PyString::new(py, "world").unbind().into_any()),
-            d::Space::Loose { root } => Ok(Py::new(py, NodeId(root))?.into_any()),
-        }
-    }
-
     fn __repr__(&self) -> String {
         format!("Evaluation({} nodes)", self.inner.order.len())
     }
@@ -1893,9 +1773,8 @@ impl Evaluation {
 
 /// Raise `ExportError` mirroring the Rust door's refusal: `variant`
 /// is the arm's stable tag, `node` rides along, a poisoning adds
-/// `through`, a wrong-kind value adds `kind`, and a loose export adds
-/// `copies` — every loose copy the export would have to write, by its
-/// placement. The message is the door's own
+/// `through`, and a wrong-kind value adds `kind`. The message is the
+/// door's own
 /// sentence, its nodes spoken from the evaluated document.
 fn export_err(
     py: Python<'_>,
@@ -1918,7 +1797,6 @@ fn export_err(
         ("node", node_obj),
         ("through", py.None().into_any()),
         ("kind", py.None().into_any()),
-        ("copies", py.None().into_any()),
     ];
     match err {
         E::Standing(standing) => {
@@ -1933,13 +1811,6 @@ fn export_err(
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
         E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
-        E::Loose { copies } => {
-            let listed: Vec<NodeId> = copies.iter().copied().map(NodeId).collect();
-            match listed.into_pyobject(py) {
-                Ok(bound) => fields[4] = ("copies", bound.unbind().into_any()),
-                Err(failed) => return failed,
-            }
-        }
     }
     typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }
@@ -2204,9 +2075,9 @@ fn census(c: pncad::step_import::FaceCensus) -> FaceCensus {
 /// and decided the body's orientation invariant on, handed back rather
 /// than dropped — **not a second computation**. A caller that reads it
 /// measures the imported body ONCE; a caller that calls
-/// `report.body.mass_properties()` runs the certified quadrature a
-/// second time over the same body at the same band and gets the same
-/// four fields bit for bit.
+/// `report.body.mass_properties()` gates the body again and runs its
+/// certified quadrature over the same body at the same band, and gets
+/// the same four fields bit for bit.
 ///
 /// The three record lists are the adoption's own report, "as data,
 /// never silently": `normalizations` is every boundary graph the
@@ -2295,8 +2166,8 @@ impl ImportReport {
 /// journey — import a file, then ask what it encloses — measure the
 /// solid once. The importer's gate has already run the certified
 /// quadrature to decide the body's orientation invariant, so
-/// `enclosure` is that measurement handed back and
-/// `body.mass_properties()` is a second one over the same body.
+/// `enclosure` is that measurement handed back, where
+/// `body.mass_properties()` gates and measures the body over again.
 ///
 /// `eps_in` overrides the file's declared
 /// `UNCERTAINTY_MEASURE_WITH_UNIT` as the import's input tolerance —
@@ -2780,7 +2651,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PlacedInstance>()?;
     m.add_class::<FaceCensus>()?;
     m.add_class::<ValidationFinding>()?;
-    m.add_class::<Datum>()?;
     m.add_class::<Measurement>()?;
     m.add_class::<Verdict>()?;
     m.add_function(wrap_pyfunction!(evaluate, m)?)?;

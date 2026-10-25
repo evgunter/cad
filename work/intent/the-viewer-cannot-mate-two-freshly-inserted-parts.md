@@ -2,10 +2,12 @@
 id: the-viewer-cannot-mate-two-freshly-inserted-parts
 kind: issue
 title: The viewer cannot mate two freshly inserted parts: every insert is world-pinned, so the mate tool's AddConstraint lands on a pinned bundle and refuses Overconstrained
-status: open
+status: closed
 opened: 2026-10-17
 priority: P1
 cost: M
+parent: a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space
+closed: 2026-10-23
 ---
 
 
@@ -32,3 +34,7 @@ the tool should treat a placed copy's lone world pin. It could:
 
 That is a design choice for the viewer's assembly workflow, not a
 mechanical follow-on of B.
+
+## Closed
+
+Closed by D′2 (`a-mate-reads-only-geometry-and-a-value-charts-on-the-target-space`, PR 5613, 2026-10-23). An insert writes the identity bundle (values and no mate), and `DocEdit::AddConstraint` writes the bundle whole with the mate in it (`edit.rs`'s `rebundle`): the values whose freedoms the mate fixes go, the ones it leaves are kept. So the mate tool's op mates two freshly inserted parts with no hand unpin (`instance_authoring::an_assembly_authored_into_a_directory_of_parts_round_trips`).

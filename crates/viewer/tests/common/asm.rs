@@ -8,27 +8,24 @@
 //! Geometry is deliberately tiny (three small prisms, all disjoint)
 //! so every suite's evaluations stay cheap; what matters is the
 //! STRUCTURE: two pinned part documents, three instances, each pinned
-//! to the world by one world pin (a frame mate read off the copy's
-//! geometry, `editor_core::pin_at`) and related by no mate. A pinned
-//! copy lives in the world's space, which the free-move probe does not
-//! move (DI5), so a free-move row takes post_b's world pin off first
-//! ([`unpin`]) and probes the loose post with [`where_b_stood`]; a
-//! mate-tool row takes it off too, so the mate it commits places post_b
-//! rather than overconstraining it.
+//! to the world by values on the world's axes (`test_support::pin`)
+//! and related by no mate. A copy
+//! placed into the world is in the product's space, which the free-move
+//! probe does not move (DI5), so a free-move row gives post_b a space of
+//! its own first ([`unpin`]) and probes it there with [`where_b_stood`].
 
 #![allow(dead_code)] // loaded once per consumer; each uses a subset
 #![allow(unreachable_pub)]
 // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::expect_used)]
 
-use pncad::document::ExtrudeSide;
 use pncad::document::Formula;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use pncad::document::{
     CancelToken, Coord, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
-    RecipeNodeId, SlideAxis, evaluate,
+    RecipeNodeId, TargetAxis, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -87,18 +84,12 @@ pub struct Bench {
 /// One extruded box, placed, authored through the ordinary doors.
 fn box_part(label: &str, width: f64, depth: f64, height: f64, tol: Tol) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let plane = insert_into(&mut doc, super::xy_frame(), tol);
-    let profile = insert_into(
-        &mut doc,
-        super::rectangle(plane, [0.0, 0.0], width, depth),
-        tol,
-    );
+    let profile = insert_into(&mut doc, super::rectangle([0.0, 0.0], width, depth), tol);
     let extrude = insert_into(
         &mut doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -192,7 +183,7 @@ impl Bench {
 }
 
 /// **An instance of `part` pinned to the world at the translation
-/// `at`**: an instance whose bundle is empty, then one world pin.
+/// `at`**: an instance whose bundle is empty, then one world mate.
 pub fn instance_at(
     asm: &mut ProfileDoc,
     part: DocRef,
@@ -203,8 +194,8 @@ pub fn instance_at(
     instance_posed(asm, part, &Frame::translation(at), opts, tol)
 }
 
-/// [`instance_at`] at any pose: the pin is read off the copy's own
-/// geometry through `opts` (`editor_core::pin_at`).
+/// [`instance_at`] at any pose: the pin is values on the world's axes
+/// (`test_support::pin`).
 pub fn instance_posed(
     asm: &mut ProfileDoc,
     part: DocRef,
@@ -217,46 +208,29 @@ pub fn instance_posed(
     instance
 }
 
-/// **The world pin `placement`'s bundle holds**, by its address.
-///
-/// # Panics
-///
-/// Unless the bundle holds exactly one mate reading the world.
-pub fn world_pin_of(
-    doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-    placement: RecipeNodeId,
-) -> pncad::document::MateRef {
-    let pins: Vec<_> = crate::fixture::bundle(doc, placement)
-        .into_iter()
-        .filter(|constraint| {
-            constraint
-                .mate()
-                .is_some_and(|mate| matches!(mate.to, pncad::document::Target::World(_)))
-        })
-        .collect();
-    let [pin] = pins.as_slice() else {
-        panic!("{placement:?} holds one world pin: {pins:?}")
-    };
-    pncad::document::MateRef::new(placement, pin.id)
-}
-
-/// **Take `instance`'s world pin off through the session**, and pump:
-/// its bundle empties (the session takes any value naming the pin with
-/// it), so it is a loose copy and the next mate a row commits on it
-/// places it, where a pinned one would refuse overconstrained.
-pub fn unpin(session: &mut DocSession, instance: RecipeNodeId) {
-    let mate = world_pin_of(session.committed_doc(), instance);
-    let outcome = session.perform(SessionOp::RemoveConstraint { mate });
+/// **Give `instance`'s copy a space of its own through the session**,
+/// and pump (`SessionOp::IntoOwnSpace`): a `new_space()`, the instance
+/// re-targeted into it at the identity. It leaves the world, and the
+/// free-move probe moves its space. Answers the space.
+pub fn unpin(session: &mut DocSession, instance: RecipeNodeId) -> pncad::document::VarId {
+    let outcome = session.perform(SessionOp::IntoOwnSpace {
+        placement: instance,
+    });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
+    session
+        .committed_doc()
+        .node_space(instance)
+        .expect("the copy is placed into its own space")
 }
 
-/// **A free-move frame for the loose post_b, drawn where its pin stood
-/// it**, composed with `frame`: `frame ∘ T(POST_B_AT)`.
+/// **A free-move frame for post_b in its own space, drawn where its pin
+/// stood it**, composed with `frame`: `frame ∘ T(POST_B_AT)`.
 ///
-/// A free-move moves the picture of a loose space (DI5), and a loose
-/// copy is drawn at its body's own coordinates. Its pin off ([`unpin`]),
-/// post_b is drawn at the part's origin, so a probe that should show it
+/// A free-move moves the picture of a shown space (DI5), and a copy at
+/// the identity in its own space is drawn at its body's own
+/// coordinates. In its own space ([`unpin`]), post_b is drawn at the
+/// part's origin, so a probe that should show it
 /// where the pinned post stood, displaced by `frame` as the display
 /// frame displaced the pinned copy, composes the pin's translation in
 /// first. A row asserting a drawn position keeps its numbers.
@@ -350,25 +324,41 @@ pub use super::{down_at, up_at};
 /// rests on the shelf's underside (a plane mate, flipped), which leaves
 /// the post free to slide and spin in the shelf's plane; the values put
 /// its top cap's middle under the shelf at `b_x` along it and midway
-/// across it, unturned. Each value is measured on the two parts' own
-/// coordinates — the post's origin from the shelf's — along the
-/// shelf's frame swung onto the underside's outward normal, its own
-/// `−z`: the half-turn about its `x`, so the chart's `y` is the
-/// shelf's `−y`.
+/// across it, unturned. Each value is measured on the axes of the space
+/// the shelf stands in — the world, the shelf at [`SHELF_AT`]
+/// ([`seat_values_at`]).
 pub fn seat_values(b_x: f64) -> Vec<(Coord, pncad::document::Formula)> {
+    seat_values_at(b_x, SHELF_AT)
+}
+
+/// [`seat_values`] under a shelf standing unturned at `shelf_at` in its
+/// space: the post's origin from the space's, on the space's axes swung
+/// onto the underside's outward normal, the space's `−z` — the
+/// half-turn about its `x`, so the chart's `y` is the space's `−y`.
+pub fn seat_values_at(b_x: f64, shelf_at: [f64; 3]) -> Vec<(Coord, pncad::document::Formula)> {
     vec![
-        (Coord::Slide(SlideAxis::X), len(b_x - POST_SECTION / 2.0)),
         (
-            Coord::Slide(SlideAxis::Y),
-            len(POST_SECTION / 2.0 - SHELF_DEPTH / 2.0),
+            Coord::Slide(TargetAxis::X),
+            len(shelf_at[0] + b_x - POST_SECTION / 2.0),
         ),
-        (Coord::Spin, ang(0.0)),
+        (
+            Coord::Slide(TargetAxis::Y),
+            len(POST_SECTION / 2.0 - SHELF_DEPTH / 2.0 - shelf_at[1]),
+        ),
+        (Coord::Spin(TargetAxis::Z), ang(0.0)),
     ]
 }
 
 /// [`seat_values`] under the shelf's middle.
 pub fn middle_seat_values() -> Vec<(Coord, pncad::document::Formula)> {
     seat_values(SHELF_LENGTH / 2.0)
+}
+
+/// [`seat_values_at`] under the shelf's middle, the shelf standing at
+/// its space's identity — a shelf given a space of its own ([`unpin`]),
+/// or pinned at the world's origin.
+pub fn own_space_seat_values() -> Vec<(Coord, pncad::document::Formula)> {
+    seat_values_at(SHELF_LENGTH / 2.0, [0.0; 3])
 }
 
 /// **Where [`seat_values`] puts a post under the bench shelf**: the
@@ -399,12 +389,11 @@ pub fn assert_solved_at(session: &DocSession, placement: RecipeNodeId, want: &Fr
     assert!(close, "{what}: {got:?} vs {want:?}");
 }
 
-/// The mate tool's choice for the seat: a Rest of two planes, the
+/// The mate tool's choice for the seat: a mate of two planes, the
 /// target flipped (the faces rest against each other), at
 /// [`middle_seat_values`].
 pub fn seat_choice() -> viewer::matetool::MateChoice {
     viewer::matetool::MateChoice {
-        class: pncad::select::ContactClass::Rest,
         kind: pncad::document::VarKind::Plane,
         flip: true,
         values: middle_seat_values(),
@@ -412,21 +401,19 @@ pub fn seat_choice() -> viewer::matetool::MateChoice {
 }
 
 /// **The seat mate as the op the session takes**: `post`'s top cap
-/// resting on the bench shelf's underside, as `class`, with `values`,
+/// resting on the bench shelf's underside, with `values`,
 /// in `post`'s bundle.
 ///
 /// One home for the op because the two faces it names are one fact
-/// about this fixture; what a row varies is the post, the class and
-/// the values. A row hands it to [`super::commit_mate`] or
+/// about this fixture; what a row varies is the post and the values. A row hands it to [`super::commit_mate`] or
 /// [`super::session_insert`], or performs it itself when its subject
 /// is the outcome.
 pub fn seat_op(
     bench: &Bench,
     post: RecipeNodeId,
-    class: pncad::select::ContactClass,
     values: Vec<(Coord, pncad::document::Formula)>,
 ) -> SessionOp {
-    seat_op_under(bench, post, bench.shelf_i, class, values)
+    seat_op_under(bench, post, bench.shelf_i, values)
 }
 
 /// [`seat_op`] under a shelf instance other than the bench's — one a
@@ -435,24 +422,23 @@ pub fn seat_op_under(
     bench: &Bench,
     post: RecipeNodeId,
     shelf: RecipeNodeId,
-    class: pncad::select::ContactClass,
     values: Vec<(Coord, pncad::document::Formula)>,
 ) -> SessionOp {
     let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
     SessionOp::AddMate {
         placement: post,
-        mate: Box::new(crate::fixture::rest(post_top, shelf_bottom, class)),
+        mate: Box::new(crate::fixture::rest(post_top, shelf_bottom)),
         values,
+        into_target_space: true,
     }
 }
 
 /// **The shelf resting on `post`'s top, `offset` above it**, as the op
 /// the session takes: the shelf's underside on the post's top cap,
 /// flipped and slid `offset` along its own normal (a standoff), in the
-/// shelf's bundle once the shelf's world pin is off ([`unpin`]). It
-/// fixes the shelf's seating plane and nothing else, so the shelf is a
-/// loose copy; a second rest beside it fixes the plane again, which the
-/// edit door refuses.
+/// the shelf's bundle written whole: the rest and the constant `0` on
+/// each freedom it leaves. A second rest beside it fixes the plane
+/// again, which the edit door refuses.
 pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionOp {
     use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
     let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
@@ -467,52 +453,36 @@ pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionO
         mate: Box::new(crate::fixture::mate(
             crate::fixture::plane(shelf_bottom),
             to,
-            pncad::select::ContactClass::Rest,
         )),
         values: Vec::new(),
+        into_target_space: true,
     }
 }
 
-/// **A mate the shelf's bundle refuses where it evaluates**: a ball
-/// mate on the centre of the shelf's underside, which a plane has none
-/// of, against the centre of `post`'s top. The door admits it (its
-/// kinds agree and its `on` reads the shelf); the placement refuses it
-/// where it evaluates, its `on` pose unevaluated (`NoCentre`).
+/// **A mate the shelf's bundle refuses where it evaluates**: a coaxial
+/// mate on the axis of the shelf's underside, which a plane has none
+/// of, against the axis of `post`'s top, its slide and spin the
+/// constant `0`. The door admits it (its kinds agree, its `on` reads the
+/// shelf and the bundle writes every freedom); the placement refuses it
+/// where it evaluates, its `on` pose unevaluated.
 pub fn no_centre_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
     let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
     SessionOp::AddMate {
         placement: bench.shelf_i,
         mate: Box::new(crate::fixture::mate(
-            crate::fixture::point_of(shelf_bottom),
-            crate::fixture::point_of(post_top),
-            pncad::select::ContactClass::Rest,
+            crate::fixture::axis(shelf_bottom),
+            crate::fixture::axis(post_top),
         )),
         values: Vec::new(),
+        into_target_space: true,
     }
 }
 
-/// [`no_centre_op`] in `post`'s bundle: a ball mate on the centre of
-/// `post`'s top cap, which a plane has none of, against the shelf's
-/// underside centre. The door admits it; `post` refuses it where it
-/// evaluates (`NoCentre`), so its copy is in no space.
-pub fn no_centre_seat_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
-    let (post_top, shelf_bottom) = seat_faces(bench, post, bench.shelf_i);
-    SessionOp::AddMate {
-        placement: post,
-        mate: Box::new(crate::fixture::mate(
-            crate::fixture::point_of(post_top),
-            crate::fixture::point_of(shelf_bottom),
-            pncad::select::ContactClass::Rest,
-        )),
-        values: Vec::new(),
-    }
-}
-
-/// **The shelf's bundle refused, and post_b chained to it**: post_b's
-/// world pin off and post_b seated under the shelf's middle (`sound`,
-/// in post_b's bundle), then the shelf's world pin off and its bundle
-/// one mate the evaluation refuses ([`no_centre_op`], the `offender`,
-/// against post_a). The shelf has no pose, and post_b, placed against
+/// **The shelf's bundle refused, and post_b chained to it**: post_b
+/// seated under the shelf's middle (`sound`, post_b's bundle), then the
+/// shelf's bundle one mate the evaluation refuses ([`no_centre_op`],
+/// the `offender`, against post_a), all in the world; each bundle's
+/// mates are taken off first ([`unpin`]). The shelf has no pose, and post_b, placed against
 /// the shelf, has none either; post_a, which only the shelf's
 /// constraints read, keeps its own. Committed, each pumped.
 pub fn refuse_shelf(session: &mut DocSession, bench: &Bench) -> Refused {
@@ -527,16 +497,12 @@ pub fn refuse_shelf_chaining(
     chained: RecipeNodeId,
     rest_on: RecipeNodeId,
 ) -> Refused {
+    // Its pin off first, by a space of its own: a seat beside a mate the
+    // bundle holds is refused.
     unpin(session, chained);
-    let sound = super::commit_mate(
-        session,
-        seat_op(
-            bench,
-            chained,
-            pncad::select::ContactClass::Rest,
-            middle_seat_values(),
-        ),
-    );
+    let sound = super::commit_mate(session, seat_op(bench, chained, middle_seat_values()));
+    // The shelf's mates off, by a space of its own: a mate beside one
+    // the bundle holds is refused. The refused mate places it back.
     unpin(session, bench.shelf_i);
     let offender = super::commit_mate(session, no_centre_op(bench, rest_on));
     Refused { sound, offender }
@@ -637,4 +603,12 @@ pub fn instance_rows(session: &DocSession) -> Vec<viewer::tree::TreeRow> {
         .into_iter()
         .filter(|row| row.spoken.kind() == Some("InstantiatePart"))
         .collect()
+}
+
+/// **The committed free-move frame over the space `instance`'s copy is
+/// placed into now**, if any: frames are keyed by space (DI5), and a
+/// row asks after the instance it probed.
+pub fn frame_of(session: &DocSession, instance: RecipeNodeId) -> Option<&Frame> {
+    let space = session.committed_doc().node_space(instance)?;
+    session.display().free_move_of(space)
 }

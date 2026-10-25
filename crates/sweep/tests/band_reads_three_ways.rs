@@ -28,7 +28,7 @@ use sweep::blend::{
     BlendError, BlendRequest, ClassifiedMargin, Convexity, chamfer_edges, fillet_edges,
 };
 use sweep::test_support::band_reach;
-use topo::{AtRestBody, AtRestPolicy, Body, EdgeKey, EntityId, mass_properties};
+use topo::{AtRestBody, AtRestPolicy, Body, EdgeKey, EntityId};
 
 use crate::common::cavity::{brick, cut, edges_with_corners};
 use crate::common::interval::iv;
@@ -88,13 +88,17 @@ enum Verb {
 
 impl Verb {
     fn run(self, body: &AtRestBody<f64>, edges: &[EdgeKey], size: f64) -> Result<f64, BlendError> {
-        let out = match self {
-            Self::Fillet => fillet_edges(body, edges, size, tol()).map(|f| f.body),
-            Self::Chamfer => chamfer_edges(body, edges, size, tol()).map(|c| c.body),
-        }
-        .map_err(|e| e.error)?;
+        let out = topo::test_support::finished(
+            "out",
+            match self {
+                Self::Fillet => fillet_edges(body, edges, size, tol()).map(|f| f.body),
+                Self::Chamfer => chamfer_edges(body, edges, size, tol()).map(|c| c.body),
+            }
+            .map_err(|e| e.error)?,
+            tol(),
+        );
         topo::validate_geometric(&out, tol()).unwrap_or_else(|e| panic!("{self:?}: tier 3, {e:?}"));
-        Ok(mass_properties(&out, tol()).expect("a volume").volume)
+        Ok(topo::mass_properties(&out, tol()).expect("a volume").volume)
     }
 
     /// The section the band removes from a right dihedral.

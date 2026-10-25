@@ -65,6 +65,7 @@ use pncad::geom_core::{Point3, Vec3};
 use pncad::select::Ray;
 
 use crate::narrowing::Narrow;
+use crate::readout;
 
 /// Elevation is held strictly inside `±(π/2 − POLE_MARGIN)`.
 ///
@@ -86,7 +87,7 @@ const MAX_DISTANCE_FACTOR: f64 = 100.0;
 /// its target.
 ///
 /// Tied to the eye rather than to the scene, because the scene is
-/// not the only thing drawn: a datum plane runs out toward the
+/// not the only thing that may be drawn: a plane running out toward the
 /// horizon and back under the eye, and at a grazing view its nearest
 /// visible point sits a vanishing fraction of the orbit distance in
 /// front of the eye. A near plane at the front of the scene's sphere
@@ -97,10 +98,14 @@ const MAX_DISTANCE_FACTOR: f64 = 100.0;
 /// near plane approaches the eye.
 const NEAR_FACTOR: f64 = 1e-3;
 
-/// A scene radius of zero (a point, an empty mesh) has no framing.
-/// Refused rather than defaulted — a made-up scale is a lie about the
-/// model.
+/// The smallest scene radius a camera holds: below it the zoom band's
+/// floor ([`band_floor`]) is not a length.
 const MIN_SCENE_RADIUS: f64 = f64::MIN_POSITIVE;
+
+/// The radius a fit frames when the picture gives it none — nothing
+/// drawn, or a drawn extent whose radius is below [`MIN_SCENE_RADIUS`]
+/// (a lone point). Metres.
+pub const DEFAULT_FRAME_RADIUS: f64 = 0.05;
 
 /// The default vertical field of view: 45°, the CAD-conventional
 /// middle ground between the foreshortening of a wide lens and the
@@ -119,7 +124,7 @@ const FRAMING_MARGIN: f64 = 1.15;
 
 /// A turntable camera: the authoritative navigation state.
 ///
-/// Construct with [`Camera::framing`] (fit a scene) or
+/// Construct with [`Camera::framing`] (fit an extent) or
 /// [`Camera::new`] (state given explicitly); move with [`apply`].
 #[derive(Clone, Copy, Debug)]
 pub struct Camera {
@@ -178,6 +183,22 @@ impl PartialEq for Camera {
     }
 }
 
+/// [`Camera::framing`] of nothing drawn at a square aspect, as a value
+/// with no refusal to carry: what a window holds before a pane has an
+/// aspect to fit against.
+impl Default for Camera {
+    fn default() -> Self {
+        Self {
+            target: Point3::new(0.0, 0.0, 0.0),
+            distance: stand_off(DEFAULT_FRAME_RADIUS, DEFAULT_FOV_Y, 1.0),
+            yaw: DEFAULT_YAW,
+            pitch: DEFAULT_PITCH,
+            fov_y: DEFAULT_FOV_Y,
+            scene_radius: DEFAULT_FRAME_RADIUS,
+        }
+    }
+}
+
 /// A camera state that is not a camera (closed enum, D4 ¶3).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CameraError {
@@ -188,10 +209,11 @@ pub enum CameraError {
         /// The offending value.
         value: f64,
     },
-    /// The scene radius was not strictly positive: a bounding box of
-    /// zero extent, or an inverted (empty) one.
+    /// The scene radius handed to [`Camera::new`] was not strictly
+    /// positive. The framing doors never raise it: an extent too small
+    /// to hold a zoom band is framed at [`DEFAULT_FRAME_RADIUS`].
     DegenerateScene {
-        /// The radius derived from the caller's bounds.
+        /// The caller's radius.
         radius: f64,
     },
     /// The scene radius was a length, but so large that the top of
@@ -226,7 +248,8 @@ pub enum CameraError {
         fov_y: f64,
     },
     /// A framing input that cannot produce a camera: a bounding box
-    /// that carried a NaN bound (`Aabb`'s poison state) or was empty,
+    /// that carried a bound that is not a finite number (NaN is `Aabb`'s
+    /// poison state) or was inverted — a minimum above its maximum —
     /// **or** a viewport aspect at or below zero, or a viewport with a
     /// side of zero pixels or fewer.
     ///
@@ -237,7 +260,7 @@ pub enum CameraError {
     /// - [`Camera::projection_matrix`] takes only an aspect, so here
     ///   the arm is an aspect at or below zero — which is how a pane of
     ///   infinite height reaches it (its width over `inf` is `0.0`).
-    /// - [`Camera::ray_through`] and [`crate::datums::datum_view`] take
+    /// - [`Camera::ray_through`] and [`crate::screen::view_of`] take
     ///   only a viewport, and refuse a non-finite side as
     ///   [`CameraError::NotFinite`] first, so here the arm is a side of
     ///   zero pixels or fewer.
@@ -265,67 +288,84 @@ pub enum CameraError {
     /// the scene-derived zoom band, so no camera in the band contains
     /// the scene.
     ///
-    /// Reachable on a viewport far narrower than it is tall: the
-    /// horizontal half-angle binds, and the required stand-off grows
-    /// as `1/sin(half)`. **Refused rather than clamped** — a clamped
-    /// "fit" is a camera that silently does not contain its scene,
-    /// which is the one answer [`Camera::fitted`]'s own contract must
-    /// never give.
+    /// The stand-off grows as `1/sin(half)` of the smaller half-angle,
+    /// so this is reachable two ways: a viewport far narrower than it
+    /// is tall, where the horizontal half-angle binds, and a camera
+    /// whose field of view is itself too narrow ([`Camera::new`] takes
+    /// any `fov_y` in `(0, π)`), where the vertical one binds at every
+    /// aspect. **Refused rather than clamped** — a clamped "fit" is a
+    /// camera that silently does not contain its scene, which is the
+    /// one answer [`Camera::fitted`]'s own contract must never give.
     Unfittable {
         /// The stand-off the fit needed.
         required: f64,
         /// The furthest the zoom band allows.
         max_distance: f64,
-        /// The aspect that demanded it.
+        /// The viewport aspect (width / height) the fit was asked at.
         aspect: f64,
+        /// The camera's vertical field of view, radians.
+        fov_y: f64,
     },
 }
 
+/// Every number a sentence quotes is spelled by [`readout::number`]: a
+/// refused field is whatever `f64` the caller handed, and plain
+/// `Display` writes one at up to seventeen figures, or as three hundred
+/// digits of decimal expansion near `f64::MAX` — a sentence nobody can
+/// read, about a number nobody can read.
 impl core::fmt::Display for CameraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotFinite { what, value } => {
-                write!(
-                    f,
-                    "the camera's {what} is {value}, which is not a finite number"
-                )
-            }
+            Self::NotFinite { what, value } => write!(
+                f,
+                "the camera's {what} is {}, which is not a finite number",
+                readout::number(*value)
+            ),
             Self::DegenerateScene { radius } => write!(
                 f,
-                "the scene bounds give a radius of {radius}, which is not a positive \
-                 extent to frame against"
+                "a scene radius of {} is not a positive extent to frame against",
+                readout::number(*radius)
             ),
-            // Scientific, and not the plain `Display` the arms above
-            // use: every value that reaches this arm is within three
-            // decades of `f64::MAX`, so `{scene_radius}` is three
-            // hundred digits of decimal expansion — a sentence nobody
-            // can read, about a number nobody can read.
             Self::SceneRadiusOverflowsZoomBand { scene_radius } => write!(
                 f,
-                "a scene radius of {scene_radius:e} is past the largest this viewer can \
-                 frame: the furthest distance its zoom band allows is not a finite number"
+                "a scene radius of {} is past the largest this viewer can frame: the \
+                 furthest distance its zoom band allows is not a finite number",
+                readout::number(*scene_radius)
             ),
             Self::FieldOfViewOutOfRange { fov_y } => write!(
                 f,
-                "a vertical field of view of {fov_y} rad is not strictly inside (0, pi)"
+                "a vertical field of view of {} rad is not strictly inside (0, pi)",
+                readout::number(*fov_y)
             ),
             Self::UndrawableProjection => f.write_str(
                 "the view projection is past the largest number a GPU matrix can hold \
                  (about 3.4e38), so there is nothing to draw the picture with",
             ),
             Self::UnusableBounds => f.write_str(
-                "the framing request names no view — the bounds are empty or carry a \
-                 NaN bound, or the viewport aspect is not a positive number",
+                "the framing request names no view — the box to fit has a minimum above its \
+                 maximum or a bound that is not a finite number, or the viewport aspect is \
+                 not a positive number",
             ),
-            Self::Unfittable {
-                required,
-                max_distance,
-                aspect,
-            } => write!(
-                f,
-                "fitting the scene at aspect {aspect} needs a stand-off of {required}, \
-                 past the zoom band's furthest distance of {max_distance}"
+            // The cause and the remedy. The stand-off and the band stay
+            // in the value for a caller that wants them; they are not
+            // numbers a reader can act on.
+            Self::Unfittable { fov_y, .. } if lens_cannot_fit(*fov_y) => f.write_str(
+                "the camera's field of view is too narrow to fit the picture; widen the field \
+                 of view",
             ),
+            // The lens alone fits, so the horizontal half-angle is the
+            // one that binds and the pane is taller than it is wide. A
+            // ratio is said only where it reads as one.
+            Self::Unfittable { aspect, .. } => match aspect.recip() {
+                tall if (2.0..1.0e6).contains(&tall) => write!(
+                    f,
+                    "the viewport is about {tall:.0} times taller than it is wide, too \
+                     narrow to fit the picture; widen it"
+                ),
+                _ => f.write_str(
+                    "the viewport is too narrow for its height to fit the picture; widen it",
+                ),
+            },
         }
     }
 }
@@ -363,13 +403,14 @@ pub enum CameraOp {
         /// Strictly positive; below 1 moves the eye toward the target.
         factor: f64,
     },
-    /// Re-frame on a bounding box: recentre, re-derive the scene
-    /// radius and the zoom band, and back off far enough that the
-    /// bounding sphere fits the vertical field of view. Orientation
-    /// is kept — a fit is not a reset.
+    /// Re-frame on an extent: recentre, re-derive the scene radius
+    /// and the zoom band, and back off far enough that the bounding
+    /// sphere fits both half-angles. Orientation is kept — a fit is
+    /// not a reset.
     Frame {
-        /// The box to fit.
-        bounds: Aabb,
+        /// The box to fit, or `None` when nothing is drawn
+        /// ([`Camera::fitted`] says what that frames).
+        extent: Option<Aabb>,
         /// Viewport aspect ratio (width / height); the horizontal
         /// half-angle is the narrower one on a tall viewport.
         aspect: f64,
@@ -392,11 +433,12 @@ pub enum CameraOpError {
         /// The offending factor.
         factor: f64,
     },
-    /// A [`CameraOp::Frame`] whose bounds or aspect could not produce
+    /// A [`CameraOp::Frame`] whose extent or aspect could not produce
     /// a camera.
     Unframeable(CameraError),
 }
 
+/// Numbers are spelled as [`CameraError`]'s are, by [`readout::number`].
 impl core::fmt::Display for CameraOpError {
     /// The [`CameraOpError::Unframeable`] arm forwards to
     /// [`CameraError`]'s own `Display`: the framing layer named that
@@ -405,12 +447,13 @@ impl core::fmt::Display for CameraOpError {
         match self {
             Self::NotFinite { what, value } => write!(
                 f,
-                "the operation's {what} is {value}, which is not a finite number"
+                "the operation's {what} is {}, which is not a finite number",
+                readout::number(*value)
             ),
             Self::NonPositiveDolly { factor } => write!(
                 f,
-                "a dolly factor of {factor} is not a positive scale for a viewing \
-                 distance"
+                "a dolly factor of {} is not a positive scale for a viewing distance",
+                readout::number(*factor)
             ),
             Self::Unframeable(error) => write!(f, "{error}"),
         }
@@ -421,31 +464,21 @@ impl core::error::Error for CameraOpError {}
 
 /// The vocabulary in prose, for the status line that reports which
 /// move was refused. Deltas are the operation's own units — radians
-/// for angles, world units for lengths.
+/// for angles, world units for lengths — spelled by [`readout::number`],
+/// since a refused move's finite fields sit beside the one that is not.
 impl core::fmt::Display for CameraOp {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let n = |value: &f64| readout::number(*value);
         match self {
             Self::Orbit { yaw, pitch } => {
-                write!(f, "orbit by yaw {yaw} rad, pitch {pitch} rad")
+                write!(f, "orbit by yaw {} rad, pitch {} rad", n(yaw), n(pitch))
             }
-            Self::Pan { right, up } => write!(f, "pan by right {right}, up {up}"),
-            Self::Dolly { factor } => write!(f, "dolly by a factor of {factor}"),
-            // `bounds` is dropped, and the sentence names it as the
-            // caller's own rather than rendering it. `Aabb` carries no
-            // `Display` in this workspace, so putting it here would set
-            // a six-number `Debug` derivation inside a prose line; and
-            // it is not the actionable half. The two errors that
-            // provoke this sentence say what was wrong with the box
-            // themselves — `CameraError::UnusableBounds` names an empty
-            // or NaN-bounded box (or an aspect at or below zero, the
-            // other input it refuses), `CameraError::Unfittable` names the
-            // stand-off the fit needed — while `aspect` is rendered
-            // because the viewport shape is the half a reader can act
-            // on. A third `Frame` field would arrive under this
-            // argument, not under the `..`, so it is written here.
-            Self::Frame { aspect, .. } => {
-                write!(f, "frame the given bounds at aspect {aspect}")
-            }
+            Self::Pan { right, up } => write!(f, "pan by right {}, up {}", n(right), n(up)),
+            Self::Dolly { factor } => write!(f, "dolly by a factor of {}", n(factor)),
+            // The button's name, and neither field: the error this
+            // sentence rides beside says what was wrong with the extent
+            // or the viewport's shape.
+            Self::Frame { .. } => f.write_str("zoom to fit"),
         }
     }
 }
@@ -522,17 +555,18 @@ impl Camera {
         })
     }
 
-    /// The default three-quarter view fitted to `bounds`.
+    /// The default three-quarter view fitted to `extent`, read as
+    /// [`Camera::fitted`] reads it.
     ///
     /// # Errors
     ///
-    /// [`CameraError::UnusableBounds`] for an empty or poisoned box or
-    /// a non-positive aspect, [`CameraError::DegenerateScene`] for a
-    /// box of zero extent, [`CameraError::NotFinite`] for a non-finite
-    /// aspect, and [`CameraError::Unfittable`] for an aspect at which
-    /// no camera in the zoom band contains the scene.
-    pub fn framing(bounds: &Aabb, aspect: f64) -> Result<Self, CameraError> {
-        let (centre, radius) = sphere(bounds)?;
+    /// [`CameraError::UnusableBounds`] for an inverted or non-finite box or
+    /// a non-positive aspect, [`CameraError::NotFinite`] for a
+    /// non-finite aspect or a box whose radius overflows, and
+    /// [`CameraError::Unfittable`] for an aspect at which no camera in
+    /// the zoom band contains the extent.
+    pub fn framing(extent: Option<Aabb>, aspect: f64) -> Result<Self, CameraError> {
+        let (centre, radius) = sphere(extent)?;
         let camera = Self::new(
             centre,
             radius * MAX_DISTANCE_FACTOR,
@@ -541,13 +575,19 @@ impl Camera {
             DEFAULT_FOV_Y,
             radius,
         )?;
-        camera.fitted(bounds, aspect)
+        camera.fitted(extent, aspect)
     }
 
-    /// This camera re-centred and backed off to fit `bounds`, keeping
+    /// This camera re-centred and backed off to fit `extent`, keeping
     /// its orientation and field of view.
     ///
-    /// **The postcondition is containment**: every point of `bounds`
+    /// **An extent too small to frame is framed at a default.** `None`
+    /// — nothing drawn — frames the world origin at
+    /// [`DEFAULT_FRAME_RADIUS`], and a box whose radius is below
+    /// [`MIN_SCENE_RADIUS`] (a lone point) frames its centre at that
+    /// radius. Every other box is fitted on its own bounding sphere.
+    ///
+    /// **The postcondition is containment**: every point of `extent`
     /// projects inside the frustum at this `aspect`. The one input
     /// that can make containment unreachable is a viewport far
     /// narrower than it is tall — the horizontal half-angle binds and
@@ -559,19 +599,13 @@ impl Camera {
     /// # Errors
     ///
     /// As [`Camera::framing`], plus [`CameraError::Unfittable`].
-    pub fn fitted(&self, bounds: &Aabb, aspect: f64) -> Result<Self, CameraError> {
+    pub fn fitted(&self, extent: Option<Aabb>, aspect: f64) -> Result<Self, CameraError> {
         finite("aspect", aspect)?;
         if aspect <= 0.0 {
             return Err(CameraError::UnusableBounds);
         }
-        let (centre, radius) = sphere(bounds)?;
-        // The bounding sphere subtends the smaller of the two
-        // half-angles: on a viewport narrower than it is tall, the
-        // horizontal one binds.
-        let half_v = self.fov_y * 0.5;
-        let half_h = (half_v.tan() * aspect).atan();
-        let half = half_v.min(half_h);
-        let distance = radius * FRAMING_MARGIN / half.sin();
+        let (centre, radius) = sphere(extent)?;
+        let distance = stand_off(radius, self.fov_y, aspect);
         // The band's FLOOR can never bind here — `sin(half) <= 1`, so
         // `distance >= radius * FRAMING_MARGIN`, which is above
         // `radius * MIN_DISTANCE_FACTOR` for every scene. Only the
@@ -583,6 +617,7 @@ impl Camera {
                 required: distance,
                 max_distance,
                 aspect,
+                fov_y: self.fov_y,
             });
         }
         Self::new(centre, distance, self.yaw, self.pitch, self.fov_y, radius)
@@ -715,7 +750,7 @@ impl Camera {
     /// where this puts the far field, so resolution stays roughly
     /// relative to depth everywhere instead of being spent next to the
     /// near plane. And with no far plane nothing drawn is ever clipped
-    /// for being far — a datum plane receding to its horizon included.
+    /// for being far — a plane receding to its horizon included.
     ///
     /// # Errors
     ///
@@ -885,7 +920,7 @@ impl Camera {
 ///
 /// [`CameraOpError`] for an operation that is not a move — a
 /// non-finite delta, a non-positive dolly factor, or a frame whose
-/// bounds yield no camera. The caller keeps the camera it had.
+/// extent yields no camera. The caller keeps the camera it had.
 pub fn apply(camera: &Camera, op: &CameraOp) -> Result<Camera, CameraOpError> {
     match *op {
         CameraOp::Orbit { yaw, pitch } => {
@@ -921,8 +956,8 @@ pub fn apply(camera: &Camera, op: &CameraOp) -> Result<Camera, CameraOpError> {
                 ..*camera
             })
         }
-        CameraOp::Frame { bounds, aspect } => camera
-            .fitted(&bounds, aspect)
+        CameraOp::Frame { extent, aspect } => camera
+            .fitted(extent, aspect)
             .map_err(CameraOpError::Unframeable),
     }
 }
@@ -1035,26 +1070,27 @@ pub fn cursor_projection(
     out
 }
 
-/// The centre and radius of a box's bounding sphere.
+/// The centre and radius of the sphere a fit frames: `extent`'s
+/// bounding sphere, or the default [`Camera::fitted`] states where
+/// there is no extent or its radius is below [`MIN_SCENE_RADIUS`].
 ///
 /// **The endpoints being numbers does not make the radius one**, and
 /// the radius is what the caller frames against. Squaring spends the
 /// exponent twice, so a box a few hundred orders of magnitude across
 /// — `±1e155` on one axis is enough — sums to infinity with every
-/// endpoint an ordinary finite number, and `radius < MIN_SCENE_RADIUS`
-/// is false for an infinity. The check is therefore on the PRODUCT as
-/// well as on the inputs, which is [`finite`]'s question asked where
-/// the overflow is rather than only where the caller's numbers are.
+/// endpoint an ordinary finite number. The check is therefore on the
+/// PRODUCT as well as on the inputs, which is [`finite`]'s question
+/// asked where the overflow is rather than only where the caller's
+/// numbers are.
 ///
-/// **The centre needs no check of its own.** `0.5 * (lo + hi)`
-/// overflows only when one endpoint is past half of `f64::MAX`, and at
-/// that magnitude the spacing of the representable numbers is about
-/// `2e292`, so the same axis's `hi - lo` is either exactly zero — a
-/// radius of zero, refused below — or at least that spacing, whose
-/// square is infinite. Measured over every pair of magnitudes from
-/// `1e150` to `1e308` in both signs and the first 64 floats above each:
-/// 126 non-finite centres, none of them with a finite radius.
-fn sphere(bounds: &Aabb) -> Result<(Point3<f64>, f64), CameraError> {
+/// **The centre is asked the same question.** `0.5 * (lo + hi)`
+/// overflows when an endpoint is past half of `f64::MAX`. A box with
+/// any width there has an infinite radius too, but a point there has a
+/// radius of zero, and a point is framed at its centre.
+fn sphere(extent: Option<Aabb>) -> Result<(Point3<f64>, f64), CameraError> {
+    let Some(bounds) = extent else {
+        return Ok((Point3::new(0.0, 0.0, 0.0), DEFAULT_FRAME_RADIUS));
+    };
     let lo = [
         bounds.min(Axis::X),
         bounds.min(Axis::Y),
@@ -1083,10 +1119,30 @@ fn sphere(bounds: &Aabb) -> Result<(Point3<f64>, f64), CameraError> {
     ];
     let radius: f64 = (half[0] * half[0] + half[1] * half[1] + half[2] * half[2]).sqrt();
     finite("scene radius", radius)?;
+    finite("scene centre x", centre.x)?;
+    finite("scene centre y", centre.y)?;
+    finite("scene centre z", centre.z)?;
     if radius < MIN_SCENE_RADIUS {
-        return Err(CameraError::DegenerateScene { radius });
+        return Ok((centre, DEFAULT_FRAME_RADIUS));
     }
     Ok((centre, radius))
+}
+
+/// How far from its centre a sphere of `radius` must be viewed to fit
+/// both half-angles at `aspect`, with [`FRAMING_MARGIN`] to spare. The
+/// sphere subtends the smaller half-angle: on a viewport narrower than
+/// it is tall, the horizontal one binds.
+fn stand_off(radius: f64, fov_y: f64, aspect: f64) -> f64 {
+    let half_v = fov_y * 0.5;
+    let half_h = (half_v.tan() * aspect).atan();
+    radius * FRAMING_MARGIN / half_v.min(half_h).sin()
+}
+
+/// Whether a field of view is too narrow for a fit at ANY aspect: the
+/// vertical half-angle alone puts [`stand_off`] past [`band_ceiling`].
+/// Both scale with the radius, so a unit radius asks it for every one.
+fn lens_cannot_fit(fov_y: f64) -> bool {
+    stand_off(1.0, fov_y, f64::INFINITY) > band_ceiling(1.0)
 }
 
 fn finite(what: &'static str, value: f64) -> Result<(), CameraError> {
@@ -1374,6 +1430,17 @@ mod tests {
         assert!(
             camera_at(largest_framable).is_ok(),
             "so no framing is refused by the band guard"
+        );
+    }
+
+    /// The default is the framing it claims to be, coordinate for
+    /// coordinate — a second spelling of the stand-off that drifted by
+    /// an ulp would red here.
+    #[test]
+    fn the_default_camera_is_the_framing_of_nothing_at_a_square_aspect() {
+        assert_eq!(
+            Camera::default(),
+            Camera::framing(None, 1.0).expect("nothing frames at a square aspect"),
         );
     }
 }

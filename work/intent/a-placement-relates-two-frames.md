@@ -2,11 +2,13 @@
 id: a-placement-relates-two-frames
 kind: issue
 title: A placement relates two frames: mates fix what they fix, values set the rest (all six when unmated); a construction's coordinates are its space; an instance places another document's space
-status: open
+status: closed
 opened: 2026-10-18
 priority: P0
 cost: M
 refs: [transform-retires-into-a-placement, intent-stage3-is-built]
+parent: a-placement-names-its-target-space
+closed: 2026-10-22
 ---
 
 
@@ -22,3 +24,13 @@ When ratified, the work that follows (each a unit, sequenced after this):
 - the unmated six-value chart is built;
 - `Value.mate` becomes optional, and F's subgroup rule counts spins by axis;
 - `[evgunter/cad#4748]` (instance outputs) closes as subsumed.
+
+## Closed (2026-10-22)
+
+Absorbed by D′1 (`a-placement-names-its-target-space`), which builds
+the ruling's last piece in the kernel: a placement names the frame it
+places into (`target`, a `Space` read: the world's, a `new_space()`, or
+a construction's own), and relates its copy's frame to it. The rest of
+the list above landed with stage 3 D (the identity placement, the
+six-value chart, `Value.mate` optional); what D′2 and D′3 still owe is
+on their own units under `a-placement-pins-by-written-values-without-a-mate`.

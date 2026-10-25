@@ -2,8 +2,12 @@
 id: a-torus-face-with-a-spiric-ring-has-no-volume-lane
 kind: issue
 title: mass_properties refuses RingOnCurvedFace on a torus face holding a ring that spiric ovals bound, which the plane x torus boolean now mints
-status: open
+status: closed
 opened: 2026-10-12
+priority: P2
+cost: M
+pr: 5567
+closed: 2026-10-21
 ---
 
 
@@ -45,3 +49,13 @@ lifts closed is in its reach; whether it reads a ring is unmeasured.
 Those ops return their bodies, held to the truth by the rows that pin
 them now (volume against the box oracle, tier 3), or refuse with a
 narrower cause.
+
+## Closed (PR 5567)
+
+The spiric wall lane reads every loop of a torus face
+(`crates/topo/src/props/quad_lane.rs`, `spiric_wall`), its closure
+decided loop by loop (`crates/geom-brep/src/props/spiric.rs`,
+`wall_windings`). Every op pinned `v` builds, held to its box oracle,
+tier 3 and `point_in_solid`, at three ε. A band of two loops winding the
+wall both ways stays refused, typed:
+`a-spiric-bounded-torus-band-has-no-volume-lane`.

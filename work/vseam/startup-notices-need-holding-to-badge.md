@@ -4,7 +4,7 @@ kind: issue
 title: the startup preferences notices are rendered once into the status line and must be held before they can badge
 status: open
 opened: 2026-09-06
-priority: P1
+priority: P4
 cost: D
 ---
 
@@ -63,3 +63,7 @@ Three shapes, and the choice is the item:
 Not urgent: a mis-keyed preferences file is rare and the sentence is
 advisory. What is not acceptable is the current silence about it,
 which this file removes.
+
+## 2026-10-21 — re-banded
+
+P1 → P4. A small status-line design choice about one notice's lifetime.

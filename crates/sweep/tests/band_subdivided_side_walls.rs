@@ -133,7 +133,12 @@ fn is_plane(body: &Body<f64>, f: FaceKey) -> bool {
 }
 
 fn volume(body: &Body<f64>, t: Tol) -> f64 {
-    topo::mass_properties(body, t).unwrap().volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), t),
+        t,
+    )
+    .unwrap()
+    .volume
 }
 
 /// **Extrude: one wall over the run, and the union runs as built.**

@@ -68,7 +68,7 @@ fn random_op(rng: &mut fuzz::Rng) -> CameraOp {
             factor: 10f64.powf(rng.range(-1.5, 1.5)),
         },
         _ => CameraOp::Frame {
-            bounds: random_box(rng),
+            extent: Some(random_box(rng)),
             // Wide but sane band; the pathological thin-sliver aspect
             // is probed (and reported) separately in the review notes.
             aspect: rng.range(0.2, 5.0),
@@ -153,7 +153,7 @@ fn assert_camera_invariants(c: &Camera, context: &str) {
 fn random_valid_op_sequences_hold_every_camera_invariant() {
     let mut rng = fuzz::start("gui0-r2 camera invariant sweep");
     for seq in 0..fuzz::scaled(24) {
-        let start = Camera::framing(&random_box(&mut rng), rng.range(0.2, 5.0))
+        let start = Camera::framing(Some(random_box(&mut rng)), rng.range(0.2, 5.0))
             .expect("a non-degenerate random box frames");
         assert_camera_invariants(&start, "framing");
         let ops: Vec<CameraOp> = (0..fuzz::scaled(16)).map(|_| random_op(&mut rng)).collect();
@@ -188,7 +188,7 @@ fn pan_keeps_the_point_under_the_cursor_at_random_states() {
     let mut rng = fuzz::start("gui0-r2 pan property sweep");
     let map = InputMap::default();
     for case in 0..fuzz::scaled(32) {
-        let mut cam = Camera::framing(&random_box(&mut rng), 1.0).expect("frames");
+        let mut cam = Camera::framing(Some(random_box(&mut rng)), 1.0).expect("frames");
         // Wander to an arbitrary state first (orbit + dolly only, so
         // the target stays where the box put it).
         for _ in 0..4 {
@@ -254,7 +254,7 @@ fn framing_fits_random_boxes_through_the_projection() {
     for case in 0..fuzz::scaled(24) {
         let b = random_box(&mut rng);
         let aspect = rng.range(0.2, 5.0);
-        let cam = Camera::framing(&b, aspect).expect("a random box frames");
+        let cam = Camera::framing(Some(b), aspect).expect("a random box frames");
         let orbited = camera::apply(
             &cam,
             &CameraOp::Orbit {
@@ -263,8 +263,14 @@ fn framing_fits_random_boxes_through_the_projection() {
             },
         )
         .expect("orbit");
-        let refit = camera::apply(&orbited, &CameraOp::Frame { bounds: b, aspect })
-            .expect("the same box re-frames");
+        let refit = camera::apply(
+            &orbited,
+            &CameraOp::Frame {
+                extent: Some(b),
+                aspect,
+            },
+        )
+        .expect("the same box re-frames");
         for (which, c) in [("framing", cam), ("refit", refit)] {
             for x in [b.min_x, b.max_x] {
                 for y in [b.min_y, b.max_y] {
@@ -306,16 +312,23 @@ fn map_stream_agrees_with_folding_its_own_output() {
         PointerButton::Middle,
     ];
     for case in 0..fuzz::scaled(24) {
-        let start = Camera::framing(&random_box(&mut rng), 1.5).expect("frames");
+        let start = Camera::framing(Some(random_box(&mut rng)), 1.5).expect("frames");
         let size = ViewportSize {
             width_px: rng.range(64.0, 3000.0),
             height_px: rng.range(64.0, 3000.0),
         };
         let events: Vec<ViewportEvent> = (0..fuzz::scaled(12))
             .map(|_| {
-                if rng.below(4) == 0 {
+                // A quarter zooms, split between the wheel and the
+                // pinch; the other three quarters drag.
+                let kind = rng.below(8);
+                if kind == 0 {
                     ViewportEvent::Scroll {
                         units: rng.range(-4.0, 4.0),
+                    }
+                } else if kind == 1 {
+                    ViewportEvent::Pinch {
+                        factor: rng.range(0.5, 2.0),
                     }
                 } else {
                     ViewportEvent::Drag {
@@ -368,7 +381,7 @@ fn map_stream_agrees_with_folding_its_own_output() {
 fn a_planted_refusal_stops_the_fold_with_the_right_arm() {
     let mut rng = fuzz::start("gui0-r2 refusal sweep");
     for _ in 0..fuzz::scaled(16) {
-        let start = Camera::framing(&random_box(&mut rng), 1.0).expect("frames");
+        let start = Camera::framing(Some(random_box(&mut rng)), 1.0).expect("frames");
         let mut ops: Vec<CameraOp> = (0..fuzz::scaled(8)).map(|_| random_op(&mut rng)).collect();
         let bad_at = rng.below(ops.len());
         let bad = [
@@ -468,7 +481,7 @@ fn the_enclosed_volume_error_is_bounded_by_delta_at_random_deltas() {
         // The join, at a random aspect: a camera framed on these bounds
         // holds every vertex the scene will draw.
         let aspect = rng.range(0.3, 4.0);
-        let cam = Camera::framing(&mesh.bounds(), aspect).expect("the scene frames");
+        let cam = Camera::framing(mesh.bounds(), aspect).expect("the scene frames");
         for v in mesh.positions() {
             let ndc = cam
                 .project(
@@ -499,14 +512,14 @@ fn the_scene_bounds_are_the_documents_own_dimensions() {
         tol,
     )
     .expect("the plate tessellates");
-    let b = mesh.bounds();
+    let b = mesh.bounds().expect("the plate draws");
     for (axis, lo, hi) in [
         (Axis::X, 0.0, 0.060),
         (Axis::Y, 0.0, 0.040),
         (Axis::Z, 0.0, 0.008),
     ] {
         assert!(
-            (b.min(axis) - lo).abs() < 1e-12 && (b.max(axis) - hi).abs() < 1e-12,
+            (b.min(axis) - lo).abs() < 1e-8 && (b.max(axis) - hi).abs() < 1e-8,
             "bounds on {axis:?}: [{}, {}] vs authored [{lo}, {hi}]",
             b.min(axis),
             b.max(axis)

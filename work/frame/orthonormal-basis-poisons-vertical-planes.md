@@ -2,12 +2,13 @@
 id: orthonormal-basis-poisons-vertical-planes
 kind: issue
 title: orthonormal_basis manufactures a poisoned (and for n.x!=0, unbounded) chart frame for every vertical plane under Interval
-status: open
+status: closed
 opened: 2026-08-29
 github: 1157
 refs: [1116, 1143, 1146]
 priority: P0
 cost: H
+closed: 2026-10-21
 ---
 
 ## From GitHub issue 1157
@@ -107,3 +108,7 @@ Still not mine to fix — `geom-core` linalg, workspace-wide. Reproduction and t
 ## Home
 
 `crates/geom-core/src/*` is in S-CERT's `paths:` territory, and interval-mode honesty (chart frames, certified enclosures) is its charter.
+
+## Closed
+
+2026-10-21, FRAME orchestrator. Fixed by PROPS' sign-hull unit (Ev's option 1 on #1944): `Vec3::orthonormal_basis` no longer opens with `copysign`; it crosses the normal with a world axis chosen by `|n.z| ≤ max(|n.x|, |n.y|)/2` through `Real::select_le_zero`, each candidate divided by a floored length, so no sign is transferred and nothing divides by an enclosure of zero. A vertical wall's frame is exact at `Interval`. Pinned by `the_orthonormal_basis_is_exact_at_interval_when_nz_is_zero` (`editor-core/tests/m10_5_r1_probes_interval.rs`, the `n = (1, 0, 0)` case this row called unbounded), and by `orthonormal_basis_interval_residuals` and `orthonormal_basis_is_bounded_over_z_enclosures` in `geom-core`'s `linalg::vec` tests (all ten `orthonormal_basis` tests green on main `31b59b01`). Since PR #5547 no carrier mint takes its reference from this door at all (`scripts/gates/minted-reference-from-inputs.sh`).

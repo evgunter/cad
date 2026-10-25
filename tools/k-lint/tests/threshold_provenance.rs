@@ -314,30 +314,23 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
 /// so it is checked against [`M7`], on every run, beside the cut it
 /// qualifies.
 ///
-/// **Today it is vacuously true and that is worth knowing rather than
-/// hiding.** The M7 era was swept on 2026-08-07 and
-/// `props_quad_last_round` was first minted a month later, so no M7
-/// row COULD name it. The guard is not about today: [`M7`] moves in
-/// this file when a later era supersedes it, and that is the same
-/// commit that re-cuts [`EPS_COUPLED_FLOOR_RATIO`]. This row makes
-/// that commit answer the question instead of re-cutting the floor
-/// from a population that now has the excused family in it and leaving
-/// the excuse standing over a premise that expired.
+/// **Today it checks nothing, and that is worth knowing rather than
+/// hiding.** The list is empty: its one entry, `props_quad_last_round`,
+/// retired with the quadrature budget exit. The guard is for the next
+/// entry: [`M7`] moves in this file when a later era supersedes it, and
+/// that is the same commit that re-cuts [`EPS_COUPLED_FLOOR_RATIO`]. This
+/// row makes that commit answer the question instead of re-cutting the
+/// floor from a population that has an excused family in it.
 ///
 /// It says nothing about a FRESH sweep, which no committed file can.
 /// The live half is [`k_lint::Scan`]'s `unruled` column, which makes a
 /// row of an entry a finding in its own right and is pinned in
-/// `tests/cli_contract.rs`; `tests/predicate_roster.rs`'s
-/// `an_unruled_eps_coupled_margins_positive_side_is_loud_under_rule_3_at_the_tight_rows`
-/// says how loud the metre rules additionally are about the positive
-/// side of one.
+/// `tests/cli_contract.rs` with a synthetic entry.
 #[test]
 fn the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from() {
-    assert!(
-        !EPS_COUPLED_UNRULED.is_empty(),
-        "no name is ruled out of rule (4), so this test asserts nothing"
-    );
-    for (name, why) in EPS_COUPLED_UNRULED {
+    // Empty today (`props_quad_last_round` retired with the budget
+    // exit); the loop is the guard for the next entry.
+    for &(name, why) in EPS_COUPLED_UNRULED {
         assert!(
             !EPS_COUPLED_PREDICATES.contains(&name),
             "{name:?} is both rostered and ruled off the roster"

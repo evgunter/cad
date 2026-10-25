@@ -26,7 +26,7 @@ use pncad::document::{
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{ArcData, ArcMode, Step, Target, TargetKind, Verb};
 use viewer::props::Notation;
-use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
 use viewer::sketch::{self, HeldRefusal};
 
 /// A session over a throwaway document.
@@ -148,22 +148,15 @@ fn lowered(held: &[Vec<Step<f64>>], notation: Notation) -> Vec<LoopProgram<Formu
         .collect()
 }
 
-/// A session holding one frame and one profile of `loops`, lowered in
+/// A session holding one profile of `loops`, lowered in
 /// `notation`; answers the session and the profile node.
 fn with_profile(loops: &[ProfileShape], notation: Notation) -> (DocSession, RecipeNodeId) {
     let mut session = session(Tol::witness());
-    let plane = common::xy_frame_in(&mut session);
     let loops = loops
         .iter()
         .map(|loop_| sketch::loop_program(loop_, notation).expect("a finite template"))
         .collect();
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops,
-        },
-    );
+    let profile = session_insert(&mut session, SessionOp::AddProfile { loops });
     (session, profile)
 }
 
@@ -261,7 +254,6 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         let program = editor_core::test_support::stored_program(
             &mut doc,
             &ProfileProgram {
-                frame: RecipeNodeId::new(0, 0).into(),
                 loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
                 ids: Vec::new(),
             },
@@ -477,7 +469,6 @@ fn a_kept_driven_argument_is_not_written_over() {
         .collect();
     let mut moved = committed.clone();
     let mut probe = Node::Profile(ProfileProgram {
-        frame: program(&session, profile).frame.into(),
         loops: moved,
         ids: Vec::new(),
     });
@@ -498,7 +489,6 @@ fn a_kept_driven_argument_is_not_written_over() {
     // The same program with another argument moved and the driven one
     // left alone lands, still driven.
     let mut probe = Node::Profile(ProfileProgram {
-        frame: program(&session, profile).frame.into(),
         loops: committed,
         ids: Vec::new(),
     });
@@ -660,11 +650,10 @@ fn a_move_whose_first_argument_alone_crosses_still_lands() {
 #[test]
 fn editing_a_non_profile_refuses_wrong_kind() {
     let mut session = session(Tol::witness());
-    let plane = common::xy_frame_in(&mut session);
+    let block = common::xy_box_in(&mut session, [0.01, 0.01, 0.01]);
     let out = session.perform(SessionOp::EditProfile {
-        node: plane,
+        node: block,
         base: ProfileProgram {
-            frame: plane.into(),
             loops: Vec::new(),
             ids: Vec::new(),
         },
@@ -672,7 +661,7 @@ fn editing_a_non_profile_refuses_wrong_kind() {
         ids: Vec::new(),
     });
     assert!(
-        matches!(&out.refusal, Some(Refusal::WrongNodeKind { node, .. }) if node.id() == plane),
+        matches!(&out.refusal, Some(Refusal::WrongNodeKind { node, .. }) if node.id() == block),
         "{:?}",
         out.refusal
     );

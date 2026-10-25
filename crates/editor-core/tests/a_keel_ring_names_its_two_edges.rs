@@ -9,42 +9,40 @@
 //! above holds it as the two chords.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{half, insert, len, on_frame, scl};
+use crate::fixture::{against, axes_at, half, insert, len, plane_on};
 use editor_core::{
-    CancelToken, Datum, EntityKey, Entry, EvalOptions, ExtrudeSide, Node, ProfileDoc, RoleSeg,
-    SplitHalf, SplitSide, ValuePayload, evaluate,
+    CancelToken, EntityKey, Entry, EvalOptions, Node, ProfileDoc, RoleSeg, SplitHalf, SplitSide,
+    ValuePayload, evaluate,
 };
 use geom_core::Tol;
 
 #[test]
 fn a_keel_ring_names_its_two_edges_apart() {
     let doc = ProfileDoc::empty_derived("a_keel_ring", Tol::witness());
-    let extrude = |doc, origin, u, v, pts: Vec<(f64, f64)>, d: f64| {
-        let (doc, p) = on_frame(doc, origin, u, v, vec![pts]);
+    // Each prism on its own xy: the block 2 thick, the trench a
+    // triangle extruded 1, its copy standing across the block's mid
+    // plane `z = 1`, which the split cuts along.
+    let extrude = |doc, pts: Vec<(f64, f64)>, d: f64| {
+        let (doc, p) = insert(doc, Node::Profile(crate::fixture::desc(vec![pts])));
         insert(
             doc,
             Node::Extrude {
                 profile: p.into(),
                 distance: len(d),
-                side: ExtrudeSide::Along,
             },
         )
     };
     let (doc, block) = extrude(
         doc,
-        [0.0, 0.0, -1.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
         vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
         2.0,
     );
-    let (doc, trench) = extrude(
+    let (doc, trench) = extrude(doc, vec![(2.0, 0.0), (2.6, 2.0), (1.4, 2.0)], 1.0);
+    let (doc, trench) = against(
         doc,
-        [1.5, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        [0.0, 0.0, 1.0],
-        vec![(2.0, 0.0), (2.6, 2.0), (1.4, 2.0)],
-        1.0,
+        block,
+        trench,
+        &axes_at([1.5, 0.0, 1.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
     );
     let (doc, cut) = insert(
         doc,
@@ -53,18 +51,12 @@ fn a_keel_ring_names_its_two_edges_apart() {
             tool: trench.into(),
         },
     );
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
+    let tool = plane_on(&doc, cut, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0]);
     let (doc, split) = insert(
         doc,
         Node::Split {
             target: cut.into(),
-            tool: plane.into(),
+            tool,
         },
     );
     let ev = evaluate::<f64>(
@@ -86,7 +78,12 @@ fn a_keel_ring_names_its_two_edges_apart() {
     };
     let tol = Tol::witness();
     for (what, b, v) in [("above", above, 16.0 - 0.3), ("below", below, 16.0)] {
-        let got = topo::mass_properties(b, tol).unwrap().volume;
+        let got = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&**b), tol),
+            tol,
+        )
+        .unwrap()
+        .volume;
         assert!((got - v).abs() < 1e-9 * v, "{what}: volume {got}, not {v}");
     }
     let ring: Vec<topo::EdgeKey> = above
