@@ -118,3 +118,8 @@ Signed (FIX orchestrator).
     - period-turn unit 1 had commits pushed and no PR yet.
 
     All three were resumed in place once it recovered. S18's target `incremental/` (8.8 GB) was reclaimed to make room. Friction finding: a lane killed this way leaves no hand-back. Committing and pushing at every working state is what made each one resumable.
+- 2026-10-25 — (PRED orchestrator) Period-turn unit 1 is PR 5686, frozen review-ready head `e7d55cf3a6`, CI green.
+  - **What it built.** `Period`, `WalkStop` and `BranchMiss` moved to `geom_core::period`, re-exported by `pcurve_cache`. The rule is `Period::turn`. Certification and `ConicArc::of` decide through it, and the certificate carries a `CertifiedTurn`.
+  - **The rider.** It was red-first on `pred/period-turn-rule-red`; the edge now escalates. Its census finds no shipped door that reaches it (STEP import wraps `t1` within about 9e-16 rad), so it stays P1.
+  - **Main-red the lane reported.** `m4_pr3_names_ci::die_name_tables_are_golden` is red at the base too. It is already INTENT's `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`.
+  - **The dual pair waits for disk.** Two fresh full-rebuild targets do not fit beside the two running fix passes. The pair dispatches, concurrently and on the same frozen head, once those lanes report. Following the protocol, the duals are reduced rather than one reviewer's method narrowed.
