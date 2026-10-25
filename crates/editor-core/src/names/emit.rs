@@ -1642,15 +1642,13 @@ pub(crate) fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) ->
     let Some(lp) = body.get_loop(l) else {
         unreachable!("face walk: dangling loop {l:?}; {TIER1}")
     };
-    match lp.boundary {
-        topo::LoopBoundary::Empty { .. } => Vec::new(),
-        topo::LoopBoundary::Cycle { first } => {
-            let Some(cycle) = body.loop_cycle(first) else {
-                unreachable!("face walk: unwalkable loop {l:?} from {first:?}; {TIER1}")
-            };
-            cycle
-        }
-    }
+    let topo::LoopBoundary::Cycle { first } = lp.boundary else {
+        return Vec::new();
+    };
+    let Some(cycle) = body.loop_cycle(first) else {
+        unreachable!("face walk: unwalkable loop {l:?} from {first:?}; {TIER1}")
+    };
+    cycle
 }
 
 /// The two endpoint vertices of an edge.

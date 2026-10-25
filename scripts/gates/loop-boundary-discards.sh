@@ -139,7 +139,7 @@ WINDOW=16
 
 # THE REGISTER — `<file>|<fn>|<fragment>|<count>|<disposition>`.
 REGISTER=(
-  "crates/editor-core/src/names/emit.rs|face_half_edges||1|unaudited"
+  "crates/editor-core/src/names/emit.rs|loop_half_edges||1|unaudited"
   "crates/mesh/src/trimmed.rs|trim_polygon||1|unaudited"
   "crates/mesh/src/walk.rs|loop_half_edges||1|unaudited"
   "crates/step-export/src/volume.rs|shell_signed_volume||1|unaudited"
@@ -653,7 +653,7 @@ gate_selftest() {
   # A second discard under a one-site entry, and a second under an entry
   # a FRAGMENT narrows — the two shapes a key without a count absorbs.
   gate_selftest_case "matched 2" plant_extra_site \
-    crates/editor-core/src/names/emit.rs face_half_edges oneline
+    crates/editor-core/src/names/emit.rs loop_half_edges oneline
   gate_selftest_case "matched 2" plant_extra_site \
     crates/topo/src/census.rs face_cycles wrapped-return
   gate_selftest_malformed_register
