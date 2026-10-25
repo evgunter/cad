@@ -67,6 +67,8 @@ mod curves {
 }
 
 // ---- curves ----
+#[path = "curves/arc_window_adversarial.rs"]
+mod curves_arc_window_adversarial;
 #[path = "curves/boxes.rs"]
 mod curves_boxes;
 #[path = "curves/compose.rs"]

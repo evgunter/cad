@@ -2296,9 +2296,9 @@ pub(crate) struct ConicArc<'c, T: Real> {
     pub(crate) center: Point3<T>,
     /// The plane normal of the conic.
     pub(crate) axis: Vec3<T>,
-    /// The semi-axis along `u_ref`.
+    /// The semi-axis at `t = 0`, along the carrier's own `u_ref`.
     pub(crate) semi_u: T,
-    /// The semi-axis along `axis × u_ref`.
+    /// The semi-axis at `t = π/2`, along `axis × u_ref`.
     pub(crate) semi_v: T,
     /// The certified parameter span — read from the same
     /// [`geom_brep::EdgeCurve`] as the carrier, so a conic rule always
@@ -5125,17 +5125,24 @@ pub(crate) mod tests {
             (body, face)
         };
         let (nurbs_body, nurbs_face, _) = nurbs_bulge_face();
-        let cases: Vec<(&'static str, (Body<f64>, FaceKey))> = vec![
-            ("plane", arc_sector(2.0, 2.3)),
-            ("cylinder", cyl_wall(1.5, 0.0, 2.4, -0.5, 1.25)),
-            ("cone", cone_wall(0.5, 0.0, 2.4, 0.4, 1.0)),
-            ("sphere", relabelled(sphere)),
-            ("torus", relabelled(torus)),
+        // Each case carries its largest radius: a crest `c ± A` rounds at
+        // the scale of its terms, `|c| + A ≤ |coordinate| + 2A`, whatever
+        // the coordinate itself is. The NURBS net has no crest; its terms
+        // are its control points, within a unit of the origin.
+        type Case = (&'static str, f64, (Body<f64>, FaceKey));
+        let cases: Vec<Case> = vec![
+            ("plane", 2.0, arc_sector(2.0, 2.3)),
+            ("cylinder", 1.5, cyl_wall(1.5, 0.0, 2.4, -0.5, 1.25)),
+            // The top rim, `z = 1`, is the widest.
+            ("cone", 0.5_f64.tan(), cone_wall(0.5, 0.0, 2.4, 0.4, 1.0)),
+            ("sphere", 1.5, relabelled(sphere)),
+            ("torus", 2.5, relabelled(torus)),
             // A face whose boundary DOES store certified pcurves: the
             // window read is a per-lane arena walk, so this case is
             // what holds the census's walk of it against this module's.
             (
                 "torus window",
+                2.5,
                 torus_wall(
                     Point3::new(0.4, -0.3, 0.2),
                     tilt,
@@ -5146,9 +5153,9 @@ pub(crate) mod tests {
                     (-0.7, 0.8),
                 ),
             ),
-            ("nurbs", (nurbs_body, nurbs_face)),
+            ("nurbs", 1.0, (nurbs_body, nurbs_face)),
         ];
-        for (what, (body, face)) in cases {
+        for (what, radius, (body, face)) in cases {
             let boxed = face_box(&body, face, 0.0, witness_band()).unwrap();
             let (lo, hi) = crate::census::face_reach(&body, face, witness_band())
                 .unwrap_or_else(|| panic!("{what}: the census lane claims nothing"));
@@ -5161,18 +5168,17 @@ pub(crate) mod tests {
                 ("max_y", hi.y - boxed.max_y, hi.y),
                 ("max_z", hi.z - boxed.max_z, hi.z),
             ] {
-                // A crest is `c ± A` rounded at the scale of its terms, the
-                // fixtures' radii (at most 2), whatever the coordinate itself is.
-                let tol = 4.0 * f64::EPSILON * (3.0 + scale.abs());
+                let tol = 4.0 * f64::EPSILON * (scale.abs() + 2.0 * radius);
                 assert!(
                     gap >= -tol,
-                    "{what}: the census box does not contain the boolean box at {name} \
-                     (boolean is outside by {})",
+                    "{what}: the census box falls inside the boolean box at {name} by {} \
+                     (past rounding, {tol:e})",
                     -gap
                 );
                 assert!(
                     gap <= tol,
-                    "{what}: the census box exceeds the boolean box at {name} by {gap}"
+                    "{what}: the census box exceeds the boolean box at {name} by {gap} \
+                     (past rounding, {tol:e})"
                 );
             }
         }
@@ -6131,9 +6137,9 @@ pub(crate) mod tests {
             ("max_y", hi.y - b0.max_y, hi.y),
             ("max_z", hi.z - b0.max_z, hi.z),
         ] {
-            // A crest is `c ± A` rounded at the scale of its terms, the
-            // fixtures' radii (at most 2), whatever the coordinate itself is.
-            let tol = 4.0 * f64::EPSILON * (3.0 + scale.abs());
+            // A crest `c ± A` rounds at the scale of its terms,
+            // `|c| + A ≤ |coordinate| + 2r`.
+            let tol = 4.0 * f64::EPSILON * (scale.abs() + 2.0 * r);
             assert!(
                 gap >= -tol && gap <= tol,
                 "wrap window: the census box must be this lane's box to rounding at {name}, \
@@ -6352,6 +6358,68 @@ pub(crate) mod tests {
                     lo.x,
                     hi.x
                 );
+            }
+        }
+    }
+
+    /// **The census's conic edge reach is the arc's extent in an aimed
+    /// frame**: along each of a [`BoxFrame::aimed`] frame's rows, it
+    /// contains 40 001 samples of the arc and sits within their spacing's
+    /// bulge of them, for runs short of a half-turn to nearly a full
+    /// one, from several reference directions.
+    #[test]
+    fn the_census_conic_edge_reach_is_the_arc_in_an_aimed_frame() {
+        let band = witness_band();
+        for (start, span, phi) in [
+            (0.3, 2.3, 0.0),
+            (-1.0, 3.0, 0.7),
+            (2.0, 4.5, -1.3),
+            (0.1, 6.0, 2.0),
+        ] {
+            let (body, _) = circle_sector(1.7, start, span, phi);
+            let (edge, curve) = conic_edge(&body);
+            let (t0, t1) = curve.params();
+            for aim in [
+                Vec3::new(0.0, 0.0, 1.0),
+                Vec3::new(0.3, -0.4, 0.87),
+                Vec3::new(-0.8, 0.2, 0.55),
+                Vec3::new(0.6, 0.7, -0.4),
+                Vec3::new(1.0, 0.0, 0.0),
+            ] {
+                let n = UnitVec3::new(aim, BOX_CYLINDER_AXIS, band).unwrap();
+                let frame = BoxFrame::aimed(n);
+                let rows = frame.rows();
+                let (lo, hi) = crate::census::edge_reach_in(&body, edge, &frame).unwrap();
+                let (lo, hi) = ([lo.x, lo.y, lo.z], [hi.x, hi.y, hi.z]);
+                let mut slo = [f64::INFINITY; 3];
+                let mut shi = [f64::NEG_INFINITY; 3];
+                for i in 0..=40_000 {
+                    let t = t0 + (t1 - t0) * f64::from(i) / 40_000.0;
+                    let p = curve.carrier().eval(t);
+                    for k in 0..3 {
+                        let a = rows[k].dot(Vec3::new(p.x, p.y, p.z));
+                        slo[k] = slo[k].min(a);
+                        shi[k] = shi[k].max(a);
+                    }
+                }
+                for k in 0..3 {
+                    assert!(
+                        lo[k] <= slo[k] + 1e-14 && hi[k] >= shi[k] - 1e-14,
+                        "[{start},{span},{phi}] aim {aim:?} row {k}: [{}, {}] vs samples [{}, {}]",
+                        lo[k],
+                        hi[k],
+                        slo[k],
+                        shi[k]
+                    );
+                    assert!(
+                        slo[k] - lo[k] <= 1e-8 && hi[k] - shi[k] <= 1e-8,
+                        "[{start},{span},{phi}] aim {aim:?} row {k}: loose [{}, {}] vs samples [{}, {}]",
+                        lo[k],
+                        hi[k],
+                        slo[k],
+                        shi[k]
+                    );
+                }
             }
         }
     }

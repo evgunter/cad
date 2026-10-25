@@ -193,7 +193,10 @@ fn foot<T: Real>(p: Point3<T>, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
 /// ([`geom::curves::boxes::ArcWindow::crest_outside`]
 /// along `−(pivot − c)`), that crest: every term a sum of positives,
 /// none a difference of carrier-sized squares, so a short arc far from
-/// its centre loses nothing to cancellation. A pivot on the axis (`ρ`
+/// its centre loses nothing to cancellation. That is why it reads the
+/// window's in-span test and not the directional door: the door's
+/// extent along `pivot − c` reaches this distance only through the cancelling
+/// difference above. A pivot on the axis (`ρ`
 /// zero) reads every point at the crest's distance. Capped at the whole
 /// turn, `|c − pivot| + |r|`, which the crest reaches only to rounding.
 fn circle_arc_reach<T: Real>(

@@ -173,7 +173,9 @@ fn the_directional_door_on_the_world_axes_is_the_coordinate_box() {
 /// direction from its crest angle `t*`, so each shape is the one
 /// named: the crest strictly inside, the crest exactly at an end, a
 /// monotone run with no crest, both crests, a full turn, more than a
-/// full turn, and a descending run.
+/// full turn, `0.999` of a turn with the crest in the gap (`h` just
+/// below π, so the crest's reading tops the ends' by `A·(1 − cos δ)`,
+/// far past the samples' bulge), and a descending run.
 #[test]
 fn the_directional_door_is_the_sampled_extent_along_oblique_directions() {
     let dirs = [
@@ -195,6 +197,10 @@ fn the_directional_door_is_the_sampled_extent_along_oblique_directions() {
                 ("both crests", (ts - 0.2, ts + PI + 0.3)),
                 ("full turn", (ts + 0.77, ts + 0.77 + TAU)),
                 ("past a turn", (ts - 1.0, ts + 8.0)),
+                (
+                    "near-full, crest in the gap",
+                    (ts + 0.0005 * TAU, ts + 0.9995 * TAU),
+                ),
                 ("descending", (ts + 0.4, ts - 0.6)),
             ];
             for (shape, (t0, t1)) in spans {
@@ -327,4 +333,35 @@ fn the_dual_reads_the_value_channel_and_poison_stays_loud() {
         dir: Vec3::unit_x(),
     };
     assert!(conic_arc_extent_along(&line, 0.0, 1.0, Point3::origin(), n).is_none());
+}
+
+/// **An arc in a coordinate plane reads its plane along the normal.**
+/// With `û = ŷ` and `v̂ = ẑ`, the arc's `x` harmonic is `p = q = 0`
+/// exactly: no crest angle exists, and both doors must read the
+/// centre's own `x` with no width, whatever the span.
+#[test]
+fn an_arc_in_a_coordinate_plane_reads_its_plane_along_the_normal() {
+    let c = circle(
+        Point3::new(0.75, -1.5, 2.0),
+        Vec3::unit_x(),
+        1.3,
+        Vec3::unit_y(),
+    );
+    let o = Point3::new(0.25, 0.0, 0.0);
+    for (t0, t1) in [(0.2, 1.3), (1.3, 0.2), (0.4, 0.4 + TAU), (3.0, 9.0)] {
+        for n in [Vec3::unit_x(), -Vec3::unit_x() * 3.0] {
+            let want = (c.eval(t0) - o).dot(n);
+            let (lo, hi) = conic_arc_extent_along(&c, t0, t1, o, n).unwrap();
+            assert!(
+                lo == want && hi == want,
+                "[{t0}, {t1}] along {n:?}: the f64 door reads [{lo}, {hi}], not {want}"
+            );
+            let (blo, bhi) = conic_arc_extent_along_bracketed(&c, t0, t1, o, n).unwrap();
+            let ulps = 4.0 * f64::EPSILON * (1.0 + want.abs());
+            assert!(
+                blo <= want && bhi >= want && bhi - blo <= ulps,
+                "[{t0}, {t1}] along {n:?}: the certified door reads [{blo}, {bhi}], not {want}"
+            );
+        }
+    }
 }

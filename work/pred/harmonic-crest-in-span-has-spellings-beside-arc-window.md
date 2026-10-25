@@ -30,6 +30,18 @@ spelling and margin:
 - `crates/sweep/src/revolve/axis.rs`, `radial_extent` — a profile
   `Arc2`'s radial extremum, its own `copysign` membership margin. 2-D,
   so not the same type; the same fact. CARVE's file.
+- `crates/geom-brep/src/implicit.rs`, `conic_arc_residual_range` — a
+  conic arc's implicit residual over `[t0, t1]`, by
+  `ARC_RESIDUAL_SAMPLES` + 1 samples widened by the chord-dip charge
+  `max|F″|·h²/8`. Against a plane the residual is a first harmonic of
+  the parameter, and a circle's against a sphere is one too
+  (`conic_residual_extremes`'s own docs, `ConicHarmonics`): in those
+  cases it is the extent `ArcWindow::extent` reads in closed form, with
+  no charge (the degree-two cases are a different fact). Read in
+  production by `topo::boolean::reduce`'s `conic_clearance` as its
+  `arc_margin`, so the sampled margin is what that clearance decides
+  on. ROOTS's file. The D292 sweep's patterns missed it: it loops on
+  `eval` of a residual, not on `sin_cos` or `.dot(`.
 - `crates/topo/src/boolean/boxes.rs`, `conic_extent` — the full-turn
   case (`h = π`, both crests in), in the `Span` lane's arithmetic.
   Consistent by construction; listed so the count is honest.

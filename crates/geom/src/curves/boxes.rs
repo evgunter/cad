@@ -50,8 +50,8 @@ use crate::net;
 
 /// A conic's frame as the extremum reads it: the centre, the plane
 /// normal, the `t = 0` reference direction and the two semi-axes — a
-/// circle is the ellipse with `semi_u = semi_v = radius`. `None` for
-/// every other kind.
+/// circle is the ellipse with `semi_u = semi_v = radius`. Each
+/// constructor refuses (`None`) every kind it does not name.
 #[derive(Clone, Copy)]
 struct ConicFrame<T: Real> {
     center: Point3<T>,
@@ -63,34 +63,46 @@ struct ConicFrame<T: Real> {
 
 impl<T: Real> ConicFrame<T> {
     fn of(carrier: &Curve3<T>) -> Option<Self> {
-        match *carrier {
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => Some(Self {
-                center,
-                axis,
-                u_ref,
-                semi_u: radius,
-                semi_v: radius,
-            }),
-            Curve3::Ellipse {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => Some(Self {
-                center,
-                axis,
-                u_ref,
-                semi_u,
-                semi_v,
-            }),
-            Curve3::Line { .. } | Curve3::Spiric { .. } | Curve3::Nurbs(_) => None,
-        }
+        Self::circle(carrier).or_else(|| Self::ellipse(carrier))
+    }
+
+    fn circle(carrier: &Curve3<T>) -> Option<Self> {
+        let Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } = *carrier
+        else {
+            return None;
+        };
+        Some(Self {
+            center,
+            axis,
+            u_ref,
+            semi_u: radius,
+            semi_v: radius,
+        })
+    }
+
+    fn ellipse(carrier: &Curve3<T>) -> Option<Self> {
+        let Curve3::Ellipse {
+            center,
+            axis,
+            semi_u,
+            semi_v,
+            u_ref,
+        } = *carrier
+        else {
+            return None;
+        };
+        Some(Self {
+            center,
+            axis,
+            u_ref,
+            semi_u,
+            semi_v,
+        })
     }
 
     /// `axis × u_ref`, the `t = π/2` reference direction.
@@ -130,26 +142,32 @@ fn lift<T: Bounds>(x: T) -> Interval {
 /// Along any direction a conic arc's coordinate is a harmonic of its
 /// parameter, `c + p·cos t + q·sin t`, with `p = semi_u·(û·n)` and
 /// `q = semi_v·(v̂·n)`. Its crests `c ± A`, `A = √(p² + q²)`, stand
-/// where `cos(t − t*) = ±1`, and a crest lies in the span iff its
-/// cosine against the span's middle `m` is at least `cos h`, `h` the
-/// half-span capped at a half-turn (past which every crest is in):
-/// [`ArcWindow::crest_outside`]. So each extreme is a crest where that
-/// test puts it in the span, and an end's reading where it does not —
-/// between its two crests the harmonic is monotone.
+/// where `cos(t − t*) = ±1`. A span of half-width `h ≥ π` holds every
+/// crest, which the window decides from `h` alone; a shorter span
+/// holds a crest iff its cosine against the span's middle `m` is at
+/// least `cos h` ([`ArcWindow::crest_outside`]). So each extreme is a
+/// crest where the span holds it, and an end's reading where it does
+/// not — between its two crests the harmonic is monotone.
 ///
 /// **No comparison is written**: the in-span question is read by
 /// [`Real::select_le_zero`], so the body runs at every scalar. At `f64`
-/// it is the exact extremum to rounding — a misjudged tie puts the
-/// crest within rounding of an end, where the end's reading is within
-/// `A·δ²/2` of it. At [`Interval`] an undecided tie selects the hull of
-/// both candidates, so an enclosure of the inputs yields an enclosure
-/// of the extent: the certified reading the box doors take. Poison
-/// propagates through every operation.
+/// it is the exact extremum to rounding. The cosine test runs only for
+/// `h < π`, where, with `d ∈ [0, π]` the crest's angle from `m`,
+/// `1 − cos(h − d) ≤ |cos h − cos d|`: a test misjudged by `δ` leaves
+/// the end nearest the crest within `A·δ` of it. The turn test,
+/// misjudged by `δ` of angle at `h ≈ π`, puts an end within `δ` of the
+/// crest, which reads within `A·δ²/2` of it. At [`Interval`] an
+/// undecided reading selects the hull of both candidates, so an
+/// enclosure of the inputs yields an enclosure of the extent: the
+/// certified reading the box doors take. Poison propagates through
+/// every operation.
 #[derive(Clone, Copy, Debug)]
 pub struct ArcWindow<T: Real> {
     cos_m: T,
     sin_m: T,
     cos_h: T,
+    /// `π − h`: at most zero iff the span covers a full turn.
+    turn_left: T,
     ends: [(T, T); 2],
 }
 
@@ -158,22 +176,24 @@ impl<T: Real> ArcWindow<T> {
     pub fn new(t0: T, t1: T) -> Self {
         let half = T::from_f64(0.5);
         let (sin_m, cos_m) = ((t0 + t1) * half).sin_cos();
-        let cos_h = ((t1 - t0) * half).abs().min(T::pi()).cos();
+        let h = ((t1 - t0) * half).abs();
         Self {
             cos_m,
             sin_m,
-            cos_h,
+            cos_h: h.min(T::pi()).cos(),
+            turn_left: T::pi() - h,
             ends: [t0.sin_cos(), t1.sin_cos()],
         }
     }
 
     /// **Whether the crest of `p·cos t + q·sin t` lies in the span**, as
-    /// a reading at most zero iff it does: `A·cos h − (p·cos m + q·sin m)`.
-    /// The trough is the crest of `(−p, −q)`. Read it with
-    /// [`Real::select_le_zero`]: an enclosure that cannot tell takes
-    /// both arms.
+    /// a reading at most zero iff it does: `π − h` where the span covers
+    /// a full turn, else `A·cos h − (p·cos m + q·sin m)`. The trough is
+    /// the crest of `(−p, −q)`. Read it with [`Real::select_le_zero`]:
+    /// an enclosure that cannot tell takes both arms.
     pub fn crest_outside(&self, p: T, q: T) -> T {
-        (p.powi(2) + q.powi(2)).sqrt() * self.cos_h - (p * self.cos_m + q * self.sin_m)
+        let tilt = (p.powi(2) + q.powi(2)).sqrt() * self.cos_h - (p * self.cos_m + q * self.sin_m);
+        self.turn_left.select_le_zero(self.turn_left, tilt)
     }
 
     /// The `(lo, hi)` of `c + p·cos t + q·sin t` over the span.
@@ -257,8 +277,8 @@ pub fn conic_arc_extent_along_bracketed<T: Bounds>(
 
 /// The box of a circle or ellipse arc: per world axis the
 /// [`ArcWindow`] extent of that coordinate — the directional extremum
-/// read along `x̂`, `ŷ`, `ẑ`, where `û·n` is `û`'s own coordinate — at
-/// the certified scalar, hulled with the endpoint seeds.
+/// read along `x̂`, `ŷ`, `ẑ` — at the certified scalar, hulled with the
+/// endpoint seeds.
 fn conic_frame_aabb<T: Bounds>(
     frame: ConicFrame<T>,
     theta0: T,
@@ -270,27 +290,15 @@ fn conic_frame_aabb<T: Bounds>(
     let mut b = Aabb::from_points([end0, end1]).unwrap_or_else(Aabb::poison);
     let frame = frame.lifted();
     let window = ArcWindow::new(lift(theta0), lift(theta1));
-    let (c, u, v) = (frame.center, frame.u_ref, frame.v_ref());
-    let (a, bm) = (frame.semi_u, frame.semi_v);
-    let grow = |min: &mut f64, max: &mut f64, (lo, hi): (Interval, Interval)| {
+    for (n, min, max) in [
+        (Vec3::unit_x(), &mut b.min_x, &mut b.max_x),
+        (Vec3::unit_y(), &mut b.min_y, &mut b.max_y),
+        (Vec3::unit_z(), &mut b.min_z, &mut b.max_z),
+    ] {
+        let (lo, hi) = extent_along(&frame, &window, Point3::origin(), n);
         *min = pfold(*min, lo.lo(), f64::min);
         *max = pfold(*max, hi.hi(), f64::max);
-    };
-    grow(
-        &mut b.min_x,
-        &mut b.max_x,
-        window.extent(c.x, a * u.x, bm * v.x),
-    );
-    grow(
-        &mut b.min_y,
-        &mut b.max_y,
-        window.extent(c.y, a * u.y, bm * v.y),
-    );
-    grow(
-        &mut b.min_z,
-        &mut b.max_z,
-        window.extent(c.z, a * u.z, bm * v.z),
-    );
+    }
     b
 }
 
@@ -329,11 +337,8 @@ pub fn circle_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    let Curve3::Circle { .. } = carrier else {
-        return None;
-    };
     Some(conic_frame_aabb(
-        ConicFrame::of(carrier)?,
+        ConicFrame::circle(carrier)?,
         theta0,
         theta1,
         end0,
@@ -357,11 +362,8 @@ pub fn ellipse_arc_aabb<T: Bounds>(
     end0: Point3<T>,
     end1: Point3<T>,
 ) -> Option<Aabb> {
-    let Curve3::Ellipse { .. } = carrier else {
-        return None;
-    };
     Some(conic_frame_aabb(
-        ConicFrame::of(carrier)?,
+        ConicFrame::ellipse(carrier)?,
         theta0,
         theta1,
         end0,
