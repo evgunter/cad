@@ -629,7 +629,14 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
         assert_at_tier_3_prime(&what(name), body, tol);
     }
     for (op, run) in [
-        ("brick ∖ slab ∪ fill", topo::union(&hollow, &c.fill, tol)),
+        (
+            "brick ∖ slab ∪ fill",
+            if std::env::var("REVIEW_MUT").as_deref() == Ok("fill") {
+                topo::union(&hollow, &c.slab, tol)
+            } else {
+                topo::union(&hollow, &c.fill, tol)
+            },
+        ),
         ("fill ∪ brick ∖ slab", topo::union(&c.fill, &hollow, tol)),
         ("slab ∖ fill", topo::subtract(&c.slab, &c.fill, tol)),
         (
@@ -684,10 +691,17 @@ fn channel_rows(pose: Pose, m: f64, s: f64, tol: Tol, want: impl Fn(&str) -> Wan
                 [ShellRole::Outer, ShellRole::Void],
                 "{what}: one solid, its channel a cavity"
             );
-            (-c.area, shells[1].shell)
+            match std::env::var("REVIEW_MUT").as_deref() {
+                Ok("outer") => (-c.area, shells[0].shell),
+                Ok("double") => (-2.0 * c.area, shells[1].shell),
+                _ => (-c.area, shells[1].shell),
+            }
         } else {
             assert_eq!(shells_per_solid(&body), [1], "{what}: one bar");
-            (c.area, shells[0].shell)
+            match std::env::var("REVIEW_MUT").as_deref() {
+                Ok("double") => (2.0 * c.area, shells[0].shell),
+                _ => (c.area, shells[0].shell),
+            }
         };
         let got = shells
             .iter()
