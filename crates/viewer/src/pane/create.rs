@@ -1120,7 +1120,7 @@ impl ViewerBehavior<'_> {
         crate::widgets::message(
             ui,
             ToolKind::Mirror.says(
-                &"pick a face: its body mirrors across it — pick another face to mirror across that one",
+                &"pick a face: its body mirrors across it — pick another face to mirror across that one; a drawn body becomes its symmetric part, the body and its image fused",
             ),
         );
         crate::widgets::message_toned(
@@ -1518,7 +1518,8 @@ impl ViewerBehavior<'_> {
     /// pattern and blend tools create one of two kinds, by the choice
     /// their form holds, and the boolean tool one of three, by the
     /// operation it holds; the duplicate tool's last node is a
-    /// projection, and its label lands there.
+    /// projection, and the mirror tool's, for a drawn body, the union
+    /// of its symmetric part; the label lands there.
     fn tool_noun(&self, kind: ToolKind) -> &'static str {
         match kind {
             ToolKind::Mate => MATE_NOUN,
@@ -1529,7 +1530,17 @@ impl ViewerBehavior<'_> {
                 Some(BooleanOp::Subtract) => "Subtract",
             },
             ToolKind::Split => "Split",
-            ToolKind::Mirror => "Mirror",
+            // A drawn body becomes its symmetric part, whose last node
+            // is the union; an unplaced body's image stands alone.
+            ToolKind::Mirror => match self.tools.mirror().and_then(|tool| tool.seats().read(0)) {
+                Some(body)
+                    if !crate::world::placements_of_read(self.session.committed_doc(), &body)
+                        .is_empty() =>
+                {
+                    "Union"
+                }
+                _ => "Mirror",
+            },
             ToolKind::Transform => "Transform",
             ToolKind::Pattern => match self.drafts.pattern_output {
                 PatternOutputChoice::Instances => "Pattern",

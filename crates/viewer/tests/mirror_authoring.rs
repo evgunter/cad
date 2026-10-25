@@ -1,12 +1,13 @@
 //! **The mirror tool, replayed headlessly**: a body and a picked face
 //! through the selection stream the viewport feeds, one committed
-//! `Node::Mirror` placed in the world, its typed refusals, and the
-//! saved document read back.
+//! action — the image, and for a body the world draws, the symmetric
+//! part taking over its copies — its typed refusals, and the saved
+//! document read back.
 //!
-//! Every geometric row compares the image's corners with its source's
-//! reflected across the picked face's plane, worked out from the box's
-//! literal dimensions — a row goes red when the image stops being that
-//! reflection.
+//! Every geometric row compares with its source reflected across the
+//! picked face's plane, worked out from the boxes' literal dimensions:
+//! the image's own corners, and the DRAWN symmetric part's extent and
+//! volume where it stands in the world.
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -15,6 +16,7 @@
 use crate::common;
 
 use common::{along_x, displayed_face_at, plate_index, session_insert};
+use pncad::document::SlotId;
 use pncad::document::pose::PoseDef;
 use pncad::document::{
     Dimension, Doc, DocEdit, EditError, Formula, LoopProgram, Node, NodeErrorKind, NodeResult,
@@ -114,15 +116,120 @@ fn mirror_op(tools: &Tools) -> SessionOp {
     op
 }
 
-/// **A body mirrored across one of its own faces**: one face pick holds
-/// both the body and the plane, the commit inserts one `Node::Mirror`
-/// whose plane is that face read as a plane and places the image in the
-/// world, the image is the block reflected across `x = −HALF_X`, and the
-/// saved document reads back bit for bit and builds the same image.
+/// The small block a mate seats on the block's top: 20 × 10 × 6 mm.
+const SMALL: [f64; 3] = [0.02, 0.01, 0.006];
+
+/// The block's volume.
+fn volume_of(size: [f64; 3]) -> f64 {
+    size.iter().product()
+}
+
+/// **The mirror tool's commit, performed**: the image, and the union of
+/// the symmetric part where one was made.
+fn mirror_in(session: &mut DocSession, op: SessionOp) -> (RecipeNodeId, Option<RecipeNodeId>) {
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+    let doc = session.committed_doc();
+    let image = *outcome
+        .minted
+        .iter()
+        .find(|&&n| matches!(doc.node(n), Some(Node::Mirror { .. })))
+        .expect("the commit mints the mirror");
+    let part = outcome
+        .minted
+        .iter()
+        .copied()
+        .find(|&n| matches!(doc.node(n), Some(Node::Union { .. })));
+    (image, part)
+}
+
+/// The least and greatest corner of `points`.
+fn bounds(points: &[[f64; 3]]) -> ([f64; 3], [f64; 3]) {
+    points.iter().fold(
+        ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
+        |(lo, hi), p| {
+            (
+                [lo[0].min(p[0]), lo[1].min(p[1]), lo[2].min(p[2])],
+                [hi[0].max(p[0]), hi[1].max(p[1]), hi[2].max(p[2])],
+            )
+        },
+    )
+}
+
+/// **What the drawn copy `copy` shows is the box `lo`..`hi` of volume
+/// `volume`**: its extent to 1e-12 m, its volume to one part in 10⁹.
+fn assert_drawn(
+    session: &mut DocSession,
+    copy: RecipeNodeId,
+    lo: [f64; 3],
+    hi: [f64; 3],
+    volume: f64,
+    what: &str,
+) {
+    let (got_lo, got_hi) = bounds(&corners(session, copy));
+    let near = |a: [f64; 3], b: [f64; 3]| a.iter().zip(&b).all(|(x, y)| (x - y).abs() <= 1e-12);
+    assert!(
+        near(got_lo, lo) && near(got_hi, hi),
+        "{what}: drawn over {got_lo:?}..{got_hi:?}, want {lo:?}..{hi:?}"
+    );
+    let got = common::body_volume(session, copy, Tol::witness());
+    assert!(
+        common::near(got, volume),
+        "{what}: drawn volume {got}, want {volume}"
+    );
+}
+
+/// `doc` with `placement` pinned at the translation `at`.
+fn pinned(
+    doc: Doc<pncad::document::ProfileProgram>,
+    placement: RecipeNodeId,
+    at: [f64; 3],
+) -> Doc<pncad::document::ProfileProgram> {
+    let pose = pncad::document::Frame {
+        translation: at,
+        ..pncad::document::Frame::IDENTITY
+    };
+    crate::fixture::pin(
+        doc,
+        placement,
+        &pose,
+        &pncad::document::EvalOptions::default(),
+    )
+}
+
+/// The block's world copy pinned at the translation `at`: the session,
+/// the block and its copy.
+fn moved_block(tol: Tol, at: [f64; 3]) -> (DocSession, RecipeNodeId, RecipeNodeId) {
+    let (session, block) = block(tol);
+    let doc = session.committed_doc().clone();
+    let copy = common::copy_of(&doc, block);
+    let mut session = common::inline_without_door(pinned(doc, copy, at), tol);
+    session.pump();
+    (session, block, copy)
+}
+
+/// An extrude's end cap, by its own name.
+fn own_cap(node: RecipeNodeId) -> pncad::prelude::StableName {
+    pncad::prelude::StableName {
+        kind: pncad::prelude::EntityKind::Face,
+        node,
+        path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
+    }
+}
+
+/// **A body mirrored across one of its own faces becomes its symmetric
+/// part**: one face pick holds the body and the plane; the commit
+/// inserts the image, whose plane is that face read as a plane, and the
+/// union of the block and its image, and re-points the block's one
+/// drawn copy to the union. The image is the block reflected across
+/// x = −20 mm, the copy draws the 80 mm part, and the saved document
+/// reads back bit for bit and builds the same image.
 #[test]
-fn a_body_mirrored_across_its_own_face_authors_evaluates_saves_and_reloads() {
+fn a_body_mirrored_across_its_own_face_becomes_its_symmetric_part() {
     let tol = Tol::witness();
     let (mut session, block) = block(tol);
+    let copy = common::copy_of(session.committed_doc(), block);
     let wall = face_toward(&session, 1.0);
     let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
     let tool = tools.mirror().expect("open");
@@ -143,8 +250,8 @@ fn a_body_mirrored_across_its_own_face_authors_evaluates_saves_and_reloads() {
             _ => None,
         })
         .collect();
-    let [Node::Mirror { body, plane }, Node::Place { .. }] = inserted[..] else {
-        panic!("a mirror and its world placement: {inserted:?}")
+    let [Node::Mirror { body, plane }, Node::Union { .. }] = inserted[..] else {
+        panic!("the image and the symmetric part, no placement: {inserted:?}")
     };
     assert_eq!(
         body.read,
@@ -170,30 +277,46 @@ fn a_body_mirrored_across_its_own_face_authors_evaluates_saves_and_reloads() {
         &vec![own.clone()],
         "by the block's own name for the face"
     );
-    let image = outcome.minted[0];
-    assert!(
-        common::world(session.committed_doc()).contains(&image),
-        "the image is placed in the world, beside the block"
+    let [image, part] = outcome.minted[..] else {
+        panic!("two nodes minted: {:?}", outcome.minted)
+    };
+    let doc = session.committed_doc();
+    assert_eq!(
+        viewer::world::drawn_copies(doc),
+        [copy],
+        "the block's copy stays the one drawn copy"
     );
-    assert!(
-        common::world(session.committed_doc()).contains(&block),
-        "and the block stays placed"
+    assert_eq!(common::world(doc), [part], "and draws the symmetric part");
+    assert_eq!(
+        doc.node_space(part),
+        doc.node_space(block),
+        "in the block's space"
     );
 
     let source = corners(&mut session, block);
-    let want = reflected(&source, -HALF_X);
     let built = corners(&mut session, image);
+    let want = reflected(&source, -HALF_X);
     assert!(
         same_points(&built, &want),
         "the image is the block across x = {}: {built:?} vs {want:?}",
         -HALF_X
     );
-    let rows = session.tree_rows();
-    assert_eq!(
-        common::status_of(&rows, image),
-        RowStatus::Ok,
-        "the mirror's row"
+    assert_drawn(
+        &mut session,
+        copy,
+        [-3.0 * HALF_X, -BLOCK[1] / 2.0, 0.0],
+        [HALF_X, BLOCK[1] / 2.0, BLOCK[2]],
+        2.0 * volume_of(BLOCK),
+        "the copy",
     );
+    let rows = session.tree_rows();
+    for node in [image, part] {
+        assert_eq!(
+            common::status_of(&rows, node),
+            RowStatus::Ok,
+            "{node:?}'s row"
+        );
+    }
 
     let dir = common::tempdir("authtail-mirror");
     let path = dir.join("mirror.pncad");
@@ -229,14 +352,230 @@ fn a_body_mirrored_across_its_own_face_authors_evaluates_saves_and_reloads() {
     );
 }
 
+/// **The part is drawn across the face where it was clicked, and moves
+/// with the copy**: the block's copy stands 0.1 m along x and its `−x`
+/// wall is clicked where it is drawn, at x = 0.08, so the drawn part
+/// spans x ∈ [0.04, 0.12]. Sliding the copy to 0.2 m afterwards, by the
+/// slot of its own placement, carries the whole part to [0.14, 0.22].
+#[test]
+fn the_part_is_drawn_where_its_copy_stands_and_moves_with_it() {
+    let tol = Tol::witness();
+    let (mut session, block, copy) = moved_block(tol, [0.1, 0.0, 0.0]);
+    let wall = face_toward(&session, 1.0);
+    assert_eq!(wall.node, copy, "the ray met the moved copy");
+    let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
+    let (image, part) = mirror_in(&mut session, mirror_op(&tools));
+    assert!(part.is_some(), "a drawn block becomes its part");
+    let (y, z) = (BLOCK[1] / 2.0, BLOCK[2]);
+    let volume = 2.0 * volume_of(BLOCK);
+    assert_drawn(
+        &mut session,
+        copy,
+        [0.04, -y, 0.0],
+        [0.12, y, z],
+        volume,
+        "at 0.1",
+    );
+    let source = corners(&mut session, block);
+    assert!(
+        same_points(&corners(&mut session, image), &reflected(&source, -HALF_X)),
+        "in its own space the image is across the block's own wall"
+    );
+
+    let slide_x = pncad::document::Coord::Slide(pncad::document::TargetAxis::X);
+    let constraint = match session.committed_doc().node(copy) {
+        Some(Node::Place { constraints, .. }) => constraints
+            .iter()
+            .find(|c| c.value().is_some_and(|v| v.coord == slide_x))
+            .map(|c| c.id)
+            .expect("the copy is pinned by a slide along x"),
+        other => panic!("the copy is a placement, not {other:?}"),
+    };
+    let moved = session.perform(SessionOp::SetSlot {
+        node: copy,
+        slot: SlotId::ValueSlide { constraint },
+        value: viewer::props::SlotValue::of(Dimension::Length, 0.2)
+            .expect("a finite length is a value"),
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    assert_drawn(
+        &mut session,
+        copy,
+        [0.14, -y, 0.0],
+        [0.22, y, z],
+        volume,
+        "moved to 0.2",
+    );
+}
+
+/// **A body drawn twice becomes its part at both copies**: the block at
+/// 0.1 m along x and at 0.1 m along y, its wall clicked on the first.
+/// Both copies are taken over, each drawing the block and its image
+/// across that copy's own `−x` wall.
+#[test]
+fn a_body_drawn_twice_is_its_symmetric_part_at_both_copies() {
+    let tol = Tol::witness();
+    let (session, block, first) = moved_block(tol, [0.1, 0.0, 0.0]);
+    let (doc, second) = crate::fixture::insert(
+        session.committed_doc().clone(),
+        Node::place(
+            vec![pncad::document::BodyRead::plain(Operand::Node(block))],
+            Operand::Var(pncad::document::VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
+    );
+    let mut session = common::inline_without_door(pinned(doc, second, [0.0, 0.1, 0.0]), tol);
+    session.pump();
+    let wall = face_toward(&session, 1.0);
+    assert_eq!(wall.node, first, "the ray met the first copy");
+    let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
+    let (_, part) = mirror_in(&mut session, mirror_op(&tools));
+    let part = part.expect("a drawn block becomes its part");
+    assert_eq!(
+        viewer::world::placements_of(session.committed_doc(), part),
+        [first, second],
+        "both copies draw the part"
+    );
+    let (y, z) = (BLOCK[1] / 2.0, BLOCK[2]);
+    let volume = 2.0 * volume_of(BLOCK);
+    assert_drawn(
+        &mut session,
+        first,
+        [0.04, -y, 0.0],
+        [0.12, y, z],
+        volume,
+        "the first",
+    );
+    assert_drawn(
+        &mut session,
+        second,
+        [-3.0 * HALF_X, 0.1 - y, 0.0],
+        [HALF_X, 0.1 + y, z],
+        volume,
+        "the second",
+    );
+}
+
+/// **A mated copy becomes its part where the mate seats it**: a small
+/// block standing 0.1 m along x is rested on the plane of the block's
+/// top by the mate tool's flow (its slides keep their 0.1 and 0), then
+/// mirrored across its own `−x` wall. The mate still places the copy,
+/// now drawing the small block's part, seated on that plane.
+#[test]
+fn a_mated_copy_becomes_its_symmetric_part_where_the_mate_seats_it() {
+    let tol = Tol::witness();
+    let (session, base) = block(tol);
+    let mut session = session;
+    let small = common::xy_box_in(&mut session, SMALL);
+    let doc = session.committed_doc().clone();
+    let small_copy = common::copy_of(&doc, small);
+    let mut session = common::inline_without_door(pinned(doc, small_copy, [0.1, 0.0, 0.0]), tol);
+    session.pump();
+    let index = plate_index(&session);
+    let underside = displayed_face_at(&session, &index, &common::up_at(0.1, 0.0));
+    let top = displayed_face_at(&session, &index, &common::down_at(0.0, 0.0));
+    assert_eq!(underside.node, small_copy, "the small block's underside");
+    assert_eq!(
+        top.node,
+        common::copy_of(session.committed_doc(), base),
+        "the block's top"
+    );
+    let mut mate = viewer::matetool::MateTool::new();
+    mate.pick(session.doc(), underside);
+    mate.pick(session.doc(), top);
+    let (doc, _) = session.landed_pair().expect("landed");
+    let proposal = mate
+        .proposal(
+            doc,
+            viewer::matetool::MateChoice {
+                kind: pncad::document::VarKind::Plane,
+                flip: true,
+                values: Vec::new(),
+            },
+        )
+        .expect("a rest proposes");
+    common::commit_mate(&mut session, proposal.op());
+    let (x, y, z) = (SMALL[0] / 2.0, SMALL[1] / 2.0, BLOCK[2]);
+    assert_drawn(
+        &mut session,
+        small_copy,
+        [0.1 - x, -y, z],
+        [0.1 + x, y, z + SMALL[2]],
+        volume_of(SMALL),
+        "seated",
+    );
+
+    let index = plate_index(&session);
+    let wall = displayed_face_at(&session, &index, &along_x(1.0, 0.0, z + SMALL[2] / 2.0));
+    assert_eq!(wall.node, small_copy, "the ray met the seated copy's wall");
+    let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
+    assert_eq!(tools.mirror().and_then(|t| t.input()), Some(small));
+    let (_, part) = mirror_in(&mut session, mirror_op(&tools));
+    assert!(part.is_some(), "the seated block becomes its part");
+    assert_drawn(
+        &mut session,
+        small_copy,
+        [0.1 - 3.0 * x, -y, z],
+        [0.1 + x, y, z + SMALL[2]],
+        2.0 * volume_of(SMALL),
+        "the part, seated",
+    );
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+    }
+}
+
+/// **A body nothing places gets its image alone**: the image is written
+/// in the body's space and reached in the tree; no part is made and the
+/// world is untouched.
+#[test]
+fn an_unplaced_body_gets_its_image_alone() {
+    let tol = Tol::witness();
+    let (session, block) = block(tol);
+    let profile = match session.committed_doc().node(block) {
+        Some(Node::Extrude { profile, .. }) => Operand::Var(*profile),
+        other => panic!("the block is an extrude, not {other:?}"),
+    };
+    let (doc, loose) = crate::fixture::insert(
+        session.committed_doc().clone(),
+        Node::Extrude {
+            profile,
+            distance: common::len(BLOCK[2]),
+        },
+    );
+    let mut session = common::inline_without_door(doc, tol);
+    session.pump();
+    let world = common::world(session.committed_doc());
+    let outcome = session.perform(SessionOp::AddMirror {
+        body: loose.into(),
+        plane: FaceSelection {
+            name: own_cap(loose),
+            node: loose,
+            body: 0,
+        },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(
+        matches!(
+            &outcome.committed[..],
+            [DocEdit::InsertNode { node, .. }] if matches!(**node, Node::Mirror { .. })
+        ),
+        "the image alone: {:?}",
+        outcome.committed
+    );
+    assert_eq!(
+        common::world(session.committed_doc()),
+        world,
+        "the world stands"
+    );
+}
+
 /// **A body mirrored across a face of another body in its space**: the
 /// block's duplicate is a copy read out of a pattern of the block, so
 /// it lives in the block's space. The first face pick (the block's)
 /// seats the block; the second (the duplicate's far `+x` wall) re-picks
-/// the plane alone; the image is the block reflected across that wall.
-///
-/// A face of a body in ANOTHER space — a second, independent block —
-/// refuses at the insert door naming both spaces, and nothing lands.
+/// the plane alone; the image is the block reflected across that wall,
+/// and the block's copy draws the block and that image.
 #[test]
 fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
     let tol = Tol::witness();
@@ -251,6 +590,7 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
         panic!("the block and its duplicate are drawn: {world:?}")
     };
     assert_eq!(first, block, "the block is drawn first");
+    let block_copy = common::copy_of(session.committed_doc(), block);
 
     let own = face_toward(&session, 1.0);
     let far = face_toward(&session, -1.0);
@@ -267,7 +607,7 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
         at > HALF_X,
         "the duplicate's far wall is clear of the block: {at}"
     );
-    let image = session_insert(&mut session, mirror_op(&tools));
+    let (image, _) = mirror_in(&mut session, mirror_op(&tools));
     let source = corners(&mut session, block);
     let want = reflected(&source, at);
     let built = corners(&mut session, image);
@@ -275,48 +615,14 @@ fn a_body_mirrored_across_another_bodys_face_reads_that_faces_plane() {
         same_points(&built, &want),
         "the image is the block across x = {at}: {built:?} vs {want:?}"
     );
-
-    // A second block is its own construction, in a space of its own.
-    let other = common::xy_box_in(&mut session, BLOCK);
-    let before = session.committed_doc().clone();
-    let refused = session.perform(SessionOp::AddMirror {
-        body: block.into(),
-        plane: FaceSelection {
-            name: own_cap(other),
-            node: other,
-            body: 0,
-        },
-    });
-    let spaces = [
-        before.node_space(block).expect("the block is in its space"),
-        before.node_space(other).expect("and the other in its own"),
-    ];
-    assert!(
-        matches!(
-            refused.refusal.as_ref(),
-            Some(Refusal::Edit(error)) if matches!(
-                error.as_ref(),
-                EditError::SpaceMismatch { a, b, .. }
-                    if spaces.contains(&a.id()) && spaces.contains(&b.id())
-            )
-        ),
-        "a plane off another space refuses at the door, naming both: {:?}",
-        refused.refusal
+    assert_drawn(
+        &mut session,
+        block_copy,
+        [-HALF_X, -BLOCK[1] / 2.0, 0.0],
+        [2.0 * at + HALF_X, BLOCK[1] / 2.0, BLOCK[2]],
+        2.0 * volume_of(BLOCK),
+        "the block's copy",
     );
-    assert!(refused.committed.is_empty(), "nothing is recorded");
-    assert!(
-        session.committed_doc().bit_eq(&before),
-        "the document stands"
-    );
-}
-
-/// An extrude's end cap, by its own name.
-fn own_cap(node: RecipeNodeId) -> pncad::prelude::StableName {
-    pncad::prelude::StableName {
-        kind: pncad::prelude::EntityKind::Face,
-        node,
-        path: vec![pncad::select::RoleSeg::Cap(pncad::select::CapEnd::End)],
-    }
 }
 
 /// **A face with no plane refuses typed, on the mirror's own row**: a
@@ -391,8 +697,7 @@ fn a_mirror_across_a_curved_face_refuses_typed_where_it_evaluates() {
         Some(torus),
         "a face pick with a body held re-picks the plane alone"
     );
-    let image = session_insert(&mut session, mirror_op(&tools));
-    session.pump();
+    let (image, _) = mirror_in(&mut session, mirror_op(&tools));
     let eval = session.evaluation().expect("landed");
     let refusal = match eval.nodes.get(&image) {
         Some(NodeResult::Failed(refusal)) => refusal,
@@ -455,193 +760,23 @@ fn a_deleted_body_drops_the_seat_and_the_plane() {
     );
 }
 
-/// **The symmetric part is the union of the body and its image**,
-/// authored with the boolean tool after the mirror, in either pick
-/// order: the union's volume is twice the block's, and it is the one
-/// body the world draws.
-#[test]
-fn a_body_and_its_image_union_to_the_symmetric_part_in_either_order() {
-    let tol = Tol::witness();
-    let volume = BLOCK.iter().product::<f64>();
-    for image_first in [false, true] {
-        let (mut session, block) = block(tol);
-        let wall = face_toward(&session, 1.0);
-        let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
-        let image = session_insert(&mut session, mirror_op(&tools));
-        let picks = if image_first {
-            [image, block]
-        } else {
-            [block, image]
-        };
-        let mut tools = Tools::new();
-        tools.open(ToolKind::Boolean);
-        let picks: Vec<SessionOp> = picks
-            .into_iter()
-            .map(|node| SessionOp::Select(Selection::Node(node)))
-            .collect();
-        assert!(tools.feed(session.committed_doc(), &picks).is_empty());
-        let op = tools.boolean().expect("open").op().expect("two members");
-        let union = session_insert(&mut session, op);
-        let got = common::body_volume(&mut session, union, tol);
-        assert!(
-            common::near(got, 2.0 * volume),
-            "image first {image_first}: the symmetric part is twice the block, {got}"
-        );
-        assert_eq!(
-            common::world(session.committed_doc()),
-            [union],
-            "image first {image_first}: the world draws the union alone"
-        );
-    }
-}
-
-/// The block's world copy pinned at the translation `at`: the session,
-/// the block and its copy.
-fn moved_block(tol: Tol, at: [f64; 3]) -> (DocSession, RecipeNodeId, RecipeNodeId) {
-    let (session, block) = block(tol);
-    let doc = session.committed_doc().clone();
-    let copy = common::copy_of(&doc, block);
-    let doc = pinned(doc, copy, at);
-    let mut session = common::inline_without_door(doc, tol);
-    session.pump();
-    (session, block, copy)
-}
-
-/// `doc` with `placement` pinned at the translation `at`.
-fn pinned(
-    doc: Doc<pncad::document::ProfileProgram>,
-    placement: RecipeNodeId,
-    at: [f64; 3],
-) -> Doc<pncad::document::ProfileProgram> {
-    let pose = pncad::document::Frame {
-        translation: at,
-        ..pncad::document::Frame::IDENTITY
-    };
-    crate::fixture::pin(
-        doc,
-        placement,
-        &pose,
-        &pncad::document::EvalOptions::default(),
-    )
-}
-
-/// The least and greatest x of `points`.
-fn x_span(points: &[[f64; 3]]) -> (f64, f64) {
-    points
-        .iter()
-        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
-            (lo.min(p[0]), hi.max(p[0]))
-        })
-}
-
-/// **The image is drawn across the face where the person saw it**: the
-/// block's copy stands 0.1 m along x, and its `−x` wall is clicked
-/// where it is drawn, at x = 0.08. The image's world copy takes the
-/// clicked copy's placement, so the DRAWN image is the drawn block
-/// reflected across x = 0.08 — while the image itself, in the block's
-/// own space, is the block reflected across x = −0.02.
-#[test]
-fn the_image_is_drawn_across_the_face_where_it_was_clicked() {
-    let tol = Tol::witness();
-    let (mut session, block, copy) = moved_block(tol, [0.1, 0.0, 0.0]);
-    let wall = face_toward(&session, 1.0);
-    assert_eq!(wall.node, copy, "the ray met the moved copy");
-    let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
-    let image = session_insert(&mut session, mirror_op(&tools));
-    let drawn_source = corners(&mut session, copy);
-    let (at, _) = x_span(&drawn_source);
-    assert!(
-        (at - 0.08).abs() <= 1e-12,
-        "the clicked wall is drawn at x = 0.08: {at}"
-    );
-    let image_copy = common::copy_of(session.committed_doc(), image);
-    let drawn = corners(&mut session, image_copy);
-    let want = reflected(&drawn_source, at);
-    assert!(
-        same_points(&drawn, &want),
-        "the drawn image is across the clicked face: {drawn:?} vs {want:?}"
-    );
-    let own = corners(&mut session, image);
-    let source = corners(&mut session, block);
-    assert!(
-        same_points(&own, &reflected(&source, -HALF_X)),
-        "in its own space the image is across the block's own wall"
-    );
-}
-
-/// **With no clicked copy, the image arrives wherever its source
-/// does**: the block drawn twice (at 0.1 m along x and 0.1 m along y),
-/// its body picked in the tree and its plane named on the block itself,
-/// so no copy of it was clicked. The image takes BOTH copies'
-/// placements, each drawn image the block's copy beside it reflected
-/// across that copy's `−x` wall.
-#[test]
-fn a_tree_picked_body_is_mirrored_at_every_copy_of_it() {
-    let tol = Tol::witness();
-    let (session, block, first) = moved_block(tol, [0.1, 0.0, 0.0]);
-    let doc = session.committed_doc().clone();
-    let (doc, second) = crate::fixture::insert(
-        doc,
-        Node::place(
-            vec![pncad::document::BodyRead::plain(Operand::Node(block))],
-            Operand::Var(pncad::document::VarId::WORLD),
-            pncad::document::stand().bundle(),
-        ),
-    );
-    let doc = pinned(doc, second, [0.0, 0.1, 0.0]);
-    let mut session = common::inline_without_door(doc, tol);
-    session.pump();
-    let wall = face_toward(&session, 1.0);
-    let (_, own) = wall.name.copy_of().expect("a pick on a copy");
-    let plane = FaceSelection {
-        name: own.clone(),
-        node: block,
-        body: 0,
-    };
-    let mut tools = Tools::new();
-    tools.open(ToolKind::Mirror);
-    let picks = [
-        SessionOp::Select(Selection::Node(block)),
-        SessionOp::Select(Selection::Face(plane)),
-    ];
-    assert!(tools.feed(session.committed_doc(), &picks).is_empty());
-    let image = session_insert(&mut session, mirror_op(&tools));
-    let doc = session.committed_doc().clone();
-    let copies = viewer::world::placements_of(&doc, image);
-    assert_eq!(
-        copies.len(),
-        2,
-        "one image copy per copy of the block: {copies:?}"
-    );
-    let mut drawn: Vec<Vec<[f64; 3]>> = copies.iter().map(|&c| corners(&mut session, c)).collect();
-    let mut want: Vec<Vec<[f64; 3]>> = [first, second]
-        .into_iter()
-        .map(|c| {
-            let source = corners(&mut session, c);
-            let (at, _) = x_span(&source);
-            reflected(&source, at)
-        })
-        .collect();
-    drawn.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
-    want.sort_by(|a, b| a.partial_cmp(b).expect("finite"));
-    assert!(
-        drawn.iter().zip(&want).all(|(d, w)| same_points(d, w)),
-        "each drawn image is across its copy's wall: {drawn:?} vs {want:?}"
-    );
-}
-
 /// **A plane read in another space is refused, however it is reached**:
 /// a face of a second block's IMAGE (its own space's, since an image is
-/// in its source's), and a tree click that moves the body to the second
-/// block while the plane stays on the first. Both refuse at the insert
-/// door, and nothing lands.
+/// in its source's), a face clicked on the second block's drawn copy,
+/// and a tree click that moves the body to the second block while the
+/// plane stays on the first. Each refuses at the insert door naming the
+/// two spaces, and nothing lands.
 #[test]
 fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
     let tol = Tol::witness();
     let (mut session, a) = block(tol);
     let wall = face_toward(&session, 1.0);
     let b = common::xy_box_in(&mut session, BLOCK);
-    let image_b = session_insert(
+    let doc = session.committed_doc().clone();
+    let b_copy = common::copy_of(&doc, b);
+    let mut session = common::inline_without_door(pinned(doc, b_copy, [0.0, 0.1, 0.0]), tol);
+    session.pump();
+    let (image_b, _) = mirror_in(
         &mut session,
         SessionOp::AddMirror {
             body: b.into(),
@@ -659,6 +794,7 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         doc.node_space(b),
         "the image is in its source's space"
     );
+    assert_ne!(doc.node_space(a), doc.node_space(b), "two spaces");
     let refused = |session: &mut DocSession, op: SessionOp, what: &str| {
         let before = session.committed_doc().clone();
         let out = session.perform(op);
@@ -689,6 +825,17 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         },
         "a plane on another space's image",
     );
+    let index = plate_index(&session);
+    let b_wall = displayed_face_at(&session, &index, &along_x(1.0, 0.1, MID_Z));
+    assert_eq!(b_wall.node, b_copy, "the ray met the second block's copy");
+    refused(
+        &mut session,
+        SessionOp::AddMirror {
+            body: a.into(),
+            plane: b_wall,
+        },
+        "a face clicked on another space's drawn copy",
+    );
     let mut tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
     assert!(
         tools
@@ -704,53 +851,6 @@ fn a_plane_in_another_space_is_refused_through_an_image_or_a_re_picked_body() {
         mirror_op(&tools),
         "a body re-picked into another space",
     );
-}
-
-/// **A symmetric part of a moved block is drawn in one place whichever
-/// member leads**: block and image unioned by the boolean tool, in both
-/// orders, the union's one drawn copy spans the drawn block and its
-/// drawn image, x ∈ [0.04, 0.12].
-#[test]
-fn a_moved_symmetric_part_is_drawn_in_one_place_in_either_order() {
-    let tol = Tol::witness();
-    for image_first in [false, true] {
-        let (mut session, block, _) = moved_block(tol, [0.1, 0.0, 0.0]);
-        let wall = face_toward(&session, 1.0);
-        let tools = mirror_tool_picking(&session, std::slice::from_ref(&wall));
-        let image = session_insert(&mut session, mirror_op(&tools));
-        let picks = if image_first {
-            [image, block]
-        } else {
-            [block, image]
-        };
-        let mut tools = Tools::new();
-        tools.open(ToolKind::Boolean);
-        let picks: Vec<SessionOp> = picks
-            .into_iter()
-            .map(|n| SessionOp::Select(Selection::Node(n)))
-            .collect();
-        assert!(tools.feed(session.committed_doc(), &picks).is_empty());
-        let outcome = session.perform(tools.boolean().expect("open").op().expect("two"));
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        let inserted = outcome
-            .committed
-            .iter()
-            .filter(|e| matches!(e, DocEdit::InsertNode { .. }))
-            .count();
-        assert_eq!(
-            inserted, 1,
-            "image first {image_first}: the union alone, no placement"
-        );
-        let copies = viewer::world::drawn_copies(session.committed_doc());
-        let [copy] = copies[..] else {
-            panic!("image first {image_first}: one drawn copy, {copies:?}")
-        };
-        let (lo, hi) = x_span(&corners(&mut session, copy));
-        assert!(
-            (lo - 0.04).abs() <= 1e-12 && (hi - 0.12).abs() <= 1e-12,
-            "image first {image_first}: drawn over [{lo}, {hi}]"
-        );
-    }
 }
 
 /// **One click is named by one node**: a face clicked on the block's
@@ -772,9 +872,11 @@ fn a_click_on_a_copy_names_the_body_and_the_plane_by_one_node() {
 
 /// **A face on a split's second half is read on that half**: the
 /// block split at mid-height, its lower half placed and drawn 0.1 m
-/// along x, and the half's underside clicked there. The plane is the
-/// lower half's floor, z = 0, so the image is the block reflected
-/// below it — not a read of the upper half, which has no such face.
+/// along x, and the half's underside clicked there. The mirror's plane
+/// reads that face on the split's LOWER output by its port — not the
+/// upper half, which has no such face, nor the block, whose start cap
+/// lies in the same plane — and the image is the block reflected below
+/// z = 0.
 #[test]
 fn a_face_on_a_splits_lower_half_reads_that_half() {
     let tol = Tol::witness();
@@ -815,7 +917,29 @@ fn a_face_on_a_splits_lower_half_reads_that_half() {
         SessionOp::Select(Selection::Face(floor)),
     ];
     assert!(tools.feed(session.committed_doc(), &picks).is_empty());
-    let image = session_insert(&mut session, mirror_op(&tools));
+    let outcome = session.perform(mirror_op(&tools));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let read = outcome.committed.iter().find_map(|edit| match edit {
+        DocEdit::InsertNode { node, .. } => match &**node {
+            Node::Mirror { plane, .. } => match &plane.read {
+                Operand::Pose(pose) => match &**pose {
+                    PoseDef::Plane {
+                        face: Operand::Select { body, .. },
+                    } => Some((**body).clone()),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        },
+        _ => None,
+    });
+    assert_eq!(
+        read,
+        Some(Operand::output(split, below.port())),
+        "the plane's face is read on the lower half by its port"
+    );
+    let image = outcome.minted[0];
     let source = corners(&mut session, block);
     let built = corners(&mut session, image);
     let want: Vec<[f64; 3]> = {

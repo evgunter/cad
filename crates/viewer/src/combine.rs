@@ -559,20 +559,6 @@ impl core::fmt::Display for MirrorEvent {
     }
 }
 
-/// **Where a mirror's image arrives in the world**: where its source
-/// does. `copies` are the source's world placements; the image takes
-/// the one the plane was picked on, when it is one of them — the copy
-/// the person saw the face on — and otherwise every one, so a source
-/// drawn twice is mirrored twice and a source nothing places leaves
-/// its image unplaced.
-pub fn mirror_arrivals(copies: &[RecipeNodeId], plane: &FaceSelection) -> Vec<RecipeNodeId> {
-    if copies.contains(&plane.node) {
-        vec![plane.node]
-    } else {
-        copies.to_vec()
-    }
-}
-
 /// **A mirror node**: `body` reflected across the plane of the face
 /// `face` of the body `on` reads, the face read as a plane mate's is
 /// ([`crate::matetool::plane_of`]).

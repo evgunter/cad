@@ -703,13 +703,18 @@ pub enum SessionOp {
         /// The plane's normal (`Scalar`).
         normal: [Formula; 3],
     },
-    /// Insert the mirror image of an existing body across the plane of
-    /// a picked face — the mirror tool's one committed edit. The plane
-    /// is the face's own, read where it was picked: a pick on a copy is
-    /// read on the body the copy places (`crate::world::on_body`), so
-    /// the plane reads the geometry of the body's space, as a mirror's
-    /// plane must. The image is a body in that space and arrives in the
-    /// world where its source does (`crate::combine::mirror_arrivals`).
+    /// **Mirror an existing body across the plane of a picked face** —
+    /// the mirror tool's one committed action. The plane is the face's
+    /// own, read where it was picked: a pick on a copy is read on the
+    /// body the copy places (`crate::world::on_body`), so the plane reads
+    /// the geometry of the body's space, as a mirror's plane must.
+    ///
+    /// A body the world draws becomes the symmetric part: the image
+    /// (`Node::Mirror`) and the union of the body and its image, in the
+    /// body's space, the body's drawn copies re-pointed to the union —
+    /// the feature takeover a fillet makes — so the part is drawn where
+    /// each copy stands and follows every later edit of the copy. A body
+    /// nothing places gets its image alone, reached in the tree.
     ///
     /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
     /// a face read in another space — another construction's, or its
