@@ -1,6 +1,6 @@
 //! Parameters as types: [`Param`], a parameter value that is a number,
 //! and [`ParamRange`], a parameter region. The one knot search,
-//! [`last_at_or_below`], takes a [`Param`], so "the value is not NaN"
+//! `last_at_or_below`, takes a [`Param`], so "the value is not NaN"
 //! is its parameter's type rather than a caller's promise.
 
 use crate::interval::Interval;
@@ -33,7 +33,7 @@ impl Param {
 /// answer is in range) but it is arbitrary. At a run of equal values
 /// the answer is the run's LAST index, which is what makes a located
 /// span the nonempty one starting at a repeated knot.
-pub fn last_at_or_below(sorted: &[f64], t: Param) -> Option<usize> {
+pub(crate) fn last_at_or_below(sorted: &[f64], t: Param) -> Option<usize> {
     sorted.partition_point(|k| *k <= t.0).checked_sub(1)
 }
 

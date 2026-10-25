@@ -69,6 +69,7 @@ pub mod plate_param;
 pub mod reshaped_rod;
 pub mod sink;
 pub mod slots;
+pub mod symmetric_plate;
 pub mod table;
 pub mod tangency;
 pub mod tube_arc;
@@ -107,15 +108,9 @@ pub fn spun_about_y() -> Vec<(editor_core::Coord, editor_core::Formula)> {
         .into_iter()
         .map(|axis| (Coord::Slide(axis), Formula::zero(Dimension::Length)))
         .chain([
-            (Coord::SpinAbout(TargetAxis::X), back),
-            (
-                Coord::SpinAbout(TargetAxis::Y),
-                Formula::zero(Dimension::Angle),
-            ),
-            (
-                Coord::SpinAbout(TargetAxis::Z),
-                Formula::zero(Dimension::Angle),
-            ),
+            (Coord::Spin(TargetAxis::X), back),
+            (Coord::Spin(TargetAxis::Y), Formula::zero(Dimension::Angle)),
+            (Coord::Spin(TargetAxis::Z), Formula::zero(Dimension::Angle)),
         ])
         .collect()
 }
@@ -315,6 +310,9 @@ pub fn documents() -> Vec<CorpusDoc> {
         // consumed downstream, so every standard row (every ε, the
         // Interval lane, persistence, latency) runs both.
         part_select::document(),
+        // `symmetric_plate`: a mirror is a construction, and a symmetric
+        // part is a body unioned with its mirror across its own face.
+        symmetric_plate::document(),
         // `loft_prism` (M6-3): R5 shape (iii)'s loft body — the
         // Band 4 corpus's first NURBS-walled solid. Standard rows
         // (every ε, interval lane, persistence, latency) for free by
@@ -462,13 +460,14 @@ pub fn read_body<'e, T: Decide>(
 ///
 /// - `Sweep`: every recipe-expressible sweep refuses at one door, for
 ///   the reason `eval::wire::SWEEP_FRONTIER` states.
-/// - `World`: the world defines no variable and is scheduled nowhere
-///   (`eval::schedule`); a constraint reads it as a side, never as a
-///   value.
+/// - `World` and `Space`: each defines one `Space` variable, which
+///   holds nothing, and is scheduled nowhere (`eval::schedule`); a
+///   placement reads it as its target and a constraint the world as a
+///   side, never as a value.
 ///
 /// Each reader holds its entries in both directions, so a kind that
 /// starts evaluating reds until it is removed here.
-pub const NEVER_EVALUATES: [&str; 2] = ["Sweep", "World"];
+pub const NEVER_EVALUATES: [&str; 3] = ["Sweep", "World", "Space"];
 
 /// **The node kinds that evaluate, but only in documents beside this
 /// registry** — so [`documents`] cannot cover them while
@@ -486,7 +485,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 21] = [
+pub const NODE_KINDS: [&str; 23] = [
     "Profile",
     "Extrude",
     "Revolve",
@@ -500,6 +499,7 @@ pub const NODE_KINDS: [&str; 21] = [
     // document.
     "Chamfer",
     "Split",
+    "Mirror",
     // The three booleans are three nodes: a union and an intersect over
     // a `Bodies` argument, a subtract over its binary `from`/`tool`.
     "Union",
@@ -546,6 +546,10 @@ pub const NODE_KINDS: [&str; 21] = [
     // The world: in every document, authored by none, so it reads zero
     // here and is exempt through `NEVER_EVALUATES`.
     "World",
+    // A `new_space()`: it holds nothing and is scheduled nowhere, and
+    // no corpus document places into one, so it reads zero here and is
+    // exempt through `NEVER_EVALUATES`.
+    "Space",
 ];
 
 /// The edit kinds the corpus is required to exercise — the coverage
@@ -555,10 +559,10 @@ pub const NODE_KINDS: [&str; 21] = [
 /// `RemoveConstraint`, `RemoveConstraints`, `RenameVar`, `DeleteVar` and
 /// `UpdateReference` are arms of `DocEdit` that no corpus document
 /// authors, and listing them here would report six permanent misses
-/// rather than covering anything. `AddConstraint`, `AddValue` and
-/// `AddValues` are listed: a placement writes a mate and the values
-/// that set its freedoms, or, standing where its body stands, the
-/// identity bundle's values as one write.
+/// rather than covering anything. `AddConstraint` is not listed
+/// either: no corpus document authors one, its placements being
+/// written whole.
+/// `SetConstraints` is listed: a placement's bundle is written whole.
 /// `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -570,7 +574,7 @@ pub const NODE_KINDS: [&str; 21] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 23] = [
+pub const EDIT_KINDS: [&str; 21] = [
     "InsertNode",
     "DeleteNode",
     "SetProgram",
@@ -591,9 +595,7 @@ pub const EDIT_KINDS: [&str; 23] = [
     "SetAppearanceMeta",
     "ClearAppearanceMeta",
     "SetLabel",
-    "AddConstraint",
-    "AddValue",
-    "AddValues",
+    "SetConstraints",
 ];
 
 /// The node SUB-kinds the corpus must also cover in full: both pattern
@@ -674,8 +676,10 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         // payload's emptiness, which no other kind counts either.
         | Node::Shell { .. }
         | Node::Split { .. }
+        | Node::Mirror { .. }
         | Node::Place { .. }
         | Node::World
+        | Node::Space
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Measure { .. }
@@ -699,11 +703,13 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Tube { .. } => "Tube",
         Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
+        Node::Mirror { .. } => "Mirror",
         Node::Union { .. } => "Union",
         Node::Intersect { .. } => "Intersect",
         Node::Subtract { .. } => "Subtract",
         Node::Place { .. } => "Place",
         Node::World => "World",
+        Node::Space => "Space",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
@@ -743,8 +749,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::AddConstraint { .. } => "AddConstraint",
         DocEdit::RemoveConstraint { .. } => "RemoveConstraint",
         DocEdit::RemoveConstraints { .. } => "RemoveConstraints",
-        DocEdit::AddValue { .. } => "AddValue",
-        DocEdit::AddValues { .. } => "AddValues",
+        DocEdit::SetConstraints { .. } => "SetConstraints",
         DocEdit::UpdateReference { .. } => "UpdateReference",
         DocEdit::SetLabel { .. } => "SetLabel",
     }

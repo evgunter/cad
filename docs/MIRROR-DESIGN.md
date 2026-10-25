@@ -131,10 +131,10 @@ index is built per member (no construction reads a frame), since
 equivariance is audited at the site (P3), never assumed. A hole pattern is `subtract(plate, union(cutters))`
 with `cutters` a family. A reflection is not a pose, so
 mirror is a construction: `Mirror { body, plane }`
-is a construction defining a new `Body` in its source's root, the
-plane a `Plane` pose whose reads reach that root alone (a face read as a
-plane, or a plane constructed from the body's geometry), and every pose
-is proper. A symmetric part is `union(body, Mirror { body, plane })`,
+is a construction defining a new `Body` in its source's space, the
+plane a `Plane` pose whose reads reach that space alone (a face read as
+a plane, or a plane constructed from the body's geometry), and every
+pose is proper. A symmetric part is `union(body, Mirror { body, plane })`,
 one construction whose seam is the plane's face read twice; a chiral
 twin elsewhere is a placement of the image, and there the plane carries
 no shape. P1–P3 and P6 are that

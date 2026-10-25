@@ -26,7 +26,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+use pncad::select::{CapEnd, EntityKind, RoleSeg};
 use pncad::workspace::Workspace;
 use viewer::parts::PartFiles;
 use viewer::session::{DocSession, SessionOp};
@@ -141,7 +141,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let mut bracket = Doc::empty_derived("partroot-bracket", tol);
     let bracket_root = common::insert_into(
         &mut bracket,
-        Node::instantiate_part(reference(&boss, tol)),
+        crate::fixture::mated_instance(reference(&boss, tol)),
         tol,
     );
     let bracket = labelled(&bracket, bracket_root, "bracket seat", tol);
@@ -153,7 +153,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let mut assembly = Doc::empty_derived("partroot-assembly", tol);
     let twin = common::insert_into(
         &mut assembly,
-        Node::instantiate_part(reference(&boss, tol)),
+        crate::fixture::mated_instance(reference(&boss, tol)),
         tol,
     );
     assert_eq!(
@@ -163,7 +163,7 @@ fn a_nested_part_failure_draws_one_line_per_document_within_the_budget() {
     let mut assembly = labelled(&assembly, twin, "host twin", tol);
     let instance = common::insert_into(
         &mut assembly,
-        Node::instantiate_part(reference(&bracket, tol)),
+        crate::fixture::mated_instance(reference(&bracket, tol)),
         tol,
     );
     let path = store
@@ -275,7 +275,7 @@ fn a_poisoned_part_root_draws_the_failure_that_poisoned_it() {
     let mut assembly = Doc::empty_derived("partroot-poisoned-assembly", tol);
     let instance = common::insert_into(
         &mut assembly,
-        Node::instantiate_part(reference(&bracket, tol)),
+        crate::fixture::mated_instance(reference(&bracket, tol)),
         tol,
     );
     let path = store
@@ -403,7 +403,11 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         crate::fixture::mated_instance(reference(&top, tol)),
         tol,
     );
-    let (sub, legs) = common::inserted(&sub, Node::instantiate_part(reference(&leg, tol)), tol);
+    let (sub, legs) = common::inserted(
+        &sub,
+        crate::fixture::mated_instance(reference(&leg, tol)),
+        tol,
+    );
     let (sub, pattern) = common::inserted(
         &sub,
         Node::Pattern {
@@ -416,24 +420,21 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
         },
         tol,
     );
-    let (sub, _) = common::edited(
+    let (sub, _) = viewer::test_support::mated(
         &sub,
-        DocEdit::AddConstraint {
-            placement: cap,
-            mate: Box::new(crate::fixture::rest(
-                common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)),
-                common::head(StableName {
-                    kind: EntityKind::Face,
-                    node: pattern,
-                    path: vec![RoleSeg::Instance {
-                        i: 1,
-                        of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
-                    }],
-                }),
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
+        cap,
+        crate::fixture::rest(
+            common::head(in_part(cap, (top_body, top_copy), CapEnd::Start)),
+            common::head(StableName {
+                kind: EntityKind::Face,
+                node: pattern,
+                path: vec![RoleSeg::Instance {
+                    i: 1,
+                    of: in_part(legs, (leg_body, leg_copy), CapEnd::End).into(),
+                }],
+            }),
+        ),
+        Vec::new(),
         tol,
     );
     // The world: the cap is the first placement the product door
@@ -451,7 +452,7 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
     let mut assembly = Doc::empty_derived("partroot-carried-mate-asm", tol);
     let instance = common::insert_into(
         &mut assembly,
-        Node::instantiate_part(reference(&sub, tol)),
+        crate::fixture::mated_instance(reference(&sub, tol)),
         tol,
     );
     let path = store

@@ -1,10 +1,9 @@
 //! **EDIT-PLACEMENT P2 over placements — poses, the constraint door
 //! and the spaces** (ASSEMBLY.md A4, A9, A11; D10, Spaces): a seat
-//! under a parametric world mate, a loose stack joining the world
-//! through one seat, split and
-//! inline over pinned and mate-placed instances, and the readers that
-//! must not compare a loose copy with anything outside its space — the
-//! product being exactly the copies whose space reaches the world. Each
+//! under a parametric world mate, split and inline over pinned and
+//! mate-placed instances, and the readers that must not compare a copy
+//! with anything outside its space — the product being exactly the
+//! copies placed into the world. Each
 //! row is composed against the two literal block parts `p2_gauges`
 //! seats, and the poses against an independent 4x4 composition written
 //! here.
@@ -14,13 +13,12 @@
 use std::sync::Arc;
 
 use crate::fixture;
-use crate::p2_gauges::{body_of, pinned, seat, seat_edits, seat_on, set_pin};
+use crate::p2_gauges::{body_of, pinned, seat, seat_on, set_pin};
 
-use editor_core::pose::PoseRole;
 use editor_core::{
     CapEnd, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
-    FreeValue, FreeVar, Node, NodeErrorKind, Operand, ProfileDoc, RecipeNodeId, Space, StableName,
-    Target, VarName, WorldRead, evaluate,
+    FreeValue, FreeVar, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, StableName, VarName,
+    evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, run, solve, step};
@@ -254,11 +252,44 @@ fn set_lift(doc: ProfileDoc, value: f64) -> ProfileDoc {
 fn seat_rel(p: &Parts) -> M4 {
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-seat-control"), Tol::witness());
-    let (doc, b) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, b) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let (doc, t) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat(doc, t, head(p.top_cap(t)), head(p.base_cap(b)));
     let poses = solve(&doc, &o, Tol::witness());
     of_frame(&poses.placement(&doc, t).unwrap())
+}
+
+/// **Where a copy seated on a placed base stands, by D′2's chart**
+/// (`docs/INTENT-STAGE3-SPEC.md` §5′.2), written out independently of
+/// the solve: the target space's axes swung onto the base's upper cap's
+/// normal `n = (a, b, c)` by the shortest turn, `x' = (1 − a²/(1 + c),
+/// −ab/(1 + c), −a)` and `y' = n × x'`; the copy's own axes land on
+/// them (its start cap on the base's upper cap, no spin), its origin
+/// `at` along `x'` and `y'` from the space's origin and on the cap's
+/// plane along `n`.
+fn space_seat(w_base: &M4, height: f64, at: [f64; 2]) -> M4 {
+    let n = [w_base[0][2], w_base[1][2], w_base[2][2]];
+    let on_cap: [f64; 3] = std::array::from_fn(|i| w_base[i][2] * height + w_base[i][3]);
+    let (a, b, c) = (n[0], n[1], n[2]);
+    let one_plus_c = if c < 0.0 {
+        (a * a + b * b) / (1.0 - c)
+    } else {
+        1.0 + c
+    };
+    let x = [1.0 - a * a / one_plus_c, -a * b / one_plus_c, -a];
+    let y = [
+        n[1] * x[2] - n[2] * x[1],
+        n[2] * x[0] - n[0] * x[2],
+        n[0] * x[1] - n[1] * x[0],
+    ];
+    let along: f64 = (0..3).map(|i| on_cap[i] * n[i]).sum();
+    let t: [f64; 3] = std::array::from_fn(|i| at[0] * x[i] + at[1] * y[i] + along * n[i]);
+    [
+        [x[0], y[0], n[0], t[0]],
+        [x[1], y[1], n[1], t[1]],
+        [x[2], y[2], n[2], t[2]],
+        [0.0, 0.0, 0.0, 1.0],
+    ]
 }
 
 fn band() -> geom_core::Band {
@@ -278,26 +309,41 @@ fn pin_lifted(
     then: &Frame,
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let copy = Operand::Var(
-        doc.output(placement, 0)
-            .expect("an instance defines its copies"),
-    );
-    let mut pin = editor_core::pin_at(&doc, &copy, then, o, Tol::witness())
-        .unwrap_or_else(|refusal| panic!("the copy pins over its geometry: {refusal}"));
-    let Target::World(world) = pin.to else {
-        unreachable!("a pin reads the world")
-    };
-    let world = if angle == 0.0 {
-        world
-    } else {
-        world.spin(WorldRead::through(PoseRole::Z), ang(angle))
-    };
-    let along = [PoseRole::X, PoseRole::Y, PoseRole::Z][index];
-    pin.to = Target::World(world.slide(
-        WorldRead::through(along),
-        Formula::named(lift(), Dimension::Length),
-    ));
-    fixture::constrain_at(doc, placement, pin).0
+    use editor_core::{Coord, TargetAxis};
+    let _ = o;
+    // `then` spun `angle` about the world's z, then lifted along the
+    // axis `index`: the chain of `then`'s spins and that one, and its
+    // origin turned with it, the lift written as the variable.
+    let (c, s) = (angle.cos(), angle.sin());
+    let [x, y, z] = then.translation;
+    let origin = [c * x - s * y, s * x + c * y, z];
+    let mut spins: Vec<(Coord, Formula)> = editor_core::test_support::moves_at(then)
+        .into_iter()
+        .filter(|(coord, _)| matches!(coord, Coord::Spin(_)))
+        .collect();
+    if angle != 0.0 {
+        match spins.last_mut() {
+            Some((Coord::Spin(TargetAxis::Z), by)) => {
+                *by = Formula::add(by.clone(), ang(angle)).expect("two angles add");
+            }
+            _ => spins.push((Coord::Spin(TargetAxis::Z), ang(angle))),
+        }
+    }
+    let slides = TargetAxis::ALL.into_iter().enumerate().map(|(k, axis)| {
+        let at = if origin[k] == 0.0 {
+            Formula::zero(Dimension::Length)
+        } else {
+            len(origin[k])
+        };
+        let by = if k == index {
+            Formula::add(at, Formula::named(lift(), Dimension::Length)).expect("two lengths add")
+        } else {
+            at
+        };
+        (Coord::Slide(axis), by)
+    });
+    let placed = editor_core::Placed::unmated(spins.into_iter().chain(slides).collect());
+    fixture::written(doc, placement, placed)
 }
 
 /// [`pin_lifted`] over a new instance of `part`.
@@ -313,9 +359,11 @@ fn pinned_lifted(
     (pin_lifted(doc, id, index, angle, then, o), id)
 }
 
-/// **A seat under a world mate whose pose composes a parametric lift, a
-/// fixed turn and a rotated offset**, against an independent 4x4 composition in f64 and in the
-/// interval lane at two values of the driving parameter.
+/// **A seat under a pin whose pose composes a parametric lift, a fixed
+/// turn and a rotated offset**, against an independent 4x4 composition
+/// in f64 and in the interval lane at two values of the driving
+/// parameter: the base by its composed values, each seat on it by the
+/// chart of the space it is placed into ([`space_seat`]).
 #[test]
 fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
     let p = parts("r1-afb");
@@ -341,15 +389,23 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
         body_of(&part_top, p.top_body),
     );
 
+    // The control's seat is the chart's at a base standing at the
+    // identity.
+    assert!(
+        gap(&rel, &space_seat(&ident(), BASE_HEIGHT, [1.0, 1.0])) <= 1e-12,
+        "the control seats by the chart"
+    );
     let expect = |liftv: f64| -> (M4, M4, M4) {
         let g = mul(
             &rigid([0.0, 0.0, liftv], [0.0, 0.0, 1.0], 0.25),
             &of_frame(&gin_frame),
         );
         let w_base = mul(&g, &of_frame(&off_frame));
-        let t_p = rigid([0.0, 0.0, BASE_HEIGHT], [0.0, 0.0, 1.0], 0.0);
-        let w_top = mul(&w_base, &rel);
-        (w_base, mul(&w_base, &t_p), w_top)
+        // Each seat's values chart on the world, swung onto the tilted
+        // cap: a seat does not ride with its base in the cap's plane.
+        let w_moved = space_seat(&w_base, BASE_HEIGHT, [0.0, 0.0]);
+        let w_top = space_seat(&w_base, BASE_HEIGHT, [1.0, 1.0]);
+        (w_base, w_moved, w_top)
     };
 
     for liftv in [2.0, 7.0] {
@@ -393,83 +449,16 @@ fn a_seat_under_a_parametric_world_pin_poses_as_composed() {
     }
 }
 
-/// **One seat puts a whole loose stack in the world, and the target
-/// stays put.** p (top) with q (top) stacked on it is a loose stack,
-/// both in p's space; r (base) is pinned at x = 30. Seating p onto r —
-/// a rest and its values — moves p's stack into the world: r does not
-/// move, nothing faults, the edits record nothing, and a replay reaches
-/// the same document.
-#[test]
-fn one_seat_puts_a_loose_stack_in_the_world_and_the_target_stays() {
-    let p = parts("r1-door-order");
-    let o = p.opts();
-    let doc = ProfileDoc::empty(DocumentId::derive("r1-door-order"), Tol::witness());
-    let (doc, pp) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, q) = insert(doc, fixture::mated_instance(p.top));
-    let (doc, _) = seat_on(
-        doc,
-        q,
-        head(p.top_cap(q)),
-        head(p.top_upper_cap(pp)),
-        [0.0, 0.0],
-    );
-    let poses = solve(&doc, &o, Tol::witness());
-    for id in [pp, q] {
-        assert_eq!(
-            poses.space(id),
-            Some(Space::Loose { root: pp }),
-            "the stack is loose"
-        );
-    }
-    let (doc, r) = pinned(doc, p.base, Frame::translation([30.0, 0.0, 0.0]), &o);
-    let (seated, _, edits) = seat_edits(
-        doc.clone(),
-        pp,
-        head(p.top_cap(pp)),
-        head(p.base_cap(r)),
-        [1.0, 1.0],
-    );
-    let applied = edits.iter().fold(doc.clone(), |doc, edit| {
-        let applied = editor_core::apply(&doc, edit, Tol::witness()).expect("the seat is admitted");
-        assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
-        applied.doc
-    });
-    assert!(applied.bit_eq(&seated));
-    let poses = solve(&applied, &o, Tol::witness());
-    for id in [pp, q, r] {
-        assert_eq!(poses.fault(id), None, "node {} stands", id.0);
-        assert_eq!(
-            poses.space(id),
-            Some(Space::World),
-            "node {} is in the world",
-            id.0
-        );
-    }
-    let at = poses.placement(&applied, r).expect("r placed").translation;
-    assert!(
-        at.iter()
-            .zip([30.0, 0.0, 0.0])
-            .all(|(x, y)| (x - y).abs() < 1e-12),
-        "r does not move: {at:?}"
-    );
-    // Replay re-applies the edits alone and reaches the same document.
-    let replayed = edits.iter().fold(doc, |doc, edit| {
-        editor_core::apply_replayed(&doc, edit, Tol::witness())
-            .expect("replays")
-            .doc
-    });
-    assert!(replayed.bit_eq(&applied), "replay is the edit");
-}
-
 /// **The memo does not carry a measure across a space change**: with
-/// the top's world mate removed and the prior evaluation handed in, the
-/// measure must re-evaluate, and then refuses across the two spaces.
+/// the top moved into a space of its own and the prior evaluation
+/// handed in, the measure must re-evaluate, and then refuses across
+/// the two spaces.
 #[test]
 fn a_measure_reused_across_a_pin_removal_refuses_across_spaces() {
     let p = parts("r1-measure");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-measure"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let (doc, top) = pinned(doc, p.top, Frame::translation([0.0, 0.0, 1.0]), &o);
     let measure = Node::Measure {
         primitive: editor_core::MeasurePrimitive::Distance {
@@ -480,7 +469,7 @@ fn a_measure_reused_across_a_pin_removal_refuses_across_spaces() {
     let (doc, m) = insert(doc, measure);
     let ev = run(&doc, &o);
     assert!(ev.value(m).is_some());
-    // Remove the top's pin: it is loose; reuse the prior.
+    // Move the top into a space of its own; reuse the prior.
     let un = set_pin(doc, top, None, &o);
     let ev2 = evaluate::<f64>(
         &un,
@@ -613,74 +602,70 @@ fn a_cut_of_a_pinned_instance_and_plain_geometry_moves_nothing() {
     same_bounds(before, after, "split moved the world");
 }
 
-/// **A document of loose copies alone**: the world gather refuses
-/// `ProductError::EmptyProduct` naming the loose copy and the recourse,
-/// and the gate still checks the loose copy's space before raising that
-/// refusal — so an interference there is the gate's answer, not the
-/// empty world's.
+/// **A document whose copies are all in another space**: the world
+/// gather refuses `ProductError::EmptyProduct` with the recourse, and
+/// the gate raises that refusal. Copies seated in that space evaluate
+/// there; the world's product holds only the copies placed into the
+/// world, and the other space is gathered beside it by itself, so with
+/// pinned material in the world the world certifies and the gate still
+/// refuses the two tops clashing in their space.
 #[test]
-fn a_document_of_loose_copies_alone_names_them_and_still_checks_their_space() {
+fn a_document_of_copies_in_another_space_has_an_empty_world() {
     let p = parts("r1-alone");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-alone"), Tol::witness());
     let (doc, x) = insert(doc, fixture::mated_instance(p.base));
+    let (doc, space) = fixture::into_new_space(doc, x);
     let ev = run(&doc, &o);
     match editor_core::product(&doc, &ev, Tol::witness()) {
-        Err(editor_core::ProductError::EmptyProduct { unplaced, loose }) => {
+        Err(editor_core::ProductError::EmptyProduct { unplaced, .. }) => {
             assert!(unplaced.is_empty(), "{unplaced:?}");
-            assert_eq!(loose, vec![x]);
         }
-        other => panic!("the world gather names the loose copy: {other:?}"),
+        other => panic!("the world gather refuses empty: {other:?}"),
     }
     let said = editor_core::product(&doc, &ev, Tol::witness())
         .err()
         .map(|e| e.spoken(&doc))
         .unwrap_or_default();
-    assert!(
-        said.contains("Recourse:") && said.contains(&doc.spoken(x).to_string()),
-        "{said}"
-    );
+    assert!(said.contains("Recourse:"), "{said}");
     match editor_core::assemble(&doc, &ev, Tol::witness()) {
         Err(editor_core::AssemblyError::Product(e)) => assert!(
             matches!(*e, editor_core::ProductError::EmptyProduct { .. }),
             "{e:?}"
         ),
-        other => panic!("a clean loose space raises the world's refusal: {other:?}"),
+        other => panic!("the gate raises the world's refusal: {other:?}"),
     }
-    // Two tops seated at one spot on the loose base: they overlap
-    // inside its space.
+    // Two tops seated at one spot on the base: in its space.
     let (doc, a) = insert(doc, fixture::mated_instance(p.top));
     let (doc, b) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat(doc, a, head(p.top_cap(a)), head(p.base_cap(x)));
     let (doc, _) = seat(doc, b, head(p.top_cap(b)), head(p.base_cap(x)));
+    for id in [a, b] {
+        assert_eq!(doc.node_space(id), Some(space));
+    }
     let ev = run(&doc, &o);
     for id in [a, b] {
-        assert_eq!(ev.space(id), Space::Loose { root: x });
+        assert!(ev.value(id).is_some(), "{:?}", ev.node_error(id));
     }
-    let own_space_refuses = |doc: &ProfileDoc, ev: &Evaluation<f64>| match editor_core::assemble(
-        doc,
-        ev,
-        Tol::witness(),
-    ) {
-        Err(editor_core::AssemblyError::Space { root, .. }) => assert_eq!(root, x),
-        Err(editor_core::AssemblyError::AtRest { .. }) => {}
-        other => panic!("the loose space's interference is the gate's answer: {other:?}"),
-    };
-    own_space_refuses(&doc, &ev);
-    // With pinned material far off in the world, the world gathers and
-    // the gate over that product still checks the loose space: the
-    // product carries it (`Product::spaces`).
+    // With pinned material far off in the world, the world gathers that
+    // alone, and the gate over it certifies.
     let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
     let ev = run(&doc, &o);
     let product =
         editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the world gathers");
+    assert_eq!(product.solid_copies.len(), 1, "the world's copy alone");
     assert_eq!(
-        product.spaces.len(),
-        1,
-        "the product carries the loose space"
+        product.spaces.iter().map(|g| g.space).collect::<Vec<_>>(),
+        vec![space],
+        "the other space is gathered by itself"
     );
-    assert!(editor_core::assemble_gathered(product, Tol::witness()).is_err());
-    own_space_refuses(&doc, &ev);
+    assert!(
+        matches!(
+            editor_core::assemble_gathered(product, Tol::witness()),
+            Err(editor_core::AssemblyError::AtRest { .. })
+        ),
+        "the two tops clash in their space"
+    );
 }
 
 /// **A parametric world mate moves with the cut** (A4): the base's pin
@@ -755,14 +740,7 @@ fn the_memo_moves_instances_when_their_pin_or_their_target_moves() {
         (minz(&ev2, top) - (t0 + 5.0)).abs() < 1e-9,
         "the mated instance moved"
     );
-    let shifted = pin_lifted(
-        set_pin(doc, base, None, &o),
-        base,
-        2,
-        0.0,
-        &Frame::translation([0.0, 0.0, 3.0]),
-        &o,
-    );
+    let shifted = pin_lifted(doc, base, 2, 0.0, &Frame::translation([0.0, 0.0, 3.0]), &o);
     let ev3 = evaluate::<f64>(
         &shifted,
         Some(&ev),
@@ -797,14 +775,14 @@ fn inline_at_a_pose_over_plain_geometry_moves_nothing() {
     same_bounds(before, after, "nothing moved");
 }
 
-/// **`InlineError::UnplaceablePart`'s recourse, followed, inlines**: a
-/// top mated onto a base is placed by its mate, and its part is no one
-/// instance at the identity that could take that bundle, so inline
-/// refuses naming the instance, with a recourse. The base sits where
-/// the seat puts the top at the world origin; following the recourse —
-/// pin the top where it is shown — inlines with nothing moved.
+/// **A mate-placed instance inlines in place** (A4, one rule): a top
+/// mated onto a base is placed by its mate, and its inline places the
+/// part's world under that bundle, so nothing moves. The base sits where
+/// the seat puts the top at the world origin.
+///
+/// *Breaks if* inline refuses an instance for how its bundle places it.
 #[test]
-fn the_unplaceable_part_recourse_followed_inlines_in_place() {
+fn a_mate_placed_instance_inlines_in_place() {
     let p = parts("r1-mateplaced");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-mateplaced"), Tol::witness());
@@ -812,21 +790,9 @@ fn the_unplaceable_part_recourse_followed_inlines_in_place() {
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat(doc, top, head(p.top_cap(top)), head(p.base_cap(base)));
     let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(p.store.clone());
-    match editor_core::inline(&doc, top, &resolver, Tol::witness()) {
-        Err(e @ editor_core::InlineError::UnplaceablePart { .. }) => {
-            assert!(e.to_string().contains("Recourse:"), "{e}");
-            let editor_core::InlineError::UnplaceablePart { instance, .. } = e else {
-                unreachable!()
-            };
-            assert_eq!(instance.id(), top);
-        }
-        other => panic!("a mate-placed instance refuses typed: {other:?}"),
-    }
     let before = world_bounds(&doc, &run(&doc, &o));
-    let doc = fixture::pinned_where_solved(doc, &o);
-    assert!(fixture::offset_of(&doc, top).is_some(), "the top is pinned");
     let out = editor_core::inline(&doc, top, &resolver, Tol::witness())
-        .expect("the recourse followed, inline admits it");
+        .expect("a mate-placed instance inlines");
     let after = world_bounds(&out.doc, &run(&out.doc, &o));
     same_bounds(before, after, "nothing moved");
 }
@@ -839,7 +805,7 @@ fn an_inline_at_a_turned_pose_over_two_pinned_instances_moves_nothing() {
     let p = parts("minted-vs-hand");
     let sub = ProfileDoc::empty(DocumentId::derive("minted-vs-hand-sub"), Tol::witness());
     let po = p.opts();
-    let (sub, _) = fixture::insert_pinned(sub, Node::instantiate_part(p.base), &po);
+    let (sub, _) = fixture::insert_pinned(sub, crate::fixture::mated_instance(p.base), &po);
     let (sub, _) = pinned(sub, p.base, Frame::translation([10.0, 0.0, 0.0]), &po);
     let mut store = p.store.clone();
     let sub_ref = store.insert(sub, Tol::witness());
@@ -856,16 +822,17 @@ fn an_inline_at_a_turned_pose_over_two_pinned_instances_moves_nothing() {
 }
 
 /// **The kernel's pick orders faces within one space only**: a ray
-/// offered a world target and a loose one refuses `AcrossSpaces` naming
-/// both spaces, since no one ray's coordinates meet both; each space
-/// offered by itself picks.
+/// offered a world target and one in another space refuses
+/// `AcrossSpaces` naming both spaces, since no one ray's coordinates
+/// meet both; each space offered by itself picks.
 #[test]
 fn a_pick_across_spaces_refuses_and_each_space_picks_by_itself() {
     let p = parts("r1-pick");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-pick"), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(p.base), &o);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.base), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, space) = fixture::into_new_space(doc, top);
     let ev = run(&doc, &o);
     let mesh = |id| mesh::tessellate(&body_of(&ev, id), 0.1, Tol::witness()).expect("tessellates");
     let (mb, mt) = (mesh(base), mesh(top));
@@ -876,7 +843,7 @@ fn a_pick_across_spaces_refuses_and_each_space_picks_by_itself() {
     let tb = editor_core::PickTarget::new(&ev, base, 0, &pb);
     let tt = editor_core::PickTarget::new(&ev, top, 0, &pt);
     let down = bvh::test_support::ray([0.5, 0.5, 10.0], [0.0, 0.0, -1.0]);
-    let spaces = (Space::World, Space::Loose { root: top });
+    let spaces = (editor_core::VarId::WORLD, space);
     match editor_core::pick_face(&ev, &[tb, tt], &down) {
         Err(editor_core::HitTestError::AcrossSpaces { a, b }) => {
             assert!((a, b) == spaces || (b, a) == spaces, "{a:?} {b:?}");
@@ -894,16 +861,18 @@ fn a_pick_across_spaces_refuses_and_each_space_picks_by_itself() {
 /// **Two instances pinned to the world are one component with no mate**
 /// (A9): each is fixed in the world, so their relative pose is fixed
 /// too — the world couples them as a shared gauge did — and a loose
-/// instance is a component of its own until a constraint relates it to
-/// one of them.
+/// instance in a space of its own is coupled to that space alone until
+/// a constraint relates it to one of them.
 #[test]
 fn two_instances_pinned_to_the_world_are_one_component_with_no_mate() {
     let p = parts("r1-reading");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-reading"), Tol::witness());
     let (doc, a) = pinned(doc, p.base, Frame::translation([1.0, 1.0, 0.0]), &o);
-    let (doc, b) = fixture::insert_pinned(doc, Node::instantiate_part(p.top), &o);
+    let (doc, b) = fixture::insert_pinned(doc, crate::fixture::mated_instance(p.top), &o);
     let (doc, c) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, space) = fixture::into_new_space(doc, c);
+    let space = doc.operation_of(space).expect("a new space is a node");
     let components = editor_core::relative_freedom_components(&doc);
     let of = |components: &[Vec<RecipeNodeId>], id| {
         components.iter().position(|comp| comp.contains(&id))
@@ -913,8 +882,8 @@ fn two_instances_pinned_to_the_world_are_one_component_with_no_mate() {
         "one world, one component: {components:?}"
     );
     assert!(
-        components.iter().any(|comp| comp == &vec![c]),
-        "a loose instance couples nothing: {components:?}"
+        components.iter().any(|comp| comp == &vec![c, space]),
+        "an instance in its own space couples that space alone: {components:?}"
     );
     let (related, _) = seat_on(
         doc,
@@ -931,29 +900,30 @@ fn two_instances_pinned_to_the_world_are_one_component_with_no_mate() {
     );
 }
 
-/// **A touch between two copies inside a loose copy's space is reported
-/// like one in the world** (D1 (iii), D10; A11 (2)). Two tops seated
-/// side by side on a loose base, flush along x = 1.5 with no mate
-/// between them: the space's gather records the touch as rows of the
-/// two copies, and the `unproven-coincidence` check reports them against
-/// the copies, read off `Product::spaces` beside the world's (empty)
-/// rows. Red if the check reads the world's rows alone.
+/// **A touch between two copies inside a `new_space()` is reported like
+/// one in the world** (D1 (iii), D10; A11 (2)). Two tops seated side by
+/// side on a base standing in a `new_space()`, flush along x = 1.5 with
+/// no mate between them: the space's gather records the touches as rows
+/// of the copies, and the `unproven-coincidence` check reports the two
+/// tops' against them, read off `Product::spaces` beside the world's
+/// (empty) rows. Red if the check reads the world's rows alone.
 #[test]
-fn a_touch_between_copies_in_a_loose_space_reaches_the_coincidence_check() {
-    let p = parts("r1-space-copies");
+fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
+    let p = crate::p2_gauges::parts("r1-space-copies");
     let o = p.opts();
     let doc = ProfileDoc::empty(DocumentId::derive("r1-space-copies"), Tol::witness());
     let (doc, x) = insert(doc, fixture::mated_instance(p.base));
+    let (doc, space) = fixture::into_new_space(doc, x);
     let (doc, a) = insert(doc, fixture::mated_instance(p.top));
     let (doc, b) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat_on(doc, a, head(p.top_cap(a)), head(p.base_cap(x)), [0.5, 1.0]);
     let (doc, _) = seat_on(doc, b, head(p.top_cap(b)), head(p.base_cap(x)), [1.5, 1.0]);
     // Pinned material far off, so the world gathers and the check runs.
     let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
-    let ev = run(&doc, &o);
-    for id in [a, b] {
-        assert_eq!(ev.space(id), Space::Loose { root: x });
+    for id in [x, a, b] {
+        assert_eq!(doc.node_space(id), Some(space));
     }
+    let ev = run(&doc, &o);
     let product =
         editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("the world gathers");
     assert!(
@@ -961,17 +931,16 @@ fn a_touch_between_copies_in_a_loose_space_reaches_the_coincidence_check() {
         "{:?}",
         product.coincidences
     );
-    let [space] = product.spaces.as_slice() else {
-        panic!("one loose space: {:?}", product.spaces.len())
+    let [gathered] = product.spaces.as_slice() else {
+        panic!("one space beside the world: {:?}", product.spaces.len())
     };
-    let copies = space
+    assert_eq!(gathered.space, space);
+    let copies = gathered
         .gather
         .as_ref()
         .expect("the space gathers")
         .coincidences
-        .iter()
-        .filter(|r| matches!(r.by, editor_core::AtRestBy::Copies(..)))
-        .count();
+        .len();
     assert!(copies > 0, "the tops' touch is the space's rows");
     let report = editor_core::run_checks(
         &doc,
@@ -980,13 +949,68 @@ fn a_touch_between_copies_in_a_loose_space_reaches_the_coincidence_check() {
         Tol::witness(),
     )
     .expect("checks run");
-    let reported = report
+    // The tops' seats on the base are their mates' statements, which the
+    // door proves; the touch between the two tops is reported.
+    let tops = [a, b].map(|t| doc.output(t, 0).expect("an instance defines its copies"));
+    let reported: Vec<_> = report
         .findings
         .iter()
-        .filter(|f| {
-            f.check == editor_core::CheckId::UnprovenCoincidence
-                && matches!(f.subject, editor_core::FindingSubject::Copies { .. })
-        })
-        .count();
-    assert_eq!(reported, copies, "{:?}", report.findings);
+        .filter(|f| f.check == editor_core::CheckId::UnprovenCoincidence)
+        .collect();
+    assert!(
+        !reported.is_empty() && reported.len() < copies,
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        reported.iter().all(|f| matches!(
+            f.subject,
+            editor_core::FindingSubject::Copies { a, b }
+                if tops.contains(&a.var) && tops.contains(&b.var)
+        )),
+        "every finding is the two tops' touch: {:?}",
+        report.findings
+    );
+}
+
+/// **The at-rest gate checks each `new_space()` whatever the world
+/// holds** (D10, Spaces): two tops seated at one spot on a base standing
+/// in a `new_space()` interpenetrate there, and the gate refuses though
+/// the world beside them certifies; with the world emptied the space is
+/// still checked before the gather's `EmptyProduct`, which names where
+/// the copies went.
+#[test]
+fn the_gate_checks_each_new_space_whatever_the_world_holds() {
+    let p = crate::p2_gauges::parts("r2-space-gate");
+    let o = p.opts();
+    let doc = ProfileDoc::empty(DocumentId::derive("r2-space-gate"), Tol::witness());
+    let (doc, x) = insert(doc, fixture::mated_instance(p.base));
+    let (doc, space) = fixture::into_new_space(doc, x);
+    let (doc, a) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = seat_on(doc, a, head(p.top_cap(a)), head(p.base_cap(x)), [0.5, 1.0]);
+    // The space alone, nothing in the world: the gather names where the
+    // copies went, and the space, holding no clash, is no refusal.
+    let ev = run(&doc, &o);
+    match editor_core::assemble(&doc, &ev, Tol::witness()) {
+        Err(editor_core::AssemblyError::Product(e)) => match *e {
+            editor_core::ProductError::EmptyProduct { ref elsewhere, .. } => {
+                assert_eq!(elsewhere, &vec![(x, space), (a, space)]);
+                assert!(e.to_string().contains("placed into another space"), "{e}");
+            }
+            ref other => panic!("the gather names where the copies went: {other:?}"),
+        },
+        other => panic!("an empty world refuses at the gather: {other:?}"),
+    }
+    // A second top at the first's seat clashes inside the space; the
+    // world beside it certifies, and the gate refuses all the same.
+    let (doc, b) = insert(doc, fixture::mated_instance(p.top));
+    let (doc, _) = seat_on(doc, b, head(p.top_cap(b)), head(p.base_cap(x)), [0.5, 1.0]);
+    let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
+    let ev = run(&doc, &o);
+    let refusal = editor_core::assemble(&doc, &ev, Tol::witness())
+        .expect_err("two tops at one seat do not certify inside their space");
+    assert!(
+        !matches!(refusal, editor_core::AssemblyError::Product(_)),
+        "the world gathers; the space refuses: {refusal}"
+    );
 }

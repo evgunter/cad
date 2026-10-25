@@ -123,3 +123,18 @@ So the marched carrier is on the wall where the refusal reads, and the
 miss is the stored pcurve's, the fit against the marched carrier. The
 row's remaining question narrows to the pcurve fit of a non-row
 section on a rational wall.
+
+## 2026-10-23 — the vase no longer reaches this row (ISO, `iso/vase-cap-moves-alone`)
+
+Since PR 5629 (`skin_on` picks its lane per control row), the vase's
+wall weights are constant along `v`. So the moved cap's section of
+each wall is the wall's row at `v = 0.025`, exact structure, and the
+rim mints on that row and certifies: the vase's cap now moves alone.
+The shipped vase row is renamed
+`shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row`,
+and it now stops at tier 3's volume check
+(`work/flux/a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area.md`).
+The rational-wall measurements above are history. The row's live pin
+is the polynomial tilted prism
+(`a_tilted_caps_marched_rim_refuses_at_its_certificate`), a marched
+non-row section.

@@ -231,7 +231,7 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     let (SplitPart::Body(above), SplitPart::Body(below)) = (&result.above, &result.below) else {
         panic!("both sides of the oblique cut carry material");
     };
-    (above.clone(), below.clone())
+    (Body::clone(above), Body::clone(below))
 }
 
 /// The NURBS-walled corpus bodies. One name per body, kept because
@@ -262,14 +262,14 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
         "rounded_prism",
         [0xe0cd_3add_7f3c_0dcd, 0x0d7a_8827_002b_0ba9],
     ),
-    ("ball", [0x3e4a_62a1_f1e3_d045, 0xefdc_3024_8193_e9e3]),
+    ("ball", [0xcb6a_4bef_173f_8581, 0x4a7d_529a_cfd5_0ea3]),
     (
         "sphere_wedge",
-        [0x4dcf_6a46_d7e4_8afd, 0xdfa9_7fcf_d5a6_1f91],
+        [0xc0e4_3c76_081e_10f3, 0x70f4_2f79_af65_0fee],
     ),
-    ("cone", [0xbeb5_569e_177b_e0f5, 0x5880_b4f5_0c8e_167c]),
+    ("cone", [0x90bf_b46e_8881_4a38, 0x0bbb_9dde_1d19_1475]),
     ("cone_wedge", [0x2a10_1aee_9f5a_1b91, 0x83f2_5aac_9243_68ce]),
-    ("donut", [0x7673_a909_57aa_a0f3, 0xe549_2aa4_78a6_d185]),
+    ("donut", [0x1ef9_c487_5e23_b16e, 0xb972_9215_e978_4752]),
     ("washer", [0x540e_b2df_ace5_aa6d, 0x439b_f735_4bfe_96f1]),
     (
         "tilted_above",

@@ -64,7 +64,18 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// name's spelling with it. Every row keeps its shape (`PredicateFlip`,
 /// `Cascade`, `StructuralParam`, `NodeGone`, `Ambiguous`): a spelling
 /// change.
-const DIAGNOSIS_DIGEST: u64 = 0xa990_729c_22cf_d149;
+///
+/// **Re-pinned for D′1** (a placement names its target space): each
+/// construction defines its space beside its body, so every id drawn
+/// after one, and every diagnosed name's spelling, moved. Every row
+/// keeps its shape: a spelling change.
+///
+/// **Re-pinned for D′2** (a value names no mate, a mate reads only
+/// geometry): the slab's bundle is spelled in the new vocabulary and
+/// the content key's `VERSION` moved, so every mint id's digest moved
+/// with it. Every row's Debug spelling, ordinals included, is main's
+/// with the mint digests masked: a spelling change.
+const DIAGNOSIS_DIGEST: u64 = 0xec87_4211_ef99_5654;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

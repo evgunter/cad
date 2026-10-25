@@ -832,7 +832,7 @@ fn iso_curve_candidates(
 }
 
 /// The promoted-LINE column match ([`iso_curve_candidates`]'s Line
-/// arm): is `iso` a straight unit-weight ruling whose ends sit on the
+/// arm): is `iso` a straight polynomial ruling whose ends sit on the
 /// edge's vertex pair within `eps`? Answers the `(v0, v1)` the affine
 /// v map must take at `(t0, t1)` — the column's own knot-domain ends,
 /// forward when the start vertex sits at the column's start and
@@ -845,8 +845,8 @@ fn iso_curve_candidates(
 /// straight seam as readily as a two-point polyline — so a degree or
 /// control-count gate here would strip the candidate from part of the
 /// class the promotion just created. What gates is meaning, not
-/// shape: unit weights to the bit (a rational column's v map is not
-/// affine in space) and every control within the band of the
+/// shape: one constant weight to the bit (a rational column's v map is
+/// not affine in space) and every control within the band of the
 /// end-to-end segment (the convex hull carries the curve with it);
 /// the positional halves are banded at the ambient ε (the arm's
 /// comment carries why), and every comparison is the positive
@@ -867,14 +867,9 @@ fn line_column_match(
 ) -> Option<(f64, f64)> {
     let control = iso.control();
     let (first, last) = (control.first()?, control.last()?);
-    if iso
-        .weights()
-        .iter()
-        .any(|w| w.to_bits() != 1.0f64.to_bits())
-    {
-        return None;
-    }
-    // Straightness, off the control hull: with unit weights the curve
+    // A varying weight vector withholds.
+    iso.constant_weight()?;
+    // Straightness, off the control hull: with one constant weight the curve
     // lies in its controls' convex hull, so every control within `eps`
     // of the end-to-end segment bounds the whole column there. The
     // `t` clamp folds an along-line overshoot into the distance, so a
@@ -1334,8 +1329,9 @@ mod tests {
     /// IsoCurve rung's Line arm, #388): forward vertex order answers
     /// the column's OWN knot domain, reversed answers it swapped —
     /// never a `[0, 1]` literal — and every structural miss withholds
-    /// the candidate: a curved (three-point) column, a non-unit
-    /// weight, an unmatched vertex. The certify door is the check;
+    /// the candidate: a curved (three-point) column, a varying weight
+    /// vector, an unmatched vertex; a constant one is the polynomial
+    /// ruling and matches. The certify door is the check;
     /// this table is only the selection, so a wrong answer here must
     /// be a withheld candidate, not a guessed one.
     #[test]
@@ -1362,8 +1358,19 @@ mod tests {
         );
         assert_eq!(
             line_column_match(&column(0.0, 1.0, 0.5), a, b, eps),
+            Some((0.0, 1.0)),
+            "a constant column weight cancels: the polynomial ruling matches"
+        );
+        let varying = geom::NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
+            vec![a, b],
+            vec![1.0, 0.5],
+        )
+        .unwrap();
+        assert_eq!(
+            line_column_match(&varying, a, b, eps),
             None,
-            "a non-unit column weight withholds"
+            "a varying column weight withholds"
         );
         // The banded half of the selection (the arm's comment): vertex
         // records and wall control records are different writer

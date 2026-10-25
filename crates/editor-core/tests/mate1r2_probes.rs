@@ -18,12 +18,11 @@
 use crate::fixture;
 
 use editor_core::{
-    AssemblyError, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame,
-    MateRef, MateSide, Node, NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, Space,
-    StableName, TargetAxis, Value, assemble,
+    CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Formula, Frame, MateRef, MateSide, Node,
+    NodeErrorKind, PatternKind, ProfileDoc, RecipeNodeId, StableName, TargetAxis, VarId, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{ang, constrain, in_copy, insert, len, on_frame, run, scl, solve, step};
+use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -77,7 +76,7 @@ fn place_copies(
         );
         fixture::insert_pinned(
             doc,
-            Node::place(vec![editor_core::BodyRead::plain(copy)]),
+            crate::fixture::stood(vec![editor_core::BodyRead::plain(copy)]),
             o,
         )
         .0
@@ -98,35 +97,15 @@ fn seat(
 ) -> (ProfileDoc, MateRef) {
     let to = fixture::plane(fixture::head(target));
     let to = if facing { fixture::flip(to) } else { to };
-    let (doc, mate) = constrain(
+    let (doc, mate) = crate::fixture::constrain_with(
         doc,
-        fixture::mate(
-            fixture::plane(fixture::head(placed)),
-            to,
-            ContactClass::Rest,
-        ),
+        fixture::mate(fixture::plane(fixture::head(placed)), to),
+        &[
+            (Coord::Slide(TargetAxis::X), len(slide[0])),
+            (Coord::Slide(TargetAxis::Y), len(slide[1])),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+        ],
     );
-    let doc = [
-        (Coord::Slide(TargetAxis::X), len(slide[0])),
-        (Coord::Slide(TargetAxis::Y), len(slide[1])),
-        (Coord::Spin, ang(0.0)),
-    ]
-    .into_iter()
-    .fold(doc, |doc, (coord, by)| {
-        step(
-            doc,
-            DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-        )
-        .0
-    });
     (doc, mate)
 }
 
@@ -309,7 +288,7 @@ fn r2_oblique_circular_seat_at_a_pinned_world_frame() {
         "the mate solves: {:?}",
         poses.fault(top)
     );
-    assert_eq!(poses.space(top), Some(Space::World));
+    assert_eq!(poses.space(top), Some(VarId::WORLD));
 
     let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
     let cap = o1.compose(f).compose(Rigid::translation([0.0, 0.0, 1.0]));
@@ -375,7 +354,7 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
 
     let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(top), None);
-    assert_eq!(poses.space(top), Some(Space::World));
+    assert_eq!(poses.space(top), Some(VarId::WORLD));
 
     // NOTE: the pattern direction is a DOCUMENT-coordinate map applied
     // outside the leg's world pose, so the copies march along document
@@ -383,17 +362,8 @@ fn r2_a_seat_still_verifies_under_a_pinned_world_frame() {
     // holds.
     let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
-    match &result {
-        Ok(_) => {}
-        Err(AssemblyError::Uncertified { findings, .. }) => {
-            assert!(
-                findings
-                    .iter()
-                    .all(|f| matches!(f.attribution, Some(editor_core::Attribution::Declined(_)))),
-                "declines only: {findings:?}"
-            );
-        }
-        Err(other) => panic!("the seat under a placed leg verifies; the gate said: {other}"),
+    if let Err(refusal) = &result {
+        panic!("the seat under a placed leg verifies; the gate said: {refusal}");
     }
 }
 
@@ -429,7 +399,6 @@ fn r2_a_pattern_copy_of_the_placed_instance_is_not_its_copy() {
         fixture::rest(
             fixture::head(in_copy(pattern, 1, in_part(leg, leg_body, CapEnd::End))),
             fixture::head(in_part(top, top_body, CapEnd::Start)),
-            ContactClass::Rest,
         ),
     );
     match refused {
@@ -462,7 +431,7 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
     let (top_ref, top_body) = store.insert_part(leg_part("r2-oor-top"), Tol::witness());
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-oor"), Tol::witness());
-    let (doc, leg) = fixture::insert_pinned(doc, Node::instantiate_part(leg_ref), &o);
+    let (doc, leg) = fixture::insert_pinned(doc, crate::fixture::mated_instance(leg_ref), &o);
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
@@ -525,7 +494,7 @@ fn r2_an_out_of_range_copy_on_a_sibling_mate_refuses_at_its_placement() {
     );
     // The well-formed sibling is unaffected: one constraint's refusal
     // is not its sibling's, and not the document's.
-    assert_eq!(poses.space(top), Some(Space::World));
+    assert_eq!(poses.space(top), Some(VarId::WORLD));
     assert!(poses.fault(top).is_none());
 }
 
@@ -543,7 +512,7 @@ fn r2_plain_document_pose_bits() {
     let (c_ref, c_body) = store.insert_part(leg_part("r2-bits-c"), Tol::witness());
     let o = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("r2-bits"), Tol::witness());
-    let (doc, ia) = fixture::insert_pinned(doc, Node::instantiate_part(a_ref), &o);
+    let (doc, ia) = fixture::insert_pinned(doc, crate::fixture::mated_instance(a_ref), &o);
     let (doc, ib) = insert(doc, fixture::mated_instance(b_ref));
     let (doc, ic) = insert(doc, fixture::mated_instance(c_ref));
     let (doc, m0) = seat(

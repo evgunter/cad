@@ -62,7 +62,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for r in refs {
-        let (next, id) = insert(doc, Node::instantiate_part(*r));
+        let (next, id) = insert(doc, crate::fixture::mated_instance(*r));
         doc = next;
         ids.push(id);
     }
@@ -89,7 +89,7 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 /// The decisions the part's profile pre-pass makes on the one-solid
 /// part: the program's four junctions and the f64 validation of the
 /// assembled profile, drawn on its own xy.
-const PRE_PASS: usize = 76;
+const PRE_PASS: usize = 88;
 /// The one-solid part's log sizes by node at `f64`: profile, extrude,
 /// placement. At `f64` the Profile node's op takes the pre-pass's
 /// validated form (`editor_core::ProfileLane`) and logs what the second
@@ -97,16 +97,15 @@ const PRE_PASS: usize = 76;
 const EXTRUDE_LOG: usize = 655;
 /// The one-solid part's second pass: the op's own guided replay and
 /// validation, after the pre-pass in the Profile node's log.
-const LANE_OP: usize = 71;
+const LANE_OP: usize = 83;
 const PROFILE_LOG: usize = PRE_PASS + LANE_OP;
 /// A placement standing where its body stands ([`fixture::place`]): the
 /// identity bundle, which the fold places by no map, deciding nothing.
 const PLACEMENT_LOG: usize = 0;
-/// Each instance's own op: its pin's fold off the identity (two pose
-/// normals and the map's seven rigidity margins, run as every
-/// placement but the identity bundle runs its map), then placement and
-/// validation of the placed body.
-const INSTANCE_LOG: usize = 465;
+/// Each instance's own op: its pin, values on the world's axes composed
+/// as a motion (reading no pose and deciding no margin), then placement
+/// and validation of the placed body.
+const INSTANCE_LOG: usize = 456;
 
 /// Two instances, both pinned to the world, so both ops do the same
 /// work. `o` reaches the part they copy.
@@ -174,7 +173,7 @@ fn a_part_inside_a_part_keeps_the_outer_log_its_own_under_both_schedules() {
     let seq = logs(&run(&top, &opts), &top_ids);
     assert_eq!(seq[0], seq[1], "the two outer instances differ: {seq:?}");
     assert_eq!(
-        seq[0], 921,
+        seq[0], 912,
         "the outer op's own log over a two-solid part, and its pin's"
     );
     let par = logs(
@@ -446,12 +445,12 @@ fn a_memo_hit_drops_its_frame<T: EvalScalar>(log: usize) {
 }
 
 #[test]
-fn a_memo_hit_drops_its_frame_at_f64() {
+fn a_memo_hit_drops_its_frame_on_f64() {
     a_memo_hit_drops_its_frame::<f64>(PROFILE_LOG);
 }
 
 #[test]
-fn a_memo_hit_drops_its_frame_at_interval() {
+fn a_memo_hit_drops_its_frame_on_interval() {
     a_memo_hit_drops_its_frame::<geom_core::Interval>(PROFILE_LOG);
 }
 
@@ -521,12 +520,14 @@ fn a_pre_op_failure_has_empty_escalations() {
 /// f64 and would refuse an in-band one), then the parameter's VALUE is
 /// moved to an in-band distance inside the outer edge — a door that
 /// validates nothing, by design, because the evaluation's pre-pass is
-/// where a parameter's profile is decided. That pre-pass escalates on
-/// `chord_side` between the outer edge and the island's, and the node
-/// refuses before its op runs; the
-/// escalation is on the node's error — the frame is the node's whether
-/// the refusal came from the op or from the pass before the key — and
-/// in no outer frame.
+/// where a parameter's profile is decided. That pre-pass reads an
+/// island edge's gap to the outer right edge in band (`segment_gap`, a
+/// screen the pair then reads past on a definite carrier side), then
+/// escalates on `chord_side` between the outer edge and the island's,
+/// and the node refuses before its op runs. Both in-band readings are on
+/// the node's error, in the order made — the frame is the node's
+/// whether the refusal came from the op or from the pass before the key
+/// — and in no outer frame.
 #[test]
 fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let tol = Tol::witness();
@@ -580,7 +581,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
     let named: Vec<&str> = err.escalations.iter().map(|e| e.predicate()).collect();
     assert_eq!(
         named,
-        ["chord_side"],
+        ["segment_gap", "chord_side"],
         "the pre-pass's escalation rides the refusal: {}",
         err.kind
     );

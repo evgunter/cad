@@ -44,3 +44,18 @@ What remains of this item is the closed forms and the door choice:
 - `shell` still picks one of them per solid.
 
 That unit's Decided 4 kept the closed forms as the ladder's fast paths. Each one carries an edge's conventional data through the move, which the general door's sections would re-mint. Folding them in is therefore a bit-moving change that this item would have to argue.
+
+## Note from OFFSET (2026-10-24, PR 5661)
+
+The corner solve's group setup is pasted between the two closed-form
+doors, and PR 5661 had to edit both copies in lockstep:
+- `crates/topo/src/offset_together.rs`, `offset_planes_together_staged`;
+- `crates/topo/src/offset_axial.rs`, `offset_charts_together_staged`.
+
+The pasted part is the `corner_row` index over `at_vertex`, the
+`solve` closure's `sort_unstable` / `dedup` of the group's rows, its
+`at` de-duplication by `old_key`, the `group_by_point` / `split_by_solid`
+worklist, and the `placed` map behind `point_at`. Only the per-row arm
+read and the final solve call differ. Fold it with the doors'
+unification, not before.
+(OFFSET orchestrator)

@@ -2,10 +2,12 @@
 id: a-flat-rung-pair-is-read-as-flat-below-it
 kind: issue
 title: The display fit reads a body flat across one rung step as flat at every finer delta
-status: open
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: H
+pr: 5600
+closed: 2026-10-22
 ---
 
 
@@ -41,7 +43,7 @@ request's own (unbounded in the requested δ — the defect the ladder
 exists to remove) or a second model for "how a count responds to δ",
 which is the budget law's own question and fenced out of the unit that
 found this. A taker should start from whether the budget is a cap at
-all (`work/view/the-budgets-predicted-count-is-not-always-an-over-
+all (`work/fit/the-budgets-predicted-count-is-not-always-an-over-
 count.md`): if it is, both questions are the same question.
 
 ## Where it came from
@@ -50,3 +52,18 @@ The PERF side unit on `fit-delta-probe-can-exceed-the-picture-it-
 sizes` (PR "the display probe is never larger than the picture"),
 where the flat rule replaced a crawl that paid the same count at every
 rung.
+
+## Closed
+
+Flat is now only the name of why the ladder stopped. `answer` runs the
+law on a Flat reading like any other, and `scene::fit_delta` states
+the bound that makes that commit the request: a Flat rung counts
+under `TRIANGLE_BUDGET / PROBE_FACTOR`. The count below the rung,
+which no rung sees, is at most ~8.1× the rung's plus ceil terms on
+every step-sized lane. `scene.rs`'s
+`a_body_flat_above_the_request_keeps_it_across_a_short_last_step` is
+the row. The residue is the NURBS certificate-refinement lane, which
+the per-direction argument does not reach:
+`flat-harmlessness-is-unproven-on-the-nurbs-refinement-lane`. The
+adjacent hazard at the scale probe is
+`a-dense-floor-is-priced-off-the-law-from-the-scale-probe`.

@@ -8,11 +8,10 @@
 //! Written the way a user writes an assembly, through the public
 //! doors: `Workspace` to hold the documents, `InstantiatePart` to
 //! reference a part (an instance IS a placement, and its bundle of
-//! constraints says where it sits), `place_at` to place one in the
-//! world at a pose and `pin_at` to pin one there over its own
-//! geometry, `Node::Pattern` to replicate one, `AddConstraint` to seat
-//! one part on another by a mate in the mover's bundle and `AddValue`
-//! to set the freedoms the mate leaves, `SetVarValue` to turn the
+//! constraints says where it sits), values on the world's axes to
+//! place one in the world at a pose, `Node::Pattern` to replicate one, `SetConstraints` to seat
+//! one part on another by a mate in the mover's bundle with the values
+//! that set the freedoms the mate leaves, `SetVarValue` to turn the
 //! turntable, `assemble` for the at-rest
 //! gate, `split`/`inline` to refactor, `update_to_store` to accept a
 //! new version of a part, and `save` / `load` to round-trip. What
@@ -47,11 +46,10 @@
 //! using the library is actually like. Each of these is commented at
 //! the site that meets it and filed where it can be fixed:
 //!
-//! - **#943 / #1063 — CLOSED, and the accommodation retired.** A mate
-//!   declares a FACE PAIR; the census backs the vertex-on-edge and
-//!   edge-edge events a flush seat induces from that one declaration,
-//!   and the declared pair itself now certifies on the two
-//!   descriptions' shared world carrier. The stand's posts are seated
+//! - **#943 / #1063 — CLOSED, and the accommodation retired.** A seat
+//!   is a FACE PAIR the census records; it backs the vertex-on-edge and
+//!   edge-edge events a flush seat induces, and the pair itself
+//!   certifies on the two descriptions' shared world carrier. The stand's posts are seated
 //!   FLUSH with the shelf's ends — the obvious way to draw it — where
 //!   they had to be inset while the chart-identity door declined every
 //!   cross-instance pair (`SEAT_A`).
@@ -62,61 +60,52 @@
 //!   it and the seat still certifies.
 //! - **#945** — mates and patterns do not compose at all, which is
 //!   why this file has two assembly documents rather than one.
-//! - **#946** — a sub-assembly's mate declarations do not cross the
-//!   instantiation seam.
 //! - **#947 — the doubled recourse is CLOSED.** The pin-mismatch
 //!   recourse now reaches the author exactly once, from the store's
 //!   own `Display`; `update_door` is what holds that count down.
-//!   All four refusals the walk prints end on a recourse sentence,
+//!   All three refusals the walk prints end on a recourse sentence,
 //!   each asserted here against the library's own constant
 //!   (`refusals`).
 //! - **#948** — no parametric loop constructor (`rect`).
-//! - **The turntable is one turn about one axis.** A pin's world frame
-//!   is read inside the mate, and a world read spins about any axis it
-//!   can read — here the world's vertical slid to the pivot — by a
-//!   formula, so the swing is a document parameter inside the pin
-//!   (`on_the_turntable`).
+//! - **The turntable is one turn about one axis.** Every value charts
+//!   on the world's axes, so each copy's values carry the turn: a spin
+//!   about the world's vertical by the swing, and slides that are the
+//!   copy's spot turned about the pivot — formulas of the swing, so the
+//!   swing is a document parameter every bundle reads (`swung`).
 //! - **A part resting on another follows a part edit.** The crate's
 //!   mate rests its bottom face on the shelf's top FACE, and its values
 //!   say where on the top it stands, so a thicker shelf lifts it and
 //!   shorter posts lower it, and the gate certifies both
 //!   (`update_door`).
 //! - **A seat on a downward face charts its `y` backwards.** A value
-//!   is measured in each body's own frame swung onto the target face's
-//!   own outward direction by the shortest turn, and a direction
-//!   pointing straight down has none, so its chart is the half turn
-//!   about `x`: the far post's seat under the shelf writes its `y`
-//!   slide negated, and nothing an author reads at the seat says so
-//!   short of `reference_about`'s documentation (`stand_doc`).
-//!
-//! The declared direction's frontier — a mated assembly's gate can
-//! neither certify nor refute — is not new here; it is the census
-//! Door-2 gap steered to M9 on #591, and `at_rest` states what this
-//! scene can and cannot say about it.
+//!   is measured on the world's axes swung onto the mated direction by
+//!   the shortest turn, and a direction pointing straight down has
+//!   none, so its chart is the half turn about `x`: a seat whose chart
+//!   is that one writes its `y` slide negated, and nothing an author
+//!   reads at the seat says so short of `reference_about`'s
+//!   documentation (`stand_doc`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::prelude::AuthoredNode;
 use std::collections::{BTreeMap, BTreeSet};
-use std::f64::consts::PI;
 use std::path::Path;
 use std::sync::Arc;
 
+use pncad::document::coincidence::Relation;
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, AssemblyError, CancelToken, Constraint, Coord, Dimension, DocEdit, DocRef,
-    DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar, InlineError,
-    LoopProgram, Mate, MateFault, MateRef, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node,
-    OVERCONSTRAINED_RECOURSE, Operand, PartResolver, PartSelect, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedFace, Space, Target, TargetAxis, Value, ValuePayload,
-    VarName, WorldRead, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
-    parse_formula, pin_at, place_at, product_named, save, solve_document, split, stand,
+    Assembly, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord, Dimension,
+    DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
+    InlineError, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
+    PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId,
+    SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble,
+    content_pin, evaluate, inline, load, mixed_pins, parse_formula, product_named, run_checks,
+    save, solve_document, split, stand,
 };
-use pncad::geom_core::{Band, Tol};
+use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{
-    CapEnd, ContactClass, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector,
-};
+use pncad::select::{CapEnd, EntityKind, NamePat, NameTable, RoleSeg, SegPat, SegTag, Selector};
 use pncad::topo::Body;
 use pncad::topo::EulerCounts;
 use pncad::topo::readback::euler_counts;
@@ -208,8 +197,8 @@ fn pe(src: &str, params: &BTreeMap<VarName, Dimension>) -> Formula {
 
 /// A mate head, read at the instance the name is qualified by.
 ///
-/// A mate declares a contact between two FACES, and the kernel says so
-/// in the type: a mate's face side is read through a `SitedFace`, whose
+/// A mate rests two FACES, and the kernel says so in the type: a mate's
+/// face side is read through a `SitedFace`, whose
 /// names are
 /// `pncad::document::FaceName`s. A caller holding a `StableName` from
 /// a selection door asks for one and handles the refusal — which for
@@ -260,11 +249,10 @@ fn standoff(plane: Operand, by: f64) -> Operand {
 /// A face of the copy resting against a face of what it joins: the
 /// copy's plane equated with the other's FLIPPED, so the two outward
 /// normals face each other. `on` reads the copy the mate places.
-fn rest(on: Operand, against: Operand, class: ContactClass) -> Mate<Formula> {
+fn rest(on: Operand, against: Operand) -> Mate<Formula> {
     Mate {
         on,
-        to: Target::Pose(flipped(against)),
-        class,
+        to: flipped(against),
     }
 }
 
@@ -275,10 +263,10 @@ fn length(metres: f64) -> Formula {
 
 /// Inserts a node and returns its minted id.
 ///
-/// Every node the scenes insert through here — an instance (a loose
-/// copy until its bundle places it), a pattern, a sketch — is admitted
-/// on its own datum and reads no part's faces. A mate goes through
-/// [`constrain`].
+/// Every node the scenes insert through here — an instance (standing
+/// where its part's world stands until its bundle is written), a
+/// pattern, a sketch — is admitted on its own datum and reads no part's
+/// faces. A mate goes through [`constrain`].
 fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     let applied = apply(
         doc,
@@ -293,27 +281,30 @@ fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
     applied.record.minted.expect("an insert mints an id")
 }
 
-/// Adds `mate` to `placement`'s bundle and returns the constraint's
-/// address.
+/// Writes `mate` and the `values` naming it as `placement`'s bundle,
+/// the whole of it in one edit (every bundle pins its copy), and returns
+/// the mate's address.
 fn constrain(
     doc: &mut ProfileDoc,
     placement: RecipeNodeId,
     mate: Mate<Formula>,
+    values: impl IntoIterator<Item = (Coord, Formula)>,
     tol: Tol,
 ) -> MateRef {
-    let applied = apply(doc, &add_constraint(placement, mate), tol)
-        .unwrap_or_else(|err| panic!("the bundle admits the mate: {err:?}"));
+    let placed = Placed {
+        mates: vec![mate],
+        values: values.into_iter().collect(),
+    };
+    let applied = apply(doc, &placed.write(placement), tol)
+        .unwrap_or_else(|err| panic!("the bundle is admitted: {err:?}"));
     *doc = applied.doc;
-    let [id] = applied.record.minted_constraints[..] else {
-        panic!(
-            "adding a constraint mints one id: {:?}",
-            applied.record.minted_constraints
-        )
+    let Some(&id) = applied.record.minted_constraints.first() else {
+        panic!("writing a bundle mints its ids")
     };
     MateRef::new(placement, id)
 }
 
-/// The edit adding `mate` to `placement`'s bundle.
+/// The edit adding `mate` to `placement`'s bundle beside what it holds.
 fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<ProfileProgram> {
     DocEdit::AddConstraint {
         placement,
@@ -322,92 +313,50 @@ fn add_constraint(placement: RecipeNodeId, mate: Mate<Formula>) -> DocEdit<Profi
     }
 }
 
-/// Sets each of `values` — a freedom `mate` leaves and its number — in
-/// `mate`'s bundle.
-fn set_values(
-    doc: &mut ProfileDoc,
-    mate: MateRef,
-    values: impl IntoIterator<Item = (Coord, Formula)>,
-    tol: Tol,
-) {
-    for (coord, by) in values {
-        edit(
-            doc,
-            &DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: Some(mate.id),
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            tol,
-        );
-    }
-}
-
 /// A plane mate's three freedoms set: the slides along its chart's `x`
-/// and `y`, in metres, and no spin.
-fn seated_at(x: f64, y: f64) -> [(Coord, Formula); 3] {
+/// and `y` and the spin about its normal.
+fn seated_at(x: Formula, y: Formula, spin: Formula) -> [(Coord, Formula); 3] {
     [
-        (Coord::Slide(TargetAxis::X), length(x)),
-        (Coord::Slide(TargetAxis::Y), length(y)),
-        (
-            Coord::Spin,
-            Formula::literal(0.0, Dimension::Angle).expect("a zero angle"),
-        ),
+        (Coord::Slide(TargetAxis::X), x),
+        (Coord::Slide(TargetAxis::Y), y),
+        (Coord::Spin(TargetAxis::Z), spin),
     ]
 }
 
-/// The copy `placement` defines, read the way the "place part" gesture
-/// reads it: a `Place`'s first shape, an instance's own copies.
-fn copy_read(doc: &ProfileDoc, placement: RecipeNodeId) -> Operand {
-    let var = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => shapes.first().map(|shape| shape.read),
-        Some(Node::InstantiatePart { .. }) => doc.output(placement, 0),
-        other => panic!("node {placement} is a placement, got {other:?}"),
-    };
-    Operand::Var(var.expect("a placement defines its copy"))
-}
-
-/// The "place part" gesture on `placement`'s copy: `place_at`'s plane
-/// mate to the world plane its first planar face lies in at `pose`, and
-/// the values that put the copy at `pose`, added to its bundle. The
-/// copy is evaluated under `opts`, which carry the store an instance's
-/// copy resolves through.
+/// `placement`'s copy placed in the world by `values` on the world's
+/// axes, as written, which read nothing of the copy.
 fn place_in_world(
     doc: &mut ProfileDoc,
     placement: RecipeNodeId,
-    pose: &Frame,
-    opts: &EvalOptions,
+    values: Vec<(Coord, Formula)>,
     tol: Tol,
 ) {
-    let placed = place_at(doc, &copy_read(doc, placement), pose, opts, tol)
-        .unwrap_or_else(|refusal| panic!("the copy places over its geometry: {refusal}"));
-    let mate = constrain(
-        doc,
-        placement,
-        placed.mate.expect("the gesture places by a mate"),
-        tol,
-    );
-    set_values(doc, mate, placed.values, tol);
+    edit(doc, &Placed::unmated(values).write(placement), tol);
 }
 
 /// Places one copy of `body` in the world where it stands
 /// ([`stand`]: the identity bundle, no mate and the constant `0` on
 /// every freedom) and returns the placement's id.
 fn place(doc: &mut ProfileDoc, body: RecipeNodeId, tol: Tol) -> RecipeNodeId {
-    let placed = stand();
-    let placement = insert(doc, Node::place(vec![body.into()]), tol);
-    placed
-        .write(placement, |e| {
-            let applied = apply(doc, &e, tol)?;
-            *doc = applied.doc;
-            Ok::<_, pncad::document::EditError>(applied.record.minted_constraints)
-        })
-        .unwrap_or_else(|err| panic!("the identity bundle is admitted: {err:?}"));
-    placement
+    insert(
+        doc,
+        Node::place(
+            vec![body.into()],
+            Operand::Var(VarId::WORLD),
+            stand().bundle(),
+        ),
+        tol,
+    )
+}
+
+/// An instance of `part` standing where its part's world stands, in
+/// `space`: the identity bundle, which a gesture then writes over.
+fn instance(doc: &mut ProfileDoc, part: DocRef, space: Operand, tol: Tol) -> RecipeNodeId {
+    insert(
+        doc,
+        Node::instantiate_part(part, space, stand().bundle()),
+        tol,
+    )
 }
 
 /// Applies an edit that mints nothing.
@@ -461,7 +410,7 @@ fn census(body: &Body<f64>) -> (i64, i64, i64, i64) {
 
 /// A product's volume, by bits — the other half of the identity.
 fn volume_bits(body: &Body<f64>, tol: Tol) -> u64 {
-    pncad::topo::mass_properties(body, tol)
+    pncad::topo::mass_properties(&crate::booleans::at_rest(body, tol), tol)
         .expect("mass properties")
         .volume
         .to_bits()
@@ -507,7 +456,7 @@ fn prism_part(
         );
         scope.insert(name, Dimension::Length);
     }
-    let zero = pe("0 mm", &scope);
+    let zero = Formula::zero(Dimension::Length);
     // The section, counter-clockwise from the origin corner: the two
     // extents are the document's own named parameters, so the corners
     // are expressions and the loop is built from them directly.
@@ -638,15 +587,33 @@ fn placed_body(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId) {
     (placement, node)
 }
 
-/// Whether a mate of `placement`'s bundle reads the world.
+/// Whether `placement`'s bundle places its copy in the world by values
+/// alone, no mate reading another copy.
 fn on_the_world(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {
     match doc.node(placement) {
         Some(Node::InstantiatePart { constraints, .. } | Node::Place { constraints, .. }) => {
-            constraints
-                .iter()
-                .any(|c| c.mate().is_some_and(|m| matches!(m.to, Target::World(_))))
+            constraints.iter().all(|c| c.mate().is_none())
         }
         _ => false,
+    }
+}
+
+/// **`name`, a part's name, as the inline's host spells it**: its
+/// minting node and each copy it wraps mapped through `map`.
+fn hosted(name: &StableName, map: &pncad::document::NodeMap) -> StableName {
+    StableName {
+        kind: name.kind,
+        node: map.get(&name.node).copied().unwrap_or(name.node),
+        path: name
+            .path
+            .iter()
+            .map(|seg| match seg {
+                RoleSeg::Placed { of } => RoleSeg::Placed {
+                    of: hosted(of, map).into(),
+                },
+                other => other.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -681,13 +648,12 @@ fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str) -> Ar
 /// The flat-pack: two posts on their side (ONE instance, patterned)
 /// and the shelf laid beside them. Nothing touches.
 ///
-/// The post instance's bundle is empty: it is a loose copy, its part's
-/// own coordinates and no part of the product, which is what a pattern
-/// master is here. Each patterned copy is placed in the world by its
+/// The post instance is placed into a `new_space()` of its own: its
+/// part's own coordinates, and no part of the product, which is what a
+/// pattern master is here. Each patterned copy is placed in the world by its
 /// own `Place`, at the post laid on its side; the shelf instance is
-/// placed in the world itself. Each goes in by the "place part"
-/// gesture (`place_at`): a plane mate to the world and the values that
-/// put the copy at its pose.
+/// placed in the world itself. Each is placed by values on the world's
+/// axes that put the copy at its pose.
 ///
 /// Every pose carries [`FLAT_PACK_GAP`] along +x, which is how the
 /// flat-pack sits BESIDE the assembled bench in their shared montage
@@ -699,25 +665,23 @@ fn instance_body(ev: &Evaluation<f64>, instance: RecipeNodeId, what: &str) -> Ar
 /// that afterwards would hand the renderer a body no gate had seen,
 /// standing at coordinates no document records. A common translation
 /// in every pose moves the product and changes nothing else about it.
-fn layout_doc(
-    post: DocRef,
-    shelf: DocRef,
-    opts: &EvalOptions,
-    tol: Tol,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-layout"), tol);
     let scope = BTreeMap::new();
-    let post_i = insert(&mut doc, Node::instantiate_part(post), tol);
+    let master = insert(&mut doc, Node::Space, tol);
+    let post_i = instance(&mut doc, post, Operand::Node(master), tol);
     // The post laid on its side. The pattern steps along +y, which this
     // turn about +y leaves where it was, so each copy is placed at the
     // same pose.
-    let lying = Frame::rotate_then_translate(
-        [0.0, 1.0, 0.0],
-        -PI / 2.0,
-        [FLAT_PACK_GAP + POST_HEIGHT, 0.0, 0.0],
-        Band::linear(tol).expect("the demo's tolerance forms a band"),
-    )
-    .expect("the post lies down about +y");
+    let lying = || {
+        let mut values = vec![(Coord::Spin(TargetAxis::Y), crate::world::turn(4, true))];
+        values.extend(crate::world::slides([
+            FLAT_PACK_GAP + POST_HEIGHT,
+            0.0,
+            0.0,
+        ]));
+        values
+    };
     let pattern = insert(
         &mut doc,
         Node::Pattern {
@@ -740,17 +704,24 @@ fn layout_doc(
             },
             tol,
         );
-        let placement = insert(&mut doc, Node::place(vec![post.into()]), tol);
-        place_in_world(&mut doc, placement, &lying, opts, tol);
+        let placement = insert(
+            &mut doc,
+            Node::place(
+                vec![post.into()],
+                Operand::Var(VarId::WORLD),
+                stand().bundle(),
+            ),
+            tol,
+        );
+        place_in_world(&mut doc, placement, lying(), tol);
     }
     // The shelf, placed in the world beside them: the last placement,
     // as the instance a split of it leaves behind is.
-    let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
+    let shelf_i = instance(&mut doc, shelf, Operand::Var(VarId::WORLD), tol);
     place_in_world(
         &mut doc,
         shelf_i,
-        &Frame::translation([FLAT_PACK_GAP, 0.9, 0.0]),
-        opts,
+        crate::world::slides([FLAT_PACK_GAP, 0.9, 0.0]),
         tol,
     );
     (doc, pattern, shelf_i)
@@ -773,6 +744,9 @@ struct Stand {
     mate_1: MateRef,
     /// The far post's mate under the shelf, in the far post's bundle.
     mate_2: MateRef,
+    /// Where the shelf's origin stands at swing zero, on the world's
+    /// `x` and `y`.
+    shelf_at: [f64; 2],
 }
 
 /// The document parameter the turntable's swing reads.
@@ -780,76 +754,59 @@ fn swing() -> VarName {
     VarName::from_static("swing")
 }
 
-/// How the stand's two seats are authored.
-#[derive(Clone, Copy)]
-struct Seating {
-    /// The class the shelf's seat on the near post declares.
-    class: ContactClass,
-    /// Whether each seat's three freedoms — the two slides in the
-    /// seating plane and the spin about it — are set by values. A
-    /// planar rest without them fixes the seating plane and nothing
-    /// else.
-    set: bool,
-}
-
-/// The stand as it is built: two rests, each with its freedoms set.
-const SEATED: Seating = Seating {
-    class: ContactClass::Rest,
-    set: true,
-};
-
-/// The turntable's axis: the world's vertical, slid to [`PIVOT`].
-fn pivot() -> WorldRead<Formula> {
-    let [px, py, pz] = PIVOT;
-    debug_assert!(pz == 0.0, "the pivot is on the floor");
-    WorldRead::through(PoseRole::Z)
-        .slide(WorldRead::through(PoseRole::X), length(px))
-        .slide(WorldRead::through(PoseRole::Y), length(py))
-}
-
-/// **The near post on the turntable**: `pin_at`'s frame, read off the
-/// post's own geometry and equated with the world's frame moved to
-/// where that frame sits with the post at `spot` — then that world
-/// frame spun about the turntable's axis by `swing`. The swing is a
-/// formula inside the world read, so it stays a variable inside the
-/// pin, and the turn is one turn about one axis.
-fn on_the_turntable(
-    doc: &ProfileDoc,
-    post: RecipeNodeId,
-    spot: [f64; 3],
-    scope: &BTreeMap<VarName, Dimension>,
-    opts: &EvalOptions,
-    tol: Tol,
-) -> Mate<Formula> {
-    let pin = pin_at(
-        doc,
-        &copy_read(doc, post),
-        &Frame::translation(spot),
-        opts,
-        tol,
-    )
-    .unwrap_or_else(|refusal| panic!("the post pins over its geometry: {refusal}"));
-    let Target::World(at_spot) = pin.to else {
-        panic!("a pin reads the world, got {:?}", pin.to)
+/// **`spot`, on the turntable, where the swing turns it**: the point
+/// turned about [`PIVOT`] by the document's `swing`, as two formulas on
+/// the world's `x` and `y` — `p + R(swing)·(spot − p)`.
+fn swung(spot: [f64; 2], scope: &BTreeMap<VarName, Dimension>) -> [Formula; 2] {
+    let [px, py, _] = PIVOT;
+    let (dx, dy) = (spot[0] - px, spot[1] - py);
+    let trig = |f: fn(Formula) -> Result<Formula, pncad::document::DimensionError>| {
+        f(pe("swing", scope)).expect("an angle's ratio")
     };
-    Mate {
-        to: Target::World(at_spot.spin(pivot(), pe("swing", scope))),
-        ..pin
-    }
+    let times = |metres: f64, ratio: Formula| {
+        Formula::mul(length(metres), ratio).expect("a length times a ratio")
+    };
+    let add = |a: Formula, b: Formula| Formula::add(a, b).expect("lengths add");
+    let sub = |a: Formula, b: Formula| Formula::sub(a, b).expect("lengths subtract");
+    [
+        add(
+            length(px),
+            sub(times(dx, trig(Formula::cos)), times(dy, trig(Formula::sin))),
+        ),
+        add(
+            length(py),
+            add(times(dx, trig(Formula::sin)), times(dy, trig(Formula::cos))),
+        ),
+    ]
 }
 
-/// Builds the stand, its seats authored as `seating` says.
+/// **The near post on the turntable**: values on the world's axes, its
+/// own frame at `spot` turned about the turntable's axis by `swing` —
+/// the spin about the world's vertical, and the slides that carry its
+/// origin to `spot` turned about [`PIVOT`] ([`swung`]). The swing is a
+/// formula inside the values, so it stays a variable inside the pin.
+fn on_the_turntable(spot: [f64; 3], scope: &BTreeMap<VarName, Dimension>) -> Placed {
+    let [x, y] = swung([spot[0], spot[1]], scope);
+    Placed::unmated(vec![
+        (Coord::Spin(TargetAxis::Z), pe("swing", scope)),
+        (Coord::Slide(TargetAxis::X), x),
+        (Coord::Slide(TargetAxis::Y), y),
+        (Coord::Slide(TargetAxis::Z), length(spot[2])),
+    ])
+}
+
+/// Builds the stand.
 ///
 /// The seats' values are where the posts meet the shelf, [`SEAT_A`]
-/// and [`SEAT_B`], as slides between the two bodies' own origins in
-/// the mate's chart. The chart is swung onto the target face's own
-/// outward direction, whatever flip the rest writes on it: the shelf's
-/// seat reads the near post's top, which faces up, so its chart is the
-/// bodies' own; the far post's reads the shelf's underside, which
-/// faces DOWN, and the chart of a downward direction is the bodies'
-/// own frames turned half about their `x`, so its `y` runs along the
-/// shelf's `-y`.
-fn stand_doc(parts: &Parts, seating: Seating, opts: &EvalOptions, tol: Tol) -> Stand {
+/// and [`SEAT_B`]: each copy's origin at swing zero, turned about the
+/// pivot by the swing ([`swung`]), on the world's axes swung onto the
+/// mated direction, and its spin the swing. The shelf's seat reads the
+/// near post's top, which faces up, so its chart is the world's own;
+/// the far post's reads the shelf's underside, which faces DOWN, and
+/// the chart of a downward direction is the world's axes turned half
+/// about `x`, so its `y` runs along the world's `-y` and its spin
+/// turns the other way.
+fn stand_doc(parts: &Parts, tol: Tol) -> Stand {
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-stand"), tol);
@@ -863,52 +820,53 @@ fn stand_doc(parts: &Parts, seating: Seating, opts: &EvalOptions, tol: Tol) -> S
     );
     let scope = BTreeMap::from([(swing(), Dimension::Angle)]);
     let spot = [0.0, (SHELF_DEPTH - POST_SECTION) / 2.0, 0.0];
-    let post_a = insert(&mut doc, Node::instantiate_part(post), tol);
-    let pin = on_the_turntable(&doc, post_a, spot, &scope, opts, tol);
-    constrain(&mut doc, post_a, pin, tol);
-    let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
-    let post_b = insert(&mut doc, Node::instantiate_part(post), tol);
+    let world = || Operand::Var(VarId::WORLD);
+    let post_a = instance(&mut doc, post, world(), tol);
+    edit(&mut doc, &on_the_turntable(spot, &scope).write(post_a), tol);
+    let shelf_i = instance(&mut doc, shelf, world(), tol);
+    let post_b = instance(&mut doc, post, world(), tol);
 
     // Each mate names the part it moves first and goes in that part's
     // bundle: "mate the shelf to the post" places the shelf on the
     // pinned post, and the far post under the placed shelf. Each side
     // is its head face's plane, read off the part's own evaluation, so
     // no number here can disagree with the model.
+    let half = POST_SECTION / 2.0;
+    // Each copy's origin at swing zero, in the world.
+    let shelf_at = [spot[0] + half - SEAT_A[0], spot[1] + half - SEAT_A[1]];
+    let post_b_at = [
+        shelf_at[0] + SEAT_B[0] - half,
+        shelf_at[1] + SEAT_B[1] - half,
+    ];
+    let on_top = |at: [f64; 2]| {
+        let [x, y] = swung(at, &scope);
+        seated_at(x, y, pe("swing", &scope))
+    };
+    // A seat under a downward face charts on the world's axes turned
+    // half about `x`: its `y` is the world's `-y`, and a turn about the
+    // world's `+z` is a spin about its `-z`.
+    let under = |at: [f64; 2]| {
+        let [x, y] = swung(at, &scope);
+        seated_at(
+            x,
+            Formula::neg(y).expect("a length negates"),
+            pe("-swing", &scope),
+        )
+    };
     let mate_1 = constrain(
         &mut doc,
         shelf_i,
-        rest(
-            plane(shelf_i, shelf_bottom),
-            plane(post_a, post_top),
-            seating.class,
-        ),
+        rest(plane(shelf_i, shelf_bottom), plane(post_a, post_top)),
+        on_top(shelf_at),
         tol,
     );
     let mate_2 = constrain(
         &mut doc,
         post_b,
-        rest(
-            plane(post_b, post_top),
-            plane(shelf_i, shelf_bottom),
-            ContactClass::Rest,
-        ),
+        rest(plane(post_b, post_top), plane(shelf_i, shelf_bottom)),
+        under(post_b_at),
         tol,
     );
-    if seating.set {
-        let half = POST_SECTION / 2.0;
-        set_values(
-            &mut doc,
-            mate_1,
-            seated_at(half - SEAT_A[0], half - SEAT_A[1]),
-            tol,
-        );
-        set_values(
-            &mut doc,
-            mate_2,
-            seated_at(SEAT_B[0] - half, half - SEAT_B[1]),
-            tol,
-        );
-    }
     Stand {
         doc,
         post_a,
@@ -916,6 +874,7 @@ fn stand_doc(parts: &Parts, seating: Seating, opts: &EvalOptions, tol: Tol) -> S
         post_b,
         mate_1,
         mate_2,
+        shelf_at,
     }
 }
 
@@ -931,38 +890,30 @@ struct Bench {
 /// The crate rests on the shelf's top face, by a placing `Rest` mate —
 /// the crate's bottom face against the shelf's top — and the values
 /// that set where on the top it stands: [`CRATE_SLIDE`] along the
-/// shelf from its centre, squared to it, in the chart of the shelf's
-/// upward top, which is the bodies' own coordinates. The crate is
-/// an instance with an empty bundle and the mate is what places it, so
-/// it is placed on the shelf: it swings with the stand and follows any
-/// edit of the shelf or the posts under it. The bench's `run_checks`
-/// reports three `unproven-coincidence` findings, one against each
-/// mate (the stand's two and the crate's), and the viewer's status line
-/// shows them as `checks: 3 finding(s)`. They are expected: each is the
-/// at-rest census's row for its mate's own seat, which D10 makes
-/// structural ("a mate-placed face is"), but the door does not prove a
-/// mated seat yet
-/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`).
+/// shelf from its centre, squared to it — its origin at swing zero
+/// turned about the pivot by the swing, on the world's axes. The crate is
+/// an instance whose bundle is that mate and its values, so it is
+/// placed on the shelf: it swings with the stand and follows any
+/// edit of the shelf or the posts under it.
 fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
     let mut doc = stand.doc.clone();
-    let crate_i = insert(&mut doc, Node::instantiate_part(parts.crate_ref), tol);
+    let crate_i = instance(&mut doc, parts.crate_ref, Operand::Var(VarId::WORLD), tol);
+    let scope = BTreeMap::from([(swing(), Dimension::Angle)]);
+    let [x, y] = swung(
+        [
+            stand.shelf_at[0] + (SHELF_LENGTH - CRATE_WIDTH) / 2.0 + CRATE_SLIDE,
+            stand.shelf_at[1] + (SHELF_DEPTH - CRATE_DEPTH) / 2.0,
+        ],
+        &scope,
+    );
     let crate_mate = constrain(
         &mut doc,
         crate_i,
         rest(
             plane(crate_i, &parts.crate_bottom),
             plane(stand.shelf_i, &parts.shelf_top),
-            ContactClass::Rest,
         ),
-        tol,
-    );
-    set_values(
-        &mut doc,
-        crate_mate,
-        seated_at(
-            (SHELF_LENGTH - CRATE_WIDTH) / 2.0 + CRATE_SLIDE,
-            (SHELF_DEPTH - CRATE_DEPTH) / 2.0,
-        ),
+        seated_at(x, y, pe("swing", &scope)),
         tol,
     );
     Bench {
@@ -1051,7 +1002,8 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
         "one instance, patterned twice, plus the shelf"
     );
     let want = 2.0 * POST_VOLUME + SHELF_VOLUME;
-    let props = pncad::topo::mass_properties(&body, tol).expect("mass properties");
+    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&body, tol), tol)
+        .expect("mass properties");
     assert!(
         (props.volume - want).abs() < 1e-12,
         "the layout gathers {want} m^3 of material, measured {}",
@@ -1115,16 +1067,16 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     );
 
     // A5's disjoint half: the at-rest gate over the gathered product.
-    // No mate declares anything here and nothing touches, so the
-    // kernel's tier-3' door passes outright — which is exactly what
-    // "disjoint assemblies validate today" means.
+    // Nothing touches, so the kernel's tier-3' door passes outright and
+    // records nothing — which is exactly what "disjoint assemblies
+    // validate today" means.
     let assembly = assemble(doc, &ev, tol)
         .unwrap_or_else(|e| panic!("the disjoint layout must pass the at-rest gate: {e}"));
     assert!(
-        assembly.minted.is_empty(),
-        "a mate-less assembly mints no declarations"
+        assembly.contacts.is_empty(),
+        "a disjoint assembly records no contact"
     );
-    println!("   [layout] A5 at-rest gate: PASSED (disjoint, per-solid checks, 0 declarations)");
+    println!("   [layout] A5 at-rest gate: PASSED (disjoint, per-solid checks, 0 contacts)");
 
     SceneBody::seamed(
         "benchlayout",
@@ -1136,8 +1088,7 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
 
 /// The assembled bench at its authored swing: the near post's world
 /// mate places it through the turntable, the mates place the rest onto
-/// it, the mates mint their declarations, and the gate reports what it
-/// could decide.
+/// it, the census records the seats, and the gate certifies them.
 fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evaluation<f64> {
     let doc = &bench.doc;
     let ev = run(doc, &with_store(ws), tol);
@@ -1160,7 +1111,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
         );
         assert_eq!(
             poses.space(copy),
-            Some(Space::World),
+            Some(VarId::WORLD),
             "{what} is in the world's space"
         );
     }
@@ -1179,12 +1130,13 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
             vec![mate.id],
             "{what}'s bundle holds the one mate that places it"
         );
-        assert!(
+        assert_eq!(
             bundle(doc, mate.placement)
                 .iter()
-                .filter_map(|c| c.value())
-                .all(|v| v.mate == Some(mate.id)),
-            "{what}'s values each set a freedom of that mate"
+                .filter(|c| c.value().is_some())
+                .count(),
+            3,
+            "{what}'s values each set a freedom that mate leaves"
         );
         assert!(
             !on_the_world(doc, mate.placement),
@@ -1193,7 +1145,7 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
     }
     assert!(
         on_the_world(doc, stand.post_a),
-        "the near post is pinned to the world on the turntable"
+        "the near post is pinned to the world on the turntable, by values alone"
     );
     println!(
         "   [stand] 4 instances in the world: node {} pinned to it on the turntable, and 3 \
@@ -1210,32 +1162,52 @@ fn stand_scene(ws: &Workspace, stand: &Stand, bench: &Bench, tol: Tol) -> Evalua
         4,
         "two posts, a shelf and a crate"
     );
-    let props = pncad::topo::mass_properties(&gathered, tol).expect("mass properties");
+    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&gathered, tol), tol)
+        .expect("mass properties");
     assert!(
         (props.volume - BENCH_VOLUME).abs() < 1e-12,
         "the bench gathers {BENCH_VOLUME} m^3, measured {}",
         props.volume
     );
 
-    let gate = at_rest(doc, &ev, tol);
-    println!(
-        "   [stand] the mates minted {} declaration(s) into the product's contact record \
-         set, at FACE granularity; A5 at-rest gate: {}",
-        gate.minted(),
-        gate.verdict.describe()
-    );
-    assert_eq!(
-        gate.minted(),
-        3,
-        "one record per solved mate (A3's minting)"
-    );
     // ASSERTED, not merely printed: the stand is the natural drawing of
     // a bench — two posts seated FLUSH with the shelf's ends — with a
     // crate resting on its shelf; it certifies.
-    assert!(
-        matches!(gate.verdict, AtRestVerdict::Certified),
-        "the flush-seated bench CERTIFIES at the A5 gate: {}",
-        gate.verdict.describe()
+    let gate = at_rest(doc, &ev, tol);
+    let seats = gate.contacts.face_face().count();
+    println!(
+        "   [stand] the census recorded {seats} seat(s) between the copies, at FACE \
+         granularity; A5 at-rest gate: PASSED"
+    );
+    assert_eq!(seats, 3, "one record per seat the mates make");
+    // Each seat is the at-rest census's row of its mate's two faces,
+    // which the mate states are one construction: the coincidence door
+    // proves all three. Each post's outer face is in the plane of the
+    // shelf's end, facing the same way: two flush pairs, each a row of its
+    // own, which no mate states, so the lint reports those two and only
+    // those (flush by number is reported; a flag mate is what states one).
+    let report = run_checks(doc, &ev, &ChecksConfig::default(), tol).expect("the checks run");
+    let unproven: Vec<Relation> = report
+        .findings
+        .iter()
+        .filter_map(|finding| match &finding.evidence {
+            CheckEvidence::UnprovenCoincidence { row, .. }
+                if finding.check == CheckId::UnprovenCoincidence =>
+            {
+                Some(row.relation)
+            }
+            _ => None,
+        })
+        .collect();
+    println!(
+        "   [stand] unproven-coincidence: {} finding(s), the posts' ends flush with the \
+         shelf's; each seat is its mate's statement",
+        unproven.len()
+    );
+    assert_eq!(
+        unproven,
+        [Relation::SameOriented; 2],
+        "every mated seat is proven, and the two flush ends are reported: {report}"
     );
     ev
 }
@@ -1308,7 +1280,7 @@ fn poses(
         far_post_solved(&doc, stand, &with_store(ws), degrees.to_radians(), tol);
         shelf_stays_on_the_pivot(&ev, stand, degrees);
         let (gathered, _) = product_of(&doc, &ev, tol);
-        let volume = pncad::topo::mass_properties(&gathered, tol)
+        let volume = pncad::topo::mass_properties(&crate::booleans::at_rest(&gathered, tol), tol)
             .expect("mass properties")
             .volume;
         assert!(
@@ -1316,11 +1288,6 @@ fn poses(
             "a swing moves material and makes none: {BENCH_VOLUME} m^3, measured {volume}"
         );
         let gate = at_rest(&doc, &ev, tol);
-        assert!(
-            matches!(gate.verdict, AtRestVerdict::Certified),
-            "the bench certifies at a swing of {degrees} deg: {}",
-            gate.verdict.describe()
-        );
         out.push((degrees, gate, counters));
         prior = ev;
     }
@@ -1468,100 +1435,19 @@ fn points(body: &Body<f64>) -> Vec<[f64; 3]> {
     body.points().map(|(_, p)| [p.x, p.y, p.z]).collect()
 }
 
-/// What the A5 gate decided — the two arms a caller must tell apart,
-/// as a value the scenes match on.
-///
-/// A verdict is NOT a count. The gate's two non-refusing arms carry
-/// different things (`Ok` carries the minted declarations; the
-/// frontier carries findings and no minted list), so a single number
-/// standing for "how many" would mean something different per arm —
-/// and the number a scene wants for MINTING is neither: it is the
-/// record set's own size, which both arms carry.
-enum AtRestVerdict {
-    /// Every declaration certified.
-    Certified,
-    /// Nothing refuted and nothing certified: the census declined
-    /// every declared face. Carries how many it declined.
-    Uncertified { declined: usize },
-}
-
-impl AtRestVerdict {
-    /// The sentence a scene prints.
-    fn describe(&self) -> String {
-        match self {
-            Self::Certified => "PASSED (every declaration certified)".to_string(),
-            Self::Uncertified { declined } => format!(
-                "UNCERTIFIED — {declined} declared face(s) neither certified nor refuted \
-                 (the declared direction's frontier: nothing was decided about this \
-                 geometry either way)"
-            ),
-        }
-    }
-}
-
-/// The gate's product, its record set, and its verdict.
+/// The certified product and its record set.
 struct AtRest {
     body: Body<f64>,
     contacts: pncad::topo::ContactRecords,
-    verdict: AtRestVerdict,
 }
 
-impl AtRest {
-    /// **How many declarations were minted** — the size of the record
-    /// set the gate was handed, which is what a mate's minting
-    /// produces (A3) and the one quantity both arms carry.
-    fn minted(&self) -> usize {
-        self.contacts.face_face().count()
-    }
-}
-
-/// Runs the A5 gate.
-///
-/// `Ok` and `Uncertified` are BOTH accepted, and the difference is
-/// reported rather than asserted. Since #1063 a declared PLANAR
-/// cross-instance pair certifies on its shared world carrier, so this
-/// stand returns `Ok`; the `Uncertified` arm stays because it is still
-/// the honest answer for everything the carrier arm does not reach — a
-/// declared CURVED cross-instance pair, or a planar pair whose two
-/// descriptions disagree over the pair's own extent. What is NOT
-/// accepted is `AtRest` — a finding AGAINST the document — which is
-/// the arm that means the declarations do not hold, and which the
-/// update walk deliberately provokes.
-///
-/// # What the frontier's observable does and does not say
-///
-/// The finding that arm carries is `CensusUnsupported` naming a face.
-/// The declared-patch loop emits that from MORE THAN ONE door — the
-/// carrier-identity check, the chart-region inventory and the carrier
-/// tilt row all decline through it — so the observable a caller sees
-/// does NOT say which of them declined, and this demo does not claim
-/// to know. What holds either way is the whole content of the
-/// frontier: nothing was decided about the geometry, in either
-/// direction. Separating the doors would take a probe against the
-/// census, which is the census's unit to write, not this scene's.
+/// Runs the A5 gate over a stand the scene means to certify, and panics
+/// on any refusal: every caller (the stand, the instanced stand, and the
+/// updated bench the update walk re-seats) asserts it is at rest.
 fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
     match assemble(doc, ev, tol) {
-        Ok(Assembly { body, contacts, .. }) => AtRest {
-            body,
-            contacts,
-            verdict: AtRestVerdict::Certified,
-        },
-        // Every finding here is a `Declined` by the arm's own
-        // construction (`assembly.rs` routes a refusal to `AtRest` the
-        // moment one finding is not), so re-checking that would be
-        // asserting the constructor rather than the geometry. The arm
-        // SPLIT is the check.
-        Err(AssemblyError::Uncertified { contacts, findings }) => {
-            let (body, _) = product_of(doc, ev, tol);
-            AtRest {
-                body,
-                contacts: *contacts,
-                verdict: AtRestVerdict::Uncertified {
-                    declined: findings.len(),
-                },
-            }
-        }
-        Err(other) => panic!("the stand's declarations must not be refuted: {other}"),
+        Ok(Assembly { body, contacts, .. }) => AtRest { body, contacts },
+        Err(other) => panic!("the stand must be at rest: {other}"),
     }
 }
 
@@ -1575,37 +1461,35 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 /// ending on its recourse breaks this walk.
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let (post, shelf) = (parts.post, parts.shelf);
-    let opts = with_store(ws);
-    println!(
-        "\n-- the v1 boundary, walked: a loose copy, then three refusals an author actually hits --"
-    );
+    println!("\n-- the v1 boundary, walked: three refusals an author actually hits --");
 
     // (1) UNDER-DETERMINED. One planar rest between two parts fixes
-    // the seating plane and nothing else — the shelf may still slide
-    // and spin in it. A bundle that pins its copy less than fully is no
-    // refusal: the shelf is a LOOSE copy, in a space of its own and no
-    // part of the product, and the solve picks no pose for it.
-    let under = stand_doc(
-        parts,
-        Seating {
-            set: false,
-            ..SEATED
-        },
-        &opts,
-        tol,
-    );
-    let poses = solve_document(&under.doc, &opts, tol);
+    // the seating plane and nothing else — the shelf could still slide
+    // and spin in it. Every bundle pins its copy, so a bundle that pins
+    // less is refused at the door, naming the freedoms it leaves, and
+    // the recourse is the values that set them.
+    let under = stand_doc(parts, tol);
+    let alone = Placed {
+        mates: vec![rest(
+            plane(under.shelf_i, &parts.shelf_bottom),
+            plane(under.post_a, &parts.post_top),
+        )],
+        values: Vec::new(),
+    };
+    let fault = match apply(&under.doc, &alone.write(under.shelf_i), tol) {
+        Err(pncad::document::EditError::MateRefused { fault, .. }) => *fault,
+        Err(other) => panic!("a lone rest refuses as the bundle's own fault, got {other:?}"),
+        Ok(_) => panic!("the door admitted a rest that leaves the shelf free in its plane"),
+    };
     assert!(
-        poses.fault(under.shelf_i).is_none(),
-        "a planar rest alone is no refusal: {:?}",
-        poses.fault(under.shelf_i)
+        matches!(fault, MateFault::Unpinned { free: 3, .. }),
+        "a planar rest alone is the UNPINNED refusal, got {fault:?}"
     );
-    let space = poses.space(under.shelf_i);
     assert!(
-        matches!(space, Some(Space::Loose { .. })),
-        "a planar rest alone leaves the shelf loose, got {space:?}"
+        fault.to_string().contains(UNPINNED_RECOURSE),
+        "the refusal carries its recourse verbatim"
     );
-    println!("   (1) under-determined: the shelf is a loose copy, not a refusal — {space:?}");
+    println!("   (1) under-determined, at the door: {fault}");
 
     // (2) OVERCONSTRAINED. A second rest in ONE bundle fixes the
     // seating plane the first already fixes, whatever its standoff: the
@@ -1617,7 +1501,6 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         plane(under.shelf_i, &parts.shelf_bottom),
         // The same pair, seated 10 mm apart.
         standoff(plane(under.post_a, &parts.post_top), 0.01),
-        ContactClass::Rest,
     );
     let fault = match apply(&under.doc, &add_constraint(under.shelf_i, again), tol) {
         Err(pncad::document::EditError::MateRefused { fault, .. }) => *fault,
@@ -1634,45 +1517,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     );
     println!("   (2) overconstrained, at the door: {fault}");
 
-    // (3) OUTSIDE v1's VOCABULARY. `Tangent` solves — a tangency pins
-    // a coset like any other primitive — and then has nowhere to go
-    // at rest: its kernel record is a face–face pair on two carriers,
-    // and the census at rest decides nothing along their locus for the
-    // record to cite. The mint door refuses typed and says so in the
-    // class's own terms. The stand is authored with the shelf's seat
-    // declared a tangency, and the far post goes, its bundle with it.
-    let mut swapped = stand_doc(
-        parts,
-        Seating {
-            class: ContactClass::Tangent,
-            ..SEATED
-        },
-        &opts,
-        tol,
-    );
-    edit(
-        &mut swapped.doc,
-        &DocEdit::DeleteNode { id: swapped.post_b },
-        tol,
-    );
-    let swapped = swapped.doc;
-    let ev = run(&swapped, &with_store(ws), tol);
-    let err = assemble(&swapped, &ev, tol).expect_err("a Tangent mate has no at-rest record");
-    assert!(
-        matches!(&err, AssemblyError::Mint { refusals }
-            if !refusals.is_empty()
-                && refusals
-                    .iter()
-                    .all(|r| matches!(r, MintRefusal::NoAtRestRecord { .. }))),
-        "the class table's mint half is what refuses, got {err}"
-    );
-    assert!(
-        err.to_string().contains(NO_AT_REST_RECORD_RECOURSE),
-        "the refusal carries its recourse verbatim"
-    );
-    println!("   (3) outside v1's at-rest vocabulary: {err}");
-
-    // (4) A REFERENCE PINNING THE WRONG VERSION. An assembly is a
+    // (3) A REFERENCE PINNING THE WRONG VERSION. An assembly is a
     // self-contained reproducible value: a part that changed on disk
     // does not retarget it. Asking the store for a version it no
     // longer holds is the typed pin refusal, and its recourse names
@@ -1682,7 +1527,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     // one document's id with another's pin is a `DocRef` nobody would
     // author. It is here because it reaches the refusal in one line
     // with no store mutation, so the walk can state the refusal's
-    // shape beside the other three. The USER-REACHABLE instance of the
+    // shape beside the other two. The USER-REACHABLE instance of the
     // same refusal is in `update_door`, where a part legitimately
     // changes on disk and the un-updated assembly stops resolving —
     // that is the one that says what this costs an author.
@@ -1701,7 +1546,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         err.to_string().contains(PIN_MISMATCH_RECOURSE),
         "the refusal carries its recourse verbatim"
     );
-    println!("   (4) wrong pin: {err}");
+    println!("   (3) wrong pin: {err}");
 }
 
 // ---- The recorded refactorings (A4) ----
@@ -1800,11 +1645,14 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     //
     // NOT verbatim, and that is the acceptance property rather than a
     // shortfall: a `StableName` carries the node that minted it, the
-    // splice mints FRESH host ids, so the cut instance comes back as a
-    // different node. A4 asks for name-resolution identity, not
-    // arena-key identity, so the correspondence is the composition of
-    // the two recorded maps — split's, then inline's — and every
-    // pre-split name must resolve through it.
+    // splice mints FRESH host ids, and the part's world comes back in a
+    // `new_space()` of its own, placed into the world under the
+    // instance's bundle by one placement (`back.placement`), so a cut
+    // name comes back as the part's name with its nodes mapped,
+    // wrapped in that placement's copy. A4 asks for name-resolution
+    // identity, not arena-key identity, so the correspondence is the
+    // composition of the two recorded maps — split's, then inline's —
+    // and every pre-split name must resolve through it.
     // The store as it stands NOW — the new part was written above — is
     // what the inline resolves the instance through.
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
@@ -1827,11 +1675,15 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     for (name, _) in before_names.iter() {
         let expected = if name.node == shelf_i {
             returned += 1;
-            StableName {
-                kind: name.kind,
-                node: restored,
-                path: name.path.clone(),
-            }
+            hosted(
+                &StableName {
+                    kind: name.kind,
+                    node: mapped,
+                    path: name.path.clone(),
+                },
+                &back.node_map,
+            )
+            .in_copy(back.placement)
         } else {
             name.clone()
         };
@@ -1856,13 +1708,26 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
             .placement(doc, placement)
             .expect("the shelf is placed in the world")
     };
+    // The restored shelf stands in the part's world, a space of its
+    // own, at the pose its bundle gives it; that space is placed into
+    // the world at the identity, the remainder instance's bundle.
     assert!(
         on_the_world(&back.doc, restored),
-        "the restored shelf is placed in the world by its own bundle"
+        "the restored shelf is placed by its own bundle"
+    );
+    assert!(
+        on_the_world(&back.doc, back.placement),
+        "the part's world is placed into the world by values alone"
+    );
+    let poses = solve_document(&back.doc, &with_store(ws), tol);
+    assert_eq!(
+        poses.relative(back.placement),
+        Some(Frame::IDENTITY),
+        "the part's world stands at the world's identity"
     );
     assert_eq!(
-        solved(&back.doc, restored),
-        solved(layout, shelf_i),
+        poses.relative(restored),
+        Some(solved(layout, shelf_i)),
         "the round trip puts the shelf back where it stood, exactly"
     );
     println!(
@@ -1880,7 +1745,7 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // for every legal cut, and the shape most likely to break it is
     // this one: `inline` refuses an instance whose part's placements it
     // cannot carry into the host (`UnplaceablePart`), and these place a
-    // pattern's copies of a loose instance. The cut moves as selected
+    // pattern's copies of an instance. The cut moves as selected
     // and leaves the instance pinned at the identity, so the pattern
     // lands back verbatim; the arms below say which answer
     // this tree gave rather than asserting one, so a change in either
@@ -1947,9 +1812,10 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         .placement(&bench.doc, bench.crate_i)
         .expect("the crate is placed on the shelf");
     let (before_body, _) = product_of(&bench.doc, &before, tol);
-    let before_volume = pncad::topo::mass_properties(&before_body, tol)
-        .expect("mass properties")
-        .volume;
+    let before_volume =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&before_body, tol), tol)
+            .expect("mass properties")
+            .volume;
 
     // The part changes on disk: a thicker board. The shelf is modelled
     // from its UNDERSIDE up, so the face the posts' mates seat on does
@@ -2014,10 +1880,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
 
     let after = run(&updated, &with_store(ws), tol);
     // A13 clause 4: the pin move triggers ordinary re-evaluation, and
-    // the crossing declarations go back through the gate against the
-    // NEW geometry. What the gate then decides is its own business —
-    // saying "re-verified" and reporting the frontier in one breath
-    // would claim a verdict the frontier explicitly does not give.
+    // the census records the seats again against the NEW geometry.
     // The posts' seats name the shelf's UNDERSIDE, which a thicker
     // board leaves where it was, so they hold. The crate rests on the
     // shelf's TOP face, so it rides up with the board by exactly the
@@ -2035,23 +1898,20 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         crate_before.columns, crate_after.columns,
         "the crate's orientation is untouched by a thickness edit"
     );
-    let thicker_gate = at_rest(&updated, &after, tol);
-    assert!(
-        matches!(thicker_gate.verdict, AtRestVerdict::Certified),
-        "the bench with a thicker shelf CERTIFIES, the crate on its top: {}",
-        thicker_gate.verdict.describe()
-    );
+    // The gate certifies the thicker bench, the crate on its top.
+    at_rest(&updated, &after, tol);
     let (after_body, _) = product_of(&updated, &after, tol);
-    let after_volume = pncad::topo::mass_properties(&after_body, tol)
-        .expect("mass properties")
-        .volume;
+    let after_volume =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&after_body, tol), tol)
+            .expect("mass properties")
+            .volume;
     assert!(
         after_volume > before_volume,
         "the new version carries more material"
     );
     println!(
         "   after {} recorded UpdateReference edit(s): V {:.6} -> {:.6} m^3; the \
-         declarations were re-minted against the new geometry and put back through the \
+         seats were recorded again against the new geometry and put back through the \
          gate, which certifies: the crate rode up {risen:.3} m with the shelf's top",
         edits.len(),
         before_volume,
@@ -2151,9 +2011,9 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
     // And now the mates do their job. Both posts are 40 mm short, and
     // each seat's pose is the plane of the post's top cap FACE, read
     // off the post's own evaluation at every solve — so the shelf
-    // comes down 40 mm with the posts, the declared rest between each
-    // cap and the shelf's underside still holds, and the gate refutes
-    // neither seat. The face name is the state; the pose is derived.
+    // comes down 40 mm with the posts, the rest between each cap and
+    // the shelf's underside still holds, and the gate certifies both
+    // seats. The face name is the state; the pose is derived.
     let ev = run(&migrated, &with_store(ws), tol);
     let shelf_after = solve_document(&migrated, &with_store(ws), tol)
         .placement(&migrated, stand.shelf_i)
@@ -2178,12 +2038,8 @@ fn update_door(ws: &mut Workspace, stand: &Stand, bench: &Bench, shelf: DocRef, 
         (crate_dropped - 0.04).abs() < 1e-12,
         "the crate comes down with the shelf by the height change: {crate_dropped} m"
     );
-    let migrated_gate = at_rest(&migrated, &ev, tol);
-    assert!(
-        matches!(migrated_gate.verdict, AtRestVerdict::Certified),
-        "the migrated bench CERTIFIES, the crate on its shelf: {}",
-        migrated_gate.verdict.describe()
-    );
+    // The gate certifies the migrated bench, the crate on its shelf.
+    at_rest(&migrated, &ev, tol);
     println!(
         "   \"does it actually fit\": after the migration the shelf came down {dropped:.3} m with \
          the shortened posts and the crate {crate_dropped:.3} m with the shelf — each mate names \
@@ -2334,9 +2190,9 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
         ws.root().display()
     );
 
-    let (layout, pattern, shelf_i) = layout_doc(parts.post, parts.shelf, &with_store(&ws), tol);
+    let (layout, pattern, shelf_i) = layout_doc(parts.post, parts.shelf, tol);
     ws.create(&layout, tol).expect("the layout is stored");
-    let stand = stand_doc(&parts, SEATED, &with_store(&ws), tol);
+    let stand = stand_doc(&parts, tol);
     let bench = bench(&stand, &parts, tol);
     ws.create(&bench.doc, tol).expect("the bench is stored");
 
@@ -2366,12 +2222,12 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
     // its placements (see `layout_doc`), where a layout's placements
     // are its subject. The other two swings render on their own.
     let bench_ops = "post.pncad + shelf.pncad + crate.pncad -> \
-                     InstantiatePart (pin_at, its world frame spun about the turntable's \
-                     axis by swing) + InstantiatePart x2 (empty bundle) -> Mate x2 (Rest, \
-                     plane on flipped plane, each in the bundle of the copy it places) + \
-                     AddValue x6 (slide x, slide y, spin) -> constructive solve; \
-                     InstantiatePart (crate) -> Mate (Rest, crate's bottom on the shelf's top \
-                     face, in the crate's bundle) + AddValue x3 -> A10 product gather -> \
+                     InstantiatePart (values on the world's axes, turned about the turntable's \
+                     axis by swing) + InstantiatePart x2 -> SetConstraints x2 (a Rest, plane on \
+                     flipped plane, and its slide x, slide y and spin, the whole bundle of the \
+                     copy it places) -> constructive solve; InstantiatePart (crate) -> \
+                     SetConstraints (a Rest, crate's bottom on the shelf's top face, and its \
+                     three values) -> A10 product gather -> \
                      SetVarValue(swing)";
     let bench_story = "an ASSEMBLY document: two instances of a post document and one of a \
                        shelf document, the shelf SEATED on both by mates — only the near post \
@@ -2420,15 +2276,15 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
                      crate resting on the shelf's top face, set where it stands by values \
                      and placed on the shelf",
                     "post.pncad + shelf.pncad + crate.pncad -> \
-                     InstantiatePart (pin_at, its world frame spun about the turntable's \
-                     axis by swing) + InstantiatePart x2 (empty bundle) -> Mate x2 (Rest, \
-                     plane on flipped plane, each in the bundle of the copy it places) + \
-                     AddValue x6 (slide x, slide y, spin) -> constructive solve; \
-                     InstantiatePart (crate) -> Mate (Rest, crate's bottom on the shelf's top \
-                     face, in the crate's bundle) + AddValue x3 -> A10 product gather -> \
+                     InstantiatePart (values on the world's axes, turned about the turntable's \
+                     axis by swing) + InstantiatePart x2 -> SetConstraints x2 (a Rest, plane on \
+                     flipped plane, and its slide x, slide y and spin, the whole bundle of the \
+                     copy it places) -> constructive solve; InstantiatePart (crate) -> \
+                     SetConstraints (a Rest, crate's bottom on the shelf's top face, and its \
+                     three values) -> A10 product gather -> \
                      SetVarValue(swing); and \
-                     InstantiatePart (empty bundle) -> LinearPattern(2) -> Part x2 -> Place x2 \
-                     (place_at, a rotated pose) + InstantiatePart (place_at, a translated \
+                     InstantiatePart (into a new space) -> LinearPattern(2) -> Part x2 -> Place x2 \
+                     (values, a rotated pose) + InstantiatePart (values, a translated \
                      pose) -> A10 product gather -> assemble",
                     format!(
                         "{}. FLAT-PACKED: 3 solids, V = {:.6} m^3; every product entity \

@@ -69,22 +69,22 @@ pub use compose::{
     BernsteinSpans, CanonicalSurface, ComposeError, CompositeForm, CurveCertData, ImplicitSurface,
 };
 pub use derivative::{
-    AxisCut, CellAxis, CellBlock, CellFirstQuotients, CellQuotients, CellSecondQuotients,
-    IntervalPieces, QUOTIENT_MAX_DEGREE, QuotientPiece, accel_pieces, cell_first_quotients,
-    cell_quotients, cell_second_quotients, derivative_net, polynomial_area_pieces,
-    span_derivative_scale, speed_pieces, stretch_pieces,
+    AreaSlopes, AxisCut, CellAxis, CellBlock, CellFirstQuotients, CellMeasureQuotients,
+    CellQuotients, CellSecondQuotients, IntervalPieces, QUOTIENT_MAX_DEGREE, QuotientPiece,
+    accel_pieces, cell_first_quotients, cell_measure_quotients, cell_quotients,
+    cell_second_quotients, derivative_net, polynomial_area_pieces, span_derivative_scale,
+    speed_pieces, stretch_pieces,
 };
 pub use hull::{
     C1Break, CoeffWindow, Derived, RationalCoeffs, RationalWindow, SplineCoeffs, SplineCoeffsBuf,
 };
 pub use knot_values::{KnotSpan, Knots};
 pub use knots::{
-    KnotMirrorError, KnotStructure, KnotVector, KnotVectorIssue, Span, SplineError,
-    check_weight_value, check_weight_values, derivative_knot_slice, knot_difference,
-    weight_in_regime,
+    KnotMirrorError, KnotStructure, KnotVector, KnotVectorIssue, LooseKnots, Span, SplineError,
+    check_weight_value, check_weight_values, knot_difference, weight_in_regime,
 };
 pub use locate::{SpanLocate, SpanSet, poison_from, structure_ascends, structure_nonzero};
 pub use net::{TensorChannels, TensorCoeffs, TensorNet};
 pub use projective::{ProjectivePoint, ProjectiveScalar, ProjectiveSplit};
-pub use range::{Param, ParamRange, last_at_or_below};
-pub use weights::Weights;
+pub use range::{Param, ParamRange};
+pub use weights::{Weights, constant_weight};

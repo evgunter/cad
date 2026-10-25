@@ -20,7 +20,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, DocumentId, EvalOptions, Formula, MateRef, Node, PartSelect, PatternKind, ProfileDoc,
-    RecipeNodeId, SitedFace, Space, SplitError, StableName, member_of,
+    RecipeNodeId, SitedFace, SplitError, StableName, VarId, member_of,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{gate, head, head_at, in_copy, insert, len, member_name, on_frame, run, scl, solve};
@@ -101,7 +101,7 @@ fn scene_with(label: &str, two: bool) -> Scene {
     } else {
         (doc, base1)
     };
-    let (doc, top) = fixture::insert_pinned(doc, Node::instantiate_part(top_ref), &opts);
+    let (doc, top) = fixture::insert_pinned(doc, crate::fixture::mated_instance(top_ref), &opts);
     // Each row seats the slabs under what it builds over `top`.
     Scene {
         doc,
@@ -181,7 +181,7 @@ fn seat(
 fn place(doc: ProfileDoc, body: RecipeNodeId, o: &EvalOptions) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert_pinned(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(body)]),
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(body)]),
         o,
     )
 }
@@ -245,7 +245,7 @@ fn assert_placed(s: &Scene, f: &Fused, what: &str) {
     }
     assert_eq!(
         (poses.space(f.m1.placement), poses.space(f.m2.placement)),
-        (Some(Space::World), Some(Space::World)),
+        (Some(VarId::WORLD), Some(VarId::WORLD)),
         "{what}: both seats pin their copies"
     );
 }
@@ -265,8 +265,6 @@ fn a1a_mates_read_at_the_placements_below_a_placed_union_mint_nothing() {
     let f = fused(&s, |_, t, cap, _| head_at(t, cap));
     assert_placed(&s, &f, "A1(a)");
     let ev = run(&f.doc, &s.opts);
-    crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m1);
-    crate::fixture::assert_mints_nothing(&f.doc, &ev, f.m2);
     assert!(
         gate(&f.doc, &ev).is_ok(),
         "A1(a): the unmated seats do not refuse"
@@ -323,7 +321,7 @@ fn seated_through(
     );
     assert_eq!(
         poses.space(s.base1),
-        Some(Space::World),
+        Some(VarId::WORLD),
         "A2: the slab is pinned"
     );
     let at = poses.placement(&doc, s.base1).expect("the slab has a pose");
@@ -493,7 +491,6 @@ fn a_mate_read_below_a_placed_boolean_mints_nothing() {
             .is_some_and(|r| r.value().is_some()),
         "the mate's placement evaluates"
     );
-    crate::fixture::assert_mints_nothing(&doc, &ev, mate);
 }
 
 /// **A `Part` above a union is refused at the door.** A `Part` picks
@@ -651,8 +648,7 @@ fn a3c_a_mate_read_through_a_union_crosses_onto_the_instance() {
     )
     .unwrap_or_else(|e| panic!("the kept seat crosses: {e}"));
     let seat = fixture::constraint(&out.remainder, f.m2);
-    let [select] = fixture::face_reads(&out.remainder, *seat.to.pose().expect("a pose target"))[..]
-    else {
+    let [select] = fixture::face_reads(&out.remainder, seat.to)[..] else {
         panic!("the seat's target reads one face")
     };
     assert_eq!(
@@ -722,8 +718,13 @@ fn a3d_an_assembly_with_a_mate_read_at_a_union_splits_and_inlines_back() {
     )
     .unwrap_or_else(|e| panic!("A3(d): the part inlines back: {e}"));
     let (map, steps) = fixture::round_trip::composed(&doc, &out, &back);
-    fixture::round_trip::same_up_to_ids(&doc, &back.doc, &map, &steps)
-        .unwrap_or_else(|e| panic!("A3(d): inline(split(d)) is d up to node ids:\n{e}"));
+    fixture::round_trip::same_up_to_ids(
+        &doc,
+        &crate::fixture::round_trip::flat(&back),
+        &map,
+        &steps,
+    )
+    .unwrap_or_else(|e| panic!("A3(d): inline(split(d)) is d up to node ids:\n{e}"));
     let ev = run(&back.doc, &with_resolver(store));
     assert!(
         gate(&back.doc, &ev).is_ok(),

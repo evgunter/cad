@@ -584,7 +584,8 @@ fn a_variable_read_by_a_named_definition_may_be_anonymous() {
     );
     assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
     assert_eq!(applied.doc.var_name(id(&doc, "w")), None);
-    assert_eq!(applied.doc.vars().len(), 2);
+    // `w`, `h`, and the world's space every document holds.
+    assert_eq!(applied.doc.vars().len(), 3);
 }
 
 /// A definition whose input was deleted refuses at each reader, wrapped
@@ -733,7 +734,7 @@ fn split_and_inline_carry_definitions() {
     let host = ProfileDoc::empty(DocumentId::derive("intent-literals-a-host"), Tol::witness());
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     let inlined = inline(
@@ -1026,7 +1027,7 @@ fn inline_refuses_a_definition_the_host_already_holds() {
     );
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     match inline(
@@ -1053,7 +1054,7 @@ fn inline_carries_a_definition_at_the_carried_ids() {
     let host = declare(&host, "z", free(1.0));
     let (host, instance) = crate::fixture::insert_pinned(
         host,
-        Node::instantiate_part(doc_ref),
+        crate::fixture::mated_instance(doc_ref),
         &crate::fixture::resolver::with_resolver(store.clone()),
     );
     let inlined = inline(
@@ -1105,13 +1106,12 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
             vec![crate::fixture::fname(cube, RoleSeg::Cap(CapEnd::Start))],
         ))
     };
-    let copy = r.insert(Node::place(vec![cube.into()]));
+    let copy = r.insert(crate::fixture::stood(vec![cube.into()]));
     r.constrain(
         copy,
         editor_core::Mate {
             on: cap(),
-            to: editor_core::Target::Pose(cap()),
-            class: editor_core::ContactClass::Rest,
+            to: cap(),
         },
         vec![
             (
@@ -1122,7 +1122,10 @@ fn measure_of_translation(r: &mut Recorder, param: &str) -> RecipeNodeId {
                 Coord::Slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
-            (Coord::Spin, Formula::zero(Dimension::Angle)),
+            (
+                Coord::Spin(editor_core::TargetAxis::Z),
+                Formula::zero(Dimension::Angle),
+            ),
         ],
     );
     let ev = eval_after(&r.doc, None);

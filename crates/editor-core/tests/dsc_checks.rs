@@ -236,7 +236,10 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     );
     // An empty body has no geometry for a mate to read, so its
     // placement is a loose copy: placed, in no product.
-    insert(doc, Node::place(vec![editor_core::BodyRead::plain(result)]))
+    insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(result)]),
+    )
 }
 
 #[test]
@@ -558,7 +561,7 @@ fn a_deliberately_disjoint_body_draws_no_separation_finding() {
 /// refuses it typed. Answers the document, the options that resolve its
 /// part, and the failed placement.
 fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
-    use editor_core::{CapEnd, ContactClass, EntityKind, RoleSeg, StableName};
+    use editor_core::{CapEnd, EntityKind, RoleSeg, StableName};
     let mut store = fixture::resolver::PartStore::default();
     let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
     let (part, profile) = on_frame(
@@ -578,7 +581,7 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
     let (part_ref, body) = store.insert_part((part, body), Tol::witness());
     let opts = fixture::resolver::with_resolver(store);
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(part_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(part_ref), &opts);
     let (doc, placed) = insert(doc, fixture::mated_instance(part_ref));
     let nowhere = StableName {
         kind: EntityKind::Face,
@@ -595,7 +598,6 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
     let mate = fixture::rest(
         fixture::head(fixture::resolver::in_part(placed, body, CapEnd::Start)),
         fixture::head(nowhere),
-        ContactClass::Rest,
     );
     let (doc, _) = fixture::constrain_at(doc, placed, mate);
     (doc, opts, placed)
@@ -992,4 +994,57 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
         rendered.contains("MEASUREMENT, not a refusal"),
         "the recourse says what a finding is and is not: {rendered}"
     );
+}
+
+/// **A root tier 3 refuses is a finding, never a silent skip** (F6): the
+/// connectedness check reads a finished body, so a subject the at-rest
+/// gate refuses is reported `NotAtRest` with the validator's findings
+/// verbatim, its rendering names the first, and `enforce_checks` at
+/// `Error` refuses on it. No real document reaches the gate's refusal
+/// today — every op that hands back a body gates it or builds one tier 3
+/// passes — so the evaluated slab's value is replaced with the same slab
+/// turned inside out (`Body::revert`, a public op), which tier 3 refuses
+/// `NegativeVolume`.
+#[test]
+fn a_root_tier_3_refuses_is_reported_not_at_rest() {
+    use editor_core::{NodeResult, ValuePayload};
+    let doc = ProfileDoc::empty_derived("dsc-checks-not-at-rest", Tol::witness());
+    let (doc, slab) = slab(doc, 0.0, 0.5, 1.0);
+    let (doc, root) = fixture::place(doc, slab);
+    let mut ev = run(&doc);
+    let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&root) else {
+        panic!("the slab evaluates");
+    };
+    let ValuePayload::Body(body) = &value.payload else {
+        panic!("a placed slab is a body");
+    };
+    let reverted = topo::Body::clone(body).revert().expect("the slab reverts");
+    let errors = topo::validate_geometric(&reverted, Tol::witness())
+        .expect_err("tier 3 refuses the inside-out slab");
+    value.payload = ValuePayload::Body(std::sync::Arc::new(reverted));
+
+    // The separation and coincidence residents read the gathered
+    // product, whose own at-rest gate refuses this root first; off, the
+    // connectedness pass is the one that speaks.
+    let cfg = ChecksConfig {
+        connectedness: Severity::Error,
+        separation: Advisory::Off,
+        unproven_coincidence: Advisory::Off,
+        ..ChecksConfig::default()
+    };
+    let report = run_checks(&doc, &ev, &cfg, Tol::witness()).expect("the checks run");
+    assert_eq!(
+        report.findings,
+        vec![CheckFinding {
+            check: CheckId::Connectedness,
+            subject: editor_core::FindingSubject::Output { root, output_ix: 0 },
+            evidence: CheckEvidence::NotAtRest {
+                errors: errors.clone()
+            },
+        }]
+    );
+    let rendered = report.findings[0].to_string();
+    assert!(rendered.contains(&errors[0].to_string()), "{rendered}");
+    let refusal = enforce_checks(&report, &cfg).unwrap_err();
+    assert_eq!(refusal.findings, report.findings);
 }

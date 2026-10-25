@@ -42,3 +42,26 @@ ruled, the refusal stands and is loud; the in-fence improvement
 (decide the class at the door's gate, typed and named, before the
 corner solve) rides the next unit that touches the `Line` arm.
 Signed (SHELL orchestrator).
+
+## Ruling (Ev, PR 5652, 2026-10-25)
+
+Five designer rounds; Ev approved the converged answer: *"i'm still not
+totally sure about having special cases for the parabola and hyperbola,
+but sure, we can run with it"*. C1 and C2 of `crates/geom-brep/README.md`
+state it:
+
+- **No `Hyperbola`/`Parabola` kinds.** A plane×cone parabola or hyperbola
+  is minted from the pair in closed form as an exact rational-quadratic
+  arc (`Curve3::Nurbs`, weights `(1, w, 1)`), never marched.
+- **The certificate is derivation-blind.** Limbs 1–2 are owed by every
+  carrier of every kind; the tube is owed unless the pair's section
+  function states, for the pose, a crossing-angle floor over the
+  carrier's stretch and the stretch's clearance from every other piece of
+  the ε-overlap. Both designers called that tube exemption severable (an
+  optimisation, not what settles the kinds); given Ev's reservation the
+  build lands it last and alone, so it can be dropped without touching the
+  rest.
+- The axial door takes the moved pair's own section.
+
+The build is cut into units on this slate
+(`work/offset/plan.md`); this row closes when they land.

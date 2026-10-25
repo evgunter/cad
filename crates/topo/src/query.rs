@@ -7,7 +7,7 @@
 //! body and arena keys — a kernel-direct consumer, a demo, a test —
 //! asks the same questions through the same one implementation. Names
 //! at the document door, keys at the body door, one predicate under
-//! both (the `ContactClass` layering precedent: defined lowest,
+//! both (the layering precedent: defined lowest,
 //! re-exported upward).
 //!
 //! # The load-bearing split: EXACT vs DECIDED

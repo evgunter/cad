@@ -258,10 +258,13 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
             distance: len(1.0),
         },
     );
+    // The second joins the first's space, as an operator's operands
+    // share one.
+    let (doc, ext2_in) = crate::fixture::stood_in(doc, ext2, ext);
     let (doc, u) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![ext.into(), ext2.into()]),
+            members: editor_core::Bodies::Spelled(vec![ext.into(), ext2_in.into()]),
         },
     );
     let ev = run(&doc);
@@ -416,15 +419,10 @@ fn hit_test_error_display_names_its_content_not_its_struct() {
         ),
         (
             HitTestError::AcrossSpaces {
-                a: editor_core::Space::World,
-                b: editor_core::Space::Loose { root: node },
+                a: editor_core::VarId::WORLD,
+                b: editor_core::VarId::new(0, tagged(7)),
             },
-            vec![
-                "different spaces",
-                "the world's space",
-                "the space of the loose copy node 000000000007",
-                "Recourse:",
-            ],
+            vec!["different spaces", "the world", "the space #", "Recourse:"],
         ),
     ];
     assert_f6_every_variant(&cases, &HIT_TEST_ERROR, &[]);

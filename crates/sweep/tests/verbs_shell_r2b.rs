@@ -135,7 +135,11 @@ fn r2b_squared_stepped_vase_mints_one_annular_rim() {
         (0.44 - t, 0.20 + t, 0.40 - t),
         (0.34 - t, 0.40 - t, h),
     ]);
-    let props = topo::mass_properties(&cup, tol).expect("props");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&cup), tol),
+        tol,
+    )
+    .expect("props");
     println!(
         "[r2b] vase V = {} vs closed form {} (delta {})",
         props.volume,
@@ -202,7 +206,11 @@ fn r2b_one_holed_extrusion() {
                     panic!("VALIDATED WRONG BODY: valid but no mesh at {delta}: {e:?}")
                 });
             }
-            let props = topo::mass_properties(cup, tol).expect("props");
+            let props = topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(cup), tol),
+                tol,
+            )
+            .expect("props");
             println!("[r2b] one-holed cup V = {}", props.volume);
         }
         Err(e) => println!("[r2b] one-holed extrusion REFUSED: {e}"),

@@ -105,6 +105,8 @@ mod interval_type_default_build;
 mod k_stats_doors;
 #[path = "knot_queries_differential.rs"]
 mod knot_queries_differential;
+#[path = "loose_knots_span_fuzz.rs"]
+mod loose_knots_span_fuzz;
 #[path = "m10_7_r1_retag_probe.rs"]
 mod m10_7_r1_retag_probe;
 #[path = "m10_7_r1_sym_probes.rs"]
@@ -113,6 +115,8 @@ mod m10_7_r1_sym_probes;
 mod m5_pr1_refusal_conservation;
 #[path = "m5_pr7b_tensor_compose.rs"]
 mod m5_pr7b_tensor_compose;
+#[path = "normalize_prescale_review_rows.rs"]
+mod normalize_prescale_review_rows;
 #[path = "review_m0_pr2.rs"]
 mod review_m0_pr2;
 #[path = "review_m0_pr3.rs"]

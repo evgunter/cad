@@ -135,12 +135,16 @@ UNHASHABLE = {
     "Mate": "by design: `editor_core::Mate` derives `PartialEq` and no "
     "`Hash`, and this class mirrors its derives. A mate is a constraint "
     "the solver folds, addressed by its `MateRef` (which hashes), and "
-    "its world read's numbers are `Formula`s",
+    "its poses read `Formula`s",
     "MateValue": "by design: `editor_core::Value` derives `PartialEq` "
     "and no `Hash`, and this class mirrors its derives. A value is a "
     "constraint addressed by its `MateRef` (which hashes), and its "
     "number is a `Formula`, which owes the float answer it has not "
     "made",
+    "Placed": "by design: `editor_core::Placed` derives `PartialEq` and "
+    "no `Hash`, and this class mirrors its derives. A bundle is written "
+    "onto a placement, never keyed on, and its values' numbers are "
+    "`Formula`s",
     "McAssertion": "by design: `editor_core::McAssertion` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. It "
     "is one row of a report — the counts an assertion drew — reported "
@@ -157,10 +161,6 @@ UNHASHABLE = {
     "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
     "station move is part of the loft section that holds it, never "
     "keyed on, and its number is a `Formula`",
-    "WorldRead": "by design: `editor_core::WorldRead` derives "
-    "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
-    "world read is part of the mate that holds it, never keyed on, and "
-    "its moves' numbers are `Formula`s",
     "ValidationFinding": "by design: the binding's own "
     "`validation::Finding` projection derives `PartialEq` and `Eq` and "
     "no `Hash`, and this class mirrors its derives — unhashed to match "
@@ -176,7 +176,7 @@ class TestEveryMirrorIsAKey(unittest.TestCase):
         self.mirrors = enum_mirrors()
         # A probe that found nothing would pass every row below in
         # silence. It has to find the surface it is measuring.
-        self.assertGreaterEqual(len(self.mirrors), 19)
+        self.assertGreaterEqual(len(self.mirrors), 18)
 
     def test_every_member_of_every_mirror_hashes(self):
         unhashable = sorted(

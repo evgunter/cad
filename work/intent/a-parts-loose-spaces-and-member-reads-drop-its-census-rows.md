@@ -48,3 +48,14 @@ INTENT's per-space census proposal
 (`analysis/design-fork/a-space-decides-its-own-contacts`) would subsume
 the first half if it is taken.
 
+
+## Re-read at D′1 (2026-10-22)
+
+The loose space is gone (`a-placement-names-its-target-space`): a copy
+is in its placement's target space, and every bundle pins. With it went
+`gate_spaces`, `AssemblyError::Space` and `Product::spaces`, so the
+at-rest gate now checks the world alone, in a part and in the document
+itself: a space other than the world (a `new_space()`, or a
+construction's own) is census-checked nowhere. The first half above is
+restated as that: no space but the world is checked, at the seam or
+before it. The member-read half stands as written.

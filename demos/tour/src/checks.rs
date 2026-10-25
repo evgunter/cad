@@ -30,7 +30,7 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     Bodies, CancelToken, ChecksConfig, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation,
-    Formula, Frame, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, apply,
+    Formula, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, Severity, apply,
     enforce_checks, evaluate, run_checks,
 };
 use pncad::geom_core::Tol;
@@ -91,7 +91,7 @@ fn boolean_doc(
     let (lift, rise) = (a.2, b.2 - a.2);
     let a = slab(&mut doc, a.0, a.1, a.3, tol);
     let b = slab(&mut doc, b.0, b.1, b.3, tol);
-    let placed = crate::world::against(&doc, a, b, &Frame::translation([0.0, 0.0, rise]), tol);
+    let placed = crate::world::against(&doc, a, b, crate::world::slides([0.0, 0.0, rise]), tol);
     doc = placed.doc;
     let b = placed.placement;
     let boolean = insert(
@@ -110,7 +110,8 @@ fn boolean_doc(
         },
         tol,
     );
-    let placed = crate::world::in_world(&doc, boolean, &Frame::translation([0.0, 0.0, lift]), tol);
+    let placed =
+        crate::world::in_world_by(&doc, boolean, crate::world::slides([0.0, 0.0, lift]), tol);
     doc = placed.doc;
     let placement = placed.placement;
     let ev = evaluate::<f64>(

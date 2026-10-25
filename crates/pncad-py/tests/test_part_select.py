@@ -39,7 +39,7 @@ from pncad import (
     m,
 )
 
-from placing import plane_on
+from placing import placed, plane_on
 
 #: The box's footprint half-extent and height, metres — the corpus
 #: document's own constants, so the dyadic pins below are its pins.
@@ -248,7 +248,7 @@ class TestTheInstanceIsTheInstance(unittest.TestCase):
         it."""
         doc, _, family = self.build()
         middle = doc.insert(Node.part(family, PartSelect.instance(Formula.count(1))))
-        lifted = doc.place(middle, pose=Frame.translation((0 * m, 0 * m, 2 * m)))
+        lifted = placed(doc, middle, Frame.translation((0 * m, 0 * m, 2 * m)))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(lifted))
         self.assertEqual(mass_of(ev, lifted).volume, 2.0 * 2.0 * 1.0)

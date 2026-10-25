@@ -2,11 +2,10 @@
 id: a-turned-lens-keeps-the-door
 kind: issue
 title: The turned lens builds only with its discs declared Rest, which D10 retires
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [intent-stage4-is-built]
 ---
 
 ## What

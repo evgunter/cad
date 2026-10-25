@@ -132,7 +132,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     } else {
         fixture::flip(tilted)
     };
-    let placement = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+    let placement = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
         editor_core::Operand::from(boss),
     )]));
     let start = editor_core::Operand::select(
@@ -143,8 +143,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
         placement,
         editor_core::Mate {
             on: fixture::plane(start),
-            to: editor_core::Target::Pose(to),
-            class: editor_core::ContactClass::Rest,
+            to,
         },
         vec![
             (
@@ -155,7 +154,10 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
                 editor_core::Coord::Slide(editor_core::TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
-            (editor_core::Coord::Spin, Formula::zero(Dimension::Angle)),
+            (
+                editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+                Formula::zero(Dimension::Angle),
+            ),
         ],
     );
     r.doc

@@ -65,7 +65,7 @@ fn rested_names(doc: &ProfileDoc, mate: &editor_core::Mate) -> Option<(StableNam
         [one] => Some(fixture::side_name(doc, one)),
         _ => None,
     };
-    Some((face(mate.on)?, face(*mate.to.pose()?)?))
+    Some((face(mate.on)?, face(mate.to)?))
 }
 
 fn linear(spacing: f64) -> PatternKind<Formula> {

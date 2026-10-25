@@ -2697,7 +2697,6 @@ mod tests {
     fn an_edge_edge_membership_tie_offers_a_declaration_only_where_one_settles_it() {
         use super::super::sectors::Reach;
         use crate::boolean::{BooleanDecision, Glue, GluedPair, GluedPairs};
-        use crate::contact::ContactClass;
         use crate::entity::FaceKey;
         use crate::test_support_fixtures::prism_z;
         use geom_brep::OutwardNormal;
@@ -2730,7 +2729,7 @@ mod tests {
         let run = |a: (&crate::body::Body<f64>, FaceKey),
                    b: (&crate::body::Body<f64>, FaceKey),
                    arm: f64,
-                   class: Option<ContactClass>| {
+                   class: Option<GlueClass>| {
             let corner = |face| [sector(z, x, arm, face), sector(x, z, arm, face)];
             let decls = Glue {
                 pairs: class
@@ -2780,16 +2779,7 @@ mod tests {
         );
         let (fa, fb) = (pa.side_faces[1], pb.side_faces[3]);
         assert!(
-            crate::boolean::contact_pair_verdict(
-                &pa.body,
-                fa,
-                &pb.body,
-                fb,
-                ContactClass::Rest,
-                None,
-                band
-            )
-            .is_ok(),
+            crate::boolean::rest_pair_verdict(&pa.body, fa, &pb.body, fb, band).is_ok(),
             "the door verifies Rest on the planar flanks"
         );
         assert!(
@@ -2800,7 +2790,7 @@ mod tests {
             for (class, read) in [
                 (None, DeclarationRead::Moot),
                 (
-                    Some(ContactClass::Rest),
+                    Some(GlueClass::Rest),
                     DeclarationRead::Spent(GlueClass::Rest),
                 ),
             ] {

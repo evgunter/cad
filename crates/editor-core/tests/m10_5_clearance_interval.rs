@@ -20,12 +20,10 @@
 //! issue 1191's class.
 //!
 //! Every carrier is measured in its STORED chart. A planar face's
-//! `u_ref` comes from the orthonormal basis's world-axis comparison,
-//! `|n.z| ≤ max(|n.x|, |n.y|)/2`, which decides at the equator — a
-//! vertical wall's `|n.z|` is zero and the other two are not — so a
-//! wall stores an exact in-plane horizontal and the engine has nothing
-//! to re-chart around. The `refines` door stays: it refuses a chart
-//! that halving cannot narrow, whatever made it wide.
+//! `u_ref` is the in-plane direction its construction handed
+//! `newell_plane`: an extruded wall's is its profile segment's
+//! direction, a cap's the sketch's `x` axis. The `refines` door
+//! refuses a chart that halving cannot narrow, whatever made it wide.
 //!
 //! A rigid translation keeps the rest clean: its rotation is the
 //! identity, so every stored direction passes through exactly. It does
@@ -185,7 +183,7 @@ fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
 /// parameter among them drives the copy, with no rotation, so every
 /// stored direction passes through exactly and the placed body's
 /// charts are as clean as the literal one's. The mate is the one
-/// [`editor_core::place_against_in`] writes at a probe translation
+/// [`editor_core::test_support::placed_against`] writes at a probe translation
 /// (each body's own planar face on its own xy, the target's slid along
 /// its normal), its numbers replaced by `by`'s with the signs the probe
 /// read. Returns the placement, whose output is the copy.
@@ -200,21 +198,17 @@ pub(crate) fn slid_by(
     body: RecipeNodeId,
     by: [Formula; 3],
 ) -> RecipeNodeId {
-    use editor_core::{BodyRead, Coord, Operand, Target, TargetAxis, pose::PoseDef};
+    use editor_core::{BodyRead, Coord, Operand, TargetAxis, pose::PoseDef};
     let target_read = fixture::body_read(&r.doc, target.into());
     let read = fixture::body_read(&r.doc, body.into());
-    r.evaluated();
-    let ev = r.last.as_ref().expect("just evaluated");
     let probe = [1.0, 2.0, 4.0];
-    let mut placed = editor_core::place_against_in(
+    let mut placed = editor_core::test_support::placed_against(
         &r.doc,
-        ev,
         &target_read,
         &read,
         &editor_core::Frame::translation(probe),
         Tol::witness(),
-    )
-    .unwrap_or_else(|refusal| panic!("the copy places against its target: {refusal}"));
+    );
     let signed = |written: &Formula, n: f64, to: &Formula| {
         if *written == len(n) {
             to.clone()
@@ -225,11 +219,11 @@ pub(crate) fn slid_by(
         }
     };
     let Some(editor_core::Mate {
-        to: Target::Pose(Operand::Pose(def)),
+        to: Operand::Pose(def),
         ..
-    }) = &mut placed.mate
+    }) = placed.mates.first_mut()
     else {
-        panic!("a plane mate to a pose: {:?}", placed.mate)
+        panic!("a plane mate to a pose: {:?}", placed.mates)
     };
     let PoseDef::Slide { by: along, .. } = &mut **def else {
         panic!("the target's plane slid along its normal: {def:?}")
@@ -242,7 +236,7 @@ pub(crate) fn slid_by(
             _ => {}
         }
     }
-    let placement = r.insert(Node::place(vec![BodyRead::plain(read)]));
+    let placement = r.insert(crate::fixture::stood(vec![BodyRead::plain(read)]));
     r.write(placement, placed);
     placement
 }

@@ -110,17 +110,30 @@ fn r2_both_cone_nappes_hollow_to_their_closed_forms() {
             4.0 / 64.0,
         ),
     ] {
-        let body = frustum(r0, r1, h);
+        let body = topo::test_support::finished("body", frustum(r0, r1, h), tol);
         describe_cones(what, &body);
         let v_out = topo::mass_properties(&body, tol).expect("props").volume;
-        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
+        match topo::shell(
+            &finished("the operand", topo::Body::clone(&body.clone()), tol),
+            T,
+            tol,
+        ) {
             Ok(topo::Shelled { body: hollow, .. }) => {
                 assert_eq!(
                     topo::validate_geometric(&hollow, tol),
                     Ok(()),
                     "{what}: tier 3"
                 );
-                let v = topo::mass_properties(&hollow, tol).expect("props").volume;
+                let v = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&hollow),
+                        tol,
+                    ),
+                    tol,
+                )
+                .expect("props")
+                .volume;
                 let want = frustum_wall(r0, r1, h);
                 println!(
                     "[r2] {what}: operand {v_out}, wall {v} want {want} delta {}",
@@ -180,19 +193,36 @@ fn r2_a_conical_wedge_meridian_edge() {
     let tol = Tol::witness();
     let (r0, r1, h) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0);
     for (what, turn) in [("a quarter turn", PI / 2.0), ("a 1/12 turn", PI / 6.0)] {
-        let body = revolved(
-            bulge_loop(vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(r0, 0.0), 0.0),
-                (Point2::new(r1, h), 0.0),
-                (Point2::new(0.0, h), 0.0),
-            ]),
-            Revolution::Partial(turn),
+        let body = topo::test_support::finished(
+            "body",
+            revolved(
+                bulge_loop(vec![
+                    (Point2::new(0.0, 0.0), 0.0),
+                    (Point2::new(r0, 0.0), 0.0),
+                    (Point2::new(r1, h), 0.0),
+                    (Point2::new(0.0, h), 0.0),
+                ]),
+                Revolution::Partial(turn),
+            ),
+            tol,
         );
         let v0 = topo::mass_properties(&body, tol).expect("props").volume;
-        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
+        match topo::shell(
+            &finished("the operand", topo::Body::clone(&body.clone()), tol),
+            T,
+            tol,
+        ) {
             Ok(topo::Shelled { body: hollow, .. }) => {
-                let v = topo::mass_properties(&hollow, tol).expect("props").volume;
+                let v = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&hollow),
+                        tol,
+                    ),
+                    tol,
+                )
+                .expect("props")
+                .volume;
                 println!(
                     "[r2] conical wedge {what}: HOLLOWS operand {v0} wall {v} tier3 {:?} shells {}",
                     topo::validate_geometric(&hollow, tol).is_ok(),
@@ -229,19 +259,36 @@ fn r2_wedge_at_degenerate_turns() {
         ("a HALF turn (coplanar caps)", PI),
         ("a 3/4 turn (reflex)", 3.0 * PI / 2.0),
     ] {
-        let body = revolved(
-            bulge_loop(vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(r, 0.0), 0.0),
-                (Point2::new(r, h), 0.0),
-                (Point2::new(0.0, h), 0.0),
-            ]),
-            Revolution::Partial(turn),
+        let body = topo::test_support::finished(
+            "body",
+            revolved(
+                bulge_loop(vec![
+                    (Point2::new(0.0, 0.0), 0.0),
+                    (Point2::new(r, 0.0), 0.0),
+                    (Point2::new(r, h), 0.0),
+                    (Point2::new(0.0, h), 0.0),
+                ]),
+                Revolution::Partial(turn),
+            ),
+            tol,
         );
         let v0 = topo::mass_properties(&body, tol).expect("props").volume;
-        match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
+        match topo::shell(
+            &finished("the operand", topo::Body::clone(&body.clone()), tol),
+            T,
+            tol,
+        ) {
             Ok(topo::Shelled { body: hollow, .. }) => {
-                let v = topo::mass_properties(&hollow, tol).expect("props").volume;
+                let v = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&hollow),
+                        tol,
+                    ),
+                    tol,
+                )
+                .expect("props")
+                .volume;
                 let valid = topo::validate_geometric(&hollow, tol);
                 println!(
                     "[r2] wedge {what}: operand {v0}, wall {v}, tier3 {:?}, shells {}",
@@ -325,7 +372,11 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
         .collect();
     match topo::shell_open(&finished("the operand", pot.clone(), tol), T, &mouth, tol) {
         Ok(topo::Shelled { body: cup, .. }) => {
-            let props = topo::mass_properties(&cup, tol).expect("props");
+            let props = topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(&cup), tol),
+                tol,
+            )
+            .expect("props");
             println!(
                 "[r2] the opened cup: V {} shells {} tier3 {:?}",
                 props.volume,

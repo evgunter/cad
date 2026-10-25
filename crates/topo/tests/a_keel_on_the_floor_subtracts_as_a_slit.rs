@@ -460,10 +460,7 @@ fn slit_operands(row: &Row, pose: &Pose) -> [(&'static str, AtRestBody<f64>); 2]
     };
     [
         ("the Boolean's slit", cut(0.0)),
-        (
-            "the split's slit",
-            topo::test_support::finished("the split's walls", walls, tol),
-        ),
+        ("the split's slit", walls),
     ]
 }
 

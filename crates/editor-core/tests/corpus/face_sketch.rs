@@ -18,8 +18,7 @@
 
 use super::PlacePart;
 use editor_core::{
-    CapEnd, ContactClass, Coord, Dimension, DocEdit, Formula, Mate, Node, Operand, RoleSeg, SlotId,
-    Target, TargetAxis,
+    CapEnd, Coord, Dimension, DocEdit, Formula, Mate, Node, Operand, RoleSeg, SlotId, TargetAxis,
 };
 
 use crate::fixture::{ang, desc, fname, len, plane};
@@ -75,15 +74,14 @@ pub fn document() -> CorpusDoc {
     let on = Operand::Pose(Box::new(editor_core::pose::PoseDef::Flip {
         pose: editor_core::pose::RoleRead::plain(plane(cap(boss, CapEnd::Start))),
     }));
-    let placed = r.insert(Node::place(vec![editor_core::BodyRead::plain(
+    let placed = r.insert(crate::fixture::stood(vec![editor_core::BodyRead::plain(
         crate::fixture::body_read(&r.doc, boss.into()),
     )]));
     r.constrain(
         placed,
         Mate {
             on,
-            to: Target::Pose(plane(cap(cube, CapEnd::End))),
-            class: ContactClass::Rest,
+            to: plane(cap(cube, CapEnd::End)),
         },
         vec![
             (
@@ -94,7 +92,7 @@ pub fn document() -> CorpusDoc {
                 Coord::Slide(TargetAxis::Y),
                 Formula::zero(Dimension::Length),
             ),
-            (Coord::Spin, ang(SPIN)),
+            (Coord::Spin(editor_core::TargetAxis::Z), ang(SPIN)),
         ],
     );
     let whole = r.insert(Node::Union {

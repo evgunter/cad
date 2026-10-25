@@ -34,7 +34,7 @@ use pncad::document::{Doc, Evaluation, Formula, Node, ProfileProgram, RecipeNode
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{NodePick, UnnamedEntity};
-use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex};
+use viewer::pickindex::{EdgeId, EdgeNameFault, PatchNameFault, PickIndex};
 use viewer::scene;
 use viewer::session::{DocSession, EdgeSelection, FaceSelection};
 
@@ -98,7 +98,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
     let placed = |doc: &pncad::document::Doc<pncad::document::ProfileProgram>, at: f64| {
         let (doc, placement) = common::inserted(
             doc,
-            Node::place(vec![pncad::document::BodyRead::plain(
+            crate::fixture::stood(vec![pncad::document::BodyRead::plain(
                 pncad::document::Operand::from(twinned),
             )]),
             tol,
@@ -214,8 +214,15 @@ impl HandWalked {
         }
     }
 
-    fn name_of(&self, id: u32) -> Option<&Result<StableName, UnnamedEntity>> {
-        self.names.get(usize::try_from(id.checked_sub(1)?).ok()?)
+    fn name_of(&self, id: u32) -> Result<&StableName, PatchNameFault> {
+        let Some(flat) = id.checked_sub(1) else {
+            return Err(PatchNameFault::Nothing);
+        };
+        match self.names.get(flat as usize) {
+            None => Err(PatchNameFault::Unassigned { id }),
+            Some(Ok(name)) => Ok(name),
+            Some(Err(error)) => Err(PatchNameFault::Unnamed { id, error: *error }),
+        }
     }
 
     fn ids_of(&self, name: &StableName) -> &[u32] {

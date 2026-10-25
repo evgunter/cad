@@ -973,7 +973,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 /// The radius is gated definitely positive on the same funnel predicate
 /// the `Center` leg mode uses: an anchor at the centre names no tangent.
 ///
-/// **Finiteness before sign.** `|P − O|` past `Vec2::normalize`'s
+/// **Finiteness before sign.** `|P − O|` past `Vec2::norm`'s
 /// ~1e154 overflow band is ∞, which is maximally DEFINITE to the
 /// classifier: deciding the sign first answers `Positive` and the
 /// `turn / radius` scale below is `±0`, so the stored ray is the zero
@@ -982,7 +982,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
 /// first — an angle asserted over a ray of nothing.
 ///
 /// **Underflow before sign, too**, and it is the silent end. `|P − O|`
-/// below `Vec2::normalize`'s ~1e-162 underflow band squares to zero, so
+/// below `Vec2::norm`'s ~1e-162 underflow band squares to zero, so
 /// the radius is EXACTLY zero and the classifier answers `Zero`
 /// definitely — at which point the refusal is
 /// [`PathError::DegenerateArcCenter`] carrying `radius: 0`, whose

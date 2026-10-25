@@ -73,16 +73,14 @@
 //!    `RigidMotion::from_aim` — so all of them are classified by
 //!    the same three questions in the same order, and the first is
 //!    [`is_finite_length`](crate::is_finite_length): a direction past
-//!    [`Vec3::normalize`]'s ~1e154 overflow band has an infinite
-//!    norm, which is maximally DEFINITE to the classifier and
-//!    normalizes to the zero vector, so deciding the sign first
-//!    returns a frame built from nothing. That refusal is
+//!    [`Vec3::norm`]'s ~1e154 overflow band has an infinite norm,
+//!    which is maximally DEFINITE to the classifier. That refusal is
 //!    [`FrameError::NonFiniteLength`], and it names the
 //!    [`FrameVector`] whose length is not a number.
 //!
 //!    It then asks [`is_underflowed_length`](crate::is_underflowed_length), against that vector's
 //!    largest `|component|` as the witness ([`Vec3::norm_witness`]).
-//!    A direction below [`Vec3::normalize`]'s ~1e-162 underflow band
+//!    A direction below [`Vec3::norm`]'s ~1e-162 underflow band
 //!    squares to zero, so its norm is EXACTLY zero and the sign
 //!    decision answers `Zero` definitely — a true statement about the
 //!    arithmetic and a false one about the input, which has a
@@ -137,6 +135,7 @@
 use crate::linalg::{Affine3, Mat3, Point3, RigidMotion, UnitVec3, UnitVec3Error, Vec3};
 use crate::predicate::{Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate};
 
+use crate::real::Real;
 use crate::tolerance::Tol;
 
 /// Which input a [`FrameError::Degenerate`] refusal is about.
@@ -155,7 +154,7 @@ pub enum FrameInput {
     /// poisoned.
     ///
     /// It also names a reference whose own perpendicular offset has no
-    /// finite length — a reference past [`Vec3::normalize`]'s ~1e154
+    /// finite length — a reference past [`Vec3::norm`]'s ~1e154
     /// overflow band, whose cross product with the unit aim overflows
     /// — through [`FrameError::NonFiniteLength`]. That is this
     /// input's own failure, decided here: the aim is asked about
@@ -163,10 +162,8 @@ pub enum FrameInput {
     RollReference,
     /// [`path_start_frame`]'s reference ladder ran out: neither world
     /// +Z nor world +X was definitely off the tangent line. The
-    /// overflow class that used to arrive here — a tangent past
-    /// [`Vec3::normalize`]'s ~1e154 band, which normalizes to the zero
-    /// vector after passing a decision taken on an infinite norm — is
-    /// now refused at the tangent's own name as
+    /// overflow class — a tangent past [`Vec3::norm`]'s ~1e154 band —
+    /// is refused at the tangent's own name as
     /// [`FrameError::NonFiniteLength`].
     ///
     /// **No input is known to reach this variant, and that is weaker
@@ -608,8 +605,15 @@ pub fn mirror_across_plane<T: Decide>(
     // The witness is read back at once: the Householder entries are
     // its components, and no door below takes the type.
     let n = UnitVec3::new(normal, "frame_mirror_normal", band)
-        .map_err(|e| refused_direction(e, FrameVector::MirrorNormal))?
-        .get();
+        .map_err(|e| refused_direction(e, FrameVector::MirrorNormal))?;
+    Ok(mirror_across_unit_plane(point, n))
+}
+
+/// [`mirror_across_plane`] across the plane through `point` whose unit
+/// normal is already decided: the Householder map, total.
+#[must_use]
+pub fn mirror_across_unit_plane<T: Real>(point: Point3<T>, normal: UnitVec3<T>) -> Affine3<T> {
+    let n = normal.get();
     let two = T::from_f64(2.0);
     let t = n * two;
     let linear = Mat3::from_cols(
@@ -618,7 +622,7 @@ pub fn mirror_across_plane<T: Decide>(
         Vec3::unit_z() - t * n.z,
     );
     let q = point - Point3::origin();
-    Ok(Affine3::from_parts(linear, n * (n.dot(q) * two)))
+    Affine3::from_parts(linear, n * (n.dot(q) * two))
 }
 
 #[cfg(test)]
@@ -1015,7 +1019,7 @@ mod tests {
             })
         ));
         // A tangent whose components exceed the normalization range
-        // (`Vec3::normalize`'s ~1e154 overflow note) has no finite
+        // (the ~1e154 band where `Vec3::norm` overflows) has no finite
         // length, and that is what it is told. It used to reach the
         // ladder — the length decision passed on an infinite norm, the
         // tangent normalized to ZERO, both rungs decided coincident —
@@ -1209,9 +1213,8 @@ mod tests {
 
     /// **The overflow end, at each of the four normalizing sites.** A
     /// direction whose components pass ~1e154 overflows its norm to
-    /// ∞, an infinite margin is maximally DEFINITE to the classifier,
-    /// and the division that follows collapses the direction to zero.
-    /// Each site is exercised at the value that reaches IT, and each
+    /// ∞, and an infinite margin is maximally DEFINITE to the
+    /// classifier. Each site is exercised at the value that reaches IT, and each
     /// must refuse naming the input whose length is not a number.
     ///
     /// What each row did before the finiteness question went first

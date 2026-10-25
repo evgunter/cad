@@ -22,7 +22,6 @@ use std::path::{Path, PathBuf};
 use common::asm;
 use pncad::document::{Doc, DocumentId, Node, NodeResult, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::parts::{PartChooser, PartEntry};
@@ -118,9 +117,9 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     });
     assert!(shown.refusal.is_none(), "{:?}", shown.refusal);
 
-    // Free-move: an authored instance is placed at the identity by the
-    // place gesture's mate to the world, so it lives in the world's space,
-    // and the probe, which moves a loose space (DI5), refuses it typed.
+    // Free-move: an authored instance is placed into the world at the
+    // identity, and the probe, which moves another shown space (DI5),
+    // refuses it typed.
     let probe = |session: &mut DocSession| {
         let outcome = session.perform(SessionOp::BeginFreeMove { instance: shelf_i });
         assert!(
@@ -133,24 +132,36 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
             "an authored instance stands in the world: {:?}",
             outcome.refusal
         );
-        assert!(session.display().free_move_of(shelf_i).is_none());
+        assert!(crate::common::asm::frame_of(session, shelf_i).is_none());
     };
     probe(&mut session);
 
-    // The shipped mate tool's op takes them from here. Both instances
-    // stand placed, so the mate joins the post's bundle, which its
-    // world mate and values already fix: the door refuses it typed,
-    // overconstrained, measuring nothing, and the document is as it
-    // was. A mate beyond the pin is never dropped silently.
+    // The shipped mate tool's op takes them from here. A fresh instance
+    // stands by the identity bundle, values and no mate: the mate drops
+    // the values it fixes, and the seat's values set the ones it leaves.
+    // The shelf stands at the world's identity, so the values are
+    // measured from it.
     let seat = || {
         asm::seat_op_under(
             &bench,
             post_i,
             shelf_i,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
+            asm::seat_values_at(asm::SHELF_LENGTH / 2.0, [0.0; 3]),
         )
     };
+    let outcome = session.perform(seat());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(
+        outcome.committed.len(),
+        2,
+        "the mate, and its values written over the bundle"
+    );
+    session.pump();
+    assert!(!tree::has_faults(&session.tree_rows()));
+    // The same mate again joins the post's bundle, which the seat
+    // already fixes: the door refuses it typed, overconstrained,
+    // measuring nothing, and the document is as it was. A mate beyond
+    // the pin is never dropped silently.
     let beyond = session.perform(seat());
     match beyond.refusal.as_ref() {
         Some(Refusal::Edit(error)) => assert!(
@@ -169,13 +180,6 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     }
     session.pump();
     probe(&mut session);
-    // With the post's world mate (and its values) taken off, the same
-    // mate places it: one mate and its three values.
-    asm::unpin(&mut session, post_i);
-    let outcome = session.perform(seat());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 4);
-    session.pump();
     assert!(!tree::has_faults(&session.tree_rows()));
 
     // Save, reload, re-evaluate: the same document, from the file.
@@ -203,7 +207,7 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
             reopened.at_rest(),
             Some(viewer::session::AtRestBadge::Certified { .. })
         ),
-        "the authored Rest mate certifies at rest: {:?}",
+        "the authored mate certifies at rest: {:?}",
         reopened.at_rest()
     );
 }
@@ -1029,7 +1033,7 @@ fn the_accept_reads_the_committed_document_before_its_run_lands() {
 
 /// **A free-move gesture whose space's root comes to refuse dies at the
 /// landing, through its own copy** (`a-gesture-under-a-refused-root-is-unchecked`).
-/// post_b is seated onto the loose shelf, which roots post_b's space.
+/// post_b is seated onto the shelf in a space of its own, which post_b joins.
 /// The shelf's file then moves on, so the saved reference mismatches
 /// and the shelf refuses; accepting the new version resolves it, a
 /// gesture opens on post_b, and undoing the accept puts the mismatch,
@@ -1047,12 +1051,7 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
         asm::unpin(&mut session, bench.shelf_i);
         common::commit_mate(
             &mut session,
-            asm::seat_op(
-                &bench,
-                bench.post_b,
-                ContactClass::Rest,
-                asm::middle_seat_values(),
-            ),
+            asm::seat_op(&bench, bench.post_b, asm::own_space_seat_values()),
         );
         session.pump();
         let saved = session.perform(SessionOp::Save(bench.asm_path.clone()));
@@ -1084,10 +1083,14 @@ fn a_gesture_under_a_root_that_comes_to_refuse_dies_at_the_landing() {
     let accepted = session.perform(SessionOp::AcceptPartVersion { id: bench.shelf.id });
     assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
     session.pump();
-    let root =
+    let space =
         viewer::display::free_move_check(session.doc(), session.space_evaluation(), bench.post_b)
-            .expect("the seated post is in the resolved shelf's loose space");
-    assert_eq!(root, bench.shelf_i, "the shelf roots it");
+            .expect("the seated post is in the resolved shelf's space");
+    assert_eq!(
+        Some(space),
+        session.doc().node_space(bench.shelf_i),
+        "the post is placed into the shelf's space"
+    );
     let outcome = session.perform(SessionOp::BeginFreeMove {
         instance: bench.post_b,
     });

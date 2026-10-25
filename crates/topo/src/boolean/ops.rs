@@ -120,6 +120,7 @@ use super::finish::setopfinish;
 use super::join::bool_connect;
 use super::reduce::PendingRow;
 use super::section_cert::Refusal as SectionRefusal;
+use super::section_cert::Sheet;
 use super::shell_witness::{
     ShellVerdict, check_mutual, debug_assert_contacts_undecisive, kept_shells, shell_verdict,
 };
@@ -142,8 +143,7 @@ use crate::props::AtRestPolicy;
 use crate::props::QuadLane;
 use crate::splitting::finish::{carve, single_solid};
 use crate::validate::{
-    AtRestBody, OrientationUnread, ValidationError, decide, scaffolds_at_rest, validate,
-    validate_closed,
+    AtRestBody, OrientationUnread, ValidationError, decide, scaffolds_at_rest, validate_closed,
 };
 use geom_brep::recourse::Refused;
 use geom_core::k_stats::NonzeroSign;
@@ -1345,28 +1345,59 @@ fn interior_loop_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
 }
 
-/// **`chart_boundary`'s verdict per face, asked once.** Keyed by the
-/// operand as well as the face: the two operands' arenas mint their
-/// keys independently, so A's face and B's face can share a key. (The
-/// map keys the operand as "is B", `Operand` carrying no order.)
+/// **W2's verdict per face, asked once.** Keyed by the operand as well
+/// as the face: the two operands' arenas mint their keys independently,
+/// so A's face and B's face can share a key. (The map keys the operand
+/// as "is B", `Operand` carrying no order.)
 #[derive(Default)]
-pub(crate) struct ChartCache(BTreeMap<(bool, FaceKey), bool>);
+pub(crate) struct ChartCache(BTreeMap<(bool, FaceKey), Sheet>);
 
 impl ChartCache {
-    /// Does `operand`'s `face` of `body` describe — does every closed
-    /// curve in its interior lift to a closed curve with zero winding
-    /// (W2's premise)? Yes when [`crate::pcurves::chart_boundary`]
-    /// answers `Ok`, and on a cone face also when the apex closure
-    /// closes ([`crate::chord_join::cone_apex_closure`]: one apex
-    /// visit, no ring) on a window at most a period wide.
+    /// Does `operand`'s `face` of `body` lift to one sheet — does every
+    /// closed curve in its interior lift to a closed curve with zero
+    /// winding (W2's premise)? Asked only of a cylinder, cone or torus
+    /// face: no section arm marks a component essential on a plane, a
+    /// sphere or a spline, and a plane and a sphere carry no essential
+    /// curve at all. Read off the loop walk
+    /// ([`crate::pcurves::loop_windings`]), [`Sheet::One`] when
     ///
-    /// The cone clause is sound although `chart_boundary` refuses the
-    /// apex as a singular joint. The apex lies on `∂F`, so `int F`
-    /// excludes it, and `int F` maps homeomorphically onto the interior
-    /// of the lifted region: a bounded region of one sheet of the
-    /// punctured nappe's universal cover, at most a period wide. Every
-    /// closed curve in `int F` therefore lifts to a closed curve with
-    /// zero winding, and no essential component lies in `int F`.
+    /// 1. every loop off the chart's singular set (a cone's apex) winds
+    ///    the identity,
+    /// 2. at most one loop meets that set, and
+    /// 3. a cone face's corners lie on one nappe
+    ///    ([`crate::offset_nappe::face_nappe`]).
+    ///
+    /// **Why that is enough.** Its premises: `int F` is the face less
+    /// its edges, seams included, because the sweep examines every edge
+    /// of `F` against `G`, a seam's two halves among them, so a section
+    /// crossing any edge carries an event (L1, premise S); and `F`
+    /// carries no lone-vertex loop, which [`pair_verdict`] refuses
+    /// (`Refusal::LoneVertex`) before W2 is asked, so every loop the walk
+    /// reads is a cycle. Then, on
+    /// a cylinder or a cone a closed curve `γ` off the apex winds by its
+    /// class in the first homology of the carrier less the apex, and `γ`
+    /// in `int F` is homologous there to a sum over every boundary
+    /// circle of `F` but one, and over a small circle about the apex
+    /// where `int F` holds it: `F` is planar, since it lies on a planar
+    /// carrier. Each loop off the apex lies off it, so its term is its
+    /// winding, zero by (1); the loop through the apex, if any, is the
+    /// one left out (2); and an apex in `int F` sits on no loop, so the
+    /// sum over all of them would be ±1, which (1) excludes. The nappe
+    /// clause excludes a loop that crosses the apex inside an edge,
+    /// whose term is not its walk's winding. A pinched face (two sectors
+    /// meeting at the apex) reads the same of each sector. A torus has
+    /// no singular set, and (1) is enough while its face is planar, as a
+    /// face its seams cut open is.
+    ///
+    /// A walk that refuses for a numerical or unbuilt reason is
+    /// [`Sheet::Unread`], never `Not`.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::ClassificationInvariant`] for a torn face
+    /// ([`WalkRefusal::Torn`]: a state the at-rest pass refuses) or one
+    /// the walk cannot be asked of, and for a face on a plane, a sphere
+    /// or a spline, which no section arm asks about.
     pub(crate) fn describes<T: crate::props::AtRestPolicy>(
         &mut self,
         operand: Operand,
@@ -1374,42 +1405,135 @@ impl ChartCache {
         face: FaceKey,
         surface: &geom::Surface<T>,
         band: Band,
-    ) -> bool {
-        *self
-            .0
-            .entry((operand == Operand::B, face))
-            .or_insert_with(|| {
-                crate::pcurves::chart_boundary(body, face, surface, band).is_ok()
-                    || apex_closure_describes(body, face, surface, band)
-            })
+    ) -> Result<Sheet, BooleanError> {
+        let key = (operand == Operand::B, face);
+        if let Some(&sheet) = self.0.get(&key) {
+            return Ok(sheet);
+        }
+        let sheet = one_sheet(body, face, surface, band)?;
+        self.0.insert(key, sheet);
+        Ok(sheet)
     }
 }
 
-/// The cone clause of [`ChartCache::describes`]: the apex closure
-/// closes, on a window not definitely wider than a period.
-fn apex_closure_describes<T: Decide>(
+/// [`ChartCache::describes`]'s reading, uncached.
+fn one_sheet<T: crate::props::AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     surface: &geom::Surface<T>,
     band: Band,
-) -> bool {
-    use crate::chord_join::ApexClosure;
-    if !matches!(surface, geom::Surface::Cone { .. }) {
-        return false;
+) -> Result<Sheet, BooleanError> {
+    use geom::Surface as S;
+    match surface {
+        S::Cylinder { .. } | S::Cone { .. } | S::Torus { .. } => {}
+        S::Plane { .. } | S::Sphere { .. } | S::Nurbs(_) | S::Approx(_) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "the section certificate's W2 was asked of a face on a plane, a sphere or \
+                       a spline, on which no section arm marks a component essential",
+            });
+        }
     }
-    let Ok(ApexClosure::Closed { window, reach, .. }) =
-        crate::chord_join::cone_apex_closure(body, surface, face, band)
-    else {
-        return false;
+    let torn = || BooleanError::ClassificationInvariant {
+        what: "an operand face's loop walk reads it torn (a stale key, an edge with no carrier, \
+               a missing or misstated row, a row that is not its edge's on the face, or a walk \
+               that does not close), which the at-rest pass refuses",
     };
-    matches!(
-        crate::validate::decide(
-            "bool_cone_closure_period",
-            Margin::levered(T::tau() - (window.1 - window.0), reach),
-            band,
-        ),
-        Ok(Sign::Positive | Sign::Zero)
-    )
+    let loops = match crate::pcurves::loop_windings(body, face, surface, band) {
+        Ok(loops) => loops,
+        Err(e) => {
+            return match walk_refusal(&e) {
+                WalkRefusal::Torn => Err(torn()),
+                WalkRefusal::Unread => Ok(Sheet::Unread),
+                WalkRefusal::NotRaised => Err(BooleanError::ClassificationInvariant {
+                    what: "W2's loop walk answered a refusal only the chart description or the \
+                           at-rest pass raises",
+                }),
+            };
+        }
+    };
+    if !loops_lift(&loops) {
+        return Ok(Sheet::Not);
+    }
+    if matches!(surface, S::Cone { .. }) {
+        use crate::offset_nappe::NappeRefusal;
+        match crate::offset_nappe::face_nappe_reading(body, face, band) {
+            Ok(_) => {}
+            Err(NappeRefusal::Straddles { .. }) => return Ok(Sheet::Not),
+            Err(NappeRefusal::Escalated(_)) => return Ok(Sheet::Unread),
+            Err(NappeRefusal::Stale) => return Err(torn()),
+        }
+    }
+    Ok(Sheet::One)
+}
+
+/// How [`ChartCache::describes`] reads a refusal of the loop walk.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WalkRefusal {
+    /// The face is not what its rest certificate says: a kernel defect.
+    Torn,
+    /// A numerical or unbuilt refusal: W2 reads nothing of the face.
+    Unread,
+    /// A refusal [`crate::pcurves::loop_windings`] never returns: only
+    /// the at-rest pass raises it.
+    NotRaised,
+}
+
+/// [`WalkRefusal`] of `e`, matched whole so a new refusal is read here
+/// before it is folded anywhere. A certification refusal is torn where
+/// the at-rest pass reads it as a boundary that does not match its face
+/// (`validate::classify_pcurve`), and unread where it is a precision
+/// limit or a lane not built: a face whose rows are not owed
+/// (`pcurves::not_owed`) is legal at rest, and its fresh derivation can
+/// meet one.
+fn walk_refusal(e: &crate::pcurves::PcurveMintError) -> WalkRefusal {
+    use crate::pcurves::PcurveMintError as M;
+    use geom_brep::PcurveCertifyError as C;
+    match e {
+        M::Stale { .. }
+        | M::PlaceholderChart { .. }
+        | M::NoCarrier { .. }
+        | M::LoopDiscontinuity { .. }
+        | M::LoopNotClosed { .. }
+        | M::MissingCache { .. }
+        | M::RowInterval { .. } => WalkRefusal::Torn,
+        M::Escalated { .. }
+        | M::NetStretchUndecided { .. }
+        | M::JointWithoutRoom { .. }
+        | M::Band(_) => WalkRefusal::Unread,
+        M::Unminted { .. } => WalkRefusal::NotRaised,
+        M::Certify { error, .. } => match error {
+            C::PlaceholderChart
+            | C::CarrierOffChart { .. }
+            | C::CarrierGrazesChart { .. }
+            | C::ChartRow { .. }
+            | C::ImageMismatch { .. }
+            | C::ChannelKindMismatch { .. }
+            | C::WindingMismatch { .. }
+            | C::FittedCertificate { .. }
+            | C::IntervalNotForward
+            | C::AzimuthPeriodExceeded
+            | C::TubePeriodExceeded => WalkRefusal::Torn,
+            C::UnsupportedChart { .. }
+            | C::IsoUnsupported { .. }
+            | C::ChartWindingUnsupported
+            | C::SectorRefused { .. }
+            | C::FittedLaneUnsupported { .. }
+            | C::CarrierDomain(_)
+            | C::PlacementTurnsExceeded
+            | C::CarrierEnclosure(_)
+            | C::ResidualExceeded { .. }
+            | C::FittedLimb { .. }
+            | C::FittedEscalated { .. }
+            | C::Escalated { .. }
+            | C::Band(_) => WalkRefusal::Unread,
+        },
+    }
+}
+
+/// Clauses (1) and (2) of [`ChartCache::describes`]: every loop off the
+/// singular set winds the identity, and at most one loop meets it.
+pub(crate) fn loops_lift(loops: &[crate::pcurves::LoopWinding]) -> bool {
+    loops.iter().filter(|l| l.singular).count() <= 1 && loops.iter().all(|l| l.singular || l.zero)
 }
 
 /// Which path a section scan serves; the two differ in which pairs
@@ -1602,20 +1726,25 @@ fn overlap_reach<T: Real>(box_a: &bvh::Aabb, box_b: &bvh::Aabb) -> super::sectio
 /// pair's refusal. The reach — the ball about the two boxes' overlap,
 /// which pivots and levers the angular margins — is built here
 /// ([`super::section_cert`]'s module docs).
+///
+/// # Errors
+///
+/// [`ChartCache::describes`]'s, for a torn face.
 fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (a, fa): (&Body<T>, &FaceRow<T>),
     (b, fb): (&Body<T>, &FaceRow<T>),
     band: Band,
     evented: bool,
     charts: &mut ChartCache,
-) -> Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal> {
-    use super::section_cert::{Refusal, Side, certify, classify};
+) -> Result<Result<Vec<super::section_cert::Cleared>, SectionRefusal>, BooleanError> {
+    use super::section_cert::{Side, certify, classify};
     if has_lone_vertex(a, fa.face) || has_lone_vertex(b, fb.face) {
-        return Err(Refusal::LoneVertex);
+        return Ok(Err(SectionRefusal::LoneVertex));
     }
     let reach = overlap_reach(&fa.bbox, &fb.bbox);
     let section = classify(&fa.surface, &fb.surface, reach, band);
-    certify(
+    let mut torn = None;
+    let verdict = certify(
         &section,
         evented,
         |side| {
@@ -1623,7 +1752,12 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 Side::F => (Operand::A, a, fa),
                 Side::G => (Operand::B, b, fb),
             };
-            charts.describes(operand, body, row.face, &row.surface, band)
+            charts
+                .describes(operand, body, row.face, &row.surface, band)
+                .unwrap_or_else(|e| {
+                    torn = Some(e);
+                    Sheet::Unread
+                })
         },
         |p| {
             [
@@ -1631,7 +1765,11 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 place_witness(b, fb.face, p, band),
             ]
         },
-    )
+    );
+    match torn {
+        Some(e) => Err(e),
+        None => Ok(verdict),
+    }
 }
 
 /// **Whether a boundary edge of `face` may meet `circle`**: some edge of
@@ -1682,6 +1820,10 @@ fn face_boundary_meets<T: Decide + Bounds>(
 /// the reduction recorded an event on the pair `(A face, B face)`;
 /// `named` says whether A's face is the one a refusal names. With
 /// `stop` the walk returns at the first refusing pair.
+///
+/// # Errors
+///
+/// [`pair_verdict`]'s.
 #[allow(clippy::too_many_arguments)]
 fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     (a, a_rows): (&Body<T>, impl IntoIterator<Item = &'r FaceRow<T>>),
@@ -1693,7 +1835,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     named: impl Fn(&geom::Surface<T>) -> bool,
     stop: bool,
     axes: &super::separating::OperandAxes<T>,
-) -> Vec<PairVerdict> {
+) -> Result<Vec<PairVerdict>, BooleanError> {
     let b_rows: Vec<&FaceRow<T>> = b_rows.into_iter().collect();
     let pad = boxes::sweep_pad(band);
     let mut out = Vec::new();
@@ -1713,7 +1855,7 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
             ) {
                 continue;
             }
-            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts);
+            let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts)?;
             let refused = verdict.is_err();
             out.push(PairVerdict {
                 a_face: fa.face,
@@ -1724,24 +1866,25 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
                 verdict,
             });
             if stop && refused {
-                return out;
+                return Ok(out);
             }
         }
     }
-    out
+    Ok(out)
 }
 
 /// **The section certificate over every in-scope pair** of `a` × `b`
 /// whose certified boxes overlap, which the narrow phase does not part
 /// and which `exempt` does not answer, in arena order ([`walk_pairs`]). `evented` says whether the reduction
 /// recorded an event on the pair `(A face, B face)`. With `stop` the
-/// scan returns at the first refusing pair. `chart_boundary` is asked
-/// once per face and cached.
+/// scan returns at the first refusing pair. W2's question is asked once
+/// per face and cached ([`ChartCache`]).
 ///
 /// # Errors
 ///
 /// [`BooleanError::ClassificationInvariant`] for a face whose surface
-/// or loops do not resolve, and the box builder's own errors.
+/// or loops do not resolve, or whose loop walk reads it torn
+/// ([`ChartCache::describes`]), and the box builder's own errors.
 pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
@@ -1752,7 +1895,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
     stop: bool,
 ) -> Result<Vec<PairVerdict>, BooleanError> {
     let (a_rows, b_rows) = (face_rows(a, band)?, face_rows(b, band)?);
-    Ok(walk_pairs(
+    walk_pairs(
         (a, &a_rows),
         (b, &b_rows),
         band,
@@ -1762,7 +1905,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         |s| path.names(s),
         stop,
         &super::separating::OperandAxes::new(boxes::axis_key),
-    ))
+    )
 }
 
 /// **The pairs a section walk answers without their section**, one per
@@ -2155,8 +2298,8 @@ pub(super) fn output_substitutions(
 /// decides: both compared bodies' quadrature faces are taken one round
 /// further at a time from the round each met its target at
 /// ([`crate::props::PastTarget::refine`]), until the
-/// sign is decided or every face reaches the last round every lane runs
-/// (`geom_brep::props::quad::LAST_ROUND_EVERY_LANE_RUNS`).
+/// sign is decided or every face reaches its lane's own stop, its floor
+/// or its work wall (`geom_brep::props::quad::FACE_WORK_WALL`).
 ///
 /// There the rounds run out at a resolution: the last round's
 /// half-width, measured on the oblique-capped rod (`r = 0.5`, cut 20° at
@@ -2279,17 +2422,8 @@ pub(crate) fn volume_backstop<T: Decide>(
     // the reporting enclosures leave open can be refined past it.
     let measure = |body, operand| {
         let faces = crate::query::all_faces(body);
-        let (refused, certificate) = crate::props::sign_walk(
-            body,
-            &faces,
-            band,
-            tol,
-            Some(lane),
-            Some(lane),
-            |_| None,
-            |refused| refused,
-        )
-        .map_err(|source| props_refusal(operand, source))?;
+        let (refused, certificate) = crate::props::target_walk(body, &faces, band, tol, Some(lane))
+            .map_err(|source| props_refusal(operand, source))?;
         match refused {
             Some(source) => Err(props_refusal(operand, source)),
             None => Ok(certificate.past_target()),
@@ -3465,7 +3599,7 @@ pub(super) enum PieceRead {
     /// its own names.
     NotIn,
     /// The read failed: the containment door's refusal, or `None` where
-    /// the curved chart trim gives no verdict.
+    /// a curved face's region gives no verdict.
     Unread(Option<ContainError>),
 }
 
@@ -5713,7 +5847,6 @@ fn finding_arm(finding: &ValidationError) -> Option<InBand> {
 /// construction that stopped half-way, and a joinable vertex one the
 /// join did not finish.
 pub(super) fn structural_gate<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
-    validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     let mut errors = scaffolds_at_rest(body);
     errors.extend(crate::validate::joinable_at_rest_errors(body, band));
@@ -5789,8 +5922,9 @@ struct SphereRecut<T: Real> {
     /// The stored seam direction (`u_ref`), which `seam` turns to.
     u_ref: Vec3<T>,
     /// Where the group escapes through a sphere: the seam direction the
-    /// re-chart turns `u_ref` to about `align`. A's group takes the first
-    /// of `align`'s orthonormal pair and B's the second, so two balls
+    /// re-chart turns `u_ref` to about `align`. A's group takes the
+    /// first escape's [`pair_seam`] in the plane across `align`, and B's
+    /// that direction turned a quarter about `align`, so two balls
     /// re-charted along one centre line keep their seams in planes a
     /// quarter turn apart, and neither seam meets the circle where the
     /// other does.
@@ -5916,6 +6050,8 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             // A closed group's sphere escapes, one cut each, for where
             // one re-chart cannot serve them all.
             let mut sphere_escapes: Vec<SphereCutIn<T>> = Vec::new();
+            // The first sphere escape's pair seam ([`pair_seam`]).
+            let mut first_pair_seam: Option<Vec3<T>> = None;
             for (y_row, (yf, _)) in y_rows.iter().zip(y.faces()) {
                 if y_row.face != yf {
                     return Err(BooleanError::ClassificationInvariant {
@@ -5948,7 +6084,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                             match ball_against_plane(center, radius, origin, normal, band) {
                                 Ok(read) => read,
                                 Err(diag) => {
-                                    if faces().is_some() {
+                                    if faces()?.is_some() {
                                         return Err(esc(SphereQuestion::AgainstPlane)(diag));
                                     }
                                     continue;
@@ -5966,7 +6102,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // refused, with its reason.
                                 let held = match group {
                                     Some(_) => None,
-                                    None => match faces() {
+                                    None => match faces()? {
                                         None => continue,
                                         held => held,
                                     },
@@ -6092,7 +6228,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         ) {
                             Ok(gap) => gap,
                             Err(diag) => {
-                                if faces().is_some() {
+                                if faces()?.is_some() {
                                     return Err(esc(SphereQuestion::Apart)(diag));
                                 }
                                 continue;
@@ -6138,7 +6274,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 match Refused::of(nested, band) {
                                     None => {}
                                     Some(verdict @ Refused::Zero(_)) => {
-                                        if faces().is_some() {
+                                        if faces()?.is_some() {
                                             return Err(BooleanError::SpheresMeet {
                                                 operand: x_is,
                                                 face,
@@ -6147,7 +6283,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         }
                                         continue;
                                     }
-                                    Some(Refused::Negative { .. }) => match faces() {
+                                    Some(Refused::Negative { .. }) => match faces()? {
                                         None => {}
                                         Some((holder, SectionRefusal::Loop)) => {
                                             let cut = sphere_pair_cut(
@@ -6157,6 +6293,14 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                                 band,
                                             )?;
                                             if group.is_some() {
+                                                if first_pair_seam.is_none() {
+                                                    first_pair_seam = Some(pair_seam(
+                                                        x_is,
+                                                        x_surface,
+                                                        &y_row.surface,
+                                                        band,
+                                                    )?);
+                                                }
                                                 escape_normals.push(cut.normal);
                                                 sphere_escapes.push(cut);
                                             } else {
@@ -6273,11 +6417,11 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         },
                     });
                 }
-                let seam = (!sphere_escapes.is_empty()).then(|| {
-                    let (first, second) = align.orthonormal_basis();
+                let seam = first_pair_seam.map(|pair| {
+                    let first = (pair - align * align.dot(pair)).normalize();
                     match x_is {
                         Operand::A => first,
-                        Operand::B => second,
+                        Operand::B => align.cross(first),
                     }
                 });
                 out.push(SphereRecut {
@@ -6344,6 +6488,34 @@ fn sphere_pair_cut<T: Decide>(
     }
 }
 
+/// **The seam a sphere pair's re-charts share**: the `u_ref` of the
+/// pair's section circle as read from operand A's sphere
+/// ([`geom_brep::sphere_sphere_section`] with A's sphere first), whichever
+/// operand `x` (on `x_is`) is. Both groups of a pair read the same
+/// direction, and it is a function of the operands, never of the
+/// computing axes (D10 `[placement.frame]`).
+fn pair_seam<T: Decide>(
+    x_is: Operand,
+    x: &geom::Surface<T>,
+    y: &geom::Surface<T>,
+    band: Band,
+) -> Result<Vec3<T>, BooleanError> {
+    let (a, b) = match x_is {
+        Operand::A => (x, y),
+        Operand::B => (y, x),
+    };
+    match geom_brep::sphere_sphere_section(a, b, band) {
+        Ok(geom_brep::SphereSphereSection::Circle(geom::Curve3::Circle { u_ref, .. })) => Ok(u_ref),
+        Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Sphere(SphereQuestion::CutIn),
+            diag,
+        }),
+        Ok(_) | Err(_) => Err(BooleanError::ClassificationInvariant {
+            what: "extent scan: spheres the scan decided cross have no section circle",
+        }),
+    }
+}
+
 /// **What a section circle wholly inside a plane face asks of the sphere
 /// group it lies on**, from the section certificate's reading of the
 /// group's faces against that face (`None` for a closed group, which the
@@ -6388,6 +6560,10 @@ fn ball_may_reach<T: Decide>(
 /// touches: the section certificate's walk ([`walk_pairs`]) over those
 /// pairs on the no-event path. `None` when every pair clears, else the
 /// first refusing pair's face of `x` and its refusal, which is the cause.
+///
+/// # Errors
+///
+/// [`walk_pairs`]'.
 fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (x_is, x, x_rows): (Operand, &Body<T>, &[FaceRow<T>]),
     surface: SurfaceKey,
@@ -6395,7 +6571,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     band: Band,
     charts: &mut ChartCache,
     axes: &super::separating::OperandAxes<T>,
-) -> Option<(FaceKey, SectionRefusal)> {
+) -> Result<Option<(FaceKey, SectionRefusal)>, BooleanError> {
     let on_sphere = x_rows.iter().filter(|r| r.key == surface);
     let pairs = match x_is {
         Operand::A => walk_pairs(
@@ -6408,7 +6584,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_| true,
             true,
             axes,
-        ),
+        )?,
         Operand::B => walk_pairs(
             (y, [y_row]),
             (x, on_sphere),
@@ -6419,15 +6595,15 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_| true,
             true,
             axes,
-        ),
+        )?,
     };
-    pairs.into_iter().find_map(|p| {
+    Ok(pairs.into_iter().find_map(|p| {
         let held = match x_is {
             Operand::A => p.a_face,
             Operand::B => p.b_face,
         };
         p.verdict.err().map(|refusal| (held, refusal))
-    })
+    }))
 }
 
 /// **Whether a re-cut sphere's polar axis leans off the escape normal**
@@ -8325,7 +8501,12 @@ mod tests {
             quad_prism(&turned, 0.7, Tol::witness()),
             quad_prism(&profile, 0.7, Tol::witness()),
         );
-        let volume = |body| crate::mass_properties(body, Tol::witness()).unwrap().volume;
+        let volume = |body: &crate::Body<f64>| {
+            // Raw door: the measured prisms still carry construction scaffolding, which tier 3 refuses (ScaffoldAtRest).
+            crate::test_support::measure_unvalidated(body, Tol::witness())
+                .unwrap()
+                .volume
+        };
         assert!(
             volume(&low) < volume(&high),
             "the two corners' sums round apart: {} vs {}",
@@ -10039,13 +10220,8 @@ mod cut_holder_rows {
             Ok(Some(face)),
             "R-loop cuts the face it names"
         );
-        for refusal in [
-            SectionRefusal::Reach,
-            SectionRefusal::Tangent("section_sphere_plane_reach"),
-            SectionRefusal::Unordered("section_torus_square_wall_fold_half"),
-            SectionRefusal::Undecided,
-            SectionRefusal::LoneVertex,
-        ] {
+        use strum::IntoEnumIterator;
+        for refusal in SectionRefusal::iter().filter(|r| *r != SectionRefusal::Loop) {
             assert_eq!(
                 cut_holder(Some((face, refusal))),
                 Err(refusal.what()),

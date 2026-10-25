@@ -23,9 +23,7 @@
 //!
 //! `program` names one expression inside a profile PROGRAM, and its
 //! address is completed by two integers and an argument role that the
-//! word does not carry; `world_slide` and `world_spin` name one move
-//! of a mate's world read, completed by the constraint and the move's
-//! place in the read; `station_slide` and `station_spin` name one move
+//! word does not carry; `station_slide` and `station_spin` name one move
 //! of a loft section's station, completed by the section and the
 //! move's place in the station; and `value_slide` and `value_spin` a
 //! value's number, completed by the constraint; `side` names one side of a constraint,
@@ -93,6 +91,8 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "open" => SlotId::Operand(OperandSlot::Open),
         "face" => SlotId::Operand(OperandSlot::Face),
         "body" => SlotId::Operand(OperandSlot::Body),
+        "plane" => SlotId::Operand(OperandSlot::Plane),
+        "target_space" => SlotId::Operand(OperandSlot::Space),
         _ => return None,
     };
     Some(slot)

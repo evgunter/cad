@@ -263,6 +263,7 @@ fn a_ball_holding_a_face_vertex_in_the_band_of_its_foot_is_not_off_the_face() {
         (0.0, 1.0),
         tol,
     );
+    crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
     let on = |u: f64, v: f64| Point3::new(u.cos(), u.sin(), v);
     let in_band = -0.5 * (band.zero() + band.escalate());
     for (what, foot, off) in [

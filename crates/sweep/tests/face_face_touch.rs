@@ -5,6 +5,8 @@
 
 use geom::SurfaceKind;
 use geom_core::{Band, Point2, Tol};
+use geom_core::{RigidMotion, Turns, UnitVec3};
+use profile::SketchPlane;
 use profile::test_support::bulge_loop;
 use profile::{Profile, ProfileLoop};
 use sweep::ExtrudeSide;
@@ -529,12 +531,11 @@ fn a_record_on_an_arc_trimmed_face_confirms_along_the_line_through_it() {
             0.0,
             1.0,
         );
-        let plane = sweep::test_support::sketch_from_axes(
+        let plane = SketchPlane::from_frame(RigidMotion::turned(
             geom_core::Point3::new(0.0, y1, 0.0),
-            geom_core::Vec3::new(1.0, 0.0, 0.0),
-            geom_core::Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        );
+            UnitVec3::exact_x(),
+            Turns::quarters(1),
+        ));
         let rod =
             sweep::test_support::extruded(plane, vec![circle(0.0, 1.5, 0.5, 0.0)], y1 - y0, tol());
         let mut body: Body<f64> = (*slab).clone();
@@ -948,7 +949,7 @@ fn a_bridged_rods_unrecorded_tangent_line_refuses_and_its_carried_record_passes(
         );
         assert_eq!(
             found[0].pair.class,
-            topo::ContactClass::Tangent,
+            topo::GlueClass::Tangent,
             "{label}: a Tangent finding"
         );
         let r = bridged_rod(0.0, rod_first, true);
@@ -1155,4 +1156,86 @@ fn the_void_and_material_pinches_read_alike_at_every_pose() {
             "plate ∖ rod, scale {s}, offset {d}: the missing cusp edges and no touch: {errors:?}"
         );
     }
+}
+
+/// **A touch on the tangent line outside its overlap is its own pair.**
+/// The plate's `y = 2` face is a C: a notch `x < 1`, `z ∈ (0.4, 0.6)`
+/// cut into it. The rod lies along the face over `z ∈ [0.25, 0.6]`, so
+/// the line contact runs `z ∈ [0.25, 0.4]` and the rod's top circle
+/// rests on the notch's upper edge at `(0, 2, 0.6)`, where the line
+/// leaves the plate downward and the rod upward: outside the closure of
+/// the contact. With the face–face record alone, that touch is the one
+/// thing reported, as an edge–edge touch of its own. Red if the line
+/// arm lets the pair answer for it.
+#[test]
+fn a_rod_touching_a_notch_edge_off_its_tangent_run_is_its_own_pair() {
+    let unite = |a: &AtRestBody<f64>, b: &AtRestBody<f64>| match topo::union(a, b, tol()) {
+        Ok(BooleanResult::Body(u)) => u,
+        other => panic!("union: {:?}", other.map(|_| ())),
+    };
+    let brick_at = |x, z, what| finished(what, brick::<f64>(x, (-2.0, 2.0), z, tol()), tol());
+    let low = brick_at((-2.0, 2.0), (0.0, 0.4), "low");
+    let high = brick_at((-2.0, 2.0), (0.6, 1.0), "high");
+    let web = brick_at((1.0, 2.0), (0.4, 0.6), "web");
+    let c = unite(&low, &web);
+    let c = finished("c", c.body.into_body(), tol());
+    let plate = unite(&c, &high);
+    let plate = finished("plate", plate.body.into_body(), tol());
+    let rod = ext("rod", vec![circle(0.0, 2.5, 0.5, 0.0)], 0.25, 0.35);
+    let mut body = plate.into_body();
+    topo::graft_disjoint_all_keyed(&mut body, &rod.into_body()).unwrap();
+    let kind = |f: topo::FaceKey| {
+        let face = body.get_face(f).unwrap();
+        body.get_surface(face.surface).unwrap().kind()
+    };
+    let side = body
+        .faces()
+        .map(|(f, _)| f)
+        .find(|&f| {
+            kind(f) == SurfaceKind::Plane && face_points(&body, f).iter().all(|p| p[1] == 2.0)
+        })
+        .expect("the plate's y = 2 face");
+    let record = |wall| {
+        topo::ContactRecords::from_iter(vec![topo::Cited::new(
+            topo::Contact::new(&body, topo::Cell::Face(wall), topo::Cell::Face(side)).unwrap(),
+            topo::Cites::decided(0),
+        )])
+    };
+    let read = |records: &topo::ContactRecords| {
+        topo::validate_pseudomanifold(&body, records, tol())
+            .err()
+            .unwrap_or_default()
+    };
+    // The rod's wall is two half-cylinders; the one on the plate is the
+    // one whose record confirms.
+    let errors = body
+        .faces()
+        .map(|(f, _)| f)
+        .filter(|&f| kind(f) == SurfaceKind::Cylinder)
+        .map(|wall| read(&record(wall)))
+        .find(|errors| {
+            !errors
+                .iter()
+                .any(|e| matches!(e, topo::ValidationError::StaleContactDeclaration { .. }))
+        })
+        .expect("the wall half on the plate confirms");
+    let found: Vec<_> = errors
+        .iter()
+        .filter_map(|e| match e {
+            topo::ValidationError::UnrecordedContact {
+                contact, witness, ..
+            } => Some((*contact, witness.clone())),
+            _ => None,
+        })
+        .collect();
+    assert!(
+        found.iter().any(
+            |(c, w)| matches!(c, topo::CensusContact::EdgeEdgeCross { .. }) && w.contains("0.6")
+        ),
+        "the notch touch is its own pair: {errors:?}"
+    );
+    assert!(
+        found.iter().all(|(_, w)| w.contains("0.6")),
+        "and the only one: the run's own touches are the pair's: {errors:?}"
+    );
 }

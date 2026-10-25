@@ -19,12 +19,12 @@ use crate::common;
 use common::{brick, finished};
 use geom_core::Tol;
 use topo::{
-    Body, BooleanResult, BooleanResultKind, ShellRole, classify_shells, mass_properties, subtract,
+    BooleanResult, BooleanResultKind, ShellRole, classify_shells, mass_properties, subtract,
 };
 
 /// `A ∖ B` with `B` strictly inside `A`: the void birth — one solid,
 /// two shells (outer + reverted interior).
-fn voided() -> Body<f64> {
+fn voided() -> topo::AtRestBody<f64> {
     let tol = Tol::witness();
     let a = finished(
         "a",
@@ -41,12 +41,16 @@ fn voided() -> Body<f64> {
         panic!("the strict-containment subtract yields a voided body")
     };
     assert_eq!(bb.kind, BooleanResultKind::Voided);
-    bb.body.into_body()
+    bb.body
 }
 
 #[test]
 fn cube_is_one_outer_shell() {
-    let body = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let body = finished(
+        "a cube",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let classes = classify_shells(&body, Tol::witness()).unwrap();
     assert_eq!(classes.len(), 1);
     let c = &classes[0];
@@ -103,6 +107,8 @@ fn per_shell_volumes_sum_to_the_body_volume() {
 /// `side_at_infinity_order`, and no shell's volume sign is read.
 #[test]
 fn role_read_is_the_aimed_ray() {
+    // Finished before the bracket opens, so it holds the classification's
+    // reads alone.
     let body = voided();
     let bracket = geom_core::k_stats::Bracket::open();
     let classes = classify_shells(&body, Tol::witness()).unwrap();

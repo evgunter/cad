@@ -114,7 +114,7 @@ fn split_cylinder_half() -> Body<f64> {
     let SplitPart::Body(ref below) = result.below else {
         panic!("the lower side carries material");
     };
-    below.clone()
+    Body::clone(below)
 }
 
 /// A half-edge of `body` whose parent loop's face satisfies `want`,

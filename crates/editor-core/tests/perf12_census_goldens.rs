@@ -51,6 +51,15 @@ use geom_core::Tol;
 /// reach of a block face again, one more `CensusUndecidable` (28 -> 29
 /// findings), as it was on datum frames before D. Its rows' mint
 /// digests moved with its re-spelled placements.
+///
+/// Re-blessed at every ε row when the census began deciding a planar
+/// area contact between arrivals as one face pair and recording flush
+/// pairs (`[assertions]`): no finding moved, only rows.
+/// `kitchen_sink`'s 16 edge and vertex rows became 11: its two seats
+/// each one face pair, and nine flush pairs. `heat_sink` gains no flush
+/// row. Its fin instances' side walls share an area with the union's
+/// fin walls, so they are no flush pair. A flush row is written only
+/// where the two faces' interiors are certified not to meet.
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",
@@ -145,7 +154,7 @@ fn row(label: &str, doc: &ProfileDoc, out: &mut String) {
     }
     out.push_str(&format!("rows: {}\n", subject.coincidences.len()));
     for r in &subject.coincidences {
-        out.push_str(&format!("{:?} {:?}\n", r.by, r.row));
+        out.push_str(&format!("{:?} {:?}\n", r.copies, r.row));
     }
 }
 

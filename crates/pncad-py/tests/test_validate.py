@@ -27,11 +27,9 @@ declares nothing — and `TestTheRecordsRideWithTheBody` is the row.
 THE ORACLES ARE DOORS, NOT RESTATED ARITHMETIC
 ----------------------------------------------
 Nothing below asserts a hand-computed verdict. The fourth rung is
-checked against the third (which already shipped), against the
-`assemble` gate (which takes the same verdict attributed, and whose
-passing is the precondition for reaching an `Assembly` at all), and
-against `Assembly.minted` (which counts the declarations whose
-presence is the whole question). The geometry is the tour's own bench,
+checked against the third (which already shipped), and against the
+`assemble` gate (which takes the same verdict, and whose passing is
+the precondition for reaching an `Assembly` at all). The geometry is the tour's own bench,
 taken through `test_assembly_eval.opened` rather than rebuilt here, so
 this file and the two assembly files agree on the scene by
 construction (`bench_scene.py` is the one definition of it).
@@ -72,6 +70,8 @@ from pncad import (
     product,
     rad,
 )
+
+from placing import against, placed
 from test_assembly_eval import opened
 
 RUNGS = ("validate", "validate_closed", "validate_geometric", "validate_pseudomanifold")
@@ -126,8 +126,8 @@ def two_slabs_resting():
 def place_resting(doc, lower, upper):
     """Both slabs of `two_slabs_resting` placed in the world, the upper
     resting on the lower."""
-    doc.place(lower)
-    doc.place(upper, pose=lift(RISE))
+    doc.place(lower, doc.world)
+    placed(doc, upper, lift(RISE))
 
 
 class TestTheFourthRungIsTheStrictest(unittest.TestCase):
@@ -172,8 +172,8 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc = Doc()
         a = slab(doc, (0 * m, 1 * m), (0 * m, 1 * m), 1 * m)
         b = slab(doc, (3 * m, 4 * m), (0 * m, 1 * m), 1 * m)
-        doc.place(a)
-        doc.place(b)
+        doc.place(a, doc.world)
+        doc.place(b, doc.world)
         product(doc, evaluate(doc)).validate_pseudomanifold()
 
     def test_an_interpenetrating_union_has_no_coincidence_to_record(self):
@@ -183,7 +183,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         doc = Doc()
         base = slab(doc, (0 * m, 3 * m), (0 * m, 2 * m), 1 * m)
         post = slab(doc, (0.5 * m, 1.5 * m), (0.5 * m, 1.5 * m), 1.5 * m)
-        post = doc.place_against(base, post, lift(0.5 * m))
+        post = against(doc, base, post, lift(0.5 * m))
         fused = doc.insert(Node.union([base, post]))
         evaluate(doc).value(fused).body().validate_pseudomanifold()
 
@@ -196,7 +196,7 @@ class TestTheFourthRungIsTheStrictest(unittest.TestCase):
         it demonstrates the capture.
         """
         doc, lower, upper = two_slabs_resting()
-        upper = doc.place_against(lower, upper, lift(RISE))
+        upper = against(doc, lower, upper, lift(RISE))
         glued = doc.insert(Node.union([lower, upper]))
         body = evaluate(doc).value(glued).body()
         body.validate_pseudomanifold()
@@ -240,38 +240,49 @@ class TestTheRecordsRideWithTheBody(unittest.TestCase):
                 getattr(assembly.body, rung)()
 
         # The fourth rung is where they part. The at-rest body's
-        # declarations back its seats; the gathered body has none, so
-        # every seat is an unrecorded contact.
+        # records back its seats; the gathered body has none, so every
+        # seat is an unrecorded contact.
         assembly.body.validate_pseudomanifold()
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
         self.assertEqual(caught.exception.door, "validate_pseudomanifold")
         self.assertGreater(caught.exception.failure_count, 0)
 
-    def test_the_declarations_the_gate_minted_are_what_it_carries(self):
-        """The stand's mates are the source of those records, and
-        `minted` is the Python-visible count of them: two solved mates,
-        two declarations, and reaching an `Assembly` at all means the
-        kernel's at-rest gate already passed over this exact pair."""
+    def test_the_body_carries_a_record_for_each_seat(self):
+        """The stand's two mated seats are two touches between copies,
+        and the census records each as one face pair. Without the
+        records the gathered body refuses on exactly those two pairs,
+        and carrying them the at-rest body passes: the body carries a
+        record for each seat. (Python sees no record count, so an extra
+        record that backs nothing is outside what this row can see.)"""
         doc, ev = self.evaluated("stand")
-        assembly = assemble(doc, ev)
-        self.assertEqual(len(assembly.minted), 2)
-        # The same verdict re-taken, un-attributed.
-        assembly.body.validate_pseudomanifold()
+        with self.assertRaises(ValidationError) as caught:
+            product(doc, ev).validate_pseudomanifold()
+        self.assertEqual(
+            [(f.variant, f.contact_kind) for f in caught.exception.findings],
+            [("unrecorded_contact", "conformal_patch")] * 2,
+        )
+        assemble(doc, ev).body.validate_pseudomanifold()
 
     def test_a_mate_less_assembly_is_the_control(self):
-        """The flat-pack layout: same doors, no mates, no declarations
-        — and the two bodies agree, because its solids are disjoint.
+        """The flat-pack layout: same doors, no mates, no touches —
+        and the two bodies agree, because its solids are disjoint.
 
         Without this row the pair above would only show that
         `assemble` answers more kindly than `product`. It shows
-        instead that they differ exactly when declarations exist to
+        instead that they differ exactly when touches exist to
         differ about."""
         doc, ev = self.evaluated("layout")
         assembly = assemble(doc, ev)
-        self.assertEqual(assembly.minted, [])
         assembly.body.validate_pseudomanifold()
         product(doc, ev).validate_pseudomanifold()
+
+
+#: The phrase the kernel's prose spells each census contact word with,
+#: for the words the refusal below carries; a new word is a KeyError.
+CONTACT_PHRASE = {
+    "conformal_patch": "two faces lying against each other",
+}
 
 
 class TestTheRefusalsShape(unittest.TestCase):
@@ -333,10 +344,11 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertNotIn(" { ", message, "the struct-brace fingerprint")
         self.assertNotIn("Point3 {", message)
         # The prose still carries what the Debug guts carried: which
-        # entities coincide, and where. A finding that lost its
-        # witness would read as prose and say nothing actionable.
-        self.assertIn("vertex", message)
-        self.assertRegex(message, r"at \(-?\d")
+        # entities coincide, and where. The census reads the slabs'
+        # rest as one face pair over their shared region, and asks
+        # nothing of the edges and corners bounding it.
+        self.assertIn("two faces lying against each other", message)
+        self.assertIn("at their shared region", message)
 
     def test_the_per_arm_words_cross_and_the_census_says_so(self):
         """Which coincidence the census found IS something Python can
@@ -362,7 +374,7 @@ class TestTheRefusalsShape(unittest.TestCase):
         )
         self.assertEqual(
             {f.contact_kind for f in refusal.findings},
-            {"vertex_on_face", "edge_face_overlap"},
+            {"conformal_patch"},
         )
 
     def test_the_findings_are_the_count(self):
@@ -387,7 +399,7 @@ class TestTheRefusalsShape(unittest.TestCase):
                 self.assertIn(finding.variant.replace("_", " "), message)
             if finding.contact_kind is not None:
                 with self.subTest(contact=finding.contact_kind):
-                    self.assertIn(finding.contact_kind.split("_")[0], message)
+                    self.assertIn(CONTACT_PHRASE[finding.contact_kind], message)
 
     def test_a_finding_is_a_frozen_value_that_compares_structurally(self):
         """The value shape: two findings that say the same thing ARE
@@ -397,7 +409,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         self.assertEqual(first.findings, second.findings)
         self.assertEqual(first.findings[0], second.findings[0])
         self.assertEqual(
-            len({(f.variant, f.contact_kind) for f in first.findings}), 2
+            {(f.variant, f.contact_kind) for f in first.findings},
+            {("unrecorded_contact", "conformal_patch")},
         )
         # Frozen: a finding is restated by re-running the validator,
         # never by editing one in place.
@@ -446,8 +459,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc = Doc()
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), 1 * m)
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
-        doc.place(seat)
-        doc.place(post, pose=lift(1 * m))
+        doc.place(seat, doc.world)
+        placed(doc, post, lift(1 * m))
         gathered = product(doc, evaluate(doc))
         with self.assertRaises(ValidationError) as caught:
             gathered.validate_pseudomanifold()
@@ -518,8 +531,8 @@ class TestTheRefusalsShape(unittest.TestCase):
         doc = Doc()
         seat = slab(doc, (0 * m, 2 * m), (0 * m, 2 * m), 1 * m)
         post = cylinder(doc, (1 * m, 1 * m), 0.4 * m, 0.5 * m)
-        doc.place(seat)
-        doc.place(post, pose=lift(1 * m))
+        doc.place(seat, doc.world)
+        placed(doc, post, lift(1 * m))
         with self.assertRaises(ValidationError) as caught:
             product(doc, evaluate(doc)).validate_pseudomanifold()
         reached = {f.variant for f in caught.exception.findings}
@@ -571,23 +584,26 @@ def polygonal_loft():
 
 
 def oversized_round_loft():
-    """A tapered round tube 125 m long: RATIONAL walls, and a part big
+    """A tapered round tube 8 km long: RATIONAL walls, and a part big
     enough that the certified quadrature cannot reach its target.
 
     The size is the point rather than an accident. The reporting
-    target is `1024 * eps`, a length that shrinks with the run's
-    tolerance, while the refinement schedule's floor is a property of
-    the PART — so at the suite's own eps the two cross only on a part
-    this large. A teapot-sized version of this body certifies here and
-    refuses at eps = 1e-12; scaling it up brings that same crossing
-    within reach of a test that cannot set eps.
+    target is `1024 * eps`, a LENGTH that shrinks with the run's
+    tolerance, while the width a rational wall reaches by the face
+    work wall (`FACE_WORK_WALL`) is a length that grows with the
+    PART — so at the suite's own eps the two cross only on a part
+    this large. Measured on this tube at the default eps: at 125 m it
+    certifies, at 1 km (8x) it certifies, and at 8 km (64x) each wall
+    stops at the work wall after 11 rounds, 1.400e-6 m wide against
+    the 1.024e-6 m target. The crossing is near 47x, so 64x is the
+    first power of two clear of it.
     """
     return stacked_loft(
         Doc(),
         2,
-        125.0,
+        8000.0,
         lambda t: circle_split(
-            (0.0 * m, 0.0 * m), (23.4 * (1 - t) + 11.7 * t) * m, 2, 0.0 * rad
+            (0.0 * m, 0.0 * m), (1497.6 * (1 - t) + 748.8 * t) * m, 2, 0.0 * rad
         ),
     )
 
@@ -668,8 +684,8 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         """The refusal the pair does not have, and the bracket that
         comes with it.
 
-        The reporting target scales with eps and the schedule's floor
-        does not, so a body can be tier-3 VALID — its volume's SIGN is
+        The reporting target scales with eps and the width a face's
+        lane stops at does not, so a body can be tier-3 VALID — its volume's SIGN is
         definite, which is all check 7 reads — and still have no
         volume number at this eps. The door refuses there with the
         reporting door's own class and `reason`, so a caller already
@@ -685,14 +701,19 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         ABSENCE. So `mass_properties()`' refusal shape is left to the
         row that already owns it.
 
-        WHY NOT A SMALL BODY AT A TIGHT EPS. The crossing is also
-        reachable teapot-sized under `CAD_TOLERANCE_EPS=1e-12` in a
-        subprocess, which is how `test_ty.py` runs a child. It is not
-        cheaper: the refusal fires after round 0 either way, and round
-        0 on a rational patch — the lane's setup — is the whole cost.
-        A subprocess would buy a second interpreter and a second
-        module import for no saving, so the crossing is reached by
-        making the PART big instead of eps small.
+        WHY NOT A SMALL BODY AT A TIGHT EPS, OR A CHEAPER STOP. No
+        lane knows the target, so a refusal is reached only where a
+        face STOPS short of it — at the work wall, or at its floor —
+        and a rational wall at any reachable size or eps stops at the
+        wall, not the floor: its removable width still dominates
+        there. The wall is one bound in weighted cells for every face,
+        so every refusing rational wall costs the same work; the
+        teapot-sized route under `CAD_TOLERANCE_EPS=1e-12` in a
+        subprocess (how `test_ty.py` runs a child) would buy a second
+        interpreter and the teapot's other faces for no saving. Measured in the dev-profile module
+        this suite's CI job builds: this row takes about 47 s (the
+        125 m version of the tube, which certifies, takes 17 s), the
+        suite's most expensive row.
         """
         body = oversized_round_loft()
         with self.assertRaises(ValidationError) as gated:
@@ -707,10 +728,10 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         self.assertGreater(lo, 0.0, "the bracket is definitely positive")
         self.assertGreater(gated.exception.surface_area, 0.0)
         # The bracket is THIS body's and not a placeholder: a tapered
-        # tube of radii 23.4 m and 11.7 m over a 125 m spine encloses
-        # the frustum on those radii, and the rational walls the loft
-        # fits sit around it.
-        frustum = math.pi * 125.0 * (23.4**2 + 23.4 * 11.7 + 11.7**2) / 3.0
+        # tube of radii 1497.6 m and 748.8 m over an 8 km spine
+        # encloses the frustum on those radii, and the rational walls
+        # the loft fits sit around it.
+        frustum = math.pi * 8000.0 * (1497.6**2 + 1497.6 * 748.8 + 748.8**2) / 3.0
         self.assertLess(lo, frustum)
         self.assertGreater(hi, frustum)
 

@@ -115,30 +115,6 @@ impl Contradiction {
             }
         }
     }
-
-    /// Whether the fact is a separation a designed clearance could
-    /// explain (a parallel offset, a centre offset, a radius
-    /// difference), which `contact_verify::fit_steer` points at `Fit`.
-    /// An angle or a kind no gap reconciles is not, and neither are the
-    /// torus separations, which the steer's inventory does not name.
-    #[must_use]
-    pub(crate) fn fits_a_clearance(self) -> bool {
-        match self {
-            Self::PlanesApart
-            | Self::CylinderAxesApart
-            | Self::CylinderRadiiDiffer
-            | Self::SphereCentresDiffer
-            | Self::SphereRadiiDiffer => true,
-            Self::PlanesNotParallel
-            | Self::KindsDiffer
-            | Self::CylinderAxesNotParallel
-            | Self::TorusAxesNotParallel
-            | Self::TorusCentresDiffer
-            | Self::TorusMajorRadiiDiffer
-            | Self::TorusTubeRadiiDiffer
-            | Self::OneCarrier => false,
-        }
-    }
 }
 
 /// The proximity lever as a literal, for `concat!`: the move a

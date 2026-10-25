@@ -26,3 +26,16 @@ Re-aimed to D3 "One reading per question". Point-in-face is a reading over trimm
 - `face_placement`'s `_ =>` delegation, the cylinder outline chain, and `face_geo`'s cone and sphere chains are methods reached because another declined: fallbacks D3 forbids. Each arm has one method.
 - `face_geo`'s `Some(s) => KindUnsupported` catch-all becomes the reading's typed refusal, listed per kind.
 - The three planar entries (`contfp`, `point_in_face`, `point_in_loop`) are one reading with one entry.
+
+## Moved by CHART (2026-10-24)
+
+Branch `chart/ringed-curved-doors` gives cylinder and cone faces one
+reading, `topo::boolean::ruled_region`. `curved_face_containment` and
+`face_geo` both read it, and `curved_interior_placement` is now one
+exhaustive match over the surface kinds. The cylinder outline chain is
+deleted, and so is `face_geo`'s cone chain (the wrapped group's
+representative, the trimmed window, `PartialCone` reached on a
+declined trim). A face whose region the reading cannot take refuses
+inside its ball, the same on both doors. Still open: the sphere's
+closed-group / patch chain, `face_placement`'s `_ =>` delegation, and
+the three planar entries.

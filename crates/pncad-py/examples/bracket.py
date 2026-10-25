@@ -32,7 +32,7 @@ import math
 import os
 import tempfile
 
-from pncad import Doc, Formula, Frame, Node, Open, Start, evaluate, import_step, mm
+from pncad import Coord, Doc, Formula, MateValue, Node, Open, Placed, Start, evaluate, import_step, mm
 
 PLATE = (80, 40)  # mm
 # The plate's corner radius: the natural one for this plate. It was
@@ -74,7 +74,7 @@ def rounded_plate(doc, width, height, radius, thickness):
 def slab(doc, x, y, z, on):
     """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1] in `on`'s
     coordinates: drawn on its own plane, extruded its height, and
-    placed against `on` `z0` up."""
+    placed into `on`'s space `z0` up, by a value on that space's `z`."""
     x0, x1 = x
     y0, y1 = y
     z0, z1 = z
@@ -89,7 +89,7 @@ def slab(doc, x, y, z, on):
         )
     )
     body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
-    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z0)))
+    return doc.place(body, doc.space(on), Placed.unmated([MateValue(Coord.slide("z"), z0)]))
 
 
 def main():

@@ -101,8 +101,7 @@ layer whose types it serves (`topo/src/query.rs`):
   names — `topo`'s `POSE_UNIT_NORM`, passed by the evaluation layer's
   pose door, and the evaluation layer's own `EVAL_DIRECTION_NORM`. The
   finiteness question it asks first, `geom-core`'s `is_finite_length`,
-  lives beside `Real`/`is_poison` and `Vec3::normalize`'s overflow note
-  rather than here: every crate with directions must be able to ask it,
+  lives beside `Real`/`is_poison` rather than here: every crate with directions must be able to ask it,
   including those below this one.
 - **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** is a
   further EXACT door: the whole closed rim an arc belongs to. It reads
@@ -121,7 +120,7 @@ face is a recipe read, `prepare`, the tie trilean, the `SelectRefusal`
 payloads that name the candidate — and `candidate_matches` delegates
 atom by atom to `topo::query`, re-exporting the kind mirrors and
 kind-set comparands upward. One implementation of the geometry, two
-doors, the `ContactClass` layering precedent (SELECT-DESIGN §3(e)).
+doors, the layering precedent of SELECT-DESIGN §3(e).
 
 **S3 — no flush detector.** A boolean glues every coincidence its
 margins decide (D10), so there is nothing for a detector to offer and

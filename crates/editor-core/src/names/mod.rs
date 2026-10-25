@@ -79,6 +79,7 @@ pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
     face_frame, vertex_position,
 };
+pub(crate) use nest::HoldMut;
 pub use nest::NameTextError;
 pub(crate) use nest::{read_door, write_door};
 pub use role::{
@@ -98,9 +99,7 @@ pub use table::{
 };
 /// The kernel's contact vocabulary, re-exported so a refusal the recipe
 /// layer renders quotes the kernel's own words.
-pub use topo::{
-    CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
-};
+pub use topo::{CONTACT_RECOURSE, ContactRefusal, ContactVerdict, DeclaredContact};
 pub use words::{LeafRole, leaf_role, role_leaf};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**

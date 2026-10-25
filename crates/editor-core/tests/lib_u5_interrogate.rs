@@ -388,10 +388,13 @@ fn box_with_a_failed_and_a_poisoned_node() -> (ProfileDoc, RecipeNodeId, RecipeN
             distance: len(0.0),
         },
     );
+    // The good box joins the failed extrude's space, as an operator's
+    // operands share one.
+    let (doc, good_in) = fixture::stood_in(doc, good, failed);
     let (doc, poisoned) = fixture::insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![failed.into(), good.into()]),
+            members: editor_core::Bodies::Spelled(vec![failed.into(), good_in.into()]),
         },
     );
     (doc, good, failed, poisoned)
