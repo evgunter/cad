@@ -973,7 +973,8 @@ never a silent Gaussian, and never a refusal for width alone. A plane cap or tor
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
 area and the wall's chart Green form along the spiric are elliptic
 integrals in the torus minor angle, enclosed by a fifth-order Taylor
-rule whose only non-ring operation is `√`, on the same schedule. A plane
+rule (`props/taylor.rs`) that reads the spiric's integrands with no
+operation past the ring ones but `√`, on the same schedule. A plane
 cap bounded by a rational spline rim takes the same rule
 (`props/rational_rim.rs`): its vector area is `(1/2)∫ B × B′/w²` per
 Bézier span, `B` the homogeneous numerator about the reference, and the

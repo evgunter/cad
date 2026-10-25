@@ -247,7 +247,7 @@ pub enum MassPropsError {
     /// `geom_brep::props::quad::cylinder_cut_face`), nor a torus wall
     /// bounded by rims and rulings, nor a torus wall any of whose loops
     /// carries a spiric (the spiric lane reads every loop,
-    /// `geom_brep::props::spiric::spiric_face_rounds`), nor a sphere face
+    /// `geom_brep::props::spiric::rim_face_rounds`), nor a sphere face
     /// bounded by circles. A boolean pierce leaves a ring in the wall it
     /// pierces.
     RingOnCurvedFace {
@@ -3262,16 +3262,20 @@ fn face_reading_with(
     let run = face_flux(body, face, band, &hook, tol, RoundWindow::SCHEDULE, &refs)?;
     let mut met_at = None;
     if run.contribution.enclosure.is_some() {
-        // Each lane's schedule ends long before this bound.
+        // Each lane's schedule ends long before this bound; a lane that
+        // did not would read here as a bound reached, not a round met.
+        let mut ended = false;
         for round in 0..64 {
             let at = face_flux(body, face, band, &hook, tol, RoundWindow::at(round), &refs)?;
             if at.converged_at.is_some() {
                 met_at = Some(round);
             }
             if met_at.is_some() || at.open_at.is_none() {
+                ended = true;
                 break;
             }
         }
+        assert!(ended, "a face's schedule ran past 64 rounds");
     }
     let c = run.contribution;
     Ok(FaceReading {
@@ -4058,7 +4062,7 @@ fn takes_quadrature<'a, T: Decide + 'a>(
 fn curved_rim<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
     match carrier {
         geom::Curve3::Spiric { .. } => true,
-        geom::Curve3::Nurbs(c) => c.constant_weight().is_none(),
+        geom::Curve3::Nurbs(c) => geom_brep::props::rational_rim::is_rational(c),
         geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             false
         }

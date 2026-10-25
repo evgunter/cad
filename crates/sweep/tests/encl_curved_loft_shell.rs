@@ -573,15 +573,16 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     // vacuous. The target is the volume's, which the cap's flux meets at
     // the first round: its lever about the reference is the rims'
     // rounding. Its area is read at that round's pieces: measured
-    // 1.62e-6 at every ε, and a rule with half the pieces per round
-    // reads 32× that (the `h⁵` remainder).
+    // 1.3265e-6 at every ε (1.4508e-6 with each span read as one power
+    // series), and a rule with half the pieces per round reads about 32×
+    // that (the `h⁵` remainder).
     assert_eq!(
         reading.met_at,
         Some(0),
         "the cap meets the volume target at its first round"
     );
     assert!(
-        reading.area_pad <= 2e-6,
+        reading.area_pad <= 1.5e-6,
         "the moved cap's area bracket widened to ± {}",
         reading.area_pad
     );

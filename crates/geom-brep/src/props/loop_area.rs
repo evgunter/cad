@@ -176,7 +176,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if curve.constant_weight().is_none() {
+    if super::rational_rim::is_rational(curve) {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);

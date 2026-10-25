@@ -32,13 +32,15 @@ lifted images, is
 ```
 
 with shoelace 0.9750000000000125 against a rectangle area of
-0.9750000000000251. The rim's `IsoLine` sits on the row
-`0.024999999999999998`, but the seam's image read at its cache's end
-parameter reaches `v = 0.024999999999974973` and `u = 7.2e-30`: an end
-of the seam that the rim reaches only to rounding. The rectangle
-certificate needs exact corners (the exact-structure read, the
-axis-aligned test at `:1368` and the shoelace equality at `:1411`), so it
-refuses.
+0.9750000000000251. The wall's pcurves, printed (PR 5696's review): the
+rim's `IsoLine` has `p0 = (7.248e-30, 0.024999999999974973)`, 2.5e-14
+below the row with a `u` offset of 7.2e-30, so its start is the third
+corner; the fourth, `(1.0, 0.024999999999999998)`, is the `u = 1` seam
+read at its cache's start, one ulp below the row. Neither corner is the
+row and they are not each other's, so the polygon is a sliver off a
+rectangle. The rectangle certificate needs exact corners (the
+exact-structure read, the axis-aligned test at `:1368` and the shoelace
+equality at `:1411`), so it refuses.
 
 ## What it blocks
 
@@ -51,11 +53,13 @@ trims to a row hits the same refusal.
 The producer's, so SHELL's (`crates/topo/src/replace_face.rs:1376`,
 `replace_face_offset`). The moved plane is `z = 0.05` exactly, and the
 loft's height is `2v`, so its row is `v = 0.05/2 = 0.025` exactly in
-`f64`. The rim is minted one ulp below it, on `0.024999999999999998`,
-and the seam's end lands at `0.024999999999974973`, 2.5e-14 below. The
+`f64`. The rim's `IsoLine` is minted 2.5e-14 below it, at
+`v = 0.024999999999974973`, and off `u = 0` by 7.2e-30; the `u = 1`
+seam's cache starts one ulp below it, at `0.024999999999999998`. The
 patch lane's exact-rectangle certificate is doing its job: the minted
-corners do not meet. Minting the rim on the exact row, and the seam's end
-on the rim, would let the wall take the rectangle lane as it stands.
+corners do not meet. Minting the rim's `IsoLine` on the exact row with
+`p0.u` exactly `0`, and starting the seams' caches on that row, would let
+the wall take the rectangle lane as it stands.
 
 ## For ISO
 
