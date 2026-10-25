@@ -23,8 +23,9 @@
 //! each piece's run along `n` and its bend (`|n·C′|·h + |C″|·h²/2`), read
 //! along the gap and across each piece's tangent. Pieces stop at
 //! [`geom_core::bisect::tangency_floor`] of `1/κ`, `κ` the two carriers'
-//! summed curvature bound (`curve_pair_walk_piece`); a spline bounds no
-//! curvature here, so its pieces stop at the band itself. A pair that
+//! summed curvature bound (`curve_pair_walk_piece`), or at the band
+//! itself where that floor is not finite (a spline whose speed floor is
+//! zero). A pair that
 //! stops is polished toward the meeting by Gauss–Newton, each carrier's
 //! foot of the other's point is polished, and the point is read on both
 //! spans ([`Span::contact`]). Every piece the walk does not clear ends at
@@ -44,11 +45,11 @@ use super::{Both, Found, MeetFault, MeetRefusal, Meetings};
 use crate::roots::Unsettled;
 
 /// A span as the walk reads it: with its bounds on `|C″|` and on the
-/// curvature, `None` on a spline.
+/// curvature.
 struct Read<'r, 's, T: Decide> {
     span: &'r Span<'s, T>,
-    accel: Option<T>,
-    curvature: Option<T>,
+    accel: T,
+    curvature: T,
 }
 
 impl<'r, 's, T: Decide> Read<'r, 's, T> {
@@ -265,11 +266,8 @@ fn pieces_apart<T: Decide>(
     if clear(dist - pa.reach(a.hi()) - pb.reach(b.hi())) {
         return true;
     }
-    let (Some(acc_a), Some(acc_b)) = (a.accel, b.accel) else {
-        return false;
-    };
     let (ha, hb) = (pa.half(), pb.half());
-    let bend = (acc_a * ha.powi(2) + acc_b * hb.powi(2)) * T::from_f64(0.5);
+    let bend = (a.accel * ha.powi(2) + b.accel * hb.powi(2)) * T::from_f64(0.5);
     // `|D| ≥ |n·D|` for every unit `n`: along the gap, and across each
     // piece's tangent, where two near-parallel pieces read their
     // separation rather than their offset along it.
@@ -305,14 +303,10 @@ fn witnesses<T: Decide>(
     Ok(points)
 }
 
-/// The tangency floor of `a` against `b` in metres, or `None` where a
-/// carrier bounds no curvature.
-fn floor<T: Decide>(a: &Read<'_, '_, T>, b: &Read<'_, '_, T>, band: Band) -> Option<T> {
-    let kappa = a.curvature? + b.curvature?;
-    Some(geom_core::bisect::tangency_floor(
-        T::one() / kappa,
-        band.escalate(),
-    ))
+/// The tangency floor of `a` against `b` in metres: not finite where a
+/// carrier bounds no finite curvature.
+fn floor<T: Decide>(a: &Read<'_, '_, T>, b: &Read<'_, '_, T>, band: Band) -> T {
+    geom_core::bisect::tangency_floor(T::one() / (a.curvature + b.curvature), band.escalate())
 }
 
 /// **The meetings of `a` and `b` by the walk** (module docs).
@@ -364,7 +358,7 @@ pub(super) fn meet<T: Decide>(
         };
         found.offer(q, || read_both((a, &ta), (b, &tb), q, band), band);
     }
-    let floor = floor(&ra, &rb, band);
+    let floor = Some(floor(&ra, &rb, band));
     let walk = bisect(
         [(Piece::whole(a.params()), Piece::whole(b.params()))],
         |(pa, pb)| -> Step<(Piece<T>, Piece<T>), core::convert::Infallible> {

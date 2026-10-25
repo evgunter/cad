@@ -81,17 +81,21 @@ pub fn turn_defect_speed_hi<T: SpanLocate>(
 }
 
 /// A bound on `|C″(t)|` over every `t`: zero on a line, a conic's
-/// larger semi-axis, a spiric's [`crate::spiric_period_rate_bounds`];
-/// `None` on a spline, which has no bound here at every scalar.
-pub fn accel_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {
+/// larger semi-axis, a spiric's [`crate::spiric_period_rate_bounds`], a
+/// spline's [`crate::NurbsCurve3::accel_upper_bound`] (certified at
+/// `Interval`, poison where its statement refuses; at `f64` the same
+/// expression in round-to-nearest, as [`speed_range`]'s).
+pub fn accel_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).accel_hi()
 }
 
 /// A bound on the carrier's curvature over every `t`: zero on a line,
 /// `speed_hi / speed_lo²` on a conic, and `|C″|/|C′|²` from
-/// [`accel_hi`] and the minor radius on a spiric (the curvature
-/// `|C′ × C″|/|C′|³` is at most that); `None` on a spline.
-pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> Option<T> {
+/// [`accel_hi`] and [`speed_range`]'s floor on a spiric (its minor
+/// radius) and a spline (the curvature `|C′ × C″|/|C′|³` is at most
+/// that). A spline whose speed floor is zero or poison bounds no finite
+/// curvature, and its bound reads as such.
+pub fn curvature_hi<T: SpanLocate>(carrier: &crate::Curve3<T>) -> T {
     Kind::of(carrier).curvature_hi()
 }
 
@@ -190,25 +194,24 @@ impl<'a, T: SpanLocate> Kind<'a, T> {
         }
     }
 
-    fn accel_hi(&self) -> Option<T> {
+    fn accel_hi(&self) -> T {
         match *self {
-            Self::Line(_) => Some(T::zero()),
-            Self::Conic(c) => Some(c.speed_hi()),
+            Self::Line(_) => T::zero(),
+            Self::Conic(c) => c.speed_hi(),
             Self::Spiric {
                 major,
                 minor,
                 offset,
-            } => Some(crate::spiric_period_rate_bounds(major, minor, offset).1),
-            Self::Nurbs(_) => None,
+            } => crate::spiric_period_rate_bounds(major, minor, offset).1,
+            Self::Nurbs(n) => n.accel_upper_bound(),
         }
     }
 
-    fn curvature_hi(&self) -> Option<T> {
+    fn curvature_hi(&self) -> T {
         match *self {
-            Self::Line(_) => Some(T::zero()),
-            Self::Conic(c) => Some(c.curvature_hi()),
-            Self::Spiric { minor, .. } => Some(self.accel_hi()? / minor.powi(2)),
-            Self::Nurbs(_) => None,
+            Self::Line(_) => T::zero(),
+            Self::Conic(c) => c.curvature_hi(),
+            Self::Spiric { .. } | Self::Nurbs(_) => self.accel_hi() / self.range().0.get().powi(2),
         }
     }
 }

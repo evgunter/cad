@@ -34,9 +34,15 @@ From CLEAVE (taken on request in chat; CLEAVE would not start a P3). Moved by `g
 ## Closed
 
 `carrier_touch::off_face` takes the curve's speed from
-`carrier_speed::speed_range` on every kind and its curvature from
-`curvature_hi` where there is one: a spiric localizes on both bounds, a
-spline on the first-order bound alone (no curvature bound here).
+`carrier_speed::speed_range` and its curvature from `curvature_hi` on
+every kind. `accel_hi` and `curvature_hi` now bound a spline too, from
+`NurbsCurve3::accel_upper_bound` and its speed floor, and return a
+value rather than an `Option`. A spline whose speed floor is zero
+bounds no finite curvature, and the second-order bound then clears
+nothing. `curve_pair::walk` reads the same two bounds, so a spline pair
+there now stops at its tangency floor instead of the band.
+Without the spline curvature bound, the first-order walk ran out of
+`PIECE_BUDGET` at ε = 1e-12 (CI on this PR's first head).
 `reduce::wall_crossing` now routes a spiric or spline span, which no
 root door reads, to that localization instead of answering
 `Unsettled` before it. `speed_and_curvature_hi` is deleted (its `None`

@@ -19,10 +19,11 @@
 //! axis, the second-order `|dist(m)| − ℓ·|g| − ℓ²·H/2`, `g` the
 //! distance's derivative along the curve at `m` and `H` a bound on its
 //! second: `1/(ρ − |dist(m)| − ℓ)` for the carrier's level sets (ρ
-//! below), plus the curve's own curvature. `ℓ` is metered at the
-//! curve's speed bound ([`geom::carrier_speed::speed_range`]), on every
-//! kind; a spline has no curvature bound here, so it takes the first
-//! bound alone. Near a tangency the first
+//! below), plus the curve's own curvature
+//! ([`geom::carrier_speed::curvature_hi`]), with `ℓ` metered at its
+//! speed bound ([`geom::carrier_speed::speed_range`]), on every kind. A
+//! curvature bound that is not finite (a spline whose speed floor is
+//! zero) leaves the first bound alone. Near a tangency the first
 //! clears nothing finer than the band, the second clears pieces in
 //! proportion to their distance from the touch. The pieces that do not
 //! clear, bisected down to [`geom_core::bisect::tangency_floor`] of ρ, run together
@@ -183,12 +184,12 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
 struct Unlocalized;
 
 /// The parameter runs of the span that may meet the carrier, in order
-/// (module docs), the curve's speed bound and, where it has one, its
-/// curvature bound given; `None` past the budgets.
+/// (module docs), the curve's speed and curvature bounds given; `None`
+/// past the budgets.
 fn clusters<T: Decide + Bounds>(
     surface: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
-    (speed, bend): (SupSpeed<T>, Option<T>),
+    (speed, bend): (SupSpeed<T>, T),
     rho: T,
     (t0, t1): (T, T),
     band: Band,
@@ -211,17 +212,13 @@ fn clusters<T: Decide + Bounds>(
         let slope = (normal.dot(tangent) / tangent.norm()).abs();
         let lipschitz = dist.abs() - ell;
         let axis_gap = rho - dist.abs() - ell;
-        let bound = match bend {
-            Some(bend)
-                if matches!(
-                    decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band),
-                    Ok(Sign::Positive)
-                ) =>
-            {
-                let curl = T::one() / axis_gap + bend;
-                lipschitz.max(dist.abs() - ell * slope - ell.powi(2) * curl * half)
-            }
-            _ => lipschitz,
+        let bound = if let Ok(Sign::Positive) =
+            decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band)
+        {
+            let curl = T::one() / axis_gap + bend;
+            lipschitz.max(dist.abs() - ell * slope - ell.powi(2) * curl * half)
+        } else {
+            lipschitz
         };
         if let Ok(Sign::Positive) = decide("bool_touch_piece_clear", Margin::of(bound), band) {
             broken = true;

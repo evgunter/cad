@@ -30,7 +30,7 @@ fn band() -> Band {
 }
 
 /// The rates [`clusters`] reads: the speed bound and the curvature bound.
-fn rates(c: &Curve3<f64>) -> (geom_core::SupSpeed<f64>, Option<f64>) {
+fn rates(c: &Curve3<f64>) -> (geom_core::SupSpeed<f64>, f64) {
     (
         geom::carrier_speed::speed_range(c).1,
         geom::carrier_speed::curvature_hi(c),
@@ -333,9 +333,8 @@ fn spline_touching(u: f64) -> Curve3<f64> {
 /// carrier once from outside, at azimuth `−1/2` (off the sheet) or
 /// `7/10` (on it). The touch is a double root no root door certifies, so
 /// whether the span crosses the face is the localization's to say: the
-/// curve's speed bound localizes the touch into a ball off the face,
-/// and a spline, with no curvature bound here, does it on the first
-/// bound alone.
+/// curve's speed and curvature bounds localize the touch into a ball
+/// off the face.
 #[test]
 fn a_spiric_or_spline_touch_past_the_face_is_off_it() {
     let tol = Tol::witness();
