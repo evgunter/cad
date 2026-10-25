@@ -1209,12 +1209,10 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     // A primitive body: no declared contacts, so the tier-3 arm.
     ladder(&built.body, None);
 
-    let props = mass_properties(
-        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), Tol::witness())
-            .expect("the measured body passes tier 3"),
-        Tol::witness(),
-    )
-    .expect("mass properties");
+    let finished =
+        pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(&built.body), Tol::witness())
+            .expect("the measured body passes tier 3");
+    let props = mass_properties(&finished, Tol::witness()).expect("mass properties");
     assert!(
         (props.volume - 3.0).abs() < 1e-12,
         "volume {}",
@@ -1228,7 +1226,7 @@ fn the_authoring_ladder_runs_on_one_dependency() {
     write_binary(&mesh, &BinaryOptions::default(), &mut stl_out).expect("stl");
     assert!(!stl_out.is_empty());
 
-    let step = step_string(&built.body, &StepOptions::default(), Tol::witness()).expect("step");
+    let step = step_string(&finished, &StepOptions::default(), Tol::witness()).expect("step");
     assert!(step.starts_with("ISO-10303-21;"));
 }
 

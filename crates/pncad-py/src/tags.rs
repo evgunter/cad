@@ -2216,6 +2216,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
+        E::BodyInvalid { .. } => "body_invalid",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
     }

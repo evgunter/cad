@@ -488,14 +488,20 @@ assert issubclass(QuantityOpMismatch, PncadError)
 Export refuses in the same style. `ExportError` names the node and,
 when the value was the wrong shape, the kind it actually found — so
 "you asked me to export a profile" is a matchable fact rather than a
-message. On the Rust side, STEP export has three refusals you should
-*expect* rather than fix — `UnsupportedSurface`, `UnsupportedCurve`,
-`VoidShellUnsupported` — meaning the AP242 writer has no
+message. The export door takes a finished body: a body the at-rest
+gate refuses never reaches the writer (`ExportError`'s `body_invalid`
+here; on the Rust side `step_export::step_string` takes a
+`topo::AtRestBody`, so the gate's findings are the caller's to read).
+Past the gate, STEP export has three refusals you should *expect*
+rather than fix — `UnsupportedSurface`, `UnsupportedCurve`,
+`VoidShellUnsupported` — meaning the AP214 writer has no
 representation for a surface or a cavity the modeller can legitimately
-build. The
-tour tolerates exactly those three, per scene, and panics on anything
-else. That is the right posture to copy: enumerate the refusals you
-accept, and let every other one be loud.
+build. A fourth, `ShellUnclassified`, is not a frontier: it is the
+shell-role door failing to measure a cavity's volume at the reporting
+target, and it carries that door's refusal whole. The tour tolerates
+exactly the three, per scene, and panics on anything else. That is the
+right posture to copy: enumerate the refusals you accept, and let
+every other one be loud.
 
 ## 8. The mesh door: budgets and files
 

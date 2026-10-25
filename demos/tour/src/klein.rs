@@ -1259,7 +1259,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         6,
         "export the hollow ring as STEP (a multi-shell curved solid)",
         pncad::step_export::step_string(
-            &hollow64.body,
+            &pncad::topo::AtRestBody::validate(hollow64.body, tol)
+                .expect("the hollow ring is at rest"),
             &pncad::step_export::StepOptions {
                 product_name: "hollow_ring".into(),
                 ..Default::default()

@@ -943,7 +943,7 @@ fn r2_step_frontier_kind() {
     .expect("hollows")
     .body;
     let e = pncad::step_export::step_string(
-        &hollow,
+        &AtRestBody::validate(hollow, tol).expect("the hollow pot is at rest"),
         &pncad::step_export::StepOptions {
             product_name: "r2pot".to_string(),
             ..Default::default()

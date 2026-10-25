@@ -994,28 +994,23 @@ impl<'a> Writer<'a> {
         Ok(self.emit(&format!("CLOSED_SHELL('', ({}))", refs(&faces))))
     }
 
-    /// One `MANIFOLD_SOLID_BREP` per shell of every solid, after the
-    /// multi-shell outer/void classification (crate docs: outer shells
-    /// are independent solids, a void shell refuses). Single-shell
-    /// solids skip classification by design — tier-2 validity and the
-    /// +V invariant own lone-shell orientation.
-    fn manifold_solids(&mut self, name: &str, tol: Tol) -> Result<Vec<u64>, StepExportError> {
-        // Snapshot the walk order first (arena order for solids, stored
-        // order for their shells) so classification runs before any
-        // emission.
+    /// One `MANIFOLD_SOLID_BREP` per solid. A solid at rest holds one
+    /// `Outer` shell and any `Void`s (tier 3, check 10), so a solid with
+    /// more than one shell holds a cavity, and the first such solid in
+    /// walk order refuses ([`void_refusal`]) before anything is emitted.
+    fn manifold_solids(
+        &mut self,
+        at_rest: &AtRestBody<f64>,
+        name: &str,
+        tol: Tol,
+    ) -> Result<Vec<u64>, StepExportError> {
         let solid_shells: Vec<Vec<ShellKey>> = self
             .body
             .solids()
             .map(|(_, solid)| solid.shells.clone())
             .collect();
-        let multi: Vec<ShellKey> = solid_shells
-            .iter()
-            .filter(|shells| shells.len() > 1)
-            .flatten()
-            .copied()
-            .collect();
-        if !multi.is_empty() {
-            self.refuse_void_shells(&multi, tol)?;
+        if let Some(shells) = solid_shells.iter().find(|shells| shells.len() > 1) {
+            return Err(void_refusal(at_rest, shells, tol));
         }
         let mut msbs = Vec::new();
         for shell_key in solid_shells.into_iter().flatten() {
@@ -1024,39 +1019,50 @@ impl<'a> Writer<'a> {
         }
         Ok(msbs)
     }
+}
 
-    /// The roles of `shells` (every shell of the body's multi-shell
-    /// solids, in walk order) through `topo::classify_shells_of`; the
-    /// first void in walk order refuses.
-    fn refuse_void_shells(&self, shells: &[ShellKey], tol: Tol) -> Result<(), StepExportError> {
-        let finished = AtRestBody::validate(self.body.clone(), tol)
-            .map_err(|findings| StepExportError::MultiShellNotAtRest { findings })?;
-        let rows = classify_shells_of(&finished, shells, tol).map_err(|source| {
-            StepExportError::ShellUnclassified {
+/// The refusal of a multi-shell solid's `shells`, read through
+/// `topo::classify_shells_of`: its first void in stored order, or the
+/// door's own refusal.
+fn void_refusal(at_rest: &AtRestBody<f64>, shells: &[ShellKey], tol: Tol) -> StepExportError {
+    let rows = match classify_shells_of(at_rest, shells, tol) {
+        Ok(rows) => rows,
+        Err(source) => {
+            return StepExportError::ShellUnclassified {
                 source: Box::new(source),
-            }
-        })?;
-        for &shell in shells {
-            let row =
-                rows.iter()
-                    .find(|row| row.shell == shell)
-                    .ok_or(StepExportError::Corrupt {
-                        what: "solid shell key does not resolve",
-                    })?;
-            if row.role == ShellRole::Void {
-                return Err(StepExportError::VoidShellUnsupported {
-                    shell,
-                    volume: row.volume,
-                });
-            }
+            };
         }
-        Ok(())
+    };
+    let role = |shell: ShellKey| {
+        rows.iter()
+            .find(|row| row.shell == shell)
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "classify_shells_of returned no row for shell {shell:?} of the body's \
+                     own solid: the door classifies every named shell the body holds"
+                )
+            })
+    };
+    let void = shells
+        .iter()
+        .map(|&shell| role(shell))
+        .find(|row| row.role == ShellRole::Void)
+        .unwrap_or_else(|| {
+            unreachable!(
+                "a multi-shell solid at rest classified no void: check 10 admits one \
+                 outer shell per solid"
+            )
+        });
+    StepExportError::VoidShellUnsupported {
+        shell: void.shell,
+        volume_lo: void.volume - void.volume_pad,
+        volume_hi: void.volume + void.volume_pad,
     }
 }
 
 /// Serializes the whole document (the public entry point's engine).
 pub(crate) fn write_document(
-    body: &Body<f64>,
+    body: &AtRestBody<f64>,
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, StepExportError> {
@@ -1080,7 +1086,7 @@ pub(crate) fn write_document(
     let mut w = Writer::new(body, eps);
 
     // Geometry + topology.
-    let msbs = w.manifold_solids(&name, tol)?;
+    let msbs = w.manifold_solids(body, &name, tol)?;
     if msbs.is_empty() {
         return Err(StepExportError::NothingToExport);
     }

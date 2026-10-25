@@ -30,7 +30,7 @@ fn try_export(body: &topo::Body<f64>, name: &str) -> Result<String, StepExportEr
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options, Tol::witness())
+    step_string(&common::at_rest(body), &options, Tol::witness())
 }
 
 /// Counts non-overlapping occurrences of `needle`.
@@ -130,7 +130,8 @@ fn die_reconstructs_matching_kernel_census() {
 fn kiss_assembly_exports_two_solids() {
     let body = common::kiss_assembly();
     let text = export(&body, "kiss_assembly");
-    // One kernel solid, two outward shells → two MANIFOLD_SOLID_BREPs.
+    // Two kernel solids of one shell each → two MANIFOLD_SOLID_BREPs.
+    assert_eq!(body.solids().count(), 2, "the kissing dies are two solids");
     assert_eq!(count(&text, "MANIFOLD_SOLID_BREP("), 2);
     let shells = truck_shells(&text);
     assert_eq!(shells, vec![(11, 24, 16), (11, 24, 16)], "two die shells");
@@ -148,12 +149,12 @@ fn kiss_assembly_exports_two_solids() {
 
 #[test]
 fn byte_identity_same_body_and_same_recipe() {
-    let body = common::die(0.0, 0.0, 0.0);
+    let body = common::at_rest(&common::die(0.0, 0.0, 0.0));
     let options = StepOptions::default();
     let first = step_string(&body, &options, Tol::witness()).unwrap();
     let again = step_string(&body, &options, Tol::witness()).unwrap();
     assert_eq!(first, again, "same body value ⇒ byte-identical");
-    let rebuilt = common::die(0.0, 0.0, 0.0);
+    let rebuilt = common::at_rest(&common::die(0.0, 0.0, 0.0));
     let from_rebuild = step_string(&rebuilt, &options, Tol::witness()).unwrap();
     assert_eq!(first, from_rebuild, "same recipe ⇒ byte-identical");
 }
@@ -189,7 +190,7 @@ fn preamble_conformance_pins() {
 
 #[test]
 fn uncertainty_override_and_validation() {
-    let body = common::cube();
+    let body = common::at_rest(&common::cube());
     let options = StepOptions {
         uncertainty_m: Some(2.5e-6),
         ..StepOptions::default()
@@ -210,7 +211,7 @@ fn uncertainty_override_and_validation() {
 
 #[test]
 fn product_name_escaping() {
-    let body = common::cube();
+    let body = common::at_rest(&common::cube());
     let options = StepOptions {
         product_name: "o'brien".to_owned(),
         ..StepOptions::default()
@@ -301,7 +302,12 @@ fn curved_bodies_export_rather_than_refuse() {
         ("boss_union", common::boss_union()),
     ] {
         assert!(
-            step_string(&body, &StepOptions::default(), Tol::witness()).is_ok(),
+            step_string(
+                &common::at_rest(&body),
+                &StepOptions::default(),
+                Tol::witness()
+            )
+            .is_ok(),
             "{name} must export"
         );
     }
@@ -311,63 +317,93 @@ fn curved_bodies_export_rather_than_refuse() {
 fn voided_body_refuses_typed() {
     let body = common::voided();
     let cavity = body.shells().nth(1).expect("two shells").0;
-    match step_string(&body, &StepOptions::default(), Tol::witness()) {
-        Err(StepExportError::VoidShellUnsupported { shell, volume }) => {
+    match try_export(&body, "voided") {
+        Err(StepExportError::VoidShellUnsupported {
+            shell,
+            volume_lo,
+            volume_hi,
+        }) => {
             assert_eq!(shell, cavity, "the inner shell is the void");
             // The cavity's walls face into it, away from the material,
-            // so its signed volume is exactly −1.
-            assert_eq!(volume, -1.0, "cavity volume, negatively signed");
+            // so its signed volume is exactly −1, in closed form.
+            assert_eq!(
+                (volume_lo, volume_hi),
+                (-1.0, -1.0),
+                "cavity volume enclosure, negatively signed"
+            );
         }
         other => panic!("expected VoidShellUnsupported, got {other:?}"),
     }
 }
 
-/// **A multi-shell body wound inside out refuses unread.** The voided
-/// body reverted: its outer wall encloses −27 m³ and its cavity wall
-/// +1 m³. A sign read alone names the outer wall a void and the cavity
-/// material; the writer reads roles only off a finished body, and this
-/// one is not.
+/// **An inside-out body cannot reach the writer**, whatever its shell
+/// count: the door takes a finished body, and the at-rest gate refuses
+/// each of these naming the inverted solid. The single-shell brick and
+/// the reverted voided body refuse alike; a voided solid beside a far
+/// inverted brick refuses for the brick alone (exported on its own, the
+/// voided solid refuses as the void it is, `voided_body_refuses_typed`).
 #[test]
-fn an_inside_out_multi_shell_body_refuses_typed() {
-    let body = common::voided().revert().expect("the voided body reverts");
-    let solid = body.solids().next().expect("one solid").0;
-    match step_string(&body, &StepOptions::default(), Tol::witness()) {
-        Err(StepExportError::MultiShellNotAtRest { findings }) => {
-            assert_eq!(
-                findings,
-                vec![topo::ValidationError::NegativeVolume { solid }],
-                "the gate's reason"
-            );
-        }
-        other => panic!("expected MultiShellNotAtRest, got {other:?}"),
-    }
+fn an_inside_out_body_refuses_at_the_gate_not_the_writer() {
+    let tol = Tol::witness();
+    let gate = |body: topo::Body<f64>| match topo::AtRestBody::validate(body, tol) {
+        Ok(_) => panic!("an inside-out body passed the at-rest gate"),
+        Err(findings) => findings,
+    };
+    let inverted = |body: &topo::Body<f64>| {
+        let solid = body.solids().next().expect("one solid").0;
+        let reverted = body.revert().expect("the body reverts");
+        (reverted, solid)
+    };
+
+    let (brick, brick_solid) = inverted(&common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol));
+    assert_eq!(brick.shells().count(), 1, "the brick is single-shell");
+    assert_eq!(
+        gate(brick),
+        vec![topo::ValidationError::NegativeVolume { solid: brick_solid }],
+        "single-shell: the gate's reason"
+    );
+
+    let (voided, voided_solid) = inverted(&common::voided());
+    assert_eq!(
+        gate(voided),
+        vec![topo::ValidationError::NegativeVolume {
+            solid: voided_solid
+        }],
+        "multi-shell: the gate's reason"
+    );
+
+    let mut both = common::voided();
+    let (far, _) = inverted(&common::brick((10.0, 11.0), (0.0, 1.0), (0.0, 1.0), tol));
+    let far_solid = topo::graft_disjoint(&mut both, &far).expect("graft");
+    assert_eq!(
+        gate(both),
+        vec![topo::ValidationError::NegativeVolume { solid: far_solid }],
+        "voided beside an inverted brick: the brick alone refuses"
+    );
 }
 
 #[test]
 fn empty_body_refuses_typed() {
     let body = topo::Body::<f64>::new();
-    match step_string(&body, &StepOptions::default(), Tol::witness()) {
+    match try_export(&body, "empty") {
         Err(StepExportError::NothingToExport) => {}
         other => panic!("expected NothingToExport, got {other:?}"),
     }
 }
 
+/// mvfs's skeletal body — one face bounded by an empty loop, its
+/// surface the "no description yet" placeholder — is legal only
+/// mid-construction, so the at-rest gate refuses it and the writer
+/// never sees it.
 #[test]
-fn mid_surgery_body_refuses_typed() {
-    // mvfs's skeletal body: one face bounded by an empty loop, its
-    // surface still the honest "no description yet" NURBS placeholder
-    // — legal mid-construction, never exportable. The surface-first
-    // walk refuses on the placeholder (had the face carried a real
-    // plane, the empty loop would refuse as EmptyLoop next).
+fn a_mid_surgery_body_cannot_reach_the_writer() {
     let mut body = topo::Body::<f64>::new();
     body.mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
         .unwrap();
-    match step_string(&body, &StepOptions::default(), Tol::witness()) {
-        Err(StepExportError::UnsupportedSurface { kind, .. }) => {
-            assert_eq!(kind, "nurbs placeholder");
-        }
-        other => panic!("expected UnsupportedSurface, got {other:?}"),
-    }
+    assert!(
+        topo::AtRestBody::validate(body, Tol::witness()).is_err(),
+        "a skeleton is not at rest"
+    );
 }
 
 // ------------------------------------------------------ golden fixtures

@@ -27,6 +27,12 @@ fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<
 /// [`sweep::test_support::brick`], and so is `stl`'s.
 pub use sweep::test_support::brick;
 
+/// `body` finished through the at-rest gate: what the export door
+/// takes. Panics, naming the gate's findings, on a body it refuses.
+pub fn at_rest(body: &Body<f64>) -> AtRestBody<f64> {
+    finished("the exported body", body.clone(), Tol::witness())
+}
+
 /// The unit cube `[0,1]³` — the spike's 6/12/8 reference shape.
 pub fn cube() -> Body<f64> {
     sweep::test_support::cube(1.0, Tol::witness())
@@ -45,7 +51,8 @@ pub fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
 }
 
 /// Two pocketed dies kissing at the corner `(1,1,1)` — the M3 R6
-/// assembly: one solid, TWO shells (both outward), exact volume 1.75.
+/// assembly: two solids of one shell each (pieces that only touch are
+/// distinct pieces of material), exact volume 1.75.
 pub fn kiss_assembly() -> Body<f64> {
     let d1 = finished("die 1", die(0.0, 0.0, 0.0), Tol::witness());
     let d2 = finished("die 2", die(1.0, 1.0, 1.0), Tol::witness());

@@ -73,7 +73,7 @@ fn a_native_cusp_round_trips_through_step_as_a_solid() {
     assert_eq!(before.len(), 1, "the native strut, {before:?}");
 
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )

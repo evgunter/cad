@@ -1511,7 +1511,7 @@ fn a_curved_shelled_body_refuses_step_export_as_a_void() {
     .body;
     assert_eq!(hollow.shells().count(), 2);
     let e = step_export::step_string(
-        &hollow,
+        &finished("the shelled tube", hollow, Tol::witness()),
         &step_export::StepOptions {
             product_name: "shelled tube".into(),
             ..Default::default()
@@ -1519,12 +1519,17 @@ fn a_curved_shelled_body_refuses_step_export_as_a_void() {
         Tol::witness(),
     )
     .expect_err("a body with a cavity has no STEP spelling yet");
-    let step_export::StepExportError::VoidShellUnsupported { volume, .. } = e else {
+    let step_export::StepExportError::VoidShellUnsupported {
+        volume_lo,
+        volume_hi,
+        ..
+    } = e
+    else {
         panic!("expected the void refusal, got {e}");
     };
     assert!(
-        volume < 0.0,
-        "the cavity's signed volume is negative: {volume}"
+        volume_lo <= volume_hi && volume_hi < 0.0,
+        "the cavity's signed volume is negative: [{volume_lo}, {volume_hi}]"
     );
 }
 

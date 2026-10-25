@@ -4777,6 +4777,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "export_error_tag",
         values: &[
+            "body_invalid",
             "empty_boolean",
             "node_failed",
             "not_a_body",

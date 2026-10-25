@@ -680,8 +680,10 @@ fn run_body(
     // a pinned probe rather than a failure. Undeclared, it still fails
     // the tour.
     let step_name = format!("{label}.step");
+    let finished = pncad::topo::AtRestBody::validate(sb.body.clone(), tol)
+        .unwrap_or_else(|e| panic!("{label}: the STEP lane's at-rest gate refused: {e:?}"));
     let step_result = pncad::step_export::step_string(
-        &sb.body,
+        &finished,
         &pncad::step_export::StepOptions {
             product_name: label.clone(),
             ..Default::default()

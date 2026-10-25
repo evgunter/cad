@@ -37,7 +37,7 @@ fn main() {
         };
         let path = format!("{outdir}/{name}.step");
         let mut file = std::fs::File::create(&path).expect("create fixture file");
-        write_step(&body, &options, &mut file, tol).expect("write fixture");
+        write_step(&common::at_rest(&body), &options, &mut file, tol).expect("write fixture");
         println!("wrote {path}");
     }
 }

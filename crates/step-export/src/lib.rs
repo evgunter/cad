@@ -6,12 +6,12 @@
 //!
 //! # What this is, and what it is not
 //!
-//! An EXPORT writer only: a finished [`topo::Body`] (certified
-//! analytic geometry — planar since M4, curved since M5 PR 13 —
-//! tier-2-valid at rest) is serialized to a Part 21 exchange
-//! file whose data section is the AP214 advanced-B-rep product
-//! structure. Import is M7 and deliberately absent. The F6 spike
-//! established that no adoptable crate writes conformant STEP
+//! An EXPORT writer: a finished body ([`topo::AtRestBody`], the
+//! at-rest gate's verdict kept; certified analytic geometry — planar
+//! since M4, curved since M5 PR 13) is serialized to a Part 21
+//! exchange file whose data section is the AP214 advanced-B-rep
+//! product structure. Import lives in its own crate, `step-import`.
+//! The F6 spike established that no adoptable crate writes conformant STEP
 //! (ruststep has no writer at all; truck-stepio's writer ships
 //! preamble/entity defects unfixable through its API), so this writer
 //! is in-house and the external crates appear as **dev-dependency
@@ -108,15 +108,15 @@
 //! rational complex instance for weighted nets), and a described
 //! NURBS carrier as `B_SPLINE_CURVE_WITH_KNOTS` (the loft seams).
 //!
-//! # Export only — the round trip is not closed
+//! # Export only — reading is `step-import`'s
 //!
-//! Said plainly, because the curved subset makes the asymmetry
-//! bigger: this crate WRITES STEP and cannot READ it. There is no
-//! importer in the kernel at all; STEP import is M7. A file written
-//! here is consumed by other CAD systems (the FreeCAD/OCC acceptance
-//! below), never by this kernel — so "round trip" in these docs always
-//! means *someone else's* reader reconstructing our geometry, and a
-//! shape that leaves through this writer does not come back.
+//! This crate WRITES STEP and does not read it. The kernel's reader is
+//! the `step-import` crate, which imports exactly the exchange
+//! structure this writer emits and closes the round trip in its own
+//! tests (`crates/step-import/tests/roundtrip.rs`). The writer depends
+//! on no reader: "round trip" in these docs means a reader — the
+//! kernel's own or another CAD system's (the FreeCAD/OCC acceptance
+//! below) — reconstructing our geometry.
 //!
 //! # Orientation mapping (cites the ratified conventions, adds none)
 //!
@@ -156,22 +156,18 @@
 //!
 //! # Solids, shells, and voids
 //!
-//! Each shell exports as one `CLOSED_SHELL` under its own
-//! `MANIFOLD_SOLID_BREP`. For a **multi-shell solid** the writer reads
-//! each shell's outer/void role off `topo::classify_shells_of`, the
-//! kernel's one shell-role reader, over the body finished through
-//! `topo::AtRestBody::validate` (the door classifies finished bodies
-//! only). Outer shells become independent `MANIFOLD_SOLID_BREP`s; a void
-//! shell is **refused** with [`StepExportError::VoidShellUnsupported`] —
-//! `BREP_WITH_VOIDS` needs a void-to-containing-shell association the
-//! kernel does not yet record, and guessing it would be a silent lie. A
-//! multi-shell body that is not finished refuses as
-//! [`StepExportError::MultiShellNotAtRest`], and a shell the door cannot
-//! classify as [`StepExportError::ShellUnclassified`]; neither is read
-//! to a side. Single-shell solids are deliberately never classified:
-//! tier-2 validity plus the +V invariant own a lone shell's orientation,
-//! and the classification exists only to tell a multi-shell solid's
-//! shells apart.
+//! Each solid exports as one `CLOSED_SHELL` under its own
+//! `MANIFOLD_SOLID_BREP`. A solid at rest holds one `Outer` shell and
+//! any number of `Void`s (tier 3, check 10), so a solid with more than
+//! one shell holds a cavity: the writer reads its shells' roles off
+//! `topo::classify_shells_of`, the kernel's one shell-role reader, and
+//! **refuses** the first void with
+//! [`StepExportError::VoidShellUnsupported`] — `BREP_WITH_VOIDS` needs
+//! a void-to-containing-shell association the kernel does not yet
+//! record, and guessing it would be a silent lie. A shell whose volume
+//! the door cannot measure at its reporting target refuses as
+//! [`StepExportError::ShellUnclassified`]. Single-shell solids are
+//! never classified: the at-rest gate owns a lone shell's orientation.
 //!
 //! # Determinism (D9)
 //!
@@ -188,10 +184,12 @@
 //! # Fail loud (D4/D9)
 //!
 //! Every unrepresentable input is a typed [`StepExportError`]: no
-//! panics, no lossy fallbacks, no NaN smuggling (`NaN`/`±∞` refuse at
-//! the float printer with the offending context named). Mid-surgery
-//! bodies (null scaffolding, empty loops) refuse rather than emit
-//! half-topology.
+//! lossy fallbacks, no NaN smuggling (`NaN`/`±∞` refuse at the float
+//! printer with the offending context named). The door takes a
+//! finished body, so a mid-surgery one (null scaffolding, empty loops)
+//! is refused by the at-rest gate before the writer sees it; the
+//! writer's own structural refusals stay as its fail-loud surface. A
+//! broken kernel invariant panics rather than refusing.
 //!
 //! # External acceptance
 //!
@@ -205,7 +203,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 use geom_core::Tol;
-use topo::{Body, EdgeKey, FaceKey, LoopKey, ShellKey};
+use topo::{AtRestBody, EdgeKey, FaceKey, LoopKey, ShellKey};
 
 mod real;
 mod writer;
@@ -218,8 +216,8 @@ pub use real::fmt_real;
 pub use writer::spiric_export_spline;
 
 /// Typed export failure (closed enum, D4 ¶3). Every variant names the
-/// offending entity or value — the writer never panics and never
-/// silently degrades output.
+/// offending entity or value — the writer never silently degrades
+/// output, and panics only on a broken kernel invariant.
 #[derive(Debug)]
 pub enum StepExportError {
     /// A real value on the write path (coordinate, direction component,
@@ -292,18 +290,16 @@ pub enum StepExportError {
     VoidShellUnsupported {
         /// The void shell.
         shell: ShellKey,
-        /// Its signed volume (m³; the midpoint of the door's bracket).
-        volume: f64,
+        /// The low end of its signed-volume enclosure (m³).
+        volume_lo: f64,
+        /// The high end of its signed-volume enclosure (m³).
+        volume_hi: f64,
     },
-    /// A body with a multi-shell solid did not pass
-    /// `topo::AtRestBody::validate`, so its shells have no role the
-    /// kernel can read.
-    MultiShellNotAtRest {
-        /// The gate's findings, verbatim.
-        findings: Vec<topo::ValidationError>,
-    },
-    /// `topo::classify_shells_of` could not decide a shell of a
-    /// multi-shell solid outer or void; its refusal names the shell.
+    /// `topo::classify_shells_of` refused a shell of a multi-shell
+    /// solid. On a body at rest its role reading is check 10's and
+    /// cannot refuse here, so the refusal is the door's measurement of
+    /// the shell's volume at the reporting target
+    /// (`topo::ShellClassifyError::Props`); it names the shell.
     ShellUnclassified {
         /// The door's refusal.
         source: Box<topo::ShellClassifyError>,
@@ -366,22 +362,16 @@ impl fmt::Display for StepExportError {
             Self::NothingToExport => {
                 f.write_str("step export: the body contains no exportable shell")
             }
-            Self::VoidShellUnsupported { shell, volume } => write!(
+            Self::VoidShellUnsupported {
+                shell,
+                volume_lo,
+                volume_hi,
+            } => write!(
                 f,
                 "step export: shell {shell:?} of a multi-shell solid is a void cavity \
-                 (signed volume {volume} m\u{b3}); BREP_WITH_VOIDS export needs the \
+                 (signed volume in [{volume_lo}, {volume_hi}] m\u{b3}); BREP_WITH_VOIDS export needs the \
                  kernel's void-shell designation (future work), refusing rather than \
                  exporting a void as material"
-            ),
-            Self::MultiShellNotAtRest { findings } => write!(
-                f,
-                "step export: the body has a multi-shell solid but is not a finished \
-                 body, so its shells cannot be told outer from void ({} finding(s), \
-                 first: {})",
-                findings.len(),
-                findings
-                    .first()
-                    .map_or_else(|| "none".to_owned(), ToString::to_string)
             ),
             Self::ShellUnclassified { source } => write!(
                 f,
@@ -462,7 +452,7 @@ impl Default for StepOptions {
 /// non-finite values, void shells, corrupt structure. Finished planar
 /// bodies from the public construction APIs export cleanly.
 pub fn step_string(
-    body: &Body<f64>,
+    body: &AtRestBody<f64>,
     options: &StepOptions,
     tol: Tol,
 ) -> Result<String, StepExportError> {
@@ -475,7 +465,7 @@ pub fn step_string(
 ///
 /// As [`step_string`], plus [`StepExportError::Io`] from the sink.
 pub fn write_step<W: std::io::Write>(
-    body: &Body<f64>,
+    body: &AtRestBody<f64>,
     options: &StepOptions,
     sink: &mut W,
     tol: Tol,

@@ -109,14 +109,23 @@ mapping gains those two arms.
 
 ## Closed (2026-10-25)
 
-Fixed by PRED S18 (PR 5684). `crates/step-export/src/writer.rs`
-(`Writer::refuse_void_shells`) finishes a body with a multi-shell solid
-through `topo::AtRestBody::validate` and reads every such solid's
-shells through `topo::classify_shells_of`. A `Void` refuses
-`VoidShellUnsupported`, a body the gate refuses refuses
-`MultiShellNotAtRest`, and the door's own refusal is carried whole as
-`ShellUnclassified`. `volume.rs`, `CurvedShellClassification` and
-`ShellVolumeIndeterminate` are deleted. The rows this item named flip
-to `VoidShellUnsupported` and say so: `sweep`'s shelled tube, the
-tour's four hollow-body pins, klein's wall 6. The hollow-body refusal
-itself stays with `step-export-refuses-every-hollow-body`.
+Fixed by PRED S18 (PR 5684). The export door takes a finished body
+(`step_string(&topo::AtRestBody<f64>, ..)`), and
+`crates/step-export/src/writer.rs` (`void_refusal`) reads the first
+multi-shell solid's shells through `topo::classify_shells_of`: at rest
+such a solid is one `Outer` plus `Void`s (tier 3, check 10), so it
+refuses `VoidShellUnsupported`, naming the void and its volume
+enclosure. `volume.rs`, `CurvedShellClassification` and
+`ShellVolumeIndeterminate` are deleted.
+
+The first behaviour change above landed at the gate, not the writer: a
+planar shell whose role is in band refuses at validation
+(`ValidationError::ShellRoleUndecided`, check 10), so the caller's
+`AtRestBody::validate` names it and the writer is never handed the
+body. What the writer's `ShellUnclassified` still carries is the door's
+measurement of a shell's volume at the reporting target
+(`ShellClassifyError::Props`), which the gate's sign read does not
+need. The rows this item named flip to `VoidShellUnsupported` and say
+so: `sweep`'s shelled tube, the tour's four hollow-body pins, klein's
+wall 6. The hollow-body refusal itself stays with
+`step-export-refuses-every-hollow-body`.

@@ -626,7 +626,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         Err(e) => println!("[e2e] STEP refuses: {e}"),
     }
     match step_export::step_string(
-        &first.body,
+        &topo::test_support::finished("the exported body", first.body.clone(), tol()),
         &step_export::StepOptions {
             product_name: "hollow once".into(),
             ..Default::default()
@@ -640,7 +640,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
         Err(e) => println!("[e2e] STEP (hollow once, pre-existing shape) refuses: {e}"),
     }
     match step_export::step_string(
-        &twice.body,
+        &topo::test_support::finished("the exported body", twice.body.clone(), tol()),
         &step_export::StepOptions {
             product_name: "hollow twice".into(),
             ..Default::default()
