@@ -1254,3 +1254,5 @@ mod review_5697_r2_corpus;
 mod review_5697_r2_points;
 #[path = "review_5697_r2_rays.rs"]
 mod review_5697_r2_rays;
+#[path = "review_5697_r2_seams.rs"]
+mod review_5697_r2_seams;
