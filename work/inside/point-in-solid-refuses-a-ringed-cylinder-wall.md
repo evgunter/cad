@@ -2,10 +2,11 @@
 id: point-in-solid-refuses-a-ringed-cylinder-wall
 kind: issue
 title: point_in_solid's wall outline refuses any ringed cylinder wall, so a later union member's containment probe stops on a pierced boss
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+closed: 2026-10-24
 ---
 
 
@@ -64,3 +65,13 @@ of the differences. This is the same family as this item: a ringed or
 seam-turned cylinder wall that the outline does not read. The probe
 was a scratch test, never committed.
 
+
+
+## Closed by CHART (2026-10-24)
+
+On branch `chart/ringed-curved-doors`
+(`curved-face-containment-answers-none-on-a-ringed-face`), a cylinder wall's
+region is read from its boundary edges, every loop in one stride
+(`topo::boolean::ruled_region`), so a ringed wall is read like any other.
+`ruled_region_rows::a_windowed_wall_with_a_ring_reads_its_region` holds a
+hole in a windowed wall to `Out`.

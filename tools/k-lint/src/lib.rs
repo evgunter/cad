@@ -202,6 +202,9 @@
 //! them ahead of the flags, and fails the run naming the open ruling
 //! rather than a baseline re-derivation that will not move. Gating on
 //! the NAME is what makes the guard independent of a row's sign.
+//! The list is empty today: its one entry, the quadrature budget exit's
+//! `props_quad_last_round`, retired with the exit (`docs/K-REPORT.md`,
+//! "Maintenance: this roster is a RECORD").
 //!
 //! # Rule (2)'s discrimination floor
 //!
@@ -314,16 +317,18 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// explicit allow-list on purpose: a new ε-coupled predicate is NOT on
 /// it and keeps flagging under the metre rules until someone rules.
 ///
-/// **PINNED TO ONE FILE'S SPELLING — read `tests/predicate_roster.rs`
-/// for what that does and does not cover**, because the pin's reach is
-/// narrower than this sentence can honestly summarise. It reads
-/// `crates/geom-brep/src/props/quad.rs` across the cargo-root boundary
+/// **PINNED TO ITS MINT SITES' SPELLING — read
+/// `tests/predicate_roster.rs` for what that does and does not
+/// cover**, because the pin's reach is narrower than this sentence can
+/// honestly summarise. It reads the quadrature's mint sources
+/// (`crates/geom-brep/src/props/quad.rs` and
+/// `crates/topo/src/props/quad_lane.rs`) across the cargo-root boundary
 /// and reds if a name here stops being minted there; if a rostered
 /// mint's margin stops deriving from the whole identifier `target_len`
 /// in its own enclosing function, or that binding stops being
 /// `QUAD_TARGET_LEN_FACTOR * eps` (rule (4)'s premise, not just its
 /// key); if a mint acquires such a margin and is neither rostered nor
-/// excused there by name; or if any `classify_len` in that file drops
+/// excused there by name; or if any `classify_len` in those files drops
 /// out of the parse.
 ///
 /// **What no test here can see** is a predicate the kernel adds to this
@@ -376,14 +381,13 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 ///
 /// `tests/threshold_provenance.rs` carries the other half, over the
 /// committed era rule (4)'s floor is cut from.
-pub const EPS_COUPLED_UNRULED: [(&str, &str); 1] = [(
-    "props_quad_last_round",
-    concat!(
-        "the budget exit's once-per-FACE bound on a round that never runs, minted only when ",
-        "round 0 does not certify. No committed era carries a row of it and a fresh sweep ",
-        "records none, so rule (4)'s floor cannot be cut over it. Ruled in docs/K-REPORT.md",
-    ),
-)];
+///
+/// **Empty today.** Its one entry, the budget exit's
+/// `props_quad_last_round`, retired with the exit (PR 5589;
+/// `docs/K-REPORT.md` keeps the ruling's record). The guard stays for
+/// the next such name: [`lint_csv_ruled`] takes the list as an argument,
+/// so `tests/cli_contract.rs` drives it with a synthetic entry.
+pub const EPS_COUPLED_UNRULED: &[(&str, &str)] = &[];
 
 /// The recorded reason `predicate` is ε-coupled and deliberately off
 /// [`EPS_COUPLED_PREDICATES`], if it is.
@@ -816,12 +820,26 @@ pub fn lint_sample(
 /// comes back in [`Scan::flags`], and the CLI turns it into its own
 /// failure voice.
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
+    lint_csv_ruled(text, EPS_COUPLED_UNRULED)
+}
+
+/// [`lint_csv`] against an explicit unruled list in place of
+/// [`EPS_COUPLED_UNRULED`]: the scan counts a row of any `ruled` name
+/// into [`Scan::unruled`].
+///
+/// # Errors
+///
+/// As [`lint_csv`].
+pub fn lint_csv_ruled(
+    text: &str,
+    ruled: &'static [(&'static str, &'static str)],
+) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut zero_arm: Vec<ZeroArmTally> = Vec::new();
     let mut scanned = 0usize;
     let mut symbolic = 0usize;
     let mut proximity_capped = None;
-    let mut unruled = [0usize; EPS_COUPLED_UNRULED.len()];
+    let mut unruled = vec![0usize; ruled.len()];
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
             if line != EXPECTED_HEADER {
@@ -922,7 +940,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         // question this column answers is whether the family has a
         // distribution at all, and a `zero` or in-band row is as much
         // of one as a `positive`.
-        if let Some(k) = EPS_COUPLED_UNRULED.iter().position(|(n, _)| *n == pred) {
+        if let Some(k) = ruled.iter().position(|(n, _)| *n == pred) {
             unruled[k] += 1;
         }
         // Record (once) that rule (2)-above is running capped on this
@@ -974,7 +992,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         flags,
         zero_arm,
         proximity_capped,
-        unruled: EPS_COUPLED_UNRULED
+        unruled: ruled
             .iter()
             .zip(unruled)
             .filter(|(_, n)| *n > 0)

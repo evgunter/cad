@@ -28,14 +28,14 @@
 //!   touches is `from`'s face alone.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
+use crate::emit_shared_rim_several::{construction, own_name};
 use crate::fixture::{
-    ang, ename, ends, face_vertices, insert, len, on_frame, out, point, scl, table, vertex_of,
-    vname,
+    against, axes_at, ends, face_vertices, insert, len, on_frame, out, point, slid, table,
+    vertex_of,
 };
 
 use editor_core::{
@@ -46,7 +46,28 @@ use geom_core::Tol;
 use topo::BooleanResultKind;
 
 fn pv(doc: &editor_core::ProfileDoc, node: RecipeNodeId, vertex: u32) -> ProfileVertexRef {
-    crate::fixture::vpiece(doc, node, 0, vertex as usize)
+    crate::fixture::vpiece(doc, construction(doc, node), 0, vertex as usize)
+}
+
+/// **A prism of `loop_` extruded `distance` up its own `z`, placed
+/// against `target` with its own frame at `(origin, u, v)`**: the
+/// placement.
+fn placed_prism(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    (origin, u, v): ([f64; 3], [f64; 3], [f64; 3]),
+    loop_: Vec<(f64, f64)>,
+    distance: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, p) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![loop_]);
+    let (doc, prism) = insert(
+        doc,
+        Node::Extrude {
+            profile: p.into(),
+            distance: len(distance),
+        },
+    );
+    against(doc, target, prism, &axes_at(origin, u, v))
 }
 
 /// Which symmetric two-member boolean node a row builds.
@@ -96,8 +117,8 @@ fn assert_at(ev: &Evaluation<f64>, id: RecipeNodeId, n: &StableName, at: [f64; 3
 }
 
 pub(crate) fn nested(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, big) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
-    let (doc, small) = block(doc, (0.5, 1.0), (0.5, 1.0), 0.5, 0.5);
+    let (doc, big) = block(doc, (0.0, 2.0), (0.0, 2.0), 2.0);
+    let (doc, small) = block_on(doc, big, (0.5, 1.0), (0.5, 1.0), 0.5, 0.5);
     (doc, big, small)
 }
 
@@ -152,15 +173,17 @@ fn the_surviving_operand_names_the_corners_in_every_order() {
         let survivor_read = out(&doc, survivor);
         for (end, h) in [(CapEnd::Start, z), (CapEnd::End, z + dz)] {
             for (i, (px, py)) in corners.into_iter().enumerate() {
-                let own = NameRef::new(vname(
+                let own = NameRef::new(own_name(
+                    &doc,
                     survivor,
-                    RoleSeg::CapVertex(end, pv(&doc, survivor, i as u32)),
+                    EntityKind::Vertex,
+                    vec![RoleSeg::CapVertex(end, pv(&doc, survivor, i as u32))],
                 ));
                 let seg = RoleSeg::From {
                     read: survivor_read,
                     of: own,
                 };
-                assert_at(&ev, id, &vname(id, seg), [px, py, h]);
+                assert_at(&ev, id, &crate::fixture::vname(id, seg), [px, py, h]);
             }
         }
         let absent = table(&ev, id)
@@ -201,25 +224,16 @@ pub(crate) fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeN
         Node::Extrude {
             profile: lp.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     // Drawn on the plane through the apex normal to (1, 1, 0), and
     // extruded along (-1, -1, 0) into the ell's material.
-    let (doc, tp) = on_frame(
+    let (doc, tip) = placed_prism(
         doc,
-        [1.0, 1.0, 0.5],
-        [r, -r, 0.0],
-        [0.0, 0.0, 1.0],
-        vec![vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)]],
-    );
-    let (doc, tip) = insert(
-        doc,
-        Node::Extrude {
-            profile: tp.into(),
-            distance: len(0.5),
-            side: ExtrudeSide::Along,
-        },
+        ell,
+        ([1.0, 1.0, 0.5], [r, -r, 0.0], [0.0, 0.0, 1.0]),
+        vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)],
+        0.5,
     );
     (doc, ell, tip)
 }
@@ -241,7 +255,10 @@ fn an_edge_touched_by_the_other_operands_vertex_stays_whole_in_a_clone() {
     let (doc, ell_first) = union(doc, ell, tip);
     let ev = run(&doc);
 
-    let reflex = NameRef::new(ename(ell, RoleSeg::LateralEdge(pv(&doc, ell, 3))));
+    let reflex = NameRef::new(crate::fixture::ename(
+        ell,
+        RoleSeg::LateralEdge(pv(&doc, ell, 3)),
+    ));
     let ell_read = out(&doc, ell);
     assert_eq!(kind_of(&ev, tip_first), BooleanResultKind::OperandB);
     assert_whole(
@@ -296,27 +313,24 @@ fn assert_whole(ev: &Evaluation<f64>, id: RecipeNodeId, head: RoleSeg) {
 fn an_assembly_keeps_the_touched_edge_whole_in_either_order() {
     let r = std::f64::consts::FRAC_1_SQRT_2;
     let doc = ProfileDoc::empty_derived("emit_vertex_keys_assembly", Tol::witness());
-    let (doc, cube) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, p) = on_frame(
+    let (doc, cube) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, wedge) = placed_prism(
         doc,
-        [1.0 - r, 1.0 + r, 0.0],
-        [r, r, 0.0],
-        [0.0, 0.0, 1.0],
-        vec![vec![(0.0, 0.0), (1.0, -1.0), (1.0, 1.0)]],
-    );
-    let (doc, wedge) = insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: len(2.0),
-            side: ExtrudeSide::Along,
-        },
+        cube,
+        ([1.0 - r, 1.0 + r, 0.0], [r, r, 0.0], [0.0, 0.0, 1.0]),
+        vec![(0.0, 0.0), (1.0, -1.0), (1.0, 1.0)],
+        2.0,
     );
     let (doc, cube_first) = union(doc, cube, wedge);
     let (doc, wedge_first) = union(doc, wedge, cube);
     let ev = run(&doc);
 
-    let ridge = NameRef::new(ename(wedge, RoleSeg::LateralEdge(pv(&doc, wedge, 0))));
+    let ridge = NameRef::new(own_name(
+        &doc,
+        wedge,
+        EntityKind::Edge,
+        vec![RoleSeg::LateralEdge(pv(&doc, wedge, 0))],
+    ));
     let wedge_read = out(&doc, wedge);
     assert_eq!(kind_of(&ev, cube_first), BooleanResultKind::Assembly);
     assert_whole(
@@ -341,21 +355,13 @@ fn an_assembly_keeps_the_touched_edge_whole_in_either_order() {
 /// A tip whose apex touches the top face of a block at an interior
 /// point, hanging down into the block.
 pub(crate) fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, bl) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, tp) = on_frame(
+    let (doc, bl) = block(doc, (0.0, 2.0), (0.0, 2.0), 1.0);
+    let (doc, tip) = placed_prism(
         doc,
-        [1.0, 0.8, 1.0],
-        [0.0, 0.0, -1.0],
-        [1.0, 0.0, 0.0],
-        vec![vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)]],
-    );
-    let (doc, tip) = insert(
-        doc,
-        Node::Extrude {
-            profile: tp.into(),
-            distance: len(0.4),
-            side: ExtrudeSide::Along,
-        },
+        bl,
+        ([1.0, 0.8, 1.0], [0.0, 0.0, -1.0], [1.0, 0.0, 0.0]),
+        vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)],
+        0.4,
     );
     (doc, bl, tip)
 }
@@ -363,23 +369,20 @@ pub(crate) fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNo
 /// A tip whose apex touches a block's vertical edge from outside.
 pub(crate) fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let r = std::f64::consts::FRAC_1_SQRT_2;
-    let (doc, bl) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, tp) = on_frame(
+    let (doc, bl) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    // The frame normal points into the block; the tip stands below
+    // the frame, away from the block: its own frame slid 0.5 back
+    // along the normal (−r, −r, 0).
+    let (doc, tip) = placed_prism(
         doc,
-        [1.0, 1.0, 0.5],
-        [r, -r, 0.0],
-        [0.0, 0.0, 1.0],
-        vec![vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)]],
-    );
-    // The frame normal points into the block; the tip extrudes
-    // against it, away from the block.
-    let (doc, tip) = insert(
-        doc,
-        Node::Extrude {
-            profile: tp.into(),
-            distance: len(0.5),
-            side: ExtrudeSide::Against,
-        },
+        bl,
+        (
+            [1.0 + 0.5 * r, 1.0 + 0.5 * r, 0.5],
+            [r, -r, 0.0],
+            [0.0, 0.0, 1.0],
+        ),
+        vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)],
+        0.5,
     );
     (doc, bl, tip)
 }
@@ -408,7 +411,6 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::Extrude {
             profile: lp.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     let n = (1.0f64 + 1.0 + 0.09).sqrt();
@@ -422,20 +424,12 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
     ];
     let s = 0.7;
     let o = [1.0 - s * d[0], 1.0 - s * d[1], -s * d[2]];
-    let (doc, p) = on_frame(
+    let (doc, wedge) = placed_prism(
         doc,
-        o,
-        u,
-        v,
-        vec![vec![(0.0, 0.0), (1.0, -1.0), (1.0, 1.0)]],
-    );
-    let (doc, wedge) = insert(
-        doc,
-        Node::Extrude {
-            profile: p.into(),
-            distance: len(2.0),
-            side: ExtrudeSide::Along,
-        },
+        ell,
+        (o, u, v),
+        vec![(0.0, 0.0), (1.0, -1.0), (1.0, 1.0)],
+        2.0,
     );
     (doc, ell, wedge)
 }
@@ -445,20 +439,8 @@ pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, Recipe
 /// top-front edge — and a small prism inside it whose apex touches
 /// that line at (0.6, 0, 1).
 fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let place = |doc: ProfileDoc, dx: f64| {
-        insert(
-            doc,
-            Node::transform(
-                proto,
-                editor_core::Step::Rigid {
-                    translation: [len(dx), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        )
-    };
+    let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let place = |doc: ProfileDoc, dx: f64| slid(doc, proto, proto, [dx, 0.0, 0.0]);
     let (doc, m1) = place(doc, 0.0);
     let (doc, m2) = place(doc, 0.5);
     let (doc, bar) = crate::fixture::union_over(doc, &[m1, m2]);
@@ -472,20 +454,12 @@ fn bar_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         n[2] * e1[0] - n[0] * e1[2],
         n[0] * e1[1] - n[1] * e1[0],
     ];
-    let (doc, tp) = on_frame(
+    let (doc, tip) = placed_prism(
         doc,
-        [0.6, 0.0, 1.0],
-        e1,
-        e2,
-        vec![vec![(0.0, 0.0), (0.3, -0.1), (0.3, 0.1)]],
-    );
-    let (doc, tip) = insert(
-        doc,
-        Node::Extrude {
-            profile: tp.into(),
-            distance: len(0.3),
-            side: ExtrudeSide::Along,
-        },
+        proto,
+        ([0.6, 0.0, 1.0], e1, e2),
+        vec![(0.0, 0.0), (0.3, -0.1), (0.3, 0.1)],
+        0.3,
     );
     (doc, bar, tip)
 }
@@ -772,8 +746,8 @@ fn a_covered_pair_is_named_alike_in_both_orders() {
         (
             "inside",
             |d| {
-                let (d, a) = block(d, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-                let (d, b) = block(d, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+                let (d, a) = block(d, (0.0, 2.0), (0.0, 1.0), 1.0);
+                let (d, b) = block_on(d, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
                 (d, a, b)
             },
             walls,
@@ -781,8 +755,8 @@ fn a_covered_pair_is_named_alike_in_both_orders() {
         (
             "partial",
             |d| {
-                let (d, a) = block(d, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-                let (d, b) = block(d, (1.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+                let (d, a) = block(d, (0.0, 2.0), (0.0, 1.0), 1.0);
+                let (d, b) = block_on(d, a, (1.0, 3.0), (0.0, 1.0), 0.0, 1.0);
                 (d, a, b)
             },
             walls,
@@ -790,8 +764,8 @@ fn a_covered_pair_is_named_alike_in_both_orders() {
         (
             "equal",
             |d| {
-                let (d, a) = block(d, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-                let (d, b) = block(d, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+                let (d, a) = block(d, (0.0, 2.0), (0.0, 1.0), 1.0);
+                let (d, b) = block_on(d, a, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
                 (d, a, b)
             },
             all,
@@ -799,8 +773,8 @@ fn a_covered_pair_is_named_alike_in_both_orders() {
         (
             "tops_flush",
             |d| {
-                let (d, a) = block(d, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
-                let (d, b) = block(d, (1.0, 3.0), (0.5, 1.5), 0.5, 0.5);
+                let (d, a) = block(d, (0.0, 2.0), (0.0, 2.0), 1.0);
+                let (d, b) = block_on(d, a, (1.0, 3.0), (0.5, 1.5), 0.5, 0.5);
                 (d, a, b)
             },
             top,
@@ -880,10 +854,10 @@ fn a_covered_pair_is_named_alike_in_both_orders() {
 #[test]
 fn a_subtract_names_a_touched_face_for_from_alone() {
     let doc = ProfileDoc::empty_derived("emit_vertex_keys_abut", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, wall) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, patch) = block(doc, (2.0, 3.0), (0.25, 0.75), 0.25, 0.5);
-    let (doc, seat) = block(doc, (0.5, 1.5), (0.0, 1.0), 1.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 1.0);
+    let (doc, wall) = block_on(doc, a, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, patch) = block_on(doc, a, (2.0, 3.0), (0.25, 0.75), 0.25, 0.5);
+    let (doc, seat) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 1.0, 1.0);
     let rows = [
         ("whole wall", wall, (0, 2.0)),
         ("part of the wall", patch, (0, 2.0)),

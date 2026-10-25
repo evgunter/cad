@@ -139,6 +139,8 @@ mod display_contract;
 mod edge_meeting_ray_probes;
 #[path = "euler_site_pcurve_rows.rs"]
 mod euler_site_pcurve_rows;
+#[path = "every_measurement_name_takes_a_finished_body.rs"]
+mod every_measurement_name_takes_a_finished_body;
 #[path = "fused_into_live_cells.rs"]
 mod fused_into_live_cells;
 #[path = "gate_reads_coincident_wedges.rs"]
@@ -165,6 +167,8 @@ mod join1_r2_topo_probes;
 mod join_star_fixture;
 #[path = "join_whole_orbit_rows.rs"]
 mod join_whole_orbit_rows;
+#[path = "long_edges_on_one_line.rs"]
+mod long_edges_on_one_line;
 #[path = "loop_reparenting_pcurve_rows.rs"]
 mod loop_reparenting_pcurve_rows;
 #[path = "m3_pr1_surgery.rs"]
@@ -227,6 +231,8 @@ mod missed_ray_side;
 mod narrow_needle_containment;
 #[path = "neighbours_across_a_closed_edge.rs"]
 mod neighbours_across_a_closed_edge;
+#[path = "ngon_prism_offset_scaling.rs"]
+mod ngon_prism_offset_scaling;
 #[path = "offset_a_corner_kiss.rs"]
 mod offset_a_corner_kiss;
 #[path = "offset_doors_read_charts_not_material.rs"]
@@ -237,6 +243,8 @@ mod on_verdict;
 mod one_record_carry;
 #[path = "pcurve_door_refusals.rs"]
 mod pcurve_door_refusals;
+#[path = "projected_row_chart_box.rs"]
+mod projected_row_chart_box;
 #[path = "props_sphere_cap_door.rs"]
 mod props_sphere_cap_door;
 #[path = "r1_lane1_bracket_read_census.rs"]
@@ -263,10 +271,16 @@ mod result_gate_sites;
 mod review_4996_carry_probes;
 #[path = "review_4996_r2_probes.rs"]
 mod review_4996_r2_probes;
+#[path = "review_census_fixpass_probes.rs"]
+mod review_census_fixpass_probes;
+#[path = "review_census_r2_probes.rs"]
+mod review_census_r2_probes;
 #[path = "review_cleave_farplane.rs"]
 mod review_cleave_farplane;
 #[path = "review_cleave_nurbs_lane.rs"]
 mod review_cleave_nurbs_lane;
+#[path = "review_intent_census_r1_probes.rs"]
+mod review_intent_census_r1_probes;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
@@ -355,8 +369,6 @@ mod split_operand_gate;
 mod stated_general_image_mint;
 #[path = "surgery_carries_records.rs"]
 mod surgery_carries_records;
-#[path = "trim_3_chart_bound.rs"]
-mod trim_3_chart_bound;
 #[path = "union_flush_onto_edge_contact.rs"]
 mod union_flush_onto_edge_contact;
 #[path = "vertex_on_edge_records.rs"]
@@ -446,5 +458,7 @@ mod split_tangent_edge;
 mod split_through_an_apex;
 #[path = "tangent_touch_charges_both_sags.rs"]
 mod tangent_touch_charges_both_sags;
+#[path = "the_fin_crown_winds_as_a_solid.rs"]
+mod the_fin_crown_winds_as_a_solid;
 #[path = "three_solids_on_one_line.rs"]
 mod three_solids_on_one_line;

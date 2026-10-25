@@ -147,9 +147,11 @@ pub enum TessellateError {
         /// The scaffolding edge.
         edge: EdgeKey,
     },
-    /// A curved face carries interior rings — no construction
-    /// produces one (curved patches are swept UV rectangles); refused
-    /// rather than guessed at.
+    /// A curved face carries interior rings, which the curved and
+    /// trimmed lanes do not mesh; refused rather than guessed at. A
+    /// boolean that pierces a torus wall with a plane leaves one, a
+    /// spiric ring, on a valid body
+    /// (`work/tess/valid-ringed-torus-faces-build-but-cannot-be-meshed`).
     RingOnCurvedFace {
         /// The offending face.
         face: FaceKey,

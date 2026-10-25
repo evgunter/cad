@@ -223,8 +223,7 @@ fn the_embedded_pair_is_refused_undeclared_too() {
 
 /// **The other direction, so the rows above cannot pass by refusing
 /// every declared assembly.** Two cubes stacked face to face, with the
-/// interface recorded at its four coincident corners and the four rim
-/// edges between them: the extents are
+/// interface recorded as its one face pair: the extents are
 /// definitely separable in `z`, arm 2 clears them, and the body
 /// validates with no findings at all.
 ///
@@ -233,27 +232,7 @@ fn the_embedded_pair_is_refused_undeclared_too() {
 #[test]
 fn a_declared_stacked_assembly_still_clears_at_the_containment_arm() {
     let body = assembly(&cube(1.0, 0.0, 0.0, 0.0), &cube(1.0, 0.0, 0.0, 1.0));
-    let mut records = ContactRecords::default();
-    for corner in [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)] {
-        let hits: Vec<VertexKey> = body
-            .vertex_points()
-            .filter(|(_, p)| {
-                let p = *p;
-                (p.x - corner.0).abs() < 1e-12
-                    && (p.y - corner.1).abs() < 1e-12
-                    && (p.z - 1.0).abs() < 1e-12
-            })
-            .map(|(k, _)| k)
-            .collect();
-        let [a, b] = hits[..] else {
-            panic!("exactly two coincident corners at {corner:?}: {hits:?}");
-        };
-        records.extend([topo::Cited::new(
-            topo::Contact::new(&body, topo::Cell::Vertex(a), topo::Cell::Vertex(b)).unwrap(),
-            topo::Cites::decided(0),
-        )]);
-    }
-    records.extend(crate::m9_2_census_door::rim_records(&body));
+    let records = ContactRecords::from_iter(vec![crate::m9_2_census_door::interface_record(&body)]);
     assert_eq!(
         validate_pseudomanifold(&body, &records, Tol::witness()),
         Ok(()),

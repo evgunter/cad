@@ -27,8 +27,26 @@ this plan, never this file. Branch prefix `quad/`; away-channel tag
   specifying.
 - **The dial** (`[ev]`, ask early):
   `quad2-rational-max-rounds-dial-decision`.
-- **Parked on a consumer**: `purchasable-area-tightness-valve` — a
-  demand-triggered valve with no demand yet; it waits.
+- **Frame dependence**: a certified width or a verdict that moves when
+  the body is translated or rotated. Ev's criterion (in chat,
+  2026-10-21) is that such a row is P1 when it was encountered
+  naturally, that is, when it actually blocked something.
+  `a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`
+  is P1: it blocked the Klein tube and the projectbox spring. The rest
+  were found by probes and sweeps:
+  `quad-rational-patch-cross-grows-with-translation` (P2),
+  `quadrature-interval-floor-grows-with-the-body-past-the-band` (P2),
+  `a-translated-arc-prism-panics-the-area-gauge-through-mass-properties`
+  (P2) and `quad-area-pads-read-the-cross-norm-off-per-coordinate-boxes`
+  (P3). Any of them rises to P1 once something real meets it.
+  INTENT stage 3 E's test 13 (`docs/INTENT-STAGE3-SPEC.md`) computes
+  every corpus operation in a second, rotated and translated frame and
+  expects the same verdicts, so these rows sit on that P0's path.
+  Most were measured before FLUX's `shell_reference` (2026-10-20) moved
+  the props fold's flux origin to a vertex of each shell, so re-measure
+  every one of them on current main first.
+- **The P2–P4 tail** moved to QUADTAIL (2026-10-21), including
+  `purchasable-area-tightness-valve`.
 
 ## Review posture
 

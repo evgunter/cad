@@ -436,8 +436,15 @@ fn r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path() {
                     carved += 1;
                     assert_eq!(topo::validate(&out.body), Ok(()), "{pose}: tier 1");
                     assert_eq!(topo::validate_closed(&out.body), Ok(()), "{pose}: tier 2");
-                    let props = topo::mass_properties(&out.body, Tol::witness())
-                        .expect("a carved wedge has closed-form props");
+                    let props = topo::mass_properties(
+                        &topo::test_support::finished(
+                            "the measured body",
+                            topo::Body::clone(&out.body),
+                            Tol::witness(),
+                        ),
+                        Tol::witness(),
+                    )
+                    .expect("a carved wedge has closed-form props");
                     assert!(
                         props.volume.is_finite() && props.volume > 0.0,
                         "{pose}: a carved body has a finite positive volume, got {}",

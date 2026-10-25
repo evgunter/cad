@@ -35,7 +35,7 @@ use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
 use sweep::test_support::{
     assert_promises_either_side, cube, revolved_about_y, rim_arcs_at, waisted,
 };
-use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, FaceKey, SurfaceKey, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -100,7 +100,11 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let props = mass_properties(body, tol()).expect("mass properties compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("mass properties compute");
     assert_eq!(props.volume_pad, 0.0, "closed-form faces only");
     props.volume
 }
@@ -288,7 +292,11 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
     let r: f64 = 0.1;
     let removed = 6.0 * (1.0 - core::f64::consts::PI / 4.0) * r * r
         - 6.0 * (5.0 / 3.0 - core::f64::consts::FRAC_PI_2) * r.powi(3);
-    let props = mass_properties(&out.body, tol()).expect("certified props");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+        tol(),
+    )
+    .expect("certified props");
     assert!(
         ((1.0 - props.volume) - removed).abs() < 1e-8 + props.volume_pad,
         "ΔV {} vs the closed form {removed}",
@@ -363,7 +371,11 @@ fn p4_the_lantern_neck_rim_carves_and_one_arc_refuses_followably() {
         .expect("the whole neck rim carves through the hostless-crossing annulus");
     validate_geometric(&out.body, tol()).expect("the neck carve is tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "ONE band over both arcs");
-    let props = mass_properties(&out.body, tol()).expect("mass properties compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+        tol(),
+    )
+    .expect("mass properties compute");
     assert_eq!(
         props.volume_pad, 0.0,
         "every face of the neck carve is closed-form"

@@ -147,15 +147,18 @@ fn the_composed_die_recipe_evaluates() {
 fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
     let doc = die_composed::document();
     let (fillet, target) = fillet_and_target(&doc.doc);
-    // The ball's names ride the Transform through unchanged, so the
-    // `FromB` payloads name the revolve node — recovered here from the
-    // target's own table rather than restated.
+    // The ball's names ride its placement as `Placed` names, so the
+    // `FromB` payloads name the revolve node under the pip's placement
+    // — recovered here from the target's own table rather than restated.
     let ev0 = eval(&doc.doc);
     let tool = tool_read(&doc.doc, target);
     let ball = edge_names(&ev0, target)
         .into_iter()
         .find_map(|n| match n.path.first() {
-            Some(RoleSeg::From { read, of: inner }) if *read == tool => Some(inner.node),
+            Some(RoleSeg::From { read, of: inner }) if *read == tool => match inner.path.first() {
+                Some(RoleSeg::Placed { of }) => Some(of.node),
+                _ => None,
+            },
             _ => None,
         })
         .expect("the cavity contributes FromB edges");
@@ -224,7 +227,8 @@ fn the_selection_is_every_target_edge_except_the_cavity_meridians() {
         assert!(
             matches!(n.path.first(), Some(RoleSeg::From { read, of: inner })
                 if *read == tool
-                    && matches!(inner.path.first(), Some(RoleSeg::Meridian(..)))),
+                    && matches!(inner.path.first(), Some(RoleSeg::Placed { of })
+                        if matches!(of.path.first(), Some(RoleSeg::Meridian(..))))),
             "the excluded names are the cavity's meridians, got {n:?}"
         );
     }

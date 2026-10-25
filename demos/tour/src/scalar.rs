@@ -18,62 +18,46 @@ use pncad::geom_core::Decide;
 #[cfg(feature = "probe")]
 use pncad::geom_core::Probe;
 
-/// The K funnel name the tour's authored frame axes and cut directions
+/// The K funnel name the tour's decided frame axes and cut directions
 /// are decided under.
 ///
-/// A scene that wants a sketch plane off the three world frames, or a
-/// split plane, has to mint a witness, and the mint asks for a funnel
-/// name — which
-/// a demo, as an outside consumer, has to invent. One name for the
-/// whole tour, because which scene asked is not what a K reader is
-/// after.
+/// A frame whose axes a scene COMPUTED — a plane rolled about a stem,
+/// a blade's section along its spine — or a split plane across a
+/// computed direction has to be decided, and the mint asks for a funnel
+/// name, which a demo, as an outside consumer, has to invent. One name
+/// for the whole tour, because which scene asked is not what a K reader
+/// is after. An axis-aligned sketch plane is not decided: it is a
+/// written turn (`RigidMotion::turned`). The tube scenes' [`axis_frame`]
+/// still decides an exact (axis, reference) pair under this name
+/// (`work/frame/exact-axis-and-reference-frames-still-decide.md`).
 pub const TOUR_FRAME_AXIS: &str = "tour_frame_axis";
 
-/// **A sketch plane from two authored directions**, orthonormalized at
-/// the run's band.
-///
-/// The library's decision-free frames are the three world ones
-/// (`RigidMotion::axes_xy` and its siblings); anything else — a plane
-/// spanned by x̂ and ẑ, a plane rolled about a stem — goes through the
-/// Gram–Schmidt mint, which IS a decision and so wants a band and a
-/// funnel name. This is the tour writing that out once instead of at
-/// every call site; `memories/demo-purpose.md` is why the friction is
-/// recorded rather than hidden.
+/// **A sketch plane from two computed directions**, orthonormalized at
+/// the run's band — a plane rolled about a stem, a blade's section
+/// frame. The Gram–Schmidt mint IS a decision, so it wants a band and
+/// [`TOUR_FRAME_AXIS`]; this is the tour writing that out once instead
+/// of at every call site.
 ///
 /// # Panics
 ///
 /// If the band cannot be formed, or if the two directions span no
-/// plane — every scene here authors a pair that does.
+/// plane — every scene here computes a pair that does.
 pub fn sketch_frame<S: Scalar>(
     origin: pncad::geom_core::Point3<S>,
     u: pncad::geom_core::Vec3<S>,
     v: pncad::geom_core::Vec3<S>,
     tol: pncad::geom_core::Tol,
 ) -> pncad::profile::SketchPlane<S> {
-    pncad::profile::SketchPlane::from_frame(authored_frame(origin, u, v, tol))
-}
-
-/// **The frame witness itself**, for the scenes that place a body
-/// rather than draw on a plane — a skin's section placement, a loft's
-/// station. Same mint, same funnel name; see [`sketch_frame`].
-///
-/// # Panics
-///
-/// As [`sketch_frame`].
-pub fn authored_frame<S: Scalar>(
-    origin: pncad::geom_core::Point3<S>,
-    u: pncad::geom_core::Vec3<S>,
-    v: pncad::geom_core::Vec3<S>,
-    tol: pncad::geom_core::Tol,
-) -> pncad::geom_core::RigidMotion<S> {
-    pncad::geom_core::RigidMotion::gram_schmidt(
-        origin,
-        u,
-        v,
-        TOUR_FRAME_AXIS,
-        pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band"),
+    pncad::profile::SketchPlane::from_frame(
+        pncad::geom_core::RigidMotion::gram_schmidt(
+            origin,
+            u,
+            v,
+            TOUR_FRAME_AXIS,
+            pncad::geom_core::Band::linear(tol).expect("the run's tolerance forms a band"),
+        )
+        .expect("the scene's two directions span a plane"),
     )
-    .expect("the scene's two directions span a plane")
 }
 
 /// **A frame from a raw axis and a raw reference**: the tube doors'

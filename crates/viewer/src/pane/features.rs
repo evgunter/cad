@@ -51,16 +51,16 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
 
 /// **What one feature-tree row reads as, drawn**: its headline
 /// ([`tree::headline`]) — a labelled node's label with its kind and tag
-/// muted beside it, an unlabelled node's kind, tag and pose — and the
-/// world badge.
+/// muted beside it, an unlabelled node's kind, tag and which one of its
+/// kind it is — and the world badge.
 ///
-/// **The kind alone is not a name.** A tree of rows reading `Datum
-/// frame` twice asks a person to tell two frames apart by clicking;
-/// the tag tells them apart, and the pose the node itself states is
-/// what tells a person WHICH frame ([`crate::tree::frame_pose`]) — the
-/// same words the creation forms' picker reads ([`crate::tree::node_label`]).
+/// **The kind alone is not a name.** A tree of rows reading `Extrude`
+/// twice asks a person to tell two extrudes apart by clicking; the tag
+/// tells them apart, and an instance's part file
+/// ([`crate::tree::part_file`]) tells a person WHICH part — the same
+/// words a picker reads ([`crate::tree::node_label`]).
 pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egui::Response {
-    let tree::Headline { lead, muted } = tree::headline(&row.spoken, row.pose.as_deref());
+    let tree::Headline { lead, muted } = tree::headline(&row.spoken, row.which.as_deref());
     let font_id = egui::TextStyle::Button.resolve(ui.style());
     // The lead takes the widget's own colour (selected, hovered), the
     // muted half the theme's weak one.
@@ -316,9 +316,6 @@ fn lines_under(ui: &mut egui::Ui, row: &TreeRow, theme: &Theme) -> Option<Recipe
         },
         Some(Readout::Value(_) | Readout::Empty(_)) | None => {}
     }
-    if let Some(note) = &row.note {
-        advisory_line(ui, row.depth, note, theme);
-    }
     clicked
 }
 
@@ -410,7 +407,7 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::{ExtrudeSide, RecipeNodeId, SpokenNode};
+    use pncad::document::{RecipeNodeId, SpokenNode};
 
     use eframe::egui;
 
@@ -504,19 +501,19 @@ mod tests {
         );
     }
 
-    /// A row as `tree::rows` builds one for a `Datum::Frame` node.
-    fn frame_row(id: u64, pose: &str) -> TreeRow {
+    /// A row as `tree::rows` builds one for an instance of the part in
+    /// `file`.
+    fn instance_row_of(id: u64, file: &str) -> TreeRow {
         TreeRow {
             id: RecipeNodeId::new(0, test_utils::refusal::tagged(id)),
             spoken: spoken(
                 RecipeNodeId::new(0, test_utils::refusal::tagged(id)),
-                Some("Datum frame"),
+                Some("InstantiatePart"),
             ),
-            pose: Some(pose.to_owned()),
+            which: Some(file.to_owned()),
             depth: 0,
             placed: false,
             status: RowStatus::Ok,
-            note: None,
             repair_at: None,
             readout: None,
             version_offer: None,
@@ -524,37 +521,36 @@ mod tests {
         }
     }
 
-    /// **The pane draws which frame the row is**, not the kind alone.
+    /// **The pane draws which part the row is**, not the kind alone.
     ///
-    /// The tree's half of this unit. A `TreeRow` that carries a pose
-    /// the pane drops is the same defect the row was filed against
-    /// with a field added, and until this row existed deleting the
-    /// composition reddened nothing in either suite.
+    /// The tree's half of this unit. A `TreeRow` that carries which one
+    /// of its kind it is and a pane that drops it is the same defect the
+    /// row was filed against with a field added.
     #[test]
-    fn a_frame_row_says_which_frame_it_is() {
+    fn an_instance_row_says_which_part_it_is() {
         let drawn = painted_text(|ui| {
-            row_label(ui, &frame_row(3, "xy at (0, 0, 0) m"), false);
+            row_label(ui, &instance_row_of(3, "bracket.pncad"), false);
         });
-        assert!(drawn.contains("Datum frame"), "{drawn}");
+        assert!(drawn.contains("InstantiatePart"), "{drawn}");
         assert!(
-            drawn.contains("xy at (0, 0, 0) m"),
-            "the pose the node states reaches the row a person reads: {drawn}"
+            drawn.contains("bracket.pncad"),
+            "the part the node names reaches the row a person reads: {drawn}"
         );
     }
 
-    /// Two frames a centimetre apart are two different rows.
+    /// Two instances of two parts are two different rows.
     #[test]
-    fn two_frame_rows_a_centimetre_apart_read_differently() {
+    fn two_instance_rows_of_two_parts_read_differently() {
         let one = painted_text(|ui| {
-            row_label(ui, &frame_row(3, "xy at (0, 0, 0) m"), false);
+            row_label(ui, &instance_row_of(3, "bracket.pncad"), false);
         });
         let other = painted_text(|ui| {
-            row_label(ui, &frame_row(7, "xy at (0, 0, 0.01) m"), false);
+            row_label(ui, &instance_row_of(7, "hinge.pncad"), false);
         });
         assert_ne!(one, other, "{one} / {other}");
     }
 
-    /// A node with no pose reads as its kind, with no dangling
+    /// A node with nothing to say of which it is reads as its kind, with no dangling
     /// separator where the sentence would have been — and a placed
     /// body still carries its world badge.
     #[test]
@@ -565,11 +561,10 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 Some("Extrude"),
             ),
-            pose: None,
+            which: None,
             depth: 0,
             placed: true,
             status: RowStatus::Ok,
-            note: None,
             repair_at: None,
             readout: None,
             version_offer: None,
@@ -589,18 +584,19 @@ mod tests {
         );
     }
 
-    /// A placed row with a pose carries both: the pose AND the badge, in that
-    /// order — the composition the glyph arm is written around.
+    /// A placed row saying which one it is carries both: which AND the
+    /// badge, in that order — the composition the glyph arm is written
+    /// around.
     #[test]
-    fn a_placed_row_carries_the_pose_and_the_world_badge() {
-        let mut row = frame_row(2, "yz at (0, 0, 0) m");
+    fn a_placed_row_carries_which_it_is_and_the_world_badge() {
+        let mut row = instance_row_of(2, "bracket.pncad");
         row.placed = true;
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);
         });
         assert!(
             drawn.contains(&format!(
-                "Datum frame 000000000002 — yz at (0, 0, 0) m {GLYPH_WORLD}"
+                "InstantiatePart 000000000002 — bracket.pncad {GLYPH_WORLD}"
             )),
             "{drawn}"
         );
@@ -615,14 +611,13 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
                 Some("Mate"),
             ),
-            pose: None,
+            which: None,
             depth: 0,
             placed: false,
             status: RowStatus::Failed {
                 message: FAILURE.to_owned(),
                 carried: Vec::new(),
             },
-            note: None,
             repair_at,
             readout: None,
             version_offer: None,
@@ -700,10 +695,10 @@ mod tests {
     #[test]
     fn a_failed_rows_link_to_the_node_to_repair_selects_it() {
         let placer = RecipeNodeId::new(0, test_utils::refusal::tagged(3));
-        let row = placer_refused_row(Some(spoken(placer, Some("Datum frame"))));
-        let link = tree::link_wording(&spoken(placer, Some("Datum frame")));
+        let row = placer_refused_row(Some(spoken(placer, Some("Extrude"))));
+        let link = tree::link_wording(&spoken(placer, Some("Extrude")));
         assert_eq!(
-            link, "see Datum frame 000000000003",
+            link, "see Extrude 000000000003",
             "the node as the document speaks it"
         );
         assert_eq!(clicking(&row, &link), Some(placer));
@@ -790,7 +785,7 @@ mod tests {
         use pncad::geom_core::Tol;
         use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector, select};
 
-        use crate::test_support::{ang, framed_square, inserted, len};
+        use crate::test_support::{ang, inserted, len, square_profile};
 
         let tol = Tol::witness();
         let run = |doc: &Doc<_>| {
@@ -802,13 +797,12 @@ mod tests {
                 tol,
             )
         };
-        let (doc, profile) = framed_square(&Doc::empty_derived("measure-rows", tol), 0.02, tol);
+        let (doc, profile) = square_profile(&Doc::empty_derived("measure-rows", tol), 0.02, tol);
         let (doc, solid) = inserted(
             &doc,
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(HEIGHT),
-                side: ExtrudeSide::Along,
             },
             tol,
         );
@@ -1012,11 +1006,10 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
                 Some("Split"),
             ),
-            pose: None,
+            which: None,
             depth: 0,
             placed: false,
             status: RowStatus::Ok,
-            note: None,
             repair_at: None,
             readout: Some(Readout::Empty(readout)),
             version_offer: None,
@@ -1114,25 +1107,15 @@ mod tests {
         );
     }
 
-    /// **A placement's row paints its standing note under it, then its
-    /// constraints as children one step in**, each with its remove
-    /// button — here a placement holding a mate whose class has no
-    /// at-rest record, in the kernel's words — quietly and with no
-    /// badge.
+    /// **A placement's row paints its constraints as children one step
+    /// in**, each with its remove button, and no badge.
     ///
-    /// Red if `lines_under` drops the note or draws it loud, or if the
-    /// constraint children stop drawing under the row, in bundle order.
+    /// Red if the constraint children stop drawing under the row, in
+    /// bundle order.
     #[test]
-    fn a_placement_rows_note_and_constraints_paint_under_it() {
-        use pncad::document::{ClassAdmission, ConstraintId, MateRef, MintId, class_admission};
-        use pncad::select::ContactClass;
+    fn a_placement_rows_constraints_paint_under_it() {
+        use pncad::document::{ConstraintId, MateRef, MintId};
 
-        let admission = class_admission(ContactClass::Tangent);
-        assert!(
-            matches!(admission, ClassAdmission::NoAtRestRecord { .. }),
-            "the premise: a Tangent mate has no at-rest record: {admission:?}"
-        );
-        let note = admission.no_record_reason();
         let placement = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         let constraint = |n: u64| {
             MateRef::new(
@@ -1142,43 +1125,38 @@ mod tests {
         };
         let row = TreeRow {
             status: RowStatus::Ok,
-            note: Some(note.to_owned()),
             constraints: vec![
                 tree::ConstraintRow {
                     mate: constraint(8),
-                    said: "constraint 1: world mate".to_owned(),
+                    said: "constraint 1: mate".to_owned(),
                 },
                 tree::ConstraintRow {
                     mate: constraint(9),
-                    said: "constraint 2: Tangent mate".to_owned(),
+                    said: "constraint 2: mate".to_owned(),
                 },
             ],
             ..placer_refused_row(None)
         };
-        let (painted, voices) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
+        let (painted, _) = landed_voiced(&Theme::DEFAULT, |ui, theme| {
             feature_row_drawn(ui, &row, theme)
         });
         let kind = find(&painted, "Mate 000000000007");
-        let line = find(&painted, note);
-        assert_under(kind, line);
-        assert_eq!(line.ink, Some(voices.weak), "{note:?} said quietly");
-        let pin = find(&painted, "constraint 1: world mate");
-        let mate = find(&painted, "constraint 2: Tangent mate");
-        assert_under(line, pin);
+        let pin = find(&painted, "constraint 1: mate");
+        let mate = find(&painted, "constraint 2: mate");
+        assert_under(kind, pin);
         assert_under(pin, mate);
         assert_eq!(
             texts(&painted),
             vec![
                 "Mate 000000000007",
-                note,
-                "constraint 1: world mate",
+                "constraint 1: mate",
                 super::REMOVE_CONSTRAINT,
-                "constraint 2: Tangent mate",
+                "constraint 2: mate",
                 super::REMOVE_CONSTRAINT,
             ],
-            "the row, its note, its constraints with their buttons, and no badge"
+            "the row, its constraints with their buttons, and no badge"
         );
-        let clicks = row_clicked(&row, "constraint 2: Tangent mate", false);
+        let clicks = row_clicked(&row, "constraint 2: mate", false);
         assert_eq!(clicks.remove, None, "a constraint's words remove nothing");
         for (nth, expected) in [(0, constraint(8)), (1, constraint(9))] {
             let remove = core::cell::Cell::new(None);
@@ -1559,11 +1537,10 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
                 Some("InstantiatePart"),
             ),
-            pose: Some(crate::test_support::PART_FILE.to_owned()),
+            which: Some(crate::test_support::PART_FILE.to_owned()),
             depth: 0,
             placed: false,
             status: RowStatus::Ok,
-            note: None,
             repair_at: None,
             readout: None,
             version_offer: None,
@@ -1611,7 +1588,7 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
                 Some("Extrude"),
             ),
-            pose: None,
+            which: None,
             ..instance_row()
         };
         let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));

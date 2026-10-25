@@ -37,3 +37,12 @@ plane, which gives the wall an L. The row would then ask
 `point_in_solid` at a point in the notch and expect `Out` or a typed
 refusal, never `In`. That is more than CONTACT-11's fence
 covered.
+
+## Moved by CHART (2026-10-24)
+
+Branch `chart/ringed-curved-doors` reads a cone face from its boundary
+edges (`topo::boolean::ruled_region`), as the torus already was, and
+deletes `cone_trimmed_window` and `chart_polygon_box`. An imported L
+cone face is now read, not refused: the notch reads `Out`. The cone row
+is renamed `a_small_notch_in_a_cone_face_reads_out_at_every_size`. The
+missing import-door row is still owed, now expecting `Out`.

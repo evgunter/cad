@@ -20,14 +20,12 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use pncad::document::{
-    AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef,
+    AuthoredNode, BooleanValue, CancelToken, ContentPin, Dimension, Doc, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
     NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, ValuePayload, VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
-use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
 #[cfg(test)]
 use pncad::profile::{PathErrorKind, TipState, Verb};
 use pncad::profile::{Step, Target};
@@ -53,7 +51,7 @@ pub fn len_mm(metres: f64) -> Formula {
         .expect("a finite length")
 }
 
-/// Three length literals — a datum origin, a translation.
+/// Three length literals — a point, a translation.
 pub fn len3(v: [f64; 3]) -> [Formula; 3] {
     [len(v[0]), len(v[1]), len(v[2])]
 }
@@ -147,10 +145,6 @@ pub fn try_inserted(
 
 // --- the nodes a fixture sketches with ------------------------------
 
-/// A sketch frame node, and the world xy frame these fixtures sketch
-/// on — `editor_core::test_support`'s, as the literals above.
-pub use editor_core::test_support::{frame, xy_frame};
-
 /// A spoken node built by hand, for a row a test builds without a
 /// document — `editor_core::test_support`'s.
 pub use editor_core::test_support::spoken;
@@ -175,22 +169,21 @@ pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram<Formula> 
         .expect("finite corners")
 }
 
-/// An axis-aligned rectangular profile node's payload on `plane`:
-/// [`rectangle_loop`] drawn on it. `square` is this with two equal
-/// sides at the plane origin, and a fixture whose block sits elsewhere
-/// moves `origin`.
-pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
+/// An axis-aligned rectangular profile node's payload:
+/// [`rectangle_loop`] drawn on its own plane. `square` is this with two
+/// equal sides at the plane origin, and a fixture whose block sits
+/// elsewhere moves `origin`.
+pub fn rectangle(origin: [f64; 2], w: f64, h: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![rectangle_loop(origin, w, h)],
         ids: Vec::new(),
     })
 }
 
-/// A square profile node's payload on `plane`, `side` metres on a side,
-/// at the plane origin.
-pub fn square(plane: RecipeNodeId, side: f64) -> AuthoredNode {
-    rectangle(plane, [0.0, 0.0], side, side)
+/// A square profile node's payload, `side` metres on a side, at the
+/// plane origin.
+pub fn square(side: f64) -> AuthoredNode {
+    rectangle([0.0, 0.0], side, side)
 }
 
 // --- documents built from the doors above ---------------------------
@@ -225,110 +218,96 @@ pub fn authored_ids(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
 }
 
 /// **`doc` with `body` placed in the world** at the identity (A10): a
-/// placement of it, pinned there over its geometry ([`pinned`]),
+/// placement of it, standing where its body stands ([`pinned`]),
 /// answering the document and the placement.
 pub fn placed(
     doc: &Doc<ProfileProgram>,
     body: RecipeNodeId,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    placed_read(
+    placed_read(doc, pncad::document::Operand::from(body), tol)
+}
+
+/// [`placed`] of any body read — an operation's port, an instance's
+/// copies.
+pub fn placed_read(
+    doc: &Doc<ProfileProgram>,
+    read: pncad::document::Operand,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    inserted(
         doc,
-        pncad::document::Operand::from(body),
-        &EvalOptions::default(),
+        Node::place(
+            vec![pncad::document::BodyRead::plain(read)],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            pncad::document::stand().bundle(),
+        ),
         tol,
     )
 }
 
-/// [`placed`] of any body read — an operation's port, an instance's
-/// copies — evaluated under `opts` to read the pin off it.
-pub fn placed_read(
+/// The copy `placement` defines, standing where its body stands in the
+/// space it is placed into ([`pncad::document::stand`]): the identity
+/// bundle, no mate and the constant `0` on every freedom, which reads
+/// nothing of the copy.
+pub fn pinned(doc: &Doc<ProfileProgram>, placement: RecipeNodeId, tol: Tol) -> Doc<ProfileProgram> {
+    constrained(doc, placement, pncad::document::stand(), tol)
+}
+
+/// **`body`'s copy placed against `target`'s own geometry at `at`**
+/// ([`editor_core::test_support::placed_against_in`]), its mate and
+/// values written, evaluated under `opts` — a document whose bodies read a store
+/// (an instance's part) is placed under the options that reach it.
+/// Answers the document and the placement.
+///
+/// # Panics
+///
+/// If the door refuses: a fixture's bug.
+pub fn against_in(
     doc: &Doc<ProfileProgram>,
-    read: pncad::document::Operand,
+    target: pncad::document::Operand,
+    body: pncad::document::Operand,
+    at: &pncad::document::Frame,
     opts: &EvalOptions,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, placement) = inserted(
+    let placed = editor_core::test_support::placed_against_in(doc, opts, &target, &body, at, tol);
+    let space = doc
+        .operand_space(&target)
+        .expect("the target is in a space");
+    inserted(
         doc,
-        Node::place(vec![pncad::document::BodyRead::plain(read)]),
-        tol,
-    );
-    (pinned(&doc, placement, opts, tol), placement)
-}
-
-/// The copy `placement` defines, pinned where its body stands: the
-/// named interim's world pin ([`DocEdit::PinWhereItStands`], stage 3
-/// C), which reads nothing, so the copy follows its body's variables.
-pub fn pinned(
-    doc: &Doc<ProfileProgram>,
-    placement: RecipeNodeId,
-    _opts: &EvalOptions,
-    tol: Tol,
-) -> Doc<ProfileProgram> {
-    apply(doc, &DocEdit::PinWhereItStands { placement }, tol)
-        .expect("a world pin stands alone in its bundle")
-        .doc
-}
-
-/// **The copy `placement` defines, pinned to the world at `pose`**
-/// through the migration helper ([`editor_core::pin_at`]): a frame read
-/// off the copy's geometry equated with the world's frame moved to
-/// where that frame sits at `pose`. A `Place` is read through its first
-/// shape, an instance through its own copies; `opts` evaluates them.
-///
-/// A copy whose body does not evaluate has no geometry to read a frame
-/// off, and a fixture that places one is about the failure: it is
-/// pinned all the same — a plane mate on a face of the body by a bare
-/// name, which is never read, to the world's `xy` plane, and the three
-/// values naming it — so the placement stands against the world and
-/// is poisoned through its body, as the product reads it. Any other
-/// refusal is the fixture's bug.
-pub fn pin(
-    doc: &Doc<ProfileProgram>,
-    placement: RecipeNodeId,
-    pose: &pncad::document::Frame,
-    opts: &EvalOptions,
-    tol: Tol,
-) -> Doc<ProfileProgram> {
-    let copy = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => {
-            pncad::document::Operand::Var(shapes.first().expect("a placement copies a shape").read)
-        }
-        Some(Node::InstantiatePart { .. }) => pncad::document::Operand::Var(
-            doc.output(placement, 0)
-                .expect("an instance defines its copies"),
+        Node::place(
+            vec![pncad::document::BodyRead::plain(body)],
+            pncad::document::Operand::Var(space),
+            placed.bundle(),
         ),
-        other => panic!("{placement} is no placement: {other:?}"),
-    };
-    let (mate, values) = match editor_core::pin_at(doc, &copy, pose, opts, tol) {
-        Ok(mate) => (mate, Vec::new()),
-        Err(editor_core::PinRefusal::Unevaluated { node }) => {
-            use pncad::document::{Coord, SlideAxis, Target, WorldRead};
-            let face = StableName {
-                kind: EntityKind::Face,
-                node,
-                path: Vec::new(),
-            };
-            let on =
-                pncad::document::Operand::Pose(Box::new(pncad::document::pose::PoseDef::Plane {
-                    face: pncad::document::Operand::select(copy, vec![face]),
-                }));
-            let mate = pncad::document::Mate {
-                on,
-                to: Target::World(WorldRead::through(pncad::document::pose::PoseRole::Xy)),
-                class: pncad::select::ContactClass::Rest,
-            };
-            let zero = vec![
-                (Coord::Slide(SlideAxis::X), len(0.0)),
-                (Coord::Slide(SlideAxis::Y), len(0.0)),
-                (Coord::Spin, ang(0.0)),
-            ];
-            (mate, zero)
-        }
-        Err(refusal) => panic!("the copy pins over its geometry: {refusal}"),
-    };
+        tol,
+    )
+}
+
+/// **`mate` added to `placement`'s bundle and `values` written over
+/// it**, as the mate tool's op writes them ([`DocEdit::AddConstraint`],
+/// which drops the values whose freedoms the mate fixes and writes `0`
+/// on each it leaves unset, then [`crate::session::valued`]), the
+/// placement re-targeted into the space the mate's `to` reads first.
+/// Answers the document and the mate's address.
+///
+/// # Panics
+///
+/// If the door refuses: a fixture's bug.
+pub fn mated(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    mate: pncad::document::Mate<Formula>,
+    values: Vec<(pncad::document::Coord, Formula)>,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, pncad::document::MateRef) {
+    // A mate into another space re-targets the copy here, an explicit
+    // fixture move, never the gesture's.
+    let doc = retargeted(doc, placement, doc.operand_space(&mate.to), tol);
     let applied = apply(
-        doc,
+        &doc,
         &DocEdit::AddConstraint {
             placement,
             mate: Box::new(mate),
@@ -336,26 +315,105 @@ pub fn pin(
         },
         tol,
     )
-    .expect("the pin is admitted");
-    let [id] = applied.record.minted_constraints[..] else {
-        unreachable!("a mate mints one constraint id")
-    };
-    values.into_iter().fold(applied.doc, |doc, (coord, by)| {
-        edited(
-            &doc,
-            DocEdit::AddValue {
-                placement,
-                value: Box::new(pncad::document::Value {
-                    mate: id,
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
+    .unwrap_or_else(|refusal: EditError| panic!("the mate is admitted: {refusal}"));
+    let id = applied.record.minted_constraints[0];
+    let doc = if values.is_empty() {
+        applied.doc
+    } else {
+        let held = crate::session::held_bundle(&applied.doc, placement);
+        written(
+            &applied.doc,
+            placement,
+            crate::session::valued(held, values),
             tol,
         )
-        .0
+    };
+    (doc, pncad::document::MateRef::new(placement, id))
+}
+
+/// What a placing door answers, written onto `placement` whole
+/// ([`editor_core::Placed::write`]), the placement first re-targeted
+/// into the space the mate's `to` reads where that is not its target.
+fn constrained(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    placed: editor_core::Placed,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    written(doc, placement, placed.bundle(), tol)
+}
+
+/// `placement` re-targeted into `space` where that is not its target:
+/// the identity first, which reads nothing, so no mate of the bundle it
+/// held strands the re-target.
+fn retargeted(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    space: Option<pncad::document::VarId>,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    let Some(space) = space.filter(|&space| doc.node_space(placement) != Some(space)) else {
+        return doc.clone();
+    };
+    let edits = [
+        pncad::document::stand().write(placement),
+        DocEdit::SetParam {
+            node: placement,
+            slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Space),
+            value: pncad::document::SlotValue::Read(pncad::document::Operand::Var(space)),
+            fresh: Vec::new(),
+        },
+    ];
+    edits.into_iter().fold(doc.clone(), |doc, edit| {
+        apply(&doc, &edit, tol)
+            .unwrap_or_else(|refusal: EditError| panic!("the placement re-targets: {refusal}"))
+            .doc
     })
+}
+
+/// `constraints` written onto `placement` whole, re-targeted first into
+/// the space the bundle's first mate's `to` reads ([`retargeted`]).
+fn written(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    constraints: Vec<pncad::document::Constraint<Formula>>,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    let space = constraints
+        .iter()
+        .find_map(|c| c.mate())
+        .and_then(|mate| doc.operand_space(&mate.to));
+    let doc = retargeted(doc, placement, space, tol);
+    let edits = [DocEdit::SetConstraints {
+        placement,
+        constraints,
+        fresh: Vec::new(),
+    }];
+    edits.into_iter().fold(doc, |doc, edit| {
+        apply(&doc, &edit, tol)
+            .unwrap_or_else(|refusal: EditError| {
+                panic!("the placement's constraints are admitted: {refusal}")
+            })
+            .doc
+    })
+}
+
+/// **The copy `placement` defines, pinned to the world at `pose`**:
+/// its own coordinates moved to `pose` by values on the world's axes
+/// ([`editor_core::test_support::moves_at`], a quarter turn written
+/// `turn/4`), which read nothing of the copy, so a copy whose body
+/// does not evaluate is pinned all the same and poisoned through its
+/// body, as the product reads it. `opts` is unread: the pin evaluates
+/// nothing.
+pub fn pin(
+    doc: &Doc<ProfileProgram>,
+    placement: RecipeNodeId,
+    pose: &pncad::document::Frame,
+    _opts: &EvalOptions,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    let placed = editor_core::Placed::unmated(editor_core::test_support::moves_at(pose));
+    constrained(doc, placement, placed, tol)
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and
@@ -375,16 +433,14 @@ pub fn edit_into(doc: &mut Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, t
     *doc = applied;
 }
 
-/// **A frame and a square drawn on it**, answering the document and the
-/// PROFILE's id — two nodes where a fixture used to insert one, because
-/// a profile names the plane it is drawn on.
-pub fn framed_square(
+/// **A square profile inserted**, answering the document and the
+/// profile's id.
+pub fn square_profile(
     doc: &Doc<ProfileProgram>,
     side: f64,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, plane) = inserted(doc, xy_frame(), tol);
-    inserted(&doc, square(plane, side), tol)
+    inserted(doc, square(side), tol)
 }
 
 /// The boss-on-a-face scene's block: 40 × 20 × 10 mm, centred on the
@@ -395,22 +451,22 @@ pub const BOSS_RADIUS: f64 = 0.005;
 /// …extruded this far up.
 pub const BOSS_HEIGHT: f64 = 0.004;
 
-/// **A block and a boss drawn on its top cap**, answering the document,
-/// the block and the boss — FLUSH with each other at that cap by
-/// construction, which is the whole point of the scene.
+/// **A block and a boss standing on its top cap**, answering the
+/// document, the block and the boss — FLUSH with each other at that cap
+/// by construction, which is the whole point of the scene.
 ///
-/// The boss's frame is read off the block's top cap
-/// (`Datum::FaceFrame`, zero spin), the node the add-datum form mints
-/// from a face pick. `tests/creation_ops.rs`'s boss row authors the same
-/// scene through the op vocabulary, because the gesture is what that
-/// row is about; this is the scene alone, each body placed. Its union's volume is
-/// `boss_on_block_union_volume`.
+/// Each body is a construction in its own coordinates, placed in the
+/// world: the block where it stands, the boss at the block's depth up
+/// the world's `z`, slid there by its values. `tests/creation_ops.rs`'s
+/// boss row authors the scene through the op vocabulary
+/// ([`crate::session::SessionOp::SketchOnFace`]), because the gesture
+/// is what that row is about; this is the scene alone, each body
+/// placed. Its union's volume is `boss_on_block_union_volume`.
 pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let [width, height, depth] = BOSS_BLOCK;
-    let (doc, plane) = inserted(&Doc::empty_derived(label, tol), xy_frame(), tol);
     let (doc, section) = inserted(
-        &doc,
-        rectangle(plane, [-width / 2.0, -height / 2.0], width, height),
+        &Doc::empty_derived(label, tol),
+        rectangle([-width / 2.0, -height / 2.0], width, height),
         tol,
     );
     let (doc, block) = inserted(
@@ -418,29 +474,12 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: section.into(),
             distance: len(depth),
-            side: ExtrudeSide::Along,
         },
-        tol,
-    );
-    let (doc, frame) = inserted(
-        &doc,
-        Node::Datum(Datum::FaceFrame {
-            face: pncad::document::Operand::select(
-                block,
-                vec![StableName {
-                    kind: EntityKind::Face,
-                    node: block,
-                    path: vec![RoleSeg::Cap(CapEnd::End)],
-                }],
-            ),
-            spin: ang(0.0),
-        }),
         tol,
     );
     let (doc, disc) = inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            frame: frame.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, BOSS_RADIUS).expect("a finite circle")],
             ids: Vec::new(),
         }),
@@ -451,13 +490,26 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         Node::Extrude {
             profile: disc.into(),
             distance: len(BOSS_HEIGHT),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
     // Both bodies are the world (A10), block first.
     let (doc, _) = placed(&doc, block, tol);
-    let (doc, _) = placed(&doc, boss, tol);
+    let on_top = pncad::document::Frame {
+        translation: [0.0, 0.0, depth],
+        ..pncad::document::Frame::IDENTITY
+    };
+    let boss_read = pncad::document::Operand::from(boss);
+    let at = editor_core::Placed::unmated(editor_core::test_support::moves_at(&on_top));
+    let (doc, _) = inserted(
+        &doc,
+        Node::place(
+            vec![pncad::document::BodyRead::plain(boss_read)],
+            pncad::document::Operand::Var(pncad::document::VarId::WORLD),
+            at.bundle(),
+        ),
+        tol,
+    );
     (doc, block, boss)
 }
 
@@ -502,9 +554,13 @@ pub fn evaluated_volume(eval: &Evaluation<f64>, node: RecipeNodeId, tol: Tol) ->
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => body,
         other => panic!("expected a body, got {other:?}"),
     };
-    pncad::topo::mass_properties(body, tol)
-        .expect("mass properties")
-        .volume
+    pncad::topo::mass_properties(
+        &pncad::topo::AtRestBody::validate(pncad::topo::Body::clone(body), tol)
+            .expect("the measured body passes tier 3"),
+        tol,
+    )
+    .expect("mass properties")
+    .volume
 }
 
 // --- a part reference the evaluation refused ------------------------

@@ -315,22 +315,38 @@ fn eps_row(eps: f64) -> usize {
 /// plate: `Plain/Assertion` and `Early/Assertion` +14 calls
 /// (514 → 528) and +30 forms, with their digests, at every row; both
 /// `*/Decision` lines and the largest form hold.
+///
+/// INTENT stage 3 D (Transform retires into a placement) re-spells the
+/// slab's fixture (`bounded_chamber`) without a datum frame: its
+/// profiles are 2-D and its bodies reach the world through `Place`s. Four
+/// `Assertion` calls fewer per walk (514 → 510), `Plain/Decision` 9415 →
+/// 9296 forms, `Plain/Assertion` 2697 → 2658 and `Early/Assertion`
+/// 4121 → 4082, and those lines' digests at every row; `Early/Decision`,
+/// the frozen counts and the largest form hold.
+///
+/// Re-taken on INTENT stage 3 D after FORK-REST: the slab's ledger is
+/// what D's head read before it (`434139ef1c`, measured there), so
+/// neither ruling moves it. It moved on D's lane of 2026-10-19/20 with
+/// main's merge at `0a1d95321e`: `Plain/Assertion` and
+/// `Early/Assertion` 510 -> 524 calls, 2658 -> 2724 and 4082 -> 4148
+/// forms, and those lines' digests at every row; the `*/Decision`
+/// lines, the freezes and the largest form hold.
 const SLAB_LEDGER: [&str; 3] = [
     "\
-     Plain/Decision calls 928 forms 9415 frozen 0 digest 9fd9683c510b6d13533481894aff86fe\n\
-     Plain/Assertion calls 528 forms 2763 frozen 0 digest de77b0b2c47cea9e7045c8471e184cb8\n\
+     Plain/Decision calls 928 forms 9296 frozen 0 digest ead00add6303cfe3afd957687009fe05\n\
+     Plain/Assertion calls 524 forms 2724 frozen 0 digest 28c812e644e2ab506d22a645c022abc9\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 528 forms 4187 frozen 0 digest fd25d46abfb0d394dbb3d2cc79b79f20",
+     Early/Assertion calls 524 forms 4148 frozen 0 digest 0e63abaa8e0b4ade79de8d555165f03d",
     "\
-     Plain/Decision calls 928 forms 9415 frozen 0 digest 7572a0635345c9fe906c50fadd763ce0\n\
-     Plain/Assertion calls 528 forms 2763 frozen 0 digest 32b4131f53a420ef27309ad73c84bf01\n\
+     Plain/Decision calls 928 forms 9296 frozen 0 digest 1a6dff2ec7b13ecf560079e0c5824eac\n\
+     Plain/Assertion calls 524 forms 2724 frozen 0 digest 984e6fec11b5a4b787f908702f4157f8\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 528 forms 4187 frozen 0 digest d7d94722c1d348616d16414a2cc582c0",
+     Early/Assertion calls 524 forms 4148 frozen 0 digest 402f12b4cd26f91c914eaffb38de9035",
     "\
-     Plain/Decision calls 928 forms 9415 frozen 0 digest 4c421c5d18739546779e9a8966c18e71\n\
-     Plain/Assertion calls 528 forms 2763 frozen 0 digest 214d14c7211d40f17dac0abfb356f2c1\n\
+     Plain/Decision calls 928 forms 9296 frozen 0 digest 9ad165a22879dc45aa224a57639a4dc5\n\
+     Plain/Assertion calls 524 forms 2724 frozen 0 digest 172887289ece635c4bed6ff56aa7544e\n\
      Early/Decision calls 16 forms 36 frozen 0 digest 6e3af4a8ba2d62d438237e2adb6a8a9d\n\
-     Early/Assertion calls 528 forms 4187 frozen 0 digest e2aad0e30e65d05b5b701fe7c90eca55",
+     Early/Assertion calls 524 forms 4148 frozen 0 digest 8264a5b406916ebae3b2f7d8ddb5f0ce",
 ];
 
 /// The largest form (numerator plus denominator terms) any op built
@@ -702,12 +718,51 @@ const PLATE_MAX_TERMS: usize = 28;
 /// a full turn: forms `Plain/Assertion` 7013 → 7017, `Early/Assertion`
 /// 8175 → 8179 and `Door/Decision` 9465 → 9471, with their digests;
 /// every call, every freeze and the largest form hold.
+///
+/// INTENT stage 3 D (Transform retires into a placement) re-spells the
+/// plate without datum frames, each construction placed into the world
+/// by a `Place`, and the box lanes' solved map stays tight (a spin set
+/// from the two charts' frames, a direction exactly on an axis read as
+/// that axis, Sym snapping at rest where its lane does). Together:
+/// `Plain/Decision` 1003 → 1009 calls, 16013 → 16400 forms and 324 → 24
+/// frozen; `Plain/Assertion` 654 → 662 calls, 5790 → 5800 forms and 405
+/// → 137 frozen; `Early/Decision` 352 → 254 calls and 8955 → 8496
+/// forms; `Early/Assertion` 654 → 662 calls and 6972 → 7204 forms;
+/// `Door/Decision` 396 → 406 calls and 7987 → 8218 forms; every digest.
+/// The largest form holds.
+///
+/// Re-taken under FORK-REST (only the identity bundle as written places
+/// by no map): the plate's two holes are placed by plane mates, which
+/// the narrowing's walk let snap, and now run their maps, so their
+/// transforms and the copies' re-certification are walked too. Every
+/// line rose, identically at all three ε rows: `Plain/Decision` 945 ->
+/// 1253 calls, 16224 -> 23528 forms, 24 -> 969 frozen;
+/// `Plain/Assertion` 701 -> 1043 calls, 7084 -> 11606 forms, 137 -> 588
+/// frozen; `Early/Decision` 254 -> 554 calls, 8434 -> 15715 forms;
+/// `Early/Assertion` 701 -> 1043 calls, 8468 -> 12990 forms;
+/// `Door/Decision` 438 -> 780 calls, 9760 -> 17979 forms; every digest
+/// (the "before" is D's head before FORK-REST, `434139ef1c`, after
+/// main's merge, which had moved the plate from the line above). The
+/// largest form holds. Without the canonical root the plain walk
+/// renders 16 blocked residuals where it rendered 8, the copies' beside
+/// the construction's.
+///
+/// Merging main at `557e581a64` (check 4 deciding no whole period, PCERT
+/// B2b) takes fidelity's numeric branch decisions out of the plate's
+/// walks, twice main's own count because D walks each hole twice:
+/// `Plain/Assertion` and `Early/Assertion` 1043 -> 979 calls and
+/// `Door/Decision` 780 -> 716, forms 16 to 116 fewer on every line, with
+/// their digests; every freeze and the largest form hold. A spin written
+/// as a fraction of a turn (the holes' constant `0`) now enters the
+/// walks as its exact sine and cosine (`geom_core::Angle`), not as the
+/// sine and cosine of a radian, which moves the two `Plain` digests and
+/// no count (measured both ways on D's tree).
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 939 forms 15828 frozen 324 digest 106c6e8f656834241d3861faf20e7799\n\
-     Plain/Assertion calls 661 forms 7017 frozen 405 digest 78df422333f47d94fcc9b8c4d9443ef4\n\
-     Early/Decision calls 352 forms 8884 frozen 0 digest 77472cc4b2b651d309e31f2086d5b20a\n\
-     Early/Assertion calls 661 forms 8179 frozen 0 digest 9a026d53f7a4f0d2c104a546dd079bef\n\
-     Door/Decision calls 396 forms 9471 frozen 0 digest d01b50cdac523fae6c64c2899501312b";
+     Plain/Decision calls 1253 forms 23512 frozen 969 digest 216164bf511e72cf895b15904f37f396\n\
+     Plain/Assertion calls 979 forms 11490 frozen 588 digest ef7abbb807719a44e9a8a7324ae12a88\n\
+     Early/Decision calls 554 forms 15699 frozen 0 digest 5d0a2f7327691a731b96ad8a7b4cb3c1\n\
+     Early/Assertion calls 979 forms 12874 frozen 0 digest a357ccf0780ca116a56be9675624151c\n\
+     Door/Decision calls 716 forms 17865 frozen 0 digest e90cd17136524e01782b0608cf0a390b";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -875,7 +930,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            Some(8),
+            Some(16),
         ),
         ("without_the_reads", SymRules::without_the_reads(), None),
         (
@@ -884,7 +939,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            Some(8),
+            Some(16),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;

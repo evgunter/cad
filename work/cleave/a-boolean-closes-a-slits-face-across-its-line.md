@@ -2,10 +2,11 @@
 id: a-boolean-closes-a-slits-face-across-its-line
 kind: issue
 title: A Boolean whose result keeps only a slit's face on both sides of the slit's line refuses SlitLineCrossed: the join does not close the face across the line
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P1
 cost: M
+branch: cleave/boolean-closes-a-slits-face
 ---
 
 

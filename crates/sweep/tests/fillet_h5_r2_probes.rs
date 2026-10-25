@@ -35,7 +35,7 @@ use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_full_revolve_rim, bowl, lantern, revolved_about_y, rim_arcs_at};
 use topo::{
     AtRestBody, Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite, ValidationError,
-    mass_properties, validate_geometric,
+    validate_geometric,
 };
 
 fn tol() -> Tol {
@@ -450,7 +450,10 @@ fn a_curved_single_face_carrying_both_arcs_is_construction_state() {
             image,
             "repair = {repair}, order = {order}: the survivor wraps"
         );
-        let volume = mass_properties(&body, tol()).unwrap().volume;
+        // Raw door: the measured body is construction state whose joinable vertices tier 3 refuses (JoinableVertexAtRest).
+        let volume = topo::test_support::measure_unvalidated(&body, tol())
+            .unwrap()
+            .volume;
         assert!(
             (volume - core::f64::consts::PI).abs() < 1e-9,
             "repair = {repair}, order = {order}: the wall meters π, got {volume}"
@@ -490,7 +493,15 @@ fn compose_two_rims(
     validate_geometric(&one_call.body, tol())
         .map_err(|e| format!("{what}: one-call result not tier-3 valid: {e:?}"))?;
     assert_eq!(one_call.band_faces.len(), 2, "{what}: one band per rim");
-    let one = mass_properties(&one_call.body, tol()).unwrap();
+    let one = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&one_call.body),
+            tol(),
+        ),
+        tol(),
+    )
+    .unwrap();
     assert_eq!(one.volume_pad, 0.0, "{what}: closed-form faces only");
     for order in [[rims[0], rims[1]], [rims[1], rims[0]]] {
         let mut body = source.clone();
@@ -502,7 +513,11 @@ fn compose_two_rims(
         }
         validate_geometric(&body, tol())
             .map_err(|e| format!("{what}: sequential result not tier-3 valid: {e:?}"))?;
-        let seq = mass_properties(&body, tol()).unwrap();
+        let seq = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
+            tol(),
+        )
+        .unwrap();
         // The same body, not the same history: each carve ends with the
         // join, which kills the edge of the vertex's first half-edge in
         // arena order and extends the other's interval over it
@@ -632,10 +647,20 @@ fn the_hostless_closed_forms_match_an_independent_derivation() {
     ];
     for (name, body, rim, want) in cases {
         let arcs = rim_arcs_at(&body, rim.0, rim.1);
-        let before = mass_properties(&body, tol()).unwrap().volume;
+        let before = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&body), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume;
         let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
-        let after = mass_properties(&out.body, tol()).unwrap().volume;
+        let after = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume;
         let delta = after - before;
         assert!(
             (delta - want).abs() <= 1e-12 * want.abs(),

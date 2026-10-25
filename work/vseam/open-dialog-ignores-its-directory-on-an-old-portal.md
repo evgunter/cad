@@ -4,7 +4,7 @@ kind: issue
 title: Open… ignores its starting directory under xdg-desktop-portal 1.6 (Ev's box)
 status: open
 opened: 2026-09-18
-priority: P1
+priority: P3
 cost: E
 ---
 
@@ -34,3 +34,7 @@ Whether this is worth anything beyond the platform upgrade: e.g. a
 text path field on Open…, or a "recent documents" list in the viewer
 itself. Low priority next to the Save As… fix, which is the half Ev
 reported.
+
+## 2026-10-21 — re-banded
+
+P1 → P3. A platform limitation the row itself calls low priority; the half Ev reported was Save As…, which is fixed.

@@ -128,6 +128,7 @@ pub use refusal_routes::{
 };
 pub(crate) mod region;
 mod rim_wedge;
+pub(crate) mod ruled_region;
 pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
@@ -154,7 +155,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::coincidence::{Cited, Cites};
-use crate::contact::{ContactClass, GlueClass};
+use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
@@ -211,7 +212,7 @@ pub use carrier_pair::{
     face_carrier, flush_pair_relation, rest_locus,
 };
 pub(crate) use contact_verify::rest_pair_reading;
-pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
+pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
     point_in_solid_of,
@@ -275,6 +276,13 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "pm_census_ee_line_gap" => "whether two straight edges of one solid lie on one line",
         "pm_census_span_order" => "the order of two points along a straight edge",
         "pm_census_ee_overlap" => "whether two edges on one line overlap along a length",
+        "pm_census_span_precision" => {
+            "whether two edges on one line are short enough to read their ends uncharged at this \
+             tolerance"
+        }
+        crate::census::SPAN_ORDER_CHARGED
+        | crate::census::EE_OVERLAP_CHARGED
+        | crate::census::SPAN_ROUNDING => BooleanDecision::LineSpanPrecision.subject(),
         // The line's wedges the result gate reads (`census::line_wedges`),
         // tier 3's pinch-corner reading under names of its own.
         crate::census::LINE_WEDGE_AFTER_LEAVING
@@ -285,7 +293,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => refusal_routes::CYLINDER_AXES_PARALLEL,
-        crate::query::DATUM_UNIT_NORM
+        crate::query::POSE_UNIT_NORM
         | join::BOOL_GERM_PLANE_NORMAL
         | boxes::BOX_CYLINDER_AXIS
         | boxes::BOX_SPHERE_AXIS
@@ -331,18 +339,8 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
-        | "bool_curved_contain_period"
-        | "bool_wall_trim"
-        | "bool_wall_junction"
         | "bool_wall_outline_reach"
-        | "bool_wall_piece_span"
-        | "bool_wall_rim_level"
         | "bool_wrap_rim"
-        | "bool_wall_section_tilt"
-        | "bool_wall_trim_period"
-        | "bool_wall_iso_meridian"
-        | "bool_wall_iso_rim"
-        | "bool_wall_section_seat"
         | "bool_sphere_iso_meridian"
         | "bool_sphere_iso_rim"
         | "bool_sphere_trim_antipode"
@@ -380,13 +378,24 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_torus_region_spiric_on"
         | "bool_torus_region_spiric_leaf"
         | "bool_torus_frame_radius"
-        | "bool_cone_chart_box"
-        | "bool_cone_group_slant"
-        | "bool_cone_trim"
-        | "bool_cone_trim_nappe"
-        | "bool_cone_trim_period"
-        | "bool_cone_trim_side"
-        | "bool_ray_cone_apex"
+        | "bool_ruled_region_frame"
+        | "bool_ruled_region_nappe"
+        | "bool_ruled_region_component"
+        | "bool_ruled_region_collinear"
+        | "bool_ruled_region_span"
+        | "bool_ruled_region_at"
+        | "bool_ruled_region_end"
+        | "bool_ruled_region_corner"
+        | "bool_ruled_region_order"
+        | "bool_ruled_region_cross"
+        | "bool_ruled_region_roots_noise"
+        | "bool_ruled_region_roots_coaxial"
+        | "bool_ruled_region_roots_extreme"
+        | "bool_ruled_region_roots_slack"
+        | "bool_ruled_region_arc_span"
+        | "bool_ruled_region_arc_straddle"
+        | "bool_ruled_region_edge_length"
+        | "bool_ruled_region_edge"
         | "bool_ray_cone_nappe"
         | "bool_cone_partial_reach"
         | "point_in_loop_segment"
@@ -2344,8 +2353,11 @@ pub enum PairRefusalSite {
     /// The crossings path's interior-loop guard, after the reduction:
     /// the section certificate (`section_cert`) could not certify a face
     /// pair free of a closed loop interior to both faces — an
-    /// intractable pose, a tangency, a certified interior loop, or an
-    /// undecided witness.
+    /// intractable pose, a tangency, a certified interior loop, an
+    /// undecided witness, or a face whose boundary walk could not be
+    /// read (R-unread). The site carries no refusal reason; the
+    /// no-crossings path's [`BooleanError::FallbackExtentUnsupported`]
+    /// does.
     InteriorLoopGuard,
 }
 
@@ -2623,7 +2635,7 @@ pub enum BooleanError {
     /// whose
     /// crossing parameters come from the certified root lanes (the line
     /// quadratics and quartic, and `boolean::circle_roots`' doors) and
-    /// whose landing point the chart trim
+    /// whose landing point the face's region
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a line parallel to a cone's
     /// generator, an undeclared on-carrier
@@ -2910,9 +2922,6 @@ pub enum BooleanError {
         fact: Option<Contradiction>,
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
-        /// Extra recourse steering when the counter-evidence has a
-        /// named remedy (AQ6's designed-clearance arm).
-        steer: Option<&'static str>,
     },
     /// A declared CONTINUATION meets definite counter-evidence at the
     /// op (C4's continuation clause): the two faces are not one carrier,
@@ -3377,13 +3386,13 @@ pub enum BooleanError {
         /// Its kind — the B half of the germ pair.
         b_kind: geom::SurfaceKind,
     },
-    /// **A germ pair whose section is a conic outside the inventory by
-    /// decision**: a plane cutting a cone face in a parabola (parallel to
-    /// a generator) or a hyperbola (meeting both nappes). Neither curve is
-    /// in the conic inventory (`geom_brep`'s C1/C5, ruling R1), so the
-    /// pair is refused, not missing an arm: `section` is the table's own
-    /// refusal, naming the conic.
-    GermSectionOutsideInventory {
+    /// **A germ pair whose section is an open conic**: a plane cutting a
+    /// cone face in a parabola (parallel to a generator) or a hyperbola
+    /// (meeting both nappes). The section table serves either in closed
+    /// form, its arcs minted per window as rational-quadratic NURBS
+    /// (`geom_brep`'s C1), and the Boolean has no crossing layer for a
+    /// NURBS carrier, so the pair is refused at its frame.
+    GermSectionOpenConic {
         /// The A-side germ face.
         a_face: FaceKey,
         /// Its kind.
@@ -3393,9 +3402,7 @@ pub enum BooleanError {
         /// Its kind.
         b_kind: geom::SurfaceKind,
         /// The conic.
-        conic: geom_brep::OutsideConic,
-        /// The section table's refusal, naming the conic.
-        section: geom_brep::SectionError,
+        conic: geom_brep::OpenConic,
     },
     /// **A germ pair whose plane cuts a torus face in a general spiric
     /// quartic**: a plane neither through the torus's axis, nor square to
@@ -3482,8 +3489,8 @@ pub enum BooleanError {
     RestPieceUnread {
         /// The piece, in result keys.
         face: FaceKey,
-        /// The containment door's refusal; `None` where the curved
-        /// chart trim gives no verdict for this face.
+        /// The containment door's refusal; `None` where a curved face's
+        /// region gives no verdict for this face.
         refusal: Option<ContainError>,
     },
     /// **A record the op carries, or found, could not be placed on the
@@ -3759,12 +3766,14 @@ pub enum BooleanError {
         /// Which construction is missing.
         gap: SlitLineGap,
     },
-    /// The face carrying an operand's slit or zero-area ring is glued
-    /// away by the other solid, so the slit's two coincident edges would
-    /// be one edge between its two walls, and the join's run along the
-    /// slit, which encloses no area, walls off the sliver between them
-    /// from neither side without separating a pending pair, or runs on
-    /// a curved face's ring lane. A construction gap, with no lever.
+    /// The face carrying an operand's slit or zero-area ring is glued to
+    /// a face of the other solid, and the join's run along the slit
+    /// encloses no area. Either the run walls off the sliver between the
+    /// slit's two edges from neither side without separating a pending
+    /// pair, or runs on a curved face's ring lane; or the op drops that
+    /// sliver and keeps one of the two flush faces, which carries the
+    /// slit on, through a cut in the dropped one that ends at the slit's
+    /// tip. A construction gap, with no lever.
     SlitFaceGlued {
         /// The operand holding the slit.
         operand: Operand,
@@ -3939,8 +3948,8 @@ pub enum BooleanErrorKind {
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
     GermFrameUnsupported,
-    /// [`BooleanError::GermSectionOutsideInventory`].
-    GermSectionOutsideInventory,
+    /// [`BooleanError::GermSectionOpenConic`].
+    GermSectionOpenConic,
     /// [`BooleanError::GermSectionSpiric`].
     GermSectionSpiric,
     /// [`BooleanError::NodeUnbuilt`].
@@ -4187,9 +4196,7 @@ impl BooleanError {
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
-            Self::GermSectionOutsideInventory { .. } => {
-                BooleanErrorKind::GermSectionOutsideInventory
-            }
+            Self::GermSectionOpenConic { .. } => BooleanErrorKind::GermSectionOpenConic,
             Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::NodeUnbuilt { .. } => BooleanErrorKind::NodeUnbuilt,
             Self::Euler(_) => BooleanErrorKind::Euler,
@@ -4538,16 +4545,13 @@ impl core::fmt::Display for BooleanError {
                 kind_word(*b_kind),
                 meeting_recourse(kind_word(*a_kind)),
             ),
-            Self::GermSectionOutsideInventory { conic, .. } => write!(
+            Self::GermSectionOpenConic { conic, .. } => write!(
                 f,
                 "a flat face of one part cuts a cone face of the other along a curve \
-                 that never closes ({}), which the Boolean does not build. Recourse: \
-                 tilt the parts so the flat face cuts the cone all the way round, or \
-                 keep it clear of the cone face",
-                match conic {
-                    geom_brep::OutsideConic::Parabola => "a parabola",
-                    geom_brep::OutsideConic::Hyperbola => "a hyperbola",
-                },
+                 that never closes ({}), which the Boolean cannot yet cross with other \
+                 edges. Recourse: tilt the parts so the flat face cuts the cone all the \
+                 way round, or keep it clear of the cone face",
+                conic.named(),
             ),
             Self::GermSectionSpiric { loops, .. } => write!(
                 f,
@@ -4631,7 +4635,7 @@ impl core::fmt::Display for BooleanError {
             // disagreeing with itself.
             Self::ContactContradicted {
                 declaration, fact, ..
-            } if declaration.class == crate::contact::ContactClass::Tangent => write!(
+            } if declaration.class == GlueClass::Tangent => write!(
                 f,
                 "the Boolean read two of the operands' faces tangent along a line or rim, \
                  and a later reading of the same faces contradicts that: {}. {}",
@@ -4643,18 +4647,13 @@ impl core::fmt::Display for BooleanError {
             // payload. The faces are the first and second operands'
             // (the declaration's own order).
             Self::ContactContradicted {
-                declaration,
-                steer,
-                fact,
-                ..
+                declaration, fact, ..
             } => write!(
                 f,
-                "the declared {} contact between the operands' faces is contradicted: {}. \
-                 {}{}",
+                "the declared {} contact between the operands' faces is contradicted: {}. {}",
                 declaration.class.name(),
                 fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 crate::contact::CONTRADICTION_RECOURSE,
-                crate::contact::steer_clause(*steer),
             ),
             Self::ContinuationContradicted { fact, .. } => write!(
                 f,
@@ -5078,10 +5077,10 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::SlitFaceGlued { operand, face } => write!(
                 f,
-                "the other solid glues away face {face:?} of the {} solid, which carries a slit \
-                 or zero-area ring, so the slit's two coincident edges would become one edge \
-                 between its two walls, and the join cannot wall off the sliver between them \
-                 there. {}",
+                "a face of the other solid lies flush on face {face:?} of the {} solid, which \
+                 carries a slit or zero-area ring: its two coincident edges would become one \
+                 edge between its two walls, or stay in the one of the two flush faces the op \
+                 keeps, and the join does not build that there. {}",
                 operand_word(*operand),
                 geom_core::NOT_YET_ENDING
             ),
@@ -6542,12 +6541,8 @@ pub(super) fn glue_contradicted(
             declaration: crate::contact::DeclaredContact {
                 a: fa,
                 b: fb,
-                class: match class {
-                    GlueClass::Tangent => ContactClass::Tangent,
-                    GlueClass::Rest | GlueClass::Continuation => ContactClass::Rest,
-                },
+                class,
             },
-            steer: fact.and_then(contact_verify::fit_steer),
             fact,
             margin,
         },
@@ -6911,7 +6906,6 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
                     predicate: Some(predicate),
                     terminal_sliver: false,
                 },
-                steer: None,
             });
         }
         Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
@@ -7272,7 +7266,7 @@ fn verify_tangency<T: Decide>(
 /// per op needs the membership, which this stage does not hold (filed:
 /// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`).
 /// The wedge is levered at the farther of the two faces' extents, each
-/// read in its own operand ([`crate::wedge_reach`]).
+/// read in its own operand ([`fn@crate::wedge_reach`]).
 fn route_rim<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -7317,7 +7311,7 @@ fn route_rim<T: Decide>(
             pair: crate::contact::DeclaredContact {
                 a: fa,
                 b: fb,
-                class: ContactClass::Tangent,
+                class: GlueClass::Tangent,
             },
             wedge,
         })),
@@ -8064,6 +8058,7 @@ mod tests {
                 u_ref,
             };
             let face = cyl_wall_sheet(&mut body, frame, u, (0.0, 1.0), tol);
+            crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
             (body, face)
         };
         let near = (1.0, 2.1);
@@ -8683,7 +8678,7 @@ mod tests {
         let declaration = crate::contact::DeclaredContact {
             a: face,
             b: face,
-            class: ContactClass::Rest,
+            class: GlueClass::Rest,
         };
         vec![
             BooleanError::Band(Band::new(1.0, 1.0).unwrap_err()),
@@ -8789,16 +8784,14 @@ mod tests {
             BooleanError::ContactContradicted {
                 declaration,
                 margin: diag,
-                steer: None,
                 fact: None,
             },
             BooleanError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
-                    class: ContactClass::Tangent,
+                    class: GlueClass::Tangent,
                     ..declaration
                 },
                 margin: diag,
-                steer: None,
                 fact: None,
             },
             BooleanError::ContinuationContradicted {
@@ -8898,16 +8891,12 @@ mod tests {
                 b_face: face,
                 b_kind: geom::SurfaceKind::Torus,
             },
-            BooleanError::GermSectionOutsideInventory {
+            BooleanError::GermSectionOpenConic {
                 a_face: face,
                 a_kind: geom::SurfaceKind::Plane,
                 b_face: face,
                 b_kind: geom::SurfaceKind::Cone,
-                conic: geom_brep::OutsideConic::Hyperbola,
-                section: geom_brep::SectionError::RoutesToGeneralRung {
-                    pair: "plane×cone",
-                    why: "a hyperbola",
-                },
+                conic: geom_brep::OpenConic::Hyperbola,
             },
             BooleanError::GermSectionSpiric {
                 a_face: face,
@@ -9101,7 +9090,7 @@ mod tests {
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
-                BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
+                BooleanErrorKind::GermSectionOpenConic => "GermSectionOpenConic",
                 BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::NodeUnbuilt => "NodeUnbuilt",
                 BooleanErrorKind::Euler => "Euler",

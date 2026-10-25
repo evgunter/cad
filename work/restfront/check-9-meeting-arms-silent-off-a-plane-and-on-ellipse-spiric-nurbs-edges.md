@@ -68,3 +68,15 @@ it there too. (TANG implementer)
 ## A second reading of two spans' meetings (stage (c) of the curve-pair reader)
 
 `validate.rs` `segments_meet` (check 9's arm 5) and `lines_meet` decide where two edges meet with their own closed forms. `geom_brep::curve_pair::meet` reads the same question through one `(CurveKind, CurveKind)` table (C5), and `carrier_cross` and the census read it there since `the-curve-pair-reader` (closed, PRs 5154, 5162 and 5227) stage (c). The arms this row finds silent are pairs `meet` reads: an ellipse by its closed forms, and a spiric or spline by its walk. Making check 9 a caller of `meet` would close both. Found by the review of PR 5154.
+
+## Widened to torus walls (FLUX unit E, PR 5567, 2026-10-21)
+
+Since PR 5567 the spiric lane measures a torus wall that holds a spiric
+ring (`geom_brep::props::spiric::rim_face_rounds`). It reads each
+ring's winding against the face (`require_rings_wound_against`, under
+`props_ring_winding`) but not where the ring lies. So a ring outside its
+torus wall, or crossing or overlapping its outer loop, is this row's
+case on one more kind, as it already was on cylinder and sphere walls.
+The review's probe (`review/5567-01Lm5UxC`, `geom-brep`
+`props::spiric::tests::review_5567_ring_orientation_is_not_read`) shows
+the measure taking such a ring at its stated winding.

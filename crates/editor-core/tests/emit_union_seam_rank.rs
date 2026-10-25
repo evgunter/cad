@@ -23,32 +23,25 @@
 //!   so it too leaves two gaps free of the crossings, and the two tie.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block_on, failure, run};
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_rim_piece_ranks::signature;
-use crate::fixture::{frame, insert, len, table, union_over};
+use crate::fixture::{insert, len, slid, table, union_over};
 
 use editor_core::{
-    EntityKey, Entry, Evaluation, ExtrudeSide, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    Qualifier, RecipeNodeId, RoleSeg, StableName,
+    EntityKey, Entry, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram, Qualifier,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use geom_core::{Point3, Tol};
 
-/// The disc of radius `r` about `(cx, cy)`, extruded `dz` up from `z0`;
-/// its wall is two half cylinders, cut where `phase` says
+/// The disc of radius `r` about `(cx, cy)` on its own xy, extruded
+/// `dz`; its wall is two half cylinders, cut where `phase` says
 /// ([`LoopProgram::circle_split`]), or where the kernel cuts a circle.
-fn disc(
-    doc: ProfileDoc,
-    ((cx, cy), r, phase): Disc,
-    z0: f64,
-    dz: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+fn disc(doc: ProfileDoc, ((cx, cy), r, phase): Disc, dz: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![
                 match phase {
                     Some(phase) => LoopProgram::circle_split(cx, cy, r, 2, phase),
@@ -64,7 +57,6 @@ fn disc(
         Node::Extrude {
             profile: p.into(),
             distance: len(dz),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -106,9 +98,10 @@ type Run = (String, Evaluation<f64>, RecipeNodeId);
 /// `x`, `y` and `w`, united in every order.
 fn every_order(scene: &Scene) -> Vec<Run> {
     let doc = ProfileDoc::empty_derived("emit_union_seam_rank", Tol::witness());
-    let (doc, x) = disc(doc, scene.x, 0.0, 1.0);
-    let (doc, y) = block(doc, scene.y.0, scene.y.1, 0.0, 0.5);
-    let (doc, w) = disc(doc, scene.w, -0.25, 1.0);
+    let (doc, x) = disc(doc, scene.x, 1.0);
+    let (doc, y) = block_on(doc, x, scene.y.0, scene.y.1, 0.0, 0.5);
+    let (doc, w) = disc(doc, scene.w, 1.0);
+    let (doc, w) = slid(doc, x, w, [0.0, 0.0, -0.25]);
     let members = [x, y, w];
     permutations(&[0, 1, 2])
         .into_iter()

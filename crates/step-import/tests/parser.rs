@@ -173,7 +173,12 @@ fn prefixed_unit_scales_instead_of_refusing() {
             panic!("expected a solid");
         };
         (
-            topo::mass_properties(&body, Tol::witness()).unwrap().volume,
+            topo::mass_properties(
+                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume,
             eps_in,
         )
     };
@@ -210,7 +215,12 @@ fn a_conversion_based_unit_resolves_from_the_file_s_own_factor() {
         else {
             panic!("a solid")
         };
-        topo::mass_properties(&body, Tol::witness()).unwrap().volume
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume
     };
     // The same metre unit, re-declared as an inch OVER that metre.
     let inch = plain.replace(

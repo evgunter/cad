@@ -22,6 +22,7 @@
 //! about it is known there.
 
 use core::cmp::Ordering;
+use std::cell::Cell;
 
 #[cfg(feature = "sym-profile-testing")]
 use super::profile;
@@ -222,11 +223,13 @@ impl Poly {
         let Some(pairs) = self.terms.len().checked_mul(other.terms.len()) else {
             #[cfg(feature = "sym-profile-testing")]
             profile::note(profile::FreezeCause::Terms);
+            refused(Refusal::Budget);
             return None;
         };
         if pairs > budget.max_terms {
             #[cfg(feature = "sym-profile-testing")]
             profile::note(profile::FreezeCause::Terms);
+            refused(Refusal::Budget);
             return None;
         }
         if self
@@ -236,6 +239,7 @@ impl Poly {
         {
             #[cfg(feature = "sym-profile-testing")]
             profile::note(profile::FreezeCause::Degree);
+            refused(Refusal::Budget);
             return None;
         }
         let mut out = Self {
@@ -415,6 +419,7 @@ pub(super) fn mono_mul(a: &Mono, b: &Mono) -> Option<Mono> {
             let Some(e) = ea.checked_add(eb) else {
                 #[cfg(feature = "sym-profile-testing")]
                 profile::note(profile::FreezeCause::Overflow);
+                refused(Refusal::Ring);
                 return None;
             };
             Some(Some((id, e)))
@@ -712,6 +717,34 @@ impl Form {
     }
 }
 
+/// **What refused a form**, noted at each site that refuses one, so the
+/// walk (`form_in`) can tell a node frozen on the session's budget from
+/// one frozen on the ring's guards. The last refusal before the walk
+/// reads it is the one that froze the node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Refusal {
+    /// A term or degree bound of the session's budget
+    /// ([`SymBudget`]).
+    Budget,
+    /// The ring's guards: a coefficient past its bound, an exponent
+    /// overflow, a zero divisor, a non-finite literal.
+    Ring,
+}
+
+std::thread_local! {
+    static REFUSED: Cell<Option<Refusal>> = const { Cell::new(None) };
+}
+
+/// Notes that `why` refused a form.
+pub(super) fn refused(why: Refusal) {
+    REFUSED.set(Some(why));
+}
+
+/// The last refusal noted since the last read, cleared.
+pub(super) fn take_refusal() -> Option<Refusal> {
+    REFUSED.take()
+}
+
 /// Whether a form is inside the session's freezing budget — both halves
 /// of the quotient, because a denominator that grows without bound costs
 /// exactly what a numerator does.
@@ -737,6 +770,7 @@ pub(super) fn powi_form(base: &Form, n: u32, budget: SymBudget) -> Option<Form> 
     for _ in 0..n {
         acc = acc.mul(base, budget)?;
         if !within(budget, &acc) {
+            refused(Refusal::Budget);
             return None;
         }
     }

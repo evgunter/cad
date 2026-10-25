@@ -12,12 +12,10 @@
 //!
 //! # Why this is a measurement and not a demonstration
 //!
-//! The one other widened `Node::Transform` in the tree
-//! (`editor-core/tests/m10_derived_frame_interval.rs`) widens the
-//! TRANSLATION and pins `rotation_angle` at exactly zero, so this cell
-//! is the document where interval `sin`/`cos` of a parameter reach a
-//! rigid map, and the table below is the answer either way: the walls
-//! it finds are filed, not fixed here.
+//! Elsewhere in the tree a widened placement widens a translation and
+//! no angle, so this cell is the document where interval `sin`/`cos`
+//! of a parameter reach a rigid map, and the table below is the answer
+//! either way: the walls it finds are filed, not fixed here.
 //!
 //! # The table, measured (σ = 0.01 rad at every joint, release)
 //!

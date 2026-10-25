@@ -14,7 +14,6 @@
 //! - every standing renders one way through every door that carries
 //!   it, each door's subject in front;
 //! - no door that runs no hit test says "hit test" for a standing;
-//! - a poisoned datum reaching the distance query carries `through`;
 //! - the checks registry's placement refusal names the node the repair is
 //!   at;
 //! - `RunStatus`, the standing's persisted projection, keeps its JSON
@@ -23,17 +22,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{self, insert, len, minted, on_frame, step};
-use editor_core::ExtrudeSide;
 use editor_core::analysis::ParamBox;
 use editor_core::clearance::{
     ClearanceRefusal, ClearanceVerdict, Selection, SelectionRefusal, clearance,
 };
 use editor_core::{
-    CancelToken, ChecksConfig, ChecksError, Cmp, DocEdit, EntityKind, EvalOptions, Evaluation,
-    GeomPred, HitTestError, InterrogateError, NameLookupError, NamePat, Node, NodePick,
-    NodePickError, NodeStanding, ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate,
-    RoleSeg, RunCtx, RunStatus, SelectRefusal, Selector, SlotId, VerdictRow, VerdictVector,
-    body_name, denotation, evaluate, run_checks, select_where,
+    CancelToken, ChecksConfig, ChecksError, DocEdit, EntityKind, EvalOptions, Evaluation,
+    HitTestError, InterrogateError, NameLookupError, Node, NodePick, NodePickError, NodeStanding,
+    ProfileDoc, RecipeNodeId, Resolution, ResolveIndeterminate, RoleSeg, RunCtx, RunStatus, SlotId,
+    VerdictRow, VerdictVector, body_name, denotation, evaluate, run_checks,
 };
 use geom_core::Tol;
 
@@ -77,12 +74,13 @@ impl Standings {
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(1.0),
-                side: ExtrudeSide::Along,
             },
         );
-        let (doc, poisoned) = insert(
+        // A world copy of the extrude, poisoned through it once it fails.
+        let (doc, poisoned) = fixture::in_world(
             doc,
-            fixture::xform(failed, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
+            failed,
+            &editor_core::Frame::translation([2.0, 0.0, 0.0]),
         );
         let good = run(&doc, &CancelToken::new());
         let (doc, _) = step(
@@ -134,7 +132,7 @@ fn speaks(door: &str, prefix: &str, refusal: &dyn core::fmt::Display, standing: 
 /// **Every standing renders one way through every door that carries
 /// it**, each under that door's own subject: the hit test, the
 /// pick-index build, the name lookup, the name read, the resolution
-/// verdict, the distance and flush queries, the checks registry, the
+/// verdict, the checks registry, the
 /// product gather and the clearance engine's selection (`pncad`'s suite holds the export door
 /// to the same shape, and `viewer`'s the duplicate and the blend tool).
 /// Each door's payload IS the standing [`Evaluation::usable`] answers,
@@ -173,41 +171,13 @@ fn every_standing_renders_one_way_through_every_door() {
         let read = denotation(eval, node, &name).expect_err("no table to read");
         assert_eq!(read, InterrogateError::Standing(standing));
         speaks("the name read", "", &read, standing);
-
-        // The distance query reads its datum only for a queried node
-        // that has a value, which the canceled run has none of.
-        if eval.usable(s.profile).is_ok() {
-            let query = select_where(
-                eval,
-                s.profile,
-                &Selector::of(NamePat::of_kind(EntityKind::Face)),
-                &[GeomPred::DatumDistance {
-                    datum: node,
-                    cmp: Cmp::Approx,
-                    value: len(0.0),
-                }],
-                &s.doc.var_env::<f64>(),
-                Tol::witness(),
-            )
-            .expect_err("a datum with no value");
-            assert!(
-                matches!(query, SelectRefusal::DatumHasNoValue(carried) if carried == standing),
-                "{query:?}"
-            );
-            speaks(
-                "the distance query",
-                "select: the distance query's datum has no value: ",
-                &query,
-                standing,
-            );
-        }
     }
 
     // The checks registry and the gather read the document's
-    // placements: the poisoned transform placed is a placement poisoned
-    // through the failed extrude in the broken run, and one with no
-    // result in the canceled run.
-    let (placed, placement) = fixture::place(s.doc.clone(), s.poisoned);
+    // placements: the world copy is a placement poisoned through the
+    // failed extrude in the broken run, and one with no result in the
+    // canceled run.
+    let (placed, placement) = (s.doc.clone(), s.poisoned);
     let cancel = CancelToken::new();
     cancel.cancel();
     for (eval, standing) in [
@@ -319,7 +289,7 @@ fn every_standing_renders_one_way_through_every_door() {
 #[test]
 fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     let s = Standings::new();
-    let (placed, placement) = fixture::place(s.doc.clone(), s.poisoned);
+    let (placed, placement) = (s.doc.clone(), s.poisoned);
     let ev = run(&placed, &CancelToken::new());
     let refusal = run_checks(&placed, &ev, &ChecksConfig::default(), Tol::witness())
         .expect_err("a poisoned placement refuses the registry");
@@ -342,7 +312,7 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     // this evaluation has no resolver to fetch.
     let (doc, placement) = insert(
         ProfileDoc::empty_derived("node_standing_checks", Tol::witness()),
-        Node::instantiate_part(editor_core::DocRef {
+        crate::fixture::mated_instance(editor_core::DocRef {
             id: editor_core::DocumentId::derive("node_standing_checks_part"),
             pin: editor_core::ContentPin([7; 32]),
         }),
@@ -402,43 +372,6 @@ fn no_standing_refusal_says_hit_test_outside_the_hit_test() {
             "a door that ran no hit test: {text}"
         );
     }
-}
-
-/// **A poisoned datum carries `through`.** The distance query's datum
-/// is poisoned by the failure upstream of it; the refusal says so with
-/// the node the repair is at, where it used to fold "a poisoned node"
-/// into a word and drop which failure did it.
-#[test]
-fn a_poisoned_datum_carries_through_to_the_select_refusal() {
-    let s = Standings::new();
-    let refusal = select_where(
-        &s.broken,
-        s.profile,
-        &Selector::of(NamePat::of_kind(EntityKind::Face)),
-        &[GeomPred::DatumDistance {
-            datum: s.poisoned,
-            cmp: Cmp::Approx,
-            value: len(0.0),
-        }],
-        &s.doc.var_env::<f64>(),
-        Tol::witness(),
-    )
-    .expect_err("a poisoned datum");
-    let SelectRefusal::DatumHasNoValue(standing) = refusal else {
-        panic!("a datum with no value is its own refusal: {refusal:?}");
-    };
-    assert_eq!(
-        standing.through(),
-        Some(s.failed),
-        "the repair's node rides the refusal"
-    );
-    assert!(
-        refusal.to_string().contains(&format!(
-            "at node {}",
-            test_utils::refusal::tag(s.failed.0.digest())
-        )),
-        "{refusal}"
-    );
 }
 
 /// **`RunStatus` keeps its JSON words and its key bytes.** It is the
@@ -538,23 +471,22 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 13] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        31,
+        27,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
-         test-support hand-built evaluation takes its result map whole; a node's space is \
-         read off its inputs' values as they are written (`input_space`), and the loose \
-         spaces off every value; the solve reads each placement's answer off the evaluation \
-         (`SolvedPoses::of`): its value's space and motion, or the mate fault a FAILED \
-         placement carries, a standing and not a value",
+         test-support hand-built evaluation takes its result map whole; the solve reads each \
+         placement's answer off the evaluation (`SolvedPoses::of`): its value's motion, or the \
+         mate fault a FAILED placement carries, a standing and not a value (a node's space is \
+         the recipe's, `Doc::node_space`, and no value is read for it)",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
-        11,
+        10,
         "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
          a read of a split's port or a family's member copies the standing entries and writes \
          the value it resolves to (`reads_projected`), every read still through `value_of`; a \
          placement's solve fault reads whether its placer FAILED, a standing and not a value \
          (`placement_fault`); a placement's fold holds its copy before placement as a scratch \
-         result, and reads a target's space and motion off the target's written value",
+         result, and reads a target's motion off the target's written value",
     ),
     (
         "crates/editor-core/src/eval/measure.rs",

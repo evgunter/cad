@@ -2631,6 +2631,11 @@ struct Session {
     /// rather than stopping at the unrecorded node itself. Kept only
     /// while a drive memo is installed; empty otherwise.
     plain_tainted: IdSet,
+    /// **The nodes the first early walk froze on the session's budget**
+    /// ([`froze_on_its_budget`]): a form past a term or degree bound, as
+    /// against one the ring's guards refused
+    /// ([`form::Refusal::Ring`]).
+    budget_frozen: IdSet,
 }
 
 /// One memoized per-node reduction ([`Session::reductions`]).
@@ -2748,6 +2753,7 @@ impl Session {
             foreign: IdSet::default(),
             plain_unpublished: IdSet::default(),
             plain_tainted: IdSet::default(),
+            budget_frozen: IdSet::default(),
         }
     }
 
@@ -3323,6 +3329,46 @@ fn unary_at_zero(op: SymOp) -> Option<Form> {
     }
 }
 
+/// **The value a sine, cosine or tangent atom takes at a rational
+/// multiple of π, where that value is rational** (D10: a rational
+/// fraction of a turn is a constant): `0`, `±1/2` or `±1` for a sine or
+/// cosine, `0` or `±1` for a tangent. π is an indeterminate of the
+/// form, so the argument `q·π` is read off it exactly and the fold is
+/// an equality of reals.
+fn trig_at_rational_pi(op: SymOp, a: &Form) -> Option<Form> {
+    if !matches!(op, SymOp::Sin | SymOp::Cos | SymOp::Tan) || a.poisoned {
+        return None;
+    }
+    let [(mono, c)] = a.num.terms() else {
+        return None;
+    };
+    if mono.as_slice() != [(INDET_PI, 1)] {
+        return None;
+    }
+    // `q`, the multiple of π, as an integer fraction `p / s`.
+    let q = c.mul(&a.den.as_constant()?.recip()?)?;
+    let (rational::Int::Small(num), rational::Int::Small(den)) = (&q.num, &q.den) else {
+        return None;
+    };
+    let shift = q.exp2.unsigned_abs();
+    let (p, s) = if q.exp2 >= 0 {
+        (num.checked_mul(1i128.checked_shl(shift)?)?, *den)
+    } else {
+        (*num, den.checked_mul(1i128.checked_shl(shift)?)?)
+    };
+    // `q·π` is `q/2` turns.
+    let turns = crate::Turns::new(
+        i64::try_from(p).ok()?,
+        u64::try_from(s.checked_mul(2)?).ok()?,
+    )?;
+    let halves = |h: i8| Rat::new(i128::from(h), 2, 0).map(|r| Form::poly(Poly::constant(r)));
+    match op {
+        SymOp::Sin => halves(turns.sin_halves()?),
+        SymOp::Cos => halves(turns.cos_halves()?),
+        _ => halves(2 * turns.tan_rational()?),
+    }
+}
+
 /// The PLAIN form of one node, given its children's forms — every atom
 /// opaque, no rule applied — `None` for anything the caller must freeze
 /// (an overflow, a budget, an unrepresentable literal, a reciprocal of
@@ -3360,6 +3406,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
         if a.is_zero()
             && let Some(f) = unary_at_zero(op)
         {
+            return Some(f);
+        }
+        if let Some(f) = trig_at_rational_pi(op, a) {
             return Some(f);
         }
         let id = indet_atom(op.tag(), node.payload, &[a.digest()]);
@@ -3690,7 +3739,11 @@ fn form_in(
     root: SymId,
     early: bool,
     registry: bool,
+    first: bool,
 ) -> Arc<Form> {
+    // The walk [`early_form`] runs: the one whose freezes
+    // [`froze_on_its_budget`] reads the cause of.
+    let notes_causes = first && early && !registry;
     // The freeze this WALK made. The running count is the leaf's WORK,
     // and it is what the column says only outside a drive: a leaf of a
     // drive has its column rewritten as its NEED at the leaf's end
@@ -3848,7 +3901,9 @@ fn form_in(
             profile::clear_note();
             #[cfg(feature = "sym-profile-testing")]
             let t0 = profile::clock();
+            form::take_refusal();
             let combined = combine(&node, kids, sess, early);
+            let refusal = form::take_refusal();
             // The per-node A/B reduction (`SymRules::early_ab`),
             // bounded in steps and in the size of the form it is asked
             // over, falling back to the un-reduced form when it does
@@ -3909,6 +3964,13 @@ fn form_in(
             } else {
                 combined
             };
+            let over = match &combined {
+                Some(f) => !within(budget, f),
+                None => refusal == Some(form::Refusal::Budget),
+            };
+            if over && notes_causes {
+                sess.budget_frozen.insert(id, ());
+            }
             let made = combined.filter(|f| within(budget, f));
             #[cfg(feature = "sym-profile-testing")]
             profile::record_node(
@@ -4249,9 +4311,9 @@ fn walk(
     };
     let WalkScope { sess, memo, .. } = &mut scope;
     let out = if first {
-        form_in(sess, memo, root, early, registry)
+        form_in(sess, memo, root, early, registry, true)
     } else {
-        rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry))
+        rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry, false))
     };
     #[cfg(feature = "sym-profile-testing")]
     profile::walk_done(
@@ -4403,6 +4465,28 @@ fn keeps_an_opaque_atom(id: SymId) -> Option<bool> {
         Some(any_indet(sess, &early, |x| {
             opaque.contains(&x)
                 || (sess.nodes.contains_key(&SymId(x)) && reaches_opaque(sess, SymId(x)))
+        }))
+    })
+}
+
+/// **Whether the early form of `id` froze a node on its budget**: an
+/// indeterminate of the form, read through every atom's arguments, is a
+/// node the walk froze because its form outgrew the session's term or
+/// degree bound (`form_in`'s freeze, [`Session::budget_frozen`]). A node
+/// the ring's guards froze (a coefficient past its bound, an exponent
+/// overflow) is not: a larger budget would not read it. A poisoned form
+/// is no freeze: it has no value to be too big for. `None` outside a
+/// session.
+fn froze_on_its_budget(id: SymId) -> Option<bool> {
+    SESSION.with(|s| {
+        let mut slot = s.borrow_mut();
+        let sess = slot.as_mut()?;
+        let early = early_form(sess, id);
+        if early.poisoned {
+            return Some(false);
+        }
+        Some(any_indet(sess, &early, |x| {
+            sess.budget_frozen.contains_key(&SymId(x))
         }))
     })
 }
@@ -5472,6 +5556,43 @@ mod tests {
 
     fn decides_zero(m: Sym<f64>) -> bool {
         crate::k_stats::decide("sym_test", Margin::of(m), band()) == Ok(Sign::Zero)
+    }
+
+    /// **Sine, cosine and tangent of a rational multiple of π fold where
+    /// the value is rational** (`trig_at_rational_pi`), so a copy spun
+    /// by `turn/4` is parallel as a theorem: each row's residual against
+    /// its rational value is the zero form. An irrational value (the
+    /// sine of an eighth of a turn) stays an atom and decides nothing
+    /// symbolically.
+    #[test]
+    fn trig_of_a_rational_multiple_of_pi_folds_where_it_is_rational() {
+        fn pi() -> Sym<f64> {
+            <Sym<f64> as Real>::pi()
+        }
+        fn lit(x: f64) -> Sym<f64> {
+            Sym::from_f64(x)
+        }
+        type Row = (&'static str, fn() -> Sym<f64>, f64);
+        let rows: [Row; 7] = [
+            ("sin(π/2)", || (pi() / lit(2.0)).sin(), 1.0),
+            ("cos(π/2)", || (pi() / lit(2.0)).cos(), 0.0),
+            ("cos(π)", || pi().cos(), -1.0),
+            ("sin(−3π/2)", || (-(pi() * lit(1.5))).sin(), 1.0),
+            ("sin(π/6)", || (pi() / lit(6.0)).sin(), 0.5),
+            ("cos(2π/3)", || (pi() * lit(2.0) / lit(3.0)).cos(), -0.5),
+            ("tan(π/4)", || (pi() / lit(4.0)).tan(), 1.0),
+        ];
+        for (what, f, value) in rows {
+            let (zero, counts) = with_session(budget(), || decides_zero(f() - lit(value)));
+            assert!(zero && counts.symbolic == 1, "{what} = {value}: {counts:?}");
+        }
+        let (_, counts) = with_session(budget(), || {
+            decides_zero((pi() / lit(4.0)).sin() - lit(core::f64::consts::FRAC_1_SQRT_2))
+        });
+        assert_eq!(
+            counts.symbolic, 0,
+            "sin(π/4) is irrational and folds to no constant"
+        );
     }
 
     /// **A pair of spellings of one constant whose product the shipped
@@ -6883,10 +7004,12 @@ mod tests {
 
     /// **Rule D's third fold: `sin`/`cos` at an exact half-multiple of
     /// π** — `cos π = −1`, `sin π = 0`, `cos(π/2) = 0`, `sin(3π/2) =
-    /// −1`, `cos(2π) = 1` decide as theorems; `cos(π/3)` and
+    /// −1`, `cos(2π) = 1` decide as theorems. So does `cos(π/3) = 1/2`,
+    /// by the fold of a rational multiple of π whose value is rational
+    /// (`trig_at_rational_pi`). `cos(π/5)`, which is irrational, and
     /// `cos(π + atan X)` never fold.
     #[test]
-    fn rule_d_folds_trig_at_half_multiples_of_pi_and_nothing_else() {
+    fn rule_d_folds_trig_at_rational_multiples_of_pi_and_nothing_else() {
         let (rows, counts) = with_session(budget(), || {
             let pi = Sym::<f64>::pi();
             let one = Sym::from_f64(1.0);
@@ -6897,16 +7020,18 @@ mod tests {
                 how((pi * half).sin_cos().1),
                 how((pi * Sym::from_f64(1.5)).sin_cos().0 + one),
                 how(Sym::tau().sin_cos().1 - one),
+                how((pi / Sym::from_f64(3.0)).sin_cos().1 - half),
             ]
         });
-        assert_eq!(rows, ["proven"; 5], "{counts:?}");
+        assert_eq!(rows, ["proven"; 6], "{counts:?}");
         let (rows, _) = with_session(budget(), || {
             let pi = Sym::<f64>::pi();
             let x = p("x", 0.3);
             // A value-equal spelling on the other side keeps each row
             // a genuine identity that must stay NUMERIC.
             [
-                how((pi / Sym::from_f64(3.0)).sin_cos().1 - Sym::from_f64(0.5)),
+                how((pi / Sym::from_f64(5.0)).sin_cos().1
+                    + (pi * Sym::from_f64(4.0) / Sym::from_f64(5.0)).sin_cos().1),
                 how((pi + x.atan()).sin_cos().1 + x.atan().sin_cos().1),
             ]
         });

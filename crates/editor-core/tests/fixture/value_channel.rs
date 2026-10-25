@@ -21,7 +21,7 @@
 //! For every node in evaluation order: the result's arm
 //! (`Ok`/`Failed`/`Poisoned`), the payload's arm, and the payload's
 //! stored geometry read through the scalar's own value channel — every
-//! body point, every datum frame, every profile loop's vertices and
+//! body point, every profile loop's vertices and
 //! arc carriers, plus arena counts.
 //!
 //! It does NOT read curve carriers, surface geometry, or pcurves, and
@@ -62,8 +62,8 @@
 //! scalar-free or `f64`-only channels a caller compares directly.
 
 use editor_core::{
-    AssertionVerdict, BooleanValue, Dimension, Evaluation, NodeResult, PoseValue, RecipeNodeId,
-    SplitSide, ValuePayload,
+    AssertionVerdict, BooleanValue, Dimension, Evaluation, NodeResult, RecipeNodeId, SplitSide,
+    ValuePayload,
 };
 use geom_core::{Decide, Dual64};
 use topo::{Body, MassProperties};
@@ -193,30 +193,6 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
         Some(NodeResult::Ok(v)) => {
             d.u64(3);
             match &v.payload {
-                ValuePayload::Datum(PoseValue::Plane { origin, normal }) => {
-                    d.u64(10);
-                    d.point3(*origin);
-                    d.vec3(normal.get());
-                }
-                ValuePayload::Datum(PoseValue::Axis { origin, dir }) => {
-                    d.u64(11);
-                    d.point3(*origin);
-                    d.vec3(dir.get());
-                }
-                ValuePayload::Datum(PoseValue::Point { position }) => {
-                    d.u64(12);
-                    d.point3(*position);
-                }
-                ValuePayload::Datum(PoseValue::Frame(f)) => {
-                    d.u64(23);
-                    d.point3(f.origin());
-                    d.vec3(f.u().get());
-                    d.vec3(f.v().get());
-                }
-                ValuePayload::Datum(PoseValue::Direction { dir }) => {
-                    d.u64(26);
-                    d.vec3(dir.get());
-                }
                 ValuePayload::Profile(p) => {
                     d.u64(13);
                     for lp in p.validated.loops() {

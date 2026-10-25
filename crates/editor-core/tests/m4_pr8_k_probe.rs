@@ -51,7 +51,7 @@ use crate::fixture::value_channel::{
 use std::io::Write as _;
 
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
-use topo::{mass_properties, validate, validate_closed};
+use topo::{validate, validate_closed};
 
 use corpus::{body_of, documents, eval, failures};
 use editor_core::{BooleanValue, NodeResult, ValuePayload};
@@ -80,13 +80,24 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
         d.name,
         bad.join("\n")
     );
-    if let Some(result) = d.result {
-        let body = body_of(&ev, result);
-        validate(body).expect("tier 1");
-        validate_closed(body).expect("closed");
-        mass_properties(body, Tol::witness()).expect("mass properties");
-    }
-    k_stats::take_samples()
+    let Some(result) = d.result else {
+        return k_stats::take_samples();
+    };
+    validate(body_of(&ev, result)).expect("tier 1");
+    validate_closed(body_of(&ev, result)).expect("closed");
+    let mut samples = k_stats::take_samples();
+    // The finish (tier 3) runs between the two recording windows, so the
+    // corpus holds what it held before the typed door: the evaluation,
+    // tiers 1 and 2, and the measurement.
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, result)),
+        Tol::witness(),
+    );
+    k_stats::start_recording();
+    topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    samples.extend(k_stats::take_samples());
+    samples
 }
 
 /// The dump entry point (ignored: run explicitly, one process per ε).
@@ -258,11 +269,11 @@ fn arm<T: geom_core::Decide>(r: Option<&NodeResult<T>>) -> &'static str {
 /// confined to a NURBS control net, or to a face's surface with every
 /// stored point unmoved, passes this row.
 ///
-/// **The record.** `NodeValue` declares ten fields. Nine are read here
-/// — payload, name table, verdicts, escalations, content key, naming
-/// key, contacts, carried declarations, placement — and the tenth,
-/// `witness`, is a reserved empty slot with nothing to compare. Two of
-/// the nine are read but EMPTY on today's corpus: `contacts` and
+/// **The record.** Of `NodeValue`'s fields, eight are read here —
+/// payload, name tables, verdicts, escalations, content key, naming
+/// key, contacts, carried declarations — and a placement's motion is
+/// read through the payload of the copy it places. Two of the eight are
+/// read but EMPTY on today's corpus: `contacts` and
 /// `carried` are filled at the instantiate op alone and the registry
 /// has none, so those two comparisons hold vacuously and are counted
 /// as covered by nothing. A boolean's surviving contacts are a
@@ -403,20 +414,6 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
                         "{}: node {id:?}: carried mate declarations",
                         d.name
                     );
-                    // `FramePlacement` carries a `SketchPlane<f64>` —
-                    // the document's NOMINAL, minted at `f64` under
-                    // every lane — so it is compared as text rather
-                    // than through the value channel. `Debug`'s `f64`
-                    // rendering is the shortest round-tripping decimal,
-                    // a bijection with the bits for every finite value
-                    // and for `-0.0`; a NaN PAYLOAD is the one thing it
-                    // would not separate.
-                    assert_eq!(
-                        format!("{:?}", vf.placement),
-                        format!("{:?}", vp.placement),
-                        "{}: node {id:?}: frame placement",
-                        d.name
-                    );
                     // WHERE A BOOLEAN'S RECORDS ACTUALLY LIVE — on the
                     // payload, not on the value — and where the shared
                     // node feed cannot see them: it digests the result
@@ -478,8 +475,22 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
             && matches!(ev_f.result(result), Some(NodeResult::Ok(_)))
         {
             let tol = Tol::witness();
-            let mf = mass_properties(body_of(&ev_f, result), tol);
-            let mp = mass_properties(body_of(&ev_p, result), tol);
+            let mf = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(body_of(&ev_f, result)),
+                    tol,
+                ),
+                tol,
+            );
+            let mp = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(body_of(&ev_p, result)),
+                    tol,
+                ),
+                tol,
+            );
             match (&mf, &mp) {
                 (Ok(a), Ok(b)) => {
                     let (ha, wa) = props_digest(a);

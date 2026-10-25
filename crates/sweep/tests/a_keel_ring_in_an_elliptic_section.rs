@@ -12,9 +12,11 @@
 
 use crate::common::bores::halves_at_rest;
 use core::f64::consts::PI;
+use geom_core::RigidMotion;
 use geom_core::{Point2, Point3, Tol, Vec3};
+use profile::SketchPlane;
 use sweep::test_support::{finished, prism_at, prism_on, sketch_from_axes};
-use topo::{Body, BooleanResult, ContactRecords, LoopBoundary, mass_properties, subtract, union};
+use topo::{Body, BooleanResult, ContactRecords, LoopBoundary, subtract, union};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -40,12 +42,7 @@ fn cylinder(tilt: f64, half: f64) -> Body<f64> {
 
 /// The V-trench whose keel runs from `(1.5, 2, 0)` to `(2.5, 2, 0)`.
 fn trench() -> Body<f64> {
-    let end = sketch_from_axes(
-        Point3::new(1.5, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        tol(),
-    );
+    let end = SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(1.5, 0.0, 0.0)));
     let v = vec![
         (Point2::new(2.0, 0.0), 0.0),
         (Point2::new(2.6, 2.0), 0.0),
@@ -129,7 +126,12 @@ fn a_keel_ring_nests_inside_an_elliptic_section() {
                 Ok(()),
                 "{what}: tier 3′"
             );
-            let got = mass_properties(b, tol()).unwrap().volume;
+            let got = topo::mass_properties(
+                &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+                tol(),
+            )
+            .unwrap()
+            .volume;
             assert!(
                 (got - volume).abs() < 1e-9 * volume,
                 "{what}: volume {got}, closed form {volume}"
@@ -241,7 +243,12 @@ fn a_keel_ring_on_an_island_in_a_hole_nests_on_the_island() {
                 // trench (`work/cleave/a-hole-in-an-elliptic-section-keeps-a-face-of-its-own-that-tier-3-prime-refuses.md`).
                 let pseudo = topo::validate_pseudomanifold(b, &ContactRecords::default(), tol());
                 assert_eq!(pseudo.is_ok(), tilt == 0.0, "{what}: tier 3′ {pseudo:?}");
-                let got = mass_properties(b, tol()).unwrap().volume;
+                let got = topo::mass_properties(
+                    &topo::test_support::finished("the measured body", topo::Body::clone(b), tol()),
+                    tol(),
+                )
+                .unwrap()
+                .volume;
                 assert!(
                     (got - volume).abs() < 1e-9 * volume,
                     "{what}: volume {got}, closed form {volume}"

@@ -119,6 +119,7 @@ pub const fn var_kind_tag(kind: pncad::document::VarKind) -> &'static str {
         VarKind::Body => "body",
         VarKind::Bodies => "bodies",
         VarKind::Profile => "profile",
+        VarKind::Space => "space",
         VarKind::Face => "face",
         VarKind::Edge => "edge",
         VarKind::Vertex => "vertex",
@@ -381,7 +382,8 @@ pub enum ErrorClass {
     /// ...).
     Path,
     /// A selection query refused (an in-band decided margin, a tied
-    /// name whose candidates disagree, a non-datum reference, ...).
+    /// name whose candidates disagree, a distance from a face that is
+    /// not a plane, ...).
     /// The Python class keeps the Rust type's own name: the refusal
     /// IS `SelectRefusal`, crossing.
     Select,
@@ -425,6 +427,9 @@ pub enum ErrorClass {
     /// An `inline` refactoring refused. The Python class is
     /// `InlineError`.
     Inline,
+    /// A `flatten` refactoring refused. The Python class is
+    /// `FlattenError`.
+    Flatten,
     /// A whole-document pin update produced no edit list. The Python
     /// class is `UpdateError`.
     Update,
@@ -609,6 +614,7 @@ impl ErrorClass {
             Self::Product => "ProductError",
             Self::Split => "SplitError",
             Self::Inline => "InlineError",
+            Self::Flatten => "FlattenError",
             Self::Update => "UpdateError",
             Self::Readback => "ReadbackError",
             Self::HitTest => "HitTestError",
@@ -831,10 +837,9 @@ pub enum BoundaryEdit<'a> {
     /// A placement rule spelled through the wrong constructor, worded
     /// by the document layer's own fault map.
     PlacementRule(&'a pncad::document::PlacementRuleFault),
-    /// A copy the "place part" gesture (`Doc.place_at`) could not
-    /// place over its geometry, worded by the kernel's own refusal
-    /// map: it did not evaluate, is no body, is placed already, or
-    /// offers no frame.
+    /// A body `Doc.corner_frame` could read no frame off, worded by the
+    /// kernel's own refusal map: it did not evaluate, is no body, is
+    /// placed already, or offers no such corner.
     Pin(&'a pncad::document::PinRefusal),
     /// A text that is not a parameter name. `ParamName(text)` is the
     /// boundary that turns text into a name, and the document layer's
@@ -853,21 +858,14 @@ pub enum BoundaryEdit<'a> {
 /// Which `#[non_exhaustive]` kernel enum at the SELECTION boundary has
 /// grown a variant this binding predates.
 ///
-/// Both arms answer one word, and that is the point of the type rather
-/// than an accident of it: a caller reads `SelectRefusal.reason ==
+/// Every arm answers one word: a caller reads `SelectRefusal.reason ==
 /// "unclassified"` and learns one fact — this binding could not
-/// classify the refusal — whichever kernel enum out-grew it. The word
-/// used to be spelled twice, once at `crate::tags::select_refusal_tag`'s
-/// forced wildcard and once at the contact-class crossing, with nothing
-/// holding the two equal.
+/// classify the refusal — whichever kernel enum out-grew it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum UnmirroredSelect {
     /// A `pncad::select::SelectRefusal` arm this binding does not
     /// mirror, reached through the query door.
     Refusal,
-    /// A `pncad::select::ContactClass` this binding does not mirror,
-    /// reached through a mate's or a crossing's `class_`.
-    ContactClass,
 }
 
 /// Everything that can refuse a `to_stl_*` call, as ONE value.
@@ -932,13 +930,6 @@ pub enum StlRefusal<'a> {
 /// deliberate — the fingerprint has to be something prose does not
 /// carry, and no cheaper discriminator was available — but it is a
 /// trade, not a free check.
-///
-/// One arm disagrees with it on purpose: `crate::py::contact`'s
-/// unknown-`ContactClass` refusal renders the unknown variant through
-/// `Debug`, having nothing else to render it with. Today that is a
-/// fieldless name mid-sentence, which passes. A future STRUCT variant
-/// of that kernel enum would trip this assertion and panic where that
-/// arm means to refuse gracefully; the site says so too.
 #[must_use]
 pub fn reads_as_prose(message: &str) -> bool {
     !message.contains(" { ") && !is_bare_camel_token(message)

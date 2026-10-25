@@ -76,8 +76,8 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
     (ON_SEAM_LINE, "whether a point lies on a seam's line"),
     (CHORD_ON_RIM, "whether a chord lies on its rim"),
     (
-        crate::pose::SEL_DATUM_DISTANCE,
-        "which side of a selection's stated distance from a datum a point lies on",
+        crate::pose::SEL_PLANE_DISTANCE,
+        "which side of a selection's stated distance from a plane a point lies on",
     ),
 ];
 

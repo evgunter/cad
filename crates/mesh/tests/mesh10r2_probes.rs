@@ -54,7 +54,11 @@ fn split_seam_donut(fracs: &[f64]) -> (Body<f64>, topo::EdgeKey, Vec<topo::EdgeK
 }
 
 fn volume(b: &Body<f64>) -> Result<f64, topo::MassPropsError> {
-    topo::mass_properties(b, Tol::witness()).map(|m| m.volume)
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", (b).clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .map(|m| m.volume)
 }
 
 /// **The split-seam donut's mesh, measured independently.** Positions

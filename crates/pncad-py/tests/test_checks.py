@@ -50,11 +50,17 @@ from pncad import (
     Doc,
     DocEdit,
     DocRef,
+    Coord,
     Formula,
+    FreeValue,
+    FreeVar,
+    Frame,
+    MateValue,
     Node,
     Open,
     Severity,
     Start,
+    VarName,
     enforce_checks,
     evaluate,
     m,
@@ -62,11 +68,16 @@ from pncad import (
     run_checks,
     subject_body,
 )
+
+from placing import against
 from test_assembly_eval import identities, opened
 
 
-def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0):
-    """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1], in metres."""
+def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0, on=None):
+    """The axis-aligned box [x0,x1] x [y0,y1] x [z0,z1], in metres: in
+    its own coordinates `z0` up where it stands alone, or placed
+    against `on` (`on`'s own coordinates) where it is combined with
+    it."""
     profile = doc.insert(
         Node.polygon(
             [
@@ -75,10 +86,13 @@ def slab(doc, x0, x1, y0=0.0, y1=1.0, z0=0.0, z1=1.0):
                 (Formula.length_in(x1, m), Formula.length_in(y1, m)),
                 (Formula.length_in(x0, m), Formula.length_in(y1, m)),
             ],
-            plane=doc.sketch_frame(elevation=Formula.length_in(z0, m)),
         )
     )
-    return doc.insert(Node.extrude(profile, Formula.length_in(z1 - z0, m)))
+    body = doc.insert(Node.extrude(profile, Formula.length_in(z1 - z0, m)))
+    if on is None:
+        assert z0 == 0.0, "a box standing alone sits on its own xy"
+        return body
+    return against(doc, on, body, Frame.translation((0 * m, 0 * m, z0 * m)))
 
 
 def disjoint_union():
@@ -87,23 +101,23 @@ def disjoint_union():
     node a finding attributes its subject to — and the first box."""
     doc = Doc("checks-disjoint")
     a = slab(doc, 0.0, 1.0)
-    b = slab(doc, 3.0, 4.0)
-    placed = doc.place(doc.insert(Node.union([a, b])))
+    b = slab(doc, 3.0, 4.0, on=a)
+    placed = doc.place(doc.insert(Node.union([a, b])), doc.world)
     return doc, placed, a
 
 
 def one_box():
     """One box, placed; answers its placement."""
     doc = Doc("checks-connected")
-    return doc, doc.place(slab(doc, 0.0, 1.0))
+    return doc, doc.place(slab(doc, 0.0, 1.0), doc.world)
 
 
 def two_placed(x0):
     """Two boxes, each placed — the document's product gathers both.
     Answers the two placements."""
     doc = Doc("checks-two-placed")
-    first = doc.place(slab(doc, 0.0, 1.0))
-    return doc, first, doc.place(slab(doc, x0, x0 + 1.0))
+    first = doc.place(slab(doc, 0.0, 1.0), doc.world)
+    return doc, first, doc.place(slab(doc, x0, x0 + 1.0), doc.world)
 
 
 class TestTheConnectednessResident(unittest.TestCase):
@@ -141,7 +155,7 @@ class TestTheConnectednessResident(unittest.TestCase):
     def test_an_interior_void_is_boundary_and_not_a_component(self):
         doc = Doc("checks-voided")
         outer = slab(doc, 0.0, 3.0, 0.0, 3.0, 0.0, 3.0)
-        inner = slab(doc, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0)
+        inner = slab(doc, 1.0, 2.0, 1.0, 2.0, 1.0, 2.0, on=outer)
         doc.insert(Node.subtract(outer, inner))
         self.assertEqual(run_checks(doc, evaluate(doc)).findings, [])
 
@@ -300,8 +314,8 @@ class TestTheRegistryVocabulary(unittest.TestCase):
 
         def checked(seed, text):
             doc = Doc(seed)
-            first = doc.place(slab(doc, 0.0, 1.0))
-            doc.place(slab(doc, 0.5, 1.5))
+            first = doc.place(slab(doc, 0.0, 1.0), doc.world)
+            doc.place(slab(doc, 0.5, 1.5), doc.world)
             doc.apply(DocEdit.set_label(first, text))
             report = run_checks(doc, evaluate(doc))
             return first, report
@@ -352,7 +366,7 @@ class TestSubjectBody(unittest.TestCase):
         sliver = Doc("checks-sliver-subject")
         a = slab(sliver, 0.0, 1.0)
         # 2 nm apart: in band, so the union refuses and has no value.
-        b = slab(sliver, 1.0 + 2e-9, 2.0)
+        b = slab(sliver, 1.0 + 2e-9, 2.0, on=a)
         failed = sliver.insert(Node.union([a, b]))
         self.assertIsNone(subject_body(evaluate(sliver), failed, 0))
 
@@ -394,9 +408,8 @@ class TestSubjectBodyCarriesItsDeclarations(unittest.TestCase):
         ident = identities()["stand"]
         doc = Doc("checks-instantiated-assembly")
         instance = doc.insert(
-            Node.instantiate_part(DocRef(ident, store.current_pin(ident)))
+            Node.instantiate_part(DocRef(ident, store.current_pin(ident)), doc.world)
         )
-        doc.pin(instance, resolver=store)
         return doc, instance, evaluate(doc, resolver=store)
 
     def test_the_subject_is_the_body_its_producer_minted(self):
@@ -443,24 +456,30 @@ class TestTheChecksCouldNotRun(unittest.TestCase):
         reporting over what did evaluate."""
         doc = Doc("checks-sliver")
         a = slab(doc, 0.0, 1.0)
-        # Placed while it builds — the gesture reads the union's faces —
-        # then its second slab is lowered to 2 nm above the first: in
-        # band, so the union refuses.
-        frame = doc.sketch_frame(elevation=Formula.length_in(1.5, m))
-        profile = doc.insert(
-            Node.polygon(
-                [
-                    (Formula.length_in(0, m), Formula.length_in(0, m)),
-                    (Formula.length_in(1, m), Formula.length_in(0, m)),
-                    (Formula.length_in(1, m), Formula.length_in(1, m)),
-                    (Formula.length_in(0, m), Formula.length_in(1, m)),
-                ],
-                plane=frame,
-            )
+        # Placed 0.5 m beside the first along x, by a value reading
+        # `apart`; then `apart` closes the gap to 2 nm: in band, so the
+        # union refuses.
+        doc.apply(DocEdit.declare_var(VarName("apart"), FreeVar.length(1.5 * m)))
+        b = against(doc, a, slab(doc, 0.0, 1.0), Frame.translation((1.5 * m, 0 * m, 0 * m)))
+        # The bundle written again whole, its slide along `x` reading
+        # `apart`.
+        values = [c for _, c in doc.bundle(b)]
+        doc.set_constraints(
+            b,
+            [
+                MateValue(
+                    c.coord,
+                    doc.var(VarName("apart")) if c.coord == Coord.slide("x") else c.by,
+                )
+                for c in values
+            ],
         )
-        b = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
-        root = doc.place(doc.insert(Node.union([a, b])))
-        doc.apply(DocEdit.set_param(frame, "origin_z", Formula.length_in(1.0 + 2e-9, m)))
+        union = doc.insert(Node.union([a, b]))
+        root = doc.place(union, doc.world)
+        self.assertAlmostEqual(
+            evaluate(doc).value(union).body().mass_properties().volume, 2.0, places=9
+        )
+        doc.apply(DocEdit.set_var_value(VarName("apart"), FreeValue.length((1.0 + 2e-9) * m)))
         ev = evaluate(doc)
         with self.assertRaises(ChecksError) as caught:
             run_checks(doc, ev)
@@ -481,7 +500,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
     def test_a_glued_rest_and_its_corners_are_unproven_coincidences(self):
         doc = Doc()
         lower = slab(doc, 0.0, 1.0)
-        upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5)
+        upper = slab(doc, 0.25, 0.75, 0.25, 0.75, 1.0, 1.5, on=lower)
         glued = doc.insert(Node.union([lower, upper]))
         ev = evaluate(doc)
         rows = ev.coincidences(glued)
@@ -497,7 +516,7 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         self.assertIsNone(row.rung)
         self.assertEqual(
             row.residual,
-            "the two cells are two constructions; with every variable a symbol, "
+            "the two cells are two constructions, placed or reflected apart; with every variable a symbol, "
             "neither the carriers' verdict nor the deciding margin is shown "
             "identically zero within the door's budget",
         )
@@ -538,7 +557,6 @@ class TestTheUnprovenCoincidenceResident(unittest.TestCase):
         )
 
 
-
 class TestAProfileJunctionTheDoorDecides(unittest.TestCase):
     """D1's profile tangency: a junction's tangency is its turn levered
     by the shorter of its two legs' arms, one reading the path door and
@@ -558,7 +576,7 @@ class TestAProfileJunctionTheDoorDecides(unittest.TestCase):
             .line_to(Start)
         )
         doc = Doc()
-        node = doc.insert(Node.profile(loop, plane=doc.sketch_frame()))
+        node = doc.insert(Node.profile(loop))
         ev = evaluate(doc)
         self.assertTrue(ev.succeeded(node))
         self.assertEqual(ev.coincidences(node), [])

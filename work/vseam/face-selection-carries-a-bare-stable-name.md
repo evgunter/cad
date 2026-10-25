@@ -4,7 +4,7 @@ kind: issue
 title: FaceSelection::name is a bare StableName, so the mate tool re-checks what its door decided
 status: open
 opened: 2026-09-17
-priority: P1
+priority: P3
 cost: D
 ---
 
@@ -48,3 +48,7 @@ constructible instead of being answered.
 Cited: `crates/viewer/src/matetool.rs`'s `picked_member` and
 `MateToolError::PickIsNotAFace`,
 `crates/viewer/src/session/select.rs`'s `FaceSelection`.
+
+## 2026-10-21 — re-banded
+
+P1 → P3. Making an unconstructible state a type; nothing is wrong today, since `picked_member` refuses it in every build. Latent unsoundness, P3's band.

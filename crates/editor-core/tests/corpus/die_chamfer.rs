@@ -24,10 +24,9 @@
 //! `die_fillet` disposition, for the same reason.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
-use crate::fixture::{len, prism_edges, xy_frame};
+use crate::fixture::{len, prism_edges};
 
 use super::{CorpusDoc, Recorder};
 
@@ -45,16 +44,13 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
-    let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(L),
-        side: ExtrudeSide::Along,
     });
     let blank = r.insert(Node::chamfer(cube, len(D), prism_edges(&r.doc, cube, 4)));
 

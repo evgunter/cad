@@ -17,15 +17,17 @@
 use core::f64::consts::PI;
 
 use geom::{Curve3, Surface};
-use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol, Vec3};
+use geom_core::RigidMotion;
+use geom_core::{Bounds, CertifiedBounds, Decide, Point2, Point3, Real, Tol};
+use profile::SketchPlane;
 use sweep::blend::battery::END_FACE_CURVED;
 use sweep::blend::build::{Blended, fillet_edges};
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::{
-    assert_naming_totality, block, cube, pocket_die, prism, prism_on, realized, sketch_from_axes,
+    assert_naming_totality, block, cube, pocket_die, prism, prism_on, realized,
 };
-use topo::{Body, EdgeKey, mass_properties, query, validate_geometric};
+use topo::{Body, EdgeKey, query, validate_geometric};
 
 /// The band size every row asks for, meters.
 pub(crate) const D: f64 = 0.1;
@@ -35,7 +37,11 @@ pub(crate) fn tol() -> Tol {
 }
 
 pub(crate) fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("closed-form props");
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }
@@ -116,8 +122,14 @@ pub(crate) fn arc_residual(out: &Blended<f64>) -> (usize, f64) {
 /// quadrature lane's pad (zero on a closed-form `f64` inventory, the
 /// lane's on a curved face trimmed by an ellipse: a fillet's band at an
 /// oblique end face).
-pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds>(body: &Body<T>) -> (f64, f64) {
-    let p = mass_properties(body, tol()).expect("certified props");
+pub(crate) fn volume_enclosure<T: Decide + Bounds + CertifiedBounds + topo::AtRestPolicy>(
+    body: &Body<T>,
+) -> (f64, f64) {
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("certified props");
     let (lo, hi) = (p.volume.lo(), p.volume.hi());
     (0.5 * (lo + hi), 0.5 * (hi - lo) + p.volume_pad)
 }
@@ -334,12 +346,7 @@ fn a_chamfered_box_edge_matches_the_boolean_less_its_prism() {
     // `z = 1` along `x`, the material on the `toward` side in `y`.
     let beyond = |y0: f64, toward: f64| {
         let out = -toward;
-        let plane = sketch_from_axes(
-            Point3::new(-0.5, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        );
+        let plane = SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(-0.5, 0.0, 0.0)));
         let mut verts = vec![
             (Point2::new(y0 + out * 0.5, 0.5 - D), 0.0),
             (Point2::new(y0 + toward * (D + 0.5), 1.5), 0.0),

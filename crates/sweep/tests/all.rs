@@ -76,6 +76,8 @@ mod a_flipped_shallow_dimple;
 mod a_keel_ring_in_an_elliptic_section;
 #[path = "a_loft_computes_its_walls_in_t.rs"]
 mod a_loft_computes_its_walls_in_t;
+#[path = "a_lofted_lens_blade_certifies_its_sign.rs"]
+mod a_lofted_lens_blade_certifies_its_sign;
 #[path = "a_minted_vertex_on_a_curved_face.rs"]
 mod a_minted_vertex_on_a_curved_face;
 #[path = "a_move_through_a_neighbour_inverts_the_body.rs"]
@@ -94,6 +96,8 @@ mod a_plane_moved_to_a_cone_apex;
 mod a_pole_and_an_apex_join_nothing;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
+#[path = "a_rim_covering_part_of_its_row_re_mints_the_rows_arc.rs"]
+mod a_rim_covering_part_of_its_row_re_mints_the_rows_arc;
 #[path = "a_rim_in_a_face_beside_a_resting_ridge.rs"]
 mod a_rim_in_a_face_beside_a_resting_ridge;
 #[path = "a_ring_on_a_cone_face.rs"]
@@ -134,6 +138,8 @@ mod a_vertex_on_a_grazing_plane;
 mod a_wall_seam_takes_the_column_it_lies_on;
 #[path = "an_annular_tube_through_a_plate.rs"]
 mod an_annular_tube_through_a_plate;
+#[path = "an_arc_loft_seams_its_rational_wall_at_every_spacing.rs"]
+mod an_arc_loft_seams_its_rational_wall_at_every_spacing;
 #[path = "an_arc_rim_picks_the_row_it_lies_on.rs"]
 mod an_arc_rim_picks_the_row_it_lies_on;
 #[path = "an_arc_tangent_at_a_boolean_vertex.rs"]
@@ -184,6 +190,8 @@ mod bool6r1_probes;
 mod bool6r1_probes_interval;
 #[path = "carved_sphere_operand.rs"]
 mod carved_sphere_operand;
+#[path = "cell_region_bodies.rs"]
+mod cell_region_bodies;
 #[path = "cone_join_lane.rs"]
 mod cone_join_lane;
 #[path = "cone_operand_rows.rs"]
@@ -240,8 +248,8 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
-#[path = "placeholder_chart_boundary.rs"]
-mod placeholder_chart_boundary;
+#[path = "placeholder_loop_windings.rs"]
+mod placeholder_loop_windings;
 #[path = "planar_ring_arc_closure.rs"]
 mod planar_ring_arc_closure;
 #[path = "pocket_ring_steep_ellipse.rs"]
@@ -254,6 +262,8 @@ mod point_in_loop_arc_cap;
 mod point_touch_records;
 #[path = "pole_slit_window.rs"]
 mod pole_slit_window;
+#[path = "quad_frame_remeasure.rs"]
+mod quad_frame_remeasure;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -276,6 +286,8 @@ mod review_sixx_r2_probes;
 mod saddle_wall_offset_fit;
 #[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
 mod scaffolding_on_a_blend_support_face_does_not_finish;
+#[path = "seam_region_cover_census.rs"]
+mod seam_region_cover_census;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -306,6 +318,8 @@ mod spheres_crossing_off_every_edge;
 mod spiric_faces_fuzz;
 #[path = "sym11_far_placement_rows.rs"]
 mod sym11_far_placement_rows;
+#[path = "the_door_reads_seam_regions_as_tier_3_does.rs"]
+mod the_door_reads_seam_regions_as_tier_3_does;
 #[path = "tilted_sphere_pair.rs"]
 mod tilted_sphere_pair;
 #[path = "tilted_sphere_pair_k_rows.rs"]
@@ -320,8 +334,6 @@ mod torax_interval;
 mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
-#[path = "trim_3_chart_bound_bodies.rs"]
-mod trim_3_chart_bound_bodies;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]
@@ -849,6 +861,8 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "a_boolean_on_a_pole_touching_octant.rs"]
+mod a_boolean_on_a_pole_touching_octant;
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
 #[path = "full_turn_wall.rs"]
@@ -1216,10 +1230,14 @@ mod shell_curved_mouth;
 #[path = "sphere_face_flips_are_refused.rs"]
 mod sphere_face_flips_are_refused;
 
+#[path = "a_body_built_turned_is_the_body_turned.rs"]
+mod a_body_built_turned_is_the_body_turned;
 #[path = "a_closed_conic_in_the_partners_face.rs"]
 mod a_closed_conic_in_the_partners_face;
 #[path = "a_cone_with_a_tilted_seam.rs"]
 mod a_cone_with_a_tilted_seam;
+#[path = "a_mirrored_body_is_its_image.rs"]
+mod a_mirrored_body_is_its_image;
 #[path = "a_revolved_wall_arc_join_reads_its_reach.rs"]
 mod a_revolved_wall_arc_join_reads_its_reach;
 #[path = "join_lever_is_the_joined_edge.rs"]

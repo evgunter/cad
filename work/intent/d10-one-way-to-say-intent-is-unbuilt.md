@@ -2,11 +2,12 @@
 id: d10-one-way-to-say-intent-is-unbuilt
 kind: issue
 title: D10 (one way to say dependency, placement and intent) is ratified and unbuilt: the program that builds it, and the hold it carries
-status: open
+status: parked
 opened: 2026-10-03
 priority: P0
 cost: H
 refs: [one-way-to-say-dependency-and-intent]
+blocked_on: [intent-stage3-is-built, the-at-rest-census-is-a-check]
 ---
 
 

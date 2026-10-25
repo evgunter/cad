@@ -129,8 +129,18 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
         "identical promotions (bit-identical patches)"
     );
     let (v1, v2) = (
-        topo::mass_properties(&base, Tol::witness()).unwrap().volume,
-        topo::mass_properties(&body, Tol::witness()).unwrap().volume,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", base.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume,
     );
     assert_eq!(v1.to_bits(), v2.to_bits(), "volume bit-identical");
 }

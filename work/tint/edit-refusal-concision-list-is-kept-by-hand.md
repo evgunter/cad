@@ -19,7 +19,7 @@ budget. Its forwarded faults are welded by `witnesses` chains (`:724`) whose
 itself is kept by hand: a scripted comparison of its constructors
 against the enum (`crates/editor-core/src/edit.rs:2131`) finds 12 of 92
 arms with no row — `PoseShape`, `IndexedRead`, `LoftSectionsSpelled`,
-`SetExtrudeSideOnNonExtrude`, `SharedVarNeedsName`, `FreshUnheld`,
+`SetExtrudeSideOnNonExtrude` (since retired with `Extrude.side`), `SharedVarNeedsName`, `FreshUnheld`,
 `FreshKind`, `FreshUnread`, `VarIsAnOutput`, `AppearanceBodyNotARead`,
 `MateNamedByValue`, `LabelUnchanged`. Some may be unreachable at a
 viewer door; each wants a row or a reason in-file.

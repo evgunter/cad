@@ -48,17 +48,13 @@
 //!
 //! # One further REPORTED deviation
 //!
-//! **(a) A per-pole master ball, not a rotated copy.** The sweep unit
-//! rotates one +Y-poled ball onto each face normal. `Node::Transform`
-//! could do the same, but `sin`/`cos` of ±π/2 are not exact in `f64`,
-//! so the rotated chart's polar axis would sit ~1e-16 off the face
-//! normal — inside every ε row's band, but an approximation where an
-//! exact placement was available. Instead the ball's revolve axis IS
-//! the face normal (the sketch frame is chosen so its v-axis is +Z),
-//! and the `Node::Transform` is translation-only, rotation angle
-//! exactly `0`. This is the discipline `tests/fixture/mod.rs` already
-//! records for the M4 die, applied to the chart instead of the volume
-//! oracle.
+//! **(a) The pip stands on the face's axis, not a rotated copy.** The
+//! sweep unit rotates one +Y-poled ball onto each face normal. Here the
+//! ball revolves about its own pole, and its copy stands by an axis
+//! mate from that pole onto the +Z face's centre line — a frame read
+//! off the cube's corner, slid by exact moves (`moved_frame`) — its
+//! spin the constant `0`, so the chart's polar axis lies on the face
+//! normal exactly rather than ~1e-16 off it.
 //!
 //! # No mass pin
 //!
@@ -75,14 +71,13 @@
 //! Interval, and through BOTH sweep strategies.
 
 use super::PlacePart;
-use editor_core::ExtrudeSide;
 use editor_core::Formula;
 use editor_core::{
-    Axis3, DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    SlotId,
+    Coord, FrameMove, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, TargetAxis,
 };
 
-use crate::fixture::{ang, frame, len, len2, revolve_about, scl, xy_frame};
+use crate::fixture::{ang, len, len2, revolve_about, scl, value_bump};
 
 use super::{CorpusDoc, Recorder};
 
@@ -107,16 +102,13 @@ pub fn document() -> CorpusDoc {
     // ---- the sharp cube, [0, L]³ ----
     let square =
         LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]).unwrap();
-    let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        frame: cube_plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p.into(),
         distance: len(DIE_L),
-        side: ExtrudeSide::Along,
     });
 
     // ---- the master ball, poled along the +Z face normal ----
@@ -126,14 +118,8 @@ pub fn document() -> CorpusDoc {
     // to pole, closed by the on-axis chord. Both vertices are ON the
     // axis; the revolve names them from the sweep's pole export.
     let half_disc = half_disc_program();
-    // u = +X, v = +Z: the sketch's revolve axis lands on the world
-    // +Z axis, which is the face normal.
-    let ball_plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    // The axis, written in the meridian frame it turns: that frame's
-    // v is world +Z, so the pole axis is its own +y through (0, 0).
-    // It is minted AFTER the frame because it names it.
+    // The pole axis is the meridian's own +y through (0, 0).
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        frame: ball_plane.into(),
         loops: vec![half_disc],
         ids: Vec::new(),
     }));
@@ -145,16 +131,18 @@ pub fn document() -> CorpusDoc {
     ));
 
     // ---- the pip: the face-1 ball, at the +Z face centre ----
-    // Translation-only: the chart is already poled (deviation (a)), so
-    // the rotation is the exact identity.
-    let pip = r.insert(Node::transform(
-        editor_core::Operand::output(ball, 0),
-        editor_core::Step::Rigid {
-            translation: [len(h), len(h), len(PIP_C)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+    // Placed against the cube on its own pole axis, the meridian's +y
+    // along the cube's +Z (deviation (a): the chart is polar to the
+    // plane that cuts it).
+    let own = r.corner_frame(cube, [0.0; 3], [0.0, 0.0, DIE_L], [DIE_L, 0.0, 0.0]);
+    let pole = editor_core::moved_frame(
+        own,
+        &[
+            FrameMove::Slide(TargetAxis::X, len(h)),
+            FrameMove::Slide(TargetAxis::Y, len(h)),
+        ],
+    );
+    let pip = r.on_axis(ball, pole, len(PIP_C));
     let pipped = r.insert(Node::Subtract {
         from: cube.into(),
         tool: pip.into(),
@@ -162,6 +150,7 @@ pub fn document() -> CorpusDoc {
 
     r.place_part(pipped);
 
+    let bump = value_bump(&r.doc, pip, Coord::Slide(TargetAxis::Z), 0.015625);
     CorpusDoc {
         name: "die_pips",
         about: "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",
@@ -170,16 +159,11 @@ pub fn document() -> CorpusDoc {
         result: Some(pipped),
         // π-valued spherical caps are not dyadic — see the module docs.
         pin: None,
-        // D2's incremental probe: slide the pip across its face. The
+        // D2's incremental probe: slide the pip along its pole axis. The
         // cube chain and the master ball are reused; the placement and
         // the cut recompute. The pip stays a cap-cutting ball — same
-        // face, clear of the rim.
-        bump: DocEdit::SetParam {
-            node: pip,
-            slot: SlotId::Translation(Axis3::Y),
-            value: len(0.53125).into(),
-            fresh: Vec::new(),
-        },
+        // face, its cap a little deeper or shallower.
+        bump,
         bump_root: pip,
     }
 }

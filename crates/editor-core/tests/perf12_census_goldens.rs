@@ -32,6 +32,34 @@ use geom_core::Tol;
 
 /// The committed goldens, one per ε row `ci-filter.py` draws — keyed by
 /// `format!("{:e}", eps)`.
+///
+/// Re-blessed at every ε row for the identity bundle (FORK-REST): only
+/// `kitchen_sink`'s at-rest rows moved, and only in the mint digests of
+/// the ids they cite. With every `digest:` masked, each file is
+/// byte-identical to the one before. A copy standing where its body
+/// stands is written as one `AddValues` with no mate, which mints a
+/// different number of ids from the plane mate and three values it
+/// replaces, so the ids minted after a stand moved; no verdict did.
+///
+/// Re-blessed at every ε row for exact turns (INTENT stage 3 D): only
+/// `kitchen_sink` moved. Its revolve stands upright by a bundle with no
+/// mate spun `turn/4`, whose sine and cosine are read from the fraction,
+/// so its corner at `(0, 0, 1)` lies on the union's edge along `z`
+/// exactly: the six contacts there read the margin `0.0` where they
+/// read `2.3e-49`, `2.3e-33` and `3.7e-33`, the witness `(0, 0, 1)`
+/// where it was `(0, -3.7e-33, 1)`; and the revolve's curved face is in
+/// reach of a block face again, one more `CensusUndecidable` (28 -> 29
+/// findings), as it was on datum frames before D. Its rows' mint
+/// digests moved with its re-spelled placements.
+///
+/// Re-blessed at every ε row when the census began deciding a planar
+/// area contact between arrivals as one face pair and recording flush
+/// pairs (`[assertions]`): no finding moved, only rows.
+/// `kitchen_sink`'s 16 edge and vertex rows became 11: its two seats
+/// each one face pair, and nine flush pairs. `heat_sink` gains no flush
+/// row. Its fin instances' side walls share an area with the union's
+/// fin walls, so they are no flush pair. A flush row is written only
+/// where the two faces' interiors are certified not to meet.
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",
@@ -126,7 +154,7 @@ fn row(label: &str, doc: &ProfileDoc, out: &mut String) {
     }
     out.push_str(&format!("rows: {}\n", subject.coincidences.len()));
     for r in &subject.coincidences {
-        out.push_str(&format!("{:?} {:?}\n", r.by, r.row));
+        out.push_str(&format!("{:?} {:?}\n", r.copies, r.row));
     }
 }
 

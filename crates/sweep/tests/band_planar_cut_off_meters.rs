@@ -19,9 +19,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{ErrorTextReading, Point2, Point3, Vec3};
+use geom_core::RigidMotion;
+use geom_core::{ErrorTextReading, Point2, Point3};
+use profile::SketchPlane;
 use sweep::blend::{BlendDecision, BlendError, BlendSite, Convexity};
-use sweep::test_support::{block, pocket_die, prism, prism_on, realized, sketch_from_axes};
+use sweep::test_support::{block, pocket_die, prism, prism_on, realized};
 use topo::{Body, ContactRecords, EntityId, validate_geometric, validate_pseudomanifold};
 
 use crate::band_one_cycle_members::{assert_taken, cup_faces};
@@ -30,12 +32,7 @@ use crate::band_planar_cut_off::{D, Verb, carve, edge, tol};
 /// A round pin of radius `r` along +x from `origin`, `h` long: the
 /// operand whose subtraction drills a hole.
 fn pin(origin: Point3<f64>, r: f64, h: f64) -> Body<f64> {
-    let plane = sketch_from_axes(
-        origin,
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        tol(),
-    );
+    let plane = SketchPlane::from_frame(RigidMotion::axes_yz(origin));
     prism_on(
         plane,
         vec![(Point2::new(-r, 0.0), 1.0), (Point2::new(r, 0.0), 1.0)],
@@ -653,12 +650,7 @@ fn grooved(wall: &[((f64, f64), f64)], open: bool) -> Body<f64> {
         tol(),
     );
     let rod = prism_on(
-        sketch_from_axes(
-            Point3::new(-0.1, 4.6, 2.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            tol(),
-        ),
+        SketchPlane::from_frame(RigidMotion::axes_yz(Point3::new(-0.1, 4.6, 2.0))),
         vec![(Point2::new(-0.2, 0.0), 1.0), (Point2::new(0.2, 0.0), 1.0)],
         6.2,
         tol(),

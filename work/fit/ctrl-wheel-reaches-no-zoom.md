@@ -2,11 +2,27 @@
 id: ctrl-wheel-reaches-no-zoom
 kind: issue
 title: A ctrl+wheel reaches no zoom: the toolkit routes it into zoom_factor_delta and the viewport reads only smooth_scroll_delta
-status: open
+status: closed
 opened: 2026-09-15
 priority: P0
-cost: E
+cost: M
+closed: 2026-10-22
+pr: 5596
 ---
+
+## Closed
+
+A ctrl/⌘+wheel is now a plain wheel: `pane::viewport::configure_input`
+sets egui's `zoom_modifier` to `Modifiers::NONE`, called from
+`ViewerApp::assemble` and from the viewport test probe, so the wheel
+reaches `scroll_event` and zooms at `InputMap::zoom_rate_per_notch`,
+the one wheel rate. A pinch is a new `ViewportEvent::Pinch { factor }`
+read from `InputState::zoom_delta()` while the pane is hovered;
+`InputMap::map` maps it to `CameraOp::Dolly { factor: f.recip() }`
+with no rate, a factor of 1 to nothing, and leaves a non-positive or
+non-finite factor to `camera::apply`'s refusal. The three questions
+below are answered: a second variant (1), one wheel rate and no rate
+for a pinch (2), and both reach `Dolly` by their own measure (3).
 
 
 

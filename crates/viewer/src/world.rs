@@ -2,9 +2,14 @@
 //! placed, by which placements, and what a pick on a copy is a pick on.
 //!
 //! The product is the copies the document's placements (`Node::Place`,
-//! and an instance, which is a placement) define wherever their bundle
-//! pins them to the world, in their document order, and the viewport
-//! draws exactly those copies. A copy's names are its body's,
+//! and an instance, which is a placement) define into the world's space,
+//! in their document order. Each placement names the space it copies
+//! into (its `target`), and the viewport draws a set of spaces (DI5):
+//! the world and every space no placement reads a source body of
+//! ([`shown_spaces`]). A placement into a body's own space — a body
+//! moved against its own geometry, an operand placed against a combine's
+//! first — is drawn through the copy that places that space's body, not
+//! on its own. A copy's names are its body's,
 //! each wrapped in one `Placed` qualifier headed at the placement
 //! (`StableName::in_copy`), so a pick on the picture names the copy; a
 //! gesture that authors against a body reads the placement's body and
@@ -13,13 +18,20 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use std::collections::BTreeSet;
+
 use pncad::document::{Doc, Node, Operand, ProfileProgram, RecipeNodeId, VarId};
 use pncad::prelude::StableName;
 
-/// **The body `placement` places**, or `None` for a node that is not a
-/// live `Place` of one shape. An instance places its part's world and
-/// reads no body of this document, so it answers `None` too.
+/// **The body the drawn copy `placement` places**, or `None` for a node
+/// that is not a live drawn copy ([`is_drawn_copy`]) of one shape. An
+/// instance places its part's world and reads no body of this
+/// document, so it answers `None` too; so does a placement that joins
+/// a body's space, which is itself the body a seat reads.
 pub fn placed_var(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Option<VarId> {
+    if !is_drawn_copy(doc, placement) {
+        return None;
+    }
     match doc.node(placement)? {
         Node::Place { shapes, .. } => match shapes.as_slice() {
             [shape] => Some(shape.read),
@@ -38,19 +50,90 @@ fn placed_vars(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> Vec<VarId>
     }
 }
 
-/// **The placements copying `var`**, in document order: the copies of
-/// that body the document holds.
-pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
+/// **The spaces the picture shows** (DI5; D10 `[placement.spaces]`):
+/// the world, and every `new_space()` no placement reads a source body
+/// of — a space whose bodies some placement copies is shown through
+/// that copy, wherever it lands. Read off the recipe
+/// ([`Doc::node_space`]).
+///
+/// A construction's own space is not shown on its own: the picture
+/// draws placements' copies, and a construction is no placement, so a
+/// copy placed against it would be drawn without the body it stands
+/// on. It is drawn through the placement that copies the construction
+/// (an interim: `work/intent/the-viewer-does-not-show-a-constructions-own-space.md`,
+/// which also holds the author's show and hide the spec adds to this
+/// default set).
+pub fn shown_spaces(doc: &Doc<ProfileProgram>) -> BTreeSet<VarId> {
+    let placements = doc.placements();
+    let read: BTreeSet<VarId> = placements
+        .iter()
+        .flat_map(|&placement| placed_vars(doc, placement))
+        .filter_map(|var| doc.space_of(var))
+        .collect();
+    placements
+        .iter()
+        .filter_map(|&placement| doc.node_space(placement))
+        .chain([VarId::WORLD])
+        .filter(|&space| {
+            space == VarId::WORLD
+                || (!read.contains(&space)
+                    && doc
+                        .defined_by(space)
+                        .is_some_and(|(node, _)| matches!(doc.node(node), Some(Node::Space))))
+        })
+        .collect()
+}
+
+/// **The construction whose own space `node`'s value lives in**, read
+/// off its recipe (D10 `[placement.spaces]`): `None` for a value in the
+/// world's space, in a `new_space()`, or in no space. A placement whose
+/// target is a construction's space is a relation to that
+/// construction's body; a construction answers itself.
+pub fn construction_of_space(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+) -> Option<RecipeNodeId> {
+    let space = doc.node_space(node)?;
+    let (root, _) = doc.defined_by(space)?;
+    (!matches!(doc.node(root)?, Node::World | Node::Space)).then_some(root)
+}
+
+/// **Whether `placement` is a copy the picture draws**: a placement
+/// whose copy lands in a shown space ([`shown_spaces`]) — the world's,
+/// or one no placement reads on. A placement into a construction's
+/// space that another placement then copies is a relation between two
+/// bodies, drawn through that copy.
+pub fn is_drawn_copy(doc: &Doc<ProfileProgram>, placement: RecipeNodeId) -> bool {
+    doc.node_space(placement)
+        .is_some_and(|space| shown_spaces(doc).contains(&space))
+}
+
+/// **The drawn copies**, in document order: [`is_drawn_copy`] over
+/// the document's placements, the shown spaces read once.
+pub fn drawn_copies(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
+    let shown = shown_spaces(doc);
     doc.placements()
+        .into_iter()
+        .filter(|&placement| {
+            doc.node_space(placement)
+                .is_some_and(|s| shown.contains(&s))
+        })
+        .collect()
+}
+
+/// **The drawn copies of `var`**, in document order: the copies of
+/// that body the shown spaces hold.
+pub fn placements_of_var(doc: &Doc<ProfileProgram>, var: VarId) -> Vec<RecipeNodeId> {
+    drawn_copies(doc)
         .into_iter()
         .filter(|&placement| placed_vars(doc, placement).contains(&var))
         .collect()
 }
 
-/// **The placements copying any output of `node`**, in document order.
+/// **The drawn copies of any output of `node`**, in document order.
 pub fn placements_of(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Vec<RecipeNodeId> {
     let outputs = doc.outputs(node);
-    doc.placements()
+    drawn_copies(doc)
         .into_iter()
         .filter(|&placement| {
             placed_vars(doc, placement)
@@ -123,7 +206,11 @@ pub fn seat_read(
         Some((operation, port)) => (operation, Some(port)),
         None => (node, body.and_then(|b| u8::try_from(b).ok())),
     };
-    let several = doc.outputs(node).len() > 1;
+    // A port is named only where the node holds several outputs: the
+    // document's own rule for a read naming a node alone
+    // (`Doc::read_of_node`), under which a construction's space is no
+    // second output.
+    let several = doc.read_of_node(node).is_none() && !doc.outputs(node).is_empty();
     (node, port.filter(|_| several))
 }
 
@@ -161,25 +248,34 @@ pub fn read_output(
 /// **The placements reading the body `read` names**: a node
 /// named alone reads its one output, a port the output it names.
 pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<RecipeNodeId> {
-    let var = match read {
+    read_var(doc, read)
+        .map(|var| placements_of_var(doc, var))
+        .unwrap_or_default()
+}
+
+/// **The body variable `read` names**: a node named alone reads its
+/// one output, a port the output it names. `None` for a selection or
+/// a pose, and for a read the document does not define.
+pub fn read_var(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<VarId> {
+    match read {
         Operand::Node(node) => doc.read_of_node(*node),
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
         Operand::Select { .. } | Operand::Pose(_) => None,
-    };
-    var.map(|var| placements_of_var(doc, var))
-        .unwrap_or_default()
+    }
 }
 
 /// **The node a creation made**, out of the ids its action minted: the
 /// last one that is not a placement — a creation gesture places
 /// what it made after making it, and the placement is the world's, not
-/// the thing a label or a form is about.
+/// the thing a label or a form is about — or, for a gesture whose
+/// creation IS a placement (the transform's), the first it minted.
 pub fn made(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> Option<RecipeNodeId> {
     minted
         .iter()
         .rev()
         .copied()
         .find(|&node| !matches!(doc.node(node), Some(Node::Place { .. })))
+        .or_else(|| minted.first().copied())
 }

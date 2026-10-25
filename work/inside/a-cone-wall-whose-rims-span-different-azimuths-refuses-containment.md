@@ -2,10 +2,11 @@
 id: a-cone-wall-whose-rims-span-different-azimuths-refuses-containment
 kind: issue
 title: point_in_solid refuses PartialConeFace on a frustum wedge whose axial cap was offset outward: the wall's two rims span different azimuths
-status: open
+status: closed
 opened: 2026-10-12
 priority: P2
 cost: M
+closed: 2026-10-24
 ---
 
 
@@ -52,3 +53,14 @@ Either read a cone face whose rims' spans differ by a band-sized
 amount as its window (the difference is `d·(1/r₀ − 1/r₁)` in azimuth,
 `≤ |d|` in length at each rim), or let the offset door land the rim
 arcs' ends on the served generator.
+
+## Closed by CHART (2026-10-24)
+
+On branch `chart/ringed-curved-doors`
+(`curved-face-containment-answers-none-on-a-ringed-face`), a cone face is
+read from its boundary edges (`topo::boolean::ruled_region`), whatever
+azimuths its rims span. `a_cap_moved_off_a_frustum_wedge_apex_plans_its_wall_edge`
+now allows no refusal, and every grid point answers its truth at ε
+`1e-9`, `1e-6` and `1e-12`. `solid_truth`'s `PartialConeFace` allowance is
+retired with it: `a_ring_on_a_cone_face`, `reach_cone_root_lane`,
+`cone_join_lane` and `reach_cone_split` answer every point.

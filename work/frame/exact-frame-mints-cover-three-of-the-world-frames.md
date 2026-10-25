@@ -2,10 +2,13 @@
 id: exact-frame-mints-cover-three-of-the-world-frames
 kind: issue
 title: The frame witness's decision-free mints cover three world frames, so every other exact frame costs a K funnel name
-status: open
+status: closed
 opened: 2026-09-15
 priority: P1
-cost: D
+cost: M
+branch: frame/exact-frames-are-turns
+closed: 2026-10-21
+pr: 5573
 ---
 
 
@@ -68,3 +71,25 @@ no band. The signed basis frames as frames (shape 1) are still not
 there: a product of the exact mints reaches them
 (`RigidMotion::compose`, not decided again), but there is no door
 that names one, and `sketch_frame` / `sketch_from_axes` still decide.
+
+## Decided (2026-10-21): the written turn is the vocabulary
+
+FRAME orchestrator, on a designer pair that converged in round 1 (no ratified text moves, so no `[ev]` PR). No signed-basis mint family: every axis-aligned frame is already reachable with no decision as an exact axis (`UnitVec3::exact_x/y/z`) turned by a written fraction of a turn (`RigidMotion::rotation_by` over an `Angle` with `Turns`, whose sine and cosine are exact) and composed (`compose` decides nothing again) — the same vocabulary D10 `[placement.values]` gives a placement's values and the document already uses (`mate::value::unmated_motion`, `eval::wire::station_plane`). A 24-frame enum would be a second way to say it, and two `SignedAxis` arguments could still name a parallel pair. Corrections to this row's premise: `fixture_frame_axis` is not a roster name (INSTR's ruling on PR 2733); the quoted "only frames the type admits" sentence is no longer in `rigid_motion.rs`; and of the tour's `sketch_frame` sites only the exact pairs move, the computed ones are real decisions and keep `tour_frame_axis`.
+
+What is owed (unit `frame/exact-frames-are-turns`): an `Angle` door from a `Turns` alone (today `Angle::of_turns(radians, turns)` takes the one fact twice); the exact-pair receipts rewritten as turns (the tour's Klein and lily planes, lily's re-decision of a witness's own axes as a `compose`, and `sweep::test_support::sketch_from_axes`'s axis-aligned callers onto the exact doors); the docs that say otherwise (`TOUR_FRAME_AXIS`, `sketch_from_axes`, `rigid_motion.rs`'s list of mints).
+
+## Closed
+
+2026-10-21, PR 5573. The written turn is the vocabulary:
+- `Angle::from_turns` derives the radians from the fraction.
+- `Turns::quarters(n)` cannot refuse.
+- `RigidMotion::turned(origin, axis, turns)` is infallible, with `rotation_by`'s linear bits. A quarter turn about x̂ is pinned bit for bit to the frame `gram_schmidt` decided from `(x̂, ẑ)`, and products of quarter turns reach all 24 signed-basis frames.
+- The tour's exact planes and 30 of 58 `sketch_from_axes` fixtures moved onto it. Computed pairs keep their decision and their K name.
+
+Residue filed:
+- `exact-axis-and-reference-frames-still-decide` (the aim-mint class, about 50 calls)
+- `a-frame-turned-by-a-radian-angle-is-spelled-as-its-columns`
+- `turns-has-two-answers-to-an-integer-past-the-mantissa`
+- `profile/sketch-plane-places-only-the-xy-world-plane-at-an-origin`
+- `rigid-motion-radian-rotation-doors-twin-their-angle-doors`
+- `python-sketch-plane-from-frame-decides-exact-axes` (parked on D′)

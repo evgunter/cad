@@ -14,15 +14,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::resolver::{PartStore, with_resolver};
-use crate::fixture::{insert, insert_pinned, len, on_frame, pin, place, square};
+use crate::fixture::{in_world, insert, insert_pinned, len, on_frame, pin, square};
 use editor_core::{
-    Assembly, AssemblyError, CancelToken, EvalOptions, Evaluation, ExtrudeSide, Frame, Node,
-    ProfileDoc, RecipeNodeId, assemble, evaluate,
+    Assembly, AssemblyError, CancelToken, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
+    RecipeNodeId, assemble, evaluate,
 };
 use geom_core::Tol;
 
 /// A block extruded `height` from a square of half-side `h` at
-/// `(cx, cy)`, on a frame `z` up the world's z axis.
+/// `(cx, cy)` on its own xy, its copy standing in the world `z` up the
+/// world's z axis: the placement.
 fn block(
     doc: ProfileDoc,
     (cx, cy, z): (f64, f64, f64),
@@ -31,19 +32,19 @@ fn block(
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = on_frame(
         doc,
-        [0.0, 0.0, z],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![square(cx, cy, h)],
     );
-    insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(height),
-            side: ExtrudeSide::Along,
         },
-    )
+    );
+    in_world(doc, body, &Frame::translation([0.0, 0.0, z]))
 }
 
 /// A part of two copies: a unit block, and a smaller block whose −x
@@ -51,10 +52,8 @@ fn block(
 /// inside the first across y and z.
 fn two_blocks(label: &str, x: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
-    let (doc, a) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
-    let (doc, b) = block(doc, (x + 0.3, 0.0, 0.25), 0.3, 0.5);
-    let (doc, _) = place(doc, a);
-    place(doc, b).0
+    let (doc, _) = block(doc, (0.0, 0.0, 0.0), 0.5, 1.0);
+    block(doc, (x + 0.3, 0.0, 0.25), 0.3, 0.5).0
 }
 
 /// The two copies overlap in one slab, 0.05 deep: one interference
@@ -99,7 +98,7 @@ fn instantiating(
     let mut ids = Vec::new();
     for i in 0..n {
         let along = 3.0 * f64::from(u32::try_from(i).expect("a few instances"));
-        let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
+        let (next, id) = insert(doc, crate::fixture::mated_instance(doc_ref));
         doc = pin(next, id, &Frame::translation([along, 0.0, 0.0]), &opts);
         ids.push(id);
     }
@@ -181,7 +180,7 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
     let part_ref = store.insert(part.clone(), Tol::witness());
     let opts = with_resolver(store);
     let mid = ProfileDoc::empty_derived("seam-deep-mid", Tol::witness());
-    let (mid, inner) = insert_pinned(mid, Node::instantiate_part(part_ref), &opts);
+    let (mid, inner) = insert_pinned(mid, crate::fixture::mated_instance(part_ref), &opts);
     let mid_own = gate(&mid, &opts).unwrap_or_else(|e| panic!("the middle refused: {e}"));
     assert_eq!(mid_own.carried_interference.len(), 1);
     let mut store = PartStore::new();
@@ -189,7 +188,7 @@ fn an_overlap_two_documents_down_carries_up_by_its_route() {
     let mid_ref = store.insert(mid, Tol::witness());
     let opts = with_resolver(store);
     let top = ProfileDoc::empty_derived("seam-deep-top", Tol::witness());
-    let (top, outer) = insert_pinned(top, Node::instantiate_part(mid_ref), &opts);
+    let (top, outer) = insert_pinned(top, crate::fixture::mated_instance(mid_ref), &opts);
     let assembly = gate(&top, &opts).unwrap_or_else(|e| panic!("the top refused: {e}"));
     assert!(
         assembly.interference.is_empty(),
@@ -235,10 +234,7 @@ fn a_parts_own_census_refusal_refuses_the_outer_gate_as_the_parts() {
     let Err(AssemblyError::AtRest { findings: own }) = gate(&part, &EvalOptions::default()) else {
         panic!("the part's own gate refuses the undecided pair")
     };
-    assert!(
-        own.iter().all(|f| f.attribution.is_none()) && own.len() > 1,
-        "the premise: several findings, no declaration of the part's named"
-    );
+    assert!(own.len() > 1, "the premise: several findings: {own:?}");
     let (doc, ids, opts) = instantiating("seam-in-band", &part, 1);
     let err = gate(&doc, &opts).expect_err("the part is not at rest, so neither is this");
     let AssemblyError::CarriedAtRest { findings } = &err else {
@@ -285,13 +281,13 @@ fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
     let part_ref = store.insert(part.clone(), Tol::witness());
     let opts = with_resolver(store);
     let mid = ProfileDoc::empty_derived("seam-deep-band-mid", Tol::witness());
-    let (mid, inner) = insert_pinned(mid, Node::instantiate_part(part_ref), &opts);
+    let (mid, inner) = insert_pinned(mid, crate::fixture::mated_instance(part_ref), &opts);
     let mut store = PartStore::new();
     store.insert(part.clone(), Tol::witness());
     let mid_ref = store.insert(mid, Tol::witness());
     let opts = with_resolver(store);
     let top = ProfileDoc::empty_derived("seam-deep-band-top", Tol::witness());
-    let (top, outer) = insert_pinned(top, Node::instantiate_part(mid_ref), &opts);
+    let (top, outer) = insert_pinned(top, crate::fixture::mated_instance(mid_ref), &opts);
     let err = gate(&top, &opts).expect_err("the part is not at rest, so neither is the top");
     let AssemblyError::CarriedAtRest { findings } = &err else {
         panic!("the part's refusal, carried: {err}")
@@ -315,10 +311,12 @@ fn an_escalation_two_documents_down_is_reported_once_as_the_parts() {
     );
 }
 
-/// **A part in the world and in a loose space reports its overlap
-/// once.** One instance is pinned to the world and another is loose, a
-/// space of its own; the gate checks both, each finds the part's
-/// overlap inside its copy, and it is one finding of one part row.
+/// **A part in the world and in a space of its own reports its overlap
+/// once.** One instance is pinned to the world and another placed into
+/// a `new_space()`; the part's overlap inside its copies is one finding
+/// of one part row, by the world instance's route. (The census reads
+/// the world's copies alone until D′3 gathers a space's; either way the
+/// row is one.)
 ///
 /// *Breaks if* the world's and a space's carried rows are not read as
 /// one list.
@@ -329,7 +327,8 @@ fn a_part_in_the_world_and_a_loose_space_reports_its_overlap_once() {
     let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(ids[0]) else {
         panic!("an instance")
     };
-    let (doc, _) = insert(doc.clone(), crate::fixture::mated_instance(*doc_ref));
+    let (doc, second) = insert(doc.clone(), crate::fixture::mated_instance(*doc_ref));
+    let (doc, _) = crate::fixture::into_new_space(doc, second);
     let outer = gate(&doc, &opts).unwrap_or_else(|e| panic!("the outer gate refused: {e}"));
     assert!(outer.interference.is_empty(), "{:?}", outer.interference);
     let [carried] = outer.carried_interference.as_slice() else {
@@ -409,10 +408,8 @@ impl editor_core::PartResolver for Versions {
 #[test]
 fn two_pins_of_one_document_are_two_part_rows() {
     let v1 = in_band("seam-two-pins-part");
-    let (v2, a) = block(v1.clone(), (10.0, 0.0, 0.0), 0.5, 1.0);
-    let (v2, b) = block(v2, (10.8 + in_band_gap(), 0.0, 0.25), 0.3, 0.5);
-    let (v2, _) = place(v2, a);
-    let v2 = place(v2, b).0;
+    let (v2, _) = block(v1.clone(), (10.0, 0.0, 0.0), 0.5, 1.0);
+    let v2 = block(v2, (10.8 + in_band_gap(), 0.0, 0.25), 0.3, 0.5).0;
     let count = |doc: &ProfileDoc| match gate(doc, &EvalOptions::default()) {
         Err(AssemblyError::AtRest { findings }) => findings.len(),
         other => panic!("each version refuses in band: {other:?}"),
@@ -427,8 +424,8 @@ fn two_pins_of_one_document_are_two_part_rows() {
             ..EvalOptions::default()
         };
         let doc = ProfileDoc::empty_derived("seam-two-pins", Tol::witness());
-        let (doc, _) = insert_pinned(doc, Node::instantiate_part(refs[0]), &opts);
-        let (doc, id) = insert(doc, Node::instantiate_part(refs[1]));
+        let (doc, _) = insert_pinned(doc, crate::fixture::mated_instance(refs[0]), &opts);
+        let (doc, id) = insert(doc, crate::fixture::mated_instance(refs[1]));
         let doc = pin(doc, id, &Frame::translation([30.0, 0.0, 0.0]), &opts);
         let err = gate(&doc, &opts).expect_err("neither version is at rest");
         let AssemblyError::CarriedAtRest { findings } = &err else {

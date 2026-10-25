@@ -5,7 +5,6 @@
 
 use crate::fixture;
 use crate::fixture::member_of;
-use editor_core::ExtrudeSide;
 
 use crate::corpus::body_of;
 use editor_core::{
@@ -46,19 +45,22 @@ fn cube(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     )
 }
 
 /// Three disjoint boxes, and a union of them in the given member
-/// order (one union node for every order, [`crate::fixture::union_over`]). Returns the document, the three box nodes in construction
-/// order, and the union node.
+/// order (one union node for every order, [`crate::fixture::union_over`]). Returns the document, the three box operands in construction
+/// order — each a copy placed against the first box, so any member can
+/// be dropped and deleted alone — and the union node.
 fn three_boxes(order: [usize; 3]) -> (ProfileDoc, [RecipeNodeId; 3], RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("docm3_union", Tol::witness());
-    let (doc, a) = cube(doc, 0.0);
+    let (doc, root) = cube(doc, 0.0);
+    let (doc, a) = fixture::slid(doc, root, root, [0.0; 3]);
     let (doc, b) = cube(doc, 2.0);
+    let (doc, b) = fixture::slid(doc, root, b, [0.0; 3]);
     let (doc, c) = cube(doc, 4.0);
+    let (doc, c) = fixture::slid(doc, root, c, [0.0; 3]);
     let boxes = [a, b, c];
     let (doc, u) = crate::fixture::union_over(doc, &order.map(|i| boxes[i]));
     (doc, boxes, u)
@@ -464,19 +466,31 @@ fn set_members_accepts_one_member_and_none() {
 #[test]
 fn a_union_and_a_set_members_replay_bit_identically() {
     let tol = Tol::witness();
-    let (doc, boxes, u) = three_boxes([0, 1, 2]);
-    let empty = ProfileDoc::empty_derived("docm3_union", tol);
-    let mut edits: Vec<DocEdit<editor_core::ProfileProgram>> = doc
-        .ids()
-        .iter()
-        .map(|id| DocEdit::InsertNode {
-            node: Box::new(crate::fixture::as_authored(
-                &doc,
-                doc.node(*id).expect("an ordered node"),
-            )),
-            fresh: Vec::new(),
-        })
-        .collect();
+    // Three disjoint boxes, the later two placed against the first, and
+    // their union, as the log that authored them.
+    let mut r = crate::fixture::Recorder::new();
+    let empty = r.doc.clone();
+    let mut boxes = Vec::new();
+    for x0 in [0.0, 2.0, 4.0] {
+        let p = r.profile(
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(x0, 0.0), (x0 + 1.0, 0.0), (x0 + 1.0, 1.0), (x0, 1.0)]],
+        );
+        let b = r.insert(Node::Extrude {
+            profile: p.into(),
+            distance: len(1.0),
+        });
+        boxes.push(match boxes.first() {
+            None => b,
+            Some(&a) => r.against(a, b, &editor_core::Frame::IDENTITY),
+        });
+    }
+    let u = r.insert(Node::Union {
+        members: editor_core::Bodies::Spelled(boxes.iter().map(|&b| b.into()).collect()),
+    });
+    let mut edits = r.edits;
     edits.push(DocEdit::SetMembers {
         node: u,
         members: editor_core::Bodies::Spelled(vec![boxes[2].into(), boxes[0].into()]),
@@ -550,36 +564,22 @@ fn dropping_a_member_leaves_the_others_names_alone() {
 /// **Two placements of ONE prototype are two members, and their names
 /// are distinct.** This is the row the member EDGE exists for.
 ///
-/// A pass-through op mints no name of its own: a transform's table IS
-/// its input's, verbatim (`eval::wire::wire_transform` — "the input's
-/// table rows hold verbatim: same names, same keys", N1's rule that a
-/// pass-through adds no segment and the `node` stays the original
-/// minter). So two transforms of one body carry two IDENTICAL tables,
-/// and a wrapper keyed on the inner name alone would map their
-/// corresponding faces onto one name and refuse.
+/// A placement names its copy's entities under its own node, each over
+/// the prototype's name (`RoleSeg::Placed`), so two placements of one
+/// body carry tables equal under that layer, and a wrapper keyed on the
+/// prototype's name alone would map their corresponding faces onto one
+/// name and refuse.
 ///
-/// The segment keys on the member's node id instead, so the two
-/// members are told apart by the DAG edge that makes them two. The
-/// first assertion is the mechanism — the tables really are equal —
-/// and the second is what the union does with it. The die's 21 pips
-/// are exactly this shape, at scale.
+/// The segment keys on the member's read instead, so the two members
+/// are told apart by the DAG edge that makes them two. The first
+/// assertion is the mechanism — the tables really are equal under the
+/// placement layer — and the second is what the union does with it. The
+/// die's 21 pips are exactly this shape, at scale.
 #[test]
 fn two_placements_of_one_prototype_are_two_members() {
     let doc = ProfileDoc::empty_derived("docm3_union", Tol::witness());
     let (doc, base) = cube(doc, 0.0);
-    let place = |doc, dx: f64| {
-        insert(
-            doc,
-            Node::transform(
-                base,
-                editor_core::Step::Rigid {
-                    translation: [len(dx), len(0.0), len(0.0)],
-                    axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-                    angle: fixture::ang(0.0),
-                },
-            ),
-        )
-    };
+    let place = |doc, dx: f64| fixture::slid(doc, base, base, [dx, 0.0, 0.0]);
     let (doc, left) = place(doc, 0.0);
     let (doc, right) = place(doc, 2.0);
     let (doc, u) = insert(
@@ -590,12 +590,21 @@ fn two_placements_of_one_prototype_are_two_members() {
     );
     let ev = run(&doc);
 
-    // The mechanism: the two members' tables are the same table.
+    // The mechanism: the two members' tables are the same table under
+    // the placement layer.
+    let prototype = |faces: Vec<StableName>| -> Vec<StableName> {
+        faces
+            .into_iter()
+            .map(|n| match n.path.as_slice() {
+                [RoleSeg::Placed { of }] => (**of).clone(),
+                _ => panic!("a placed copy's face is named under its placement: {n:?}"),
+            })
+            .collect()
+    };
     assert_eq!(
-        all_faces(&ev, left),
-        all_faces(&ev, right),
-        "a transform passes its input's names through, so two placements of one \
-         body carry identical name tables"
+        prototype(all_faces(&ev, left)),
+        prototype(all_faces(&ev, right)),
+        "two placements of one body carry the body's names, each under its own placement"
     );
     // The consequence: twelve distinct face names under the union, six
     // per member, told apart by the member edge and by nothing else.
@@ -611,12 +620,16 @@ fn two_placements_of_one_prototype_are_two_members() {
             "member {member:?} contributes its six faces"
         );
     }
-    // And the inner names alone would NOT have told them apart: strip
-    // the member edge and the twelve collapse to six.
+    // And the prototype's names alone would NOT have told them apart:
+    // strip the member edge and the placement layer and the twelve
+    // collapse to six.
     let inner: std::collections::BTreeSet<StableName> = faces
         .iter()
         .filter_map(|n| match n.path.first() {
-            Some(RoleSeg::From { of, .. }) => Some((**of).clone()),
+            Some(RoleSeg::From { of, .. }) => match of.path.as_slice() {
+                [RoleSeg::Placed { of }] => Some((**of).clone()),
+                _ => None,
+            },
             _ => None,
         })
         .collect();
@@ -637,7 +650,7 @@ fn two_placements_of_one_prototype_are_two_members() {
 /// arcs blended over frozen selections.
 ///
 /// For the FIRST, a MIDDLE and the LAST pip: drop it with
-/// `SetMembers`, delete the orphaned transform, and re-evaluate with
+/// `SetMembers`, delete the orphaned placement, and re-evaluate with
 /// the previous evaluation as `prior`. Both fillets must still
 /// evaluate `Ok`, with two fewer rim arcs selected (a pip contributes
 /// two rim edges) and no `SelectResolve` anywhere.
@@ -667,8 +680,13 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         .collect();
     assert_eq!(members.len(), 21, "the die has 21 pips");
     // The die is what the world places: the rim blend, over the
-    // box-edge blend.
-    let rim_blend = match doc.placements().as_slice() {
+    // box-edge blend. Every other placement places a pip on the cube.
+    let in_world: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| crate::fixture::on_world(&doc, p))
+        .collect();
+    let rim_blend = match in_world.as_slice() {
         [placement] => match doc.node(*placement) {
             Some(Node::Place { shapes, .. }) if shapes.len() == 1 => doc
                 .operation_of(shapes[0].read)
@@ -721,7 +739,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
             .doc;
         let edited = edited
             .apply(&DocEdit::DeleteNode { id: members[k] }, tol)
-            .unwrap_or_else(|e| panic!("deleting the orphaned {label} transform: {e}"))
+            .unwrap_or_else(|e| panic!("deleting the orphaned {label} placement: {e}"))
             .doc;
         let after = evaluate::<f64>(
             &edited,
@@ -801,7 +819,7 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
 /// **A3 at the die's size**: the union of the 21 pips is the pairwise
 /// chain it replaced, body for body.
 ///
-/// Both are built in ONE document over the SAME 21 transforms and
+/// Both are built in ONE document over the SAME 21 placements and
 /// evaluated at one scalar, so nothing about the comparison depends on
 /// two runs agreeing. Face, edge and vertex COUNTS agree, and so does
 /// every description the body carries — surfaces, curves AND points,
@@ -930,17 +948,7 @@ fn selection_len(doc: &editor_core::ProfileDoc, blend: RecipeNodeId) -> usize {
 #[test]
 fn a_union_is_one_body_at_an_operand_seat() {
     let (doc, _, u) = three_boxes([0, 1, 2]);
-    let (doc, downstream) = insert(
-        doc,
-        Node::transform(
-            u,
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [fixture::scl(0.0), fixture::scl(0.0), fixture::scl(1.0)],
-                angle: fixture::ang(0.0),
-            },
-        ),
-    );
+    let (doc, downstream) = fixture::place(doc, u);
     let ev = run(&doc);
     assert!(
         ev.value(downstream).is_some(),
@@ -962,17 +970,11 @@ fn a_union_is_one_body_at_an_operand_seat() {
 // the union publishes.
 // ---------------------------------------------------------------------
 
-/// A box on a frame at height `z0`, footprint `[x0,x1]×[y0,y1]`.
-fn boxed(
-    doc: ProfileDoc,
-    x: (f64, f64),
-    y: (f64, f64),
-    z0: f64,
-    h: f64,
-) -> (ProfileDoc, RecipeNodeId) {
+/// A box on its own xy, footprint `[x0,x1]×[y0,y1]`, `h` tall.
+fn boxed(doc: ProfileDoc, x: (f64, f64), y: (f64, f64), h: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, z0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
@@ -982,7 +984,6 @@ fn boxed(
         Node::Extrude {
             profile: p.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -1007,9 +1008,11 @@ fn failure(ev: &Evaluation<f64>, id: RecipeNodeId) -> Option<String> {
 #[test]
 fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
     let doc = ProfileDoc::empty_derived("docm3_union_menu", Tol::witness());
-    let (doc, a) = boxed(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = boxed(doc, (0.5, 1.5), (0.2, 0.8), 0.2, 0.5);
-    let (doc, d) = boxed(doc, (1.0, 2.0), (0.0, 0.15), 0.0, 1.0);
+    let (doc, a) = boxed(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = boxed(doc, (0.5, 1.5), (0.2, 0.8), 0.5);
+    let (doc, b) = fixture::slid(doc, a, b, [0.0, 0.0, 0.2]);
+    let (doc, d) = boxed(doc, (1.0, 2.0), (0.0, 0.15), 1.0);
+    let (doc, d) = fixture::slid(doc, a, d, [0.0; 3]);
     let (bare, u) = insert(
         doc.clone(),
         Node::Union {
@@ -1038,14 +1041,15 @@ fn a_later_fold_step_glues_a_flush_member_as_the_pair_does() {
 // widening is disclosed in the PR body's deviation list.
 // ---------------------------------------------------------------------
 
-/// Four stacked sections and a three-section loft over the first three.
+/// Four sections and a three-section loft over the first three, each
+/// later one a unit further up the first's own z.
 fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty_derived("docm3_union_loft", Tol::witness());
     let mut profiles = Vec::new();
-    for (z, s) in [(0.0, 1.0), (1.0, 1.6), (2.0, 1.0), (3.0, 1.2)] {
+    for s in [1.0, 1.6, 1.0, 1.2] {
         let (d, id) = on_frame(
             doc,
-            [0.0, 0.0, z],
+            [0.0; 3],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             vec![vec![
@@ -1061,7 +1065,16 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: profiles[..3].iter().copied().map(Into::into).collect(),
+            first: profiles[0].into(),
+            then: (1..3)
+                .map(|i| editor_core::LoftSection {
+                    profile: profiles[i].into(),
+                    station: vec![editor_core::StationMove::Slide {
+                        along: editor_core::Axis3::Z,
+                        by: len(i as f64),
+                    }],
+                })
+                .collect(),
             v_degree: editor_core::Formula::count(2),
         },
     );
@@ -1077,7 +1090,8 @@ fn a_one_section_loft_is_accepted_at_the_insert_door() {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: vec![profiles[0].into()],
+            first: profiles[0].into(),
+            then: Vec::new(),
             v_degree: editor_core::Formula::count(1),
         },
     );
@@ -1100,16 +1114,17 @@ fn a_snapshot_carrying_a_one_section_loft_loads() {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: vec![profiles[0].into()],
+            first: profiles[0].into(),
+            then: Vec::new(),
             v_degree: editor_core::Formula::count(1),
         },
     );
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("a one-section loft loads");
-    let Some(Node::Loft { profiles: read, .. }) = loaded.doc.node(loft) else {
+    let Some(Node::Loft { then, .. }) = loaded.doc.node(loft) else {
         panic!("the loft loaded as something else")
     };
-    assert_eq!(read.len(), 1, "the loft keeps its one section");
+    assert!(then.is_empty(), "the loft keeps its one section");
 }
 
 // ---------------------------------------------------------------------
@@ -1207,10 +1222,10 @@ fn list_input(
                 })
                 .unwrap_or_else(|never| match never {}),
         ),
-        Node::Loft { profiles, .. } => Some(editor_core::Bodies::Spelled(
-            profiles
-                .iter()
-                .map(|&m| editor_core::BodyRead::plain(m))
+        Node::Loft { first, then, .. } => Some(editor_core::Bodies::Spelled(
+            std::iter::once(*first)
+                .chain(then.iter().map(|s| s.profile))
+                .map(editor_core::BodyRead::plain)
                 .collect(),
         )),
         _ => None,

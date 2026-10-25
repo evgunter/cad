@@ -12,11 +12,13 @@ test_utils::gated_to![
     "crates/step-import/src/normalize.rs",
     "crates/geom/src/surfaces/",
     "crates/geom/src/surfaces.rs",
+    "crates/geom/src/chart_point.rs",
+    "crates/geom/src/azimuth.rs",
 ];
 
-use crate::chart::uv_of;
+use crate::chart::{file_band, uv_of};
 use geom::Surface;
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 use test_utils::fuzz;
 
 fn frame(s: &mut fuzz::Rng) -> (Vec3<f64>, Vec3<f64>) {
@@ -94,7 +96,7 @@ fn review_fuzz_roundtrip() {
             for &u in &us {
                 for &v in &vs {
                     let p = surf.eval(u, v);
-                    let Some(uv) = uv_of(surf, p) else {
+                    let Some(uv) = uv_of(surf, p, file_band(1e-9, Tol::witness())) else {
                         // Only poles/apex may answer None.
                         assert!(
                             matches!(surf, Surface::Sphere { .. } | Surface::Cone { .. }),
@@ -131,7 +133,7 @@ fn review_fuzz_roundtrip() {
         let u = ((i as f64) / (nappe as f64)) * 2.0 * pi - pi;
         let v = -(0.01 + s.unit() * 2.0);
         let p = cone.eval(u, v);
-        let uv = uv_of(&cone, p).expect("mirror nappe preimage");
+        let uv = uv_of(&cone, p, file_band(1e-9, Tol::witness())).expect("mirror nappe preimage");
         let back = cone.eval(uv.x, uv.y);
         assert!(
             (back - p).norm() <= 1e-9,

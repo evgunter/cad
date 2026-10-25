@@ -178,10 +178,13 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
-use geom_core::spline::{KnotVector, SpanLocate, SplineError};
+use geom_core::spline::{KnotVector, SpanLocate, SplineError, constant_weight};
 use geom_core::{
     Decide, Indeterminate, InfSpeed, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3,
 };
+
+pub(crate) use geom::Window;
+pub use geom::{ANGLE_WINDOW_START, Azimuth, LATITUDE_WINDOW_START};
 
 use crate::certify::{CERT_SAMPLES, sample_param};
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
@@ -591,11 +594,14 @@ pub enum Pcurve<T: Real> {
         pd: Vec2<T>,
         /// The carrier parameter at `g = 0`.
         t0: T,
-        /// The arc's total turn, `t1 − t0`. Always POSITIVE on a
-        /// certified cache — check 2 (`pcurve_interval_forward`)
-        /// refuses a non-forward interval before the class is built —
-        /// so the map's own sign cancellation (variant docs) never has
-        /// a sign to carry.
+        /// The arc's total turn: the image's arc is
+        /// `[t0, t0 + angle]`, the whole boundary row, and its edge's
+        /// span lies in it (a built rim's span is the arc; an edge
+        /// covering part of the row, such as a split rim's child, keeps
+        /// the row's arc). Always POSITIVE on a certified cache — check
+        /// 2 refuses a non-forward interval and a span outside the arc
+        /// (`pcurve_iso_arc_span`) — so the map's own sign cancellation
+        /// (variant docs) never has a sign to carry.
         angle: T,
         /// Sub-arc breakpoints on `τ ∈ [0, 1]`: a uniform clamped
         /// degree-1 knot vector with one span per sub-arc.
@@ -875,7 +881,7 @@ impl WallTorus {
 /// (variant docs for the derivation). Total: a malformed `breaks`
 /// answers poison rather than panicking (D4).
 fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
-    let spans = breaks.control_count().saturating_sub(1);
+    let spans = iso_arc_spans(breaks);
     if spans == 0 {
         return T::from_f64(f64::NAN);
     }
@@ -4153,12 +4159,13 @@ struct ChartWindings {
 }
 
 /// The azimuth lever arm of a chart, in metres per radian — the safe
-/// OVER-statement per kind (module docs' sphere note): cylinder `r`,
-/// sphere `r` (true arm `r·cos v ≤ r`), torus `R + r` (the outer
-/// equator's), cone `v_sup·sin α` — the cone has no surface-level
-/// constant, so the caller supplies the pcurve box's own `|v|` sup,
-/// which dominates the local arm `v·sin α` everywhere the object being
-/// metered lives.
+/// OVER-statement per kind (module docs' sphere note), and the one home
+/// of [`chart_stretch_sup`]'s azimuth column: cylinder `r`, sphere `r`
+/// (true arm `r·cos v ≤ r`), torus `R + r` (the outer equator's), cone
+/// `v_sup·sin α` — the cone has no surface-level constant, so the
+/// caller supplies the pcurve box's own `|v|` sup, which dominates the
+/// local arm `v·sin α` everywhere the object being metered lives.
+/// `v_sup` is read on the cone only.
 fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
     match *surface {
         Surface::Cylinder { radius, .. } | Surface::Sphere { radius, .. } => radius,
@@ -4170,7 +4177,7 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
         Surface::Cone { half_angle, .. } => v_sup * half_angle.sin(),
         // Non-periodic charts have no azimuth, so there is no lever to
         // answer — not even 1. Every caller asks on a periodic chart
-        // only: `chart_arms_at` on the cone arm, and the harmonic lane's
+        // only: `chart_sup_arms_at` on the cone arm, and the harmonic lane's
         // fidelity term and the focal and spiric lanes behind their own
         // non-periodic exclusion.
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
@@ -5289,158 +5296,6 @@ impl<T: Real> Period<T> {
     }
 }
 
-/// **The principal window of an angular channel** starts here: an
-/// angle is placed in `(ANGLE_WINDOW_START, ANGLE_WINDOW_START + τ]`.
-///
-/// C4 places a periodic image "over the edge's span in the chart's
-/// principal window" and leaves the window to the implementation. The
-/// one property that matters is where its cut sits: an image whose span
-/// midpoint lands on the cut has its copy picked by rounding. Images
-/// cluster on the landmark angles (a seam at `0`, the half turn, the
-/// quarter turns), so the cut sits at a generic angle, `−1` radian.
-/// Measured over the workspace suite's harmonic images (3228 distinct,
-/// 237 k reads, planes excluded): the number whose midpoint lies within
-/// `1e-6` of each candidate cut, and the number a candidate moves from
-/// where the derivation used to put it.
-///
-/// | window | moved | on the cut |
-/// |---|---|---|
-/// | `(−π, π]` | 11.1% | 76.9 k |
-/// | `(0, τ]` | 37.8% | 87.6 k |
-/// | `(−π/2, 3π/2]` | 0.9% | 21.6 k |
-/// | `(−1, τ − 1]` | 0.8% | 0 |
-///
-/// On the torus's tube angle the same window moves 6.6% and puts none on
-/// the cut. A sphere's latitude is named in its own window
-/// ([`LATITUDE_WINDOW_START`]).
-///
-/// **The table is a measurement and is not guarded.** It reads every
-/// image the workspace suite derives, which no one row sees, and a census
-/// row would pin the suite's population rather than the window. It is
-/// re-taken by logging each placed image's channels at its span's
-/// midpoint from `chart_pcurve_over` over a full
-/// `cargo nextest run --workspace --profile ci` and counting, per
-/// candidate window, the images it moves and the midpoints within `1e-6`
-/// of its cut.
-///
-/// A body can still put a midpoint on the cut (a cone rotated so its
-/// seam sits at `−1`). Within the band of the cut the placement's mark
-/// is undecided and takes its lower branch (the D9 tie-break), so
-/// either rounding names one copy; and no reader tells the two copies
-/// apart where a midpoint is decided on either side of it
-/// (`topo::pcurves`' `a_meridian_on_the_windows_cut_reads_the_same_either_side_of_it`:
-/// validation, the chart boundary, the polygon modulo a turn and a face's
-/// overlap with itself). That a boolean's union path does not either is
-/// argued, not pinned: it was measured by moving the cut onto a cone's
-/// seam (to `0` and `0.5`) under `refusal_concision`'s cone union, which
-/// read the same (PR 5225), and the row that would hold it is
-/// `work/pcert/no-row-pins-that-the-boolean-union-path-reads-window-copies-alike`.
-pub const ANGLE_WINDOW_START: f64 = -1.0;
-
-/// **A sphere's latitude window** starts here: a latitude is placed in
-/// `(LATITUDE_WINDOW_START, LATITUDE_WINDOW_START + τ]`, that is
-/// `(1 − π, 1 + π]`, centred on latitude `1`.
-///
-/// Every point of the chart has a latitude in `[−π/2, π/2]`, inside the
-/// window. The *read* ranges further: a meridian placed on its far half
-/// reads its polar angle as `π − δ`, anywhere on `(π/2, 3π/2)`. So the
-/// read's one jump has to sit at a generic angle, not on a landmark: at
-/// an equator start a far-half read is `π`, and `atan2`'s own cut there
-/// put an `Interval` read a whole turn wide. The window's cut, at
-/// `1 + π ≡ 1 − π`, is reached by a far-half read only at the generic
-/// latitude `δ = −1`, the footing the angle window's offset arms are on.
-/// Every latitude below `1` reads on the direct side, bit-identical to
-/// `atan2`; those in `(1, π/2]` read through the turned formula
-/// (`stable_azimuth`), so their bits are not `atan2`'s. No pinned row
-/// reads one, but unpinned rows do (the delta-6 review counted 257 reads
-/// strictly inside, in 13 rows, and 122 k exactly at `π/2`, from pole
-/// starts, which are bit-equal at `f64` and a different enclosure at
-/// `Interval`), and all of them pass.
-///
-/// Measured over the workspace suite's sphere placements (1.51 M reads,
-/// 2380 distinct midpoints): no read lies within `1e-6` of this window's
-/// cut, against 431 (27 distinct) within `1e-6` of `atan2`'s at `π`.
-/// This window moves 10.1% of the placements (the angle at the midpoint
-/// before placement lies outside it, `k ≠ 0`), as `(−π, π]` does, and
-/// neither puts a midpoint on its cut (`(−π/2, 3π/2]` would put 302 k
-/// there, `(0, τ]` 551 k). After placement nearly every midpoint lies in
-/// `[−π/2, π/2]`: the delta-6 review counted 3 of 170 k outside, all in
-/// the pole band, on the fast set. Against `(−π, π]`, 504 workspace
-/// midpoints (9 distinct, all of rows that run a meridian past a full
-/// turn) take another turn; on the fast set none do. The table is a
-/// measurement and is not guarded, re-taken as [`ANGLE_WINDOW_START`]'s
-/// is, logging each latitude placement's read and midpoint.
-pub const LATITUDE_WINDOW_START: f64 = 1.0 - core::f64::consts::PI;
-
-/// **An angle read off the geometry**: the two frame components of a
-/// direction, as `atan2` would read them, with no arithmetic of its own.
-/// It leaves as an angle one way: read in a window
-/// ([`Azimuth::principal`] in the angle window, `principal_in` in any),
-/// the stable `atan2` read whose one jump is that window's cut, and whose
-/// copy a derivation then decides through the window's marks
-/// (`Placement::phase`, a [`Period::decide`] about the window's centre).
-/// No whole-period integer is read off a value.
-///
-/// An anchored `atan2` (the direction rotated back by a reference and
-/// read there) would name the copy with no decision, but it rotates
-/// every read, so a symbolic scalar no longer folds the read onto the
-/// carrier's own form: on the M10-10 plate the map-residual reads went
-/// from 36 theorems to 36 numeric decisions and the plate left the band
-/// below its ceiling. The principal read keeps `k = 0` bit-identical.
-#[derive(Clone, Copy, Debug)]
-pub struct Azimuth<T> {
-    y: T,
-    x: T,
-}
-
-impl<T: Real> Azimuth<T> {
-    /// The direction with components `y` and `x` in a chart's angular
-    /// frame, in `atan2`'s argument order.
-    pub fn of(y: T, x: T) -> Self {
-        Self { y, x }
-    }
-
-    /// The direction's length: the radius its angle is read at.
-    pub fn length(self) -> T {
-        (self.x.powi(2) + self.y.powi(2)).sqrt()
-    }
-}
-
-impl<T: Decide> Azimuth<T> {
-    /// The principal angle in the angle window ([`Window::Angle`],
-    /// `principal_in`): `atan2`'s, read on whichever side of the
-    /// window's cut line the direction lies (`stable_azimuth`): a choice
-    /// between two formulas equal modulo a turn, so the angle is one of
-    /// the direction's names. A direction decided on either side reads in
-    /// `(−1, τ − 1]`, and one on the cut reads the closed end `τ − 1`. One
-    /// in band just inside the open end, at angle `−1 + δ`, reads
-    /// `τ − 1 + δ`: the turned formula, a hair past the window, which
-    /// placement's marks take back. A direction of no length (or, at `Interval`,
-    /// one whose enclosure reaches zero length: no bounded reciprocal)
-    /// names no angle, and every angle names its zero-length vector alike:
-    /// it reads `0`, the chart's `u_ref`, at every scalar, as `atan2(0, 0)`
-    /// does at `f64` (a pole's zero-radius parallel, a sub-band rim's
-    /// centre on the axis). At `Interval` the rule broadens the same way:
-    /// an enclosure of the length that straddles zero has no bounded
-    /// reciprocal, so it reads `0` too, although the direction it encloses
-    /// may have length.
-    pub fn principal(self, band: Band) -> T {
-        self.principal_in(Window::Angle, band)
-    }
-
-    /// The angle read in `window`: as [`Azimuth::principal`] reads in the
-    /// angle window, with the cut line through `window`'s own start, so a
-    /// direction decided on either side reads in that window and the
-    /// read's one jump is the window's cut. A direction of no length reads
-    /// `0`, in every window.
-    pub(crate) fn principal_in(self, window: Window, band: Band) -> T {
-        if !(T::one() / self.length()).is_bounded() {
-            return T::zero();
-        }
-        stable_azimuth(self.y, self.x, window.start(), band)
-    }
-}
-
 impl<T: Decide> Period<T> {
     /// **A branch, decided as structure**: the whole number of periods
     /// `k` with `|gap − k·length| < length/2`, as the integer it is. It
@@ -5929,16 +5784,7 @@ fn placement_terms<T: Decide>(
     if period_u.is_none() && period_v.is_none() {
         return Ok((T::zero(), T::zero()));
     }
-    let (arm_u, arm_v) = match chart_stretch_sup(surface) {
-        Ok((u, v)) => (u.get(), v.get()),
-        // `S(u, v) = apex + v·g(u)`: the azimuth's metre rate is the
-        // slant's, read at the stored image's farthest slant.
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => (
-            azimuth_lever(surface, stored.chart_box(t0, t1).v_reach()),
-            T::one(),
-        ),
-        Err(NoChartSup::Placeholder) => return Err(PcurveCertifyError::PlaceholderChart),
-    };
+    let (arm_u, arm_v) = chart_sup_arms_at(surface, &stored.chart_box(t0, t1))?;
     let derived = chart_pcurve_over(carrier, t0, t1, surface, band)?;
     let at = stored.eval(t0);
     let past_half = |d: T, period: Option<Period<T>>| match period {
@@ -5966,7 +5812,7 @@ fn placement_terms<T: Decide>(
         }
     };
     let (du, dv) = offsets(&named);
-    Ok((du * arm_u, dv * arm_v))
+    Ok((arm_u.to_meters(du), arm_v.to_meters(dv)))
 }
 
 /// **Check 4's verdict**, the one spelling every lane decides its
@@ -6048,23 +5894,15 @@ fn fidelity<T: Decide>(
     // cos θ)`, which is `≥ 0` when the two slants share a nappe (`v₁`
     // the nearer, so `v₁·(v₂ − v₁) ≥ 0`).
     terms.1 = FidelityLegs::of(surface);
-    let (arm_u, arm_v) = match chart_stretch_sup(surface) {
-        Ok(arms) => arms,
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => {
-            // `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
-            // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
-            // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant
-            // levers the azimuth, and the nearer one's is enough.
-            let v_sup = harmonic_span_box(p0, pa, pb, pl, t0, t1)
-                .v_reach()
-                .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach());
-            (
-                SupSpeed::new(azimuth_lever(surface, v_sup)),
-                SupSpeed::new(T::one()),
-            )
-        }
-        Err(NoChartSup::Placeholder) => return Err(PcurveCertifyError::PlaceholderChart),
-    };
+    // On a cone, `S(u, v) = apex + v·g(u)` with `|g(u₁) − g(u₂)| = sin α·
+    // chord(u₁ − u₂)`, so `|S(u₁, v₁) − S(u₂, v₂)| ≤ |v₁ − v₂| +
+    // min(|v₁|, |v₂|)·sin α·|u₁ − u₂|`: either image's slant levers the
+    // azimuth, and the nearer one's is enough.
+    let (arm_u, arm_v) = chart_sup_arms_over(surface, || {
+        harmonic_span_box(p0, pa, pb, pl, t0, t1)
+            .v_reach()
+            .min(harmonic_span_box(q0, qa, qb, ql, t0, t1).v_reach())
+    })?;
     // The stored row is placed as its derivation is (C4: the mint and
     // check 4 place one image over one span, `Placement`), so its
     // constants ARE the derived ones, or on a sphere those of the
@@ -6865,7 +6703,7 @@ pub enum NoChartSup {
     /// A cone's azimuth stretch is `|v·sin α|`, which grows without
     /// bound down the ruling: no surface-level constant dominates it,
     /// so no `u` component exists to mint. The arm is a function of
-    /// the caller's own `v` reach, which is what [`chart_arms_at`]
+    /// the caller's own `v` reach, which is what [`chart_sup_arms_at`]
     /// supplies (`v_sup·sin α`). The `v` channel still has an exact
     /// answer and [`chart_stretch_sup_v`] is the door for it.
     ConeAzimuthGrowsWithV,
@@ -6891,7 +6729,7 @@ pub enum NoChartSup {
 /// [`NoChartSup::ConeAzimuthGrowsWithV`] rather than a number, and the
 /// placeholder has no locus at all and answers
 /// [`NoChartSup::Placeholder`]. A cone
-/// caller goes through [`chart_arms_at`], which supplies
+/// caller goes through [`chart_sup_arms_at`], which supplies
 /// `v_sup·sin α` from the row's own box, or through
 /// [`chart_stretch_sup_v`] for the `v` channel alone, which is exact
 /// on every kind.
@@ -6925,22 +6763,18 @@ pub fn chart_stretch_sup<T: Real>(
     if surface.is_placeholder_chart() {
         return Err(NoChartSup::Placeholder);
     }
+    // [`azimuth_lever`] reads no `v` reach off a cylinder, sphere or
+    // torus, the kinds that ask it here.
+    let azimuth = || SupSpeed::new(azimuth_lever(surface, T::zero()));
     match *surface {
         // The cone's azimuth arm is the caller's to supply; its `v`
         // channel is answered by [`chart_stretch_sup_v`].
         Surface::Cone { .. } => Err(NoChartSup::ConeAzimuthGrowsWithV),
-        Surface::Cylinder { radius, .. } => Ok((SupSpeed::new(radius), SupSpeed::new(T::one()))),
+        Surface::Cylinder { .. } => Ok((azimuth(), SupSpeed::new(T::one()))),
         // The sphere/torus second parameter IS an angle (M6-3): its
         // arm is the polar / meridional radius.
-        Surface::Sphere { radius, .. } => Ok((SupSpeed::new(radius), SupSpeed::new(radius))),
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => Ok((
-            SupSpeed::new(major_radius + minor_radius),
-            SupSpeed::new(minor_radius),
-        )),
+        Surface::Sphere { radius, .. } => Ok((azimuth(), SupSpeed::new(radius))),
+        Surface::Torus { minor_radius, .. } => Ok((azimuth(), SupSpeed::new(minor_radius))),
         // A described NURBS chart's honest arms are its derivative-net
         // stretch bounds (`sup |S_u|`, `sup |S_v|`) — over-statements
         // of the local stretch, the safe direction exactly as the
@@ -6995,29 +6829,36 @@ pub fn chart_stretch_sup_v<T: Real>(surface: &Surface<T>) -> Result<SupSpeed<T>,
     }
 }
 
-/// [`chart_stretch_sup`] with the row's own chart box in hand — the
-/// caller that can answer the refusal the surface-level door cannot:
-/// the cone's azimuth arm becomes `v_sup·sin α`, with `v_sup` the
-/// box's `|v|` reach (dominating the local arm everywhere the row
-/// lives — the safe direction); every other kind answers as
-/// [`chart_stretch_sup`].
+/// [`chart_stretch_sup`] over a chart window — the door that can answer
+/// the refusal the surface-level one cannot: the cone's azimuth arm
+/// becomes `v_sup·sin α`, with `v_sup` the window's `|v|` reach
+/// (dominating the local arm everywhere in the window — the safe
+/// direction); every other kind answers as [`chart_stretch_sup`], a
+/// sup over the whole chart and so over any window of it.
 ///
-/// The placeholder has arms nowhere, and refuses as
-/// [`PcurveCertifyError::PlaceholderChart`] — the same refusal every
-/// lane's check 1 answers for it before this is reached.
-fn chart_arms_at<T: Real>(
+/// # Errors
+///
+/// [`PcurveCertifyError::PlaceholderChart`] for the placeholder chart,
+/// which has arms nowhere, and nothing else.
+pub fn chart_sup_arms_at<T: Real>(
     surface: &Surface<T>,
-    boxed: &ChartWindow<T>,
+    window: &ChartWindow<T>,
+) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
+    chart_sup_arms_over(surface, || window.v_reach())
+}
+
+/// [`chart_sup_arms_at`] for a caller whose `|v|` sup is not one
+/// window's reach; `v_sup` is read on a cone only.
+fn chart_sup_arms_over<T: Real>(
+    surface: &Surface<T>,
+    v_sup: impl FnOnce() -> T,
 ) -> Result<(SupSpeed<T>, SupSpeed<T>), PcurveCertifyError> {
     match chart_stretch_sup(surface) {
         Ok(pair) => Ok(pair),
-        Err(NoChartSup::ConeAzimuthGrowsWithV) => {
-            let v_sup = boxed.v_reach();
-            Ok((
-                SupSpeed::new(azimuth_lever(surface, v_sup)),
-                SupSpeed::new(T::one()),
-            ))
-        }
+        Err(NoChartSup::ConeAzimuthGrowsWithV) => Ok((
+            SupSpeed::new(azimuth_lever(surface, v_sup())),
+            SupSpeed::new(T::one()),
+        )),
         Err(NoChartSup::Placeholder) => Err(PcurveCertifyError::PlaceholderChart),
     }
 }
@@ -7227,9 +7068,7 @@ fn schedule_residuals<T: Decide>(
 /// Containment is one-sided: a box or a parameter inside its bound by
 /// any amount is contained, and the clearance between two conservative
 /// boxes is nothing built, so only the escape is decided against the
-/// band. `topo::chart_bound`'s span check asks the same one-sided
-/// question in another shape, `matches!(…, Ok(Sign::Positive))` on the
-/// raw gap. NaN propagates ([`Real::max`]).
+/// band. NaN propagates ([`Real::max`]).
 ///
 /// Metered through an infinite sup arm (a sup whose quotient
 /// overflows, or a weight a refinement rounded to zero), a contained
@@ -7347,6 +7186,16 @@ struct ArcRimWeight<T> {
     margin: T,
 }
 
+/// **The arc pattern's interior weight at unit end weight**: `w₁/w₀`
+/// on the column's held weights. A rational curve is invariant under
+/// one positive scale of all its weights, so a column `c, c·w, c, …`
+/// is the arc `1, w, 1, …`, and the ratio is the `w` the pattern
+/// states. `None` for a column with fewer than two weights.
+fn arc_rim_ratio<T: Real>(column: &NurbsCurve3<T>) -> Option<T> {
+    let w = column.weights();
+    Some(*w.get(1)? / *w.first()?)
+}
+
 fn arc_rim_weight<T: SpanLocate>(
     column: &NurbsCurve3<T>,
     angle: T,
@@ -7355,8 +7204,8 @@ fn arc_rim_weight<T: SpanLocate>(
     #[allow(clippy::cast_precision_loss)]
     let h = angle / T::from_f64(spans as f64);
     let (_, cos_half) = (h * T::from_f64(0.5)).sin_cos();
-    let margin = match column.weights().get(1) {
-        Some(&w) => w - cos_half,
+    let margin = match arc_rim_ratio(column) {
+        Some(w) => w - cos_half,
         None => T::from_f64(f64::NAN),
     };
     ArcRimWeight {
@@ -7364,6 +7213,33 @@ fn arc_rim_weight<T: SpanLocate>(
         cos_half,
         margin,
     }
+}
+
+/// **The turn a chart column's arc weight states**: `m` sub-arcs of
+/// `h = 2·acos(w)` each, `w` the column's interior weight. The inverse
+/// of [`arc_rim_weight`]'s `w = cos(h/2)`, read by the arc rim's measured
+/// image (`edge_nurbs::arc_rim_measured`). `None` for a column with fewer
+/// than two weights, or whose weight is not decided below 1: a
+/// polynomial column (`w = 1`) states no turn.
+pub(crate) fn arc_rim_turn<T: Decide>(
+    column: &NurbsCurve3<T>,
+    spans: usize,
+    band: Band,
+) -> Option<T> {
+    let w = arc_rim_ratio(column)?;
+    match decide("pcurve_iso_arc_weight", Margin::of(T::one() - w), band) {
+        Ok(Sign::Positive) => {}
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => return None,
+    }
+    #[allow(clippy::cast_precision_loss)]
+    let m = T::from_f64(spans as f64);
+    Some(T::from_f64(2.0) * w.acos() * m)
+}
+
+/// **An arc rim's sub-arc count**: one per span of its `breaks`.
+#[must_use]
+pub fn iso_arc_spans(breaks: &KnotVector) -> usize {
+    breaks.control_count().saturating_sub(1)
 }
 
 /// **The ARC-RIM iso class** (M8-3) — certification of a
@@ -7459,6 +7335,32 @@ fn run_iso_arc_checks<T: Decide>(
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),
     }
+    // **The edge's span lies in the image's arc**, `at0 ≤ t0` and
+    // `t1 ≤ at0 + angle`, each decided in metres along the arc. The
+    // envelope below bounds the miss over the image's own arc, where
+    // `Ĉ(g(t)) = C(t)`; off it the map clamps and the envelope holds
+    // nothing. A span inside the band of an arc end reads as on it.
+    for room in [t0 - at0, at0 + angle - t1] {
+        match decide(
+            "pcurve_iso_arc_span",
+            Margin::metered(room, param_rate(carrier)),
+            band,
+        )
+        .map_err(|cause| PcurveCertifyError::Escalated {
+            check: PcurveCheck::ParamSpan,
+            sample: 0,
+            cause,
+        })? {
+            Sign::Positive | Sign::Zero => {}
+            Sign::Negative => {
+                return Err(PcurveCertifyError::IsoUnsupported {
+                    what: "an arc rim whose edge runs past its image's arc — the arc-rim \
+                           class bounds the miss over the image's own arc, and its map \
+                           holds nothing off it",
+                });
+            }
+        }
+    }
 
     // ---- Check 3: the schedule, in metres through the map. ----
     let pcurve = Pcurve::IsoArc {
@@ -7513,7 +7415,7 @@ fn run_iso_arc_checks<T: Decide>(
     let b = crate::nurbs_iso::boundary_iso_v(payload, end)
         .map_err(|source| PcurveCertifyError::ChartRow { source })?;
     // --- The construction's EXACT structure (C6). ---
-    let spans = breaks.control_count().saturating_sub(1);
+    let spans = iso_arc_spans(breaks);
     if spans == 0 || b.knots_f64_interim().degree() != 2 {
         return Err(bad(
             "an arc rim whose chart column is not a quadratic — the rational-quadratic \
@@ -7586,24 +7488,29 @@ fn run_iso_arc_checks<T: Decide>(
     }
     let slack_knots = stretch_u.to_meters(knot_dev);
     let bw = b.weights_f64_interim();
-    if bw.len() != 2 * spans + 1 || bw.first() != Some(&1.0) || bw.last() != Some(&1.0) {
+    if bw.len() != 2 * spans + 1 {
         return Err(bad(
             "an arc rim whose chart column weights are not the arc pattern",
         ));
     }
-    // The pattern is read on the weights' value channel. Its interior
-    // equalities `wᵢ = w₁` are value identities, decided here at the
-    // witness only (`work/intent/held-value-equalities-decided-on-the-value-channel.md`);
-    // the margin below reads the column's held `w₁`.
-    let half_w = bw.get(1).copied().unwrap_or(f64::NAN);
-    for (i, w) in bw.iter().enumerate() {
-        let want = if i % 2 == 0 { 1.0 } else { half_w };
-        if *w != want {
-            return Err(bad(
-                "an arc rim whose chart column weights are not `1, w, 1, …` with ONE \
-                 interior weight — the uniform sub-arc construction",
-            ));
-        }
+    // The pattern is `c, c·w, c, …, c` for one positive scale `c`: one
+    // scale leaves the rational basis unchanged, so the column is the
+    // arc `1, w, 1, …`, and `Ĉ` below, built at unit end weight, shares
+    // its basis. Each half of the pattern is one constant, compared on
+    // the bits as every constancy is (`constant_weight`). It reads the
+    // weights' VALUE channel, not their plain constants: a held arc's
+    // interior weight is `cos(h/2)` in the scalar, no plain constant at
+    // `Sym`, and the pattern's equalities are value identities decided
+    // at the witness only
+    // (`work/intent/held-value-equalities-decided-on-the-value-channel.md`);
+    // the margin below reads the column's held `w₁/w₀`.
+    let ends: Vec<f64> = bw.iter().step_by(2).copied().collect();
+    let interior: Vec<f64> = bw.iter().skip(1).step_by(2).copied().collect();
+    if constant_weight(&ends).is_none() || constant_weight(&interior).is_none() {
+        return Err(bad(
+            "an arc rim whose chart column weights are not `c, c·w, c, …` with ONE \
+             interior ratio — the uniform sub-arc construction",
+        ));
     }
     // --- The one decided margin: `w = cos(h/2)`. ---
     let ArcRimWeight {
@@ -7765,21 +7672,13 @@ fn side_of<T: Decide>(
     Ok(None)
 }
 
-/// Whether every entry of a weight vector is the same `f64` bit for
-/// bit — a constant weight vector cancels out of the rational basis,
-/// so two curves over one knot vector with constant weights share a
-/// spline space whatever the two constants are.
-fn constant_weights(w: &[f64]) -> bool {
-    w.windows(2).all(|pair| pair[0] == pair[1])
-}
-
 /// **The iso lane's four checks** (M6-3), same fixed order as the
 /// closed-form lane's. What differs: check 1 admits any described-NURBS
 /// chart — the blanket non-rational gate it used to carry came off in
 /// M8-3, which moved the rationality hypothesis into the class arms of
 /// check 4, where it is load-bearing per class (the seam class needs
-/// strictly positive weights and one shared spline space; the rim class
-/// still needs weights of exactly 1, for linear precision). Check 4's
+/// strictly positive weights and one shared spline space; its LINE limb
+/// needs one constant weight, for linear precision). Check 4's
 /// sup bound is the traversed row's control-difference hull
 /// ([`EnvelopeStatement::MapResidualIsoHull`]) with the banded
 /// axis/side/domain snap slacks folded in — the harmonic lane's
@@ -8011,7 +7910,7 @@ fn seam_envelope<T: Decide>(
     // upstream (D7 curve recognition) claims the same
     // boundary column a spline seam claims, and the bound is
     // a linear-precision hull. With `B` the traversed
-    // column (weights 1, gated below), `t(v)` the
+    // column (constant weights, gated below), `t(v)` the
     // affine inverse of the image's `v(t)`, and
     // `M(v) := C(t(v))` — affine in `v`, a line composed
     // with an affine map — the B-spline basis reproduces `M`
@@ -8021,12 +7920,12 @@ fn seam_envelope<T: Decide>(
     //                 ≤ maxᵢ |bᵢ − M(ξᵢ)|   (the hull),
     // and sup |S(P(t)) − C(t)| ≤ slack_u + hull + the banded
     // domain-excursion fold — each term an inequality, no
-    // sampling. A RATIONAL column refuses typed: linear
-    // precision is a polynomial-basis fact.
+    // sampling. A RATIONAL column (`constant_weight` answers `None`)
+    // refuses typed: linear precision is a polynomial-basis fact.
     if let Curve3::Line { origin, dir } = carrier {
         let u_start = p0.x + pl.x * t0;
         let (b, slack_u) = traversed_column(payload, u_start, stretch_u, du_drift, band, esc)?;
-        if b.weights_f64_interim().iter().any(|w| *w != 1.0) {
+        if b.constant_weight().is_none() {
             return Err(PcurveCertifyError::IsoUnsupported {
                 what: "a LINE seam on a RATIONAL chart column: the Greville hull \
                            is a linear-precision fact and the rational basis has none \
@@ -8143,15 +8042,14 @@ fn seam_envelope<T: Decide>(
     // rebuilt in `f64` is not that space); and the weights, read
     // the same way, either bitwise (a boundary row's, or a collapsed
     // row's with the net's weights constant along `u`) or both
-    // constant (a collapsed row wrapped polynomial, whose carrier's
-    // constant cancels the same way).
+    // constant (`constant_weight`: each is its own polynomial).
     let row_weights: Vec<f64> = if backward {
         b.weights_f64_interim().iter().rev().copied().collect()
     } else {
         b.weights_f64_interim().to_vec()
     };
     let shared_weights = row_weights == c.weights_f64_interim()
-        || (constant_weights(b.weights_f64_interim()) && constant_weights(c.weights_f64_interim()));
+        || (b.constant_weight().is_some() && c.constant_weight().is_some());
     let shared_knots = if backward {
         b.knots_f64_interim()
             .is_reflection_of(c.knots_f64_interim())
@@ -8274,51 +8172,6 @@ struct Levers<T> {
     azimuth: T,
     tube: T,
     latitude: T,
-}
-
-/// **The window a placed channel is named in**, and so the window its
-/// angle is read in: each window carries its start, the reader takes its
-/// cut there (`Azimuth::principal_in`), and the marks are read about its
-/// centre. Every angle of a periodic chart is named in the angular
-/// window, `(ANGLE_WINDOW_START, ANGLE_WINDOW_START + τ]`, but a sphere's
-/// latitude is not an angle every value of which is the chart's: only
-/// `[−π/2, π/2]` is (`chart_region` refuses an image past it as unbounded
-/// in its sphere arm). Its window, `(LATITUDE_WINDOW_START,
-/// LATITUDE_WINDOW_START + τ]`, holds every valid latitude, so each is
-/// named as itself, and its cut sits at a generic angle past both
-/// poles (`1 + π` beyond the north, `1 − π` beyond the south): the
-/// meridian's placed polar angle, the parallel's `asin` and the
-/// projected image's latitude, which is never moved, are one convention.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Window {
-    /// An angle of a periodic chart.
-    Angle,
-    /// A sphere's latitude.
-    Latitude,
-}
-
-/// Every window's start lies in `(−π, 0]`, which `stable_azimuth`'s two
-/// formulas need to cover `(start, start + τ]`; a start moved outside it
-/// fails the build.
-const _: () = {
-    use core::f64::consts::PI;
-    assert!(-PI < ANGLE_WINDOW_START && ANGLE_WINDOW_START <= 0.0);
-    assert!(-PI < LATITUDE_WINDOW_START && LATITUDE_WINDOW_START <= 0.0);
-};
-
-impl Window {
-    /// The window's open end, its cut: the one place its start is spelled.
-    fn start<T: Real>(self) -> T {
-        match self {
-            Window::Angle => T::from_f64(ANGLE_WINDOW_START),
-            Window::Latitude => T::from_f64(LATITUDE_WINDOW_START),
-        }
-    }
-
-    /// The window's centre, half a turn from its cut either way.
-    fn centre<T: Real>(self) -> T {
-        T::pi() + self.start()
-    }
 }
 
 impl Along {
@@ -8485,27 +8338,6 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
             let (a, b) = net.domain();
             (T::from_f64(a), T::from_f64(b))
         }
-    }
-}
-
-/// The angle of `(x, y)` (M5 S13, shared by every chart's derivation
-/// since M6-3), by one of two formulas equal modulo a turn:
-/// `atan2(y, x)`, its cut on the negative-`x` axis, or
-/// `atan2(−y, −x) + π`, its cut on the positive-`x` axis.
-///
-/// Which one is decided across the line through the angles `start` and
-/// `start + π` (`pcurve_chart_cut_side`), `start` in `(−π, 0]`: on the
-/// side that holds angle `0`, the first; on the other, in band or
-/// undecided, the second. So a direction decided on either side reads in
-/// `(start, start + τ]`, and the read jumps only across the line's band
-/// at `start`, on the angle-`0` side of it (`Azimuth::principal`'s doc
-/// says what a direction in that band reads); the geom-brep README's C4
-/// says why the windows' starts are generic angles.
-fn stable_azimuth<T: Decide>(y: T, x: T, start: T, band: Band) -> T {
-    let (s, c) = start.sin_cos();
-    match decide("pcurve_chart_cut_side", Margin::of(c * y - s * x), band) {
-        Ok(Sign::Positive) => y.atan2(x),
-        Ok(Sign::Negative | Sign::Zero) | Err(_) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
     }
 }
 
@@ -11796,7 +11628,7 @@ mod tests {
             v_min: -3.0,
             v_max: 1.5,
         };
-        let (arm, v_arm) = chart_arms_at(&cone, &boxed).unwrap();
+        let (arm, v_arm) = chart_sup_arms_at(&cone, &boxed).unwrap();
         let (arm, v_arm) = (arm.get(), v_arm.get());
         assert!(
             (v_arm - 1.0).abs() < 1e-15,
@@ -12049,28 +11881,38 @@ mod tests {
         );
     }
 
-    /// The rational gate holds, typed: a column with non-unit weights
-    /// is outside the Greville hull's linear-precision hypothesis and
-    /// refuses naming that, exactly as the cap class does. The two
-    /// weights are EQUAL (a constant weight scales out of the rational
-    /// basis), so the column's locus and parameterization are the
-    /// exact ruling and the pointwise schedule passes — the weight
-    /// gate is the deciding check, not a residual.
+    /// The rational gate asks constancy, typed: a column whose two
+    /// weights are one constant `2` is the polynomial ruling and
+    /// certifies with
+    /// the unit column's envelope, to the bit; a column whose weights
+    /// differ by one ulp is outside the Greville hull's linear-precision
+    /// hypothesis and refuses naming that. The ulp keeps the column's
+    /// locus and parameterization the exact ruling to the schedule, so
+    /// the weight gate is the deciding check, not a residual.
     #[test]
-    fn a_rational_column_refuses_typed() {
+    fn a_constant_weight_column_certifies_and_a_rational_one_refuses_typed() {
         let w = core::f64::consts::FRAC_1_SQRT_2;
-        let got = PcurveCache::certify(
-            Pcurve::IsoLine {
-                p0: Point2::new(0.0, 0.0),
-                pl: Vec2::new(0.0, 1.0),
-            },
-            0.0,
-            1.0,
-            &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
-            &ruled_wall_with([0.7, 0.7, w, w, 1.0, 1.0]),
-            band(),
+        let certify = |weights: [f64; 6]| {
+            PcurveCache::certify(
+                Pcurve::IsoLine {
+                    p0: Point2::new(0.0, 0.0),
+                    pl: Vec2::new(0.0, 1.0),
+                },
+                0.0,
+                1.0,
+                &ruling_line(Point3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0)),
+                &ruled_wall_with(weights),
+                band(),
+            )
+        };
+        let unit = certify([1.0, 1.0, w, w, 1.0, 1.0]).expect("the unit column certifies");
+        let twos = certify([2.0, 2.0, w, w, 1.0, 1.0]).expect("a constant column certifies");
+        assert_eq!(
+            twos.certificate().envelope.to_bits(),
+            unit.certificate().envelope.to_bits(),
+            "the constant column's envelope is the unit column's"
         );
-        match got {
+        match certify([1.0, 1.0f64.next_up(), w, w, 1.0, 1.0]) {
             Err(PcurveCertifyError::IsoUnsupported { what }) => {
                 assert!(what.contains("RATIONAL chart column"), "{what}");
             }
@@ -12245,8 +12087,8 @@ mod cone_azimuth_sup {
 #[cfg(test)]
 mod placeholder_sup {
     use super::{
-        ChartWindow, NoChartSup, PcurveCertifyError, chart_arms_at, chart_stretch_inf,
-        chart_stretch_sup, chart_stretch_sup_v,
+        ChartWindow, NoChartSup, PcurveCertifyError, chart_stretch_inf, chart_stretch_sup,
+        chart_stretch_sup_v, chart_sup_arms_at,
     };
     use geom::{NurbsSurface, Surface};
     use std::sync::Arc;
@@ -12272,7 +12114,7 @@ mod placeholder_sup {
             v_max: 1.0,
         };
         assert_eq!(
-            chart_arms_at(&ph, &unit).err(),
+            chart_sup_arms_at(&ph, &unit).err(),
             Some(PcurveCertifyError::PlaceholderChart),
             "the boxed door, which the azimuth headroom reads"
         );

@@ -15,7 +15,7 @@ use crate::common;
 
 use geom::Surface;
 use geom_core::{Band, Tol};
-use topo::{AtRestBody, Body, ChartMove, FaceKey, ValidationError, mass_properties};
+use topo::{AtRestBody, Body, ChartMove, FaceKey, ValidationError};
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
 /// when `ccw` (`inside_out_operand.rs`'s wedge).
@@ -107,8 +107,21 @@ fn top_normal_z(body: &Body<f64>) -> f64 {
     }
 }
 
-fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, Tol::witness()).unwrap().volume
+/// `body`'s signed volume: through the typed door for a right-way body,
+/// and through the raw door for an inside-out one, which tier 3 refuses
+/// ([`finishes_iff`] pins which).
+fn volume(body: &Body<f64>, right_way: bool) -> f64 {
+    if right_way {
+        topo::mass_properties(
+            &AtRestBody::validate(body.clone(), Tol::witness()).expect("the body is finished"),
+            Tol::witness(),
+        )
+    } else {
+        // Raw door: an inside-out body, which tier 3 refuses (NegativeVolume, as `finishes_iff` pins); its signed volume is the subject.
+        topo::test_support::measure_unvalidated(body, Tol::witness())
+    }
+    .unwrap()
+    .volume
 }
 
 /// `body` finishes when `right_way`, and refuses on check 7 alone when
@@ -188,7 +201,7 @@ fn moves_by_chart(door: &str, offset: impl Fn(&mut Body<f64>, f64)) {
             (normal_z, sense),
             "{what}: the top chart's normal and the face's sense"
         );
-        let before = volume(&body);
+        let before = volume(&body, right_way);
         let want_before = if right_way { 0.5 } else { -0.5 } * cap_area();
         assert!(
             (before - want_before).abs() < 1e-12,
@@ -196,7 +209,7 @@ fn moves_by_chart(door: &str, offset: impl Fn(&mut Body<f64>, f64)) {
         );
         finishes_iff(&format!("{what}, the operand"), &body, right_way);
         offset(&mut body, d);
-        let delta = volume(&body) - before;
+        let delta = volume(&body, right_way) - before;
         assert!(
             (delta - want).abs() < 1e-12,
             "{what}: signed ΔV {delta}, want {want}"

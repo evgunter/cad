@@ -34,7 +34,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::time::Instant;
 
@@ -53,7 +52,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, ang, fname, len, scl, wall};
+use fixture::{Recorder, fname, len, wall};
 
 /// Hole centres at x = ±`HOLE_X`; the web is `2·HOLE_X − 2·hole_r`.
 const HOLE_X: f64 = 0.30;
@@ -247,11 +246,7 @@ fn plate_spaced(
         name: name("depth"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.1, depth)),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
@@ -261,12 +256,10 @@ fn plate_spaced(
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile.into(),
         distance: param("depth", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let mut holes = Vec::new();
     for cx in [-hole_x, hole_x] {
         let p = r.insert(Node::Profile(ProfileProgram {
-            frame: frame.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: param("hole_r", Dimension::Length),
@@ -276,9 +269,10 @@ fn plate_spaced(
         holes.push(r.insert(Node::Extrude {
             profile: p.into(),
             distance: len(0.1),
-            side: ExtrudeSide::Along,
         }));
     }
+    // The second hole joins the first's space where it stands.
+    holes[1] = r.against(holes[0], holes[1], &editor_core::Frame::IDENTITY);
     // The wall names come from the selection door, the way a user gets
     // them: evaluate what is built so far, ask each hole for its
     // cylindrical faces, read at the extrude that owns them.
@@ -335,11 +329,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
         name: name("t"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, Some(dist))),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -349,16 +339,13 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
     let cube = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
-    let copy = r.insert(Node::transform(
+    let copy = crate::m10_5_clearance_interval::slid_by(
+        &mut r,
         cube,
-        editor_core::Step::Rigid {
-            translation: [param("t", Dimension::Length), len(0.0), len(0.0)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+        cube,
+        [param("t", Dimension::Length), len(0.0), len(0.0)],
+    );
     let ev = eval(&r.doc);
     let at = |node, x: f64| {
         editor_core::all_vertices(&ev, node)
@@ -386,11 +373,7 @@ fn slab(half: f64) -> (ProfileDoc, VarId) {
         name: name("depth"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, Some(uniform(half)))),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -400,7 +383,6 @@ fn slab(half: f64) -> (ProfileDoc, VarId) {
     let block = r.insert(Node::Extrude {
         profile: p.into(),
         distance: param("depth", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let refs = vec![
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
@@ -1159,8 +1141,11 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     )
     .expect("exact atom");
     walls.sort();
+    // The hole's wall is read at a copy standing in the plate's space,
+    // as a measure's two sites share one.
+    let (doc, hole_in) = crate::fixture::stood_in(doc, hole, plate_node);
     let refs = vec![
-        SitedRef::new(hole, walls.remove(0)),
+        SitedRef::new(hole_in, walls.remove(0)),
         SitedRef::new(plate_node, fname(plate_node, wall(&doc, plate_node, 0))),
     ];
     let (doc, measured) =
@@ -1424,11 +1409,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         name: name("r"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, Some(uniform(half)))),
     });
-    // One frame, named by the bore and the pin alike: they are drawn
-    // on the same plane, so they bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -1438,10 +1419,8 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let bore = r.insert(Node::Extrude {
         profile: bore_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -1451,8 +1430,9 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     let pin = r.insert(Node::Extrude {
         profile: pin_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
+    // The pin joins the bore's space where it stands.
+    let pin = r.against(bore, pin, &editor_core::Frame::IDENTITY);
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
     let measured = r.measure(&[MeasurePrimitive::Gap { outer: 0, inner: 1 }], &refs);
@@ -1547,18 +1527,10 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
         name: name("w"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 2.0, Some(uniform(half)))),
     });
-    // A frame per section height: the sections are drawn on DIFFERENT
-    // planes, so they are different nodes.
-    let frame_at = |r: &mut Recorder, z: f64| {
-        r.insert(fixture::frame(
-            [0.0, 0.0, z],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ))
-    };
-    let section = |plane| {
+    // Each section drawn on its own plane; the second's station slides
+    // it up the first's z.
+    let section = || {
         Node::Profile(ProfileProgram {
-            frame: plane,
             loops: vec![LoopProgram::Chain(vec![
                 editor_core::ProgramStep::At([len(0.0), len(0.0)]),
                 editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
@@ -1578,12 +1550,17 @@ fn a_loft_section_seed_rides_the_section_to_the_measure() {
             ids: Vec::new(),
         })
     };
-    let f0 = frame_at(&mut r, 0.0);
-    let p0 = r.insert(section(f0.into()));
-    let f1 = frame_at(&mut r, 1.0);
-    let p1 = r.insert(section(f1.into()));
+    let p0 = r.insert(section());
+    let p1 = r.insert(section());
     let loft = r.insert(Node::Loft {
-        profiles: vec![p0.into(), p1.into()],
+        first: p0.into(),
+        then: vec![editor_core::LoftSection {
+            profile: p1.into(),
+            station: vec![editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by: len(1.0),
+            }],
+        }],
         v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);

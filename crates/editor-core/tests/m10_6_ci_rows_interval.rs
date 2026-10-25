@@ -51,7 +51,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_vector, drive};
@@ -63,7 +62,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len};
 
 /// **The committed accounting goldens, ONE PER ε ROW** (row 2).
 ///
@@ -238,9 +237,7 @@ fn distributed_plate() -> ProfileDoc {
             }),
         });
     }
-    let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -252,14 +249,12 @@ fn distributed_plate() -> ProfileDoc {
         ],
         ids: Vec::new(),
     }));
-    let _plate = r.insert(Node::Extrude {
+    let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
     let hs = Formula::named(name("half_spacing"), Dimension::Length);
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [
                 Formula::neg(hs.clone()).expect("a shallow negation"),
@@ -272,10 +267,8 @@ fn distributed_plate() -> ProfileDoc {
     let hole_a = r.insert(Node::Extrude {
         profile: hole_a_p.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
     let hole_b_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [hs, len(0.0)],
             radius: Formula::named(name("hole_b_r"), Dimension::Length),
@@ -285,8 +278,10 @@ fn distributed_plate() -> ProfileDoc {
     let hole_b = r.insert(Node::Extrude {
         profile: hole_b_p.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
+    // Each hole joins the plate's space where it is drawn.
+    let hole_a = r.against(plate, hole_a, &editor_core::Frame::IDENTITY);
+    let hole_b = r.against(plate, hole_b, &editor_core::Frame::IDENTITY);
     let ev = evaluate::<f64>(
         &r.doc,
         None,
@@ -393,9 +388,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             distribution: Some(distribution),
         }),
     });
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -418,30 +411,33 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(2.0),
-        side: ExtrudeSide::Along,
     });
-    let placed = r.insert(Node::transform(
+    let placed = crate::m10_5_clearance_interval::slid_by(
+        &mut r,
         solid,
-        editor_core::Step::Rigid {
-            translation: [
-                Formula::named(name("place"), Dimension::Length),
-                len(0.0),
-                len(0.0),
-            ],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+        solid,
+        [
+            Formula::named(name("place"), Dimension::Length),
+            len(0.0),
+            len(0.0),
+        ],
+    );
     let measured = r.measure(
         &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ),
             SitedRef::new(
                 placed,
-                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+                crate::m10_5_clearance_interval::in_placement(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+                ),
             ),
         ],
     );
@@ -805,6 +801,34 @@ fn a_band_only_documents_budget_reads_forced_and_a_uniform_ones_priced() {
 /// are decisions a PR body has to state. Re-bless with
 /// `M10_6_BLESS_CERT_KEYS=1`, read the diff, and say in the PR which
 /// of the two it was.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when a placement whose
+/// bundle reads a variable came to run its map at the nominal (C-5
+/// narrowed, the orchestrator's ruling): the neck's placed copy is no
+/// longer snapped at rest, so its transform's decisions join the
+/// vector's contents.
+///
+/// All four keys moved, and not the filter (`dropped=1` held on both),
+/// on D's lane of 2026-10-19/20, which merged main at `0a1d95321e`: the
+/// keys this file holds are the ones D's head read before FORK-REST
+/// (`434139ef1c`, re-blessed there in a worktree), and its head reads
+/// them again after it. `plain_distance` holds no placement, so no
+/// ruling about placements can reach it; its verdict rows moved with
+/// main's. The neck's copy reads `place` and ran its map before
+/// FORK-REST as after.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when the pose
+/// direction's predicate was renamed `pose_unit_norm` (it was
+/// `datum_unit_norm`): the vector's rows carry the name.
+///
+/// `min_clearance_neck`'s two keys moved, and not the filter
+/// (`dropped=1` held, `plain_distance` unmoved), when D′2 charted a
+/// value on the target space's axes rather than the target body's
+/// frame: the fold no longer takes the mated direction back through the
+/// target body's motion, one `pose_unit_norm` decision fewer among the
+/// vector's rows. The neck's copy lands where it landed.
 #[test]
 fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
     let doc = min_clearance_neck();
@@ -859,9 +883,7 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
 /// reaches every assertion-carrying document in the tree.
 fn plain_distance_doc() -> ProfileDoc {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -871,7 +893,6 @@ fn plain_distance_doc() -> ProfileDoc {
     let solid = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let measured = r.measure(
         &[MeasurePrimitive::Distance { a: 0, b: 1 }],

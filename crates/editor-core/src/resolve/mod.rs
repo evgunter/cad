@@ -67,9 +67,9 @@ pub use hit::{
     HitTestError, UnnamedEntity, body_name, edge_name, entity_name, face_name, vertex_name,
 };
 pub use pick::{
-    Answer, Crossing, FaceAnswer, MeshPick, MeshPickError, NameLookupError, NodePick,
+    Answer, ChordFaces, Crossing, FaceAnswer, MeshPick, MeshPickError, NameLookupError, NodePick,
     NodePickError, PickHit, PickMemo, PickTarget, TSpan, answer_of, crossing, pick_face,
-    ray_triangle,
+    ray_segment_point, ray_triangle,
 };
 pub use vdiff::{
     FlipSet, NodeVerdictDelta, NodeVerdicts, PredicateDivergence, RunStatus, SummaryDelta,
@@ -943,7 +943,7 @@ pub enum ReadEdit {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResolveRefusal {
     /// The read is the document's but is no output holding a body or a
-    /// profile — a scalar, a selection, a datum's output — so no table
+    /// profile — a scalar, a selection, a pose output — so no table
     /// names what it holds. A reference is read in a body output.
     ReadNotAnOutput {
         /// The read named.
@@ -1632,7 +1632,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         }));
     }
     // A live read that is no output holding a body — a scalar, a
-    // selection, a datum's — has no table to ask: the question is
+    // selection, a pose output — has no table to ask: the question is
     // refused, never answered.
     if new.doc.var(site).is_some() && !new.doc.holds_body(site) {
         return Err(ResolveRefusal::ReadNotAnOutput { read: site });
@@ -2631,8 +2631,12 @@ pub fn apply_with_names<T: Decide>(
         DocEdit::Rebind { to, .. } => names.push(to),
         DocEdit::AddConstraint { mate, .. } => {
             names.extend(mate.on.selected_names());
-            if let Some(to) = mate.to.pose() {
-                names.extend(to.selected_names());
+            names.extend(mate.to.selected_names());
+        }
+        DocEdit::SetConstraints { constraints, .. } => {
+            for mate in constraints.iter().filter_map(crate::mate::Constraint::mate) {
+                names.extend(mate.on.selected_names());
+                names.extend(mate.to.selected_names());
             }
         }
         // Name-carrying and deliberately unchecked here: an appearance
@@ -2647,10 +2651,6 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ClearAppearanceMeta { .. } => {}
         // Carry no `StableName` at all.
         DocEdit::DeleteNode { .. }
-        // A value reads its mate by id and holds a number.
-        | DocEdit::AddValue { .. }
-        // A world pin reads nothing.
-        | DocEdit::PinWhereItStands { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
         // A program and its step ids carry no name, and the door
@@ -2658,7 +2658,6 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetProgram { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
-        | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
         | DocEdit::DeclareVar { .. }
         | DocEdit::DefineVar { .. }
@@ -2671,6 +2670,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::RemoveConstraint { .. }
+        | DocEdit::RemoveConstraints { .. }
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => {}
     }
