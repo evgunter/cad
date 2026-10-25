@@ -2978,6 +2978,7 @@ mod tests {
     ///   ([`TurnUndecided::not_over_at_sup`]). A certified edge read at
     ///   its certification's band reaches none of these: check 2 reads
     ///   the same turn and would have escalated it.
+    ///
     /// A reversed span no longer reaches the rule: the extent door
     /// refuses it, where the old rule read headroom `τ + |Δ|` and an arc.
     #[test]
