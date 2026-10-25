@@ -2,10 +2,11 @@
 id: a-boss-over-a-hole-tangent-inside-its-rim-at-its-vertex-unites-as-two-shells
 kind: issue
 title: A boss over a hole or pocket tangent inside its rim, both vertices at the tangent point, unites as two shells sharing the crescent
-status: open
+status: dispatched
 opened: 2026-10-14
 priority: P0
 cost: M
+branch: cleave/boss-over-a-tangent-hole-unites-as-one-shell
 ---
 
 
