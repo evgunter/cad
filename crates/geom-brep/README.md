@@ -23,7 +23,7 @@ escalated typed refusal, never a raw comparison.
 
 | Decisions | Lives in |
 |---|---|
-| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
+| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`); `crates/geom-brep/src/intersect/conic_arc.rs` (the plane×cone parabola and hyperbola arcs) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system,boundary,section,ends,pair,four}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions); for curve pairs `crates/geom-brep/src/curve_pair.rs` (`method`, `meet`) and `curve_pair/{span,pose,polish,walk}.rs` |
@@ -698,7 +698,8 @@ A closed form that already holds a meeting divides that meeting's root out
 of its equation and solves only for the others. The reader is given no
 topology: two edges joined at a vertex meet there because their ends meet.
 Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
-plane×cylinder, plane×cone (all but the parabola and hyperbola),
+plane×cylinder, plane×cone (the parabola and hyperbola in closed form,
+each arc minted per window, `ConicBranch::arc`),
 declared-equal cylinder×cylinder, axis-aligned plane×torus (its
 axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere,
 plane×NURBS and plane×`Approx`, NURBS×NURBS and every pairing of

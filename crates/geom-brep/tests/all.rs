@@ -137,6 +137,8 @@ mod onb_wall_frame_interval;
 mod onpair_plane_nurbs;
 #[path = "pcurve_frame_premise_rows.rs"]
 mod pcurve_frame_premise_rows;
+#[path = "plane_cone_arc.rs"]
+mod plane_cone_arc;
 #[path = "pn_apex_pair_over_a_span.rs"]
 mod pn_apex_pair_over_a_span;
 #[path = "pn_apex_reach.rs"]
