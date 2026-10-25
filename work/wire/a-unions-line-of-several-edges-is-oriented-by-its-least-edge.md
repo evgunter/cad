@@ -2,7 +2,7 @@
 id: a-unions-line-of-several-edges-is-oriented-by-its-least-edge
 kind: issue
 title: A union orients a line by its least edge, so where flush edges or a seam's sides run opposite ways a crossing's sense and a group's ranks read which was minted first
-status: open
+status: dispatched
 opened: 2026-10-20
 priority: P2
 cost: M

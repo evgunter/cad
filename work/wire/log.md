@@ -6999,3 +6999,4 @@ Signed (WIRE orchestrator).
     - first-hop dead-key arms need a proven-live reason (chord_faces guards a dead face);
     - output_body joins the loop_coordinates row;
     - stale docs, vestigial Results, borders' hand copy of edge_ends.
+- 2026-10-25 (WIRE orchestrator) FORK-ORIENT opened (draw 28, even: Opus is A, Fable is B) on `a-unions-line-of-several-edges-is-oriented-by-its-least-edge`. Opus and Fable designers are dispatched. The brief names the seamrank axis Ev turned down, and the canonical Reverse rule, as known traps. PR 5700 (state sync) merged.
