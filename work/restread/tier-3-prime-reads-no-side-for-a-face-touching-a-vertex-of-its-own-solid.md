@@ -2,10 +2,11 @@
 id: tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid
 kind: issue
 title: Tier 3′ reads no side where a face of a solid touches one of its own vertices, and the literal D1 corollary would refuse a cavity's corner on a face
-status: open
+status: closed
 opened: 2026-10-19
 priority: P1
 cost: M
+closed: 2026-10-25
 ---
 
 
@@ -121,3 +122,30 @@ Two designers weighed it and converged after two rounds. The `[ev]` PR states th
 - a finding for the failure, mapped in `Named::of` as a pierce of the solid;
 - the crossing body and the pit as witnesses;
 - the two-pits-and-a-needle body as a control that must pass.
+
+## Closed
+
+2026-10-25 (branch `restread/point-touch-winding`). Tier 3′ reads each
+point where one solid touches itself once, over the solid's whole link
+(`sweep_self_touch_points`, `rest::one_material`). Its units are the
+vertex-vertex, vertex-on-edge and vertex-on-face ties and the point keys
+that name two cells of one solid. No sheet may cross another, and every
+piece's front winding must be equal, so the winding takes two
+consecutive values. A decided failure refuses
+`BoundaryCrossesItself`. Anything unread refuses
+`BoundaryCrossesItselfUndecided`, which arm 2 reads as a pierce of the
+solid, or as the solid left unexamined. That closes the cross-solid
+gap above.
+
+- **Witnesses** (`census::self_touch`): the crossing tetrahedra refuse
+  with their four records, and the lifted control refuses four
+  `EdgeFacePierce`. The pit and two pits beside a needle pass.
+- **Points a line touch of the solid reaches are the line's**
+  (`line_touch_reaches`), filed as
+  `tier-3-prime-reads-no-side-at-the-end-of-a-line-touch-inside-one-solid`.
+- **A link with a curved face or edge stays unread**, ruled B
+  (orchestrator with Ev). Filed P1 as
+  `tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face`.
+- **A face held at a corner and along an edge** refuses `Unanalysed`,
+  filed as
+  `the-touch-analysis-reads-no-face-held-at-a-corner-and-along-an-edge-at-one-point`.
