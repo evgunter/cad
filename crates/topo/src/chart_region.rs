@@ -1797,12 +1797,7 @@ fn wrap_band<T: Decide + Bounds>(
     let Some(span) = Extent::hull([outer[ul].x, outer[uh].x]) else {
         unreachable!("a hull of two values is one")
     };
-    let rows = TurnRows::exact("chart_region_cyl_wrap");
-    match Period::new(T::tau()).turn(rows, span, Exact::new(radius), band) {
-        Ok(Turn::Whole(_)) => Ok(Some((outer[vl].y, outer[vh].y))),
-        Ok(Turn::Short(_) | Turn::Over(_)) => Ok(None),
-        Err(undecided) => Err(ChartRegionError::Escalated(undecided.diag)),
-    }
+    Ok(cyl_wrap_whole(span, radius, band)?.then(|| (outer[vl].y, outer[vh].y)))
 }
 
 /// The band arm's decision (doc at [`cylinder_pair_overlap`]): axial
@@ -2815,12 +2810,40 @@ fn seam_gate<T: Decide + Bounds>(
     let Some(span) = Extent::hull(loops.flatten().map(|p| p.x)) else {
         return Err(ChartRegionError::Corrupt);
     };
+    // Over a turn: no common branch. A whole turn (the exact full-wrap
+    // wall pair) and a short one proceed.
+    if seam_span_over(span, radius, band)? {
+        return Err(ChartRegionError::SeamBranch);
+    }
+    Ok(())
+}
+
+/// Whether a rectangle's azimuth span is a whole turn at `radius`
+/// (`chart_region_cyl_wrap`, the turn rule).
+pub(crate) fn cyl_wrap_whole<T: Decide>(
+    span: Extent<T>,
+    radius: T,
+    band: Band,
+) -> Result<bool, ChartRegionError> {
+    let rows = TurnRows::exact("chart_region_cyl_wrap");
+    match Period::new(T::tau()).turn(rows, span, Exact::new(radius), band) {
+        Ok(Turn::Whole(_)) => Ok(true),
+        Ok(Turn::Short(_) | Turn::Over(_)) => Ok(false),
+        Err(undecided) => Err(ChartRegionError::Escalated(undecided.diag)),
+    }
+}
+
+/// Whether a face pair's azimuth hull is definitely over one turn at
+/// `radius` (`chart_region_seam_span`, the turn rule).
+pub(crate) fn seam_span_over<T: Decide>(
+    span: Extent<T>,
+    radius: T,
+    band: Band,
+) -> Result<bool, ChartRegionError> {
     let rows = TurnRows::exact("chart_region_seam_span");
     match Period::new(T::tau()).turn(rows, span, Exact::new(radius), band) {
-        // Over a turn: no common branch. A whole turn (the exact
-        // full-wrap wall pair) and a short one proceed.
-        Ok(Turn::Over(_)) => Err(ChartRegionError::SeamBranch),
-        Ok(Turn::Short(_) | Turn::Whole(_)) => Ok(()),
+        Ok(Turn::Over(_)) => Ok(true),
+        Ok(Turn::Short(_) | Turn::Whole(_)) => Ok(false),
         Err(undecided) => Err(ChartRegionError::Escalated(undecided.diag)),
     }
 }

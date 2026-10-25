@@ -4004,30 +4004,7 @@ fn pole_side<T: Decide>(
     };
     let mut turning = lp.corners;
     for (arc, c) in lp.arcs.iter().zip(circulations) {
-        let pole_arc_full = "props_sphere_pole_arc_full";
-        let full = match Period::new(T::tau()).turn(
-            TurnRows::exact(pole_arc_full),
-            arc.extent,
-            Exact::new(arc.radius),
-            band,
-        ) {
-            Ok(Turn::Whole(_)) => true,
-            Ok(Turn::Short(_)) => false,
-            // The arc's span was decided not over at this rate and band
-            // ([`sphere_loop`]); a reading past it refuses.
-            Ok(Turn::Over(_)) => {
-                return Err(PropsError::SphereLoop {
-                    what: pole_arc_full,
-                });
-            }
-            Err(undecided) => {
-                return Err(PropsError::Escalated {
-                    cause: undecided.diag,
-                    check: PropsCheck::Inventory,
-                });
-            }
-        };
-        let sweep = if full {
+        let sweep = if pole_arc_full(arc.extent, arc.radius, band)? {
             c * T::tau()
         } else {
             let d = push(arc.from, arc.depart);
@@ -4050,6 +4027,23 @@ fn pole_side<T: Decide>(
             Sign::Zero => None,
         },
     )
+}
+
+/// Whether a sphere arc of `extent` on a circle of `radius` is a whole
+/// circle (`props_sphere_pole_arc_full`, the turn rule). Its span was
+/// decided not over at this rate and band ([`sphere_loop`]), so a
+/// reading past a turn refuses.
+fn pole_arc_full<T: Decide>(extent: Extent<T>, radius: T, band: Band) -> Result<bool, PropsError> {
+    let name = "props_sphere_pole_arc_full";
+    match Period::new(T::tau()).turn(TurnRows::exact(name), extent, Exact::new(radius), band) {
+        Ok(Turn::Whole(_)) => Ok(true),
+        Ok(Turn::Short(_)) => Ok(false),
+        Ok(Turn::Over(_)) => Err(PropsError::SphereLoop { what: name }),
+        Err(undecided) => Err(PropsError::Escalated {
+            cause: undecided.diag,
+            check: PropsCheck::Inventory,
+        }),
+    }
 }
 
 /// Whether the point `p`, on `arc`'s carrier, lies within its stored
@@ -5425,7 +5419,7 @@ mod rim_level_review_probe {
         let band = Band::linear(Tol::witness()).expect("band");
         let rim = Rim {
             d_u_sign: Sign::Positive,
-            dt: 1.0,
+            dt: Extent::hull([0.0, 1.0]).expect("two values"),
             level: RimLevel::Unit(0.5, 0.5),
         };
         // Rim is `Unit`, the ends are `Length`.
@@ -5474,7 +5468,7 @@ mod rim_level_review_probe {
         let d = band.zero() * 0.8;
         let rim = Rim {
             d_u_sign: Sign::Positive,
-            dt: 1.0,
+            dt: Extent::hull([0.0, 1.0]).expect("two values"),
             level: RimLevel::Unit(d, d),
         };
         let got = require_rims_at_extremes(
@@ -5774,3 +5768,7 @@ mod sphere_region_cover_rows {
         );
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod turn_rows;

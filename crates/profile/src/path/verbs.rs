@@ -419,6 +419,28 @@ pub struct TangentArcLeg<T: Real> {
     pub chord: T,
 }
 
+/// An endpoint-free leg's swept angle `angle` on radius `r`, gated: its
+/// arc length definitely positive (`path_arc_sweep`, the span from the
+/// start's angle at the radius) and definitely short of a full turn
+/// (`path_arc_sweep_full`, the turn rule at `r`).
+pub(crate) fn sweep_gates<T: Decide>(r: T, angle: T, band: Band) -> Result<(), PathError<T>> {
+    let sweep = Extent::forward("path_arc_sweep", T::zero(), angle, InfSpeed::new(r), band)
+        .map_err(|refused| match refused {
+            NotForward::Undecided(source) => PathError::Escalated { source },
+            NotForward::Zero(_) | NotForward::Reversed(_) => {
+                PathError::DegenerateArcSpec { value: angle }
+            }
+        })?;
+    let rows = TurnRows::exact("path_arc_sweep_full");
+    match Period::new(T::tau()).turn(rows, sweep, Exact::new(r), band) {
+        Ok(Turn::Short(_)) => Ok(()),
+        Ok(Turn::Whole(_) | Turn::Over(_)) => Err(PathError::ArcSweepNotShortOfFullTurn { angle }),
+        Err(undecided) => Err(PathError::Escalated {
+            source: undecided.diag,
+        }),
+    }
+}
+
 pub(crate) fn tangent_arc_leg<T: Decide>(
     dp: DirectedPoint<T>,
     r: T,
@@ -429,28 +451,7 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
     gate_positive("path_arc_center_radius", r, band, |radius| {
         PathError::DegenerateArcCenter { radius }
     })?;
-    // The swept angle, the span from the start's angle, crosses to
-    // metres at the radius it turns on: an arc length, decided
-    // definitely positive, then short of one turn.
-    let sweep = Extent::forward("path_arc_sweep", T::zero(), angle, InfSpeed::new(r), band)
-        .map_err(|refused| match refused {
-            NotForward::Undecided(source) => PathError::Escalated { source },
-            NotForward::Zero(_) | NotForward::Reversed(_) => {
-                PathError::DegenerateArcSpec { value: angle }
-            }
-        })?;
-    let rows = TurnRows::exact("path_arc_sweep_full");
-    match Period::new(T::tau()).turn(rows, sweep, Exact::new(r), band) {
-        Ok(Turn::Short(_)) => {}
-        Ok(Turn::Whole(_) | Turn::Over(_)) => {
-            return Err(PathError::ArcSweepNotShortOfFullTurn { angle });
-        }
-        Err(undecided) => {
-            return Err(PathError::Escalated {
-                source: undecided.diag,
-            });
-        }
-    }
+    sweep_gates(r, angle, band)?;
     let sgn = side.sign::<T>();
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
     let centre = dp.at + n * (sgn * r);

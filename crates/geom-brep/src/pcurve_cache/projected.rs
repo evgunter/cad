@@ -2455,3 +2455,7 @@ mod tests {
         assert_eq!(z, [None, None], "z.0, z.1: the axial floor on each nappe");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod turn_rows;

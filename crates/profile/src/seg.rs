@@ -415,7 +415,7 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
 
 /// Which sweeps [`sweep_range`] accepts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Range {
+pub(crate) enum Range {
     /// 0 < |Δθ| < 2π: an arc between two vertices.
     Chord,
     /// |Δθ| = 2π: the full turn at one vertex.
@@ -922,7 +922,11 @@ fn read_back<T: Decide>(
 /// radius, decided definitely nonzero, and that magnitude against one
 /// turn (the turn rule, [`Period::turn`]), a chord arc's short of it
 /// and a full turn's whole.
-fn sweep_range<T: Decide>(arc: Arc2<T>, range: Range, band: Band) -> Result<(), SegIssue<T>> {
+pub(crate) fn sweep_range<T: Decide>(
+    arc: Arc2<T>,
+    range: Range,
+    band: Band,
+) -> Result<(), SegIssue<T>> {
     let inconsistent = || SegIssue::Inconsistent {
         check: ArcCheck::SweepRange,
     };

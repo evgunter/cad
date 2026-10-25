@@ -127,6 +127,8 @@ mod runs;
 mod surfaces;
 pub mod tube;
 mod turn;
+#[cfg(test)]
+mod turn_rows;
 mod upgrade;
 
 use core::fmt;
@@ -950,6 +952,27 @@ impl From<EulerOpError> for RevolveError {
 /// record — unlike `extrude`, which wraps it to add an orientation bit.
 pub(super) use crate::swept::{SweptSeg, swept_segments};
 
+/// **A partial revolve's angle `t`, classified** (module docs) at the
+/// profile's widest radius `r_max`: definitely nonzero
+/// (`revolve_angle`; its sign is the sweep's sense, and whether the
+/// traversals reverse) and definitely short of a full turn
+/// (`revolve_angle_headroom`, the turn rule).
+fn partial_angle_reverses<T: Decide>(t: T, r_max: T, band: Band) -> Result<bool, RevolveError> {
+    let (sign, angle) = Extent::decide_signed("revolve_angle", t, InfSpeed::new(r_max), band)
+        .map_err(|source| match source.margin.rejected_sign() {
+            Some(Sign::Zero) => RevolveError::DegenerateAngle,
+            _ => RevolveError::AngleEscalated { source },
+        })?;
+    let rows = TurnRows::exact("revolve_angle_headroom");
+    match Period::new(T::tau()).turn(rows, angle, Exact::new(r_max), band) {
+        Ok(Turn::Short(_)) => Ok(sign == NonzeroSign::Positive),
+        Ok(Turn::Whole(_) | Turn::Over(_)) => Err(RevolveError::FullRangeAngle),
+        Err(undecided) => Err(RevolveError::AngleEscalated {
+            source: undecided.diag,
+        }),
+    }
+}
+
 /// Revolves a validated profile about an in-sketch-plane axis into a
 /// closed solid.
 ///
@@ -985,30 +1008,7 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     let r_max = axis::radial_extent(profile, &frame);
     let (theta, reverse, full) = match revolution {
         Revolution::Full => (T::tau(), true, true),
-        Revolution::Partial(t) => {
-            let (sign, angle) =
-                Extent::decide_signed("revolve_angle", t, InfSpeed::new(r_max), band).map_err(
-                    |source| match source.margin.rejected_sign() {
-                        Some(Sign::Zero) => RevolveError::DegenerateAngle,
-                        _ => RevolveError::AngleEscalated { source },
-                    },
-                )?;
-            let reverse = match sign {
-                NonzeroSign::Positive => true,
-                NonzeroSign::Negative => false,
-            };
-            let rows = TurnRows::exact("revolve_angle_headroom");
-            match Period::new(T::tau()).turn(rows, angle, Exact::new(r_max), band) {
-                Ok(Turn::Short(_)) => {}
-                Ok(Turn::Whole(_) | Turn::Over(_)) => return Err(RevolveError::FullRangeAngle),
-                Err(undecided) => {
-                    return Err(RevolveError::AngleEscalated {
-                        source: undecided.diag,
-                    });
-                }
-            }
-            (t, reverse, false)
-        }
+        Revolution::Partial(t) => (t, partial_angle_reverses(t, r_max, band)?, false),
     };
 
     // ---- Swept traversals + axis-contact classification (canonical

@@ -305,6 +305,34 @@ impl core::fmt::Display for TubeError {
 
 impl std::error::Error for TubeError {}
 
+/// **An arc window `[t0, t1]`, classified** at the outer equator `arm`
+/// (D4 ¶1): its span definitely forward (`tube_window_span`) and
+/// definitely short of a full turn (`tube_window_headroom`, the turn
+/// rule). Returns the span.
+pub(super) fn arc_window<T: Decide>(t0: T, t1: T, arm: T, band: Band) -> Result<T, TubeError> {
+    let escalated = |decision: TubeDecision, source: Indeterminate| {
+        debug_assert_eq!(
+            source.predicate,
+            Some(decision.predicate()),
+            "the escalation names its decision"
+        );
+        TubeError::Escalated { decision, source }
+    };
+    let span_name = TubeDecision::WindowSpan.predicate();
+    let span = Extent::forward(span_name, t0, t1, InfSpeed::new(arm), band).map_err(|refused| {
+        match refused {
+            NotForward::Undecided(source) => escalated(TubeDecision::WindowSpan, source),
+            NotForward::Zero(_) | NotForward::Reversed(_) => TubeError::DegenerateWindow,
+        }
+    })?;
+    let rows = TurnRows::exact(TubeDecision::WindowHeadroom.predicate());
+    match Period::new(T::tau()).turn(rows, span, Exact::new(arm), band) {
+        Ok(Turn::Short(_)) => Ok(span.get()),
+        Ok(Turn::Whole(_) | Turn::Over(_)) => Err(TubeError::FullRangeWindow),
+        Err(undecided) => Err(escalated(TubeDecision::WindowHeadroom, undecided.diag)),
+    }
+}
+
 /// The solid tube body (module docs). On success the returned body
 /// passes tiers 1–3 with stored certified pcurves, exactly as a
 /// revolve.
@@ -471,32 +499,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
     // ---- The window (mirrors revolve's angle classification). ----
     let (theta, full) = match window {
         TubeWindow::Full => (T::tau(), true),
-        TubeWindow::Arc { t0, t1 } => {
-            let escalated = |decision: TubeDecision, source: Indeterminate| {
-                debug_assert_eq!(
-                    source.predicate,
-                    Some(decision.predicate()),
-                    "the escalation names its decision"
-                );
-                TubeError::Escalated { decision, source }
-            };
-            let span_name = TubeDecision::WindowSpan.predicate();
-            let span = Extent::forward(span_name, t0, t1, InfSpeed::new(arm), band).map_err(
-                |refused| match refused {
-                    NotForward::Undecided(source) => escalated(TubeDecision::WindowSpan, source),
-                    NotForward::Zero(_) | NotForward::Reversed(_) => TubeError::DegenerateWindow,
-                },
-            )?;
-            let rows = TurnRows::exact(TubeDecision::WindowHeadroom.predicate());
-            match Period::new(T::tau()).turn(rows, span, Exact::new(arm), band) {
-                Ok(Turn::Short(_)) => {}
-                Ok(Turn::Whole(_) | Turn::Over(_)) => return Err(TubeError::FullRangeWindow),
-                Err(undecided) => {
-                    return Err(escalated(TubeDecision::WindowHeadroom, undecided.diag));
-                }
-            }
-            (span.get(), false)
-        }
+        TubeWindow::Arc { t0, t1 } => (arc_window(t0, t1, arm, band)?, false),
     };
 
     // ---- The sketch frame: origin at the spine centre, sketch x the

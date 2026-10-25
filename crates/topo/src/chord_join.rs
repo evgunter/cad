@@ -5144,6 +5144,26 @@ fn ring_vertices<T: Decide>(
     }
 }
 
+/// Whether a run's azimuth window `[lo, hi]` on a wall of `radius` is
+/// definitely over one period (`split_ring_chart_window`, the turn rule
+/// at the radius): a whole turn is not.
+pub(crate) fn run_window_over<T: Decide>(
+    lo: T,
+    hi: T,
+    radius: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let Some(window) = Extent::hull([lo, hi]) else {
+        unreachable!("a hull of two values is one")
+    };
+    let rows = TurnRows::exact("split_ring_chart_window");
+    match Period::new(T::tau()).turn(rows, window, Exact::new(radius), band) {
+        Ok(Turn::Over(_)) => Ok(true),
+        Ok(Turn::Short(_) | Turn::Whole(_)) => Ok(false),
+        Err(undecided) => Err(undecided.diag),
+    }
+}
+
 /// [`ring_side`] on a cylinder wall's chart: which side of
 /// `newf`'s outer loop (the run a `mef` just walled off) `ring` lies on,
 /// by the parity of a ray from each ring vertex toward `+v` at constant
@@ -5202,16 +5222,8 @@ fn chart_ring_side<T: Decide>(
     // rule reads it just inside `lo` or just past `hi`, and just inside
     // `lo` the run lies only beside its rows along `lo`, which the ray
     // meets only from a vertex on them.
-    let Some(window) = Extent::hull([lo, hi]) else {
-        unreachable!("a hull of two values is one")
-    };
-    let rows = TurnRows::exact("split_ring_chart_window");
-    if let Turn::Over(_) = Period::new(tau)
-        .turn(rows, window, Exact::new(radius), band)
-        .map_err(|undecided| SplitJoinError::Escalated {
-            face: newf,
-            diag: undecided.diag,
-        })?
+    if run_window_over(lo, hi, radius, band)
+        .map_err(|diag| SplitJoinError::Escalated { face: newf, diag })?
     {
         return Err(invariant(
             "ring re-homing on a chart: the run's azimuth window spans more than a full period, \

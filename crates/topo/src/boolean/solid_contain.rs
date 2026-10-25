@@ -1179,6 +1179,25 @@ pub(super) fn chart_dir<T: Decide>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> Vec3<
     u_ref * c + axis.cross(u_ref) * s
 }
 
+/// Whether a face's azimuth window `raw` on a sphere of `radius` is
+/// definitely short of one turn (`bool_sphere_trim_period`, the turn
+/// rule at the radius).
+pub(crate) fn trim_window_short<T: Decide>(
+    raw: (T, T),
+    radius: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let Some(window) = Extent::hull([raw.0, raw.1]) else {
+        unreachable!("a hull of two values is one")
+    };
+    let rows = TurnRows::exact("bool_sphere_trim_period");
+    match Period::new(T::tau()).turn(rows, window, Exact::new(radius), band) {
+        Ok(Turn::Short(_)) => Ok(true),
+        Ok(Turn::Whole(_) | Turn::Over(_)) => Ok(false),
+        Err(undecided) => Err(undecided.diag),
+    }
+}
+
 /// **A sphere face's exact chart rectangle**, for the face class the
 /// sphere chart rectangle can actually express — the rectangle the
 /// sphere arm of the face boxes bounds a face by
@@ -1473,15 +1492,10 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             (None, bounding)
         }
         None => {
-            let Some(window) = Extent::hull([raw.0, raw.1]) else {
-                unreachable!("a hull of two values is one")
-            };
-            let rows = TurnRows::exact("bool_sphere_trim_period");
-            match Period::new(T::tau()).turn(rows, window, Exact::new(radius), band) {
-                Ok(Turn::Short(_)) => (Some(raw), levels),
-                Ok(Turn::Whole(_) | Turn::Over(_)) => return Ok(None),
-                Err(undecided) => return Err(escalate(undecided.diag)),
+            if !trim_window_short(raw, radius, band).map_err(escalate)? {
+                return Ok(None);
             }
+            (Some(raw), levels)
         }
     };
     // Only a face that wraps alone can leave no level: one with no rim

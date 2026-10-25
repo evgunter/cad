@@ -949,6 +949,8 @@ mod r2_probes;
 #[cfg(test)]
 mod tier3_tests;
 pub mod transform;
+#[cfg(test)]
+mod turn_rows;
 pub mod validate;
 mod wedge_reach;
 pub use wedge_reach::{WedgeReach, edge_faces, edge_wedge_reach, wedge_reach};
