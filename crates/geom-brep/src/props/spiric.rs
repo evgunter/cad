@@ -81,83 +81,14 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 
-use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
+use super::bracket::{AbsEnclosure, lo_or_refuse, pt};
 use super::closure::{IntervalJunction, interval_loop_turns};
 use super::quad::{
     Accept, FaceCutBounds, LaneRun, QUAD_INIT_PIECES, RVec3, RoundWindow, Run, classify_len,
     rotate, spread_cos, spread_sin, trig_at,
 };
+use super::taylor::{Jet, composite_by, node};
 use super::{PropsCheck, PropsError};
-
-/// The Taylor coefficients `g⁽ᵏ⁾/k!`, `k = 0..=4`, of a function of `t`,
-/// each an enclosure: at a node they are thin; over a piece (inputs
-/// enclosing the piece) each encloses its coefficient over the whole
-/// piece, which is what the remainder reads.
-#[derive(Clone, Copy)]
-pub(super) struct Jet([Interval; ORDER]);
-
-/// Coefficients carried: the rule is exact through degree 3 and its
-/// remainder reads the degree-4 coefficient.
-const ORDER: usize = 5;
-
-impl Jet {
-    /// The jet of the variable itself at `t`: value `t`, slope `1`.
-    pub(super) fn var(t: Interval) -> Self {
-        let mut c = [Interval::zero(); ORDER];
-        c[0] = t;
-        c[1] = Interval::one();
-        Self(c)
-    }
-
-    pub(super) fn cst(v: Interval) -> Self {
-        let mut c = [Interval::zero(); ORDER];
-        c[0] = v;
-        Self(c)
-    }
-
-    pub(super) fn add(self, o: Self) -> Self {
-        Self(core::array::from_fn(|k| self.0[k] + o.0[k]))
-    }
-
-    pub(super) fn sub(self, o: Self) -> Self {
-        Self(core::array::from_fn(|k| self.0[k] - o.0[k]))
-    }
-
-    pub(super) fn scale(self, x: Interval) -> Self {
-        Self(self.0.map(|c| c * x))
-    }
-
-    /// The Cauchy product.
-    pub(super) fn mul(self, o: Self) -> Self {
-        Self(core::array::from_fn(|k| {
-            (0..=k).fold(Interval::zero(), |acc, i| acc + self.0[i] * o.0[k - i])
-        }))
-    }
-
-    /// `1/x`: `b₀ = 1/a₀`, `bₖ = −(Σ_{i=1..k} aᵢ·bₖ₋ᵢ)/a₀`.
-    pub(super) fn recip(self) -> Self {
-        let inv = Interval::one() / self.0[0];
-        let mut b = [Interval::zero(); ORDER];
-        b[0] = inv;
-        for k in 1..ORDER {
-            let sum = (1..=k).fold(Interval::zero(), |acc, i| acc + self.0[i] * b[k - i]);
-            b[k] = -(sum * inv);
-        }
-        Self(b)
-    }
-
-    /// `√x`: `s₀ = √a₀`, `sₖ = (aₖ − Σ_{i=1..k−1} sᵢ·sₖ₋ᵢ)/(2·s₀)`.
-    fn sqrt(self) -> Self {
-        let mut r = [Interval::zero(); ORDER];
-        r[0] = self.0[0].sqrt();
-        let half_inv = Interval::one() / (pt(2.0) * r[0]);
-        for k in 1..ORDER {
-            let sum = (1..k).fold(Interval::zero(), |acc, i| acc + r[i] * r[k - i]);
-            r[k] = (self.0[k] - sum) * half_inv;
-        }
-        Self(r)
-    }
-}
 
 /// The jets of `t`, `cos t` and `sin t` from enclosures of their values.
 fn trig_jets(t: Interval, c: Interval, s: Interval) -> (Jet, Jet, Jet) {
@@ -236,17 +167,6 @@ pub fn span_rates(e: &SpiricEdgeQ) -> Option<(Interval, Interval)> {
         .sqrt()
         / pt(rho.lo());
     du.is_certified().then_some((speed, du))
-}
-
-/// The `i`-th of `pieces + 1` equally spaced nodes from `a` to `b`, the
-/// last exactly `b`.
-#[allow(clippy::cast_precision_loss)]
-fn node(a: f64, b: f64, pieces: usize, i: usize) -> f64 {
-    if i == pieces {
-        b
-    } else {
-        a + (b - a) * (i as f64 / pieces as f64)
-    }
 }
 
 /// The piece count a face's perimeter reads its spiric edges' lengths
@@ -332,61 +252,17 @@ fn composite<const N: usize>(
     pieces: usize,
     g: impl Fn(Jet, Jet, Jet) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
-    composite_by(t0, t1, pieces, |t| {
-        let (c, s) = trig_range(t.lo(), t.hi());
-        let (tj, cj, sj) = trig_jets(t, c, s);
-        g(tj, cj, sj)
-    })
-}
-
-/// [`composite`]'s rule over integrands that form their own jets from
-/// the enclosure of `t` they are handed: a thin node, a piece, or the
-/// span's hull for the endpoint pad. One rule for every integrand of
-/// one variable this lane reads — the spiric's trigonometric ones and
-/// a rational rim's ([`super::rational_rim`]).
-pub(super) fn composite_by<const N: usize>(
-    t0: Interval,
-    t1: Interval,
-    pieces: usize,
-    g: impl Fn(Interval) -> [Jet; N],
-) -> ([Interval; N], [f64; N]) {
-    let (a, b) = (mid(t0), mid(t1));
-    let span = b - a;
-    if !(t0.is_certified() && t1.is_certified() && span.is_finite() && span >= 0.0) || pieces == 0 {
-        return ([Interval::refused(); N], [f64::INFINITY; N]);
-    }
-    let mut total = [Interval::zero(); N];
-    let mut removable = [0.0_f64; N];
-    for i in 0..pieces {
-        let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
-        let x = p + (q - p) * 0.5;
-        let (ri, le) = (pt(q) - pt(x), pt(p) - pt(x));
-        // `∫_p^q (t − x)ᵏ dt`, `k = 0..=4`.
-        let weight: [Interval; ORDER] = core::array::from_fn(|k| {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let e = k as i32 + 1;
-            (ri.powi(e) - le.powi(e)) / pt(f64::from(e))
-        });
-        let at = g(pt(x));
-        let over = g(Interval::from_bounds(p, q));
-        for k in 0..N {
-            let exact =
-                (0..ORDER - 1).fold(Interval::zero(), |acc, j| acc + at[k].0[j] * weight[j]);
-            let remainder = over[k].0[ORDER - 1] * weight[ORDER - 1];
-            removable[k] += remainder.width();
-            total[k] = total[k] + exact + remainder;
-        }
-    }
-    let widths = (pt(t0.hi()) - pt(a)).hi().max((pt(a) - pt(t0.lo())).hi())
-        + (pt(t1.hi()) - pt(b)).hi().max((pt(b) - pt(t1.lo())).hi());
-    if widths > 0.0 {
-        let sup = g(Interval::hull(t0, t1));
-        for k in 0..N {
-            let pad = (sup[k].0[0] * pt(widths)).mag();
-            total[k] = total[k] + Interval::from_bounds(-pad, pad);
-        }
-    }
-    (total, removable)
+    composite_by(
+        t0,
+        t1,
+        pieces,
+        |_, _| (),
+        |(), t| {
+            let (c, s) = trig_range(t.lo(), t.hi());
+            let (tj, cj, sj) = trig_jets(t, c, s);
+            g(tj, cj, sj)
+        },
+    )
 }
 
 /// `ρ = R + r·cos t` and `f = √(ρ² − d²)` as jets.
@@ -902,11 +778,36 @@ fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsE
 pub(super) const W_SPIRIC: usize = 46;
 
 /// Weight of one piece of one Bézier span of a rational rim edge
-/// ([`super::rational_rim`]), in [`super::quad::FACE_WORK_WALL`]'s unit:
-/// twice [`W_SPIRIC`], measured in release at 128 pieces on the vase's
-/// two-span rim against a spiric edge (26 µs a piece a span against
-/// 13 µs).
-pub(super) const W_RATIONAL: usize = 92;
+/// ([`super::rational_rim`]), in [`super::quad::FACE_WORK_WALL`]'s unit,
+/// by the carrier's degree: a piece shifts four power forms of the
+/// degree's length to the piece and reads them by Horner twice, so its
+/// cost grows with the degree. Measured in release on this box (a timing
+/// probe, reverted), 50 calls of 256 pieces on one span of each degree,
+/// against a spiric piece's 13.2 µs measured on the same box, which
+/// [`W_SPIRIC`] weighs at 46: the weight is the time in that ratio,
+/// rounded up. Past degree 7, each degree adds the last step's 60.
+///
+/// | degree | µs a piece | weight |
+/// |---|---|---|
+/// | 1 | 34.5 | 120 |
+/// | 2 | 44.5 | 155 |
+/// | 3 | 63.0 | 220 |
+/// | 4 | 77.4 | 270 |
+/// | 5 | 90.6 | 316 |
+/// | 6 | 116 | 404 |
+/// | 7 | 132 | 460 |
+pub(super) const fn w_rational(degree: usize) -> usize {
+    match degree {
+        0 | 1 => 120,
+        2 => 155,
+        3 => 220,
+        4 => 270,
+        5 => 316,
+        6 => 404,
+        7 => 460,
+        _ => 460 + 60 * (degree - 7),
+    }
+}
 
 /// **The certified flux and area of a spiric-bounded face** over a
 /// [`RoundWindow`] — [`super::quad`]'s schedule and stop (pieces
@@ -944,14 +845,13 @@ pub fn spiric_face_rounds<T: Decide>(
             });
         }
     }
-    let rational_spans: usize = face
+    let rational: usize = face
         .rationals
         .iter()
-        .map(super::rational_rim::RationalEdgeQ::span_count)
+        .map(|e| w_rational(e.degree()) * e.span_count())
         .sum();
-    let cost = |round: usize| {
-        (W_SPIRIC * face.spirics.len() + W_RATIONAL * rational_spans) * (QUAD_INIT_PIECES << round)
-    };
+    let cost =
+        |round: usize| (W_SPIRIC * face.spirics.len() + rational) * (QUAD_INIT_PIECES << round);
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
     let mut pieces = QUAD_INIT_PIECES << round;

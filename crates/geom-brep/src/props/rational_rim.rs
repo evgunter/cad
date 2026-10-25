@@ -12,26 +12,34 @@
 //! ```
 //!
 //! (`P − ref = B/w`, `P′ = (B′w − Bw′)/w²`, and `B × B = 0`) — a
-//! rational function per knot span with a positive denominator, which
-//! no fixed Gauss rule integrates exactly: the closed-form lane
-//! (`super::loop_vector_area`) keeps its typed refusal, and this lane
-//! reads it through the spiric lane's certified rule
-//! ([`super::spiric::composite_by`]: a Taylor node per piece and the
-//! Lagrange remainder over it, the width falling as `h⁵`). Every
-//! operation the integrand needs is a ring operation or the reciprocal
-//! of `w²`, whose enclosure is positive wherever the weights are.
+//! rational function per knot span, which no fixed Gauss rule
+//! integrates exactly: the closed-form lane (`super::loop_vector_area`)
+//! keeps its typed refusal, and this lane reads it through the curved
+//! rims' certified rule ([`super::taylor`]: a Taylor node per piece and
+//! the Lagrange remainder over it, the width falling as `h⁵`). The
+//! integrand's operations are ring operations, the square of `w` and its
+//! reciprocal. `w` is a convex combination of the weights on every piece,
+//! so where they are positive it is too; its enclosure over a piece is
+//! wider than its range, and where that enclosure reaches zero the
+//! reciprocal is unbounded and the round reads no enclosure, which a finer
+//! round, whose pieces are narrower, removes.
 //!
-//! # Built once, evaluated per round
+//! # Built once per call, read per piece
 //!
-//! [`rational_edge_q`] extracts the carrier's Bézier spans at the
-//! interval scalar (knot insertion in homogeneous coordinates, so the
-//! extraction rounds into the enclosure rather than moving the curve),
-//! forms each span's `B` and `w` about the reference, converts them to
-//! power form in the span's own parameter `s = (t − a)/(b − a)`, and
-//! multiplies out the integrand's numerator `B × dB/ds` there, once. A
-//! round then evaluates it and `w` by Horner in jet arithmetic and takes
-//! one reciprocal of `w²` per evaluation; nothing about
-//! the carrier is rebuilt as the schedule doubles the pieces.
+//! [`rational_edge_q`] extracts the carrier's Bézier spans over the edge's
+//! carrier interval through geom-core's certified decomposition
+//! ([`geom_core::spline::SplineCoeffs::bernstein_spans`], the edge's ends
+//! as extra breaks): `B`'s three channels and `w`, each span a Bernstein
+//! row, turned once into a power form about the span's centre. A round
+//! carries each form to each piece by a Taylor shift and a scale
+//! ([`piece_form`]), in `v = (t − p)/(q − p) − ½`, so Horner's argument is
+//! never more than half a piece wide and its coefficients are the piece's
+//! own: what a whole span's power series, read over the piece's interval,
+//! loses to dependency on a high degree or a wide weight spread. Nothing
+//! is rebuilt
+//! as one call's schedule doubles the pieces; a sign walk that re-enters
+//! the cap per round window rebuilds the edge per window, as it does a
+//! spiric's.
 //!
 //! Each span is integrated in `t` over its part of the edge's carrier
 //! interval, whose ends are knots or the edge's own parameters, exact
@@ -42,84 +50,86 @@ use geom_core::Bounds;
 use geom_core::Point3;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
+use geom_core::spline::KnotVector;
+use geom_core::spline::pieces::binomial;
 
 use super::PropsError;
 use super::bracket::pt;
 use super::quad::RVec3;
-use super::spiric::{Jet, composite_by};
+use super::taylor::{Jet, composite_by};
 
-/// One Bézier span of a rational rim, read on the part `[lo, hi]` of the
-/// edge's carrier interval it covers: the integrand's numerator
-/// `B × dB/ds` about the reference and the weight `w`, each in power form
-/// in `s = (t − a)·inv_len`, ascending.
+/// One Bézier span `[a, b]` of a rational rim, inside the edge's carrier
+/// interval: `B`'s three channels and `w`, each as its power form about
+/// the span's centre ([`centred_power`] of its Bernstein row).
 #[derive(Clone, Debug)]
 pub struct RationalSpanQ {
-    lo: f64,
-    hi: f64,
     a: f64,
-    inv_len: Interval,
-    cross: [Vec<Interval>; 3],
-    weight: Vec<Interval>,
+    b: f64,
+    forms: [Vec<Interval>; 4],
 }
 
 /// A rational rim edge for the cap's rule: its spans over the edge's
-/// carrier interval and its traversal sense.
+/// carrier interval, its degree and its traversal sense.
 #[derive(Clone, Debug)]
 pub struct RationalEdgeQ {
     spans: Vec<RationalSpanQ>,
+    degree: usize,
     forward: bool,
 }
 
 impl RationalEdgeQ {
     /// How many Bézier spans the edge integrates over, each at the
-    /// round's piece count: the lane's cost per round.
+    /// round's piece count.
     #[must_use]
     pub fn span_count(&self) -> usize {
         self.spans.len()
     }
+
+    /// The carrier's degree, which a piece's cost grows with.
+    #[must_use]
+    pub fn degree(&self) -> usize {
+        self.degree
+    }
 }
 
-fn binomial(n: usize, k: usize) -> f64 {
-    #[allow(clippy::cast_precision_loss)]
-    (0..k).fold(1.0, |acc, i| acc * (n - i) as f64 / (i + 1) as f64)
+/// Is this carrier rational: are its weights not all one plain constant
+/// ([`NurbsCurve3::constant_weight`])? The one spelling of the question
+/// the closed form refuses on and the certified lane answers.
+#[must_use]
+pub fn is_rational<T: geom_core::SpanLocate>(curve: &NurbsCurve3<T>) -> bool {
+    curve.constant_weight().is_none()
 }
 
-/// Bernstein coefficients `b₀..b_p` to the power form `Σ cₖ sᵏ`:
-/// `cₖ = C(p, k)·Σᵢ₌₀..ₖ (−1)^(k−i)·C(k, i)·bᵢ`, in interval arithmetic.
-fn power_form(bern: &[Interval]) -> Vec<Interval> {
-    let p = bern.len() - 1;
-    (0..=p)
+/// A Bernstein row on `[0, 1]` as the power form about `½`:
+/// `Σ dⱼ vʲ` with `v = u − ½`, in interval arithmetic. First the power
+/// form about `0`, `cₖ = C(p, k)·Σᵢ (−1)^(k−i)·C(k, i)·bᵢ`, then the shift
+/// `dⱼ = Σ_{k≥j} C(k, j)·2^(j−k)·cₖ`, every factor exact.
+fn centred_power(row: &[Interval]) -> Vec<Interval> {
+    let p = row.len() - 1;
+    let c: Vec<Interval> = (0..=p)
         .map(|k| {
             let sum = (0..=k).fold(Interval::zero(), |acc, i| {
                 let sign = if (k - i) % 2 == 0 { 1.0 } else { -1.0 };
-                acc + bern[i] * pt(sign * binomial(k, i))
+                acc + row[i] * pt(sign * binomial(k, i))
             });
             sum * pt(binomial(p, k))
+        })
+        .collect();
+    (0..=p)
+        .map(|j| {
+            (j..=p).fold(Interval::zero(), |acc, k| {
+                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+                let half = 0.5f64.powi((k - j) as i32);
+                acc + c[k] * pt(binomial(k, j) * half)
+            })
         })
         .collect()
 }
 
-/// The power form's `s`-derivative: `(k + 1)·c_{k+1}`.
+/// The power form's derivative: `(k + 1)·c_{k+1}`.
 fn slope_form(power: &[Interval]) -> Vec<Interval> {
     #[allow(clippy::cast_precision_loss)]
     (1..power.len()).map(|k| power[k] * pt(k as f64)).collect()
-}
-
-/// The product of two power forms.
-fn poly_mul(f: &[Interval], g: &[Interval]) -> Vec<Interval> {
-    let mut out = vec![Interval::zero(); f.len() + g.len() - 1];
-    for (i, &x) in f.iter().enumerate() {
-        for (j, &y) in g.iter().enumerate() {
-            out[i + j] = out[i + j] + x * y;
-        }
-    }
-    out
-}
-
-/// `f·g − h·k` of four power forms.
-fn poly_cross(f: &[Interval], g: &[Interval], h: &[Interval], k: &[Interval]) -> Vec<Interval> {
-    let (fg, hk) = (poly_mul(f, g), poly_mul(h, k));
-    fg.iter().zip(&hk).map(|(&x, &y)| x - y).collect()
 }
 
 fn horner(coeffs: &[Interval], s: Jet) -> Jet {
@@ -131,30 +141,15 @@ fn horner(coeffs: &[Interval], s: Jet) -> Jet {
         })
 }
 
-/// One knot insertion (Boehm, NURBS Book A5.1) on homogeneous points:
-/// the knot value is an exact `f64`, the blend ratios are enclosed, so
-/// the new polygon's enclosure holds the curve's exact one.
-fn insert(knots: &mut Vec<f64>, hom: &mut Vec<[Interval; 4]>, p: usize, u: f64) {
-    let k = knots.partition_point(|&x| x <= u) - 1;
-    let blended: Vec<[Interval; 4]> = (k + 1 - p..=k)
-        .map(|i| {
-            let alpha = (pt(u) - pt(knots[i])) / (pt(knots[i + p]) - pt(knots[i]));
-            let beta = Interval::one() - alpha;
-            core::array::from_fn(|c| hom[i][c] * alpha + hom[i - 1][c] * beta)
-        })
-        .collect();
-    hom.splice(k + 1 - p..k, blended);
-    knots.insert(k + 1, u);
-}
-
 /// **A rational rim edge, ready for the rule**: the carrier's Bézier
 /// spans over `[t0, t1]`, each span's `B = A − ref·w` and `w` about
-/// `reference` in power form (module docs).
+/// `reference` as Bernstein rows (module docs).
 ///
 /// # Errors
 ///
 /// [`PropsError::QuadratureUnsupported`] where the carrier interval's
-/// ends or the carrier's knots are not exact parameters.
+/// ends or the carrier's knots are not exact parameters, or the
+/// decomposition refuses a row.
 pub fn rational_edge_q(
     curve: &NurbsCurve3<Interval>,
     t0: Interval,
@@ -168,72 +163,118 @@ pub fn rational_edge_q(
             what: "a rational rim edge whose carrier interval ends are not exact parameters",
         });
     };
-    let p = curve.degree();
-    // The carrier in homogeneous coordinates about the reference: `B` in
-    // the first three slots, `w` in the fourth.
+    let degree = curve.degree();
     // The held knots, each an exact parameter: a wider one refuses.
-    let Some(mut knots) = curve
+    let refused = PropsError::QuadratureUnsupported {
+        what: "a rational rim whose knots are not exact parameters, or whose Bézier \
+               decomposition refuses",
+    };
+    let kv = curve
         .knot_values()
         .values()
         .iter()
         .map(|&k| exact(k))
         .collect::<Option<Vec<f64>>>()
-    else {
-        return Err(PropsError::QuadratureUnsupported {
-            what: "a rational rim whose knots are not exact parameters",
-        });
-    };
-    let mut hom: Vec<[Interval; 4]> = curve
-        .control()
-        .iter()
-        .zip(curve.weights())
-        .map(|(c, &w)| {
-            let r = reference;
-            [(c.x - r.x) * w, (c.y - r.y) * w, (c.z - r.z) * w, w]
-        })
-        .collect();
-    // Every interior knot raised to multiplicity `p`: the span windows
-    // are then the Bézier control polygons.
-    let (first, last) = (knots[p], knots[knots.len() - 1 - p]);
-    let mut add = Vec::new();
-    let mut i = 0;
-    while i < knots.len() {
-        let k = knots[i];
-        let m = knots[i..].iter().take_while(|&&x| x == k).count();
-        if k > first && k < last && m < p {
-            add.extend(core::iter::repeat_n(k, p - m));
-        }
-        i += m;
+        .and_then(|knots| KnotVector::clamped(knots, degree).ok())
+        .ok_or(refused.clone())?;
+    // The carrier in homogeneous coordinates about the reference, one
+    // channel per row: `B`'s three, then `w`.
+    let r = reference;
+    let channels: [Vec<Interval>; 4] = core::array::from_fn(|c| {
+        curve
+            .control()
+            .iter()
+            .zip(curve.weights())
+            .map(|(p, &w)| match c {
+                0 => (p.x - r.x) * w,
+                1 => (p.y - r.y) * w,
+                2 => (p.z - r.z) * w,
+                _ => w,
+            })
+            .collect()
+    });
+    let mut decomposed = Vec::with_capacity(4);
+    for channel in &channels {
+        decomposed.push(
+            kv.with_coeffs(channel)
+                .ok_or(refused.clone())?
+                .bernstein_spans(&[t0, t1]),
+        );
     }
-    for u in add {
-        insert(&mut knots, &mut hom, p, u);
-    }
+    let breaks = decomposed[0].breaks().to_vec();
     let mut spans = Vec::new();
-    for index in p..knots.len() - 1 - p {
-        let (a, b) = (knots[index], knots[index + 1]);
-        let (lo, hi) = (a.max(t0), b.min(t1));
-        if a >= b || lo >= hi {
+    for j in 0..breaks.len() - 1 {
+        let (a, b) = (breaks[j], breaks[j + 1]);
+        if a < t0 || b > t1 || a >= b {
             continue;
         }
-        let window = &hom[index - p..=index];
-        let coord = |c: usize| window.iter().map(|h| h[c]).collect::<Vec<_>>();
-        let n: [Vec<Interval>; 3] = core::array::from_fn(|c| power_form(&coord(c)));
-        let d: [Vec<Interval>; 3] = core::array::from_fn(|c| slope_form(&n[c]));
-        let w = power_form(&coord(3));
+        let rows: [&[Interval]; 4] = core::array::from_fn(|c| &decomposed[c].spans()[j][..]);
+        if rows.iter().copied().flatten().any(|x| !x.is_certified()) {
+            return Err(refused);
+        }
         spans.push(RationalSpanQ {
-            lo,
-            hi,
             a,
-            inv_len: Interval::one() / (pt(b) - pt(a)),
-            cross: [
-                poly_cross(&n[1], &d[2], &n[2], &d[1]),
-                poly_cross(&n[2], &d[0], &n[0], &d[2]),
-                poly_cross(&n[0], &d[1], &n[1], &d[0]),
-            ],
-            weight: w,
+            b,
+            forms: rows.map(centred_power),
         });
     }
-    Ok(RationalEdgeQ { spans, forward })
+    Ok(RationalEdgeQ {
+        spans,
+        degree,
+        forward,
+    })
+}
+
+/// What one piece `[p, q]` of a span reads: `B` and `dB/dv` and `w` as
+/// power forms about the piece's centre, in `v = (t − p)/(q − p) − ½`, and
+/// `1/(q − p)`.
+struct PieceForm {
+    p: f64,
+    inv_len: Interval,
+    numer: [Vec<Interval>; 3],
+    slope: [Vec<Interval>; 3],
+    weight: Vec<Interval>,
+}
+
+/// A span's centred forms carried to the piece `[p, q]`: in the span's
+/// own `s = (t − a)/(b − a)`, the piece is `s = ½ + δ + h·v` with
+/// `δ = (s₀ + s₁)/2 − ½` and `h = s₁ − s₀`, so each form `Σ dₖ (s − ½)ᵏ`
+/// becomes `Σ eⱼ vʲ`, `eⱼ = hʲ·Σ_{k≥j} C(k, j)·δ^(k−j)·dₖ` (the Taylor
+/// shift by `δ`, then the scale by `h`). `δ` and `h` are enclosed, so
+/// each `eⱼ` encloses the exact one.
+fn piece_form(span: &RationalSpanQ, p: f64, q: f64) -> PieceForm {
+    let (a, len) = (pt(span.a), pt(span.b) - pt(span.a));
+    let (s0, s1) = ((pt(p) - a) / len, (pt(q) - a) / len);
+    let delta = (s0 + s1) * pt(0.5) - pt(0.5);
+    let h = s1 - s0;
+    let local = |d: &[Interval]| -> Vec<Interval> {
+        let n = d.len();
+        let mut powers = Vec::with_capacity(n);
+        let mut x = Interval::one();
+        for _ in 0..n {
+            powers.push(x);
+            x = x * delta;
+        }
+        let mut scale = Interval::one();
+        (0..n)
+            .map(|j| {
+                let e = (j..n).fold(Interval::zero(), |acc, k| {
+                    acc + d[k] * powers[k - j] * pt(binomial(k, j))
+                });
+                let out = e * scale;
+                scale = scale * h;
+                out
+            })
+            .collect()
+    };
+    let numer: [Vec<Interval>; 3] = core::array::from_fn(|c| local(&span.forms[c]));
+    PieceForm {
+        p,
+        inv_len: Interval::one() / (pt(q) - pt(p)),
+        slope: core::array::from_fn(|c| slope_form(&numer[c])),
+        numer,
+        weight: local(&span.forms[3]),
+    }
 }
 
 /// One rational rim edge's vector-area term `(1/2)∫ B × B′/w² dt` at
@@ -244,18 +285,31 @@ pub fn rational_vector_area_split(e: &RationalEdgeQ, pieces: usize) -> (RVec3, [
     let mut va = [Interval::zero(); 3];
     let mut removable = [0.0_f64; 3];
     for span in &e.spans {
-        // `dB/dt = dB/ds · ds/dt`, so the integrand is
-        // `(B × dB/ds)·inv_len / (2w²)`.
-        let half_rate = span.inv_len * pt(0.5);
-        let (part, rem) = composite_by(pt(span.lo), pt(span.hi), pieces, |t| {
-            let s = Jet::var(t).sub(Jet::cst(pt(span.a))).scale(span.inv_len);
-            // `w` squared as a jet, not multiplied out: a power form of
-            // `w²` read over a whole span can straddle zero where `w`'s
-            // own square cannot.
-            let w = horner(&span.weight, s);
-            let scale = w.mul(w).recip().scale(half_rate);
-            span.cross.each_ref().map(|c| horner(c, s).mul(scale))
-        });
+        let (part, rem) = composite_by(
+            pt(span.a),
+            pt(span.b),
+            pieces,
+            |p, q| piece_form(span, p, q),
+            |f, t| {
+                // `v = (t − p)/(q − p) − ½`, enclosed: the centre the forms
+                // are about, whatever `f64` the rule's node rounds to.
+                let v = Jet::var(t)
+                    .sub(Jet::cst(pt(f.p)))
+                    .scale(f.inv_len)
+                    .sub(Jet::cst(pt(0.5)));
+                let b: [Jet; 3] = core::array::from_fn(|c| horner(&f.numer[c], v));
+                // `dB/dt = dB/dv · dv/dt`.
+                let db: [Jet; 3] =
+                    core::array::from_fn(|c| horner(&f.slope[c], v).scale(f.inv_len));
+                let scale = horner(&f.weight, v).sqr().recip().scale(pt(0.5));
+                [
+                    b[1].mul(db[2]).sub(b[2].mul(db[1])),
+                    b[2].mul(db[0]).sub(b[0].mul(db[2])),
+                    b[0].mul(db[1]).sub(b[1].mul(db[0])),
+                ]
+                .map(|c| c.mul(scale))
+            },
+        );
         for k in 0..3 {
             va[k] = va[k] + part[k];
             removable[k] += rem[k];
@@ -471,6 +525,193 @@ mod tests {
             "{:?} ∌ {truth:e}",
             va[2]
         );
+    }
+
+    /// A rational carrier in space at the interval scalar.
+    fn carrier3(
+        knots: &[f64],
+        degree: usize,
+        pts: &[[f64; 3]],
+        w: &[f64],
+    ) -> NurbsCurve3<Interval> {
+        NurbsCurve3::new(
+            geom_core::spline::Knots::from(KnotVector::clamped(knots.to_vec(), degree).unwrap())
+                .lift(geom_core::Real::from_f64),
+            pts.iter()
+                .map(|p| Point3::new(iv(p[0]), iv(p[1]), iv(p[2])))
+                .collect(),
+            w.iter().map(|&x| iv(x)).collect(),
+        )
+        .unwrap()
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn hard_cases() -> Vec<(
+        &'static str,
+        NurbsCurve3<Interval>,
+        [f64; 3],
+        (f64, f64),
+        [f64; 3],
+    )> {
+        let q = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
+        let base = [[1.0, 0.0, 0.0], [1.5, 1.2, 0.0], [-0.2, 1.0, 0.0]];
+        let deg7: Vec<f64> = [0.0; 8].into_iter().chain([2.0; 8]).collect();
+        vec![
+            (
+                "degree 7, weights 0.1 to 9",
+                carrier3(
+                    &deg7,
+                    7,
+                    &[
+                        [0.0, 0.0, 0.0],
+                        [1.0, 2.0, 0.0],
+                        [2.0, -1.0, 0.0],
+                        [3.0, 1.0, 0.0],
+                        [2.5, 2.5, 0.0],
+                        [1.0, 3.0, 0.0],
+                        [0.0, 2.0, 0.0],
+                        [-1.0, 1.0, 0.0],
+                    ],
+                    &[1.0, 9.0, 0.1, 4.0, 0.3, 6.0, 0.2, 1.0],
+                ),
+                [0.0, 0.0, 0.0],
+                (0.0, 2.0),
+                [0.0, 0.0, 2.992_793_367_736_956_826],
+            ),
+            (
+                "a quintic over a double knot, weights 0.05 to 50",
+                carrier3(
+                    &[
+                        0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.3, 0.7, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+                    ],
+                    5,
+                    &[
+                        [0.0, 0.0, 0.0],
+                        [1.0, 2.0, 0.1],
+                        [2.0, -1.0, 0.0],
+                        [3.0, 1.0, -0.2],
+                        [2.5, 2.5, 0.0],
+                        [1.0, 3.0, 0.0],
+                        [0.0, 2.0, 0.3],
+                        [-1.0, 1.0, 0.0],
+                        [-0.5, 0.0, 0.0],
+                    ],
+                    &[1.0, 50.0, 0.05, 3.0, 0.2, 10.0, 0.5, 7.0, 1.0],
+                ),
+                [0.2, 0.3, 0.0],
+                (0.0, 1.0),
+                [
+                    0.053_010_271_318_522_123_5,
+                    0.119_777_451_817_015_245_7,
+                    3.552_025_280_598_975_693,
+                ],
+            ),
+            (
+                "an end weight of 1e-6",
+                carrier3(&q, 2, &base, &[1e-6, 1.0, 1.0]),
+                [1.0, 0.0, 0.0],
+                (0.0, 1.0),
+                [0.0, 0.0, 0.969_993_597_114_767_398_7],
+            ),
+            (
+                "a middle weight of 1e3",
+                carrier3(&q, 2, &base, &[1.0, 1e3, 1.3]),
+                [1.0, 0.0, 0.0],
+                (0.0, 1.0),
+                [0.0, 0.0, 0.969_991_841_666_348_673_7],
+            ),
+        ]
+    }
+
+    /// The edge's term about `r` over `[t0, t1]` at `pieces`.
+    fn term(c: &NurbsCurve3<Interval>, r: [f64; 3], (t0, t1): (f64, f64), pieces: usize) -> RVec3 {
+        let r = Point3::new(iv(r[0]), iv(r[1]), iv(r[2]));
+        let e = rational_edge_q(c, iv(t0), iv(t1), true, r).unwrap();
+        rational_vector_area_split(&e, pieces).0
+    }
+
+    /// **A rim of degree past 3, or of weights spread over decades, holds
+    /// its 40-digit truth at every resolution, and narrows** (the truths:
+    /// mpmath at 40 digits on the carrier's own Cox–de Boor evaluation,
+    /// the quadrature split at its knots). A degree-7 span with weights
+    /// from 0.1 to 9 is under `1e-3` wide by 256 pieces (`6.6e-8` by 1024,
+    /// measured); a quintic over a double knot with weights from 0.05 to 50
+    /// under `1e-3` by 1024 (`5.9e-8` by 4096); a quadratic of middle
+    /// weight `1e3` under `0.02` by 4096 (`4.5e-6` by 16384). Read as one
+    /// power series over the whole span, the degree-7 span had no finite
+    /// enclosure below 1024 pieces. An end weight of `1e-6` holds its truth
+    /// but is not live within the schedule's reach: `1/w²` peaks near
+    /// `1e12` over about `1e-6` of the parameter, which equal pieces do not
+    /// resolve
+    /// (`work/flux/a-rational-rim-with-a-near-zero-weight-is-not-live-on-equal-pieces.md`).
+    #[test]
+    fn a_high_degree_or_wide_weight_rim_holds_its_truth_and_narrows() {
+        for (name, c, r, ends, truth) in hard_cases() {
+            let (finest, width) = match name {
+                n if n.starts_with("degree 7") => (256, 1e-3),
+                n if n.starts_with("a quintic") => (1024, 1e-3),
+                n if n.starts_with("a middle weight") => (4096, 0.02),
+                _ => (64, f64::INFINITY),
+            };
+            let mut pieces = 16;
+            while pieces <= finest {
+                let va = term(&c, r, ends, pieces);
+                for k in 0..3 {
+                    assert!(
+                        va[k].is_certified() && va[k].lo() <= truth[k] && truth[k] <= va[k].hi(),
+                        "{name}, {pieces} pieces, component {k}: {:?} ∌ {}",
+                        va[k],
+                        truth[k]
+                    );
+                }
+                if pieces == finest {
+                    assert!(
+                        va[2].width() < width,
+                        "{name}: {:e} wide at {pieces} pieces",
+                        va[2].width()
+                    );
+                }
+                pieces *= 4;
+            }
+        }
+    }
+
+    /// **A carrier with two distinct interior knots holds its 40-digit
+    /// truth** in every component, read about a reference 2e4 away over
+    /// a part of its interval that ends inside a span at each end: the
+    /// spans' extraction, their breaks at the knots and at the edge's ends,
+    /// and the restriction to each piece all have to land where the knots
+    /// are. The truth agrees with a reviewer's independent mpmath reading
+    /// to every digit printed.
+    #[test]
+    fn two_interior_knots_hold_the_40_digit_truth() {
+        let c = carrier3(
+            &[0.0, 0.0, 0.0, 0.0, 0.3, 0.6, 1.0, 1.0, 1.0, 1.0],
+            3,
+            &[
+                [0.0, 0.0, 0.0],
+                [1.0, 2.0, 0.5],
+                [2.0, -1.0, 0.0],
+                [3.0, 1.0, 1.0],
+                [2.5, 2.5, 0.0],
+                [1.0, 3.0, -1.0],
+            ],
+            &[1.0, 2.0, 0.5, 1.0, 1.5, 0.8],
+        );
+        let truth = [
+            -6_941.638_973_648_976_952,
+            -5_715.356_377_599_417_599,
+            -14_975.945_515_598_630_74,
+        ];
+        let va = term(&c, [1e4, -2e4, 3e3], (0.1, 0.95), 64);
+        for k in 0..3 {
+            assert!(
+                va[k].is_certified() && va[k].lo() <= truth[k] && truth[k] <= va[k].hi(),
+                "component {k}: {:?} ∌ {}",
+                va[k],
+                truth[k]
+            );
+        }
     }
 
     /// Ends that are not exact parameters refuse typed.

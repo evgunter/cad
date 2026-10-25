@@ -131,6 +131,7 @@ mod loop_area;
 pub mod quad;
 pub mod rational_rim;
 pub mod spiric;
+pub(crate) mod taylor;
 
 use geom::Curve3;
 use geom_core::spline::SpanLocate;
