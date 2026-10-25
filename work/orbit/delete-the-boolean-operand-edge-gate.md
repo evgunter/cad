@@ -4,7 +4,7 @@ kind: unit
 title: delete gate_operand_edges once every site behind the sweep refuses a spline or spiric edge typed
 status: open
 opened: 2026-10-03
-priority: P1
+priority: P0
 cost: M
 refs: [3984]
 ---
@@ -105,3 +105,7 @@ declared `Rest` contact would have to accept. That tilt goes away when
 the loop is swept along its exact spine
 (`work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`,
 P0).
+
+## Re-banded to P0 (on request in chat, 2026-10-25)
+
+This gate is what stops three demo joins: klein wall 3, lily wall 8 and teapot wall 3. Each one refuses a lofted or swept operand because its seams are spline edges, even where the contact itself is plain circles (the klein measurement above). Any body built by loft or sweep is refused by every boolean.

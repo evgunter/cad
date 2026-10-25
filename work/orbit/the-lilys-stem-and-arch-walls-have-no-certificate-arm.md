@@ -4,7 +4,7 @@ kind: issue
 title: The lily's stem glue builds through the join and refuses at the interior-loop guard: two tori with parallel axes apart have no section-certificate arm
 status: open
 opened: 2026-10-12
-priority: P1
+priority: P0
 cost: M
 ---
 
@@ -42,3 +42,7 @@ A certificate arm for two tori with parallel axes apart that decides a
 pair like this one clear (each tube is far from the other's wherever
 the faces' windows reach), or a narrower guard, so the lily's wall 1
 builds. The tour's `lily` wall 1 pins the same refusal.
+
+## Re-banded to P0 (on request in chat, 2026-10-25)
+
+Lily wall 1. Two tube arcs glued end to end on a shared disc is an ordinary join on ordinary geometry, so this is a normal verb broken on normal geometry.

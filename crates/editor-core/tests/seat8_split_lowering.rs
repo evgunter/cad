@@ -364,13 +364,17 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// written whole, so ids moved, and with them the names and value
 /// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
 /// held, so no point moved.
+///
+/// RE-BLESSED, every row, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0xa204_ea8f_4f36_b852_u64),
-        ("part_select", 0x096a_b0ce_20a4_aa88),
-        ("kitchen_sink", 0x99b3_96f7_8787_0655),
+        ("cut_cylinder", 0x687e_0fa1_7407_124c_u64),
+        ("part_select", 0x2a17_d08e_c893_f400),
+        ("kitchen_sink", 0xf86d_b45d_276f_b984),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -499,6 +503,10 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// construction defines its space beside its body, and the content key
 /// holds a placement's target (`VERSION` 18), so ids drawn after a
 /// construction and every value token moved. No point moved.
+///
+/// RE-BLESSED for a certificate that keeps its turn: the digest feeds
+/// each edge curve's `Debug`, which now spells the certificate's `turn`.
+/// No outcome or point moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -519,7 +527,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xa218_4b53_38f5_c2fe,
+        got, 0x6514_aa34_b3e7_b9ae,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

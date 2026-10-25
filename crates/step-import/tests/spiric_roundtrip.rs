@@ -142,7 +142,7 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
     assert_eq!(rims, 2, "the cavity carries two spiric rims");
 
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions {
             uncertainty_m: Some(1e-4),
             ..Default::default()
