@@ -109,11 +109,13 @@ nothing a dual instantiates is bounded on a certifying trait. A dual
 keeps its values: each number is a value and its tangent, paired by
 construction, because the sensitivities are measurements taken in dual
 arithmetic over the dual body (and `Dual<Interval>`'s values are a box no
-`f64` anchor holds). A dual evaluation is obtainable only from the door that
-takes the validated base-scalar evaluation as its anchor. Each node finds
-its anchor node by content key before it builds, and refuses typed where
-there is none. A value channel that differs from the anchor's refuses typed
-at the node, and the anchor is the dual's certificate. This
+`f64` anchor holds). The pairing is structural. A validated base-scalar
+evaluation is bound to the document revision it read, and a dual pass is
+a function of it alone, taking no separate document. It walks the anchor's
+own nodes in order, builds each in dual numbers, and compares the node's
+value channel with the anchor's result bit for bit, refusing typed at the
+first node that differs. Nothing is looked up: content keys stay the
+memo's business. The anchor is the dual's certificate. This
 is sound because the sensitivity is OF THE AS-BUILT BODY: the
 dual's value channel is bit-identical to the f64 build (D9), which
 was already validated in the f64 evaluation E4 rides beside;
