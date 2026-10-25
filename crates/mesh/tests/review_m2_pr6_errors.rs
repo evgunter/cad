@@ -56,8 +56,9 @@ fn survives_delta_fine_but_sane_still_tessellates() {
 #[test]
 fn survives_certificate_exceeded_unreachable_over_body_sweep() {
     // The implementer claims CertificateExceeded is honest fail-loud
-    // for kernel defects, unreachable for valid bodies (sizing targets
-    // δ/2; certificates check ≤ δ). Sweep bodies × δ hunting one.
+    // for kernel defects, unreachable for valid bodies (each lane sizes
+    // its worst triangle at δ by its theorem; certificates check ≤ δ).
+    // Sweep bodies × δ hunting one.
     let extreme_torus = {
         // R ≫ r: the conservative (~24×) torus bound at its most
         // stressed relative to the grid heuristic.
