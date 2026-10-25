@@ -56,3 +56,7 @@ seeds topo. Three run in parallel:
 
 Held for the gate: the crossing rung, then the spline join, then the
 two flush rows.
+
+Lane sessions: `splice/gate` `session_01P78fY3Hgsq13g359bgcNLP`;
+`splice/touch-doors` `session_01V5dB8mxDac8zAFBWSEmdT7`;
+`splice/carrier-walk-spline` `session_019eib6yHkmVaSGLLzEVtvhK`.
