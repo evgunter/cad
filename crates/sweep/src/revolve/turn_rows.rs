@@ -17,7 +17,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Tol};
 
 use super::RevolveError;
-use super::tube::{TubeError, arc_window};
+use super::tube::{TubeDecision, TubeError, arc_window};
 
 /// What an asker reached.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -106,16 +106,27 @@ fn the_revolve_angle_agrees_with_the_old_pair() {
     assert_eq!(new_revolve(TAU, r_max, band), Outcome::FullRange);
 }
 
+/// The tube's funnel as the oracle spells it, under the closed
+/// decision's own name.
+fn old_decide<T: Decide>(
+    decision: TubeDecision,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<Sign, Indeterminate> {
+    let name = decision.predicate();
+    decide(name, margin, band)
+}
+
 /// **The oracle**: the tube's arc window as it was spelled.
 fn old_tube<T: Decide + Into<f64>>(t0: T, t1: T, arm: T, band: Band) -> Outcome {
     let span = t1 - t0;
-    match decide("tube_window_span", Margin::levered(span, arm), band) {
+    match old_decide(TubeDecision::WindowSpan, Margin::levered(span, arm), band) {
         Err(cause) => return escalated(cause),
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) => return Outcome::Degenerate,
     }
     let headroom = Margin::levered(T::tau() - span, arm);
-    match decide("tube_window_headroom", headroom, band) {
+    match old_decide(TubeDecision::WindowHeadroom, headroom, band) {
         Err(cause) => escalated(cause),
         Ok(Sign::Positive) => Outcome::Admitted(span.into()),
         Ok(Sign::Zero | Sign::Negative) => Outcome::FullRange,
