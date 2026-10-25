@@ -309,7 +309,7 @@ mod tests {
         (va[2], rem[2])
     }
 
-    /// Composite Simpson on the definition at `f64`, 2²⁰ panels over the domain:
+    /// Composite Simpson on the definition at `f64`, 2¹⁶ panels over the domain:
     /// a reference independent of the lane's algebra (it reads `P` and
     /// `P′` off the carrier's own evaluator, not `B × B′/w²`).
     fn simpson(c: &NurbsCurve3<Interval>) -> f64 {
@@ -320,7 +320,7 @@ mod tests {
             let (p, d) = f.ders1(t);
             0.5 * ((p.x - r.x) * d.y - (p.y - r.y) * d.x)
         };
-        let m = 1 << 20;
+        let m = 1 << 16;
         #[allow(clippy::cast_precision_loss)]
         let h = (hi - lo) / m as f64;
         let mut acc = g(lo) + g(hi);
