@@ -2165,7 +2165,12 @@ mod tests {
         fn runs(body: &Body<f64>, band: Band, tol: Tol) -> Vec<FaceRun<f64>> {
             let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
             let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
-            let refs = References::of(body, faces.iter().copied(), band);
+            let refs = References::of(
+                body,
+                faces.iter().copied(),
+                band,
+                Some(crate::props::QuadLane::certified()),
+            );
             decide_faces_serially(&faces, |&f| {
                 face_flux(body, f, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
             })
@@ -2211,7 +2216,11 @@ mod tests {
             );
             let (mut flux, mut area) = (Interval::zero(), Interval::zero());
             let mut polygon = Interval::zero();
-            let refs = References::points(&body, runs.iter().map(|r| r.face));
+            let refs = References::points(
+                &body,
+                runs.iter().map(|r| r.face),
+                Some(crate::props::QuadLane::certified()),
+            );
             for run in &runs {
                 let centre = corner_of(&body, lane, &refs, run.face).unwrap();
                 let (face, surface) = resolve_face(&body, run.face);

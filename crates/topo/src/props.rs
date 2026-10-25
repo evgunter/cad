@@ -495,7 +495,7 @@ pub(crate) fn mass_properties_with<T: Decide>(
     quad: Option<QuadLane<T>>,
 ) -> Result<MassProperties<T>, MassPropsError> {
     let faces = crate::query::all_faces(body);
-    mass_properties_impl(body, &faces, band, &reporting_hook(quad), tol)
+    mass_properties_impl(body, &faces, band, &reporting_hook(quad), quad, tol)
 }
 
 /// **The hook at the REPORTING level**: [`round_hook`] entered once
@@ -743,7 +743,7 @@ fn walk<'b, T: Decide, V>(
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
     let hook = round_hook(quad);
-    let refs = References::of(body, faces.iter().copied(), band);
+    let refs = References::of(body, faces.iter().copied(), band, quad);
     // Round 0 over every face, then the rounds after it over the faces
     // still open — both idiom 1 into slots in the caller's order, both
     // composed sequentially in it ([`mass_properties_impl`]'s note).
@@ -951,8 +951,10 @@ impl<T: Decide> PastTarget<'_, T> {
         let hook = round_hook(walk.quad);
         let (body, band, tol) = (walk.body, walk.band, walk.tol);
         // Round 0 read these faces' seam regions, and a face its region
-        // refuses has no round to refine: the points alone.
-        let refs = References::points(body, next.iter().map(|&(_, face, _)| face));
+        // refuses has no round to refine: the points alone, over every
+        // face the walk read, so each face is read about the point round 0
+        // read it about.
+        let refs = References::points(body, walk.runs.iter().map(|r| r.face), walk.quad);
         match decide_faces(&next, |&(_, face, round)| {
             face_flux(body, face, band, &hook, tol, RoundWindow::at(round), &refs)
         }) {
@@ -1416,7 +1418,10 @@ pub(crate) fn certify_role<T: Decide>(
 /// none to give, and what this read certifies is only that the sums' sign
 /// is not within the rounding the model puts on them.
 fn rounding_bound<T: Decide>(body: &Body<T>, runs: &[FaceRun<T>]) -> Result<T, MassPropsError> {
-    let refs = References::points(body, runs.iter().map(|r| r.face));
+    // About each shell's reference: a face of a carried region was read
+    // about its region's point, nearer it, so its terms round less than
+    // this says, and the bound only grows.
+    let refs = References::points(body, runs.iter().map(|r| r.face), None);
     let one_norm = |x: T, y: T, z: T| x.abs() + y.abs() + z.abs();
     let mut bound = T::zero();
     for run in runs {
@@ -1594,7 +1599,10 @@ fn rederive_faces<T: Decide>(
     runs: &[FaceRun<T>],
     tight: bool,
 ) -> Result<Rederived, MassPropsError> {
-    let refs = References::points(body, runs.iter().map(|r| r.face));
+    // The points the walk read each face about: its carried regions where
+    // it read any face regionally, which it did through a lane.
+    let walked = runs.iter().any(|r| r.regional).then_some(lane);
+    let refs = References::points(body, runs.iter().map(|r| r.face), walked);
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     let mut recentred = true;
     let mut quadrature = false;
@@ -1607,6 +1615,9 @@ fn rederive_faces<T: Decide>(
             source,
         };
         let from = corner_of(body, lane, &refs, run.face)?;
+        // A carried region's first face takes its carry on every read
+        // below but the walk's own enclosure, which holds it already.
+        let carry = refs.carry(run.face).unwrap_or_else(Interval::zero);
         let (f, a) = match run.contribution.enclosure {
             Some(enclosure) => {
                 // The quadrature again, about `from`, at the round the
@@ -1625,7 +1636,7 @@ fn rederive_faces<T: Decide>(
                     Ok(
                         RoundOutcome::Converged { bounds: b, .. }
                         | RoundOutcome::Open { bounds: b, .. },
-                    ) => (b.flux, b.area),
+                    ) => (b.flux + carry, b.area),
                     Err(_) => enclosure,
                 }
             }
@@ -1640,7 +1651,7 @@ fn rederive_faces<T: Decide>(
                 )
                 .map_err(refused)?;
                 recentred &= moved;
-                (c.flux, c.area)
+                (c.flux + carry, c.area)
             }
         };
         flux = flux + f;
@@ -1714,7 +1725,9 @@ fn rederive_polygons<T: Decide>(
     polygons: &[PlanePolygon],
     runs: &[FaceRun<T>],
 ) -> Result<Rederived, MassPropsError> {
-    let refs = References::points(body, runs.iter().map(|r| r.face));
+    // A shell of planes bounded by lines takes no quadrature, so it has no
+    // quadrature region to carry.
+    let refs = References::points(body, runs.iter().map(|r| r.face), None);
     let (mut flux, mut area) = (Interval::zero(), Interval::zero());
     for ((rings, normal), run) in polygons.iter().zip(runs) {
         let centre = corner_of(body, lane, &refs, run.face)?;
@@ -2098,12 +2111,9 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // A face it never reads need not resolve. Round 0 read their seam
         // regions, and a face its region refuses is never open: the
         // points alone.
-        let refs = References::points(
-            body,
-            runs.iter()
-                .filter(|r| r.resumes_after().is_some())
-                .map(|r| r.face),
-        );
+        // Over every face the walk read, so each face resumes about the
+        // point the walk read it about.
+        let refs = References::points(body, runs.iter().map(|r| r.face), quad);
         let resume = |face, round: usize| {
             face_flux(
                 body,
@@ -2385,7 +2395,14 @@ pub(crate) fn mass_properties_closed_form_of<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, faces, band, &|_, _, _, _, _, _, _| Ok(None), tol)
+    mass_properties_impl(
+        body,
+        faces,
+        band,
+        &|_, _, _, _, _, _, _| Ok(None),
+        None,
+        tol,
+    )
 }
 
 /// The per-face certified-quadrature hook: `Ok(None)` = no lane / not
@@ -2566,6 +2583,7 @@ mod face_walk_composition_tests {
             refinable: false,
             taken_at: None,
             refusal: None,
+            regional: false,
         }
     }
 
@@ -2611,6 +2629,7 @@ mod face_walk_composition_tests {
             refinable: met,
             taken_at: Some(round),
             refusal,
+            regional: false,
         }
     }
 
@@ -2834,6 +2853,7 @@ mod fold_pad_rows {
             refinable: false,
             taken_at: None,
             refusal: None,
+            regional: false,
         }
     }
 
@@ -2943,6 +2963,7 @@ mod continuation_refusal_order_tests {
             refinable: false,
             taken_at: None,
             refusal,
+            regional: false,
         }
     }
 
@@ -3093,9 +3114,10 @@ fn mass_properties_impl<T: Decide>(
     faces: &[FaceKey],
     band: Band,
     quad: &QuadHook<'_, T>,
+    lane: Option<QuadLane<T>>,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_runs(body, faces, band, quad, tol).map(|(props, _)| props)
+    mass_properties_runs(body, faces, band, quad, lane, tol).map(|(props, _)| props)
 }
 
 /// One face's flux term about its shell's reference ([`shell_reference`])
@@ -3158,7 +3180,8 @@ pub fn mass_properties_with_face_terms(
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = reporting_hook(Some(QuadLane::certified()));
-    let (props, runs) = mass_properties_runs(body, &faces, band, &hook, tol)?;
+    let (props, runs) =
+        mass_properties_runs(body, &faces, band, &hook, Some(QuadLane::certified()), tol)?;
     let terms = runs
         .iter()
         .map(|run| (run.face, run.contribution.flux, run.contribution.flux_pad))
@@ -3185,7 +3208,7 @@ pub fn face_flux_terms(
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = reporting_hook(Some(QuadLane::certified()));
-    let refs = References::points(body, faces.iter().copied());
+    let refs = References::points(body, faces.iter().copied(), Some(QuadLane::certified()));
     faces
         .iter()
         .map(|&face| {
@@ -3226,7 +3249,12 @@ pub fn quadrature_rounds(
     let band = Band::linear(tol).map_err(|error| MassPropsError::Band { error })?;
     let faces = crate::query::all_faces(body);
     let hook = reporting_hook(Some(QuadLane::certified()));
-    let refs = References::of(body, faces.iter().copied(), band);
+    let refs = References::of(
+        body,
+        faces.iter().copied(),
+        band,
+        Some(QuadLane::certified()),
+    );
     let mut rounds = Vec::new();
     for &face in &faces {
         let (mut met, mut quadrature) = (None, false);
@@ -3256,9 +3284,10 @@ fn mass_properties_runs<T: Decide>(
     faces: &[FaceKey],
     band: Band,
     quad: &QuadHook<'_, T>,
+    lane: Option<QuadLane<T>>,
     tol: Tol,
 ) -> Result<(MassProperties<T>, Vec<FaceRun<T>>), MassPropsError> {
-    let refs = References::of(body, faces.iter().copied(), band);
+    let refs = References::of(body, faces.iter().copied(), band, lane);
     let runs = decide_faces(faces, |&face_key| {
         face_flux(
             body,
@@ -3374,6 +3403,10 @@ struct FaceRun<T> {
     /// can carry one and still contribute a sound enclosure: that is
     /// the whole difference between the two levels.
     refusal: Option<PropsError>,
+    /// Whether the face was read about its carried quadrature region's
+    /// point rather than its shell's ([`References`]): an interval
+    /// re-derivation reads it about the same point.
+    regional: bool,
 }
 
 impl<T> FaceRun<T> {
@@ -3512,6 +3545,25 @@ fn closed_form_about<U: Decide>(
     closed_form_of(&moved, &loops, sense, band)
 }
 
+/// The stored start vertex of `face`'s outer loop.
+fn face_start_of<T: Decide>(body: &Body<T>, face: &crate::entity::Face) -> Point3<T> {
+    use crate::entity::EntityId;
+    let outer = crate::live::proven(&body.loops, face.outer, EntityId::Loop);
+    let vertex = match outer.boundary {
+        LoopBoundary::Empty { vertex } => vertex,
+        LoopBoundary::Cycle { first } => {
+            crate::live::proven(&body.half_edges, first, EntityId::HalfEdge).start
+        }
+    };
+    let record = crate::live::proven(&body.vertices, vertex, EntityId::Vertex);
+    body.point_of(vertex, record)
+}
+
+/// [`face_start_of`] by key.
+fn face_start<T: Decide>(body: &Body<T>, face: FaceKey) -> Point3<T> {
+    face_start_of(body, resolve_face(body, face).0)
+}
+
 /// **A shell's quadrature regions**: its faces that take the quadrature
 /// ([`takes_quadrature`]), grouped by sharing an edge, each region in the
 /// shell's stored order and the regions in the order their first faces
@@ -3528,7 +3580,10 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
         if let Ok(loops) = flat_loops(body, face)
             && takes_quadrature(
                 surface,
-                loops.iter().flat_map(|(edges, _)| edges).map(|e| &e.carrier),
+                loops
+                    .iter()
+                    .flat_map(|(edges, _)| edges)
+                    .map(|e| &e.carrier),
             )
         {
             quadrature.push((key, loops.into_iter().flat_map(|(_, hes)| hes).collect()));
@@ -3583,21 +3638,13 @@ fn quadrature_regions<T: Decide>(body: &Body<T>, shell: ShellKey) -> Vec<Vec<Fac
 /// faces lie a kilometre apart reads pads up to 90× apart across
 /// rotations of its face list at 1e-6
 /// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`).
-/// Every walk over a face reads it about this one point; [`References`]
-/// holds it per door call and [`corner_of`] lifts it.
+/// That is the first quadrature region's point: each region after it is
+/// read about a point of its own and carried here ([`References`]).
+/// [`References`] holds the points per door call and [`corner_of`] lifts
+/// them.
 fn shell_reference<T: Decide>(body: &Body<T>, shell: ShellKey) -> Point3<T> {
     use crate::entity::EntityId;
-    let start = |face: &crate::entity::Face| {
-        let outer = crate::live::proven(&body.loops, face.outer, EntityId::Loop);
-        let vertex = match outer.boundary {
-            LoopBoundary::Empty { vertex } => vertex,
-            LoopBoundary::Cycle { first } => {
-                crate::live::proven(&body.half_edges, first, EntityId::HalfEdge).start
-            }
-        };
-        let record = crate::live::proven(&body.vertices, vertex, EntityId::Vertex);
-        body.point_of(vertex, record)
-    };
+    let start = |face: &crate::entity::Face| face_start_of(body, face);
     let shell = crate::live::proven(&body.shells, shell, EntityId::Shell);
     for &key in &shell.faces {
         let (face, surface) = resolve_face(body, key);
@@ -3616,66 +3663,140 @@ fn shell_reference<T: Decide>(body: &Body<T>, shell: ShellKey) -> Point3<T> {
         .map_or_else(Point3::origin, |&key| start(resolve_face(body, key).0))
 }
 
-/// **Each shell's reference** ([`shell_reference`]) over the faces one
-/// door call reads, found once per door call: finding it reads the
-/// shell's faces up to its first quadrature face, so a walk that asked
-/// for it per face would read a shell of no quadrature face once per
-/// face. With them, what each sphere seam region the faces reach says of
-/// its members ([`seam_refusals`]), read once per door call, by its first
-/// walk; a continuation of that walk (`refine`, `continue_to_target`)
-/// takes the points alone ([`References::points`]).
+/// **The points a door call reads its faces about**, found once per door
+/// call: each shell's reference ([`shell_reference`]), and for each of
+/// its quadrature regions after the first ([`quadrature_regions`]) the
+/// region's own point and its carry ([`RegionCarry`]). Finding them reads
+/// the shell's faces, so a walk that asked per face would read a shell
+/// once per face. With them, what each sphere seam region the faces reach
+/// says of its members ([`seam_refusals`]), read once per door call, by
+/// its first walk; a continuation of that walk (`refine`,
+/// `continue_to_target`) takes the points alone ([`References::points`]),
+/// over the same faces, so it reads every face about the point the walk
+/// it continues read it about.
+///
+/// # One point per quadrature region, and its carry
+///
+/// A quadrature face's width scales with its lever from the point it is
+/// read about, and one point per shell is far from a region of the shell
+/// that lies far from the shell's first quadrature face
+/// (`work/flux/a-shells-pad-still-depends-on-which-quadrature-face-it-stores-first.md`:
+/// two tori 900 m apart on one bar read pads 90× apart across rotations of
+/// the stored face list at 1e-6). So each region `g` after the first is
+/// read about `c_g`, the stored start vertex of its first face, and its
+/// sum is carried to the shell's point `c`. For each face,
+/// `∫(p − c)·n dA = ∫(p − c_g)·n dA + (c_g − c)·A⃗_f`, with `A⃗_f = ∫n dA`
+/// its outward vector area, so the region's faces sum about `c` to their
+/// sum about `c_g` plus `(c_g − c)·Σ_f A⃗_f`.
+///
+/// That sum is not read off the faces, whose own vector areas are as wide
+/// as their quadratures: a carry through them would restore the width the
+/// point removed. By Stokes, `A⃗_f = ½∮_{∂f} p × dp` for any patch, read
+/// along the face's loops as the walk stores them, outward by the
+/// interior-left rule. An edge between two faces of the region is
+/// traversed once by each, in opposite senses, and cancels, so
+/// `Σ_f A⃗_f = A⃗(∂g)`: the vector area of the region's boundary, the
+/// half-edges of its faces whose mate lies on a face outside it, each in
+/// its own face's traversal sense. The carry is `(c_g − c)·A⃗(∂g)`.
+///
+/// **Closed-form by construction.** An edge of `∂g` lies on a face that
+/// does not take the quadrature ([`takes_quadrature`]): a plane bounded by
+/// no spiric and no rational rim, a cone, or a curved face trimmed by
+/// lines and circles alone. Each such face's own closed form reads its
+/// loops' vector area, so every edge of `∂g` is a line, a conic arc or a
+/// polynomial spline, and [`loop_vector_area`] reads it exactly but for
+/// rounding. Where it does not (a cone's spiric or rational rim, which its
+/// own closed form refuses too), the region is not carried: its faces are
+/// read about `c`, as before regions existed, bit for bit.
+///
+/// **The rounding.** The carry is read in interval arithmetic over the
+/// lifted boundary, about `c_g`, which lies on it, so each edge's term
+/// rounds at its own extent; the dot product rounds at `|c_g − c|·|A⃗(∂g)|`
+/// times a few ulps, which the interval holds. It is folded into the
+/// region's first face's enclosure, so the walk's midpoint and pad and
+/// every interval re-derivation carry it alike.
+///
+/// The first region's point is `c` itself, so its carry is zero, and a
+/// shell of one region reads exactly as it did. A door that does not hold
+/// every face of a region, or holds no quadrature lane, carries none:
+/// a carry stands for the whole region, and only a lane encloses it.
 struct References<T: Decide> {
     shells: std::collections::BTreeMap<ShellKey, Point3<T>>,
+    regions: std::collections::BTreeMap<FaceKey, Point3<T>>,
+    carries: std::collections::BTreeMap<FaceKey, Interval>,
     seams: std::collections::BTreeMap<FaceKey, MassPropsError>,
 }
 
+/// One carried quadrature region of a shell: its faces, its point `c_g`,
+/// and its carry `(c_g − c)·A⃗(∂g)` to the shell's point `c`
+/// ([`References`]).
+struct RegionCarry<T: Decide> {
+    faces: Vec<FaceKey>,
+    point: Point3<T>,
+    carry: Interval,
+}
+
 impl<T: Decide> References<T> {
-    /// The references of the shells `faces` lie on, and the seam
-    /// regions they reach, read in `band`.
-    fn of(body: &Body<T>, faces: impl IntoIterator<Item = FaceKey>, band: Band) -> Self {
+    /// The references of the shells `faces` lie on, the carried regions
+    /// among them, and the seam regions they reach, read in `band`.
+    fn of(
+        body: &Body<T>,
+        faces: impl IntoIterator<Item = FaceKey>,
+        band: Band,
+        lane: Option<QuadLane<T>>,
+    ) -> Self {
         let faces: Vec<FaceKey> = faces.into_iter().collect();
         Self {
             seams: seam_refusals(body, &faces, band),
-            ..Self::points(body, faces.iter().copied())
+            ..Self::points(body, faces.iter().copied(), lane)
         }
     }
 
     /// The references alone, for a reading after a walk over the same
     /// faces, which has read their seam regions already.
-    fn points(body: &Body<T>, faces: impl IntoIterator<Item = FaceKey>) -> Self {
+    fn points(
+        body: &Body<T>,
+        faces: impl IntoIterator<Item = FaceKey>,
+        lane: Option<QuadLane<T>>,
+    ) -> Self {
+        let held: std::collections::BTreeSet<FaceKey> = faces.into_iter().collect();
         let mut shells = std::collections::BTreeMap::new();
-        for key in faces {
+        let mut regions = std::collections::BTreeMap::new();
+        let mut carries = std::collections::BTreeMap::new();
+        for &key in &held {
             let shell = resolve_face(body, key).0.shell;
-            shells.entry(shell).or_insert_with(|| {
-                let n = quadrature_regions(body, shell).len();
-                if n >= 2
-                    && let Ok(path) = std::env::var("QREG_OUT")
-                {
-                    use std::io::Write;
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-                        let _ = writeln!(
-                            f,
-                            "{n}\t{}",
-                            std::thread::current().name().unwrap_or("?")
-                        );
-                    }
+            if shells.contains_key(&shell) {
+                continue;
+            }
+            let c = shell_reference(body, shell);
+            shells.insert(shell, c);
+            let Some(lane) = lane else { continue };
+            for region in region_carries(body, shell, c, &held, lane) {
+                carries.insert(region.faces[0], region.carry);
+                for face in region.faces {
+                    regions.insert(face, region.point);
                 }
-                shell_reference(body, shell)
-            });
+            }
         }
         Self {
             shells,
+            regions,
+            carries,
             seams: std::collections::BTreeMap::new(),
         }
     }
 
-    /// The point `face` is read about: its shell's reference. A face
-    /// whose shell the door did not hold is a door that read a face it
-    /// did not hand [`References::of`], refused as corrupt; a face its
-    /// seam region refuses is refused here, before any lane reads it.
+    /// The point `face` is read about: its region's, where the region is
+    /// carried, else its shell's reference. A face whose shell the door
+    /// did not hold is a door that read a face it did not hand
+    /// [`References::of`], refused as corrupt; a face its seam region
+    /// refuses is refused here, before any lane reads it.
     fn at(&self, body: &Body<T>, face: FaceKey) -> Result<Point3<T>, MassPropsError> {
         if let Some(refusal) = self.seams.get(&face) {
             return Err(refusal.clone());
+        }
+        if let Some(&point) = self.regions.get(&face) {
+            return Ok(point);
         }
         self.shells
             .get(&resolve_face(body, face).0.shell)
@@ -3684,6 +3805,87 @@ impl<T: Decide> References<T> {
                 what: "a walk read a face of a shell it holds no reference for",
             })
     }
+
+    /// The carry `face` takes, as its carried region's first face.
+    fn carry(&self, face: FaceKey) -> Option<Interval> {
+        self.carries.get(&face).copied()
+    }
+
+    /// Whether `face` is read about its carried region's point.
+    fn regional(&self, face: FaceKey) -> bool {
+        self.regions.contains_key(&face)
+    }
+}
+
+/// The carried regions of `shell` ([`References`]): each quadrature
+/// region after the first whose every face is `held`, with its point and
+/// its carry to the shell's point `c`, read through `lane`. A region whose
+/// boundary's vector area does not read, or whose carry does not certify,
+/// is left out, and its faces are read about `c`.
+fn region_carries<T: Decide>(
+    body: &Body<T>,
+    shell: ShellKey,
+    c: Point3<T>,
+    held: &std::collections::BTreeSet<FaceKey>,
+    lane: QuadLane<T>,
+) -> Vec<RegionCarry<T>> {
+    let lift = |p: Point3<T>| Point3::new(lane.lift(p.x), lane.lift(p.y), lane.lift(p.z));
+    let mut out = Vec::new();
+    for faces in quadrature_regions(body, shell).into_iter().skip(1) {
+        if !faces.iter().all(|f| held.contains(f)) {
+            continue;
+        }
+        let Some(boundary) = region_boundary(body, &faces) else {
+            continue;
+        };
+        let edges: Vec<LoopEdge<Interval>> = boundary
+            .iter()
+            .map(|e| LoopEdge {
+                carrier: e.carrier.map_scalar(lane.lift),
+                carrier_id: e.carrier_id,
+                t0: lane.lift(e.t0),
+                t1: lane.lift(e.t1),
+                forward: e.forward,
+                start: e.start,
+                end: e.end,
+            })
+            .collect();
+        let point = face_start(body, faces[0]);
+        let at = lift(point);
+        let Ok(va) = geom_brep::props::loop_vector_area(&edges, at) else {
+            continue;
+        };
+        let carry = (at - lift(c)).dot(va);
+        if !carry.is_certified() {
+            continue;
+        }
+        out.push(RegionCarry {
+            faces,
+            point,
+            carry,
+        });
+    }
+    out
+}
+
+/// A region's boundary `∂g`: the loop edges of its faces whose half-edge's
+/// mate lies on a face outside it, each in its own face's traversal sense
+/// ([`References`]). `None` where a face's loops do not flatten or a mate
+/// does not resolve.
+fn region_boundary<T: Decide>(body: &Body<T>, faces: &[FaceKey]) -> Option<Vec<LoopEdge<T>>> {
+    let mut boundary = Vec::new();
+    for &key in faces {
+        let (face, _) = resolve_face(body, key);
+        for (edges, hes) in flat_loops(body, face).ok()? {
+            for (e, he) in edges.into_iter().zip(hes) {
+                let mate_face = body.mate(he).and_then(|m| body.face_of_half_edge(m))?;
+                if !faces.contains(&mate_face) {
+                    boundary.push(e);
+                }
+            }
+        }
+    }
+    Some(boundary)
 }
 
 /// **A sphere seam region, read once** for tier 3's check 6 and the
@@ -4054,7 +4256,12 @@ fn face_flux<T: Decide>(
     refs: &References<T>,
 ) -> Result<FaceRun<T>, MassPropsError> {
     let about = refs.at(body, face_key)?;
-    face_flux_about(body, face_key, band, quad, tol, window, about)
+    let mut run = face_flux_about(body, face_key, band, quad, tol, window, about)?;
+    run.regional = refs.regional(face_key);
+    Ok(match refs.carry(face_key) {
+        Some(carry) => run.carried(carry),
+        None => run,
+    })
 }
 
 /// [`face_flux`] about `about`: resolve the surface, flatten the loops,
@@ -4195,7 +4402,37 @@ fn face_flux_about<T: Decide>(
         refinable,
         taken_at,
         refusal,
+        regional: false,
     })
+}
+
+impl<T: Real> FaceRun<T> {
+    /// This run with its region's carry ([`References`]) folded into its
+    /// flux: into the enclosure, and the midpoint and pad read off it
+    /// again, where the face has one; else onto the flux, its midpoint
+    /// and half-width.
+    fn carried(mut self, carry: Interval) -> Self {
+        let c = &mut self.contribution;
+        match c.enclosure {
+            Some((flux, area)) => {
+                let flux = flux + carry;
+                let (at, fp, ap) = quadrature_contribution::<T>(flux, area);
+                *c = FaceFlux {
+                    flux: at.flux,
+                    area: at.area,
+                    flux_pad: fp,
+                    area_pad: ap,
+                    enclosure: Some((flux, area)),
+                };
+            }
+            None => {
+                let (mid, pad) = quad_lane::mid_pad(carry);
+                c.flux = c.flux + T::from_computed(mid);
+                c.flux_pad += pad;
+            }
+        }
+        self
+    }
 }
 
 /// A face's contribution as its two quadrature enclosures' midpoints,
@@ -5010,7 +5247,7 @@ fn measured_at_target<T: Decide>(
 ) -> Result<MassProperties<T>, MassPropsError> {
     let hook = reporting_hook(quad);
     // Serial, for [`decide_faces_serially`]'s reason.
-    let refs = References::of(body, faces.iter().copied(), band);
+    let refs = References::of(body, faces.iter().copied(), band, quad);
     let runs = decide_faces_serially(faces, |&face_key| {
         face_flux(
             body,
@@ -7059,7 +7296,12 @@ mod exact_enclosure_rows {
                         };
                         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
                         let hook = reporting_hook(Some(lane));
-                        let refs = References::of(&body, faces.iter().copied(), band);
+                        let refs = References::of(
+                            &body,
+                            faces.iter().copied(),
+                            band,
+                            Some(QuadLane::certified()),
+                        );
                         let runs = decide_faces_serially(&faces, |&f| {
                             face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
                         })
@@ -7125,7 +7367,12 @@ mod shell_reference_rows {
         let band = Band::linear(tol).unwrap();
         let faces = crate::query::all_faces(body);
         let hook = reporting_hook(Some(QuadLane::<f64>::certified()));
-        let refs = References::of(body, faces.iter().copied(), band);
+        let refs = References::of(
+            body,
+            faces.iter().copied(),
+            band,
+            Some(QuadLane::certified()),
+        );
         let runs = decide_faces_serially(&faces, |&f| {
             let about = about.map_or_else(|| refs.at(body, f), Ok)?;
             face_flux_about(body, f, band, &hook, tol, RoundWindow::SCHEDULE, about)
@@ -7334,7 +7581,12 @@ mod shell_reference_rows {
         let faces = crate::query::all_faces(&body);
         let lane = QuadLane::<f64>::certified();
         let hook = reporting_hook(Some(lane));
-        let refs = References::of(&body, faces.iter().copied(), band);
+        let refs = References::of(
+            &body,
+            faces.iter().copied(),
+            band,
+            Some(QuadLane::certified()),
+        );
         let runs = decide_faces_serially(&faces, |&f| {
             face_flux(&body, f, band, &hook, tol, RoundWindow::SCHEDULE, &refs)
         })
