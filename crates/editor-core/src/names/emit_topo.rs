@@ -4376,7 +4376,7 @@ pub(super) enum EdgeCarrier<T: Decide> {
     /// on it covers nothing (`emit_union::Flush::edge_cover`): the
     /// readings refuse nothing they would not refuse on a straight
     /// edge, at the cost of not counting such edges flush
-    /// (`work/seamrank/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
+    /// (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
     Unread,
 }
 

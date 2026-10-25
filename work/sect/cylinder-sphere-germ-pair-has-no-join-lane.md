@@ -4,7 +4,7 @@ kind: issue
 title: A transverse cylinder wall x sphere germ pair has its section frame and no chord lane at the join (CurvedBooleanUnsupported): its section is a space quartic, and every lane rides a plane
 status: open
 opened: 2026-10-04
-priority: P1
+priority: P0
 cost: H
 design: true
 refs: [4025, skew-cylinder-germ-pair-has-no-section-frame]

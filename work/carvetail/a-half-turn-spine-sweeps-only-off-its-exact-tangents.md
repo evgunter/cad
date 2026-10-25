@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-02
 priority: P0
 cost: M
+refs: [sweep-frame-is-a-minimal-rotation-from-the-start-tangent]
 ---
 
 Found by SHOW's `klein-scene-should-adopt-the-one-body-loop-sweep`
@@ -98,3 +99,13 @@ klein scene's loft through stated frames is a workaround for this
 refusal, not a construction anyone should have to write. The scene's
 comments and `demos/README.md` now say so, and wall 9's retirement
 instruction is the switch back to `sweep_body` on `exact_spine`.
+
+## The fix is `carve/sweep-frame-is-a-minimal-rotation-from-the-start-tangent` (2026-10-25)
+
+Linked on request in chat. That row is the same root, measured on the
+square coil: `sweep_places` carries every station by the minimal
+rotation from the START tangent, so the frame spins near anti-parallel
+and has no axis at it. Its shape, an incremental rotation-minimizing
+frame or a stated frame law, is this row's first ask. It is
+`design: true` (which frame a sweep follows), so this P0 waits on that
+design question. Whichever row lands the frame should close both.

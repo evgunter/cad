@@ -2,11 +2,10 @@
 id: joining-a-spline-carrier-is-unbuilt
 kind: issue
 title: A curved join on a spline carrier refuses JoinCarrierUnsupported: the kept edge cannot be run on along a carrier with no period or parameter inverse
-status: parked
+status: open
 opened: 2026-10-07
-priority: P2
+priority: P0
 cost: H
-blocked_on: [nurbs-edge-crossing-rung-is-the-ring-composite]
 ---
 
 ## The finding
@@ -32,4 +31,8 @@ edge is one spline with a certified interval.
 
 ## Parked (2026-10-13, FUSE orchestrator)
 
-Nothing can reach a spline join until a spline edge crosses a face. Even with the operand gate deleted (`orbit/delete-the-boolean-operand-edge-gate`), the sweep refuses such an edge first, typed as `BooleanError::CrossingCarrierUnsupported`. When this join is finally reached, it refuses typed too (`JoinCarrierUnsupported`). So this row waits on REACHHOLD's NURBS crossing rung, the first producer of a spline edge between two faces. It drops to P2 because, until that rung lands, no input can reach it.
+Nothing can reach a spline join until a spline edge crosses a face. Even with the operand gate deleted (`splice/delete-the-boolean-operand-edge-gate`), the sweep refuses such an edge first, typed as `BooleanError::CrossingCarrierUnsupported`. When this join is finally reached, it refuses typed too (`JoinCarrierUnsupported`). So this row waits on REACHHOLD's NURBS crossing rung, the first producer of a spline edge between two faces. It drops to P2 because, until that rung lands, no input can reach it.
+
+## Moved to SPLICE (2026-10-25)
+
+From HONE. Moved by `git mv` in the chat-approved refold that opened SPLICE (`work/splice/program.md`), the track for a body built by loft or sweep entering every boolean. Re-banded P2 → P0 and UN-PARKED (was `blocked_on: [nurbs-edge-crossing-rung-is-the-ring-composite]`). Its P2 rested on no input reaching it; with the crossing rung on this slate the two are built in order here, and the demo joins (klein wall 3, lily wall 8, teapot wall 3) are its inputs.
