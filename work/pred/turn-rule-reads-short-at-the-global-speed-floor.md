@@ -50,3 +50,21 @@ escalates with an `Invalid` margin (pinned in
 
 A local sup over the defect, as the conic has, would fix both. It is the
 same refinement as the local inf above, on the other bound.
+
+## More evidence (unit 2, branch `pred/period-turn-sites`)
+
+Two more `Bounded` sites now read the rule, and each escalates short
+spans the inf cannot settle:
+
+- `props/curved.rs` `require_cone_conic_spans` (the cone's ellipse door):
+  on the `16 : 1` fixture's fast side, a span short of a turn by `0.5·ε`
+  of the floor's length, or `3·ε` / `5·ε` of the sup's, escalates where
+  the old pair admitted it (`props/curved/turn_rows.rs`).
+- `pcurve_cache/projected.rs` check 2: a sweep short of a turn whose
+  headroom the inf arm (`azimuth_lever_inf`, a window-wide floor) reads
+  in the band escalates where the sup-only gate admitted it
+  (`projected/turn_rows.rs`, the `±3`/`±5` of the inf's and `±20`/`±30`
+  of the sup's cases). "Not over" is all that site asks, and a sup that
+  reads the headroom definitely positive answers it; the site admits
+  only the both-decided straddle, since `TurnUndecided` does not say
+  whether a sup reading it carries is decided.

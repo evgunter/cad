@@ -42,7 +42,7 @@ at pick-up as overtaken (its row says by what).
 |---|---|---|---|
 | `closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them` (limb 2 for every carrier) | P0 | H | — |
 | `the-plane-cone-arc-is-minted-exactly-and-the-axial-door-reads-the-moved-section` | P0 | H | unit 1 |
-| `a-classified-pairs-section-states-the-bounds-that-retire-the-tube` | P1 | M | unit 2; lands last and alone (Ev's reservation) |
+| `a-classified-pairs-section-states-the-bounds-that-retire-the-tube` | P0 | M | unit 2; lands last and alone (Ev's reservation) |
 
 `offset-lane-has-no-conic-carrier` closes when they land. Review: unit 1
 and unit 2 are broad (every closed-form edge's certificate; a new

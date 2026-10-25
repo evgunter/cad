@@ -2,10 +2,11 @@
 id: carrier-walk-has-no-crossing-row-for-spline-edges
 kind: issue
 title: The in-plane carrier walk has no crossing row for a spline edge, so a planar face bounded by one refuses containment inside its control hull's ball
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P1
 cost: M
+branch: splice/carrier-walk-spline
 ---
 
 

@@ -179,14 +179,20 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
                                     // Escalation soundness of over_at_sup:
                                     // where the sup is not definitely over,
                                     // any overlap is within the escalation band.
-                                    if h < 0.0 && !u.over_at_sup {
+                                    if h < 0.0 && !u.over_at_sup() {
                                         assert!(
                                             len <= 10.0 * eps * slack,
                                             "over_at_sup false but overlap past the band: {case}"
                                         );
                                     }
-                                    if u.over_at_sup {
+                                    if u.over_at_sup() {
                                         assert!(h < 0.0, "{case}");
+                                    }
+                                    // And of its twin, the one admission
+                                    // "not over" makes of an undecided
+                                    // reading: the extent is short.
+                                    if u.not_over_at_sup() {
+                                        assert!(h > 0.0, "not over at the sup: {case}");
                                     }
                                     "escalated"
                                 }
@@ -295,7 +301,7 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
     // A sup that is not finite settles no whole turn: it escalates, on an
     // unreadable margin, never `Whole`.
     assert!(
-        matches!(got, Err(ref u) if !u.over_at_sup),
+        matches!(got, Err(ref u) if !u.over_at_sup() && !u.not_over_at_sup()),
         "r2 spiric at |d| = R - r, (0, tau): {got:?}"
     );
 }
