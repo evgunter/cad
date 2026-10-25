@@ -543,3 +543,20 @@ None waits on an INTENT stage. A row that turns out to need one moves back. — 
 — (FLUSH orchestrator)
 - 2026-10-25 — **Dispatched the containment fallback's rows** (`a-containment-fallback-substitutes-a-partly-held-dropped-face-whole`, P2 M, branch `flush/fallback-partial-rows`). The fallback writes a dropped face larger than its holder as substituted whole, and records no discards, so the two operand orders disagree on discards. The fix makes the fallback's rows the shape of the section path's (`fate::cut`, `discard.rs`) and tightens the swap comparators. **Tier: one FULL review**: it changes rows, not bodies, in one module family. Seams: CLEAVE 5545 (`fate.rs`); QUAD 5628, CLEAVE 5544/5546, WIRE 5535 and RESTREAD 5529 (`ops.rs`).
 — (FLUSH orchestrator)
+- 2026-10-25 — **PR 5697 closes `a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim`**, the curved half of D10's edge-meeting ray.
+  - **What it does.** Every edge between two faces that read their own carrier crossings is now met once, for both faces, through the census's own reads. A seam split's faces share one root, keyed by (surface, ordinal). A met edge stands only for a crossing near the passage or held by the face. Ray faults are ranked, so the ray's fault does not depend on face order, and a `Fatal` always propagates.
+  - **Tier: dual review**, letter H, concurrent. The blind coding (byte 18, A = R1) found the pair fair, and the tally is **+2 for R1**. R1 found two wrong-side readings that R2's corpus did not reach:
+    - a plane's half read outside the face (a kinked bore, 140 of 3042 rays);
+    - a shared root counted twice (the 30ε disc).
+
+    Both reviewers got one identical addendum mid-review (a region-reader probe and a higher fuzz effort).
+  - **Fix pass and delta checks** (both reviewers, concurrent): R1 APPROVE-WITH-FIXES, R2 APPROVE. A last short pass fixed four things:
+    - the swapped kinked-bore account;
+    - a `Fatal` swallowed in the shared-root loop;
+    - order-dependent fault kinds;
+    - the `face_edges` sweep.
+  - **The pins** now read every crossing of a ray against an analytic truth. They go red on the first head at every ε.
+  - **My slow-set call** moved MAJOR 2's pin to the fast set at 0.481 s; CI then timed it at 0.507 s. It is now split into a fast counterexample pin and a slow seed sweep.
+  - **Not retired:** the aims' exact ties (`cut_cylinder` 62 exact zeros), unparked at P2 H.
+  - **Filed:** two P3 rows, moved to FLUSHTAIL (26.5 of 30).
+— (FLUSH orchestrator)

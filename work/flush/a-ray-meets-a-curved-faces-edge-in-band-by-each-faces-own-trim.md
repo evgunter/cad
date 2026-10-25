@@ -2,12 +2,13 @@
 id: a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim
 kind: issue
 title: A ray in band of an edge a curved face bounds, or of a planar face's curved edge, is still set aside by each face's own trim walk
-status: review
+status: closed
 opened: 2026-10-19
 priority: P2
 cost: H
 branch: flush/curved-edge-ray
 pr: 5697
+closed: 2026-10-25
 ---
 
 
@@ -207,3 +208,16 @@ also refuse with one fault kind:
   (FLUSH, P3).
 - `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`
   (FLUSH, P2, unparked, H).
+
+## Resolution
+
+Closed by PR 5697 (2026-10-25). A ray in band of any edge between two faces that read their own carrier crossings now meets that edge once, for both faces. That covers a curved edge, an edge a curved face bounds, and a seam split. The read goes through the census's own reads (`census::edge_span`, `Curve3::foot`, `Foot::on_carrier`, `Curve3::clearance`, `Span::place`).
+- A met edge stands for a crossing only where it represents it: near the passage, or held definitely by the face. Otherwise it grazes.
+- A carrier's root (surface, ordinal) stands once, however many faces' met edges claim it.
+- The ray's fault is the highest-ranked of its faces' faults, whatever order they are read in, and a `Fatal` always propagates.
+
+Dual review (concurrent, letter H). One review found two wrong-side readings that base set aside: a plane's half read outside the face, on a kinked bore; and a shared root counted twice, on the 30ε disc. Both were fixed, and the pins now read every crossing of a ray against an analytic truth and go red on the first head at every ε. The delta checks by both reviewers approved. Batteries 0 lines moved; suites full at 3 ε.
+
+The aims' exact ties do not retire: `cut_cylinder` reads 62 exact zeros on base and head. `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal` is unparked and re-priced (P2, H). Residue filed in FLUSHTAIL:
+- `a-ray-shallow-to-both-faces-of-a-curved-edge-reads-it-clear-at-their-crossings` (P3), whose stands rule costs lost reads, never wrong ones;
+- `a-uniform-ray-about-a-curved-edge-is-still-set-aside-on-a-faces-own-boundary` (P3).
