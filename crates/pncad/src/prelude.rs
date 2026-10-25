@@ -380,11 +380,15 @@ pub use sweep::blend::{BlendDecision, BlendSite, Breach, CornerConfig, RunOutPol
 // refusal.
 // `SideWall` and `BandWall` are `Extruded::walls` and `Revolved::bands`
 // — the one wall per run of pieces each verb builds — so a caller
-// reading those handles can name their element type.
+// reading those handles can name their element type. `Cavity` and
+// `CavityOrigin` are `Revolved::cavities`' element and its key — which
+// pocket, a hole loop or an axis gap, a cavity shell revolves — and
+// `CavityOrigin` is also `RevolveError::VoidInsertion`'s subject, so a
+// caller can match which cavity refused.
 pub use sweep::{
-    BandWall, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError, Lofted, Revolution,
-    RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude,
-    loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
+    BandWall, Cavity, CavityOrigin, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError,
+    Lofted, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError,
+    TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------

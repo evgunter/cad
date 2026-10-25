@@ -335,7 +335,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // Every row of `geom_brep::curve_pair::pose`, by its prefix.
         p if p.starts_with("curve_pair_pose_") => "how two edges' carriers meet",
         "curve_pair_meet_same" | "curve_pair_meet_stretch" => "how two edges' carriers meet",
-        "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
@@ -345,7 +344,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_iso_rim"
         | "bool_sphere_trim_antipode"
         | "bool_sphere_trim_latitude"
-        | "bool_sphere_trim_meridian_span"
         | "bool_sphere_trim_period"
         | "bool_sphere_trim_pole_end"
         | "bool_sphere_trim_pole_interior"

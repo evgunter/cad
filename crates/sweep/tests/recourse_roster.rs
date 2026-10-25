@@ -86,6 +86,11 @@ const INDIRECT: &[(&str, &str)] = &[
         "the tube's funnel, naming the closed `TubeDecision` it takes — its names are \
          `TubeDecision::ALL`'s",
     ),
+    (
+        "revolve/turn_rows.rs: name",
+        "the tube's old funnel, kept as the agreement test's oracle, naming the closed \
+         `TubeDecision` it takes",
+    ),
 ];
 
 /// Every name decided outside the blend, and the door that reports it.
@@ -95,6 +100,7 @@ const INDIRECT: &[(&str, &str)] = &[
 /// door's own error and rendered there, so `BlendError` is not on the
 /// escalation's path.
 const OTHER_DOORS: &[(&str, &str)] = &[
+    ("axis_gap", AXIS),
     ("axis_vertex_radius", AXIS),
     ("revolve_axis_direction", AXIS),
     ("revolve_angle", REVOLVE),

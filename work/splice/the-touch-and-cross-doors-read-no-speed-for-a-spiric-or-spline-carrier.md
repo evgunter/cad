@@ -2,10 +2,11 @@
 id: the-touch-and-cross-doors-read-no-speed-for-a-spiric-or-spline-carrier
 kind: issue
 title: carrier_touch and carrier_cross take a carrier's speed from speed_at and speed_hi, which answer None for a spiric or spline, though speed_range now bounds every kind
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P1
 cost: E
+branch: splice/touch-doors
 ---
 
 Found by FUSE's review of PR 4946 (`census-curved-record-lanes-read-circles-only`, branch `fuse/census-reads-every-curved-edge`).

@@ -56,8 +56,13 @@ fn one_call_hollow_ring() {
     // boundary and the cavity, and the handle bundle names both.
     assert_eq!(t.body.shells().count(), 2);
     assert_eq!(t.cavities.len(), 1);
-    assert_ne!(t.cavities[0], t.shell);
-    let cavity = t.body.get_shell(t.cavities[0]).unwrap();
+    assert_eq!(
+        t.cavities[0].origin,
+        sweep::CavityOrigin::Hole { loop_index: 1 },
+        "the cavity is keyed by the hole loop it revolves"
+    );
+    assert_ne!(t.cavities[0].shell, t.shell);
+    let cavity = t.body.get_shell(t.cavities[0].shell).unwrap();
     let outer = t.body.get_shell(t.shell).unwrap();
     assert_eq!(cavity.solid, t.solid);
     assert_eq!(outer.solid, t.solid);
@@ -193,7 +198,12 @@ fn two_holes_two_cavities() {
     assert_all_tiers(&t.body);
     assert_eq!(t.body.shells().count(), 3);
     assert_eq!(t.cavities.len(), 2);
-    assert_ne!(t.cavities[0], t.cavities[1]);
+    assert_ne!(t.cavities[0].shell, t.cavities[1].shell);
+    assert_eq!(
+        t.cavities.iter().map(|c| c.origin).collect::<Vec<_>>(),
+        [1, 2].map(|loop_index| sweep::CavityOrigin::Hole { loop_index }),
+        "one cavity per hole loop, in canonical order"
+    );
     assert_eq!(t.walls().len(), 3);
 
     // Pappus, hole by hole: outer 2·3 at r̄ 2; h1 1·0.5 at r̄ 2;

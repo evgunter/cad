@@ -2,11 +2,12 @@
 id: a-touch-beside-a-spline-or-spiric-edge-is-not-certified-clear-of-it
 kind: issue
 title: A carrier touch whose ball a spline or spiric boundary edge's box reaches is never certified clear of that edge, so it keeps the pierce door
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: M
 refs: [4128]
+branch: splice/touch-doors
 ---
 
 
