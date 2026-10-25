@@ -272,9 +272,17 @@ disclosed rather than discovered.
 **These names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 250 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate`:
-- six through `predicate: Some("…")`: `carrier_kind`,
-  `contact_tangent_independent`, `contact_rest_senses_opposed`,
-  `contact_rest_ladder_invariant`, `transversality`, `validate_probe`;
+- eight through `predicate: Some("…")`: `carrier_unglued_coincidence`,
+  `contact_rest_ladder_invariant`, `contact_rest_senses_opposed`,
+  `contact_tangent_independent`, `merge_pair_extent`,
+  `seam_cover_unread`, `seam_traversal_unread`, `tangency_sides_mixed`;
+- four through a helper that fills that field for its caller:
+  `carrier_kind` (`carrier_eq::definite`),
+  `continuation_senses_aligned` (`boolean::sense_contradiction`, which
+  names `contact_rest_senses_opposed` too), `tangency_conformal`
+  (`verify_tangency`'s `label`), and
+  `bool_join_torus_section_touching_under_a_germ`
+  (`invalid_margin::invalid`, through a `const`);
 - the name argument of each shipped `k_stats::straddle` call, two
   decided bounds on one quantity straddling the band (the call sites
   are the list: `grep -rn 'straddle(' crates/ --include=*.rs`, outside
@@ -283,7 +291,8 @@ should know why. They live only in an `Indeterminate.predicate`:
   - an ellipse's lower and upper bound on one distance, or on its span's
     overlap, under each caller's conic rows: `bool_contact_arc_straddle`,
     `point_in_arc_loop_conic_straddle`, `pm_census_ef_cross_arc_straddle`,
-    and `bool_sphere_region_arc_straddle` and
+    `bool_ruled_region_arc_straddle`, and
+    `bool_sphere_region_arc_straddle` and
     `bool_torus_region_arc_straddle` (each a circle edge's rows, whose
     two bounds are one, so neither is raised);
   - `pc_axis_plane_parallel_straddle`, a plane×cylinder section on the
@@ -294,6 +303,9 @@ should know why. They live only in an `Indeterminate.predicate`:
     lower and upper bound of a reach or of the lines' gap that the
     census's crossing lane reads off the closed form's rounding
     (`crossing_reading`);
+  - `pm_census_span_rounding`, the lower and upper bound of a charged
+    span comparison (`pm_census_span_order_charged`,
+    `pm_census_ee_overlap_charged`) read apart (`charged_cmp`);
   - `pm_census_ef_pierce_lever_straddle`,
     `pm_census_ef_pierce_straddle`, `pm_census_ef_pierce_span_straddle`
     and `pm_census_ef_pierce_height_straddle`, the lower and upper
@@ -313,12 +325,20 @@ should know why. They live only in an `Indeterminate.predicate`:
     with a point between them read on (`curve_pair::meet`);
   - and a blend's battery straddle, which carries its decision's own
     funnel row, so it adds no name here;
-- one, `plane_nurbs_transversality_reported`, as the name argument of a
-  `k_stats::gate_measured` call.
+- four as the name argument of a `k_stats::gate_measured` call:
+  `plane_nurbs_transversality_reported` and
+  `nurbs_pair_transversality_reported` (`edge_nurbs`), and
+  `shell_walls_extent` and `shell_moved_walls_extent` (`shell`).
 
 The two `k_stats` doors record the escalation on the open frame but
 classify nothing, so their names are outside this table for the same
-reason the other six are.
+reason the twelve `predicate` names are.
+The list is `predicate: Some("…")`, `with_predicate("…")`,
+`straddle("…"` and `gate_measured("…"` over every crate's production
+code, minus every name a funnel call takes; that scan cannot see a name
+passed through a variable, a `const` or a row struct's field, so each
+such site (a helper whose `predicate` is a parameter, a `straddle` whose
+row is not a literal) is read to its literals by hand.
 None decides anything, none appears in the M7 baseline, and none has a
 comparand to dimension.
 
