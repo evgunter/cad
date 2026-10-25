@@ -129,6 +129,7 @@ mod closure;
 mod curved;
 mod loop_area;
 pub mod quad;
+pub mod rational_rim;
 pub mod spiric;
 
 use geom::Curve3;

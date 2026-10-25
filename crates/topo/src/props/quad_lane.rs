@@ -2,8 +2,8 @@ use geom_brep::props::quad::{
     self, Accept, FaceCutBounds, HarmChan, LaneEnd, LaneRun, LaneStop, PatchNet,
     QUAD_TARGET_LEN_FACTOR, RoundWindow, TrimChord, TrimEdgeQ, TrimPiece,
 };
-use geom_brep::props::spiric;
 use geom_brep::props::{FaceContribution, LoopEdge, PropsCheck, PropsError, loop_vector_area};
+use geom_brep::props::{rational_rim, spiric};
 use geom_brep::{Pcurve, SpiricImage, WallTorus};
 use geom_core::Tol;
 use geom_core::interval::Interval;
@@ -754,9 +754,9 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
     }
     // A spiric bounds a plane cap or a torus wall and nothing else
     // (`Pcurve::Spiric` certifies on those two chart kinds only); the face
-    // walk routes a plane here only when a spiric is on its boundary, and
-    // a torus wall comes here when a spiric is on any of its loops, its
-    // outer loop or a ring.
+    // walk routes a plane here only when a spiric or a rational spline rim
+    // is on its boundary, and a torus wall comes here when a spiric is on
+    // any of its loops, its outer loop or a ring.
     if matches!(surface, Surface::Plane { .. })
         || (matches!(surface, Surface::Torus { .. })
             && loops
@@ -860,7 +860,7 @@ fn cut_face_lane<T: Decide + Bounds + CertifiedEnclosure>(
 
 /// An upper bound on an edge's length: a line's speed `|dir|`, an arc's radius (an
 /// ellipse's larger semi-axis) times its span, a spiric's piecewise
-/// [`spiric::spiric_length_bound`].
+/// [`spiric::spiric_length_bound`], a B-spline's speed sup times its span.
 fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
     let span = (e.t1 - e.t0).mag();
     Ok(match e.carrier {
@@ -874,11 +874,16 @@ fn length_bound(e: &LoopEdge<Interval>) -> Result<f64, PropsError> {
             .ok_or(PropsError::QuadratureUnsupported {
                 what: "a spiric edge with a piece whose f is not certified positive",
             })?,
-        Curve3::Nurbs(_) => {
-            return Err(PropsError::QuadratureUnsupported {
-                what: "a B-spline edge on a spiric-bounded face — the spiric lane bounds \
-                       line, conic and spiric edges only",
-            });
+        // The carrier's certified speed sup over its whole domain, crossed
+        // to metres over the edge's span.
+        Curve3::Nurbs(ref c) => {
+            let len = c.speed_upper_bound().to_meters(Interval::point(span));
+            if !len.is_certified() {
+                return Err(PropsError::QuadratureUnsupported {
+                    what: "a B-spline rim whose speed bound is not certified",
+                });
+            }
+            len.mag()
         }
     })
 }
@@ -947,8 +952,9 @@ struct WallHalf {
     span: Interval,
 }
 
-/// **The spiric-bounded face lane**: a plane cap or a torus wall with a
-/// `Curve3::Spiric` on its boundary, read at the interval scalar and
+/// **The spiric-bounded face lane**: a plane cap with a `Curve3::Spiric`
+/// or a rational spline rim on its boundary, or a torus wall with a
+/// spiric on its boundary, read at the interval scalar and
 /// handed to [`spiric::spiric_face_rounds`] (its module docs carry the
 /// formulation). Reached only from [`cut_face_rounds`]'s structural
 /// spiric arm, under `QuadLane::certified`, so it is never formed at a
@@ -980,7 +986,7 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
                 .iter()
                 .map(|(edges, _)| edges.iter().map(lift).collect())
                 .collect();
-            spiric_cap(&loops, centre)?
+            plane_cap(&loops, centre)?
         }
         Surface::Torus {
             center,
@@ -1051,7 +1057,7 @@ fn spiric_face<T: Decide + geom_core::CertifiedBounds>(
 }
 
 /// A loop set's anchor: the first carrier's start point — the convention
-/// [`planar_face_about`] and [`spiric_cap`] share, so a plane's flux
+/// [`planar_face_about`] and [`plane_cap`] share, so a plane's flux
 /// lever is a point of the face whichever lane reads it.
 fn loops_anchor(loops: &[Vec<LoopEdge<Interval>>]) -> Result<Point3<Interval>, PropsError> {
     loops
@@ -1061,29 +1067,37 @@ fn loops_anchor(loops: &[Vec<LoopEdge<Interval>>]) -> Result<Point3<Interval>, P
         .ok_or(PropsError::DegenerateFace)
 }
 
-/// A spiric-bounded plane cap: every loop through its carriers, as the
-/// closed-form plane reads it — the closed-form edges' vector-area terms
-/// about the anchor, each spiric's through the lane, the flux the
-/// anchor less `centre` dotted with `A⃗`.
-fn spiric_cap(
+/// A plane cap bounded by a spiric or a rational spline rim: every loop
+/// through its carriers, as the closed-form plane reads it — the
+/// closed-form edges' vector-area terms about the anchor, each spiric's
+/// and each rational rim's through the lane ([`rational_rim`]), the flux
+/// the anchor less `centre` dotted with `A⃗`.
+fn plane_cap(
     loops: &[Vec<LoopEdge<Interval>>],
     centre: Point3<Interval>,
 ) -> Result<spiric::SpiricFaceQ, PropsError> {
     let anchor = loops_anchor(loops)?;
     let mut closed_va = [Interval::zero(); 3];
     let mut spirics = Vec::new();
+    let mut rationals = Vec::new();
     let mut perimeter = 0.0;
     for e in loops.iter().flatten() {
         perimeter += length_bound(e)?;
-        match spiric_edge_q(e, anchor, None) {
-            Some(q) => spirics.push(q),
-            None => {
-                let va = rv(loop_vector_area(core::slice::from_ref(e), anchor)?);
-                closed_va = [0, 1, 2].map(|k| closed_va[k] + va[k]);
-            }
+        if let Some(q) = spiric_edge_q(e, anchor, None) {
+            spirics.push(q);
+        } else if let Curve3::Nurbs(c) = &e.carrier
+            && c.constant_weight().is_none()
+        {
+            rationals.push(rational_rim::rational_edge_q(
+                c, e.t0, e.t1, e.forward, anchor,
+            )?);
+        } else {
+            let va = rv(loop_vector_area(core::slice::from_ref(e), anchor)?);
+            closed_va = [0, 1, 2].map(|k| closed_va[k] + va[k]);
         }
     }
     Ok(spiric::SpiricFaceQ {
+        rationals,
         closed_va,
         spirics,
         lever: rv(anchor - centre),
@@ -1246,6 +1260,7 @@ fn spiric_wall(
         });
     }
     Ok(spiric::SpiricFaceQ {
+        rationals: Vec::new(),
         closed_va,
         spirics,
         lever: rv(c - centre),
