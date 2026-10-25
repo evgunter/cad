@@ -2,10 +2,11 @@
 id: a-split-touching-a-wall-at-a-vertex-refuses-a-crossing-vertex-emission
 kind: issue
 title: A split through a moat that touches a pocket or block wall at a vertex refuses Emission("a split's crossing vertex does not hold exactly one piece of the edge it crosses")
-status: dispatched
+status: closed
 opened: 2026-10-20
 priority: P2
 cost: M
+closed: 2026-10-21
 ---
 
 
@@ -27,3 +28,5 @@ kernel records the crossing wrongly. The fix also unblocks the vertex-touching
 probe for `plane_walls`' closure join (the third `unreachable!` there),
 which no test can reach until this split evaluates. It overlaps
 `names-emission-raises-panic-or-take-their-true-ending` for this one raise.
+
+Closed by PR 5515 (2026-10-21). Root cause: the vertex pass read a pair original's `SplitEdge` birth record, which an earlier subtract wrote, as this split's crossing. It now checks the table first: a table-named vertex is `OnToolVertex` (N2). Both documents are pinned, the second recovered from PR 5486's probe, along with a kite variant. The remaining `split_sense` refusal sees only vertices the split minted. It is probably unreachable (`Joined::Whole/Set` cover whole operand edges; `Seam` lies along none), but that is not proven, so it stays typed.
