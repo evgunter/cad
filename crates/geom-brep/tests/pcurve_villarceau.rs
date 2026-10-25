@@ -421,7 +421,13 @@ fn a_grazing_circle_refuses_and_a_moved_villarceau_circle_is_off_the_chart() {
     assert!(off_torus(&crest) < 0.5 * eps(), "the crest circle grazes");
     let got = chart_pcurve(&crest, &surface, band());
     assert!(
-        matches!(got, Err(PcurveCertifyError::NoGeneralLane { .. })),
+        matches!(
+            got,
+            Err(PcurveCertifyError::NoGeneralLane {
+                gap: geom_brep::LaneGap::Unwritten,
+                ..
+            })
+        ),
         "a crest circle centred off the axis, on the torus within the band, is none of its \
          circles, and its general lane is not written yet on a torus: {got:?}"
     );
@@ -726,7 +732,13 @@ fn a_plane_gate_in_band_near_the_horn_refuses_not_yet_never_as_the_focal_section
         }
     }
     let got = chart_pcurve(&moved(3e-8, 0.0), &surface, band);
-    if !matches!(got, Err(PcurveCertifyError::NoGeneralLane { .. })) {
+    if !matches!(
+        got,
+        Err(PcurveCertifyError::NoGeneralLane {
+            gap: geom_brep::LaneGap::Unwritten,
+            ..
+        })
+    ) {
         wrong.push(format!("moved 3e-8: {got:?}"));
     }
     assert!(wrong.is_empty(), "{wrong:#?}");

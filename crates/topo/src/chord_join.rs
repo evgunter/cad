@@ -2905,13 +2905,11 @@ fn between_edge_is_section<T: Decide>(
 /// sentinel. A sentinel would be actively wrong here: the caller hulls
 /// with `(a.min(lo), b.max(hi))`, which ABSORBS an inverted range
 /// silently instead of propagating it, so "the empty range makes the
-/// window refuse" would have been false. `None` propagates through the
-/// caller as a typed `SectionInvariant` refusal.
-///
-/// The arm is unreachable today — `chart_pcurve` refuses a `Nurbs`
-/// carrier before a fitted image can reach this function — and it is
-/// written anyway because a face bounded by a fitted cyl×sphere edge is
-/// exactly what would make it live.
+/// window refuse" would have been false. The caller reads `None` by the
+/// image: a projected image (a circle's lane choice on a sphere, a
+/// spline's only image) refuses `RunImageNotYet`, and a spiric image
+/// `SectionInvariant`. A fitted image never reaches this function:
+/// `chart_pcurve` derives none.
 fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
     p.closed_form_span_box(t0, t1).map(|b| (b.u_min, b.u_max))
 }
@@ -3159,11 +3157,16 @@ fn run_azimuth_images<T: Decide>(
                 base.shift_branch(k, geom_brep::Period::new(tau))
             }
         };
-        // A general-lane image (the class read in band on a sphere takes
-        // the projected lane) has no closed-form azimuth box: the walk's
-        // lane for it is not written, which is no invariant break. A
-        // fitted image never comes out of the derivation above, so one
-        // here still is.
+        // A general-lane image (a circle's class read in band on a sphere,
+        // or a spline's only image: the projected lane) has no closed-form
+        // azimuth box: the walk's lane for it is not written, which is no
+        // invariant break. The other image the derivation above returns
+        // without a box is a spiric carrier's exact `Pcurve::Spiric` (a
+        // torus wall's plane section); it ends `SectionInvariant` today,
+        // though it is one of the chart's own curves and the walk's lane
+        // for it is simply not written
+        // (`work/pcert/a-spiric-run-edge-ends-the-window-walk-as-an-invariant.md`).
+        // A fitted image never comes out of that derivation.
         let (lo, hi) = chart_azimuth_range(&pcurve, t0, t1).ok_or(match &pcurve {
             Pcurve::Projected(_) | Pcurve::General(_) => SplitJoinError::RunImageNotYet {
                 face,
@@ -3171,8 +3174,8 @@ fn run_azimuth_images<T: Decide>(
             },
             _ => SplitJoinError::SectionInvariant {
                 face,
-                what: "a boundary edge's chart image is FITTED — the window walk reads a \
-                       closed-form azimuth",
+                what: "a boundary edge's chart image has no closed-form azimuth box (a spiric \
+                       image) — the window walk reads a closed-form azimuth",
             },
         })?;
         let exit = pcurve.eval(exit_t).x;

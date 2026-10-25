@@ -12001,7 +12001,13 @@ mod tests {
         );
         let got = chart_pcurve(&crest, &torus, band());
         assert!(
-            matches!(got, Err(PcurveCertifyError::NoGeneralLane { .. })),
+            matches!(
+                got,
+                Err(PcurveCertifyError::NoGeneralLane {
+                    gap: LaneGap::Unwritten,
+                    ..
+                })
+            ),
             "a crest parallel centred off the axis: {got:?}"
         );
     }

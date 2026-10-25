@@ -199,7 +199,10 @@ fn each_strut_alone_is_refused_by_its_own_class() {
         matches!(
             e,
             PcurveMintError::Certify {
-                error: PcurveCertifyError::NoGeneralLane { .. },
+                error: PcurveCertifyError::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Unwritten,
+                    ..
+                },
                 ..
             }
         )
