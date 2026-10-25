@@ -2,7 +2,7 @@
 id: authtail
 kind: program
 title: AUTHTAIL — AUTHOR's unblocked tail: what the viewer draws of a thing being authored, and the authoring chrome's hygiene
-status: ready
+status: active
 opened: 2026-10-02
 area: gui
 prefix: authtail/

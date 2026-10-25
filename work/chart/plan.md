@@ -5,7 +5,21 @@ priority seam (`work/README.md`, Track size): the P2–P4 rows went to
 CHARTTAIL, and `min-separation-tightening-crosses-the-drive` went to CLEAR,
 whose ground its whole fix shape is.
 
-## The slate
+## Where it stands (2026-10-25)
+
+Every P0 and P1 row is closed, so the sitting is over and the track is
+`ready`. The region rows were answered together by the model-space cell
+verdict (`topo::cell_region`, PR 5673), and the three region doors share
+one skeleton in `region.rs` (PRs 5671 and 5674). Two P2 rows remain, and
+both are filed off the skeleton's last review:
+
+- `a-landings-edge-parameter-is-spelled-three-times-in-the-region-doors`;
+- `the-region-legs-spell-a-circle-and-a-line-beside-curve3`.
+
+Both are copies inside `region.rs` and its doors. They can run as one
+unit, and they touch nothing INTENT owns.
+
+## The slate as cut
 
 | pri | item | cost | design |
 |---|---|---|---|
