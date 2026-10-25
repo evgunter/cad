@@ -110,7 +110,7 @@
 //!   one. The box stops certifying where that lower end drops under
 //!   `K·ε`, which is why the fraction moves with ε. That width is the
 //!   formula's
-//!   (`work/props/interval-sin-theta-as-cross-over-norms-loses-the-shared-magnitude`).
+//!   (`work/scalar/interval-sin-theta-as-cross-over-norms-loses-the-shared-magnitude`).
 //!
 //! The enclosures, the model, and the fractions and first refusals at
 //! three ε are on
