@@ -144,7 +144,7 @@
 
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
-use geom_core::period::{Exact, Extent, Period, Turn, TurnRows};
+use geom_core::period::{Exact, Extent, NotForward, Period, Turn, TurnRows};
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Margin, Point2, Sign, Vec2,
     is_underflowed_length,
@@ -1794,8 +1794,15 @@ fn wrap_band<T: Decide + Bounds>(
     };
     let (ul, uh) = (extreme(|p| p.0, false), extreme(|p| p.0, true));
     let (vl, vh) = (extreme(|p| p.1, false), extreme(|p| p.1, true));
-    let Some(span) = Extent::hull([outer[ul].x, outer[uh].x]) else {
-        unreachable!("a hull of two values is one")
+    // The extremes are ordered by the exact reads, so the span runs
+    // forward from the least to the greatest; it is decided so rather
+    // than hulled again, which would wrap the corners' expressions in a
+    // `min` and a `max`.
+    let fwd = "chart_region_cyl_wrap_forward";
+    let span = match Extent::forward(fwd, outer[ul].x, outer[uh].x, InfSpeed::new(radius), band) {
+        Ok(span) => span,
+        Err(NotForward::Zero(_) | NotForward::Reversed(_)) => return Ok(None),
+        Err(NotForward::Undecided(diag)) => return Err(ChartRegionError::Escalated(diag)),
     };
     Ok(cyl_wrap_whole(span, radius, band)?.then(|| (outer[vl].y, outer[vh].y)))
 }

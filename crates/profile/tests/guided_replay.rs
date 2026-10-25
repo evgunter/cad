@@ -643,8 +643,14 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
 }
 
 /// The three consistency checks D1 puts on a stored arc
-/// (`crates/profile/src/seg.rs`, `build_seg`).
-const CONSISTENCY: [&str; 3] = ["arc_start_on_carrier", "arc_landing", "arc_sweep_range"];
+/// (`crates/profile/src/seg.rs`, `build_seg`), with the readings each
+/// takes of one arc: `arc_sweep_range` reads two, the arc length and
+/// then its gap to a full turn.
+const CONSISTENCY: [(&str, usize); 3] = [
+    ("arc_start_on_carrier", 1),
+    ("arc_landing", 1),
+    ("arc_sweep_range", 2),
+];
 
 /// **A table is checked at `Interval`; a replayed loop is not
 /// re-checked.** D1: a table's arcs are verified at validate, and an arc
@@ -667,10 +673,11 @@ fn a_table_decides_the_consistency_checks_at_interval_and_a_replayed_loop_does_n
     let decided = bracket.finish().verdicts;
     // Twice per arc: once on the input chain, and again on the
     // canonical chain validation rebuilds.
-    for name in CONSISTENCY {
+    for (name, readings) in CONSISTENCY {
         let asked = decided.iter().filter(|v| v.predicate == name).count();
         assert_eq!(
-            asked, 8,
+            asked,
+            8 * readings,
             "a table's four arcs each decide {name} on both chains at Interval; it was \
              decided {asked} times"
         );
@@ -688,7 +695,7 @@ fn a_table_decides_the_consistency_checks_at_interval_and_a_replayed_loop_does_n
         .iter()
         .map(|v| v.predicate)
         .chain(recorded.escalations.iter().map(|e| e.predicate()))
-        .filter(|n| CONSISTENCY.contains(n))
+        .filter(|n| CONSISTENCY.iter().any(|(name, _)| name == n))
         .collect();
     assert!(
         asked.is_empty(),

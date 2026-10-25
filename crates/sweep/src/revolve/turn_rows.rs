@@ -17,7 +17,7 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Sign, Tol};
 
 use super::RevolveError;
-use super::tube::{TubeDecision, TubeError, arc_window};
+use super::tube::{TubeError, arc_window};
 
 /// What an asker reached.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -109,14 +109,13 @@ fn the_revolve_angle_agrees_with_the_old_pair() {
 /// **The oracle**: the tube's arc window as it was spelled.
 fn old_tube<T: Decide + Into<f64>>(t0: T, t1: T, arm: T, band: Band) -> Outcome {
     let span = t1 - t0;
-    let span_name = TubeDecision::WindowSpan.predicate();
-    match decide(span_name, Margin::levered(span, arm), band) {
+    match decide("tube_window_span", Margin::levered(span, arm), band) {
         Err(cause) => return escalated(cause),
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) => return Outcome::Degenerate,
     }
-    let headroom_name = TubeDecision::WindowHeadroom.predicate();
-    match decide(headroom_name, Margin::levered(T::tau() - span, arm), band) {
+    let headroom = Margin::levered(T::tau() - span, arm);
+    match decide("tube_window_headroom", headroom, band) {
         Err(cause) => escalated(cause),
         Ok(Sign::Positive) => Outcome::Admitted(span.into()),
         Ok(Sign::Zero | Sign::Negative) => Outcome::FullRange,
