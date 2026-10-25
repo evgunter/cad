@@ -154,7 +154,7 @@ fn insert(knots: &mut Vec<f64>, hom: &mut Vec<[Interval; 4]>, p: usize, u: f64) 
 /// # Errors
 ///
 /// [`PropsError::QuadratureUnsupported`] where the carrier interval's
-/// ends are not exact parameters.
+/// ends or the carrier's knots are not exact parameters.
 pub fn rational_edge_q(
     curve: &NurbsCurve3<Interval>,
     t0: Interval,
@@ -171,7 +171,18 @@ pub fn rational_edge_q(
     let p = curve.degree();
     // The carrier in homogeneous coordinates about the reference: `B` in
     // the first three slots, `w` in the fourth.
-    let mut knots = curve.knots_f64_interim().knots().to_vec();
+    // The held knots, each an exact parameter: a wider one refuses.
+    let Some(mut knots) = curve
+        .knot_values()
+        .values()
+        .iter()
+        .map(|&k| exact(k))
+        .collect::<Option<Vec<f64>>>()
+    else {
+        return Err(PropsError::QuadratureUnsupported {
+            what: "a rational rim whose knots are not exact parameters",
+        });
+    };
     let mut hom: Vec<[Interval; 4]> = curve
         .control()
         .iter()
@@ -281,9 +292,14 @@ mod tests {
         .unwrap()
     }
 
+    fn domain(c: &NurbsCurve3<Interval>) -> (f64, f64) {
+        let k = c.knot_values().values();
+        (k[c.degree()].lo(), k[k.len() - 1 - c.degree()].lo())
+    }
+
     fn z_area(c: &NurbsCurve3<Interval>, pieces: usize) -> (Interval, f64) {
         let r = c.control()[0];
-        let (lo, hi) = c.knots_f64_interim().domain();
+        let (lo, hi) = domain(c);
         let e = rational_edge_q(c, iv(lo), iv(hi), true, r).unwrap();
         let (va, rem) = rational_vector_area_split(&e, pieces);
         assert!(
@@ -299,7 +315,7 @@ mod tests {
     fn simpson(c: &NurbsCurve3<Interval>) -> f64 {
         let f = c.map_scalar(|x: Interval| x.lo());
         let r = f.control()[0];
-        let (lo, hi) = f.knots_f64_interim().domain();
+        let (lo, hi) = domain(c);
         let g = |t: f64| {
             let (p, d) = f.ders1(t);
             0.5 * ((p.x - r.x) * d.y - (p.y - r.y) * d.x)

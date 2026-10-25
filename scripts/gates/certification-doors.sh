@@ -215,6 +215,7 @@ CERT_IMPORTERS=(
   crates/geom-brep/src/patch_bound.rs
   crates/geom-brep/src/props/bracket.rs
   crates/geom-brep/src/props/quad.rs
+  crates/geom-brep/src/props/rational_rim.rs
   crates/geom-brep/src/props/spiric.rs
   crates/geom-brep/src/ssi/boundary.rs
   crates/geom-brep/src/ssi/enclose.rs
