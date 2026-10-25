@@ -69,3 +69,22 @@ built on SECT's critical path. Filed SECT's
 `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`, parked on
 SECT step 1 and on `delete-the-boolean-operand-edge-gate`. Lily wall 8
 stays this track's first demo witness.
+
+## 2026-10-25 — PR 5719 (carrier walk) reviewed
+
+Single full review (`session_01WJhm39zKSMKSiECpcoahqv`, on c2e7a187):
+MERGEABLE, no MAJOR. Every claim held, and the reviewer measured each
+one. The spiric differential against main is byte-identical (2400
+rows). A random-spline crossing fuzz ran 5680 queries per scalar with
+0 wrong, and goes red 149 times with the monotone gate removed. The fix
+list went to the lane: route the window net through
+`SpanLocate::restrict_window`, drop zero-width end pieces, move the
+on-point to mid-piece, adopt the fuzz as a row, and fix three stale
+prose sites.
+
+**Class noted at adjudication:** a hand-rolled homogeneous window net
+(`span_row` divided per channel) beside the certified per-scalar door
+`SpanLocate::restrict_window`. The new copy bypassed the door's
+argument contract and its [0,1] clamp at Interval. The one other
+`span_row` caller outside geom-core is `derivative.rs`. Any lane that
+needs a spline window's Bézier net reads it through `restrict_window`.
