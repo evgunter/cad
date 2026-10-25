@@ -11,10 +11,13 @@ This page states how the mesher sizes its output to keep that promise.
 `[mesh.sizing]`
 
 **Each lane sizes its grid so that the worst triangle its own
-triangulation can admit certifies at exactly δ, by a theorem stated
-and pinned at that lane's step function.** There is no global safety
-factor. A lane's step is the coarsest that its theorem allows: unspent
-δ is a defect, not a margin.
+triangulation can admit certifies within δ and above δ/2, by a theorem
+stated and pinned at that lane's step function.** A lane never
+over-refines. Where a step inverts the lane's certificate continuously
+it is the coarsest that the theorem allows, and its worst triangle
+lands at δ. A lane whose schedule is discrete (a repeated halving, say)
+may land anywhere in (δ/2, δ]. There is no global safety factor, and
+unspent δ beyond that factor of two is a defect, not a margin.
 
 - **The theorem is the lane's.** It names the worst admissible
   triangle and bounds it in closed form:
@@ -23,8 +26,9 @@ factor. A lane's step is the coarsest that its theorem allows: unspent
   - the Delaunay sliver beside an off-lattice point where the
     triangulation admits one.
 
-  It is pinned with equality, in the shape of
-  `torus_grid_steps_meet_the_bound_with_equality`. A constant that
+  It is pinned, in the shape of
+  `torus_grid_steps_meet_the_bound_with_equality`: with equality at a
+  continuous step, and inside (δ/2, δ] at a discrete one. A constant that
   follows from a lane's theorem is written as derived from it, never
   by hand: the NURBS lane's residual line `MAX_RESIDUAL_SQ` is its
   sliver theorem solved for the aspect.
@@ -50,8 +54,9 @@ the sizing rule. Each says which kind it is at its definition:
 - **structural:** `MAX_ANGULAR_STEP`, so that unwrapping picks its
   branch unambiguously; `MAX_COUNT`, an allocation cap;
 - **quality:** the NURBS split's aspect cap `ASPECT_CAP` (A = 16,
-  `docs/TESS-BUDGET.md`), a regularizer of the split optimizer and not
-  a shape promise;
+  `docs/TESS-BUDGET.md`), a heuristic regularizer of the split
+  optimizer, not a shape promise, and open to replacement by the
+  criterion it stands in for;
 - **termination:** `trimmed::MAX_GRID_RETRIES`, which decides refuse
   or continue and never a mesh's shape;
 - **certificate resolution:** the rational bound's piece count

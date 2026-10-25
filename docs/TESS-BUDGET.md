@@ -725,7 +725,9 @@ hazard below). It is not a promise about mesh shape. The kernel makes
 none (`[tolerance.chordal]`), and lanes outside the NURBS split, such
 as the cylinder wall's one-row strips (issue 685), are not bound by it.
 A shape promise would be a new decision, lane-independent, made for a
-named consumer.
+named consumer. A is a heuristic, not a principle. It is kept while
+it earns its place, and it is open to replacement by the criterion it
+stands in for: the sliver hazard below.
 
 ### The sliver hazard the schedule is built around
 
