@@ -130,9 +130,12 @@ fn assert_six(
                             }) => {}
                     (got, _) => panic!("{label}: tier 3′ for {want:?}: {got:?}"),
                 }
+                // Relative to the op's own volume: an absolute floor
+                // would pass any result of a millimetre pose (pair 82's
+                // small ball is 9.5e-10 m³).
                 let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
                 assert!(
-                    (v - volume).abs() <= 1e-9 * volume.max(1.0),
+                    (v - volume).abs() <= 1e-9 * volume,
                     "{label}: volume {v} against the slice integral {volume}"
                 );
             }
