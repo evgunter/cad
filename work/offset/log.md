@@ -231,3 +231,21 @@ report). Built as three units (plan.md), the exemption last and alone so
 Ev's reservation can drop it cheaply. SELECT's
 `closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`
 is claimed as unit 1 (moved here).
+
+## 2026-10-25 — conic unit 1 stops on DL1; unit 2 un-parks (OFFSET orchestrator)
+
+Unit 1's lane (`offset/limb2-for-every-carrier`, head `452e7d8757`, no PR)
+stopped before opening a PR, rightly. Limb 2 for every closed-form carrier
+needs the `NurbsLane`. `AtRestPolicy::nurbs_lane` is `None` at `Dual64`,
+per DUAL-DESIGN DL1 ("a Dual is tangent transport and never certifies",
+ratified #1146), so 39 of 63 dual rows refuse. It also measured the cost:
+a full circle's limb 2 takes 5.7 ms, a spiric 8–17 ms, and 13 curved-boolean
+rows run 12× slower. Ev's new C2 ("limbs 1–2 owed by every carrier") and
+DL1 conflict at the dual. That is a design fork, so unit 1 parks on the
+lane's fork row and the row goes to designers. The lane also filed the
+cost row and the spiric-net row (the net is tight enough; long ovals halve
+to clear).
+
+My error: unit 2 was parked on unit 1, but the arc is a NURBS carrier and
+already owes limb 2 through the existing path. Unit 2 is un-parked and
+dispatched.
