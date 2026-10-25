@@ -218,7 +218,7 @@ fn circle_arc_reach<T: Real>(
             .crest_outside(away.0, away.1)
             .select_le_zero(crest, T::zero()),
     )
-        .min(w.norm() + r.abs())
+    .min(w.norm() + r.abs())
 }
 
 /// **How far an ellipse arc reaches from a point**: an upper bound on

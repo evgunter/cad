@@ -6015,7 +6015,9 @@ fn edge_reach_of<T: Decide>(
                 n,
             )
             .unwrap_or_else(|| {
-                unreachable!("census edge reach: the conic rule carries a Circle or Ellipse carrier")
+                unreachable!(
+                    "census edge reach: the conic rule carries a Circle or Ellipse carrier"
+                )
             });
             Span { lo, hi }
         };
