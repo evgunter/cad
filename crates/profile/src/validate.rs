@@ -955,7 +955,7 @@ pub const DECISION_ENDINGS: &[DecisionEnding] = &[
         name: "path_arc_branch_resolution",
         kind: EndingKind::Lever(ARC_SCENE_RESOLUTION_RECOURSE),
     },
-    // an authored sweep angle metered against zero
+    // an authored sweep's arc length, metered at its radius, against zero
     DecisionEnding {
         name: "path_arc_sweep",
         kind: EndingKind::Lever(COINCIDENCE_RECOURSE),

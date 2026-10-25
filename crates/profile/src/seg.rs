@@ -21,9 +21,10 @@
 
 use geom_core::k_stats::{check_unlogged, decide, decide_reported};
 use geom_core::one_line::on_one_line_2d;
+use geom_core::period::{Exact, Extent, Period, Turn, TurnRows};
 use geom_core::{
-    Arc2, Band, Circles2, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign,
-    Vec2,
+    Arc2, Band, Circles2, Decide, Decided, Indeterminate, InfSpeed, Margin, MarginDiag, Point2,
+    Real, Sign, Vec2,
 };
 
 use crate::Segment;
@@ -250,12 +251,11 @@ pub(crate) enum Consistency {
 ///   segment (the Q1 sliver semantics: within band ⇒ escalation).
 /// - **`arc_sweep_range`** (arcs only, and only under
 ///   [`Consistency::Decide`], refused typed as the consistency checks
-///   below are) — margin: r·|Δθ|·(2π − |Δθ|)/2π (meters: the
-///   dimensionless range product levered by the radius — the arc
-///   length r·|Δθ| near an empty sweep and the gap r·(2π − |Δθ|) near a
-///   full turn), with |Δθ| the stored sweep's magnitude. Positive ⇒
-///   0 < |Δθ| < 2π; a sweep past a full turn is Negative. A full turn
-///   is Zero here and refused: between two vertices it is a zero chord,
+///   below are) — two margins, in meters at the radius: the arc length
+///   r·Δθ, definitely nonzero (its sign is the turn sense), then the gap
+///   r·(2π − |Δθ|) to a full turn (the turn rule, [`Period::turn`]),
+///   which must be definitely short: 0 < |Δθ| < 2π. A full turn
+///   is refused here: between two vertices it is a zero chord,
 ///   and D1's full turn is one segment at one vertex
 ///   ([`build_loop_seg`]'s other arm). Asked before the straightness
 ///   read because that read's tan(Δθ/4) is 4π-periodic: a sweep of
@@ -305,7 +305,7 @@ pub(crate) fn build_seg<T: Decide>(
             b,
             segment,
             band,
-            |arc| sweep_range(arc, arc.sweep.abs(), Range::Chord, band),
+            |arc| sweep_range(arc, Range::Chord, band),
             |arc| check_carrier(arc, a, b, band),
         ),
         Consistency::ByConstruction => {
@@ -330,9 +330,9 @@ pub(crate) fn build_loop_seg<T: Decide>(
     let a = vertices[k];
     match segments[k] {
         Segment::Arc(arc) if crate::is_full_turn(segments) => match consistency {
-            Consistency::Decide => full_turn(a, arc, band, |arc, span| {
+            Consistency::Decide => full_turn(a, arc, band, |arc| {
                 check_carrier(arc, a, a, band)?;
-                sweep_range(arc, span, Range::FullTurn, band)
+                sweep_range(arc, Range::FullTurn, band)
             }),
             // No door constructs a full turn yet, so nothing has yet
             // shown a construction that writes one exactly (its start
@@ -341,7 +341,7 @@ pub(crate) fn build_loop_seg<T: Decide>(
             // constructed arc. `circle-lowers-to-one-segment` owns that
             // construction and its proof.
             Consistency::ByConstruction => {
-                full_turn(a, arc, band, |_, _| Ok(())).map_err(SegIssue::Shape)
+                full_turn(a, arc, band, |_| Ok(())).map_err(SegIssue::Shape)
             }
         },
         _ => build_seg(
@@ -370,10 +370,9 @@ pub(crate) fn build_loop_seg<T: Decide>(
 ///   is refused as degenerate rather than read as a line.
 /// - **The consistency checks** (under [`Consistency::Decide`]), as
 ///   [`build_seg`] states them with `b = a`, except that
-///   **`arc_sweep_range`** reads the full-turn factor of its range
-///   product, r·(2π − |Δθ|), and ACCEPTS Zero — |Δθ| = 2π — refusing
-///   either sign: short of a full turn, or past it (a landing two
-///   turns round is Zero at `arc_landing`).
+///   **`arc_sweep_range`** reads the same two margins and ACCEPTS a
+///   whole turn — |Δθ| = 2π — refusing short of it or past it (a
+///   landing two turns round is Zero at `arc_landing`).
 ///
 /// No `arc_diameter_clearance`: a full turn is the circle that gate
 /// keeps chord arcs short of. Its span is [`ArcSpan::FullTurn`]: every
@@ -384,7 +383,7 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
     a: Point2<T>,
     arc: Arc2<T>,
     band: Band,
-    check: impl FnOnce(Arc2<T>, T) -> Result<(), E>,
+    check: impl FnOnce(Arc2<T>) -> Result<(), E>,
 ) -> Result<Seg<T>, E> {
     let escalated = |source| E::from(ShapeIssue::Escalated(source));
     let reach = Margin::levered(arc.sweep / T::tau(), arc.radius + arc.radius);
@@ -397,11 +396,7 @@ fn full_turn<T: Decide, E: From<ShapeIssue<T>>>(
         Sign::Zero => return Err(ShapeIssue::DegenerateTurn { margin: m }.into()),
         turn @ (Sign::Positive | Sign::Negative) => turn,
     };
-    let span = match turn {
-        Sign::Negative => arc.reversed().sweep,
-        Sign::Positive | Sign::Zero => arc.sweep,
-    };
-    check(arc, span)?;
+    check(arc)?;
     let kind = SegKind::Arc(ArcGeom {
         arc,
         span: ArcSpan::FullTurn,
@@ -922,27 +917,27 @@ fn read_back<T: Decide>(
 }
 
 /// Validation's third consistency check, `arc_sweep_range`, of a stored
-/// arc's sweep magnitude `span` against the sweeps `range` accepts
-/// ([`build_seg`] states the margin, [`full_turn`] the full turn's).
-fn sweep_range<T: Decide>(
-    arc: Arc2<T>,
-    span: T,
-    range: Range,
-    band: Band,
-) -> Result<(), SegIssue<T>> {
-    let tau = T::tau();
-    let (ratio, accept) = match range {
-        Range::Chord => (span * (tau - span) / tau, Sign::Positive),
-        Range::FullTurn => (tau - span, Sign::Zero),
+/// arc's sweep against the sweeps `range` accepts ([`build_seg`] states
+/// the margins, [`full_turn`] the full turn's): its arc length at the
+/// radius, decided definitely nonzero, and that magnitude against one
+/// turn (the turn rule, [`Period::turn`]), a chord arc's short of it
+/// and a full turn's whole.
+fn sweep_range<T: Decide>(arc: Arc2<T>, range: Range, band: Band) -> Result<(), SegIssue<T>> {
+    let inconsistent = || SegIssue::Inconsistent {
+        check: ArcCheck::SweepRange,
     };
-    let read = decide("arc_sweep_range", Margin::levered(ratio, arc.radius), band)
-        .map_err(SegIssue::escalated)?;
-    if read == accept {
-        Ok(())
-    } else {
-        Err(SegIssue::Inconsistent {
-            check: ArcCheck::SweepRange,
-        })
+    let name = "arc_sweep_range";
+    let (_, sweep) = Extent::decide_signed(name, arc.sweep, InfSpeed::new(arc.radius), band)
+        .map_err(|source| match source.margin.rejected_sign() {
+            Some(Sign::Zero) => inconsistent(),
+            _ => SegIssue::escalated(source),
+        })?;
+    let turn = Period::new(T::tau())
+        .turn(TurnRows::exact(name), sweep, Exact::new(arc.radius), band)
+        .map_err(|undecided| SegIssue::escalated(undecided.diag))?;
+    match (range, turn) {
+        (Range::Chord, Turn::Short(_)) | (Range::FullTurn, Turn::Whole(_)) => Ok(()),
+        _ => Err(inconsistent()),
     }
 }
 

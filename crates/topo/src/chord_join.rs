@@ -123,6 +123,7 @@
 //! ruling, which refuses.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
+use geom_core::period::{Exact, Extent, Period, Turn, TurnRows};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -5195,19 +5196,22 @@ fn chart_ring_side<T: Decide>(
     let (lo, hi) = azimuth_hull(&images).ok_or(invariant(
         "ring re-homing on a chart: the run carries no charted edge",
     ))?;
-    let decide_m = |name, margin| {
-        decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
-    };
     // A run whose window is a whole period (a band round a full-turn
     // face, closed along its seam) holds the seam's azimuth at both `lo`
     // and `hi`. A ring vertex there reads alike at either: the half-open
     // rule reads it just inside `lo` or just past `hi`, and just inside
     // `lo` the run lies only beside its rows along `lo`, which the ray
     // meets only from a vertex on them.
-    if decide_m(
-        "split_ring_chart_window",
-        Margin::levered(tau - (hi - lo), radius),
-    )? == Sign::Negative
+    let Some(window) = Extent::hull([lo, hi]) else {
+        unreachable!("a hull of two values is one")
+    };
+    let rows = TurnRows::exact("split_ring_chart_window");
+    if let Turn::Over(_) = Period::new(tau)
+        .turn(rows, window, Exact::new(radius), band)
+        .map_err(|undecided| SplitJoinError::Escalated {
+            face: newf,
+            diag: undecided.diag,
+        })?
     {
         return Err(invariant(
             "ring re-homing on a chart: the run's azimuth window spans more than a full period, \

@@ -57,10 +57,11 @@
 //! about the shared axis maps that to 3-D verbatim.
 
 use geom_core::k_stats::decide;
+use geom_core::period::{Exact, Extent, NotForward, Period, Turn, TurnRows};
 use geom_core::predicate::BandError;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Mat3, Point2, Point3, Real, RigidMotion, Sign,
-    Tol, Vec2,
+    Affine3, Band, Decide, Indeterminate, InfSpeed, Margin, Mat3, Point2, Point3, Real,
+    RigidMotion, Sign, Tol, Vec2,
 };
 
 use super::axis::AxisFrame;
@@ -471,17 +472,30 @@ fn build<T: Decide + topo::AtRestPolicy>(
     let (theta, full) = match window {
         TubeWindow::Full => (T::tau(), true),
         TubeWindow::Arc { t0, t1 } => {
-            let span = t1 - t0;
-            match classify(TubeDecision::WindowSpan, Margin::levered(span, arm))? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(TubeError::DegenerateWindow),
+            let escalated = |decision: TubeDecision, source: Indeterminate| {
+                debug_assert_eq!(
+                    source.predicate,
+                    Some(decision.predicate()),
+                    "the escalation names its decision"
+                );
+                TubeError::Escalated { decision, source }
+            };
+            let span_name = TubeDecision::WindowSpan.predicate();
+            let span = Extent::forward(span_name, t0, t1, InfSpeed::new(arm), band).map_err(
+                |refused| match refused {
+                    NotForward::Undecided(source) => escalated(TubeDecision::WindowSpan, source),
+                    NotForward::Zero(_) | NotForward::Reversed(_) => TubeError::DegenerateWindow,
+                },
+            )?;
+            let rows = TurnRows::exact(TubeDecision::WindowHeadroom.predicate());
+            match Period::new(T::tau()).turn(rows, span, Exact::new(arm), band) {
+                Ok(Turn::Short(_)) => {}
+                Ok(Turn::Whole(_) | Turn::Over(_)) => return Err(TubeError::FullRangeWindow),
+                Err(undecided) => {
+                    return Err(escalated(TubeDecision::WindowHeadroom, undecided.diag));
+                }
             }
-            let headroom = Margin::levered(T::tau() - span, arm);
-            match classify(TubeDecision::WindowHeadroom, headroom)? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(TubeError::FullRangeWindow),
-            }
-            (span, false)
+            (span.get(), false)
         }
     };
 

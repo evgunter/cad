@@ -144,6 +144,7 @@
 
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
+use geom_core::period::{Exact, Extent, Period, Turn, TurnRows};
 use geom_core::{
     Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Margin, Point2, Sign, Vec2,
     is_underflowed_length,
@@ -1403,8 +1404,9 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// overlap question collapses to the axial interval intersection —
 /// decided exactly, no fold needed, BEFORE the fold can decline it:
 ///
-/// - `chart_region_cyl_wrap` — a rectangle's azimuth span less τ,
-///   levered by the radius to metres; `Zero` = full wrap.
+/// - `chart_region_cyl_wrap` — a rectangle's azimuth span against one
+///   turn at the radius, the turn rule ([`Period::turn`]); a whole turn
+///   is a full wrap.
 /// - `chart_region_cyl_band` — the axial overlap of the two bands in
 ///   metres: `Positive` proceeds to the area claim, `Negative` is the
 ///   certified [`ChartOverlap::Empty`] (the stale-declaration arm),
@@ -1744,7 +1746,7 @@ fn window_mid<T: Decide + Bounds>(uv: &FaceUv<T>) -> T {
 /// `Some((v_lo, v_hi))` when the polygon is exactly four exact-point
 /// vertices forming an axis-aligned rectangle in chart coordinates
 /// (C6: structure read as structure) whose azimuth span is decidedly
-/// one period (`chart_region_cyl_wrap`, levered by the radius);
+/// one period (`chart_region_cyl_wrap`, a whole turn at the radius);
 /// `None` otherwise — the general walk's ground.
 ///
 /// # Errors
@@ -1792,15 +1794,14 @@ fn wrap_band<T: Decide + Bounds>(
     };
     let (ul, uh) = (extreme(|p| p.0, false), extreme(|p| p.0, true));
     let (vl, vh) = (extreme(|p| p.1, false), extreme(|p| p.1, true));
-    let span = outer[uh].x - outer[ul].x;
-    match decide(
-        "chart_region_cyl_wrap",
-        Margin::levered(span - T::tau(), radius),
-        band,
-    ) {
-        Ok(Sign::Zero) => Ok(Some((outer[vl].y, outer[vh].y))),
-        Ok(_) => Ok(None),
-        Err(diag) => Err(ChartRegionError::Escalated(diag)),
+    let Some(span) = Extent::hull([outer[ul].x, outer[uh].x]) else {
+        unreachable!("a hull of two values is one")
+    };
+    let rows = TurnRows::exact("chart_region_cyl_wrap");
+    match Period::new(T::tau()).turn(rows, span, Exact::new(radius), band) {
+        Ok(Turn::Whole(_)) => Ok(Some((outer[vl].y, outer[vh].y))),
+        Ok(Turn::Short(_) | Turn::Over(_)) => Ok(None),
+        Err(undecided) => Err(ChartRegionError::Escalated(undecided.diag)),
     }
 }
 
@@ -2797,8 +2798,8 @@ fn v_window<T: Decide + Bounds>(a: &FaceUv<T>, b: &FaceUv<T>) -> Option<(T, T)> 
 /// The seam-branch gate: on a periodic chart, EVERY extracted vertex
 /// of both faces must fit one closed period-wide azimuth window
 /// (span ≤ τ admits the exact full-wrap wall; a definite excess means
-/// the loops sit on different pinned branches). The span excess is
-/// radians, levered by the azimuth arm to metres.
+/// the loops sit on different pinned branches): the span's hull against
+/// one turn at the azimuth arm, the turn rule ([`Period::turn`]).
 fn seam_gate<T: Decide + Bounds>(
     surface: &Surface<T>,
     a: &FaceUv<T>,
@@ -2808,38 +2809,19 @@ fn seam_gate<T: Decide + Bounds>(
     let Surface::Cylinder { radius, .. } = *surface else {
         return Ok(()); // plane charts do not wrap; other kinds refused at the arm gate
     };
-    let mut u_min: Option<T> = None;
-    let mut u_max: Option<T> = None;
-    let mut visit = |poly: &Vec<Point2<T>>| {
-        for p in poly {
-            u_min = Some(match u_min {
-                None => p.x,
-                Some(m) => m.min(p.x),
-            });
-            u_max = Some(match u_max {
-                None => p.x,
-                Some(m) => m.max(p.x),
-            });
-        }
-    };
-    visit(&a.outer);
-    a.rings.iter().for_each(&mut visit);
-    visit(&b.outer);
-    b.rings.iter().for_each(&mut visit);
-    let (Some(lo), Some(hi)) = (u_min, u_max) else {
+    let loops = [a, b]
+        .into_iter()
+        .flat_map(|uv| core::iter::once(&uv.outer).chain(&uv.rings));
+    let Some(span) = Extent::hull(loops.flatten().map(|p| p.x)) else {
         return Err(ChartRegionError::Corrupt);
     };
-    let excess = (hi - lo) - T::tau();
-    match decide(
-        "chart_region_seam_span",
-        Margin::levered(excess, radius),
-        band,
-    ) {
-        // A definite excess: no common branch. Zero (the exact
-        // full-wrap wall pair) and definite negatives proceed.
-        Ok(Sign::Positive) => Err(ChartRegionError::SeamBranch),
-        Ok(_) => Ok(()),
-        Err(diag) => Err(ChartRegionError::Escalated(diag)),
+    let rows = TurnRows::exact("chart_region_seam_span");
+    match Period::new(T::tau()).turn(rows, span, Exact::new(radius), band) {
+        // Over a turn: no common branch. A whole turn (the exact
+        // full-wrap wall pair) and a short one proceed.
+        Ok(Turn::Over(_)) => Err(ChartRegionError::SeamBranch),
+        Ok(Turn::Short(_) | Turn::Whole(_)) => Ok(()),
+        Err(undecided) => Err(ChartRegionError::Escalated(undecided.diag)),
     }
 }
 

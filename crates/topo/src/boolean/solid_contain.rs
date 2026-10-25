@@ -191,6 +191,7 @@
 //!   face offers an aim that reads, **`bool_point_in_solid_infinity`**,
 //!   the selection's signed volume scaled to a length (`V/A`), does.
 
+use geom_core::period::{Exact, Extent, Period, Turn, TurnRows, Within};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -1350,17 +1351,15 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             // `r̂ = ±â` — no vertex lookup and no `atan2`.
             let half = T::from_f64(0.5);
             let width = t1 - t0;
-            match decide(
-                "bool_sphere_trim_meridian_span",
-                Margin::levered(T::tau() - width, radius),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Sign::Positive => {}
+            // The edge's own turn, as its certificate decided it.
+            let Some(turn) = curve.certificate().turn else {
+                unreachable!("check 2 mints a turn for every circle")
+            };
+            match turn.turn() {
+                Within::Short => {}
                 // A full-period meridian edge runs through BOTH poles
                 // and has no angular gate to test: out of the class.
-                Sign::Zero | Sign::Negative => return Ok(None),
+                Within::Whole => return Ok(None),
             }
             let m_hat = chart_dir(n_c, u_c, geom::mid_param(t0, t1));
             let (_, c_h) = (width * half).sin_cos();
@@ -1473,16 +1472,17 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             }
             (None, bounding)
         }
-        None => match decide(
-            "bool_sphere_trim_period",
-            Margin::levered(T::tau() - (raw.1 - raw.0), radius),
-            band,
-        )
-        .map_err(escalate)?
-        {
-            Sign::Positive => (Some(raw), levels),
-            Sign::Zero | Sign::Negative => return Ok(None),
-        },
+        None => {
+            let Some(window) = Extent::hull([raw.0, raw.1]) else {
+                unreachable!("a hull of two values is one")
+            };
+            let rows = TurnRows::exact("bool_sphere_trim_period");
+            match Period::new(T::tau()).turn(rows, window, Exact::new(radius), band) {
+                Ok(Turn::Short(_)) => (Some(raw), levels),
+                Ok(Turn::Whole(_) | Turn::Over(_)) => return Ok(None),
+                Err(undecided) => return Err(escalate(undecided.diag)),
+            }
+        }
     };
     // Only a face that wraps alone can leave no level: one with no rim
     // and no vertex on a pole has no unmated boundary at all, so it is

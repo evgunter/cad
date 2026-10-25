@@ -4427,31 +4427,10 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
             }
         }
         // A span of at most one period is what makes the MIDPOINT
-        // anchor's branch the right one, and it is CHECKED rather than
-        // assumed: past a period the azimuth aliases by 2π silently,
-        // and `split_edge`'s interiority gate cannot see it (an aliased
-        // parameter is still inside a span that long). The row is the
-        // period guard the boundary pre-pass's conic arm already spells,
-        // metered the same way; a full turn is `Zero` and passes.
-        match decide(
-            "bool_split_span_period",
-            Margin::levered(T::tau() - (t1 - t0), radius),
-            band,
-        ) {
-            Ok(Sign::Positive | Sign::Zero) => {}
-            Ok(Sign::Negative) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "circle edge span exceeds one period; the split azimuth \
-                           would alias by a turn",
-                });
-            }
-            Err(diag) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::ArcSpan,
-                    diag,
-                });
-            }
-        }
+        // anchor's branch the right one (past a period the azimuth
+        // aliases by 2π silently, and `split_edge`'s interiority gate
+        // cannot see it): the edge's certificate holds its turn, which
+        // is never over one ([`geom_brep::CertifiedTurn`]).
     }
     let t = curve
         .carrier()

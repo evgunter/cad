@@ -132,12 +132,12 @@ mod upgrade;
 use core::fmt;
 
 use crate::swept::CapPlaneError;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::k_stats::NonzeroSign;
+use geom_core::period::{Exact, Extent, Period, Turn, TurnRows};
+use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, DihedralReading, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
-
-use crate::swept::decide;
 
 /// The predicate names a revolve's cosurface decision reports under
 /// (the revolution walls: planes, cylinders and cones from lines,
@@ -986,19 +986,26 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     let (theta, reverse, full) = match revolution {
         Revolution::Full => (T::tau(), true, true),
         Revolution::Partial(t) => {
-            let sign = decide("revolve_angle", Margin::levered(t, r_max), band)
-                .map_err(|source| RevolveError::AngleEscalated { source })?;
+            let (sign, angle) =
+                Extent::decide_signed("revolve_angle", t, InfSpeed::new(r_max), band).map_err(
+                    |source| match source.margin.rejected_sign() {
+                        Some(Sign::Zero) => RevolveError::DegenerateAngle,
+                        _ => RevolveError::AngleEscalated { source },
+                    },
+                )?;
             let reverse = match sign {
-                Sign::Zero => return Err(RevolveError::DegenerateAngle),
-                Sign::Positive => true,
-                Sign::Negative => false,
+                NonzeroSign::Positive => true,
+                NonzeroSign::Negative => false,
             };
-            let headroom = Margin::levered(T::tau() - t.abs(), r_max);
-            match decide("revolve_angle_headroom", headroom, band)
-                .map_err(|source| RevolveError::AngleEscalated { source })?
-            {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => return Err(RevolveError::FullRangeAngle),
+            let rows = TurnRows::exact("revolve_angle_headroom");
+            match Period::new(T::tau()).turn(rows, angle, Exact::new(r_max), band) {
+                Ok(Turn::Short(_)) => {}
+                Ok(Turn::Whole(_) | Turn::Over(_)) => return Err(RevolveError::FullRangeAngle),
+                Err(undecided) => {
+                    return Err(RevolveError::AngleEscalated {
+                        source: undecided.diag,
+                    });
+                }
             }
             (t, reverse, false)
         }

@@ -67,7 +67,8 @@
 //! [`ArcData`](super::program::ArcData) enum.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::period::{Exact, Extent, NotForward, Period, Turn, TurnRows};
+use geom_core::{Band, Decide, InfSpeed, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::arc_fillet::{ArcFilletTrims, FilletSide, SideCarrier};
 use super::{Dir, PathError, unit_from_components};
@@ -393,9 +394,10 @@ pub(crate) fn via_carrier<T: Decide>(
 /// the side's travel sense, and the leg's arc — the authored radius as
 /// its magnitude `|r|`, and Δθ = 4·atan(X) with X = tan(θ/4) of the
 /// signed angle, the authored angle's own quarter-tangent. The swept
-/// angle is gated definitely positive (`path_arc_sweep`) and definitely
-/// short of a full turn (`path_arc_sweep_full`, on the arc length
-/// `r(2π − θ)`), so 4·atan(tan(θ/4)) is θ over the reals.
+/// angle is gated definitely positive (`path_arc_sweep`, on the arc
+/// length `r·θ`) and definitely short of a full turn
+/// (`path_arc_sweep_full`, the turn rule at `r`), so 4·atan(tan(θ/4)) is
+/// θ over the reals.
 ///
 /// **The arc's endpoint facts are theorems** (the leg registers them):
 /// the centre is the authored radius off the start along the unit
@@ -427,12 +429,28 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
     gate_positive("path_arc_center_radius", r, band, |radius| {
         PathError::DegenerateArcCenter { radius }
     })?;
-    gate_positive("path_arc_sweep", angle, band, |value| {
-        PathError::DegenerateArcSpec { value }
-    })?;
-    gate_positive("path_arc_sweep_full", r * (T::tau() - angle), band, |_| {
-        PathError::ArcSweepNotShortOfFullTurn { angle }
-    })?;
+    // The swept angle, the span from the start's angle, crosses to
+    // metres at the radius it turns on: an arc length, decided
+    // definitely positive, then short of one turn.
+    let sweep = Extent::forward("path_arc_sweep", T::zero(), angle, InfSpeed::new(r), band)
+        .map_err(|refused| match refused {
+            NotForward::Undecided(source) => PathError::Escalated { source },
+            NotForward::Zero(_) | NotForward::Reversed(_) => {
+                PathError::DegenerateArcSpec { value: angle }
+            }
+        })?;
+    let rows = TurnRows::exact("path_arc_sweep_full");
+    match Period::new(T::tau()).turn(rows, sweep, Exact::new(r), band) {
+        Ok(Turn::Short(_)) => {}
+        Ok(Turn::Whole(_) | Turn::Over(_)) => {
+            return Err(PathError::ArcSweepNotShortOfFullTurn { angle });
+        }
+        Err(undecided) => {
+            return Err(PathError::Escalated {
+                source: undecided.diag,
+            });
+        }
+    }
     let sgn = side.sign::<T>();
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
     let centre = dp.at + n * (sgn * r);
