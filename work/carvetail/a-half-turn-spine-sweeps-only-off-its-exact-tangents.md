@@ -4,7 +4,7 @@ kind: issue
 title: sweep_body refuses a planar half-turn spine with exact end tangents (PathTangentReversal) and builds it only off a float knife edge
 status: open
 opened: 2026-10-02
-priority: P2
+priority: P0
 cost: M
 ---
 
@@ -90,3 +90,11 @@ frame through a door) is now what stands between the scene and
 `sweep_body` again. Untried here: whether `lofted_loop` builds on
 `exact_spine`, which would let the scene put its caps flat on the rims
 without any kernel change.
+
+## Raised to P0 (Ev, in chat, 2026-10-25)
+
+Ev made this P0: a planar half-turn is an ordinary sweep path, and the
+klein scene's loft through stated frames is a workaround for this
+refusal, not a construction anyone should have to write. The scene's
+comments and `demos/README.md` now say so, and wall 9's retirement
+instruction is the switch back to `sweep_body` on `exact_spine`.

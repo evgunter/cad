@@ -34,7 +34,7 @@
 //! concave edge (SELECT-DESIGN GS-Q2 reserves `Convex`/`Reflex`
 //! unbuilt), so the scene separates them through `query::rim_of`,
 //! which refuses a co-surface seed by name. That residue is a library
-//! finding (`work/tquery/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam.md`).
+//! finding (`work/wiretail/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam.md`).
 //!
 //! **Every oracle here is closed-form, not bit-exact.** The radii are
 //! the ones a person picks, so the volumes are irrational and are held
