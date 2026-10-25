@@ -381,7 +381,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
             vec![],
         )),
     );
-    let ev = Evaluation::<f64>::hand_built(doc.id(), vec![node], nodes);
+    let ev = Evaluation::<f64>::hand_built(doc.id(), vec![node], nodes, Tol::witness());
     let mut ranked = base.clone();
     ranked
         .path
@@ -1500,7 +1500,7 @@ fn one_node_eval(
             vec![],
         )),
     );
-    Evaluation::<f64>::hand_built(document, vec![node], nodes)
+    Evaluation::<f64>::hand_built(document, vec![node], nodes, Tol::witness())
 }
 
 fn body_ent(i: u32) -> editor_core::EntityRef {

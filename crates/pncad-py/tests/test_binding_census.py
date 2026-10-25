@@ -4240,6 +4240,12 @@ MEMBERS_NOT_BOUND = {
     # `variant == "unplaced_below"`, its `parts` naming each.
     "Evaluation::epoch": INTERIOR,
     "Evaluation::appearance": SHAPE,
+    # The content pin and the tolerance a run records are what the E4/E5
+    # report binds its build of record by, and that report is unbound;
+    # Python's `evaluate` never asks for a pin (`EvalOptions::pin`'s
+    # roster row), and its process holds one tolerance.
+    "Evaluation::pin": INTERIOR,
+    "Evaluation::tolerance": INTERIOR,
     # `EditRecord` is `different-shape`: `Doc.apply` mutates in place and
     # answers `Optional[NodeId]`, so there is no record list to hand
     # back.

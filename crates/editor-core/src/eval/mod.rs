@@ -927,14 +927,15 @@ impl NodeValue<f64> {
 
 #[cfg(any(test, feature = "test-support"))]
 impl Evaluation<f64> {
-    /// A completed evaluation of `document` holding `nodes` in `order`,
-    /// each node's one output read through the variable [`Self::hand_read`]
-    /// mints for it.
+    /// A completed evaluation of `document` at `tol`, holding `nodes` in
+    /// `order`, each node's one output read through the variable
+    /// [`Self::hand_read`] mints for it.
     #[must_use]
     pub fn hand_built(
         document: crate::DocumentId,
         order: Vec<RecipeNodeId>,
         nodes: BTreeMap<RecipeNodeId, NodeResult<f64>>,
+        tol: Tol,
     ) -> Self {
         let reads = nodes
             .keys()
@@ -944,7 +945,7 @@ impl Evaluation<f64> {
             epoch: crate::Epoch::mint(),
             document,
             pin: None,
-            tolerance: tolerance_of(Tol::witness()),
+            tolerance: tolerance_of(tol),
             prior_refused: None,
             recomputed: order.len(),
             order,

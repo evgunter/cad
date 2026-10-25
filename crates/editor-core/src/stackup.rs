@@ -2105,20 +2105,30 @@ mod tests {
         (measured.doc, depth_var, measured.measured.outputs[0])
     }
 
-    /// `doc`'s build-path evaluation at `T`, seeded at `seed`, stamped
-    /// with `doc`'s pin as the driver stamps its own runs.
-    fn run<T: crate::eval::EvalScalar>(doc: &ProfileDoc, seed: Option<VarId>) -> Evaluation<T> {
-        let pin = crate::persist::content_pin(doc, Tol::witness()).expect("canonicalizes");
+    /// `doc`'s build-path `f64` evaluation, stamped with `doc`'s pin as
+    /// the driver stamps its own runs.
+    fn record_run(doc: &ProfileDoc) -> Evaluation<f64> {
+        let ev = evaluate(
+            doc,
+            None,
+            &CancelToken::new(),
+            &pass_opts(None, None),
+            Tol::witness(),
+        );
+        stamped(ev, pin(doc))
+    }
+
+    /// `doc`'s `Dual64` pass seeded at `seed`, stamped likewise.
+    fn pass_run(doc: &ProfileDoc, seed: VarId) -> Evaluation<Dual64> {
+        let opts = pass_opts(Some(seed), None);
         stamped(
-            evaluate::<T>(
-                doc,
-                None,
-                &CancelToken::new(),
-                &pass_opts(seed, None),
-                Tol::witness(),
-            ),
-            pin,
+            evaluate(doc, None, &CancelToken::new(), &opts, Tol::witness()),
+            pin(doc),
         )
+    }
+
+    fn pin(doc: &ProfileDoc) -> crate::ContentPin {
+        crate::persist::content_pin(doc, Tol::witness()).expect("canonicalizes")
     }
 
     /// **A pass whose measured value is perturbed refuses as drift**,
@@ -2128,8 +2138,8 @@ mod tests {
     #[test]
     fn a_pass_whose_measured_value_is_perturbed_refuses_as_drift() {
         let (doc, depth, thickness) = slab(1.0);
-        let record = Record::new(&doc, &run::<f64>(&doc, None), thickness).expect("binds");
-        let mut pass = run::<Dual64>(&doc, Some(depth));
+        let record = Record::new(&doc, &record_run(&doc), thickness).expect("binds");
+        let mut pass = pass_run(&doc, depth);
         match record.read(&doc, &pass, thickness, &Chamber::LocalOnly) {
             Ok(SensitivityOutcome::Derivative { value, .. }) => assert_eq!(value, 1.0),
             other => panic!("the unperturbed pass reads its derivative: {other:?}"),
@@ -2158,7 +2168,7 @@ mod tests {
     #[test]
     fn a_pass_of_other_inputs_refuses_at_the_binding() {
         let (doc, depth, thickness) = slab(1.0);
-        let record = Record::new(&doc, &run::<f64>(&doc, None), thickness).expect("binds");
+        let record = Record::new(&doc, &record_run(&doc), thickness).expect("binds");
         let refused = |pass: &Evaluation<Dual64>| match record.read(
             &doc,
             pass,
@@ -2172,12 +2182,12 @@ mod tests {
         // Another revision: the same recipe at another depth.
         let (other, _, _) = slab(1.5);
         assert_eq!(
-            refused(&run::<Dual64>(&other, Some(depth))),
+            refused(&pass_run(&other, depth)),
             PairingViolation::Revision
         );
 
         // Another tolerance, restamped (one process holds one ε).
-        let mut pass = run::<Dual64>(&doc, Some(depth));
+        let mut pass = pass_run(&doc, depth);
         pass.tolerance.k *= 2.0;
         assert_eq!(refused(&pass), PairingViolation::Tolerance);
 
@@ -2186,8 +2196,7 @@ mod tests {
         // that instantiates nothing resolves no part;
         // `msolve14_run_scalar::a5_sensitivities_cross_a_seated_mate`
         // has the real case, over an assembly).
-        let mut identity =
-            BuildIdentity::of(&run::<Dual64>(&doc, Some(depth))).expect("an identity");
+        let mut identity = BuildIdentity::of(&pass_run(&doc, depth)).expect("an identity");
         identity.parts.insert((
             crate::DocRef {
                 id: crate::DocumentId::derive("stackup-binding-part"),
@@ -2201,7 +2210,7 @@ mod tests {
         );
 
         // An unpinned pass cannot be bound.
-        let mut pass = run::<Dual64>(&doc, Some(depth));
+        let mut pass = pass_run(&doc, depth);
         pass.pin = None;
         assert_eq!(refused(&pass), PairingViolation::Unpinned { refusal: None });
     }
