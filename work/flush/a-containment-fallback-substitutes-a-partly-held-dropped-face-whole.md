@@ -2,12 +2,13 @@
 id: a-containment-fallback-substitutes-a-partly-held-dropped-face-whole
 kind: issue
 title: A containment fallback records a dropped face only part of which the kept face holds as substituted whole
-status: dispatched
+status: review
 opened: 2026-10-20
 priority: P2
 cost: M
 refs: [5368]
 branch: flush/fallback-partial-rows
+pr: 5706
 ---
 
 
