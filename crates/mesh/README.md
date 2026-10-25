@@ -13,7 +13,8 @@ This page states how the mesher sizes its output to keep that promise.
 **Each lane sizes its grid as coarse as it can without extra work:
 the coarsest step its own theorem grants for the worst triangle its
 triangulation can admit, stated and pinned at that lane's step
-function.** There is no global safety factor and no headroom. A lane
+function.** There is no global safety factor, and a lane whose theorem
+is written carries no headroom. A lane
 never over-refines for margin. It also buys no extra machinery only to
 close the last gap to δ. Where the step inverts the lane's certificate
 directly, its worst triangle lands at δ. Where the schedule is discrete
