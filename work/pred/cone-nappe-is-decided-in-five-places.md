@@ -7,7 +7,7 @@ opened: 2026-09-08
 priority: P1
 cost: H
 design: true
-blocked_on: [5500, 5674]
+blocked_on: [5500]
 ---
 
 
