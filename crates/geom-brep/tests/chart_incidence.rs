@@ -477,7 +477,7 @@ fn a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin() {
     let check = |got: Result<String, PcurveCertifyError>, lane: &str| match got {
         Err(PcurveCertifyError::CarrierOffChart {
             why,
-            margin: Some(_),
+            margin: Some(geom_brep::OffMargin::InBand(_)),
             ..
         }) => {
             assert!(

@@ -1093,16 +1093,27 @@ pub(crate) fn has_lane<T: Real>(carrier: &Curve3<T>, surface: &Surface<T>) -> bo
 /// within the band of a pole, the cone's apex or the torus's core);
 /// [`PcurveCertifyError::Escalated`] ([`PcurveCheck::Sector`]) when the
 /// nappe or a sector stays in the band at the cap.
+///
+/// # Panics
+///
+/// On a pair with no projected lane ([`has_lane`]): every caller reads
+/// that list before the call, so such a pair here is a kernel bug, not a
+/// refusal.
 pub(crate) fn project<T: Decide>(
     carrier: &Curve3<T>,
     span: Option<(T, T)>,
     surface: &Surface<T>,
     band: Band,
 ) -> Result<ProjectedImage<T>, PcurveCertifyError> {
+    assert!(
+        has_lane(carrier, surface),
+        "project: a {} on a {} chart has no projected lane (`has_lane`), and every caller \
+         reads that list first",
+        carrier.kind().name(),
+        surface.kind().name()
+    );
     let Some((origin, e)) = chart_frame(surface) else {
-        return Err(PcurveCertifyError::UnsupportedChart {
-            chart: surface.kind(),
-        });
+        unreachable!("project: `has_lane` admits only analytic charts, which have a frame")
     };
     let framed = match carrier {
         Curve3::Nurbs(net) => FramedCarrier::Net(Arc::new(framed_net(net, origin, &e))),
@@ -1120,10 +1131,7 @@ pub(crate) fn project<T: Decide>(
             }
         }
         Curve3::Line { .. } | Curve3::Ellipse { .. } | Curve3::Spiric { .. } => {
-            return Err(PcurveCertifyError::ImageMismatch {
-                image: PcurveKind::Projected,
-                why: "a line, ellipse or spiric has a closed-form image, never a projected one",
-            });
+            unreachable!("project: `has_lane` admits no line, ellipse or spiric")
         }
     };
     let escalated = |cause| PcurveCertifyError::Escalated {

@@ -1649,11 +1649,12 @@ pub enum PcurveCheck {
     /// "not yet" ([`crate::recourse::not_yet`]), never as a defect or a
     /// tolerance offer.
     ChartClass,
-    /// The general lane's own reading at the mint, where D3's lane choice
-    /// sent a carrier the chart's incidence test does not show off it
-    /// (the projected lane's sector and nappe readings, relabelled at that
-    /// one call site, `general_lane_refusal`): the lane cannot image this
-    /// pose yet, a capability gap, so it ends lever-only "not yet" like
+    /// The general lane's own reading at the mint, for a carrier the
+    /// chart's incidence test does not show off it: a circle D3's lane
+    /// choice sent there, or a spline, whose only image it is (the
+    /// projected lane's sector and nappe readings, relabelled in one place,
+    /// `general_lane_refusal`): the lane cannot image this pose yet, a
+    /// capability gap, so it ends lever-only "not yet" like
     /// [`PcurveCheck::ChartClass`]. Check 4's reading of a STORED image
     /// stays [`PcurveCheck::Sector`].
     GeneralLane,
@@ -1889,10 +1890,10 @@ pub enum PcurveCertifyError {
         /// The surface kind.
         chart: geom::SurfaceKind,
     },
-    /// D3's lane choice sent a carrier the chart's incidence test does not
-    /// show off it to the general lane, and no general image is there for
-    /// it ([`LaneGap`] says why: none written for the pair, or the lane
-    /// does not image this pose). A capability gap, never a defect: it
+    /// A carrier the chart's incidence test does not show off it went to
+    /// the general lane (D3's lane choice, or a spline's only image), and
+    /// no general image is there for it ([`LaneGap`] says why: none
+    /// written for the pair, or the lane does not image this pose). A capability gap, never a defect: it
     /// ends lever-only "not yet" ([`PcurveCheck::ChartClass`] for an
     /// unwritten pair, [`PcurveCheck::GeneralLane`] for an uncovered pose).
     NoGeneralLane {
@@ -1912,10 +1913,10 @@ pub enum PcurveCertifyError {
         carrier: geom::CurveKind,
         /// Why the pair has no common locus, named.
         why: &'static str,
-        /// The margin the decision that refused read, where the refusal is
-        /// a reading not shown away from a degenerate pose (a rim at the
-        /// apex's height): a band-decided Zero, not an exact one (D4 ¶1 (i)).
-        margin: Option<geom_core::MarginDiag>,
+        /// The margin the decision that refused read, where the refusal
+        /// reads a degenerate pose (the cone's apex plane): decided past it,
+        /// or a band-decided Zero not shown away from it (D4 ¶1 (i)).
+        margin: Option<OffMargin>,
     },
     /// The image offered is not the carrier's image, or not this
     /// door's: a fitted or general image at the closed-form door, a
@@ -2150,9 +2151,7 @@ impl PcurveCertifyError {
                 f,
                 "pcurve certification: the {} carrier is on the {} chart but is none of its own \
                  curves, and its general (projected) image does not yet cover this pose: piece \
-                 {piece}'s {}. Recourse: a carrier through a pole, the cone's apex or the \
-                 torus's core has no one-branch image there; split the edge at it, or re-aim the \
-                 chart's axis away from it",
+                 {piece}: {}. Recourse: {POSE_LEVER}",
                 carrier.name(),
                 chart.name(),
                 channel.describe()
@@ -2161,17 +2160,44 @@ impl PcurveCertifyError {
                 chart,
                 carrier,
                 why,
-                margin,
+                margin: None,
             } => write!(
                 f,
-                "pcurve certification: the {} carrier does not lie on the {} chart — {why}{}. \
+                "pcurve certification: the {} carrier does not lie on the {} chart — {why}. \
                  The edge is not on its face. Recourse: repair the body so the edge's carrier \
                  lies on the face's surface",
                 carrier.name(),
                 chart.name(),
-                margin
-                    .map(|m| format!(" (margin {m:e} m)"))
-                    .unwrap_or_default()
+            ),
+            Self::CarrierOffChart {
+                chart,
+                carrier,
+                why,
+                margin: Some(OffMargin::Past(m)),
+            } => write!(
+                f,
+                "pcurve certification: the {} carrier does not lie on the {} chart — {why} \
+                 (margin {m:e} m). The edge is not on its face. Recourse: repair the body so the \
+                 edge's carrier lies on the face's surface",
+                carrier.name(),
+                chart.name(),
+            ),
+            // Not shown off the chart: the carrier is read AT a pose where
+            // no carrier of its kind lies on it, which says nothing about
+            // whether the edge is on its face.
+            Self::CarrierOffChart {
+                chart,
+                carrier,
+                why,
+                margin: Some(OffMargin::InBand(m)),
+            } => write!(
+                f,
+                "pcurve certification: the {} carrier is no curve of the {} chart at this \
+                 tolerance — {why} (margin {m:e} m, within the band). Recourse: move the \
+                 carrier clear of that pose by more than the tolerance, or split the edge so no \
+                 piece of it sits there",
+                carrier.name(),
+                chart.name(),
             ),
             Self::ImageMismatch { image, why } => write!(
                 f,
@@ -2427,7 +2453,10 @@ impl PcurveCertifyError {
 enum Routing {
     Sized(SizedDecision),
     Unsized(Unsized),
-    /// A lane choice with no general lane yet ([`PcurveCheck::ChartClass`]).
+    /// Lever-only "not yet", never a defect or a tolerance: a lane choice
+    /// with no general lane written ([`PcurveCheck::ChartClass`]), and a
+    /// written general lane that cannot image this pose yet
+    /// ([`PcurveCheck::GeneralLane`]).
     NotYet,
 }
 
@@ -2445,7 +2474,8 @@ impl PcurveCheck {
             Self::AzimuthPeriod | Self::TubePeriod => {
                 Routing::Sized(SpanDecision::Winding.on(StoredContradiction))
             }
-            // A lane choice whose general lane is not written yet (D3):
+            // A lane choice whose general lane is not written yet (D3), and
+            // a written general lane's capability gap on this pose:
             // lever-only "not yet", never a defect, never a tolerance.
             Self::ChartClass | Self::GeneralLane => Routing::NotYet,
             // The placement integer and the stored copies the kernel
@@ -8388,11 +8418,15 @@ pub(crate) fn own_interval<T: Real>(carrier: &Curve3<T>) -> (T, T) {
 /// circle on a sphere, a spline on any analytic chart), and otherwise
 /// refuses lever-only "not yet": `Escalated` ([`PcurveCheck::ChartClass`])
 /// with the class reading's cause where it was in band, and
-/// [`PcurveCertifyError::NoGeneralLane`] where it was definite. A
-/// circle on a cone, torus or cylinder, a line and an ellipse have no
-/// general lane yet (units E2 and E4, `work/pcert/plan.md`). The
-/// projected lane's own refusals at the mint are its own
-/// (`projected::project`).
+/// [`PcurveCertifyError::NoGeneralLane`] ([`LaneGap::Unwritten`]) where it
+/// was definite. A circle on a cone, torus or cylinder, a line and an
+/// ellipse have no general lane yet (units E2 and E4, `work/pcert/plan.md`).
+/// Where the projected lane is taken, a circle's lane choice or a
+/// spline's only image, the lane's own capability gap also ends "not yet":
+/// `Escalated` ([`PcurveCheck::GeneralLane`]) where its sector or nappe
+/// reading is in band, and [`PcurveCertifyError::NoGeneralLane`]
+/// ([`LaneGap::Pose`]) where its partition finds no sector
+/// (`general_lane_refusal`).
 pub fn chart_pcurve<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
@@ -8439,8 +8473,11 @@ fn chart_image<T: Decide>(
     }
     // A spline carrier has no closed form on any chart: its image is the
     // projected one, after the incidence test shows it not off the chart.
+    // That image is its only lane rather than a lane choice, but a sector
+    // the lane cannot partition is the same capability gap as a circle's,
+    // so it ends the same way ([`general_lane_refusal`]).
     if let Curve3::Nurbs(net) = carrier {
-        if !crate::edge_nurbs::is_analytic(surface) {
+        if !projected::has_lane(carrier, surface) {
             return Err(PcurveCertifyError::UnsupportedChart {
                 chart: surface.kind(),
             });
@@ -8451,7 +8488,8 @@ fn chart_image<T: Decide>(
             );
         }
         return projected::project(carrier, span, surface, band)
-            .map(|image| Pcurve::Projected(Box::new(image)));
+            .map(|image| Pcurve::Projected(Box::new(image)))
+            .map_err(|refused| general_lane_refusal(refused, carrier, surface));
     }
     match derive_class(carrier, surface, place, band) {
         Ok((image, _)) => Ok(image),
@@ -8477,6 +8515,13 @@ fn chart_image<T: Decide>(
     }
 }
 
+/// The lever of a [`LaneGap::Pose`]: the one sentence both
+/// [`PcurveCertifyError::NoGeneralLane`]'s and
+/// [`crate::CertifyError::NoGeneralLane`]'s Display give it.
+pub(crate) const POSE_LEVER: &str = "a carrier through a pole, the cone's apex or the torus's \
+     core has no one-branch image there; split the edge at it, or re-aim the chart's axis away \
+     from it";
+
 /// **Why D3's lane choice found no general image** for a carrier the
 /// chart's incidence test does not show off it
 /// ([`PcurveCertifyError::NoGeneralLane`]).
@@ -8496,17 +8541,19 @@ pub enum LaneGap {
     },
 }
 
-/// **The projected lane's refusal at the mint, read where D3's lane choice
-/// took it**: the one place a lane choice's general-lane refusal is
-/// relabelled, and nothing in `projected` learns of lane choices. The
-/// lane's own capability gap on a carrier the incidence test does not
-/// show off the chart, its partition's sector reading (and a cone net's
-/// nappe, `chart_of`), ends "not yet" ([`PcurveCheck::GeneralLane`]):
-/// in band as an escalation of that check, decided as
-/// [`LaneGap::Pose`]. Every other refusal `project` returns stays as it
-/// is: the deck's placement (`Placement::turns`) refuses only a poisoned
-/// midpoint or one past every turn an `i32` counts, and the kind and chart
-/// refusals are fenced off by [`projected::has_lane`] before the call.
+/// **The projected lane's refusal at the mint**: the one place a
+/// general-lane refusal is relabelled, read from both of `chart_image`'s
+/// calls of the lane (a circle's lane choice and a spline's only image),
+/// and nothing in `projected` learns of either. The lane's own capability
+/// gap on a carrier the incidence test does not show off the chart, its
+/// partition's sector reading (and, for a cone net or circle, the nappe
+/// `chart_of` reads at its midpoint), ends "not yet"
+/// ([`PcurveCheck::GeneralLane`]): in band as an escalation of that
+/// check, decided as [`LaneGap::Pose`]. Every other refusal `project`
+/// returns stays as it is: the deck's placement (`Placement::turns`)
+/// refuses only a poisoned midpoint or one past every turn an `i32`
+/// counts, and the kind and chart refusals are fenced off by
+/// [`projected::has_lane`] before the call.
 fn general_lane_refusal<T: Real>(
     refused: PcurveCertifyError,
     carrier: &Curve3<T>,
@@ -8896,7 +8943,11 @@ fn derive_class<T: Decide>(
                                              apex ⊥ the axis, which meets the cone only at the \
                                              apex",
                                         )
-                                        .with_margin(margin, surface, carrier),
+                                        .with_margin(
+                                            OffMargin::InBand(margin),
+                                            surface,
+                                            carrier,
+                                        ),
                                     ));
                                 }
                             }
@@ -9006,7 +9057,11 @@ fn derive_class<T: Decide>(
                                     "the rim's height is not shown away from the apex's, where \
                                      the apex plane meets the cone only at the apex",
                                 )
-                                .with_margin(margin, surface, carrier),
+                                .with_margin(
+                                    OffMargin::InBand(margin),
+                                    surface,
+                                    carrier,
+                                ),
                             ));
                         }
                     };
@@ -9654,6 +9709,19 @@ fn derive_harmonic<T: Decide>(
     })
 }
 
+/// The margin a [`PcurveCertifyError::CarrierOffChart`] read at a
+/// degenerate pose (the cone's apex plane, which meets the cone only at
+/// the apex), and which side of the band it fell.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum OffMargin {
+    /// Decided past the pose: the carrier is off the chart.
+    Past(geom_core::MarginDiag),
+    /// A band-decided Zero: the carrier is not shown away from the pose,
+    /// so at this tolerance it is read as there, and no carrier of its
+    /// kind lies on the chart there. It is not shown off the chart either.
+    InBand(geom_core::MarginDiag),
+}
+
 /// A closed-form arm's conclusion that the carrier cannot lie on the
 /// chart, with why ([`PcurveCertifyError::CarrierOffChart`]).
 #[derive(Clone, Copy, Debug)]
@@ -9670,11 +9738,12 @@ impl OffChart {
     }
 
     /// The refusal quoting the margin the decision read (D4 ¶1 (i)): a
-    /// reading not shown away from a degenerate pose, or one decided past
-    /// it.
+    /// reading not shown away from a degenerate pose
+    /// ([`OffMargin::InBand`]), or one decided past it
+    /// ([`OffMargin::Past`]).
     fn with_margin<T: Real>(
         self,
-        margin: geom_core::MarginDiag,
+        margin: OffMargin,
         surface: &Surface<T>,
         carrier: &Curve3<T>,
     ) -> PcurveCertifyError {
@@ -10046,11 +10115,12 @@ mod incidence {
             (_, Surface::Torus { .. }) => ("pcurve_torus_chart_incident", super::TORUS_OFF),
             (_, Surface::Cylinder { .. }) => (
                 "pcurve_cylinder_chart_incident",
-                "the circle's points are not at the cylinder's radius from its axis",
+                "the carrier's points are not at the cylinder's radius from its axis",
             ),
-            _ => (
-                "pcurve_chart_incident",
-                "the carrier's points are not on the chart",
+            _ => unreachable!(
+                "incident: only the sphere, cone, torus and cylinder mints read incidence (a \
+                 plane's mint reads none until E1c; a spline chart has no mint), and a spline or \
+                 spiric carrier takes its own test"
             ),
         };
         match chart_incidence(name, carrier, surface, band)? {
@@ -10322,7 +10392,7 @@ fn cone_conic_incidence<T: Decide>(
                 "the conic reaches past the apex's height, and the apex plane meets the cone \
                  only at the apex",
             )
-            .with_margin(margin, surface, carrier));
+            .with_margin(OffMargin::Past(margin), surface, carrier));
         }
         Decided {
             sign: Sign::Zero,
@@ -10332,7 +10402,7 @@ fn cone_conic_incidence<T: Decide>(
                 "the conic's lowest point is not shown away from the apex's height, where the \
                  apex plane meets the cone only at the apex",
             )
-            .with_margin(margin, surface, carrier));
+            .with_margin(OffMargin::InBand(margin), surface, carrier));
         }
     }
     match chart_incidence("pcurve_cone_chart_incident", carrier, surface, band)? {
@@ -11701,6 +11771,58 @@ mod tests {
         );
     }
 
+    /// **A line in the cone's apex plane over a sub-band span is not
+    /// called off its face.** Over `1e-10` of its length about the apex,
+    /// the incidence test does not show the line off the cone, and the
+    /// apex-plane reading lands its band-decided Zero: at this tolerance
+    /// the line sits where the apex plane meets the cone only at the apex.
+    /// The refusal carries that in-band margin ([`OffMargin::InBand`]), and
+    /// its Display does not say the edge is off its face. At `f64` and at
+    /// `Interval`.
+    #[test]
+    fn an_apex_plane_line_on_a_sub_band_span_is_not_called_off_its_face() {
+        fn read<T: Decide>(at: impl Fn(f64) -> T) -> PcurveCertifyError {
+            let cone = Surface::Cone {
+                apex: Point3::origin(),
+                axis: Vec3::unit_z(),
+                half_angle: 0.5,
+                u_ref: Vec3::unit_x(),
+            }
+            .map_scalar(&at);
+            let line = Curve3::Line {
+                origin: Point3::origin(),
+                dir: Vec3::unit_x(),
+            }
+            .map_scalar(&at);
+            chart_pcurve_over(&line, at(-5e-11), at(5e-11), &cone, band())
+                .expect_err("the apex plane meets the cone only at the apex")
+        }
+        for (lane, err) in [
+            ("f64", read(|x| x)),
+            (
+                "Interval",
+                read(<geom_core::Interval as geom_core::Real>::from_f64),
+            ),
+        ] {
+            assert!(
+                matches!(
+                    err,
+                    PcurveCertifyError::CarrierOffChart {
+                        why,
+                        margin: Some(OffMargin::InBand(_)),
+                        ..
+                    } if why.contains("the plane through the apex")
+                ),
+                "{lane}: {err:?}"
+            );
+            let shown = err.to_string();
+            assert!(
+                !shown.contains("not on its face") && shown.contains("within the band"),
+                "{lane}: {shown}"
+            );
+        }
+    }
+
     /// **The carrier refusals split by meaning**: a carrier that cannot
     /// lie on the chart is `CarrierOffChart`, a pair it can hold that a
     /// closed form images certifies. Each
@@ -11890,9 +12012,24 @@ mod tests {
                 chart: SurfaceKind::Cone,
                 carrier: CurveKind::Circle,
                 why: "WHY",
-                margin: Some(geom_core::MarginDiag::value(4e-10)),
+                margin: Some(OffMargin::Past(geom_core::MarginDiag::value(4e-10))),
             },
-            vec!["cone", "circle", "WHY", "(margin 4e-10 m)"],
+            vec![
+                "cone",
+                "circle",
+                "WHY",
+                "(margin 4e-10 m)",
+                "not on its face",
+            ],
+        ));
+        rows.push((
+            PcurveCertifyError::CarrierOffChart {
+                chart: SurfaceKind::Cone,
+                carrier: CurveKind::Line,
+                why: "WHY",
+                margin: Some(OffMargin::InBand(geom_core::MarginDiag::value(4e-10))),
+            },
+            vec!["cone", "line", "WHY", "(margin 4e-10 m, within the band)"],
         ));
         rows.push((
             PcurveCertifyError::ImageMismatch {

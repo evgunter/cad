@@ -454,12 +454,14 @@ pub enum CertifyError {
         /// The carrier kind offered against it.
         carrier: geom::CurveKind,
     },
-    /// The carrier is on the chart but is none of its own curves, so no
-    /// closed form images it, and the general image is not written for
-    /// this (chart, carrier) pair yet
-    /// ([`PcurveCertifyError::NoGeneralLane`]): a lane choice with
-    /// no lane, which ends lever-only "not yet" ([`CertCheck::ChartClass`]),
-    /// never as the description's defect.
+    /// The carrier is not shown off the chart and no closed form images
+    /// it, and its general image is not available
+    /// ([`PcurveCertifyError::NoGeneralLane`]), for the reason `gap` names:
+    /// no general lane is written for this (chart, carrier) pair
+    /// ([`crate::LaneGap::Unwritten`], [`CertCheck::ChartClass`]), or the
+    /// written lane does not image this pose yet ([`crate::LaneGap::Pose`],
+    /// [`CertCheck::GeneralLane`]). Either ends lever-only "not yet", never
+    /// as the description's defect.
     NoGeneralLane {
         /// The chart kind the description named.
         chart: geom::SurfaceKind,
@@ -785,17 +787,27 @@ impl core::fmt::Display for CertifyError {
             Self::NoGeneralLane {
                 chart,
                 carrier,
-                gap,
+                gap: crate::LaneGap::Unwritten,
             } => write!(
                 f,
                 "a conventional description's {} carrier is on its {} chart but is none of \
-                 the chart's own curves, and its general image on that chart {}",
+                 the chart's own curves, and its general image on that chart is not written yet",
                 carrier.name(),
                 chart.name(),
-                match gap {
-                    crate::LaneGap::Unwritten => "is not written yet",
-                    crate::LaneGap::Pose { .. } => "does not yet cover this pose",
-                }
+            ),
+            Self::NoGeneralLane {
+                chart,
+                carrier,
+                gap: crate::LaneGap::Pose { piece, channel },
+            } => write!(
+                f,
+                "a conventional description's {} carrier is on its {} chart but is none of \
+                 the chart's own curves, and its general image on that chart does not yet cover \
+                 this pose: piece {piece}: {}. Recourse: {}",
+                carrier.name(),
+                chart.name(),
+                channel.describe(),
+                crate::pcurve_cache::POSE_LEVER,
             ),
             Self::Unimplemented => write!(
                 f,
