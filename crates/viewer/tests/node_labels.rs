@@ -383,6 +383,7 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         &mut session,
         SessionOp::Duplicate {
             input: block.into(),
+            beside: None,
         },
         "copy",
     );
