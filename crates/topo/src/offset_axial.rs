@@ -289,8 +289,7 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::k_stats::decide;
 use geom_core::{
-    Arc2, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, SpanLocate, Tol,
-    Vec3,
+    Arc2, Band, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, SpanLocate, Tol, Vec3,
 };
 
 use crate::attach::Rechart;

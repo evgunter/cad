@@ -4820,7 +4820,12 @@ fn torus_lift<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, 
     let name = "props_torus_lift_turns";
     let period = Period::new(T::tau());
     period
-        .decide(name, at - angle, |g| Margin::metered(g, InfSpeed::new(minor)), band)
+        .decide(
+            name,
+            at - angle,
+            |g| Margin::metered(g, InfSpeed::new(minor)),
+            band,
+        )
         .map(|k| (k, angle + period.times(k)))
         .map_err(|stop| match stop.miss {
             BranchMiss::Undecided(cause) => PropsError::Escalated {
