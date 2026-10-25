@@ -70,10 +70,9 @@ pub struct Evaluation<T: Decide> {
     /// stale-result discrimination hook.
     pub epoch: Epoch,
     /// **Which document this is an evaluation OF** (DI3): the id
-    /// [`Doc::id`] answered when the run started. Identity only, no
-    /// pin: within one document the per-node content keys decide
-    /// reuse, so the version half would cost a canonicalization per
-    /// run for a check the keys already make.
+    /// [`Doc::id`] answered when the run started. Identity only: the
+    /// version half is [`Self::pin`], recorded only when asked, since
+    /// within one document the per-node content keys decide reuse.
     ///
     /// The pairing doors read this field to refuse a mispairing typed,
     /// before reading anything of the value; the memo reads it too and
@@ -90,6 +89,13 @@ pub struct Evaluation<T: Decide> {
     /// caller CAN restamp it. That is a deliberate act, not a slip, and
     /// nothing downstream re-derives it.
     pub document: crate::ident::DocumentId,
+    /// **Which version of the document this run read**: its content pin,
+    /// when the run was asked for one ([`EvalOptions::pin`]), or the
+    /// document's refusal to canonicalize. `None` for a run that was not
+    /// asked. Restampable like [`Self::document`], and as deliberately.
+    pub pin: Option<Result<crate::ident::ContentPin, crate::persist::PersistError>>,
+    /// The tolerance every predicate of this run decided at.
+    pub tolerance: geom_core::Tolerance,
     /// **A prior of another document, refused** (DI3): `Some` when
     /// `evaluate` was handed a `prior` whose [`Evaluation::document`]
     /// is not this document's, in which case the run had NO memo —
@@ -157,6 +163,13 @@ pub struct Evaluation<T: Decide> {
 }
 
 impl<T: Decide> Evaluation<T> {
+    /// **The parts this run resolved**: each reference it entered and
+    /// evaluated, with the ε it was entered at — the pin says which
+    /// content (A4), so this is which part versions the build read.
+    pub(crate) fn resolved_parts(&self) -> impl Iterator<Item = (crate::ident::DocRef, u64)> + '_ {
+        self.parts.keys()
+    }
+
     /// **The resolver this run crossed the document seam with**
     /// ([`EvalOptions::resolver`]), `None` for a run that resolved no
     /// part.
@@ -930,6 +943,8 @@ impl Evaluation<f64> {
         Self {
             epoch: crate::Epoch::mint(),
             document,
+            pin: None,
+            tolerance: tolerance_of(Tol::witness()),
             prior_refused: None,
             recomputed: order.len(),
             order,
@@ -3053,6 +3068,12 @@ pub struct EvalOptions {
     /// for both refuses every node. A part it resolves binds its own
     /// variables as symbols of its own document.
     pub symbols: bool,
+    /// **Record the document's content pin** ([`Evaluation::pin`]):
+    /// the run canonicalizes the document it read once, after the walk.
+    /// `false` — the default — records none, because a canonicalization
+    /// costs a sizeable fraction of a build and the memo needs no pin.
+    /// The run a sensitivity report is bound to asks for it (DL3).
+    pub pin: bool,
 }
 
 /// **Whether this scalar's lane IS the profile's first pass** — the
@@ -3314,6 +3335,7 @@ impl Default for EvalOptions {
             param_box: None,
             seed: None,
             symbols: false,
+            pin: false,
         }
     }
 }
@@ -3429,7 +3451,11 @@ pub fn evaluate<T>(
 where
     T: EvalScalar,
 {
-    evaluate_at_descent(doc, prior, cancel, opts, None, PassTwo::SkippedAtF64, tol)
+    let mut ev = evaluate_at_descent(doc, prior, cancel, opts, None, PassTwo::SkippedAtF64, tol);
+    if opts.pin {
+        ev.pin = Some(crate::persist::content_pin(doc, tol));
+    }
+    ev
 }
 
 /// **Whether an `f64` lane over the nominal takes the first pass's
@@ -3510,7 +3536,7 @@ where
     // ε — otherwise every predicate below would silently decide at
     // the wrong tolerance. Refuse loudly, per node, staying total.
     if !recorded_at_process_eps(doc, tol) {
-        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, tol.eps());
+        return refuse_tolerance_conflict(doc, sched, opts, prior_refused, tol);
     }
     // The lane environment, built ONCE and shared by every reader
     // below (slot evaluation, the lift's second pass, the two profile
@@ -3527,7 +3553,7 @@ where
     };
     let env = match env {
         Ok(env) => env,
-        Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source),
+        Err(source) => return refuse_param_box(doc, sched, opts, prior_refused, source, tol),
     };
     // The E4 seed rides the SAME environment (a seed is a separate act
     // on the environment the box door built, never a property of the
@@ -3537,7 +3563,7 @@ where
         None => env,
         Some(var) => match crate::analysis::seed_env(doc, env, var) {
             Ok(env) => env,
-            Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source),
+            Err(source) => return refuse_seed(doc, sched, opts, prior_refused, source, tol),
         },
     };
     // The NOMINAL environment, built beside the lane one and carried
@@ -3652,6 +3678,8 @@ where
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
+        pin: None,
+        tolerance: tolerance_of(tol),
         prior_refused,
         order,
         nodes,
@@ -3686,13 +3714,14 @@ fn refuse_tolerance_conflict<T>(
     sched: schedule::Schedule,
     opts: &EvalOptions,
     prior_refused: Option<Mispaired>,
-    process_eps: f64,
+    tol: Tol,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
     let document_eps = doc.epsilon();
-    refuse_every_node(doc, sched, opts, prior_refused, move || {
+    let process_eps = tol.eps();
+    refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::ToleranceConflict {
             document_eps,
             process_eps,
@@ -3711,11 +3740,12 @@ fn refuse_param_box<T>(
     opts: &EvalOptions,
     prior_refused: Option<Mispaired>,
     source: crate::analysis::ParamBoxError,
+    tol: Tol,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, prior_refused, move || {
+    refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::ParamBox {
             source: source.clone(),
         }
@@ -3733,11 +3763,12 @@ fn refuse_seed<T>(
     opts: &EvalOptions,
     prior_refused: Option<Mispaired>,
     source: crate::analysis::SeedError,
+    tol: Tol,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
 {
-    refuse_every_node(doc, sched, opts, prior_refused, move || {
+    refuse_every_node(doc, sched, opts, prior_refused, tol, move || {
         NodeErrorKind::Seed {
             source: source.clone(),
         }
@@ -3752,6 +3783,7 @@ fn refuse_every_node<T>(
     sched: schedule::Schedule,
     opts: &EvalOptions,
     prior_refused: Option<Mispaired>,
+    tol: Tol,
     kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
@@ -3776,6 +3808,8 @@ where
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
+        pin: None,
+        tolerance: tolerance_of(tol),
         prior_refused,
         order,
         nodes,
@@ -3789,6 +3823,14 @@ where
         spaces: Arc::new(doc.spaces()),
         parts: parts::Carried::none(),
         resolver: opts.resolver.clone().map(std::panic::AssertUnwindSafe),
+    }
+}
+
+/// The tolerance `tol` witnesses, as the value an evaluation records.
+fn tolerance_of(tol: Tol) -> geom_core::Tolerance {
+    geom_core::Tolerance {
+        eps: tol.eps(),
+        k: tol.k(),
     }
 }
 
