@@ -127,6 +127,20 @@ impl<E> RayFault<E> {
         }
     }
 
+    /// **The fault's rank among faults one ray raised at several faces**
+    /// at once, highest first: a refusal of the whole query, then a limit
+    /// no tolerance moves, then an in-band margin, then a graze or no
+    /// reading (the order [`Evidence`] ranks a run's readings by). The
+    /// highest is the ray's, whatever order its faces were read in.
+    pub(crate) const fn rank(&self) -> u8 {
+        match self {
+            Self::Fatal(_) => 3,
+            Self::Blocked(_) => 2,
+            Self::InBand(_) => 1,
+            Self::Graze | Self::Unread => 0,
+        }
+    }
+
     /// One shared reading on this reader's ray: `None` grazes, and an
     /// in-band margin sets the ray aside as `escalate(diag)`.
     pub(crate) fn of<V>(
@@ -348,6 +362,20 @@ impl<T: Decide, H> Crossings<T, H> {
     pub(crate) fn push_span(&mut self, at: T, (from, to): (T, T), hit: H, sideless: bool) {
         self.ahead.push((at, hit, sideless));
         self.spans.push((from, to));
+    }
+
+    /// Every crossing's span, hit and whether it is sideless, as offered:
+    /// the probes read a whole ray's count off it.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn all(&self) -> Vec<((T, T), &H, bool)>
+    where
+        T: Copy,
+    {
+        self.ahead
+            .iter()
+            .zip(&self.spans)
+            .map(|((_, h, s), sp)| (*sp, h, *s))
+            .collect()
     }
 
     /// The closest crossing's hit, `None` when the ray met nothing.

@@ -2,11 +2,13 @@
 id: period-headroom-margin-has-no-shared-home
 kind: issue
 title: The period-headroom margin Margin::levered(T::tau() - span, lever) is spelled at ~18 sites across 6 crates under ~12 predicate names with no shared home
-status: dispatched
+status: closed
 opened: 2026-09-06
 priority: P1
 cost: H
 branch: pred/period-turn-sites
+pr: 5710
+closed: 2026-10-25
 ---
 
 
@@ -299,3 +301,20 @@ a 13-item fix pass. What changed against the design:
 - the certified readers, which read the stored turn.
 
 Read the PR 5686 body's per-site call shapes first.
+
+## Closed (PRED orchestrator, 2026-10-25, PR 5710)
+
+Unit 2 landed. Every site of the fact decides through
+`geom_core::period`. The three questions have one home each:
+`Period::{not_over, strictly_partial, whole_turn}`. Admitting an
+undecided "not over" reading has one home too: `TurnUndecided::not_over_at_sup`,
+on the sup reading's sign. The certified readers
+(`bool_split_span_period`, `bool_sphere_trim_meridian_span`, surgery's
+raw read) retired onto the certificate's stored turn. Each old spelling
+is pinned against the rule as an in-test oracle. A full single review
+returned APPROVE-WITH-FIXES with no MAJOR, followed by a fix pass.
+
+Filed:
+- `period-decide-callers-lever-a-parameter-gap` (P3);
+- CHART's `azimuth-inf-arm-has-two-homes`;
+- BAND's `surgery-cites-an-unratified-junction-end-pick-precedent`.

@@ -881,20 +881,21 @@ impl<T: Decide> ConicArc<T> {
     ///
     /// - **Wound past a period** — no edge at all — where the rule reads
     ///   [`Turn::Over`].
-    /// - **An arc** wherever the sup reading is not definitely over: any
-    ///   overlap is then within the escalation band along the edge, the
-    ///   slack a circle has always had (a `Zero` or an in-band `Δ·r` is
-    ///   an arc), and points on it lie within that band of the edge's
-    ///   vertex. A gap, of any length, is an arc like any other: the
-    ///   distance trim reads a whole circle, a near-whole one and a
-    ///   short one alike — on a whole turn its two ends coincide at the
-    ///   edge's one vertex — so no gap is read as closed.
-    /// - **Between the two** — an ellipse whose overlap is definitely
-    ///   longer than the band by its upper bound but not by its lower —
-    ///   the span escalates, on the rule's row ([`TurnUndecided`]).
-    ///   Reading it as an arc would put a stretch of the edge on both
+    /// - **An arc** wherever the rule settles `Short` or `Whole`, and
+    ///   wherever the sup reads the headroom definitely positive
+    ///   ([`TurnUndecided::not_over_at_sup`], the one home of that
+    ///   admission): the edge is then short of a turn in its parameter. A
+    ///   gap, of any length, is an arc like any other: the distance trim
+    ///   reads a whole circle, a near-whole one and a short one alike —
+    ///   on a whole turn its two ends coincide at the edge's one vertex —
+    ///   so no gap is read as closed.
+    /// - **Any other undecided reading** — a circle's in-band `Δ·r`, an
+    ///   ellipse whose sup reads the headroom in the band or definitely
+    ///   negative — escalates, on the rule's row ([`TurnUndecided`]).
+    ///   Reading it as an arc could put a stretch of the edge on both
     ///   sides of its own trim, and a point ON it would read off the
-    ///   edge.
+    ///   edge. A certified edge read at its certification's band reaches
+    ///   neither: check 2 settled its turn on these readings.
     pub(crate) fn of(
         carrier: &geom::Curve3<T>,
         turn: Option<&geom_brep::CertifiedTurn<T>>,
@@ -966,20 +967,16 @@ impl<T: Decide> ConicArc<T> {
         // and a scaffold that does read the turn records it itself
         // (`carrier_loop`).
         match turn {
-            Err(TurnUndecided {
-                over_at_sup: false, ..
-            }) => geom_core::k_stats::splice_superseded(recording),
+            Err(undecided) if undecided.not_over_at_sup() => {
+                geom_core::k_stats::splice_superseded(recording);
+            }
             _ => geom_core::k_stats::splice(recording),
         }
         let span_turn = match turn {
             Ok(Turn::Over(_)) => return Err(ConicArcError::WoundPastPeriod),
             Ok(Turn::Short(_)) => Ok(Within::Short),
             Ok(Turn::Whole(_)) => Ok(Within::Whole),
-            Err(TurnUndecided {
-                diag,
-                on,
-                over_at_sup: true,
-            }) => {
+            Err(undecided @ TurnUndecided { diag, on, .. }) if !undecided.not_over_at_sup() => {
                 return Err(ConicArcError::Escalated(ReadEscalation {
                     escalation: match on {
                         TurnRow::Turn => Escalation::Margin,
@@ -2460,9 +2457,11 @@ mod tests {
                 }
             }
         }
-        // A window certification can pin to one vertex — its overlap within
-        // `2ε` of arc — is an arc, at the MAJOR vertex too, where the
-        // larger semi-axis would overstate that overlap twentyfold.
+        // A window whose overlap reads in the band at both rates (`2ε` at
+        // the MAJOR vertex, where the larger semi-axis would overstate it
+        // twentyfold) escalates: no reading settles a turn, and the sup
+        // does not read it short. Check 2 escalates on the same readings,
+        // so no edge certified at this band is such a window.
         for a in [20.0f64, 100.0] {
             let dt = 2.0 * eps;
             let got = conic_of(
@@ -2472,12 +2471,11 @@ mod tests {
                 band,
             );
             assert!(
-                matches!(got, Ok(Some(_))),
-                "a/b {a}: a 2ε overlap at the major vertex is an arc"
+                matches!(got, Err(ConicArcError::Escalated(_))),
+                "a/b {a}: a 2ε overlap at the major vertex escalates"
             );
         }
-        // A circle is unchanged: an overlap in its band is an arc, one past
-        // it wound.
+        // A circle: an overlap in its band escalates, one past it is wound.
         let circle = geom::Curve3::Circle {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
@@ -2487,7 +2485,7 @@ mod tests {
         let tau = core::f64::consts::TAU;
         assert!(matches!(
             conic_of(&circle, (0.0, tau + 5.0 * eps), WALK_ROWS.conic, band),
-            Ok(Some(_))
+            Err(ConicArcError::Escalated(_))
         ));
         assert!(matches!(
             conic_of(&circle, (0.0, tau + 30.0 * eps), WALK_ROWS.conic, band),
@@ -2939,12 +2937,23 @@ mod tests {
     /// ellipse with the defect centred at its fast (`π/2`) and its slow
     /// (`0`) side. (At `a/b = 16` no case lands on a band edge.)
     ///
-    /// **The expected deltas**, each listed below and nowhere hidden: on the
-    /// ellipse's fast side, a span whose inf reading is `Zero` while the
-    /// sup reading is in the band, or definitely positive, read as a whole
-    /// turn and now reads as an arc whose turn is unsettled. Both are
-    /// arcs; only a scaffold reads the turn, and escalates on it where it
-    /// once read corrupt. No case moves between wound, escalated and arc.
+    /// **The expected deltas**, each listed below and nowhere hidden:
+    /// - on the ellipse's fast side, a short span whose inf reading is
+    ///   `Zero` while the sup reads it definitely positive (`0.9` of the
+    ///   inf's length) read as a whole turn and now reads as an arc whose
+    ///   turn is unsettled. Only a scaffold reads the turn, and escalates
+    ///   on it where it once read corrupt;
+    /// - every span the sup does not read definitely positive while no
+    ///   reading settles a turn — a headroom in the band on a circle
+    ///   (`3` of either rate, either side) and on the ellipse's slow side,
+    ///   or the ellipse's fast side with the inf `Zero` and the sup in the
+    ///   band (`0.5` of the inf's, `3` of the sup's) — was an arc and now
+    ///   escalates on its margin: "not over" admits an undecided reading
+    ///   only where the sup reads the headroom definitely positive
+    ///   ([`TurnUndecided::not_over_at_sup`]). A certified edge read at
+    ///   its certification's band reaches none of these: check 2 reads
+    ///   the same turn and would have escalated it.
+    ///
     /// A reversed span no longer reaches the rule: the extent door
     /// refuses it, where the old rule read headroom `τ + |Δ|` and an arc.
     #[test]
@@ -2976,13 +2985,21 @@ mod tests {
         let arc_zero = SpanRead::Arc(Some(Sign::Zero));
         let unsettled = SpanRead::Arc(None);
         // (fixture, rate, k, over) → (old, new)
-        let deltas = [
-            (("ellipse fast", "inf", 0.5, true), (arc_zero, unsettled)),
-            (("ellipse fast", "inf", 0.5, false), (arc_zero, unsettled)),
+        let escalated = SpanRead::Escalated(Escalation::Margin);
+        let mut deltas = vec![
+            (("ellipse fast", "inf", 0.5, true), (arc_zero, escalated)),
+            (("ellipse fast", "inf", 0.5, false), (arc_zero, escalated)),
             (("ellipse fast", "inf", 0.9, false), (arc_zero, unsettled)),
-            (("ellipse fast", "sup", 3.0, true), (arc_zero, unsettled)),
-            (("ellipse fast", "sup", 3.0, false), (arc_zero, unsettled)),
+            (("ellipse fast", "sup", 3.0, true), (arc_zero, escalated)),
+            (("ellipse fast", "sup", 3.0, false), (arc_zero, escalated)),
         ];
+        for name in ["circle r=1", "circle r=0.01", "ellipse slow"] {
+            for rate in ["inf", "sup"] {
+                for over in [true, false] {
+                    deltas.push(((name, rate, 3.0, over), (unsettled, escalated)));
+                }
+            }
+        }
         let mut seen = 0;
         for (name, carrier, centre, inf, sup) in &fixtures {
             let full = (*centre, centre + tau);
@@ -3039,12 +3056,16 @@ mod tests {
         );
     }
 
-    /// **No span moves class over a dense band-edge sweep** (review R1's
-    /// row, against the real `ConicArc`): wound, escalated on a margin,
-    /// escalated on a straddle, or an arc — the class the old rule gave
-    /// every forward span, at three bands, on circles and on ellipses from
-    /// `a/b = 1.5` to `1000` stored either way round, the defect centred
-    /// around the carrier and sized in steps of `0.1ε` of three rates.
+    /// **A span moves class over a dense band-edge sweep only from an arc
+    /// to a margin escalation** (review R1's row, against the real
+    /// `ConicArc`): wound, escalated on a margin, escalated on a straddle,
+    /// or an arc — the class the old rule gave every forward span, at three
+    /// bands, on circles and on ellipses from `a/b = 1.5` to `1000` stored
+    /// either way round, the defect centred around the carrier and sized
+    /// in steps of `0.1ε` of three rates. The one move is the listed
+    /// delta of `the_turn_rule_agrees_with_the_old_conic_span_rule`: an
+    /// undecided turn the sup does not read definitely short, which the
+    /// old rule kept as an arc, escalates.
     #[test]
     fn no_conic_span_moves_class_over_a_band_edge_sweep() {
         let class = |read: SpanRead| match read {
@@ -3103,7 +3124,14 @@ mod tests {
                 }
             }
         }
-        assert!(moved.is_empty(), "{:#?}", &moved[..moved.len().min(20)]);
+        let other: Vec<_> = moved
+            .iter()
+            .filter(|m| {
+                (m.6, m.7) != (SpanRead::Arc(None), SpanRead::Escalated(Escalation::Margin))
+            })
+            .collect();
+        assert!(other.is_empty(), "{:#?}", &other[..other.len().min(20)]);
+        assert!(!moved.is_empty(), "the listed move occurs");
     }
 }
 

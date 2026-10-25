@@ -6486,6 +6486,7 @@ const TOUCH_PIECE_MEET: &str = "census_touch_piece_meet";
 const TOUCH_NORMAL: &str = "census_touch_normal";
 
 mod curved;
+pub(crate) use curved::{EdgeSpan, edge_span};
 mod depth_gap;
 #[cfg(test)]
 mod depth_gap_fuzz;

@@ -4,7 +4,7 @@ kind: issue
 title: The jet schedule's span bound on a circle carrier off a torus's axis (the G1 tube chain's meridian rim) is ~1.2 m, so its declared Seam cannot verify
 status: open
 opened: 2026-10-10
-priority: P2
+priority: P1
 cost: M
 ---
 

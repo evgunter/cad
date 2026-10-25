@@ -1,8 +1,8 @@
 //! Acceptance (e): revolve's typed refusals — half-plane crossings,
 //! sliver radii (micro-radius revolve), degenerate/sliver/full-range/
 //! poisoned angles, degenerate/poisoned axes, non-manifold axis
-//! contact, multiple axis runs, holed full revolves, horn/spindle
-//! toroids, and arc-interior half-plane violations. Every case is a
+//! contact, horn/spindle toroids, and arc-interior half-plane
+//! violations. Every case is a
 //! typed [`RevolveError`], never a panic or silent approximation.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -192,28 +192,10 @@ fn isolated_axis_vertex_in_full_revolve_is_non_manifold() {
     assert_all_tiers(&t.body);
 }
 
-#[test]
-fn two_axis_runs_in_full_revolve_are_typed() {
-    // A "C" against the axis: two disjoint on-axis runs (y ∈ [0,1]
-    // and y ∈ [2,3]) separated by an inward notch.
-    let lp = ProfileLoop::polygon([
-        Point2::new(0.0, 0.0),
-        Point2::new(1.0, 0.0),
-        Point2::new(1.0, 3.0),
-        Point2::new(0.0, 3.0),
-        Point2::new(0.0, 2.0),
-        Point2::new(0.5, 2.0),
-        Point2::new(0.5, 1.0),
-        Point2::new(0.0, 1.0),
-    ]);
-    let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
-    assert!(matches!(e, RevolveError::MultipleAxisRuns { .. }), "{e:?}");
-}
-
-// A full revolve of a holed profile no longer refuses: it builds the
-// hollow ring through the void-insertion door — `revolve_ring.rs` is
-// the acceptance suite (the washer-with-hole fixture lives there).
+// A full revolve of a holed profile, or of one meeting the axis in two
+// or more runs, builds its cavities through the void-insertion door —
+// `revolve_ring.rs` and `revolve_axis_gaps.rs` are the acceptance
+// suites.
 
 #[test]
 fn axis_crossing_tube_is_an_unsupported_toroid() {

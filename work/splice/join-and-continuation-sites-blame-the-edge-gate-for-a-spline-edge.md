@@ -2,11 +2,12 @@
 id: join-and-continuation-sites-blame-the-edge-gate-for-a-spline-edge
 kind: issue
 title: the join's germ frame and ring run and the continuation scan answer a spline or spiric edge as a kernel invariant that blames the operand gate
-status: open
+status: dispatched
 opened: 2026-10-03
 priority: P0
 cost: M
 refs: [delete-the-boolean-operand-edge-gate]
+branch: splice/gate
 ---
 
 
