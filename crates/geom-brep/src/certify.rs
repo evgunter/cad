@@ -3492,9 +3492,10 @@ fn run_checks<T: Decide>(
                 one_turn.turn(rows, extent, Exact::new(floor.get()), band)
             } else {
                 // The ellipse and the spiric read the turn between the
-                // floor and the sup over the turn's defect of this window.
+                // inf and the sup over the turn's defect of this window.
+                let inf = geom::carrier_speed::turn_defect_speed_lo(periodic, t0, extent);
                 let sup = geom::carrier_speed::turn_defect_speed_hi(periodic, t0, extent);
-                one_turn.turn(WINDING_ROWS, extent, Bounded::new(floor, sup), band)
+                one_turn.turn(WINDING_ROWS, extent, Bounded::new(inf, sup), band)
             };
             Some(CertifiedTurn {
                 params: (t0, t1),

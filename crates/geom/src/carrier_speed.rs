@@ -63,26 +63,84 @@ pub fn speed_floor<T: Real>(carrier: &crate::Curve3<T>) -> Option<InfSpeed<T>> {
     }
 }
 
-/// A sup on `|C′|` over the **turn defect** of the window that starts at
-/// `t0` and spans `extent`: the stretch between its end and its start one
-/// period on, a gap where the headroom `h = τ − extent` is positive and
-/// an overlap where it is negative. On a conic it is the speed at the
-/// stretch's middle `t0 − h/2` plus the larger semi-axis (a bound on
-/// `|C″|`) times half its width — never less than the speed anywhere on
-/// it, and tight as it shrinks; on every other kind, [`speed_range`]'s
-/// sup.
+/// The **turn defect** of the window that starts at `t0` and spans
+/// `extent`: the stretch between its end and its start one period on, a
+/// gap where the headroom `h = τ − extent` is positive and an overlap
+/// where it is negative. Returned as its middle `t0 − h/2` (one period
+/// off, which no carrier's speed tells apart) and its width `|h|`.
+fn turn_defect<T: Real>(t0: T, extent: Extent<T>) -> (T, T) {
+    let gap = T::tau() - extent.get();
+    (t0 - gap * T::from_f64(0.5), gap.abs())
+}
+
+/// The f64 rounding of a defect's middle `m` and of a speed read there,
+/// relative to the carrier's speed ceiling and over `1 + |m|`: `m` carries
+/// a few units in the last place of `1 + |m|`, which moves the speed by at
+/// most the ceiling times that, and the speed itself a few of the
+/// ceiling's own. `2⁻⁴⁶` holds eight times what those come to, so a bound
+/// widened by it is a bound at `f64` as at `Interval`, whose enclosures
+/// need none.
+const DEFECT_ROUNDING: f64 = 1.0 / (1u64 << 46) as f64;
+
+/// A sup on `|C′|` over the turn defect of the window that starts at `t0`
+/// and spans `extent` ([`turn_defect`]). On a conic it is the speed at
+/// the defect's middle plus the larger semi-axis (a bound on `|C″|`) times
+/// half its width — never less than the speed anywhere on it, and tight
+/// as it shrinks. On a spiric it is [`crate::spiric_rate_bounds`] over the
+/// defect: `cos v` and `sin v` each move at most half its width (plus
+/// [`DEFECT_ROUNDING`]) from their values at its middle, which bounds `ρ`
+/// and `|sin v|` there; never more than the whole period's sup, and finite
+/// on a defect clear of a tangent pinch. On a line or a spline,
+/// [`speed_range`]'s sup.
 pub fn turn_defect_speed_hi<T: SpanLocate>(
     carrier: &crate::Curve3<T>,
     t0: T,
     extent: Extent<T>,
 ) -> SupSpeed<T> {
     let half = T::from_f64(0.5);
-    let gap = T::tau() - extent.get();
+    let (m, width) = turn_defect(t0, extent);
     match Kind::of(carrier) {
-        Kind::Conic(c) => {
-            SupSpeed::new(c.speed_at(t0 - gap * half) + c.speed_hi() * gap.abs() * half)
+        Kind::Conic(c) => SupSpeed::new(c.speed_at(m) + c.speed_hi() * width * half),
+        Kind::Spiric {
+            major,
+            minor,
+            offset,
+        } => {
+            let one = T::one();
+            let reach = width * half + (one + m.abs()) * T::from_f64(DEFECT_ROUNDING);
+            let (sm, cm) = m.sin_cos();
+            let rho = (
+                major + minor * (cm - reach).max(T::zero() - one),
+                major + minor * (cm + reach).min(one),
+            );
+            let sin_max = (sm.abs() + reach).min(one);
+            SupSpeed::new(crate::spiric_rate_bounds(minor, offset, rho, sin_max).0)
         }
         kind => kind.range().1,
+    }
+}
+
+/// An inf on `|C′|` over the turn defect of the window that starts at
+/// `t0` and spans `extent` ([`turn_defect`]), [`turn_defect_speed_hi`]'s
+/// twin. On a conic it is the speed at the defect's middle less the
+/// larger semi-axis (a bound on `|C″|`, so on how fast `|C′|` moves) times
+/// half its width and [`DEFECT_ROUNDING`] of the ceiling, never below the
+/// smaller semi-axis: never more than the speed anywhere on the defect,
+/// and tight as it shrinks. On every other kind, [`speed_range`]'s inf.
+pub fn turn_defect_speed_lo<T: SpanLocate>(
+    carrier: &crate::Curve3<T>,
+    t0: T,
+    extent: Extent<T>,
+) -> InfSpeed<T> {
+    let (m, width) = turn_defect(t0, extent);
+    match Kind::of(carrier) {
+        Kind::Conic(c) => {
+            let (lo, hi) = (c.speed_lo(), c.speed_hi());
+            let at = c.speed_at(m).max(lo).min(hi);
+            let rounding = hi * (T::one() + m.abs()) * T::from_f64(DEFECT_ROUNDING);
+            InfSpeed::new((at - hi * width * T::from_f64(0.5) - rounding).max(lo))
+        }
+        kind => kind.range().0,
     }
 }
 

@@ -927,13 +927,14 @@ impl<T: Decide> ConicArc<T> {
         let Some(floor) = geom::carrier_speed::speed_floor(carrier) else {
             unreachable!("`speed_floor` answers a circle and an ellipse")
         };
-        // A circle's two levers are one, its radius. An ellipse's are the
-        // speed floor certification decides the span at and the speed
-        // over the overlap itself
-        // ([`geom::carrier_speed::turn_defect_speed_hi`]), never less than
-        // the speed anywhere on it and tight as it shrinks, so a
-        // certified window (its ends pinned within the band of its
-        // vertex) is never read as over-wound.
+        // A circle's two levers are one, its radius. An ellipse's are
+        // certification's: the inf and the sup of the speed over the
+        // turn's defect itself
+        // ([`geom::carrier_speed::turn_defect_speed_lo`],
+        // [`geom::carrier_speed::turn_defect_speed_hi`]), bounds on the
+        // speed anywhere on it and tight as it shrinks, so a certified
+        // window (its ends pinned within the band of its vertex) is never
+        // read as over-wound.
         let (turn, recording) = geom_core::k_stats::detached(|| match kind {
             ConicKind::Circle => one_turn.turn(
                 TurnRows::exact(rows.turn),
@@ -942,8 +943,9 @@ impl<T: Decide> ConicArc<T> {
                 band,
             ),
             ConicKind::Ellipse => {
+                let inf = geom::carrier_speed::turn_defect_speed_lo(carrier, t0, extent);
                 let sup = geom::carrier_speed::turn_defect_speed_hi(carrier, t0, extent);
-                one_turn.turn(rows, extent, Bounded::new(floor, sup), band)
+                one_turn.turn(rows, extent, Bounded::new(inf, sup), band)
             }
         });
         // An arc kept on an unsettled turn rests on no escalation: its

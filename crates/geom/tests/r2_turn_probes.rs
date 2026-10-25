@@ -1,16 +1,19 @@
 //! **The turn rule against the true arc length of an ellipse's turn
 //! defect** (review R2 of PR 5686's rows, joined to the suite):
 //! `turn_defect_speed_hi` against the old `ConicArc` expression and
-//! against sampled speeds, the rule's verdicts against the defect's
-//! metric length, and the spiric's sup.
+//! against sampled speeds, `turn_defect_speed_lo` against certified
+//! speeds at `f64` and `Interval`, the rule's verdicts against the
+//! defect's metric length, and the spiric's sup over the defect.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+test_utils::gated_to!["crates/geom/src/carrier_speed.rs"];
+
 use geom::Curve3;
-use geom::carrier_speed::{speed_range, turn_defect_speed_hi};
-use geom_core::SupSpeed;
+use geom::carrier_speed::{speed_at, speed_range, turn_defect_speed_hi, turn_defect_speed_lo};
 use geom_core::period::{Bounded, Extent, Period, Turn, TurnRows};
-use geom_core::{Band, InfSpeed, Point3, Vec3};
+use geom_core::{Band, Bounds, InfSpeed, Interval, Point3, Real, SupSpeed, Vec3};
+use test_utils::fuzz;
 
 const TAU: f64 = core::f64::consts::TAU;
 
@@ -28,14 +31,18 @@ fn speed(a: f64, b: f64, t: f64) -> f64 {
     ((a * t.sin()).powi(2) + (b * t.cos()).powi(2)).sqrt()
 }
 
-/// Arc length over `[lo, hi]`, composite Simpson.
-fn arc(a: f64, b: f64, lo: f64, hi: f64) -> f64 {
+/// Arc length over the stretch `width` wide about `mid`, composite
+/// Simpson. The step is read off `width`, not off the difference of two
+/// rounded ends, which at a defect of `1e-13` about `θ = 4` is a whole
+/// part in a few hundred.
+fn arc(a: f64, b: f64, mid: f64, width: f64) -> f64 {
     let n = 256;
-    let h = (hi - lo) / f64::from(n);
-    let mut s = speed(a, b, lo) + speed(a, b, hi);
+    let h = width / f64::from(n);
+    let at = |i: i32| speed(a, b, mid + width * (f64::from(i) / f64::from(n) - 0.5));
+    let mut s = at(0) + at(n);
     for i in 1..n {
         let w = if i % 2 == 1 { 4.0 } else { 2.0 };
-        s += w * speed(a, b, lo + h * f64::from(i));
+        s += w * at(i);
     }
     s * h / 3.0
 }
@@ -86,8 +93,9 @@ fn r2_turn_defect_speed_hi_is_the_old_bits_and_an_upper_bound() {
     eprintln!("r2: worst (sampled - sup)/sup = {worst:e}");
 }
 
-/// Claim 3: the rule's verdicts against the true metric length of the
-/// defect, for eccentric ellipses on the fast, slow and in-between side.
+/// Claim 3: the rule's verdicts, at the inf and the sup over the defect,
+/// against the true metric length of the defect, for eccentric ellipses
+/// on the fast, slow and in-between side.
 #[test]
 fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
     let rows = TurnRows::bounded("r2_turn", "r2_turn_straddle");
@@ -141,12 +149,14 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
                                 panic!("forward");
                             };
                             let h = TAU - extent.get();
+                            let low = turn_defect_speed_lo(&ellipse(a, b), t0, extent);
                             let sup = turn_defect_speed_hi(&ellipse(a, b), t0, extent);
-                            let got =
-                                one.turn(rows, extent, Bounded::new(InfSpeed::new(inf), sup), band);
+                            let got = one.turn(rows, extent, Bounded::new(low, sup), band);
                             // The defect stretch, centred at t0 - h/2.
                             let mid = t0 - 0.5 * h;
-                            let len = arc(a, b, mid - 0.5 * h.abs(), mid + 0.5 * h.abs());
+                            // The defect as the rule reads it at f64, `τ − extent`
+                            // wide: f64 τ's distance from 2π is not the rule's.
+                            let len = arc(a, b, mid, h.abs());
                             let case = format!(
                                 "eps {eps} a {a} b {b} centre {centre} {rate_name} k {k} over {over}: h {h:e} len {len:e} got {got:?}"
                             );
@@ -211,9 +221,10 @@ fn r2_the_turn_rule_is_sound_against_the_true_defect_length() {
     }
 }
 
-/// Claim 3, spiric: the sup the certification spiric arm reads is finite
-/// for a whole oval (|d| < R − r), an upper bound on the sampled speed,
-/// and what the rule does with it at the tangent limit.
+/// Claim 3, spiric: the period's sup is finite for a whole oval
+/// (|d| < R − r) and an upper bound on the sampled speed; the sup over a
+/// whole oval's defect is within it, and reads the oval a whole turn at
+/// every ε; and at the tangent limit the period's sup settles nothing.
 #[test]
 fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
     let spiric = |major: f64, minor: f64, offset: f64| Curve3::Spiric {
@@ -241,10 +252,9 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
             "sup finite: R {major} r {minor} d {offset}: {hi}"
         );
         let sup2 = turn_defect_speed_hi(&c, 0.3, Extent::hull([0.0, TAU - 1e-9]).unwrap()).get();
-        assert_eq!(
-            sup2.to_bits(),
-            hi.to_bits(),
-            "spiric defect sup is the global sup"
+        assert!(
+            sup2 <= hi,
+            "spiric defect sup {sup2} within the period's {hi}: R {major} r {minor} d {offset}"
         );
         let n = 20_000;
         let mut max: f64 = 0.0;
@@ -280,7 +290,12 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
                 let sup = turn_defect_speed_hi(&c, t0, extent);
                 let got =
                     Period::new(TAU).turn(rows, extent, Bounded::new(InfSpeed::new(lo), sup), band);
-                eprintln!(
+                // The sup over the defect is local, so a rounding-sized
+                // headroom stays in the zero band however near tangency:
+                // at `d = R − r − 1e-12`, ε = 1e-12, `t0 = 3.3` escalated
+                // at the period's sup.
+                assert!(
+                    matches!(got, Ok(Turn::Whole(_))),
                     "r2 spiric whole oval R {major} r {minor} d {offset} eps {eps} t0 {t0}: h {h:e} -> {got:?}"
                 );
             }
@@ -304,4 +319,168 @@ fn r2_spiric_sup_is_finite_on_whole_ovals_and_bounds_the_speed() {
         matches!(got, Err(ref u) if !u.over_at_sup() && !u.not_over_at_sup()),
         "r2 spiric at |d| = R - r, (0, tau): {got:?}"
     );
+    // The sup over the defect is finite where the defect is clear of the
+    // pinch (`v = π`), and settles the whole oval there; on the pinch it
+    // is not, and settles nothing.
+    let rows = TurnRows::bounded("r2_turn", "r2_turn_straddle");
+    for (t0, whole) in [(0.0, true), (1.0, true), (core::f64::consts::PI, false)] {
+        let extent = Extent::forward("r2_fwd", t0, t0 + TAU, InfSpeed::new(0.5), band).unwrap();
+        let sup = turn_defect_speed_hi(&c, t0, extent);
+        let got = Period::new(TAU).turn(rows, extent, Bounded::new(InfSpeed::new(0.5), sup), band);
+        assert_eq!(
+            matches!(got, Ok(Turn::Whole(_))),
+            whole,
+            "r2 spiric at |d| = R - r, t0 {t0}: sup {} -> {got:?}",
+            sup.get()
+        );
+        if !whole {
+            assert!(
+                matches!(got, Err(ref u) if !u.over_at_sup() && !u.not_over_at_sup()),
+                "r2 spiric at |d| = R - r, on the pinch: {got:?}"
+            );
+        }
+    }
+}
+
+/// The speed of an ellipse at `t`, as a certified enclosure: its lower
+/// end is below the true speed.
+fn speed_enclosure(a: f64, b: f64, t: f64) -> Interval {
+    let c = ellipse(a, b).map_scalar(Interval::from_f64);
+    speed_at(&c, Interval::from_f64(t)).unwrap()
+}
+
+/// **`turn_defect_speed_lo` is a floor on the speed over the turn defect,
+/// at `f64` and at `Interval`, and is local** (a counterexample search: the
+/// seed varies): on ellipses of every eccentricity and sign, a window at
+/// any `t0` short of a turn or over one by a defect from `1e-15` to two
+/// radians, the inf at either scalar is at most the certified speed's
+/// lower end at 65 points across the defect; and it is within the larger
+/// semi-axis times the defect's width (plus rounding) of the least speed
+/// sampled there, so it is no global floor in disguise.
+#[test]
+fn turn_defect_speed_lo_floors_the_speed_on_the_defect_at_f64_and_interval() {
+    let mut rng = fuzz::start("r2_turn_probes::turn_defect_speed_lo");
+    for _ in 0..fuzz::scaled(1500) {
+        let sign = |rng: &mut fuzz::Rng, p: f64| if rng.unit() < p { -1.0 } else { 1.0 };
+        let a = rng.range(-4.0, 4.0).exp() * sign(&mut rng, 0.2);
+        let b = rng.range(-4.0, 4.0).exp() * sign(&mut rng, 0.1);
+        let t0 = rng.range(-20.0, 20.0);
+        let gap = rng.log_uniform(1e-15, 2.0) * sign(&mut rng, 0.5);
+        let x = TAU - gap;
+        let lo = turn_defect_speed_lo(&ellipse(a, b), t0, Extent::hull([0.0, x]).unwrap()).get();
+        let lo_iv = turn_defect_speed_lo(
+            &ellipse(a, b).map_scalar(Interval::from_f64),
+            Interval::from_f64(t0),
+            Extent::hull([Interval::zero(), Interval::from_f64(x)]).unwrap(),
+        )
+        .get()
+        .lo();
+        let (floor, ceiling) = (a.abs().min(b.abs()), a.abs().max(b.abs()));
+        let case = format!("a {a} b {b} t0 {t0} gap {gap:e} ({})", fuzz::replay());
+        assert!(
+            lo >= floor && lo_iv >= floor * (1.0 - 1e-15),
+            "never below the floor: {lo} / {lo_iv} < {floor}: {case}"
+        );
+        let mut least = f64::INFINITY;
+        for i in 0..=64 {
+            let t = t0 + x + gap * (f64::from(i) / 64.0);
+            let speed = speed_enclosure(a, b, t);
+            least = least.min(speed.lo());
+            assert!(
+                lo <= speed.lo() && lo_iv <= speed.lo(),
+                "inf over the defect: {lo} (f64) / {lo_iv} (Interval) > {} at t {t}: {case}",
+                speed.lo()
+            );
+        }
+        let m = t0 - 0.5 * gap;
+        let reach = ceiling * gap.abs() + ceiling * (1.0 + m.abs()) * 1e-13;
+        assert!(
+            lo + reach >= least,
+            "local: {lo} + {reach:e} below the least sampled {least}: {case}"
+        );
+    }
+}
+
+/// The speed of a spiric at `v`, `r·√(1 + (d·sin v / f)²)` with
+/// `f = √((R + r·cos v)² − d²)`, as a certified enclosure.
+fn spiric_speed_enclosure(major: f64, minor: f64, offset: f64, v: f64) -> Interval {
+    let (major, minor, offset) = (
+        Interval::from_f64(major),
+        Interval::from_f64(minor),
+        Interval::from_f64(offset),
+    );
+    let (s, c) = Interval::from_f64(v).sin_cos();
+    let f = ((major + minor * c).powi(2) - offset.powi(2)).sqrt();
+    minor * (Interval::one() + (offset * s / f).powi(2)).sqrt()
+}
+
+/// **A spiric's sup over the turn defect is an upper bound there, and is
+/// local**: on whole ovals from far off tangency to `1e-12` of it, at
+/// defect centres on the pinch (`v = π`), beside it and away from it, the
+/// sup at `Interval` is at least the certified speed's upper end at 65
+/// points across the defect (at `f64`, its lower end: the same
+/// expressions in round-to-nearest, `speed_range`'s contract), at most
+/// the whole period's sup, and — on a defect of `1e-6` clear of the
+/// pinch — within 1% of the greatest speed sampled there, where the
+/// period's sup is up to `×354` the sampled speed.
+#[test]
+fn a_spirics_defect_sup_bounds_the_speed_there_and_is_local() {
+    let spiric = |major: f64, minor: f64, offset: f64| Curve3::Spiric {
+        center: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+        major_radius: major,
+        minor_radius: minor,
+        offset,
+    };
+    let pi = core::f64::consts::PI;
+    for (major, minor, offset) in [
+        (1.0, 0.5, 0.0),
+        (1.0, 0.5, 0.25),
+        (1.0, 0.5, 0.5 - 1e-6),
+        (1.0, 0.5, 0.5 - 1e-12),
+        (3.0, 1.0, -1.5),
+    ] {
+        let c = spiric(major, minor, offset);
+        let c_iv = c.map_scalar(Interval::from_f64);
+        let period_sup = speed_range(&c).1.get();
+        for centre in [0.0, 1.0, 2.5, pi - 0.1, pi - 1e-4, pi, 4.0] {
+            for gap in [0.0, 1e-12, -1e-9, 1e-6, -1e-3, 0.1, -1.0] {
+                let x = TAU - gap;
+                let t0 = centre + 0.5 * gap;
+                let hi = turn_defect_speed_hi(&c, t0, Extent::hull([0.0, x]).unwrap()).get();
+                let hi_iv = turn_defect_speed_hi(
+                    &c_iv,
+                    Interval::from_f64(t0),
+                    Extent::hull([Interval::zero(), Interval::from_f64(x)]).unwrap(),
+                )
+                .get()
+                .hi();
+                let case = format!("R {major} r {minor} d {offset} centre {centre} gap {gap:e}");
+                assert!(
+                    hi <= period_sup,
+                    "within the period's sup {period_sup}: {hi}: {case}"
+                );
+                let mut most: f64 = 0.0;
+                for i in 0..=64 {
+                    let v = t0 + x + gap * (f64::from(i) / 64.0);
+                    let speed = spiric_speed_enclosure(major, minor, offset, v);
+                    most = most.max(speed.hi());
+                    assert!(
+                        hi_iv >= speed.hi() && hi >= speed.lo(),
+                        "sup over the defect: {hi_iv} (Interval) < {} or {hi} (f64) < {} at v \
+                         {v}: {case}",
+                        speed.hi(),
+                        speed.lo()
+                    );
+                }
+                if gap.abs() <= 1e-6 && (centre - pi).abs() >= 0.1 {
+                    assert!(
+                        hi <= most * 1.01,
+                        "local: {hi} against the most sampled {most}: {case}"
+                    );
+                }
+            }
+        }
+    }
 }

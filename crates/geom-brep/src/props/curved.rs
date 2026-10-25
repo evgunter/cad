@@ -2391,8 +2391,9 @@ fn radial_sag<T: Real>(q0: Vec3<T>, q1: Vec3<T>) -> T {
 /// under the rim's names at its own radius ([`require_rim_span`]). An
 /// ellipse arc is no rim: its span is decided under its own names,
 /// `props_cone_ellipse_span_forward` / `props_cone_ellipse_span_winding`,
-/// at certification's ellipse rates (the speed floor, and the sup over
-/// the turn's defect), refusing as [`PropsError::ConeLoop`].
+/// at certification's ellipse rates (the speed floor forward, and the inf
+/// and sup over the turn's defect for the turn), refusing as
+/// [`PropsError::ConeLoop`].
 fn require_cone_conic_spans<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
@@ -2414,8 +2415,9 @@ fn require_cone_conic_spans<T: Decide>(
                     (e.t0, e.t1),
                     floor,
                     |extent| {
+                        let inf = geom::carrier_speed::turn_defect_speed_lo(ellipse, e.t0, extent);
                         let sup = geom::carrier_speed::turn_defect_speed_hi(ellipse, e.t0, extent);
-                        (Bounded::new(floor, sup), rows)
+                        (Bounded::new(inf, sup), rows)
                     },
                     "props_cone_ellipse_span_forward",
                     band,

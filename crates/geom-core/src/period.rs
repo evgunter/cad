@@ -621,9 +621,9 @@ impl<T: Real> Exact<T> {
     }
 }
 
-/// A rate known only between bounds: the least speed over the extent,
-/// and the greatest over the stretch the headroom measures (an ellipse,
-/// a spiric, a chart image).
+/// A rate known only between bounds: the least and the greatest speed
+/// over the stretch the headroom measures (an ellipse, a spiric, a chart
+/// image).
 #[derive(Clone, Copy, Debug)]
 pub struct Bounded<T> {
     inf: InfSpeed<T>,
@@ -631,9 +631,9 @@ pub struct Bounded<T> {
 }
 
 impl<T: Real> Bounded<T> {
-    /// A lower bound `inf` on the speed over the extent and an upper
-    /// bound `sup` over the headroom's stretch — the caller's premise,
-    /// which the rule's soundness rests on. Both are read as speeds: the
+    /// A lower bound `inf` and an upper bound `sup` on the speed over the
+    /// headroom's stretch — the caller's premise, which the rule's
+    /// soundness rests on. Both are read as speeds: the
     /// inf's magnitude, and the sup never below it (the larger of an
     /// upper and a lower bound on one speed is still an upper bound), so
     /// a pair with `sup < inf` is not representable.
@@ -669,7 +669,7 @@ pub trait TurnRate<T: Decide>: sealed::Sealed + Copy {
     /// What a caller names a straddle by: `()` where none can arise.
     type Straddle: Copy;
 
-    /// The lower bound, the rate an extent's forward decision reads at.
+    /// The lower bound, the rate `Over` and `Short` read the headroom at.
     fn inf(self) -> InfSpeed<T>;
 
     /// The rule at this rate, on the headroom [`Period::turn`] formed.
