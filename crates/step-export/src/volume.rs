@@ -185,8 +185,116 @@ fn edge_kind(kind: CurveKind) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{edge_kind, face_kind};
+    use super::{edge_kind, face_kind, shell_signed_volume};
     use geom::{CurveKind, SurfaceKind};
+    use geom_core::Tol;
+    use sweep::test_support::{brick, pocket_die};
+    use topo::test_support::finished;
+    use topo::{AtRestBody, BooleanResult, ShellRole, classify_shells_of, subtract, union};
+
+    fn boolean_body(result: BooleanResult<f64>) -> AtRestBody<f64> {
+        let BooleanResult::Body(result) = result else {
+            panic!("the boolean is a body");
+        };
+        result.body
+    }
+
+    /// The planar multi-shell bodies the agreement row reads: a
+    /// dyadic void, an off-grid void, two voids in one solid, and the
+    /// corner-kiss assembly (two outer shells in one solid).
+    fn planar_multi_shell_corpus() -> Vec<(&'static str, AtRestBody<f64>)> {
+        let tol = Tol::witness();
+        let fin = |what, b| finished(what, b, tol);
+        let voided = boolean_body(
+            subtract(
+                &fin("outer", brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), tol)),
+                &fin("inner", brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), tol)),
+                tol,
+            )
+            .unwrap(),
+        );
+        let off_grid = boolean_body(
+            subtract(
+                &fin("outer", brick((0.1, 2.9), (0.2, 3.3), (0.0, 1.7), tol)),
+                &fin("inner", brick((0.7, 1.3), (0.9, 1.1), (0.4, 0.6), tol)),
+                tol,
+            )
+            .unwrap(),
+        );
+        let one_void = boolean_body(
+            subtract(
+                &fin("outer", brick((0.0, 5.0), (0.0, 2.0), (0.0, 2.0), tol)),
+                &fin("first", brick((0.5, 1.5), (0.5, 1.5), (0.5, 1.5), tol)),
+                tol,
+            )
+            .unwrap(),
+        );
+        let two_voids = boolean_body(
+            subtract(
+                &one_void,
+                &fin("second", brick((3.1, 4.3), (0.3, 1.7), (0.6, 1.3), tol)),
+                tol,
+            )
+            .unwrap(),
+        );
+        let kiss = boolean_body(
+            union(
+                &fin("die 1", pocket_die(0.0, 0.0, 0.0, tol)),
+                &fin("die 2", pocket_die(1.0, 1.0, 1.0, tol)),
+                tol,
+            )
+            .unwrap(),
+        );
+        vec![
+            ("voided", voided),
+            ("off_grid", off_grid),
+            ("two_voids", two_voids),
+            ("kiss", kiss),
+        ]
+    }
+
+    /// **The agreement row**: on planar multi-shell shells, the planar
+    /// closed-form walk here and `topo::classify_shells_of` read the
+    /// same sign and the same volume, shell by shell.
+    #[test]
+    fn the_planar_walk_and_the_topo_door_agree_on_planar_shells() {
+        let tol = Tol::witness();
+        let mut voids = 0;
+        let mut outers = 0;
+        for (name, body) in planar_multi_shell_corpus() {
+            let keys: Vec<_> = body.shells().map(|(k, _)| k).collect();
+            assert!(keys.len() >= 2, "{name}: multi-shell");
+            let rows = classify_shells_of(&body, &keys, tol)
+                .unwrap_or_else(|e| panic!("{name}: the door classifies: {e}"));
+            assert_eq!(rows.len(), keys.len(), "{name}: one row per shell");
+            for row in rows {
+                let shell = body.get_shell(row.shell).unwrap();
+                let old = shell_signed_volume(&body, row.shell, shell).unwrap();
+                eprintln!(
+                    "{name} {:?}: old {old:e}, door {:e} ± {:e}, {:?}",
+                    row.shell, row.volume, row.volume_pad, row.role
+                );
+                let old_role = if old > 0.0 {
+                    ShellRole::Outer
+                } else {
+                    ShellRole::Void
+                };
+                assert_eq!(old_role, row.role, "{name} {:?}: role", row.shell);
+                let slack = 1e-12 * old.abs().max(1.0) + row.volume_pad;
+                assert!(
+                    (old - row.volume).abs() <= slack,
+                    "{name} {:?}: old {old:e} vs door {:e}",
+                    row.shell,
+                    row.volume
+                );
+                match row.role {
+                    ShellRole::Void => voids += 1,
+                    ShellRole::Outer => outers += 1,
+                }
+            }
+        }
+        assert_eq!((outers, voids), (5, 4), "the corpus's roles");
+    }
 
     /// A face refused for its surface and a face refused for an edge's
     /// carrier never print the same kind — the case that motivated the
