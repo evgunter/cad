@@ -277,16 +277,12 @@ fn both_blends_evaluate_in_one_document() {
 /// written whole, so ids moved, and with them the names and value
 /// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
 /// held, so no point moved.
-///
-/// RE-BLESSED, both rows, for a certificate that keeps its turn: the
-/// digest feeds each edge curve's `Debug`, which now spells the
-/// certificate's `turn`. No outcome or point moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0xb06e_9343_70a5_e171_u64),
-        ("die_chamfer", 0x7303_d70e_821c_e5a1),
+        ("die_fillet", 0xf484_d087_4cd9_c7fd_u64),
+        ("die_chamfer", 0x03f9_6c32_9b8d_d6a5),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -502,17 +498,13 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// written whole, so ids moved, and with them the names and value
 /// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
 /// held, so no point moved.
-///
-/// RE-BLESSED, every row, for a certificate that keeps its turn: the
-/// digest feeds each edge curve's `Debug`, which now spells the
-/// certificate's `turn`. No outcome or point moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xd133_5064_d178_c6a3_u64),
-        ("heat_sink", 0x0ec3_4ebe_7178_d688),
-        ("kiss_carry", 0x0a0b_0ddb_99f9_abb9),
+        ("crossing_slots", 0xcdda_ac08_76e4_859f_u64),
+        ("heat_sink", 0x7d39_8e23_faa9_0232),
+        ("kiss_carry", 0xc4bf_a6e0_8afc_ec4b),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -603,10 +595,6 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// bundle is spelled in the new vocabulary and the content key's
 /// `VERSION` moved, so its ids and the names under them moved. Every
 /// node's kind and vertex bits are main's (`be9b907694`).
-///
-/// RE-BLESSED for a certificate that keeps its turn: the digest feeds
-/// each edge curve's `Debug`, which now spells the certificate's `turn`.
-/// No outcome or point moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -645,7 +633,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x3314_e34b_988c_6eea,
+        got, 0x50a8_257d_9948_f0f6,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

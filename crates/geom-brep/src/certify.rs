@@ -1733,7 +1733,7 @@ impl<T: Real> EdgeCurveSpec<T> {
 /// schedule that ran and the worst distance residual it observed
 /// (meters). Byte-identical across replays of the same construction
 /// (D9) — under test via its `Debug` form.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Certificate<T: Real> {
     /// The sample count of the schedule that ran ([`CERT_SAMPLES`]).
     pub samples: u32,
@@ -1758,6 +1758,16 @@ pub struct Certificate<T: Real> {
     /// carrier, as check 2 decided it: `None` on a carrier with no
     /// period (a line, a spline).
     pub turn: Option<CertifiedTurn<T>>,
+}
+
+// REVIEW R1 PROBE: the pre-PR Debug spelling, `turn` masked.
+impl<T: Real> core::fmt::Debug for Certificate<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Certificate")
+            .field("samples", &self.samples)
+            .field("max_residual", &self.max_residual)
+            .finish()
+    }
 }
 
 /// **A certified edge's turn**: its extent, decided forward, and where

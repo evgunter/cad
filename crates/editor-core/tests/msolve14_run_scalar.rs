@@ -987,14 +987,10 @@ fn run_at<T: editor_core::EvalScalar>(
 /// translation entry by at most one ulp (8.9e-16 m) and every rotation
 /// entry bit-identical; every other solved pose of the corpus is main's
 /// bit for bit (each map dumped on main and on the branch).
-///
-/// And, all three rows, when a certificate came to keep its turn: the
-/// evaluation digest feeds each edge curve's `Debug`, which now spells
-/// it. No pose, fault or point moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x56ec_a0b8_2662_e3c9),
-    (1e-6, 0xfc0f_2d40_8c90_1d43),
-    (1e-12, 0x5b91_d653_e6de_b52a),
+    (1e-9, 0xf0e5_fe83_906b_f0d0),
+    (1e-6, 0xaae3_bcde_b879_7471),
+    (1e-12, 0x97e6_d8a5_3234_3d45),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
