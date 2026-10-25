@@ -7005,3 +7005,4 @@ Signed (WIRE orchestrator).
   - The intersect refusal was emit_union re-spelling N2's corner copies bare; the new `name_corner_copies` follows the rule N2 already states.
   - `ADMITTED_OPERAND_ORDER` is empty. A sliver-below-default-K row was filed.
   - A FULL review (`wire-bridges-rev`) is dispatched.
+- 2026-10-25 (WIRE orchestrator) FORK-ORIENT converged in one crossover round: an orientation is read, never chosen. Sense is `Through { entering }` on a line with no own direction. Ranks run along the entering side. Reverse, flip_senses, RefuseRun and `of` retire, and a seam in a run gains a sense. B moved to A on spelling and on rank-vs-tie. The residue is A's NS1 sentence, which B rejects and the PR does not add. [ev] PR 5705 is opened with the README edit and fork-log row 195; the row needs_ev.
