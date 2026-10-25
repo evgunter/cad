@@ -20,6 +20,7 @@
 //! carrier closed forms for the containment forest's parity test.
 
 use geom_core::k_stats::{check_unlogged, decide, decide_reported};
+use geom_core::one_line::on_one_line_2d;
 use geom_core::{
     Arc2, Band, Circles2, Decide, Decided, Indeterminate, Margin, MarginDiag, Point2, Real, Sign,
     Vec2,
@@ -1422,44 +1423,121 @@ fn joint(
     }
 }
 
-/// Line/line contacts via the four `chord_side` orientations (the
-/// Shewchuk-style segment test, trileanized). Strictly opposite sides
-/// both ways ⇒ one proper crossing; any Zero ⇒ endpoint-on-carrier
-/// configurations resolved by `line_span`; both of one segment's
-/// endpoints on the other's carrier ⇒ collinear, resolved by the
-/// **`collinear_overlap`** predicate — margin: the length of the
-/// parameter-interval intersection (meters; positive = overlap, Zero =
-/// endpoint touch, negative = disjoint), computed with lattice min/max
-/// (value operations, not branches).
+/// Whether two straight segments' projections lie apart past the band
+/// on either one's axis (the **`segment_gap`** predicate, [`line_line`]):
+/// on `s1`'s axis first, then on `s2`'s where `s1`'s did not decide.
+/// Either axis apart holds every pair of points apart, so the reading is
+/// the pair's, whichever segment is named first, as check 9's
+/// (`topo::validate`'s `gaps_apart`) is.
+fn gaps_apart<T: Decide>(s1: &Seg<T>, s2: &Seg<T>, band: Band) -> bool {
+    let apart = |a: &Seg<T>, b: &Seg<T>| {
+        let along = on_one_line_2d(a.unit, (a.a, a.b), (b.a, b.b), T::zero());
+        decide("segment_gap", Margin::of(along.apart()), band) == Ok(Sign::Positive)
+    };
+    apart(s1, s2) || apart(s2, s1)
+}
+
+/// The collinear arm of [`line_line`]: `other` read along `host`'s axis,
+/// through the one reading of two spans on one line
+/// ([`geom_core::one_line`]), on the **`collinear_overlap`** predicate —
+/// margin: the overlap's signed length (meters; positive = overlap, Zero
+/// = endpoint touch, negative = disjoint), decided past its charge both
+/// ways. An overlap where even its lower bound is definitely positive;
+/// disjoint where even its upper bound is definitely negative; a touch,
+/// at the overlap's middle, where both read zero; and the bounds'
+/// straddle otherwise.
+fn collinear_overlap<T: Decide>(
+    host: &Seg<T>,
+    other: &Seg<T>,
+    band: Band,
+) -> Result<PairOutcome<T>, Indeterminate> {
+    let along = on_one_line_2d(host.unit, (host.a, host.b), (other.a, other.b), T::zero());
+    let lower = decide_reported(
+        "collinear_overlap",
+        Margin::of(along.extent() - along.noise),
+        band,
+    )?;
+    if lower.sign == Sign::Positive {
+        return Ok(PairOutcome::Overlap);
+    }
+    let upper = decide_reported(
+        "collinear_overlap",
+        Margin::of(along.extent() + along.noise),
+        band,
+    )?;
+    Ok(match (lower.sign, upper.sign) {
+        (Sign::Negative, Sign::Negative) => PairOutcome::Contacts(Vec::new()),
+        (Sign::Zero, Sign::Zero) => PairOutcome::Contacts(vec![Contact {
+            point: host.a + host.unit * along.mid(),
+            kind: CKind::Touch,
+        }]),
+        _ => {
+            return Err(geom_core::k_stats::straddle(
+                "collinear_overlap",
+                lower,
+                upper,
+                band,
+            ));
+        }
+    })
+}
+
+/// Line/line contacts, read as check 9 reads two straight edges
+/// (`topo::validate`'s `lines_meet`), so the two doors give one answer.
+///
+/// - First the **`segment_gap`** predicate ([`gaps_apart`]): the gap
+///   between the two spans' projections on either one's axis, past its
+///   rounding ([`geom_core::one_line`]; meters, positive = apart). Spans
+///   apart along either axis past the band hold every pair of points
+///   apart by as much, so the pair has no contact whatever its sides
+///   would read. The four points are the loop's stored vertices
+///   (`build_loop_seg`), the geometry the simplicity pass reads, so
+///   nothing here computed them and none is charged for its making.
+/// - Then the four `chord_side` orientations (the Shewchuk-style segment
+///   test, trileanized), each end against the other's carrier. Both of
+///   one segment's ends definitely on one side of the other's carrier
+///   separates them, so the pair has no contact, however the other two
+///   sides read.
+/// - Both of one segment's ends on the other's carrier ⇒ collinear,
+///   resolved by [`collinear_overlap`] along that carrier's axis, however
+///   the other pair of sides reads: the whole segment is within the band
+///   of that carrier.
+/// - Only then does an in-band side escalate. Strictly opposite sides
+///   both ways ⇒ one proper crossing; any Zero ⇒ endpoint-on-carrier
+///   configurations resolved by `line_span`.
 fn line_line<T: Decide>(
     s1: &Seg<T>,
     s2: &Seg<T>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
-    let (o_c, _) = chord_side(s1, s2.a, band)?;
-    let (o_d, _) = chord_side(s1, s2.b, band)?;
-    if o_c == Sign::Zero && o_d == Sign::Zero {
-        // Collinear carriers: 1-D overlap on s1's arc-length axis.
-        let tc = (s2.a - s1.a).dot(s1.unit);
-        let td = (s2.b - s1.a).dot(s1.unit);
-        let lo = tc.min(td).max(T::zero());
-        let hi = tc.max(td).min(s1.len);
-        return Ok(
-            match decide("collinear_overlap", Margin::of(hi - lo), band)? {
-                Sign::Positive => PairOutcome::Overlap,
-                Sign::Zero => {
-                    let mid = (lo + hi) * T::from_f64(0.5);
-                    PairOutcome::Contacts(vec![Contact {
-                        point: s1.a + s1.unit * mid,
-                        kind: CKind::Touch,
-                    }])
-                }
-                Sign::Negative => PairOutcome::Contacts(Vec::new()),
-            },
-        );
+    if gaps_apart(s1, s2, band) {
+        return Ok(PairOutcome::Contacts(Vec::new()));
     }
-    let (o_a, _) = chord_side(s2, s1.a, band)?;
-    let (o_b, _) = chord_side(s2, s1.b, band)?;
+    let side = |host: &Seg<T>, q: Point2<T>| chord_side(host, q, band).map(|(sign, _)| sign);
+    let on_1 = [side(s1, s2.a), side(s1, s2.b)];
+    let on_2 = [side(s2, s1.a), side(s2, s1.b)];
+    let separated = |pair: &[Result<Sign, Indeterminate>; 2]| {
+        matches!(
+            pair,
+            [Ok(Sign::Positive), Ok(Sign::Positive)] | [Ok(Sign::Negative), Ok(Sign::Negative)]
+        )
+    };
+    if separated(&on_1) || separated(&on_2) {
+        return Ok(PairOutcome::Contacts(Vec::new()));
+    }
+    // Both of one segment's ends within the band of the other's carrier
+    // put all of it there, so the overlap along that carrier decides the
+    // pair, whatever the other pair of sides reads.
+    let collinear =
+        |pair: &[Result<Sign, Indeterminate>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
+    if collinear(&on_1) {
+        return collinear_overlap(s1, s2, band);
+    }
+    if collinear(&on_2) {
+        return collinear_overlap(s2, s1, band);
+    }
+    let [o_c, o_d] = [on_1[0]?, on_1[1]?];
+    let [o_a, o_b] = [on_2[0]?, on_2[1]?];
     let opposite = |x: Sign, y: Sign| {
         matches!(
             (x, y),
@@ -1480,9 +1558,7 @@ fn line_line<T: Decide>(
     } else {
         // Non-collinear with some endpoint on a carrier: the carriers
         // meet exactly once, at that endpoint, read by [`touches`]' rule
-        // from the side read above. The crossing test needs all four
-        // sides definite, so an in-band side escalates before its span
-        // is read (`validate-reads-in-band-carriers-before-spans-in-line-line-arc-arc`).
+        // from the side read above.
         for (host, o, q) in [
             (s1, o_c, s2.a),
             (s1, o_d, s2.b),
@@ -2155,7 +2231,7 @@ pub(crate) fn ray_crossings<T: Decide>(
 #[allow(clippy::panic)]
 mod pair_contact_tests {
     use super::*;
-    use geom_core::{Interval, Tol};
+    use geom_core::{Bounds, Interval, Tol};
 
     /// What `line_arc` read: the contact count, or the predicate it
     /// escalated on.
@@ -2172,6 +2248,352 @@ mod pair_contact_tests {
     fn line<T: Decide>(a: (f64, f64), b: (f64, f64), band: Band) -> Seg<T> {
         build_seg(pt(a), pt(b), Segment::Line, Consistency::Decide, band)
             .unwrap_or_else(|e| panic!("line {a:?} → {b:?}: {}", e.predicate()))
+    }
+
+    /// A segment's two stored ends.
+    type Ends = [(f64, f64); 2];
+
+    /// The real gap between two stored segments on `a`'s axis and on
+    /// `b`'s, enclosed in `Interval`: each the distance between the two
+    /// projected intervals on that segment's real unit chord, negative
+    /// where they overlap.
+    fn real_gaps(a: Ends, b: Ends) -> [Interval; 2] {
+        let p = pt::<Interval>;
+        let gap = |[o0, o1]: Ends, [q0, q1]: Ends| {
+            let (o0, o1) = (p(o0), p(o1));
+            let chord = o1 - o0;
+            let unit = chord * (Interval::one() / chord.norm());
+            let along = |q: Point2<Interval>| (q - o0).dot(unit);
+            let (t0, t1, end) = (along(p(q0)), along(p(q1)), along(o1));
+            (t0.min(t1) - end).max(Interval::zero() - t0.max(t1))
+        };
+        [gap(a, b), gap(b, a)]
+    }
+
+    /// **The gap read apart is a real gap, on stored points far from the
+    /// origin.** Two segments whose coordinates are arbitrary `f64`s up to
+    /// `10⁶` m out, up to `3·10⁶` m long, `b` starting a small step
+    /// (`10⁻¹³` … `10⁻⁷` m, either sign) along `a`'s line past its end and
+    /// in band across it. Wherever [`gaps_apart`] reads them apart at the
+    /// fine band, the `Interval` enclosure of the real gap on one of the
+    /// two axes is at least `ε`, what a positive reading promises (past
+    /// `Kε` less the charge): the segments are apart in ℝ by the band's
+    /// zero. A counterexample sweep: its seed varies, and
+    /// [`a_far_pair_reads_apart_only_past_its_charge`] is its static
+    /// witness that the reading fires here at all.
+    #[test]
+    fn a_gap_read_apart_is_a_real_gap_on_points_far_from_the_origin() {
+        let band = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"));
+        let mut rng = test_utils::fuzz::start("seg-gap-far");
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let far = 10f64.powf(rng.range(0.0, 6.0));
+            let a0 = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            let (dx, dy) = (th.cos(), th.sin());
+            let len = 10f64.powf(rng.range(-2.0, 6.5));
+            let a1 = (a0.0 + dx * len, a0.1 + dy * len);
+            let step = rng.range(-1.0, 1.0) * 10f64.powf(rng.range(-13.0, -7.0));
+            let across = rng.range(-1.0, 1.0) * 5e-12;
+            let b0 = (
+                a1.0 + dx * step - dy * across,
+                a1.1 + dy * step + dx * across,
+            );
+            let phi = th + rng.range(-1.0, 1.0);
+            let b1 = (b0.0 + phi.cos() * len, b0.1 + phi.sin() * len);
+            if (b1.0 - a1.0) * dx + (b1.1 - a1.1) * dy < 0.0 {
+                continue;
+            }
+            let (s1, s2) = (line::<f64>(a0, a1, band), line::<f64>(b0, b1, band));
+            if !gaps_apart(&s1, &s2, band) {
+                continue;
+            }
+            let gaps = real_gaps([a0, a1], [b0, b1]);
+            assert!(
+                gaps.iter().any(|g| g.lo() >= band.zero()),
+                "read apart, but the real gaps enclose {gaps:?}: a {a0:?}→{a1:?}, \
+                 b {b0:?}→{b1:?} — {}",
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// **The collinear arm reads the home's projections, bit for bit,
+    /// and the old arm's verdict.** [`collinear_overlap`] reads two
+    /// collinear spans through [`geom_core::one_line`]; before, `line_line`
+    /// read its own `tc`, `td`, `lo = max(min(tc, td), 0)` and
+    /// `hi = min(max(tc, td), L)`, uncharged, kept here as the oracle.
+    /// `s2`'s ends are drawn on `s1`'s line near either of its ends
+    /// (`10⁻¹³` … `10⁻⁷` m either way), up to `10⁶` m out, `s1` up to
+    /// `10⁶` m long. On every draw the home's `lo` is the old one's, bit
+    /// for bit, and so is its `hi` except where it is bounded by `s1`'s
+    /// own end, which the home projects (`(s1.b − s1.a)·û`) where the old
+    /// arm read the stored length: there they differ by at most four
+    /// ulps of `L`. And the verdict is the old arm's wherever the old
+    /// margin stands further than the charge (and that ulp gap) from a
+    /// band edge.
+    #[test]
+    fn the_collinear_arm_reads_the_old_arms_projections_and_verdict() {
+        let band = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"));
+        let mut rng = test_utils::fuzz::start("seg-collinear-home");
+        let sign = |s: Result<Sign, Indeterminate>| s.map_err(|_| ());
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let far = 10f64.powf(rng.range(0.0, 6.0));
+            let a0 = (far * rng.range(-1.0, 1.0), far * rng.range(-1.0, 1.0));
+            let th = rng.range(0.0, core::f64::consts::TAU);
+            let (dx, dy) = (th.cos(), th.sin());
+            let len = 10f64.powf(rng.range(-2.0, 6.0));
+            let a1 = (a0.0 + dx * len, a0.1 + dy * len);
+            let (end0, end1) = if rng.range(0.0, 1.0) < 0.5 {
+                (0.0, -len)
+            } else {
+                (len, 2.0 * len)
+            };
+            let mut near = |end: f64| {
+                let step = rng.range(-1.0, 1.0) * 10f64.powf(rng.range(-13.0, -7.0));
+                let t = end + step;
+                (a0.0 + dx * t, a0.1 + dy * t)
+            };
+            let (b0, b1) = (near(end0), near(end1));
+            let (s1, s2) = (line::<f64>(a0, a1, band), line::<f64>(b0, b1, band));
+            let tc = (s2.a - s1.a).dot(s1.unit);
+            let td = (s2.b - s1.a).dot(s1.unit);
+            let (lo, hi) = (tc.min(td).max(0.0), tc.max(td).min(s1.len));
+            let along = on_one_line_2d(s1.unit, (s1.a, s1.b), (s2.a, s2.b), 0.0);
+            let replay = test_utils::fuzz::replay;
+            assert_eq!(along.lo.to_bits(), lo.to_bits(), "lo — {}", replay());
+            let slack = if along.hi.to_bits() == hi.to_bits() {
+                0.0
+            } else {
+                let end = (s1.b - s1.a).dot(s1.unit);
+                assert!(
+                    hi == s1.len
+                        && along.hi == end
+                        && (end - s1.len).abs() <= 4.0 * s1.len * f64::EPSILON,
+                    "hi {} against {hi}, s1's end projected {end}, L {} — {}",
+                    along.hi,
+                    s1.len,
+                    replay()
+                );
+                (end - s1.len).abs()
+            };
+            let margin = hi - lo;
+            let reach = along.noise + slack;
+            let edges = [band.zero(), band.escalate()];
+            if edges.iter().any(|&e| (margin.abs() - e).abs() <= reach) {
+                continue;
+            }
+            let old = sign(decide("collinear_overlap", Margin::of(margin), band));
+            let new = match collinear_overlap(&s1, &s2, band) {
+                Ok(PairOutcome::Overlap) => Ok(Sign::Positive),
+                Ok(PairOutcome::Contacts(c)) if c.is_empty() => Ok(Sign::Negative),
+                Ok(PairOutcome::Contacts(_)) => Ok(Sign::Zero),
+                Err(_) => Err(()),
+            };
+            assert_eq!(
+                new,
+                old,
+                "margin {margin}, noise {} — {}",
+                along.noise,
+                replay()
+            );
+        }
+    }
+
+    /// **A pair apart only along the second segment's axis is no contact,
+    /// whichever is named first.** At ε `10⁻⁹`, `K` 10: `s2` runs from the
+    /// origin to `(−0.3731…, 0.03117…)`, and `s1` from just past `s2`'s
+    /// end on to `(−0.4665…, −0.0340…)`. On `s1`'s axis the projections
+    /// touch within the band and no carrier side separates the pair; on
+    /// `s2`'s axis the gap is apart. Read with `s1` first the pair needs
+    /// the second axis, so both orders are pinned.
+    #[test]
+    fn a_pair_apart_only_along_the_second_axis_is_no_contact_both_ways() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let s2 = line::<f64>(
+            (0.0, 0.0),
+            (-0.3731081377223676, 0.031178661125134788),
+            band,
+        );
+        let s1 = line::<f64>(
+            (-0.3731081484093557, 0.03117866152700223),
+            (-0.46657191024747935, -0.03400099107344501),
+            band,
+        );
+        for (name, a, b) in [("s1 first", &s1, &s2), ("s2 first", &s2, &s1)] {
+            match pair_contacts(a, b, band) {
+                Ok(PairOutcome::Contacts(c)) if c.is_empty() => {}
+                Ok(PairOutcome::Contacts(c)) => panic!("{name}: {} contacts", c.len()),
+                Ok(PairOutcome::Overlap) => panic!("{name}: an overlap"),
+                Err(e) => panic!("{name}: escalated on {:?}", e.predicate),
+            }
+        }
+    }
+
+    /// The grid point nearest `s1`'s line whose projection along the
+    /// Pythagorean direction `(a, b, c)` exceeds the origin's by exactly
+    /// `n` (grid units times `c`): an integer solution of `a·x + b·y = n`,
+    /// chosen of the family `(x + b·j, y − a·j)` to stand within `c/2`
+    /// grid steps of the line.
+    fn along_exactly(n: i128, (a, b, c): (i128, i128, i128)) -> [i128; 2] {
+        // a·s + b·t = 1 (extended Euclid; a and b are coprime).
+        let (mut r0, mut r1, mut s0, mut s1, mut t0, mut t1) = (a, b, 1i128, 0i128, 0i128, 1i128);
+        while r1 != 0 {
+            let q = r0.div_euclid(r1);
+            (r0, r1) = (r1, r0 - q * r1);
+            (s0, s1) = (s1, s0 - q * s1);
+            (t0, t1) = (t1, t0 - q * t1);
+        }
+        let (s, t) = (s0 * r0.signum(), t0 * r0.signum());
+        let (x, y) = (n * s, n * t);
+        // The cross x·b − y·a moves by c² per j; take it nearest zero.
+        let cross = x * b - y * a;
+        let j = -(cross as f64 / (c * c) as f64).round() as i128;
+        [x + b * j, y - a * j]
+    }
+
+    /// **The collinear arm's verdict holds of the real overlap, on exact
+    /// points.** `s1` runs `k` times a Pythagorean direction `(a, b)` (its
+    /// length `k·c` metres exactly, `k` from `10²` to `10⁴`) from a point
+    /// up to `2·10⁵` m out, every point on the `2⁻³⁴` m grid. `s2` starts
+    /// at a grid point whose projection along `s1` stands an exact
+    /// `r ∈ [−30ε, 30ε]` past one of `s1`'s ends ([`along_exactly`], within
+    /// the band's zero of `s1`'s line), and runs on away from `s1`, so the
+    /// overlap is `r`, exact in `i128`. At ε `10⁻⁹`, `K` 10,
+    /// [`collinear_overlap`] keeps its contract: an overlap only where
+    /// `r ≥ Kε`, disjoint only where `r ≤ −Kε`, a touch only where
+    /// `|r| ≤ ε`. A counterexample sweep: the charge acts only at those
+    /// edges, which is where these draws stand.
+    #[test]
+    fn the_collinear_arm_keeps_its_contract_on_the_real_overlap() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let (eps, k_eps) = (band.zero(), band.escalate());
+        let grid = 2f64.powi(-34);
+        let unit = 1i128 << 34;
+        let mut rng = test_utils::fuzz::start("seg-collinear-exact");
+        let dirs: [(i128, i128, i128); 5] = [
+            (3, 4, 5),
+            (5, 12, 13),
+            (8, 15, 17),
+            (7, 24, 25),
+            (20, 21, 29),
+        ];
+        let on_grid = |x: f64| (x / grid).round() as i128;
+        let sign = |rng: &mut test_utils::fuzz::Rng| if rng.range(0.0, 1.0) < 0.5 { -1 } else { 1 };
+        for _ in 0..test_utils::fuzz::scaled(20_000) {
+            let (mut a, mut b, c) = dirs[(rng.range(0.0, 5.0) as usize).min(4)];
+            if rng.range(0.0, 1.0) < 0.5 {
+                core::mem::swap(&mut a, &mut b);
+            }
+            a *= sign(&mut rng);
+            b *= sign(&mut rng);
+            let k = 10f64.powf(rng.range(2.0, 4.0)).round() as i128;
+            let p0 = [on_grid(rng.range(-2e5, 2e5)), on_grid(rng.range(-2e5, 2e5))];
+            let p1 = [p0[0] + k * a * unit, p0[1] + k * b * unit];
+            // s2 starts `n` past an end of s1 (outward positive) and runs
+            // away from s1: the overlap is −n in grid units over c.
+            let (from, away) = if rng.range(0.0, 1.0) < 0.5 {
+                (p0, -1)
+            } else {
+                (p1, 1)
+            };
+            let reach = 30.0 * eps / grid * c as f64;
+            let n = rng.range(-reach, reach) as i128;
+            let off = along_exactly(n * away, (a, b, c));
+            let q0 = [from[0] + off[0], from[1] + off[1]];
+            let k2 = 10f64.powf(rng.range(2.0, 4.0)).round() as i128 * away;
+            let q1 = [q0[0] + k2 * a * unit, q0[1] + k2 * b * unit];
+            let f = |q: [i128; 2]| (q[0] as f64 * grid, q[1] as f64 * grid);
+            let (s1, s2) = (
+                line::<f64>(f(p0), f(p1), band),
+                line::<f64>(f(q0), f(q1), band),
+            );
+            let along = |q: [i128; 2]| (q[0] - p0[0]) * a + (q[1] - p0[1]) * b;
+            let (t0, t1, end) = (along(q0), along(q1), along(p1));
+            let r = (t0.max(t1).min(end) - t0.min(t1).max(0)) as f64 * grid / c as f64;
+            let read = match collinear_overlap(&s1, &s2, band) {
+                Ok(PairOutcome::Overlap) => "overlap",
+                Ok(PairOutcome::Contacts(c)) if c.is_empty() => "disjoint",
+                Ok(PairOutcome::Contacts(_)) => "touch",
+                Err(_) => continue,
+            };
+            let kept = match read {
+                "overlap" => r >= k_eps,
+                "disjoint" => r <= -k_eps,
+                _ => r.abs() <= eps,
+            };
+            assert!(
+                kept,
+                "read {read} at a real overlap of {r:e} m (ε {eps:e}): s1 {:?}→{:?}, \
+                 s2 {:?}→{:?} — {}",
+                f(p0),
+                f(p1),
+                f(q0),
+                f(q1),
+                test_utils::fuzz::replay()
+            );
+        }
+    }
+
+    /// **A collinear pair a hair inside the band's edge escalates.** A
+    /// case of [`the_collinear_arm_keeps_its_contract_on_the_real_overlap`]'s
+    /// draw, every point on the `2⁻³⁴` m grid, `s1` running `5795` times
+    /// `(20, −21)` (the 20-21-29 family) about `2·10⁵` m out: `s2` continues `s1` from
+    /// just past its end, and their real overlap is `−9.9796·10⁻⁹` m, a
+    /// hair inside `−Kε`. So [`collinear_overlap`] may read it neither
+    /// disjoint (`r ≤ −Kε`) nor a touch (`|r| ≤ ε`) nor an overlap: it
+    /// escalates, on the straddle of its charged bounds. With the charge
+    /// dropped it reads disjoint.
+    #[test]
+    fn a_collinear_pair_a_hair_inside_the_band_edge_escalates() {
+        let band = Band::new(1e-9, 1e-8).unwrap_or_else(|e| panic!("band: {e}"));
+        let s1 = line::<f64>(
+            (21578.073839960678, 177081.7702821999),
+            (137478.07383996068, 55386.7702821999),
+            band,
+        );
+        let s2 = line::<f64>(
+            (137478.07383996708, 55386.770282192214),
+            (211658.07383996708, -22502.229717807786),
+            band,
+        );
+        match collinear_overlap(&s1, &s2, band) {
+            Err(e) => assert_eq!(e.predicate, Some("collinear_overlap")),
+            Ok(PairOutcome::Overlap) => panic!("read an overlap"),
+            Ok(PairOutcome::Contacts(c)) => panic!("read {} contacts", c.len()),
+        }
+    }
+
+    /// **A far, long pair reads apart only past its charge.** `a` runs
+    /// `2·10⁶` m from `(123 456.7, −654 321.9)`, and `b` continues on its
+    /// line, starting `step` past its end. The projections' rounding is
+    /// about `2⁻⁵²` of their `4·10⁶` m, near `10⁻⁹` m, a hundred times the
+    /// fine band. At a step of `10⁻⁷` m, past that charge, [`gaps_apart`]
+    /// reads the pair apart, and the real gap is at least `ε`. At a step
+    /// of `3·10⁻¹⁰` m, inside the rounding, it does not: with the charge
+    /// dropped, the step would read as a gap.
+    #[test]
+    fn a_far_pair_reads_apart_only_past_its_charge() {
+        let band = Band::new(1e-12, 1e-11).unwrap_or_else(|e| panic!("band: {e}"));
+        let a0 = (123_456.7, -654_321.9);
+        let (dx, dy) = (0.6, 0.8);
+        let len = 2e6;
+        let a1 = (a0.0 + dx * len, a0.1 + dy * len);
+        let pair = |step: f64| {
+            let b0 = (a1.0 + dx * step, a1.1 + dy * step);
+            let b1 = (b0.0 + dx * len, b0.1 + dy * len);
+            ([a0, a1], [b0, b1])
+        };
+        let read = |([a0, a1], [b0, b1]): (Ends, Ends)| {
+            gaps_apart(&line::<f64>(a0, a1, band), &line(b0, b1, band), band)
+        };
+        let (a, b) = pair(1e-7);
+        assert!(read((a, b)), "a step of 1e-7 m past the charge reads apart");
+        let gaps = real_gaps(a, b);
+        assert!(gaps.iter().any(|g| g.lo() >= band.zero()), "{gaps:?}");
+        assert!(
+            !read(pair(3e-10)),
+            "a step of 3e-10 m, inside the projections' rounding, must not read apart"
+        );
     }
 
     /// The arc on the circle `centre`, `radius` from polar angle `start`
