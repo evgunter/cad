@@ -90,76 +90,112 @@ edge, into each face, at offsets 0, Kε/3 and Kε (within the band) and
 
 - **Every edge is decided once, for both faces it bounds**
   (`boolean/solid_contain.rs`, `ray_crossings`; the new
-  `boolean/solid_contain/curved_edges.rs`). A line edge between two
-  crossed planes keeps the planar reading (`edge_meets`). Every other
-  edge between two faces that read their own carrier crossings (a
-  crossed plane, a trimmed curved face's roots, `carrier_roots`) is read
-  from those crossings: one definitely off the edge's carrier
-  (`Curve3::clearance`, the on-carrier reading's lower bound) is clear
-  of it there; one that is not is carried to the ray's closest approach
-  by alternate feet (`Curve3::foot`, the one foot reading) and read on
-  the edge's span as the census reads it (`census::edge_span`, the
-  curved lanes' own span; `Foot::on_carrier`, `Span::place`). On the
-  carrier or in the band's gap, inside the span, the ray meets the edge.
+  `boolean/solid_contain/curved_edges.rs`).
+  - A line edge between two crossed planes keeps the planar reading
+    (`edge_meets`).
+  - Every other edge between two faces that read their own carrier
+    crossings (a crossed plane, or a trimmed curved face's roots from
+    `carrier_roots`) is read from those crossings. One definitely off
+    the edge's carrier (`Curve3::clearance`) is clear of it there. One
+    that is not is carried to the ray's closest approach by alternate
+    feet (`Curve3::foot`), and read on the edge's span as the census
+    reads it (`census::edge_span`, `Foot::on_carrier`, `Span::place`).
+  - On the carrier, or in the band's gap, inside the span, the ray meets
+    the edge.
+  - A seam inside one face is no boundary of it, and is decided as one.
 - **Half a crossing for each face, at the carrier crossing it stands
-  for**: a planar face's plane crossing, a curved face's root decided
-  nearest where the ray passes the edge (a nearest in band of another
-  reads nothing). The crossing spans the edge's passage and both
-  carrier crossings (`Crossings::push_span`); a pair's parties are read
-  where the ray passes the edge (`RayHit::pair`, unchanged). A planar
-  face with a met edge offers no crossing of its own; a curved face
+  for**: a planar face's plane crossing, or a curved face's root decided
+  nearest the passage from both ends of the passage's span. A met edge
+  stands for a crossing only where the edge represents it; otherwise it
+  reads nothing there. It represents a crossing that:
+  - no other met edge stands for (keyed by surface and root order, so a
+    root two half-walls share is one crossing);
+  - belongs to a face whose every edge is decided;
+  - on a face not every edge of which is a line edge read exactly, lies
+    near the passage (`side_at_infinity_stands` /
+    `bool_point_in_solid_stands`) or is definitely held by the face.
+
+  The hit spans the passage and both carrier crossings. A planar face
+  with a met edge offers no crossing of its own; a curved face offers
   none at that root.
 - **The wedge keeps PR 5422's reading**: a face met at two of its edges
-  (`EdgeMeets::meet`, shared by both readings), and one edge met at two
-  places along the ray reads nothing there. A face met at one edge is
-  read again at its other edges from where the ray passes it
-  (`curved_edges::narrow`), so a face narrower than the band there is a
-  wedge though its other edge's own crossings lie off it.
-- **A seam split**: two faces on one carrier cross it at one root. Near
-  their seam the ray meets the seam once, half a crossing for each face
-  with one sign. Elsewhere a face that definitely holds the root holds
-  it alone, and the others' readings of it, in band or not, decide
-  nothing (`ray_crossings`, the shared roots).
-- Vertices of curved edges are corners as a line edge's are
-  (`EdgeMeets::vertex`), save a closed edge's conventional vertex.
+  (`EdgeMeets::meet`), and one edge met at two places along the ray reads
+  nothing there. A face met at one edge is read again at its other edges
+  from both ends of the passage (`curved_edges::narrow`).
+- **A seam split**: two faces on one carrier cross it at one root.
+  - Near their seam, the ray meets the seam once, half a crossing for
+    each face with one sign.
+  - Elsewhere, a face that definitely holds the root holds it alone. The
+    others' readings, in band, faulted or not, decide nothing; a fault
+    stands only where no face holds the root. The reading is order-free.
+- Vertices of curved edges are corners, as a line edge's are, save a
+  closed edge's conventional vertex.
+
+## Review (PR 5697, dual concurrent, H)
+
+One review found two MAJORs, each a ray that reads the wrong side on a
+legal body.
+- **A planar face's half was read at a plane crossing outside the face.**
+  The ray is shallow to the face and passes another, curved edge of it
+  that read clear at the crossings: the kinked bore,
+  `curved_edge_corpus::kinked_bore`; 140 of 3042 rays were wrong.
+- **Two met rims each stood for one root two half-walls share**: the
+  thin discs.
+
+Both are fixed by the "represents" rule above. The other review found a
+seam inside a face unread (now decided), and found the random pin blind
+to both MAJORs. The pin now reads every crossing of a ray against an
+analytic truth.
 
 ## Measured with the fix
 
-- Rays at 0, Kε/3 and Kε, both ways out, at ε 1e-9: every nominal body
-  reads 48–72 of 72 (78 of 108 on the three-arc cylinder, 39 of 48 on
-  the fillet and the hemisphere), with **no** crossing in band
-  of a face's own boundary; the rest read nothing (a ray aimed at an
-  edge that clips its corner crosses nothing net). Discs 21ε and 30ε
-  read 41 and 43 of 72, with none on such a crossing; the 12ε disc, under
-  2Kε, 11, its aims now wedges. ε 1e-6 and 1e-12 alike. No ray reads the
-  wrong side, on either way out.
-- The reader still falls to the volume on none of the bodies.
+- Rays at 0, Kε/3 and Kε into each face, both ways out, at ε 1e-9.
+  - Nominal bodies read 40–67 of 72 (68 of 108 on the three-arc
+    cylinder, 36–38 of 48 on the fillet and the hemisphere), with
+    **no** crossing in band of a face's own boundary. On main they read
+    14–27 of 72, with 22–59 set aside that way.
+  - Discs 21ε and 30ε read 36 and 38 of 72; the 12ε disc, under 2Kε, 8.
+  - ε 1e-6 and 1e-12 alike.
+  - The "represents" rule costs the reads where the half would have
+    counted right across the met edge itself (the cylinder's rim from
+    the wall side reads 10 of 24 one way out, 16 before the rule):
+    `a-ray-shallow-to-both-faces-of-a-curved-edge-reads-it-clear-at-their-crossings`.
+- **No ray reads the wrong side**, at any ε:
+  - every crossing of rays about every edge of the curved corpus
+    (`curved_edge_corpus`), at `CAD_FUZZ_EFFORT` 1, 30 and 100;
+  - 25 920 uniformly aimed rays per ε (`probe_uniform_rays_about_the_corpuss_edges`).
+- The reader falls to the volume on none of the probe bodies.
 - `cut_cylinder`: 62 exact zeros, of 1827 reader decisions (1719 on
-  main). The curved edge-meeting ray retires none:
-  `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`'s
-  `## Measured on the curved edge-meeting ray` says which reads remain,
-  and unparks it re-priced.
-- The five batteries, release, line-diffed against the merge base: 0
-  lines move.
+  main), retired by none of this
+  (`the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`).
+- The five batteries, line-diffed against the merge base: see the PR.
 
 ## Pins
 
-`crates/sweep/tests/a_ray_meets_a_curved_edge_once_for_both_faces.rs`:
-- `rays_in_band_of_a_curved_edge_read_it_once`: no ray at Kε/3 or Kε
-  reads the wrong side or is set aside on a face's own boundary, and at
-  least 60% of each body's read (12–38% on main);
-- `no_ray_about_a_curved_edge_reads_the_wrong_side` (shape 1): random
-  points of every edge, offsets within 3Kε either side, random
-  directions, both ways out;
-- `points_about_a_cylinders_edges_read_right_or_not_at_all` (shape 1):
-  point containment 2–4 bands off a rim or a seam against the analytic
-  cylinder.
-Each body passes tier 3′ with no contacts at every ε row it is pinned at.
+`crates/sweep/tests/a_ray_meets_a_curved_edge_once_for_both_faces.rs`,
+over `curved_edge_corpus.rs`. Each body is asserted at tier 3′ with no
+contacts at every ε row. Every crossing of a ray is held to the body's
+analytic membership on either side, in two face orders:
+- `every_crossing_of_a_ray_about_a_curved_edge_counts_right` (shape 1):
+  the corpus's cheap part, the thin discs and the kinked bore included;
+- `every_crossing_of_a_ray_about_the_corpuss_edges_counts_right`
+  (shape 1): the whole corpus, revolves and booleans;
+- `a_ray_shallow_to_a_face_past_its_curved_edge_reads_right`: the first
+  review's scan of the kinked bore, 3042 rays;
+- `a_root_two_half_walls_share_is_counted_once`: the thin discs on a
+  pinned seed (16, 14 and 16 wrong on the first head at the three ε);
+- `one_root_two_rims_stand_for_reads_nothing_twice`: the first review's
+  ray;
+- `rays_in_band_of_a_curved_edge_read_it_once`: aimed rays at Kε/3 and
+  Kε read the right side or nothing, never set aside on a face's own
+  boundary, and at least 40% read.
 
 ## Residue
 
 - `a-ray-shallow-to-both-faces-of-a-curved-edge-reads-it-clear-at-their-crossings`
-  (FLUSH, P3): clear is read at the crossings, so a ray shallow to both
-  faces of a curved edge, passing within its band, is set aside.
+  (FLUSH, P3), rewritten: what clear-at-the-crossings misses, and what
+  the "represents" rule costs.
+- `a-uniform-ray-about-a-curved-edge-is-still-set-aside-on-a-faces-own-boundary`
+  (FLUSH, P3).
 - `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`
   (FLUSH, P2, unparked, H).

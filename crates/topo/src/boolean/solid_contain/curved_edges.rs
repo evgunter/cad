@@ -323,15 +323,23 @@ fn passes<T: Decide>(
 /// the ray: the only one, or the one decided nearer than every other
 /// (`order`, a magnitude) from both ends of the span; `None` where no
 /// one is.
-fn nearest<T: Decide>(cs: &[(Cross, T)], (lo, hi): (T, T), band: Band, rows: RayRows) -> Option<Cross> {
+fn nearest<T: Decide>(
+    cs: &[(Cross, T)],
+    (lo, hi): (T, T),
+    band: Band,
+    rows: RayRows,
+) -> Option<Cross> {
     cs.iter()
         .enumerate()
         .find(|&(i, &(_, t))| {
             cs.iter().enumerate().all(|(j, &(_, u))| {
                 j == i
                     || [lo, hi].iter().all(|&at| {
-                        decide(rows.order, Margin::of((u - at).abs() - (t - at).abs()), band)
-                            == Ok(Sign::Positive)
+                        decide(
+                            rows.order,
+                            Margin::of((u - at).abs() - (t - at).abs()),
+                            band,
+                        ) == Ok(Sign::Positive)
                     })
             })
         })

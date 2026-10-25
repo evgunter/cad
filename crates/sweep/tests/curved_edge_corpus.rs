@@ -97,13 +97,9 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> impl Fn(Point3<f64>) ->
 }
 
 /// One boolean of two bodies through the public door, `None` on a refusal.
-fn op(
-    which: &str,
-    a: &Body<f64>,
-    b: &Body<f64>,
-    tol: Tol,
-) -> Result<Option<Body<f64>>, String> {
-    let rest = |x: &Body<f64>| topo::AtRestBody::validate(x.clone(), tol).map_err(|e| format!("{e:?}"));
+fn op(which: &str, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Result<Option<Body<f64>>, String> {
+    let rest =
+        |x: &Body<f64>| topo::AtRestBody::validate(x.clone(), tol).map_err(|e| format!("{e:?}"));
     let (a, b) = (rest(a)?, rest(b)?);
     let r = match which {
         "union" => topo::union(&a, &b, tol),
@@ -150,11 +146,25 @@ pub(crate) fn corpus(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
         }
     };
     let quarter = (PI / 2.0 / 4.0).tan();
-    let rect = vec![p2(0.0, 0.0, 0.0), p2(0.5, 0.0, 0.0), p2(0.5, 1.0, 0.0), p2(0.0, 1.0, 0.0)];
-    let frustum = vec![p2(0.0, 0.0, 0.0), p2(1.0, 0.0, 0.0), p2(0.6, 1.0, 0.0), p2(0.0, 1.0, 0.0)];
+    let rect = vec![
+        p2(0.0, 0.0, 0.0),
+        p2(0.5, 0.0, 0.0),
+        p2(0.5, 1.0, 0.0),
+        p2(0.0, 1.0, 0.0),
+    ];
+    let frustum = vec![
+        p2(0.0, 0.0, 0.0),
+        p2(1.0, 0.0, 0.0),
+        p2(0.6, 1.0, 0.0),
+        p2(0.0, 1.0, 0.0),
+    ];
     let apex = vec![p2(0.0, 0.0, 0.0), p2(1.0, 0.0, 0.0), p2(0.0, 1.0, 0.0)];
-    let near_apex =
-        vec![p2(0.0, 0.0, 0.0), p2(1.0, 0.0, 0.0), p2(0.01, 0.99, 0.0), p2(0.0, 0.99, 0.0)];
+    let near_apex = vec![
+        p2(0.0, 0.0, 0.0),
+        p2(1.0, 0.0, 0.0),
+        p2(0.01, 0.99, 0.0),
+        p2(0.0, 0.99, 0.0),
+    ];
     let hemi = vec![p2(0.0, 0.0, 0.0), p2(1.0, 0.0, quarter), p2(0.0, 1.0, 0.0)];
     let lantern_b = (0.6f64.asin() / 4.0).tan();
     let lantern = vec![
@@ -164,33 +174,92 @@ pub(crate) fn corpus(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
         p2(0.2, 1.2, 0.0),
         p2(0.0, 1.2, 0.0),
     ];
-    let bowl = vec![p2(0.0, 0.0, 0.0), p2(1.5, 0.0, 0.0), p2(1.5, 1.5, 0.0), p2(1.0, 1.0, 0.0), p2(0.0, 1.0, 0.0)];
+    let bowl = vec![
+        p2(0.0, 0.0, 0.0),
+        p2(1.5, 0.0, 0.0),
+        p2(1.5, 1.5, 0.0),
+        p2(1.0, 1.0, 0.0),
+        p2(0.0, 1.0, 0.0),
+    ];
     let tube = vec![p2(2.5, 0.0, 1.0), p2(1.5, 0.0, 1.0)];
-    let annulus = vec![p2(0.2, 0.0, 0.0), p2(0.5, 0.0, 0.0), p2(0.5, 1.0, 0.0), p2(0.2, 1.0, 0.0)];
+    let annulus = vec![
+        p2(0.2, 0.0, 0.0),
+        p2(0.5, 0.0, 0.0),
+        p2(0.5, 1.0, 0.0),
+        p2(0.2, 1.0, 0.0),
+    ];
     // A sphere zone on a bore (sweep's `sphere_zone`'s profile).
     let (big, ylo, yhi) = (2.0f64, -0.5f64, 1.0f64);
-    let (xlo, xhi) = ((big * big - ylo * ylo).sqrt(), (big * big - yhi * yhi).sqrt());
+    let (xlo, xhi) = (
+        (big * big - ylo * ylo).sqrt(),
+        (big * big - yhi * yhi).sqrt(),
+    );
     let zb = (((yhi / big).asin() - (ylo / big).asin()) / 4.0).tan();
-    let zone = vec![p2(0.5, ylo, 0.0), p2(xlo, ylo, zb), p2(xhi, yhi, 0.0), p2(0.5, yhi, 0.0)];
+    let zone = vec![
+        p2(0.5, ylo, 0.0),
+        p2(xlo, ylo, zb),
+        p2(xhi, yhi, 0.0),
+        p2(0.5, yhi, 0.0),
+    ];
     for k in 0..4 {
-        revolve(format!("rev cylinder rot{k}"), rot(&rect, k), Revolution::Full);
-        revolve(format!("rev frustum rot{k}"), rot(&frustum, k), Revolution::Full);
-        revolve(format!("rev slit annulus 1.5pi rot{k}"), rot(&annulus, k), Revolution::Partial(1.5 * PI));
+        revolve(
+            format!("rev cylinder rot{k}"),
+            rot(&rect, k),
+            Revolution::Full,
+        );
+        revolve(
+            format!("rev frustum rot{k}"),
+            rot(&frustum, k),
+            Revolution::Full,
+        );
+        revolve(
+            format!("rev slit annulus 1.5pi rot{k}"),
+            rot(&annulus, k),
+            Revolution::Partial(1.5 * PI),
+        );
     }
     for k in 0..3 {
-        revolve(format!("rev cone apex rot{k}"), rot(&apex, k), Revolution::Full);
-        revolve(format!("rev hemisphere rot{k}"), rot(&hemi, k), Revolution::Full);
+        revolve(
+            format!("rev cone apex rot{k}"),
+            rot(&apex, k),
+            Revolution::Full,
+        );
+        revolve(
+            format!("rev hemisphere rot{k}"),
+            rot(&hemi, k),
+            Revolution::Full,
+        );
     }
     revolve("rev cone near apex".into(), near_apex, Revolution::Full);
     revolve("rev lantern".into(), lantern.clone(), Revolution::Full);
-    revolve("rev lantern rot2".into(), rot(&lantern, 2), Revolution::Full);
+    revolve(
+        "rev lantern rot2".into(),
+        rot(&lantern, 2),
+        Revolution::Full,
+    );
     revolve("rev bowl".into(), bowl, Revolution::Full);
     revolve("rev sphere zone".into(), zone.clone(), Revolution::Full);
     revolve("rev sphere zone half".into(), zone, Revolution::Partial(PI));
-    revolve("rev half cylinder".into(), rect.clone(), Revolution::Partial(PI));
-    revolve("rev half torus".into(), tube.clone(), Revolution::Partial(PI));
-    revolve("rev torus 1.5pi".into(), rot(&tube, 1), Revolution::Partial(1.5 * PI));
-    revolve("rev hemisphere 1.5pi".into(), hemi, Revolution::Partial(1.5 * PI));
+    revolve(
+        "rev half cylinder".into(),
+        rect.clone(),
+        Revolution::Partial(PI),
+    );
+    revolve(
+        "rev half torus".into(),
+        tube.clone(),
+        Revolution::Partial(PI),
+    );
+    revolve(
+        "rev torus 1.5pi".into(),
+        rot(&tube, 1),
+        Revolution::Partial(1.5 * PI),
+    );
+    revolve(
+        "rev hemisphere 1.5pi".into(),
+        hemi,
+        Revolution::Partial(1.5 * PI),
+    );
 
     // Booleans, both operand orders.
     let cyl = disc_of_arcs(2, 0.5, 1.0, tol);
@@ -200,11 +269,10 @@ pub(crate) fn corpus(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
             if which == "subtract" && order == "ba" {
                 continue;
             }
-            match op(which, x, y, tol) {
-                Ok(Some(body)) => out.push((format!("{name} {order}"), body, clone_truth(&t))),
-                // A boolean the door refuses, or that leaves nothing, is
-                // no body to read.
-                Ok(None) | Err(_) => {}
+            // A boolean the door refuses, or that leaves nothing, is no
+            // body to read.
+            if let Ok(Some(body)) = op(which, x, y, tol) {
+                out.push((format!("{name} {order}"), body, clone_truth(&t)));
             }
         }
     };
@@ -218,7 +286,12 @@ pub(crate) fn corpus(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
         shared(move |p| cyl_t(p) && cut(p)),
     );
     let fr = revolved_about_y(
-        vec![p2(0.0, 0.0, 0.0), p2(0.5, 0.0, 0.0), p2(0.3, 0.5, 0.0), p2(0.0, 0.5, 0.0)],
+        vec![
+            p2(0.0, 0.0, 0.0),
+            p2(0.5, 0.0, 0.0),
+            p2(0.3, 0.5, 0.0),
+            p2(0.0, 0.5, 0.0),
+        ],
         Revolution::Full,
         tol,
     );
@@ -250,9 +323,7 @@ pub(crate) fn corpus(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
         "union",
         &cyl,
         &cap,
-        shared(move |p| {
-            cyl_t(p) || p.x * p.x + p.y * p.y + (p.z - 1.0) * (p.z - 1.0) < 0.36
-        }),
+        shared(move |p| cyl_t(p) || p.x * p.x + p.y * p.y + (p.z - 1.0) * (p.z - 1.0) < 0.36),
     );
     let torus = revolved_about_y(tube.clone(), Revolution::Full, tol);
     let tb = boxed((-3.0, 3.0), (0.2, 3.0), (-3.0, 3.0));
@@ -290,10 +361,17 @@ pub(crate) fn corpus(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
     out.push((
         "boss on a box".into(),
         boss,
-        Box::new({ let cube = cube.clone(); move |p| cube(p) || (rr(p) < 0.3 && p.z > 0.5 && p.z < 1.5) }),
+        Box::new({
+            let cube = cube.clone();
+            move |p| cube(p) || (rr(p) < 0.3 && p.z > 0.5 && p.z < 1.5)
+        }),
     ));
     let bored = bored_block_of_arcs(2, 1.0, 1.0, 0.3, tol);
-    out.push(("bored block".into(), bored, Box::new(move |p| cube(p) && rr(p) > 0.3)));
+    out.push((
+        "bored block".into(),
+        bored,
+        Box::new(move |p| cube(p) && rr(p) > 0.3),
+    ));
     out.push((
         "cylinder 3 arcs".into(),
         disc_of_arcs(3, 0.5, 1.0, tol),
@@ -326,7 +404,8 @@ pub(crate) fn kinked_bore(tol: Tol) -> (Body<f64>, Truth) {
     let plane = profile::SketchPlane::from_frame(geom_core::RigidMotion::axes_yz(Point3::new(
         -0.5, 0.0, 0.0,
     )));
-    let bore = sweep::test_support::prism_on(plane, vec![p2(0.6, 0.5, 1.0), p2(0.2, 0.5, 1.0)], 2.0, tol);
+    let bore =
+        sweep::test_support::prism_on(plane, vec![p2(0.6, 0.5, 1.0), p2(0.2, 0.5, 1.0)], 2.0, tol);
     let body = op("subtract", &block, &bore, tol)
         .expect("the bore subtracts")
         .expect("a body");
@@ -349,17 +428,28 @@ pub(crate) const KINK: f64 = 0.357;
 /// prism and the kinked bore.
 pub(crate) fn fast(tol: Tol) -> Vec<(String, Body<f64>, Truth)> {
     let mut out: Vec<(String, Body<f64>, Truth)> = Vec::new();
-    let disc = |h: f64| move |p: Point3<f64>| (p.x * p.x + p.y * p.y).sqrt() < 0.5 && p.z > 0.0 && p.z < h;
-    out.push(("cylinder 2 arcs".into(), disc_of_arcs(2, 0.5, 1.0, tol), Box::new(disc(1.0))));
+    let disc =
+        |h: f64| move |p: Point3<f64>| (p.x * p.x + p.y * p.y).sqrt() < 0.5 && p.z > 0.0 && p.z < h;
+    out.push((
+        "cylinder 2 arcs".into(),
+        disc_of_arcs(2, 0.5, 1.0, tol),
+        Box::new(disc(1.0)),
+    ));
     for m in [12.0, 21.0, 30.0] {
         let h = m * tol.eps();
-        out.push((format!("disc {m}ε thick"), disc_of_arcs(2, 0.5, h, tol), Box::new(disc(h))));
+        out.push((
+            format!("disc {m}ε thick"),
+            disc_of_arcs(2, 0.5, h, tol),
+            Box::new(disc(h)),
+        ));
     }
     let fillet = kinked_profile(quarter_bulge());
     out.push((
         "filleted prism".into(),
         sweep::test_support::prism(fillet.clone(), 1.0, tol),
-        Box::new(move |p: Point3<f64>| in_bulge_loop(&fillet, (p.x, p.y)) && p.z > 0.0 && p.z < 1.0),
+        Box::new(move |p: Point3<f64>| {
+            in_bulge_loop(&fillet, (p.x, p.y)) && p.z > 0.0 && p.z < 1.0
+        }),
     ));
     let (body, truth) = kinked_bore(tol);
     out.push(("kinked bore".into(), body, truth));
@@ -387,8 +477,12 @@ fn deep_point(verts: &[(Point2<f64>, f64)]) -> (f64, f64) {
     let (mut best, mut at) = (-1.0, (0.0, 0.0));
     for i in 1..40 {
         for j in 1..40 {
-            let (minx, maxx) = verts.iter().fold((f64::MAX, f64::MIN), |a, v| (a.0.min(v.0.x), a.1.max(v.0.x)));
-            let (miny, maxy) = verts.iter().fold((f64::MAX, f64::MIN), |a, v| (a.0.min(v.0.y), a.1.max(v.0.y)));
+            let (minx, maxx) = verts.iter().fold((f64::MAX, f64::MIN), |a, v| {
+                (a.0.min(v.0.x), a.1.max(v.0.x))
+            });
+            let (miny, maxy) = verts.iter().fold((f64::MAX, f64::MIN), |a, v| {
+                (a.0.min(v.0.y), a.1.max(v.0.y))
+            });
             let x = minx - 0.5 + (maxx - minx + 1.0) * f64::from(i) / 40.0;
             let y = miny - 0.5 + (maxy - miny + 1.0) * f64::from(j) / 40.0;
             if x <= 0.05 || !in_bulge_loop(verts, (x, y)) {

@@ -914,8 +914,8 @@ pub(crate) fn ray_counts(
     let n = geos.len().max(1);
     geos.rotate_left(turn % n);
     let reach = selection_reach(body, sel.faces(), q).map_err(|e| format!("{e:?}"))?;
-    let crossings = ray_crossings(body, &geos, q, d, reach, band, AIMED_ROWS)
-        .map_err(|e| format!("{e:?}"))?;
+    let crossings =
+        ray_crossings(body, &geos, q, d, reach, band, AIMED_ROWS).map_err(|e| format!("{e:?}"))?;
     Ok(crossings
         .all()
         .into_iter()

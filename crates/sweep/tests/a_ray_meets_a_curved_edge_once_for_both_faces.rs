@@ -28,7 +28,11 @@ use super::curved_edge_corpus::{Truth, corpus, fast, kinked_bore, robust};
 test_utils::gated_to![
     "crates/topo/src/boolean/solid_contain.rs",
     "crates/topo/src/boolean/solid_contain/curved_edges.rs",
+    "crates/sweep/tests/curved_edge_corpus.rs",
 ];
+
+/// A ray's clusters as [`clusters`] reads them, or the walk's fault.
+type Read = Result<(Vec<(f64, f64, i32)>, bool), String>;
 
 /// Asserts `body` legal at tier 3′ with no contacts at the run's ε.
 fn at_rest(name: &str, body: &Body<f64>, tol: Tol) {
@@ -81,7 +85,7 @@ fn whole_ray(
         topo::test_support::ray_counts(body, face, (q, d), band, order)
             .map(|hits| clusters(hits, 2.0 * clear))
     });
-    let counts = |r: &Result<(Vec<(f64, f64, i32)>, bool), String>| {
+    let counts = |r: &Read| {
         r.as_ref()
             .map(|(c, s)| (c.iter().map(|x| x.2).collect::<Vec<_>>(), *s))
             .ok()
@@ -105,7 +109,10 @@ fn whole_ray(
             && let Some(at) = material(q + d * (0.5 * (prev + lo)))
             && at != m
         {
-            return Err(format!("{cl:?}: material {at} at {}, counted {m}", 0.5 * (prev + lo)));
+            return Err(format!(
+                "{cl:?}: material {at} at {}, counted {m}",
+                0.5 * (prev + lo)
+            ));
         }
         m = match (m, c) {
             (_, 0) => m,
@@ -115,7 +122,10 @@ fn whole_ray(
         };
         prev = hi;
     }
-    if !stopped && let Some(at) = material(q + d * (prev + 1.0)) && at != m {
+    if !stopped
+        && let Some(at) = material(q + d * (prev + 1.0))
+        && at != m
+    {
         return Err(format!("{cl:?}: ends counted {m}, material {at} beyond"));
     }
     Ok(())
@@ -145,7 +155,11 @@ fn rays_about_edges(
                 + f.into * (rng.range(-3.0, 3.0) * k_eps)
                 + f.normal * (rng.range(-3.0, 3.0) * k_eps);
             let along = f.normal.cross(f.into);
-            let random = Vec3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+            let random = Vec3::new(
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            );
             let shallow = f.into * rng.range(-1.0, 1.0)
                 + along * rng.range(-1.0, 1.0)
                 + f.normal * rng.range(-0.02, 0.02);
@@ -153,9 +167,14 @@ fn rays_about_edges(
                 let d = d.normalize();
                 for back in [8.0, 0.05] {
                     n += 1;
-                    if let Err(w) =
-                        whole_ray(b, f.face, (p - d * back, d), (truth, inside_out), band, 10.0 * k_eps)
-                    {
+                    if let Err(w) = whole_ray(
+                        b,
+                        f.face,
+                        (p - d * back, d),
+                        (truth, inside_out),
+                        band,
+                        10.0 * k_eps,
+                    ) {
                         wrong.push(format!(
                             "{name} (inside out: {inside_out}) at ε {:e}, {} q={:?} d={d:?}: {w}",
                             tol.eps(),
@@ -179,7 +198,8 @@ fn rays_about_edges(
 #[test]
 fn every_crossing_of_a_ray_about_a_curved_edge_counts_right() {
     let tol = Tol::witness();
-    let mut rng = test_utils::fuzz::start("every_crossing_of_a_ray_about_a_curved_edge_counts_right");
+    let mut rng =
+        test_utils::fuzz::start("every_crossing_of_a_ray_about_a_curved_edge_counts_right");
     let per = test_utils::fuzz::scaled(2);
     for (name, body, truth) in fast(tol) {
         at_rest(&name, &body, tol);
@@ -201,7 +221,8 @@ fn every_crossing_of_a_ray_about_a_curved_edge_counts_right() {
 #[test]
 fn every_crossing_of_a_ray_about_the_corpuss_edges_counts_right() {
     let tol = Tol::witness();
-    let mut rng = test_utils::fuzz::start("every_crossing_of_a_ray_about_the_corpuss_edges_counts_right");
+    let mut rng =
+        test_utils::fuzz::start("every_crossing_of_a_ray_about_the_corpuss_edges_counts_right");
     let per = test_utils::fuzz::scaled(1);
     let mut wrong = Vec::new();
     for (name, body, truth) in corpus(tol) {
@@ -236,9 +257,14 @@ fn discs_rays(rng: &mut test_utils::fuzz::Rng, per: usize, tol: Tol) -> Vec<Stri
 #[test]
 fn a_root_two_half_walls_share_is_counted_once() {
     let tol = Tol::witness();
-    let mut rng = test_utils::fuzz::pinned("a_root_two_half_walls_share_is_counted_once", DISC_SEED);
+    let mut rng =
+        test_utils::fuzz::pinned("a_root_two_half_walls_share_is_counted_once", DISC_SEED);
     let wrong = discs_rays(&mut rng, 8, tol);
-    assert!(wrong.is_empty(), "{} rays read wrong: {wrong:#?}", wrong.len());
+    assert!(
+        wrong.is_empty(),
+        "{} rays read wrong: {wrong:#?}",
+        wrong.len()
+    );
 }
 
 /// [`a_root_two_half_walls_share_is_counted_once`]'s seed: 16, 14 and 16 rays
@@ -253,7 +279,11 @@ fn probe_disc_seeds() {
     let tol = Tol::witness();
     for seed in 1..=40 {
         let mut rng = test_utils::fuzz::Rng::from_seed(seed);
-        println!("DISC SEED {seed} eps={:e}: {} wrong", tol.eps(), discs_rays(&mut rng, 8, tol).len());
+        println!(
+            "DISC SEED {seed} eps={:e}: {} wrong",
+            tol.eps(),
+            discs_rays(&mut rng, 8, tol).len()
+        );
     }
 }
 
@@ -281,10 +311,18 @@ fn a_ray_shallow_to_a_face_past_its_curved_edge_reads_right() {
                 let mouth = Point3::new(1.0 - delta, 0.4 + 0.2 * phi.cos(), 0.5 + 0.2 * phi.sin());
                 let d = Vec3::new(s, 1.0, tz).normalize();
                 for back in [3.0, 0.05] {
-                    if let Err(w) =
-                        whole_ray(&body, face, (mouth - d * back, d), (&truth, false), band, 10.0 * k_eps)
-                    {
-                        wrong.push(format!("δ {:.3}Kε, s {si}, tz {tz}, back {back}: {w}", delta / k_eps));
+                    if let Err(w) = whole_ray(
+                        &body,
+                        face,
+                        (mouth - d * back, d),
+                        (&truth, false),
+                        band,
+                        10.0 * k_eps,
+                    ) {
+                        wrong.push(format!(
+                            "δ {:.3}Kε, s {si}, tz {tz}, back {back}: {w}",
+                            delta / k_eps
+                        ));
                     }
                 }
             }
@@ -314,7 +352,11 @@ fn one_root_two_rims_stand_for_reads_nothing_twice() {
     at_rest(&name, &body, tol);
     let face = body.faces().next().expect("a face").0;
     let q = Point3::new(0.431777029158541, 7.738305151126824, 2.028294585136746);
-    let d = Vec3::new(0.008527870324942689, -0.9672881451929304, -0.25353682098847374);
+    let d = Vec3::new(
+        0.008527870324942689,
+        -0.9672881451929304,
+        -0.25353682098847374,
+    );
     let k_eps = tol.k() * tol.eps();
     assert_eq!(
         whole_ray(&body, face, (q, d), (&truth, false), band, 10.0 * k_eps),
@@ -399,7 +441,8 @@ fn rays_in_band_of_a_curved_edge_read_it_once() {
                 continue;
             }
             for o in [0.3 * k_eps, k_eps] {
-                let r = topo::test_support::ray_at(&body, f.face, f.point + f.into * o, f.normal, band);
+                let r =
+                    topo::test_support::ray_at(&body, f.face, f.point + f.into * o, f.normal, band);
                 let what = format!("{name} at ε {:e}, {} o={o:e}: {r}", tol.eps(), f.label);
                 assert!(!r.contains("Side(In)"), "{what}: a wrong side");
                 assert!(

@@ -277,7 +277,11 @@ fn probe_uniform_rays_about_the_corpuss_edges() {
     let k_eps = tol.k() * tol.eps();
     let mut rng = test_utils::fuzz::pinned("probe_uniform_rays_about_the_corpuss_edges", 11);
     let unit = |rng: &mut test_utils::fuzz::Rng| loop {
-        let v = Vec3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+        let v = Vec3::new(
+            rng.range(-1.0, 1.0),
+            rng.range(-1.0, 1.0),
+            rng.range(-1.0, 1.0),
+        );
         let n = v.norm();
         if n > 0.1 && n <= 1.0 {
             return v * (1.0 / n);
