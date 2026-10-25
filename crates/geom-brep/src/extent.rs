@@ -64,6 +64,7 @@
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
 
+use geom::curves::boxes::ArcWindow;
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Real, Vec3, is_finite_length};
 
@@ -182,63 +183,14 @@ fn foot<T: Real>(p: Point3<T>, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
     origin + axis * (p - origin).dot(axis)
 }
 
-/// **How far a conic arc reaches along a direction, either way**: the
-/// least and the greatest `(x − pivot)·dir` over
-/// `x = c + u·a·cos t + v·b·sin t`, `t ∈ [t0, t1]`. Along `dir` the arc
-/// reads `C + A·cos t + B·sin t`, whose crests `C ± R`
-/// (`R = √(A² + B²)`) stand where `cos(t − t*) = ±1`; a crest lies in
-/// the span iff its cosine against the span's middle `m` is at least
-/// `cos h`, `h` the half-span (capped at a half-turn, past which every
-/// crest is in). So each extreme is an end's reading or a crest, the
-/// crest read only where the test puts it in the span.
-/// Comparison-free ([`Real::select_le_zero`]): an enclosure that cannot
-/// tell takes the hull of the crest and the end.
-fn conic_arc_range<T: Real>(
-    (c, u, v): (Point3<T>, Vec3<T>, Vec3<T>),
-    (a, b): (T, T),
-    (t0, t1): (T, T),
-    pivot: Point3<T>,
-    dir: Vec3<T>,
-) -> (T, T) {
-    let mid = (c - pivot).dot(dir);
-    let (pa, pb) = (a * u.dot(dir), b * v.dot(dir));
-    let read = |t: T| {
-        let (s, co) = t.sin_cos();
-        mid + pa * co + pb * s
-    };
-    let crest = (pa.powi(2) + pb.powi(2)).sqrt();
-    let (r0, r1) = (read(t0), read(t1));
-    let ends = (r0.min(r1), r0.max(r1));
-    let high = crest_in_span((pa, pb), (t0, t1)).select_le_zero(mid + crest, ends.1);
-    let low = crest_in_span((-pa, -pb), (t0, t1)).select_le_zero(mid - crest, ends.0);
-    (ends.0.min(low), ends.1.max(high))
-}
-
-/// **Whether the crest of `A·cos t + B·sin t` lies in `[t0, t1]`**, as a
-/// reading at most zero iff it does: `R·cos h − (A·cos m + B·sin m)`, `m`
-/// the span's middle and `h` its half-width capped at a half-turn (past
-/// which every crest is in), `R = √(A² + B²)`. The crest stands where
-/// `cos(t − t*) = 1`, so it is in the span iff its cosine against `m` is
-/// at least `cos h`. Read with [`Real::select_le_zero`], an enclosure
-/// that cannot tell takes both arms.
-fn crest_in_span<T: Real>((pa, pb): (T, T), (t0, t1): (T, T)) -> T {
-    let half = T::from_f64(0.5);
-    let (sm, cm) = ((t0 + t1) * half).sin_cos();
-    let edge = (pa.powi(2) + pb.powi(2)).sqrt()
-        * ((t1 - t0) * half)
-            .abs()
-            .min(T::from_f64(core::f64::consts::PI))
-            .cos();
-    edge - (pa * cm + pb * sm)
-}
-
 /// **How far a circle arc reaches from a point, exactly**: the farthest
 /// `|x − pivot|` over `x = c + r·(u·cos t + v·sin t)`, `t ∈ [t0, t1]`.
 /// With `pivot` standing `h` off the circle's plane and `ρ` from its
 /// centre within it, `|x − pivot|² = h² + r² + ρ² − 2·|r|·ρ·cos(t − φ)`,
 /// whose one interior maximum is the crest opposite the pivot,
 /// `√(h² + (|r| + ρ)²)`. So the reach is the larger of the two ends' own
-/// distances and, where the crest lies in the span ([`crest_in_span`]
+/// distances and, where the crest lies in the span
+/// ([`geom::curves::boxes::ArcWindow::crest_outside`]
 /// along `−(pivot − c)`), that crest: every term a sum of positives,
 /// none a difference of carrier-sized squares, so a short arc far from
 /// its centre loses nothing to cancellation. A pivot on the axis (`ρ`
@@ -261,7 +213,11 @@ fn circle_arc_reach<T: Real>(
     let ends = (at(t0) - pivot).norm().max((at(t1) - pivot).norm());
     let crest = (h.powi(2) + (r.abs() + rho).powi(2)).sqrt();
     let away = (-(r * u.dot(w)), -(r * v.dot(w)));
-    ends.max(crest_in_span(away, (t0, t1)).select_le_zero(crest, T::zero()))
+    ends.max(
+        ArcWindow::new(t0, t1)
+            .crest_outside(away.0, away.1)
+            .select_le_zero(crest, T::zero()),
+    )
         .min(w.norm() + r.abs())
 }
 
@@ -488,7 +444,7 @@ impl<T: Real> Reach<T> {
     ///     or a convex hull at a vertex of it); the net is the whole
     ///     carrier's, not the span's;
     ///   - a **circle** or **ellipse**: exact over `[t0, t1]`
-    ///     ([`conic_arc_range`]);
+    ///     (`geom::curves::boxes::conic_arc_extent_along`);
     ///   - a **spiric**: its torus's support either way,
     ///     `(c − pivot)·dir ∓ (R·|dir × k| + r·|dir|)`, whatever the span.
     #[must_use]
@@ -513,31 +469,10 @@ impl<T: Real> Reach<T> {
                 ..
             } => (at(*from) - *below, at(*from) + *above),
             Self::Span { carrier, t0, t1 } => match carrier {
-                Curve3::Circle {
-                    center,
-                    axis: k,
-                    radius,
-                    u_ref,
-                } => conic_arc_range(
-                    (*center, *u_ref, k.cross(*u_ref)),
-                    (*radius, *radius),
-                    (*t0, *t1),
-                    pivot,
-                    dir,
-                ),
-                Curve3::Ellipse {
-                    center,
-                    axis: k,
-                    semi_u,
-                    semi_v,
-                    u_ref,
-                } => conic_arc_range(
-                    (*center, *u_ref, k.cross(*u_ref)),
-                    (*semi_u, *semi_v),
-                    (*t0, *t1),
-                    pivot,
-                    dir,
-                ),
+                Curve3::Circle { .. } | Curve3::Ellipse { .. } => {
+                    geom::curves::boxes::conic_arc_extent_along(carrier, *t0, *t1, pivot, dir)
+                        .unwrap_or_else(|| unreachable!("a circle or an ellipse has an extent"))
+                }
                 Curve3::Spiric {
                     center,
                     axis: k,

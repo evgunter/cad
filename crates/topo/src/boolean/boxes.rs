@@ -445,6 +445,14 @@ impl<T: Real> BoxFrame<T> {
         Self::Aimed([aim.get(), b1, b2])
     }
 
+    /// The frame's rows: the world's axes, or the aimed frame's.
+    pub(crate) fn rows(&self) -> [Vec3<T>; 3] {
+        match self {
+            Self::World => [Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()],
+            Self::Aimed(rows) => *rows,
+        }
+    }
+
     /// A direction's components along the frame's rows.
     pub(crate) fn vector(&self, v: Vec3<T>) -> Vec3<T> {
         match self {
@@ -531,73 +539,40 @@ fn poison_value<T: Real>() -> T {
 /// - **Chord** — the hull of the two endpoints' projections. Exact:
 ///   the projection is linear, so a segment's image is the segment
 ///   between the images.
-/// - **ConicAmplitude** — the conic's axial image, restricted to the
-///   certified ARC by the same subdivision [`arc_extent`] runs one
-///   dimension up. Over a full turn that image is
-///   `(centre − origin)·axis ± √((a·(û·axis))² + (b·(v̂·axis))²)`, the
-///   same full-turn amplitude [`conic_extent`] takes per coordinate,
-///   taken along the axis instead. A rim PERPENDICULAR to the axis
-///   has `û·axis = v̂·axis = 0` and collapses to a point, which is
-///   what it geometrically is. Hulled with the chord so a poisoned
-///   amplitude cannot narrow the answer.
+/// - **ConicAmplitude** — the arc's own axial image over its certified
+///   span, from `geom`'s directional door
+///   (`geom::curves::boxes::conic_arc_extent_along`): the extremum
+///   `(centre − origin)·axis ± √((a·(û·axis))² + (b·(v̂·axis))²)` where
+///   its angle lies in the span, an end's value where it does not. A
+///   rim PERPENDICULAR to the axis has `û·axis = v̂·axis = 0` and
+///   collapses to a point, which is what it geometrically is. Hulled
+///   with the chord so a poisoned extent cannot narrow the answer.
 /// - **NoSoundBox** — nothing is claimed: the poison span.
 pub(crate) enum AxialCarrier<T> {
     /// Nothing is certified about the locus — claim nothing.
     Unclaimable,
     /// The locus IS the chord between the two ends.
     Chord,
-    /// A conic arc: its centre, the two in-plane reference
-    /// directions, the matching semi-axes and the certified span, in
-    /// the reading lane's own spans.
-    Conic {
-        /// The conic's centre.
-        center: SpanBox<T>,
-        /// The `t = 0` reference direction.
-        u_ref: SpanBox<T>,
-        /// `axis × u_ref`.
-        v_ref: SpanBox<T>,
-        /// The semi-axis along `u_ref`.
-        semi_u: T,
-        /// The semi-axis along `v_ref`.
-        semi_v: T,
-        /// The certified parameter span — the arc this edge actually
-        /// occupies.
-        params: (T, T),
-    },
+    /// A conic arc's axial image over its certified span, already
+    /// entered into the reading lane's spans ([`axial_carrier`]).
+    Conic(Span<T>),
 }
 
 /// [`EdgeBoxRule`] as an axial span reads it: the one map from a rule
-/// to an [`AxialCarrier`], each lane entering the rule's points and
-/// directions into its own spans (`point`, `vector`), a semi-axis as its
-/// upper end (`semi`) and the arc's span outward (`span`). No axial-span
-/// closed form is written for the spiric, and an edge with no sound box
-/// claims nothing: both are [`AxialCarrier::Unclaimable`].
-pub(crate) fn axial_carrier<T: Real, S>(
-    rule: EdgeBoxRule<'_, T>,
-    point: impl Fn(Point3<T>) -> SpanBox<S>,
-    vector: impl Fn(Vec3<T>) -> SpanBox<S>,
-    semi: impl Fn(T) -> S,
-    span: impl Fn((T, T)) -> (S, S),
+/// to an [`AxialCarrier`], the conic arm's axial image computed by the
+/// lane (`conic`), which reads `geom`'s directional door at its own
+/// scalar — the certified bracket door on the bracket lane, the
+/// carrier's own arithmetic on the census's. No axial-span closed form
+/// is written for the spiric, and an edge with no sound box claims
+/// nothing: both are [`AxialCarrier::Unclaimable`].
+pub(crate) fn axial_carrier<'c, T: Real, S>(
+    rule: EdgeBoxRule<'c, T>,
+    conic: impl FnOnce(&ConicArc<'c, T>) -> Span<S>,
 ) -> AxialCarrier<S> {
     match rule {
         EdgeBoxRule::NoSoundBox | EdgeBoxRule::Spiric { .. } => AxialCarrier::Unclaimable,
         EdgeBoxRule::Chord => AxialCarrier::Chord,
-        EdgeBoxRule::ConicAmplitude(ConicArc {
-            center,
-            axis,
-            semi_u,
-            semi_v,
-            u_ref,
-            params,
-            ..
-        }) => AxialCarrier::Conic {
-            center: point(center),
-            u_ref: vector(u_ref),
-            v_ref: vector(axis.cross(u_ref)),
-            semi_u: semi(semi_u),
-            semi_v: semi(semi_v),
-            params: span(params),
-        },
+        EdgeBoxRule::ConicAmplitude(arc) => AxialCarrier::Conic(conic(&arc)),
     }
 }
 
@@ -613,51 +588,12 @@ pub(crate) fn edge_axial_span<T: Real>(
             .add(p.y.sub(o.y).mul(axis.y))
             .add(p.z.sub(o.z).mul(axis.z))
     };
-    let zero = SpanBox {
-        x: Span::exact(T::zero()),
-        y: Span::exact(T::zero()),
-        z: Span::exact(T::zero()),
-    };
     let chord = along(ends.0, origin).hull(along(ends.1, origin));
     match carrier {
         // Claim nothing, in the one form every door already reads.
         AxialCarrier::Unclaimable => chord.widen(poison_value::<T>()),
         AxialCarrier::Chord => chord,
-        AxialCarrier::Conic {
-            center,
-            u_ref,
-            v_ref,
-            semi_u,
-            semi_v,
-            params,
-        } => {
-            let du = along(u_ref, &zero).abs_max();
-            let dv = along(v_ref, &zero).abs_max();
-            let amp = ((du * *semi_u).powi(2) + (dv * *semi_v).powi(2)).sqrt();
-            let c = along(center, origin);
-            let (t0, t1) = *params;
-            // The ARC's own axial image, by the same subdivision
-            // [`arc_extent`] runs one dimension up — this projection is
-            // that construction restricted to the axis, so the two
-            // cannot disagree about which arc they describe. The charge
-            // is the 1-D one: this coordinate's amplitude times
-            // `(Δt/N)²/8`.
-            let n = T::from_f64(ARC_SAMPLES as f64);
-            let step = (t1 - t0) / n;
-            let cu = along(u_ref, &zero);
-            let cv = along(v_ref, &zero);
-            let mut acc: Option<Span<T>> = None;
-            for k in 0..=ARC_SAMPLES {
-                let t = t0 + step * T::from_f64(k as f64);
-                let (sin, cos) = t.sin_cos();
-                let one = c
-                    .add(cu.mul(Span::exact(*semi_u * cos)))
-                    .add(cv.mul(Span::exact(*semi_v * sin)));
-                acc = Some(acc.map_or(one, |a: Span<T>| a.hull(one)));
-            }
-            let sag = subdivision_charge(amp, step);
-            acc.unwrap_or(c.widen(amp)).widen(sag).hull(chord)
-        }
+        AxialCarrier::Conic(arc) => arc.hull(chord),
     }
 }
 
@@ -1972,6 +1908,20 @@ pub(crate) fn face_box<T: Decide + Bounds>(
     // The axial window from the boundary's OWN locus (per edge), not
     // from the corners of a box around it — see `edge_axial_span`.
     let axial_window = |axis: Vec3<T>, origin: Point3<T>| -> Option<Span<f64>> {
+        let conic = |arc: &ConicArc<'_, T>| {
+            let (t0, t1) = arc.params;
+            let (lo, hi) = geom::curves::boxes::conic_arc_extent_along_bracketed(
+                arc.carrier,
+                t0,
+                t1,
+                origin,
+                axis,
+            )
+            .unwrap_or_else(|| {
+                unreachable!("axial window: the conic rule carries a Circle or Ellipse carrier")
+            });
+            Span { lo, hi }
+        };
         let (origin, axis) = (bracket_point(origin), bracket_vector(axis));
         let mut acc: Option<Span<f64>> = None;
         let mut grow = |s: Span<f64>| acc = Some(acc.map_or(s, |a: Span<f64>| a.hull(s)));
@@ -1990,10 +1940,7 @@ pub(crate) fn face_box<T: Decide + Bounds>(
                     let end = |h, field| bracket_point(edge_end_point(body, ek, h, field));
                     let axial = axial_carrier(
                         edge_box_rule(body.edge_curve_linked(ek, e).certified()),
-                        bracket_point,
-                        bracket_vector,
-                        |x: T| x.hi(),
-                        |(t0, t1): (T, T)| (t0.lo(), t1.hi()),
+                        conic,
                     );
                     grow(edge_axial_span(
                         &origin,
