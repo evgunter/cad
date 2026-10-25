@@ -38,6 +38,7 @@ pub(crate) const AIMED_ROWS: RayRows = RayRows {
     edge: "side_at_infinity_edge",
     edge_span: "side_at_infinity_edge_span",
     winding: "side_at_infinity_winding",
+    stands: "side_at_infinity_stands",
 };
 
 /// **Two crossings of an aimed ray in band of each other along it** —
@@ -781,61 +782,46 @@ pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Ve
             .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
     };
     let mut out = Vec::new();
-    for (face, f) in body.faces() {
-        for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-            let first = match body.get_loop(l).map(|lp| lp.boundary) {
-                Some(LoopBoundary::Cycle { first }) => first,
-                // A lone ring vertex has no edge to frame, and a loop that
-                // does not resolve none to read.
-                Some(LoopBoundary::Empty { .. }) | None => continue,
+    for (face, _) in body.faces() {
+        // A face whose loops do not walk has no edge to frame.
+        for fe in crate::boolean::solid_contain::face_edges(body, face).unwrap_or_default() {
+            let Some(edge) = body.edges.get(fe.edge) else {
+                continue;
             };
-            for h in body.loop_walk(first).closed("loop", first) {
-                let Some(he) = body.get_half_edge(h) else {
-                    continue;
-                };
-                let Some(edge) = body.edges.get(he.edge) else {
-                    continue;
-                };
-                let Some(curve) = body
-                    .curves
-                    .get(edge.curve)
-                    .and_then(crate::null::CurveGeom::certified)
+            let Some(curve) = body
+                .curves
+                .get(edge.curve)
+                .and_then(crate::null::CurveGeom::certified)
+            else {
+                continue;
+            };
+            let (t0, t1) = curve.params();
+            for &x in fractions {
+                let t = t0 + (t1 - t0) * x;
+                let point = curve.carrier().eval(t);
+                let mut tau = curve.carrier().deriv(t).normalize();
+                if edge.he_minus == fe.half {
+                    tau = tau * -1.0;
+                }
+                let Ok(Some(normal)) =
+                    crate::face_normal::face_outward_normal_at(body, face, point, band)
                 else {
                     continue;
                 };
-                let other = edge
-                    .claim(h)
-                    .and_then(|c| body.get_half_edge(c.mate))
-                    .and_then(|m| body.get_loop(m.parent_loop))
-                    .map(|lp| lp.face);
-                let (t0, t1) = curve.params();
-                for &x in fractions {
-                    let t = t0 + (t1 - t0) * x;
-                    let point = curve.carrier().eval(t);
-                    let mut tau = curve.carrier().deriv(t).normalize();
-                    if edge.he_minus == h {
-                        tau = tau * -1.0;
-                    }
-                    let Ok(Some(normal)) =
-                        crate::face_normal::face_outward_normal_at(body, face, point, band)
-                    else {
-                        continue;
-                    };
-                    let normal = normal.vec();
-                    out.push(EdgeFrame {
-                        label: format!(
-                            "{:?} {:?} [{} | {}]",
-                            curve.carrier().kind(),
-                            he.edge,
-                            kind(face),
-                            other.map_or("?".to_owned(), kind),
-                        ),
-                        face,
-                        point,
-                        into: normal.cross(tau).normalize(),
-                        normal,
-                    });
-                }
+                let normal = normal.vec();
+                out.push(EdgeFrame {
+                    label: format!(
+                        "{:?} {:?} [{} | {}]",
+                        curve.carrier().kind(),
+                        fe.edge,
+                        kind(face),
+                        kind(fe.across),
+                    ),
+                    face,
+                    point,
+                    into: normal.cross(tau).normalize(),
+                    normal,
+                });
             }
         }
     }
@@ -895,6 +881,46 @@ pub(crate) fn ray_at_report<T: Decide>(
         ),
         Err(e) => format!("no geometry: {e:?}"),
     }
+}
+
+/// **Every crossing of the ray `q + s·d`** with the solid holding
+/// `face`, its faces' order turned left by `turn` and reversed where
+/// `reversed` (an order permutation), each as `(from, to, count,
+/// sideless)` — a mark is sideless — or the fault the walk raised, as
+/// text: the probes read a whole ray's count off it.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn ray_counts(
+    body: &Body<f64>,
+    face: FaceKey,
+    (q, d): (Point3<f64>, Vec3<f64>),
+    band: Band,
+    (turn, reversed): (usize, bool),
+) -> Result<Vec<(f64, f64, i32, bool)>, String> {
+    let solid = body
+        .get_face(face)
+        .and_then(|f| body.get_shell(f.shell))
+        .map(|sh| sh.solid)
+        .ok_or("no solid")?;
+    let sel = SolidFaces::of(body, solid).map_err(|e| format!("{e:?}"))?;
+    let mut geos: Vec<_> = sel
+        .faces()
+        .iter()
+        .map(|&f| face_geo(body, f, &sel.charts).map(|g| (f, g)))
+        .collect::<Result<_, _>>()
+        .map_err(|e| format!("{e:?}"))?;
+    if reversed {
+        geos.reverse();
+    }
+    let n = geos.len().max(1);
+    geos.rotate_left(turn % n);
+    let reach = selection_reach(body, sel.faces(), q).map_err(|e| format!("{e:?}"))?;
+    let crossings = ray_crossings(body, &geos, q, d, reach, band, AIMED_ROWS)
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(crossings
+        .all()
+        .into_iter()
+        .map(|((from, to), hit, sideless)| (from, to, hit.count(), sideless || hit.mark.is_some()))
+        .collect())
 }
 
 #[cfg(test)]

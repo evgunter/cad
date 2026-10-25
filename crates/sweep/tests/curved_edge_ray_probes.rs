@@ -204,3 +204,108 @@ fn probe_curved_bodies_aimed_rays() {
         }
     }
 }
+
+/// Faces with a seam inside them (an edge both of whose sides are the
+/// one face), against the pin's in-band rays (PR 5697's second review):
+/// a full revolve of an annular profile holds one in each wall.
+#[test]
+#[ignore = "probe: run by hand"]
+fn probe_faces_with_a_seam_inside_them() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the run's band");
+    let k_eps = tol.k() * tol.eps();
+    let p = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+    let bodies: Vec<(&str, Body<f64>)> = vec![
+        ("disc of 2 arcs (extrude)", disc_of_arcs(2, 0.5, 1.0, tol)),
+        (
+            "rev cylinder (axis-touching)",
+            revolved_about_y(
+                vec![p(0.0, 0.0), p(0.5, 0.0), p(0.5, 1.0), p(0.0, 1.0)],
+                Revolution::Full,
+                tol,
+            ),
+        ),
+        (
+            "rev tube (annular, full)",
+            revolved_about_y(
+                vec![p(0.2, 0.0), p(0.5, 0.0), p(0.5, 1.0), p(0.2, 1.0)],
+                Revolution::Full,
+                tol,
+            ),
+        ),
+        (
+            "rev tube (annular, 1.5pi)",
+            revolved_about_y(
+                vec![p(0.2, 0.0), p(0.5, 0.0), p(0.5, 1.0), p(0.2, 1.0)],
+                Revolution::Partial(1.5 * PI),
+                tol,
+            ),
+        ),
+        ("dome", sweep::test_support::dome(1.0, tol)),
+        (
+            "sphere zone full",
+            sweep::test_support::sphere_zone(0.5, Revolution::Full, tol),
+        ),
+    ];
+    for (name, body) in bodies {
+        let rays: Vec<String> = topo::test_support::edge_frames(&body, &[0.5], band)
+            .into_iter()
+            .filter(|f| !(f.label.starts_with("Line") && f.label.contains("[Plane | Plane]")))
+            .flat_map(|f| {
+                [0.3 * k_eps, k_eps].map(|o| {
+                    topo::test_support::ray_at(&body, f.face, f.point + f.into * o, f.normal, band)
+                })
+            })
+            .collect();
+        println!(
+            "CER seams eps={:e} {name}: [{}]",
+            tol.eps(),
+            tally(rays.iter().map(String::as_str))
+        );
+    }
+}
+
+/// Aimed rays at and about every edge of the corpus, in uniformly random
+/// directions, both ways out (PR 5697's second review): how many read,
+/// and how many are set aside on a crossing in band of a face's own
+/// boundary.
+#[test]
+#[ignore = "probe: run by hand"]
+fn probe_uniform_rays_about_the_corpuss_edges() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("the run's band");
+    let k_eps = tol.k() * tol.eps();
+    let mut rng = test_utils::fuzz::pinned("probe_uniform_rays_about_the_corpuss_edges", 11);
+    let unit = |rng: &mut test_utils::fuzz::Rng| loop {
+        let v = Vec3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), rng.range(-1.0, 1.0));
+        let n = v.norm();
+        if n > 0.1 && n <= 1.0 {
+            return v * (1.0 / n);
+        }
+    };
+    let (mut all, mut wrong) = (Vec::new(), 0);
+    for (name, body, _) in super::curved_edge_corpus::corpus(tol) {
+        let reverted = body.revert().expect("the body reverts");
+        for (b, want) in [(&body, "Side(Out)"), (&reverted, "Side(In)")] {
+            for f in topo::test_support::edge_frames(b, &[0.13, 0.5, 0.87], band) {
+                for _ in 0..6 {
+                    let aim = f.point
+                        + f.into * (rng.range(-3.0, 3.0) * k_eps)
+                        + unit(&mut rng) * (rng.range(0.0, 2.0) * k_eps);
+                    let r = topo::test_support::ray_at(b, f.face, aim, unit(&mut rng), band);
+                    if r.contains("Side(") && !r.contains(want) {
+                        wrong += 1;
+                        println!("CER uniform WRONG {name} {}: {r}", f.label);
+                    }
+                    all.push(r);
+                }
+            }
+        }
+    }
+    println!(
+        "CER uniform eps={:e}: {} rays, wrong {wrong}, [{}]",
+        tol.eps(),
+        all.len(),
+        tally(all.iter().map(String::as_str))
+    );
+}
