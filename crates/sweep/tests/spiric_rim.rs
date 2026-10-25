@@ -31,6 +31,11 @@ use crate::common::torus_walls::{
 };
 use sweep::test_support::finished;
 
+/// `body` finished through the at-rest gate: what the export door takes.
+fn at_rest(body: &Body<f64>) -> topo::AtRestBody<f64> {
+    finished("the exported body", body.clone(), tol())
+}
+
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -338,7 +343,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
 #[test]
 fn the_census_refusals_through_public_doors() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
-    topo::AtRestBody::validate(cavity.clone(), tol())
+    let cavity = topo::AtRestBody::validate(cavity, tol())
         .unwrap_or_else(|e| panic!("the cavity passes the at-rest gate, check 7 included: {e:?}"));
     let e =
         mesh::tessellate(&cavity, 1e-3, tol()).expect_err("no trimmed lane for the torus chart");
@@ -800,6 +805,7 @@ fn the_spiric_body_exports_one_spline_per_rim_with_its_bound_stated() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let rims = spiric_edges(&cavity).len();
     assert_eq!(rims, 2, "the cavity carries two spiric rims");
+    let cavity = at_rest(&cavity);
 
     let e = step_export::step_string(&cavity, &step_export::StepOptions::default(), tol())
         .expect_err("the sagitta bound cannot state eps/4 under the node cap");
@@ -880,6 +886,7 @@ fn the_spiric_body_exports_one_spline_per_rim_with_its_bound_stated() {
 #[test]
 fn the_node_cap_refuses_one_doubling_short_of_the_tolerance() {
     let (_, cavity) = vessel_cavity(1.0 / 128.0);
+    let cavity = at_rest(&cavity);
     let export = |eps: f64| {
         step_export::step_string(
             &cavity,
@@ -929,6 +936,7 @@ fn the_node_cap_refuses_one_doubling_short_of_the_tolerance() {
 #[test]
 fn an_invalid_uncertainty_refuses_the_same_way_with_or_without_a_spiric() {
     let (quarter, cavity) = vessel_cavity(1.0 / 128.0);
+    let (quarter, cavity) = (at_rest(&quarter), at_rest(&cavity));
     // `INFINITY` first, on purpose: with the check misplaced after the
     // geometry, an infinite budget is "met" at the four-node floor, so
     // the regression shows after one five-point fit instead of after

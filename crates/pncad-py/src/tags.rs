@@ -1376,7 +1376,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
         RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
-        RevolveError::MultipleAxisRuns { .. } => "multiple_axis_runs",
+        RevolveError::AxisGapEscalated { .. } => "axis_gap_escalated",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
         RevolveError::VoidInsertion { .. } => "void_insertion",
         RevolveError::CosurfaceEscalated { .. } => "cosurface_escalated",
@@ -2216,6 +2216,7 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
+        E::BodyInvalid { .. } => "body_invalid",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
     }

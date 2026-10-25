@@ -2573,7 +2573,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
     ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
-    ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
         "decision_words",
@@ -2778,12 +2777,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         1,
     ),
     ("reduce.rs", "read_lying_in", "Coincide::VertexOnFace", 1),
-    (
-        "reduce.rs",
-        "split_other_at_point",
-        "BooleanDecision::ArcSpan",
-        1,
-    ),
     (
         "reduce.rs",
         "split_other_at_point",

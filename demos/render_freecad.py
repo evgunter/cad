@@ -189,9 +189,8 @@ def import_bodies(doc, scenes, outdir, use_step):
                 # `step` is nullable in the format, and since the tour
                 # grew `SceneBody::step_at_frontier` its producer CAN
                 # emit one: a body past the STEP writer's named subset
-                # frontier (a multi-shell curved solid, whose
-                # outward/void classifier has closed forms for planar
-                # faces only) has no STEP to import. This lane's whole
+                # frontier (a hollow solid, whose void shell the
+                # writer refuses) has no STEP to import. This lane's whole
                 # subject is OCC re-tessellating OUR STEP, so there is
                 # nothing here for it to say about such a body, and
                 # substituting the STL would put a cell in this

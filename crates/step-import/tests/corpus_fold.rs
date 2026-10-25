@@ -102,7 +102,9 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
             product_name: name.to_owned(),
             ..step_export::StepOptions::default()
         };
-        let out = step_export::step_string(&body, &options, Tol::witness()).expect("re-export");
+        let out =
+            step_export::step_string(&crate::common::at_rest(&body), &options, Tol::witness())
+                .expect("re-export");
         let count = |s: &str, pat: &str| s.matches(pat).count();
         assert_eq!(
             (
@@ -130,7 +132,8 @@ fn the_folds_divergence_is_exactly_the_reported_promotion() {
             panic!("{name}: the re-import must be a solid");
         };
         let out2 =
-            step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
+            step_export::step_string(&crate::common::at_rest(&body2), &options, Tol::witness())
+                .expect("second re-export");
         assert_eq!(out, out2, "{name}: fixed point from the first re-export on");
     }
 }

@@ -2,11 +2,13 @@
 id: period-headroom-margin-has-no-shared-home
 kind: issue
 title: The period-headroom margin Margin::levered(T::tau() - span, lever) is spelled at ~18 sites across 6 crates under ~12 predicate names with no shared home
-status: dispatched
+status: closed
 opened: 2026-09-06
 priority: P1
 cost: H
-branch: pred/period-turn-rule
+branch: pred/period-turn-sites
+pr: 5710
+closed: 2026-10-25
 ---
 
 
@@ -278,3 +280,41 @@ Off-question findings from the pair, owed rows:
 - `profile/src/path/verbs.rs` `path_arc_sweep` gates a bare radian
   through `Margin::of` against the metres band. Unit 2 owns it as a
   site.
+
+## Unit 1 landed (PR 5686, 2026-10-25)
+
+The rule, its types and certification are built, along with `ConicArc::of`
+as a caller, under a dual review (both APPROVE-WITH-FIXES, no MAJOR) and
+a 13-item fix pass. What changed against the design:
+- `Extent` is built by `forward`, `hull(values)` (not `width`),
+  `decide_signed`, `Add`, and the certificate's `CertifiedTurn`, which
+  carries its interval as well;
+- rates are built by constructors;
+- one speed floor is `geom::carrier_speed::speed_floor`, and the sup is
+  `turn_defect_speed_hi(carrier, t0, extent)`.
+
+**Unit 2 remains.** It moves every other site onto the rule:
+- props' hand-built askers;
+- topo's chart and hull askers, and projected check 2 (sup only: an
+  escalation unless an inf chart rate exists);
+- the authored askers (revolve, tube, path, `seg.rs`);
+- the certified readers, which read the stored turn.
+
+Read the PR 5686 body's per-site call shapes first.
+
+## Closed (PRED orchestrator, 2026-10-25, PR 5710)
+
+Unit 2 landed. Every site of the fact decides through
+`geom_core::period`. The three questions have one home each:
+`Period::{not_over, strictly_partial, whole_turn}`. Admitting an
+undecided "not over" reading has one home too: `TurnUndecided::not_over_at_sup`,
+on the sup reading's sign. The certified readers
+(`bool_split_span_period`, `bool_sphere_trim_meridian_span`, surgery's
+raw read) retired onto the certificate's stored turn. Each old spelling
+is pinned against the rule as an in-test oracle. A full single review
+returned APPROVE-WITH-FIXES with no MAJOR, followed by a fix pass.
+
+Filed:
+- `period-decide-callers-lever-a-parameter-gap` (P3);
+- CHART's `azimuth-inf-arm-has-two-homes`;
+- BAND's `surgery-cites-an-unratified-junction-end-pick-precedent`.

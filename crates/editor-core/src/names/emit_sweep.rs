@@ -637,6 +637,136 @@ mod tests {
         RecipeNodeId::new(0, test_utils::refusal::tagged(1))
     }
 
+    /// **A full revolve's axis cavities are named like its outer
+    /// shell**: a profile meeting the axis in two or three runs, with
+    /// square, round and pointed notches and a hole beside them,
+    /// revolves to a body whose every cavity wall, meridian, rim and
+    /// pole is named by the profile piece that sweeps it, and the
+    /// table is total over the body (`check_total`), poles at both
+    /// ends of each gap included.
+    #[test]
+    fn a_full_revolves_axis_cavities_are_named() {
+        let axis = sweep::RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        let p = Point2::new;
+        let column = [p(0.0, 0.0), p(2.0, 0.0), p(2.0, 5.0), p(0.0, 5.0)];
+        let square = [p(0.0, 4.0), p(0.5, 4.0), p(0.5, 3.0), p(0.0, 3.0)];
+        let pointed = [p(0.0, 2.0), p(0.5, 2.0), p(0.0, 1.0)];
+        let hole = ProfileLoop::polygon([p(1.0, 1.0), p(1.5, 1.0), p(1.5, 2.0), p(1.0, 2.0)]);
+        let round = RawLoop::new(
+            [p(0.0, 0.0), p(2.0, 0.0), p(2.0, 3.0), p(0.0, 3.0)]
+                .map(|q| (q, Segment::Line))
+                .into_iter()
+                .chain([
+                    (
+                        p(0.0, 2.0),
+                        Segment::Arc(Arc2 {
+                            centre: p(0.0, 1.5),
+                            radius: 0.5,
+                            sweep: -core::f64::consts::PI,
+                        }),
+                    ),
+                    (p(0.0, 1.0), Segment::Line),
+                ]),
+        );
+        let three_runs: Vec<Point2<f64>> = column
+            .iter()
+            .chain(&square)
+            .chain(&pointed)
+            .copied()
+            .collect();
+        // (what, loops, segments per loop, cavities)
+        let cases = [
+            (
+                "three runs",
+                vec![ProfileLoop::polygon(three_runs)],
+                vec![11],
+                2,
+            ),
+            ("round notch", vec![round], vec![6], 1),
+            (
+                "a hole beside a gap",
+                vec![
+                    ProfileLoop::polygon(column.iter().chain(&square).copied()),
+                    hole,
+                ],
+                vec![8, 4],
+                2,
+            ),
+        ];
+        for (what, loops, counts, cavities) in cases {
+            let profile = Profile::new(SketchPlane::<f64>::xy(), loops)
+                .validate(Tol::witness())
+                .unwrap_or_else(|e| panic!("{what}: the profile validates: {e:?}"));
+            let built = sweep::revolve(&profile, axis, sweep::Revolution::Full, Tol::witness())
+                .unwrap_or_else(|e| panic!("{what}: the profile revolves: {e:?}"));
+            assert_eq!(built.cavities.len(), cavities, "{what}");
+            let pieces = ProfilePieces::numbered(&counts);
+            let table = name_revolve(node(), &built, &pieces)
+                .unwrap_or_else(|e| panic!("{what}: the revolve is named: {e:?}"));
+            if what == "three runs" {
+                three_runs_walls_are_named_by_their_pieces(&built, &table, &pieces);
+            }
+        }
+    }
+
+    /// Each wall of the three-run column, cavity walls included, is the
+    /// surface its own profile piece sweeps: read through the NAME and
+    /// checked against the piece's geometry, so two walls' names
+    /// swapped is red.
+    fn three_runs_walls_are_named_by_their_pieces(
+        built: &sweep::Revolved<f64>,
+        table: &NameTable,
+        pieces: &ProfilePieces,
+    ) {
+        use geom::Surface;
+        // (piece, the swept surface): a plane at height y, a cylinder
+        // of radius r, or a cone.
+        enum Wall {
+            Plane(f64),
+            Cylinder(f64),
+            Cone,
+        }
+        let walls = [
+            (0, Wall::Plane(0.0)),
+            (1, Wall::Cylinder(2.0)),
+            (2, Wall::Plane(5.0)),
+            (4, Wall::Plane(4.0)),
+            (5, Wall::Cylinder(0.5)),
+            (6, Wall::Plane(3.0)),
+            (8, Wall::Plane(2.0)),
+            (9, Wall::Cone),
+        ];
+        for (k, want) in walls {
+            let name = name1(
+                EntityKind::Face,
+                node(),
+                RoleSeg::Band(run_at(pieces, 0, &[k])),
+            );
+            let entry = table
+                .lookup(&name)
+                .unwrap_or_else(|| panic!("piece {k}'s wall is named"));
+            let Some(face) = entry.entities()[0].key.face() else {
+                panic!("piece {k}'s wall name holds a face")
+            };
+            let surface = built.body.get_face(face).unwrap().surface;
+            let fits = match (want, built.body.get_surface(surface).unwrap()) {
+                (Wall::Plane(y), Surface::Plane { origin, .. }) => (origin.y - y).abs() < 1e-12,
+                (Wall::Cylinder(r), Surface::Cylinder { radius, .. }) => {
+                    (*radius - r).abs() < 1e-12
+                }
+                (Wall::Cone, Surface::Cone { .. }) => true,
+                _ => false,
+            };
+            assert!(
+                fits,
+                "piece {k}'s wall name holds the surface piece {k} sweeps"
+            );
+        }
+    }
+
     /// **A one-segment loop's revolve and loft are named whole**: the
     /// one meridian chain of a part turn is one self-loop at the loop's
     /// one vertex (`name_revolve` reads the rim end that self-loop

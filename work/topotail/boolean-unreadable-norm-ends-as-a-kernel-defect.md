@@ -4,7 +4,7 @@ kind: issue
 title: topo: an unreadable plane norm at the Boolean ends as a kernel defect, not as the operand's at-rest poison
 status: open
 opened: 2026-10-03
-priority: P3
+priority: P1
 cost: E
 ---
 
