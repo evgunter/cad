@@ -142,7 +142,6 @@ REGISTER=(
   "crates/editor-core/src/names/emit.rs|face_half_edges||1|unaudited"
   "crates/mesh/src/trimmed.rs|trim_polygon||1|unaudited"
   "crates/mesh/src/walk.rs|loop_half_edges||1|unaudited"
-  "crates/step-export/src/volume.rs|shell_signed_volume||1|unaudited"
   "crates/step-export/src/writer.rs|face_bound||1|unaudited"
   "crates/step-import/src/adopt.rs|rotate_loop_firsts||1|unaudited"
   "crates/sweep/src/blend/battery.rs|screened_loop||1|audited: the discarded variant is refused by name, not passed over — a lone-vertex loop on a support face returns UnsupportedGeometry naming the loop, so predicate 2 never reports a face clear without having read it"
