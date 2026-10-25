@@ -2,11 +2,12 @@
 id: a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read
 kind: issue
 title: A needle cavity 10.5–15ε across refuses SectionLoopUndecided at the join before any side or role is read
-status: open
+status: dispatched
 opened: 2026-10-19
 priority: P2
 cost: M
 refs: [5119]
+branch: flush/needle-cavity-section-loop
 ---
 
 
