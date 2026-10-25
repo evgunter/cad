@@ -357,11 +357,11 @@ fn f32_display_round_trip_spot_checks() {
 // ---------------------------------------------------------------------
 
 /// The implementer's live finding, reproduced: the acceptance cone at
-/// δ = 0.05 emits an exactly collinear apex-fan triangle; the writer
+/// δ = 0.015 emits an exactly collinear apex-fan triangle; the writer
 /// must refuse typed — never a zeroed/guessed normal.
 #[test]
 fn coarse_cone_apex_fan_refuses_typed() {
-    let mesh = mesh::tessellate(&common::cone(), 0.05, Tol::witness()).unwrap();
+    let mesh = mesh::tessellate(&common::cone(), 0.015, Tol::witness()).unwrap();
     let mut out = Vec::new();
     match stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}

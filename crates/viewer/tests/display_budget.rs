@@ -33,19 +33,19 @@ use viewer::session::DocSession;
 use crate::corpus;
 
 /// A request the gallery ring exceeds the budget at, where the ring's
-/// ~1.6·10⁵ triangles at 0.1 mm become ~1.6·10⁶ (the 1/δ law
+/// ~8·10⁴ triangles at 0.1 mm become ~1.6·10⁶ at 5 μm (the 1/δ law
 /// `fit_delta` solves). The budget rows need a document that is
 /// actually over budget, and since the torus sizing spends its chord
 /// bound without slack the ring is not one at the starting δ any more.
 ///
 /// **Chosen to be over budget, not derived from [`INITIAL_DELTA`].**
-/// It is a decade finer than the starting δ as both stand, but that
+/// It is twenty times finer than the starting δ as both stand, but that
 /// is an observation rather than the requirement: what this constant
 /// has to be is a request the fixture exceeds the budget at, and
 /// spelling it `INITIAL_DELTA / 10.0` would break the row the moment
 /// the starting δ coarsened — a decade under a coarser start is a δ
 /// this same doc records as INSIDE the budget.
-const OVER_BUDGET_DELTA: f64 = 1.0e-5;
+const OVER_BUDGET_DELTA: f64 = 5.0e-6;
 
 /// The tour's gallery ring, as the committed fixture.
 fn gallery_ring(tol: Tol) -> DocSession {
@@ -462,10 +462,10 @@ struct Answer {
 
 /// **The budget's answer is a value, and this is the whole of it** —
 /// every parametric corpus document and both gallery documents, at the
-/// δ the application starts on and at the decade finer where the
+/// δ the application starts on and at [`OVER_BUDGET_DELTA`], where the
 /// budget binds on the curved ones.
 ///
-/// Thirty documents, two requests each, and seven rows where
+/// Thirty documents, two requests each, and six rows where
 /// the budget binds. **The δ is the answer to a question about the
 /// body and the budget**, so the work of finding it may change and
 /// these may not: a row that moves is a change to what the viewer
@@ -490,8 +490,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "die",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 348,
         probe_triangles: 1044,
@@ -508,8 +508,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "corner_table",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -526,8 +526,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "heat_sink",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 152,
         probe_triangles: 456,
@@ -544,8 +544,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "crossing_slots",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -562,8 +562,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "nested_islands_105",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -580,8 +580,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "nested_islands_106_depth1",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 32,
         probe_triangles: 96,
@@ -598,8 +598,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "nested_islands_106_depth2",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 44,
         probe_triangles: 132,
@@ -610,17 +610,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 200,
-        probe_triangles: 392,
+        largest_probe: 152,
+        probe_triangles: 320,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "declared_tangency",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 544,
-        probe_triangles: 736,
+        probe_triangles: 712,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -628,17 +628,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 360,
-        probe_triangles: 628,
+        largest_probe: 280,
+        probe_triangles: 528,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "kitchen_sink",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 940,
-        probe_triangles: 1208,
+        probe_triangles: 1188,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -652,11 +652,11 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "cut_cylinder",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
-        largest_probe: 40936,
-        probe_triangles: 44240,
+        largest_probe: 81336,
+        probe_triangles: 84640,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -670,8 +670,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "measured_web",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 12,
         probe_triangles: 36,
@@ -682,17 +682,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 276,
-        probe_triangles: 528,
+        largest_probe: 204,
+        probe_triangles: 396,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "boss_union",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 852,
-        probe_triangles: 1104,
+        probe_triangles: 1044,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -700,17 +700,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 2076,
-        probe_triangles: 3316,
+        largest_probe: 1772,
+        probe_triangles: 2804,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_fillet",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
-        largest_probe: 20028,
-        probe_triangles: 21268,
+        largest_probe: 31692,
+        probe_triangles: 32724,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -724,8 +724,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "die_chamfer",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 44,
         probe_triangles: 132,
@@ -736,17 +736,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 530,
-        probe_triangles: 576,
+        largest_probe: 422,
+        probe_triangles: 468,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_pips",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
-        largest_probe: 4926,
-        probe_triangles: 5642,
+        largest_probe: 8114,
+        probe_triangles: 8706,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -760,8 +760,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "heat_sink_fins",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 60,
         probe_triangles: 180,
@@ -772,17 +772,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 3120,
-        probe_triangles: 4296,
+        largest_probe: 2472,
+        probe_triangles: 3576,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_tool",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
-        largest_probe: 29496,
-        probe_triangles: 30672,
+        largest_probe: 48624,
+        probe_triangles: 49728,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -796,8 +796,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "face_sketch",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 28,
         probe_triangles: 84,
@@ -814,8 +814,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "part_select",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 24,
         probe_triangles: 72,
@@ -832,8 +832,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "symmetric_plate",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 28,
         probe_triangles: 84,
@@ -844,17 +844,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 2534,
-        probe_triangles: 3578,
+        largest_probe: 1854,
+        probe_triangles: 2708,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
-        largest_probe: 22158,
-        probe_triangles: 23202,
+        largest_probe: 29382,
+        probe_triangles: 30236,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -862,17 +862,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 26016,
-        probe_triangles: 29740,
+        largest_probe: 16556,
+        probe_triangles: 19744,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "die_composed_tour",
-        requested: 1e-5,
-        delta: 1.9336001620400844e-5,
-        requested_cost: Some(1933600),
-        largest_probe: 119934,
-        probe_triangles: 178038,
+        requested: 5e-6,
+        delta: 1.2454658174963063e-5,
+        requested_cost: Some(2490931),
+        largest_probe: 119124,
+        probe_triangles: 168842,
         stop: ProbeStop::Converged,
     },
     Answer {
@@ -880,17 +880,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 492,
-        probe_triangles: 836,
+        largest_probe: 364,
+        probe_triangles: 660,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "plate_param",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 1452,
-        probe_triangles: 1796,
+        probe_triangles: 1748,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -904,8 +904,8 @@ const ANSWERS: &[Answer] = &[
     },
     Answer {
         document: "kiss_carry",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 48,
         probe_triangles: 144,
@@ -916,17 +916,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 80132,
-        probe_triangles: 89368,
+        largest_probe: 40704,
+        probe_triangles: 45312,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "tube_ring",
-        requested: 1e-5,
-        delta: 6.414133008947617e-5,
-        requested_cost: Some(6414133),
-        largest_probe: 120376,
-        probe_triangles: 129612,
+        requested: 5e-6,
+        delta: 3.2195327962043786e-5,
+        requested_cost: Some(6439065),
+        largest_probe: 122840,
+        probe_triangles: 127448,
         stop: ProbeStop::Converged,
     },
     Answer {
@@ -934,17 +934,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 13128,
-        probe_triangles: 23728,
+        largest_probe: 6716,
+        probe_triangles: 11964,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "tube_arc",
-        requested: 1e-5,
-        delta: 1.0310142490965582e-5,
-        requested_cost: Some(1031014),
-        largest_probe: 120536,
-        probe_triangles: 131136,
+        requested: 5e-6,
+        delta: 5.1423363626906294e-6,
+        requested_cost: Some(1028467),
+        largest_probe: 121948,
+        probe_triangles: 127196,
         stop: ProbeStop::Converged,
     },
     Answer {
@@ -952,35 +952,35 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 35524,
-        probe_triangles: 46092,
+        largest_probe: 18184,
+        probe_triangles: 23672,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "hollow_tube_elbow",
-        requested: 1e-5,
-        delta: 2.8078062883669132e-5,
-        requested_cost: Some(2807806),
-        largest_probe: 121272,
-        probe_triangles: 131840,
+        requested: 5e-6,
+        delta: 1.4101095536214232e-5,
+        requested_cost: Some(2820219),
+        largest_probe: 118284,
+        probe_triangles: 123772,
         stop: ProbeStop::Converged,
     },
     Answer {
         document: "hollow_tube_ring",
         requested: 0.0001,
-        delta: 0.0001164492484410271,
-        requested_cost: Some(1164492),
-        largest_probe: 120900,
-        probe_triangles: 129388,
-        stop: ProbeStop::Converged,
+        delta: 0.0001,
+        requested_cost: None,
+        largest_probe: 73996,
+        probe_triangles: 78572,
+        stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "hollow_tube_ring",
-        requested: 1e-5,
-        delta: 0.0001164492484410271,
-        requested_cost: Some(11644924),
-        largest_probe: 120900,
-        probe_triangles: 129388,
+        requested: 5e-6,
+        delta: 5.856286274679293e-5,
+        requested_cost: Some(11712572),
+        largest_probe: 115860,
+        probe_triangles: 120436,
         stop: ProbeStop::Converged,
     },
     Answer {
@@ -988,17 +988,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 132,
-        probe_triangles: 300,
+        largest_probe: 100,
+        probe_triangles: 236,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "reshaped_rod",
-        requested: 1e-5,
-        delta: 1e-5,
+        requested: 5e-6,
+        delta: 5e-6,
         requested_cost: None,
         largest_probe: 360,
-        probe_triangles: 528,
+        probe_triangles: 496,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
@@ -1006,17 +1006,17 @@ const ANSWERS: &[Answer] = &[
         requested: 0.0001,
         delta: 0.0001,
         requested_cost: None,
-        largest_probe: 20740,
-        probe_triangles: 28960,
+        largest_probe: 10512,
+        probe_triangles: 14660,
         stop: ProbeStop::AtTheRequest,
     },
     Answer {
         document: "gallery_ring",
-        requested: 1e-5,
-        delta: 1.6372398767083734e-5,
-        requested_cost: Some(1637239),
-        largest_probe: 118840,
-        probe_triangles: 127060,
+        requested: 5e-6,
+        delta: 8.236822876478181e-6,
+        requested_cost: Some(1647364),
+        largest_probe: 122340,
+        probe_triangles: 126488,
         stop: ProbeStop::Converged,
     },
 ];
@@ -1281,7 +1281,7 @@ fn a_bodys_count_has_stopped_falling_by_its_own_extent() {
 }
 
 /// **A budget δ is an answer about the body and the budget, and about
-/// nothing else** — ask for a decade finer and the same document opens
+/// nothing else** — ask for a finer δ and the same document opens
 /// at the same δ.
 ///
 /// That is what a fit whose probe is placed by the ANSWER buys, and it
@@ -1292,8 +1292,8 @@ fn a_bodys_count_has_stopped_falling_by_its_own_extent() {
 /// tessellates to say so.
 ///
 /// The rows are the two gallery documents at the three requests they
-/// are opened at — the application's starting δ, and the two decades
-/// below it — over the requests where the budget binds, which is where
+/// are opened at — the application's starting δ, [`OVER_BUDGET_DELTA`]
+/// and a decade below that — over the requests where the budget binds, which is where
 /// there is an answer to be independent.
 #[test]
 fn a_budget_delta_does_not_depend_on_the_delta_asked_for() {

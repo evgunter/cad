@@ -389,7 +389,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
 
 // ---- typed refusals ---------------------------------------------------
 
-/// Finding (M2 PR 7): at coarse δ the cone's apex fan emits triangles
+/// Finding (M2 PR 7): at a coarse δ (0.015 here) the cone's apex fan emits triangles
 /// whose three points are exactly collinear on a generator (apex +
 /// two stacked meridian chord points — distinct position indices, so
 /// the tessellator's id-degenerate drop does not catch them, and
@@ -398,7 +398,7 @@ fn the_acceptance_exports_agree_are_honest_and_are_byte_identical() {
 /// so a future mesh-side fix flips this test loudly.
 #[test]
 fn coarse_cone_apex_fan_is_refused_typed() {
-    let mesh = tessellate(&common::cone(), 0.05, Tol::witness()).unwrap();
+    let mesh = tessellate(&common::cone(), 0.015, Tol::witness()).unwrap();
     let mut out = Vec::new();
     match write_binary(&mesh, &BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}

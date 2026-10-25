@@ -1450,7 +1450,12 @@ fn an_edge_hidden_within_a_millionth_of_its_depth_is_not_picked() {
 fn a_silhouette_edge_whose_faces_the_ray_misses_is_picked() {
     let tol = Tol::witness();
     let (session, copy) = plate_session(tol);
-    let index = plate_index(&session);
+    // At half the plate δ: the hole's rim is chorded finely enough there
+    // that some chord's midpoint pixel rounds past the rim, which the
+    // plate δ's coarser rim no longer does.
+    let half = viewer::scene::DisplayTolerance::new(common::plate_delta().get() / 2.0)
+        .expect("a positive delta");
+    let index = common::index_of(&session, half);
     let aspect = pane().aspect().expect("a positive aspect");
     let camera = common::framed(aspect);
     let eval = eval_of(&session);
