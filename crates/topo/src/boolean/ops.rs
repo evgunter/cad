@@ -284,7 +284,9 @@ pub struct BooleanNaming {
     /// `a_keys` is `Direct`.
     pub face_fragments_a: crate::lineage::FaceDivisions,
     /// B-side chord-mef fragment rows, in B-CLONE keys (translate the
-    /// new-face column through `graft_faces` for result keys).
+    /// new-face column through `graft_faces` for result keys). On an
+    /// `Absent` side they divide only the dropped coincident faces the
+    /// `substituted` and `discards` rows name.
     pub face_fragments_b: crate::lineage::FaceDivisions,
     /// The reduction's working contact set BEFORE result
     /// remapping ([`ReductionContacts`]): each row's A column in A-CLONE keys and its B column
@@ -300,16 +302,15 @@ pub struct BooleanNaming {
     /// list a reader holds.
     pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
-    /// bordered (`boolean::discard`, which says which paths record
-    /// rows and why the others have none to record), and every face the
+    /// bordered (`boolean::discard`, which says how each path records
+    /// its rows), and every face the
     /// material divided along an edge lying in it, which lost the line
     /// between its pieces (`boolean::slit`).
     pub discards: Vec<super::DiscardRow>,
     /// Every fragment of a coincident face the result holds through the
     /// other operand's copy ([`super::SubstitutedFace`]), sorted and
-    /// deduplicated. The section path writes each fragment as cut where
-    /// the held region ends; the containment fallback, which cuts
-    /// nothing, writes whole faces from what its result holds.
+    /// deduplicated. Each is a fragment as cut where the held region
+    /// ends, on the section path and in the containment fallback alike.
     ///
     /// The rows are in clone keys, which
     /// [`substitutions`](Self::substitutions) cannot hold: those are result keys,

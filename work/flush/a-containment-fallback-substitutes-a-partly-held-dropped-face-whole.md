@@ -7,6 +7,7 @@ opened: 2026-10-20
 priority: P2
 cost: M
 refs: [5368]
+branch: flush/fallback-partial-rows
 ---
 
 
@@ -56,3 +57,38 @@ explicitly, asserting the fallback side records no discard rather than
 comparing (`topo` `boolean_covered::assert_alike`, `sweep`
 `curved_coincident_fates::assert_alike`). A fix here would record the
 fallback's discards too, or say why a whole-shell path owes none.
+
+## Measured
+
+On main `1f9b8156`, through the plain booleans (probe:
+`topo` `boolean_covered::a_containment_fallback_cuts_a_dropped_face_held_in_part`
+and `a_box_sunk_flush_in_a_block_unites_alike_in_either_order`, with
+`src` at main):
+
+- `a ∖ lid` and `a ∩ big` are `OperandA` fallbacks, each with one row
+  holding the whole of `lid`'s bottom or `big`'s top, and no discard.
+  `big ∩ a` takes the section path: the same row as a fragment, and six
+  discards, `big`'s top among them bordering `a`'s top outline.
+- `block ∪ box` (fallback) and `box ∪ block` (section) agree on the body
+  and the row; the section order records `box`'s five other faces as
+  discards, the fallback none. `box ∩ block` (fallback) records none
+  where `block ∩ box` records six.
+- No case of `sweep` `curved_coincident_fates` took the fallback in
+  either order, so its exclusion compared nothing. A brick on the
+  hemisphere's base, inside it, does: `hemi ∪ brick` and
+  `brick ∩ hemi` are `OperandA`.
+
+## Fix
+
+The fallback cuts as the section path does (shape (a)).
+`ops::fallback_fates`, called once the fallback's result is built and
+gated, keeps the fates of each pair whose kept copy the result holds and
+whose dropped copy it drops, cuts them through `fate::cut`, and records
+every face of a dropped shell, the cut fragments among them, through
+`discard::discard_row`. A dropped face borders no kept face of its own
+operand, so its stretches are read through substituted fragments alone
+(`discard::ChordsAcross`, whose own-vertex read moved from
+`finish::discarded` to `discard::own_in_result`, called by both paths).
+`fate::uncut` is gone. The swap comparators compare the fallback's
+discards like any other.
+
