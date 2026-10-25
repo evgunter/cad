@@ -2664,8 +2664,8 @@ mod tests {
 
         /// The box door at the interval scalar, on POINT brackets: the
         /// lifted fixture's brackets are single f64 values, so this
-        /// box is bit-for-bit the f64 twin's (`Brk` reads `lo()`/`hi()`
-        /// and both are the point) — what this row checks is that the
+        /// box is bit-for-bit the f64 twin's (the door brackets with
+        /// `lo()`/`hi()` and both are the point) — what this row checks is that the
         /// `Interval` scalar passes the door and the result contains
         /// every f64 sample. It cannot see an inward-turned bracket;
         /// the wide-bracket row below is that reader.
@@ -2693,7 +2693,7 @@ mod tests {
         /// **A WIDE bracket must box every member.** A carrier whose
         /// `offset` is the bracket `[0.05, 0.06]` describes a family of
         /// spirics; the f64 twins at the bracket's two ends sample the
-        /// `m`-faces of the box, so a `Brk` turned inward
+        /// `m`-faces of the box, so a bracket turned inward
         /// (`[f_min.hi, f_max.lo]`) lets them escape by
         /// `≈ 5.65e-4` — the reader the point-bracket row above cannot
         /// be. Adopted from the v6 dual's second reviewer lane
