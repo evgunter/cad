@@ -432,4 +432,326 @@ mod tests {
     fn the_count_is_exact_at_interval() {
         the_count_is_exact::<Interval>("Interval");
     }
+    fn review_knot_windows<T: Decide>(lane: &str) {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let f = T::from_f64;
+        for (t0, t1) in [(0.0, 0.4), (0.4, 0.7), (0.0, 0.7), (0.4, 1.0), (0.7, 1.0)] {
+            let k = arc::<T>((t0, t1));
+            let n = 20_000;
+            let mut boundary: Vec<(f64, f64)> = (0..=n)
+                .map(|i| at(t0 + (t1 - t0) * f64::from(i) / f64::from(n)))
+                .collect();
+            boundary.push(at(t0));
+            let truth = |(x, y): (f64, f64)| -> (bool, f64) {
+                let mut inside = false;
+                let mut gap = f64::INFINITY;
+                for w in boundary.windows(2) {
+                    let ((ax, ay), (bx, by)) = (w[0], w[1]);
+                    if (ay > y) != (by > y) && x < ax + (y - ay) / (by - ay) * (bx - ax) {
+                        inside = !inside;
+                    }
+                    let (dx, dy) = (bx - ax, by - ay);
+                    let s = (((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
+                    gap = gap.min((x - ax - s * dx).hypot(y - ay - s * dy));
+                }
+                (inside, gap)
+            };
+            let (a, b) = (at(t0), at(t1));
+            let angle = 0.7_f64;
+            let (dx, dy) = (angle.cos(), angle.sin());
+            let point = |(x, y): (f64, f64)| Point3::new(f(x), f(y), f(Z));
+            let d = Vec3::new(f(dx), f(dy), f(0.0));
+            let side = Vec3::new(f(0.0), f(0.0), f(1.0)).cross(d);
+            let (mut asked, mut inside) = (0, 0);
+            for i in 0..=30 {
+                for j in 0..=24 {
+                    let q = (
+                        -0.5 + 6.0 * f64::from(i) / 30.0,
+                        -0.5 + 3.0 * f64::from(j) / 24.0,
+                    );
+                    let (want, gap) = truth(q);
+                    if gap < 1e-3 {
+                        continue;
+                    }
+                    asked += 1;
+                    inside += usize::from(want);
+                    assert_eq!(
+                        k.contact(point(q), ROWS, band),
+                        Ok(ArcHit::Off),
+                        "{lane} {t0}–{t1} {q:?}: off the arc"
+                    );
+                    // The chord's crossing, in closed form.
+                    let cross = |(px, py): (f64, f64)| (px - q.0) * dy - (py - q.1) * dx;
+                    let chord = if (cross(a) > 0.0) == (cross(b) > 0.0) {
+                        0
+                    } else {
+                        let s = cross(a) / (cross(a) - cross(b));
+                        let (hx, hy) = (a.0 + s * (b.0 - a.0), a.1 + s * (b.1 - a.1));
+                        usize::from((hx - q.0) * dx + (hy - q.1) * dy > 0.0)
+                    };
+                    let Some(count) = k.crossings(point(q), d, side, band) else {
+                        panic!("{lane} {t0}–{t1} {q:?}: the ray was abandoned");
+                    };
+                    assert_eq!(
+                        (count + chord) % 2 == 1,
+                        want,
+                        "{lane} {t0}–{t1} {q:?}: {count} arc crossings"
+                    );
+                }
+            }
+            assert!(
+                asked >= 500,
+                "{lane} {t0}–{t1}: not vacuous ({asked} asked, {inside} inside)"
+            );
+            let mid = point(at(0.5 * (t0 + t1) + 0.013));
+            assert!(
+                matches!(k.contact(mid, ROWS, band), Ok(ArcHit::On(_))),
+                "{lane} {t0}–{t1}: on the arc"
+            );
+            assert_eq!(
+                k.contact(point(b), ROWS, band),
+                Ok(ArcHit::End),
+                "{lane} {t0}–{t1}: at its end"
+            );
+            // Off a point of the arc along its normal, in the band.
+            let t = 0.5 * (t0 + t1);
+            let (on, tangent) = (at(t), wave().deriv(t).normalize());
+            let off = 0.5 * (band.zero() + band.escalate());
+            let in_band = (on.0 - tangent.y * off, on.1 + tangent.x * off);
+            assert!(
+                k.contact(point(in_band), ROWS, band).is_err(),
+                "{lane} {t0}–{t1}: in the band of the arc, the reading refuses"
+            );
+        }
+    }
+
+    #[test]
+    fn review_knot_windows_f64() {
+        review_knot_windows::<f64>("f64");
+    }
+    #[test]
+    fn review_knot_windows_interval() {
+        review_knot_windows::<Interval>("Interval");
+    }
+
+    fn review_on_curve<T: Decide>(lane: &str) {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let f = T::from_f64;
+        let k = arc::<T>((0.0, 1.0));
+        let (mut on, mut esc, mut other) = (0, 0, Vec::new());
+        for i in 1..2000 {
+            let t = f64::from(i) / 2000.0 + 1.234e-5;
+            let (x, y) = at(t);
+            match k.contact(Point3::new(f(x), f(y), f(Z)), ROWS, band) {
+                Ok(ArcHit::On(_)) | Ok(ArcHit::End) => on += 1,
+                Err(crate::splitting::pieced_arc::ArcRefusal::Escalated(_)) => esc += 1,
+                o => other.push(format!("{t}: {o:?}")),
+            }
+        }
+        println!("{lane}: on {on} escalated {esc} other {}", other.len());
+        for o in other.iter().take(5) {
+            println!("  {o}");
+        }
+        assert!(
+            esc == 0 && other.is_empty(),
+            "{lane}: on {on} escalated {esc} other {other:?}"
+        );
+    }
+    #[test]
+    fn review_on_curve_f64() {
+        review_on_curve::<f64>("f64");
+    }
+    #[test]
+    fn review_on_curve_interval() {
+        review_on_curve::<Interval>("Interval");
+    }
+
+    fn review_fuzz<T: Decide>(lane: &str) {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let f = T::from_f64;
+        let mut seed: u64 = 0x2545F4914F6CDD1D;
+        let mut rnd = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (seed >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let (mut asked, mut abandoned, mut wrong, mut refused) = (0, 0, Vec::new(), 0);
+        for case in 0..150 {
+            let p = 1 + (rnd() * 4.0) as usize;
+            let spans = 1 + (rnd() * 4.0) as usize;
+            let n = p + spans;
+            let mut knots = vec![0.0; p + 1];
+            let mut inner: Vec<f64> = (1..spans).map(|_| 0.05 + 0.9 * rnd()).collect();
+            inner.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            if case % 3 == 0 && !inner.is_empty() {
+                let v = inner[0];
+                inner.push(v);
+                inner.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            }
+            knots.extend(inner.iter().copied());
+            knots.extend(vec![1.0; p + 1]);
+            let ncp = knots.len() - p - 1;
+            let _ = n;
+            let ctrl: Vec<Point3<f64>> = (0..ncp)
+                .map(|_| Point3::new(4.0 * rnd() - 2.0, 4.0 * rnd() - 2.0, Z))
+                .collect();
+            let w: Vec<f64> = (0..ncp)
+                .map(|_| {
+                    if case % 2 == 0 {
+                        1.0
+                    } else {
+                        0.1 + 6.0 * rnd() * rnd()
+                    }
+                })
+                .collect();
+            let Ok(kv) = geom_core::spline::KnotVector::clamped(knots.clone(), p) else {
+                continue;
+            };
+            let Ok(c) = geom::NurbsCurve3::new(kv, ctrl, w) else {
+                continue;
+            };
+            let t0 = if case % 4 == 0 { 0.0 } else { 0.3 * rnd() };
+            let t1 = if case % 5 == 0 && !inner.is_empty() {
+                inner[inner.len() - 1]
+            } else {
+                1.0 - 0.3 * rnd()
+            };
+            let Some(k) = SplineArc::new(&c.map_scalar(f), (f(t0), f(t1))) else {
+                panic!("{lane} case {case}: new refused")
+            };
+            let m = 40_000;
+            let pts: Vec<(f64, f64)> = (0..=m)
+                .map(|i| {
+                    let q = c.eval(t0 + (t1 - t0) * f64::from(i) / f64::from(m));
+                    (q.x, q.y)
+                })
+                .collect();
+            for _ in 0..40 {
+                let q = (5.0 * rnd() - 2.5, 5.0 * rnd() - 2.5);
+                let a = 6.283185 * rnd();
+                let (dx, dy) = (a.cos(), a.sin());
+                let s = |(x, y): (f64, f64)| (x - q.0) * dy * -1.0 + (y - q.1) * dx;
+                let g = |(x, y): (f64, f64)| (x - q.0) * dx + (y - q.1) * dy;
+                let gap = pts
+                    .windows(2)
+                    .map(|w| {
+                        let (ax, ay) = w[0];
+                        let (bx, by) = w[1];
+                        let (ex, ey) = (bx - ax, by - ay);
+                        let l = ex * ex + ey * ey;
+                        let tt = if l > 0.0 {
+                            (((q.0 - ax) * ex + (q.1 - ay) * ey) / l).clamp(0.0, 1.0)
+                        } else {
+                            0.0
+                        };
+                        (q.0 - ax - tt * ex).hypot(q.1 - ay - tt * ey)
+                    })
+                    .fold(f64::INFINITY, f64::min);
+                if gap < 1e-3 {
+                    continue;
+                }
+                // minimum |s| at a near-line sample ahead, to skip near-grazes
+                let sv: Vec<f64> = pts.iter().map(|&p| s(p)).collect();
+                let fragile = (1..sv.len() - 1).any(|i| {
+                    (sv[i] - sv[i - 1]) * (sv[i + 1] - sv[i]) <= 0.0
+                        && sv[i].abs() < 1e-3
+                        && g(pts[i]) > -1e-3
+                }) || pts
+                    .windows(2)
+                    .any(|w| (s(w[0]) > 0.0) != (s(w[1]) > 0.0) && g(w[0]).abs() < 1e-3)
+                    || sv[0].abs() < 1e-3
+                    || sv[sv.len() - 1].abs() < 1e-3;
+                let near = if fragile { 0.0 } else { 1.0 };
+                let want = pts
+                    .windows(2)
+                    .filter(|w| (s(w[0]) > 0.0) != (s(w[1]) > 0.0) && g(w[0]) > 0.0)
+                    .count();
+                let qq = Point3::new(f(q.0), f(q.1), f(Z));
+                match k.contact(qq, ROWS, band) {
+                    Ok(ArcHit::Off) => {}
+                    _ => {
+                        refused += 1;
+                        continue;
+                    }
+                }
+                let d = Vec3::new(f(dx), f(dy), f(0.0));
+                let side = Vec3::new(f(0.0), f(0.0), f(1.0)).cross(d);
+                asked += 1;
+                match k.crossings(qq, d, side, band) {
+                    None => abandoned += 1,
+                    Some(got) if got != want && near > 1e-4 => wrong.push(format!("case {case} p{p} {knots:?} t {t0}..{t1} q {q:?} a {a}: got {got} want {want} near {near}")),
+                    Some(_) => {}
+                }
+            }
+        }
+        println!(
+            "{lane}: asked {asked} abandoned {abandoned} refused {refused} wrong {}",
+            wrong.len()
+        );
+        for w in wrong.iter().take(8) {
+            println!("  {w}");
+        }
+        assert!(wrong.is_empty(), "{lane}: {} wrong", wrong.len());
+    }
+    #[test]
+    fn review_fuzz_f64() {
+        review_fuzz::<f64>("f64");
+    }
+    #[test]
+    fn review_fuzz_interval() {
+        review_fuzz::<Interval>("Interval");
+    }
+
+    fn review_near<T: Decide>(lane: &str) {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let f = T::from_f64;
+        let k = arc::<T>((0.0, 1.0));
+        let mut bad = Vec::new();
+        let mut tally = std::collections::BTreeMap::new();
+        for i in 1..1500 {
+            let t = f64::from(i) / 1500.0 + 3.1e-5;
+            let (x, y) = at(t);
+            let nrm = wave().deriv(t).normalize();
+            for (j, frac) in [
+                0.2,
+                0.9,
+                1.5,
+                0.5 * (band.zero() + band.escalate()) / band.zero(),
+                0.95 * band.escalate() / band.zero(),
+            ]
+            .iter()
+            .enumerate()
+            {
+                for sgn in [-1.0, 1.0] {
+                    let dl = sgn * frac * band.zero();
+                    let q = Point3::new(f(x - nrm.y * dl), f(y + nrm.x * dl), f(Z));
+                    let got = k.contact(q, ROWS, band);
+                    let key = format!(
+                        "{j} {}",
+                        match got {
+                            Ok(ArcHit::Off) => "Off",
+                            Ok(ArcHit::On(_)) => "On",
+                            Ok(ArcHit::End) => "End",
+                            Err(_) => "Err",
+                        }
+                    );
+                    *tally.entry(key).or_insert(0) += 1;
+                    if got == Ok(ArcHit::Off) {
+                        bad.push(format!("t {t} dl {dl}"));
+                    }
+                }
+            }
+        }
+        println!("{lane}: {tally:?} bad {}", bad.len());
+        assert!(bad.is_empty(), "{lane}: {:?}", &bad[..bad.len().min(5)]);
+    }
+    #[test]
+    fn review_near_f64() {
+        review_near::<f64>("f64");
+    }
+    #[test]
+    fn review_near_interval() {
+        review_near::<Interval>("Interval");
+    }
 }
