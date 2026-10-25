@@ -2,10 +2,11 @@
 id: a-ray-meets-a-curved-faces-edge-in-band-by-each-faces-own-trim
 kind: issue
 title: A ray in band of an edge a curved face bounds, or of a planar face's curved edge, is still set aside by each face's own trim walk
-status: open
+status: review
 opened: 2026-10-19
 priority: P2
 cost: H
+branch: flush/curved-edge-ray
 ---
 
 
@@ -52,3 +53,112 @@ side at ε 1e-6
 (`partners_along_the_face_build_sound_against_the_germ`); with an edge's
 closest point as a pair's party, two cubes 12ε apart refuse on a pair
 the census reads definite (`two_edges_of_faces_definite_apart_are_no_pair`).
+
+## Measured (main at `28e9e447`)
+
+Probes: `crates/sweep/tests/curved_edge_ray_probes.rs` (ignored), through
+`topo::test_support::{aimed_rays, each_aim, edge_frames, ray_at}`. Each
+body is read both ways out: its own aims (every face's, not only until
+one decides), the reader's answer, and a ray aimed at the middle of every
+edge, into each face, at offsets 0, Kε/3 and Kε (within the band) and
+3Kε and 30Kε (clear of it).
+
+- The ball and the torus are closed groups, whose seams no ray reads,
+  and read every ray before and after.
+- **The reader falls to the volume on none of them**, at ε 1e-9, 1e-6
+  and 1e-12: a cylinder (two and three arcs), a boss on a box, a bored
+  block, a filleted edge, a cone frustum (alone and unioned on a box), a
+  ball, a hemisphere, a torus, a half torus, and discs 12ε, 21ε and 30ε
+  thick. A face's own aim sits away from its edges (a planar face's
+  certified interior point, a curved face's chart middle), so the first
+  aimed ray reads. Aims set aside, both ways out: the bored block's two
+  planar faces (a graze), the half torus's two end caps (a graze), the
+  12ε disc's two (a crossing in band).
+- **Rays within the band of a curved edge are set aside on a crossing in
+  band of a face's own boundary**: of the rays at 0, Kε/3 and Kε, both
+  ways out, at ε 1e-9, 14–27 of 72 read on a nominal body (25 of 108 on
+  the three-arc cylinder; 15–17 of 48 on the fillet and the hemisphere),
+  the rest set aside, 22–59 of them on such a crossing; the thin discs
+  read 0–10 of 72. ε 1e-6 and 1e-12 alike (the PR's table).
+- `cut_cylinder`'s reader reads **62** exact zeros at its nominal, not
+  90: `curve_foot_branch` 12, `point_in_arc_loop_side` 6,
+  `bool_ruled_region_roots_coaxial` 44 (`reader_ties_at_the_nominal`).
+  The ruled region's rework (PR 5664) moved the rest.
+
+## Fix
+
+- **Every edge is decided once, for both faces it bounds**
+  (`boolean/solid_contain.rs`, `ray_crossings`; the new
+  `boolean/solid_contain/curved_edges.rs`). A line edge between two
+  crossed planes keeps the planar reading (`edge_meets`). Every other
+  edge between two faces that read their own carrier crossings (a
+  crossed plane, a trimmed curved face's roots, `carrier_roots`) is read
+  from those crossings: one definitely off the edge's carrier
+  (`Curve3::clearance`, the on-carrier reading's lower bound) is clear
+  of it there; one that is not is carried to the ray's closest approach
+  by alternate feet (`Curve3::foot`, the one foot reading) and read on
+  the edge's span as the census reads it (`census::edge_span`, the
+  curved lanes' own span; `Foot::on_carrier`, `Span::place`). On the
+  carrier or in the band's gap, inside the span, the ray meets the edge.
+- **Half a crossing for each face, at the carrier crossing it stands
+  for**: a planar face's plane crossing, a curved face's root decided
+  nearest where the ray passes the edge (a nearest in band of another
+  reads nothing). The crossing spans the edge's passage and both
+  carrier crossings (`Crossings::push_span`); a pair's parties are read
+  where the ray passes the edge (`RayHit::pair`, unchanged). A planar
+  face with a met edge offers no crossing of its own; a curved face
+  none at that root.
+- **The wedge keeps PR 5422's reading**: a face met at two of its edges
+  (`EdgeMeets::meet`, shared by both readings), and one edge met at two
+  places along the ray reads nothing there. A face met at one edge is
+  read again at its other edges from where the ray passes it
+  (`curved_edges::narrow`), so a face narrower than the band there is a
+  wedge though its other edge's own crossings lie off it.
+- **A seam split**: two faces on one carrier cross it at one root. Near
+  their seam the ray meets the seam once, half a crossing for each face
+  with one sign. Elsewhere a face that definitely holds the root holds
+  it alone, and the others' readings of it, in band or not, decide
+  nothing (`ray_crossings`, the shared roots).
+- Vertices of curved edges are corners as a line edge's are
+  (`EdgeMeets::vertex`), save a closed edge's conventional vertex.
+
+## Measured with the fix
+
+- Rays at 0, Kε/3 and Kε, both ways out, at ε 1e-9: every nominal body
+  reads 48–72 of 72 (78 of 108 on the three-arc cylinder, 39 of 48 on
+  the fillet and the hemisphere), with **no** crossing in band
+  of a face's own boundary; the rest read nothing (a ray aimed at an
+  edge that clips its corner crosses nothing net). Discs 21ε and 30ε
+  read 41 and 43 of 72, with none on such a crossing; the 12ε disc, under
+  2Kε, 11, its aims now wedges. ε 1e-6 and 1e-12 alike. No ray reads the
+  wrong side, on either way out.
+- The reader still falls to the volume on none of the bodies.
+- `cut_cylinder`: 62 exact zeros, of 1827 reader decisions (1719 on
+  main). The curved edge-meeting ray retires none:
+  `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`'s
+  `## Measured on the curved edge-meeting ray` says which reads remain,
+  and unparks it re-priced.
+- The five batteries, release, line-diffed against the merge base: 0
+  lines move.
+
+## Pins
+
+`crates/sweep/tests/a_ray_meets_a_curved_edge_once_for_both_faces.rs`:
+- `rays_in_band_of_a_curved_edge_read_it_once`: no ray at Kε/3 or Kε
+  reads the wrong side or is set aside on a face's own boundary, and at
+  least 60% of each body's read (12–38% on main);
+- `no_ray_about_a_curved_edge_reads_the_wrong_side` (shape 1): random
+  points of every edge, offsets within 3Kε either side, random
+  directions, both ways out;
+- `points_about_a_cylinders_edges_read_right_or_not_at_all` (shape 1):
+  point containment 2–4 bands off a rim or a seam against the analytic
+  cylinder.
+Each body passes tier 3′ with no contacts at every ε row it is pinned at.
+
+## Residue
+
+- `a-ray-shallow-to-both-faces-of-a-curved-edge-reads-it-clear-at-their-crossings`
+  (FLUSH, P3): clear is read at the crossings, so a ray shallow to both
+  faces of a curved edge, passing within its band, is set aside.
+- `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal`
+  (FLUSH, P2, unparked, H).
