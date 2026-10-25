@@ -2,10 +2,11 @@
 id: the-mate-and-blend-commit-rows-restate-tool-commit-row
 kind: issue
 title: the mate and blend commit rows restate tool_commit_row's commit, Cancel and close shape by hand
-status: open
+status: parked
 opened: 2026-09-30
 priority: P4
 cost: M
+blocked_on: [5636]
 ---
 
 

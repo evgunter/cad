@@ -2,10 +2,11 @@
 id: committed-nodes-do-not-light-the-faces-they-reference
 kind: issue
 title: Selecting a committed Declare, Mate, face-frame datum or Measure node lights nothing of the faces it references
-status: open
+status: parked
 opened: 2026-09-30
 priority: P3
 cost: M
+blocked_on: [5636]
 ---
 
 

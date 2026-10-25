@@ -40,3 +40,10 @@ AUTHOR's narrative is recoverable from
     - no rows on `beside`'s `reconcile`/`clear` or on `copy_motion`'s `NoValue`;
     - a tree-picked duplicate refusing whole when one copy has no value (fail-loud, kept);
     - an unmated copy's values read back through `moves_of` rather than copied as written (the designer pair chose evaluated motion).
+- 2026-10-25 — **Handed back (`ready`).** No P0 or P1 row is dispatchable: all of them, five rows, are parked on INTENT's PR 5636. `committed-nodes-…` and `the-mate-and-blend-commit-rows-…` are now formally parked on it too, since D′3 reshapes the mate tool and placements they read. This sitting landed:
+  - the mirror (P0, PR 5683);
+  - the duplicate (P0), split-half faces (P1) and repoint by read (P1), all in PR 5693;
+  - two P4 hygiene rows (PR 5677);
+  - three designer-pair decisions: held picks, the mirror's arrival, and the stale mate (PRs 5690 and 5691).
+
+  It filed ten rows, one of them on INTENT's slate. INTENT's log carries the spec sentences and questions D′3 owes this track. `plan.md` is rewritten to the present state and gives the order once D′3 lands.
