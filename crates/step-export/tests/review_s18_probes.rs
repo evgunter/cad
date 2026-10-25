@@ -3,8 +3,8 @@
 //! the reviewer; assertions pin what was measured.
 
 use crate::common;
-use step_export::{StepExportError, StepOptions, step_string};
 use geom_core::Tol;
+use step_export::{StepExportError, StepOptions, step_string};
 use topo::{AtRestBody, classify_shells_of};
 
 fn shape(body: &topo::Body<f64>) -> Vec<usize> {
@@ -33,11 +33,13 @@ fn probe_kiss_assembly_shape_and_gate() {
 /// The single-shell twin of `an_inside_out_multi_shell_body_refuses_typed`.
 #[test]
 fn probe_inside_out_single_shell_brick() {
-    let brick: topo::Body<f64> =
-        common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let brick: topo::Body<f64> = common::brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let reverted = brick.revert().expect("reverts");
     let gate = AtRestBody::validate(reverted.clone(), Tol::witness());
-    eprintln!("reverted brick: validate = {:?}", gate.as_ref().map(|_| ()).map_err(|e| e.clone()));
+    eprintln!(
+        "reverted brick: validate = {:?}",
+        gate.as_ref().map(|_| ()).map_err(|e| e.clone())
+    );
     let r = step_string(&reverted, &StepOptions::default(), Tol::witness());
     eprintln!("reverted brick: export = {:?}", r.as_ref().map(|_| ()));
 }
