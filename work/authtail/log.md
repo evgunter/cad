@@ -46,4 +46,4 @@ AUTHOR's narrative is recoverable from
   - two P4 hygiene rows (PR 5677);
   - three designer-pair decisions: held picks, the mirror's arrival, and the stale mate (PRs 5690 and 5691).
 
-  It filed eleven rows. INTENT's log carries the spec sentences and questions D′3 owes this track. `plan.md` is rewritten to the present state and gives the order once D′3 lands.
+  It filed ten rows, one of them on INTENT's slate. INTENT's log carries the spec sentences and questions D′3 owes this track. `plan.md` is rewritten to the present state and gives the order once D′3 lands.
