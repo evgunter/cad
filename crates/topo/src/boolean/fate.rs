@@ -13,8 +13,9 @@
 //! ([`FateEdge`]): on its one side the dropped face is substituted, on
 //! its other side not.
 //!
-//! After the join, [`cut`] divides the dropped face along each such
-//! edge with a one-sided chord, between the vertices the dropped
+//! After the join, or once a containment fallback has built its result
+//! (`ops::fallback_fates`), [`cut`] divides the dropped face along each
+//! such edge with a one-sided chord, between the vertices the dropped
 //! operand holds at the edge's two ends: the partner of a vertex–vertex
 //! site, the ring vertex of a pierce, or, where the face holds no vertex
 //! there (a vertex-on-face site the classification did no surgery at, or
@@ -1274,51 +1275,4 @@ pub(super) fn cut<T: Decide + crate::props::AtRestPolicy>(
     substituted.dedup();
     out.substituted = substituted;
     Ok(out)
-}
-
-/// The faces a path that cuts nothing holds through coincident ones
-/// (the containment fallback, which keeps or drops whole shells): each
-/// coincident pair the classification found, written from what the
-/// result holds. The face of the pair `discarded` lists is the dropped
-/// one, held whole by the other; a pair whose faces the result holds
-/// both or neither of has no row. The pairs are the faces the
-/// classification read, which a path that cuts nothing leaves whole.
-pub(super) fn uncut<T: geom_core::Real>(
-    red: &BooleanReduction<T>,
-    discarded: [&std::collections::BTreeSet<FaceKey>; 2],
-) -> Vec<SubstitutedFace> {
-    let mut pairs = Vec::new();
-    for fe in &red.fates.edges {
-        pairs.push((fe.holder, fe.kept, fe.face));
-    }
-    for fc in &red.fates.corners {
-        let kept = match fc.kept {
-            KeptAt::Sector(s) => s.face,
-            KeptAt::Pierced(f, ..) => f,
-        };
-        pairs.push((fc.holder, kept, fc.dropped.face));
-    }
-    let mut out = Vec::new();
-    for (holder, kept, dropped) in pairs {
-        let (a, b) = match holder {
-            Operand::A => (kept, dropped),
-            Operand::B => (dropped, kept),
-        };
-        match (discarded[0].contains(&a), discarded[1].contains(&b)) {
-            (false, true) => out.push(SubstitutedFace {
-                operand: Operand::B,
-                face: b,
-                by: a,
-            }),
-            (true, false) => out.push(SubstitutedFace {
-                operand: Operand::A,
-                face: a,
-                by: b,
-            }),
-            _ => {}
-        }
-    }
-    out.sort();
-    out.dedup();
-    out
 }

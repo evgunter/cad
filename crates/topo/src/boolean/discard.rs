@@ -11,10 +11,12 @@
 //! which edges, a one-sided chord along a kept edge among them
 //! ([`ChordsAcross`]).
 //!
-//! The one path that splits an operand face, the section path
-//! (`finish`), records its discards. The paths that keep or drop whole
-//! operands split no face, so no face of theirs has pieces for a discard
-//! to lie between, and they record none.
+//! Both paths record them: the section path (`finish`), and the
+//! containment fallback, which keeps or drops whole shells and records
+//! every face of a dropped one once it has cut its dropped coincident
+//! faces (`ops::fallback_fates`). Such a face borders no kept face of its
+//! own operand, so its stretches are read through substituted fragments
+//! alone.
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, VertexKey};
@@ -128,6 +130,49 @@ impl ChordsAcross<'_> {
         }
         (self.own_to_result)(start).zip((self.own_to_result)(end))
     }
+}
+
+/// Vertex `v` of `operand`'s clone in result keys: the one copy of it
+/// the result keeps (`kept`, read on each of its null-edge copies), or
+/// where it keeps none, the one vertex of the other operand it meets
+/// there (a vertex–vertex contact, read through `theirs`).
+pub(super) fn own_in_result<T: geom_core::Real>(
+    red: &super::BooleanReduction<T>,
+    operand: Operand,
+    (kept, theirs): (
+        &dyn Fn(VertexKey) -> Option<VertexKey>,
+        &dyn Fn(VertexKey) -> Option<VertexKey>,
+    ),
+    v: VertexKey,
+) -> Option<VertexKey> {
+    let one = |mut rs: Vec<VertexKey>| {
+        rs.sort();
+        rs.dedup();
+        match rs.as_slice() {
+            [r] => Some(*r),
+            _ => None,
+        }
+    };
+    let copies = super::NullCopies::of_operand(&red.null_edges, operand).of(v);
+    let own: Vec<VertexKey> = copies.iter().filter_map(|&k| kept(k)).collect();
+    if !own.is_empty() {
+        return one(own);
+    }
+    let other = super::NullCopies::of_operand(&red.null_edges, operand.other());
+    one(red
+        .contacts
+        .vv
+        .iter()
+        .filter_map(|c| {
+            let (mine, o) = match operand {
+                Operand::A => (c.a, c.b),
+                Operand::B => (c.b, c.a),
+            };
+            copies.contains(&mine).then_some(o)
+        })
+        .flat_map(|o| other.of(o))
+        .filter_map(theirs)
+        .collect())
 }
 
 /// The row for discarded face `face` of `body`, an operand clone.

@@ -1252,7 +1252,7 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         // cylinder and cone face's pairs, certified per pair by the
         // section certificate or refused typed.
         section_extent_pass(a, b, &red.rest_contacts, band)?;
-        return fallback(op, &red, a, b, &glued, band, tol)
+        return fallback(op, &mut red, a, b, &glued, band, tol)
             .map(|result| Joined::Answered(Box::new(result)));
     }
 
@@ -7327,7 +7327,7 @@ fn classify_shells<T: Decide + crate::props::AtRestPolicy>(
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
 fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
     op: BooleanOp,
-    red: &BooleanReduction<T>,
+    red: &mut BooleanReduction<T>,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     decls: &Glue<T>,
@@ -7392,6 +7392,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
         (false, false) => {
             let mut body = carve_kept(&red.a, &a_keep)?;
+            let a_kept: BTreeSet<VertexKey> = body.vertices().map(|(v, _)| v).collect();
             let b_body = carve_kept(&red.b, &b_keep)?;
             if op == BooleanOp::Subtract {
                 // Read here: the void door decides nothing, so its own
@@ -7492,13 +7493,25 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                     .map_err(|source| BooleanError::Pcurves { source })?;
             }
             let body = gate(body, band, tol)?;
+            let FallbackFates {
+                substituted,
+                mut discards,
+                divisions: [_, face_fragments_b],
+            } = fallback_fates(
+                red,
+                [&discarded[0], &discarded[1]],
+                [&|v| a_kept.contains(&v).then_some(v), &|v| {
+                    graft.vertices.get(v).copied()
+                }],
+                band,
+                tol,
+            )?;
             let (graft_vertices, graft_edges, graft_dead_edges, mut graft_faces) =
                 graft_rows(&graft);
             let mut face_fragments_a =
                 crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
             let mut cone_splits =
                 crate::lineage::ConeCopies::new(crate::lineage::LineageRows::ConeCopies);
-            let mut discards = Vec::new();
             name_parted(
                 &parted,
                 &mut graft_faces,
@@ -7517,7 +7530,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 substitutions: output.clone(),
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
-                substituted: super::fate::uncut(red, [&discarded[0], &discarded[1]]),
+                substituted,
                 edge_classes: red.edge_classes.clone(),
                 unread_partners: red.unread_partners.clone(),
                 null_copies: super::null_copy_rows(&red.null_edges),
@@ -7525,6 +7538,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 killed_lineage,
                 seam_edges: parted.iter().flat_map(|p| [p.kept, p.minted]).collect(),
                 face_fragments_a,
+                face_fragments_b,
                 cone_splits,
                 discards,
                 ..BooleanNaming::default()
@@ -7551,13 +7565,139 @@ fn faces_outside<T: Real>(clone: &Body<T>, keep: &[ShellKey]) -> BTreeSet<FaceKe
         .collect()
 }
 
+/// What a containment fallback records of its coincident faces: each
+/// substituted fragment, each discard, and each operand's face
+/// divisions, A's then B's.
+struct FallbackFates {
+    substituted: Vec<super::SubstitutedFace>,
+    discards: Vec<super::DiscardRow>,
+    divisions: [crate::lineage::FaceDivisions; 2],
+}
+
+/// **A containment fallback divides its dropped coincident faces as the
+/// section path does** (`fate::cut`), once its result is built: it keeps
+/// or drops whole shells, so a dropped face is a discard and its clone
+/// is free to divide, and the cut changes only how the rows describe it.
+/// `discarded` is each operand's faces outside the kept shells, A's then
+/// B's; `kept` maps each operand's vertex to the result's, before the
+/// output stage. A pair whose faces the result holds both or neither of
+/// owes nothing and is not cut. Every other face of a discarded shell is
+/// a discard (`discard::discard_row`): no face of its own operand across
+/// it is kept, so it borders a kept face only through a substituted
+/// fragment.
+///
+/// # Errors
+///
+/// [`fate::cut`](super::fate::cut)'s refusals; a pair whose kept copy
+/// the result drops while it keeps the copy the lump dropped, or a cut
+/// in operand A's clone (the lump keeps A's copy,
+/// `tables::kept_copy`), refuses
+/// [`BooleanError::ClassificationInvariant`].
+fn fallback_fates<T: Decide + AtRestPolicy>(
+    red: &mut BooleanReduction<T>,
+    discarded: [&BTreeSet<FaceKey>; 2],
+    kept: [&dyn Fn(VertexKey) -> Option<VertexKey>; 2],
+    band: Band,
+    tol: Tol,
+) -> Result<FallbackFates, BooleanError> {
+    let gone = |o: Operand, f: FaceKey| match o {
+        Operand::A => discarded[0].contains(&f),
+        Operand::B => discarded[1].contains(&f),
+    };
+    // Whether the pair is cut: its kept copy held, its dropped one not.
+    let owed = |holder: Operand, kept: FaceKey, dropped: FaceKey| match (
+        gone(holder, kept),
+        gone(holder.other(), dropped),
+    ) {
+        (false, true) => Ok(true),
+        (true, false) => Err(BooleanError::ClassificationInvariant {
+            what: "a containment fallback drops the coincident copy the lump keeps",
+        }),
+        _ => Ok(false),
+    };
+    let mut edges = Vec::new();
+    for fe in std::mem::take(&mut red.fates.edges) {
+        if owed(fe.holder, fe.kept, fe.face)? {
+            edges.push(fe);
+        }
+    }
+    let mut corners = Vec::new();
+    for fc in std::mem::take(&mut red.fates.corners) {
+        let k = match fc.kept {
+            super::fate::KeptAt::Sector(s) => s.face,
+            super::fate::KeptAt::Pierced(f, ..) => f,
+        };
+        if owed(fc.holder, k, fc.dropped.face)? {
+            corners.push(fc);
+        }
+    }
+    if edges.iter().any(|fe| fe.holder == Operand::B)
+        || corners.iter().any(|fc| fc.holder == Operand::B)
+    {
+        return Err(BooleanError::ClassificationInvariant {
+            what: "a containment fallback cuts operand A's copy of a coincident pair",
+        });
+    }
+    red.fates.edges = edges;
+    red.fates.corners = corners;
+    let fresh = || crate::lineage::FaceDivisions::new(crate::lineage::LineageRows::FaceDivisions);
+    let mut divisions = [fresh(), fresh()];
+    red.enter_join_surgery();
+    let [div_a, div_b] = &mut divisions;
+    let cuts = super::fate::cut(red, [div_a, div_b], band, tol);
+    red.leave_join_surgery(cuts.is_ok());
+    let cuts = cuts?;
+    let refuse = |_: crate::entity::HalfEdgeKey,
+                  _: VertexKey,
+                  _: VertexKey|
+     -> Result<(VertexKey, VertexKey), BooleanError> {
+        Err(BooleanError::JoinDesync {
+            what: "a containment fallback's discard borders a kept face of its own operand",
+        })
+    };
+    let mut discards = Vec::new();
+    for (operand, [own, theirs], div) in [
+        (Operand::A, [kept[0], kept[1]], &divisions[0]),
+        (Operand::B, [kept[1], kept[0]], &divisions[1]),
+    ] {
+        let own_to_result =
+            |v: VertexKey| super::discard::own_in_result(red, operand, (own, theirs), v);
+        let chords = super::discard::ChordsAcross {
+            cuts: &cuts,
+            to_result: theirs,
+            own_to_result: &own_to_result,
+        };
+        let body = match operand {
+            Operand::A => &red.a,
+            Operand::B => &red.b,
+        };
+        for (face, _) in body.faces() {
+            if gone(operand, div.root(face)) && !cuts.is_substituted(operand, face) {
+                discards.push(super::discard::discard_row(
+                    body,
+                    face,
+                    operand,
+                    &|_| false,
+                    &refuse,
+                    Some(&chords),
+                )?);
+            }
+        }
+    }
+    Ok(FallbackFates {
+        substituted: cuts.substituted,
+        discards,
+        divisions,
+    })
+}
+
 /// Finishes a single-operand fallback result (the merge output stage
 /// is a documented no-op on a maximal-faced operand but runs anyway —
 /// the contract is uniform), applying ∖'s B-side revert when needed.
 fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     op: BooleanOp,
     (body, keep): (Body<T>, &[ShellKey]),
-    red: &BooleanReduction<T>,
+    red: &mut BooleanReduction<T>,
     decls: &Glue<T>,
     kind: BooleanResultKind,
     band: Band,
@@ -7574,9 +7714,9 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         })?;
     }
     // No cross-operand pair merges here: one operand is absent from the
-    // result. A declared pair that held the absent operand's region
-    // through the kept one is a `substituted` row; the surviving operand's
-    // CARRIED records still apply.
+    // result. A coincident pair that held the absent operand's region
+    // through the kept one is a `substituted` row (`fallback_fates`); the
+    // surviving operand's CARRIED records still apply.
     let mut desc = Descendants::default();
     let (a_view, b_view) = match kind {
         BooleanResultKind::OperandA => (KeyView::Direct, KeyView::Absent),
@@ -7588,14 +7728,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         BooleanResultKind::OperandA => [faces_outside(&red.a, keep), faces_outside(&red.b, &[])],
         _ => [faces_outside(&red.a, &[]), faces_outside(&red.b, keep)],
     };
-    let substituted = super::fate::uncut(red, [&discarded[0], &discarded[1]]);
-    // The lump keeps operand A's copy of a coincident pair
-    // (`tables::kept_copy`), so a shell holding one is kept: a fallback
-    // that keeps B whole drops no such pair.
-    debug_assert!(
-        substituted.is_empty() || kind == BooleanResultKind::OperandA,
-        "a containment fallback keeping operand B whole holds a coincident pair"
-    );
+    let carved: BTreeSet<VertexKey> = body.vertices().map(|(v, _)| v).collect();
     let recorded = carried_vertices(
         &body,
         &ledger,
@@ -7622,6 +7755,24 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     )?;
     share_recorded_points(&mut body, &contacts, &coincidences, band)?;
     let body = gate(body, band, tol)?;
+    let own = |v: VertexKey| carved.contains(&v).then_some(v);
+    let absent = |_: VertexKey| None;
+    let kept: [&dyn Fn(VertexKey) -> Option<VertexKey>; 2] = match kind {
+        BooleanResultKind::OperandA => [&own, &absent],
+        _ => [&absent, &own],
+    };
+    let FallbackFates {
+        substituted,
+        discards,
+        divisions: [face_fragments_a, face_fragments_b],
+    } = fallback_fates(red, [&discarded[0], &discarded[1]], kept, band, tol)?;
+    // The lump keeps operand A's copy of a coincident pair
+    // (`tables::kept_copy`), so a shell holding one is kept: a fallback
+    // that keeps B whole drops no such pair.
+    debug_assert!(
+        substituted.is_empty() || kind == BooleanResultKind::OperandA,
+        "a containment fallback keeping operand B whole holds a coincident pair"
+    );
     let naming = match kind {
         BooleanResultKind::OperandA => BooleanNaming {
             a_keys: OperandKeys::Direct,
@@ -7630,12 +7781,15 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             substitutions: output.clone(),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
-            substituted: substituted.clone(),
+            substituted,
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
-            edge_joins: edge_joins.clone(),
-            killed_lineage: killed_lineage.clone(),
+            edge_joins,
+            killed_lineage,
+            face_fragments_a,
+            face_fragments_b,
+            discards,
             ..BooleanNaming::default()
         },
         // The result arena IS the B clone: B keys direct, A absent.
@@ -7646,12 +7800,15 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             substitutions: output.clone(),
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
-            substituted: substituted.clone(),
+            substituted,
             edge_classes: red.edge_classes.clone(),
             unread_partners: red.unread_partners.clone(),
             null_copies: super::null_copy_rows(&red.null_edges),
-            edge_joins: edge_joins.clone(),
-            killed_lineage: killed_lineage.clone(),
+            edge_joins,
+            killed_lineage,
+            face_fragments_a,
+            face_fragments_b,
+            discards,
             ..BooleanNaming::default()
         },
     };
