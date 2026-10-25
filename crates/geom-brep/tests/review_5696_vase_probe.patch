@@ -1,0 +1,25 @@
+diff --git a/crates/sweep/tests/encl_curved_loft_shell.rs b/crates/sweep/tests/encl_curved_loft_shell.rs
+index bd5c0bba..212c9c0e 100644
+--- a/crates/sweep/tests/encl_curved_loft_shell.rs
++++ b/crates/sweep/tests/encl_curved_loft_shell.rs
+@@ -555,6 +555,12 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
+         .expect("a plane bounded by rational rims has a vector area");
+     let disc = core::f64::consts::PI * radius * radius;
+     let residual = 2.0 * core::f64::consts::PI * radius * 1e-12;
++    eprintln!("PROBE reading {reading:?} disc {disc:.17e} area-disc {:e} reference {reference:?} z {z:e}", reading.area - disc);
++    for (he, c) in alone.pcurves() {
++        if alone.face_of_half_edge(he).is_some_and(|f| is_spline_wall(&walls, f)) {
++            eprintln!("PROBE pcurve {:?}", *c.pcurve());
++        }
++    }
+     let lever = (reference.z - z).abs();
+     assert!(
+         (reading.area - disc).abs() <= reading.area_pad + residual,
+@@ -591,6 +597,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
+     // (`work/shell/a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle.md`).
+     let refusals = topo::validate_geometric(&alone, Tol::witness())
+         .expect_err("a wall trimmed off its exact rectangle has no volume");
++    eprintln!("PROBE refusals {refusals:?}");
+     assert!(
+         matches!(
+             refusals.as_slice(),
