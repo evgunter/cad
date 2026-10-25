@@ -671,8 +671,8 @@ fn an_edge_edge_record_carries_onto_the_piece_of_a_split_edge_that_holds_it() {
 /// the crossing: the slab splits the cube's top-front edge at (0.5, 0,
 /// 1), on the box's edge, which lies in that plane and stays whole. The
 /// split's vertex is recorded on the box's edge, a vertex-on-edge
-/// record, and each result certifies 3′, the slab on either side of the
-/// crossing. A slab across it, x∈(0.3, 0.7), buries the crossing in its
+/// record, and each result refuses only the point where the one solid
+/// touches itself there, the slab on either side of the crossing. A slab across it, x∈(0.3, 0.7), buries the crossing in its
 /// material: no record is left there, and the result certifies. Red
 /// when split lineage drops a minted vertex that rests on the other
 /// edge (3′ refuses `VertexOnEdge` there).
@@ -700,10 +700,20 @@ fn a_split_at_the_crossing_records_its_vertex_on_the_other_edge() {
             "slab {slab:?}: one vertex-on-edge record at the crossing: {:?}",
             out.contacts
         );
-        assert_eq!(
-            errors(&out.body, &out.contacts),
-            vec![],
-            "slab {slab:?}: the result certifies"
+        // The one solid touches itself at the crossing, where the slab's
+        // face `x = 0.5` holds the point at its corner and inside the
+        // box's edge: no sector reads that face yet
+        // (`work/restread/the-touch-analysis-reads-no-face-held-at-a-corner-and-along-an-edge-at-one-point.md`).
+        let got = errors(&out.body, &out.contacts);
+        assert!(
+            matches!(
+                &got[..],
+                [ValidationError::BoundaryCrossesItselfUndecided {
+                    why: topo::TouchUnread::Unanalysed,
+                    ..
+                }]
+            ),
+            "slab {slab:?}: only the unread pinch at the crossing: {got:?}"
         );
     }
 }

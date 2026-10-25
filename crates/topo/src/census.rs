@@ -80,7 +80,11 @@
 //!   a solid touches itself whose link there bounds no one material
 //!   ([`sweep_self_touch_points`]).
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
-//!   distinct-key curved pairs (the backstop is cross-solid), and one
+//!   distinct-key curved pairs (the backstop is cross-solid); a point
+//!   where a solid touches itself with a curved face or edge in its link
+//!   there, which [`sweep_self_touch_points`] leaves unread
+//!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
+//!   and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
 //!   meetings are declared has some of its records taken on their word
 //!   (`work/contacthold/declared-only-meetings-clear-at-the-census-gate-unread.md`).
@@ -7146,7 +7150,8 @@ fn edge_in_own_face<T: Decide>(
 /// other unread verdict its undecided twin. A point a line touch of the
 /// solid reaches ([`line_touch_reaches`]) is not an isolated touch: the
 /// line's rules read it (pass 4's [`edge_in_own_face`], pass 5's
-/// coincident edges).
+/// coincident edges). A link holding a curved face or edge is left
+/// unread: no sector reads one yet.
 fn sweep_self_touch_points<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -7198,6 +7203,9 @@ fn sweep_self_touch_points<T: Decide>(
             Some(true) => continue,
             Some(false) => match Link::at_point(body, geo, &ties, s, &keys, at, band) {
                 Ok(link) => rest::one_material(&link, band),
+                // A curved face or edge in the link: genuinely undetected
+                // (the module doc's class list), not refused.
+                Err(TouchVerdict::Unread(TouchUnread::Unreadable)) => continue,
                 Err(v) => v,
             },
             None => TouchVerdict::Unread(TouchUnread::InBand),

@@ -783,3 +783,53 @@ fn a_solid_crossing_itself_blocks_its_pairs() {
         "{errors:?}"
     );
 }
+
+/// **A line touch passing through the point reads as the line rule
+/// reads it**: an edge lying along the floor, its wedge above, read
+/// inside the edge (a vertex tied inside it, whose line
+/// [`line_touch_reaches`] does not skip). Standing on a floor whose
+/// material is below, the wedge rests (1 below, 1 in the wedge, 0
+/// elsewhere); sunk into a floor whose material is above, it crosses (2
+/// in the wedge), as [`edge_in_own_face`] refuses it along the line.
+#[test]
+fn a_line_touch_through_the_point_reads_as_its_line() {
+    let p = |x: f64, y: f64, z: f64| P::new(x, y, z);
+    let r5 = 5f64.sqrt();
+    for (up, rests) in [(true, true), (false, false)] {
+        let mut verts = vec![
+            p(-1.0, 0.0, 0.0),
+            p(1.0, 0.0, 0.0),
+            p(1.0, 0.5, 1.0),
+            p(-1.0, 0.5, 1.0),
+            p(-1.0, -0.5, 1.0),
+            p(1.0, -0.5, 1.0),
+        ];
+        let mut ground = vec![
+            p(-2.0, -2.0, 0.0),
+            p(2.0, -2.0, 0.0),
+            p(2.0, 2.0, 0.0),
+            p(-2.0, 2.0, 0.0),
+        ];
+        if !up {
+            ground.reverse();
+        }
+        verts.extend(ground);
+        let faces = [
+            (Vec3::new(0.0, 2.0, -1.0) / r5, vec![vec![0, 3, 2, 1]]),
+            (Vec3::new(0.0, -2.0, -1.0) / r5, vec![vec![1, 5, 4, 0]]),
+            (
+                Vec3::new(0.0, 0.0, if up { 1.0 } else { -1.0 }),
+                vec![vec![6, 7, 8, 9]],
+            ),
+        ];
+        let edge = [(vec![0, 1], [0, 1])];
+        let link = synthetic(P::origin(), At::Edge, verts, &faces, &edge, band())
+            .expect("a wedge on a floor");
+        let got = rest::one_material(&link, band());
+        if rests {
+            assert!(got.is_rest(), "standing: {got:?}");
+        } else {
+            assert_eq!(got, TouchVerdict::Crossing, "sunk");
+        }
+    }
+}
