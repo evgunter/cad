@@ -26,9 +26,11 @@
 //! [`rational_edge_q`] extracts the carrier's Bézier spans at the
 //! interval scalar (knot insertion in homogeneous coordinates, so the
 //! extraction rounds into the enclosure rather than moving the curve),
-//! forms each span's `B` and `w` about the reference, and converts them
-//! to power form in the span's own parameter `s = (t − a)/(b − a)`. A
-//! round then evaluates each by Horner in jet arithmetic; nothing about
+//! forms each span's `B` and `w` about the reference, converts them to
+//! power form in the span's own parameter `s = (t − a)/(b − a)`, and
+//! multiplies out the integrand's numerator `B × dB/ds` there, once. A
+//! round then evaluates it and `w` by Horner in jet arithmetic and takes
+//! one reciprocal of `w²` per evaluation; nothing about
 //! the carrier is rebuilt as the schedule doubles the pieces.
 //!
 //! Each span is integrated in `t` over its part of the edge's carrier
@@ -47,16 +49,16 @@ use super::quad::RVec3;
 use super::spiric::{Jet, composite_by};
 
 /// One Bézier span of a rational rim, read on the part `[lo, hi]` of the
-/// edge's carrier interval it covers: `B` and `w` about the reference in
-/// power form in `s = (t − a)·inv_len`, ascending, and `dB/ds`.
+/// edge's carrier interval it covers: the integrand's numerator
+/// `B × dB/ds` about the reference and the weight `w`, each in power form
+/// in `s = (t − a)·inv_len`, ascending.
 #[derive(Clone, Debug)]
 pub struct RationalSpanQ {
     lo: f64,
     hi: f64,
     a: f64,
     inv_len: Interval,
-    numer: [Vec<Interval>; 3],
-    slope: [Vec<Interval>; 3],
+    cross: [Vec<Interval>; 3],
     weight: Vec<Interval>,
 }
 
@@ -101,6 +103,23 @@ fn power_form(bern: &[Interval]) -> Vec<Interval> {
 fn slope_form(power: &[Interval]) -> Vec<Interval> {
     #[allow(clippy::cast_precision_loss)]
     (1..power.len()).map(|k| power[k] * pt(k as f64)).collect()
+}
+
+/// The product of two power forms.
+fn poly_mul(f: &[Interval], g: &[Interval]) -> Vec<Interval> {
+    let mut out = vec![Interval::zero(); f.len() + g.len() - 1];
+    for (i, &x) in f.iter().enumerate() {
+        for (j, &y) in g.iter().enumerate() {
+            out[i + j] = out[i + j] + x * y;
+        }
+    }
+    out
+}
+
+/// `f·g − h·k` of four power forms.
+fn poly_cross(f: &[Interval], g: &[Interval], h: &[Interval], k: &[Interval]) -> Vec<Interval> {
+    let (fg, hk) = (poly_mul(f, g), poly_mul(h, k));
+    fg.iter().zip(&hk).map(|(&x, &y)| x - y).collect()
 }
 
 fn horner(coeffs: &[Interval], s: Jet) -> Jet {
@@ -187,16 +206,20 @@ pub fn rational_edge_q(
         }
         let window = &hom[index - p..=index];
         let coord = |c: usize| window.iter().map(|h| h[c]).collect::<Vec<_>>();
-        let numer: [Vec<Interval>; 3] = core::array::from_fn(|c| power_form(&coord(c)));
-        let slope = core::array::from_fn(|c| slope_form(&numer[c]));
+        let n: [Vec<Interval>; 3] = core::array::from_fn(|c| power_form(&coord(c)));
+        let d: [Vec<Interval>; 3] = core::array::from_fn(|c| slope_form(&n[c]));
+        let w = power_form(&coord(3));
         spans.push(RationalSpanQ {
             lo,
             hi,
             a,
             inv_len: Interval::one() / (pt(b) - pt(a)),
-            numer,
-            slope,
-            weight: power_form(&coord(3)),
+            cross: [
+                poly_cross(&n[1], &d[2], &n[2], &d[1]),
+                poly_cross(&n[2], &d[0], &n[0], &d[2]),
+                poly_cross(&n[0], &d[1], &n[1], &d[0]),
+            ],
+            weight: w,
         });
     }
     Ok(RationalEdgeQ { spans, forward })
@@ -210,20 +233,17 @@ pub fn rational_vector_area_split(e: &RationalEdgeQ, pieces: usize) -> (RVec3, [
     let mut va = [Interval::zero(); 3];
     let mut removable = [0.0_f64; 3];
     for span in &e.spans {
+        // `dB/dt = dB/ds · ds/dt`, so the integrand is
+        // `(B × dB/ds)·inv_len / (2w²)`.
+        let half_rate = span.inv_len * pt(0.5);
         let (part, rem) = composite_by(pt(span.lo), pt(span.hi), pieces, |t| {
             let s = Jet::var(t).sub(Jet::cst(pt(span.a))).scale(span.inv_len);
-            let b: [Jet; 3] = core::array::from_fn(|c| horner(&span.numer[c], s));
-            // `dB/dt = dB/ds · ds/dt`.
-            let db: [Jet; 3] =
-                core::array::from_fn(|c| horner(&span.slope[c], s).scale(span.inv_len));
+            // `w` squared as a jet, not multiplied out: a power form of
+            // `w²` read over a whole span can straddle zero where `w`'s
+            // own square cannot.
             let w = horner(&span.weight, s);
-            let scale = w.mul(w).recip().scale(pt(0.5));
-            let cross = [
-                b[1].mul(db[2]).sub(b[2].mul(db[1])),
-                b[2].mul(db[0]).sub(b[0].mul(db[2])),
-                b[0].mul(db[1]).sub(b[1].mul(db[0])),
-            ];
-            cross.map(|c| c.mul(scale))
+            let scale = w.mul(w).recip().scale(half_rate);
+            span.cross.each_ref().map(|c| horner(c, s).mul(scale))
         });
         for k in 0..3 {
             va[k] = va[k] + part[k];

@@ -962,7 +962,11 @@ never a silent Gaussian, and never a refusal for width alone. A plane cap or tor
 bounded by a `Curve3::Spiric` takes `props/spiric.rs`: the cap's vector
 area and the wall's chart Green form along the spiric are elliptic
 integrals in the torus minor angle, enclosed by a fifth-order Taylor
-rule whose only non-ring operation is `√`, on the same schedule. A sphere face bounded
+rule whose only non-ring operation is `√`, on the same schedule. A plane
+cap bounded by a rational spline rim takes the same rule
+(`props/rational_rim.rs`): its vector area is `(1/2)∫ B × B′/w²` per
+Bézier span, `B` the homogeneous numerator about the reference, and the
+closed form keeps its typed refusal for a door with no quadrature lane. A sphere face bounded
 by circle arcs — rims, meridians and sections tilted against its chart
 alike, holes included — has no conic or spline trim and is on the
 closed-form lane, measured by Gauss–Bonnet over all its loops

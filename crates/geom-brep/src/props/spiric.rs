@@ -902,8 +902,11 @@ fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsE
 pub(super) const W_SPIRIC: usize = 46;
 
 /// Weight of one piece of one Bézier span of a rational rim edge
-/// ([`super::rational_rim`]), in [`super::quad::FACE_WORK_WALL`]'s unit.
-pub(super) const W_RATIONAL: usize = 46;
+/// ([`super::rational_rim`]), in [`super::quad::FACE_WORK_WALL`]'s unit:
+/// twice [`W_SPIRIC`], measured in release at 128 pieces on the vase's
+/// two-span rim against a spiric edge (26 µs a piece a span against
+/// 13 µs).
+pub(super) const W_RATIONAL: usize = 92;
 
 /// **The certified flux and area of a spiric-bounded face** over a
 /// [`RoundWindow`] — [`super::quad`]'s schedule and stop (pieces
@@ -2568,3 +2571,4 @@ mod tests {
         }
     }
 }
+
