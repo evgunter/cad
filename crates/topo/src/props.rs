@@ -4691,8 +4691,9 @@ fn trims<T: Decide>(carrier: &geom::Curve3<T>) -> bool {
 }
 
 /// **Which point each face read was taken about**, as a test reads it:
-/// [`face_flux`] notes every face it reads, the body it reads it on, and
-/// whether it read it about its carried region's point ([`References`]),
+/// [`face_flux`] and [`rederive_faces`] note every face they read, the body
+/// they read it on, and whether they read it about its carried region's
+/// point ([`References`]),
 /// while a [`read_points::recorded`] call is open; the recording keeps the
 /// reads of the body it names, so it sees its own door's reads and no
 /// other test's. Test vocabulary: the rows that pin every door to one
