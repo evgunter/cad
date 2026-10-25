@@ -44,7 +44,8 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
 /// **The trig bracket at one end of a trim edge's carrier interval**, as
 /// the cylinder lane reads it: `(cos a, sin a)` for `a` the end's
 /// midpoint, the parameter the lane integrates from (and to), formed from
-/// the exact `(1, 0)` at `t = 0` ([`quad::trig_of`]), a few ulps wide.
+/// the exact `(1, 0)` at `t = 0` ([`quad::trig_of`]), about 1e-14 wide at
+/// most.
 /// The vertex reading ([`trig_at_start`]) is `ε` wide, and its width rides
 /// every piece of the edge, levered by the channel's trig coefficients:
 /// on a sliver whose height is a few `ε`, it alone was the face's floor
