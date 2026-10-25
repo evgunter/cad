@@ -114,7 +114,7 @@ use pncad::prelude::{
 // the table pairs with `mm`, so the two cannot drift.
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::quantity::MILLI;
-use pncad::sweep::{Revolution, RevolveAxis, revolve};
+use pncad::sweep::{CavityOrigin, Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
@@ -268,12 +268,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "outer torus + toroidal cavity, in ONE solid"
     );
     assert_eq!(ring.cavities.len(), 1, "one cavity per hole loop");
-    assert_ne!(ring.cavities[0], ring.shell, "the cavity is not the outer");
+    let bore = ring
+        .cavity(CavityOrigin::Hole { loop_index: 1 })
+        .expect("the hole loop's cavity");
+    assert_ne!(bore, ring.shell, "the cavity is not the outer");
     assert_eq!(
-        ring.body
-            .get_shell(ring.cavities[0])
-            .expect("the cavity shell")
-            .solid,
+        ring.body.get_shell(bore).expect("the cavity shell").solid,
         ring.solid,
         "the cavity belongs to the ring's own solid"
     );
@@ -308,10 +308,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
         .collect();
     assert_eq!(voids.len(), 1, "one cavity, one Void shell");
-    assert_eq!(
-        voids[0].shell, ring.cavities[0],
-        "the Void shell is the named cavity"
-    );
+    assert_eq!(voids[0].shell, bore, "the Void shell is the named cavity");
     let v_bore = 2.0 * PI * PI * R * RI * RI;
     assert!(
         ((voids[0].volume + v_bore) / v_bore).abs() < 1e-12,

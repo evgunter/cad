@@ -547,7 +547,7 @@ fn build<T: Decide + topo::AtRestPolicy>(
     }
 
     let mut out = if full {
-        full::build_full(&sketch_frame, &loops, &classes, theta, band, tol)
+        full::build_full(&sketch_frame, &loops, None, &classes, theta, band, tol)
     } else {
         partial::build_partial(&sketch_frame, &loops, &classes, theta, true, band, tol)
     }

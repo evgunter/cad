@@ -286,6 +286,14 @@ impl<T: Real> Traversed<T> {
         })
     }
 
+    /// A line, for a builder closing a chain along the revolve axis
+    /// with a chord no canonical segment retraces (a full revolve's
+    /// pocket closed by its axis gap). A line has no orientation to
+    /// carry, so it takes no kind.
+    pub(crate) fn line() -> Self {
+        Self(SegmentKind::Line)
+    }
+
     /// The half turn about `centre` of radius `radius`, traversed in
     /// the sense `turn` — for a builder with no validated loop to
     /// traverse (`revolve::tube`, which stores its caller's centre and

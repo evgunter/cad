@@ -174,8 +174,8 @@ pub use revolve::tube::{
     TubeDecision, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow,
 };
 pub use revolve::{
-    BandWall, ClearanceDecision, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind,
-    WedgeCapsError, WedgeFrames, revolve, revolved_caps,
+    BandWall, Cavity, CavityOrigin, ClearanceDecision, Revolution, RevolveAxis, RevolveError,
+    Revolved, RevolvedKind, WedgeCapsError, WedgeFrames, revolve, revolved_caps,
 };
 pub use swept::CapPlaneError;
 // `SketchSegment` is re-exported for `segment_curve`, the retained
