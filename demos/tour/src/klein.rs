@@ -22,7 +22,9 @@
 //!   cross-section through planes normal to the loop's whole spine: a 270° arc over the
 //!   top, then a 90° arc turning back onto the bottle's axis, joined
 //!   tangent and interpolated as one curve. Two planar caps and eight
-//!   rational NURBS walls (finding 5).
+//!   rational NURBS walls (finding 5). The loft is a WORKAROUND: the
+//!   loop is a sweep, and `sweep_body` is the construction to use as
+//!   soon as it carries a half-turn spine (finding 11, wall 9).
 //!
 //! The two bodies MEET on two annular faces, each of the loop's caps
 //! turned off the bulb's rim by its spine's end tangent (finding 11).
@@ -230,7 +232,10 @@
 //!     arc's own half-turn point, two quarter arcs in: wall 9). The
 //!     spine is planar, so the scene states each station's
 //!     normal-plane frame and lofts ([`lofted_loop`] carries the gap
-//!     comment).
+//!     comment). That loft is a workaround for the sweep's defect,
+//!     not a construction choice: when `sweep_body` carries a half
+//!     turn, the scene sweeps the loop along [`exact_spine`] and the
+//!     loft goes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -598,6 +603,10 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, tol: Tol) -> Vec<ConstructedLoop<S>
 /// the interpolant as on the exact spine ([`swept_loop`], wall 9). A
 /// planar path's own normal-plane frame has no such station, and no
 /// door hands it out, so the scene states it and lofts.
+///
+/// WORKAROUND, to be deleted: the loop is a sweep, and this function
+/// is replaced by [`swept_loop`] on [`exact_spine`] once wall 9 stops
+/// refusing.
 fn lofted_loop<S: Scalar>(
     spine: &NurbsCurve3<f64>,
     section: &[ConstructedLoop<f64>],
@@ -1173,7 +1182,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // edges are NURBS carriers, and the operand gate admits a rung-3
     // edge in no INPUT operand (rung-3 is what the curved zip mints,
     // not what it consumes) —
-    // `work/cleave/boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule`.
+    // `work/orbit/delete-the-boolean-operand-edge-gate`.
     crate::walls::wall(
         "bottle",
         3,
@@ -1345,7 +1354,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // 11): the over arc's half-turn point, two quarter arcs in, which
     // the uniform stations hit exactly at `STATIONS / 2`. The scene's
     // own interpolant refuses the same way, which is why the scene
-    // lofts ([`lofted_loop`]).
+    // lofts ([`lofted_loop`]). The loft is a WORKAROUND for this
+    // refusal, not the intended construction: when this wall retires,
+    // the scene's loop becomes `swept_loop` on `exact_spine`
+    // (`work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`).
     crate::walls::wall(
         "bottle",
         9,
