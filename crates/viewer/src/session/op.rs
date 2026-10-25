@@ -912,8 +912,7 @@ pub enum SessionOp {
     /// [`crate::combine::DUPLICATE_COUNT`] over the body, a `Node::Part`
     /// picking its second instance, and a placement of that projection
     /// beside the original as it is drawn (A10). One action, one undo.
-    /// The
-    /// original's placements are untouched. The copy is a body of its
+    /// The original's placements are untouched. The copy is a body of its
     /// own rather than a second placement of the original, because a
     /// feature gesture re-points every placement of its target body
     /// (`work/chrome/a-feature-gesture-re-points-every-copy-of-its-target.md`).

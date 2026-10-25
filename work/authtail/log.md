@@ -31,3 +31,10 @@ AUTHOR's narrative is recoverable from
   - `repoint-matches-a-shape-by-its-operation-not-its-read` (P1 E).
 
   `SessionOp::AddMirror`'s doc no longer promises that the part follows mates onto its faces. `a-duplicate-of-a-moved-copy-lands-at-the-identity` is re-banded P0, and its repair re-pointed to the fork's decision. Style residue, not filed: `tool_noun` restates `add_mirror`'s "is B drawn" branch, and there are three hand-written insert+repoint sites. Both go to whoever builds the generalised takeover (`a-fillet-on-a-drawn-unions-operand-is-drawn-nowhere`).
+- 2026-10-25 — **PR 5693 merged**, closing three rows: the duplicate (P0), split-half faces (P1) and repoint by read (P1). The full single review found it mergeable with no MAJOR. Filed `moves-of-drops-the-third-angle-near-gimbal-lock` (P2 E): a pre-existing decomposition the duplicate now relies on, with a verbatim copy in `test_support`. The lane's `a-combine-deletes-the-placement-it-just-repointed` is banded P1 E and parked on PR 5636.
+  - **Not filed (style or retires with D′3):**
+    - three spellings of "a drawn copy of the held body" (`pick_at`'s `placed_var` differs on multi-shape `Place`);
+    - `copy_motion` repeating `duplicate_step`'s `NoValue` lines;
+    - no rows on `beside`'s `reconcile`/`clear` or on `copy_motion`'s `NoValue`;
+    - a tree-picked duplicate refusing whole when one copy has no value (fail-loud, kept);
+    - an unmated copy's values read back through `moves_of` rather than copied as written (the designer pair chose evaluated motion).
