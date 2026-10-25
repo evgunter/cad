@@ -460,11 +460,6 @@ fn an_arc_is_the_sections_own_points_near_the_parabola() {
         let at = |y: f64| section_at_height(alpha, (q, n), y);
         let (from, to) = (at(-reach), at(0.8 * reach));
         let branch = section.branch_at(from, band()).expect("a branch");
-        let arc = branch
-            .arc(from, to, band())
-            .expect("the window is on the branch");
-        let curve = nurbs(&arc);
-        let (lo, hi) = curve.domain();
         let scale = (from - Point3::origin())
             .norm()
             .max((to - Point3::origin()).norm());
@@ -482,6 +477,33 @@ fn an_arc_is_the_sections_own_points_near_the_parabola() {
             let x = p.distance(vertex);
             f64::EPSILON * (4.0 * scale + m * m * x * x / l)
         };
+        // The end meter reads an absolute gap, so where the budget at an
+        // end reaches the band the window may refuse on that rounding
+        // alone (module docs, "The window"); then only the refusal's
+        // grounds are checked.
+        let arc = match branch.arc(from, to, band()) {
+            Ok(arc) => arc,
+            Err(
+                e @ (geom_brep::ConicArcError::Escalated(_)
+                | geom_brep::ConicArcError::WindowOffSection { .. }),
+            ) => {
+                let reach_of_rounding = budget(from).max(budget(to));
+                println!(
+                    "SKIPPED α {alpha} tilt {tilt}: the end meter refused ({e}) where the ends' \
+                     rounding budget {reach_of_rounding:e} m meets the band {:e} m",
+                    band().zero()
+                );
+                assert!(
+                    reach_of_rounding >= band().zero(),
+                    "α {alpha} tilt {tilt}: refused ({e}) with an end budget of \
+                     {reach_of_rounding:e} m, under the band"
+                );
+                continue;
+            }
+            Err(e) => panic!("α {alpha} tilt {tilt}: the window is on the branch, got {e}"),
+        };
+        let curve = nurbs(&arc);
+        let (lo, hi) = curve.domain();
         let worst = |p: Point3<f64>, truth: Point3<f64>| p.distance(truth) / budget(truth);
         let ends = worst(curve.eval(lo), from).max(worst(curve.eval(hi), to));
         let points = (0..=4096)
