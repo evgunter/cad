@@ -116,6 +116,8 @@ mod a_seam_region_covering_the_sphere_twice;
 mod a_short_shallow_strut_between_wide_walls_is_a_corner;
 #[path = "a_spiric_cut_far_off_and_turned_reads_as_at_home.rs"]
 mod a_spiric_cut_far_off_and_turned_reads_as_at_home;
+mod review_5699_head;
+mod review_5699_probes;
 #[path = "a_split_through_a_wrap_edges_vertex.rs"]
 mod a_split_through_a_wrap_edges_vertex;
 #[path = "a_swaying_loft_corner_meters.rs"]
