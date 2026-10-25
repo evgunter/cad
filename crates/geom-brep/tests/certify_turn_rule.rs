@@ -4,8 +4,8 @@
 //! speed floor reads it definitely past.
 //!
 //! The fixture is the plane `z = 0` cutting a unit cylinder leaning
-//! `acos(1/20)` in xz: the ellipse `a = 20`, `b = 1` about the origin, whose
-//! speed is `b` at `θ = 0` and `a` at `θ = π/2`.
+//! `acos(1/ratio)` in xz: the ellipse `a = ratio`, `b = 1` about the
+//! origin, whose speed is `b` at `θ = 0` and `a` at `θ = π/2`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -27,8 +27,8 @@ struct Steep {
     ellipse: Curve3<f64>,
 }
 
-fn steep() -> Steep {
-    let alpha = (1.0f64 / 20.0).acos();
+fn steep(ratio: f64) -> Steep {
+    let alpha = (1.0f64 / ratio).acos();
     let mut surfaces: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
     let plane = surfaces.insert(Surface::Plane {
         origin: Point3::origin(),
@@ -106,7 +106,7 @@ fn winding_escalation(
 #[test]
 fn an_ellipse_wound_past_its_period_on_the_fast_side_does_not_certify() {
     let band = Band::new(1e-9, 1e-8).unwrap();
-    let fixture = steep();
+    let fixture = steep(20.0);
     let over = 0.9e-9;
     let t0 = HALF_PI - 0.5 * over;
     let got = fixture.certify(t0, t0 + TAU + over, band);
@@ -121,4 +121,140 @@ fn an_ellipse_wound_past_its_period_on_the_fast_side_does_not_certify() {
         Some("interval_span_winding_straddle"),
         "the escalation is the straddle of the two readings: {cause:?}"
     );
+}
+
+/// What check 2's winding reached: certified (with the turn the
+/// certificate keeps), refused as over a turn, or escalated.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Winding {
+    Certified,
+    Exceeded,
+    Escalated,
+}
+
+/// **The oracle**: check 2's winding as it was spelled before the turn
+/// rule — `(τ − Δt)` at the carrier's speed floor, `Zero` and `Positive`
+/// certifying.
+fn old_winding(floor: f64, (t0, t1): (f64, f64), band: Band) -> Winding {
+    let headroom = geom_core::Margin::metered(TAU - (t1 - t0), geom_core::InfSpeed::new(floor));
+    match geom_core::k_stats::decide("interval_span_winding", headroom, band) {
+        Ok(geom_core::Sign::Positive | geom_core::Sign::Zero) => Winding::Certified,
+        Ok(geom_core::Sign::Negative) => Winding::Exceeded,
+        Err(_) => Winding::Escalated,
+    }
+}
+
+/// Check 2's winding as certification now reaches it, and the turn its
+/// certificate keeps.
+fn new_winding(
+    got: &Result<EdgeCurve<f64>, CertifyError>,
+) -> (Winding, Option<geom_core::period::Within>) {
+    match got {
+        Ok(edge) => (
+            Winding::Certified,
+            edge.certificate().turn.map(|turn| turn.turn()),
+        ),
+        Err(
+            CertifyError::WindingExceeded
+            | CertifyError::StatedInterval {
+                refused: StatedSpan::Winding(WindingReading::Exceeded),
+            },
+        ) => (Winding::Exceeded, None),
+        _ if winding_escalation(got).is_some() => (Winding::Escalated, None),
+        Err(other) => panic!("the fixture refuses past the winding check: {other:?}"),
+    }
+}
+
+/// **Certification agrees with the winding check it replaced** (the
+/// charter's agreement test), on the cases it was written for — a full
+/// turn, and a period over-wound or short by `{0.5, 0.9, 3, 20}·ε` of the
+/// inf rate's and of the sup rate's length — on a unit circle and on the
+/// `a/b = 16` ellipse (where no case lands on a band edge) with the defect
+/// at its fast and its slow side; and a certified edge keeps the turn it
+/// reached.
+///
+/// **The expected deltas**, each listed: on the ellipse's fast side, where
+/// the speed floor reads `Zero` and the sup over the turn's defect reads
+/// the defect definitely past the band, or in it, the edge certified and
+/// now escalates — over-wound (the rider) and short alike, since neither
+/// bound settles whether the extent is a whole turn or short of one. No
+/// case moves between certified and over; the circle does not move.
+#[test]
+fn certification_agrees_with_the_old_winding_check() {
+    let band = Band::new(1e-9, 1e-8).unwrap();
+    let eps = band.zero();
+    let fixture = steep(16.0);
+    let circle = Curve3::Circle {
+        center: Point3::origin(),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: 1.0,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let certify_circle = |(t0, t1): (f64, f64)| {
+        let spec = EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1).unwrap();
+        let (start, end) = (spec.carrier.eval(t0), spec.carrier.eval(t1));
+        EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
+    };
+    let certify_ellipse = |(t0, t1): (f64, f64)| fixture.certify(t0, t1, band);
+    type Door<'a> = &'a dyn Fn((f64, f64)) -> Result<EdgeCurve<f64>, CertifyError>;
+    // (name, door, defect centre, speed floor, sup at the centre)
+    let fixtures: [(&str, Door, f64, f64, f64); 3] = [
+        ("circle", &certify_circle, 0.3, 1.0, 1.0),
+        ("ellipse fast", &certify_ellipse, HALF_PI, 1.0, 16.0),
+        ("ellipse slow", &certify_ellipse, 0.0, 1.0, 1.0),
+    ];
+    let moved = (Winding::Certified, Winding::Escalated);
+    let deltas = [
+        ("ellipse fast", "inf", 0.5, true),
+        ("ellipse fast", "inf", 0.5, false),
+        ("ellipse fast", "inf", 0.9, true),
+        ("ellipse fast", "inf", 0.9, false),
+        ("ellipse fast", "sup", 3.0, true),
+        ("ellipse fast", "sup", 3.0, false),
+    ];
+    let mut seen = 0;
+    for (name, door, centre, floor, sup) in fixtures {
+        let full = (centre, centre + TAU);
+        let (got, turn) = new_winding(&door(full));
+        assert_eq!(got, old_winding(floor, full, band), "{name}: a full turn");
+        assert_eq!(
+            turn,
+            Some(geom_core::period::Within::Whole),
+            "{name}: a full turn"
+        );
+        let quarter = (centre, centre + HALF_PI);
+        assert_eq!(
+            new_winding(&door(quarter)),
+            (Winding::Certified, Some(geom_core::period::Within::Short)),
+            "{name}: a quarter turn"
+        );
+        for (rate_name, rate) in [("inf", floor), ("sup", sup)] {
+            for k in [0.5, 0.9, 3.0, 20.0] {
+                for over in [true, false] {
+                    let defect = if over {
+                        k * eps / rate
+                    } else {
+                        -k * eps / rate
+                    };
+                    let t0 = centre - 0.5 * defect;
+                    let span = (t0, t0 + TAU + defect);
+                    let old = old_winding(floor, span, band);
+                    let (new, turn) = new_winding(&door(span));
+                    let case = (name, rate_name, k, over);
+                    if deltas.contains(&case) {
+                        seen += 1;
+                        assert_eq!((old, new), moved, "{case:?}: the listed delta");
+                    } else {
+                        assert_eq!(new, old, "{case:?}: unlisted");
+                    }
+                    assert_eq!(
+                        turn.is_some(),
+                        new == Winding::Certified,
+                        "{case:?}: a certified periodic edge keeps its turn"
+                    );
+                }
+            }
+        }
+    }
+    assert_eq!(seen, deltas.len(), "every listed delta is a case");
 }

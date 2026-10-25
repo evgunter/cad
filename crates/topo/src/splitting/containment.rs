@@ -2844,4 +2844,175 @@ mod tests {
             "an in-band scaffold span escalates on its span row, got {got:?}"
         );
     }
+
+    /// What a conic span reads as, the question `ConicArc::of` asks
+    /// ("not over"): wound past a period, escalated (on a margin or a
+    /// straddle), or an arc with its turn — short (`Positive`), whole
+    /// (`Zero`) or unsettled (`None`).
+    #[derive(Clone, Copy, Debug, PartialEq)]
+    enum SpanRead {
+        Wound,
+        Escalated(Escalation),
+        Arc(Option<Sign>),
+    }
+
+    /// **The oracle**: `ConicArc::of`'s span rule as it was spelled before
+    /// the turn rule (`geom_core::period`), verbatim but for the arc it
+    /// builds.
+    fn old_span_rule(carrier: &geom::Curve3<f64>, (t0, t1): (f64, f64), band: Band) -> SpanRead {
+        use geom_core::Decided;
+        use geom_core::k_stats::decide_reported;
+        let rows = WALK_ROWS.conic;
+        let (ellipse, a, b) = match *carrier {
+            geom::Curve3::Circle { radius, .. } => (false, radius, radius),
+            geom::Curve3::Ellipse { semi_u, semi_v, .. } => (true, semi_u, semi_v),
+            _ => unreachable!("a conic fixture"),
+        };
+        let lever = a.min(b);
+        let gap = core::f64::consts::TAU - (t1 - t0);
+        let low = decide_reported(rows.turn, Margin::levered(gap, lever), band);
+        if let Ok(Decided {
+            sign: Sign::Negative,
+            ..
+        }) = low
+        {
+            return SpanRead::Wound;
+        }
+        let (sm, cm) = (t0 - gap * 0.5).sin_cos();
+        let speed =
+            ((a * sm).powi(2) + (b * cm).powi(2)).sqrt() + a.abs().max(b.abs()) * gap.abs() * 0.5;
+        if ellipse
+            && let Ok(Decided {
+                sign: Sign::Negative,
+                ..
+            }) = decide_reported(rows.turn, Margin::levered(gap, speed), band)
+        {
+            return SpanRead::Escalated(match low {
+                Err(_) => Escalation::Margin,
+                Ok(_) => Escalation::Straddle,
+            });
+        }
+        SpanRead::Arc(low.map(|d| d.sign).ok())
+    }
+
+    /// The span as `ConicArc::of` now reads it.
+    fn new_span_rule(carrier: &geom::Curve3<f64>, span: (f64, f64), band: Band) -> SpanRead {
+        match conic_of(carrier, span, WALK_ROWS.conic, band) {
+            Err(ConicArcError::WoundPastPeriod) => SpanRead::Wound,
+            Err(ConicArcError::Escalated(e)) => SpanRead::Escalated(e.escalation),
+            Ok(Some(k)) => SpanRead::Arc(k.span_turn.ok().map(|turn| match turn {
+                Within::Short => Sign::Positive,
+                Within::Whole => Sign::Zero,
+            })),
+            Ok(None) => unreachable!("a conic fixture"),
+        }
+    }
+
+    /// **The turn rule agrees with the span rule it replaced** (the
+    /// charter's agreement test), on the cases the rule was written for:
+    /// a full turn, and a period over-wound (`+`) or short (`−`) by
+    /// `{0.5, 0.9, 3, 20}·ε` of the inf rate's and of the sup rate's
+    /// length, on a circle of radius 1 and 0.01 and on an `a = 16, b = 1`
+    /// ellipse with the defect centred at its fast (`π/2`) and its slow
+    /// (`0`) side. (At `a/b = 16` no case lands on a band edge.)
+    ///
+    /// **The expected deltas**, each listed below and nowhere hidden: on the
+    /// ellipse's fast side, a span whose inf reading is `Zero` while the
+    /// sup reading is in the band, or definitely positive, read as a whole
+    /// turn and now reads as an arc whose turn is unsettled. Both are
+    /// arcs; only a scaffold reads the turn, and escalates on it where it
+    /// once read corrupt. No case moves between wound, escalated and arc.
+    /// A reversed span no longer reaches the rule: the extent door
+    /// refuses it, where the old rule read headroom `τ + |Δ|` and an arc.
+    #[test]
+    fn the_turn_rule_agrees_with_the_old_conic_span_rule() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let eps = band.zero();
+        let tau = core::f64::consts::TAU;
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        let circle = |radius: f64| geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let ellipse = geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            semi_u: 16.0,
+            semi_v: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        // (name, carrier, defect centre, inf rate, sup rate at the centre)
+        let fixtures = [
+            ("circle r=1", circle(1.0), 0.0, 1.0, 1.0),
+            ("circle r=0.01", circle(0.01), 0.0, 0.01, 0.01),
+            ("ellipse fast", ellipse.clone(), half_pi, 1.0, 16.0),
+            ("ellipse slow", ellipse, 0.0, 1.0, 1.0),
+        ];
+        let arc_zero = SpanRead::Arc(Some(Sign::Zero));
+        let unsettled = SpanRead::Arc(None);
+        // (fixture, rate, k, over) → (old, new)
+        let deltas = [
+            (("ellipse fast", "inf", 0.5, true), (arc_zero, unsettled)),
+            (("ellipse fast", "inf", 0.5, false), (arc_zero, unsettled)),
+            (("ellipse fast", "inf", 0.9, false), (arc_zero, unsettled)),
+            (("ellipse fast", "sup", 3.0, true), (arc_zero, unsettled)),
+            (("ellipse fast", "sup", 3.0, false), (arc_zero, unsettled)),
+        ];
+        let mut seen = 0;
+        for (name, carrier, centre, inf, sup) in &fixtures {
+            let full = (*centre, centre + tau);
+            assert_eq!(
+                new_span_rule(carrier, full, band),
+                old_span_rule(carrier, full, band),
+                "{name}: a full turn"
+            );
+            for (rate_name, rate) in [("inf", *inf), ("sup", *sup)] {
+                for k in [0.5, 0.9, 3.0, 20.0] {
+                    for over in [true, false] {
+                        let defect = if over {
+                            k * eps / rate
+                        } else {
+                            -k * eps / rate
+                        };
+                        let t0 = centre - 0.5 * defect;
+                        let span = (t0, t0 + tau + defect);
+                        let (old, new) = (
+                            old_span_rule(carrier, span, band),
+                            new_span_rule(carrier, span, band),
+                        );
+                        let case = (*name, rate_name, k, over);
+                        match deltas.iter().find(|(c, _)| *c == case) {
+                            Some((_, want)) => {
+                                seen += 1;
+                                assert_eq!((old, new), *want, "{case:?}: the listed delta");
+                            }
+                            None => assert_eq!(new, old, "{case:?}: unlisted"),
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(seen, deltas.len(), "every listed delta is a case");
+        let reversed = (1.0, 0.0);
+        assert_eq!(
+            old_span_rule(&circle(1.0), reversed, band),
+            SpanRead::Arc(Some(Sign::Positive)),
+            "the old rule read a reversed span as an arc"
+        );
+        assert!(
+            matches!(
+                Extent::forward(
+                    "t_reversed",
+                    reversed.0,
+                    reversed.1,
+                    InfSpeed::new(1.0),
+                    band
+                ),
+                Err(geom_core::period::NotForward::Reversed(_))
+            ),
+            "the extent door refuses it"
+        );
+    }
 }

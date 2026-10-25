@@ -811,7 +811,7 @@ mod period_rows {
         use crate::k_stats::decide;
         use crate::{Real as _, Sign};
         use test_utils::fuzz;
-        let mut rng = fuzz::start("pcurve_cache::period_rows::gallop_at_interval");
+        let mut rng = fuzz::start("period::period_rows::gallop_at_interval");
         let tau = Interval::tau();
         let arm = Interval::from_f64(0.37);
         let band = band();
@@ -900,5 +900,213 @@ mod period_rows {
                 "{gap}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
+mod turn_rows {
+    use crate::k_stats::{Bracket, NonzeroSign};
+    use crate::{Band, InfSpeed, MarginDiag, Real, SupSpeed};
+
+    use super::{
+        Bounded, Exact, Extent, NotForward, Period, Turn, TurnRow, TurnRows, TurnUndecided, Within,
+    };
+
+    const EPS: f64 = 1e-9;
+    const ROWS: TurnRows<&str> = TurnRows::bounded("t_turn", "t_straddle");
+
+    fn band() -> Band {
+        Band::new(EPS, 10.0 * EPS).expect("a band")
+    }
+
+    fn one_turn() -> Period<f64> {
+        Period::new(f64::tau())
+    }
+
+    /// The extent `τ − h` of a fixture whose headroom is `h` parameter
+    /// units: a hull from zero, so a negative `h` is an extent past a turn.
+    fn past(h: f64) -> Extent<f64> {
+        Extent::width(0.0, f64::tau() - h)
+    }
+
+    fn exact(h: f64) -> Result<Turn, TurnUndecided> {
+        one_turn().turn(TurnRows::exact("t_turn"), past(h), Exact(1.0), band())
+    }
+
+    /// The rule at an inf of 1 and a sup of 20, with what it recorded.
+    fn bounded(h: f64) -> (Result<Turn, TurnUndecided>, crate::k_stats::Recorded) {
+        let bracket = Bracket::open();
+        let rate = Bounded {
+            inf: InfSpeed::new(1.0),
+            sup: SupSpeed::new(20.0),
+        };
+        let got = one_turn().turn(ROWS, past(h), rate, band());
+        (got, bracket.finish())
+    }
+
+    fn reads(recorded: &crate::k_stats::Recorded) -> usize {
+        recorded.verdicts.len() + recorded.escalations.len()
+    }
+
+    /// **An exact rate reads the headroom once**: short, whole and over
+    /// are its three signs, and a reading in the band is undecided on the
+    /// turn row, never over at the sup (which is the same reading).
+    #[test]
+    fn an_exact_rate_reads_the_headroom_once() {
+        assert!(matches!(exact(20.0 * EPS), Ok(Turn::Short(_))), "short");
+        assert!(matches!(exact(0.0), Ok(Turn::Whole(_))), "whole");
+        assert!(
+            matches!(exact(-0.5 * EPS), Ok(Turn::Whole(_))),
+            "whole, over by ε/2"
+        );
+        assert!(matches!(exact(-20.0 * EPS), Ok(Turn::Over(_))), "over");
+        for h in [3.0 * EPS, -3.0 * EPS] {
+            let got = exact(h);
+            assert!(
+                matches!(
+                    got,
+                    Err(TurnUndecided {
+                        on: TurnRow::Turn,
+                        over_at_sup: false,
+                        ..
+                    })
+                ),
+                "{h:e}: {got:?}"
+            );
+        }
+    }
+
+    /// **A bounded rate decides each verdict on the bound that makes it
+    /// sound** (module docs): a definite inf reading is the answer and the
+    /// sup is not read; `Whole` needs the sup reading in the zero band;
+    /// an inf `Zero` against a definite sup straddles, the lower bound on
+    /// `h`'s length below the upper, and is over at the sup exactly where
+    /// that sup reading is negative.
+    #[test]
+    fn a_bounded_rate_decides_on_the_sound_bound() {
+        for (h, short) in [(20.0 * EPS, true), (-20.0 * EPS, false)] {
+            let (got, recorded) = bounded(h);
+            let want = if short { "short" } else { "over" };
+            assert!(
+                matches!(
+                    (got, short),
+                    (Ok(Turn::Short(_)), true) | (Ok(Turn::Over(_)), false)
+                ),
+                "{want}: {got:?}"
+            );
+            assert_eq!(reads(&recorded), 1, "{want}: the inf reading alone");
+        }
+        let (got, recorded) = bounded(0.04 * EPS);
+        assert!(matches!(got, Ok(Turn::Whole(_))), "whole: {got:?}");
+        assert_eq!(reads(&recorded), 2, "whole: both readings");
+        for (h, over) in [(-0.9 * EPS, true), (0.9 * EPS, false)] {
+            let (got, recorded) = bounded(h);
+            let Err(TurnUndecided {
+                diag,
+                on: TurnRow::Straddle,
+                over_at_sup,
+            }) = got
+            else {
+                panic!("{h:e}: a straddle: {got:?}");
+            };
+            assert_eq!(over_at_sup, over, "{h:e}");
+            assert_eq!(diag.predicate, Some("t_straddle"), "{h:e}");
+            // The headroom the rule read: `τ − (τ − h)`, rounded.
+            let read = f64::tau() - (f64::tau() - h);
+            let (lo, hi) = if over {
+                (read * 20.0, read)
+            } else {
+                (read, read * 20.0)
+            };
+            assert_eq!(
+                diag.margin,
+                MarginDiag::enclosure(lo, hi),
+                "{h:e}: the two readings' hull"
+            );
+            let escalations: Vec<_> = recorded.escalations.iter().map(|e| e.predicate()).collect();
+            assert_eq!(
+                escalations,
+                ["t_straddle"],
+                "{h:e}: one escalation, the straddle"
+            );
+        }
+        // The inf reading in the band: undecided on its own margin, over at
+        // the sup where the sup reading is definitely negative.
+        for (h, over) in [(-3.0 * EPS, true), (3.0 * EPS, false)] {
+            let (got, _) = bounded(h);
+            assert!(
+                matches!(
+                    got,
+                    Err(TurnUndecided { on: TurnRow::Turn, over_at_sup, .. }) if over_at_sup == over
+                ),
+                "{h:e}: {got:?}"
+            );
+        }
+        // The inf reading Zero, the sup in the band: undecided on the sup's
+        // margin, not over.
+        let (got, _) = bounded(-0.3 * EPS);
+        assert!(
+            matches!(
+                got,
+                Err(TurnUndecided {
+                    on: TurnRow::Turn,
+                    over_at_sup: false,
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
+    }
+
+    /// **The extent's doors**: a forward span decides its sign, refusing
+    /// zero and reversed typed; a signed net quantity keeps its sign and
+    /// its magnitude, refusing zero; a hull is its width; extents add.
+    #[test]
+    fn the_extent_doors_decide_what_they_claim() {
+        let rate = InfSpeed::new(1.0);
+        assert_eq!(
+            Extent::forward("t_fwd", 1.0, 3.0, rate, band()).map(Extent::get),
+            Ok(2.0)
+        );
+        assert!(matches!(
+            Extent::forward("t_fwd", 1.0, 1.0, rate, band()),
+            Err(NotForward::Zero(_))
+        ));
+        assert!(matches!(
+            Extent::forward("t_fwd", 3.0, 1.0, rate, band()),
+            Err(NotForward::Reversed(_))
+        ));
+        assert!(matches!(
+            Extent::forward("t_fwd", 1.0, 1.0 + 3.0 * EPS, rate, band()),
+            Err(NotForward::Undecided(_))
+        ));
+        let (sign, extent) = Extent::decide_signed("t_net", -2.0, rate, band()).unwrap();
+        assert_eq!((sign, extent.get()), (NonzeroSign::Negative, 2.0));
+        assert!(Extent::decide_signed("t_net", 0.0, rate, band()).is_err());
+        assert_eq!(Extent::width(-1.0, 2.0).get(), 3.0);
+        assert_eq!(
+            (Extent::width(0.0, 1.0) + Extent::width(0.0, 2.0)).get(),
+            3.0
+        );
+        let hull = one_turn().turn(
+            TurnRows::exact("t_turn"),
+            Extent::width(1.0, 1.0),
+            Exact(1.0),
+            band(),
+        );
+        assert!(
+            matches!(hull, Ok(Turn::Short(_))),
+            "a zero-width hull: {hull:?}"
+        );
+    }
+
+    /// `Turn::within` is the turn a certificate keeps, and `Over` keeps none.
+    #[test]
+    fn within_drops_only_over() {
+        let m = exact(0.0).unwrap().margin();
+        assert_eq!(Turn::Short(m).within(), Some(Within::Short));
+        assert_eq!(Turn::Whole(m).within(), Some(Within::Whole));
+        assert_eq!(Turn::Over(m).within(), None);
     }
 }
