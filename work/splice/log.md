@@ -60,3 +60,12 @@ two flush rows.
 Lane sessions: `splice/gate` `session_01P78fY3Hgsq13g359bgcNLP`;
 `splice/touch-doors` `session_01V5dB8mxDac8zAFBWSEmdT7`;
 `splice/carrier-walk-spline` `session_019eib6yHkmVaSGLLzEVtvhK`.
+
+## 2026-10-25 — the SECT seam gets a row
+
+Agreed in chat: SECT gets its own orchestrator rather than SPLICE moving
+rows across. SECT's ownership ruling forbids a stopgap, and the arm is
+built on SECT's critical path. Filed SECT's
+`a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`, parked on
+SECT step 1 and on `delete-the-boolean-operand-edge-gate`. Lily wall 8
+stays this track's first demo witness.
