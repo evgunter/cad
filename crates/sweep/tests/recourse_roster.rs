@@ -95,6 +95,7 @@ const INDIRECT: &[(&str, &str)] = &[
 /// door's own error and rendered there, so `BlendError` is not on the
 /// escalation's path.
 const OTHER_DOORS: &[(&str, &str)] = &[
+    ("axis_gap", AXIS),
     ("axis_vertex_radius", AXIS),
     ("revolve_axis_direction", AXIS),
     ("revolve_angle", REVOLVE),

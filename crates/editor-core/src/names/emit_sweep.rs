@@ -674,7 +674,7 @@ mod tests {
         let three_runs: Vec<Point2<f64>> =
             column.iter().chain(&square).chain(&pointed).copied().collect();
         // (what, loops, segments per loop, cavities)
-        let cases: [(&str, Vec<ProfileLoop<f64>>, Vec<usize>, usize); 3] = [
+        let cases = [
             ("three runs", vec![ProfileLoop::polygon(three_runs)], vec![11], 2),
             ("round notch", vec![round], vec![6], 1),
             (
