@@ -589,7 +589,7 @@ fn loop_findings(
                 // reads the junction's azimuth at all — so there is
                 // no second account of u there for this condition to
                 // compare against. What `u_of` returns at such a point
-                // is an `atan2` of two quantities that are both noise;
+                // is an angle read off two quantities that are both noise;
                 // measuring a carrier against it reports the noise.
                 //
                 // The band is INCLUSIVE here because it is inclusive

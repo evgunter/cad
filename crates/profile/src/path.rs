@@ -4629,7 +4629,7 @@ impl Open {
 /// amplifying its own noise into the ray. Only the RATIO of the
 /// components carries meaning, so the recourse is free — scale them up.
 ///
-/// **Finiteness before sign.** Components past [`Vec2::normalize`]'s
+/// **Finiteness before sign.** Components past [`Vec2::norm`]'s
 /// ~1e154 overflow band make the norm ∞, which is maximally DEFINITE
 /// to the classifier: deciding the sign first answers `Positive` and
 /// the two divisions below hand back `(0, 0)`. `(1e200, 0)` returned
@@ -6051,7 +6051,7 @@ mod tests {
     }
 
     /// **The overflow end of both 2-D director doors.** Components
-    /// past `Vec2::normalize`'s ~1e154 band make the norm ∞, which is
+    /// past `Vec2::norm`'s ~1e154 band make the norm ∞, which is
     /// maximally DEFINITE to the classifier, and the division that
     /// follows collapses the ray to zero. Measured at the merge base,
     /// both doors reported SUCCESS:

@@ -4,8 +4,7 @@
 //!
 //! open → resolve → the tree shows the instances → hide one →
 //! free-move an unconstrained one (visibly distinct, asserted as a
-//! value) → two face picks → the admitted class chosen → ONE
-//! committed mate edit → the placement solved → the free-move
+//! value) → two face picks → ONE committed mate edit → the placement solved → the free-move
 //! superseded → save/reopen round-trips the document with every piece
 //! of layer-3 state gone.
 //!
@@ -19,7 +18,7 @@
 //! exercised
 //!
 //! The walk needs, in one document: an instance to hide and one to
-//! probe, loose once its world mate is off, two matable faces, and no
+//! probe, in a space of its own, two matable faces, and no
 //! pre-existing mate. **No single real gallery document has that
 //! shape** — the tour's stand has all three instances in the world's
 //! space (the free-move stage is unreachable there), and its flat-pack has no second part to mate
@@ -40,11 +39,11 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{ClassAdmission, Frame};
+use pncad::document::Frame;
 use pncad::geom_core::{Tol, Vec3};
-use pncad::select::{ContactClass, face_frame};
+use pncad::select::face_frame;
 use viewer::display::AdmissionFault;
-use viewer::matetool::{MateTool, MateToolState, admitted_classes};
+use viewer::matetool::{MateTool, MateToolState};
 use viewer::scene::SceneMesh;
 use viewer::session::SessionOp;
 use viewer::tree::RowStatus;
@@ -114,12 +113,12 @@ fn the_exit_demo_walk() {
         "so does the document"
     );
 
-    // ── 5. FREE-MOVE post_b: the G3 fit probe over a loose space (DI5).
-    // Its world mate comes off first, so it is a loose space, read off
-    // the landed evaluation; the gesture is preview-stream + one
-    // committed value; the probed part is drawn DISPLACED and MARKED —
-    // the honesty treatment, asserted as a value in the scene rows. The
-    // probe draws the loose post where its pin stood it, displaced.
+    // ── 5. FREE-MOVE post_b: the G3 fit probe over a shown space (DI5).
+    // It is given a space of its own first, out of the world; the
+    // gesture is preview-stream + one committed value; the probed part
+    // is drawn DISPLACED and MARKED — the honesty treatment, asserted as
+    // a value in the scene rows. The probe draws the post where its pin
+    // stood it, displaced.
     asm::unpin(&mut session, bench.post_b);
     let index = asm::index_of(&session);
     session.perform(SessionOp::BeginFreeMove {
@@ -163,68 +162,54 @@ fn the_exit_demo_walk() {
     tool.pick(session.doc(), shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
 
-    // ── 7. The ADMITTED CLASS, exposed through the kernel's own
-    // table: Rest mints; Tangent solves but has no at-rest record.
-    let classes = admitted_classes();
-    assert_eq!(classes[0].class, ContactClass::Rest);
-    assert_eq!(classes[0].admission, ClassAdmission::Mints);
-    assert!(matches!(
-        classes[1].admission,
-        ClassAdmission::NoAtRestRecord { .. }
-    ));
-
-    // ── 8. ONE COMMITTED MATE ACTION. The proposal reads each picked
+    // ── 7. ONE COMMITTED MATE ACTION. The proposal reads each picked
     // face as a plane — post_b's top cap `on`, the shelf's underside
-    // `to`, flipped — and the seat's values; the session commits the
-    // mate and its three values as one action — and the evaluation
-    // answering it reports the free-move superseded: discarded, not
-    // zeroed. post_b's world mate came off at step 5, so the mate places
-    // post_b rather than refusing beside the pin.
-    assert!(session.display().free_move_of(bench.post_b).is_some());
+    // `to`, flipped — and the seat's values; the session commits, as one
+    // action, post_b re-targeted into the shelf's space (the world) and
+    // its bundle written whole: the mate and its three values. post_b's
+    // own space is then empty, so that edit reports the free-move
+    // superseded: discarded, not zeroed.
+    let own = session
+        .committed_doc()
+        .node_space(bench.post_b)
+        .expect("post_b is placed");
+    assert!(session.display().free_move_of(own).is_some());
     let (doc, _) = session.landed_pair().expect("landed");
     let proposal = tool
         .proposal(doc, asm::seat_choice())
         .expect("the seat proposes");
-    let outcome = session.perform(proposal.op());
+    let outcome = session.perform(proposal.op_into_target_space());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(
         outcome.committed.len(),
-        4,
-        "one committed mate and its three values"
+        3,
+        "the re-target, the mate and its values: {:?}",
+        outcome.committed
     );
-    assert!(
-        outcome.withdrawn.superseded.is_empty(),
-        "the edit alone does not pin the space: {:?}",
-        outcome.withdrawn
-    );
-    session.pump();
-    let landed = session.take_landed_withdrawals();
-    let [report] = &landed[..] else {
-        panic!("one landing withdrew something: {landed:?}")
-    };
-    let [superseded] = &report.superseded[..] else {
+    let [superseded] = &outcome.withdrawn.superseded[..] else {
         panic!(
-            "exactly one placement is superseded: {:?}",
-            report.superseded
+            "exactly one frame is superseded: {:?}",
+            outcome.withdrawn.superseded
         )
     };
     assert_eq!(
         superseded.instance, bench.post_b,
-        "the mate's landing discards the probe"
+        "the mate's edit discards the probe"
     );
     assert!(
         matches!(
             &superseded.cause,
-            AdmissionFault::InTheWorld { instance } if instance.id() == bench.post_b
+            AdmissionFault::NotShown { space, .. } if space.id() == own
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
-         the right fault with the wrong instance: {}",
+         the right fault with the wrong space: {}",
         superseded.cause
     );
-    assert!(session.display().free_move_of(bench.post_b).is_none());
+    assert!(session.display().free_move_of(own).is_none());
+    session.pump();
 
-    // ── 9. The PLACEMENT IS SOLVED: the two picked FACES coincide in
+    // ── 8. The PLACEMENT IS SOLVED: the two picked FACES coincide in
     // world space as the seat says — the planes rest: the faces' normals
     // oppose and the cap lies in the underside's plane — and post_b
     // stands where the values put it, unturned. The mate carries the
@@ -270,25 +255,17 @@ fn the_exit_demo_walk() {
     );
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
-        assert!(
-            row.note.is_none(),
-            "a Rest mate carries no standing caveat: {row:?}"
-        );
     }
     // …and the A5 at-rest verdict landed with the evaluation: the
-    // seated Rest declaration is minted and certified — the
-    // verification does not die at the commit.
+    // seat is recorded at the door and certified — the verification
+    // does not die at the commit.
     assert_eq!(
         session.at_rest(),
-        Some(&viewer::session::AtRestBadge::Certified {
-            minted: 1,
-            loud: 0,
-            quiet: 0,
-        }),
-        "the mated assembly certifies at rest with its one declaration"
+        Some(&viewer::session::AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        "the mated assembly certifies at rest"
     );
 
-    // ── 10. SAVE and REOPEN. The document round-trips WITH the mate.
+    // ── 9. SAVE and REOPEN. The document round-trips WITH the mate.
     //
     // "Layer-3 state is gone" is scoped honestly here: the persistence
     // schema has NO field that could carry display state, so the
@@ -311,7 +288,7 @@ fn the_exit_demo_walk() {
         "hide died with the session (documentation, not a gate — see above)"
     );
     assert!(
-        reopened.display().free_move_of(bench.post_b).is_none(),
+        crate::common::asm::frame_of(&reopened, bench.post_b).is_none(),
         "so did the probe (documentation, not a gate — see above)"
     );
     let rows = reopened.tree_rows();
@@ -324,7 +301,7 @@ fn the_exit_demo_walk() {
         common::row_of(&rows, bench.post_b)
             .constraints
             .iter()
-            .any(|child| child.said.ends_with("Rest mate"))
+            .any(|child| child.said.ends_with(": mate"))
     );
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");

@@ -112,7 +112,7 @@ fn slab_rib(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// The rib's own frame in the slab's coordinates.
 fn rib_frame() -> editor_core::Frame {
-    crate::fixture::frame_at([0.0, 1.5, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0])
+    crate::fixture::axes_at([0.0, 1.5, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0])
 }
 
 /// The union of `fixture`'s two bodies with its members in the order
@@ -414,7 +414,7 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
     let prototype = crate::emit_shared_rim_several::construction(&doc, rib);
     // The rib's own frame turned a quarter about x, then slid by
     // (0.1, 1.5, 0.3).
-    let turned_frame = crate::fixture::frame_at([0.1, 1.5, 1.8], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]);
+    let turned_frame = crate::fixture::axes_at([0.1, 1.5, 1.8], [1.0, 0.0, 0.0], [0.0, -1.0, 0.0]);
     let (doc, turned) = crate::fixture::against(doc, slab, prototype, &turned_frame);
     let mut doc = doc;
     let mut ids = Vec::new();

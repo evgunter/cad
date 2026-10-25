@@ -49,14 +49,13 @@
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
 
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{ContainerKind, EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::geom_core::Tol;
 
-use crate::camera::{self, Camera, CameraError};
+use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
 use crate::drafts::{Drafts, ProfileDoors};
 use crate::evalseam::FitService;
@@ -64,7 +63,7 @@ use crate::evalseam::FitService;
 use crate::evalseam::ThreadEvaluator;
 use crate::frame::{self, RankedVerdict};
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
-use crate::idpass::IdQueryLog;
+use crate::idpass::{IdChannel, IdQueryLog};
 use crate::input::InputMap;
 use crate::marks;
 use crate::parts::PartChooser;
@@ -340,8 +339,8 @@ pub struct ViewerApp {
     /// document with a failed placement does not re-tessellate every
     /// healthy copy on every repainted frame.
     picks: PickCache,
-    /// Where the id pass leaves its answer: `serial << 32 | id`.
-    id_answer: Arc<AtomicU64>,
+    /// Where the id pass leaves its reply.
+    id_answer: IdChannel,
     /// Which id query is outstanding and what it was asked about.
     id_log: IdQueryLog,
     /// Bumped on every rebuild; the GPU uploads when it disagrees.
@@ -575,8 +574,6 @@ pub enum StartupError {
     Document(scene::SceneDocError),
     /// The document did not produce a drawable scene.
     Scene(scene::SceneError),
-    /// The starting camera could not be framed on the scene.
-    Camera(camera::CameraError),
     /// `eframe` handed the application no wgpu render state — the
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
@@ -610,12 +607,6 @@ impl core::fmt::Display for StartupError {
             }
             Self::Scene(error) => {
                 write!(f, "the starting document draws no scene: {error}")
-            }
-            Self::Camera(error) => {
-                write!(
-                    f,
-                    "no camera could be framed on the starting scene: {error}"
-                )
             }
             Self::NoWgpuRenderState => f.write_str(
                 "eframe handed the viewer no wgpu render state: this build was linked \
@@ -777,12 +768,12 @@ impl ViewerApp {
         let delta = DisplayTolerance::new(scene::INITIAL_DELTA).map_err(StartupError::Scene)?;
         let (document, _root) = scene::plate_with_hole(tol).map_err(StartupError::Document)?;
         let mesh = scene::scene_of(&document, delta, tol).map_err(StartupError::Scene)?;
-        // A provisional camera at a square aspect, because no pane has
-        // been laid out yet and there is no real aspect to read. It is
-        // provisional for exactly one frame: `pending_fit` below makes
-        // the viewport re-frame at its true aspect the first time it
-        // runs, so what a user sees is never the invented framing.
-        let camera = Camera::framing(&mesh.bounds(), 1.0).map_err(StartupError::Camera)?;
+        // A provisional camera, because no pane has been laid out yet
+        // and there is no aspect to fit against. It is provisional for
+        // exactly one frame: `pending_fit` below makes the viewport fit
+        // what it draws at its true aspect the first time it runs — the
+        // same fit an open books — so what a user sees is never this.
+        let camera = Camera::default();
 
         // Preferences, before anything is drawn. A refusal here is
         // never fatal: a viewer that would not open because its
@@ -837,6 +828,10 @@ impl ViewerApp {
         // a default rather than a check.
         crate::widgets::install_number_formatter(egui_ctx);
 
+        // And the toolkit's input options: a wheel is a scroll whatever
+        // modifier is held (`configure_input`'s doc says why).
+        crate::pane::viewport::configure_input(egui_ctx);
+
         let mut session = DocSession::new(document, tol, evaluator()?).with_door(prover()?);
         session.set_notation(notation);
 
@@ -845,7 +840,7 @@ impl ViewerApp {
             delta,
             scene: Arc::new(mesh),
             picks: PickCache::new(indexer()?),
-            id_answer: Arc::new(AtomicU64::new(0)),
+            id_answer: IdChannel::new(),
             id_log: IdQueryLog::new(),
             revision: 1,
             scene_key: None,
@@ -2172,7 +2167,7 @@ pub(crate) struct ViewerBehavior<'a> {
     /// news to `notices` above ([`crate::pane::viewport`]: `land`, and
     /// the id pass).
     pub(crate) status: &'a mut Option<frame::Message>,
-    pub(crate) id_answer: &'a Arc<AtomicU64>,
+    pub(crate) id_answer: &'a IdChannel,
     pub(crate) id_log: &'a mut IdQueryLog,
     pub(crate) ops: &'a mut Vec<SessionOp>,
     /// A δ the View pane's field committed this frame. The pane holds
@@ -3509,7 +3504,7 @@ mod tests {
     /// The context startup installed onto, and the app it assembled.
     ///
     /// [`ViewerApp::assemble`] is the half of startup that needs no
-    /// graphics device, and both of the context-wide installs are in
+    /// graphics device, and every context-wide install is in
     /// it — the `egui::Context` it is handed reaches nothing else —
     /// so a bare context is the whole subject. **No frame is run**:
     /// each install exists to be in force before anything is drawn,
@@ -3554,6 +3549,28 @@ mod tests {
             matches!(app.theme.polarity, Polarity::Dark),
             "startup resolved {:?} and the visuals a first frame would paint report dark_mode = {dark_mode}",
             app.theme.polarity
+        );
+    }
+
+    /// **Startup turns the toolkit's wheel-zoom routing off**, so a
+    /// ctrl/⌘+wheel reaches the viewport as a scroll
+    /// (`pane::viewport::configure_input`). The first assertion is
+    /// what makes the second a statement about startup: an untouched
+    /// context routes a COMMAND wheel to zoom.
+    #[test]
+    fn startup_reads_every_wheel_as_a_scroll() {
+        let untouched =
+            egui::Context::default().options(|options| options.input_options.zoom_modifier);
+        assert_ne!(
+            untouched,
+            egui::Modifiers::NONE,
+            "the toolkit's default already reads every wheel as a scroll, so nothing below sees the install"
+        );
+        let (ctx, _app) = started();
+        assert_eq!(
+            ctx.options(|options| options.input_options.zoom_modifier),
+            egui::Modifiers::NONE,
+            "startup leaves a modified wheel routed to the toolkit's zoom"
         );
     }
 
@@ -4787,9 +4804,12 @@ mod properties_pane_tests {
         };
         let mut doc = ProfileDoc::empty(DocumentId::derive("shown-asm"), tol);
         let insert = |doc: &mut ProfileDoc, node| crate::test_support::insert_into(doc, node, tol);
-        // Each instance is a placement of its own.
-        let a = insert(&mut doc, Node::instantiate_part(part));
-        let b = insert(&mut doc, Node::instantiate_part(part));
+        // Each instance is a placement of its own, into the world at
+        // the identity.
+        let world = || Operand::Var(VarId::WORLD);
+        let stand = || pncad::document::stand().bundle();
+        let a = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
+        let b = insert(&mut doc, Node::instantiate_part(part, world(), stand()));
         let union = fused.then(|| {
             // The part is never resolved, so its one copy's key is
             // spelled here: the edges are what the admission reads.
@@ -4801,11 +4821,15 @@ mod properties_pane_tests {
                     members: Bodies::Spelled(vec![copy(a), copy(b)]),
                 },
             );
-            // Placed, loose: the part never resolves, so no pose is
-            // read off its copies to pin it by.
+            // Placed at the identity: the part never resolves, so no
+            // pose is read off its copies to place it by.
             insert(
                 &mut doc,
-                Node::place(vec![BodyRead::plain(Operand::from(union))]),
+                Node::place(
+                    vec![BodyRead::plain(Operand::from(union))],
+                    world(),
+                    stand(),
+                ),
             );
             union
         });
@@ -5208,57 +5232,9 @@ mod properties_pane_tests {
         (dir, part, file)
     }
 
-    /// **The address whose removal leaves `instance` loose.** The place
-    /// gesture stands a copy by the identity bundle, values and no mate
-    /// (`pncad::document::stand`), and removing one of its values takes
-    /// the bundle whole (`DocEdit::removing`).
-    ///
-    /// # Panics
-    ///
-    /// Unless `instance` is an instance standing by a bundle of values
-    /// with no mate.
-    fn placement_of(
-        doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
-        instance: RecipeNodeId,
-    ) -> pncad::document::MateRef {
-        let Some(Node::InstantiatePart { constraints, .. }) = doc.node(instance) else {
-            panic!("not an instance: {:?}", doc.node(instance))
-        };
-        let [first, ..] = constraints.as_slice() else {
-            panic!("the instance stands by a bundle: {constraints:?}")
-        };
-        assert!(
-            constraints
-                .iter()
-                .all(|c| c.value().is_some_and(|v| v.mate.is_none())),
-            "the instance stands by the identity bundle, values and no mate: {constraints:?}"
-        );
-        pncad::document::MateRef::new(instance, first.id)
-    }
-
-    /// **A landing's withdrawal reaches the status line** (DI5): a
-    /// free-move's space is known only once its solve lands, so the
-    /// frame an undo pins goes at the LANDING. `sync_scene` takes it
-    /// (`DocSession::take_landed_withdrawals`) at the top of the frame
-    /// the landing arrives in, and the batch at that frame's end says it
-    /// — the path an operation's own withdrawals never cross. Drawn
-    /// through the real app, frame by frame, so the landing arrives on
-    /// the worker's schedule.
-    #[test]
-    fn a_landings_withdrawal_reaches_the_status_line() {
-        let tol = pncad::tolerance::witness();
-        let (dir, part, _) = part_workspace("landing notice", tol);
-        let mut driven = Driven::with(vec![
-            SessionOp::NewDocument {
-                name: "landing-notice".to_owned(),
-            },
-            SessionOp::Save(dir.join("assembly.pncad")),
-            SessionOp::AddInstance { id: part.id() },
-        ]);
-        driven.settle();
-        let doc = driven.app.session.committed_doc();
-        let instance = doc
-            .ids()
+    /// **The instance the part chooser inserted** into `doc`.
+    fn the_instance(doc: &pncad::document::Doc<pncad::document::ProfileProgram>) -> RecipeNodeId {
+        doc.ids()
             .iter()
             .copied()
             .find(|id| {
@@ -5267,13 +5243,38 @@ mod properties_pane_tests {
                     Some(pncad::document::Node::InstantiatePart { .. })
                 )
             })
-            .expect("the instance went in");
-        // Its placement off, the copy is a loose space the probe moves.
-        let mate = placement_of(doc, instance);
-        driven
-            .app
-            .perform_batch(vec![SessionOp::RemoveConstraint { mate }]);
+            .expect("the instance went in")
+    }
+
+    /// **An undo's withdrawal reaches the status line** (DI5): a
+    /// free-move frame is keyed by its space, and an undo past the edit
+    /// that gave the copy a space of its own takes the space, so the
+    /// edit's own prune discards the frame and the batch says it. Drawn
+    /// through the real app, frame by frame.
+    #[test]
+    fn an_undos_withdrawal_reaches_the_status_line() {
+        let tol = pncad::tolerance::witness();
+        let (dir, part, _) = part_workspace("undo notice", tol);
+        let mut driven = Driven::with(vec![
+            SessionOp::NewDocument {
+                name: "undo-notice".to_owned(),
+            },
+            SessionOp::Save(dir.join("assembly.pncad")),
+            SessionOp::AddInstance { id: part.id() },
+        ]);
         driven.settle();
+        let instance = the_instance(driven.app.session.committed_doc());
+        // A space of its own, which the probe moves.
+        driven.app.perform_batch(vec![SessionOp::IntoOwnSpace {
+            placement: instance,
+        }]);
+        driven.settle();
+        let space = driven
+            .app
+            .session
+            .committed_doc()
+            .node_space(instance)
+            .expect("the copy is placed into a space");
         driven.app.perform_batch(vec![
             SessionOp::BeginFreeMove { instance },
             SessionOp::PreviewFreeMove {
@@ -5283,58 +5284,31 @@ mod properties_pane_tests {
             SessionOp::CommitFreeMove { instance },
         ]);
         assert!(
-            driven
-                .app
-                .session
-                .display()
-                .free_move_of(instance)
-                .is_some(),
+            driven.app.session.display().free_move_of(space).is_some(),
             "the probe committed: {:?}",
             status(&driven)
         );
 
-        // The undo puts the placement back. The edit alone does not know
-        // the space; its landing does, in a later frame.
+        // The undo takes the space, and its own prune the frame.
         driven.app.perform_batch(vec![SessionOp::Undo]);
         assert!(
-            !status(&driven)
-                .unwrap_or_default()
-                .contains("lives in the world's space"),
-            "the undo's own outcome says nothing of the frame"
-        );
-        assert!(
-            driven
-                .app
-                .session
-                .display()
-                .free_move_of(instance)
-                .is_some(),
-            "the edit's own prune keeps the frame"
-        );
-        driven.settle();
-        assert!(
-            driven
-                .app
-                .session
-                .display()
-                .free_move_of(instance)
-                .is_none(),
-            "the landing dropped the frame"
+            driven.app.session.display().free_move_of(space).is_none(),
+            "the undo's prune dropped the frame"
         );
         let said = status(&driven).unwrap_or_default();
         assert!(
-            said.contains("lives in the world's space"),
-            "the landing's withdrawal is on the status line: {said:?}"
+            said.contains("which is not in the document, so that free-move is gone"),
+            "the undo's withdrawal is on the status line: {said:?}"
         );
+        driven.settle();
         std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
     }
 
-    /// **The Properties pane reads the spaces the op does**, so between
-    /// an edit and its landing it says what the probe would refuse —
-    /// the space is not known yet — rather than offer the control off
-    /// the older landing's spaces. The instance's placement comes back
-    /// by an undo whose run the [`Gated`] seam holds: the landed run
-    /// still says the copy is loose, and the pane must not ask it.
+    /// **The Properties pane reads the evaluation the op does**, so
+    /// between an edit and its landing it says what the probe would
+    /// refuse — the copy's picture is not known yet — rather than offer
+    /// the control off the older landing. The copy is relabelled by an
+    /// edit whose run the [`Gated`] seam holds.
     #[test]
     fn the_pane_does_not_offer_the_probe_off_an_older_landing() {
         let tol = pncad::tolerance::witness();
@@ -5348,33 +5322,26 @@ mod properties_pane_tests {
             SessionOp::AddInstance { id: part.id() },
         ]);
         driven.settle();
-        let doc = driven.app.session.committed_doc();
-        let instance = doc
-            .ids()
-            .iter()
-            .copied()
-            .find(|id| {
-                matches!(
-                    doc.node(*id),
-                    Some(pncad::document::Node::InstantiatePart { .. })
-                )
-            })
-            .expect("the instance went in");
-        let mate = placement_of(doc, instance);
-        driven.perform(SessionOp::RemoveConstraint { mate });
+        let instance = the_instance(driven.app.session.committed_doc());
+        driven.perform(SessionOp::IntoOwnSpace {
+            placement: instance,
+        });
         driven.select(Selection::Node(instance));
         let painted = driven.quiet();
         assert!(
             painted
                 .iter()
                 .any(|(run, _)| run.starts_with("free-move probe (")),
-            "the loose copy is offered the probe: {painted:?}"
+            "the copy in a space of its own is offered the probe: {painted:?}"
         );
 
-        // The placement back, its run held: the landing still says loose.
+        // An edit, its run held: no landing answers the document.
         open.store(false, std::sync::atomic::Ordering::SeqCst);
         driven.app.perform_batch(vec![
-            SessionOp::Undo,
+            SessionOp::SetLabel {
+                node: instance,
+                label: Some(pncad::document::Label::new("held").expect("a label")),
+            },
             SessionOp::Select(Selection::Node(instance)),
         ]);
         driven.frame(vec![egui::Event::PointerMoved(Driven::ELSEWHERE)]);
@@ -5389,8 +5356,8 @@ mod properties_pane_tests {
             .collect::<Vec<_>>()
             .join(" ");
         assert!(
-            text.contains("not known yet"),
-            "the pane says the space is not known yet: {text}"
+            text.contains("has no picture yet"),
+            "the pane says the picture is not known yet: {text}"
         );
         assert!(
             !text.contains("free-move probe ("),

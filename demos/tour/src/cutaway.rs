@@ -148,7 +148,7 @@ pub(crate) fn build<S: Scalar>(
     // The bores' walls are measured by quadrature, so each reading is a
     // certified bracket: midpoint and half-width.
     let props = |b: &pncad::topo::Body<S>, what: &str| {
-        let p = pncad::topo::mass_properties(b, tol).expect(what);
+        let p = pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol).expect(what);
         (
             (p.volume.f(), p.volume_pad),
             (p.surface_area.f(), p.area_pad),

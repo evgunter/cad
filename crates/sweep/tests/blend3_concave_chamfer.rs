@@ -69,7 +69,7 @@ fn the_chamfered_cavity() {
         Tol::witness(),
     )
     .expect("the cavity's twelve concave edges chamfer");
-    let out_body = out.body;
+    let out_body = topo::test_support::finished("out_body", out.body, Tol::witness());
 
     assert_eq!(validate(&out_body), Ok(()), "tier 1");
     assert_eq!(validate_closed(&out_body), Ok(()), "tier 2");

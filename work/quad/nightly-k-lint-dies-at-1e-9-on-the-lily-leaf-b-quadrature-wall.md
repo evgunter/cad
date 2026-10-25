@@ -2,10 +2,12 @@
 id: nightly-k-lint-dies-at-1e-9-on-the-lily-leaf-b-quadrature-wall
 kind: issue
 title: The nightly k-lint (dev-probe) dies at ε = 1e-9 on demo tour's lily_leaf_b quadrature-convergence refusal, so the 1e-12 pass and the lint step never run
-status: open
+status: closed
 opened: 2026-10-09
 priority: P1
 cost: E
+closed: 2026-10-22
+refs: [main-reds-editor-core-slow-set-and-the-k-probe-sweep]
 ---
 
 
@@ -35,3 +37,7 @@ PR 4438 retires wall 17: `lily_leaf_b` measures at the default ε
 (1e-9) runs green, and so do its 1e-12 and 1e-6 rows. The k-lint
 dev-probe itself was not run here. The next nightly after that PR
 merges says whether this row can close.
+
+## Closed
+
+Nightly run 39728496598 (main `0ffab3663d`, 2026-10-22): the `k-lint (dev-probe)` job no longer dies on `lily_leaf_b`, because the quadrature wall is gone (PR 4438, and PR 5568's sign walk). It still stops before the lint step, now on `sweep::ray_wall_margin_twins` (`curve_foot_branch`'s margins do not scale with the model). That red is TCOST's, filed as `main-reds-editor-core-slow-set-and-the-k-probe-sweep`, so this row's own cause is closed.

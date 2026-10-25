@@ -81,7 +81,7 @@ fn pinned(
     doc_ref: editor_core::DocRef,
     o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
-    fixture::insert_pinned(doc, Node::instantiate_part(doc_ref), o)
+    fixture::insert_pinned(doc, crate::fixture::mated_instance(doc_ref), o)
 }
 
 /// **The instance a split leaves stands at the identity of the
@@ -109,9 +109,12 @@ fn volume_bits(body: &topo::Body<f64>) -> u64 {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// Two products' volumes are bit-equal: an instance a split leaves
@@ -159,6 +162,21 @@ fn placed_bodies(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
             other => panic!("a placement, got {other:?}"),
         })
         .collect()
+}
+
+/// **`instance` inlined and its placement flattened back out**
+/// ([`inline`], then [`editor_core::flatten`]): an instance a split left
+/// at the identity comes back as the recipe it was cut from. Answers
+/// the document and the inline's node map.
+fn inlined_flat(
+    doc: &ProfileDoc,
+    instance: RecipeNodeId,
+    resolver: &Arc<dyn editor_core::PartResolver>,
+) -> (ProfileDoc, editor_core::NodeMap) {
+    let inlined = inline(doc, instance, resolver, Tol::witness()).expect("the inline is legal");
+    let flat = editor_core::flatten(&inlined.doc, inlined.placement, Tol::witness())
+        .unwrap_or_else(|e| panic!("an identity placement flattens: {e:?}"));
+    (flat.doc, inlined.node_map)
 }
 
 /// Replays an edit list over a starting document — the "the recorded
@@ -386,11 +404,15 @@ fn row2_inline_inverts_split_and_undo_restores() {
         "the inline edits replay to the result"
     );
 
-    // The round trip's identity with the ORIGINAL document.
+    // The round trip's identity with the ORIGINAL document: the inline
+    // places the part's world under the instance's identity bundle,
+    // which flattens back out.
+    let flat = editor_core::flatten(&inlined.doc, inlined.placement, Tol::witness())
+        .expect("the instance stood at the identity, so its placement flattens");
     let mut store3 = PartStore::default();
     store3.insert(part("asm4-r2-part", 0.0, 1.0), Tol::witness());
-    let ev3 = run(&inlined.doc, &with_resolver(store3));
-    let (body3, names3) = product_named(&inlined.doc, &ev3, Tol::witness()).expect("gathers");
+    let ev3 = run(&flat.doc, &with_resolver(store3));
+    let (body3, names3) = product_named(&flat.doc, &ev3, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body3));
     assert_eq!(volume_bits(&body1), volume_bits(&body3));
     // The cut instance came back as a fresh node; its names correspond
@@ -413,7 +435,7 @@ fn row2_inline_inverts_split_and_undo_restores() {
     }
     // And the restored world mate is the original, bit for bit.
     assert!(
-        fixture::same_offset(&inlined.doc, back, &doc, ids[1]),
+        fixture::same_offset(&flat.doc, back, &doc, ids[1]),
         "the round trip restores the instance's world mate exactly"
     );
     let _ = names1;
@@ -487,24 +509,22 @@ fn row2_appearance_rides_the_bridge_both_ways() {
     let mut store2 = PartStore::default();
     store2.insert(part("asm4-r2a-part", 0.0, 1.0), Tol::witness());
     store2.insert(out.part.clone(), Tol::witness());
-    let inlined = inline(
+    let (flat, node_map) = inlined_flat(
         &out.remainder,
         out.instance,
         &(Arc::new(store2) as Arc<dyn editor_core::PartResolver>),
-        Tol::witness(),
-    )
-    .expect("legal");
-    let back = inlined.node_map[&out.node_map[&ids[1]]];
+    );
+    let back = node_map[&out.node_map[&ids[1]]];
     let restored = StableName {
         kind: face.kind,
         node: back,
         path: face.path.clone(),
     };
     assert!(
-        crate::fixture::painted(&inlined.doc, &restored).is_some(),
-        "inline restores the local (re-minted) key"
+        crate::fixture::painted(&flat, &restored).is_some(),
+        "inline and flatten restore the local (re-minted) key"
     );
-    assert!(crate::fixture::painted(&inlined.doc, &expected).is_none());
+    assert!(crate::fixture::painted(&flat, &expected).is_none());
 }
 
 // ---- Row 3: refusals ----
@@ -634,7 +654,7 @@ fn row3_inline_of_stale_pin_is_pin_mismatch() {
     let mut store = PartStore::default();
     let doc_ref = store.insert(part("asm4-r3i-part", 0.0, 1.0), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-r3i"), Tol::witness());
-    let (host, id) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, id) = insert(host, crate::fixture::mated_instance(doc_ref));
     // The referenced document moves on under the same id: the pin the
     // host carries no longer holds.
     store.insert(part("asm4-r3i-part", 0.0, 2.0), Tol::witness());
@@ -704,6 +724,8 @@ fn row3_further_typed_refusals() {
             distance: len(1.0),
         },
     );
+    // The block joins the instance's copy in the world.
+    let (host, block) = fixture::place(host, block);
     let (host, consumer) = insert(
         host,
         Node::Union {
@@ -733,8 +755,9 @@ fn row3_further_typed_refusals() {
     );
 
     // An instance of a PLAIN-geometry part pinned at a pose inlines:
-    // the part's one placement on its world takes the motion the pin
-    // solved to, appended to its world mate as world moves (A4).
+    // the part's one placement is copied verbatim into a new space, and
+    // a placement of that space's copy into the host's world takes the
+    // instance's bundle, so it lands where the pin put the instance.
     let host2 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host2"), Tol::witness());
     let (host2, inst2) = pinned_at(host2, doc_ref, [3.0, 0.0, 0.0], &o);
     let inlined2 = inline(&host2, inst2, &resolver, Tol::witness())
@@ -742,27 +765,23 @@ fn row3_further_typed_refusals() {
     let part_doc = part("asm4-r3f-part", 0.0, 1.0);
     let spliced = inlined2.node_map[&part_doc.placements()[0]];
     assert!(
-        fixture::offset_of(&inlined2.doc, spliced).is_some(),
-        "the plain extrude's placement keeps one world mate"
+        fixture::same_offset(&inlined2.doc, spliced, &part_doc, part_doc.placements()[0]),
+        "the plain extrude's placement is the part's, verbatim"
+    );
+    assert_eq!(
+        fixture::offset_of(&inlined2.doc, inlined2.placement),
+        fixture::offset_of(&host2, inst2),
+        "the new placement holds the instance's bundle"
     );
     let landed = fixture::solve(&inlined2.doc, &EvalOptions::default(), Tol::witness())
-        .placement(&inlined2.doc, spliced)
-        .expect("the spliced placement solves");
-    // The whole placement, rotation and translation, within the pin's
-    // re-composition: measured 6.1e-17 (a quarter-turn's cosine, from
-    // the spins `pin_at` writes the pose as).
-    let want = editor_core::Frame::translation([3.0, 0.0, 0.0]);
-    let off = landed
-        .columns
-        .iter()
-        .flatten()
-        .zip(want.columns.iter().flatten())
-        .chain(landed.translation.iter().zip(&want.translation))
-        .map(|(x, y)| (x - y).abs())
-        .fold(0.0_f64, f64::max);
-    assert!(
-        off <= 1e-16,
-        "the plain extrude's placement takes the instance's pose, {off:e} off: {landed:?}"
+        .placement(&inlined2.doc, inlined2.placement)
+        .expect("the new placement solves");
+    // The whole placement, exactly: the pin wrote the slide it means and
+    // no turn.
+    assert_eq!(
+        landed,
+        editor_core::Frame::translation([3.0, 0.0, 0.0]),
+        "the inlined copy takes the instance's pose"
     );
     // The same instance at IDENTITY inlines too.
     let host3 = ProfileDoc::empty(DocumentId::derive("asm4-r3f-host3"), Tol::witness());
@@ -994,19 +1013,17 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
     let mut store2 = PartStore::default();
     store2.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
     store2.insert(out.part.clone(), Tol::witness());
-    let inlined = inline(
+    let (flat, node_map) = inlined_flat(
         &out.remainder,
         out.instance,
         &(Arc::new(store2) as Arc<dyn editor_core::PartResolver>),
-        Tol::witness(),
-    )
-    .expect("inlines");
-    let back = |i: RecipeNodeId| inlined.node_map[&out.node_map[&i]];
+    );
+    let back = |i: RecipeNodeId| node_map[&out.node_map[&i]];
     // [e, i0, i1, i2] round-trips to [e, i1, i0, i2] (in
     // correspondence): the part's placements come in after the kept
     // ones, in their own order.
     assert_eq!(
-        placed_bodies(&inlined.doc),
+        placed_bodies(&flat),
         [e, i1, back(i0), back(i2)],
         "the carried placements keep their own order, after the kept ones"
     );
@@ -1014,8 +1031,8 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
     // The product and its names are the original's.
     let mut store3 = PartStore::default();
     store3.insert(part("asm4-min1-part", 0.0, 1.0), Tol::witness());
-    let ev3 = run(&inlined.doc, &with_resolver(store3));
-    let (body3, names3) = product_named(&inlined.doc, &ev3, Tol::witness()).expect("gathers");
+    let ev3 = run(&flat, &with_resolver(store3));
+    let (body3, names3) = product_named(&flat, &ev3, Tol::witness()).expect("gathers");
     assert_eq!(census(&body1), census(&body3));
     assert_eq!(volume_bits(&body1), volume_bits(&body3));
     for (name, _) in names1.iter() {
@@ -1039,7 +1056,7 @@ fn a_separated_cut_comes_back_after_the_kept_placements_and_the_round_trip_keeps
         "the moved world mate is verbatim in the part"
     );
     assert!(
-        fixture::same_offset(&inlined.doc, back(i2), &doc, i2),
+        fixture::same_offset(&flat, back(i2), &doc, i2),
         "the round trip restores the world mate bit for bit"
     );
 }
@@ -1385,7 +1402,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let moved_eps = host.epsilon() * 0.5;
     let (part_doc, _) = step(part_doc, DocEdit::SetTolerance { eps: moved_eps });
     let doc_ref = store.insert(part_doc, Tol::witness());
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = insert(host, crate::fixture::mated_instance(doc_ref));
     match inline(
         &host,
         inst,
@@ -1421,7 +1438,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     assert_eq!(carrying.metadata().len(), 1);
     let doc_ref = store.insert(carrying, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("asm4-min2-meta-host"), Tol::witness());
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+    let (host, inst) = insert(host, crate::fixture::mated_instance(doc_ref));
     match inline(
         &host,
         inst,
@@ -2237,7 +2254,7 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
     let (part, body) = extrude(part, 0.25);
     let (part, seat) = insert(
         part,
-        Node::place(vec![editor_core::BodyRead::from(
+        crate::fixture::stood(vec![editor_core::BodyRead::from(
             editor_core::Operand::Node(body),
         )]),
     );
@@ -2257,6 +2274,7 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
     let (part, union) = fixture::union_over(part, &[anchor, seat]);
     let (part, world) = fixture::place(part, union);
     let seat_bundle = fixture::bundle(&part, seat);
+    let world_offset = fixture::offset_of(&part, world);
     let mut store = PartStore::default();
     let doc_ref = store.insert(part, Tol::witness());
     let o = with_resolver(store.clone());
@@ -2273,20 +2291,17 @@ fn inline_at_a_pose_carries_a_copy_seated_on_a_construction() {
         seat_bundle.len(),
         "the seat is spliced as written, not re-pinned"
     );
+    assert_eq!(
+        fixture::offset_of(&inlined.doc, inlined.node_map[&world]),
+        world_offset,
+        "the union's placement is the part's, verbatim, in the new space"
+    );
     let landed = fixture::solve(&inlined.doc, &EvalOptions::default(), Tol::witness())
-        .placement(&inlined.doc, inlined.node_map[&world])
-        .expect("the union's spliced placement solves");
-    let want = editor_core::Frame::translation([0.0, 0.0, 5.0]);
-    let off = landed
-        .columns
-        .iter()
-        .flatten()
-        .zip(want.columns.iter().flatten())
-        .chain(landed.translation.iter().zip(&want.translation))
-        .map(|(x, y)| (x - y).abs())
-        .fold(0.0_f64, f64::max);
-    assert!(
-        off <= 1e-15,
-        "the union's copy takes the instance's pose, {off:e} off: {landed:?}"
+        .placement(&inlined.doc, inlined.placement)
+        .expect("the new placement solves");
+    assert_eq!(
+        landed,
+        editor_core::Frame::translation([0.0, 0.0, 5.0]),
+        "the union's copy takes the instance's pose"
     );
 }

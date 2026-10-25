@@ -633,6 +633,14 @@ impl<T: SpanLocate> NurbsSurface<T> {
             area_floor: OnceLock::new(),
         })
     }
+
+    /// **Whether this patch is polynomial**: the one plain constant
+    /// every weight is, or `None` ([`Weights::constant`];
+    /// [`geom_core::spline::constant_weight`] says why `Some(c)` is the
+    /// tensor polynomial on [`Self::control`] for every `c`).
+    pub fn constant_weight(&self) -> Option<f64> {
+        self.weights.constant()
+    }
 }
 
 impl<T: Real> NurbsSurface<T> {

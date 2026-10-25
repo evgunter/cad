@@ -44,7 +44,7 @@
 use std::collections::BTreeMap;
 
 use geom_core::sym::deferred;
-use geom_core::{Band, Sym, SymBudget, SymRules, Tol};
+use geom_core::{Band, BandError, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, CarrierRelation, FaceKey};
 
 use super::{Canceled, NamedCell, NamedCoincidence, Recourse, Rung, Unreplayed};
@@ -52,18 +52,6 @@ use crate::eval::{EvalOptions, EvalOutcome, Evaluation};
 use crate::names::{EntityKey, EntityRef, Entry};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
-
-/// **Whether the replay builds placed copies to read them**: resolving
-/// the parts a document instances at `Sym`, and reading an at-rest row
-/// off the replay's copies by the carrier verdict. Off: an at-rest row
-/// is [`Unreplayed::NotReplayed`] and a row on a part
-/// [`Unreplayed::ThroughAPart`]. Measured on, it costs the viewer's
-/// door 10–20× on mated assemblies (about 4 s building the parts, about
-/// 15 s more reading the windmill's seats) and proves no mated seat
-/// within [`BUDGET`] while frames hold component symbols
-/// (`work/intent/a-mate-placed-seat-is-unproven-at-the-doors-budget.md`,
-/// whose fix turns it on).
-pub const REPLAYS_PLACED_COPIES: bool = false;
 
 /// **The door's one strength**: the tier's budget, with the drive's
 /// retry ladder. A margin whose form outgrows it is not proved, and
@@ -114,71 +102,176 @@ type Lane = Sym<f64>;
 /// Why a row is left unproven, and what would prove it.
 type Left = (Unreplayed, Recourse);
 
-/// **The symbolic rungs for each row of each node**: in the order
-/// given, a rung that proved the row or why the replay could not.
-/// `nodes` holds each deciding node with its rows in decision order,
-/// which is what a row's ordinal is counted in.
+/// A rung that proved a row, or why the replay could not.
+type Proved = Result<Rung, Left>;
+
+/// **The symbolic rungs for each row the first rung left**
+/// (`left`, in the shape of `nodes`): in the order given, a rung that
+/// proved the row or why the replay could not, and `None` for a row
+/// the first rung proved. `nodes` holds each deciding node with its
+/// rows in decision order, which is what a row's ordinal is counted in.
+///
+/// The replay resolves the parts a document instances only for an
+/// at-rest row it reads off placed copies ([`reads_copies`]). A row of
+/// a node that stands on a part ([`stands_on_a_part`]) is
+/// [`Unreplayed::ThroughAPart`] without a replay: resolving the parts at
+/// `Sym` costs seconds and has not bought such a row a proof
+/// (`work/intent/an-unmated-row-on-a-part-resolves-parts-at-sym-for-seconds.md`).
+/// Where no left row asks the replay anything, nothing is replayed.
 pub(super) fn rungs(
     doc: &crate::doc::Doc<ProfileProgram>,
     nodes: &[(RecipeNodeId, &[NamedCoincidence])],
+    left: &[Vec<bool>],
     resolver: Option<&std::sync::Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
     cancel: &crate::CancelToken,
-) -> Result<Vec<Vec<Result<Rung, Left>>>, Canceled> {
+) -> Result<Vec<Vec<Option<Proved>>>, Canceled> {
+    if cancel.is_canceled() {
+        return Err(Canceled);
+    }
+    // What each row asks: `None` a row the first rung proved, `Some(Err)`
+    // one answered without a replay, `Some(Ok(()))` one the replay reads.
+    let asks: Vec<Vec<Option<Result<(), Left>>>> = nodes
+        .iter()
+        .zip(left)
+        .map(|(&(node, rows), left)| {
+            let on_a_part = rows
+                .iter()
+                .any(|row| row.site != topo::DecisionSite::CensusAtRest)
+                && stands_on_a_part(doc, node);
+            rows.iter()
+                .zip(left)
+                .map(|(row, &left)| {
+                    left.then(|| {
+                        let unread = |why| Err((why, Recourse::Assert));
+                        if row.site == topo::DecisionSite::CensusAtRest {
+                            // The census is not re-run: its row is read
+                            // off the copies.
+                            if reads_copies(row) {
+                                Ok(())
+                            } else {
+                                unread(Unreplayed::NotReplayed)
+                            }
+                        } else if on_a_part {
+                            unread(Unreplayed::ThroughAPart)
+                        } else {
+                            Ok(())
+                        }
+                    })
+                })
+                .collect()
+        })
+        .collect();
+    let parts = nodes.iter().zip(&asks).any(|(&(_, rows), asks)| {
+        rows.iter()
+            .zip(asks)
+            .any(|(row, ask)| matches!(ask, Some(Ok(()))) && reads_copies(row))
+    });
     let symbols = EvalOptions {
         symbols: true,
-        resolver: resolver.filter(|_| REPLAYS_PLACED_COPIES).cloned(),
+        resolver: resolver.filter(|_| parts).cloned(),
         ..EvalOptions::default()
     };
     let (out, _) = with_replay_session(symbols, |opts| {
-        let ev: Evaluation<Lane> = crate::eval::evaluate(doc, None, cancel, opts, tol);
-        if ev.outcome == EvalOutcome::Canceled {
-            return Err(Canceled);
+        // Replayed at the first row that asks, and only then.
+        let mut ev: Option<Evaluation<Lane>> = None;
+        let band = Band::linear(tol);
+        let mut out = Vec::with_capacity(nodes.len());
+        for (&(node, rows), asks) in nodes.iter().zip(asks) {
+            let mut ordinals = BTreeMap::new();
+            let mut answers = Vec::with_capacity(rows.len());
+            for (row, ask) in rows.iter().zip(asks) {
+                let ordinal = ordinals.entry(row.site).or_insert(0usize);
+                let at = core::mem::replace(ordinal, *ordinal + 1);
+                answers.push(match ask {
+                    None => None,
+                    Some(Err(why)) => Some(Err(why)),
+                    Some(Ok(())) => {
+                        let ev = match &mut ev {
+                            Some(ev) => &*ev,
+                            None => {
+                                let replayed: Evaluation<Lane> =
+                                    crate::eval::evaluate(doc, None, cancel, opts, tol);
+                                if replayed.outcome == EvalOutcome::Canceled {
+                                    return Err(Canceled);
+                                }
+                                &*ev.insert(replayed)
+                            }
+                        };
+                        Some(prove_row(ev, node, row, at, band, cancel)?)
+                    }
+                });
+            }
+            out.push(answers);
         }
-        let band = Band::linear(tol).ok();
-        nodes
-            .iter()
-            .map(|&(node, rows)| {
-                let mut ordinals = BTreeMap::new();
-                rows.iter()
-                    .map(|row| {
-                        let ordinal = ordinals.entry(row.site).or_insert(0usize);
-                        let at = *ordinal;
-                        *ordinal += 1;
-                        prove_row(&ev, node, row, at, band, cancel)
-                    })
-                    .collect()
-            })
-            .collect()
+        Ok(out)
     });
     out
 }
 
+/// **Whether a row is read off placed copies**: an at-rest census row
+/// the carrier verdict reads, two faces decided one carrier. The census
+/// is not re-run, so any other at-rest row has no form the replay
+/// builds ([`Unreplayed::NotReplayed`]).
+fn reads_copies(row: &NamedCoincidence) -> bool {
+    row.site == topo::DecisionSite::CensusAtRest
+        && matches!(
+            row.relation,
+            topo::Relation::SameOriented | topo::Relation::SameOpposite
+        )
+        && matches!(row.cells.as_slice(), [a, b] if [a, b].iter().all(|cell| matches!(
+            cell,
+            NamedCell::Entity { name, .. } if name.kind == crate::names::EntityKind::Face
+        )))
+}
+
+/// **Whether `node` stands on a part**: it, or a node upstream of it,
+/// instances one.
+fn stands_on_a_part(doc: &crate::doc::Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
+    let mut seen = std::collections::BTreeSet::new();
+    let mut stack = vec![node];
+    while let Some(at) = stack.pop() {
+        if !seen.insert(at) {
+            continue;
+        }
+        if matches!(doc.node(at), Some(crate::Node::InstantiatePart { .. })) {
+            return true;
+        }
+        stack.extend(doc.upstream(at));
+    }
+    false
+}
+
 /// The two symbolic rungs for one row, `at` its ordinal among its
-/// node's rows at its site. Canceled before it discharges a margin.
+/// node's rows at its site; an at-rest row is read off the copies by
+/// the carrier verdict alone (the census is not re-run). Canceled
+/// before it discharges a margin.
 fn prove_row(
     ev: &Evaluation<Lane>,
     node: RecipeNodeId,
     row: &NamedCoincidence,
     at: usize,
-    band: Option<Band>,
+    band: Result<Band, BandError>,
     cancel: &crate::CancelToken,
 ) -> Result<Result<Rung, Left>, Canceled> {
+    if cancel.is_canceled() {
+        return Err(Canceled);
+    }
     // A row the replay left with no form of its own: nothing the door
     // could read, so the recourse is the assertion.
     let left = |why| Ok(Err((why, Recourse::Assert)));
     if row.site == topo::DecisionSite::CensusAtRest {
-        if !REPLAYS_PLACED_COPIES {
-            return left(Unreplayed::NotReplayed);
+        if let Some(why) = at_rest_unbuilt(ev, node, row) {
+            return left(why);
         }
-        // The census is not re-run: its row is read off the copies.
-        if cancel.is_canceled() {
-            return Err(Canceled);
-        }
-        return Ok(match band.map(|band| carrier_verdict(ev, row, band)) {
-            Some(Some(Ok(()))) => Ok(Rung::CarrierVerdict),
-            Some(Some(Err(why))) => Err(numeric(why)),
-            Some(None) | None => Err((at_rest_unread(ev, node, row), Recourse::Assert)),
+        // A run whose tolerance makes no band takes no decision.
+        let Ok(band) = band else {
+            return left(Unreplayed::Refused);
+        };
+        return Ok(match carrier_verdict(ev, row, band) {
+            Some(Ok(())) => Ok(Rung::CarrierVerdict),
+            Some(Err(why)) => Err(numeric(why)),
+            None => Err((Unreplayed::OtherDecisions, Recourse::Assert)),
         });
     }
     let Some(value) = ev.value(node) else {
@@ -193,10 +286,7 @@ fn prove_row(
     else {
         return left(Unreplayed::OtherDecisions);
     };
-    if cancel.is_canceled() {
-        return Err(Canceled);
-    }
-    if let Some(band) = band
+    if let Ok(band) = band
         && let Some(Ok(())) = carrier_verdict(ev, row, band)
     {
         return Ok(Ok(Rung::CarrierVerdict));
@@ -210,31 +300,36 @@ fn prove_row(
 }
 
 /// A form the tier read and did not discharge: a coincidence of values
-/// as far as the door can tell, its recourse one construction unless
-/// the form keeps a value computed apart from the variables.
+/// as far as the door can tell, its recourse one construction where the
+/// tier read the form whole, the budget where the form outgrew it, and
+/// the assertion where it keeps a value computed apart from the
+/// variables.
 fn numeric(why: deferred::Undischarged) -> Left {
-    match why {
-        deferred::Undischarged::KeepsAnOpaqueAtom => (Unreplayed::Numeric, Recourse::Assert),
-        deferred::Undischarged::Otherwise => (Unreplayed::Numeric, Recourse::OneConstruction),
-    }
+    (
+        Unreplayed::Numeric,
+        match why {
+            deferred::Undischarged::KeepsAnOpaqueAtom => Recourse::Assert,
+            deferred::Undischarged::OverTheBudget => Recourse::Budget,
+            deferred::Undischarged::Otherwise => Recourse::OneConstruction,
+        },
+    )
 }
 
-/// Why the replay offers no carrier verdict on an at-rest row: a copy
-/// it could not build (its placement or what it reads refused, or a
-/// part it resolves none for), else a pair of cells that is not two
-/// faces.
-fn at_rest_unread(ev: &Evaluation<Lane>, node: RecipeNodeId, row: &NamedCoincidence) -> Unreplayed {
-    let unbuilt = row.cells.iter().find_map(|cell| match cell {
+/// **Why the replay built no copy an at-rest row's cell is in**: its
+/// placement, or what that reads, refused, or it stands on a part the
+/// replay resolves none for. `None` where every cell's copy was built.
+fn at_rest_unbuilt(
+    ev: &Evaluation<Lane>,
+    node: RecipeNodeId,
+    row: &NamedCoincidence,
+) -> Option<Unreplayed> {
+    row.cells.iter().find_map(|cell| match cell {
         NamedCell::Entity { input, .. } => ev
             .table(*input)
             .is_none()
-            .then(|| ev.read_port(*input).map_or(node, |(at, _)| at)),
+            .then(|| why_no_value(ev, ev.read_port(*input).map_or(node, |(at, _)| at))),
         NamedCell::Tool { .. } | NamedCell::Piece { .. } => None,
-    });
-    match unbuilt {
-        Some(at) => why_no_value(ev, at),
-        None => Unreplayed::NotReplayed,
-    }
+    })
 }
 
 /// Why the replay holds no value at `node`: a part it does not resolve

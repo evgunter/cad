@@ -227,9 +227,16 @@ fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
         "the document evaluates:\n{}",
         bad.join("\n")
     );
-    topo::mass_properties(corpus::body_of(&ev, node), tol())
-        .expect("closed-form mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(corpus::body_of(&ev, node)),
+            tol(),
+        ),
+        tol(),
+    )
+    .expect("closed-form mass properties")
+    .volume
 }
 
 /// The `(x, y)` both ends of the strut edge `name` stand at, on the
@@ -2008,7 +2015,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
         centre: [len(1.0), len(1.0)],
         radius: len(0.5),
         n,
-        phase: ang(0.0),
+        phase: Formula::zero(Dimension::Angle),
     };
     let (doc, profile, ext) = extruded(
         "values-strand-split",
@@ -2297,7 +2304,7 @@ fn a_reshaping_reports_exactly_the_held_names_whose_referent_it_takes() {
         centre: [len(0.0), len(0.0)],
         radius: len(1.0),
         n,
-        phase: ang(0.0),
+        phase: Formula::zero(Dimension::Angle),
     };
     row(
         "split 4->3",

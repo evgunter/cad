@@ -2,10 +2,11 @@
 id: cone-chart-trim-reads-a-tilted-section-as-its-vertex-window
 kind: issue
 title: cone_chart_trim folds the slant window over boundary vertices with no edge-class check, so a cone face bounded by a tilted planar section would be misread; no door builds one today
-status: open
+status: closed
 opened: 2026-09-26
 priority: P3
 cost: M
+closed: 2026-10-24
 ---
 
 
@@ -127,3 +128,11 @@ answers. On the as-built pose it refuses `PartialConeFace` at 33 of
 tolerates exactly that refusal at grid points
 (`common/solid_truth.rs`), so this item's fix shows as more answered
 points, not as a red row.
+
+
+## Closed by CHART (2026-10-24)
+
+The code this row is about is deleted. On branch `chart/ringed-curved-doors`
+(`curved-face-containment-answers-none-on-a-ringed-face`), cylinder and cone
+faces are read from their boundary edges (`topo::boolean::ruled_region`) by
+both point doors, with no chart window, outline class or period guard.

@@ -26,21 +26,25 @@ use topo::validate::{ValidationError, validate_geometric};
 /// - the ball as revolved measures `+4/3·π` and validates;
 /// - the inside-out twin measures `−4/3·π` and is refused
 ///   `NegativeVolume` — the +V invariant seeing a whole-body flip;
-/// - **the one-band twin measures exactly `0.0`, and the MEASURING
-///   door does not refuse it.** The two hemispheres' radial terms
-///   cancel term for term, so `mass_properties` answers a
-///   plausible-looking number for a body that encloses nothing. Tier 3
-///   is what refuses it, and what it raises is `LaminaWedge` — the
-///   seam meridians reading as conformal contact — not an orientation
-///   verdict. Both halves of that are a finding, recorded on PROPS'
-///   slate (`work/props/m6-sense-gate-recorded-residuals.md`).
+/// - **the one-band twin is refused by both doors, as one lamina.** Its
+///   two hemispheres' radial terms would cancel term for term, a volume
+///   of exactly `0.0`; the measuring door reads their seam region, whose
+///   members' bits disagree, and refuses
+///   `PropsError::SeamRegionSensesDisagree`, the finding tier 3 names
+///   `LaminaWedge` (the seam meridians read as conformal contact). That
+///   tier 3 names a lamina rather than an inverted face is still a
+///   finding (`work/verdict/m6-sense-gate-recorded-residuals.md`).
 #[test]
-fn a_reversed_band_measures_zero_and_is_caught_only_by_tier_three() {
+fn a_reversed_band_is_refused_as_a_lamina_by_both_doors() {
     let ball = common::ball();
     let keys: Vec<_> = ball.faces().map(|(k, _)| k).collect();
     let exact = 4.0 / 3.0 * std::f64::consts::PI;
 
-    let mp = mass_properties(&ball, Tol::witness()).expect("the ball measures");
+    let mp = mass_properties(
+        &topo::test_support::finished("the measured body", ball.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the ball measures");
     assert!(
         (mp.volume - exact).abs() <= 1e-12 * exact,
         "the revolved unit ball encloses 4/3·π: {}",
@@ -56,7 +60,9 @@ fn a_reversed_band_measures_zero_and_is_caught_only_by_tier_three() {
         let s = inside_out.get_face(k).unwrap().sense;
         inside_out.set_face_sense(k, !s).unwrap();
     }
-    let mp = mass_properties(&inside_out, Tol::witness()).expect("the twin measures too");
+    // Raw door: the measured body is an inside-out body, which tier 3 refuses (NegativeVolume).
+    let mp = topo::test_support::measure_unvalidated(&inside_out, Tol::witness())
+        .expect("the twin measures too");
     assert!(
         (mp.volume + exact).abs() <= 1e-12 * exact,
         "reversing every face negates the enclosed volume: {}",
@@ -73,11 +79,17 @@ fn a_reversed_band_measures_zero_and_is_caught_only_by_tier_three() {
     let mut one_band = ball.clone();
     let s = one_band.get_face(keys[0]).unwrap().sense;
     one_band.set_face_sense(keys[0], !s).unwrap();
-    let mp = mass_properties(&one_band, Tol::witness())
-        .expect("and the measuring door does not refuse this one either");
-    assert_eq!(
-        mp.volume, 0.0,
-        "one reversed band cancels the other's radial term exactly"
+    // Raw door: the measured body is a lamina (a flipped band), which tier 3 refuses (LaminaWedge).
+    let door = topo::test_support::measure_unvalidated(&one_band, Tol::witness());
+    assert!(
+        matches!(
+            door,
+            Err(topo::MassPropsError::Face {
+                source: geom_brep::props::PropsError::SeamRegionSensesDisagree,
+                ..
+            })
+        ),
+        "the measuring door refuses the lamina off the seam region: {door:?}"
     );
     let errs =
         validate_geometric(&one_band, Tol::witness()).expect_err("tier 3 is what catches it");

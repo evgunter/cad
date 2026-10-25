@@ -490,8 +490,6 @@ mod mate1_r1_probes;
 mod mate1r2_probes;
 #[path = "mate6_gather_mints.rs"]
 mod mate6_gather_mints;
-#[path = "mate6r1_shared.rs"]
-mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
 #[path = "meta_minted_ids.rs"]
@@ -736,6 +734,8 @@ mod wire_selection_kind_doors;
 mod a_keel_ring_names_its_two_edges;
 #[path = "a_mate_on_a_full_turn_bore_names.rs"]
 mod a_mate_on_a_full_turn_bore_names;
+#[path = "a_mirror_is_a_construction.rs"]
+mod a_mirror_is_a_construction;
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
 #[path = "decide_3_split_rows_interval.rs"]
@@ -780,6 +780,10 @@ mod emit_union_rim_piece_ranks;
 mod emit_union_seam_rank;
 #[path = "glue_on_zero_rows.rs"]
 mod glue_on_zero_rows;
+#[path = "intent_dprime1_target_space.rs"]
+mod intent_dprime1_target_space;
+#[path = "intent_dprime2_mates_read_geometry.rs"]
+mod intent_dprime2_mates_read_geometry;
 #[path = "intent_literals_a_definitions.rs"]
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]

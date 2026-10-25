@@ -173,6 +173,8 @@ fn a_recording_answers_its_edits_ids_and_document_in_order() {
     let (doc, c) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let named = fname(b, wall(&doc, b, 0));
     let (doc, _) = shell_on(doc, a, named.clone());
+    // `c` joins `a`'s space, as an operator's operands share one.
+    let (doc, c) = crate::fixture::stood_in(doc, c, a);
     let other = Node::Union {
         members: editor_core::Bodies::Spelled(vec![a.into(), c.into()]),
     };
@@ -261,6 +263,8 @@ fn a_refusal_ends_the_action_even_when_the_caller_goes_on() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
     let (doc, b) = block(doc, (4.0, 5.0), (0.0, 1.0), 1.0);
     let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 1.0);
+    // `c` joins `b`'s space, as an operator's operands share one.
+    let (doc, c) = crate::fixture::stood_in(doc, c, b);
     let delete_b = DocEdit::DeleteNode { id: b };
     let union = Node::Union {
         members: editor_core::Bodies::Spelled(vec![b.into(), c.into()]),

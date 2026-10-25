@@ -23,7 +23,7 @@ use editor_core::{
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, ang, len, scl};
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
@@ -216,7 +216,7 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
             n: 5,
-            phase: ang(0.0),
+            phase: Formula::zero(Dimension::Angle),
         }],
         ids: Vec::new(),
     }));

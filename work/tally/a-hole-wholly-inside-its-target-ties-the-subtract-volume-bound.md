@@ -60,7 +60,7 @@ as an inner loop of the part's own profile never reaches the bound
 (no boolean): the same plate as one extrude of a profile with two
 `LoopProgram::Circle` inner loops certifies the `1e-9` whole box
 (and whole boxes up to `1e-2` of the study), and its wider frontier is
-`work/paths/inner-loop-circles-bound-the-plate-study-at-arc-span.md`.
+`work/profiletail/inner-loop-circles-bound-the-plate-study-at-arc-span.md`.
 
 ## A tool that overshoots refuses too, elsewhere
 

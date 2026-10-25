@@ -587,14 +587,6 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             .to_string(),
             &["disagree about how many placements"],
         ),
-        (
-            PlacementRuleFault::ImproperFrame {
-                index: 2,
-                determinant: -1.0,
-            }
-            .to_string(),
-            &["placement 2 is improper (mirroring)"],
-        ),
     ];
     for (rendered, expected) in cases {
         for needle in expected {

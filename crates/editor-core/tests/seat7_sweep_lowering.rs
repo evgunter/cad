@@ -403,7 +403,7 @@ fn both_sweeps_evaluate_in_one_document() {
 /// a turn written as a fraction of a turn takes its sine and cosine from
 /// the fraction, so its revolve's heading `turn/4` puts the axis on the
 /// profile's `y` exactly; its revolve stands upright by a bundle with no
-/// mate spun `turn/4` (`fixture::upright_at`) where `place_at` wrote an
+/// mate spun `turn/4` (`fixture::upright_at`) where the retired place-at helper wrote an
 /// `Axis` mate onto a world read spun by turns read off by `atan2`; and
 /// its split's plane and its circular pattern's axis are read off its
 /// faces (`fixture::plane_on`, `axis_on`) where they were frames moved by
@@ -424,7 +424,7 @@ fn both_sweeps_evaluate_in_one_document() {
 ///
 /// Re-pinned, `die` alone, when its pips came to stand on frames stated
 /// from the cube's corner by whole quarter turns and dyadic slides (a
-/// frame mate each, `fixture::square_frame`), where `place_against` had
+/// frame mate each, `fixture::square_frame`), where the retired place-against helper had
 /// written `atan2`'s rounded turns: the die's world vertices are the
 /// merge base's (`f79829b57d`) bit for bit, 176 of 176, and its
 /// placements, their ids and the names under them are new.
@@ -436,14 +436,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x173c_8d8f_8a5a_b25c),
-        ("corner_table", 0xdc30_620e_06fd_8d9e),
-        ("cut_cylinder", 0xabec_a5a8_aa58_3491),
-        ("boss_union", 0x00d8_2bf5_fee5_3525),
-        ("kitchen_sink", 0x53da_49ea_7e4c_e120),
+        ("die", 0x538c_32e6_1493_8739),
+        ("corner_table", 0x7dd6_2ea6_289b_019e),
+        ("cut_cylinder", 0xa204_ea8f_4f36_b852),
+        ("boss_union", 0x1018_cfdc_0f05_c44c),
+        ("kitchen_sink", 0x99b3_96f7_8787_0655),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -998,9 +1004,16 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         "one declared parameter's two walls must decide equal radii: {:?}",
         value.coincidences
     );
-    let from_document = topo::mass_properties(body_of(&ev, union), tol())
-        .unwrap()
-        .volume;
+    let from_document = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(body_of(&ev, union)),
+            tol(),
+        ),
+        tol(),
+    )
+    .unwrap()
+    .volume;
 
     let raw_a = raw_spin(&raw_cylinder(R, H), Vec3::new(0.0, 0.0, 1.0), PHI);
     let raw_b = raw_spin(

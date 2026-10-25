@@ -312,7 +312,7 @@ fn the_checks_placement_refusal_names_the_node_the_repair_is_at() {
     // this evaluation has no resolver to fetch.
     let (doc, placement) = insert(
         ProfileDoc::empty_derived("node_standing_checks", Tol::witness()),
-        Node::instantiate_part(editor_core::DocRef {
+        crate::fixture::mated_instance(editor_core::DocRef {
             id: editor_core::DocumentId::derive("node_standing_checks_part"),
             pin: editor_core::ContentPin([7; 32]),
         }),
@@ -471,23 +471,22 @@ fn reads(code: &str) -> usize {
 const READERS: [(&str, usize, &str); 13] = [
     (
         "crates/editor-core/src/eval/mod.rs",
-        31,
+        27,
         "the home: the evaluator writes every result, and `usable_in` is the one ladder; the \
-         test-support hand-built evaluation takes its result map whole; a node's space is \
-         read off its inputs' values as they are written (`input_space`), and the loose \
-         spaces off every value; the solve reads each placement's answer off the evaluation \
-         (`SolvedPoses::of`): its value's space and motion, or the mate fault a FAILED \
-         placement carries, a standing and not a value",
+         test-support hand-built evaluation takes its result map whole; the solve reads each \
+         placement's answer off the evaluation (`SolvedPoses::of`): its value's motion, or the \
+         mate fault a FAILED placement carries, a standing and not a value (a node's space is \
+         the recipe's, `Doc::node_space`, and no value is read for it)",
     ),
     (
         "crates/editor-core/src/eval/wire.rs",
-        11,
+        10,
         "the op wiring holds the result map as it is written, and reads it through `usable_in`; \
          a read of a split's port or a family's member copies the standing entries and writes \
          the value it resolves to (`reads_projected`), every read still through `value_of`; a \
          placement's solve fault reads whether its placer FAILED, a standing and not a value \
          (`placement_fault`); a placement's fold holds its copy before placement as a scratch \
-         result, and reads a target's space and motion off the target's written value",
+         result, and reads a target's motion off the target's written value",
     ),
     (
         "crates/editor-core/src/eval/measure.rs",

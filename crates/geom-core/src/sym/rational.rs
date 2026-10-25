@@ -441,6 +441,7 @@ impl Rat {
         if den.is_zero() {
             #[cfg(feature = "sym-profile-testing")]
             profile::note(profile::FreezeCause::ZeroDivisor);
+            super::form::refused(super::form::Refusal::Ring);
             return None;
         }
         if num.is_zero() {
@@ -470,6 +471,7 @@ impl Rat {
         else {
             #[cfg(feature = "sym-profile-testing")]
             profile::note(profile::FreezeCause::Overflow);
+            super::form::refused(super::form::Refusal::Ring);
             return None;
         };
         let bound = coeff_bound();
@@ -479,6 +481,7 @@ impl Rat {
                 profile::coefficient_bits(num.bits().max(den.bits()), false);
                 profile::note(profile::FreezeCause::Coefficient);
             }
+            super::form::refused(super::form::Refusal::Ring);
             return None;
         }
         #[cfg(feature = "sym-profile-testing")]
@@ -492,6 +495,7 @@ impl Rat {
         if !x.is_finite() {
             #[cfg(feature = "sym-profile-testing")]
             profile::note(profile::FreezeCause::Overflow);
+            super::form::refused(super::form::Refusal::Ring);
             return None;
         }
         if x == 0.0 {
@@ -535,6 +539,7 @@ impl Rat {
             if k as u64 > coeff_bound() {
                 #[cfg(feature = "sym-profile-testing")]
                 profile::note(profile::FreezeCause::Coefficient);
+                super::form::refused(super::form::Refusal::Ring);
                 return None;
             }
             Some(r.num.shl(k))
@@ -574,6 +579,7 @@ impl Rat {
         let Some(exp2) = self.exp2.checked_add(other.exp2) else {
             #[cfg(feature = "sym-profile-testing")]
             profile::note(profile::FreezeCause::Overflow);
+            super::form::refused(super::form::Refusal::Ring);
             return None;
         };
         let den = if self.den.is_one() && other.den.is_one() {

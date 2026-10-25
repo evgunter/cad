@@ -42,8 +42,18 @@ fn tilted_plane_f64_and_replay() {
     assert_eq!(validate_closed(below), Ok(()));
     // The cut corner: below = triangle prism {(0,0),(2,0),(0,2)}·[0,1].
     let (va, vb, v0) = (
-        mass_properties(above, Tol::witness()).unwrap().volume,
-        mass_properties(below, Tol::witness()).unwrap().volume,
+        mass_properties(
+            &topo::test_support::finished("the measured body", (above).clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume,
+        mass_properties(
+            &topo::test_support::finished("the measured body", (below).clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume,
         mass_properties(&fx, Tol::witness()).unwrap().volume,
     );
     assert!((vb - 2.0).abs() < 1e-9, "below {vb}");
@@ -115,7 +125,18 @@ fn orientation_flip_swaps_sides_only() {
     };
     let r1 = split(&operand, &plane(1.0), Tol::witness()).unwrap();
     let r2 = split(&operand, &plane(-1.0), Tol::witness()).unwrap();
-    let vol = |p: &SplitPart<f64>| mass_properties(body_of(p), Tol::witness()).unwrap().volume;
+    let vol = |p: &SplitPart<f64>| {
+        mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                (body_of(p)).clone(),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume
+    };
     assert!((vol(&r1.above) - vol(&r2.below)).abs() < 1e-12);
     assert!((vol(&r1.below) - vol(&r2.above)).abs() < 1e-12);
     let census = |p: &SplitPart<f64>| {

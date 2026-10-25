@@ -178,7 +178,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for r in refs {
-        let (next, id) = insert(doc, Node::instantiate_part(*r));
+        let (next, id) = insert(doc, crate::fixture::mated_instance(*r));
         doc = next;
         ids.push(id);
     }
@@ -207,7 +207,7 @@ fn repinned(
     pose: &Frame,
     opts: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = unpinned(doc, placement);
+    let doc = fixture::stand_again(doc, placement);
     fixture::pin(doc, placement, pose, opts)
 }
 
@@ -218,56 +218,14 @@ fn repinned(
 /// names are never resolved; the mate is the shape of a pin, so the
 /// copy is the world's by its recipe.
 fn nominally_pinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
-    let copy = match doc.node(placement) {
-        Some(Node::Place { shapes, .. }) => {
-            editor_core::Operand::Var(shapes.first().expect("a placement copies a shape").read)
-        }
-        Some(Node::InstantiatePart { .. }) => editor_core::Operand::Var(
-            doc.output(placement, 0)
-                .expect("an instance defines its copies"),
-        ),
-        other => panic!("node {placement} is a placement, got {other:?}"),
-    };
-    let named = |kind| StableName {
-        kind,
-        node: placement,
-        path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
-    };
-    let read = |def: editor_core::pose::PoseDef<editor_core::Operand, editor_core::Formula>| {
-        editor_core::pose::RoleRead::plain(editor_core::Operand::Pose(Box::new(def)))
-    };
-    let mate = editor_core::Mate {
-        on: editor_core::Operand::Pose(Box::new(editor_core::pose::PoseDef::Through {
-            axis: read(editor_core::pose::PoseDef::Axis {
-                of: editor_core::Operand::select(
-                    copy.clone(),
-                    vec![named(editor_core::EntityKind::Edge)],
-                ),
-            }),
-            point: read(editor_core::pose::PoseDef::Point {
-                of: editor_core::Operand::select(
-                    copy,
-                    vec![named(editor_core::EntityKind::Vertex)],
-                ),
-            }),
-        })),
-        to: editor_core::Target::World(editor_core::WorldRead::Frame),
-        class: editor_core::ContactClass::Rest,
-    };
-    fixture::constrain_at(doc, placement, mate).0
+    fixture::stand_again(doc, placement)
 }
 
 /// **One copy of `body`, which never evaluates, in the world**: a
 /// placement of it, [`nominally_pinned`].
 fn placed_nominally(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, placement) = insert(doc, Node::place(vec![body.into()]));
+    let (doc, placement) = insert(doc, crate::fixture::stood(vec![body.into()]));
     (nominally_pinned(doc, placement), placement)
-}
-
-/// `placement` with its bundle emptied: its values first, so no value
-/// is left naming a mate already removed.
-fn unpinned(doc: ProfileDoc, placement: RecipeNodeId) -> ProfileDoc {
-    fixture::emptied(doc, placement)
 }
 
 /// The one product body an instance's copies carry.
@@ -306,9 +264,12 @@ fn copy_in(
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 fn part_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> PartFault {
@@ -473,16 +434,16 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
         second.len()
     );
     // The counts are literals on purpose: a row that only compares the
-    // two instances passes when both lose the same decisions. 465 is
-    // the placing op's own log on this part: its pin's fold off the
-    // identity (the two pose normals, and the map's rigidity, which
-    // every placement but the identity bundle runs), then placement and
+    // two instances passes when both lose the same decisions. 456 is
+    // the placing op's own log on this part: its pin, values on the
+    // world's axes composed as a motion (reading no pose and deciding no
+    // margin), then placement and
     // validation of the placed body; 826 is the part's, on its own
     // nodes — its profile's pre-pass on the Profile node's log, then
     // what the second pass the `f64` lane skips decides, logged in its
     // place (`editor_core::ProfileLane`). Its placement's stand is the
     // identity bundle, placed by no map, which decides nothing.
-    assert_eq!(first.len(), 465, "the instantiate op's own decisions");
+    assert_eq!(first.len(), 456, "the instantiate op's own decisions");
     assert_eq!(direct_total, 826, "the part's decisions on its own nodes");
 }
 
@@ -601,7 +562,8 @@ fn row3_instance_qualified_names_round_trip_persistence() {
 
 // ---- Row 4: the world mate ----
 
-/// Row 4 — an inserted instance is loose; a world mate's pose moves the
+/// Row 4 — an inserted instance stands in the world by the identity
+/// bundle; a world mate's pose moves the
 /// copy without changing its volume; the pre-edit document is untouched
 /// (undo = keeping the prior value); a non-instance target refuses
 /// typed.
@@ -612,8 +574,10 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
     let opts = with_resolver(store);
     let (loose, ids) = assembly("asm2a-r4-asm", &[doc_ref]);
     assert!(
-        fixture::bundle(&loose, ids[0]).is_empty(),
-        "an inserted instance is loose"
+        fixture::bundle(&loose, ids[0])
+            .iter()
+            .all(|c| c.mate().is_none()),
+        "an inserted instance stands by the identity bundle"
     );
     let doc = fixture::pinned(loose, ids[0], &opts);
     let held = fixture::offset_of(&doc, ids[0]);
@@ -657,14 +621,17 @@ fn row4_the_world_pin_moves_undoes_and_refuses() {
         .iter()
         .find(|&&id| matches!(part_doc.node(id), Some(Node::Extrude { .. })))
         .expect("the part extrudes its block");
-    let pin = editor_core::pin_at(
-        &part_doc,
-        &editor_core::Operand::Node(block),
-        &Frame::translation([1.0, 0.0, 0.0]),
-        &EvalOptions::default(),
-        Tol::witness(),
-    )
-    .expect("the block pins over its geometry");
+    let cap = fixture::plane(editor_core::Operand::select(
+        editor_core::Operand::Node(block),
+        vec![fixture::fname(
+            block,
+            RoleSeg::Cap(editor_core::CapEnd::Start),
+        )],
+    ));
+    let pin = editor_core::Mate {
+        on: cap.clone(),
+        to: cap,
+    };
     match editor_core::apply(
         &part_doc,
         &DocEdit::AddConstraint {
@@ -1026,7 +993,7 @@ impl PartResolver for CyclicStore {
             (self.b, self.a)
         };
         let doc = ProfileDoc::empty(here.id, Tol::witness());
-        let (doc, instance) = insert(doc, Node::instantiate_part(there));
+        let (doc, instance) = insert(doc, crate::fixture::mated_instance(there));
         Ok(nominally_pinned(doc, instance))
     }
 }
@@ -1095,7 +1062,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     let mut store = StubStore::default();
     let broken = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-broken-part"), Tol::witness());
-        let (doc, instance) = insert(doc, Node::instantiate_part(missing));
+        let (doc, instance) = insert(doc, crate::fixture::mated_instance(missing));
         nominally_pinned(doc, instance)
     };
     let inner_root = broken.ids()[0];
@@ -1188,7 +1155,7 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
     let wrapper = |label: &str, inner: DocRef| {
         let (doc, instance) = insert(
             ProfileDoc::empty(DocumentId::derive(label), tol),
-            Node::instantiate_part(inner),
+            crate::fixture::mated_instance(inner),
         );
         (nominally_pinned(doc, instance), instance)
     };
@@ -1330,7 +1297,7 @@ fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
     let part_ref = store.insert(part, tol);
 
     let bracket = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-deep-bracket"), tol);
-    let (bracket, inner) = insert(bracket, Node::instantiate_part(part_ref));
+    let (bracket, inner) = insert(bracket, crate::fixture::mated_instance(part_ref));
     let bracket = nominally_pinned(bracket, inner);
     let (bracket, _) = placed_nominally(bracket, inner);
     let bracket_ref = store.insert(bracket.clone(), tol);
@@ -1451,7 +1418,7 @@ fn r1_part_evaluations_aggregates_through_nesting() {
     let p = store.insert(part("asm2a-nest-p", 0.0, 1.0), Tol::witness());
     let sub = {
         let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"), Tol::witness());
-        let (doc, instance) = insert(doc, Node::instantiate_part(p));
+        let (doc, instance) = insert(doc, crate::fixture::mated_instance(p));
         fixture::pinned(doc, instance, &with_resolver(store.clone()))
     };
     let b = store.insert(sub, Tol::witness());
@@ -1555,11 +1522,12 @@ fn two_cubes_glued_on_a_wall() -> (
 /// Evaluated at `Sym` with every variable a symbol and the evaluation's
 /// resolver, the two cube instances and their union build: each part's
 /// variables are symbols of the part's own pinned version, so nothing
-/// across the seam refuses. The door's replay builds no placed copies
-/// ([`editor_core::coincide::REPLAYS_PLACED_COPIES`], off until the seat
-/// item turns it on), so handed the evaluation's resolver or none, each
-/// row on a part says the replay resolved no part and names an
-/// assertion as its recourse.
+/// across the seam refuses. The door's replay reads no node's row on a
+/// part, since resolving the parts at `Sym` costs seconds and has bought
+/// such a row no proof
+/// (`work/intent/an-unmated-row-on-a-part-resolves-parts-at-sym-for-seconds.md`):
+/// handed the evaluation's resolver or none, each row on a part says the
+/// replay resolved no part and names an assertion as its recourse.
 #[test]
 fn a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed() {
     let (doc, union, rows, opts) = two_cubes_glued_on_a_wall();
@@ -1600,12 +1568,11 @@ fn a_symbolic_run_builds_a_part_and_the_door_leaves_a_row_on_one_unreplayed() {
     }
 }
 
-/// **A canceled token reaches the door's replay.** Each row here stands
-/// on a part, which the replay answers without discharging a margin, so
-/// the door consults no token of its own after the replay: only a
-/// replay that runs under the caller's token stops canceled. A replay
-/// under a token of its own runs to the end, and the rows come back
-/// unproven instead.
+/// **A canceled token stops the door before it answers.** Each row here
+/// stands on a part, which the door answers without a replay or a
+/// margin to discharge, so only the token read where the door's replay
+/// begins stops it: a door that read it only inside a replay would
+/// answer the rows unproven instead.
 #[test]
 fn a_canceled_door_stops_in_its_replay() {
     let (doc, union, rows, _) = two_cubes_glued_on_a_wall();
@@ -1638,11 +1605,11 @@ impl PartResolver for CancelingStore {
 }
 
 /// **A run canceled during the census pass places nothing**: no node
-/// ran, so no copy's space is read off a part table the pass only
-/// partly entered. The same document uncanceled has both instances as
-/// loose copies, which is what the empty map is measured against.
+/// ran, so no copy is read off a part table the pass only partly
+/// entered. The same document uncanceled places both instances, which
+/// is what the empty result map is measured against.
 #[test]
-fn a_run_canceled_in_the_census_has_no_loose_copies() {
+fn a_run_canceled_in_the_census_places_nothing() {
     let mut store = StubStore::default();
     let a = store.insert(part("asm2a-census-cancel-a", 0.0, 1.0), Tol::witness());
     let b = store.insert(part("asm2a-census-cancel-b", 3.0, 1.0), Tol::witness());
@@ -1654,13 +1621,12 @@ fn a_run_canceled_in_the_census_has_no_loose_copies() {
         editor_core::EvalOutcome::Completed,
         "uncanceled, the run completes"
     );
-    let mut loose = ids.clone();
-    loose.sort();
-    assert_eq!(
-        whole.loose_roots(),
-        loose,
-        "uncanceled, each instance is a loose copy"
-    );
+    for &id in &ids {
+        assert!(
+            whole.value(id).is_some(),
+            "uncanceled, each instance places"
+        );
+    }
 
     let cancel = CancelToken::new();
     let resolver = Arc::new(CancelingStore {
@@ -1687,10 +1653,5 @@ fn a_run_canceled_in_the_census_has_no_loose_copies() {
         canceled.nodes.is_empty(),
         "no node ran: {:?}",
         canceled.nodes.keys()
-    );
-    assert!(
-        canceled.loose.is_empty(),
-        "a canceled census places no copy: {:?}",
-        canceled.loose
     );
 }

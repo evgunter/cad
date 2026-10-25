@@ -69,9 +69,11 @@ fn arc_loft(s: f64) -> Body<f64> {
     .body
 }
 
-/// The thin curved strip, two stations high — the body whose volume
-/// enclosure straddles zero after the schedule has run out, so its
-/// target-level reading refuses and names a face.
+/// The thin curved strip, two stations high: two large rational walls
+/// whose fluxes nearly cancel. It refused its number at round 0 while
+/// a lane refused on a predicted last round; its walls now refine past
+/// that, and at `1e12·ε` its number certifies (`sign_walk_plus_v`
+/// carries the strip that still refuses, at `1e14·ε`).
 fn strip_loft(s: f64, delta: f64) -> Body<f64> {
     loft_body::<f64>(
         &[
@@ -92,8 +94,7 @@ fn strip_loft(s: f64, delta: f64) -> Body<f64> {
 /// verb produces; `bulged_extrusion` — the same chart from the extrude
 /// door), `loft_prism` (described splines, the finding's own body), the
 /// arc lofts scaled against the run's own ε so no row goes vacuous at
-/// one point of the matrix, and the thin strip whose target reading
-/// refuses.
+/// one point of the matrix, and the thin strip.
 fn roster() -> Vec<(String, Body<f64>)> {
     let eps = Tol::witness().get().eps;
     let mut out: Vec<(String, Body<f64>)> = vec![
@@ -125,8 +126,12 @@ fn roster() -> Vec<(String, Body<f64>)> {
 /// One body's line: the reading (bits, or the typed refusal — which is
 /// where the refusing FACE is named) and both recorded channels.
 fn line(name: &str, body: &Body<f64>) -> String {
+    // Finished outside the bracket, so the line is the measurement's own
+    // readings. Every body here finishes at every ε, and one that did not
+    // would panic here rather than reach the pinned line.
+    let at_rest = topo::test_support::finished(name, topo::Body::clone(body), Tol::witness());
     let bracket = Bracket::open();
-    let read = match topo::mass_properties(body, Tol::witness()) {
+    let read = match topo::mass_properties(&at_rest, Tol::witness()) {
         Ok(m) => format!(
             "v={:016x} a={:016x} vpad={:016x} apad={:016x}",
             m.volume.to_bits(),
@@ -168,8 +173,8 @@ fn budget() -> SymBudget {
 /// A `Sym` body's builder, run inside the session that reads it.
 type SymBody = fn() -> Body<Sym<f64>>;
 
-/// The same two bodies at `Sym<f64>` — one that answers and one whose
-/// target reading refuses — as builders, so a session can be installed
+/// The same two bodies at `Sym<f64>`, the arc loft and the thin
+/// strip, as builders, so a session can be installed
 /// before their nodes are minted ([`receipts`]).
 fn sym_bodies() -> [(&'static str, SymBody); 2] {
     [
@@ -198,7 +203,7 @@ fn sym_arc_loft() -> Body<Sym<f64>> {
     .body
 }
 
-/// The thin strip at `Sym<f64>`, whose target reading refuses.
+/// The thin strip at `Sym<f64>`.
 fn sym_thin_strip() -> Body<Sym<f64>> {
     let eps = Tol::witness().get().eps;
     loft_body::<Sym<f64>>(
@@ -281,9 +286,19 @@ fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receip
         for door in ["mass_properties", "validate_geometric"] {
             let ((refused, built), end) = with_session(budget, || {
                 let body = build();
+                // The measurement door's body is finished before the build's
+                // counts are taken, so its receipt is the door's own, off the
+                // end. The validation door reads the body as built: a gate run
+                // first would freeze the forms its own receipt counts.
+                let finished = (door == "mass_properties").then(|| {
+                    topo::test_support::finished("the built body", body.clone(), Tol::witness())
+                });
                 let built = geom_core::sym::session_counts().expect("a session is installed");
                 geom_core::sym::report::start_shape_report();
-                let refused = read_door(&body, door);
+                let refused = match &finished {
+                    Some(finished) => topo::mass_properties(finished, Tol::witness()).is_err(),
+                    None => topo::validate_geometric(&body, Tol::witness()).is_err(),
+                };
                 (refused, built)
             });
             let shapes = geom_core::sym::report::take_shape_report().len();
@@ -297,15 +312,6 @@ fn receipts(bodies: &[(&'static str, SymBody)], budget: SymBudget) -> Vec<Receip
         }
     }
     out
-}
-
-/// Reads `body` through `door`; true where the door refused.
-fn read_door(body: &Body<Sym<f64>>, door: &str) -> bool {
-    if door == "mass_properties" {
-        topo::mass_properties(body, Tol::witness()).is_err()
-    } else {
-        topo::validate_geometric(body, Tol::witness()).is_err()
-    }
 }
 
 /// The counts `end` took on after `start`, column by column — every
@@ -434,8 +440,10 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         recorded > 0,
         "the committed digest records no verdict on any body — it is a table of empty channels"
     );
+    let prism =
+        topo::test_support::finished("the loft prism", loft_prism(Tol::witness()), Tol::witness());
     let bracket = Bracket::open();
-    let _ = topo::mass_properties(&loft_prism(Tol::witness()), Tol::witness());
+    let _ = topo::mass_properties(&prism, Tol::witness());
     let log = bracket.finish();
     let quad = log
         .verdicts
@@ -502,10 +510,16 @@ fn dispute_coverage(c: &SymCounts) -> Result<(), String> {
 #[test]
 fn bodies_built_before_the_session_trip_the_guard_while_disp_still_reads_zero() {
     let body = sym_arc_loft();
+    // The measurement door's body is finished outside the session too, so
+    // its receipt is the door's own; the validation door reads it as built.
+    let finished = topo::test_support::finished("the arc loft", body.clone(), Tol::witness());
     let all: Vec<_> = ["mass_properties", "validate_geometric"]
         .into_iter()
         .map(|door| {
-            let (_, c) = with_session(budget(), || read_door(&body, door));
+            let (_, c) = with_session(budget(), || match door {
+                "mass_properties" => topo::mass_properties(&finished, Tol::witness()).is_err(),
+                _ => topo::validate_geometric(&body, Tol::witness()).is_err(),
+            });
             (door, c)
         })
         .collect();

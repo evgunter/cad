@@ -156,8 +156,8 @@ fn gauss_rule(n: usize) -> Option<(&'static [f64], &'static [f64])> {
 }
 
 /// `(1/2)∫_{t0}^{t1} (P(t) − ref)×P′(t) dt` for a **non-rational**
-/// B-spline carrier, exact (module docs of [`loop_vector_area`]: the
-/// per-span polynomial integrand meets the fixed `k`-point Gauss rule
+/// B-spline carrier ([`NurbsCurve3::constant_weight`]), exact (module
+/// docs of [`loop_vector_area`]: the per-span polynomial integrand meets the fixed `k`-point Gauss rule
 /// that integrates its degree exactly).
 ///
 /// Span walking is generic-scalar sound: the covered span range comes
@@ -172,7 +172,7 @@ fn nurbs_vector_area<T: SpanLocate>(
     t1: T,
     ref_point: Point3<T>,
 ) -> Result<Vec3<T>, PropsError> {
-    if curve.weights_f64_interim().iter().any(|w| *w != 1.0) {
+    if curve.constant_weight().is_none() {
         return Err(PropsError::Unimplemented);
     }
     let degree = curve.degree().max(1);
@@ -253,6 +253,52 @@ mod tests {
         for v in [a.x, a.y, a.z] {
             assert!(v.value.is_nan() && v.deriv.is_nan(), "{a:?}");
         }
+    }
+
+    /// **A constant weight is the polynomial arm's**: the cubic on one
+    /// net with every weight `2` integrates to the unit-weight curve's
+    /// area to the bit (a power of two scales the homogeneous
+    /// evaluation exactly). At `3` and `0.1` it agrees to a few ulps
+    /// and no closer: the arm evaluates through the rational
+    /// evaluator, whose `Σ Nᵢ·c·Pᵢ / Σ Nᵢ·c` rounds once more than the
+    /// unit net's. A net whose weights vary refuses as the rational
+    /// carrier this arm does not integrate.
+    #[test]
+    fn a_constant_weight_carrier_integrates_as_its_polynomial() {
+        use geom_core::spline::KnotVector;
+        let p = |x: f64, y: f64| Point3::new(x, y, 0.0);
+        let area = |weights: Vec<f64>| {
+            let curve = NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap(),
+                vec![p(0.0, 0.0), p(1.0, 2.0), p(2.0, 0.0), p(3.0, 1.0)],
+                weights,
+            )
+            .unwrap();
+            nurbs_vector_area(&curve, 0.1, 0.9, p(0.5, -1.0))
+        };
+        let unit = area(vec![1.0; 4]).unwrap();
+        let twos = area(vec![2.0; 4]).unwrap();
+        assert_eq!(
+            [twos.x, twos.y, twos.z].map(f64::to_bits),
+            [unit.x, unit.y, unit.z].map(f64::to_bits),
+            "weights 2: {twos:?}, unit: {unit:?}"
+        );
+        for c in [3.0, 0.1] {
+            let got = area(vec![c; 4]).unwrap();
+            assert!(
+                got.x == 0.0
+                    && got.y == 0.0
+                    && (got.z - unit.z).abs() <= 16.0 * f64::EPSILON * unit.z.abs(),
+                "weights {c}: {got:?}, unit: {unit:?}"
+            );
+        }
+        assert!(
+            matches!(
+                area(vec![1.0, 2.0, 2.0, 1.0]),
+                Err(PropsError::Unimplemented)
+            ),
+            "a varying weight vector is rational"
+        );
     }
 
     fn line_edge(a: Point3<f64>, b: Point3<f64>, forward: bool) -> LoopEdge<f64> {

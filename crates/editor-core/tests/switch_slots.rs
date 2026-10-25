@@ -13,11 +13,11 @@ use crate::fixture;
 use editor_core::AuthoredNode;
 
 use editor_core::{
-    AssertionRelation, CancelToken, CapEnd, ContactClass, ContentPin, Dimension, DocEdit, DocRef,
-    DocumentId, EditError, EvalOptions, ExprPath, Formula, FreeVar, InterfaceRecord, LoopProgram,
-    Node, NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
-    StepArg, TubeWindow, ValuePayload, VarName, evaluate,
+    AssertionRelation, CancelToken, CapEnd, ContentPin, Dimension, DocEdit, DocRef, DocumentId,
+    EditError, EvalOptions, ExprPath, Formula, FreeVar, InterfaceRecord, LoopProgram, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId, StepArg, TubeWindow,
+    ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -507,11 +507,13 @@ test_utils::f6_variants! {
         Chamfer,
         Shell,
         Split,
+        Mirror,
         Subtract,
         Union,
         Intersect,
         Place,
         World,
+        Space,
         Pattern,
         Part,
         PlacedUnion,
@@ -543,30 +545,26 @@ fn value(n: u64, value: editor_core::Value<Formula>) -> editor_core::Constraint<
     }
 }
 
-/// A mate of the cap plane of `body`'s copy with the world's `xy`
-/// plane as `world` moves it.
-fn to_world(
-    body: RecipeNodeId,
-    world: editor_core::WorldRead<Formula>,
-) -> editor_core::Mate<Formula> {
-    editor_core::Mate {
-        on: fixture::plane(fixture::head(fixture::fname(
-            body,
-            RoleSeg::Cap(CapEnd::Start),
-        ))),
-        to: editor_core::Target::World(world),
-        class: ContactClass::Rest,
-    }
+/// A `Spin(Z)` value turning by `turn` of a turn.
+fn spin_z(n: u64, turn: f64) -> editor_core::Constraint<Formula> {
+    value(
+        n,
+        editor_core::Value {
+            coord: editor_core::Coord::Spin(editor_core::TargetAxis::Z),
+            by: ang(turn),
+        },
+    )
 }
 
-/// The world's `xy` plane.
-fn world_xy() -> editor_core::WorldRead<Formula> {
-    editor_core::WorldRead::through(editor_core::pose::PoseRole::Xy)
-}
-
-/// The world's `z` axis.
-fn world_z() -> editor_core::WorldRead<Formula> {
-    editor_core::WorldRead::through(editor_core::pose::PoseRole::Z)
+/// A `Slide(Z)` value sliding by `by`.
+fn slide_z(n: u64, by: f64) -> editor_core::Constraint<Formula> {
+    value(
+        n,
+        editor_core::Value {
+            coord: editor_core::Coord::Slide(editor_core::TargetAxis::Z),
+            by: len(by),
+        },
+    )
 }
 
 /// One value per node SHAPE — every kind of the roster above, and
@@ -644,6 +642,10 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             target: nid(1).into(),
             tool: nid(2).into(),
         },
+        Node::Mirror {
+            body: nid(1).into(),
+            plane: nid(2).into(),
+        },
         Node::Subtract {
             from: nid(1).into(),
             tool: nid(2).into(),
@@ -654,28 +656,23 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Intersect {
             members: editor_core::Bodies::Spelled(vec![nid(1).into(), nid(2).into()]),
         },
-        // A world mate reading the world's plane as it stands: its read
-        // holds no scalar, so no slot.
+        // The identity bundle: no constraint, so no slot.
         Node::Place {
             shapes: vec![nid(1).into()],
-            constraints: vec![constraint(1, to_world(nid(1), world_xy()))],
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
+            constraints: Vec::new(),
         },
-        // A world mate reading the world's plane slid and spun: a slide
-        // slot and a spin slot, in the read's pre-order.
+        // A bundle of values on the world's axes: a slide slot and a
+        // spin slot, each under its own constraint's id.
         Node::Place {
             shapes: vec![nid(1).into()],
-            constraints: vec![constraint(
-                1,
-                to_world(
-                    nid(1),
-                    world_xy()
-                        .slide(world_z(), len(2.0))
-                        .spin(world_z(), ang(0.25)),
-                ),
-            )],
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
+            constraints: vec![slide_z(1, 2.0), spin_z(2, 0.25)],
         },
         // The world: no slot at all.
         Node::World,
+        // A new space: no slot either.
+        Node::Space,
     ]);
     for kind in [
         PatternKind::Linear {
@@ -717,26 +714,16 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             interface: InterfaceRecord {
                 crossings: Vec::new(),
             },
-            constraints: vec![constraint(
-                1,
-                to_world(nid(1), world_xy().slide(world_z(), len(1.0))),
-            )],
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
+            constraints: vec![slide_z(1, 1.0)],
         },
-        // A placement whose bundle is a world mate, a mate onto a face
-        // and a value on that mate: each constraint's slots carry its
-        // own id.
+        // A placement whose bundle is a mate onto a face and values
+        // charted on its target: each constraint's slots carry its own
+        // id.
         Node::Place {
             shapes: vec![nid(2).into()],
+            target: editor_core::Operand::Var(editor_core::VarId::WORLD),
             constraints: vec![
-                constraint(
-                    1,
-                    to_world(
-                        nid(2),
-                        world_xy()
-                            .slide(world_z(), len(2.0))
-                            .spin(world_z(), ang(0.25)),
-                    ),
-                ),
                 constraint(
                     2,
                     fixture::mate(
@@ -748,25 +735,10 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
                             nid(1),
                             RoleSeg::Cap(CapEnd::Start),
                         ))),
-                        ContactClass::Rest,
                     ),
                 ),
-                value(
-                    3,
-                    editor_core::Value {
-                        mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 2))),
-                        coord: editor_core::Coord::Spin,
-                        by: ang(0.5),
-                    },
-                ),
-                value(
-                    4,
-                    editor_core::Value {
-                        mate: Some(editor_core::ConstraintId(editor_core::MintId::new(0, 2))),
-                        coord: editor_core::Coord::Slide(editor_core::TargetAxis::Z),
-                        by: len(0.5),
-                    },
-                ),
+                spin_z(3, 0.5),
+                slide_z(4, 0.5),
             ],
         },
         Node::Measure {

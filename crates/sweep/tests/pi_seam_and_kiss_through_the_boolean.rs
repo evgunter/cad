@@ -601,7 +601,14 @@ fn a_lens_of_two_domes_builds() {
         ),
         (Point2::new(R, 0.0), 0.0),
     ]);
-    let volume = |b: &Body<f64>| topo::mass_properties(b, tol).unwrap().volume;
+    let volume = |b: &Body<f64>| {
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(b), tol),
+            tol,
+        )
+        .unwrap()
+        .volume
+    };
     let want = 2.0 * volume(&dome);
     assert!(
         (volume(&bowl) - volume(&dome)).abs() <= 1e-12 * want,
@@ -1549,7 +1556,12 @@ fn a_g1_joint_authored_inside_one_profile_is_the_seams_union() {
         topo::transform_rigid(&at0, &geom_core::test_support::rigid(&turn, tol), tol).unwrap();
     capsule.merge_coplanar_faces(tol).unwrap();
     topo::validate_geometric(&capsule, tol).unwrap_or_else(|e| panic!("tier 3: {e:?}"));
-    let v = topo::mass_properties(&capsule, tol).unwrap().volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&capsule), tol),
+        tol,
+    )
+    .unwrap()
+    .volume;
     let want = tube_and_half_ball_volume();
     assert!((v - want).abs() <= 1e-12 * want, "{v} vs {want}");
     assert_eq!(census(&capsule), (5, 8, 5, 1), "the seam union's census");

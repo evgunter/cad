@@ -98,7 +98,8 @@ fn a_flipped_dimple_is_refused_by_the_side_reader() {
     );
     assert!(
         matches!(
-            topo::mass_properties(&flipped, tol),
+            // Raw door: `flipped` is a seam region covered twice, which tier 3 refuses (SeamRegionOvercovered).
+            topo::test_support::measure_unvalidated(&flipped, tol),
             Err(topo::MassPropsError::Face {
                 face,
                 source: geom_brep::props::PropsError::SenseContradicted,

@@ -55,7 +55,7 @@ def slab(doc, x0, x1):
 
 def one_box(seed="memo-one-box"):
     doc = Doc(seed)
-    doc.place(slab(doc, 0.0, 1.0))
+    doc.place(slab(doc, 0.0, 1.0), doc.world)
     return doc
 
 

@@ -4,6 +4,7 @@ kind: issue
 title: Under the world the kernel still names placements roots: CheckFinding.root, ChecksError::Root, PartRoot*, ProductError::Root*, "part root" wording
 status: open
 opened: 2026-10-08
+refs: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 
@@ -37,3 +38,20 @@ Moved to INTENT and parked on stage 3's `a-placement-is-the-bundle-of-mates`, wh
 ## Unblocked by INTENT stage 3 B (PR 5232, 2026-10-17)
 
 B retired the group roots: `MateRole`, groups and `Unplaced`, as `Space::{World, Loose}`. The product's and checks' `root` vocabulary listed above is untouched; `CheckFinding::root`, `ProductError::Root*` and `PartRoot*` still hold placement ids. The rename is this row's, and nothing blocks it now.
+
+## Skipped by the hygiene batch (2026-10-22)
+
+Checked against D10 as it stands after PR 5494. `[placement.world]`
+makes the world one `Space` among others, and `[operations]` gives a
+document one product slot reading a body in the world space. Every
+name on this row's list (`CheckFinding::root`, `ChecksError::Root`,
+`ProductError::Root*`, `PartRoot*`, the Python tags) names a
+placement as one entry in the gather of world placements. D′1 keeps
+that gather as a named interim (spec §5′.1, "the product is the
+gather of the placements whose target is the world"), and
+D′3 (`assemble-is-an-operator-and-the-product-is-a-slot`) retires it:
+the product becomes a slot and an instance reads its part's product.
+What these names become, a body or a piece of `⊔` rather than a
+placement, is D′3's answer, so renaming them to "placement" now would
+be churn. D′1's spec lists this row among its re-reads; D′3 renames
+or deletes these names and closes the row.

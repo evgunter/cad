@@ -7,8 +7,8 @@
 //! The geometric tests themselves are the KERNEL's ([`topo::query`],
 //! the kernel query seat): kind mirrors, kind-set comparands, the
 //! per-key predicates and the decided distance funnel are defined
-//! there, beside `Body`, and re-exported here — the `ContactClass`
-//! layering shape (defined lowest, re-exported upward), so the
+//! there, beside `Body`, and re-exported here — the contact
+//! vocabulary's layering shape (defined lowest, re-exported upward), so the
 //! document door and a kernel-direct caller run the same one
 //! implementation. What this module OWNS is everything name-flavored:
 //! the [`GeomPred`] atom vocabulary (whose reference face is a recipe
@@ -472,10 +472,7 @@ pub(crate) fn prepare<T: Decide>(
                 let normal = geom_core::UnitVec3::new(normal, query::POSE_UNIT_NORM, band)
                     .map_err(|_| unresolved())?;
                 Ok(Prepared::Distance {
-                    plane: PoseValue::Plane {
-                        origin: at.origin,
-                        normal,
-                    },
+                    plane: PoseValue::plane_through(at.origin, normal),
                     cmp: *cmp,
                     value: crate::expr::eval(value, params).map_err(SelectRefusal::BadValue)?,
                 })

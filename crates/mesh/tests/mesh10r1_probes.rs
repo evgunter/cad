@@ -92,7 +92,11 @@ fn r1_every_donut_split_is_the_donut_bitwise() {
     let tol = Tol::witness();
     let base = donut();
     let r0 = receipts(&base);
-    let mp0 = topo::mass_properties(&base, tol).unwrap();
+    let mp0 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", base.clone(), tol),
+        tol,
+    )
+    .unwrap();
     let n = base.edges().count();
     println!("donut edges: {n}");
     let mut bad = Vec::new();
@@ -100,7 +104,20 @@ fn r1_every_donut_split_is_the_donut_bitwise() {
         for fracs in [&[0.5][..], &[0.3129, 0.15645][..]] {
             let body = split_donut(i, fracs);
             let r = receipts(&body);
-            let mp = topo::mass_properties(&body, tol);
+            let mp = match topo::AtRestBody::validate(body.clone(), tol) {
+                Ok(finished) => topo::mass_properties(&finished, tol),
+                Err(errors) => {
+                    assert!(
+                        errors.iter().all(|e| matches!(
+                            e,
+                            topo::ValidationError::JoinableVertexAtRest { .. }
+                        )),
+                        "edge {i} @{fracs:?}: tier 3 refuses the split body for more than its joinable vertices: {errors:?}"
+                    );
+                    // Raw door: a split that leaves joinable vertices at rest, which tier 3 refuses (JoinableVertexAtRest), as the assert above admits.
+                    topo::test_support::measure_unvalidated(&body, tol)
+                }
+            };
             let vol_ok = mp
                 .as_ref()
                 .map(|m| {
@@ -202,7 +219,11 @@ fn r1_split_seam_donut_mesh_measured() {
 fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
     let tol = Tol::witness();
     let base = donut();
-    let mp0 = topo::mass_properties(&base, tol).unwrap();
+    let mp0 = topo::mass_properties(
+        &topo::test_support::finished("the measured body", base.clone(), tol),
+        tol,
+    )
+    .unwrap();
     println!("unsplit: V={} A={}", mp0.volume, mp0.surface_area);
     let mut body = split_donut(0, &[0.5]);
     // The second child is the edge the split minted: the last edge.
@@ -228,7 +249,10 @@ fn r1_a_reparametrised_split_child_refuses_at_the_fold() {
                 .certified()
                 .unwrap();
             println!("child stored interval after: {:?}", c2.params());
-            let mp = topo::mass_properties(&body, tol);
+            let mp = topo::mass_properties(
+                &topo::test_support::finished("the measured body", body.clone(), tol),
+                tol,
+            );
             println!(
                 "mass_properties: {:?}",
                 mp.as_ref().map(|m| (m.volume, m.surface_area))
@@ -301,7 +325,10 @@ fn r1_a_reparametrised_unsplit_edge_control() {
     match body.set_edge_curve(ek, spec, tol) {
         Err(e) => println!("unsplit +2π span: set_edge_curve REFUSED: {e:?}"),
         Ok(_) => {
-            let mp = topo::mass_properties(&body, tol);
+            let mp = topo::mass_properties(
+                &topo::test_support::finished("the measured body", body.clone(), tol),
+                tol,
+            );
             println!(
                 "unsplit +2π span accepted; mass_properties {:?}",
                 mp.map(|m| m.volume)
@@ -335,9 +362,12 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
     for (name, make) in corpus {
         let base = make();
         let r0 = receipts(&base);
-        let mp0 = topo::mass_properties(&base, tol)
-            .map(|m| (m.volume.to_bits(), m.surface_area.to_bits()))
-            .map_err(|e| format!("{e:?}"));
+        let mp0 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", base.clone(), tol),
+            tol,
+        )
+        .map(|m| (m.volume.to_bits(), m.surface_area.to_bits()))
+        .map_err(|e| format!("{e:?}"));
         let n = base.edges().count();
         for i in 0..n {
             for fracs in [&[0.5][..], &[0.3129, 0.15645][..]] {
@@ -360,7 +390,21 @@ fn r1_the_class_sweep_measured_over_the_curved_corpus() {
                     continue;
                 }
                 let r = receipts(&body);
-                let mp = topo::mass_properties(&body, tol)
+                let mp = match topo::AtRestBody::validate(body.clone(), tol) {
+                    Ok(finished) => topo::mass_properties(&finished, tol),
+                    Err(errors) => {
+                        assert!(
+                            errors.iter().all(|e| matches!(
+                                e,
+                                topo::ValidationError::JoinableVertexAtRest { .. }
+                            )),
+                            "{name} edge {i} @{fracs:?}: tier 3 refuses the split body for more than its joinable vertices: {errors:?}"
+                        );
+                        // Raw door: a split that leaves joinable vertices at rest, which tier 3 refuses (JoinableVertexAtRest), as the assert above admits.
+                        topo::test_support::measure_unvalidated(&body, tol)
+                    }
+                };
+                let mp = mp
                     .map(|m| (m.volume.to_bits(), m.surface_area.to_bits()))
                     .map_err(|e| format!("{e:?}"));
                 let same = r == r0 && mp == mp0;

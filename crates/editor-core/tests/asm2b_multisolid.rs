@@ -74,14 +74,17 @@ fn repinned(
     translation: [f64; 3],
     o: &EvalOptions,
 ) -> ProfileDoc {
-    let doc = fixture::emptied(doc, placement);
+    let doc = fixture::stand_again(doc, placement);
     fixture::pin(doc, placement, &Frame::translation(translation), o)
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// Every x of a body's vertices in ascending total order — the
@@ -433,7 +436,16 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// rather than the world origin, so the second copy's faces at x = 5
 /// carry no lever of 5 m into the sum. Measured merging main at
 /// `be82e5ad6b` into D, the two moves add: D's digest, main's volume.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 7_813_216_700_661_655_017;
+///
+/// D′1 moved the digest alone: each construction defines its space
+/// beside its body, so every id and name drawn after one moved; the
+/// volume bits and the solid count held.
+///
+/// D′2 moved the digest alone: each instance is pinned by values on the
+/// world's axes rather than a mate read off its geometry, so its
+/// bundle's constraints, and every id and name drawn after them, moved;
+/// the volume bits and the solid count held.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 16_016_121_234_704_582_083;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

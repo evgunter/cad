@@ -237,7 +237,7 @@ node should not hide the state of every other node. So `evaluate` is
 *total* — it always returns, and each node carries its own outcome.
 
 ```python
-from pncad import Doc, EvaluationError, Formula, Frame, Node, evaluate, mm
+from pncad import Coord, Doc, EvaluationError, Formula, MateValue, Node, Placed, evaluate, mm
 
 
 def slab(doc, z0, z1, on=None):
@@ -252,10 +252,10 @@ def slab(doc, z0, z1, on=None):
         )
     )
     body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
-    # A slab that joins `on` stands against it, `z0` up its z.
+    # A slab that joins `on` stands in its space, `z0` up its z.
     if on is None:
         return body
-    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z0)))
+    return doc.place(body, doc.space(on), Placed.unmated([MateValue(Coord.slide("z"), z0)]))
 
 
 # Section 3's sliver, now inside a document: the upper slab stands
@@ -285,7 +285,7 @@ point, each naming its two cells by the names their own operands gave
 them.
 
 ```python
-from pncad import Doc, Formula, Frame, Node, evaluate, mm
+from pncad import Coord, Doc, Formula, MateValue, Node, Placed, evaluate, mm
 
 
 def slab(doc, z0, z1, on=None):
@@ -300,10 +300,10 @@ def slab(doc, z0, z1, on=None):
         )
     )
     body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
-    # A slab that joins `on` stands against it, `z0` up its z.
+    # A slab that joins `on` stands in its space, `z0` up its z.
     if on is None:
         return body
-    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z0)))
+    return doc.place(body, doc.space(on), Placed.unmated([MateValue(Coord.slide("z"), z0)]))
 
 
 doc = Doc()
@@ -331,7 +331,7 @@ A node downstream of a failure is not itself broken — it is
 **poisoned**, and it says so, naming the node that actually failed:
 
 ```python
-from pncad import Doc, EvaluationError, Formula, Frame, Node, evaluate, mm
+from pncad import Coord, Doc, EvaluationError, Formula, MateValue, Node, Placed, evaluate, mm
 
 doc = Doc()
 
@@ -348,10 +348,10 @@ def slab(z0, z1, on=None):
         )
     )
     body = doc.insert(Node.extrude(profile, Formula.literal(z1 - z0)))
-    # A slab that joins `on` stands against it, `z0` up its z.
+    # A slab that joins `on` stands in its space, `z0` up its z.
     if on is None:
         return body
-    return doc.place_against(on, body, Frame.translation((0 * mm, 0 * mm, z0)))
+    return doc.place(body, doc.space(on), Placed.unmated([MateValue(Coord.slide("z"), z0)]))
 
 
 lower = slab(0 * mm, 10 * mm)

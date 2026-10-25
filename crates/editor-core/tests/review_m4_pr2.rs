@@ -14,7 +14,7 @@ use editor_core::{
 };
 use fixture::{ang, die, insert, len, on_frame, revolve_about, scl, square, step};
 use geom_core::Tol;
-use topo::{Body, mass_properties};
+use topo::Body;
 
 fn run(
     doc: &editor_core::ProfileDoc,
@@ -30,7 +30,11 @@ fn run(
 
 fn fingerprint(b: &Body<f64>) -> String {
     let mut s = String::new();
-    let m = mass_properties(b, Tol::witness()).unwrap();
+    let m = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap();
     let _ = writeln!(
         s,
         "V {:016x} A {:016x}",
@@ -218,16 +222,19 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
             distance: bad(),
         },
     );
+    // The second joins the first's space, as an operator's operands
+    // share one.
+    let (doc, fb_in) = crate::fixture::stood_in(doc, fb, fa);
     let (doc, join) = insert(
         doc,
         Node::Union {
-            members: editor_core::Bodies::Spelled(vec![fa.into(), fb.into()]),
+            members: editor_core::Bodies::Spelled(vec![fa.into(), fb_in.into()]),
         },
     );
     // One more hop: a copy of the poisoned join.
     let (doc, tail) = insert(
         doc,
-        Node::place(vec![editor_core::BodyRead::plain(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::Node(join),
         )]),
     );
@@ -404,11 +411,14 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
             distance: Formula::div(len(1.0), scl(0.0)).unwrap(),
         },
     );
+    // The tool joins the union's space, as an operator's operands
+    // share one.
+    let (doc, bad_in) = crate::fixture::stood_in(doc, bad, u);
     let (doc, poisoned) = insert(
         doc,
         Node::Subtract {
             from: u.into(),
-            tool: bad.into(),
+            tool: bad_in.into(),
         },
     );
     (
@@ -532,7 +542,16 @@ fn revolve_volume(angle: f64) -> Result<f64, String> {
     let ev = run(&doc, None, false);
     match ev.nodes.get(&rev) {
         Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Body(b) => Ok(mass_properties(b, Tol::witness()).unwrap().volume),
+            ValuePayload::Body(b) => Ok(topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&**b),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume),
             other => Err(format!("non-body: {}", other.kind_name())),
         },
         Some(NodeResult::Failed(e)) => Err(format!("{:?}", e.kind)),
@@ -672,14 +691,22 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
     };
     let (d_exact, s_exact) = build(false);
     let (d_rot, s_rot) = build(true);
-    let v_exact = mass_properties(
-        boolean_body(&run(&d_exact, None, false), s_exact),
+    let v_exact = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(boolean_body(&run(&d_exact, None, false), s_exact)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
     .volume;
-    let v_rot = mass_properties(
-        boolean_body(&run(&d_rot, None, false), s_rot),
+    let v_rot = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(boolean_body(&run(&d_rot, None, false), s_rot)),
+            Tol::witness(),
+        ),
         Tol::witness(),
     )
     .unwrap()
@@ -790,14 +817,28 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
     assert_eq!(e2.reused, e1.recomputed + e1.reused);
     // The reused body is the SAME value (Merkle key match), and its
     // volume enclosure brackets the f64 volume.
-    let vf = mass_properties(boolean_body(&run(&doc, None, false), s), Tol::witness())
-        .unwrap()
-        .volume;
+    let vf = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(boolean_body(&run(&doc, None, false), s)),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     let vi = match &e2.value(s).unwrap().payload {
         ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
-            mass_properties(body.as_ref(), Tol::witness())
-                .unwrap()
-                .volume
+            topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(body.as_ref()),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume
         }
         other => panic!("expected boolean body, got {}", other.kind_name()),
     };

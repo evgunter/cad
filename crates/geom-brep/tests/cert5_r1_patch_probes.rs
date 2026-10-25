@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Tol};
 
@@ -126,6 +127,38 @@ fn knots_one_ulp_apart_stay_sound() {
     );
 }
 
+/// The same twin knots one ulp apart, with the lower knot's mantissa
+/// ODD (`0.5⁺`): the f64 midpoint of the one-ulp span ties to the upper
+/// knot, so a reader that located the cell from it would read the next
+/// span. Same soundness contract, and no panic.
+#[test]
+fn knots_one_ulp_apart_at_an_odd_mantissa_stay_sound() {
+    let k0 = 0.5f64.next_up();
+    let k1 = k0.next_up();
+    assert_eq!(k0.midpoint(k1), k1, "the witness's midpoint ties up");
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, k0, k1, 1.0, 1.0, 1.0], 2).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let xs = [0.0, 0.5, 1.0, 1.5, 2.0];
+    let ys = [0.0, 0.6, 0.8, 0.6, 0.0];
+    let mut control = Vec::new();
+    let mut weights = Vec::new();
+    for (x, y) in xs.iter().zip(&ys) {
+        for z in &[0.0, 1.0] {
+            control.push([pt(*x), pt(*y), pt(*z)]);
+            weights.push(1.5);
+        }
+    }
+    drive(
+        "ulp-twin-knots-odd",
+        &ku,
+        &kv,
+        &control,
+        &weights,
+        8.0,
+        Tol::witness().get().eps,
+    );
+}
+
 /// Interior knots within an ulp of the trim rectangle's EDGES: the
 /// first/last cells are ulp-thin. Same soundness contract.
 #[test]
@@ -188,4 +221,47 @@ fn genuine_c0_jump_is_contained() {
         out.is_some(),
         "the C0-jump wall must certify at eps 1e-6 so its containment is exercised"
     );
+}
+
+/// The integral composite lane's midpoint rule, read where rounding the
+/// midpoint costs most: a parameter interval at 1e8, whose cells are
+/// narrow beside the parameter's magnitude, so the f64 midpoint sits up
+/// to half an ulp of 1e8 off the exact one. Degree 5 keeps the patch
+/// out of the exact per-span lane, and the surface is linear in both
+/// parameters, so `f_uu = f_vv = 0`: the remainders vanish, and a rule
+/// read at a rounded midpoint is left with nothing to cover its
+/// first-order term. The truth is exact, `∫∫ (1 − tv/2) = 7/8` on
+/// `S = (1 + tv/2, t, v)` (`t, v` the unit parameters), so containment
+/// is checked against it rather than the dense oracle, whose own f64
+/// reads at 1e8 drift by more than the enclosure is wide.
+#[test]
+fn integral_composite_midpoints_far_from_the_origin_stay_sound() {
+    let (far_lo, far_hi) = (1.0e8, 1.0e8 + 0.3);
+    for far_u in [true, false] {
+        let (u0, u1, v0, v1) = if far_u {
+            (far_lo, far_hi, 0.0, 1.0)
+        } else {
+            (0.0, 1.0, far_lo, far_hi)
+        };
+        let mut knots_u = vec![u0; 6];
+        knots_u.extend([u1; 6]);
+        let ku = KnotVector::clamped(knots_u, 5).unwrap();
+        let kv = KnotVector::clamped(vec![v0, v0, v1, v1], 1).unwrap();
+        let mut control = Vec::new();
+        for i in 0..6 {
+            let t = f64::from(i) / 5.0;
+            for v in [0.0, 1.0] {
+                control.push([pt(1.0 + 0.5 * t * v), pt(t), pt(v)]);
+            }
+        }
+        let weights = vec![1.0; control.len()];
+        let fb = face_posture(&ku, &kv, &control, &weights, 8.0, 1e-9)
+            .unwrap_or_else(|e| panic!("far u {far_u}: the bilinear integrand must certify: {e}"));
+        assert!(
+            fb.flux.contains(0.875),
+            "far u {far_u}: FLUX ENCLOSURE EXCLUDES THE TRUTH 7/8: [{:.15e}, {:.15e}]",
+            fb.flux.lo(),
+            fb.flux.hi()
+        );
+    }
 }

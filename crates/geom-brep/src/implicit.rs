@@ -2493,7 +2493,7 @@ mod tests {
         // the range it widens.
         assert!(
             seen_lo - lo < 0.1 * (seen_hi - seen_lo) && hi - seen_hi < 0.1 * (seen_hi - seen_lo),
-            "the charge dominates the range it widens: [{lo}, {hi}] around              [{seen_lo}, {seen_hi}]"
+            "the charge dominates the range it widens: [{lo}, {hi}] around [{seen_lo}, {seen_hi}]"
         );
         // The cone keeps the frontier door: no harmonic form and no
         // curvature bound either.

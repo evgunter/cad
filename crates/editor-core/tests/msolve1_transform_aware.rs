@@ -21,9 +21,9 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
-    Evaluation, MateFault, MateRef, MateSide, NameRef, Node, Operand, PatternKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, Space, StableName, load, product, save,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, Evaluation, MateFault,
+    MateRef, MateSide, NameRef, Node, Operand, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName, VarId, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, in_part_of, with_resolver};
 use fixture::seat::map_gap;
@@ -205,7 +205,10 @@ fn world(
 /// its geometry as `o` evaluates it.
 fn place(doc: ProfileDoc, o: &EvalOptions, body: RecipeNodeId) -> ProfileDoc {
     let read = fixture::body_read(&doc, body.into());
-    let (doc, placement) = insert(doc, Node::place(vec![editor_core::BodyRead::plain(read)]));
+    let (doc, placement) = insert(
+        doc,
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(read)]),
+    );
     fixture::pinned(doc, placement, o)
 }
 
@@ -517,7 +520,11 @@ fn a3a_a_pattern_of_a_placed_copy_seats() {
     {
         let (base_part, top_part, opts) = parts("msolve1-a3a");
         let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a3a"), Tol::witness());
-        let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
+        let (doc, base) = insert_pinned(
+            doc,
+            crate::fixture::mated_instance(base_part.doc_ref),
+            &opts,
+        );
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
         let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
         let (doc, pattern) = insert(
@@ -617,7 +624,11 @@ fn two_operands(
 ) {
     let (base_part, top_part, opts) = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, x1) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
     let (doc, x2) = place_moved(
@@ -633,7 +644,6 @@ fn two_operands(
     let second = rest(
         head(top_part.cap(top, CapEnd::Start)),
         at2(base_part.cap(base, CapEnd::End)),
-        ContactClass::Rest,
     );
     (doc, opts, m1, second, top)
 }
@@ -681,20 +691,26 @@ fn a5_a_second_seat_through_another_operand_is_refused() {
     }
 }
 
-// ---- A6: a residual leaves the copy loose ----
+// ---- A6: a residual refuses at the door ----
 
 /// **A6.** A bundle that leaves a residual pins less than the copy
 /// needs: a lone rest leaves the top free to slide and spin on the
-/// base, so the copy is LOOSE, its own space's root, with no refusal —
-/// read at the target or at a placed copy of it, identically.
+/// base, so writing it as the top's bundle refuses `Unpinned` at the
+/// door with the three freedoms it leaves — read at the target or at a
+/// placed copy of it, identically (D10 `[placement.placement]`: every
+/// bundle pins its copy).
 ///
-/// *Breaks if* a residual is refused, or the copy is taken as pinned.
+/// *Breaks if* a residual is admitted, or the copy is taken as pinned.
 #[test]
-fn a6_a_residual_bundle_leaves_the_copy_loose_on_the_target_or_its_copy() {
-    let residual = |label: &str, lift: bool| -> (Option<Space>, Option<MateFault>, RecipeNodeId) {
+fn a6_a_residual_bundle_refuses_on_the_target_or_its_copy() {
+    let residual = |label: &str, lift: bool| -> (RecipeNodeId, editor_core::EditError) {
         let (base_part, top_part, opts) = parts(label);
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
+        let (doc, base) = insert_pinned(
+            doc,
+            crate::fixture::mated_instance(base_part.doc_ref),
+            &opts,
+        );
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
         let (doc, at) = if lift {
             place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts)
@@ -702,25 +718,31 @@ fn a6_a_residual_bundle_leaves_the_copy_loose_on_the_target_or_its_copy() {
             (doc, base)
         };
         let to = read_at(&doc, at)(base_part.cap(base, CapEnd::End));
-        let (doc, _) = constrain_at(
-            doc,
+        let mate = rest(head(top_part.cap(top, CapEnd::Start)), to);
+        let refused = fixture::bundle_edits(
+            &doc,
             top,
-            rest(
-                head(top_part.cap(top, CapEnd::Start)),
-                to,
-                ContactClass::Rest,
-            ),
-        );
-        let poses = solve(&doc, &opts, Tol::witness());
-        (poses.space(top), poses.fault(top).cloned(), top)
+            vec![editor_core::Constraint::of_mate(
+                editor_core::ConstraintId::placeholder(1),
+                mate,
+            )],
+        )
+        .into_iter()
+        .try_fold(doc, |doc, edit| {
+            editor_core::apply(&doc, &edit, Tol::witness()).map(|applied| applied.doc)
+        })
+        .expect_err("a residual refuses");
+        (top, refused)
     };
     for (what, lift) in [("plain", false), ("lifted", true)] {
-        let (space, fault, top) = residual(&format!("msolve1-a6-{what}"), lift);
-        assert_eq!(fault, None, "A6 {what}: a residual is no refusal");
-        assert_eq!(
-            space,
-            Some(Space::Loose { root: top }),
-            "A6 {what}: the top is a loose copy, its own space's root"
+        let (top, refused) = residual(&format!("msolve1-a6-{what}"), lift);
+        assert!(
+            matches!(
+                &refused,
+                editor_core::EditError::MateRefused { fault, .. }
+                    if matches!(**fault, MateFault::Unpinned { placement, free: 3 } if placement == top)
+            ),
+            "A6 {what}: the residual refuses Unpinned: {refused:?}"
         );
     }
 }
@@ -740,11 +762,7 @@ fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
         .apply(
             &DocEdit::AddConstraint {
                 placement: s.top,
-                mate: Box::new(rest(
-                    head(s.face_b()),
-                    head_at(ghost, s.face_a()),
-                    ContactClass::Rest,
-                )),
+                mate: Box::new(rest(head(s.face_b()), head_at(ghost, s.face_a()))),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -799,7 +817,7 @@ fn a8b_deleting_the_operand_leaves_the_pose_unresolved() {
             .collect()
     };
     assert!(
-        reached(*m.to.pose().expect("the seat's target is a pose")).is_empty(),
+        reached(m.to).is_empty(),
         "the stranded pose reads nothing live"
     );
     assert!(
@@ -821,7 +839,11 @@ fn a8c_the_content_key_separates_two_operands() {
     let key_of = |label: &str, at_part: bool| -> editor_core::ContentKey {
         let (base_part, top_part, opts) = parts("msolve1-a8c");
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
+        let (doc, base) = insert_pinned(
+            doc,
+            crate::fixture::mated_instance(base_part.doc_ref),
+            &opts,
+        );
         let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
         let (doc, pattern) = insert(
             doc,
@@ -850,7 +872,6 @@ fn a8c_the_content_key_separates_two_operands() {
                     if at_part { part } else { pattern },
                     in_copy(pattern, 1, base_part.cap(base, CapEnd::End)),
                 ),
-                ContactClass::Rest,
             ),
         );
         let ev = run(&doc, &opts);
@@ -894,7 +915,7 @@ fn a8d_a_placed_copy_operand_round_trips_through_persistence() {
         "the `on` pose's edge and corner rode the wire at the top"
     );
     assert_eq!(
-        reached(*m.to.pose().expect("the seat's target is a pose")),
+        reached(m.to),
         [s.a_at].into(),
         "the `to` pose's edge and corner rode the wire at the placed copy"
     );
@@ -936,7 +957,11 @@ fn a8d_a_placed_copy_operand_round_trips_through_persistence() {
 fn a10_a_nested_pattern_head_is_read_at_its_copy() {
     let (base_part, top_part, opts) = parts("msolve1-a10");
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a10"), Tol::witness());
-    let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     // Spaced so that every copy clears the others — inner along x,
     // outer along y.
@@ -993,7 +1018,7 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
     );
     assert_eq!(
         poses.space(top),
-        Some(Space::World),
+        Some(VarId::WORLD),
         "the nested copy's faces place the top"
     );
 
@@ -1028,8 +1053,11 @@ fn a10_a_nested_pattern_head_is_read_at_its_copy() {
         .expect("the base is placed")
         .affine::<f64>();
     let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a10-alone"), Tol::witness());
-    let (alone, base_alone) =
-        insert_pinned(alone, Node::instantiate_part(base_part.doc_ref), &opts);
+    let (alone, base_alone) = insert_pinned(
+        alone,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let local = product_face_frame(
         &alone,
         &run(&alone, &opts),
@@ -1116,19 +1144,11 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
             distance: len(1.0),
         },
     );
-    let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &o);
+    let (doc, base) = insert_pinned(doc, crate::fixture::mated_instance(base_part.doc_ref), &o);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &o);
     let to = read_at(&doc, xf)(base_part.cap(base, CapEnd::End));
-    let (doc, _) = constrain_at(
-        doc,
-        top,
-        rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            to,
-            ContactClass::Rest,
-        ),
-    );
+    let (doc, _) = constrain_at(doc, top, rest(head(top_part.cap(top, CapEnd::Start)), to));
     let doc = world(doc, &o, &[local, xf], &[]);
     // Cut the LOCAL block out into its own part, with the world
     // placement of what it moves: nothing it holds is read by a
@@ -1156,12 +1176,16 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
         .collect::<Vec<_>>()
         .try_into()
         .expect("one constrained instance stayed in the remainder");
-    let [c] = fixture::bundle(&out.remainder, moved)
+    let bundle = fixture::bundle(&out.remainder, moved);
+    let [m] = bundle
+        .iter()
+        .filter_map(editor_core::Constraint::mate)
+        .collect::<Vec<_>>()
         .try_into()
-        .expect("its bundle holds the rest");
-    let m = c.mate().expect("the rest is a mate");
+        .expect("its bundle holds the rest, and its values");
+    assert_eq!(bundle.len(), 4, "the rest and its three values");
     let on = fixture::face_reads(&out.remainder, m.on);
-    let to = fixture::face_reads(&out.remainder, *m.to.pose().expect("a pose target"));
+    let to = fixture::face_reads(&out.remainder, m.to);
     let ([on], [to]) = (on.as_slice(), to.as_slice()) else {
         panic!("the rest kept one face on each pose: {on:?} {to:?}");
     };
@@ -1279,7 +1303,11 @@ fn a8h_a_cut_constraint_whose_operand_is_kept_refuses_with_the_same_variant() {
 fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, RecipeNodeId) {
     let (base_part, top_part, opts) = parts(label);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, xf) = place_moved(doc, base, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0, &opts);
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let (doc, mate) = constrain_at(
@@ -1288,7 +1316,6 @@ fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, Rec
         rest(
             head(top_part.cap(top, CapEnd::Start)),
             head_at(xf, base_part.cap(base, CapEnd::End)),
-            ContactClass::Rest,
         ),
     );
     (doc, mate, base, xf)
@@ -1308,7 +1335,11 @@ fn severed_operand_scene(label: &str) -> (ProfileDoc, MateRef, RecipeNodeId, Rec
 fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     let (base_part, top_part, opts) = parts("msolve1-a11");
     let doc = ProfileDoc::empty(DocumentId::derive("msolve1-a11"), Tol::witness());
-    let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let rule = |dir: [f64; 3], s: f64| PatternKind::Linear {
         direction: dir.map(scl),
@@ -1359,8 +1390,11 @@ fn a11_a_placement_between_two_patterns_composes_outer_t_inner() {
     assert_eq!(row.body, 3 + 1, "copy (1, 1) is flat body j·M + i");
     let placement = poses.placement(&doc, base).unwrap().affine::<f64>();
     let alone = ProfileDoc::empty(DocumentId::derive("msolve1-a11-alone"), Tol::witness());
-    let (alone, base_alone) =
-        insert_pinned(alone, Node::instantiate_part(base_part.doc_ref), &opts);
+    let (alone, base_alone) = insert_pinned(
+        alone,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let local = product_face_frame(
         &alone,
         &run(&alone, &opts),
@@ -1404,7 +1438,11 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
     let label = format!("msolve1-a12-{k}-{j}-{i}-{via_placed}");
     let (base_part, top_part, opts) = parts(&label);
     let doc = ProfileDoc::empty(DocumentId::derive(&label), Tol::witness());
-    let (doc, base) = insert_pinned(doc, Node::instantiate_part(base_part.doc_ref), &opts);
+    let (doc, base) = insert_pinned(
+        doc,
+        crate::fixture::mated_instance(base_part.doc_ref),
+        &opts,
+    );
     let (doc, top) = insert(doc, fixture::mated_instance(top_part.doc_ref));
     let rule = |dir: [f64; 3]| PatternKind::Linear {
         direction: dir.map(scl),
@@ -1471,7 +1509,7 @@ fn part_over_nested(k: i64, j: u32, i: u32, via_placed: bool, expect: PartCase) 
             let poses = solve(&doc, &opts, Tol::witness());
             let ev = run(&doc, &opts);
             assert!(poses.fault(top).is_none(), "{what}: {:?}", poses.fault(top));
-            assert_eq!(poses.space(top), Some(Space::World), "{what}");
+            assert_eq!(poses.space(top), Some(VarId::WORLD), "{what}");
             assert!(
                 ev.node_error(top).is_none(),
                 "{what}: {:?}",

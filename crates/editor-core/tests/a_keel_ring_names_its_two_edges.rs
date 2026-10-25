@@ -9,7 +9,7 @@
 //! above holds it as the two chords.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{against, frame_at, half, insert, len, plane_on};
+use crate::fixture::{against, axes_at, half, insert, len, plane_on};
 use editor_core::{
     CancelToken, EntityKey, Entry, EvalOptions, Node, ProfileDoc, RoleSeg, SplitHalf, SplitSide,
     ValuePayload, evaluate,
@@ -42,7 +42,7 @@ fn a_keel_ring_names_its_two_edges_apart() {
         doc,
         block,
         trench,
-        &frame_at([1.5, 0.0, 1.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
+        &axes_at([1.5, 0.0, 1.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
     );
     let (doc, cut) = insert(
         doc,
@@ -78,7 +78,12 @@ fn a_keel_ring_names_its_two_edges_apart() {
     };
     let tol = Tol::witness();
     for (what, b, v) in [("above", above, 16.0 - 0.3), ("below", below, 16.0)] {
-        let got = topo::mass_properties(b, tol).unwrap().volume;
+        let got = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&**b), tol),
+            tol,
+        )
+        .unwrap()
+        .volume;
         assert!((got - v).abs() < 1e-9 * v, "{what}: volume {got}, not {v}");
     }
     let ring: Vec<topo::EdgeKey> = above

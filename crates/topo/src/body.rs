@@ -496,7 +496,12 @@ impl<T: Real> Body<T> {
     /// descriptions still name its surface; re-describing the last
     /// such edge must take the surface with it, not strand it).
     pub(crate) fn remove_curve_if_orphaned(&mut self, curve: CurveKey) -> bool {
-        if self.edges.values().any(|edge| edge.curve == curve) {
+        if self
+            .edges
+            .values()
+            .inspect(|_| orphan_pass_visit())
+            .any(|edge| edge.curve == curve)
+        {
             return false;
         }
         let Some(removed) = self.curves.remove(curve) else {
@@ -529,17 +534,140 @@ impl<T: Real> Body<T> {
     /// description. Deterministic (D9), same shape as
     /// [`Body::remove_curve_if_orphaned`].
     pub(crate) fn remove_surface_if_orphaned(&mut self, surface: SurfaceKey) -> bool {
-        if self.faces.values().any(|face| face.surface == surface) {
+        if self
+            .faces
+            .values()
+            .inspect(|_| orphan_pass_visit())
+            .any(|face| face.surface == surface)
+        {
             return false;
         }
         if self
             .curves
             .values()
+            .inspect(|_| orphan_pass_visit())
             .any(|curve| Named::of(curve).keys().any(|k| k == surface))
         {
             return false;
         }
         self.surfaces.remove(surface).is_some()
+    }
+
+    /// **The orphan pass of a door that releases many keys in one
+    /// call**, batched: one reference count over the arenas, where
+    /// [`Body::remove_curve_if_orphaned`] and
+    /// [`Body::remove_surface_if_orphaned`] scan them once per key.
+    ///
+    /// `released` is the curve every write will release, one entry per
+    /// write and in write order; the count of edges still naming each is
+    /// taken here, before any write, in one pass over the edge arena.
+    /// The door then calls [`Body::release_curve`] after each write and
+    /// [`Body::reap_surfaces`] once at its end.
+    ///
+    /// **It removes exactly what the per-key calls remove, in the same
+    /// order** (D9: the slot a removal frees is the slot the next
+    /// insertion takes): a curve as the last write releasing it lands,
+    /// interleaved with the writes' own insertions; then the surfaces,
+    /// which no write inserts. The one difference is where the per-key
+    /// sequence was wrong: a surface a curve written LATER names is
+    /// counted here as referenced, where the sequence would have
+    /// removed it and dangled the later description.
+    pub(crate) fn orphan_reaper(&self, released: &[CurveKey]) -> Reaper {
+        let mut edge_refs: SecondaryMap<CurveKey, usize> = SecondaryMap::new();
+        for &curve in released {
+            edge_refs.insert(curve, 0);
+        }
+        for edge in self.edges.values() {
+            orphan_pass_visit();
+            if let Some(n) = edge_refs.get_mut(edge.curve) {
+                *n += 1;
+            }
+        }
+        Reaper {
+            edge_refs,
+            named: Vec::new(),
+        }
+    }
+
+    /// One write of the batch released `old`: the curve goes once no
+    /// edge names it, and the surface keys its description named are
+    /// kept for [`Body::reap_surfaces`].
+    ///
+    /// # Panics
+    ///
+    /// Where `old` was not in the batch's `released`, or is released
+    /// more times than it was listed: the door listed its writes.
+    pub(crate) fn release_curve(&mut self, reaper: &mut Reaper, old: CurveKey) {
+        let Some(refs) = reaper.edge_refs.get_mut(old) else {
+            unreachable!("release_curve: {old:?} was not listed as released by this batch")
+        };
+        let Some(left) = refs.checked_sub(1) else {
+            unreachable!("release_curve: {old:?} released more often than edges named it")
+        };
+        *refs = left;
+        if left > 0 {
+            return;
+        }
+        if let Some(removed) = self.curves.remove(old) {
+            let mut named: Vec<SurfaceKey> = Vec::new();
+            for key in Named::of(&removed).keys() {
+                if !named.contains(&key) {
+                    named.push(key);
+                }
+            }
+            reaper.named.push(named);
+        }
+    }
+
+    /// The batch's end: every surface a reaped curve named, as that
+    /// curve was reaped, then each of `released` in order, removed once
+    /// nothing references it — one pass over the face and curve arenas.
+    pub(crate) fn reap_surfaces(&mut self, reaper: Reaper, released: &[SurfaceKey]) {
+        // How many reaped curves still to come name each candidate: a
+        // surface a later-reaped curve names is referenced until then.
+        let mut pending: SecondaryMap<SurfaceKey, usize> = SecondaryMap::new();
+        for &key in reaper.named.iter().flatten() {
+            if let Some(n) = pending.entry(key).map(|e| e.or_insert(0)) {
+                *n += 1;
+            }
+        }
+        let mut refs: SecondaryMap<SurfaceKey, usize> = SecondaryMap::new();
+        for key in pending.keys().chain(released.iter().copied()) {
+            if let Some(entry) = refs.entry(key) {
+                entry.or_insert(0);
+            }
+        }
+        for face in self.faces.values() {
+            orphan_pass_visit();
+            if let Some(n) = refs.get_mut(face.surface) {
+                *n += 1;
+            }
+        }
+        for curve in self.curves.values() {
+            orphan_pass_visit();
+            for key in Named::of(curve).keys() {
+                if let Some(n) = refs.get_mut(key) {
+                    *n += 1;
+                }
+            }
+        }
+        let unreferenced = |refs: &SecondaryMap<SurfaceKey, usize>, key| refs.get(key) == Some(&0);
+        for named in &reaper.named {
+            for &key in named {
+                let Some(n) = pending.get_mut(key) else {
+                    unreachable!("reap_surfaces: every named key was counted")
+                };
+                *n -= 1;
+                if *n == 0 && unreferenced(&refs, key) {
+                    self.surfaces.remove(key);
+                }
+            }
+        }
+        for &key in released {
+            if unreferenced(&refs, key) {
+                self.surfaces.remove(key);
+            }
+        }
     }
 
     /// **The one door that moves vertices**: mints ONE fresh point at
@@ -1604,6 +1732,31 @@ impl<T: Real> Default for Body<T> {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// A batched orphan pass in progress ([`Body::orphan_reaper`]).
+#[derive(Debug)]
+pub(crate) struct Reaper {
+    /// Edges still naming each curve the batch releases.
+    edge_refs: SecondaryMap<CurveKey, usize>,
+    /// The surface keys each reaped curve's description named, once
+    /// each, one list per reaped curve in reap order.
+    named: Vec<Vec<SurfaceKey>>,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    /// Arena entries the orphan passes have visited on this thread.
+    pub(crate) static ORPHAN_PASS_VISITS: core::cell::Cell<usize> =
+        const { core::cell::Cell::new(0) };
+}
+
+/// One arena entry visited by an orphan pass, per-key or batched,
+/// counted under `cfg(test)` (`attach::tests::orphan_sweep_scales_with_the_writes`).
+#[inline]
+fn orphan_pass_visit() {
+    #[cfg(test)]
+    ORPHAN_PASS_VISITS.with(|n| n.set(n.get() + 1));
 }
 
 #[cfg(test)]

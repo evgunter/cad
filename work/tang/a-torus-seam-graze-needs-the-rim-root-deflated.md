@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [a-torus-meridian-rims-span-bound-is-wider-than-the-band, intent-stage4-is-built]
+blocked_on: [a-torus-meridian-rims-span-bound-is-wider-than-the-band]
 ---
 
 

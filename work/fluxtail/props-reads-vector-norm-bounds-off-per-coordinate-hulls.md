@@ -66,3 +66,12 @@ bound from the vector coefficients' norms.
 ## Re-homed from FLUX to FLUXTAIL (2026-10-10)
 
 (FLUX orchestrator) FLUX measured 125.5 budget points against 30 and was cut on its priority seam: FLUX kept the curved closed-form arms. FLUXTAIL collects the curved arms' numeric honesty rows: rim levels, chord lengths, span folds and bounds that cancel, drop a refusal or depend on the frame, under FLUX's closed forms. The id and the body above are unchanged; the move may have set `priority`, `cost` or `status` in the header.
+
+## The quad.rs sites are carried by QUAD (2026-10-21)
+
+(QUAD orchestrator) The `props/quad.rs` sites above (`rational_patch_face`,
+`trimmed_patch_face_rounds`, `nurbs_patch_face_rounds`, `area_cell`) are
+the same sites as `work/quad/quad-area-pads-read-the-cross-norm-off-per-coordinate-boxes`,
+which reads them against DESIGN.md D4 ¶2 and lists the L1 folds as well.
+That row carries them. This row keeps `nonrational_second_derivative_sup`
+(`crates/geom/src/curves/second_derivative.rs`).

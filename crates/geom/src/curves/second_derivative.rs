@@ -24,8 +24,8 @@ use crate::curves::NurbsCurve3;
 /// a bound, and the variant NAMES which structure — a caller's typed
 /// refusal is only as good as the reason it can quote. Rational curves
 /// are NOT this door's: their `C″ = M/W³` is the quotient statement's
-/// ([`crate::NurbsCurve3::accel_upper_bound`]), so a weight other than
-/// `1` refuses here.
+/// ([`crate::NurbsCurve3::accel_upper_bound`]), so weights that are not
+/// one constant refuse here ([`NurbsCurve3::constant_weight`]).
 ///
 /// # Errors
 ///
@@ -35,7 +35,7 @@ use crate::curves::NurbsCurve3;
 pub fn nonrational_second_derivative_sup(
     curve: &NurbsCurve3<f64>,
 ) -> Result<f64, SecondDerivativeUnbounded> {
-    if curve.weights().iter().any(|w| *w != 1.0) {
+    if curve.constant_weight().is_none() {
         return Err(SecondDerivativeUnbounded::Rational);
     }
     let control = curve.control();
@@ -55,9 +55,7 @@ pub fn nonrational_second_derivative_sup(
                 // derivative hull against its own vector.
                 Derived::Vector(first) => Ok(first.pair().derivative_domain_hull()),
                 Derived::SpanConstant(_) => Err(SecondDerivativeUnbounded::DegreeBelowTwo),
-                Derived::Discontinuous { .. } => {
-                    Err(SecondDerivativeUnbounded::DerivativeKnotVector)
-                }
+                Derived::Discontinuous(_) => Err(SecondDerivativeUnbounded::DerivativeKnotVector),
             },
         )?;
         sum_sq = sum_sq + hull.sqr();
@@ -80,8 +78,8 @@ pub fn nonrational_second_derivative_sup(
 /// name what it met rather than reporting a poisoned number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SecondDerivativeUnbounded {
-    /// A weight is not `1`: the curve is rational, and its second
-    /// derivative is a quotient this door does not assemble.
+    /// The weights are not one constant: the curve is rational, and its
+    /// second derivative is a quotient this door does not assemble.
     Rational,
     /// The knot vector's degree is below 2, so the curve has no second
     /// derivative to hull ([`Derived::SpanConstant`]).
@@ -92,4 +90,48 @@ pub enum SecondDerivativeUnbounded {
     /// The iterated difference-coefficient hull is poisoned or
     /// unbounded (a non-finite control point, a zero knot difference).
     PoisonedHull,
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::{SecondDerivativeUnbounded, nonrational_second_derivative_sup};
+    use crate::curves::NurbsCurve3;
+    use geom_core::Point3;
+    use geom_core::spline::KnotVector;
+
+    /// **A constant weight is this door's**: the cubic with every weight
+    /// `2`, `0.5`, `3` or `0.1` is the polynomial on its net, and its
+    /// bound is the unit-weight curve's to the bit (the hull reads the control net
+    /// alone); a varying weight vector refuses as rational.
+    #[test]
+    fn a_constant_weight_bounds_as_its_polynomial_and_a_varying_one_refuses() {
+        let sup = |weights: Vec<f64>| {
+            let curve = NurbsCurve3::new(
+                KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+                vec![
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(1.0, 2.0, 0.5),
+                    Point3::new(2.0, -1.0, 0.0),
+                    Point3::new(3.0, 1.0, -0.5),
+                    Point3::new(4.0, 0.0, 0.0),
+                ],
+                weights,
+            )
+            .unwrap();
+            nonrational_second_derivative_sup(&curve)
+        };
+        let unit = sup(vec![1.0; 5]).unwrap();
+        for c in [2.0, 0.5, 3.0, 0.1] {
+            assert_eq!(
+                sup(vec![c; 5]).unwrap().to_bits(),
+                unit.to_bits(),
+                "weights {c}"
+            );
+        }
+        assert_eq!(
+            sup(vec![1.0, 1.0, 2.0, 1.0, 1.0]),
+            Err(SecondDerivativeUnbounded::Rational)
+        );
+    }
 }

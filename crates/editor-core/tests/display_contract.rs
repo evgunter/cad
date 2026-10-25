@@ -16,27 +16,17 @@
 use editor_core::VarNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
-    AssemblyError, CapEnd, CarriedRefusal, ContactClass, Diagnosis, Dimension, DimensionError,
-    DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
-    InterrogateError, LeverRefusal, Maintenance, MateFault, MateRef, MateSide, MeshPickError,
-    MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError, ParseError,
-    PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
-    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, Route, SelectRefusal,
+    CapEnd, Diagnosis, Dimension, DimensionError, DocRef, DocumentId, EditError, EntityKind,
+    EvalError, FreeValue, HitTestError, InterrogateError, LeverRefusal, Maintenance, MateFault,
+    MateRef, MeshPickError, MetaVersionError, NamingError, NodeErrorKind, NodePickError,
+    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
+    RecordedProgramError, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, SelectRefusal,
     SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
     UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
 use test_utils::refusal::tagged;
-
-/// The gate's refusal over ONE of this document's own mates: the arm
-/// carries every row the gather recorded, and a row read here is read
-/// through the door that raises it.
-fn mint(refusal: MintRefusal) -> AssemblyError {
-    AssemblyError::Mint {
-        refusals: vec![refusal],
-    }
-}
 
 /// The `Debug` field-name punctuation **this binary can ban**, which is
 /// far short of what its refusal payloads carry.
@@ -1030,7 +1020,6 @@ test_utils::f6_variants! {
         EpsilonInvalid,
         ConstraintNotMinted,
         PlacementNonFinite,
-        PlacementImproper,
         PlacementNonRigid,
         MateRefused,
         PlacementRule,
@@ -1427,17 +1416,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             vec![
                 "placement 0 of PlacedUnion 000000000005",
                 "non-finite coordinate",
-            ],
-        ),
-        (
-            SnapshotError::PlacementImproper {
-                node: held(5, "PlacedUnion"),
-                at: editor_core::FrameSite::Listed { index: 1 },
-                determinant: -1.0,
-            },
-            vec![
-                "placement 1 of PlacedUnion 000000000005",
-                "improper (mirroring)",
             ],
         ),
         (
@@ -2068,65 +2046,6 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
     }
 }
 
-/// Refusals that name a stable name FORWARD its `Display` rather than
-/// re-spelling the kind-plus-minting-node phrase. The expectation is
-/// built from the impl, so a copy that stops tracking it fails here —
-/// which a literal expectation could not catch.
-#[test]
-fn refusals_that_name_a_stable_name_forward_its_display() {
-    let phrase = face_name().to_string();
-
-    let reference = mint(MintRefusal::Reference {
-        mate: mref(2),
-        side: MateSide::On,
-        name: Box::new(face_name()),
-        why: RefusedRef::Ambiguous { width: 2 },
-    });
-    let shown = reference.to_string();
-    assert!(
-        shown.contains(&format!("({phrase})")),
-        "the mate reference re-spells the name instead of forwarding it: {shown:?}"
-    );
-}
-
-/// The WHY clause of a mate-reference refusal says what the gate
-/// checked and no more: a body placed twice names how many copies
-/// answer, and a mate with no value says it declares nothing. Every
-/// other row asserting these sentences compares against the impl, so
-/// this is their one home.
-#[test]
-fn a_mate_reference_refusal_says_what_the_gate_checked() {
-    let unevaluated = mint(MintRefusal::Unevaluated {
-        mate: mref(2),
-        standing: editor_core::NodeStanding::Failed {
-            node: RecipeNodeId::new(0, tagged(2)),
-        },
-    });
-    assert_f6(
-        &unevaluated,
-        &[
-            "constraint #2 of node 000000000002 declares nothing about the product, since it has no value",
-        ],
-        &["Unevaluated", "Failed"],
-    );
-
-    let tied = mint(MintRefusal::Reference {
-        mate: mref(2),
-        side: MateSide::On,
-        name: Box::new(face_name()),
-        why: RefusedRef::Ambiguous { width: 2 },
-    });
-    assert_f6(
-        &tied,
-        &[
-            "constraint #2 of node 000000000002's on reference",
-            "2 world copies answer to it",
-            "a tie is never broken by picking",
-        ],
-        &["Ambiguous", "Reference"],
-    );
-}
-
 /// An entity kind carries the article that agrees with it, because the
 /// value decides which one is correct: three of the four kinds take
 /// "a" and `Edge` takes "an", so a sentence that hard-codes one is
@@ -2161,144 +2080,6 @@ fn an_entity_kind_carries_the_article_that_agrees_with_it() {
     assert!(
         shown.contains("a vertex"),
         "the consonant kinds must keep \"a\": {shown:?}"
-    );
-}
-
-/// The mint door's at-rest refusal ends on
-/// [`editor_core::NO_AT_REST_RECORD_RECOURSE`] — read as the row's
-/// own sentence and read through the gate arm that carries it, because
-/// the gate FORWARDS the row rather than restating it. A recourse
-/// reached by only one of the two carriers is a user who sees the
-/// repair or not depending on how deep the mate was declared.
-#[test]
-fn the_mint_doors_at_rest_refusal_ends_on_its_recourse_from_both_carriers() {
-    let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
-    let row = MintRefusal::NoAtRestRecord {
-        mate: mref(5),
-        class: ContactClass::Tangent,
-        why,
-    };
-    assert_f6(
-        &row,
-        &[
-            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
-            why,
-            editor_core::NO_AT_REST_RECORD_RECOURSE,
-        ],
-        &["NoAtRestRecord"],
-    );
-    assert_f6(
-        &mint(row),
-        &[
-            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
-            why,
-            editor_core::NO_AT_REST_RECORD_RECOURSE,
-        ],
-        &["NoAtRestRecord"],
-    );
-}
-
-/// **Every refusal the gate holds is rendered**, each on its own
-/// indented line under a header that counts them — the two mint arms
-/// answer with the whole list the gather recorded, so an author with
-/// two broken mates reads two repairs rather than the first.
-///
-/// The count is built from the FIXTURE's own length rather than
-/// written as a word, so a header that reports a constant, or reports
-/// a count off by one, reds here. It is not a guard on the header
-/// tracking the body: those are one expression over one slice and
-/// cannot drift. What each arm's rows carry — each mate's own
-/// sentence, and for the carried arm the route and the ONE recourse in
-/// the header — is the rest of it.
-#[test]
-fn the_mint_arms_render_every_refusal_they_hold() {
-    let why = editor_core::class_admission(ContactClass::Tangent).no_record_reason();
-    let raised = AssemblyError::Mint {
-        refusals: vec![
-            MintRefusal::Reference {
-                mate: mref(2),
-                side: MateSide::On,
-                name: Box::new(face_name()),
-                why: RefusedRef::Ambiguous { width: 2 },
-            },
-            MintRefusal::NoAtRestRecord {
-                mate: mref(5),
-                class: ContactClass::Tangent,
-                why,
-            },
-        ],
-    };
-    let AssemblyError::Mint { refusals } = &raised else {
-        panic!("built as the mint arm");
-    };
-    let counted = format!(
-        "this document did not mint {} of its own mate(s)",
-        refusals.len()
-    );
-    assert_f6(
-        &raised,
-        &[
-            &counted,
-            "constraint #2 of node 000000000002's on reference",
-            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
-        ],
-        &["Reference", "NoAtRestRecord"],
-    );
-
-    let route = Route {
-        through: RecipeNodeId::new(0, tagged(1)),
-        of: editor_core::DocumentId::derive("display-contract-carried"),
-        via: vec![],
-    };
-    let carried = AssemblyError::CarriedMintRefusal {
-        refusals: vec![
-            CarriedRefusal {
-                route: route.clone(),
-                refusal: MintRefusal::Reference {
-                    mate: mref(2),
-                    side: MateSide::On,
-                    name: Box::new(face_name()),
-                    why: RefusedRef::Ambiguous { width: 2 },
-                },
-                held: Default::default(),
-            },
-            CarriedRefusal {
-                route,
-                refusal: MintRefusal::NoAtRestRecord {
-                    mate: mref(5),
-                    class: ContactClass::Tangent,
-                    why,
-                },
-                held: Default::default(),
-            },
-        ],
-    };
-    let AssemblyError::CarriedMintRefusal { refusals } = &carried else {
-        panic!("built as the carried arm");
-    };
-    let counted = format!(
-        "{} mate(s) of documents below this one did not mint",
-        refusals.len()
-    );
-    let shown = carried.to_string();
-    assert_f6(
-        &carried,
-        &[
-            &counted,
-            "constraint #2 of node 000000000002's on reference",
-            "constraint #5 of node 000000000005's class Tangent has no at-rest kernel record",
-        ],
-        &["CarriedMintRefusal", "CarriedRefusal"],
-    );
-    // ONE recourse for the list, in the header: the repair is the same
-    // sentence for every row, and a per-row copy is the generic tail
-    // the finding sink exists to forbid.
-    assert_eq!(
-        shown
-            .matches("open those documents and repair the mates there")
-            .count(),
-        1,
-        "the carried repair is stated once, not once per row: {shown:?}"
     );
 }
 
@@ -2948,6 +2729,8 @@ test_utils::f6_variants! {
         StrandedSelection,
         StrandedAppearance,
         StrandedRead,
+        StrandedSpace,
+        ValueDropped,
         AnonymousVarRemoved,
     ];
 }
@@ -2965,6 +2748,8 @@ test_utils::f6_variants! {
 /// live node to move to.
 #[test]
 fn maintenance_display_says_what_the_edit_did() {
+    let spaces =
+        editor_core::ProfileDoc::empty_derived("display-spaces", geom_core::Tol::witness());
     let cases = [
         (
             Maintenance::Strand {
@@ -3017,6 +2802,29 @@ fn maintenance_display_says_what_the_edit_did() {
                 "Fillet 000000000005's target reads #0:0000000000070000",
                 "this edit deleted with its operation",
                 "until the target reads a live value",
+            ],
+        ),
+        (
+            Maintenance::StrandedSpace {
+                node: held(5, "Union"),
+                a: spaces.spoken_space(editor_core::VarId::WORLD),
+                b: spaces.spoken_space(editor_core::VarId::new(0, tagged(7))),
+            },
+            vec![
+                "Union 000000000005 reads the world and the space #0:0000000000070000",
+                "this edit left in two spaces",
+                "refuses until its reads are in one space",
+            ],
+        ),
+        (
+            Maintenance::ValueDropped {
+                placement: held(5, "Place"),
+                coord: editor_core::Coord::Spin(editor_core::TargetAxis::X),
+                by: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
+            },
+            vec![
+                "Place 000000000005's spin about x read #0:0000000000070000",
+                "this edit dropped the value",
             ],
         ),
         (
@@ -3417,32 +3225,6 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         (
             "InlineError::VarNameConflict",
             InlineError::VarNameConflict { name: name.clone() }.to_string(),
-        ),
-        (
-            "InlineError::InstanceOutputUncarried (bodies)",
-            InlineError::InstanceOutputUncarried {
-                name: name.clone(),
-                why: editor_core::Uncarried::Bodies { count: 2 },
-            }
-            .to_string(),
-        ),
-        (
-            "InlineError::InstanceOutputUncarried (named heir)",
-            InlineError::InstanceOutputUncarried {
-                name: name.clone(),
-                why: editor_core::Uncarried::HeirNamed { held: name.clone() },
-            }
-            .to_string(),
-        ),
-        (
-            "InlineError::InstanceOutputUncarried (posed)",
-            InlineError::InstanceOutputUncarried {
-                name: name.clone(),
-                why: editor_core::Uncarried::Posed {
-                    placement: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
-                },
-            }
-            .to_string(),
         ),
         (
             "SeedError::UnknownVar",

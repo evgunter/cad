@@ -24,8 +24,8 @@ use crate::fixture;
 use std::sync::Arc;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault,
-    MateRef, MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult, OperandSlot, PatternKind,
+    CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault, MateRef,
+    MateSide, Node, NodeErrorClass, NodeErrorKind, NodeResult, OperandSlot, PatternKind,
     ProfileDoc, RecipeNodeId, SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};
@@ -166,7 +166,7 @@ where
     let (top, top_body) = store.insert_part(block(&format!("{label}-top")), Tol::witness());
     let store = Arc::new(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, legs) = insert_pinned(doc, Node::instantiate_part(leg), &options(&store));
+    let (doc, legs) = insert_pinned(doc, crate::fixture::mated_instance(leg), &options(&store));
     let (doc, placer, name, extra) = place(doc, legs, leg_body);
     let (doc, cap) = insert(doc, fixture::mated_instance(top));
     let twin = doc.clone();
@@ -175,7 +175,6 @@ where
     let mate = fixture::rest(
         fixture::head(in_part(cap, top_body, CapEnd::Start)),
         fixture::head_at(placer, name),
-        ContactClass::Rest,
     );
     let (doc, mate) = fixture::constrain_at(doc, cap, mate);
     (
@@ -423,7 +422,7 @@ fn an_explicit_pattern_rule_never_reaches_a_mate() {
     let mut store = PartStore::new();
     let leg = store.insert(block("msolve3-explicit-leg").0, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("msolve3-explicit"), Tol::witness());
-    let (doc, legs) = insert(doc, Node::instantiate_part(leg));
+    let (doc, legs) = insert(doc, crate::fixture::mated_instance(leg));
     let refused = editor_core::apply(
         &doc,
         &DocEdit::InsertNode {

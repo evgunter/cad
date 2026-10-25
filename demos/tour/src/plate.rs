@@ -23,14 +23,14 @@
 //! - **sketched**: one extrude of a profile with the two circles as
 //!   inner loops. No boolean, so no tie: it certifies whole boxes up to
 //!   `1e-2` of the study, and 0 of 512 leaves over the real study
-//!   (`work/paths/inner-loop-circles-bound-the-plate-study-at-arc-span.md`).
+//!   (`work/profiletail/inner-loop-circles-bound-the-plate-study-at-arc-span.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::document::{
     AssertionRelation, CancelToken, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Formula, Frame, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, VarId, VarName, apply, evaluate,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, ProfileDoc, ProfileProgram,
+    RecipeNodeId, SitedRef, VarId, VarName, apply, evaluate,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::AuthoredNode;
@@ -224,7 +224,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
             doc,
             Node::Profile(ProfileProgram {
                 loops: vec![LoopProgram::Circle {
-                    centre: [centre, len(0.0)],
+                    centre: [centre, Formula::zero(Dimension::Length)],
                     radius: param(radius),
                 }],
                 ids: Vec::new(),
@@ -242,7 +242,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     };
     let hole_a = hole(
         &mut doc,
-        Formula::sub(len(0.0), param("half_spacing")).expect("a length"),
+        Formula::neg(param("half_spacing")).expect("a length"),
         "hole_a_r",
         tol,
     );
@@ -251,7 +251,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     // its copy placed on the blank's own frame is the hole in the
     // blank's space, which the cut and the measure read.
     let mut on_blank = |hole: RecipeNodeId| {
-        let placed = crate::world::against(&doc, blank, hole, &Frame::IDENTITY, tol);
+        let placed = crate::world::against(&doc, blank, hole, Vec::new(), tol);
         doc = placed.doc;
         placed.placement
     };

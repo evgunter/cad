@@ -361,7 +361,6 @@ fn a_later_cut_across_the_ring_builds_and_one_through_its_tip_refuses() {
     let SplitPart::Body(walls) = r.above else {
         panic!("nothing above the plane");
     };
-    let walls = AtRestBody::validate(walls, tol).unwrap();
     let plane = |o: [f64; 3], n: [f64; 3]| {
         split_plane(
             Point3::new(o[0], o[1], o[2]),

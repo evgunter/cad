@@ -130,8 +130,8 @@ pub fn narration(tol: Tol) {
             "   wall {j}: degree {}x{} NURBS, {nu}x{nv} control points, weights {}",
             wall.knots_u_f64_interim().degree(),
             wall.knots_v_f64_interim().degree(),
-            if wall.weights().iter().all(|w| *w == 1.0) {
-                "all 1 (integral)"
+            if wall.constant_weight().is_some() {
+                "one constant (integral)"
             } else {
                 "rational (the arc is exact)"
             }
@@ -586,7 +586,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the stop's note narrates V = 9 m³ exactly; these sections (flare d = {flare}) \
          now give {narrated}, so the note is wrong before the kernel is asked"
     );
-    let prism_props = pncad::topo::mass_properties(&prism, tol).expect("the prism has a volume");
+    let prism_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&prism, tol), tol)
+        .expect("the prism has a volume");
     // The enclosure is asked to BRACKET the derivation — and is
     // bounded from above first, because `volume_pad` is the props
     // door's own certified half-width with nothing constraining it:
@@ -724,8 +725,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         paired(1),
         "each twisted strut runs from c_k to c_(k+1): the top square starts one corner on"
     );
-    let twist_props = pncad::topo::mass_properties(&twisted_at_origin, tol)
-        .expect("the twisted loft has a volume");
+    let twist_props =
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_at_origin, tol), tol)
+            .expect("the twisted loft has a volume");
     assert!(
         twist_props.volume_pad <= PRISM_PAD_MAX
             && (twist_props.volume - twist_narrated).abs() <= twist_props.volume_pad,
@@ -1114,10 +1116,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // the ratio of the areas is constant along the spine and comes
     // straight out of the integral: 1 − (TUBE_IN/TUBE_OUT)² = 16/25,
     // whatever the spine does.
-    let v_tube = pncad::topo::mass_properties(&twisted_tube, tol)
+    let v_tube = pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_tube, tol), tol)
         .expect("the tube has a volume")
         .volume;
-    let v_solid = pncad::topo::mass_properties(&twisted_solid, tol)
+    let v_solid = pncad::topo::mass_properties(&crate::booleans::at_rest(&twisted_solid, tol), tol)
         .expect("the solid twin has a volume")
         .volume;
     let hollow_ratio = 1.0 - (TUBE_IN / TUBE_OUT) * (TUBE_IN / TUBE_OUT);

@@ -2,11 +2,12 @@
 id: torus-rim-mint-abandons-a-half-applied-split
 kind: issue
 title: The torus rim mint bails with Ok(()) after `split_at_midpoint` has already mutated the solid
-status: open
+status: closed
 opened: 2026-09-11
 refs: []
 priority: P0
 cost: H
+closed: 2026-10-23
 ---
 
 
@@ -78,3 +79,16 @@ this row's class.
 ## Reference note (DOOR's sweep, 2026-09-21)
 
 `step-adopt-let-ok-iso-discards` was dropped from this row's `refs` because the row closed with **DOOR**, which left the tracker at sweep 19 — `work/door/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 284ca7e9889f:work/door/step-adopt-let-ok-iso-discards.md`.
+
+## Closed (2026-10-23)
+
+Moot. The code it describes is gone. The two bailouts sat in
+`normalize.rs`'s `full_torus`, the normalizer that halved a one-face
+torus's meridian and minted a second rim. Commit `28b96a9dd6`
+(2026-10-06, "the one-face torus adopts as stated") deleted
+`full_torus`: a one-face full torus is now adopted as stated
+(`crates/step-import/tests/whole_torus_one_face.rs`). `split_at_midpoint`'s
+one remaining caller (`crates/step-import/src/normalize.rs:964`, the
+circle-use split) has no bailout after the mutation. The `let Ok(…) else`
+discard at the old `:1272`, this row's second half, was deleted along
+with `full_torus`.

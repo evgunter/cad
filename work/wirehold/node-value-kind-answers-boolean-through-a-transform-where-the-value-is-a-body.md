@@ -2,10 +2,11 @@
 id: node-value-kind-answers-boolean-through-a-transform-where-the-value-is-a-body
 kind: issue
 title: node_value_kind answers the boolean family for a transform over a boolean, where the transform's value is a body
-status: open
+status: closed
 opened: 2026-09-19
 priority: P0
 cost: D
+closed: 2026-10-23
 ---
 
 
@@ -37,3 +38,15 @@ transform-of-pattern row would pin it against the twin's own refusal.
 Read against the tree at `fd218851f9`. Still true (`node_value_kind` maps a placed `Subtract` to the boolean family). Its one consumer is a circular pattern's axis (`mate/member.rs` `axis_datum`), and `Transform`, `Datum` and `Pattern` all retire in stage 3; probably moot. Parked on `transform-retires-into-a-placement`, the INTENT row whose landing reaches this ground, and moved to WIREHOLD by WIRE's priority-seam cut, keeping its id.
 
 Signed (WIRE orchestrator).
+
+## Closed (2026-10-23)
+
+Moot in stage 3. `node_value_kind` (removed in `61736a3186`),
+`placeable_family`, `Node::Transform` and the `expected: "datum axis"`
+refusal no longer exist anywhere under `crates/`. A circular pattern's
+axis is no longer a node operand that is typed by family. It is
+`PatternKind::Circular { axis: RoleRead }`: an `Axis` pose read, or a
+frame's axis read through its role
+(`crates/editor-core/src/node.rs:1136-1139`). No transform chain is left
+to answer a family through, and no derivation road is left to disagree
+with the evaluation.

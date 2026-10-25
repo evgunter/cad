@@ -1,5 +1,5 @@
 //! **`Body::split_edge`'s pcurve-row carry on a DESCRIBED-NURBS chart**,
-//! and the frontier that sits beside it.
+//! and the re-mint beside it.
 //!
 //! `loft_body`'s prism walls are spline charts, and their rows are the
 //! two kinds a cylinder-wall fixture never presents: `Pcurve::IsoLine`
@@ -7,26 +7,18 @@
 //! profile's arc rims). The carry restricts both exactly, like any
 //! other kind, and the split body is tier-3 valid with no caller mint.
 //!
-//! What a spline chart does not yet have for an ARC rim is the
-//! RECOVERY step. `mint_pcurves` — the pass every "this face is left
-//! rowless" caveat names — mints both bodies UNSPLIT. After a split it
-//! re-derives the square prism's sub-edges, whose straight carriers the
-//! iso schedule measures from their end feet, and refuses the bulged
-//! prism's half-rim, because the arc-rim arm maps an edge's WHOLE
-//! carrier interval onto the chart's whole `u` domain, which a sub-arc
-//! no longer spans. The refusal is the arm's and not the carry's: that
-//! pass CLEARS the map before it derives, so no row this op wrote is an
-//! input to it. Filed on ISO's slate as
-//! `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`
-//! and pinned below, so the frontier is stated rather than silent.
+//! `mint_pcurves` — the pass every "this face is left rowless" caveat
+//! names — re-derives both split bodies: the square prism's straight
+//! sub-edges take the row their end feet measure, and the bulged
+//! prism's half-rims the row over the arc the row measures. That pass
+//! CLEARS the map before it derives, so no row this op wrote is an input
+//! to it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::PcurveCertifyError;
 use geom_core::{Point2, Tol};
 use profile::test_support::bulge_loop;
 use sweep::test_support::stacked_at;
-use topo::pcurves::PcurveMintError;
 use topo::{Body, EdgeKey, Pcurve};
 
 fn tol() -> Tol {
@@ -169,20 +161,15 @@ fn a_split_on_a_spline_chart_carries_the_parents_image() {
     }
 }
 
-/// **The frontier, pinned as the current behaviour.** `mint_pcurves`
-/// mints either loft body UNSPLIT, so the pass has nothing against these
-/// charts. After a split of one of their wall edges:
-///
-/// - the square prism re-mints: each straight sub-edge no longer spans
-///   its boundary row, so the closed-form candidates miss it at the
-///   probe, and the row its end feet measure holds. Every row it stores
-///   is an exact `IsoLine`, and tier 3 re-certifies them;
-/// - the bulged prism refuses, naming the half-rim that no longer spans
-///   the chart's `u` domain. That refusal is the arc-rim arm's, filed on
-///   ISO's slate; this row exists so that a fix there reds here and the
-///   state is never read off a silent suite.
+/// **The mint pass re-derives a split spline-chart wall.** `mint_pcurves`
+/// mints either loft body UNSPLIT, the control. After a split of one of
+/// their wall edges, each sub-edge no longer spans its boundary row, so
+/// the closed-form candidates miss it at the probe: a straight sub-edge
+/// takes the row its end feet measure, and a half-rim the row over the
+/// arc the row measures. Every wall row stored is exact and of the
+/// parent's kind, and tier 3 re-certifies them.
 #[test]
-fn the_mint_pass_re_derives_a_split_line_wall_and_refuses_a_split_arc_rim() {
+fn the_mint_pass_re_derives_a_split_spline_wall() {
     for which in ["IsoLine", "IsoArc"] {
         let mut control = body_of(which);
         assert_eq!(
@@ -205,35 +192,25 @@ fn the_mint_pass_re_derives_a_split_line_wall_and_refuses_a_split_arc_rim() {
                 c.description()
             );
         }
-        let minted = topo::mint_pcurves(&mut body, tol());
-        match (which, &minted) {
-            // The arc rim's own arm refuses typed: each candidate
-            // image maps the chart's whole `u` domain, in either
-            // direction, and a half-rim matches none.
-            (
-                "IsoArc",
-                Err(PcurveMintError::Certify {
-                    error: PcurveCertifyError::IsoUnsupported { .. },
-                    ..
-                }),
-            ) => {}
-            ("IsoLine", Ok(())) => {
-                let kinds: Vec<_> = body
-                    .pcurves()
-                    .filter(|(he, _)| on_spline(&body, *he))
-                    .map(|(_, c)| kind(c.pcurve()))
-                    .collect();
-                assert!(
-                    !kinds.is_empty() && kinds.iter().all(|k| *k == "IsoLine"),
-                    "IsoLine: every wall row the re-mint stores is exact: {kinds:?}"
-                );
-                assert_eq!(
-                    topo::validate_geometric(&body, tol()),
-                    Ok(()),
-                    "IsoLine: tier 3 after the re-mint"
-                );
-            }
-            _ => panic!("{which}: the mint pass after a split read {minted:?}"),
-        }
+        assert_eq!(
+            topo::mint_pcurves(&mut body, tol()),
+            Ok(()),
+            "{which}: the mint pass after a split"
+        );
+        let kinds: Vec<_> = body
+            .pcurves()
+            .filter(|(he, _)| on_spline(&body, *he))
+            .map(|(_, c)| kind(c.pcurve()))
+            .collect();
+        assert!(
+            kinds.iter().filter(|k| **k == which).count() >= 2
+                && kinds.iter().all(|k| *k == "IsoLine" || *k == "IsoArc"),
+            "{which}: every wall row the re-mint stores is exact: {kinds:?}"
+        );
+        assert_eq!(
+            topo::validate_geometric(&body, tol()),
+            Ok(()),
+            "{which}: tier 3 after the re-mint"
+        );
     }
 }

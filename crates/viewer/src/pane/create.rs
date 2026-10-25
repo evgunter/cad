@@ -17,7 +17,7 @@ use crate::forms::{
     UNIT_DRAG_SPEED, boolean_op_label, split_half_label,
 };
 use crate::frame::{self, Tone};
-use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateToolState, admitted_classes};
+use crate::matetool::{MATE_KINDS, MateChoice, MateFreedom, MateToolState};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::{Notation, render_number};
@@ -294,6 +294,12 @@ pub(crate) const PICK_A_FACE: &str = "pick a face in the viewport to draw on";
 const PROFILE_NOUN: &str = "Profile";
 const EXTRUDE_NOUN: &str = "Extrude";
 const MATE_NOUN: &str = "Mate";
+
+/// What the mate tool writes for a freedom left unticked: every bundle
+/// pins its copy, so an unset freedom is the constant 0 in the mate's
+/// chart, never left free.
+pub(crate) const MATE_UNSET_IS_ZERO: &str =
+    "Every bundle pins its copy: a freedom left unticked is written as 0.";
 pub(crate) const INSTANCE_NOUN: &str = "InstantiatePart";
 
 /// The heading of the section that makes a body out of nothing.
@@ -482,37 +488,6 @@ impl ViewerBehavior<'_> {
         };
         crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
         mate_picks_row(ui, tool.state(), self.session.doc(), &self.theme);
-        // The class choice, offered THROUGH the kernel's admission
-        // table: each class is shown with its verdict, and the
-        // deferral (Fit and every future class) is a sentence here
-        // rather than a button — the tool never offers what the doors
-        // will not execute.
-        let classes = admitted_classes();
-        ui.horizontal(|ui| {
-            for (ix, entry) in classes.iter().enumerate() {
-                ui.radio_value(&mut self.drafts.mate_class, ix, entry.class.name());
-            }
-        });
-        if let Some(entry) = classes.get(self.drafts.mate_class) {
-            // The verdict in the table's own words: a minting class
-            // says so; a class with no at-rest record shows the
-            // table's reason, never a Debug dump of it.
-            crate::widgets::message_toned(
-                ui,
-                format!(
-                    "admission: {}",
-                    match entry.admission {
-                        pncad::document::ClassAdmission::Mints => "mints an at-rest record",
-                        caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
-                        | pncad::document::ClassAdmission::NotAdmitted) => {
-                            caveat.no_record_reason()
-                        }
-                    }
-                ),
-                &self.theme,
-                Tone::Advisory,
-            );
-        }
         ui.horizontal(|ui| {
             for (ix, (_, label)) in MATE_KINDS.iter().enumerate() {
                 ui.radio_value(&mut self.drafts.mate_kind, ix, *label);
@@ -522,20 +497,25 @@ impl ViewerBehavior<'_> {
             .get(self.drafts.mate_kind)
             .map_or(VarKind::Plane, |(kind, _)| *kind);
         ui.checkbox(&mut self.drafts.mate_flip, "faces rest against each other");
-        // The freedoms this kind leaves, each set only when ticked: an
-        // unset freedom is free.
+        ui.checkbox(
+            &mut self.drafts.mate_into_target_space,
+            "move the copy into the target's space",
+        );
+        // The freedoms this kind leaves, each set to its number when
+        // ticked. Every bundle pins its copy, so a freedom left unticked
+        // is written as the constant 0 (the bundle door's rule), and the
+        // panel says so rather than leaving it to be found out.
+        ui.label(MATE_UNSET_IS_ZERO);
         for (freedom, (set, value)) in MateFreedom::ALL.iter().zip(&mut self.drafts.mate_values) {
             let coord = freedom.coord();
-            if coord.admitted_by(kind).is_err() {
+            if !freedom.left_by(kind) {
                 continue;
             }
             ui.horizontal(|ui| {
                 ui.checkbox(set, coord.name());
                 let (unit, speed) = match coord {
                     Coord::Slide(_) => (self.notation.length.def(), FIELD_DRAG_SPEED),
-                    Coord::Spin | Coord::SpinAbout(_) => {
-                        (self.notation.angle.def(), ANGLE_DRAG_SPEED)
-                    }
+                    Coord::Spin(_) => (self.notation.angle.def(), ANGLE_DRAG_SPEED),
                 };
                 unit_field(ui, unit, speed, value);
             });
@@ -546,29 +526,24 @@ impl ViewerBehavior<'_> {
             if ui.button(ToolKind::Mate.commit()).clicked() {
                 let values: Result<Vec<_>, _> = MateFreedom::ALL
                     .iter()
-                    .map(|freedom| freedom.coord())
                     .zip(self.drafts.mate_values)
-                    .filter(|(coord, (set, _))| *set && coord.admitted_by(kind).is_ok())
-                    .map(|(coord, (_, value))| {
+                    .filter(|(freedom, (set, _))| *set && freedom.left_by(kind))
+                    .map(|(freedom, (_, value))| {
+                        let coord = freedom.coord();
                         match coord {
                             Coord::Slide(_) => self.notation.length_literal(value),
-                            Coord::Spin | Coord::SpinAbout(_) => self.notation.angle_literal(value),
+                            Coord::Spin(_) => self.notation.angle_literal(value),
                         }
                         .map(|by| (coord, by))
                     })
                     .collect();
-                match (
-                    classes.get(self.drafts.mate_class),
-                    values,
-                    self.session.landed_pair(),
-                ) {
-                    (_, Err(error), _) => {
+                match (values, self.session.landed_pair()) {
+                    (Err(error), _) => {
                         self.notices
                             .push(frame::tool_news(&ToolKind::Mate.refuses(&error)));
                     }
-                    (Some(entry), Ok(values), Some((doc, _))) => {
+                    (Ok(values), Some((doc, _))) => {
                         let choice = MateChoice {
-                            class: entry.class,
                             kind,
                             flip: self.drafts.mate_flip,
                             values,
@@ -577,7 +552,12 @@ impl ViewerBehavior<'_> {
                             Ok(proposal) => {
                                 // One committed action (and its
                                 // label); the tool closes with it.
-                                self.push_labelled(MATE_NOUN, proposal.op());
+                                let op = if self.drafts.mate_into_target_space {
+                                    proposal.op_into_target_space()
+                                } else {
+                                    proposal.op()
+                                };
+                                self.push_labelled(MATE_NOUN, op);
                                 close = true;
                             }
                             // Said from the document the panel's
@@ -2190,10 +2170,14 @@ mod creation_nouns {
     /// inserts, so its proposal counts the document's instances.
     #[test]
     fn the_part_choosers_noun_is_the_instances_kind() {
-        let instance = Node::<ProfileProgram>::instantiate_part(DocRef {
-            id: DocumentId(7),
-            pin: ContentPin([0; 32]),
-        });
+        let instance = Node::<ProfileProgram>::instantiate_part(
+            DocRef {
+                id: DocumentId(7),
+                pin: ContentPin([0; 32]),
+            },
+            pncad::document::VarId::WORLD,
+            Vec::new(),
+        );
         assert_eq!(node_kind_noun(&instance), INSTANCE_NOUN);
     }
 }

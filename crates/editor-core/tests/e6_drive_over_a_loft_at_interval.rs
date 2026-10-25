@@ -88,7 +88,7 @@ fn loft_doc(
     let loft = if u == [1.0, 0.0, 0.0] {
         loft
     } else {
-        r.in_world(loft, &fixture::frame_at([0.0; 3], u, v))
+        r.in_world(loft, &fixture::axes_at([0.0; 3], u, v))
     };
     r.insert(Node::Profile(ProfileProgram {
         loops: vec![rect(Formula::named(

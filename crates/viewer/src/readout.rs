@@ -296,16 +296,20 @@ pub fn widest_render(mut advance: impl FnMut(char) -> f32) -> f32 {
 /// **Whether the chrome can hand one is the callers' question, and it
 /// is answered at each of them rather than here.** The sweep is every
 /// call to this function under `crates/viewer/src`, read for what its
-/// argument's producer guarantees, and there are three:
+/// argument's producer guarantees, and there are four:
 /// [`crate::scene::DisplayTolerance::render_in`], which asks
 /// [`crate::props::written`] and whose door refuses a δ whose
 /// millimetre value — the finest length unit's — is not an `f64`;
 /// [`crate::props::written_text`], which asks
 /// [`crate::props::written`] whether the notation can name the value
-/// and says so when it cannot; and `crate::widgets::number_text`'s
-/// fallback, whose argument is whatever the widget was bound to. The
-/// first two cannot reach here with a non-finite value. The third can,
-/// and `number_text` owns that.
+/// and says so when it cannot; `crate::widgets::number_text`'s
+/// fallback, whose argument is whatever the widget was bound to; and
+/// `crate::camera`'s refusal sentences, whose arguments are whatever
+/// field a refused camera or move carried. The first two cannot reach
+/// here with a non-finite value. The third can, and `number_text` owns
+/// that. The fourth reaches here with one by design — a refused move's
+/// offending field is `NaN` or `inf` — and the fallback's `NaN` and
+/// `inf` are the spellings its sentence wants.
 ///
 /// **The top of the type is no longer an exception to the width.**
 /// From `1.7975000000000001e308` up, four significant figures round

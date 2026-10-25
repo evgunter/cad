@@ -27,7 +27,12 @@ fn a_seam_region_holding_its_poles_inside_its_faces_imports_and_measures() {
         other => panic!("the side-cut ball does not import as a solid: {other:?}"),
     };
     topo::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::mass_properties(&body, tol).unwrap().volume;
+    let volume = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), tol),
+        tol,
+    )
+    .unwrap()
+    .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,
         "the side-cut ball measures {volume}, the closed form is {exact}"
@@ -56,7 +61,12 @@ fn a_seam_region_reads_its_side_at_a_pole_on_another_members_edge() {
         other => panic!("the split side-cut ball does not import as a solid: {other:?}"),
     };
     topo::validate_geometric(&body, tol).unwrap_or_else(|e| panic!("tier 3 refuses it: {e:?}"));
-    let volume = topo::mass_properties(&body, tol).unwrap().volume;
+    let volume = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), tol),
+        tol,
+    )
+    .unwrap()
+    .volume;
     assert!(
         (volume - exact).abs() <= 1e-9 * exact,
         "the split side-cut ball measures {volume}, the closed form is {exact}"

@@ -7,6 +7,7 @@ opened: 2026-09-06
 refs: [quad2-rational-max-rounds-dial-decision]
 priority: P1
 cost: D
+parent: the-measurement-door-refines-until-a-predicate-resolves
 ---
 
 

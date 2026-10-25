@@ -2,10 +2,13 @@
 id: angular-arms-are-an-untagged-lever-beside-a-typed-rate
 kind: issue
 title: The angular chart arms are untagged metres-per-radian levers beside a typed rate pair
-status: open
+status: closed
+pr: 5655
 opened: 2026-09-15
 priority: P1
 cost: E
+branch: chart/arms-typing
+closed: 2026-10-24
 ---
 
 
@@ -57,3 +60,29 @@ windings and certification compares them exactly, so no lever reads a
 winding. The cone arm's `SupSpeed` minted and `.get()`-stripped at
 `pcurve_azimuth_period` is still there, in `pcurve_cache/projected.rs`'s
 check 2, which is now that gate's only site.
+
+## Resolved: an angle × an exact radius crosses through the rate pair (PR 5655)
+
+The review asked which door carries "an angle in radians × a radius":
+`Margin::levered`'s doc named the case, and `InfSpeed`'s doc and
+`param_rate` mint a circle's exact radius through the rate pair. CHART's
+orchestrator ruled (b), from `docs/DESIGN.md`'s margin dimensional
+convention (`[tolerance.margins]`) clause (iii): "Parameter-space values
+cross to model space only through per-kind metric doors." A chart's
+azimuth `u` or polar `v` is a parameter, radians or not, so a span or
+gap in it crosses through `metered`/`metered_sup`. `levered` keeps
+dimensionless quantities that are not parameters: a cosine, a ratio, an
+angle between directions.
+
+PR 5655 writes that sentence into both doors' docs. It moves both
+channels of `decide_joint` onto `metered_sup`, so one predicate has one
+door. For a mark decision the door's argument is stated at each site:
+a positive rate keeps the sign of `gap − mark`, the exact lever serves
+as both members, and a net's stretch serves as its sup. The audit's
+`pcurve_loop_branch` row now says the same. The other sites the ruling
+moves are filed as
+`work/hone/parameter-spans-cross-through-levered-not-the-rate-pair.md`.
+
+## Closed
+
+Closed 2026-10-24 by PR 5655 (STYLE review, fix pass taken, with the door ruling under `[tolerance.margins]` clause (iii)). The remaining table copies are filed as `work/pcert/chart-arm-tables-beside-the-one-sup-door.md`, and the remaining parameter spans as `work/hone/parameter-spans-cross-through-levered-not-the-rate-pair.md`. (CHART orchestrator)

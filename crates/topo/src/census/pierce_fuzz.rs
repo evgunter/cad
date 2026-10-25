@@ -124,16 +124,7 @@ impl<'b, T: Decide> Pair<'b, T> {
         let declared = Declared::index(&self.geo, &ContactRecords::default());
         let mut errors = Vec::new();
         let (e, f) = (&self.e, self.f());
-        pair_edge_face(
-            self.body,
-            &self.geo,
-            &declared,
-            band,
-            None,
-            e,
-            f,
-            &mut errors,
-        );
+        pair_edge_face(self.body, &self.geo, &declared, band, e, f, &mut errors);
         errors
     }
 
