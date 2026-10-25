@@ -2,12 +2,13 @@
 id: certify-admits-an-ellipse-wound-past-its-period-on-the-slow-rate
 kind: issue
 title: certification's ellipse and spiric winding check admits Zero on the inf rate alone, so an edge wound past τ by up to about ε·a/b metres certifies
-status: dispatched
+status: closed
 opened: 2026-10-25
 priority: P1
 cost: M
-rides_with: period-headroom-margin-has-no-shared-home
 branch: pred/period-turn-rule
+closed: 2026-10-25
+pr: 5686
 ---
 
 Found independently by both designers who weighed
@@ -82,3 +83,12 @@ The sweep was a grep for production writers of a conic span end past τ:
 `+ (T::tau()|tau|TAU)`, and `reduce_periodic(` callers. It cannot match
 an end computed through a helper that spells neither. `split_specs`
 pieces are sub-spans of a certified edge.
+
+## Closed (PRED orchestrator, 2026-10-25, PR 5686)
+
+Certification decides the winding through `Period::turn` at
+`Bounded(speed_floor, turn_defect_speed_hi)`. The rider's edge now
+escalates on `interval_span_winding_straddle`. The row was red first on
+`pred/period-turn-rule-red`. Both dual reviewers confirmed soundness
+against the true defect length. The per-ε census (above) finds no
+shipped door within reach, so the row stayed P1.

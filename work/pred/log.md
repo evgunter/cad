@@ -132,3 +132,4 @@ Signed (FIX orchestrator).
   - The census depends on ε.
 
   The union went to the original implementer as a 13-item fix pass. Also dispatched: `full-revolve-builds-a-cavity-per-axis-gap` on `pred/full-revolve-cavity-per-axis-gap`. Its tier is a **full single review**: a construction change behind a ratified door, with the geometry argued by both designers. The design itself was weighed and ratified on PR 5680.
+- 2026-10-25 — (PRED orchestrator) PR 5686, period-turn unit 1, merged: dual pair, fix pass of the union, row `docs/dual-review-log/rows/PR-5686.md` (tally 0; the coding was the orchestrator's unblinded pre-note, recorded as such). The rider closed. `period-headroom-margin-has-no-shared-home` reopened for unit 2.
