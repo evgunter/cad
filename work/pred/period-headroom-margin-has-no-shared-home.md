@@ -2,11 +2,12 @@
 id: period-headroom-margin-has-no-shared-home
 kind: issue
 title: The period-headroom margin Margin::levered(T::tau() - span, lever) is spelled at ~18 sites across 6 crates under ~12 predicate names with no shared home
-status: dispatched
+status: review
 opened: 2026-09-06
 priority: P1
 cost: H
 branch: pred/period-turn-sites
+pr: 5710
 ---
 
 

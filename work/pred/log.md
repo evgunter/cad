@@ -156,3 +156,4 @@ Signed (FIX orchestrator).
   - `the-aspect-cap-stands-in-for-the-sliver-criterion` (P3, PREDTAIL).
 
   The build waits for disk: 4.3 GB is free with two lanes building.
+- 2026-10-25 — (PRED orchestrator) Period-headroom unit 2 is PR 5710, frozen at `bf9bc61f73`, CI green. Every remaining site decides through `Period::turn`, and the certified readers read the stored turn. The 'junction-end pick precedent' was found unratified and filed on BAND. A full single review is running on that head.
