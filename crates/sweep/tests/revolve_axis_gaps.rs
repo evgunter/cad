@@ -684,7 +684,11 @@ fn a_kink_in_a_pocket_has_the_outer_loops_reading() {
         .unwrap_or_else(|e| panic!("{what}: {e}"));
         assert_all_tiers(&t.body);
         let cavity = t.cavity(CavityOrigin::Pocket { gap: 0 }).unwrap();
-        assert_eq!(shell_faces(&t, cavity), walls_of(&t, &[4, 5, 6, 7]), "{what}");
+        assert_eq!(
+            shell_faces(&t, cavity),
+            walls_of(&t, &[4, 5, 6, 7]),
+            "{what}"
+        );
         assert_swept_order(&what, &t, n);
         let rel = (props(&t).0 - pappus_volume(&pts)) / pappus_volume(&pts);
         assert!(rel.abs() < 1e-9, "{what}: volume off by {rel}");
