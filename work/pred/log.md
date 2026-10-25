@@ -146,3 +146,16 @@ Signed (FIX orchestrator).
   **Class finding, logged:** a sub-chain of a loop re-collapsed separately from the loop's own collapse, which is two spellings of one loop's runs. Look for it wherever a stretch is re-collapsed.
 
   **Probable kernel defect, out of fence:** a near-collinear kink on a single-run shell passes validation and then refuses at the Euler attachment gate as "a kernel defect". The lane reproduces it on main and files it.
+- 2026-10-25 — (PRED orchestrator) **Ev ruled S29 on PR 5708**, with three amendments on the thread:
+  - The rule is "as big as possible without any extra work": each lane takes the coarsest step its own pinned worst-triangle theorem allows. There is no safety factor and no δ/2 bound.
+  - A = 16 is a heuristic, open to replacement by what it means.
+  - The `[tolerance.chordal]` sentence was dropped as redundant, and the README was rewritten plainly.
+
+  PR 5708 merged. Fork-log row 195 is complete (Opus A, Fable B). S29 is closed. Filed:
+  - the build, `mesh-sizes-each-lane-by-its-worst-admissible-triangle` (P1 H, PRED);
+  - `the-aspect-cap-stands-in-for-the-sliver-criterion` (P3, PREDTAIL).
+
+  The build waits for disk: 4.3 GB is free with two lanes building.
+- 2026-10-25 — (PRED orchestrator) Period-headroom unit 2 is PR 5710, frozen at `bf9bc61f73`, CI green. Every remaining site decides through `Period::turn`, and the certified readers read the stored turn. The 'junction-end pick precedent' was found unratified and filed on BAND. A full single review is running on that head.
+- 2026-10-25 — (PRED orchestrator) Dispatched `mesh-sizes-each-lane-by-its-worst-admissible-triangle` on `pred/mesh-sizing-rule` as a **full single review** unit. Lane order: measure first; the cone rim-chord row runs on main before the change. A mis-mesh there would be P0.
+- 2026-10-25 — (PRED orchestrator) PR 5710 full single review: APPROVE-WITH-FIXES, no MAJOR. The fix pass gives one home to each of the three dispositions, and one home to the admit-an-undecided-not-over policy, carrying the sup's sign; that reconciles ConicArc's slack with check 2's. It also separates the row names for seg.rs's two readings, adds the wrap_band forward delta and its row, and draws the interval CI lane (skipped on the frozen head). Class finding: one question asked through a wrapper per site, five times, with no shared home. The fix pass removes it.
