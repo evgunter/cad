@@ -123,6 +123,7 @@ Signed (FIX orchestrator).
   - **The rider.** It was red-first on `pred/period-turn-rule-red`; the edge now escalates. Its census finds no shipped door that reaches it (STEP import wraps `t1` within about 9e-16 rad), so it stays P1.
   - **Main-red the lane reported.** `m4_pr3_names_ci::die_name_tables_are_golden` is red at the base too. It is already INTENT's `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`.
   - **The dual pair waits for disk.** Two fresh full-rebuild targets do not fit beside the two running fix passes. The pair dispatches, concurrently and on the same frozen head, once those lanes report. Following the protocol, the duals are reduced rather than one reviewer's method narrowed.
+- 2026-10-25 — (PRED orchestrator) PR 5684 (S18) merged after a full single review and its fix pass: the export door takes an `AtRestBody`, and `volume.rs` is gone. S18 is closed.
 - 2026-10-25 — (PRED orchestrator) PR 5685 (D292) merged after a full single review (APPROVE-WITH-FIXES, with one MAJOR fixed in the fix pass and the counterexample pinned). D292 is closed.
 - 2026-10-25 — (PRED orchestrator) Dual review of PR 5686 is in. Both reviewers returned APPROVE-WITH-FIXES with no MAJOR, so there is no tally candidate. Both were uninterrupted with no relaxations, so the pair is fair. The correspondence pre-note goes in the row at merge. Bilateral findings:
   - `Extent::width` admits a reversed or bare extent. Both executed it.
