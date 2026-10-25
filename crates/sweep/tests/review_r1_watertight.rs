@@ -544,3 +544,66 @@ fn review_disc30_seam_one() {
         topo::test_support::review_ray_counts(&body, face, q, d, band, 0, false)
     );
 }
+
+/// Claim 11: one curved face (a ¾ tube's outer wall) whose rim carrier
+/// circle runs on through its gap: rays through points on that carrier
+/// in the gap, at the rim's height within ±3Kε, read by point
+/// containment's own ray from 8 m out.
+#[test]
+#[ignore = "review probe"]
+fn review_gap_on_rim_carrier() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).expect("band");
+    let k_eps = tol.k() * tol.eps();
+    let body = revolved_about_y(
+        vec![
+            (Point2::new(0.5, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.5, 1.0), 0.0),
+        ],
+        Revolution::Partial(1.5 * PI),
+        tol,
+    );
+    println!(
+        "R1 GAP tier3' {:?}",
+        topo::validate_pseudomanifold(&body, &topo::ContactRecords::default(), tol).is_ok()
+    );
+    let face = body.faces().next().expect("a face").0;
+    // Which of ±π/4 is the gap's middle.
+    let mut gap = None;
+    for th in [PI / 4.0, -PI / 4.0] {
+        let p = Point3::new(0.75 * th.cos(), 0.5, 0.75 * th.sin());
+        let r = topo::point_in_solid(&body, p, band, tol);
+        println!("R1 GAP probe az {th}: {r:?}");
+        if r == Ok(topo::SolidContainment::Out) {
+            gap = Some(th);
+        }
+    }
+    let th0 = gap.expect("a gap");
+    let mut rng = test_utils::fuzz::start("review_gap_on_rim_carrier");
+    let mut tally = std::collections::BTreeMap::<String, usize>::new();
+    for _ in 0..test_utils::fuzz::scaled(400) {
+        let th = th0 + rng.range(-0.6, 0.6);
+        let rr = if rng.range(0.0, 1.0) < 0.5 { 1.0 } else { 0.5 };
+        let y = if rng.range(0.0, 1.0) < 0.5 { 1.0 } else { 0.0 };
+        let p = Point3::new(rr * th.cos(), y + rng.range(-3.0, 3.0) * k_eps, rr * th.sin())
+            + Vec3::new(th.cos(), 0.0, th.sin()) * (rng.range(-3.0, 3.0) * k_eps);
+        let d = Vec3::new(rng.range(-1.0, 1.0), rng.range(-1.0, 1.0), rng.range(-1.0, 1.0))
+            .normalize();
+        let q = p - d * 8.0;
+        let cast = topo::test_support::review_cast(&body, face, q, d, band);
+        let key = if cast.starts_with("Ok(Some(Out") {
+            "Out".to_owned()
+        } else if cast.starts_with("Ok(Some(In") {
+            println!("R1 GAP WRONG q={q:?} d={d:?}");
+            "In (wrong)".to_owned()
+        } else if cast.starts_with("Ok(None") {
+            "none".to_owned()
+        } else {
+            cast.chars().take(60).collect()
+        };
+        *tally.entry(key).or_default() += 1;
+    }
+    println!("R1 GAP eps={:e} {tally:?}", tol.eps());
+}
