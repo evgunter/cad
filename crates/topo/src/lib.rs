@@ -403,6 +403,17 @@ pub mod test_support {
     }
 
     pub use crate::side_reader::EdgeFrame;
+    /// Review probe: point containment's reading of one ray.
+    pub fn review_cast(
+        body: &Body<f64>,
+        face: crate::FaceKey,
+        q: geom_core::Point3<f64>,
+        d: geom_core::Vec3<f64>,
+        band: geom_core::Band,
+    ) -> String {
+        crate::boolean::solid_contain::review_cast(body, face, q, d, band)
+    }
+
 
     /// Every crossing of the ray `q + s·d` with the solid holding `face`,
     /// its faces in an order turned left by `turn` and reversed where
