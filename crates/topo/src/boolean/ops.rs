@@ -7711,6 +7711,46 @@ fn fallback_fates<T: Decide + AtRestPolicy>(
             (cuts, uncut)
         }
     };
+    // REVIEW PROBE (PR 5706, claim 10): each divided face's loops, by
+    // winding about its outward normal and centroid.
+    if std::env::var("REVIEW_FATE_SIDES").is_ok() {
+        for (operand, body, div) in [(Operand::A, &red.a, &divisions[0]), (Operand::B, &red.b, &divisions[1])] {
+            for (f, fd) in body.faces() {
+                let root = div.root(f);
+                if root == f && !cuts.substituted.iter().any(|s| s.operand == operand && div.root(s.face) == f) && !body.faces().any(|(g, _)| g != f && div.root(g) == f) {
+                    continue;
+                }
+                let Some(n) = crate::face_normal::face_outward_normal(body, f) else { continue };
+                let mut loops = vec![(true, fd.outer)];
+                loops.extend(fd.rings.iter().map(|&l| (false, l)));
+                let mut out = Vec::new();
+                for (outer, l) in loops {
+                    let Some(ld) = body.get_loop(l) else { continue };
+                    let crate::entity::LoopBoundary::Cycle { first } = ld.boundary else {
+                        out.push(format!("{}:empty", if outer { "outer" } else { "ring" }));
+                        continue;
+                    };
+                    let mut pts = Vec::new();
+                    let mut he = first;
+                    loop {
+                        let h = body.get_half_edge(he).expect("he");
+                        let e = body.get_edge(h.edge).expect("edge");
+                        let c = body.edge_curve_linked(h.edge, e).certified().expect("cert");
+                        let fwd = e.he_plus == he;
+                        for i in 0..8u32 {
+                            let k = if fwd { i } else { 8 - i };
+                            pts.push(c.carrier().eval(c.sample_param(k)));
+                        }
+                        he = h.next;
+                        if he == first { break; }
+                    }
+                    let (area, _) = super::fate::winding_for_review(&pts, n.vec());
+                    out.push(format!("{}:area2={area:?}", if outer { "outer" } else { "ring" }));
+                }
+                eprintln!("FATE-SIDES {operand:?} face {f:?} root {root:?} substituted={} {}", cuts.is_substituted(operand, f), out.join(" "));
+            }
+        }
+    }
     let refuse = |_: crate::entity::HalfEdgeKey,
                   _: VertexKey,
                   _: VertexKey|

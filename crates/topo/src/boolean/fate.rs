@@ -679,6 +679,11 @@ fn winding<T: Decide>(points: &[Point3<T>], n: Vec3<T>) -> (T, T) {
     (area, len)
 }
 
+/// REVIEW PROBE: [`winding`] for `ops::fallback_fates`' side read.
+pub(super) fn winding_for_review<T: Decide>(points: &[Point3<T>], n: Vec3<T>) -> (T, T) {
+    winding(points, n)
+}
+
 /// The loop half-edge `he` belongs to.
 fn loop_of<T: geom_core::Real>(body: &Body<T>, he: HalfEdgeKey) -> Result<LoopKey, BooleanError> {
     body.get_half_edge(he)
