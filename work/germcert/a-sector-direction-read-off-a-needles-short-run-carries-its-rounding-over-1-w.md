@@ -23,10 +23,10 @@ fill `(0,1)×(0.5+w,0.8)×(0.5,0.5+w)`, and the bar alone (`slab ∖ fill`,
 predicate is `bool_sector_within` (`boolean/sectors.rs`
 `within_signs`), and `bool_sector_coplanar` at 12ε. The same
 operands build axis-aligned at every width, and turned at ε 1e-6.
-They also refuse the same way, from 10.5ε up, when the axis-aligned
-union's operands are moved by `transform_rigid` rather than built with
-their corners turned, so fitting the planes from corners is not the
-cause.
+The union also refuses the same way at 10.5–21ε when its axis-aligned
+operands are moved by `transform_rigid` rather than built with their
+corners turned (it builds at 30ε). So fitting the planes from corners
+is not the cause.
 
 **Measured** (15ε, turned, the `within_signs` call that refuses).
 The sector is the fill's floor at its corner: `start` is −x, `end` is

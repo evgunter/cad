@@ -1,4 +1,11 @@
-//! Probe: the needle cavity at the join's section loop (measure only).
+//! **The needle cavity's measuring probe** (FLUSH,
+//! `a-needle-cavity-refuses-at-the-joins-section-loop-before-any-read`):
+//! every boolean the pin `shell_role_reader::a_needle_cavity_builds_at_every_definite_width_and_holds_it_as_a_void`
+//! reads, and the plain `brick ∖ bar` the row first named, printed per
+//! width, pose and ε. It asserts nothing; run it at each ε with
+//! `CAD_TOLERANCE_EPS=<ε> cargo nextest run -p topo --release --run-ignored only needle_cavity_probe --no-capture`.
+//! `tilted` turns each operand's corners; `moved` turns the
+//! axis-aligned operands of the union with `transform_rigid`.
 
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
@@ -57,90 +64,78 @@ fn show(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
     }
 }
 
+/// `(big ∖ slab) ∪ fill`, shown.
+fn union_of_the_hollow(
+    big: &AtRestBody<f64>,
+    slab: &AtRestBody<f64>,
+    fill: &AtRestBody<f64>,
+    tol: Tol,
+) -> String {
+    match topo::subtract(big, slab, tol) {
+        Ok(h) => show(&topo::union(&h.body().expect("a hollow").body, fill, tol)),
+        Err(e) => format!("brick ∖ slab ERR {e:?}"),
+    }
+}
+
 #[test]
-#[ignore = "probe: cargo nextest run -p topo --run-ignored only needle_cavity_probe --no-capture"]
+#[ignore = "probe: CAD_TOLERANCE_EPS=<ε> cargo nextest run -p topo --release --run-ignored only needle_cavity_probe --no-capture"]
 fn needle_cavity_probe() {
-    {
-        let tol = Tol::witness();
-        let eps = tol.eps();
-        for (pose, r) in [
-            ("axis", rot([0.0, 0.0, 1.0], 0.0)),
-            ("tilted", rot([1.0, 2.0, 3.0], 1.1)),
-        ]
-        .into_iter()
-        .take(if std::env::var_os("NEEDLE_AXIS").is_some() {
-            1
-        } else {
-            2
-        }) {
-            for m in std::env::var("NEEDLE_M")
-                .map(|v| vec![v.parse::<f64>().unwrap()])
-                .unwrap_or(vec![10.5, 12.0, 15.0, 21.0, 30.0])
-            {
-                let w = m * eps;
-                let big = boxed(r, (-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol);
-                let bar = boxed(r, (0.0, 1.0), (0.5, 0.5 + w), (0.5, 0.5 + w), tol);
-                let slab = boxed(r, (0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w), tol);
-                let fill = boxed(r, (0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w), tol);
+    let tol = Tol::witness();
+    let eps = tol.eps();
+    let band = geom_core::Band::linear(tol).expect("the run's band");
+    let axis = geom_core::UnitVec3::new(geom_core::Vec3::new(1.0, 2.0, 3.0), "probe", band)
+        .expect("a unit axis");
+    let motion = geom_core::RigidMotion::rotation(axis, 1.1).expect("a finite angle");
+    let moved = |b: &AtRestBody<f64>| {
+        AtRestBody::validate(topo::transform_rigid(b, &motion, tol).expect("moves"), tol)
+            .expect("moved operand at rest")
+    };
+    for (pose, r) in [
+        ("axis", rot([0.0, 0.0, 1.0], 0.0)),
+        ("tilted", rot([1.0, 2.0, 3.0], 1.1)),
+    ] {
+        for m in [10.5, 12.0, 15.0, 21.0, 30.0] {
+            let w = m * eps;
+            let at = |op: &str| format!("eps {eps:e} {pose} {m}ε  {op}:");
+            let big = boxed(r, (-1.0, 2.0), (-1.0, 2.0), (-1.0, 2.0), tol);
+            let bar = boxed(r, (0.0, 1.0), (0.5, 0.5 + w), (0.5, 0.5 + w), tol);
+            let slab = boxed(r, (0.0, 1.0), (0.5, 0.8), (0.5, 0.5 + w), tol);
+            let fill = boxed(r, (0.0, 1.0), (0.5 + w, 0.8), (0.5, 0.5 + w), tol);
+            println!(
+                "{} {}",
+                at("big∖bar"),
+                show(&topo::subtract(&big, &bar, tol))
+            );
+            println!(
+                "{} {}",
+                at("bar∩big"),
+                show(&topo::intersect(&bar, &big, tol))
+            );
+            println!("{} {}", at("big∪bar"), show(&topo::union(&big, &bar, tol)));
+            println!(
+                "{} {}",
+                at("slab∖fill"),
+                show(&topo::subtract(&slab, &fill, tol))
+            );
+            let cut = match topo::subtract(&big, &fill, tol) {
+                Ok(c) => show(&topo::intersect(
+                    &slab,
+                    &c.body().expect("a complement").body,
+                    tol,
+                )),
+                Err(e) => format!("brick ∖ fill ERR {e:?}"),
+            };
+            println!("{} {cut}", at("slab∩(big∖fill)"));
+            println!(
+                "{} {}",
+                at("hollow∪fill"),
+                union_of_the_hollow(&big, &slab, &fill, tol)
+            );
+            if pose == "axis" {
                 println!(
-                    "eps {eps:e} {pose} {m}ε  big∖bar: {}",
-                    show(&topo::subtract(&big, &bar, tol))
+                    "eps {eps:e} moved {m}ε  hollow∪fill: {}",
+                    union_of_the_hollow(&moved(&big), &moved(&slab), &moved(&fill), tol)
                 );
-                println!(
-                    "eps {eps:e} {pose} {m}ε  bar∩big: {}",
-                    show(&topo::intersect(&bar, &big, tol))
-                );
-                println!(
-                    "eps {eps:e} {pose} {m}ε  big∪bar: {}",
-                    show(&topo::union(&big, &bar, tol))
-                );
-                let mv = |b: AtRestBody<f64>| {
-                    let axis = geom_core::UnitVec3::new(
-                        geom_core::Vec3::new(1.0, 2.0, 3.0),
-                        "probe",
-                        geom_core::Band::linear(tol).unwrap(),
-                    )
-                    .unwrap();
-                    let m = geom_core::RigidMotion::rotation(axis, 1.1).unwrap();
-                    AtRestBody::validate(topo::transform_rigid(&b, &m, tol).unwrap(), tol).unwrap()
-                };
-                if pose == "axis" {
-                    let (big, slab, fill) = (mv(big.clone()), mv(slab.clone()), mv(fill.clone()));
-                    match topo::subtract(&big, &slab, tol) {
-                        Ok(h) => {
-                            let hollow = h.body().unwrap().body.clone();
-                            println!(
-                                "eps {eps:e} moved {m}ε  hollow∪fill: {}",
-                                show(&topo::union(&hollow, &fill, tol))
-                            );
-                        }
-                        Err(e) => println!("eps {eps:e} moved {m}ε  big∖slab ERR {e:?}"),
-                    }
-                }
-                println!(
-                    "eps {eps:e} {pose} {m}ε  slab∖fill: {}",
-                    show(&topo::subtract(&slab, &fill, tol))
-                );
-                match topo::subtract(&big, &fill, tol) {
-                    Ok(c) => {
-                        let comp = c.body().unwrap().body.clone();
-                        println!(
-                            "eps {eps:e} {pose} {m}ε  slab∩(big∖fill): {}",
-                            show(&topo::intersect(&slab, &comp, tol))
-                        );
-                    }
-                    Err(e) => println!("eps {eps:e} {pose} {m}ε  big∖fill ERR {e:?}"),
-                }
-                match topo::subtract(&big, &slab, tol) {
-                    Ok(h) => {
-                        let hollow = h.body().unwrap().body.clone();
-                        println!(
-                            "eps {eps:e} {pose} {m}ε  hollow∪fill: {}",
-                            show(&topo::union(&hollow, &fill, tol))
-                        );
-                    }
-                    Err(e) => println!("eps {eps:e} {pose} {m}ε  big∖slab ERR {e:?}"),
-                }
             }
         }
     }
