@@ -358,7 +358,9 @@ fn limb_two_certifies_the_arc_and_the_tube_names_the_cone() {
 /// needle cone, symmetric about its vertex and turning nearly a half
 /// turn, the farthest pair of points is a vertex and an end, not the
 /// two ends. Measured: the chord stays a lower bound, and on the needle
-/// it is under a fifth of the diameter
+/// it is under a fifth of the diameter. A lower bound is not the safe
+/// side here: the lever shrinks with it, so a margin Positive at the
+/// diameter can read a definite Zero at the chord
 /// (`work/select/edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short.md`,
 /// which this row goes red for once the bound reads more of the arc).
 #[test]
@@ -403,6 +405,101 @@ fn the_chord_on_a_steep_arc() {
             loose,
             "α {alpha}: the chord reads {} of the diameter",
             extent / diameter
+        );
+    }
+}
+
+/// The point of the section of the plane `(q, n)`, `n` square to `y`,
+/// with `cone(alpha)` at height `y` along `ŷ`, on the branch that stays
+/// finite as the plane tilts to a generator: solved in the world frame,
+/// apart from the mint's own frame, as the quadratic
+/// `A·x² + B·x + C = 0` in the plane coordinate `x` along `n × ŷ`, its
+/// grazing coefficient `A = (n_z·cos α − n_x·sin α)(n_z·cos α +
+/// n_x·sin α)` read with its cancellation compensated.
+fn section_at_height(alpha: f64, (q, n): (Point3<f64>, Vec3<f64>), y: f64) -> Point3<f64> {
+    let (sa, ca) = alpha.sin_cos();
+    let p = n.x * sa;
+    let grazing = n.z.mul_add(ca, -p) - n.x.mul_add(sa, -p);
+    let a = grazing * n.z.mul_add(ca, p);
+    let h0 = q.z - 1.0;
+    let b = 2.0 * (q.x * n.z * ca * ca + h0 * n.x * sa * sa);
+    let c = (q.x * q.x + y * y) * ca * ca - h0 * h0 * sa * sa;
+    let x = -2.0 * c / (b + (b * b - 4.0 * a * c).sqrt().copysign(b));
+    Point3::new(q.x + x * n.z, y, q.z - x * n.x)
+}
+
+/// **A hyperbolic arc's points are the section's own, near the
+/// parabola too.** The residual against the two surfaces cannot see an
+/// arc that slides along its own curve, so the window's ends and every
+/// sampled point of the arc are held to the section's point at the same
+/// height, solved apart from the mint ([`section_at_height`]). The
+/// planes tilt past the generator by `tilt`, from a plain hyperbola to
+/// grazing ones whose far branch stands kilometres off, over windows
+/// reaching tens of metres down the near branch.
+#[test]
+fn an_arc_is_the_sections_own_points_near_the_parabola() {
+    let pi6 = core::f64::consts::FRAC_PI_6;
+    for (alpha, tilt, reach) in [
+        (pi6, 0.3, 2.0),
+        (pi6, 1e-2, 20.0),
+        (pi6, 1e-3, 20.0),
+        (pi6, 1e-4, 60.0),
+        (pi6, 1e-5, 60.0),
+        (0.05, 1e-3, 5.0),
+        (1.3, 1e-3, 20.0),
+    ] {
+        let phi = core::f64::consts::FRAC_PI_2 - alpha + tilt;
+        let n = Vec3::new(phi.sin(), 0.0, phi.cos());
+        let q = Point3::new(0.0, 0.0, 3.0);
+        let section = open(alpha, q, n);
+        assert_eq!(
+            section.conic(),
+            OpenConic::Hyperbola,
+            "α {alpha} tilt {tilt}"
+        );
+        let at = |y: f64| section_at_height(alpha, (q, n), y);
+        let (from, to) = (at(-reach), at(0.8 * reach));
+        let branch = section.branch_at(from, band()).expect("a branch");
+        let arc = branch
+            .arc(from, to, band())
+            .expect("the window is on the branch");
+        let curve = nurbs(&arc);
+        let (lo, hi) = curve.domain();
+        let scale = (from - Point3::origin())
+            .norm()
+            .max((to - Point3::origin()).norm());
+        // The budget: the closed form's rounding, plus what the conic-type
+        // discriminant's own rounding moves a point at `X` from the vertex
+        // along the curve, at most `X²·δK/|L|` with `δK ≤ ε·M²` (`D` is a
+        // difference of two products whose sum is `M`, each rounded to
+        // half an ulp): a grazing plane's far section is ill-conditioned
+        // in the plane, and that rounding of `D` is all it may cost.
+        let (sa, ca) = alpha.sin_cos();
+        let m = sa * n.x.hypot(n.y) + ca * n.z.abs();
+        let l = 2.0 * (Point3::new(0.0, 0.0, 1.0) - q).dot(n).abs() * sa * ca;
+        let vertex = branch.vertex();
+        let budget = |p: Point3<f64>| {
+            let x = p.distance(vertex);
+            f64::EPSILON * (4.0 * scale + m * m * x * x / l)
+        };
+        let worst = |p: Point3<f64>, truth: Point3<f64>| p.distance(truth) / budget(truth);
+        let ends = worst(curve.eval(lo), from).max(worst(curve.eval(hi), to));
+        let points = (0..=4096)
+            .map(|i| {
+                let p = curve.eval(lo + (hi - lo) * f64::from(i) / 4096.0);
+                worst(p, at(p.y))
+            })
+            .fold(0.0, f64::max);
+        println!(
+            "[measured] α {alpha} tilt {tilt} window y ({}, {}): {} spans at scale {scale}, \
+             ends {ends:.3} of the budget, points {points:.3}",
+            -reach,
+            0.8 * reach,
+            curve.weights().len() / 2
+        );
+        assert!(
+            ends <= 1.0 && points <= 1.0,
+            "α {alpha} tilt {tilt}: ends {ends:.3} of the budget, points {points:.3}"
         );
     }
 }

@@ -133,12 +133,13 @@
 //! edge's middle stands nearer. Beside the apex the cone's section is a
 //! hyperbola, a NURBS arc whose uniqueness tube has no cone enclosure
 //! yet, so the door refuses that edge at its gate, before any corner is
-//! solved ([`ReplaceFaceError::TogetherConicArc`]). The kind is the section's, whatever the old
-//! carrier's was: a cavity's cap offset off the axis turns a meridian
-//! circle into a spiric, and the lift that puts it back turns the
-//! spiric into a circle. The old carrier supplies only which of the
-//! two torus curves the rim is (its midpoint's side of the cap's trace
-//! of the axis) and the sense (its plane normal against the section's).
+//! solved ([`ReplaceFaceError::TogetherConicArc`]). The kind is the
+//! section's, whatever the old carrier's was: a cavity's cap offset off
+//! the axis turns a meridian circle into a spiric, and the lift that
+//! puts it back turns the spiric into a circle. The old carrier
+//! supplies only which of the two torus curves the rim is (its
+//! midpoint's side of the cap's trace of the axis) and the sense (its
+//! plane normal against the section's).
 //!
 //! **Every other carrier keeps the OLD carrier's kind and conventional
 //! frame with its position re-solved** — a line keeps its direction
@@ -582,18 +583,15 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         if !chart_moves(ca.distance, band)? && !chart_moves(cb.distance, band)? {
             continue;
         }
+        // The edge stage refuses a moved edge with no carrier in these
+        // words too; it is refused here so that it never reaches a solve.
         let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
-            continue;
-        };
-        let (t0, t1) = curve.params();
-        if let geom_brep::PlaneConeSection::OpenConic(section) =
-            cone_cap_section(edge, cone, cap, (curve.carrier(), (t0, t1)), band)?
-        {
-            return Err(ReplaceFaceError::TogetherConicArc {
+            return Err(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
-                conic: section.conic(),
+                what: "it has no curve to move",
             });
-        }
+        };
+        cone_cap_generators(edge, cone, cap, (curve.carrier(), curve.params()), band)?;
     }
 
     // ---- Decide: every corner, before anything is written. ----
@@ -2204,19 +2202,11 @@ fn mint_carrier<T: Decide>(
     // line is the one the old edge's middle stands nearer, run the old
     // way. ----
     if let Some((cone, cap)) = cone_and_cap(ca, cb) {
-        let (l1, l2) = match cone_cap_section(edge, cone, cap, (old, old_span), band)? {
-            geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => (l1, l2),
-            geom_brep::PlaneConeSection::OpenConic(section) => {
-                return Err(ReplaceFaceError::TogetherConicArc {
-                    edge,
-                    conic: section.conic(),
-                });
-            }
-            _ => {
-                return Err(refuse(
-                    "a generator edge whose moved cap touches its moved cone wall, or misses it",
-                ));
-            }
+        let Some((l1, l2)) = cone_cap_generators(edge, cone, cap, (old, old_span), band)? else {
+            return Err(refuse(
+                "an edge between a cone wall and an axis-parallel cap whose moved cap touches \
+                 the moved cone, or misses it",
+            ));
         };
         let Curve3::Line { dir: old_dir, .. } = old else {
             return Err(refuse(
@@ -2444,30 +2434,53 @@ fn cone_and_cap<'c, T: Real>(
     }
 }
 
+/// The two generator lines a plane through a cone's apex cuts.
+type GeneratorPair<T> = (Curve3<T>, Curve3<T>);
+
 /// The moved cone wall's section with its moved cap, read over the old
-/// edge's span.
-fn cone_cap_section<T: Decide>(
+/// edge's span: its generator pair where the moved cap holds the moved
+/// apex, and `None` where the cap touches the cone or misses it.
+///
+/// # Errors
+///
+/// [`ReplaceFaceError::TogetherConicArc`] where the section is a
+/// parabola or hyperbola, the one place the door raises it.
+fn cone_cap_generators<T: Decide>(
     edge: EdgeKey,
     cone: &MovedChart<T>,
     cap: &MovedChart<T>,
     (old, (t0, t1)): (&Curve3<T>, (T, T)),
     band: Band,
-) -> Result<geom_brep::PlaneConeSection<T>, ReplaceFaceError<T>> {
+) -> Result<Option<GeneratorPair<T>>, ReplaceFaceError<T>> {
     let reach = geom_brep::Reach::Span {
         carrier: old.clone(),
         t0,
         t1,
     };
-    geom_brep::plane_cone_section(&cap.new, &cone.new, &reach, band).map_err(|error| match error {
-        geom_brep::SectionError::Escalated(source)
-        | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
-            ReplaceFaceError::Escalated { source }
+    let section =
+        geom_brep::plane_cone_section(&cap.new, &cone.new, &reach, band).map_err(|error| {
+            match error {
+                geom_brep::SectionError::Escalated(source)
+                | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
+                    ReplaceFaceError::Escalated { source }
+                }
+                _ => ReplaceFaceError::TogetherAxialEdge {
+                    edge,
+                    what: "an edge between a cone wall and an axis-parallel cap whose moved \
+                           cone the section refuses as an operand",
+                },
+            }
+        })?;
+    match section {
+        geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => Ok(Some((l1, l2))),
+        geom_brep::PlaneConeSection::OpenConic(section) => {
+            Err(ReplaceFaceError::TogetherConicArc {
+                edge,
+                conic: section.conic(),
+            })
         }
-        _ => ReplaceFaceError::TogetherAxialEdge {
-            edge,
-            what: "a generator edge whose moved cone wall the section refuses as an operand",
-        },
-    })
+        _ => Ok(None),
+    }
 }
 
 /// A circle centre's distance from the tube-centre circle `(ρ, h) =

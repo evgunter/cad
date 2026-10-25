@@ -61,7 +61,8 @@
 //! 3. [`plane_cone_section`] — apex-through plane (two generator
 //!    lines / tangent line / apex point); axis-normal cut (`Circle`);
 //!    a tilt meeting every generator ⇒ exact `Ellipse`; a parabolic or
-//!    hyperbolic tilt refuses typed, naming its conic (R1).
+//!    hyperbolic tilt ⇒ the open conic in closed form, minted per window
+//!    as an exact rational-quadratic `Nurbs` arc.
 //! 4. [`plane_torus_section`] — the axis-aligned poses: an
 //!    axis-CONTAINING plane's two meridian `Circle`s, an axis-PARALLEL
 //!    plane off the axis its two `Spiric` ovals (short of the inner
@@ -119,6 +120,7 @@ use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
 
 mod conic_arc;
+use conic_arc::ConeTilt;
 pub use conic_arc::{
     ConicArcError, ConicBranch, OpenConic, OpenConicSection, SPAN_WEIGHT_MAX, WindowEnd,
 };
@@ -2493,28 +2495,22 @@ pub fn plane_cone_section<T: Decide>(
             u_ref: cone_u,
         })),
         Sign::Positive | Sign::Negative => {
+            let tilt = ConeTilt::new(c, s, (sin_a, cos_a), discr);
             match decide("pn_conic_type", Margin::levered(discr, extent), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Negative => {
-                    // K = c² − sin²α, read as −D·M off `s` and `cos α`:
-                    // where the plane is near square to the axis or the
-                    // cone near flat, `c` and `sin α` sit near 1 and
-                    // carry the tilt and the aperture's complement only
-                    // to `u` over those small angles, which the
-                    // difference of squares hands to K whole.
-                    let k = (T::zero() - discr) * (sin_a * s + cos_a * c.abs());
-                    let major = apex_gap.abs() * sin_a * cos_a / k;
-                    let minor = apex_gap.abs() * sin_a / k.sqrt();
+                    let major = tilt.half_axis(apex_gap.abs());
+                    let minor = apex_gap.abs() * sin_a / tilt.k.sqrt();
                     // The axis-normal trilean above made `s`
                     // definite, so the minor direction is.
                     let u_major = tilted_section_major(n, s_vec);
                     // The centre is the apex's foot on the plane moved
-                    // along the major axis by `c·δ·s/K`: in the plane by
+                    // along the major axis: in the plane by
                     // construction, where `apex − (c·a − sin²α·n)·δ/K`
                     // reads a vector that cancels to K along the normal
                     // and then divides it by K.
-                    let center = apex - n * apex_gap + u_major * (c * apex_gap * s / k);
+                    let center = apex - n * apex_gap + u_major * tilt.centre(apex_gap);
                     let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
                     Ok(PlaneConeSection::TiltedEllipse(e))
                 }
@@ -2526,10 +2522,9 @@ pub fn plane_cone_section<T: Decide>(
                             OpenConic::Hyperbola
                         },
                         (q, n),
-                        (apex, c),
-                        (sin_a, cos_a),
-                        (s, tilted_section_major(n, s_vec)),
-                        (discr, sin_a * s + cos_a * c.abs()),
+                        apex,
+                        tilt,
+                        tilted_section_major(n, s_vec),
                     )))
                 }
             }

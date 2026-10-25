@@ -16,15 +16,13 @@
 //!   mirror nappe and the carrier past the slant window are outside,
 //!   and the apex-closed bands of one full cone partition their wall
 //!   too.
-//! - **The C5 gate** read `route(kind, kind).implemented`. A quarter
-//!   cone's wedge cap passes through the apex, which the plane×cone
-//!   arm serves; offset, it no longer does, and the pair cuts a
-//!   hyperbola the arm routes to the general rung. The gate admitted it
-//!   on the kind pair and the refusal came from the corner re-anchor
-//!   downstream (a `0.0354` m corner gap, measured before the fix, by
-//!   a refusal since retired: corners are derived by root now). The gate now asks the arm, and refuses the pose by the arm's
-//!   own grounds; an axis-normal cap, which the arm does serve, still
-//!   passes it.
+//! - **The C5 gate** asks the arm about the pose, not only the kind
+//!   pair. A quarter cone's wedge cap passes through the apex, where the
+//!   plane×cone arm serves the generator pair; offset, it stands off the
+//!   apex and cuts a hyperbola, which the arm serves as an open conic
+//!   whose arc has no certificate on a cone yet. The edge's section
+//!   refuses naming the conic before any corner is re-anchored; an
+//!   axis-normal cap, whose circle the arm serves, still passes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -498,10 +498,11 @@ production pipeline after the join (`sweep/tests/cone_join_lane.rs`):
   `CrossingAtConeApex`? That is a design choice about which poses the
   kernel answers, so it is Ev's.
 - **Q3 The conic refusal's type.** A new arm,
-  `BooleanError::GermSectionOutsideInventory`, carrying the
-  `SectionError`. `CurvedBooleanUnsupported` says "not supported yet",
-  and its recourse names other kinds of face; the conic is refused by
-  decision, and its recourse is to cut the cone all the way round.
+  `BooleanError::GermSectionOpenConic`, carrying the conic.
+  `CurvedBooleanUnsupported` says "not supported yet", and its recourse
+  names other kinds of face; the open conic is refused because its arc
+  is a NURBS carrier the Boolean has no crossing layer for, and its
+  recourse is to cut the cone all the way round.
 - **Q4 The frame's extent** for `plane_cone_section`'s aperture and
   conic-type margins: the face's reach (`FrameExtent::Reach`), and
   nothing else. The levered margin is `L·sin θ` (C3's plane turned by

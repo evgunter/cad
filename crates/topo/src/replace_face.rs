@@ -165,11 +165,12 @@
 //! by the arm's own grounds rather than admitting it on the kind pair's.
 //! A wedge cap through a cone's apex, moved off it, cuts a hyperbola:
 //! a served pose whose arc has no certificate on a cone yet, refused by
-//! the section's verdict (`SectionVerdict::OpenConic`). A served pose whose section the door does not derive, has
-//! no branch near the edge or is a tangency there refuses by the
-//! section's own verdict ([`ReplaceFaceError::EdgeSection`]), and an
-//! edge still scaffolded that the move tilts against a distinct
-//! neighbour refuses by name ([`ReplaceFaceError::DeclaredEdgeTilted`]).
+//! the section's verdict (`SectionVerdict::OpenConic`). A served pose
+//! whose section the door does not derive, has no branch near the edge
+//! or is a tangency there refuses by the section's own verdict
+//! ([`ReplaceFaceError::EdgeSection`]), and an edge still scaffolded
+//! that the move tilts against a distinct neighbour refuses by name
+//! ([`ReplaceFaceError::DeclaredEdgeTilted`]).
 //! A fitted face routes as its fit: a row of its fit whose sides both
 //! move with it is extracted from the new fit, its other edges with a
 //! distinct surface are their sections (a plane's derived, any other

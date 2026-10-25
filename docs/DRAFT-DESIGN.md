@@ -32,8 +32,9 @@ land next:
   "exact ellipses are certainly allowed there"), and serves a
   parabolic or hyperbolic section in closed form, its arcs minted per
   window as exact rational-quadratic NURBS (`crates/geom-brep/README.md`
-  C1) that no consumer certifies on a cone yet. Cone SSI coverage is otherwise zero (cyl×cone, cone×cone, cone×sphere all
-  unimplemented in the C5 table).
+  C1) that no consumer certifies on a cone yet. Cone SSI coverage is
+  otherwise zero (cyl×cone, cone×cone, cone×sphere all unimplemented
+  in the C5 table).
 - a cone face joins a plane in the boolean where their section is an
   ellipse or a circle (the plane × cone germ lane), and fillet's cone
   arms are the COAXIAL ones (VERBS-ARMS-2) — a cone meeting a drafted
@@ -42,18 +43,17 @@ land next:
 **Recommendation**: v1 ships plane-only with a typed
 `DraftUnsupported`-class refusal naming the wall kind.
 
-**The cylinder arm's cost, corrected per Ev's #908 note.** R1's
-"permanent" refusal bars only the *exact conic special cases*
-(parabola/hyperbola never join the analytic curve inventory); a
-generic plane×cone section as a **fitted NURBS curve** is fine —
-the ordinary Q8-family approximating-curve route the plane×NURBS
-lane already ships. So the cylinder→cone arm does NOT re-open R1:
-its real content is a **plane×cone fitted-SSI lane** (march + fit +
-certify, the `plane_nurbs_ssi` shape with a cone chart), sequenced
-with Wave 2's cone-operand work since they share the substrate.
-Still a separate later unit — but plumbing, not a ratified-decision
-change. The operand-gate re-scope it was to queue behind has landed,
-pair-scoped (#1001).
+**The cylinder arm's cost.** A plane×cone parabola or hyperbola has
+no curve kind: it is minted from the pair in closed form as an exact
+rational-quadratic NURBS arc, never marched or fitted
+(`crates/geom-brep/README.md` C1, Ev's ruling on PR 5652). So the
+cylinder→cone arm re-opens no ratified decision: its real content is
+what a consumer of that arc owes, its certificate on a cone (the
+uniqueness tube's cone enclosure), sequenced with Wave 2's
+cone-operand work since they share the substrate. Still a separate
+later unit — but plumbing, not a ratified-decision change. The
+operand-gate re-scope it was to queue behind has landed, pair-scoped
+(#1001).
 
 ## DR2 — Mechanism: a certified re-geom pass (a small op class)
 

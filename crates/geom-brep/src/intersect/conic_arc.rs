@@ -8,10 +8,11 @@
 //! Write the plane's unit normal `n`, the cone's unit axis `a`, apex `A`
 //! and half-angle `α`; `c = a·n`, `s = ‖a × n‖`, `δ = (A − q)·n` the apex
 //! gap, `D = sin α·s − cos α·|c|` and `M = sin α·s + cos α·|c|` the
-//! conic-type discriminant and its partner, and `K = c² − sin²α = −D·M`.
-//! In the plane's frame `û = (a × n)/s × n`, `v̂ = n × û`, about the
-//! apex's foot `F = A − δ·n`, a point `F + ξ·û + η·v̂` is on the cone
-//! (both nappes) exactly where
+//! conic-type discriminant and its partner, and `K = c² − sin²α = −D·M`
+//! ([`ConeTilt`], which the ellipse arm reads too). In the plane's frame
+//! `û = (a × n)/s × n`, `v̂ = n × û`, about the apex's foot
+//! `F = A − δ·n`, a point `F + ξ·û + η·v̂` is on the cone (both nappes)
+//! exactly where
 //!
 //! ```text
 //! −K·ξ² + 2δcs·ξ + δ²(c² − cos²α) − cos²α·η² = 0,
@@ -19,12 +20,13 @@
 //!
 //! since `a = c·n − s·û`. Its roots at `η = 0` are the vertices, and the
 //! discriminant of that quadratic is `(2|δ|·sin α·cos α)²` exactly, so
-//! both are read without cancellation: with `σ = ±1` the sign of `c`
-//! (`+1` at `c = 0`, where the two are mirror images),
+//! both are read without cancellation. With `σ = copysign(1, c)` (`−1`
+//! at `c = −0`; at `c = ±0` the vertices are mirror images about `F` and
+//! either sign names them consistently) and the centre at `ξ_C = cδs/K`,
 //!
 //! ```text
 //! near vertex  ξₙ = δσ·(s·cos α − |c|·sin α) / M      (finite at K = 0)
-//! far vertex   ξ_f = δσ·(|c|·s + sin α·cos α) / K     (hyperbola only)
+//! far vertex   ξ_f = ξ_C + δσ·sin α·cos α / K         (hyperbola only)
 //! ```
 //!
 //! About a vertex `V`, with `X = ξ − ξ_V`, the curve is
@@ -33,54 +35,47 @@
 //!
 //! # The arc
 //!
-//! Each line `X = μ·η` through the vertex meets the curve once more, at
+//! **A parabola** (`K = 0`) is `X = L·μ²/cos²α`, `η = L·μ/cos²α` in the
+//! slope `μ = X/η` of the line from its vertex, and the parameter of a
+//! window end `P` is `μ = η·cos²α/L` at its height `η = (P − V)·v̂`. Over
+//! `[μ₀, μ₁]` that is one polynomial quadratic, `w = 1`, whose middle
+//! control point is the numerator's blossom, where the end tangents meet:
+//! one span at any length. ([`ConicBranch::point`] and
+//! [`ConicBranch::slope_of`] read the same family
+//! `X = L·μ²/(K·μ² + cos²α)` on either conic.)
 //!
-//! ```text
-//! X = L·μ²/(K·μ² + cos²α),   η = L·μ/(K·μ² + cos²α),
-//! ```
+//! **A hyperbola** is read in its hyperbolic parameter `t`:
+//! `X = −L·sinh²(t/2)/K`, `η = b·sinh t` (`b = |L|/(2·√|K|·cos α)`), and
+//! a window end's parameter is `t = asinh(η/b)`. The tangents of
+//! `[t₀, t₁]` meet at
+//! `(−L·sinh(t₀/2)·sinh(t₁/2)/K, b·sinh((t₀ + t₁)/2))/cosh h`,
+//! `h = (t₁ − t₀)/2`, and the span is the rational quadratic Bézier on
+//! the two ends and that shoulder with weights `(1, cosh h, 1)`: the
+//! weight that puts its mid-parameter point on the section's point at
+//! `(t₀ + t₁)/2`. **A window is cut into `2^k` spans equal in `t`, for
+//! the least `k` that brings each span's weight to at most
+//! [`SPAN_WEIGHT_MAX`]** (`√2`, the reciprocal of a quarter circle's
+//! weight). The spans carry one weight, and the hyperbola's boosts map
+//! each to the next, so with unit knot spacing the arc is `C¹` across
+//! its double interior knots.
 //!
-//! a rational-quadratic parameterization of the vertex's whole branch
-//! (`|μ| < cos α/√|K|` on a hyperbola, every `μ` on a parabola). Over a
-//! window `[μ₀, μ₁]` it is one rational quadratic Bézier segment whose
-//! homogeneous weights are the denominator's Bernstein coefficients,
-//! `(D(μ₀), K·μ₀μ₁ + cos²α, D(μ₁))`, and whose middle control point is
-//! the numerator's blossom over the middle weight: the intersection of
-//! the end tangents in the plane. Normalized to weights `(1, w, 1)`,
+//! The arc is minted at `f64`.
 //!
-//! ```text
-//! w = (K·μ₀μ₁ + cos²α) / √(D(μ₀)·D(μ₁)),
-//! ```
+//! # The window
 //!
-//! which is `1` where `K = 0` (the parabola) and, on a hyperbola, the
-//! `cosh` of half the window's hyperbolic parameter span, `≥ 1` by
-//! `D(μ₀)·D(μ₁) = (K·μ₀μ₁ + cos²α)² + K·cos²α·(μ₀ − μ₁)²`: the weight
-//! that puts the segment's mid-parameter point on the section's own
-//! point at the window's hyperbolic midpoint.
+//! Each minted end is metered against the end it was given
+//! (`pn_conic_window_on`), and the window refuses where they stand
+//! apart. The meter reads an absolute gap in metres, so a window so far
+//! down a branch that the closed form's rounding there exceeds the band
+//! refuses too, although its ends are on the section.
 //!
-//! **A hyperbolic window is cut into `2^k` spans equal in hyperbolic
-//! parameter, for the least `k` that brings each span's weight to at
-//! most [`SPAN_WEIGHT_MAX`]** (`√2`, the reciprocal of a quarter
-//! circle's weight). The spans carry one weight, and the hyperbola's
-//! boosts map each to the next, so with unit knot spacing the arc is
-//! `C¹` across its double interior knots. A parabolic window is one
-//! span at any length: `w = 1` there, and every arc of a parabola is one
-//! polynomial quadratic.
-//!
-//! The arc is minted at `f64`. A hyperbolic span is read in its
-//! hyperbolic parameter `t`, `μ = sign(L)·(cos α/√|K|)·tanh(t/2)`, where
-//! `X = −L·sinh²(t/2)/K`, `η = b·sinh t` (`b = |L|/(2·√|K|·cos α)`), the
-//! tangents of `[t₀, t₁]` meet at
-//! `(−L·sinh(t₀/2)·sinh(t₁/2)/K, b·sinh((t₀ + t₁)/2))/cosh h` and
-//! `w = cosh h`, `h = (t₁ − t₀)/2`: the same segment, without the
-//! cancellation `K·μ² + cos²α` carries near the asymptotes.
-//!
-//! The parameter of a window end `P` is read off its height
-//! `η = (P − V)·v̂`, which is single-valued along a branch: the root of
-//! `η·K·μ² − L·μ + η·cos²α = 0` that is finite at `η = 0`,
-//! `μ = 2η·cos²α / (L + sign(L)·√(L² − 4K·η²·cos²α))`, a sum of like
-//! signs for `K ≤ 0`, or on a hyperbola `t = asinh(η/b)`. The minted end
-//! is metered against `P`, and the window refuses where they stand
-//! apart.
+//! **A parabola decided Zero is a hyperbola or an ellipse whose `D` lies
+//! in the zero band**, minted with `K` taken as zero. At a given height
+//! the minted point and the section's stand apart by an amount that
+//! grows with `|η|` (the dropped `K·X²` term, `X` growing with `|η|`),
+//! so over a window it is greatest at the end of greatest `|η|`, one of
+//! the two ends, and the ends are metered: a window whose ends pass the
+//! meter has every point within it.
 
 use geom::{Curve3, NurbsCurve3};
 use geom_core::{Band, Indeterminate, KnotVector, Margin, Point3, Real, Sign, SplineError, Vec3};
@@ -123,17 +118,64 @@ pub struct OpenConicSection<T: Real> {
     u: Vec3<T>,
     /// `n × û`.
     v: Vec3<T>,
-    /// The apex gap `δ` times the sign `σ` of `a·n`.
+    /// The apex gap `δ`, and `δ` times the sign `σ` of `a·n`.
+    delta: T,
     delta_sigma: T,
-    /// `s`, `|c|`, `sin α`, `cos α`.
-    s: T,
-    c_abs: T,
-    sin_a: T,
-    cos_a: T,
-    /// `K = −D·M`, zero exactly on a parabola.
-    k: T,
-    /// `M`.
-    m: T,
+    /// The tilt's closed form, its `K` zero exactly on a parabola.
+    tilt: ConeTilt<T>,
+}
+
+/// **The closed form of a plane×cone section off its tilt** (module
+/// docs): `c = a·n`, `s = ‖a × n‖`, the half-angle's sine and cosine,
+/// `M = sin α·s + cos α·|c|` and `K = −D·M`. The ellipse arm and the
+/// open conic both read their axes and centre here.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ConeTilt<T: Real> {
+    pub(super) c: T,
+    pub(super) s: T,
+    pub(super) sin_a: T,
+    pub(super) cos_a: T,
+    pub(super) m: T,
+    /// `K = c² − sin²α`, read as `−D·M`: where the plane is near square
+    /// to the axis or the cone near flat, `c` and `sin α` sit near 1 and
+    /// carry the tilt and the aperture's complement only to `u` over
+    /// those small angles, which the difference of squares hands to `K`
+    /// whole.
+    pub(super) k: T,
+}
+
+impl<T: Real> ConeTilt<T> {
+    /// The tilt of `c`, `s` and the half-angle, whose conic-type
+    /// discriminant is `discr = sin α·s − cos α·|c|`.
+    pub(super) fn new(c: T, s: T, (sin_a, cos_a): (T, T), discr: T) -> Self {
+        let m = sin_a * s + cos_a * c.abs();
+        Self {
+            c,
+            s,
+            sin_a,
+            cos_a,
+            m,
+            k: (T::zero() - discr) * m,
+        }
+    }
+
+    /// The centre's offset `c·δ·s/K` along `û` from the apex's foot.
+    pub(super) fn centre(&self, delta: T) -> T {
+        self.c * delta * self.s / self.k
+    }
+
+    /// The centre-to-vertex distance `δ·sin α·cos α/K` along `û` (the
+    /// ellipse's semi-major axis at `δ = |δ|`).
+    pub(super) fn half_axis(&self, delta: T) -> T {
+        delta * self.sin_a * self.cos_a / self.k
+    }
+
+    /// The near vertex `δσ·(s·cos α − |c|·sin α)/M` along `û`, the
+    /// centre less the half axis read without their cancellation, finite
+    /// at `K = 0`.
+    pub(super) fn near_vertex(&self, delta_sigma: T) -> T {
+        delta_sigma * (self.s * self.cos_a - self.c.abs() * self.sin_a) / self.m
+    }
 }
 
 /// One branch of an [`OpenConicSection`] about its vertex: the curve
@@ -211,38 +253,34 @@ impl core::fmt::Display for ConicArcError {
 impl std::error::Error for ConicArcError {}
 
 impl<T: Real> OpenConicSection<T> {
-    /// The section of a plane `(q, n)` and a cone whose axis `a`, apex
-    /// and half-angle's sine and cosine are given, where the conic-type
-    /// discriminant `D` (with its partner `M`) has been decided zero
+    /// The section of a plane `(q, n)` and a cone with apex `apex` at
+    /// `tilt`, whose conic-type discriminant has been decided zero
     /// (`conic` the parabola, `K` taken as zero) or positive (the
     /// hyperbola). `u` is the plane's in-plane axis direction
     /// ([`super::tilted_section_major`]).
     pub(super) fn new(
         conic: OpenConic,
         (q, n): (Point3<T>, Vec3<T>),
-        (apex, c): (Point3<T>, T),
-        (sin_a, cos_a): (T, T),
-        (s, u): (T, Vec3<T>),
-        (discr, m): (T, T),
+        apex: Point3<T>,
+        tilt: ConeTilt<T>,
+        u: Vec3<T>,
     ) -> Self {
         let delta = (apex - q).dot(n);
-        let sigma = T::one().copysign(c);
-        let k = match conic {
-            OpenConic::Parabola => T::zero(),
-            OpenConic::Hyperbola => (T::zero() - discr) * m,
+        let tilt = match conic {
+            OpenConic::Parabola => ConeTilt {
+                k: T::zero(),
+                ..tilt
+            },
+            OpenConic::Hyperbola => tilt,
         };
         Self {
             conic,
             foot: apex - n * delta,
             u,
             v: n.cross(u),
-            delta_sigma: delta * sigma,
-            s,
-            c_abs: c.abs(),
-            sin_a,
-            cos_a,
-            k,
-            m,
+            delta,
+            delta_sigma: delta * T::one().copysign(tilt.c),
+            tilt,
         }
     }
 
@@ -256,31 +294,30 @@ impl<T: Real> OpenConicSection<T> {
     /// the hyperbola's branch that stays finite as the plane tilts to
     /// a generator.
     fn near(&self) -> ConicBranch<T> {
-        let xi = self.delta_sigma * (self.s * self.cos_a - self.c_abs * self.sin_a) / self.m;
-        self.branch(
-            xi,
-            self.delta_sigma * self.sin_a * self.cos_a * T::from_f64(2.0),
-        )
+        self.branch(self.tilt.near_vertex(self.delta_sigma), T::one())
     }
 
-    /// The hyperbola's other branch.
+    /// The hyperbola's other branch, a half axis past the centre on the
+    /// side away from the near vertex.
     fn far(&self) -> ConicBranch<T> {
-        let xi = self.delta_sigma * (self.c_abs * self.s + self.sin_a * self.cos_a) / self.k;
-        self.branch(
-            xi,
-            T::zero() - self.delta_sigma * self.sin_a * self.cos_a * T::from_f64(2.0),
-        )
+        let xi = self.tilt.centre(self.delta) + self.tilt.half_axis(self.delta_sigma);
+        self.branch(xi, T::zero() - T::one())
     }
 
-    fn branch(&self, xi: T, l: T) -> ConicBranch<T> {
+    /// The branch about the vertex at `xi` along `û`, with
+    /// `L = side·2δσ·sin α·cos α`.
+    fn branch(&self, xi: T, side: T) -> ConicBranch<T> {
+        let ConeTilt {
+            sin_a, cos_a, k, ..
+        } = self.tilt;
         ConicBranch {
             conic: self.conic,
             vertex: self.foot + self.u * xi,
             u: self.u,
             v: self.v,
-            l,
-            k: self.k,
-            cos2: self.cos_a.powi(2),
+            l: side * self.delta_sigma * sin_a * cos_a * T::from_f64(2.0),
+            k,
+            cos2: cos_a.powi(2),
         }
     }
 }
@@ -299,9 +336,8 @@ impl<T: Decide> OpenConicSection<T> {
         if self.conic == OpenConic::Parabola {
             return Ok(self.near());
         }
-        // The centre stands at `ξ_C = δcs/K`; the near vertex lies on the
-        // side `sign(δσ)` of it.
-        let centre = self.delta_sigma * self.c_abs * self.s / self.k;
+        // The near vertex lies on the side `sign(δσ)` of the centre.
+        let centre = self.tilt.centre(self.delta);
         let side = ((seed - self.foot).dot(self.u) - centre) * T::one().copysign(self.delta_sigma);
         match decide("pn_conic_branch", Margin::of(side), band).map_err(ConicArcError::Escalated)? {
             Sign::Positive => Ok(self.near()),
@@ -331,7 +367,10 @@ impl<T: Real> ConicBranch<T> {
         self.vertex + self.u * (self.l * mu.powi(2) / d) + self.v * (self.l * mu / d)
     }
 
-    /// The slope `μ` of the branch's point at `p`'s height (module docs).
+    /// The slope `μ` of the branch's point at `p`'s height
+    /// `η = (p − V)·v̂`: the root of `η·K·μ² − L·μ + η·cos²α = 0` finite
+    /// at `η = 0`, `μ = 2η·cos²α / (L + sign(L)·√(L² − 4K·η²·cos²α))`, a
+    /// sum of like signs for `K ≤ 0`.
     #[must_use]
     pub fn slope_of(&self, p: Point3<T>) -> T {
         let eta = (p - self.vertex).dot(self.v);

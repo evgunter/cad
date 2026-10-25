@@ -3,7 +3,8 @@
 //! ([`geom_brep::plane_cone_section`]). The planes are the cone sector
 //! spec's poses: B4's axis-normal slab faces and C1's tilted plane cut
 //! ellipses or circles, X1's plane through the apex the generator pair,
-//! and C2–C4's and B1's faces the conics outside the inventory.
+//! and C2–C4's and B1's faces the open conics, whose NURBS arcs the
+//! Boolean has no crossing layer for.
 //!
 //! The widening cone is REACH's frustum's carrier: the radius runs
 //! `0.5 → 1` over `y ∈ [0, 1]`, so the apex is `(0, −1, 0)`, the axis
