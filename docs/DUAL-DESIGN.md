@@ -116,9 +116,9 @@ identities are equal: the document's content pin, the parameter bindings
 as bits, the tolerance and the resolved parts' pins. The claim to be of
 the certified shape belongs to that evaluation, where the gates ran; the
 dual contributes tangents and is never read as a shape. Drift is caught in
-production at the report: the pass's value channel is compared bit for bit
-with the base evaluation where the report reads it, and a mismatch refuses
-typed. Content keys stay the memo's business. This
+production at the report: the value half of the quantity a pass measures is
+compared bit for bit with the base evaluation's measured value, and a
+mismatch refuses typed. Content keys stay the memo's business. This
 is sound because the sensitivity is OF THE AS-BUILT BODY: the
 dual's value channel is bit-identical to the f64 build (D9), which
 was already validated in the f64 evaluation E4 rides beside;
