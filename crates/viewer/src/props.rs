@@ -391,7 +391,10 @@ pub fn written(canonical: f64, unit: UnitDef) -> Option<f64> {
 /// a marker that did not say which notation could not name the value
 /// would not tell them that.
 pub fn no_reading(unit: UnitDef) -> String {
-    format!("no {} reading", unit.symbol())
+    match unit.symbol() {
+        "" => "no reading".to_owned(),
+        symbol => format!("no {symbol} reading"),
+    }
 }
 
 /// A canonical value as text a person reads, written in `unit` and
@@ -409,7 +412,10 @@ pub fn no_reading(unit: UnitDef) -> String {
 /// a commit path.
 pub fn written_text(canonical: f64, unit: UnitDef) -> String {
     match written(canonical, unit) {
-        Some(value) => format!("{} {}", crate::readout::number(value), unit.symbol()),
+        Some(value) => match (crate::readout::number(value), unit.symbol()) {
+            (number, "") => number,
+            (number, symbol) => format!("{number} {symbol}"),
+        },
         None => no_reading(unit),
     }
 }
@@ -1617,7 +1623,7 @@ impl SlotUnitFault {
 
 #[cfg(test)]
 mod written_tests {
-    use super::{in_written, no_reading, written, written_text};
+    use super::{computed_text, in_written, no_reading, written, written_text};
     use pncad::document::{Dimension, SlotId};
     use pncad::prelude::{M, MM, PI, RAD};
 
@@ -1695,6 +1701,21 @@ mod written_tests {
         // The ordinary case is a number and its symbol, unchanged.
         assert_eq!(written_text(0.025, mm), "25 mm");
         assert_eq!(written_text(1.5, M.def()), "1.5 m");
+    }
+
+    /// **A dimensionless value carries no symbol, so it carries no
+    /// separator either** — the unit row's symbol is empty, and a
+    /// sentence quoting the value would otherwise hold a double space.
+    #[test]
+    fn a_dimensionless_value_reads_with_no_trailing_space() {
+        let notation = super::Notation::DEFAULT;
+        assert_eq!(computed_text(Dimension::Scalar, 0.25, notation), "0.25");
+        assert_eq!(computed_text(Dimension::Count, 3.0, notation), "3");
+        assert_eq!(
+            no_reading(quantity::ONE.def()),
+            "no reading",
+            "the refusal names no unit when the unit has no symbol"
+        );
     }
 
     /// **A FIELD's conversion answers the same question, and its
