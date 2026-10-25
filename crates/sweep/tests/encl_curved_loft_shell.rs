@@ -588,7 +588,7 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
     // Tier 3 now passes the cap and refuses at a wall: the moved cap's
     // rims are the walls' rows to rounding, not exactly, and a NURBS
     // wall's patch lane reads only an exact rectangle of its chart
-    // (`work/flux/a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle.md`).
+    // (`work/shell/a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle.md`).
     let refusals = topo::validate_geometric(&alone, Tol::witness())
         .expect_err("a wall trimmed off its exact rectangle has no volume");
     assert!(
