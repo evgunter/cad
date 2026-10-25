@@ -55,8 +55,11 @@ fn census(b: &Body<f64>) -> (usize, usize, usize) {
 /// torus — so the pad is exactly zero, not merely small (the revolve's
 /// iso-rectangle argument, `verbs_arms1_annulus.rs`).
 fn volume(body: &Body<f64>) -> f64 {
-    let props =
-        topo::test_support::unmigrated_measure(body, tol()).expect("mass properties compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("mass properties compute");
     assert_eq!(
         props.volume_pad, 0.0,
         "closed-form inventory: the volume pad is exactly zero"

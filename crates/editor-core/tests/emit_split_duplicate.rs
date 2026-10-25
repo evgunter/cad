@@ -39,9 +39,16 @@ fn split_of(
 fn volume(side: &SplitSide<f64>) -> Option<f64> {
     match side {
         SplitSide::Body(b) => Some(
-            topo::test_support::unmigrated_measure(b, Tol::witness())
-                .unwrap()
-                .volume,
+            topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(&**b),
+                    Tol::witness(),
+                ),
+                Tol::witness(),
+            )
+            .unwrap()
+            .volume,
         ),
         SplitSide::Empty => None,
     }

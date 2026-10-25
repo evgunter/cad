@@ -80,13 +80,24 @@ fn run_doc(d: &corpus::CorpusDoc) -> Vec<MarginSample> {
         d.name,
         bad.join("\n")
     );
-    if let Some(result) = d.result {
-        let body = body_of(&ev, result);
-        validate(body).expect("tier 1");
-        validate_closed(body).expect("closed");
-        topo::test_support::unmigrated_measure(body, Tol::witness()).expect("mass properties");
-    }
-    k_stats::take_samples()
+    let Some(result) = d.result else {
+        return k_stats::take_samples();
+    };
+    validate(body_of(&ev, result)).expect("tier 1");
+    validate_closed(body_of(&ev, result)).expect("closed");
+    let mut samples = k_stats::take_samples();
+    // The finish (tier 3) runs between the two recording windows, so the
+    // corpus holds what it held before the typed door: the evaluation,
+    // tiers 1 and 2, and the measurement.
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(&ev, result)),
+        Tol::witness(),
+    );
+    k_stats::start_recording();
+    topo::mass_properties(&body, Tol::witness()).expect("mass properties");
+    samples.extend(k_stats::take_samples());
+    samples
 }
 
 /// The dump entry point (ignored: run explicitly, one process per ε).
@@ -464,8 +475,22 @@ fn probe_agrees_with_f64_bit_for_bit_over_the_corpus() {
             && matches!(ev_f.result(result), Some(NodeResult::Ok(_)))
         {
             let tol = Tol::witness();
-            let mf = topo::test_support::unmigrated_measure(body_of(&ev_f, result), tol);
-            let mp = topo::test_support::unmigrated_measure(body_of(&ev_p, result), tol);
+            let mf = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(body_of(&ev_f, result)),
+                    tol,
+                ),
+                tol,
+            );
+            let mp = topo::mass_properties(
+                &topo::test_support::finished(
+                    "the measured body",
+                    topo::Body::clone(body_of(&ev_p, result)),
+                    tol,
+                ),
+                tol,
+            );
             match (&mf, &mp) {
                 (Ok(a), Ok(b)) => {
                     let (ha, wa) = props_digest(a);

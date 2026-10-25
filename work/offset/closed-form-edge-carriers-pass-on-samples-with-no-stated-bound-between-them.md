@@ -1,12 +1,13 @@
 ---
 id: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
-kind: issue
+kind: unit
 title: A closed-form Intersection carrier passes its certificate on nine samples with no stated bound between them; the standing is provenance read off the variant
 status: open
 opened: 2026-10-24
-priority: P2
-cost: M
+priority: P0
+cost: H
 refs: [offset-lane-has-no-conic-carrier]
+parent: offset-lane-has-no-conic-carrier
 ---
 
 
@@ -40,3 +41,26 @@ without one to the hull limb. If it follows the KIND, C1 states the
 low-degree reason for the conic kinds and the `Spiric` question is
 answered separately. Either way the sentence C1 rests on today should not
 stand as it is. Filed by the OFFSET orchestrator.
+
+## Claimed by OFFSET (2026-10-24) — conic build, unit 1 of 3
+
+Ev ruled on PR 5652 (`offset-lane-has-no-conic-carrier`, "Ruling"):
+the certificate is derivation-blind. This row is its first half, now
+`crates/geom-brep/README.md` C2: **limbs 1 and 2 are owed by every
+`Intersection` carrier of every kind, however it was minted.**
+
+Build: `EdgeCurve::certify` (`crates/geom-brep/src/certify.rs`) runs limb
+2 (the composite hull bound between samples, `analytic_rung3`'s limb-2
+path, reading the carrier through `carrier_net`'s enclosing net) for
+`Line`, `Circle`, `Ellipse` and `Spiric` carriers too, on every surface
+including the cone and torus per-span lever (`net_offset_sup`). The tube
+obligation is unchanged in this unit: closed-form kinds keep not owing it
+for now, which is today's behaviour and what unit 3 replaces with the
+pair rule. Delete what C1/C2's retired derivation wording justified in
+code comments. Expect pins to move at rest (runtime and stored
+certificates): measure the corpus cost of the new limb 2 on closed-form
+edges and report it; re-baseline and say what moved. Name the spiric
+net's tightness on a long oval (both designers unsure) with a row.
+
+Banded P0 as part of the P0 build; it is also what closes the latent gap
+(a spiric slightly off its torus owes no bound today).

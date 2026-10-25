@@ -61,12 +61,20 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
         assert_eq!(a.len(), 2, "{name}: the ({rr}, {ry}) rim is two arcs");
         arcs.extend(a);
     }
-    let before = topo::test_support::unmigrated_measure(body, tol()).unwrap();
+    let before = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .unwrap();
     let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), &arcs, r, tol())
         .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{name} is tier-3 valid, got {e:?}"));
-    let after = topo::test_support::unmigrated_measure(&out.body, tol()).unwrap();
+    let after = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+        tol(),
+    )
+    .unwrap();
     assert_eq!(after.volume_pad, 0.0, "{name}: closed-form faces only");
     assert_eq!(out.band_faces.len(), rims.len(), "{name}: one band per rim");
     (after.volume - before.volume, out.body)
@@ -187,7 +195,7 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
     let annulus = wedge_fill((1.0, 1.0), (-1.0, 0.0), (0.0, -1.0), 0.1);
     for up in [true, false] {
         let name = if up { "boss" } else { "dimple" };
-        let body = repaired(up);
+        let body = topo::test_support::finished("body", repaired(up), tol());
         let mut both = rim_arcs_at(&body, 0.5, 1.0);
         both.extend(rim_arcs_at(&body, 1.0, 1.0));
         match fillet_edges(
@@ -204,16 +212,17 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
             ),
             other => panic!("{name}: expected the mixed shared-support arm, got {other:?}"),
         }
-        let before = topo::test_support::unmigrated_measure(&body, tol())
-            .unwrap()
-            .volume;
+        let before = topo::mass_properties(&body, tol()).unwrap().volume;
         let (_, after_ladder) = carve(name, &body, &[(0.5, 1.0)], 0.1);
         let (_, out) = carve(name, &after_ladder, &[(1.0, 1.0)], 0.1);
         // Each band's host trimlines joined: one vertex and one edge fewer apiece.
         assert_eq!(census(&out), (9, 14, 8), "{name}: two bands' census");
-        let measured = topo::test_support::unmigrated_measure(&out, tol())
-            .unwrap()
-            .volume
+        let measured = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out), tol()),
+            tol(),
+        )
+        .unwrap()
+        .volume
             - before;
         agrees(name, measured, if up { ladder } else { -ladder } - annulus);
     }

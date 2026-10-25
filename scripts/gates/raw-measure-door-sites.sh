@@ -10,7 +10,10 @@
 # `topo::test_support`'s raw doors (`measure_unvalidated`,
 # `classify_unvalidated` and their `_structural` / `_of` twins), and says
 # why at the call: a `// Raw door: …` line on the reference or above it
-# in the same statement.
+# in the same statement. The walk up from a reference stops where
+# another statement ends (`;`, `{`, `}`, a match arm's `,`, a blank
+# line, a `fn` or an attribute), so a reason covers the statement it
+# heads and no later one.
 #
 # So two things hold here. The sites are PINNED per crate
 # (`raw-measure-door-sites.counts`): a new raw site moves the count in
@@ -24,7 +27,7 @@
 # turbofish, a fn pointer, a `(path)(…)` call and a `use … as` rename
 # each spell the name once. The names' own declarations (topo's `pub use
 # … as NAME;`) are not references. The counter is
-# `measure_door_census.py`, shared with the transitional alias's gate.
+# `measure_door_census.py`.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -95,6 +98,41 @@ plant_reason_too_far() {
   } >> "$1/crates/clean/src/lib.rs"
 }
 
+# An unreasoned fn after a reasoned one does not borrow its reason.
+plant_fn_after_a_reasoned_one() {
+  printf 'crates/clean 2\n' >> "$1/$BASELINE"
+  {
+    printf 'pub fn v(b: &B) -> R {\n'
+    printf '    // Raw door: an inside-out body, which tier 3 refuses (NegativeVolume).\n'
+    printf '    measure_unvalidated(b, t())\n}\n'
+    printf 'pub fn w(b: &B) -> R { measure_unvalidated(b, t()) }\n'
+  } >> "$1/crates/clean/src/lib.rs"
+}
+
+# A second call, on another body, under the first call's reason.
+plant_second_call_under_a_reason() {
+  printf 'crates/clean 2\n' >> "$1/$BASELINE"
+  {
+    printf 'pub fn v(bad: &B, good: &B) {\n'
+    printf '    // Raw door: an inside-out body, which tier 3 refuses (NegativeVolume).\n'
+    printf '    let a = measure_unvalidated(bad, t());\n'
+    printf '    let b = measure_unvalidated(good, t());\n}\n'
+  } >> "$1/crates/clean/src/lib.rs"
+}
+
+# A reason above a statement covers that statement's continuation lines.
+plant_reason_over_a_long_statement() {
+  printf 'crates/clean 2\n' >> "$1/$BASELINE"
+  {
+    printf 'pub fn v(a: &B, b: &B) {\n'
+    printf '    // Raw door: a mixed pair, and tier 3 refuses the second (NegativeVolume).\n'
+    printf '    assert_eq!(\n'
+    printf '        measure_unvalidated(a, t()).is_ok(),\n'
+    printf '        measure_unvalidated(b, t()).is_ok(),\n'
+    printf '    );\n}\n'
+  } >> "$1/crates/clean/src/lib.rs"
+}
+
 plant_new_site() {
   {
     printf '// Raw door: an inside-out body, which tier 3 refuses (NegativeVolume).\n'
@@ -125,11 +163,14 @@ gate_selftest() {
   gate_selftest_passes "reasoned sites at their pin beside the names' declaration" plant_reasoned_at_pin
   gate_selftest_case "with no reason" plant_unreasoned
   gate_selftest_case "with no reason" plant_reason_too_far
+  gate_selftest_case "with no reason" plant_fn_after_a_reasoned_one
+  gate_selftest_case "with no reason" plant_second_call_under_a_reason
+  gate_selftest_passes "a reason above a statement over its continuation lines" plant_reason_over_a_long_statement
   gate_selftest_case "sites moved" plant_new_site
   gate_selftest_case "sites moved" plant_use_as
   gate_selftest_case "sites moved" plant_example_site
   gate_selftest_case "sites moved" plant_fell
-  printf '%s selftest OK: passes a clean fixture and reasoned sites at their pin beside the declaration; fires on a site with no reason or a reason in another statement, on a new site spelled as a (path)(…) call, a use-as rename or an examples/ turbofish, and on a fall, and diagnoses a counter that cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and reasoned sites at their pin beside the declaration; fires on a site with no reason, a reason in another statement, an unreasoned fn after a reasoned one or a second call under the reason of another, passes a reason over the continuation lines of its statement; fires on a new site spelled as a (path)(…) call, a use-as rename or an examples/ turbofish, and on a fall, and diagnoses a counter that cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

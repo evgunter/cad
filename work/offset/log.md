@@ -216,3 +216,18 @@ Filed: CHARTTAIL's `the-cones-rung3-certificate-has-no-metres-enclosure`
 (P1 M, the shared cone blocker, no item named it) and SELECT's
 `closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`
 (P2 M, both designers' finding; its fix follows Ev's answer).
+
+## 2026-10-25 — the conic fork closes; the build is cut (OFFSET orchestrator)
+
+Ev approved PR 5652 (merged `6e9df01639`): *"i'm still not totally sure
+about having special cases for the parabola and hyperbola, but sure, we
+can run with it"*. Round 5 had converged after Ev asked what the class
+rule would do: B withdrew it and stated a pair-based rule; A adopted it
+with an amendment for soundness (transversality over the span, clearance
+from near misses); B accepted. On Ev's last question both conceded the
+tube exemption is the part resting on the classification and is
+severable. Row 193 filled (A = Opus, B = Fable; match: neither first
+report). Built as three units (plan.md), the exemption last and alone so
+Ev's reservation can drop it cheaply. SELECT's
+`closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them`
+is claimed as unit 1 (moved here).

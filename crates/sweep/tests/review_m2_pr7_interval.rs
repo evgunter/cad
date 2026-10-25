@@ -49,8 +49,11 @@ fn assert_encloses(what: &str, enclosure: Interval, analytic: f64) {
 }
 
 fn check(body: &Body<Interval>, what: &str, volume: f64, area: f64) {
-    let props = topo::test_support::unmigrated_measure(body, Tol::witness())
-        .expect("interval mass properties must compute");
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("interval mass properties must compute");
     assert_encloses(&format!("{what} volume"), props.volume, volume);
     assert_encloses(&format!("{what} area"), props.surface_area, area);
 }
