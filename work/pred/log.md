@@ -94,3 +94,10 @@ Signed (FIX orchestrator).
   - **`S116p` reframed.** "Permanent" is gone from the refusal. What is open is whether the two-run full revolve is built through the void door, as the holed revolve is. `needs_ev` is cleared until the designers have weighed it.
   - **Re-banded P1 → P3, unilaterally:** the two band rows. Every site is test code, so the risk is a test asking the wrong question, not entrenching architecture.
   - **Split.** The load stood at 39.5/30. The P3 and P4 rows (the two band rows, the ordering row, the `(tol, band)` row and `D281`) moved to a new program, PREDTAIL (`ready`, band 14600–14699), along the priority seam. PRED keeps 22 points.
+- 2026-10-25 — (PRED orchestrator) Dispatched. Each tier is the orchestrator's call, with its reason:
+  - **`D292`** on `pred/d292-directional-extremum`, **full single review**. It is a new enclosure door, and an under-bound is a silent soundness defect.
+  - **`S18`**, the step-export volume, on `pred/s18-step-export-volume`, **full single review**. It changes which reading classifies a shell as a void.
+  - **`lever-arm` remainder plus `D57`** on `pred/lever-arm-point-arm-and-d57`, **orchestrator's read**. It is a one-home swap with an agreement row, two doc corrections, and an audit paragraph re-sync.
+  - **Designer pairs (one Opus, one Fable):**
+    - **`S116p`**, a design fork headed for Ev. It is blinded per `docs/DESIGN-FORK-PROTOCOL.md`, with the byte on `analysis/design-fork/s116p-two-axis-runs`.
+    - **`period-headroom-margin-has-no-shared-home`**, where the shared home lives. It goes to Ev only if the designers find a fork Ev cares about.

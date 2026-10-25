@@ -2,12 +2,13 @@
 id: lever-arm-fold-six-hand-rolled-siblings
 kind: issue
 title: The two-surface lever-arm fold has one documented home and six hand-rolled siblings; contact_tangent_opposed is classify_material_pairing's undisclosed twin
-status: open
+status: dispatched
 opened: 2026-09-01
 github: 1439
 refs: [1423]
 priority: P1
 cost: E
+branch: pred/lever-arm-point-arm-and-d57
 ---
 
 ## From GitHub issue 1439
