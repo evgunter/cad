@@ -141,6 +141,8 @@ ALL_LISTS = ("document", "select", "prelude", "profile", "analysis")
 DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Attr": ("argued", "NOT_CARRIED, the appearance family (crates/pncad/tests/all.rs); "
                        "crates/pncad/src/document.rs says why the record types stay out"),
+    "BindingViolation": ("argued", "NOT_CARRIED, the analysis lane's interior residue "
+                                   "(crates/pncad/tests/all.rs)"),
     # The entries whose home is the CARRIER's crate rather than the
     # façade's: the argument for not publishing the rung is about what a
     # façade carry would owe (the CUR3 matchability row, and a word for
@@ -217,9 +219,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # same carrier, the same row.
     "AlongFace": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                   "boolean-error.md"),
-    # `BooleanError`'s `DeclarationRead`: the glue a read pair held.
-    "GlueClass": ("argued", "non-carriage with its falsifier, beside the declaration "
-                  "in crates/topo/src/contact.rs"),
     "Diagnosis": ("argued", "the telemetry half, deliberately interior, "
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
@@ -233,8 +232,6 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     "Minted": ("argued", "NOT_CARRIED, the mint family (crates/pncad/tests/all.rs): a "
                          "consumer holds ids, never the mint log, and a snapshot refusal "
                          "crosses as its tag word"),
-    "PairingViolation": ("argued", "NOT_CARRIED, the analysis lane's interior residue "
-                                   "(crates/pncad/tests/all.rs)"),
     "ParamValue": ("argued", "NOT_CARRIED, a curated face of a different shape "
                              "(crates/pncad/tests/all.rs)"),
     "Qualifier": ("argued", "NOT_CARRIED, the naming interior (crates/pncad/tests/all.rs)"),

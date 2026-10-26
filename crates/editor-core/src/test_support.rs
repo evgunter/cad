@@ -551,11 +551,7 @@ pub fn placed_against_in(
         }
     };
     crate::Placed {
-        mates: vec![crate::Mate {
-            on,
-            to,
-            class: crate::ContactClass::Rest,
-        }],
+        mates: vec![crate::Mate { on, to }],
         values: vec![
             (Coord::Slide(TargetAxis::X), slide(sx)),
             (Coord::Slide(TargetAxis::Y), slide(sy)),
@@ -1265,22 +1261,24 @@ pub(crate) fn record_fold_row(
     });
 }
 
-/// **The product a document whose world placements were its product
-/// had** (D10 `[operations]`): the slot set to its one world copy, or
-/// to a `⊔` of its world copies in document order, written through the
-/// doors. A `⊔` this wrote before is replaced, so a fixture that places
-/// one more body calls it again. A document with no world placement is
-/// left with an empty product.
+/// **The product said as the world's copies** (D10 `[operations]`): the
+/// slot set to the one world copy, or to a `⊔` of the world's copies in
+/// document order, written through the doors — what a fixture that
+/// places bodies into the world and makes all of them means. A `⊔` this
+/// wrote before is replaced, so a fixture that places one more body
+/// calls it again. A document with no world placement is left with an
+/// empty product. The one home of this fixture: a demo or a row about
+/// what a user authors names its product's copies instead.
 ///
 /// # Panics
 ///
 /// If a door refuses an edit it writes.
 #[must_use]
-pub fn with_world_product(doc: ProfileDoc, tol: geom_core::Tol) -> ProfileDoc {
-    world_product_edits(doc, tol).0
+pub fn assemble_world_copies(doc: ProfileDoc, tol: geom_core::Tol) -> ProfileDoc {
+    assemble_world_copies_edits(doc, tol).0
 }
 
-/// **[`with_world_product`] with the edits it wrote**, in the order it
+/// **[`assemble_world_copies`] with the edits it wrote**, in the order it
 /// wrote them: what a recorded log replays to reach the same product.
 ///
 /// # Panics
@@ -1288,7 +1286,7 @@ pub fn with_world_product(doc: ProfileDoc, tol: geom_core::Tol) -> ProfileDoc {
 /// If a door refuses an edit it writes.
 #[must_use]
 #[allow(clippy::expect_used)]
-pub fn world_product_edits(
+pub fn assemble_world_copies_edits(
     doc: ProfileDoc,
     tol: geom_core::Tol,
 ) -> (ProfileDoc, Vec<crate::DocEdit<ProfileProgram>>) {

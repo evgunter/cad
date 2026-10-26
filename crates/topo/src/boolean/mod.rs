@@ -30,8 +30,9 @@
 //! 2. **Reduction sweep** (`reduce`): edge×face, BOTH directions,
 //!    candidate generation through the `bvh` tree since M5 PR 8 (the
 //!    tree prunes, predicates decide — `reduce` module docs; the
-//!    brute-force scan survives as [`SweepStrategy::Idealized`] under
-//!    the differential suite), with `contfv`/`contfp` as typed
+//!    brute-force scan survives as `SweepStrategy::Idealized` under
+//!    the differential suite, behind the `sweep-testing` feature, so
+//!    the name is not a link), with `contfv`/`contfp` as typed
 //!    trilean case codes. Proper
 //!    crossings insert vertices via the certified `split_edge` lane;
 //!    edge-on-edge crossings are discovered as edge-face events landing
@@ -128,6 +129,7 @@ pub use refusal_routes::{
 };
 pub(crate) mod region;
 mod rim_wedge;
+pub(crate) mod ruled_region;
 pub(crate) mod sectors;
 pub(crate) mod separating;
 mod shell_witness;
@@ -154,7 +156,7 @@ use geom_core::{
 use crate::body::Body;
 use crate::chord_join::SplitJoinError;
 use crate::coincidence::{Cited, Cites};
-use crate::contact::{ContactClass, GlueClass};
+use crate::contact::GlueClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
@@ -176,7 +178,7 @@ pub(crate) use contain::{
     CurvedPlacement, PlacementError, driver_face_stale, face_placement, loop_circle,
 };
 pub use discard::DiscardRow;
-pub use fate::SubstitutedFace;
+pub use fate::{SubstitutedFace, UncutFace};
 // Crate-internal: tier 3's check 11 reads every vertex through the
 // join's own predicate.
 pub(crate) use edge_join::joinable_at_rest;
@@ -211,7 +213,7 @@ pub use carrier_pair::{
     face_carrier, flush_pair_relation, rest_locus,
 };
 pub(crate) use contact_verify::rest_pair_reading;
-pub use contact_verify::{contact_pair_verdict, tangent_pair_relation};
+pub use contact_verify::{rest_pair_verdict, tangent_pair_relation};
 pub use solid_contain::{
     PointInSolidError, SolidContainment, SolidFaces, point_in_solid, point_in_solid_faces,
     point_in_solid_of,
@@ -334,27 +336,15 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // Every row of `geom_brep::curve_pair::pose`, by its prefix.
         p if p.starts_with("curve_pair_pose_") => "how two edges' carriers meet",
         "curve_pair_meet_same" | "curve_pair_meet_stretch" => "how two edges' carriers meet",
-        "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
-        | "bool_curved_contain_period"
-        | "bool_wall_trim"
-        | "bool_wall_junction"
         | "bool_wall_outline_reach"
-        | "bool_wall_piece_span"
-        | "bool_wall_rim_level"
         | "bool_wrap_rim"
-        | "bool_wall_section_tilt"
-        | "bool_wall_trim_period"
-        | "bool_wall_iso_meridian"
-        | "bool_wall_iso_rim"
-        | "bool_wall_section_seat"
         | "bool_sphere_iso_meridian"
         | "bool_sphere_iso_rim"
         | "bool_sphere_trim_antipode"
         | "bool_sphere_trim_latitude"
-        | "bool_sphere_trim_meridian_span"
         | "bool_sphere_trim_period"
         | "bool_sphere_trim_pole_end"
         | "bool_sphere_trim_pole_interior"
@@ -387,13 +377,24 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_torus_region_spiric_on"
         | "bool_torus_region_spiric_leaf"
         | "bool_torus_frame_radius"
-        | "bool_cone_chart_box"
-        | "bool_cone_group_slant"
-        | "bool_cone_trim"
-        | "bool_cone_trim_nappe"
-        | "bool_cone_trim_period"
-        | "bool_cone_trim_side"
-        | "bool_ray_cone_apex"
+        | "bool_ruled_region_frame"
+        | "bool_ruled_region_nappe"
+        | "bool_ruled_region_component"
+        | "bool_ruled_region_collinear"
+        | "bool_ruled_region_span"
+        | "bool_ruled_region_at"
+        | "bool_ruled_region_end"
+        | "bool_ruled_region_corner"
+        | "bool_ruled_region_order"
+        | "bool_ruled_region_cross"
+        | "bool_ruled_region_roots_noise"
+        | "bool_ruled_region_roots_coaxial"
+        | "bool_ruled_region_roots_extreme"
+        | "bool_ruled_region_roots_slack"
+        | "bool_ruled_region_arc_span"
+        | "bool_ruled_region_arc_straddle"
+        | "bool_ruled_region_edge_length"
+        | "bool_ruled_region_edge"
         | "bool_ray_cone_nappe"
         | "bool_cone_partial_reach"
         | "point_in_loop_segment"
@@ -419,7 +420,14 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "point_in_arc_loop_spiric_leaf"
         | "point_in_arc_loop_spiric_side"
         | "point_in_arc_loop_spiric_turn"
-        | "point_in_arc_loop_spiric_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
+        | "point_in_arc_loop_spiric_advance"
+        | "point_in_arc_loop_spline_end"
+        | "point_in_arc_loop_spline_clear"
+        | "point_in_arc_loop_spline_on"
+        | "point_in_arc_loop_spline_leaf"
+        | "point_in_arc_loop_spline_side"
+        | "point_in_arc_loop_spline_turn"
+        | "point_in_arc_loop_spline_advance" => BooleanDecision::CONTAINMENT_UNNAMED.subject(),
         _ => return None,
     })
 }
@@ -2351,9 +2359,50 @@ pub enum PairRefusalSite {
     /// The crossings path's interior-loop guard, after the reduction:
     /// the section certificate (`section_cert`) could not certify a face
     /// pair free of a closed loop interior to both faces — an
-    /// intractable pose, a tangency, a certified interior loop, or an
-    /// undecided witness.
+    /// intractable pose, a tangency, a certified interior loop, an
+    /// undecided witness, or a face whose boundary walk could not be
+    /// read (R-unread). The site carries no refusal reason; the
+    /// no-crossings path's [`BooleanError::FallbackExtentUnsupported`]
+    /// does.
     InteriorLoopGuard,
+}
+
+/// Which lane raised [`BooleanError::EdgeCarrierUnsupported`]. Each
+/// reads an edge's carrier and has a row for a line, a circle and an
+/// ellipse; the site says what it could not do with a spiric or a
+/// spline.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EdgeCarrierSite {
+    /// The sweep's crossing lane against a plane face of the other
+    /// operand.
+    PlanarCrossing,
+    /// The sweep's crossing lane against a curved face of the other
+    /// operand.
+    CurvedCrossing,
+    /// The join's section frame for a germ that runs along an edge of
+    /// either solid.
+    GermFrame,
+    /// The join's ring lane, winding the run of a face's loop that a new
+    /// face is walled off along.
+    RingRun,
+}
+
+impl EdgeCarrierSite {
+    /// What the lane could not do with the edge, completing "the
+    /// Boolean cannot yet".
+    #[must_use]
+    pub const fn clause(self) -> &'static str {
+        match self {
+            Self::PlanarCrossing => {
+                "find whether or where such an edge crosses a plane face of the other operand"
+            }
+            Self::CurvedCrossing => {
+                "find whether or where such an edge crosses a curved face of the other operand"
+            }
+            Self::GermFrame => "join the two solids along such an edge",
+            Self::RingRun => "orient a new face whose boundary runs along such an edge",
+        }
+    }
 }
 
 /// One sector read of a vertex, named in
@@ -2630,7 +2679,7 @@ pub enum BooleanError {
     /// whose
     /// crossing parameters come from the certified root lanes (the line
     /// quadratics and quartic, and `boolean::circle_roots`' doors) and
-    /// whose landing point the chart trim
+    /// whose landing point the face's region
     /// places. What this variant reports is the rest: a tangency (not a
     /// crossing at any order the lanes see), a line parallel to a cone's
     /// generator, an undeclared on-carrier
@@ -2688,49 +2737,38 @@ pub enum BooleanError {
         /// The band the distance off the axis was classified against.
         band: Band,
     },
-    /// The operand gate (F5) refused a spiric or spline (`Nurbs`)
-    /// carrier in an INPUT operand: no crossing lane reads either kind,
-    /// and the join and section lanes behind the sweep have no row for
-    /// them either (`reduce::gate_operand_edges` names which).
-    CurvedEdgeUnsupported {
-        /// The offending operand and edge.
-        operand: Operand,
-        /// The edge.
-        edge: EdgeKey,
-    },
-    /// The sweep read an edge whose carrier is a spiric or a spline
-    /// against a face of the other operand, and no lane finds whether or
-    /// where such a carrier crosses a face: its endpoints' sides neither
-    /// find its crossings (it can cross and come back between same-side
-    /// ends) nor place them (a parameter interpolated between them is not
-    /// a point on the face). Raised by the sweep's planar and curved arms
-    /// alike, at the first face whose box the edge's box meets (a
-    /// spline's box is the whole space).
-    ///
-    /// **No public door raises it while the operand gate stands**: the
-    /// gate refuses every such edge first, as
-    /// [`Self::CurvedEdgeUnsupported`]. It is the sweep's own refusal,
-    /// pinned by `reduce::planar_lane_carrier_rows`, and the one a
-    /// narrowed gate exposes (`work/orbit/delete-the-boolean-operand-edge-gate.md`).
-    CrossingCarrierUnsupported {
+    /// A lane met an edge whose carrier is a spiric or a spline, and has
+    /// no row for either kind; `site` names the lane. At a crossing lane
+    /// the edge's endpoints' sides neither find its crossings (it can
+    /// cross a face and come back between same-side ends) nor place them
+    /// (a parameter interpolated between them is not a point on the
+    /// face), and the face is the first of the other operand's whose box
+    /// the edge's box meets (a spline's box is the whole space). At the
+    /// join, the face is the one of `operand` the germ or the ring runs
+    /// on.
+    EdgeCarrierUnsupported {
         /// The operand whose edge it is.
         operand: Operand,
-        /// The edge.
+        /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
-        /// The face of the other operand it met.
+        /// The face the lane read it against, as the lane holds it.
         face: FaceKey,
+        /// The operand whose face it is: the other at a crossing lane,
+        /// `operand` itself at the join.
+        face_of: Operand,
+        /// The lane.
+        site: EdgeCarrierSite,
     },
     /// The both-edges-split point lane needs a carrier with a point
     /// parameter ([`geom::Curve3::param_near`]) and got a spline, which
-    /// has none. The operand gate refuses a spline edge first, as
-    /// [`Self::CurvedEdgeUnsupported`], so no public door raises this
-    /// while the gate stands; it is the split lane's own precondition,
-    /// which is why it is its own variant. One doc and one message
-    /// covering both could name neither.
+    /// has none. It is the split lane's own precondition, narrower than
+    /// a crossing lane's ([`Self::EdgeCarrierUnsupported`]), which is why
+    /// it is its own variant: one doc and one message covering both
+    /// could name neither.
     PointSplitCarrierUnsupported {
         /// The offending operand and edge.
         operand: Operand,
-        /// The edge.
+        /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
     },
     /// **Two edges along one germ whose identity no rule decides.**
@@ -2743,20 +2781,19 @@ pub enum BooleanError {
     GermEdgeCarrierUnsupported {
         /// The operand whose edge is neither a line nor a circle.
         operand: Operand,
-        /// The edge.
+        /// The edge: the operand's own, its split pieces' root.
         edge: EdgeKey,
     },
     /// **Point-in-face on a loop no walk expresses at the point.** The
     /// in-plane walk reads each edge on its own carrier — a line as its
-    /// chord, a circle or ellipse arc on its conic — and has no crossing
-    /// row for a spiric or spline edge. It answers along any ray that
-    /// definitely misses a ball holding such an edge; a point where
-    /// every ray could meet one — a crossing of that edge could change
-    /// the answer — is refused here rather than guessed.
+    /// chord, a circle or ellipse arc on its conic, a spiric or spline
+    /// arc piece by piece. A point that a spiric's or spline's pieces
+    /// ran out of depth or budget before placing is refused here rather
+    /// than guessed.
     ArcLoopContainmentUnsupported {
         /// The operand whose face carries the loop.
         operand: Operand,
-        /// The loop, and the edge no ray got past.
+        /// The loop, and the edge whose reading ran out.
         cause: crate::splitting::Uncrossable,
     },
     /// **A point-in-face read of an operand face refused.** The
@@ -2917,9 +2954,6 @@ pub enum BooleanError {
         fact: Option<Contradiction>,
         /// The margin that decided, and its predicate.
         margin: Indeterminate,
-        /// Extra recourse steering when the counter-evidence has a
-        /// named remedy (AQ6's designed-clearance arm).
-        steer: Option<&'static str>,
     },
     /// A declared CONTINUATION meets definite counter-evidence at the
     /// op (C4's continuation clause): the two faces are not one carrier,
@@ -3073,6 +3107,18 @@ pub enum BooleanError {
         operand: Operand,
         /// The pierced face, a key of the other operand's working copy.
         face: FaceKey,
+    },
+    /// Under union, a plane face of each operand lies on the other's
+    /// with opposed normals at a pair of their vertices, and the two
+    /// faces' outlines leave the vertex tangent, one curving inside the
+    /// other: the faces overlap in a crescent that narrows to the vertex,
+    /// which the section cannot reach (`sectors::crescent_refusal` says
+    /// why).
+    TangentCrescentUnsupported {
+        /// A's face, a key of A's working copy.
+        a_face: FaceKey,
+        /// B's face, a key of B's working copy.
+        b_face: FaceKey,
     },
     /// A vertex of `operand` is read by two sector passes where the
     /// first read cannot be taken with the second: it pierces two faces
@@ -3384,13 +3430,13 @@ pub enum BooleanError {
         /// Its kind — the B half of the germ pair.
         b_kind: geom::SurfaceKind,
     },
-    /// **A germ pair whose section is a conic outside the inventory by
-    /// decision**: a plane cutting a cone face in a parabola (parallel to
-    /// a generator) or a hyperbola (meeting both nappes). Neither curve is
-    /// in the conic inventory (`geom_brep`'s C1/C5, ruling R1), so the
-    /// pair is refused, not missing an arm: `section` is the table's own
-    /// refusal, naming the conic.
-    GermSectionOutsideInventory {
+    /// **A germ pair whose section is an open conic**: a plane cutting a
+    /// cone face in a parabola (parallel to a generator) or a hyperbola
+    /// (meeting both nappes). The section table serves either in closed
+    /// form, its arcs minted per window as rational-quadratic NURBS
+    /// (`geom_brep`'s C1), and the Boolean has no crossing layer for a
+    /// NURBS carrier, so the pair is refused at its frame.
+    GermSectionOpenConic {
         /// The A-side germ face.
         a_face: FaceKey,
         /// Its kind.
@@ -3400,9 +3446,7 @@ pub enum BooleanError {
         /// Its kind.
         b_kind: geom::SurfaceKind,
         /// The conic.
-        conic: geom_brep::OutsideConic,
-        /// The section table's refusal, naming the conic.
-        section: geom_brep::SectionError,
+        conic: geom_brep::OpenConic,
     },
     /// **A germ pair whose plane cuts a torus face in a general spiric
     /// quartic**: a plane neither through the torus's axis, nor square to
@@ -3472,7 +3516,7 @@ pub enum BooleanError {
     /// (`Curve3::param_near`). A carrier with no period, or no
     /// parameter inverse there (a spline), cannot be run on, and the
     /// join refuses rather than leave the vertex standing
-    /// (`work/hone/joining-a-spline-carrier-is-unbuilt`).
+    /// (`work/splice/joining-a-spline-carrier-is-unbuilt`).
     JoinCarrierUnsupported {
         /// The edge the join keeps.
         edge: EdgeKey,
@@ -3489,8 +3533,8 @@ pub enum BooleanError {
     RestPieceUnread {
         /// The piece, in result keys.
         face: FaceKey,
-        /// The containment door's refusal; `None` where the curved
-        /// chart trim gives no verdict for this face.
+        /// The containment door's refusal; `None` where a curved face's
+        /// region gives no verdict for this face.
         refusal: Option<ContainError>,
     },
     /// **A record the op carries, or found, could not be placed on the
@@ -3813,18 +3857,17 @@ pub enum LineWedgeFault {
         /// The result's two edges, in arena order.
         edges: [EdgeKey; 2],
     },
-    /// A face of this edge has no tangent plane where it meets the line,
-    /// so the material on its side has no reading.
-    NoSheet {
+    /// This edge's material wedge has no reading on the line: a face of
+    /// it with no tangent plane there, its faces meeting at a zero angle
+    /// or a full turn (a cusp or a knife slit, D1's wedge ends), or a
+    /// length too long or too short to measure. Tier 3′ names the same
+    /// reading of a body's own coincident edges
+    /// ([`crate::ValidationError::CoincidentWedgesOverlapUndecided`]).
+    Unread {
         /// The result's edge.
         edge: EdgeKey,
-    },
-    /// This edge's faces meet at a zero angle or a full turn, a cusp or
-    /// a knife slit (D1's wedge ends), and the line's reading has no
-    /// answer for those.
-    WedgeEnd {
-        /// The result's edge.
-        edge: EdgeKey,
+        /// Why its wedge has no reading.
+        why: crate::census::TouchUnread,
     },
 }
 
@@ -3874,10 +3917,8 @@ pub enum BooleanErrorKind {
     CrossingAtConeApex,
     /// [`BooleanError::NormalAtConeApex`].
     NormalAtConeApex,
-    /// [`BooleanError::CurvedEdgeUnsupported`].
-    CurvedEdgeUnsupported,
-    /// [`BooleanError::CrossingCarrierUnsupported`].
-    CrossingCarrierUnsupported,
+    /// [`BooleanError::EdgeCarrierUnsupported`].
+    EdgeCarrierUnsupported,
     /// [`BooleanError::PointSplitCarrierUnsupported`].
     PointSplitCarrierUnsupported,
     /// [`BooleanError::GermEdgeCarrierUnsupported`].
@@ -3924,6 +3965,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchRaysInAFace`].
     PinchRaysInAFace,
+    /// [`BooleanError::TangentCrescentUnsupported`].
+    TangentCrescentUnsupported,
     /// [`BooleanError::CrossingsAlongAContactLine`].
     CrossingsAlongAContactLine,
     /// [`BooleanError::VertexReadTwice`].
@@ -3948,8 +3991,8 @@ pub enum BooleanErrorKind {
     SpheresMeet,
     /// [`BooleanError::GermFrameUnsupported`].
     GermFrameUnsupported,
-    /// [`BooleanError::GermSectionOutsideInventory`].
-    GermSectionOutsideInventory,
+    /// [`BooleanError::GermSectionOpenConic`].
+    GermSectionOpenConic,
     /// [`BooleanError::GermSectionSpiric`].
     GermSectionSpiric,
     /// [`BooleanError::NodeUnbuilt`].
@@ -4153,8 +4196,7 @@ impl BooleanError {
             Self::CurvedPierceUnsupported { .. } => BooleanErrorKind::CurvedPierceUnsupported,
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
-            Self::CurvedEdgeUnsupported { .. } => BooleanErrorKind::CurvedEdgeUnsupported,
-            Self::CrossingCarrierUnsupported { .. } => BooleanErrorKind::CrossingCarrierUnsupported,
+            Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
             Self::PointSplitCarrierUnsupported { .. } => {
                 BooleanErrorKind::PointSplitCarrierUnsupported
             }
@@ -4184,6 +4226,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchRaysInAFace { .. } => BooleanErrorKind::PinchRaysInAFace,
+            Self::TangentCrescentUnsupported { .. } => BooleanErrorKind::TangentCrescentUnsupported,
             Self::CrossingsAlongAContactLine { .. } => BooleanErrorKind::CrossingsAlongAContactLine,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::PartnerAlongFace { .. } => BooleanErrorKind::PartnerAlongFace,
@@ -4196,9 +4239,7 @@ impl BooleanError {
             Self::FallbackExtentUnsupported { .. } => BooleanErrorKind::FallbackExtentUnsupported,
             Self::SpheresMeet { .. } => BooleanErrorKind::SpheresMeet,
             Self::GermFrameUnsupported { .. } => BooleanErrorKind::GermFrameUnsupported,
-            Self::GermSectionOutsideInventory { .. } => {
-                BooleanErrorKind::GermSectionOutsideInventory
-            }
+            Self::GermSectionOpenConic { .. } => BooleanErrorKind::GermSectionOpenConic,
             Self::GermSectionSpiric { .. } => BooleanErrorKind::GermSectionSpiric,
             Self::NodeUnbuilt { .. } => BooleanErrorKind::NodeUnbuilt,
             Self::Euler(_) => BooleanErrorKind::Euler,
@@ -4251,7 +4292,8 @@ impl From<EulerOpError> for BooleanError {
 
 /// The recourse of every refusal of a spiric or spline edge: the kinds
 /// every lane reads are the line and the two conics.
-const CONIC_EDGES_RECOURSE: &str = "rebuild that solid so its edges are lines, circles or ellipses";
+pub(crate) const CONIC_EDGES_RECOURSE: &str =
+    "rebuild that solid so its edges are lines, circles or ellipses";
 
 /// How a refusal names an operand to the person who built it: by its
 /// place in the operation, never by the enum spelling.
@@ -4370,20 +4412,12 @@ impl core::fmt::Display for BooleanError {
                 refusal_routes::PIERCE_CURVATURE
                     .recourse(verdict.arm(), geom_brep::recourse::Reading::Build)
             ),
-            Self::CurvedEdgeUnsupported { operand, .. } => write!(
+            Self::EdgeCarrierUnsupported { operand, site, .. } => write!(
                 f,
                 "an edge of the {} operand is a spiric or spline (NURBS) curve, and the \
-                 Boolean cannot yet take a solid with such edges as an input. Recourse: \
-                 {CONIC_EDGES_RECOURSE}",
+                 Boolean cannot yet {}. Recourse: {CONIC_EDGES_RECOURSE}",
                 operand_word(*operand),
-            ),
-            Self::CrossingCarrierUnsupported { operand, .. } => write!(
-                f,
-                "an edge of the {} operand is a spiric or spline (NURBS) curve whose box \
-                 meets a face of the other operand, and the Boolean cannot yet find \
-                 whether or where such an edge crosses a face. Recourse: \
-                 {CONIC_EDGES_RECOURSE}",
-                operand_word(*operand),
+                site.clause(),
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(
                 f,
@@ -4547,16 +4581,13 @@ impl core::fmt::Display for BooleanError {
                 kind_word(*b_kind),
                 meeting_recourse(kind_word(*a_kind)),
             ),
-            Self::GermSectionOutsideInventory { conic, .. } => write!(
+            Self::GermSectionOpenConic { conic, .. } => write!(
                 f,
                 "a flat face of one part cuts a cone face of the other along a curve \
-                 that never closes ({}), which the Boolean does not build. Recourse: \
-                 tilt the parts so the flat face cuts the cone all the way round, or \
-                 keep it clear of the cone face",
-                match conic {
-                    geom_brep::OutsideConic::Parabola => "a parabola",
-                    geom_brep::OutsideConic::Hyperbola => "a hyperbola",
-                },
+                 that never closes ({}), which the Boolean cannot yet cross with other \
+                 edges. Recourse: tilt the parts so the flat face cuts the cone all the \
+                 way round, or keep it clear of the cone face",
+                conic.named(),
             ),
             Self::GermSectionSpiric { loops, .. } => write!(
                 f,
@@ -4640,7 +4671,7 @@ impl core::fmt::Display for BooleanError {
             // disagreeing with itself.
             Self::ContactContradicted {
                 declaration, fact, ..
-            } if declaration.class == crate::contact::ContactClass::Tangent => write!(
+            } if declaration.class == GlueClass::Tangent => write!(
                 f,
                 "the Boolean read two of the operands' faces tangent along a line or rim, \
                  and a later reading of the same faces contradicts that: {}. {}",
@@ -4652,18 +4683,13 @@ impl core::fmt::Display for BooleanError {
             // payload. The faces are the first and second operands'
             // (the declaration's own order).
             Self::ContactContradicted {
-                declaration,
-                steer,
-                fact,
-                ..
+                declaration, fact, ..
             } => write!(
                 f,
-                "the declared {} contact between the operands' faces is contradicted: {}. \
-                 {}{}",
+                "the declared {} contact between the operands' faces is contradicted: {}. {}",
                 declaration.class.name(),
                 fact.map_or(crate::contact::CONTRADICTION_REASON, Contradiction::fact),
                 crate::contact::CONTRADICTION_RECOURSE,
-                crate::contact::steer_clause(*steer),
             ),
             Self::ContinuationContradicted { fact, .. } => write!(
                 f,
@@ -4747,6 +4773,14 @@ impl core::fmt::Display for BooleanError {
                  the other solid, in a way the Boolean cannot yet join. There is no \
                  way through this in the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::TangentCrescentUnsupported { .. } => write!(
+                f,
+                "a flat face of each part lies on the other's, and their outlines touch at a \
+                 point where one curves inside the other, so the faces share a sliver that \
+                 narrows to that point, which a union cannot yet join (subtract and \
+                 intersect can). Recourse: move one part so the two outlines cross or stay \
+                 clear of each other there"
             ),
             Self::CrossingsAlongAContactLine { .. } => write!(
                 f,
@@ -4848,7 +4882,7 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the Boolean cannot yet join edge {edge:?} across a vertex on its {} carrier: \
                  the join runs the edge on along its carrier {}, which this carrier has no \
-                 reading for (work/hone/joining-a-spline-carrier-is-unbuilt)",
+                 reading for (work/splice/joining-a-spline-carrier-is-unbuilt)",
                 carrier.name(),
                 if *closed {
                     "over a whole period"
@@ -5101,17 +5135,11 @@ impl core::fmt::Display for BooleanError {
                      material: the Boolean pairs the faces meeting there as the material does \
                      not, and the re-pairing it needs is not built. {NOT_YET_ENDING}"
                 ),
-                LineWedgeFault::NoSheet { .. } => write!(
+                LineWedgeFault::Unread { why, .. } => write!(
                     f,
-                    "a face meeting the line from {from} to {to}, where two or more of the \
-                     result's edges lie, has no tangent plane there, so the material on its side has no \
-                     reading. {NOT_YET_ENDING}"
-                ),
-                LineWedgeFault::WedgeEnd { .. } => write!(
-                    f,
-                    "an edge on the line from {from} to {to}, where two or more of the result's \
-                     edges lie, bounds a cusp or a knife slit, which the reading of the line's \
-                     material does not cover. {NOT_YET_ENDING}"
+                    "an edge on the line from {from} to {to}, where two or more of the \
+                     result's edges lie, bounds material the check cannot read: {}",
+                    why.sentence_on_line()
                 ),
             },
         }
@@ -5867,7 +5895,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
                     .push(pair),
             }
         }
-        let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        let sectors::PairSearch {
+            mut records,
+            touching,
+        } = sectors::pair_search(&a_sectors, &b_sectors, band)?;
+        if op == BooleanOp::Union {
+            sectors::crescent_refusal([&a, &b], [&a_sectors, &b_sectors], &touching, band)?;
+        }
         // The layering beside a partner along the face reads no sector
         // pair on one plane: it refuses before `recl_sectors` reads one.
         if let Some(refusal) = along
@@ -5917,13 +5951,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             Operand::A => &b,
             Operand::B => &a,
         };
-        move |face| {
-            crate::readback::face_carrier_kind(body, face)
-                .map(sectors::FaceShape::of_kind)
-                .map_err(|_| BooleanError::ClassificationInvariant {
-                    what: "a partner's face has no carrier",
-                })
-        }
+        move |face| sectors::FaceShape::of_face(body, face, "a partner's face has no carrier")
     };
     let mut read = Vec::with_capacity(touches.len() + paired.len());
     for (&(operand, vertex), touch) in &touches {
@@ -6551,12 +6579,8 @@ pub(super) fn glue_contradicted(
             declaration: crate::contact::DeclaredContact {
                 a: fa,
                 b: fb,
-                class: match class {
-                    GlueClass::Tangent => ContactClass::Tangent,
-                    GlueClass::Rest | GlueClass::Continuation => ContactClass::Rest,
-                },
+                class,
             },
-            steer: fact.and_then(contact_verify::fit_steer),
             fact,
             margin,
         },
@@ -6920,7 +6944,6 @@ pub(crate) fn tangent_pair_at_rest<T: Decide>(
                     predicate: Some(predicate),
                     terminal_sliver: false,
                 },
-                steer: None,
             });
         }
         Err(geom_brep::TangentLocusError::Unsupported { .. }) => {
@@ -7281,7 +7304,7 @@ fn verify_tangency<T: Decide>(
 /// per op needs the membership, which this stage does not hold (filed:
 /// `work/contacthold/a-touch-only-rim-with-no-derivable-locus-refuses-every-op-as-a-cusp.md`).
 /// The wedge is levered at the farther of the two faces' extents, each
-/// read in its own operand ([`crate::wedge_reach`]).
+/// read in its own operand ([`fn@crate::wedge_reach`]).
 fn route_rim<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
@@ -7326,7 +7349,7 @@ fn route_rim<T: Decide>(
             pair: crate::contact::DeclaredContact {
                 a: fa,
                 b: fb,
-                class: ContactClass::Tangent,
+                class: GlueClass::Tangent,
             },
             wedge,
         })),
@@ -8073,6 +8096,7 @@ mod tests {
                 u_ref,
             };
             let face = cyl_wall_sheet(&mut body, frame, u, (0.0, 1.0), tol);
+            crate::test_support_fixtures::set_sheet_sense(&mut body, face, true, tol);
             (body, face)
         };
         let near = (1.0, 2.1);
@@ -8692,7 +8716,7 @@ mod tests {
         let declaration = crate::contact::DeclaredContact {
             a: face,
             b: face,
-            class: ContactClass::Rest,
+            class: GlueClass::Rest,
         };
         vec![
             BooleanError::Band(Band::new(1.0, 1.0).unwrap_err()),
@@ -8727,14 +8751,19 @@ mod tests {
                 face,
                 band,
             },
-            BooleanError::CurvedEdgeUnsupported {
+            BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::B,
                 edge,
+                face,
+                face_of: Operand::B,
+                site: EdgeCarrierSite::RingRun,
             },
-            BooleanError::CrossingCarrierUnsupported {
+            BooleanError::EdgeCarrierUnsupported {
                 operand: Operand::A,
                 edge,
                 face,
+                face_of: Operand::B,
+                site: EdgeCarrierSite::PlanarCrossing,
             },
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
@@ -8798,16 +8827,14 @@ mod tests {
             BooleanError::ContactContradicted {
                 declaration,
                 margin: diag,
-                steer: None,
                 fact: None,
             },
             BooleanError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {
-                    class: ContactClass::Tangent,
+                    class: GlueClass::Tangent,
                     ..declaration
                 },
                 margin: diag,
-                steer: None,
                 fact: None,
             },
             BooleanError::ContinuationContradicted {
@@ -8835,6 +8862,10 @@ mod tests {
             BooleanError::PinchRaysInAFace {
                 operand: Operand::A,
                 face,
+            },
+            BooleanError::TangentCrescentUnsupported {
+                a_face: face,
+                b_face: face,
             },
             BooleanError::CrossingsAlongAContactLine {
                 a_vertex: VertexKey::default(),
@@ -8907,16 +8938,12 @@ mod tests {
                 b_face: face,
                 b_kind: geom::SurfaceKind::Torus,
             },
-            BooleanError::GermSectionOutsideInventory {
+            BooleanError::GermSectionOpenConic {
                 a_face: face,
                 a_kind: geom::SurfaceKind::Plane,
                 b_face: face,
                 b_kind: geom::SurfaceKind::Cone,
-                conic: geom_brep::OutsideConic::Hyperbola,
-                section: geom_brep::SectionError::RoutesToGeneralRung {
-                    pair: "plane×cone",
-                    why: "a hyperbola",
-                },
+                conic: geom_brep::OpenConic::Hyperbola,
             },
             BooleanError::GermSectionSpiric {
                 a_face: face,
@@ -9023,17 +9050,16 @@ mod tests {
                 from: "(0.0, 1.0, 2.0)".to_owned(),
                 to: "(3.0, 4.0, 5.0)".to_owned(),
             },
-            BooleanError::LineWedges {
-                fault: LineWedgeFault::NoSheet { edge },
-                from: "(0.0, 1.0, 2.0)".to_owned(),
-                to: "(3.0, 4.0, 5.0)".to_owned(),
-            },
-            BooleanError::LineWedges {
-                fault: LineWedgeFault::WedgeEnd { edge },
-                from: "(0.0, 1.0, 2.0)".to_owned(),
-                to: "(3.0, 4.0, 5.0)".to_owned(),
-            },
         ]
+        .into_iter()
+        .chain(
+            crate::census::WEDGE_UNREAD.map(|why| BooleanError::LineWedges {
+                fault: LineWedgeFault::Unread { edge, why },
+                from: "(0.0, 1.0, 2.0)".to_owned(),
+                to: "(3.0, 4.0, 5.0)".to_owned(),
+            }),
+        )
+        .collect()
     }
 
     /// **The phantom direction, closed by the compiler; the pairing
@@ -9073,8 +9099,7 @@ mod tests {
                 BooleanErrorKind::CurvedPierceUnsupported => "CurvedPierceUnsupported",
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
-                BooleanErrorKind::CurvedEdgeUnsupported => "CurvedEdgeUnsupported",
-                BooleanErrorKind::CrossingCarrierUnsupported => "CrossingCarrierUnsupported",
+                BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
                 BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",
@@ -9098,6 +9123,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchRaysInAFace => "PinchRaysInAFace",
+                BooleanErrorKind::TangentCrescentUnsupported => "TangentCrescentUnsupported",
                 BooleanErrorKind::CrossingsAlongAContactLine => "CrossingsAlongAContactLine",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::PartnerAlongFace => "PartnerAlongFace",
@@ -9110,7 +9136,7 @@ mod tests {
                 BooleanErrorKind::FallbackExtentUnsupported => "FallbackExtentUnsupported",
                 BooleanErrorKind::SpheresMeet => "SpheresMeet",
                 BooleanErrorKind::GermFrameUnsupported => "GermFrameUnsupported",
-                BooleanErrorKind::GermSectionOutsideInventory => "GermSectionOutsideInventory",
+                BooleanErrorKind::GermSectionOpenConic => "GermSectionOpenConic",
                 BooleanErrorKind::GermSectionSpiric => "GermSectionSpiric",
                 BooleanErrorKind::NodeUnbuilt => "NodeUnbuilt",
                 BooleanErrorKind::Euler => "Euler",

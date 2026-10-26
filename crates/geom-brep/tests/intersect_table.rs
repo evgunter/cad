@@ -12,8 +12,8 @@ use geom::{Surface, SurfaceKind};
 use geom_brep::Reach;
 use geom_brep::implicit_residual;
 use geom_brep::intersect::{
-    CylinderSphereSection, EqualCylinderSection, PlaneConeSection, PlaneCylinderSection, Rung,
-    SectionError, cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
+    CylinderSphereSection, EqualCylinderSection, OpenConic, PlaneConeSection, PlaneCylinderSection,
+    Rung, SectionError, cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section,
     plane_cylinder_section, route,
 };
 use geom_brep::recourse::Refused;
@@ -698,25 +698,21 @@ fn plane_cone_tilted_is_the_exact_ellipse() {
 }
 
 /// A plane parallel to a generator cuts a parabola and a steeper one a
-/// hyperbola: both refuse typed, naming the conic (R1). A tilt `3ε`
-/// past the parabola escalates on the conic-type trilean — never
+/// hyperbola: both are served as the open conic they are (C1). A tilt
+/// `3ε` past the parabola escalates on the conic-type trilean — never
 /// snapped to either side.
 #[test]
-fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
+fn plane_cone_parabola_and_hyperbola_are_served_as_their_conic() {
     let alpha = core::f64::consts::FRAC_PI_6;
     let cone = cone_z(alpha);
     let q = Point3::new(0.0, 0.0, 4.0);
     let parabola = core::f64::consts::FRAC_PI_2 - alpha;
-    for (phi, conic) in [(parabola, "PARABOLA"), (1.2, "HYPERBOLA")] {
-        let err = plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band())
-            .unwrap_err();
-        let SectionError::RoutesToGeneralRung { pair, why } = err else {
-            panic!("phi {phi}: expected the R1 refusal, got {err:?}");
+    for (phi, conic) in [(parabola, OpenConic::Parabola), (1.2, OpenConic::Hyperbola)] {
+        let got = plane_cone_section(&tilted_plane(phi, q), &cone, &at_apex(&cone, 1.0), band());
+        let Ok(PlaneConeSection::OpenConic(s)) = &got else {
+            panic!("phi {phi}: expected the open conic, got {got:?}");
         };
-        assert_eq!(pair, "plane×cone");
-        refusal_is_grounded(why, "plane x cone");
-        assert!(why.contains(conic), "phi {phi}: {why}");
-        assert!(why.contains("R1"), "phi {phi}: {why}");
+        assert_eq!(s.conic(), conic, "phi {phi}");
     }
     let near = tilted_plane(parabola - 3.0 * eps(), q);
     let err = plane_cone_section(&near, &cone, &at_apex(&cone, 1.0), band()).unwrap_err();
@@ -729,7 +725,7 @@ fn plane_cone_parabola_and_hyperbola_refuse_naming_the_conic() {
 /// **A plane's classification does not depend on where its origin
 /// sits.** A plane along the cone's axis, 0.03 off the apex, cuts a
 /// hyperbola wherever the point the plane stores as its origin lies on
-/// it, and refuses naming that conic. Stored level with the apex, the
+/// it, and is served as that conic. Stored level with the apex, the
 /// would-be circle's radius read off that point's axial height is zero,
 /// and a zero lever decided the axis-normal sine Zero: a radius-0
 /// "circle" at the apex, whose zero tangent poisoned the join's chord
@@ -749,10 +745,10 @@ fn a_plane_along_the_axis_is_a_hyperbola_wherever_its_origin_sits() {
             u_ref: Vec3::unit_y(),
         };
         let got = plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band());
-        let Err(SectionError::RoutesToGeneralRung { why, .. }) = got else {
-            panic!("origin {origin:?}: expected the hyperbola's refusal, got {got:?}");
-        };
-        assert!(why.contains("HYPERBOLA"), "origin {origin:?}: {why}");
+        assert!(
+            matches!(&got, Ok(PlaneConeSection::OpenConic(s)) if s.conic() == OpenConic::Hyperbola),
+            "origin {origin:?}: expected the hyperbola, got {got:?}"
+        );
     }
 }
 
@@ -777,14 +773,12 @@ fn a_needle_cones_plane_along_the_axis_just_off_the_apex_is_a_hyperbola() {
                 u_ref: Vec3::unit_y(),
             };
             match plane_cone_section(&plane, &cone, &at_apex(&cone, 1.0), band()) {
-                Err(SectionError::RoutesToGeneralRung { why, .. }) if why.contains("HYPERBOLA") => {
-                    None
-                }
+                Ok(PlaneConeSection::OpenConic(s)) if s.conic() == OpenConic::Hyperbola => None,
                 got => Some(format!("origin at z = {z}: {got:?}")),
             }
         })
         .collect();
-    assert!(wrong.is_empty(), "not the hyperbola's refusal: {wrong:#?}");
+    assert!(wrong.is_empty(), "not the hyperbola: {wrong:#?}");
 }
 
 // ---------------------------------------------------------------------
@@ -1821,6 +1815,36 @@ fn sphere_sphere_cut_is_the_exact_circle_zero_residual() {
         assert!(
             implicit_residual(&b, p).abs() < 1e-12,
             "sphere-2 residual at sample {k}"
+        );
+    }
+}
+
+/// **At radii six orders of magnitude apart the section circle lies on
+/// the smaller sphere.** `r₁² − a²` would be a difference of numbers
+/// near `10¹²` whose true value is about 1, taking the circle off the
+/// unit sphere by about `10⁻⁴`. The clearance-factored half-chord
+/// keeps every sample on both spheres to a few ulps of the large
+/// radius.
+#[test]
+fn sphere_sphere_cut_at_unequal_radii_lies_on_the_smaller_sphere() {
+    use geom_brep::intersect::{SphereSphereSection, sphere_sphere_section};
+    let (c1, r1) = (Point3::origin(), 1.0e6);
+    let (c2, r2) = (Point3::new(1.0e6 + 0.25, 0.0, 0.0), 1.0);
+    let SphereSphereSection::Circle(c) =
+        sphere_sphere_section(&sphere_at(c1, r1), &sphere_at(c2, r2), band()).unwrap()
+    else {
+        panic!("expected the circle");
+    };
+    let ulp = f64::EPSILON * r1;
+    for k in 0..17 {
+        let p = c.eval(0.37 * k as f64);
+        let off_small = ((p - c2).norm() - r2).abs();
+        let off_large = ((p - c1).norm() - r1).abs();
+        assert!(
+            off_small <= 8.0 * ulp && off_large <= 8.0 * ulp,
+            "sample {k}: {off_small:.3e} off the small sphere, {off_large:.3e} off the \
+             large, against 8 ulps = {:.3e}",
+            8.0 * ulp
         );
     }
 }

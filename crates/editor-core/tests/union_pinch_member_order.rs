@@ -44,7 +44,8 @@ use crate::blocks::{Spans, block, block_of, block_on, block_on_of, failure, run}
 use crate::corpus::body_of;
 use crate::fixture::{ends, face_vertices, insert, len, point};
 use editor_core::{
-    BooleanValue, Evaluation, Node, ProfileDoc, RecipeNodeId, RoleSeg, StableName, ValuePayload,
+    BooleanValue, EntityKind, Evaluation, Node, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
+    StableName, ValuePayload,
 };
 use geom_core::Tol;
 use topo::BooleanOp;
@@ -924,7 +925,7 @@ fn one_run(label: &str, holes: fn() -> Vec<Hole>, sense: &str, orders: &[Vec<usi
         );
         assert_eq!(
             run_senses(name),
-            vec![format!("Some({sense})"); holes().len()],
+            vec![sense.to_owned(); holes().len()],
             "{label}, member order {order:?}: each leg against the rest: {name}"
         );
         match &first {
@@ -1014,7 +1015,7 @@ fn two_wedges_name_their_meeting_point_the_touch_of_their_legs_in_either_order()
         );
         let n = &names[0];
         assert!(
-            n.contains("path: [EdgeCrossing(") && run_senses(n) == ["Some(Outside)"; 2],
+            n.contains("path: [EdgeCrossing(") && run_senses(n) == ["Outside"; 2],
             "member order {order:?}: the meeting point is the legs' touch from outside: {n}"
         );
         assert_eq!(
@@ -1170,8 +1171,9 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
 /// **Two edges of one member that run flush where they pierce another
 /// are one line** (N2): the joined blocks hold their contact as two
 /// coincident edges, which pierce the plate's top at the pinch. They are
-/// cited once, as the least, so the pinch is that edge's `Crossing` of
-/// the plate's top, leaving the plate, alike in both orders.
+/// one line, the `Merged` set of them, so the pinch is that line's
+/// `Crossing` of the plate's top, read `Through` the edges whose
+/// direction enters the plate, alike in both orders.
 #[test]
 fn two_edges_of_one_member_at_the_pinch_are_one_crossing() {
     let (doc, m) = pinch(ProfileDoc::empty_derived("union_pinch", Tol::witness()));
@@ -1190,7 +1192,7 @@ fn two_edges_of_one_member_at_the_pinch_are_one_crossing() {
         assert!(
             matches!(names.as_slice(), [n] if n.contains("path: [Crossing {")
                 && n.contains("Cap(End)")
-                && n.contains("sense: Leaves")
+                && n.contains("sense: Through")
                 && !n.contains("Seam {")),
             "{members:?}: the pinch is the contact's crossing of the plate's top: {names:?}"
         );
@@ -1227,7 +1229,7 @@ fn two_legs_on_the_plate_are_their_touch_in_every_member_order() {
         assert!(
             name.contains("path: [EdgeCrossing(")
                 && name.matches("role: Leg").count() == 2
-                && run_senses(name) == ["Some(Outside)"; 2],
+                && run_senses(name) == ["Outside"; 2],
             "member order {order:?}: the legs' touch from outside: {name}"
         );
         match &first {
@@ -1571,6 +1573,79 @@ fn a_prism_bridging_two_wedges_is_named_alike_in_every_member_order_that_builds(
     }
     for gap in two_bridges_gaps(&orders(4)) {
         assert_eq!(named_alike(&gap), 24, "{}: orders that build", gap.label);
+    }
+}
+
+/// **A low bridge met with the wedges and the upper bridge holds each
+/// of its corners on the line as two copies**, one in each wedge, told
+/// apart by the wedge wall each meets (N2's corner held as several):
+/// `d` from z 0.2 to 0.4 against `a ∪ b ∪ c`, in both operand orders
+/// (`name_invariance` compares the two tables).
+#[test]
+fn a_bridge_met_with_the_wedges_holds_each_corner_on_the_line_as_two_copies() {
+    for swapped in [false, true] {
+        let (doc, m) = two_bridges_short(ProfileDoc::empty_derived("bridge", Tol::witness()));
+        let [a, b, d, c] = m[..] else {
+            unreachable!("two bridges are four members")
+        };
+        // A copy carries its source's names, so a member's names are
+        // spelled with the prism it copies.
+        let minted = |copy: RecipeNodeId| match doc.node(copy) {
+            Some(editor_core::Node::Place { source, .. }) => doc
+                .operation_of(source.read)
+                .expect("a copy reads a construction"),
+            _ => copy,
+        };
+        let (pa, pb, pd) = (minted(a), minted(b), minted(d));
+        let (doc, rest) = crate::fixture::union_over(doc, &[a, b, c]);
+        let (x, y) = if swapped { (rest, d) } else { (d, rest) };
+        let (doc, met) = insert(doc, pair_node(BooleanOp::Intersect, x, y));
+        let what = format!("d against the rest, swapped {swapped}");
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, met) {
+            panic!("{what}: refused: {e:?}");
+        }
+        let body = body_of(&ev, met);
+        let mut copies: BTreeMap<Point, Vec<RecipeNodeId>> = BTreeMap::new();
+        for (n, e) in crate::fixture::table(&ev, met).iter() {
+            let [
+                RoleSeg::From { of, .. },
+                RoleSeg::Fragment(Qualifier::Borders(walls)),
+            ] = n.path.as_slice()
+            else {
+                continue;
+            };
+            if n.kind != EntityKind::Vertex || of.name().node != pd {
+                continue;
+            }
+            let editor_core::Entry::Unique(r) = e else {
+                panic!("{what}: a copy of a corner of d is tied: {n:?}")
+            };
+            let editor_core::EntityKey::Vertex(v) = r.key else {
+                panic!("{what}: {n:?} names {:?}", r.key)
+            };
+            let [wall] = walls.as_slice() else {
+                panic!("{what}: a copy of a corner of d borders one wedge wall: {n:?}")
+            };
+            // The wall's member face, through the rest's own `From`.
+            let mut face = wall;
+            while let [RoleSeg::From { of, .. }] = face.path.as_slice() {
+                face = of.name();
+            }
+            copies.entry(at_point(body, v)).or_default().push(face.node);
+        }
+        for z in [0.2, 0.4] {
+            let at = micron(MEET[0], MEET[1], z);
+            let mut walls = copies.remove(&at).unwrap_or_default();
+            walls.sort_unstable();
+            let mut wedges = [pa, pb];
+            wedges.sort_unstable();
+            assert_eq!(
+                walls, wedges,
+                "{what}: d's corner at z {z} is two copies, one on each wedge's wall"
+            );
+        }
+        assert!(copies.is_empty(), "{what}: copies off the line: {copies:?}");
     }
 }
 

@@ -284,12 +284,22 @@ fn both_blends_evaluate_in_one_document() {
 /// the name tables this digest feeds moved, and the `⊔` node moved the
 /// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
 /// the corpus's `⊔` nodes set aside, is main's pin.
+///
+/// RE-BLESSED, both rows, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x667a_24f5_58a7_c451_u64),
-        ("die_chamfer", 0x6bf1_4879_2210_4af5),
+        ("die_fillet", 0xddf0_a0f0_e60d_6605_u64),
+        ("die_chamfer", 0x6538_8256_a1f3_ec21),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -512,13 +522,37 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// the name tables this digest feeds moved, and the `⊔` node moved the
 /// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
 /// the corpus's `⊔` nodes set aside, is main's pin.
+///
+/// RE-BLESSED, every row, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, `crossing_slots` only, for a pair boolean's `Borders`
+/// walls citing their parent as the boolean's own table names it (the
+/// `From` each came in through): the second subtract's divided pieces'
+/// names moved. No outcome or point moved.
+///
+/// RE-BLESSED, `crossing_slots` only, for a run line's sense that is no
+/// longer optional (an orientation is read, never chosen): the
+/// subtracts' `EdgeCrossing` names spell each line's sense bare. No
+/// outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names and ids;
+/// the ids-masked fence held.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xe9b0_fe94_61b3_4401_u64),
-        ("heat_sink", 0xc792_69ae_ec01_db99),
-        ("kiss_carry", 0xb2cb_1a2e_eedf_27dd),
+        ("crossing_slots", 0x6e1f_9e35_ee29_9c2f_u64),
+        ("heat_sink", 0x6ece_8456_1f08_4fd6),
+        ("kiss_carry", 0x4a5f_c225_42ec_5a68),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -614,6 +648,15 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// its source's names): the second operand's copy names its faces as
 /// its prism does, with no `Placed` qualifier, so its name table and
 /// the intersect's moved. No body and no vertex moved.
+///
+/// RE-BLESSED for the merge over ATREST stage 4 I (PR 5637): the
+/// content key's `VERSION` moved to 21 (a mate writes no class, and this
+/// branch's own bump beside it), so every value token moved. No body and
+/// no vertex moved.
+///
+/// RE-BLESSED for a certificate that keeps its turn: the digest feeds
+/// each edge curve's `Debug`, which now spells the certificate's `turn`.
+/// No outcome or point moved. Re-measured with both merged.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -652,7 +695,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x401d_a70e_ec57_b07d,
+        got, 0xdf3a_7395_42b8_2277,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

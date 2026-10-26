@@ -862,8 +862,11 @@ fn the_bracket_corners_carve_at_the_certified_scalar() {
         let before = topo::mass_properties(&body, tol())
             .expect("mass properties")
             .volume;
-        let after =
-            topo::test_support::unmigrated_measure(&out.body, tol()).expect("mass properties");
+        let after = topo::mass_properties(
+            &topo::test_support::finished("the measured body", topo::Body::clone(&out.body), tol()),
+            tol(),
+        )
+        .expect("mass properties");
         let (removed, pad) = (before - after.volume, after.volume_pad.hi());
         assert!(
             removed.lo() - pad <= want && want <= removed.hi() + pad,
@@ -1049,7 +1052,7 @@ fn a_void_in_the_overruns_volume_refuses() {
 }
 
 /// **A boss clear of the overrun, inside the far band's whole cut-off
-/// sliver, refuses** (`work/band/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
+/// sliver, refuses** (`work/bandmeter/a-turns-overrun-meters-the-whole-cut-off-sliver.md`).
 /// At `(1.15·d, 0.4·d)` on the bracket's `y = 0` leaning wall the boss
 /// stands `0.13·d` past the overrun chord's line and `0.11·d` past band
 /// `j`'s trimline, so nothing the chamfer takes reaches it; but it lies
@@ -1076,7 +1079,7 @@ fn a_boss_clear_of_the_overrun_inside_the_far_bands_sliver_refuses() {
 
 /// **A short near edge at an obtuse shared-face angle refuses
 /// `FOOT_INSIDE_A_FACE` where the overrun itself fits**
-/// (`work/band/an-overruns-sliver-refuses-a-short-near-edge.md`). The
+/// (`work/bandmeter/an-overruns-sliver-refuses-a-short-near-edge.md`). The
 /// far band's whole sliver on the near face needs that band's trimline on
 /// the shared face to meet the near band's requested edge inside its
 /// span, at `d / sin θ_S` from the vertex; a near edge shorter than that

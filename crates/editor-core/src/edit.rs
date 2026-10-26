@@ -693,7 +693,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
     }
 
     /// **Whether this edit writes a constraint** — what the per-
-    /// constraint admission decides on: its poses' kinds, its class.
+    /// constraint admission decides on: its `on`, its poses' kinds.
     /// Four edits do, and each asks the admission of what it wrote: the
     /// insert of a placement holding constraints, an `AddConstraint`, a
     /// `SetConstraints`, and a re-point at one of a mate's poses
@@ -1469,7 +1469,7 @@ fn mint_pose<P: crate::ProfilePayload>(
         return Err(shape(PoseFault::DoubleFlip));
     }
     // A copy carries the pose: what it reads as the copy is a
-    // placement's copies.
+    // placement's output.
     if let PoseDef::Carried { copy, .. } = &stored
         && !matches!(
             doc.operation_of(*copy).and_then(|at| doc.node(at)),
@@ -1639,37 +1639,74 @@ fn mint_pick<P: crate::ProfilePayload>(
 
 /// **Why `of` names no piece of the copy `copy`**, or `None`: `Some(None)`
 /// where `copy` is no placement's or instance's output or `of` is empty,
-/// `Some(Some(k))` where step `k` is no operand of the `⊔` the walk
-/// reaches through the placements before it. A walk entering an instance
-/// is in its part, which the door does not hold, so it stops there.
+/// `Some(Some(k))` where step `k` names no one operand of the `⊔` the walk
+/// reaches before it: none, or one the `⊔` reads twice, which two pieces
+/// answer to. The walk goes through each placement to its source, and
+/// through a pick to the piece it reads, so a pick of a pick walks only
+/// the piece the inner pick kept. A walk entering an instance is in its
+/// part, which the door does not hold (`DocEdit::UpdateReference`: no
+/// edit door reads across the seam), so it stops there and the
+/// evaluation answers ([`crate::NodeErrorKind::NoSuchPiece`]).
 pub(crate) fn pick_fault<P>(doc: &Doc<P>, copy: VarId, of: &[VarId]) -> Option<Option<usize>> {
-    let source = |var: VarId| match doc.operation_of(var).and_then(|at| doc.node(at)) {
-        Some(Node::Place { source, .. }) => Some(Some(source.read)),
-        Some(Node::InstantiatePart { .. }) => Some(None),
-        _ => None,
+    // What a read denotes once its placements and picks are walked: the
+    // body it copies, or a body inside an instance's part.
+    enum Reached {
+        Body(VarId),
+        Part,
+    }
+    let reach = |mut var: VarId| loop {
+        if let Some(pick) = doc.pick(var) {
+            match pick.of.last() {
+                Some(&piece) if !inside_part(doc, pick.placement) => var = piece,
+                _ => return Reached::Part,
+            }
+            continue;
+        }
+        match doc.operation_of(var).and_then(|at| doc.node(at)) {
+            Some(Node::Place { source, .. }) => var = source.read,
+            Some(Node::InstantiatePart { .. }) => return Reached::Part,
+            _ => return Reached::Body(var),
+        }
     };
-    let Some(mut at) = source(copy) else {
-        return Some(None);
-    };
-    if of.is_empty() {
+    let copied = matches!(
+        doc.operation_of(copy).and_then(|at| doc.node(at)),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    );
+    if !copied || of.is_empty() {
         return Some(None);
     }
+    let mut at = copy;
     for (k, &step) in of.iter().enumerate() {
-        // Through the placements, to the first operation that is none.
-        let mut var = at?;
-        while let Some(inner) = source(var) {
-            var = inner?;
-        }
+        let var = match reach(at) {
+            Reached::Part => return None,
+            Reached::Body(var) => var,
+        };
         let members = match doc.operation_of(var).and_then(|at| doc.node(at)) {
             Some(Node::Assemble { members }) => members.rows(),
             _ => return Some(Some(k)),
         };
-        if !members.iter().any(|(_, read)| read.read == step) {
+        if members.iter().filter(|(_, read)| read.read == step).count() != 1 {
             return Some(Some(k));
         }
-        at = Some(step);
+        at = step;
     }
     None
+}
+
+/// Whether the copy `copy` reads, through its placements and picks, is
+/// inside an instance's part.
+fn inside_part<P>(doc: &Doc<P>, mut copy: VarId) -> bool {
+    loop {
+        if let Some(pick) = doc.pick(copy) {
+            copy = pick.placement;
+            continue;
+        }
+        match doc.operation_of(copy).and_then(|at| doc.node(at)) {
+            Some(Node::Place { source, .. }) => copy = source.read,
+            Some(Node::InstantiatePart { .. }) => return true,
+            _ => return false,
+        }
+    }
 }
 
 /// **The entity kind a selection of `names` at a seat of `expected`
@@ -1794,19 +1831,21 @@ pub fn pick_into<P>(doc: &mut Doc<P>, placement: VarId, of: &[VarId]) -> VarId {
 #[track_caller]
 #[allow(clippy::expect_used)]
 pub fn pose_into<P>(doc: &mut Doc<P>, def: crate::pose::PoseDef) -> VarId {
-    let kind = def.kind().unwrap_or_else(|| {
-        let kept = def.kept().unwrap_or_else(|| {
-            unreachable!("every arm but a move, a flip and a carried pose states its kind")
-        });
-        kept.role.map_or_else(
-            || {
-                doc.var(kept.read)
+    let kind = match def.kind() {
+        Some(kind) => kind,
+        None => {
+            let Some(kept) = def.kept() else {
+                unreachable!("every arm but a move, a flip and a carried pose states its kind")
+            };
+            match kept.role {
+                Some(role) => crate::pose::PoseRole::kind(role),
+                None => doc
+                    .var(kept.read)
                     .map(Var::kind)
-                    .expect("a move, a flip or a carried pose reads a live pose")
-            },
-            crate::pose::PoseRole::kind,
-        )
-    });
+                    .expect("a move, a flip or a carried pose reads a live pose"),
+            }
+        }
+    };
     let def = WrittenDef::Pose(kind, def);
     let id = doc.mint.declare_anonymous(&def);
     doc.vars.insert(id, Var::written(def));
@@ -2268,9 +2307,10 @@ pub enum EditError {
     },
     /// A pick this edit authors at `slot` names no piece of its copy
     /// (D10 `[placement.placement]`): its read is no placement's or
-    /// instance's copy, its path is empty, or step `at` of the path is
-    /// no operand of the `⊔` the walk reaches through the placements
-    /// before it. A path through any other operator refuses here.
+    /// instance's copy, its path is empty, or step `at` of the path
+    /// names no one operand of the `⊔` the walk reaches through the
+    /// placements and picks before it: none, or one the `⊔` reads twice.
+    /// A path through any other operator refuses here.
     PickPath {
         /// The node whose seat the pick is authored at.
         node: SpokenNode,
@@ -2966,7 +3006,8 @@ pub enum EditError {
     },
     /// **A product read that is no body in the world** (D10
     /// `[operations]`): `SetProduct`'s read resolves to no variable, to
-    /// a variable that is no `Body`, or to a body in another space.
+    /// a variable that is no `Body`, or to a body in another space; or
+    /// an edit would move the body the slot reads out of the world.
     ProductRead {
         /// The read as written, boxed: an operand is the widest payload
         /// a refusal carries.
@@ -3059,9 +3100,8 @@ pub enum EditError {
     /// The mate solve refuses this mate on its OWN datum — a fact
     /// about the mate alone, which the solve records against it
     /// whenever it reads the datum: its head does not resolve to a
-    /// member, it names one member twice, its class is outside the
-    /// vocabulary, a frame has no definite direction, the coset table
-    /// has no row for it. The same admission the
+    /// member, it names one member twice, a frame has no definite
+    /// direction, the coset table has no row for it. The same admission the
     /// solve makes (`ASSEMBLY.md` A11 rule 1), asked at the insert
     /// door, so the insert is refused; the recourse is the fault's
     /// own. A mate on a pair the fold never reads — two members over
@@ -3727,8 +3767,8 @@ impl EditError {
                 match at {
                     Some(at) => write!(
                         f,
-                        "{node}'s {slot} picks no piece: step {} of its path is no operand of \
-                         the assemble the walk reaches",
+                        "{node}'s {slot} picks no piece: step {} of its path names no one \
+                         operand of the assemble the walk reaches",
                         at + 1
                     )?,
                     None => write!(
@@ -4695,6 +4735,18 @@ pub enum Maintenance {
         /// Another.
         b: crate::spoken::SpokenSpace,
     },
+    /// **The product's body this edit moved out of the world** (D10
+    /// `[operations]`): the slot reads `read`, which a re-target of its
+    /// copy put in `space`. It is admitted, as a re-target leaving reads
+    /// in two spaces is, and the gather refuses the slot
+    /// ([`crate::ProductError::ProductOutsideWorld`]) until an edit puts
+    /// the body back in the world or the slot reads another.
+    ProductOutsideWorld {
+        /// The body the slot reads.
+        read: SpokenVar,
+        /// The space it is in now.
+        space: crate::spoken::SpokenSpace,
+    },
     /// **A value this edit dropped from a bundle written whole**
     /// ([`DocEdit::AddConstraint`], [`DocEdit::RemoveConstraint`]): its
     /// freedom is one the bundle's new mates fix, or a turn the chain
@@ -4854,6 +4906,11 @@ impl core::fmt::Display for Maintenance {
                 f,
                 "{node} reads {a} and {b}, which this edit left in two spaces, so {node} \
                  refuses until its reads are in one space"
+            ),
+            Self::ProductOutsideWorld { read, space } => write!(
+                f,
+                "the product reads {read}, which this edit moved into {space}, so the product \
+                 refuses until it reads a body in the world"
             ),
             Self::ValueDropped {
                 placement,
@@ -5310,6 +5367,9 @@ impl MaintenanceNet {
                     })
                 }
                 Maintenance::StrandedSpace { node, .. } => end.space_fault(node.id()).is_some(),
+                Maintenance::ProductOutsideWorld { read, .. } => {
+                    end.product() == Some(read.id()) && product_fault(end, read.id()).is_some()
+                }
                 Maintenance::ValueDropped { .. } | Maintenance::AnonymousVarRemoved { .. } => true,
             })
             .collect()
@@ -6418,7 +6478,6 @@ impl Recording<'_, crate::ProfileProgram> {
             mates: vec![crate::Mate {
                 on,
                 to: plane(body.clone(), face),
-                class: crate::ContactClass::Rest,
             }],
             values: vec![
                 (
@@ -6775,6 +6834,31 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             var: Box::new(new.spoken_var(var)),
         });
     }
+    // D10 `[operations]`, on EVERY arm: the slot reads a body in the
+    // world. `SetProduct` refuses any other read at its own door; an
+    // edit that moves the body the slot reads out of the world (a
+    // re-target of its copy) is reported, as a re-target leaving reads
+    // in two spaces is, and the gather refuses the slot until it reads
+    // a body in the world again.
+    if let Some(var) = new.product() {
+        match product_fault(&new, var) {
+            None => {}
+            Some(ProductReadFault::Space { space }) => {
+                if product_fault(doc, var).is_none() {
+                    reported.push(Maintenance::ProductOutsideWorld {
+                        read: new.spoken_var(var),
+                        space: *space,
+                    });
+                }
+            }
+            Some(fault) => {
+                return Err(EditError::ProductRead {
+                    read: Box::new(crate::Operand::Var(var)),
+                    fault,
+                });
+            }
+        }
+    }
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
     // lists at least one placement, and its frames meet the SAME bar
@@ -7064,7 +7148,6 @@ fn rebundle<P: Clone + crate::ProfilePayload>(
             kind: ConstraintKind::Mate(Mate {
                 on: crate::Operand::Var(m.on),
                 to: crate::Operand::Var(m.to),
-                class: m.class,
             }),
         })
     });
@@ -7249,7 +7332,7 @@ fn add_constraints<P: Clone + crate::ProfilePayload>(
 /// **The admission of a constraint an edit just wrote** (A11 rule 1),
 /// asked of the document it now stands in: what the recipe decides of
 /// a mate alone ([`crate::mate::solve::admit_mate`]) — its `on` reads
-/// the copy, its two poses are of one kind, its class is admitted. The
+/// the copy, and its two poses are of one kind. The
 /// bundle as a whole, every value's freedom included, is
 /// [`admit_bundle_make_up`]'s. The one call every edit that writes a
 /// constraint (`DocEdit::writes_a_mates_datum`, a test roster) makes.
@@ -8557,7 +8640,6 @@ mod tests {
         let mate = crate::mate::Mate {
             on: plane(crate::node::RecipeNodeId::new(0, 3)),
             to: plane(crate::node::RecipeNodeId::new(0, 2)),
-            class: crate::mate::ContactClass::Rest,
         };
         let constraint = crate::node::ConstraintId(crate::MintId::new(0, 4));
         let writing: [DocEdit<ProfileProgram>; 3] = [
@@ -8707,10 +8789,26 @@ fn product_read<P: crate::ProfilePayload>(
             found: kind.unwrap_or(VarKind::Body),
         }));
     }
+    match product_fault(doc, var) {
+        None => Ok(var),
+        Some(fault) => Err(refused(fault)),
+    }
+}
+
+/// **What is wrong with the slot reading `var`**: a live variable of
+/// another kind than `Body`, or a body outside the world. `None` for a
+/// slot that reads a body in the world, and for one whose variable or
+/// space is gone, which is a stranded reader
+/// ([`crate::ProductError::StrandedProduct`]).
+pub(crate) fn product_fault<P>(doc: &Doc<P>, var: VarId) -> Option<ProductReadFault> {
+    let held = doc.var(var)?;
+    if held.kind() != VarKind::Body {
+        return Some(ProductReadFault::Kind { found: held.kind() });
+    }
     match doc.space_of(var) {
-        Some(VarId::WORLD) => Ok(var),
-        space => Err(refused(ProductReadFault::Space {
-            space: Box::new(doc.spoken_space(space.unwrap_or(VarId::WORLD))),
-        })),
+        Some(VarId::WORLD) | None => None,
+        Some(space) => Some(ProductReadFault::Space {
+            space: Box::new(doc.spoken_space(space)),
+        }),
     }
 }

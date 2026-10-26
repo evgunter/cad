@@ -72,7 +72,6 @@ const SAIL_B_PARK: [f64; 3] = [-0.12, 0.02, 0.0];
 fn rest_choice(slide: [f64; 2], spin: f64) -> viewer::matetool::MateChoice {
     use pncad::document::{Coord, TargetAxis};
     viewer::matetool::MateChoice {
-        class: pncad::select::ContactClass::Rest,
         kind: pncad::document::VarKind::Plane,
         flip: true,
         values: vec![
@@ -131,7 +130,8 @@ fn author_box_part(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
     );
-    common::world_is_the_product(session);
+    let copy = common::copy_of(session.committed_doc(), extrude);
+    common::product_is(session, &[copy]);
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
@@ -561,7 +561,7 @@ fn the_windmill_story() {
     // identity-placed — and the faces' normals meet opposed. The base,
     // once the author says it is what the document makes, CERTIFIES at
     // rest: one declared contact, nested, answered.
-    common::world_is_the_product(&mut session);
+    common::product_is(&mut session, &[tower_i, hub_i]);
     {
         let (_, eval) = session.landed_pair().expect("landed");
         let pose = face_frame(eval, hub_bottom.node, &hub_bottom.name)
@@ -589,12 +589,8 @@ fn the_windmill_story() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified {
-            minted: 1,
-            loud: 0,
-            quiet: 0,
-        }),
-        "the seated base certifies with its one declaration"
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
+        "the seated base certifies, its seat recorded at rest"
     );
 
     // The seated hub lives in the world's space, so it refuses the
@@ -630,11 +626,7 @@ fn the_windmill_story() {
     }
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified {
-            minted: 1,
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "redo re-certifies what undo took away"
     );
 
@@ -781,7 +773,7 @@ fn the_windmill_story() {
     // induces — the gate's verdict is the truth about this design,
     // shown on the draw path rather than saved for an export — once the
     // author says the four are what the document makes.
-    common::world_is_the_product(&mut session);
+    common::product_is(&mut session, &[tower_i, hub_i, sail_a, sail_b]);
     let rows = session.tree_rows();
     assert_eq!(
         rows.len(),
@@ -828,11 +820,7 @@ fn the_windmill_story() {
     );
     assert_eq!(
         session.at_rest(),
-        Some(&AtRestBadge::Certified {
-            minted: 3,
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "the declared overhanging blades certify through the crossing rung"
     );
 
@@ -862,11 +850,7 @@ fn the_windmill_story() {
     assert!(crate::common::asm::frame_of(&reopened, hub_i).is_none());
     assert_eq!(
         reopened.at_rest(),
-        Some(&AtRestBadge::Certified {
-            minted: 3,
-            loud: 0,
-            quiet: 0,
-        }),
+        Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }),
         "the reopened census reads the same design: {:?}",
         reopened.at_rest()
     );

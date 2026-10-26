@@ -545,7 +545,7 @@ const QUAD_CORNERS: [u32; 6] = [0, 2, 1, 1, 2, 3];
 /// one of those triangles the edge overlaps it by construction. The
 /// one exception is a free-moved copy, whose front spans are its local
 /// ray's carried across unconverted
-/// (`work/fit/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`).
+/// (`work/vgeom/a-moved-copys-pick-span-crosses-its-frame-unconverted.md`).
 /// A depth buffer holds no interval to order, which is why this lane
 /// needs a lift and that one does not.
 ///
@@ -2337,7 +2337,7 @@ mod tests {
         assert_eq!(
             draw_range(too_many),
             None,
-            "`draw_range` answered a draw range for {too_many} vertices, which              it cannot count; the substituted answer is {:?}",
+            "`draw_range` answered a draw range for {too_many} vertices, which it cannot count; the substituted answer is {:?}",
             u32::try_from(too_many).unwrap_or(u32::MAX),
         );
     }

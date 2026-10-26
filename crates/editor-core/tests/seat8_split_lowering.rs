@@ -374,13 +374,23 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// `kitchen_sink` were measured again with main's plane pose merged in
 /// (main, `34a2e26e61`, which reds both rows on its own), and carry both
 /// changes.
+///
+/// RE-BLESSED, every row, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x20ca_6b63_c85d_acc0_u64),
-        ("part_select", 0x2580_ef71_c7cb_f8af),
-        ("kitchen_sink", 0x0cd1_65be_fdec_84b3),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e_u64),
+        ("part_select", 0x4540_8c74_d757_704f),
+        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -509,6 +519,10 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// construction defines its space beside its body, and the content key
 /// holds a placement's target (`VERSION` 18), so ids drawn after a
 /// construction and every value token moved. No point moved.
+///
+/// RE-BLESSED for a certificate that keeps its turn: the digest feeds
+/// each edge curve's `Debug`, which now spells the certificate's `turn`.
+/// No outcome or point moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -529,7 +543,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xa218_4b53_38f5_c2fe,
+        got, 0x6514_aa34_b3e7_b9ae,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }

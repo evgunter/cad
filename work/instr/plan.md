@@ -7,30 +7,25 @@ Re-scoped 2026-09-20 by INSTR's priority-seam cut
 
 ## The slate
 
-**24.5 budget points** of dispatchable work against a ceiling of 30.
+**23.5 budget points** of dispatchable work against a ceiling of 30
+(re-counted 2026-10-26 in the tracker sweep). Live rows only.
 
-| pri | item | cost | title |
-|---|---|---|---|
-| P3 | `C15` | D | The budget gate's per-face join has no stable face identity — the same-shape face pairs the CSV cannot tell apart |
-| P3 | `baseline-census-chart-nurbs-assert-has-no-witness` | D | baseline_census's chart-is-nurbs assert can only red on a tag no committed blob carries |
-| P3 | `baseline-census-scene-set-derivation-has-no-home` | E | Four spellings of the scene set in the one file that gives every other derivation one home |
-| P3 | `baseline-census-test-name-encodes-a-moving-reading` | D | A #[test] name states a census reading a re-cut moves, and two sites quote the name |
-| P3 | `baseline-census-transcription-sweep-literals-stale` | D | The transcription sweep's hit list certifies a sweep whose subject has moved, and nothing schedules a re-sweep |
-| P3 | `c15-is-dischargeable-now-that-a-sized-scene-carries-names` | E | C15 is dischargeable: the canal is the first sized scene whose names separate its pairs |
-| P3 | `frame-mint-funnel-names-outside-every-sweep-corpus` | D | Two frame-mint funnel names, one of them production, reach no k-lint sweep corpus |
-| P3 | `k-lint-eps-coupled-criterion-unwritten` | D | What makes a predicate eps-coupled is nowhere written, so k-lint's roster cannot be pinned against the kernel in the ADDED direction |
-| P3 | `k-lint-gate-described-as-diffing-the-committed-baselines` | D | two sites say the k-lint gate diffs the fresh sweep against docs/k-report-data/; nothing is diffed |
-| P3 | `k-report-bit-identity-claim-has-no-citation` | E | K-REPORT's decisions-bit-identical-to-f64 claim can now cite the differential that checks it |
-| P3 | `no-guard-reds-a-decide-name-missing-from-the-k-report` | D | the K-roster claim has no mechanical guard: a new decide("…") name can ship with no docs/K-REPORT.md row and nothing reds |
-| P4 | `c15-transcribes-the-sized-row-identity-split` | E | work/instr/C15.md transcribes the sized-row identity split present-tense, a census reading whose one home is baseline_census.rs |
-| P4 | `k-lint-csv-header-unpinned-against-five-producers` | E | k-lint's EXPECTED_HEADER is hand-copied at five producer sites with no pin in either direction |
-| P4 | `k-lint-rule-1-prose-assumes-every-in-band-site-refuses` | E | k-lint: rule 1's prose says an indeterminate sample means the kernel refused typed; a folding site records one and does not refuse |
-| P4 | `k-report-m11-reading-is-stale-and-unwatched` | E | the M11 addendum's corpus figures are 39% stale eight days on and nothing re-takes them; the zero-side ceiling moved 12x |
-| None | `baseline-census-partition-assert-cannot-fail` | None | baseline_census's constant-plus-discriminating sum is a fact about the two filters, not about the corpus |
-| None | `baseline-sizing-census-pointers-stale` | None | Seven mentions of tools/tess-lint/tests/baseline_sizing_census.rs survive the file, one of them in code; and one line citation had already moved |
-| None | `baseline-sizing-census-second-copy` | None | docs/TESS-BUDGET.md carries four of the sizing census's asserted figures present-tense, and the census cannot edit it |
-| None | `k-lint-last-round-is-eps-coupled-but-unrostered` | None | props_quad_last_round is eps-coupled by the criterion the roster pin now applies, and is not on the roster |
-| None | `tess-lint-ungated-columns-fold-silently` | None | Six CSV columns reach the gate unparsed and unrefused, and a re-cut folds every ungated column's movement in silently |
+| pri | item | cost | status | title |
+|---|---|---|---|---|
+| P2 | `bool-pair-gap-is-eps-coupled-and-flags-74-rows-per-eps-under-k-lint` | M | open | bool_pair_gap records 24·eps on touching pairs: an eps-coupled margin off the rule (4) roster, 74 k-lint rule-2/3 flags per eps row |
+| P3 | `C15` | D | open | The budget gate's per-face join has no stable face identity — the same-shape face pairs the CSV cannot tell apart |
+| P3 | `baseline-census-chart-nurbs-assert-has-no-witness` | D | open | baseline_census's chart-is-nurbs assert can only red on a tag no committed blob carries |
+| P3 | `baseline-census-scene-set-derivation-has-no-home` | E | open | Four spellings of the scene set in the one file that gives every other derivation one home |
+| P3 | `baseline-census-test-name-encodes-a-moving-reading` | D | open | A #[test] name states a census reading a re-cut moves, and two sites quote the name |
+| P3 | `baseline-census-transcription-sweep-literals-stale` | D | open | The transcription sweep's hit list certifies a sweep whose subject has moved, and nothing schedules a re-sweep |
+| P3 | `c15-is-dischargeable-now-that-a-sized-scene-carries-names` | E | open | C15 is dischargeable: the canal is the first sized scene whose names separate its pairs |
+| P3 | `k-lint-eps-coupled-criterion-unwritten` | D | parked | What makes a predicate eps-coupled is nowhere written, so k-lint's roster cannot be pinned against the kernel in the ADDED direction |
+| P3 | `k-report-still-names-ci-yml-for-the-k-lint-row` | E | open | K-REPORT names ci.yml for the k-lint row at five sites; the row moved to nightly.yml at 49d5b2aee |
+| P3 | `no-guard-reds-a-decide-name-missing-from-the-k-report` | D | open | the K-roster claim has no mechanical guard: a new decide("…") name can ship with no docs/K-REPORT.md row and nothing reds |
+| P4 | `k-lint-csv-header-unpinned-against-five-producers` | E | open | k-lint's EXPECTED_HEADER is hand-copied at five producer sites with no pin in either direction |
+| P4 | `k-lint-rule-1-prose-assumes-every-in-band-site-refuses` | E | open | k-lint: rule 1's prose says an indeterminate sample means the kernel refused typed; a folding site records one and does not refuse |
+| P4 | `k-report-m11-reading-is-stale-and-unwatched` | E | open | the M11 addendum's corpus figures are 39% stale eight days on and nothing re-takes them; the zero-side ceiling moved 12x |
+| — | `derivation-ceiling-asserts-print-percentages-to-five-decimals` | — | open | tess-meter derivations.rs: bare <= ceilings print both sides as percentages to 4-5 decimal places, which cannot show a last-bit red |
 
 ## Order
 

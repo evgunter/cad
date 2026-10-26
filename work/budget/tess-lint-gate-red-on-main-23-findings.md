@@ -46,3 +46,55 @@ The gate read 23 findings on every nightly from 2026-10-17 through
 `lily_leaf_a` and `lily_sepal_a` face 2 (nu 1 -> 21, 2 -> 15); and
 `nonuniform_loft` growing again (19736 -> 20384). The lily rows arrived
 in the merges between `8c7db2ae37` and `0ffab3663d`; not bisected further.
+
+## 2026-10-24 (INTENT nightly triage)
+
+Nightly run 40066431545 (main `3dfb96b91c`), `k-lint (release-budget)`:
+`tess-lint: GATE FAILED — 30 finding(s)`. These are the same 30
+`FINDING` lines as 2026-10-23's run 39906156937, diffed line for line,
+so nothing new has entered the window. Not re-derived here.
+
+## Earlier reading, merged from `work/instr/tess-gate-red-beyond-twopeg-since-the-10-02-cut` (2026-10-26, tracker sweep)
+
+ENCL's nightly triage of 2026-10-12 (nightly 38115086131, same cut
+`24f02a376460`) read 22 findings and filed them on INSTR. That row is
+closed as a duplicate of this one. What it carried that this row does
+not:
+
+- **Triangle growth:**
+  - `bracket/bracket` 44 → 60 (1.36×);
+  - `lofts/nonuniform_loft` 14950 → 19736 (1.32×), which grows again in
+    the 10-22 reading above;
+  - `twisted_duct_shadow_{y,z}` 7260 → 7660 (1.06×);
+  - the `twopeg` rows, filed at
+    `work/tess/twopeg-triangles-grew-past-the-tess-gate-on-main`.
+- **Re-keys it read**:
+  - `nonuniform_loft` face 2 nu 16 → 19;
+  - `s_duct` nv 112 → 121;
+  - `twisted_tube` 519 → 544;
+  - `twisted_duct` 658 → 682;
+  - the shadows 465 → 482;
+  - `spring`/`cutaway_spring` 3188 → 3102.
+- **Its reading of the chart swaps**: the `bracket`, `tiltedcut`,
+  `heatsink` and `projectbox` plane ↔ cylinder and sphere ↔ plane swaps
+  look like a face-order change rather than a mesh change. Check that
+  first, and do not coarsen delta.
+
+## 2026-10-26 (SPLICE nightly triage)
+
+Nightly run 40274924857 (main `38f1a24ed3`), `k-lint (release-budget)`:
+`tess-lint: GATE FAILED — 31 finding(s)`. Diffed line for line against
+2026-10-25's run 40165703340 (main `9f5b44561d`, 30 findings, the same
+30 as 10-23 and 10-24), one is new:
+
+    FINDING lily/lily_lantern: triangles 2556 -> 3038 (1.19x)
+
+with the note `lily/lily_lantern face 8: in this sweep, absent from the
+baseline`. The one merge in the window that touches `demos/tour/src/lily.rs`
+is #5722 (`22b1a8fc2c`, "roll the lantern's mouth in the scene and retire
+wall 6"). It fillets the sphere-zone × pucker-cone rim into a torus band,
+which adds a face to the lantern. So this one is a GEOMETRY change by
+recourse item 1: a new face, not a sizing regression. That attribution
+comes from reading the diff; no sweep was run at the merge. It still
+waits on the same re-cut as the other 30, and the re-cut is not taken
+until the rest have been read (recourse item 4).

@@ -10,16 +10,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::resolver::{InPart, PartStore, with_resolver};
+use crate::fixture::resolver::{PartName, PartStore, with_resolver};
 use crate::fixture::{
     self, at_the_door_of, insert, len, mated_instance, on_frame, run, square, step,
 };
 use editor_core::eval::bound_pose;
 use editor_core::pose::PoseDef;
 use editor_core::{
-    BodyRead, CapEnd, ContactClass, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame,
-    MateFault, MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue,
-    ProductError, ProfileDoc, RecipeNodeId, RoleSeg, VarId,
+    BodyRead, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Formula, Frame, MateFault,
+    MateRef, Node, NodeErrorKind, NodeResult, Operand, OperandSlot, PoseValue, ProductError,
+    ProfileDoc, RecipeNodeId, RoleSeg, VarId,
 };
 use geom_core::Tol;
 use geom_core::UnitVec3;
@@ -57,7 +57,7 @@ fn host(label: &str) -> (ProfileDoc, PartStore, editor_core::DocRef, RecipeNodeI
 
 /// **Face `seg` of the block, read at the copy `instance` carries it
 /// in**: the block's own name, which every copy of it carries verbatim.
-fn face_in(instance: RecipeNodeId, body: RecipeNodeId, seg: RoleSeg) -> InPart {
+fn face_in(instance: RecipeNodeId, body: RecipeNodeId, seg: RoleSeg) -> PartName {
     fixture::resolver::in_part_of(editor_core::EntityKind::Face, instance, body, seg)
 }
 
@@ -67,7 +67,6 @@ fn rest_on(body: RecipeNodeId, a: RecipeNodeId, b: RecipeNodeId) -> editor_core:
     fixture::rest(
         fixture::head(face_in(b, body, RoleSeg::Cap(CapEnd::Start))),
         fixture::head(face_in(a, body, RoleSeg::Cap(CapEnd::End))),
-        ContactClass::Rest,
     )
 }
 
@@ -93,7 +92,7 @@ fn place_by_values(
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, placement) = insert(doc, crate::fixture::stood(body));
     (
-        fixture::world_product(fixture::pin(doc, placement, pose, &EvalOptions::default())),
+        fixture::assemble_world_copies(fixture::pin(doc, placement, pose, &EvalOptions::default())),
         placement,
     )
 }
@@ -254,7 +253,6 @@ fn a_copy_pinned_against_a_body_of_another_space_is_in_that_space() {
                 RoleSeg::Cap(CapEnd::Start),
             ))),
             fixture::plane(target),
-            ContactClass::Rest,
         );
         fixture::write_bundle(doc, at, zeroed(mate)).0
     };
@@ -343,7 +341,6 @@ fn a_place_copy_resting_on_the_world_asks_no_lever() {
             RoleSeg::Cap(CapEnd::Start),
         ))),
         to: fixture::flip(top),
-        class: ContactClass::Rest,
     };
     let (doc, place) = step(
         doc,
@@ -466,7 +463,6 @@ fn an_instance_reads_its_own_copy_on_the_copy_side_alone() {
     let own = fixture::rest(
         fixture::head(face_in(b, body, RoleSeg::Cap(CapEnd::Start))),
         fixture::head(face_in(b, body, RoleSeg::Cap(CapEnd::End))),
-        ContactClass::Rest,
     );
     match editor_core::apply(&doc, &whole(own), Tol::witness()) {
         Err(EditError::WouldCycle { at }) => assert_eq!(at.id(), b),
@@ -582,8 +578,8 @@ fn a_bundle_of_two_targets_refuses() {
         }))
     };
     let bundle = [
-        fixture::mate(point(c), point(a), ContactClass::Rest),
-        fixture::mate(normal(c), normal(b), ContactClass::Rest),
+        fixture::mate(point(c), point(a)),
+        fixture::mate(normal(c), normal(b)),
     ]
     .into_iter()
     .zip(1..)
@@ -648,11 +644,11 @@ fn a_slide_beside_a_ball_refuses_as_having_no_chart() {
             constraints: vec![
                 editor_core::Constraint::of_mate(
                     editor_core::ConstraintId::placeholder(1),
-                    fixture::mate(point(c), point(a), ContactClass::Rest),
+                    fixture::mate(point(c), point(a)),
                 ),
                 editor_core::Constraint::of_mate(
                     editor_core::ConstraintId::placeholder(2),
-                    fixture::mate(normal(c), normal(a), ContactClass::Rest),
+                    fixture::mate(normal(c), normal(a)),
                 ),
                 editor_core::Constraint::of_value(
                     editor_core::ConstraintId::placeholder(3),
@@ -844,7 +840,7 @@ fn a_nested_instances_copy_is_placed_outer_after_inner() {
         &Frame::translation([5.0, 0.0, 0.0]),
         &with_resolver(store.clone()),
     );
-    let mid = crate::fixture::world_product(mid);
+    let mid = crate::fixture::assemble_world_copies(mid);
     let mid_ref = store.insert(mid, Tol::witness());
     let top = ProfileDoc::empty(DocumentId::derive("s3b-nested-top"), Tol::witness());
     let (top, outer) = insert(
@@ -932,7 +928,7 @@ fn a_place_of_an_assemble_picks_its_pieces() {
             ]),
         },
     );
-    let doc = editor_core::test_support::with_world_product(doc, Tol::witness());
+    let doc = editor_core::test_support::assemble_world_copies(doc, Tol::witness());
     let ev = run(&doc, &EvalOptions::default());
     assert!(
         matches!(ev.result(union), Some(NodeResult::Ok(_))),

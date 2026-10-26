@@ -113,7 +113,9 @@ use geom_core::spline::{
 };
 
 /// The fixed piece count of the RATIONAL arm: every nonempty span of
-/// every direction is read on this many equal pieces (module docs). A
+/// every direction is read on this many equal pieces (module docs).
+/// **Certificate resolution** (`crates/mesh/README.md`): it sets how
+/// tight the rational bound is, and sizes no mesh directly. A
 /// CONSTANT (D9: structure, never a data-dependent iteration), and this
 /// arm's own: `geom::curves`' rational meters count their pieces by
 /// their own constant, which prices one curve bound against the
@@ -286,19 +288,14 @@ pub struct PatchCell {
     pub m_inf: f64,
 }
 
-/// Whether a patch is rational under the kernel's definition (any
-/// weight not bitwise `1.0`) — the arm selection, on f64 STRUCTURE.
-pub fn is_rational(n: &NurbsSurface<f64>) -> bool {
-    n.weights().iter().any(|w| *w != 1.0)
-}
-
 /// `n` with its weights at unit scale
 /// ([`geom_core::spline::weight_scale::unit_scale_exact`]), or `n`
 /// itself where that rescale is a no-op or would drop a bit. The
 /// rescaled net describes the same surface; what it buys is range for
 /// the weight powers the enclosures form (`w²` here, up to `w⁴` in
 /// [`crate::offset_fit`]'s composite). Which arm reads a net is decided
-/// on the DESCRIBED weights ([`is_rational`]), before this runs.
+/// on the DESCRIBED weights ([`NurbsSurface::constant_weight`]), before
+/// this runs.
 pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface<f64>> {
     let Some((_, scaled)) = unit_scale_exact(n.weights()) else {
         return Cow::Borrowed(n);
@@ -331,7 +328,7 @@ pub(crate) fn unit_scaled_weights(n: &NurbsSurface<f64>) -> Cow<'_, NurbsSurface
 /// 18 ([`PatchBoundError::DegreeAboveCeiling`], module docs "Refusal").
 pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
     gate(n, false)?;
-    if is_rational(n) {
+    if n.constant_weight().is_none() {
         rational_cells(n, RATIONAL_CERT_SPLITS)
     } else {
         integral_cells(n)
@@ -351,7 +348,11 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
 /// bounds the one-sided partials of its own side exactly. The integral
 /// arm differences the whole net first, and a derivative across a knot
 /// of multiplicity `p` is discontinuous there, which no clamped vector
-/// describes; it keeps [`check_direction`]'s refusal.
+/// describes; it keeps [`check_direction`]'s refusal. Which arm reads
+/// a net is [`NurbsSurface::constant_weight`]'s, so a creased net of one
+/// constant weight `c`, `1` or any other, is the integral arm's and
+/// refuses: the polynomial patch it is has the same crease the unit net
+/// does.
 ///
 /// **What the caller owns.** Every cell bounds its own span; no bound
 /// holds for a region that crosses a crease, so the max over cells on
@@ -366,7 +367,7 @@ pub fn patch_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundEr
 pub fn patch_cells_across_creases(
     n: &NurbsSurface<f64>,
 ) -> Result<Vec<PatchCell>, PatchBoundError> {
-    if !is_rational(n) {
+    if n.constant_weight().is_some() {
         return patch_cells(n);
     }
     gate(n, true)?;
@@ -419,7 +420,7 @@ pub fn patch_cells_refined(
 ) -> Result<Vec<PatchCell>, PatchBoundError> {
     check_direction(n.knots_u_f64_interim())?;
     check_direction(n.knots_v_f64_interim())?;
-    if is_rational(n) {
+    if n.constant_weight().is_none() {
         rational_cells(n, splits)
     } else {
         integral_cells_refined(n, splits)
@@ -709,18 +710,20 @@ fn centre(vectors: &[[Interval; 3]]) -> [Interval; 3] {
     })
 }
 
-/// The INTEGRAL arm (all weights bitwise `1.0`): the plain hull
-/// assembly on the spatial nets — no quotient rule intervenes, so the
-/// enclosure IS the coefficient hull.
+/// The INTEGRAL arm (one constant weight,
+/// [`NurbsSurface::constant_weight`]): the plain hull assembly on the
+/// spatial nets — no quotient rule intervenes, so the enclosure IS the
+/// coefficient hull.
 fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
     integral_cells_on(&comp_nets(n))
 }
 
 /// [`integral_cells`] after refining every nonempty span into `splits`
-/// equal pieces, IN INTERVAL ARITHMETIC: an integral net's weights are unit, so the
-/// net is already homogeneous and [`refine_split`]'s schedule applies to
-/// it directly. The cells therefore enclose the described patch, where an
-/// `f64` refinement would have them enclose the refined-`f64` one.
+/// equal pieces, IN INTERVAL ARITHMETIC: an integral net's spatial net
+/// is the polynomial patch itself ([`NurbsSurface::constant_weight`]),
+/// so [`refine_split`]'s schedule applies to it directly. The cells
+/// therefore enclose the described patch, where an `f64` refinement
+/// would have them enclose the refined-`f64` one.
 ///
 /// # Errors
 ///
@@ -1054,15 +1057,17 @@ pub(crate) mod tests {
             read(patch_cells_across_creases(&whole).expect("whole")),
             halves
         );
-        let integral = patch(
-            vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0],
-            &arc,
-            &[1.0; 5],
-        );
-        assert!(matches!(
-            patch_cells_across_creases(&integral),
-            Err(PatchBoundError::Crease)
-        ));
+        // A constant weight is the integral arm's, `1` or not.
+        for c in [1.0, 2.0] {
+            let integral = patch(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], &arc, &[c; 5]);
+            assert!(
+                matches!(
+                    patch_cells_across_creases(&integral),
+                    Err(PatchBoundError::Crease)
+                ),
+                "weights {c}"
+            );
+        }
     }
 
     /// **The degree ceilings are the statement's, and each arm meets its
@@ -1201,6 +1206,42 @@ pub(crate) mod tests {
                 });
                 assert_eq!(format!("{got:?}"), want, "{name} at 2^{k}: the cells moved");
             }
+        }
+    }
+
+    /// **A constant weight is the integral arm's.** The quarter
+    /// cylinder's net with every weight one constant (`2`, `3`, `0.1`) is
+    /// the polynomial patch on that net (`constant_weight`). Its cells,
+    /// plain and refined, are the unit-weight net's to the bit, since
+    /// that arm reads the control net alone; the rational arm would cut
+    /// each span into its own pieces.
+    #[test]
+    fn a_constant_weight_takes_the_integral_arm() {
+        let cylinder = quarter_cylinder();
+        let constant = |w: f64| {
+            NurbsSurface::new(
+                cylinder.knots_u_f64_interim().clone(),
+                cylinder.knots_v_f64_interim().clone(),
+                cylinder.control().to_vec(),
+                vec![w; 6],
+            )
+            .expect("door")
+        };
+        let unit = constant(1.0);
+        let want = format!("{:?}", patch_cells(&unit).expect("unit"));
+        let want_refined = format!("{:?}", patch_cells_refined(&unit, 4).expect("unit"));
+        for w in [2.0, 3.0, 0.1] {
+            let net = constant(w);
+            assert_eq!(
+                format!("{:?}", patch_cells(&net).expect("constant")),
+                want,
+                "weight {w}: the cells are not the unit net's"
+            );
+            assert_eq!(
+                format!("{:?}", patch_cells_refined(&net, 4).expect("constant")),
+                want_refined,
+                "weight {w}: the refined cells are not the unit net's"
+            );
         }
     }
 

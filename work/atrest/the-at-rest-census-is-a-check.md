@@ -2,11 +2,10 @@
 id: the-at-rest-census-is-a-check
 kind: issue
 title: D10 stage 5 PR C: the at-rest census is a check resident reporting interference and could-not-look; at-rest contacts go to the unproven-coincidence lint; nothing at rest refuses; A5's gate, assemble and Separation retire
-status: parked
+status: open
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [mates-declare-no-contact]
 ---
 
 INTENT stage 5, PR C. Ev approved the design in PR 4320 (fork log row
@@ -25,8 +24,11 @@ the `Separation` resident retire.
 - An at-rest contact is recorded at the coincidence door (stage 4), and
   one the door cannot prove structural is a finding of the
   `unproven-coincidence` lint, not of `AtRest`. The quieting rule's
-  contact half lands here: a holding `Gap = 0` assertion whose two faces
-  are the two cells the census found coincident quiets it.
+  contact half lands here: a holding `Gap = 0` assertion whose two
+  selections are the two cells the census found coincident quiets it.
+  The cells may be vertices and edges as well as faces: the contact
+  half must quiet a vertex-on-face and an edge-on-face row, the half
+  `gap-reads-vertex-and-edge-cells` deferred here.
 - `AtRest` reports B's interference findings, and a could-not-look
   finding for a pair the census has no lane for.
 

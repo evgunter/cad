@@ -94,6 +94,8 @@ mod a_plane_holding_a_conic_tangent_at_a_vertex;
 mod a_plane_moved_to_a_cone_apex;
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_ray_meets_a_curved_edge_once_for_both_faces.rs"]
+mod a_ray_meets_a_curved_edge_once_for_both_faces;
 #[path = "a_rigid_turn_keeps_a_slivers_volume.rs"]
 mod a_rigid_turn_keeps_a_slivers_volume;
 #[path = "a_rim_covering_part_of_its_row_re_mints_the_rows_arc.rs"]
@@ -190,6 +192,8 @@ mod bool6r1_probes;
 mod bool6r1_probes_interval;
 #[path = "carved_sphere_operand.rs"]
 mod carved_sphere_operand;
+#[path = "cell_region_bodies.rs"]
+mod cell_region_bodies;
 #[path = "cone_join_lane.rs"]
 mod cone_join_lane;
 #[path = "cone_operand_rows.rs"]
@@ -198,6 +202,10 @@ mod cone_operand_rows;
 mod continuation_pose;
 #[path = "crossing_equal_rods.rs"]
 mod crossing_equal_rods;
+#[path = "curved_edge_corpus.rs"]
+mod curved_edge_corpus;
+#[path = "curved_edge_ray_probes.rs"]
+mod curved_edge_ray_probes;
 #[path = "cylinder_sphere_frame.rs"]
 mod cylinder_sphere_frame;
 #[path = "four_crossings_on_one_section_circle.rs"]
@@ -246,8 +254,8 @@ mod pipeline_null_edge_rows;
 mod pis_arc_capped_poses;
 #[path = "pis_cut_cavity.rs"]
 mod pis_cut_cavity;
-#[path = "placeholder_chart_boundary.rs"]
-mod placeholder_chart_boundary;
+#[path = "placeholder_loop_windings.rs"]
+mod placeholder_loop_windings;
 #[path = "planar_ring_arc_closure.rs"]
 mod planar_ring_arc_closure;
 #[path = "pocket_ring_steep_ellipse.rs"]
@@ -332,12 +340,14 @@ mod torax_interval;
 mod torus_region_probe;
 #[path = "transform_nurbs_walls.rs"]
 mod transform_nurbs_walls;
-#[path = "trim_3_chart_bound_bodies.rs"]
-mod trim_3_chart_bound_bodies;
+#[path = "trimmed_sphere_aims.rs"]
+mod trimmed_sphere_aims;
 #[path = "tube_rim_touch_rows.rs"]
 mod tube_rim_touch_rows;
 #[path = "two_tubes_in_the_zero_band.rs"]
 mod two_tubes_in_the_zero_band;
+#[path = "two_wedge_ends_on_one_line.rs"]
+mod two_wedge_ends_on_one_line;
 #[path = "unjoined_operand_at_a_dual.rs"]
 mod unjoined_operand_at_a_dual;
 #[path = "verbs_offc_consumer.rs"]
@@ -705,6 +715,8 @@ mod review_s12_adv;
 mod review_s6_probe;
 #[path = "review_verbs_rim_lever_probes.rs"]
 mod review_verbs_rim_lever_probes;
+#[path = "revolve_axis_gaps.rs"]
+mod revolve_axis_gaps;
 #[path = "revolve_ball.rs"]
 mod revolve_ball;
 #[path = "revolve_cone.rs"]
@@ -861,6 +873,8 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "a_boolean_on_a_pole_touching_octant.rs"]
+mod a_boolean_on_a_pole_touching_octant;
 #[path = "extent_scan_off_face_tangency.rs"]
 mod extent_scan_off_face_tangency;
 #[path = "full_turn_wall.rs"]
@@ -1129,6 +1143,8 @@ mod shell8_r2_probes;
 mod shell7_seam_corner;
 #[path = "spiric_rim.rs"]
 mod spiric_rim;
+#[path = "spline_spiric_operands.rs"]
+mod spline_spiric_operands;
 
 #[path = "shell7_r1_diff.rs"]
 mod shell7_r1_diff;
@@ -1242,3 +1258,9 @@ mod a_revolved_wall_arc_join_reads_its_reach;
 mod join_lever_is_the_joined_edge;
 #[path = "review_4737_span_probes.rs"]
 mod review_4737_span_probes;
+
+#[path = "fallback_rows_review.rs"]
+mod fallback_rows_review;
+
+#[path = "fallback_rows_review_head.rs"]
+mod fallback_rows_review_head;

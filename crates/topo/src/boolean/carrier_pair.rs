@@ -27,7 +27,7 @@ use crate::live::BoundaryMember;
 /// **This door has NO in-tree consumer.** Verify-at-use stopped
 /// calling it at M9-1 and the flush detector followed when its scope
 /// became the `Rest` ladder's; what to do about a published door with
-/// no caller is `work/seat/flush-pair-relation-has-no-caller.md`.
+/// no caller is `work/probe/flush-pair-relation-has-no-caller.md`.
 ///
 /// `Err`: a face that is not a plane, which this door has no
 /// description for ([`PairUnread::OutsideInventory`];
@@ -427,16 +427,7 @@ mod lever_rows {
     }
 
     fn door(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> Result<(), ContactRefusal> {
-        crate::boolean::contact_pair_verdict(
-            a,
-            fa,
-            b,
-            fb,
-            crate::contact::ContactClass::Rest,
-            None,
-            band(),
-        )
-        .map(|_| ())
+        crate::boolean::rest_pair_verdict(a, fa, b, fb, band()).map(|_| ())
     }
 
     /// A torus of `R + r = 2.5 m` against its twin tilted by `θ` about

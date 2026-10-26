@@ -68,9 +68,11 @@ pub(super) struct Upstream {
     pub(super) name: NameRef,
     /// True iff that name's entry is `Entry::Tied`.
     pub(super) tied: bool,
-    /// The entity's candidate under that name. Only a VERBATIM carry
-    /// reads it ([`TieRows::carry`]): a wrapping emitter names a new
-    /// row, and its candidates are numbered afresh.
+    /// The entity's candidate under that name. A VERBATIM carry reads
+    /// it ([`TieRows::carry`]), and so does the pair boolean's corner
+    /// pass, which names each candidate of a tied corner apart; a
+    /// wrapping emitter names a new row, and its candidates are
+    /// numbered afresh.
     pub(super) candidate: Candidate,
 }
 
@@ -282,8 +284,8 @@ pub(super) fn mint_into(
 ///
 /// What this does NOT cover, on purpose: a lone member that its
 /// discriminator would answer trivially keeps the base name at the
-/// call site, before any discriminator runs — an `OrderAlong { 0 of 1 }`
-/// says nothing. That is a decision about
+/// call site, before any discriminator runs — a `Borders` over a lone
+/// piece says nothing. That is a decision about
 /// the call site's own discriminator, not a minting rule. Where the
 /// several-member branch ends in a tie, it ends here.
 ///

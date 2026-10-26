@@ -280,14 +280,6 @@ pub struct TreeRow {
     pub placed: bool,
     /// What the evaluation said about it.
     pub status: RowStatus,
-    /// A standing caveat about the NODE itself, independent of any
-    /// run's status — today: a mate whose declared class carries no
-    /// at-rest record ([`pncad::document::ClassAdmission`], the
-    /// kernel's own reason). The admission verdict shown at the mate
-    /// tool's commit persists here on the node's own row, so a
-    /// committed `Tangent` is not a green row indistinguishable from
-    /// a certifiable one.
-    pub note: Option<String>,
     /// **Another node whose own slot refused**, when a
     /// [`RowStatus::Failed`] row's error names one: whatever
     /// `repair_named` answers for the row's own error, never this row.
@@ -325,13 +317,13 @@ pub struct ConstraintRow {
 }
 
 /// **What a constraint is, as its child row says it**: its 1-based
-/// position in its bundle (`at`), then its contact class's name and
-/// `mate` for a mate, and the freedom a value sets —
-/// `constraint 1: Rest mate`, `constraint 2: spin about z value`. Never its minted id, which is an arena
+/// position in its bundle (`at`), then `mate` for a mate, and the
+/// freedom a value sets — `constraint 1: mate`,
+/// `constraint 2: spin about z value`. Never its minted id, which is an arena
 /// key and no word a person reads.
 pub fn constraint_said(at: usize, constraint: &Constraint) -> String {
     match (constraint.mate(), constraint.value()) {
-        (Some(mate), _) => format!("constraint {at}: {} mate", mate.class.name()),
+        (Some(_), _) => format!("constraint {at}: mate"),
         (None, Some(value)) => format!("constraint {at}: {} value", value.coord.name()),
         (None, None) => unreachable!("a constraint is a mate or a value"),
     }
@@ -610,7 +602,6 @@ pub fn rows(
             depth,
             placed: crate::world::is_placed(doc, id),
             status,
-            note: node_note(node),
             repair_at,
             readout,
             version_offer,
@@ -638,61 +629,12 @@ fn depth_of(inputs: &[RecipeNodeId], depths: &BTreeMap<RecipeNodeId, usize>) -> 
         .fold(on_the_line, usize::max)
 }
 
-/// The standing caveat for a node, when it has one — the kernel's own
-/// words, never a sentence composed here (the same rule the badges
-/// follow).
-fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
-    let constraints = match node {
-        Node::Place { constraints, .. } | Node::InstantiatePart { constraints, .. } => constraints,
-        Node::Profile(_)
-        | Node::Extrude { .. }
-        | Node::Revolve { .. }
-        | Node::Tube { .. }
-        | Node::HollowTube { .. }
-        | Node::Loft { .. }
-        | Node::Sweep { .. }
-        | Node::Fillet { .. }
-        | Node::Chamfer { .. }
-        | Node::Shell { .. }
-        | Node::Split { .. }
-        | Node::Mirror { .. }
-        | Node::Subtract { .. }
-        | Node::Union { .. }
-        | Node::Assemble { .. }
-        | Node::Intersect { .. }
-        | Node::Pattern { .. }
-        | Node::Part { .. }
-        | Node::PlacedUnion { .. }
-        | Node::World
-        | Node::Space
-        | Node::Measure { .. }
-        | Node::Assertion { .. } => return None,
-    };
-    // One caveat per constraint whose class carries no at-rest record,
-    // in bundle order: a placement's mates are its constraints, so their
-    // standing caveats ride the placement's own row.
-    let caveats: Vec<String> = constraints
-        .iter()
-        .filter_map(|constraint| {
-            let class = constraint.mate()?.class;
-            match pncad::document::class_admission(class) {
-                pncad::document::ClassAdmission::Mints => None,
-                caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
-                | pncad::document::ClassAdmission::NotAdmitted) => {
-                    Some(format!("{}: {}", class.name(), caveat.no_record_reason()))
-                }
-            }
-        })
-        .collect();
-    (!caveats.is_empty()).then(|| caveats.join("; "))
-}
-
 /// **What `id`'s value says in `evaluation`** — asked only of a row
 /// [`rows`] has read `Ok`, so this decides which payload, never
 /// whether there is one. `None` for a payload whose `Ok` is the whole
 /// of it: a body, a profile, a pattern's instances (its
 /// count is authored, and the words of any refusal state it), a
-/// placement's copies, the world.
+/// placement's copy, the world.
 fn readout_of(
     doc: &Doc<ProfileProgram>,
     id: RecipeNodeId,
@@ -1182,8 +1124,7 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> Standing<'_>
 /// One arm names none: the mispairing, which reaches no row.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
     match fault {
-        MateFault::ClassNotAdmitted { mate }
-        | MateFault::NotOnTheCopy { mate }
+        MateFault::NotOnTheCopy { mate }
         | MateFault::Unleverable { mate, .. }
         | MateFault::KindsDiffer { mate, .. }
         | MateFault::SideUnevaluated { mate, .. } => vec![mate.placement],

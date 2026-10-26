@@ -55,13 +55,13 @@
 //! CARRIER, where its foot lies outside the face. The schedule is walked
 //! by [`crate::ray_walk::walk`], and each ray counts its crossings
 //! ([`crate::ray_walk::Crossings::first_count`]): a crossing landing ON
-//! a curved face's trim boundary or meeting its face tangentially before
+//! a curved face's boundary or meeting its face tangentially before
 //! the count turns, a tie between two faces that do not meet, a tangent
 //! root, or a crossing at `q` grazes the ray; a ray within the band of a
-//! vertex, or of a face at two of its edges (a wedge), reads nothing. A ray that may meet an
-//! untrimmable cone face (`FaceGeo::PartialCone`) ahead of `q` is
-//! blocked, and so is one whose hit lands where a face's outline cannot
-//! be read. On the plane arm, and at every crossing's advance and order,
+//! vertex, or of a face at two of its edges (a wedge), reads nothing. A
+//! ray that meets a cylinder or cone face whose region cannot be read
+//! (`FaceGeo::PartialWall`, `FaceGeo::PartialCone`) ahead of `q`, within
+//! the ball that holds the face, is blocked. On the plane arm, and at every crossing's advance and order,
 //! an in-band margin is about the ray — how it runs against a carrier,
 //! where it meets one, a hit near a face's loop however far from `q` —
 //! and sets it aside. A ray parallel to a carrier within the band skips
@@ -128,16 +128,13 @@
 //! - **`bool_ray_cone_disc`**: that quadratic's discriminant over the
 //!   same extent (a length). Zero ⇒ the ray grazes a generator —
 //!   graze, retry; Negative ⇒ definite miss.
-//! - **`bool_ray_cone_apex`**: the hit's distance from the apex. Zero ⇒
-//!   the hit IS the apex, where the SURFACE (not merely the chart) is
-//!   singular and no outward normal exists — graze, retry, decided
-//!   before any direction is read off the surface.
-//! - **`bool_ray_cone_nappe`**: `(p − apex)·axis` signed by the face's
-//!   own nappe — Negative is the mirror nappe, which this face does not
-//!   bound.
-//! - **`bool_cone_trim`** / **`bool_cone_trim_nappe`** /
-//!   **`bool_cone_trim_side`**: the cone face's azimuth+slant window,
-//!   and the two premises that make the window single-nappe.
+//! - **`bool_ray_cone_nappe`**: the hit's height over the apex along
+//!   the axis, which says the nappe whose outward normal the hit is read
+//!   by. Zero ⇒ the hit is at the apex, where the SURFACE (not merely
+//!   the chart) is singular and no outward normal exists: the crossing
+//!   is offered sideless, and grazes where it counts.
+//! - **`bool_ruled_region_*`**: whether a cylinder or cone hit lies in
+//!   the face, its region read from its edges ([`super::ruled_region`]).
 //! - **`bool_ray_cone_incidence`**: `d·n̂` at a cone hit, levered by the
 //!   local radius — the cone's analogue of the plane arm's `denom`.
 //! - **`bool_ray_torus_disc`**: the ray×torus QUARTIC's discriminant,
@@ -158,27 +155,16 @@
 //! - A torus face outside a closed group is read from its boundary
 //!   edges by [`super::torus_region`], under its own rows
 //!   (`bool_torus_region_*`, `bool_torus_frame_radius`).
-//! - **The cylinder wall's outline** ([`wall_outline`]):
-//!   **`bool_wall_iso_meridian`**, **`bool_wall_iso_rim`**,
-//!   **`bool_wall_section_tilt`** and **`bool_wall_section_seat`**
-//!   classify each boundary edge (sines of unit vectors levered by the
-//!   radius; radius, off-axis and semi-axis differences in metres);
-//!   **`bool_wall_piece_span`** decides which way the walk runs a piece
-//!   (its azimuth extent levered by the radius); **`bool_wall_rim_level`**
-//!   tells two rim planes apart (their offset along the axis, metres),
-//!   for a windowed outline's pieces and a full-turn band's rims alike.
-//! - **The full-turn route** ([`wrap_rims`], every curved chart):
+//! - A cylinder or cone face is read from its boundary edges by
+//!   [`super::ruled_region`], under its own rows (`bool_ruled_region_*`).
+//!   One whose region cannot be read refuses only within a ball holding
+//!   it: **`bool_wall_outline_reach`** on a wall, **`bool_cone_partial_reach`**
+//!   on a cone (a distance less a radius, metres).
+//! - **The full-turn route** ([`wrap_rims`], the sphere's chart):
 //!   **`bool_wrap_rim`** decides whether an unmated boundary circle is an
 //!   iso-line of the coordinate the face does not wrap — coaxial (the
 //!   sine between the axes levered by the circle's radius; the centre's
-//!   distance off the axis, metres). Per hit,
-//!   **`bool_wall_trim`** is every window and side margin (the cosine
-//!   window levered by the radius; a hit's perpendicular distance to a
-//!   piece's plane, metres), **`bool_wall_trim_period`** the window's
-//!   period guard, **`bool_wall_junction`** whether the hit's ruling is
-//!   in band of a junction's (the sine and cosine of their angle,
-//!   levered by the radius), and **`bool_wall_outline_reach`** the
-//!   confined refusal's ball (a distance less a radius, metres).
+//!   distance off the axis, metres).
 //! - **`bool_point_in_solid_vertex`**: a ray's distance from a vertex of
 //!   an edge it is read against (metres); in band ⇒ a corner, Zero ⇒ a
 //!   graze. **`bool_point_in_solid_edge`**: the lower end of the
@@ -205,18 +191,18 @@
 //!   face offers an aim that reads, **`bool_point_in_solid_infinity`**,
 //!   the selection's signed volume scaled to a length (`V/A`), does.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3};
+use geom_core::period::{Exact, Extent, Period, TurnRows, Within};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
 use crate::entity::{EntityId, FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
 use crate::live::linked;
-use crate::null::CurveGeom;
 use crate::ray_walk::{self, Crossings, RayFault};
 use crate::side_reader::{SideUnread, side_at_infinity};
 use crate::splitting::containment::{
-    Escalation, LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from, loop_reach,
+    Escalation, LoopContainment, PointInLoopError, SCHEDULE, loop_extent_from,
     point_in_loop_projected,
 };
 use crate::validate::decide;
@@ -226,10 +212,9 @@ use geom_brep::roots::{Found, RootRefusal, Roots, Unsettled};
 
 use super::region::RegionRefusal;
 use super::rim_wedge::Rim;
+use super::ruled_region::{RuledFaceRegion, ruled_face_region};
 use super::sphere_region::{SphereFaceRegion, sphere_face_region};
-use super::surface_group::{
-    WrapRims, coaxial_margins, off_axis, scope_members, surface_group, wrap_rims, wrap_rims_within,
-};
+use super::surface_group::{WrapRims, coaxial_margins, surface_group, wrap_rims};
 use super::torus_region::{TorusFaceRegion, torus_face_region};
 use geom::Surface;
 use geom_core::Tol;
@@ -249,12 +234,6 @@ pub enum SolidContainment {
 /// the geometry, came apart ([`PointInSolidError::RootCountDisagrees`]):
 /// every door that renders it ends on this.
 pub(crate) const KERNEL_BUG_NOTE: &str = "this may indicate a kernel bug worth reporting";
-
-/// The note a refusal ends on where the kernel's reading of a narrow
-/// wall window cannot place a hit it is clear of
-/// ([`PointInSolidError::NarrowWindowUnread`]).
-pub(crate) const NARROW_WINDOW_NOTE: &str =
-    "a limit of the kernel's narrow-window reading, worth reporting";
 
 /// Typed failure of [`point_in_solid`].
 #[derive(Clone, Debug, PartialEq)]
@@ -304,11 +283,11 @@ pub enum PointInSolidError {
     ///
     /// `point_in_solid` is ray-parity against each face of the body
     /// being classified against, so it needs a ray×surface crossing
-    /// count per kind: `Plane` (its in-face walk), `Cylinder` (its wall
-    /// outline, [`wall_outline`]), `Cone` (its chart trim), `Sphere` (a
-    /// closed group, or a trimmed face whose every edge is a certified
-    /// circle arc, [`super::sphere_region`]) and `Torus` (a closed group,
-    /// or a face its two chart windows express) have one; `Nurbs` and
+    /// count per kind: `Plane` (its in-face walk), `Cylinder` and `Cone`
+    /// (a face's region, [`super::ruled_region`]), `Sphere` (a closed
+    /// group, or a trimmed face whose every edge is a certified circle
+    /// arc, [`super::sphere_region`]) and `Torus` (a closed group, or a
+    /// face's region, [`super::torus_region`]) have one; `Nurbs` and
     /// `Approx` do not.
     ///
     /// **This door is BOX-BLIND on purpose and that is why the kind
@@ -320,10 +299,9 @@ pub enum PointInSolidError {
     /// of reach of the ray. So an operation the gate admits can still
     /// meet this refusal downstream, and that boundary is the honest
     /// one until the kind has a containment arm. Issue 1011 has landed
-    /// whole — the ray×cone quadratic with its chart trim, and the
-    /// ray×torus quartic with its certified root count and its two
-    /// windows — and what this variant now carries is the spline
-    /// kinds.
+    /// whole — the ray×cone quadratic and the ray×torus quartic with
+    /// its certified root count, each root read against the face's
+    /// region — and what this variant now carries is the spline kinds.
     KindUnsupported {
         /// The face.
         face: FaceKey,
@@ -359,23 +337,11 @@ pub enum PointInSolidError {
         /// The sphere face whose outline the region reading cannot cross.
         face: FaceKey,
     },
-    /// A `Cone` face in neither cone class: its surface group does not
-    /// wrap the azimuth, and its own azimuth window is not definitely
-    /// narrower than a period.
-    ///
-    /// The cone chart's apex is a junction every azimuth maps to. A
-    /// face group with no azimuth boundary of its own covers every
-    /// azimuth of its slant window, so the window alone trims it; a face
-    /// clear of the apex, or visiting it once with no ring, has a window
-    /// the walk pins, closed at the apex. What reaches here is the
-    /// remainder — a face whose outline passes through the apex twice,
-    /// an apex-closed face with a ring, a group whose members disagree
-    /// on their slant window (two bands stacked on one cone, with
-    /// another surface's face between them), a window not definitely
-    /// under a period on a face whose group does not wrap, or a face
-    /// with an edge that is neither a rim nor a generator — a tilted
-    /// plane section, whose slant peaks inside the edge, so no
-    /// vertex-folded window states the face (`cone_window_premise`).
+    /// A `Cone` face whose region cannot be read
+    /// ([`super::ruled_region::ruled_face_region`]'s `None`): a boundary
+    /// edge that is not a line, a circle or an ellipse — a spline, or the
+    /// parabola or hyperbola a plane parallel to a generator leaves — or
+    /// one with no certified carrier between two points.
     ///
     /// The point-in-solid door refuses it only where such a face could
     /// decide the answer: the point on that cone within reach of the
@@ -400,17 +366,14 @@ pub enum PointInSolidError {
         face: FaceKey,
     },
     /// A ray's hit on a `Plane` face could land inside it, and the face
-    /// is bounded by an edge on a carrier the in-face walk has no
-    /// crossing row for — a spiric (a plane's section of a torus) or a
-    /// spline.
+    /// is bounded by a spiric (a plane's section of a torus) or spline
+    /// edge the in-face walk could not read at the hit.
     ///
     /// The walk crosses every boundary edge on its own carrier: a line
     /// where its end vertices straddle the ray, a circle or an ellipse
-    /// at the roots of its quadratic inside the arc's window. For these
-    /// two carriers the only curve on offer is the chord, a different
-    /// curve, so the loop is answered only where no crossing could
-    /// matter — a hit definitely outside a ball holding the whole loop
-    /// is a miss — and refused inside that ball.
+    /// at the roots of its quadratic inside the arc's window, a spiric or
+    /// a spline piece by piece. This is where a spiric's or spline's
+    /// pieces ran out of depth or budget before placing the hit.
     ///
     /// Its own arm rather than [`Self::Loop`], because this door names
     /// the FACE a probe met, as its curved-face siblings do, and the
@@ -420,68 +383,21 @@ pub enum PointInSolidError {
         /// The face whose outline the walk cannot read: a planar face's
         /// loop walk, or a torus face's boundary reading of an oval arc.
         face: FaceKey,
-        /// The loop, and the edge no ray got past.
+        /// The loop, and the edge whose reading ran out.
         cause: crate::splitting::Uncrossable,
     },
     /// A ray's hit on a `Cylinder` wall face could land inside it, and
-    /// the wall's outline is outside the class the walk reads exactly
-    /// ([`wall_outline`]). Every path there:
+    /// the face's region cannot be read
+    /// ([`super::ruled_region::ruled_face_region`]'s `None`): a boundary
+    /// edge that is not a line, a circle or an ellipse, or one with no
+    /// certified carrier between two points.
     ///
-    /// - the face has a ring;
-    /// - a boundary edge is not a meridian, a rim or a planar section of
-    ///   the wall (including one whose carrier fails a seat check, and a
-    ///   plane parallel to the axis);
-    /// - the chart walk declines the loop: a loop that is not a cycle,
-    ///   or a walk error other than an escalation (an edge with no
-    ///   closed-form chart image);
-    /// - the walk's images do not chain half-edge to half-edge (null
-    ///   scaffolding sits between them);
-    /// - the loop is meridians alone, which bounds nothing;
-    /// - a piece whose azimuth extent decides Zero, which is no graph
-    ///   over the azimuth.
-    ///
-    /// Confined the way [`Self::EdgeCarrierUnsupported`] is. A hit
-    /// definitely outside the face's azimuth window is a miss; so is one
-    /// definitely outside a ball holding the outer loop, for a face with
-    /// no ring (such a face lies in its outer loop's convex hull: every
-    /// point of it is on a ruling segment whose ends are boundary
-    /// points). Only a hit the face could actually contain refuses.
+    /// Confined the way [`Self::PartialConeFace`] is: a hit definitely
+    /// outside a ball holding the face is a miss ([`FaceGeo::PartialWall`]),
+    /// and only a hit the face could actually contain refuses.
     WallOutlineUnsupported {
         /// The cylinder wall face whose outline the walk cannot read.
         face: FaceKey,
-    },
-    /// A hit on a `Cylinder` wall face lies within the band of a
-    /// junction of its outline, and reads definitely above the plane of
-    /// one piece meeting there and definitely below the other's
-    /// ([`wall_outline`], "At a junction"). Which piece covers the hit's
-    /// ruling is a question in the junction's band, and the two pieces
-    /// answer it differently. Reachable only when `K` is below the few
-    /// zero-band widths the hit and the junction's vertex may sit off
-    /// the ruling and the planes: above that, a definite side is the
-    /// side of the vertex's height along the ruling, the same for both.
-    JunctionSidesDisagree {
-        /// The cylinder wall face.
-        face: FaceKey,
-        /// The hit's side margins against the plane of the piece the
-        /// loop leaves at the junction and the one it enters, each
-        /// decided past the band.
-        sides: (geom_core::MarginDiag, geom_core::MarginDiag),
-        /// The band both were decided against.
-        band: Band,
-    },
-    /// A hit on a `Cylinder` wall face lies near an end of a narrow
-    /// piece's azimuth window, definitely clear of that end (its junction
-    /// is not active), and the window's cosine margin still reads Zero:
-    /// on a window `2h` wide the margin `δ` past an end is about
-    /// `sin h·δ`, so it places a hit only from about `ε/sin h` away. A
-    /// limit of the kernel's window reading
-    /// (`work/inside/wall-piece-coverage-reads-a-collapsing-cosine-margin.md`).
-    NarrowWindowUnread {
-        /// The cylinder wall face.
-        face: FaceKey,
-        /// The nonzero gate's rejection of the window margin, the
-        /// decided margin tagged Zero.
-        diag: Indeterminate,
     },
     /// A test ray met a `Torus` face where the crossings built from its
     /// quartic disagree in number with the count the quartic's signs
@@ -531,17 +447,13 @@ impl PointInSolidError {
         matches!(self, Self::VolumeUncertified | Self::ZeroVolumeBody)
     }
 
-    /// An in-band reading (`Escalated`, `Loop(Escalated)`,
-    /// `JunctionSidesDisagree`, whose hit is in a junction's band, and
-    /// `NarrowWindowUnread`, read Zero by a window margin), or
-    /// a schedule no ray of which settled (`RayExhausted`,
+    /// An in-band reading (`Escalated`, `Loop(Escalated)`), or a
+    /// schedule no ray of which settled (`RayExhausted`,
     /// `Loop(RayExhausted)`).
     pub(crate) fn in_band(&self) -> bool {
         matches!(
             self,
             Self::Escalated { .. }
-                | Self::JunctionSidesDisagree { .. }
-                | Self::NarrowWindowUnread { .. }
                 | Self::RayExhausted
                 | Self::Loop(
                     PointInLoopError::Escalated { .. } | PointInLoopError::RayExhausted { .. }
@@ -609,18 +521,8 @@ impl PointInSolidError {
             }
             Self::WallOutlineUnsupported { .. } => {
                 "a probe ray from the material witness met a cylinder wall edged by a \
-                 curve that is not a flat cut across it, or holed, so the hit cannot be \
-                 placed on it exactly"
-            }
-            Self::JunctionSidesDisagree { .. } => {
-                "the material witness, or a probe ray's hit, lies in the band of a \
-                 cylinder wall's corner whose two edges read it on opposite sides — \
-                 undecided at this ε"
-            }
-            Self::NarrowWindowUnread { .. } => {
-                "the material witness, or a probe ray's hit, lies near the end of a narrow \
-                 cylinder wall's window, which the kernel's window reading cannot place it \
-                 against"
+                 curve that is not a flat cut across it, so the hit cannot be placed on it \
+                 exactly"
             }
             Self::RootCountDisagrees { .. } => {
                 "a probe ray from the material witness met a torus face where the kernel's \
@@ -700,8 +602,9 @@ impl core::fmt::Display for PointInSolidError {
                 f,
                 "cannot tell what is inside the solid: one of its cone faces has an \
                  outline the inside/outside test cannot read. The solid itself is fine. \
-                 Recourse: split the cone face so each piece reaches the apex at most \
-                 once, or let its faces cover the turn; a tilted cut has none yet"
+                 Recourse: bound the cone face with straight lines through its apex, \
+                 circles about its axis, or flat cuts that cross it in an ellipse, \
+                 rather than a spline"
             ),
             Self::PartialTorusFace { .. } => write!(
                 f,
@@ -722,32 +625,10 @@ impl core::fmt::Display for PointInSolidError {
             Self::WallOutlineUnsupported { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: the point, or where a test ray \
-                 from it met the boundary, lies where a cylinder wall that has a hole, \
-                 or an edge that is not a flat cut across it, could hold it, and that \
-                 outline cannot be read. The solid itself is fine. Recourse: test a \
-                 point farther from that wall"
-            ),
-            // The in-band escalation's story and lever (D4 ¶1 (iv)): the
-            // undecided question is the same placement, read definitely.
-            Self::JunctionSidesDisagree { sides, .. } => write!(
-                f,
-                "cannot tell what is inside the solid: the point, or a test ray's hit, lies \
-                 within the tolerance of a corner of a cylinder wall face, above one edge \
-                 meeting there and below the other (margins {:e} and {:e}). {}",
-                sides.0,
-                sides.1,
-                super::unnamed_placement_ending(
-                    geom_brep::recourse::RefusedArm::SignCertain(None),
-                    Reading::Build
-                ),
-            ),
-            Self::NarrowWindowUnread { diag, .. } => write!(
-                f,
-                "cannot tell what is inside the solid: the point, or a test ray's hit, lies \
-                 near the end of a narrow cylinder wall face's window, which the kernel's \
-                 window reading cannot place it against (margin {:e}). Recourse: test a \
-                 point farther from that end; {NARROW_WINDOW_NOTE}",
-                diag.margin,
+                 from it met the boundary, lies where a cylinder wall with an edge that \
+                 is not a flat cut across it could hold it, and that outline cannot be \
+                 read. The solid itself is fine. Recourse: test a point farther from that \
+                 wall"
             ),
             Self::RootCountDisagrees {
                 certified,
@@ -804,11 +685,8 @@ pub(crate) fn face_plane<T: Decide>(
 }
 
 /// A face's resolved query geometry: the planar datum, or a curved
-/// face's chart data. A cylinder wall carries its azimuth window (from
-/// the outer cycle's closed-form chart images, the S9 machinery) and its
-/// vertex height range. The range is the region only for the rectangle
-/// class; which class the wall is in, and so which region a hit is read
-/// against, is resolved per hit by [`wall_hit`].
+/// face's carrier with what reads a point on it — a closed group's
+/// representative, or the face's own region read from its boundary.
 ///
 /// **Orientation (S10)**: every arm's outward direction is the chart's
 /// with the face's sense folded in. The plane arm carries it in the
@@ -816,21 +694,20 @@ pub(crate) fn face_plane<T: Decide>(
 /// no stored normal — their outward sign is taken at each ray hit — so
 /// they carry the face's `sense` bit and the doors apply
 /// it to the sign they derive. Only the material-side signs need it:
-/// the boundary pre-pass compares residuals against Zero and the
-/// chart trims are parameter-domain work, both orientation-free.
+/// the boundary pre-pass compares residuals against Zero, orientation-free,
+/// and a region reads the sense itself.
 pub(crate) enum FaceGeo<T: geom_core::Real> {
     /// A planar face: a point on it and its OUTWARD normal.
     Plane(Point3<T>, Vec3<T>),
+    /// A cylinder wall face: the ray/wall quadratic's roots, each tested
+    /// against the face's own region, read from its boundary edges
+    /// ([`super::ruled_region`]). Per face, like [`FaceGeo::SpherePatch`].
     Cylinder {
         origin: Point3<T>,
         axis: Vec3<T>,
         radius: T,
-        u_ref: Vec3<T>,
-        az: (T, T),
-        /// The vertex height range, which is the region's other half
-        /// for [`WallOutline::Rectangle`] only; the class is resolved
-        /// per hit ([`wall_hit`]).
-        h: (T, T),
+        /// The face's region on the wall.
+        region: RuledFaceRegion<T>,
         /// The face's orientation sense: `false` means the material is
         /// INSIDE the wall, so the radial gradient at a hit points
         /// into material and the crossing sign flips.
@@ -861,46 +738,19 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         /// here.) `false` swaps the near/far crossing pair below.
         sense: bool,
     },
-    /// A cone wall face with its exact chart trim — the cylinder arm's
-    /// shape on the cone chart: an azimuth window from the outer
-    /// cycle's closed-form chart images, and a SLANT window `v` in
-    /// metres along the generator (`v = (p − apex)·axis / cos α`, the
-    /// chart's own second coordinate, exact for a point on the cone).
-    ///
-    /// **The slant window carries the nappe.** `v` is signed and zero
-    /// exactly at the apex, so a face's window pins which nappe it lies
-    /// on; `nappe` is that side, read once at resolution time. A window
-    /// that STRADDLES the apex describes no manifold patch — the two
-    /// halves meet only at a point where no tangent plane exists — and
-    /// is refused there rather than admitted here.
+    /// A cone face: the ray/double-cone quadratic's roots, each tested
+    /// against the face's own region, read from its boundary edges
+    /// ([`super::ruled_region`]), which places a root on the mirror nappe
+    /// outside it. Per face, like [`FaceGeo::SpherePatch`].
     Cone {
-        /// The apex (`v = 0`), where the surface has no tangent plane.
+        /// The apex, where the surface has no tangent plane.
         apex: Point3<T>,
-        /// The unit axis; the `v > 0` nappe opens along it.
+        /// The unit axis; the opening nappe opens along it.
         axis: Vec3<T>,
         /// The half-angle α ∈ (0, π/2) between axis and generators.
         half_angle: T,
-        /// The chart's seam direction.
-        u_ref: Vec3<T>,
-        /// The face's azimuth window, or `None` when the face's cone
-        /// surface group WRAPS the azimuth and the slant window alone
-        /// is the exact trim (see [`cone_chart_trim`]).
-        az: Option<(T, T)>,
-        /// The face the arms act for: the wrapped group's first face
-        /// in the selection's order, or the face itself when the
-        /// azimuth trims it. Arms no-op on every other member, so one cone
-        /// contributes one crossing per root.
-        representative: FaceKey,
-        /// The slant window, metres along the generator — the
-        /// representative's, which the whole group shares.
-        v: (T, T),
-        /// Which nappe the face lies on: `true` is the `v > 0` one,
-        /// which opens along `+axis`. It fixes the chart normal's sign
-        /// (`radial·cos α − axis·sin α` for `v > 0`, its negation for
-        /// `v < 0`) and the sign of the boundary residual. Exact
-        /// structure once resolved, like [`FaceGeo::Sphere`]'s
-        /// representative.
-        nappe: bool,
+        /// The face's region on the cone.
+        region: RuledFaceRegion<T>,
         /// The face's orientation sense (S10), applied to the sign
         /// derived from the chart normal.
         sense: bool,
@@ -966,13 +816,13 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         /// The face's orientation sense (S10).
         sense: bool,
     },
-    /// A cone face whose chart trim this door cannot state
-    /// ([`cone_chart_trim`]'s `PartialConeFace`). Its region on the cone
-    /// is unknown, so a query refuses only where that region could
-    /// matter: `q` on the double cone within the face's apex ball, or a
-    /// ray that may meet the cone ahead within it — the sweep then tries
-    /// the next ray, and the query refuses `PartialConeFace` only when
-    /// every ray does ([`partial_cone_reach`]).
+    /// A cone face whose region this door cannot read
+    /// ([`super::ruled_region::ruled_face_region`]'s `None`: an edge that
+    /// is not a line, a circle or an ellipse). A query refuses only where
+    /// that region could matter: `q` on the double cone within the
+    /// face's apex ball, or a ray that may meet the cone ahead within it
+    /// — the sweep then tries the next ray, and the query refuses
+    /// `PartialConeFace` only when every ray does ([`partial_reach`]).
     PartialCone {
         /// The apex.
         apex: Point3<T>,
@@ -982,6 +832,20 @@ pub(crate) enum FaceGeo<T: geom_core::Real> {
         half_angle: T,
         /// A radius about the apex the face lies within, which is also
         /// the lever of the ray margins.
+        reach: T,
+    },
+    /// A cylinder wall face whose region this door cannot read, as
+    /// [`FaceGeo::PartialCone`] is on a cone: a query refuses
+    /// `WallOutlineUnsupported` only where a point on the wall within the
+    /// ball `(anchor, reach)` holding the face could decide it.
+    PartialWall {
+        origin: Point3<T>,
+        axis: Vec3<T>,
+        radius: T,
+        /// The centre of a ball holding the face: a point of its
+        /// boundary.
+        anchor: Point3<T>,
+        /// The ball's radius ([`partial_reach`]).
         reach: T,
     },
 }
@@ -1024,7 +888,6 @@ pub(crate) fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     charts: &ChartGroups,
-    band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     // The kinds this dispatch has an arm for are [`ray_crosses`]'s, and
     // it refuses the others through it, as the reader's pre-filter does
@@ -1033,7 +896,7 @@ pub(crate) fn face_geo<T: Decide>(
     if let Some(e) = uncrossable(body, face)? {
         return Err(e);
     }
-    face_geo_arms(body, face, charts, band)
+    face_geo_arms(body, face, charts)
 }
 
 /// [`face_geo`]'s dispatch, past the predicate: an arm for each kind
@@ -1043,7 +906,6 @@ fn face_geo_arms<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     charts: &ChartGroups,
-    band: Band,
 ) -> Result<FaceGeo<T>, PointInSolidError> {
     let f = body
         .get_face(face)
@@ -1057,56 +919,46 @@ fn face_geo_arms<T: Decide>(
             origin,
             axis,
             radius,
-            u_ref,
-        }) => {
-            let (az, h) = cylinder_chart_trim(body, face, origin, axis, band)?;
-            Ok(FaceGeo::Cylinder {
+            ..
+        }) => match ruled_face_region(body, face)? {
+            Some(region) => Ok(FaceGeo::Cylinder {
                 origin,
                 axis,
                 radius,
-                u_ref,
-                az,
-                h,
+                region,
                 sense: f.sense,
-            })
-        }
-        // A group-read kind: the arm carries a representative chosen
-        // within the selection by surface key.
+            }),
+            None => {
+                let anchor = boundary_point(body, face)?;
+                Ok(FaceGeo::PartialWall {
+                    origin,
+                    axis,
+                    radius,
+                    anchor,
+                    reach: partial_reach(body, face, anchor)?,
+                })
+            }
+        },
         Some(&Surface::Cone {
             apex,
             axis,
             half_angle,
-            u_ref,
-        }) => {
-            let (az, representative, v, nappe) =
-                match cone_chart_trim(body, face, charts, apex, axis, half_angle, band) {
-                    Ok(trim) => trim,
-                    Err(PointInSolidError::PartialConeFace { .. }) => {
-                        let reach = partial_cone_reach(body, face, apex)?;
-                        return Ok(FaceGeo::PartialCone {
-                            apex,
-                            axis,
-                            half_angle,
-                            reach,
-                        });
-                    }
-                    Err(e) => return Err(e),
-                };
-            Ok(FaceGeo::Cone {
+            ..
+        }) => match ruled_face_region(body, face)? {
+            Some(region) => Ok(FaceGeo::Cone {
                 apex,
                 axis,
                 half_angle,
-                u_ref,
-                az,
-                representative,
-                v,
-                nappe,
-                sense: body
-                    .get_face(representative)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .sense,
-            })
-        }
+                region,
+                sense: f.sense,
+            }),
+            None => Ok(FaceGeo::PartialCone {
+                apex,
+                axis,
+                half_angle,
+                reach: partial_reach(body, face, apex)?,
+            }),
+        },
         Some(&Surface::Sphere { center, radius, .. }) => {
             match closed_sphere_group(body, face, charts) {
                 Some(representative) => Ok(FaceGeo::Sphere {
@@ -1213,1073 +1065,58 @@ pub(crate) fn uncrossable<T: Decide>(
     Ok((!ray_crosses(kind)).then_some(PointInSolidError::KindUnsupported { face, kind }))
 }
 
-/// **A cylinder wall face's exact chart trim**: the azimuth window
-/// from the outer cycle's closed-form chart images (the S9 machinery)
-/// and the height range from its boundary vertices.
+/// **A radius about `anchor` that a cylinder or cone face lies within**
+/// — the reach [`FaceGeo::PartialWall`] and [`FaceGeo::PartialCone`]
+/// refuse inside, about a point of the wall face's boundary or the
+/// cone's apex.
 ///
-/// The height fold takes NO infinity seed: an `Interval` scalar's ±∞
-/// singleton is `Ill` and poisons every min/max through it (the
-/// MAJOR-1 root cause — the whole Interval boolean lane died on a NaN
-/// height range).
-///
-/// **The premise, stated once for both readers**: the rectangle is the
-/// face's own region only for [`WallOutline::Rectangle`] — rims are
-/// height iso-lines and meridians azimuth iso-lines, so the extremes of
-/// both chart coordinates lie on the boundary VERTICES, and two rim
-/// levels make the region the whole rectangle. A wall bounded by a
-/// tilted section takes its height extreme in an edge's interior, and
-/// the rectangle then over-covers it on one side of the section and
-/// under-covers it on the other. Both readers ask [`wall_outline`]
-/// before they read the height range as a region.
-///
-/// # Errors
-///
-/// [`PointInSolidError::CorruptFace`] for a face whose window or
-/// boundary cannot be resolved, [`PointInSolidError::Escalated`] where
-/// the window's walk escalates.
-#[allow(clippy::type_complexity)] // (azimuth window, height range) — one chart trim
-pub(super) fn cylinder_chart_trim<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    band: Band,
-) -> Result<((T, T), (T, T)), PointInSolidError> {
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
-    let surf = body
-        .get_surface(f.surface)
-        .cloned()
-        .ok_or(PointInSolidError::CorruptFace { face })?;
-    let az = match crate::chord_join::face_azimuth_window(body, &surf, face, band) {
-        Ok(Some(az)) => az,
-        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. }) => {
-            return Err(PointInSolidError::Escalated { face, diag });
-        }
-        Ok(None) | Err(_) => return Err(PointInSolidError::CorruptFace { face }),
-    };
-    let mut h_range: Option<(T, T)> = None;
-    let LoopBoundary::Cycle { first } = body
-        .get_loop(f.outer)
-        .ok_or(PointInSolidError::CorruptFace { face })?
-        .boundary
-    else {
-        return Err(PointInSolidError::CorruptFace { face });
-    };
-    for he in body
-        .loop_cycle(first)
-        .ok_or(PointInSolidError::CorruptFace { face })?
-    {
-        let v = body
-            .get_half_edge(he)
-            .ok_or(PointInSolidError::CorruptFace { face })?
-            .start;
-        let p = *body
-            .get_vertex(v)
-            .and_then(|v| body.get_point(v.point))
-            .ok_or(PointInSolidError::CorruptFace { face })?;
-        let h = (p - origin).dot(axis);
-        h_range = Some(match h_range {
-            None => (h, h),
-            Some((lo, hi)) => (lo.min(h), hi.max(h)),
-        });
-    }
-    let h = h_range.ok_or(PointInSolidError::CorruptFace { face })?;
-    Ok((az, h))
-}
-
-/// A plane one piece of a cylinder wall's outline lies on — a rim's
-/// plane or a tilted section's — with its unit normal oriented along
-/// `+axis` (`n̂·â > 0`, decided when the piece was classified). The
-/// plane therefore meets every ruling exactly once, and "above" it is a
-/// side a ruling can be on.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct WallPlane<T: geom_core::Real> {
-    /// A point of the plane.
-    point: Point3<T>,
-    /// The unit normal, `n̂·â > 0`.
-    normal: Vec3<T>,
-}
-
-impl<T: Decide> WallPlane<T> {
-    /// `p`'s signed perpendicular distance from the plane, in metres,
-    /// positive on the `+axis` side. The physical distance, not the
-    /// height along the ruling: that is this divided by `n̂·â`, which a
-    /// steep section inflates without bound, and a margin inflated past
-    /// the band would answer from inside the coincidence zone.
-    fn above(&self, p: Point3<T>) -> Margin<T> {
-        Margin::of(self.normal.dot(p - self.point))
-    }
-}
-
-/// One non-meridian boundary edge of a wall in the chart class (a
-/// PIECE): a rim arc or a planar section arc, which is a graph over the
-/// azimuth.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct WallPiece<T: geom_core::Real> {
-    /// The plane the piece lies on.
-    plane: WallPlane<T>,
-    /// Its azimuth sub-window `(lo, hi)`, on the face window's branch.
-    az: (T, T),
-    /// The junctions at its `lo` and `hi` ends (indices into the
-    /// outline's junctions).
-    ends: (usize, usize),
-}
-
-/// Where two consecutive pieces of the loop meet: at a vertex, or
-/// through a run of meridians (a vertical step in the chart).
-#[derive(Clone, Copy, Debug)]
-pub(super) struct WallJunction<T: geom_core::Real> {
-    /// The junction's azimuth, on the face window's branch.
-    az: T,
-    /// The piece the loop leaves here and the piece it enters.
-    pieces: (usize, usize),
-    /// The height span of the meridians between them, when there are
-    /// any: the heights of the two pieces' endpoints at this azimuth.
-    span: Option<(T, T)>,
-}
-
-/// **Which region a cylinder wall face's chart trim reads, per class.**
-/// Resolved by [`wall_outline`] on the first hit that lands in the
-/// face's azimuth window; read per hit by [`point_on_wall_in_face`].
-#[derive(Clone, Debug)]
-pub(super) enum WallOutline<T: geom_core::Real> {
-    /// Every boundary edge a rim or a meridian, the rims on exactly two
-    /// levels: the region is exactly the `[azimuth] × [height]`
-    /// rectangle, with the height range [`cylinder_chart_trim`] folds.
-    Rectangle {
-        /// The height range along the axis, metres from the origin.
-        h: (T, T),
-    },
-    /// The face alone wraps the azimuth and is bounded by rims at the
-    /// two ends of its height range ([`full_turn_outline`]): the region
-    /// is the height window at every azimuth.
-    Band {
-        /// The height range along the axis, metres from the origin.
-        h: (T, T),
-    },
-    /// Every boundary edge a meridian, a rim or a planar section, no
-    /// ring, a window narrower than a period: the region is read by
-    /// parity along the hit's ruling (the argument is at
-    /// [`wall_outline`]).
-    Chart {
-        /// The non-meridian edges.
-        pieces: Vec<WallPiece<T>>,
-        /// Where consecutive pieces meet.
-        junctions: Vec<WallJunction<T>>,
-    },
-    /// Outside both: the walk refuses a hit the face could contain
-    /// ([`PointInSolidError::WallOutlineUnsupported`]) and answers every
-    /// other one as a miss.
-    Unsupported {
-        /// A ball `(centre, radius)` holding the face, when there is
-        /// one to trust: the outer loop's, for a face with no ring. A
-        /// ringed face may be a seamless band whose outer loop is one
-        /// rim, and the face is not in that loop's hull, so it carries
-        /// none.
-        reach: Option<(Point3<T>, T)>,
-    },
-}
-
-/// One classified boundary edge, in loop order.
-enum WallEdge<T: geom_core::Real> {
-    /// A line parallel to the axis, from `start` to `end`.
-    Meridian { start: Point3<T>, end: Point3<T> },
-    /// A rim or planar-section arc, with its entry and exit azimuths on
-    /// the window's branch.
-    Piece {
-        plane: WallPlane<T>,
-        rim: bool,
-        entry: T,
-        exit: T,
-    },
-}
-
-/// **A cylinder wall face's outline, resolved** — THE class predicate,
-/// asked by both doors: the ray lane serves every class, the face-level
-/// door ([`super::contain::curved_face_containment`]) serves
-/// [`WallOutline::Rectangle`] and answers `None` for the rest. A window
-/// a full period wide is not this predicate's: both doors ask
-/// [`full_turn_outline`] there instead.
-///
-/// # The class
-///
-/// No ring, and every edge of the outer loop is one of:
-///
-/// - a MERIDIAN: a line parallel to the axis;
-/// - a RIM: a circle coaxial with the wall, at its radius, centred on
-///   the axis;
-/// - a PLANAR SECTION: an ellipse centred on the axis whose plane is not
-///   parallel to it, seated on the wall. Its minor semi-axis is the
-///   radius, along `â × n̂`; its major is `r / |n̂·â|`, along the axis's
-///   projection into the plane. All four are checked. A carrier that
-///   matches the others but is rotated in its plane does not lie on the
-///   wall.
-///
-/// A definite miss is [`WallOutline::Unsupported`], and an in-band class
-/// margin escalates (the two-tolerance pair).
-///
-/// # Why parity along the ruling is exact
-///
-/// Every rim and section plane meets each ruling exactly once, because
-/// none is parallel to the axis. In the chart `(θ, h)` each piece is
-/// therefore a graph `h = f(θ)` over its own azimuth sub-window, and a
-/// meridian is a vertical segment. The face window is narrower than a
-/// period (decided; a wider one escalates), so the outer loop is a
-/// simple closed curve in a plane strip. The face is the bounded region
-/// it encloses, and a point `(θ, h)` is in it iff the upward ray from it
-/// crosses the loop an odd number of times.
-///
-/// At an azimuth that is no junction's, that ray meets no meridian. It
-/// meets a piece iff the piece's sub-window contains `θ` and the piece
-/// lies above the point, and each such crossing is transversal (a graph
-/// is never tangent to a ruling). So the verdict is the parity of the
-/// covering pieces the point lies below. The side is decided as the
-/// point's perpendicular distance to the piece's plane, under the run
-/// band; for a covering piece that is the same side as its height along
-/// the ruling.
-///
-/// Nothing here counts planes or asks the loop to be monotone: a
-/// stepped outline, a cut running out through a cap, a lens and a
-/// V-notch are all simple loops of these pieces. Rims on exactly two
-/// levels with meridians are the rectangle, served through its own arm
-/// so that class answers exactly as it always has.
-///
-/// # At a junction
-///
-/// A hit whose azimuth is within the band of a junction's (the junction
-/// is ACTIVE) cannot be put in or out of the adjacent pieces'
-/// sub-windows. It is decided at the junction, never by picking a piece:
-///
-/// - within a meridian run's height span, strictly, it is on the
-///   meridian: a graze;
-/// - otherwise it must be definitely on ONE side of both incident
-///   pieces' planes; definitely on opposite sides is
-///   [`PointInSolidError::JunctionSidesDisagree`], with both margins.
-///   When both sides agree at `p`, the
-///   parity does not depend on which of the two pieces covers `p`'s
-///   ruling. Where the loop passes through the junction (one piece
-///   left of it, one right), exactly one of them covers, and it counts
-///   the same whichever it is, since both lie on the same side of `p`.
-///   Where the loop turns there (both pieces on one side), both cover
-///   or neither does, and they add 0 or 2, which is even either way. So
-///   any consistent reading of the band gives the true parity; the arm
-///   reads it as just past the junction (a piece counts iff its `lo`
-///   end is active). A meridian run between the pieces changes neither
-///   case, because the hit is outside its span.
-///
-/// A piece whose two ends are both active (reachable at `K < 2`: its
-/// extent is past `Kε` and each end within `ε` of the hit) ends before
-/// the point just past both, so it does not cover the hit; crossing
-/// each junction keeps the parity as above. With neither end active, a
-/// sub-window margin that decides Zero is
-/// [`PointInSolidError::NarrowWindowUnread`], carrying the gate's
-/// rejection: the hit is definitely clear of both ends, and only the
-/// cosine construction's quadratic collapse on a narrow window puts it
-/// in band.
-///
-/// # Errors
-///
-/// [`PointInSolidError::CorruptFace`] for an unwalkable face;
-/// [`PointInSolidError::Escalated`] for an in-band class margin or a
-/// window a period wide.
-///
-/// # Panics
-///
-/// Where the outer loop, its walk, a boundary half-edge's edge or that
-/// edge's curve does not resolve (D2 row 4), in the image walk
-/// ([`crate::chord_join::face_azimuth_images`]): a torn curve is not a
-/// carrier the outline has no piece for. The bodies are at rest (the
-/// solid door) or the reduction's working copies, whose links hold by
-/// [`crate::live::OPERATORS_KEEP_LINKS`].
-#[allow(clippy::too_many_arguments)] // one chart datum, each argument named
-pub(super) fn wall_outline<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    az: (T, T),
-    h: (T, T),
-    band: Band,
-) -> Result<WallOutline<T>, PointInSolidError> {
-    let corrupt = || PointInSolidError::CorruptFace { face };
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
-    if !f.rings.is_empty() {
-        return Ok(WallOutline::Unsupported { reach: None });
-    }
-    let unsupported = || -> Result<WallOutline<T>, PointInSolidError> {
-        let (anchor, reach) = loop_reach(body, f.outer)?;
-        Ok(WallOutline::Unsupported {
-            reach: Some((anchor, reach)),
-        })
-    };
-    let surface = body.get_surface(f.surface).cloned().ok_or_else(corrupt)?;
-    let images = match crate::chord_join::face_azimuth_images(body, &surface, face, band) {
-        Ok(Some(images)) => images,
-        Ok(None) => return unsupported(),
-        Err(crate::splitting::SplitJoinError::Escalated { diag, .. }) => {
-            return Err(escalate(diag));
-        }
-        Err(_) => return unsupported(),
-    };
-    // The images skip null scaffolding; the loop must be the images'
-    // own chain, each half-edge's `next` past any null halves the
-    // following image's. A null half is zero-length, so the chain it
-    // sits in bounds what it bounds without it: mid-Boolean, a vertex of
-    // the face's own that pierced the other operand leaves its run's
-    // strut in the loop.
-    for (i, image) in images.iter().enumerate() {
-        let mut next = body.get_half_edge(image.he).ok_or_else(corrupt)?.next;
-        for _ in 0..body.half_edges.len() {
-            let half = body.get_half_edge(next).ok_or_else(corrupt)?;
-            let edge = body.get_edge(half.edge).ok_or_else(corrupt)?;
-            if body
-                .edge_curve_linked(half.edge, edge)
-                .certified()
-                .is_some()
-            {
-                break;
-            }
-            next = half.next;
-        }
-        if images.get((i + 1) % images.len()).map(|n| n.he) != Some(next) {
-            return unsupported();
-        }
-    }
-    if !narrower_than_period(face, az.1 - az.0, radius, band)? {
-        return Err(escalate(Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some("bool_wall_trim_period"),
-            terminal_sliver: false,
-        }));
-    }
-    let zero = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
-        Ok(decide(name, m, band).map_err(escalate)? == Sign::Zero)
-    };
-    let sine = |m: T| Margin::levered(m, radius);
-    let point_of = |he| -> Result<Point3<T>, PointInSolidError> {
-        let v = body.get_half_edge(he).ok_or_else(corrupt)?.start;
-        body.get_vertex(v)
-            .and_then(|v| body.get_point(v.point))
-            .copied()
-            .ok_or_else(corrupt)
-    };
-    // A record miss past `face` answers `CorruptFace`, and a torn edge
-    // or curve panicked in the image walk, which read each carrier: the
-    // walk's `CorruptFace` raises are
-    // `torn-body-refusal-families-beyond-the-six-doors`' to split.
-    let mut edges = Vec::with_capacity(images.len());
-    for (i, image) in images.iter().enumerate() {
-        let (point, normal, rim) = match image.carrier {
-            geom::Curve3::Line { dir, .. } => {
-                if !zero("bool_wall_iso_meridian", sine(dir.cross(axis).norm()))? {
-                    return unsupported();
-                }
-                let next = images[(i + 1) % images.len()].he;
-                edges.push(WallEdge::Meridian {
-                    start: point_of(image.he)?,
-                    end: point_of(next)?,
-                });
-                continue;
-            }
-            geom::Curve3::Circle {
-                center,
-                axis: c_axis,
-                radius: c_radius,
-                u_ref: c_ref,
-            } => {
-                let rim = Rim {
-                    center,
-                    axis: c_axis,
-                    radius: c_radius,
-                    u_ref: c_ref,
-                };
-                if !is_wall_rim(origin, axis, radius, &rim, band).map_err(escalate)? {
-                    return unsupported();
-                }
-                (center, c_axis, true)
-            }
-            ref ellipse @ geom::Curve3::Ellipse {
-                center, axis: n, ..
-            } => {
-                let Some(geom::MajorFrame {
-                    major,
-                    minor,
-                    major_dir,
-                    ..
-                }) = ellipse.major_frame()
-                else {
-                    unreachable!("an Ellipse carrier has a major frame")
-                };
-                let cos = n.dot(axis);
-                if zero("bool_wall_section_tilt", sine(cos))?
-                    || !zero(
-                        "bool_wall_section_seat",
-                        Margin::of(off_axis(origin, axis, center)),
-                    )?
-                    || !zero("bool_wall_section_seat", Margin::of(minor - radius))?
-                    || !zero(
-                        "bool_wall_section_seat",
-                        Margin::of(major * cos.abs() - radius),
-                    )?
-                {
-                    return unsupported();
-                }
-                // The major axis lies along `â`'s projection into the
-                // plane, i.e. across the minor direction `â × n̂`. A
-                // rotation δ in the plane moves the curve by at most
-                // `δ·(major − minor)`, so a near-circle has no direction
-                // to check.
-                let spread = major - minor;
-                if !zero("bool_wall_section_seat", Margin::of(spread))? {
-                    let across = axis.cross(n);
-                    let along_minor = major_dir.dot(across) / across.norm();
-                    if !zero("bool_wall_section_seat", Margin::of(along_minor * spread))? {
-                        return unsupported();
-                    }
-                }
-                (center, n, false)
-            }
-            _ => return unsupported(),
-        };
-        let normal = match decide("bool_wall_section_tilt", sine(normal.dot(axis)), band)
-            .map_err(escalate)?
-        {
-            Sign::Positive => normal,
-            Sign::Negative => normal * (T::zero() - T::one()),
-            Sign::Zero => return unsupported(),
-        };
-        edges.push(WallEdge::Piece {
-            plane: WallPlane { point, normal },
-            rim,
-            entry: image.entry,
-            exit: image.exit,
-        });
-    }
-    // Rotate so the walk starts on a piece; a loop of meridians alone
-    // bounds nothing.
-    let Some(start) = edges
-        .iter()
-        .position(|e| matches!(e, WallEdge::Piece { .. }))
-    else {
-        return unsupported();
-    };
-    edges.rotate_left(start);
-    let n_pieces = edges
-        .iter()
-        .filter(|e| matches!(e, WallEdge::Piece { .. }))
-        .count();
-    let height = |p: Point3<T>| (p - origin).dot(axis);
-    let mut pieces: Vec<WallPiece<T>> = Vec::with_capacity(n_pieces);
-    let mut junctions: Vec<WallJunction<T>> = Vec::with_capacity(n_pieces);
-    let mut span: Option<(T, T)> = None;
-    for e in &edges {
-        match *e {
-            WallEdge::Meridian { start, end } => {
-                let (a, b) = (height(start), height(end));
-                span = Some(match span {
-                    None => (a.min(b), a.max(b)),
-                    Some((lo, hi)) => (lo.min(a.min(b)), hi.max(a.max(b))),
-                });
-            }
-            WallEdge::Piece {
-                plane, entry, exit, ..
-            } => {
-                let k = pieces.len();
-                // Junction `k − 1` sits between the previous piece and
-                // this one; junction `k` after this one (cyclically).
-                if k > 0 {
-                    junctions.push(WallJunction {
-                        az: entry,
-                        pieces: (k - 1, k),
-                        span: span.take(),
-                    });
-                }
-                let before = (k + n_pieces - 1) % n_pieces;
-                // A piece is a graph over the azimuth, so the walk runs
-                // it one way; which way is decided, and a piece with no
-                // definite extent is no graph at all.
-                let (az, ends) = match decide(
-                    "bool_wall_piece_span",
-                    Margin::levered(exit - entry, radius),
-                    band,
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Positive => ((entry, exit), (before, k)),
-                    Sign::Negative => ((exit, entry), (k, before)),
-                    Sign::Zero => return unsupported(),
-                };
-                pieces.push(WallPiece { plane, az, ends });
-            }
-        }
-    }
-    // The closing junction, between the last piece and the first.
-    let WallEdge::Piece { entry, .. } = edges[0] else {
-        return unsupported();
-    };
-    junctions.push(WallJunction {
-        az: entry,
-        pieces: (n_pieces - 1, 0),
-        span: span.take(),
-    });
-    // Junction `j` is between pieces `j` and `j + 1`; the pushes above
-    // produced them in the order (0,1), (1,2), …, (n−1, 0).
-    if edges.iter().all(|e| match e {
-        WallEdge::Piece { rim, .. } => *rim,
-        WallEdge::Meridian { .. } => true,
-    }) && rim_levels(&pieces.iter().map(|p| p.plane).collect::<Vec<_>>(), band)
-        .map_err(escalate)?
-        == 2
-    {
-        return Ok(WallOutline::Rectangle { h });
-    }
-    Ok(WallOutline::Chart { pieces, junctions })
-}
-
-/// Is `rim` a RIM of the wall `(origin, axis, radius)` — coaxial
-/// ([`coaxial_margins`]) and at the wall's radius? A height iso-line of
-/// the chart.
-fn is_wall_rim<T: Decide>(
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    rim: &Rim<T>,
-    band: Band,
-) -> Result<bool, Indeterminate> {
-    let [tilt, off] = coaxial_margins(origin, axis, rim);
-    for margin in [tilt, off, Margin::of(rim.radius - radius)] {
-        if decide("bool_wall_iso_rim", margin, band)? != Sign::Zero {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-
-/// **The full-turn route of a cylinder wall, in one home**: both doors
-/// ask it FIRST, before any azimuth window is read.
-///
-/// - `None`: the face does not wrap the azimuth alone ([`wrap_rims`]);
-///   the caller reads its window.
-/// - `Some(`[`WallOutline::Band`]`)`: it does, its rims are at the
-///   wall's radius, and they lie on exactly two levels. The region is
-///   then exactly the band `h.0 ≤ height ≤ h.1`: every non-rim edge is
-///   mated to the face itself, so it is interior to the face's closure
-///   and bounds nothing, and a boundary that is all rims on two levels
-///   is the two ends of the height fold.
-/// - `Some(`[`WallOutline::Unsupported`]`)`: it wraps, but a rim is not
-///   at the wall's radius or the rims are not on two levels. A wrapped
-///   face has no window to exclude anything by, so it carries no reach.
-///
-/// [`wrap_rims`] has already decided each rim coaxial, so only the
-/// radius half of [`is_wall_rim`] is asked here.
-///
-/// # Errors
-///
-/// [`PointInSolidError::CorruptFace`] for an unwalkable face;
-/// [`PointInSolidError::Escalated`] for an in-band class margin.
-pub(super) fn full_turn_outline<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    h: (T, T),
-    band: Band,
-) -> Result<Option<WallOutline<T>>, PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let Some(rims) = wrap_rims(body, face, WrapRims { origin, axis }, band)? else {
-        return Ok(None);
-    };
-    let unsupported = Ok(Some(WallOutline::Unsupported { reach: None }));
-    let mut planes = Vec::with_capacity(rims.len());
-    for rim in rims {
-        if decide("bool_wall_iso_rim", Margin::of(rim.radius - radius), band).map_err(escalate)?
-            != Sign::Zero
-        {
-            return unsupported;
-        }
-        planes.push(WallPlane {
-            point: rim.center,
-            normal: axis,
-        });
-    }
-    if rim_levels(&planes, band).map_err(escalate)? != 2 {
-        return unsupported;
-    }
-    Ok(Some(WallOutline::Band { h }))
-}
-
-/// How many distinct levels the planes lie on. Every normal is `â`, so
-/// two planes are one level exactly when one's point is on the other.
-fn rim_levels<T: Decide>(planes: &[WallPlane<T>], band: Band) -> Result<usize, Indeterminate> {
-    let mut levels: Vec<WallPlane<T>> = Vec::new();
-    for plane in planes {
-        let mut known = false;
-        for level in &levels {
-            if decide("bool_wall_rim_level", level.above(plane.point), band)? == Sign::Zero {
-                known = true;
-                break;
-            }
-        }
-        if !known {
-            levels.push(*plane);
-        }
-    }
-    Ok(levels.len())
-}
-
-/// **A cone wall face's chart trim, and which of the two cone classes
-/// it belongs to.** Answers `(azimuth window, representative, slant
-/// window, nappe)`.
-///
-/// The slant coordinate is the cone chart's own `v` — metres along the
-/// generator, `v = (p − apex)·axis / cos α` — so the slant window is
-/// the cylinder height range's analogue and shares its premise: the
-/// range is the face's own for the ISO-BOUNDED wall class, where rims
-/// are slant iso-lines and meridians azimuth iso-lines and both
-/// extremes therefore sit on boundary VERTICES. The fold takes no
-/// infinity seed, for the reason [`cylinder_chart_trim`] states.
-///
-/// # The two classes, and why a cone needs both
-///
-/// A cone's apex is a junction no nearest-branch walk can cross: every
-/// azimuth maps to it. The per-face window therefore closes the lift
-/// there instead ([`crate::chord_join::cone_apex_closure`]), and the
-/// sphere arm's closed-GROUP class sits beside it for the faces whose
-/// union covers the turn. The cone carries the pair:
-///
-/// - **the azimuth-WRAPPED group** ([`wrapped_cone_group`]): the faces
-///   on this cone surface have no azimuth boundary between them and
-///   the rest of the body, so their union covers every azimuth of the
-///   slant window and there is nothing for an azimuth trim to do. The
-///   answer is `None` for the window and the group's REPRESENTATIVE,
-///   for which alone the arms act — a per-face arm here would fold one
-///   root once per member and tie itself into a permanent graze, the
-///   defect [`FaceGeo::Sphere`] documents.
-/// - **the azimuth-TRIMMED face**: a face whose own window is
-///   definitely narrower than a period — one clear of the apex, or one
-///   visiting it once with no ring, of any width. It is served per
-///   face, like [`FaceGeo::SpherePatch`], and is its own
-///   representative.
-///
-/// A face in neither class is [`PointInSolidError::PartialConeFace`]:
-/// the honest remainder, never a window that misstates the face.
-///
-/// # The nappe, decided here rather than at every hit
-///
-/// `v` is signed, and zero exactly at the apex, so its sign IS the
-/// nappe. Two predicates settle the face's posture once:
-///
-/// - `bool_cone_trim_nappe` on `max(v_lo, −v_hi)`: **Positive** ⇒ the
-///   window is clear of the apex on one nappe; **Zero** ⇒ a bound sits
-///   AT the apex — the apex-closed cone face a full revolve of a
-///   pole-touching profile mints, which this arm serves; **Negative** ⇒
-///   the window straddles the apex. A straddling window is not a
-///   trimmable patch: the two nappes meet only at the singular point,
-///   the outward normal is opposite across it, and a rectangle spanning
-///   both would count a mirror-nappe crossing as this face's. That is a
-///   premise VIOLATION, so it escalates `Invalid` — the shape
-///   [`point_on_wall_in_face`]'s period guard uses for the same reason.
-/// - `bool_cone_trim_side` on `v_lo + v_hi`: the nappe itself.
-///   **Zero** ⇒ a window that is a single point at the apex, which
-///   bounds no surface, and escalates the same way.
-///
-/// # Errors
-///
-/// [`PointInSolidError::CorruptFace`] for a face whose window or
-/// boundary cannot be resolved; [`PointInSolidError::PartialConeFace`]
-/// for a face in neither class; [`PointInSolidError::Escalated`] for an
-/// in-band nappe posture or a window the premises above reject.
-#[allow(clippy::type_complexity)] // one chart trim, plus the class it selected
-pub(super) fn cone_chart_trim<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    charts: &ChartGroups,
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    half_angle: T,
-    band: Band,
-) -> Result<(Option<(T, T)>, FaceKey, (T, T), bool), PointInSolidError> {
-    // Every wearer of the surface, not the face alone: a wrapped group's
-    // representative answers for its members' union.
-    for &member in
-        scope_members(body, face, charts).map_err(|face| PointInSolidError::CorruptFace { face })?
-    {
-        cone_window_premise(body, member).map_err(|e| match e {
-            PointInSolidError::PartialConeFace { .. } => {
-                PointInSolidError::PartialConeFace { face }
-            }
-            other => other,
-        })?;
-    }
-    let cos_a = half_angle.cos();
-    if let Some(representative) = wrapped_cone_group(body, face, charts, apex, axis, cos_a, band)? {
-        let v = cone_slant_window(body, representative, apex, axis, cos_a)?;
-        let nappe = cone_nappe(face, v, band)?;
-        return Ok((None, representative, v, nappe));
-    }
-    let v = cone_slant_window(body, face, apex, axis, cos_a)?;
-    let nappe = cone_nappe(face, v, band)?;
-    let az = cone_trimmed_window(body, face, v, band)?;
-    Ok((Some(az), face, v, nappe))
-}
-
-/// **One cone face's own chart trim** — the question a FACE-scoped
-/// caller asks, where [`cone_chart_trim`] answers the solid door's.
-/// `(azimuth window, slant window, nappe)`, the window `None` exactly
-/// when the face alone wraps the azimuth.
-///
-/// The solid door lets a wrapped group's representative answer for
-/// every member, because its question is the group's UNION. A caller
-/// asking which chart points THIS face holds cannot: two half-bands of
-/// one full revolve form a wrapped group, and reading the group's
-/// window for either one would put the other's half inside it. So the
-/// azimuth is `None` only for a group of ONE — a face whose every
-/// non-rim boundary edge is shared with itself, which covers every
-/// azimuth of its slant window — and every other face takes the
-/// trimmed class's own window, with its refusal where the walk cannot
-/// pin one.
-///
-/// The slant window and the nappe are the face's own in both cases, by
-/// the same two predicates [`cone_chart_trim`] documents.
-///
-/// # Errors
-///
-/// As [`cone_chart_trim`].
-#[allow(clippy::type_complexity)] // one chart trim: two windows and a side
-pub(super) fn cone_face_trim<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    half_angle: T,
-    band: Band,
-) -> Result<(Option<(T, T)>, (T, T), bool), PointInSolidError> {
-    cone_window_premise(body, face)?;
-    let v = cone_slant_window(body, face, apex, axis, half_angle.cos())?;
-    let nappe = cone_nappe(face, v, band)?;
-    if wrap_rims(body, face, WrapRims { origin: apex, axis }, band)?.is_some() {
-        return Ok((None, v, nappe));
-    }
-    Ok((Some(cone_trimmed_window(body, face, v, band)?), v, nappe))
-}
-
-/// The azimuth window of a cone face in the TRIMMED class: the
-/// nearest-branch walk on a face clear of the apex, the apex closure
-/// ([`crate::chord_join::cone_apex_closure`]) on a face that visits it
-/// once. A face through the apex twice, or once with a ring, has no
-/// single lift. The window trims only when it is definitely narrower
-/// than a period AND the face is the chart rectangle it reports
-/// (`bool_cone_chart_box`, [`chart_polygon_box`]): a face with a notch
-/// has the rectangle's hull, and the window would cover the notch.
-///
-/// # Errors
-///
-/// [`PointInSolidError::CorruptFace`] for a window the walk cannot
-/// take, [`PointInSolidError::PartialConeFace`] for a face with no
-/// single lift, a window not definitely under a period, or a boundary
-/// that is not its window's rectangle, [`PointInSolidError::Escalated`]
-/// in-band.
-fn cone_trimmed_window<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    v: (T, T),
-    band: Band,
-) -> Result<(T, T), PointInSolidError> {
-    use crate::chord_join::{ApexClosure, SplitJoinError};
-    let partial = PointInSolidError::PartialConeFace { face };
-    let esc = |diag| PointInSolidError::Escalated { face, diag };
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
-    let surf = body
-        .get_surface(f.surface)
-        .cloned()
-        .ok_or(PointInSolidError::CorruptFace { face })?;
-    let images = match crate::chord_join::cone_apex_closure(body, &surf, face, band) {
-        Ok(ApexClosure::Clear) => {
-            match crate::chord_join::face_azimuth_images(body, &surf, face, band) {
-                Ok(Some(images)) => images,
-                Err(SplitJoinError::Escalated { diag, .. }) => return Err(esc(diag)),
-                // A key the walk could not resolve, or a boundary that does
-                // not close, keeps the corruption's own door.
-                Ok(None)
-                | Err(SplitJoinError::Corrupt { .. } | SplitJoinError::UnpairedLooseEnds { .. }) => {
-                    return Err(PointInSolidError::CorruptFace { face });
-                }
-                // A walk this face cannot take: no single lift.
-                Err(_) => return Err(partial),
-            }
-        }
-        Ok(ApexClosure::Closed { images, .. }) => images,
-        Ok(ApexClosure::Open) => return Err(partial),
-        Err(SplitJoinError::Escalated { diag, .. }) => return Err(esc(diag)),
-        Err(_) => return Err(PointInSolidError::CorruptFace { face }),
-    };
-    let half_angle = match surf {
-        Surface::Cone { half_angle, .. } => half_angle,
-        _ => return Err(PointInSolidError::CorruptFace { face }),
-    };
-    let az =
-        crate::chord_join::azimuth_hull(&images).ok_or(PointInSolidError::CorruptFace { face })?;
-    let lever = v.0.abs().max(v.1.abs());
-    if decide(
-        "bool_cone_trim_period",
-        Margin::levered(T::tau() - (az.1 - az.0), lever),
-        band,
-    )
-    .map_err(esc)?
-        != Sign::Positive
-    {
-        return Err(partial);
-    }
-    // The polygon's sides: each image, then the side from the last exit
-    // back to the first entry, which is the apex jump when the walk was
-    // closed there (at `v = 0`, on the box's apex side). The rates,
-    // bounded above: slant is metres along a generator, exactly, and an
-    // azimuth moves a point at most the largest parallel radius per
-    // radian.
-    let (first, last) = (
-        images
-            .first()
-            .ok_or(PointInSolidError::CorruptFace { face })?,
-        images
-            .last()
-            .ok_or(PointInSolidError::CorruptFace { face })?,
-    );
-    let sides: Vec<((T, T), (T, T))> = images
-        .iter()
-        .map(|i| ((i.entry, i.v.0), (i.exit, i.v.1)))
-        .chain([((last.exit, last.v.1), (first.entry, first.v.0))])
-        .collect();
-    match chart_polygon_box(
-        "bool_cone_chart_box",
-        &sides,
-        SupSpeed::new(lever * half_angle.sin()),
-        SupSpeed::new(T::one()),
-        band,
-    )
-    .map_err(esc)?
-    {
-        Some(_) => Ok(az),
-        None => Err(partial),
-    }
-}
-
-/// **The premise of a vertex-folded window**: every boundary edge of
-/// the face is a rim (`Circle`, slant constant) or a generator (`Line`,
-/// slant affine), so the slant between an edge's ends never leaves the
-/// span of its ends and the vertices' window is the face's own. A
-/// plane section that is not axis-normal peaks INSIDE its edge, and
-/// the window would over-cover the face on one side of it and
-/// under-cover it on the other, so such a face is refused here rather
-/// than misread (the solid door then reads it as
-/// [`FaceGeo::PartialCone`]). Reading its region needs each section's own side
-/// along the generator (the cylinder's `wall_outline` discipline),
-/// which this arm does not have.
-///
-/// # Errors
-///
-/// [`PointInSolidError::PartialConeFace`] for an edge outside the two
-/// classes; [`PointInSolidError::CorruptFace`] for an unwalkable face.
-fn cone_window_premise<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<(), PointInSolidError> {
-    let corrupt = || PointInSolidError::CorruptFace { face };
-    let f = body.get_face(face).ok_or_else(corrupt)?;
-    for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
-            continue;
-        };
-        for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-            let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
-            let curve = body.get_edge(edge).ok_or_else(corrupt)?.curve;
-            let Some(CurveGeom::Certified(c)) = body.get_curve_geom(curve) else {
-                return Err(corrupt());
-            };
-            match c.carrier() {
-                geom::Curve3::Line { .. } | geom::Curve3::Circle { .. } => {}
-                geom::Curve3::Ellipse { .. }
-                | geom::Curve3::Nurbs(_)
-                | geom::Curve3::Spiric { .. } => {
-                    return Err(PointInSolidError::PartialConeFace { face });
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-/// **A radius about the apex that a cone face lies within** — the
-/// reach [`FaceGeo::PartialCone`] refuses inside.
-///
-/// On a cone, `|p − apex|` is the slant `|v|`, a chart coordinate, so a
-/// face reaches no farther from its apex than its boundary does; each
-/// loop's ball about the apex is the containment walk's own
-/// ([`loop_extent_from`]: vertices, and each curved edge's carrier ball).
+/// Every point of a wall face lies on a ruling segment whose two ends
+/// are points of its boundary, and every point of a cone face on a
+/// generator segment from a point of its boundary toward the apex, so a
+/// ball about such an anchor holding the boundary holds the face; each
+/// loop's ball is the containment walk's own ([`loop_extent_from`]:
+/// vertices, and each curved edge's carrier ball).
 ///
 /// # Errors
 ///
 /// [`PointInSolidError::CorruptFace`] for a missing face, and
 /// [`loop_extent_from`]'s refusal of a loop that does not walk.
-fn partial_cone_reach<T: Decide>(
+fn partial_reach<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    apex: Point3<T>,
+    anchor: Point3<T>,
 ) -> Result<T, PointInSolidError> {
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     let mut reach = T::zero();
     for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        reach = reach.max(loop_extent_from(body, lk, apex)?);
+        reach = reach.max(loop_extent_from(body, lk, anchor)?);
     }
     Ok(reach)
 }
 
-/// The face's slant window, folded over its outer cycle's vertices.
+/// The point of `face`'s outer loop's first vertex.
 ///
 /// # Errors
 ///
-/// [`PointInSolidError::CorruptFace`] — an unwalkable face.
-fn cone_slant_window<T: Decide>(
+/// [`PointInSolidError::CorruptFace`] for a face whose outer loop has no
+/// cycle or does not resolve.
+fn boundary_point<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    cos_a: T,
-) -> Result<(T, T), PointInSolidError> {
-    let f = body
-        .get_face(face)
-        .ok_or(PointInSolidError::CorruptFace { face })?;
-    let LoopBoundary::Cycle { first } = body
-        .get_loop(f.outer)
-        .ok_or(PointInSolidError::CorruptFace { face })?
-        .boundary
+) -> Result<Point3<T>, PointInSolidError> {
+    let corrupt = PointInSolidError::CorruptFace { face };
+    let outer = body.get_face(face).ok_or(corrupt.clone())?.outer;
+    let LoopBoundary::Cycle { first } = body.get_loop(outer).ok_or(corrupt.clone())?.boundary
     else {
-        return Err(PointInSolidError::CorruptFace { face });
+        return Err(corrupt);
     };
-    let mut range: Option<(T, T)> = None;
-    for he in body
-        .loop_cycle(first)
-        .ok_or(PointInSolidError::CorruptFace { face })?
-    {
-        let vtx = body
-            .get_half_edge(he)
-            .ok_or(PointInSolidError::CorruptFace { face })?
-            .start;
-        let p = *body
-            .get_vertex(vtx)
-            .and_then(|v| body.get_point(v.point))
-            .ok_or(PointInSolidError::CorruptFace { face })?;
-        // The chart's slant coordinate. `cos α > 0` on the whole
-        // conventional domain (0, π/2), so the quotient is a length
-        // with no small denominator of its own.
-        let v = (p - apex).dot(axis) / cos_a;
-        range = Some(match range {
-            None => (v, v),
-            Some((lo, hi)) => (lo.min(v), hi.max(v)),
-        });
-    }
-    range.ok_or(PointInSolidError::CorruptFace { face })
-}
-
-/// Which nappe a slant window lies on, and the premise that it lies on
-/// one at all (the two predicates [`cone_chart_trim`] documents).
-///
-/// # Errors
-///
-/// [`PointInSolidError::Escalated`] — in-band, or a window the premises
-/// reject.
-fn cone_nappe<T: Decide>(face: FaceKey, v: (T, T), band: Band) -> Result<bool, PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let invalid = |predicate| {
-        escalate(geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::INVALID,
-            band,
-            predicate: Some(predicate),
-            terminal_sliver: false,
-        })
-    };
-    match decide(
-        "bool_cone_trim_nappe",
-        Margin::of(v.0.max(T::zero() - v.1)),
-        band,
-    )
-    .map_err(escalate)?
-    {
-        // Clear of the apex, or touching it — both single-nappe.
-        Sign::Positive | Sign::Zero => {}
-        Sign::Negative => return Err(invalid("bool_cone_trim_nappe")),
-    }
-    match decide("bool_cone_trim_side", Margin::of(v.0 + v.1), band).map_err(escalate)? {
-        Sign::Positive => Ok(true),
-        Sign::Negative => Ok(false),
-        Sign::Zero => Err(invalid("bool_cone_trim_side")),
-    }
-}
-
-/// The representative of `face`'s cone-surface face group when that
-/// group WRAPS THE FULL AZIMUTH — when no member has a boundary edge
-/// that could trim the azimuth at all, so the union of the group covers
-/// every azimuth of its slant window and the slant window alone is the
-/// exact trim.
-///
-/// # The rule, and why it is structure rather than a margin
-///
-/// Only an edge that CROSSES the slant coordinate can bound a face in
-/// azimuth; a slant ISO-line — a rim, a circle coaxial with the cone —
-/// bounds it in `v`, which the slant window already carries. So the
-/// rule is: **every boundary edge that is not a coaxial rim must be
-/// shared with another member of the group.** That is
-/// [`wrap_rims_within`] over the group's members — the same structural
-/// test every per-face trim asks of one face, structure first and the
-/// rims' coaxial margins last.
-///
-/// The members must also agree on their slant window, decided against
-/// the band. A group whose members' windows DIFFER is two bands stacked
-/// along one cone, and the fold over both would cover whatever lies
-/// between them — which is another surface's face, not this group's. A
-/// disagreeing group answers `None` and takes the typed refusal.
-///
-/// Rings on a cone face make the answer `None` (a ringed face is a
-/// trimmed one, and a ring is an azimuth boundary the scan cannot see).
-///
-/// # Errors
-///
-/// [`PointInSolidError`] — a corrupt member, or an in-band slant-window
-/// comparison between members.
-fn wrapped_cone_group<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    charts: &ChartGroups,
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    cos_a: T,
-    band: Band,
-) -> Result<Option<FaceKey>, PointInSolidError> {
-    let members = scope_members(body, face, charts)
-        .map_err(|face| PointInSolidError::CorruptFace { face })?;
-    let representative = members[0];
-    if wrap_rims_within(body, members, WrapRims { origin: apex, axis }, band)?.is_none() {
-        return Ok(None);
-    }
-    let reference = cone_slant_window(body, representative, apex, axis, cos_a)?;
-    for &member in members {
-        let w = cone_slant_window(body, member, apex, axis, cos_a)?;
-        for margin in [w.0 - reference.0, w.1 - reference.1] {
-            if decide("bool_cone_group_slant", Margin::of(margin), band)
-                .map_err(|diag| PointInSolidError::Escalated { face: member, diag })?
-                != Sign::Zero
-            {
-                return Ok(None);
-            }
-        }
-    }
-    Ok(Some(representative))
+    let start = body.get_half_edge(first).ok_or(corrupt.clone())?.start;
+    body.get_vertex(start)
+        .and_then(|v| body.get_point(v.point))
+        .copied()
+        .ok_or(corrupt)
 }
 
 /// **A torus face's closed group**: its representative when every edge
@@ -2303,76 +1140,13 @@ fn torus_closed_group<T: Decide>(
     surface_group(body, face, charts).map_err(|face| PointInSolidError::CorruptFace { face })
 }
 
-/// **Is a rectilinear chart polygon its own bounding box?** The
-/// decision behind `bool_cone_chart_box`, decided under `name`.
-///
-/// `sides` are the polygon's sides as `(from, to)` chart points `(u, v)`,
-/// in order, and every one is an iso segment (the callers' premise). Such
-/// a polygon is its bounding box exactly when every side lies on one of
-/// the box's four sides: its boundary is then a closed curve inside the
-/// box's boundary, which a face's outer loop, walked once, covers. A
-/// notch's sides lie inside the box, each as far from the box's nearest
-/// side as the notch is wide or deep, so the distance decided here is
-/// linear in the notch, and the notch's centre is half of it from the
-/// face.
-///
-/// A side's distance from a box side is the larger of its two ends',
-/// crossed to metres by `u_arm` or `v_arm`. The verdict that accepts is
-/// Zero, so each arm is an upper bound on its channel's rate
-/// ([`SupSpeed`]): an arm that understated it would read a real notch as
-/// coincident.
-///
-/// `Some(box)` when every side lies on a side of the box, `None` when one
-/// definitely does not.
-///
-/// # Errors
-///
-/// The escalation of a side on no box side, which some box side holds in
-/// band.
-#[allow(clippy::type_complexity)] // the polygon's sides and its box
-fn chart_polygon_box<T: Decide>(
-    name: &'static str,
-    sides: &[((T, T), (T, T))],
-    u_arm: SupSpeed<T>,
-    v_arm: SupSpeed<T>,
-    band: Band,
-) -> Result<Option<((T, T), (T, T))>, Indeterminate> {
-    let Some(&(first, _)) = sides.first() else {
-        return Ok(None);
-    };
-    let (mut u, mut v) = ((first.0, first.0), (first.1, first.1));
-    for &(a, b) in sides {
-        for q in [a, b] {
-            u = (u.0.min(q.0), u.1.max(q.0));
-            v = (v.0.min(q.1), v.1.max(q.1));
-        }
-    }
-    let far = |x: T, y: T, side: T| (x - side).abs().max((y - side).abs());
-    for &(a, b) in sides {
-        let mut escalated = None;
-        let mut on_a_side = false;
-        for (d, arm) in [
-            (far(a.0, b.0, u.0), u_arm),
-            (far(a.0, b.0, u.1), u_arm),
-            (far(a.1, b.1, v.0), v_arm),
-            (far(a.1, b.1, v.1), v_arm),
-        ] {
-            match decide(name, Margin::metered_sup(d, arm), band) {
-                Ok(Sign::Zero) => {
-                    on_a_side = true;
-                    break;
-                }
-                Ok(Sign::Positive | Sign::Negative) => {}
-                Err(diag) => {
-                    escalated.get_or_insert(diag);
-                }
-            }
-        }
-        if !on_a_side {
-            return escalated.map_or(Ok(None), Err);
-        }
-    }
-    Ok(Some((u, v)))
+/// A point's linearized residual off a cylinder wall,
+/// `(ρ² − r²)/2r` in metres: the form the certification layer
+/// classifies.
+fn wall_elevation<T: Decide>(origin: Point3<T>, axis: Vec3<T>, radius: T, q: Point3<T>) -> T {
+    let w = q - origin;
+    let radial = w - axis * w.dot(axis);
+    (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius)
 }
 
 /// **A point's elevation off a ring torus's tube**: `√((ρ − R)² + h²) − r`,
@@ -2393,380 +1167,6 @@ pub(super) fn torus_elevation<T: Decide>(
     ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
 }
 
-/// Is the ON-WALL point `p` within the wall face's chart trim?
-/// `Some(true/false)` definite, `None` a boundary graze.
-///
-/// The angular test is **branch-cut-free** (M5 PR 9 fix pass,
-/// MAJOR-1): the azimuth-window membership `|θ − mid| ≤ w/2` is
-/// decided as the exact cosine comparison `r̂·m̂ ≥ cos(w/2)` (cosine is
-/// monotone on [0, π], so the equivalence is exact for every window
-/// narrower than a period — guarded). No `atan2`, no periodic
-/// reduction: under the Interval scalar an `atan2` enclosure near the
-/// chart seam is honestly refused, and the pre-fix trim escalated
-/// `Invalid` on probe points every f64 run decides cleanly — the
-/// whole Interval boolean lane died on it. The cone margin is metered
-/// `· radius` (its displacement scale at the window edge is
-/// `sin(w/2)·δθ·r ≤ δθ·r` — conservative relative to the arc-length
-/// convention, escalating MORE near degenerate windows, never less).
-/// Height margins are metres directly, unchanged.
-///
-/// **THE cosine-window construction, and its sites.** This argument —
-/// the guard that the window is narrower than a period, the
-/// `r̂·m̂ ≥ cos(w/2)` comparison, the lever metering, and ledger row
-/// F8's deferred narrow-window fix — is one construction, so a change
-/// to any of it is a change to every site below. The shared sites
-/// cannot drift; the restated ones must be edited by hand.
-///
-/// **The list is held by a test that names each site's function**
-/// (`wall_section_rows::the_window_construction_sites_are_the_ones_listed`).
-/// Every site is marked in its text: it calls [`chart_azimuth_margin`],
-/// [`narrower_than_period`] or [`chart_dir`] (the one spelling of the
-/// window's mid direction), or it writes the period guard
-/// `Margin::levered(T::tau() − width, …)`. The test collects the
-/// enclosing functions of those marks in this file and in
-/// `contain.rs`, and compares them with this list. A new site that
-/// restates the algebra WITHOUT any of the four marks is the one thing
-/// it cannot see.
-///
-/// Shared, through [`chart_azimuth_margin`] (the window test, whose
-/// period guard is [`narrower_than_period`] and whose mid direction is
-/// [`chart_dir`]):
-/// - this arm — a cylinder wall's window, both classes;
-/// - [`point_on_chart_wall`] — each piece's sub-window, and each
-///   junction's ruling through [`chart_dir`];
-/// - [`wall_hit`] — the same window, asked after the full-turn route
-///   ([`full_turn_outline`]) and before the class is resolved;
-/// - [`wall_hit_outside_reach`] — the window of a wall the arm cannot
-///   read, asked for a miss only when [`narrower_than_period`] says it
-///   can exclude anything;
-/// - [`wall_outline`] — [`narrower_than_period`] alone, the parity
-///   argument's premise, checked where the class is resolved (its
-///   callers have asked it too; the class does not lean on them);
-/// - [`point_on_cone_in_face`] (a cone wall's, same lane).
-///
-/// Restated (the mid direction through [`chart_dir`], the comparison or
-/// the guard written out):
-/// - [`sphere_chart_trim`] — a meridian edge's own span: the period
-///   guard as a class question, then the comparison run with `r̂ = ±â`
-///   to find a pole inside the edge;
-/// - [`cone_trimmed_window`] (behind [`cone_chart_trim`]) — the period
-///   guard as a class question (a window a period wide is the wrapped
-///   class, not an escalation);
-/// - [`super::contain::curved_face_placement`] (the same period guard
-///   asked, after the full-turn route, as a chart-form question: its
-///   answer is `None` where this one escalates).
-#[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
-pub(super) fn point_on_wall_in_face<T: Decide>(
-    face: FaceKey,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    az: (T, T),
-    outline: &WallOutline<T>,
-    p: Point3<T>,
-    band: Band,
-) -> Result<Option<bool>, PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let w = p - origin;
-    let height = w.dot(axis);
-    let radial = w - axis * height;
-    match outline {
-        // The band attains every azimuth, so only the rectangle reads `az`.
-        &WallOutline::Rectangle { h } | &WallOutline::Band { h } => {
-            let azimuth = match outline {
-                WallOutline::Rectangle { .. } => Some(chart_azimuth_margin(
-                    face, axis, u_ref, az, radial, radius, band,
-                )?),
-                _ => None,
-            };
-            let mut verdict = Some(true);
-            let heights = [Margin::of(height - h.0), Margin::of(h.1 - height)];
-            for margin in azimuth.into_iter().chain(heights) {
-                match decide("bool_wall_trim", margin, band).map_err(escalate)? {
-                    Sign::Positive => {}
-                    Sign::Negative => return Ok(Some(false)),
-                    Sign::Zero => verdict = None, // boundary graze
-                }
-            }
-            Ok(verdict)
-        }
-        WallOutline::Chart { pieces, junctions } => {
-            let azimuth = chart_azimuth_margin(face, axis, u_ref, az, radial, radius, band)?;
-            if decide("bool_wall_trim", azimuth, band).map_err(escalate)? == Sign::Negative {
-                return Ok(Some(false));
-            }
-            point_on_chart_wall(
-                face, origin, axis, radius, u_ref, pieces, junctions, p, radial, band,
-            )
-        }
-        &WallOutline::Unsupported { reach } => {
-            match wall_hit_outside_reach(face, origin, axis, radius, u_ref, az, reach, p, band)? {
-                Some(true) => Ok(Some(false)),
-                Some(false) | None => Err(PointInSolidError::WallOutlineUnsupported { face }),
-            }
-        }
-    }
-}
-
-/// [`WallOutline::Chart`]'s parity read of an on-wall point already
-/// inside (or in band of) the face's azimuth window — the procedure
-/// [`wall_outline`] argues, junctions first.
-#[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
-fn point_on_chart_wall<T: Decide>(
-    face: FaceKey,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    pieces: &[WallPiece<T>],
-    junctions: &[WallJunction<T>],
-    p: Point3<T>,
-    radial: Vec3<T>,
-    band: Band,
-) -> Result<Option<bool>, PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let r_hat = radial / radial.norm();
-    let height = (p - origin).dot(axis);
-    // The side of each piece's plane `p` is on, decided once.
-    let mut sides: Vec<Option<geom_core::Decided>> = vec![None; pieces.len()];
-    let mut side = |k: usize| -> Result<geom_core::Decided, PointInSolidError> {
-        if let Some(s) = sides[k] {
-            return Ok(s);
-        }
-        let s = crate::validate::decide_reported("bool_wall_trim", pieces[k].plane.above(p), band)
-            .map_err(escalate)?;
-        sides[k] = Some(s);
-        Ok(s)
-    };
-    // ACTIVE junctions: the hit's ruling within the band of the
-    // junction's. The cosine is asked first: where it is not definitely
-    // positive the rulings are a quarter turn or more apart (the
-    // window is narrower than a period, so the far half-turn is the
-    // only other zero of the sine) and the sine is near ±1.
-    let mut active = vec![false; junctions.len()];
-    for (j, junction) in junctions.iter().enumerate() {
-        let m_hat = chart_dir(axis, u_ref, junction.az);
-        match decide(
-            "bool_wall_junction",
-            Margin::levered(r_hat.dot(m_hat), radius),
-            band,
-        ) {
-            Ok(Sign::Positive) => {}
-            // The rulings are a quarter turn or more apart: not active.
-            Ok(Sign::Zero | Sign::Negative) => continue,
-            // An in-band COSINE is not an escalation here: it puts the
-            // rulings near a quarter turn apart, where the sine is near
-            // ±1, so the junction is definitely not active whatever the
-            // cosine's sign. The indeterminate is discarded on purpose.
-            Err(_near_a_quarter_turn) => continue,
-        }
-        let offset = Margin::levered(axis.dot(m_hat.cross(r_hat)), radius);
-        if decide("bool_wall_junction", offset, band).map_err(escalate)? != Sign::Zero {
-            continue;
-        }
-        active[j] = true;
-        if let Some((lo, hi)) = junction.span {
-            let below_top = decide("bool_wall_trim", Margin::of(hi - height), band);
-            let above_foot = decide("bool_wall_trim", Margin::of(height - lo), band);
-            if below_top.map_err(escalate)? == Sign::Positive
-                && above_foot.map_err(escalate)? == Sign::Positive
-            {
-                return Ok(None); // on the meridian run
-            }
-        }
-        let (a, b) = junction.pieces;
-        let (sa, sb) = (side(a)?, side(b)?);
-        if sa.sign == Sign::Zero || sb.sign == Sign::Zero {
-            return Ok(None); // on a piece at its end: the vertex
-        }
-        if sa.sign != sb.sign {
-            return Err(PointInSolidError::JunctionSidesDisagree {
-                face,
-                sides: (sa.margin, sb.margin),
-                band,
-            });
-        }
-    }
-    let mut below = 0usize;
-    for (k, piece) in pieces.iter().enumerate() {
-        // Read just past every active junction ([`wall_outline`]): a
-        // piece covers the hit when its `lo` end is active and its `hi`
-        // end is not.
-        let covers = match (active[piece.ends.0], active[piece.ends.1]) {
-            (_, true) => false,
-            (true, false) => true,
-            (false, false) => {
-                let m = chart_azimuth_margin(face, axis, u_ref, piece.az, radial, radius, band)?;
-                crate::validate::decide_nonzero("bool_wall_trim", m, band).map_err(|diag| {
-                    if diag.margin.rejected_sign() == Some(Sign::Zero) {
-                        PointInSolidError::NarrowWindowUnread { face, diag }
-                    } else {
-                        escalate(diag)
-                    }
-                })? == geom_core::k_stats::NonzeroSign::Positive
-            }
-        };
-        if covers {
-            match side(k)?.sign {
-                Sign::Negative => below += 1,
-                Sign::Positive => {}
-                Sign::Zero => return Ok(None), // on the piece: boundary graze
-            }
-        }
-    }
-    Ok(Some(below % 2 == 1))
-}
-
-/// Is the on-wall point `p` DEFINITELY off a face the walk cannot read
-/// ([`WallOutline::Unsupported`])? `Some(true)` is a certain miss;
-/// `Some(false)` says the face could hold `p`, on definite decisions
-/// alone; `None` that it could only within the band of one of the two
-/// regions below, which a tighter tolerance might place outside it.
-///
-/// Two regions can hold the face, and a point definitely outside
-/// either is outside it:
-///
-/// - the ball `reach`, when the face has one: a face with no ring lies
-///   in its outer loop's convex hull (every point of it is on a ruling
-///   segment whose ends are boundary points);
-/// - the azimuth window, the outer loop's exact azimuth hull, asked
-///   only when it is narrower than a period, since a wider one excludes
-///   nothing.
-#[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
-fn wall_hit_outside_reach<T: Decide>(
-    face: FaceKey,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    az: (T, T),
-    reach: Option<(Point3<T>, T)>,
-    p: Point3<T>,
-    band: Band,
-) -> Result<Option<bool>, PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let mut grazed = false;
-    if let Some((anchor, reach)) = reach {
-        match decide(
-            "bool_wall_outline_reach",
-            Margin::of((p - anchor).norm() - reach),
-            band,
-        )
-        .map_err(escalate)?
-        {
-            Sign::Positive => return Ok(Some(true)),
-            Sign::Zero => grazed = true,
-            Sign::Negative => {}
-        }
-    }
-    let width = az.1 - az.0;
-    match decide(
-        "bool_wall_trim_period",
-        Margin::levered(T::tau() - width, radius),
-        band,
-    )
-    .map_err(escalate)?
-    {
-        // A window as wide as a period excludes nothing.
-        Sign::Negative => return Ok((!grazed).then_some(false)),
-        Sign::Zero => return Ok(None),
-        Sign::Positive => {}
-    }
-    let w = p - origin;
-    let radial = w - axis * w.dot(axis);
-    let azimuth = chart_azimuth_margin(face, axis, u_ref, az, radial, radius, band)?;
-    Ok(
-        match decide("bool_wall_trim", azimuth, band).map_err(escalate)? {
-            Sign::Negative => Some(true),
-            Sign::Zero => None,
-            Sign::Positive => (!grazed).then_some(false),
-        },
-    )
-}
-
-/// A ray-lane hit `p` on the cylinder wall `face`: `Some(true/false)`
-/// definite, `None` a graze. Every class question is asked only here,
-/// for a hit on this wall's carrier, so a wall no ray reaches never has
-/// its class asked.
-///
-/// The full-turn route ([`full_turn_outline`]) comes first, since a face
-/// that wraps the azimuth has no window for a hit to land in. Its
-/// structural half decides nothing, so a windowed face — bounded by a
-/// meridian or a section mated to a neighbour — leaves it without a
-/// margin; only a face whose unmated boundary is all circles has their
-/// rim margins asked. The windowed face's outline class is then resolved
-/// only after the hit has landed in (or in band of) its azimuth window,
-/// so an in-band class margin on it never escalates a query it plays no
-/// part in.
-#[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
-fn wall_hit<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    az: (T, T),
-    h: (T, T),
-    p: Point3<T>,
-    band: Band,
-    along_ray: bool,
-) -> Result<Option<bool>, PointInSolidError> {
-    let outline = match full_turn_outline(body, face, origin, axis, radius, h, band)? {
-        Some(outline) => outline,
-        None => {
-            let w = p - origin;
-            let radial = w - axis * w.dot(axis);
-            let azimuth = chart_azimuth_margin(face, axis, u_ref, az, radial, radius, band)?;
-            if decide("bool_wall_trim", azimuth, band)
-                .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-                == Sign::Negative
-            {
-                return Ok(Some(false));
-            }
-            wall_outline(body, face, origin, axis, radius, az, h, band)?
-        }
-    };
-    // A ray's hit that only the band puts in reach of a face the walk
-    // cannot read is placed on its boundary: the count grazes on it where
-    // it reaches it and passes it where it does not. A point
-    // the pre-pass reads is refused as before.
-    if along_ray && let &WallOutline::Unsupported { reach } = &outline {
-        return match wall_hit_outside_reach(face, origin, axis, radius, u_ref, az, reach, p, band)?
-        {
-            Some(true) => Ok(Some(false)),
-            Some(false) => Err(PointInSolidError::WallOutlineUnsupported { face }),
-            None => Ok(None),
-        };
-    }
-    point_on_wall_in_face(face, origin, axis, radius, u_ref, az, &outline, p, band)
-}
-
-/// Is an azimuth window of `width` definitely narrower than a period?
-/// THE period guard of the cosine-window construction, in one home:
-/// [`chart_azimuth_margin`] escalates when it is not, and a caller that
-/// can use "a window this wide excludes nothing" asks it directly.
-/// `lever` meters the angle as a length (D4's θ·r form).
-///
-/// # Errors
-///
-/// [`PointInSolidError::Escalated`] — an in-band guard.
-fn narrower_than_period<T: Decide>(
-    face: FaceKey,
-    width: T,
-    lever: T,
-    band: Band,
-) -> Result<bool, PointInSolidError> {
-    Ok(decide(
-        "bool_wall_trim_period",
-        Margin::levered(T::tau() - width, lever),
-        band,
-    )
-    .map_err(|diag| PointInSolidError::Escalated { face, diag })?
-        == Sign::Positive)
-}
-
 /// The unit radial direction of the chart ruling at azimuth `u`:
 /// `u_ref·cos u + (â × u_ref)·sin u`. The one spelling of the chart's
 /// azimuth frame, shared by the window construction and the junction
@@ -2776,179 +1176,23 @@ pub(super) fn chart_dir<T: Decide>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> Vec3<
     u_ref * c + axis.cross(u_ref) * s
 }
 
-/// The azimuth-window membership margin for an ON-CHART point whose
-/// radial component off the axis is `radial`, levered by `lever` — the
-/// **branch-cut-free cosine construction** [`point_on_wall_in_face`]
-/// documents, in one body so the ray lane's two windowed arms cannot
-/// drift apart. Positive is strictly inside the window, Zero on its
-/// edge, Negative outside; the caller decides it with its own predicate
-/// name alongside the rest of its trim.
-///
-/// `lever` is the length that converts the angular displacement to the
-/// point deviation it implies (D4's θ·r form): the wall's radius for a
-/// cylinder, the LOCAL radius at the hit for a cone, whose radius grows
-/// with the slant. Both are the distance the window's edge moves per
-/// radian at the point being tested, which is what the margin has to
-/// mean.
-///
-/// A decided membership, not [`geom::periodic_window_may_hold`]'s
-/// question; why is stated once, at
-/// [`crate::splitting::containment::arc_trim`].
-///
-/// # Errors
-///
-/// [`PointInSolidError::Escalated`] — an in-band period guard, or a
-/// window a period wide or wider, which cannot trim by angle at all.
-fn chart_azimuth_margin<T: Decide>(
-    face: FaceKey,
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    az: (T, T),
-    radial: Vec3<T>,
-    lever: T,
+/// Whether a face's azimuth window `raw` on a sphere of `radius` is
+/// definitely short of one turn (`bool_sphere_trim_period`, the turn
+/// rule at the radius).
+pub(crate) fn trim_window_short<T: Decide>(
+    raw: (T, T),
+    radius: T,
     band: Band,
-) -> Result<Margin<T>, PointInSolidError> {
-    let (w_min, w_max) = az;
-    let width = w_max - w_min;
-    // The cosine equivalence needs width < τ, decided loudly (a
-    // full-period window cannot trim by angle at all).
-    if !narrower_than_period(face, width, lever, band)? {
-        return Err(PointInSolidError::Escalated {
-            face,
-            diag: geom_core::Indeterminate {
-                margin: geom_core::MarginDiag::INVALID,
-                band,
-                predicate: Some("bool_wall_trim_period"),
-                terminal_sliver: false,
-            },
-        });
-    }
-    let r_hat = radial / radial.norm();
-    let half = T::from_f64(0.5);
-    let m_hat = chart_dir(axis, u_ref, geom::mid_param(w_min, w_max));
-    let (_, c_h) = (width * half).sin_cos();
-    // Ledger row F8: the cone term's (cosΔ − cos h)·r collapses
-    // quadratically for narrow windows — conservative direction, the
-    // row's deferred fix; the margin is a length (levered) today.
-    Ok(Margin::levered(r_hat.dot(m_hat) - c_h, lever))
-}
-
-/// Is the ON-CONE point `p` within the cone wall face's chart trim?
-/// `Some(true/false)` definite, `None` a graze the ray schedule
-/// retries. [`point_on_wall_in_face`]'s contract, on the cone chart.
-///
-/// # The apex, decided here
-///
-/// **The apex never yields a crossing.** The cone has no tangent plane
-/// there — the singularity is the SURFACE's, not merely the chart's (a
-/// sphere's poles are the other case) — so no outward normal exists and
-/// the count has no material side to consume; a definite
-/// answer would have to fabricate the tangent plane the geometry does
-/// not have. `bool_ray_cone_apex` therefore answers a hit at the apex
-/// with `None`: the ray abandons and the schedule retries, exactly as a
-/// tangency does. Deciding it before the azimuth arm is what keeps that
-/// arm honest, since the radial component vanishes at the apex and its
-/// normalization would be poison.
-///
-/// It is decided AFTER the slant window, not before, because the apex
-/// of a face the window excludes is not this face's apex to graze on —
-/// see the note at the site.
-///
-/// # The refusal is a SHELL, not a point — and it is √ε-wide
-///
-/// A caller reading "the apex grazes" will assume a measure-zero
-/// nuisance. It is not. The ray×cone discriminant decays QUADRATICALLY
-/// as a query approaches the apex — the two roots merge there — so the
-/// radius within which `point_in_solid` declines to answer goes like
-/// `√(K·ε·v_ext)`, not like `ε`. On a unit cone at the default ε that
-/// is **≈2.4e-4 metres**, some four orders wider than the linear
-/// band the other arms escalate in, and it widens as `√ε` (≈7.4e-6 at
-/// ε = 1e-12, ≈7.2e-3 at ε = 1e-6) and as `√K`.
-///
-/// So: near a cone tip this door refuses over a small BALL, and a
-/// caller that needs an answer there must pose the query further out
-/// or accept the typed refusal. The numbers are measured and guarded,
-/// not asserted — `bool2_cone_doors::the_clamp_floor_clears_the_apex_
-/// escalation_shell` re-measures the shell on every run.
-///
-/// Away from the apex the two nappes are told apart by
-/// `bool_ray_cone_nappe`, the issue's `(p − apex)·axis` sign taken
-/// against the face's own nappe: Negative is the MIRROR nappe, which is
-/// not this face at all; Zero is the apex plane, which for a point on
-/// the cone means the apex again, and grazes. The slant window then
-/// excludes the mirror nappe a second time and independently — its
-/// bounds are signed — which is deliberate: the nappe posture does not
-/// rest on the trim being tight.
-#[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
-pub(super) fn point_on_cone_in_face<T: Decide>(
-    face: FaceKey,
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    half_angle: T,
-    u_ref: Vec3<T>,
-    az: Option<(T, T)>,
-    v_win: (T, T),
-    nappe: bool,
-    p: Point3<T>,
-    band: Band,
-) -> Result<Option<bool>, PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let w = p - apex;
-    let h = w.dot(axis);
-    let v = h / half_angle.cos();
-    // **The slant window is asked FIRST, and that order is
-    // load-bearing.** It is the one test that still means something AT
-    // the apex, where the azimuth is undefined; and a face whose window
-    // is clear of the apex — every frustum — must answer a query at its
-    // VIRTUAL apex `Some(false)`, not the graze below. Grazing there
-    // would hand the pre-pass a point of free space, arbitrarily far
-    // outside the solid, as a point ON its boundary.
-    let mut verdict = Some(true);
-    for margin in [Margin::of(v - v_win.0), Margin::of(v_win.1 - v)] {
-        match decide("bool_cone_trim", margin, band).map_err(escalate)? {
-            Sign::Positive => {}
-            Sign::Negative => return Ok(Some(false)),
-            Sign::Zero => verdict = None, // boundary graze
-        }
-    }
-    if decide("bool_ray_cone_apex", Margin::norm3(w), band).map_err(escalate)? == Sign::Zero {
-        // The apex of a face whose window REACHES it (an apex-closed
-        // cone face): no tangent plane, so no material side to read —
-        // the ray abandons and the schedule retries. The boundary
-        // pre-pass reads the same `None` as ON the boundary, which the
-        // apex of such a face is: it is the tip of the solid.
-        return Ok(None);
-    }
-    let nappe_h = if nappe { h } else { T::zero() - h };
-    match decide("bool_ray_cone_nappe", Margin::of(nappe_h), band).map_err(escalate)? {
-        Sign::Positive => {}
-        Sign::Negative => return Ok(Some(false)), // the mirror nappe
-        Sign::Zero => return Ok(None),
-    }
-    // A WRAPPED group has no azimuth boundary to test: every azimuth of
-    // the slant window is the group's, and the arms act for one member.
-    let Some(az) = az else { return Ok(verdict) };
-    let radial = w - axis * h;
-    // The window is stated in CHART azimuth, and on the `v < 0` nappe
-    // the chart's radial is the negation of the physical one (`S` puts
-    // that nappe at azimuth `u + π`). The direction compared against
-    // the window must therefore be the chart's, or the test reads the
-    // window a half-period away from the face it belongs to.
-    let chart_radial = if nappe {
-        radial
-    } else {
-        radial * (T::zero() - T::one())
-    };
-    // The local radius IS the lever here: a cone's azimuth window edge
-    // moves `ρ` per radian at the point being tested, and `ρ` runs from
-    // zero at the apex to the face's widest rim.
-    let azimuth = chart_azimuth_margin(face, axis, u_ref, az, chart_radial, radial.norm(), band)?;
-    match decide("bool_cone_trim", azimuth, band).map_err(escalate)? {
-        Sign::Positive => {}
-        Sign::Negative => return Ok(Some(false)),
-        Sign::Zero => verdict = None, // boundary graze
-    }
-    Ok(verdict)
+) -> Result<bool, Indeterminate> {
+    let rows = TurnRows::exact("bool_sphere_trim_period");
+    Period::new(T::tau())
+        .strictly_partial(
+            rows,
+            Extent::between(raw.0, raw.1),
+            Exact::new(radius),
+            band,
+        )
+        .map_err(|undecided| undecided.diag)
 }
 
 /// **A sphere face's exact chart rectangle**, for the face class the
@@ -3050,8 +1294,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         return Ok(None);
     };
     // A definite class miss is `None` (the honest remainder); an
-    // in-band one escalates — the two-tolerance pair, as
-    // `wall_outline` runs it for the cylinder.
+    // in-band one escalates — the two-tolerance pair.
     let zero = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
         match decide(name, m, band).map_err(escalate)? {
             Sign::Zero => Ok(true),
@@ -3106,8 +1349,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
         // and is levered by the radius; a length difference is already
-        // metres. The same dimension convention `wall_outline`
-        // states for the cylinder.
+        // metres.
         if zero(
             "bool_sphere_iso_meridian",
             Margin::levered(n_c.dot(axis), r_c),
@@ -3125,17 +1367,15 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             // `r̂ = ±â` — no vertex lookup and no `atan2`.
             let half = T::from_f64(0.5);
             let width = t1 - t0;
-            match decide(
-                "bool_sphere_trim_meridian_span",
-                Margin::levered(T::tau() - width, radius),
-                band,
-            )
-            .map_err(escalate)?
-            {
-                Sign::Positive => {}
+            // The edge's own turn, as its certificate decided it.
+            let Some(turn) = curve.certificate().turn else {
+                unreachable!("check 2 mints a turn for every circle")
+            };
+            match turn.turn() {
+                Within::Short => {}
                 // A full-period meridian edge runs through BOTH poles
                 // and has no angular gate to test: out of the class.
-                Sign::Zero | Sign::Negative => return Ok(None),
+                Within::Whole => return Ok(None),
             }
             let m_hat = chart_dir(n_c, u_c, geom::mid_param(t0, t1));
             let (_, c_h) = (width * half).sin_cos();
@@ -3209,9 +1449,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
     };
     // A face that ALONE wraps the azimuth ([`wrap_rims`], asked first)
     // attains every azimuth of its latitude range, so its azimuth window
-    // is the whole turn (`None`) — the cylinder's full-turn band
-    // ([`full_turn_outline`]) is the same reading on the same structural
-    // test. Any other face trims by its window, which must then be
+    // is the whole turn (`None`). Any other face trims by its window, which must then be
     // definitely narrower than a period: a window that reads a whole
     // turn on a face that does not wrap alone has a gap the window
     // cannot see (a zone merged with half a cap), and one wider than a
@@ -3250,16 +1488,12 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             }
             (None, bounding)
         }
-        None => match decide(
-            "bool_sphere_trim_period",
-            Margin::levered(T::tau() - (raw.1 - raw.0), radius),
-            band,
-        )
-        .map_err(escalate)?
-        {
-            Sign::Positive => (Some(raw), levels),
-            Sign::Zero | Sign::Negative => return Ok(None),
-        },
+        None => {
+            if !trim_window_short(raw, radius, band).map_err(escalate)? {
+                return Ok(None);
+            }
+            (Some(raw), levels)
+        }
     };
     // Only a face that wraps alone can leave no level: one with no rim
     // and no vertex on a pole has no unmated boundary at all, so it is
@@ -3729,7 +1963,7 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
     let mut geos: FaceGeos<T> = Vec::with_capacity(faces.len());
     for &face in faces {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
-        geos.push((face, face_geo(body, face, &sel.charts, band)?));
+        geos.push((face, face_geo(body, face, &sel.charts)?));
         let geo = &geos[geos.len() - 1].1;
         match *geo {
             FaceGeo::Plane(origin, normal) => {
@@ -3758,79 +1992,55 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                     },
                 }
             }
+            // The wall arms: the linearized residual (metres) — the same
+            // form the certification layer classifies — then, on the
+            // carrier, the face's own region says whether `q` is on THIS
+            // face, as on the trimmed sphere.
             FaceGeo::Cylinder {
                 origin,
                 axis,
                 radius,
-                u_ref,
-                az,
-                h,
-                sense: _, // residual-vs-Zero and chart trim: orientation-free
+                ref region,
+                ..
             } => {
-                let w = q - origin;
-                let radial = w - axis * w.dot(axis);
-                // The linearized residual (metres) — the same form the
-                // certification layer classifies.
-                let elev = (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                if decide(
+                    "bool_point_in_solid_plane",
+                    Margin::of(wall_elevation(origin, axis, radius, q)),
+                    band,
+                )
+                .map_err(escalate)?
                     == Sign::Zero
                 {
-                    match wall_hit(
-                        body, face, origin, axis, radius, u_ref, az, h, q, band, false,
-                    )? {
+                    match region.contains(q, band).map_err(|e| e.of_face(face))? {
                         Some(true) | None => return Ok(SolidContainment::OnBoundary),
                         Some(false) => {}
                     }
                 }
             }
-            // The cone wall arm: the residual is the point's EXACT
-            // perpendicular distance to the face's own nappe — the
-            // generator line through the same azimuth sits at
-            // `ρ cos α = σ·h sin α`, so `ρ cos α − σ·h sin α` is a
-            // signed length outright (positive OUTSIDE the nappe) and
-            // needs no linearization, unlike the cylinder and sphere
-            // residuals above. `σ` is the face's nappe, which is what
-            // keeps a point on the MIRROR nappe from reading as
-            // on-boundary: there the same expression is `2ρ cos α`
-            // away from zero.
+            // The cone arm: the residual is the point's EXACT distance to
+            // the double cone ([`geom_brep::cone_elevation`]), a signed
+            // length outright that needs no linearization, unlike the
+            // cylinder and sphere residuals. A point on the mirror nappe
+            // is on the carrier, and the region puts it off the face.
             FaceGeo::Cone {
                 apex,
                 axis,
                 half_angle,
-                u_ref,
-                az,
-                representative,
-                v,
-                nappe,
-                sense: _, // residual-vs-Zero and chart trim: orientation-free
+                ref region,
+                ..
             } => {
-                if face != representative {
-                    continue;
-                }
-                let elev = geom_brep::cone_elevation(
-                    apex,
-                    axis,
-                    half_angle,
-                    Some(if nappe {
-                        geom_brep::Nappe::Opening
-                    } else {
-                        geom_brep::Nappe::Mirror
-                    }),
-                    q,
-                );
+                let elev = geom_brep::cone_elevation(apex, axis, half_angle, None, q);
                 if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
-                    match point_on_cone_in_face(
-                        face, apex, axis, half_angle, u_ref, az, v, nappe, q, band,
-                    )? {
+                    match region.contains(q, band).map_err(|e| e.of_face(face))? {
                         Some(true) | None => return Ok(SolidContainment::OnBoundary),
                         Some(false) => {}
                     }
                 }
             }
-            // On the double cone, `q` may be on the face or off it, and
-            // which is the trim this face has none of.
+            // On the carrier, `q` may be on the face or off it, and which
+            // is the region this face has none of.
             FaceGeo::PartialCone {
                 apex,
                 axis,
@@ -3849,6 +2059,31 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
                         != Sign::Positive
                 {
                     return Err(PointInSolidError::PartialConeFace { face });
+                }
+            }
+            FaceGeo::PartialWall {
+                origin,
+                axis,
+                radius,
+                anchor,
+                reach,
+            } => {
+                if decide(
+                    "bool_point_in_solid_plane",
+                    Margin::of(wall_elevation(origin, axis, radius, q)),
+                    band,
+                )
+                .map_err(escalate)?
+                    == Sign::Zero
+                    && decide(
+                        "bool_wall_outline_reach",
+                        Margin::of((q - anchor).norm() - reach),
+                        band,
+                    )
+                    .map_err(escalate)?
+                        != Sign::Positive
+                {
+                    return Err(PointInSolidError::WallOutlineUnsupported { face });
                 }
             }
             // The full-sphere arm (M5 PR 9c): the linearized radial
@@ -3960,6 +2195,28 @@ fn point_in_faces<T: Decide + crate::props::AtRestPolicy>(
         },
         || PointInSolidError::RayExhausted,
     )
+}
+
+/// A ray's hit as a face's region reads it: `Some` its side, `None` on
+/// the face's boundary or where the region's paths could not place it,
+/// so the fold grazes on it only where it is closest.
+///
+/// # Errors
+///
+/// An in-band reading sets the ray aside; an edge whose reading ran out
+/// at this hit blocks it (another ray may miss it); an arc wound past a
+/// turn refuses the query.
+fn region_hit(
+    face: FaceKey,
+    reading: Result<Option<bool>, RegionRefusal>,
+) -> Result<Option<bool>, RayFault<PointInSolidError>> {
+    match reading {
+        Ok(side) => Ok(side),
+        Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
+        Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
+        Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
+        Err(e @ RegionRefusal::Unreadable(_)) => Err(RayFault::Blocked(e.of_face(face))),
+    }
 }
 
 /// A refusal from a trim test at a ray's hit point, as a reading of
@@ -4440,6 +2697,7 @@ pub(crate) struct RayRows {
     pub(crate) edge: &'static str,
     pub(crate) edge_span: &'static str,
     pub(crate) winding: &'static str,
+    pub(crate) represents: &'static str,
 }
 
 /// A schedule ray's rows (module docs).
@@ -4453,6 +2711,7 @@ const SCHEDULE_ROWS: RayRows = RayRows {
     edge: "bool_point_in_solid_edge",
     edge_span: "bool_point_in_solid_edge_span",
     winding: "bool_point_in_solid_winding",
+    represents: "bool_point_in_solid_met_edge_represents",
 };
 
 /// One ray of the sweep: the side its running count reads
@@ -4649,16 +2908,88 @@ struct PlaneCross<T: geom_core::Real> {
     outward: Sign,
 }
 
-/// **The line edges a ray meets**: each line edge between two planar
-/// faces whose planes it crosses ([`census::line_passes`], the
-/// census's closest read of two lines) is decided once, for both faces.
-/// `met` holds each edge it passes within the band of, with its advance;
-/// `read` every edge decided, met or not; `marks` where along the ray it
-/// meets what it reads nothing at ([`RayHit::mark`]).
+/// **The edges a ray meets**, each decided once, for both faces it
+/// bounds: a line edge between two crossed planes by the census's closest
+/// read of two lines ([`edge_meets`]), any other by where the ray passes
+/// it ([`curved_edges`]). `met` holds each edge it passes within the band
+/// of; `lines` and `read` the edges decided, met or not; `marks` where
+/// along the ray it meets what it reads nothing at ([`RayHit::mark`]).
 struct EdgeMeets<T> {
-    met: Vec<(crate::entity::EdgeKey, FaceKey, FaceKey, T)>,
+    met: Vec<Met<T>>,
+    /// The line edges between two planar faces decided, met or not.
+    lines: std::collections::BTreeSet<crate::entity::EdgeKey>,
+    /// Every edge decided, met or not: `lines` and the curved reading's
+    /// ([`curved_edges`]).
     read: std::collections::BTreeSet<crate::entity::EdgeKey>,
     marks: Vec<RayHit<T>>,
+    /// The vertices read so far, each once.
+    vertices: Vec<crate::entity::VertexKey>,
+}
+
+/// How far the ray passes a met edge, as a wedge's mark reads it.
+#[derive(Clone, Copy)]
+enum Gap {
+    /// Decided Zero.
+    Zero,
+    /// In the band's gap.
+    InBand(Indeterminate),
+}
+
+impl Gap {
+    /// The mark two met edges of one face read: a wedge where either gap
+    /// is in band, else a graze.
+    const fn mark(self, other: Self) -> Mark {
+        match (self, other) {
+            (Self::InBand(gap), _) | (Self::Zero, Self::InBand(gap)) => Mark::Wedge(gap),
+            (Self::Zero, Self::Zero) => Mark::Graze,
+        }
+    }
+}
+
+/// **An edge the ray meets**, half a crossing for each of its faces: the
+/// edge, its faces, the advance where the ray passes it, the span its
+/// passage lies in along the ray, which carrier crossing of each face it
+/// stands for, and how far the ray passes it.
+#[derive(Clone, Copy)]
+struct Met<T> {
+    edge: crate::entity::EdgeKey,
+    faces: [FaceKey; 2],
+    at: T,
+    span: (T, T),
+    cross: [Cross; 2],
+    gap: Gap,
+}
+
+/// Which carrier crossing of a face a met edge stands for: a planar
+/// face's one plane crossing, or one root of a curved face's carrier
+/// (an index into the ray's [`RootCross`]es).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Cross {
+    Plane,
+    Root(usize),
+}
+
+/// **A root of a curved face's carrier** on the ray: the face, its
+/// advance, and how its outward sign is read there ([`RootSide`]).
+#[derive(Clone, Copy)]
+struct RootCross<T> {
+    face: FaceKey,
+    t: T,
+    side: RootSide,
+    /// Its place among its face's roots: two faces on one carrier read
+    /// the same roots in the same order.
+    ordinal: usize,
+}
+
+/// How a root's outward sign is read: off the decided root order (a
+/// wall's near root enters its chart, the far one leaves it; a sphere's
+/// likewise), folded with the face's sense; or at the root, where it
+/// counts (a cone's nappe and incidence, a torus's incidence).
+#[derive(Clone, Copy)]
+enum RootSide {
+    Ordered(Sign),
+    Cone,
+    Torus,
 }
 
 /// The edges and vertices the ray `q + s·d` passes ([`EdgeMeets`]).
@@ -4700,54 +3031,32 @@ fn edge_meets<T: Decide>(
     let passes = crate::census::line_passes(body, (q, far), |_, a, b| crossed(a) && crossed(b));
     let mut meets = EdgeMeets {
         met: Vec::new(),
+        lines: std::collections::BTreeSet::new(),
         read: std::collections::BTreeSet::new(),
         marks: Vec::new(),
+        vertices: Vec::new(),
     };
-    let mut vertices: Vec<crate::entity::VertexKey> = Vec::new();
     for pass in &passes {
         for v in pass.ends {
-            if vertices.contains(&v) {
-                continue;
-            }
-            vertices.push(v);
-            let at = body
-                .get_vertex(v)
-                .and_then(|vx| body.get_point(vx.point))
-                .copied()
-                .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
-                    face: pass.faces.0,
-                }))?;
-            let gap = crate::sector_shape::point_segment_distance(q, far, at);
-            // The distance is a short chain (differences, a projection, a
-            // norm), each rounding under half an ulp of the lengths it is
-            // read from: the kernel's one charge for such a chain.
-            let low = gap - geom_core::rounding_charge((at - q).norm() + gap);
-            let faces = [pass.faces.0, pass.faces.1];
-            let along = (at - q).dot(d);
-            match geom_core::k_stats::decide_magnitude(
-                rows.vertex,
-                Margin::of(low.max(T::zero())),
+            meets.vertex(
+                body,
+                v,
+                [pass.faces.0, pass.faces.1],
+                (q, far),
+                d,
                 band,
-            ) {
-                Ok(geom_core::k_stats::Magnitude::Positive) => {}
-                Ok(geom_core::k_stats::Magnitude::Zero) => {
-                    meets.marks.push(RayHit::marked(faces, along, Mark::Graze));
-                }
-                Err(gap) => meets
-                    .marks
-                    .push(RayHit::marked(faces, along, Mark::Corner(gap))),
-            }
+                rows,
+            )?;
         }
     }
-    // The gap of each edge met in band, for a wedge's reading.
-    let mut gaps: Vec<Option<Indeterminate>> = Vec::new();
     for pass in passes {
+        meets.lines.insert(pass.edge);
         meets.read.insert(pass.edge);
         let gap =
             match geom_core::k_stats::decide_magnitude(rows.edge, Margin::of(pass.gap[0]), band) {
                 Ok(geom_core::k_stats::Magnitude::Positive) => continue,
-                Ok(geom_core::k_stats::Magnitude::Zero) => None,
-                Err(gap) => Some(gap),
+                Ok(geom_core::k_stats::Magnitude::Zero) => Gap::Zero,
+                Err(gap) => Gap::InBand(gap),
             };
         let faces = [pass.faces.0, pass.faces.1];
         let [lo, hi] = pass.along;
@@ -4776,20 +3085,85 @@ fn edge_meets<T: Decide>(
         if !inside {
             continue;
         }
-        let wedge = meets
-            .met
-            .iter()
-            .position(|w| [w.1, w.2].iter().any(|f| faces.contains(f)));
-        if let Some(k) = wedge {
-            let mark = gap.or(gaps[k]).map_or(Mark::Graze, Mark::Wedge);
-            meets.marks.push(RayHit::marked(faces, at, mark));
-            let (_, a, b, other) = meets.met[k];
-            meets.marks.push(RayHit::marked([a, b], other, mark));
-        }
-        meets.met.push((pass.edge, faces[0], faces[1], at));
-        gaps.push(gap);
+        meets.meet(Met {
+            edge: pass.edge,
+            faces,
+            at,
+            span: (at, at),
+            cross: [Cross::Plane; 2],
+            gap,
+        });
     }
     Ok(meets)
+}
+
+impl<T: Decide> EdgeMeets<T> {
+    /// **Reads vertex `v`** of an edge between `faces` against the ray
+    /// segment `ray` along `d`, once per vertex: within the band of the
+    /// ray it is a corner, on it a graze, marked where the ray comes
+    /// closest to it. Its distance from the ray is enclosed by its
+    /// rounding charge ([`geom_core::rounding_charge`] over the lengths
+    /// it is read from), and the enclosure's lower end is decided, as an
+    /// edge's gap is.
+    #[allow(clippy::too_many_arguments)] // the vertex, its faces, the ray and the rows
+    fn vertex(
+        &mut self,
+        body: &Body<T>,
+        v: crate::entity::VertexKey,
+        faces: [FaceKey; 2],
+        (q, far): (Point3<T>, Point3<T>),
+        d: Vec3<T>,
+        band: Band,
+        rows: RayRows,
+    ) -> Result<(), RayFault<PointInSolidError>> {
+        if self.vertices.contains(&v) {
+            return Ok(());
+        }
+        self.vertices.push(v);
+        let at = body
+            .get_vertex(v)
+            .and_then(|vx| body.get_point(vx.point))
+            .copied()
+            .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace {
+                face: faces[0],
+            }))?;
+        let gap = crate::sector_shape::point_segment_distance(q, far, at);
+        // The distance is a short chain (differences, a projection, a
+        // norm), each rounding under half an ulp of the lengths it is
+        // read from: the kernel's one charge for such a chain.
+        let low = gap - geom_core::rounding_charge((at - q).norm() + gap);
+        let along = (at - q).dot(d);
+        match geom_core::k_stats::decide_magnitude(
+            rows.vertex,
+            Margin::of(low.max(T::zero())),
+            band,
+        ) {
+            Ok(geom_core::k_stats::Magnitude::Positive) => {}
+            Ok(geom_core::k_stats::Magnitude::Zero) => {
+                self.marks.push(RayHit::marked(faces, along, Mark::Graze));
+            }
+            Err(gap) => self
+                .marks
+                .push(RayHit::marked(faces, along, Mark::Corner(gap))),
+        }
+        Ok(())
+    }
+
+    /// **Records `met`**. A face it shares with an edge already met is a
+    /// wedge: both are marked ([`Gap::mark`]).
+    fn meet(&mut self, met: Met<T>) {
+        if let Some(other) = self
+            .met
+            .iter()
+            .find(|w| w.faces.iter().any(|f| met.faces.contains(f)))
+            .copied()
+        {
+            let mark = met.gap.mark(other.gap);
+            self.marks.push(RayHit::marked(met.faces, met.at, mark));
+            self.marks.push(RayHit::marked(other.faces, other.at, mark));
+        }
+        self.met.push(met);
+    }
 }
 
 /// **Whether a ray crosses planar `face` at `p`**, off the turn of its
@@ -4810,30 +3184,17 @@ fn crosses_by_turn<T: Decide>(
     band: Band,
     rows: RayRows,
 ) -> Result<bool, RayFault<PointInSolidError>> {
-    let f = body
-        .get_face(face)
-        .ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
+    let corrupt = || RayFault::Fatal(PointInSolidError::CorruptFace { face });
+    let at = |v| {
+        body.get_vertex(v)
+            .and_then(|vx| body.get_point(vx.point))
+            .copied()
+            .ok_or_else(corrupt)
+    };
     let mut turn = T::zero();
-    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-        let first = match body.get_loop(l).map(|lp| lp.boundary) {
-            Some(LoopBoundary::Cycle { first }) => first,
-            // A lone ring vertex bounds no area and turns nothing.
-            Some(LoopBoundary::Empty { .. }) => continue,
-            None => return Err(RayFault::Fatal(PointInSolidError::CorruptFace { face })),
-        };
-        for h in body.loop_walk(first).closed("loop", first) {
-            let ends = body.get_half_edge(h).and_then(|he| {
-                let at = |v| {
-                    body.get_vertex(v)
-                        .and_then(|vx| body.get_point(vx.point))
-                        .copied()
-                };
-                Some((at(he.start)?, at(body.half_edge_end(h)?)?))
-            });
-            let (a, b) = ends.ok_or(RayFault::Fatal(PointInSolidError::CorruptFace { face }))?;
-            let (u, w) = (a - p, b - p);
-            turn = turn + normal.dot(u.cross(w)).atan2(u.dot(w));
-        }
+    for e in face_edges(body, face).map_err(RayFault::Fatal)? {
+        let (u, w) = (at(e.ends[0])? - p, at(e.ends[1])? - p);
+        turn = turn + normal.dot(u.cross(w)).atan2(u.dot(w));
     }
     Ok(geom_core::k_stats::check_unlogged(
         rows.winding,
@@ -4845,46 +3206,440 @@ fn crosses_by_turn<T: Decide>(
         == Sign::Positive)
 }
 
-/// Whether every edge of `face` is one [`edge_meets`] decided.
+/// **An edge of a face's loops**, as one of its half-edges walks it: the
+/// half-edge, the edge, its two ends in the half-edge's direction, and the
+/// face across it (the face itself across a seam inside it).
+#[derive(Clone, Copy)]
+pub(crate) struct FaceEdge {
+    // Read by the probes' frames, which orient the edge by it.
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
+    pub(crate) half: crate::entity::HalfEdgeKey,
+    pub(crate) edge: crate::entity::EdgeKey,
+    pub(crate) ends: [crate::entity::VertexKey; 2],
+    pub(crate) across: FaceKey,
+}
+
+/// Every edge of `face`'s loops, rings included ([`FaceEdge`]). A loop
+/// with no edge (a lone ring vertex) bounds no area and has none.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] where a loop, a half-edge, its mate
+/// or the mate's face does not resolve.
+pub(crate) fn face_edges<T: geom_core::Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Result<Vec<FaceEdge>, PointInSolidError> {
+    let corrupt = PointInSolidError::CorruptFace { face };
+    let f = body.get_face(face).ok_or(corrupt.clone())?;
+    let mut out = Vec::new();
+    for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+        let first = match body.get_loop(l).map(|lp| lp.boundary) {
+            Some(LoopBoundary::Cycle { first }) => first,
+            Some(LoopBoundary::Empty { .. }) => continue,
+            None => return Err(corrupt),
+        };
+        for half in body.loop_walk(first).closed("loop", first) {
+            let he = body.get_half_edge(half).ok_or(corrupt.clone())?;
+            let across = body
+                .edges
+                .get(he.edge)
+                .and_then(|e| e.claim(half))
+                .and_then(|c| body.get_half_edge(c.mate))
+                .and_then(|m| body.get_loop(m.parent_loop))
+                .ok_or(corrupt.clone())?
+                .face;
+            let end = body.half_edge_end(half).ok_or(corrupt.clone())?;
+            out.push(FaceEdge {
+                half,
+                edge: he.edge,
+                ends: [he.start, end],
+                across,
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// Whether every edge of `face` is one of `read`.
 fn every_edge_read<T: geom_core::Real>(
     body: &Body<T>,
     face: FaceKey,
     read: &std::collections::BTreeSet<crate::entity::EdgeKey>,
 ) -> bool {
-    body.get_face(face).is_some_and(|f| {
-        core::iter::once(f.outer)
-            .chain(f.rings.iter().copied())
-            .all(|l| match body.get_loop(l).map(|lp| lp.boundary) {
-                Some(LoopBoundary::Cycle { first }) => body
-                    .loop_walk(first)
-                    .closed("loop", first)
-                    .into_iter()
-                    .all(|h| {
-                        body.get_half_edge(h)
-                            .is_some_and(|he| read.contains(&he.edge))
-                    }),
-                Some(LoopBoundary::Empty { .. }) => true,
-                None => false,
-            })
-    })
+    face_edges(body, face).is_ok_and(|edges| edges.iter().all(|e| read.contains(&e.edge)))
+}
+
+/// The roots of a ray's trimmed curved carriers, and the faces whose
+/// carriers it definitely misses ([`carrier_roots`]).
+type CarrierRoots<T> = (Vec<RootCross<T>>, Vec<FaceKey>);
+
+/// The higher-ranked of a kept fault and `fault`, raised at `face`
+/// ([`RayFault::rank`]); of two of one rank, the lesser face's, so the
+/// ray's fault does not turn on the order its faces are read in.
+fn worse<E>(
+    kept: Option<(FaceKey, RayFault<E>)>,
+    face: FaceKey,
+    fault: RayFault<E>,
+) -> Option<(FaceKey, RayFault<E>)> {
+    match kept {
+        Some((at, k))
+            if (k.rank(), core::cmp::Reverse(at)) >= (fault.rank(), core::cmp::Reverse(face)) =>
+        {
+            Some((at, k))
+        }
+        _ => Some((face, fault)),
+    }
+}
+
+/// **The roots of each trimmed curved face's carrier** on the ray `q +
+/// s·d` (a wall's, a cone's, a sphere patch's, a torus patch's), before
+/// any region reads them, and the faces whose carriers the ray
+/// definitely misses. The edge reading ([`curved_edges`]) stands an edge
+/// for one root of each curved face it bounds; [`ray_crossings`] tests
+/// the rest against their faces' regions.
+///
+/// The wall arm (M5 PR 9): the ray meets the infinite wall at the roots
+/// of a quadratic in metres; a tangent ray (discriminant in the zero
+/// band) grazes, and an axis-parallel one misses only where `q`'s
+/// residual is definitely past the escalate threshold. The near root
+/// enters the wall's chart and the far one leaves it, read off the
+/// decided discriminant (`d·rad = ∓√disc` at the roots).
+///
+/// The cone arm (issue 1011): the roots of `G(t) = (w·â)² − |w|²cos²α`
+/// on the double cone. A ray parallel to a generator (`A` in band,
+/// levered by the face's slant extent) leaves no certified pair and
+/// grazes, and so does a tangent one (the discriminant `B² − AC`, metered
+/// by that extent); `bool2_r1_probes::probe_generator_parallel_schedule_rays_graze_and_the_door_recovers`
+/// is the generator-parallel row.
+///
+/// The sphere patch: [`line_sphere_roots`], the near root entering the
+/// ball and the far one leaving it. The torus patch: [`line_torus_roots`]
+/// on a certified count ([`torus_crossings`]).
+///
+/// # Errors
+///
+/// A graze, or a decision in band.
+fn carrier_roots<T: Decide>(
+    geos: &[(FaceKey, FaceGeo<T>)],
+    q: Point3<T>,
+    d: Vec3<T>,
+    reach: T,
+    band: Band,
+    rows: RayRows,
+) -> Result<CarrierRoots<T>, RayFault<PointInSolidError>> {
+    let (mut roots, mut missed) = (Vec::new(), Vec::new());
+    // Each face's fault, the highest kept: the ray's, whatever order its
+    // faces are read in.
+    let mut worst: Option<(FaceKey, RayFault<PointInSolidError>)> = None;
+    for &(face, ref geo) in geos {
+        let read = (|| {
+            let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
+            let first = roots.len();
+            let mut push = |t: T, side: RootSide| {
+                let ordinal = roots.len() - first;
+                roots.push(RootCross {
+                    face,
+                    t,
+                    side,
+                    ordinal,
+                });
+            };
+            match *geo {
+                FaceGeo::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    sense,
+                    ..
+                } => match line_wall_roots(q, d, origin, axis, radius, reach, band)
+                    .map_err(|fault| escalate(fault.diag))?
+                {
+                    WallRoots::Miss => missed.push(face),
+                    WallRoots::AxisParallel => {
+                        if !clear_of_carrier(
+                            wall_elevation(origin, axis, radius, q),
+                            face,
+                            band,
+                            rows,
+                        )? {
+                            return Err(RayFault::Graze);
+                        }
+                    }
+                    WallRoots::Tangent => return Err(RayFault::Graze),
+                    WallRoots::Two(ts) => {
+                        for (t, chart) in ts.into_iter().zip([Sign::Negative, Sign::Positive]) {
+                            push(t, RootSide::Ordered(oriented(chart, sense)));
+                        }
+                    }
+                },
+                FaceGeo::Cone {
+                    apex,
+                    axis,
+                    half_angle,
+                    ref region,
+                    ..
+                } => {
+                    let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
+                    // A bound on the face's reach from its apex, never under
+                    // it — the lever both margins below are metered by.
+                    let v_ext = region.reach();
+                    if decide("bool_ray_cone_lead", Margin::levered(a2, v_ext), band)
+                        .map_err(escalate)?
+                        == Sign::Zero
+                    {
+                        return Err(RayFault::Graze); // generator-parallel
+                    }
+                    let disc = b2.powi(2) - a2 * c2;
+                    match decide("bool_ray_cone_disc", Margin::over_lever(disc, v_ext), band)
+                        .map_err(escalate)?
+                    {
+                        Sign::Positive => {
+                            // Unordered: `A` may be negative, and the count
+                            // orders by advance anyway.
+                            for t in quadratic_roots(a2, b2, c2, disc) {
+                                push(t, RootSide::Cone);
+                            }
+                        }
+                        Sign::Zero => return Err(RayFault::Graze), // tangent ray
+                        Sign::Negative => missed.push(face),
+                    }
+                }
+                FaceGeo::SpherePatch {
+                    center,
+                    radius,
+                    sense,
+                    ..
+                } => match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
+                    WallRoots::Two([near, far]) => {
+                        push(near, RootSide::Ordered(oriented(Sign::Negative, sense)));
+                        push(far, RootSide::Ordered(oriented(Sign::Positive, sense)));
+                    }
+                    WallRoots::Tangent => return Err(RayFault::Graze),
+                    WallRoots::Miss | WallRoots::AxisParallel => missed.push(face),
+                },
+                FaceGeo::TorusPatch {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    ..
+                } => {
+                    let found = match line_torus_roots(
+                        q,
+                        d,
+                        center,
+                        axis,
+                        major_radius,
+                        minor_radius,
+                        band,
+                    ) {
+                        Ok(roots) => Ok(roots),
+                        Err(RootRefusal::Unsettled(why)) => Err(why),
+                        Err(RootRefusal::Escalated(diag)) => return Err(escalate(diag)),
+                    };
+                    match torus_crossings(face, found)? {
+                        Some(found) => {
+                            for &t in found.roots() {
+                                push(t, RootSide::Torus);
+                            }
+                        }
+                        None => missed.push(face),
+                    }
+                }
+                FaceGeo::Plane(..)
+                | FaceGeo::Sphere { .. }
+                | FaceGeo::Torus { .. }
+                | FaceGeo::PartialCone { .. }
+                | FaceGeo::PartialWall { .. } => {}
+            }
+            Ok(())
+        })();
+        if let Err(fault) = read {
+            worst = worse(worst, face, fault);
+        }
+    }
+    if let Some((_, fault)) = worst {
+        return Err(fault);
+    }
+    Ok((roots, missed))
+}
+
+/// **The outward sign of curved `face` at `root`**: its decided root
+/// order's, or, on a cone, the nappe the root lies on and the ray's
+/// incidence against the chart normal there, and on a torus the
+/// incidence against the tube's chart normal; the face's sense folded in
+/// (S10). `Zero` where no side is read: at a cone's apex, or at an
+/// incidence in band.
+///
+/// On a cone, the chart normal is `r̂·cos α − σ·axis·sin α`, `σ` the
+/// nappe's sign (`S` places the `v < 0` nappe at azimuth `u + π`, so its
+/// chart radial is the physical one negated; what carries the nappe is
+/// the axial term alone), a unit vector, so the dot is a cosine levered
+/// by the local radius (D4's θ·r), which the nappe has put definitely
+/// clear of the apex. An exactly tangent ray never reaches the
+/// incidence: it is a double root, which the discriminant grazed on; an
+/// in-band incidence with a definite discriminant is a fixture tuned to
+/// one ε row, and reads no side. On a torus, the chart normal is the
+/// hit's meridian-plane offset over `r`, levered by the tube's radius.
+///
+/// # Errors
+///
+/// A decision in band.
+fn root_outward<T: Decide>(
+    face: FaceKey,
+    geo: &FaceGeo<T>,
+    root: RootCross<T>,
+    q: Point3<T>,
+    d: Vec3<T>,
+    band: Band,
+) -> Result<Sign, RayFault<PointInSolidError>> {
+    let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
+    let p = q + d * root.t;
+    match (root.side, geo) {
+        (RootSide::Ordered(sign), _) => Ok(sign),
+        (
+            RootSide::Cone,
+            &FaceGeo::Cone {
+                apex,
+                axis,
+                half_angle,
+                sense,
+                ..
+            },
+        ) => {
+            let (sin_a, cos_a) = half_angle.sin_cos();
+            let wp = p - apex;
+            let hp = wp.dot(axis);
+            let nappe =
+                match decide("bool_ray_cone_nappe", Margin::of(hp), band).map_err(escalate)? {
+                    Sign::Positive => true,
+                    Sign::Negative => false,
+                    Sign::Zero => return Ok(Sign::Zero),
+                };
+            let rad = wp - axis * hp;
+            let rho = rad.norm();
+            let axial = if nappe { sin_a } else { T::zero() - sin_a };
+            let n_chart = rad / rho * cos_a - axis * axial;
+            Ok(oriented(
+                decide(
+                    "bool_ray_cone_incidence",
+                    Margin::levered(d.dot(n_chart), rho),
+                    band,
+                )
+                .map_err(escalate)?,
+                sense,
+            ))
+        }
+        (
+            RootSide::Torus,
+            &(FaceGeo::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+                sense,
+                ..
+            }
+            | FaceGeo::TorusPatch {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+                sense,
+                ..
+            }),
+        ) => {
+            // The tube's chart normal, from the one home it has.
+            let n_chart = geom_brep::implicit_gradient(
+                &Surface::Torus {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    u_ref,
+                },
+                p,
+            );
+            Ok(oriented(
+                decide(
+                    "bool_ray_torus_incidence",
+                    Margin::levered(d.dot(n_chart), minor_radius),
+                    band,
+                )
+                .map_err(escalate)?,
+                sense,
+            ))
+        }
+        // A root is made only by its face's own arm.
+        _ => Err(RayFault::Fatal(PointInSolidError::CorruptFace { face })),
+    }
+}
+
+/// **Whether trimmed curved `face` holds the point `p` of its carrier**,
+/// read off its own region: `None` on its boundary, or where its region
+/// cannot place `p` (a walk no ray of its own settled), which reads no
+/// side; a face the region cannot read there blocks the ray.
+///
+/// # Errors
+///
+/// A decision in band, a limit of the region's reader, or a broken face.
+fn root_held<T: Decide>(
+    face: FaceKey,
+    geo: &FaceGeo<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<bool>, RayFault<PointInSolidError>> {
+    let reading = match geo {
+        FaceGeo::Cylinder { region, .. } | FaceGeo::Cone { region, .. } => {
+            return region_hit(face, region.contains(p, band));
+        }
+        FaceGeo::SpherePatch { region, .. } => region.contains(p, band),
+        FaceGeo::TorusPatch { region, .. } => region.contains(p, band),
+        _ => return Err(RayFault::Fatal(PointInSolidError::CorruptFace { face })),
+    };
+    match reading {
+        Ok(side) => Ok(side),
+        Err(RegionRefusal::RayExhausted { .. }) => Ok(None),
+        Err(e @ RegionRefusal::Escalated(_)) => Err(RayFault::InBand(e.of_face(face))),
+        Err(e @ RegionRefusal::WoundPastPeriod) => Err(RayFault::Fatal(e.of_face(face))),
+        // An edge whose reading ran out at this hit: a limit of the
+        // reader this ray met, which another ray may miss.
+        Err(e @ RegionRefusal::Unreadable(_)) => Err(RayFault::Blocked(e.of_face(face))),
+    }
 }
 
 /// Every crossing of the ray `q + s·d` ahead of `q` with the faces of
 /// `geos` (a selection's, each with its resolved query geometry), each
 /// offered as a [`RayHit`] at its advance, and as on an edge where it
-/// lands on a curved face's trim boundary or meets it tangentially.
+/// lands on a curved face's boundary or meets it tangentially.
 ///
-/// **A planar face is crossed edge by edge** (D10, Booleans): every line
-/// edge between two planar faces whose planes the ray crosses is decided
-/// once, for both faces ([`edge_meets`]). An edge the ray passes within
-/// the band of meets it, half a crossing for each face it bounds, at the
-/// lines' closest point; a face with such an edge offers no crossing of
-/// its own. A face clear of all its edges, each one decided, is crossed
-/// where the turn of its loops says ([`crosses_by_turn`]); a face with an
-/// edge no such reading decides (a curved edge, or one shared with a
-/// curved face) takes its in-face walk, as a curved face takes its trim.
-/// A ray within the band of a vertex, or a wedge, is marked there and
-/// reads nothing where its count reaches the mark ([`RayHit::mark`]).
+/// **Every edge is decided once, for both faces it bounds** (D10,
+/// Booleans): a line edge between two planar faces whose planes the ray
+/// crosses through the lines' closest point ([`edge_meets`]), and every
+/// other edge between two faces that read their own carrier crossings
+/// (a crossed plane, a trimmed curved face's roots, [`carrier_roots`])
+/// through where the ray passes it, read on its span
+/// ([`curved_edges`]). An edge the ray passes within the band of meets
+/// it, half a crossing for each face it bounds, at the carrier crossing
+/// of each face it stands for; a planar face with such an edge offers no
+/// crossing of its own, and a curved face none at that root.
+///
+/// A met edge stands for a crossing only where the edge represents it,
+/// and reads nothing there otherwise. It represents a crossing that:
+/// - no other met edge stands for;
+/// - belongs to a face whose every edge is decided;
+/// - on a face not every edge of which is a line edge read exactly, lies
+///   near the passage or is definitely held by the face.
+///
+/// A planar face whose edges are all line edges so decided, and clear of the ray,
+/// is crossed where the turn of its loops says ([`crosses_by_turn`]);
+/// another takes its in-face walk, and each root of a curved face no
+/// edge stands for its face's trim. A ray within the band of a vertex,
+/// or a wedge, is marked there and reads nothing where its count reaches
+/// the mark ([`RayHit::mark`]).
 pub(crate) fn ray_crossings<T: Decide>(
     body: &Body<T>,
     geos: &[(FaceKey, FaceGeo<T>)],
@@ -4957,34 +3712,140 @@ pub(crate) fn ray_crossings<T: Decide>(
             outward,
         });
     }
+    let (roots, missed) = carrier_roots(geos, q, d, reach, band, rows)?;
     let mut meets = edge_meets(body, &planes, q, d, reach, band, rows)?;
+    curved_edges::read(
+        body,
+        geos,
+        &planes,
+        &roots,
+        &missed,
+        (q, d, reach),
+        band,
+        rows,
+        &mut meets,
+    )?;
+    let geo_of = |f: FaceKey| geos.iter().find(|g| g.0 == f).map(|g| &g.1);
+    // A carrier crossing as one point of its carrier: faces on one carrier
+    // (a seam split) cross it at the same crossings, read in the same
+    // order, so the crossing is the carrier and its place among them.
+    let surface = |f: FaceKey| body.get_face(f).map(|fc| fc.surface);
+    let key = |f: FaceKey, c: Cross| {
+        (
+            surface(f),
+            match c {
+                Cross::Plane => 0,
+                Cross::Root(k) => roots[k].ordinal + 1,
+            },
+        )
+    };
+    // Each carrier crossing, with every met edge that stands for it: one
+    // standing for both its faces' one crossing (a seam met) stands once.
+    let mut claims = Vec::new();
+    for m in &meets.met {
+        for (&f, &c) in m.faces.iter().zip(&m.cross) {
+            let claim = (key(f, c), m.edge);
+            if !claims.contains(&claim) {
+                claims.push(claim);
+            }
+        }
+    }
+    // ---- Each met edge, half a crossing for each face at the crossing it
+    // stands for, or nothing. ----
+    for m in &meets.met {
+        let [a, b] = m.faces;
+        let mut ends = [(m.at, 0); 2];
+        let mut stands = true;
+        for (end, (&f, &c)) in ends.iter_mut().zip(m.faces.iter().zip(&m.cross)) {
+            let plane = planes.iter().find(|p| p.face == f);
+            let (t, side) = match c {
+                Cross::Plane => plane.map_or((m.at, Sign::Zero), |p| (p.t, p.outward)),
+                Cross::Root(k) => (
+                    roots[k].t,
+                    match geo_of(f) {
+                        Some(geo) => root_outward(f, geo, roots[k], q, d, band)?,
+                        None => Sign::Zero,
+                    },
+                ),
+            };
+            *end = (t, count(side));
+            // A crossing two met edges stand for would be counted at each.
+            let k = key(f, c);
+            if claims.iter().filter(|(claimed, _)| *claimed == k).count() > 1 {
+                stands = false;
+            }
+            // An edge of the face no reading here decides could lie in band
+            // of the ray too.
+            if !every_edge_read(body, f, &meets.read) {
+                stands = false;
+            }
+            // A face whose edges are all read exactly is met at each edge
+            // the ray passes in band of, so its crossing lies between them.
+            // Another's crossing stands for the edge only where it lies near
+            // the passage, or where the face definitely holds it: a ray
+            // shallow to the face can pass an edge of it read clear at the
+            // crossings, and cross its carrier past that edge, outside the
+            // face.
+            if stands && !every_edge_read(body, f, &meets.lines) {
+                let off = (m.span.0 - t).max(t - m.span.1).max(T::zero());
+                let near =
+                    geom_core::k_stats::decide_magnitude(rows.represents, Margin::of(off), band)
+                        != Ok(geom_core::k_stats::Magnitude::Positive);
+                let held = match (c, plane, geo_of(f)) {
+                    _ if near => Ok(Some(true)),
+                    (Cross::Plane, Some(p), _) => {
+                        point_in_face(body, f, p.normal, p.p, band).map_err(at_hit)
+                    }
+                    (Cross::Root(_), _, Some(geo)) => root_held(f, geo, q + d * t, band),
+                    _ => Ok(None),
+                };
+                stands = match held {
+                    Ok(held) => held == Some(true),
+                    Err(fault @ RayFault::Fatal(_)) => return Err(fault),
+                    Err(_) => false,
+                };
+            }
+        }
+        let [(ta, sa), (tb, sb)] = ends;
+        // An edge's half crossings are its faces' crossings of their
+        // carriers, which the ray makes through the edge only where both
+        // lie ahead of `q`: from a `q` in band of a face's carrier, the
+        // ray can pass the face's edge ahead and its carrier behind.
+        let ahead = [ta, tb]
+            .iter()
+            .all(|&t| decide(rows.advance, Margin::of(t), band) == Ok(Sign::Positive));
+        if !stands || !ahead || sa == 0 || sb == 0 {
+            for at in [m.at, ta, tb] {
+                offer(RayHit::marked([a, b], at, Mark::Graze), (at, at), true)?;
+            }
+            continue;
+        }
+        // The ray crosses the edge's faces somewhere between where it
+        // passes the edge and where it crosses their carriers, which on a
+        // face it meets obliquely lie bands apart: the crossing spans them.
+        offer(
+            RayHit {
+                count: (sa + sb) / 2,
+                face: a,
+                other: Some(b),
+                at: m.at,
+                mark: None,
+            },
+            (m.span.0.min(ta).min(tb), m.span.1.max(ta).max(tb)),
+            false,
+        )?;
+    }
+    // ---- Each planar face no edge is met at, crossed where it lies. ----
     for c in &planes {
         let face = c.face;
-        let met: Vec<T> = meets
-            .met
-            .iter()
-            .filter(|m| m.1 == face || m.2 == face)
-            .map(|m| m.3)
-            .collect();
-        let read = every_edge_read(body, face, &meets.read);
-        if !met.is_empty() {
-            // Its crossing is its edges'; one no reading here decides
-            // could lie in band of it too, so the ray is marked a graze
-            // at its crossing and at each edge it meets.
-            if !read {
-                for at in met.into_iter().chain([c.t]) {
-                    meets
-                        .marks
-                        .push(RayHit::marked([face, face], at, Mark::Graze));
-                }
-            }
+        if meets.met.iter().any(|m| m.faces.contains(&face)) {
             continue;
         }
         // In-face test FIRST: a plane hit outside the face region is no
         // crossing at all — in particular a `t = 0` hit on a face plane
         // through `q` (a corner-aligned query) must be skipped, not
         // grazed, when the face itself is elsewhere.
-        let inside = if read {
+        let inside = if every_edge_read(body, face, &meets.lines) {
             Some(crosses_by_turn(
                 body, face, c.normal, c.p, reach, band, rows,
             )?)
@@ -4998,37 +3859,6 @@ pub(crate) fn ray_crossings<T: Decide>(
             None => offer(RayHit::crossing(face, c.t, 0), point, true)?,
         }
     }
-    for &(_, a, b, at) in &meets.met {
-        let plane = |f: FaceKey| planes.iter().find(|c| c.face == f);
-        // An edge's half crossings are its faces' crossings of their
-        // planes, which the ray makes through the edge only where both
-        // lie ahead of `q`: from a `q` in band of a face's carrier, the
-        // ray can pass the face's edge ahead and its plane behind.
-        let ahead = [a, b].iter().all(|&f| {
-            plane(f)
-                .is_some_and(|c| decide(rows.advance, Margin::of(c.t), band) == Ok(Sign::Positive))
-        });
-        if !ahead {
-            offer(RayHit::marked([a, b], at, Mark::Graze), (at, at), true)?;
-            continue;
-        }
-        let sign = |f: FaceKey| plane(f).map_or(0, |c| count(c.outward));
-        // The ray crosses the edge's faces somewhere between where it
-        // passes the edge and where it crosses their planes, which on a
-        // face it meets obliquely lie bands apart: the crossing spans them.
-        let (ta, tb) = (plane(a).map_or(at, |c| c.t), plane(b).map_or(at, |c| c.t));
-        offer(
-            RayHit {
-                count: (sign(a) + sign(b)) / 2,
-                face: a,
-                other: Some(b),
-                at,
-                mark: None,
-            },
-            (at.min(ta).min(tb), at.max(ta).max(tb)),
-            false,
-        )?;
-    }
     for m in meets.marks {
         offer(m, (m.at, m.at), true)?;
     }
@@ -5040,217 +3870,64 @@ pub(crate) fn ray_crossings<T: Decide>(
             edge || outward == Sign::Zero,
         )
     };
+    // ---- Each root of a trimmed curved face no edge stands for, tested
+    // against the face's own region: a root outside it is no crossing of
+    // this face, and one on its boundary, or one the region cannot place,
+    // reads no side. Faces on one carrier (a seam split) share its roots:
+    // a face that definitely holds one holds it alone, so the others'
+    // readings of it, in band, faulted or not, decide nothing; a fault
+    // stands only where no face holds it. ----
+    let mut read = vec![false; roots.len()];
+    for k in 0..roots.len() {
+        if read[k] {
+            continue;
+        }
+        let root_key = key(roots[k].face, Cross::Root(k));
+        let shared: Vec<usize> = (k..roots.len())
+            .filter(|&j| key(roots[j].face, Cross::Root(j)) == root_key)
+            .collect();
+        for &j in &shared {
+            read[j] = true;
+        }
+        if claims.iter().any(|(claimed, _)| *claimed == root_key) {
+            continue;
+        }
+        let (mut held, mut fault, mut boundary) = (None, None, None);
+        for &j in &shared {
+            let r = roots[j];
+            let Some(geo) = geo_of(r.face) else {
+                continue;
+            };
+            match root_held(r.face, geo, q + d * r.t, band) {
+                Ok(Some(true)) => held = held.or(Some((r, geo))),
+                Ok(Some(false)) => {}
+                Ok(None) => boundary = boundary.or(Some(r)),
+                Err(f) => fault = worse(fault, r.face, f),
+            }
+        }
+        // A broken face is the query's refusal, whatever another face holds.
+        if let Some((_, f @ RayFault::Fatal(_))) = fault {
+            return Err(f);
+        }
+        let fault = fault.map(|(_, f)| f);
+        match (held, fault, boundary) {
+            (Some((r, geo)), ..) => {
+                let outward = root_outward(r.face, geo, r, q, d, band)?;
+                offer_root(r.face, r.t, outward, false)?;
+            }
+            (None, Some(fault), _) => return Err(fault),
+            (None, None, Some(r)) => offer_root(r.face, r.t, Sign::Zero, true)?,
+            (None, None, None) => {}
+        }
+    }
     for &(face, ref geo) in geos {
         let escalate = |diag| RayFault::InBand(PointInSolidError::Escalated { face, diag });
         match *geo {
-            FaceGeo::Plane(..) => {}
-            // The cylinder wall arm (M5 PR 9): the ray meets the
-            // infinite wall at the roots of a quadratic in metres
-            // (the linearized residual along the ray); each definite
-            // root inside the face's chart trim folds like a planar
-            // hit, with the outward sign read off the root order
-            // (below). A tangent ray (discriminant in the zero band)
-            // grazes and retries — never a parity guess.
-            FaceGeo::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-                az,
-                h,
-                sense,
-            } => {
-                // Every point of a wall face lies on a ruling segment
-                // whose two ends are points of its boundary (the hull
-                // [`wall_hit_outside_reach`] reads), so the face lies in
-                // the hull of its loops, inside the selection's ball: a
-                // hit is at most `reach` along the ray.
-                let roots = line_wall_roots(q, d, origin, axis, radius, reach, band)
-                    .map_err(|fault| escalate(fault.diag))?;
-                let ts = match roots {
-                    WallRoots::Miss => continue,
-                    // Axis-parallel ray: its distance from the axis moves
-                    // by at most the band's zero over the reach. It misses
-                    // the wall only where q's residual is definitely past
-                    // the escalate threshold, asked here (the pre-pass
-                    // passes q in band of the carrier outside the face's
-                    // trim). Outside the wall that residual `(ρ² − r²)/2r`
-                    // overstates `ρ − r`; it still exceeds the zero for a
-                    // wall whose radius is at least the band's zero.
-                    WallRoots::AxisParallel => {
-                        let w = q - origin;
-                        let radial = w - axis * w.dot(axis);
-                        let elev =
-                            (radial.norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
-                        if clear_of_carrier(elev, face, band, rows)? {
-                            continue;
-                        }
-                        return Err(RayFault::Graze);
-                    }
-                    WallRoots::Tangent => return Err(RayFault::Graze),
-                    WallRoots::Two(ts) => ts,
-                };
-                // The outward sign at each root is read off the decided
-                // discriminant, never re-decided: `d·rad` at a root is
-                // `b2 + a2·t = ∓√disc`, so the near root (`a2 > 0`) is
-                // the entry and the far one the exit, in the chart's
-                // outward sense (S10 folds the face's).
-                for (t, chart_outward) in ts.into_iter().zip([Sign::Negative, Sign::Positive]) {
-                    let p = q + d * t;
-                    match wall_hit(
-                        body, face, origin, axis, radius, u_ref, az, h, p, band, true,
-                    )
-                    .map_err(at_hit)?
-                    {
-                        Some(false) => {}
-                        Some(true) => offer_root(face, t, oriented(chart_outward, sense), false)?,
-                        None => offer_root(face, t, Sign::Zero, true)?,
-                    }
-                }
-            }
-            // The cone wall arm (issue 1011, the cone half): the ray
-            // meets the infinite DOUBLE cone at the roots of
-            // `G(t) = (w·â)² − |w|²cos²α`, `w = q − apex + d·t` — the
-            // implicit form whose zero set is both nappes, expanded to
-            // `A t² + 2B t + C` with `A` dimensionless, `B` metres and
-            // `C` m². Which nappe a root landed on, and whether it
-            // landed on THIS face, are the chart trim's questions, not
-            // the quadratic's.
-            //
-            // **The leading coefficient is a posture, not a
-            // convenience.** `A = (d·â)² − cos²α` vanishes exactly when
-            // the ray runs PARALLEL to a generator, where the quadratic
-            // degenerates to a line: the far root has left for infinity
-            // and the crossing count this arm can certify is no longer
-            // two. That is not a miss and not a tangency, so it is
-            // neither skipped nor answered — the ray abandons and the
-            // schedule retries, and exhaustion is `RayExhausted` like
-            // every other ill-conditioned direction. Reached, not
-            // hypothetical: a cone whose axis is (1,1,0)/√2 at α = π/4
-            // puts two schedule members along a generator, and
-            // `bool2_r1_probes::probe_generator_parallel_schedule_rays_
-            // graze_and_the_door_recovers` is this branch's row — red
-            // if the degenerate quadratic is ever ANSWERED. The margin is
-            // `A` levered by the face's own slant extent (D4's θ·r
-            // form: `A` is a difference of squared cosines and the
-            // extent is the length over which the near-parallel ray
-            // drifts off the generator).
-            //
-            // **The discriminant** `B² − AC` is m² and is metered by
-            // that same extent, so `disc / v_ext` is a length. It is
-            // the tangency margin: `−disc/A` is `G` at the ray's
-            // closest approach, which factors as the product of the
-            // distances to the two nappes' generators, so a zero
-            // discriminant IS a ray grazing a generator — a graze,
-            // retried, never a parity guess. The metering is
-            // conservative wherever the near-tangency is near the face
-            // (both `|A| ≤ 1` and the mirror-nappe distance at a hit on
-            // the face are bounded by the extent), and its exact zero
-            // is the true tangency either way.
-            FaceGeo::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-                az,
-                representative,
-                v,
-                nappe,
-                sense,
-            } => {
-                if face != representative {
-                    continue;
-                }
-                let (sin_a, cos_a) = half_angle.sin_cos();
-                let [a2, b2, c2] = line_cone_quadratic(q, d, apex, axis, half_angle);
-                // The face's own slant extent — the lever both margins
-                // below are metered by. Single-nappe by construction
-                // ([`cone_chart_trim`]), so this is the far bound.
-                let v_ext = v.0.abs().max(v.1.abs());
-                match decide("bool_ray_cone_lead", Margin::levered(a2, v_ext), band)
-                    .map_err(escalate)?
-                {
-                    Sign::Positive | Sign::Negative => {}
-                    // Generator-parallel: a certified pair is gone.
-                    Sign::Zero => return Err(RayFault::Graze),
-                }
-                let disc = b2.powi(2) - a2 * c2;
-                match decide("bool_ray_cone_disc", Margin::over_lever(disc, v_ext), band)
-                    .map_err(escalate)?
-                {
-                    Sign::Positive => {}
-                    Sign::Zero => return Err(RayFault::Graze), // tangent ray
-                    Sign::Negative => continue,                // definite miss
-                }
-                // Unordered: `A` may be negative, and the count orders
-                // by advance anyway.
-                for t in quadratic_roots(a2, b2, c2, disc) {
-                    let p = q + d * t;
-                    match point_on_cone_in_face(
-                        face, apex, axis, half_angle, u_ref, az, v, nappe, p, band,
-                    )
-                    .map_err(at_hit)?
-                    {
-                        Some(false) => continue,
-                        // The trim's boundary, or the apex, where no
-                        // outward normal exists.
-                        None => {
-                            offer_root(face, t, Sign::Zero, true)?;
-                            continue;
-                        }
-                        Some(true) => {}
-                    }
-                    // Outward sign: `d` against the CHART normal
-                    // `radial̂·cos α − axis·sin α` on the `v > 0` nappe
-                    // and its negation on the mirror one — a unit
-                    // vector, so the dot is a cosine and takes the
-                    // local radius as its lever (D4's θ·r form; the
-                    // trim above has already put the hit definitely
-                    // clear of the apex, where that radius vanishes).
-                    // The face's sense then says whether chart-outward
-                    // is material-outward (S10).
-                    //
-                    // **This Zero is a band case only, and no
-                    // deterministic row can pin it.** An EXACTLY
-                    // tangent ray is caught upstream: `d·n̂ = 0` at a
-                    // hit means the ray touches without crossing,
-                    // which is a double root, which
-                    // `bool_ray_cone_disc` already decided Zero and
-                    // grazed on. What can still reach here is a ray
-                    // whose incidence is in-band while the
-                    // discriminant is definitely positive — the two
-                    // margins are metered differently, so the shells
-                    // do not coincide — and that is a fixture tuned to
-                    // one ε row, not a geometric configuration. The
-                    // arm is written for it regardless: a `Zero` here
-                    // grazes rather than folding a crossing whose
-                    // material side is not decidable.
-                    let wp = p - apex;
-                    let hp = wp.dot(axis);
-                    let rad = wp - axis * hp;
-                    let rho = rad.norm();
-                    // `radial(u)` in the chart normal is the CHART's
-                    // radial, and on the `v < 0` nappe it is the
-                    // negation of the physical one — `S` places that
-                    // nappe at azimuth `u + π`. Folding the nappe's
-                    // sign into the whole expression would cancel
-                    // twice and point the normal INTO the material;
-                    // what carries it is the axial term alone:
-                    // `r̂·cos α − σ·axis·sin α`.
-                    let axial = if nappe { sin_a } else { T::zero() - sin_a };
-                    let n_chart = rad / rho * cos_a - axis * axial;
-                    let outward = oriented(
-                        decide(
-                            "bool_ray_cone_incidence",
-                            Margin::levered(d.dot(n_chart), rho),
-                            band,
-                        )
-                        .map_err(escalate)?,
-                        sense,
-                    );
-                    offer_root(face, t, outward, false)?;
-                }
-            }
+            FaceGeo::Plane(..)
+            | FaceGeo::Cylinder { .. }
+            | FaceGeo::Cone { .. }
+            | FaceGeo::SpherePatch { .. }
+            | FaceGeo::TorusPatch { .. } => {}
             // A ray that may meet the untrimmable face ahead cannot be
             // answered; one that definitely misses the double cone, or
             // meets it only behind `q`, takes no crossing from it. The
@@ -5304,6 +3981,56 @@ pub(crate) fn ray_crossings<T: Decide>(
                     }
                 }
             }
+            // The cylinder's own: a root definitely ahead and definitely
+            // within the ball holding the face blocks the ray.
+            FaceGeo::PartialWall {
+                origin,
+                axis,
+                radius,
+                anchor,
+                reach: ball,
+            } => {
+                let ts = match line_wall_roots(q, d, origin, axis, radius, reach, band)
+                    .map_err(|fault| escalate(fault.diag))?
+                {
+                    WallRoots::Miss => continue,
+                    WallRoots::AxisParallel => {
+                        if clear_of_carrier(
+                            wall_elevation(origin, axis, radius, q),
+                            face,
+                            band,
+                            rows,
+                        )? {
+                            continue;
+                        }
+                        return Err(RayFault::Graze);
+                    }
+                    WallRoots::Tangent => return Err(RayFault::Graze),
+                    WallRoots::Two(ts) => ts,
+                };
+                for t in ts {
+                    let ahead = ray_walk::advance(rows.advance, Margin::of(t), band)
+                        .map_err(|f| f.map(|diag| PointInSolidError::Escalated { face, diag }))?;
+                    if ahead == Sign::Negative {
+                        continue;
+                    }
+                    match decide(
+                        "bool_wall_outline_reach",
+                        Margin::of((q + d * t - anchor).norm() - ball),
+                        band,
+                    )
+                    .map_err(escalate)?
+                    {
+                        Sign::Positive => {}
+                        Sign::Zero => return Err(RayFault::Graze),
+                        Sign::Negative => {
+                            return Err(RayFault::Blocked(
+                                PointInSolidError::WallOutlineUnsupported { face },
+                            ));
+                        }
+                    }
+                }
+            }
             // The full-sphere pierce arm: the quadratic of
             // [`line_sphere_roots`], whose metering that function states.
             //
@@ -5345,96 +4072,20 @@ pub(crate) fn ray_crossings<T: Decide>(
                     offer_root(face, t, outward, false)?;
                 }
             }
-            // The TRIMMED sphere face: the same quadratic, the same
-            // read-off outward pair, with each root filtered through
-            // the face's own region. A root outside it is not a
-            // crossing of THIS face; a root ON its boundary is a graze
-            // the schedule retries, never a parity guess, and so is a
-            // root the region cannot place at this ε.
-            FaceGeo::SpherePatch {
-                center,
-                radius,
-                ref region,
-                sense,
-            } => {
-                let [near, far] =
-                    match line_sphere_roots(q, d, center, radius, band).map_err(escalate)? {
-                        WallRoots::Two(ts) => ts,
-                        WallRoots::Tangent => return Err(RayFault::Graze),
-                        WallRoots::Miss | WallRoots::AxisParallel => continue, // definite miss
-                    };
-                for (t, outward) in [
-                    (near, oriented(Sign::Negative, sense)),
-                    (far, oriented(Sign::Positive, sense)),
-                ] {
-                    let p = q + d * t;
-                    match region.contains(p, band) {
-                        Ok(Some(false)) => {}
-                        Ok(Some(true)) => offer_root(face, t, outward, false)?,
-                        // On the face's boundary, or a hit its region's
-                        // rays could not place: no side is read there, so
-                        // the fold grazes on it only where it is closest.
-                        Ok(None) | Err(RegionRefusal::RayExhausted { .. }) => {
-                            offer_root(face, t, Sign::Zero, true)?;
-                        }
-                        Err(e @ RegionRefusal::Escalated(_)) => {
-                            return Err(RayFault::InBand(e.of_face(face)));
-                        }
-                        Err(e @ RegionRefusal::WoundPastPeriod) => {
-                            return Err(RayFault::Fatal(e.of_face(face)));
-                        }
-                        // An edge whose reading ran out at this hit: a
-                        // limit of the reader this ray met, which another
-                        // ray may miss.
-                        Err(e @ RegionRefusal::Unreadable(_)) => {
-                            return Err(RayFault::Blocked(e.of_face(face)));
-                        }
-                    }
-                }
-            }
-            // The torus wall arms (issue 1011, the torus half): the ray
-            // meets the tube at the real roots of a monic quartic, and
-            // this door folds them only on a CERTIFIED count —
-            // [`line_torus_roots`] carries the closed form, the count's
-            // sign algebra and the degenerate-quartic ladder. An
-            // uncertain count is neither a miss nor an answer: the ray
-            // abandons and the schedule retries, and exhaustion is the
-            // typed `RayExhausted` every other arm reaches too.
-            //
-            // The outward direction is the chart normal
-            // `r̂·cos v + â·sin v`, which is the hit's own meridian-plane
-            // offset over `r` — a unit vector, so the incidence dot is a
-            // cosine and takes the TUBE radius as its lever (D4's θ·r).
-            // A ring torus has no singular point for that direction to
-            // fail at, so unlike the cone there is nothing to decide
-            // before reading it.
-            //
-            // A closed group folds every root for its representative; a
-            // face outside one, each root its region holds, as the
-            // trimmed sphere does.
+            // The closed torus group: every root of the tube's quartic,
+            // for its representative ([`carrier_roots`] reads a trimmed
+            // torus face's).
             FaceGeo::Torus {
                 center,
                 axis,
                 major_radius,
                 minor_radius,
-                u_ref,
-                sense,
-                ..
-            }
-            | FaceGeo::TorusPatch {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-                sense,
+                representative,
                 ..
             } => {
-                let region = match geo {
-                    FaceGeo::Torus { representative, .. } if face != *representative => continue,
-                    FaceGeo::TorusPatch { region, .. } => Some(region),
-                    _ => None,
-                };
+                if face != representative {
+                    continue;
+                }
                 let roots =
                     match line_torus_roots(q, d, center, axis, major_radius, minor_radius, band) {
                         Ok(roots) => Ok(roots),
@@ -5445,50 +4096,13 @@ pub(crate) fn ray_crossings<T: Decide>(
                     continue;
                 };
                 for &t in found.roots() {
-                    let p = q + d * t;
-                    if let Some(region) = region {
-                        match region.contains(p, band) {
-                            Ok(Some(true)) => {}
-                            Ok(Some(false)) => continue,
-                            // On the face's boundary, or a hit its region's
-                            // paths could not place: no side is read there,
-                            // so the fold grazes on it only where it is
-                            // closest.
-                            Ok(None) | Err(RegionRefusal::RayExhausted { .. }) => {
-                                offer_root(face, t, Sign::Zero, true)?;
-                                continue;
-                            }
-                            Err(e @ RegionRefusal::Escalated(_)) => {
-                                return Err(RayFault::InBand(e.of_face(face)));
-                            }
-                            Err(e @ RegionRefusal::WoundPastPeriod) => {
-                                return Err(RayFault::Fatal(e.of_face(face)));
-                            }
-                            Err(e @ RegionRefusal::Unreadable(_)) => {
-                                return Err(RayFault::Blocked(e.of_face(face)));
-                            }
-                        }
-                    }
-                    // The tube's chart normal, from the one home it has.
-                    let n_chart = geom_brep::implicit_gradient(
-                        &Surface::Torus {
-                            center,
-                            axis,
-                            major_radius,
-                            minor_radius,
-                            u_ref,
-                        },
-                        p,
-                    );
-                    let outward = oriented(
-                        decide(
-                            "bool_ray_torus_incidence",
-                            Margin::levered(d.dot(n_chart), minor_radius),
-                            band,
-                        )
-                        .map_err(escalate)?,
-                        sense,
-                    );
+                    let root = RootCross {
+                        face,
+                        t,
+                        side: RootSide::Torus,
+                        ordinal: 0,
+                    };
+                    let outward = root_outward(face, geo, root, q, d, band)?;
                     offer_root(face, t, outward, false)?;
                 }
             }
@@ -5718,8 +4332,10 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
         tol,
         lane,
         T::quad_lane(),
-        AT_INFINITY,
-        AT_INFINITY_ENCLOSURE,
+        crate::props::SignNames {
+            walk: AT_INFINITY,
+            certified: AT_INFINITY_ENCLOSURE,
+        },
     )
     .map_err(refused)?;
     let role = role.map_err(|refusal| match refusal {
@@ -5729,7 +4345,8 @@ fn at_infinity_side<T: Decide + crate::props::AtRestPolicy>(
         crate::props::RoleWalkRefusal::Unread { limit: Some(_), .. } => {
             PointInSolidError::VolumeUncertified
         }
-        crate::props::RoleWalkRefusal::Unread { last, .. } => unread_refusal(&last, faces[0]),
+        crate::props::RoleWalkRefusal::Poisoned(last)
+        | crate::props::RoleWalkRefusal::Unread { last, .. } => unread_refusal(&last, faces[0]),
     });
     // An `Outer` boundary leaves infinity outside its material, a `Void`
     // one inside.
@@ -5922,16 +4539,14 @@ mod volume_read_key_rows {
 #[path = "r1_probes.rs"]
 mod r1_probes;
 
+mod curved_edges;
+
 #[cfg(test)]
 mod r1_generic_poses;
 
 #[cfg(test)]
 #[path = "torus_predicate_rows.rs"]
 mod torus_predicate_rows;
-
-#[cfg(test)]
-#[path = "wall_section_rows.rs"]
-mod wall_section_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -5986,7 +4601,7 @@ mod per_solid_entry_tests {
             let geos: Vec<_> = sel
                 .faces()
                 .iter()
-                .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
+                .map(|&face| (face, face_geo(&body, face, &sel.charts).unwrap()))
                 .collect();
             let d = Vec3::new(0.5, 0.3, -1.0).normalize();
             let q = Point3::new(1.0 + 0.5 * g, 0.5, 1.0) - d * 2.0;
@@ -6035,7 +4650,7 @@ mod per_solid_entry_tests {
                 let geos: Vec<_> = sel
                     .faces()
                     .iter()
-                    .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
+                    .map(|&face| (face, face_geo(&body, face, &sel.charts).unwrap()))
                     .collect();
                 let d = Vec3::new(1.0, 0.05, -slope).normalize();
                 let q = Point3::new(1.0, 0.5, 1.0 + 3.0 * tol.eps() * slope) - d * 0.3;
@@ -6063,7 +4678,7 @@ mod per_solid_entry_tests {
         let geos: Vec<_> = sel
             .faces()
             .iter()
-            .map(|&face| (face, face_geo(&body, face, &sel.charts, band).unwrap()))
+            .map(|&face| (face, face_geo(&body, face, &sel.charts).unwrap()))
             .collect();
         let cast = |q: Point3<f64>, d: Vec3<f64>| {
             let reach = selection_reach(&body, sel.faces(), q).unwrap();
@@ -6283,9 +4898,8 @@ mod wall_root_rows {
     }
 }
 
-/// **The boundary walks panic on a torn boundary curve**, where the torus
-/// region would step over it as null scaffolding and `wall_outline` read
-/// it as a carrier the outline has no piece for.
+/// **The boundary walks panic on a torn boundary curve**, where a region
+/// would step over it as null scaffolding.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod torn_hop_rows {
@@ -6335,9 +4949,8 @@ mod torn_hop_rows {
     }
 
     #[test]
-    fn the_wall_outline_panics_on_a_torn_curve() {
+    fn the_ruled_region_panics_on_a_torn_curve() {
         let tol = geom_core::Tol::witness();
-        let band = Band::linear(tol).unwrap();
         let mut body = Body::<f64>::new();
         let face = crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
@@ -6346,30 +4959,16 @@ mod torn_hop_rows {
             (0.0, 1.0),
             tol,
         );
-        let outline = |b: &Body<f64>| {
-            wall_outline(
-                b,
-                face,
-                Point3::origin(),
-                Vec3::unit_z(),
-                1.0,
-                (0.2, 1.4),
-                (0.0, 1.0),
-                band,
-            )
-            .map(|o| matches!(o, WallOutline::Unsupported { .. }))
-        };
-        assert_eq!(
-            outline(&body).ok(),
-            Some(false),
-            "the sound wall has an outline"
+        assert!(
+            ruled_face_region(&body, face).unwrap().is_some(),
+            "the sound wall's region"
         );
         let named = drop_first_curve(&mut body, face);
         assert_torn_op_panics(
-            "wall_outline",
+            "ruled_face_region",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| outline(b),
+            |b| ruled_face_region(b, face).map(|r| r.is_some()),
         );
     }
 }
@@ -6397,7 +4996,7 @@ mod escalated_ending_rows {
             let diag = Indeterminate {
                 margin,
                 band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("bool_wall_trim"),
+                predicate: Some("bool_ruled_region_cross"),
                 terminal_sliver: false,
             };
             let contfp = ContainError::Escalated {
@@ -6571,7 +5170,6 @@ mod kind_arm_tests {
     fn face_geo_arms_are_the_kinds_rays_cross() {
         use geom::SurfaceKind;
         let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
         let (o, z, x) = (
             Point3::new(0.5, 0.5, 0.5),
             Vec3::new(0.0, 0.0, 1.0),
@@ -6623,7 +5221,7 @@ mod kind_arm_tests {
             let key = body.get_face(face).unwrap().surface;
             *body.surfaces.get_mut(key).unwrap() = surface;
             let sel = SolidFaces::select(&body, faces).unwrap();
-            let read = face_geo_arms(&body, face, &sel.charts, band);
+            let read = face_geo_arms(&body, face, &sel.charts);
             let refused = matches!(read, Err(PointInSolidError::KindUnsupported { .. }));
             assert_eq!(
                 refused,

@@ -72,9 +72,12 @@ use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
 fn vol(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume
 }
 
 fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
@@ -590,7 +593,10 @@ fn extruded_twin(loops: &[ProfileLoop<f64>], h: f64) -> Body<f64> {
 /// convergence predicate may escalate. Anything else is a real failure.
 fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
     let target = 1024.0 * Tol::witness().get().eps;
-    match topo::test_support::unmigrated_measure(body, Tol::witness()) {
+    match topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    ) {
         Ok(m) => {
             // ACCURACY: the certified enclosure must CONTAIN the
             // independent oracle (`want` is the extruded twin's closed
@@ -650,14 +656,6 @@ fn assert_rational_volume(row: &str, body: &Body<f64>, want: f64) {
                  {target_len:e} vs {target:e}"
             );
         }
-        Err(topo::MassPropsError::Face {
-            source: geom_brep::PropsError::Escalated { cause, .. },
-            ..
-        }) => assert_eq!(
-            cause.predicate,
-            Some("props_quad_converged"),
-            "{row}: only the convergence predicate may escalate: {cause:?}"
-        ),
         Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
     }
 }

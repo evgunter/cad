@@ -40,11 +40,10 @@
 //!   splitting/boolean seam (rung 1, implemented — the table names it,
 //!   the pipelines execute it bit-identically); plane×cylinder's rim
 //!   case stays the rung-1 `Circle`.
-//! - **Parabola and hyperbola are outside the conic inventory** (R1):
-//!   a plane×cone section of either kind refuses
-//!   [`SectionError::RoutesToGeneralRung`] naming its conic — a
-//!   documented decision, not a TODO. The ELLIPSE is in the inventory,
-//!   and a tilted plane×cone section of that kind is minted exactly.
+//! - **A plane×cone parabola or hyperbola has no curve kind** (C1): the
+//!   section is served in closed form ([`OpenConicSection`]) and each
+//!   arc of it is minted per window as an exact rational-quadratic
+//!   `Curve3::Nurbs` ([`ConicBranch::arc`]), never marched.
 //!
 //! # The section arms
 //!
@@ -62,7 +61,8 @@
 //! 3. [`plane_cone_section`] — apex-through plane (two generator
 //!    lines / tangent line / apex point); axis-normal cut (`Circle`);
 //!    a tilt meeting every generator ⇒ exact `Ellipse`; a parabolic or
-//!    hyperbolic tilt refuses typed, naming its conic (R1).
+//!    hyperbolic tilt ⇒ the open conic in closed form, minted per window
+//!    as an exact rational-quadratic `Nurbs` arc.
 //! 4. [`plane_torus_section`] — the axis-aligned poses: an
 //!    axis-CONTAINING plane's two meridian `Circle`s, an axis-PARALLEL
 //!    plane off the axis its two `Spiric` ovals (short of the inner
@@ -118,6 +118,12 @@ use crate::extent::Reach;
 use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, SizedPass};
 use crate::torus_convention::TorusRefusal;
 use geom_core::Decide;
+
+mod conic_arc;
+use conic_arc::ConeTilt;
+pub use conic_arc::{
+    ConicArcError, ConicBranch, OpenConic, OpenConicSection, SPAN_WEIGHT_MAX, WindowEnd,
+};
 use geom_core::k_stats::{Magnitude, NonzeroSign};
 
 // ---------------------------------------------------------------------
@@ -207,15 +213,14 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    perpendicular cut stays the rung-1 rim Circle",
         },
         // ---- Rung 2: the apex-through degenerates, the axis-normal
-        // Circle and the tilted Ellipse. Parabola and hyperbola are
-        // outside the conic inventory (R1) — a decision, not a TODO. ----
+        // Circle, the tilted Ellipse, and the parabola or hyperbola in
+        // closed form, its arcs minted per window. ----
         (Plane, Cone) | (Cone, Plane) => PairRoute {
             rung: Rung::Conic,
             implemented: true,
-            note: "apex-through lines/tangent/point, the axis-normal Circle and the \
-                   tilted Ellipse (plane_cone_section); a parabolic or hyperbolic \
-                   section refuses naming its conic — parabola and hyperbola are \
-                   outside the conic inventory by decision, not by omission",
+            note: "apex-through lines/tangent/point, the axis-normal Circle, the \
+                   tilted Ellipse, and a parabola or hyperbola whose arcs are minted \
+                   per window as exact rational-quadratic NURBS (plane_cone_section)",
         },
         // ---- Rung 1, implemented (M5 S13): the closed-form Circle —
         // never a fitted chord (the die-pips premise). ----
@@ -606,9 +611,7 @@ pub enum SectionError {
     /// The configuration routes to the general rung — a documented arm
     /// decision (no runtime fallback exists; C5). The general rung is
     /// implemented; its arms retire one at a time, so a pair reaching
-    /// here is one whose arm has not retired — or a section outside the
-    /// conic inventory by decision (a plane×cone parabola or
-    /// hyperbola, R1).
+    /// here is one whose arm has not retired.
     RoutesToGeneralRung {
         /// The pair, for the message.
         pair: &'static str,
@@ -660,45 +663,6 @@ pub enum SectionError {
     Spiric(SpiricInvalid),
 }
 
-/// A plane×cone section outside the conic inventory by decision (R1):
-/// the curve [`SectionError::outside_conic`] reads off the table's
-/// refusal.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum OutsideConic {
-    /// The plane lies parallel to a generator.
-    Parabola,
-    /// The plane meets both nappes.
-    Hyperbola,
-}
-
-const PLANE_CONE: &str = "plane×cone";
-
-const PARABOLA_WHY: &str = "the plane lies parallel to a generator, so the section is a \
-                            PARABOLA — outside the conic inventory by decision (R1), not by \
-                            omission";
-
-const HYPERBOLA_WHY: &str = "the plane meets both nappes, so the section is a HYPERBOLA — \
-                             outside the conic inventory by decision (R1), not by omission";
-
-impl SectionError {
-    /// The conic outside the inventory this refusal is
-    /// [`plane_cone_section`]'s naming of, if it is one.
-    #[must_use]
-    pub fn outside_conic(&self) -> Option<OutsideConic> {
-        match self {
-            Self::RoutesToGeneralRung {
-                pair: PLANE_CONE,
-                why: PARABOLA_WHY,
-            } => Some(OutsideConic::Parabola),
-            Self::RoutesToGeneralRung {
-                pair: PLANE_CONE,
-                why: HYPERBOLA_WHY,
-            } => Some(OutsideConic::Hyperbola),
-            _ => None,
-        }
-    }
-}
-
 impl From<EllipseInvalid> for SectionError {
     fn from(e: EllipseInvalid) -> Self {
         Self::Carrier(e)
@@ -710,8 +674,8 @@ impl core::fmt::Display for SectionError {
         match self {
             Self::WrongLane { expected } => write!(
                 f,
-                "the section was dispatched to the arm for {expected}, not this pair's \
-                 (a kernel bug)"
+                "the section was dispatched to the arm for {expected}, not this pair's. {}",
+                crate::ssi::WRONG_LANE_RECOURSE
             ),
             // The Indeterminate Display carries the shared two-tolerance
             // recourse (S6) exactly once.
@@ -1340,12 +1304,13 @@ pub enum SphereSphereSection<T: Real> {
 /// - **`ss_carrier_internal`** — margin `d − |r₁ − r₂|`. Negative ⇒
 ///   [`SphereSphereSection::Empty`] (strictly nested); Zero ⇒
 ///   [`SphereSphereSection::TangentPoint`] (internal tangency);
-///   Positive ⇒ [`SphereSphereSection::Circle`]. The radicand
-///   `(r₁ − a)(r₁ + a)` factors through both clearances — `|a| < r₁`
-///   reduces exactly to `|d − r₁| < r₂` and `d + r₁ > r₂`, which are
-///   the two clearances this branch has already pinned definite — so
-///   it is definitely positive here and the interval-square tripwire
-///   cannot bite.
+///   Positive ⇒ [`SphereSphereSection::Circle`], of radius
+///   [`geom_core::Circles::half_chord`]: its square's four factors are
+///   the two clearances this branch has pinned definite (one negated)
+///   and two sums of non-negatives, so it is definitely positive here
+///   at every scalar and the interval-square tripwire cannot bite.
+///   Each factor rounds at the inputs' scale, so the circle sits on
+///   the smaller sphere at radii orders of magnitude apart.
 ///
 /// Divisions by `d` occur only where a preceding trilean bounds it away
 /// from zero, per branch:
@@ -1388,20 +1353,17 @@ pub fn sphere_sphere_section<T: Decide>(
     else {
         return Err(wrong());
     };
-    let delta = c2 - c1;
-    let d = delta.norm();
-    let dr = (r1 - r2).abs();
-    // The SIGNED radical-plane offset, one formula for all three
-    // non-empty branches (the 2-D skeleton's shape, `seg.rs:604-616`).
-    // Every branch that reads it has already decided `d` definitely
-    // positive, so the division is safe wherever it is called.
-    let offset = || (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d + d);
-    match decide("ss_carrier_identity", Margin::of(d + dr), band)
+    // The margins and the SIGNED radical-plane foot, from one pair
+    // (`geom_core::Circles`). Every branch that places the foot has
+    // already decided `d` definitely positive, so its division is safe.
+    let at = geom_core::Circles::new((c2 - c1).norm(), r1, r2).at(c1, c2);
+    let pair = at.pair();
+    match decide("ss_carrier_identity", Margin::of(pair.identity()), band)
         .map_err(SectionError::Escalated)?
     {
         Sign::Zero | Sign::Negative => Err(SectionError::CoincidentSurfaces),
         Sign::Positive => {
-            match decide("ss_carrier_external", Margin::of(d - (r1 + r2)), band)
+            match decide("ss_carrier_external", Margin::of(pair.external()), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Positive => Ok(SphereSphereSection::Empty),
@@ -1412,11 +1374,9 @@ pub fn sphere_sphere_section<T: Decide>(
                 // `r₁`. Substituting `d = r₁ + r₂` does give `a = +r₁`
                 // here; the internal branch below is where the sign
                 // matters, and one formula serves both.
-                Sign::Zero => Ok(SphereSphereSection::TangentPoint(
-                    c1 + delta * (offset() / d),
-                )),
+                Sign::Zero => Ok(SphereSphereSection::TangentPoint(at.foot())),
                 Sign::Negative => {
-                    match decide("ss_carrier_internal", Margin::of(d - dr), band)
+                    match decide("ss_carrier_internal", Margin::of(pair.internal()), band)
                         .map_err(SectionError::Escalated)?
                     {
                         Sign::Negative => Ok(SphereSphereSection::Empty),
@@ -1433,18 +1393,15 @@ pub fn sphere_sphere_section<T: Decide>(
                         // sphere at the origin against radius 3 at
                         // `x = 2` it returns `(1,0,0)`, which is B's own
                         // centre, and the true contact is `(−1,0,0)`.
-                        Sign::Zero => Ok(SphereSphereSection::TangentPoint(
-                            c1 + delta * (offset() / d),
-                        )),
+                        Sign::Zero => Ok(SphereSphereSection::TangentPoint(at.foot())),
                         // Proper secant: `d > |Δr|` definitely, so
-                        // `d > 0`. The radical-plane closed form.
+                        // `d > 0`. The radical plane's foot and half-chord.
                         Sign::Positive => {
-                            let n = delta / d;
-                            let a_off = offset();
+                            let n = at.direction();
                             Ok(SphereSphereSection::Circle(Curve3::Circle {
-                                center: c1 + n * a_off,
+                                center: at.foot(),
                                 axis: n,
-                                radius: ((r1 - a_off) * (r1 + a_off)).sqrt(),
+                                radius: pair.half_chord(),
                                 u_ref: ss_frame_seam(n, axis1, u1, r1, band),
                             }))
                         }
@@ -2200,10 +2157,7 @@ pub fn cylinder_sphere_section<T: Decide>(
 // plane × cone (spec §3.3, R1)
 // ---------------------------------------------------------------------
 
-/// The classified plane×cone section. A parabola or hyperbola is
-/// deliberately NOT a variant: it refuses typed
-/// ([`SectionError::RoutesToGeneralRung`], naming the conic) — both are
-/// outside the conic inventory (R1).
+/// The classified plane×cone section.
 #[derive(Clone, Debug)]
 pub enum PlaneConeSection<T: Real> {
     /// Apex on the plane, plane cutting inside the cone, and the real
@@ -2247,12 +2201,18 @@ pub enum PlaneConeSection<T: Real> {
     /// semi-axes are the axis-normal circle's `|h|·tan α` and the centre
     /// is its centre — the circle is this form's boundary case.
     TiltedEllipse(Curve3<T>),
+    /// Plane tilted to a generator or past it, the section reaching
+    /// past the zero band of the apex: a parabola or a hyperbola, which
+    /// no curve kind holds (C1). It is served in closed form, and each
+    /// arc of it is minted per window as an exact rational-quadratic
+    /// `Curve3::Nurbs` ([`OpenConicSection::branch_at`],
+    /// [`ConicBranch::arc`]).
+    OpenConic(OpenConicSection<T>),
 }
 
 /// Classifies and constructs the plane×cone section (spec §3.3): the
-/// apex-through degenerates, the axis-normal circle and the tilted
-/// ellipse. A parabolic or hyperbolic section refuses typed, naming its
-/// conic (R1: neither is in the conic inventory).
+/// apex-through degenerates, the axis-normal circle, the tilted ellipse,
+/// and the parabola or hyperbola in closed form.
 ///
 /// `reach` is where the section is consumed ([`Reach`]). The arm reads
 /// its pose at the apex: `extent` below is [`Reach::lever_from`] the
@@ -2321,15 +2281,14 @@ pub enum PlaneConeSection<T: Real> {
 ///    section is [`PlaneConeSection::TiltedEllipse`], however
 ///    near-circular (step 3 is the one decision of circle against
 ///    ellipse); Zero ⇒
-///    a parabola, Positive ⇒ a hyperbola, each refused naming its conic.
-///    An in-band `D` (a near-parabola) escalates; it is never snapped
-///    to either side.
+///    a parabola (`D` taken as zero), Positive ⇒ a hyperbola, each
+///    [`PlaneConeSection::OpenConic`]. An in-band `D` (a near-parabola)
+///    escalates; it is never snapped to either side.
 ///
 /// # Errors
 ///
 /// [`SectionError`] — wrong-lane kinds, the aperture guards, escalations
-/// (F6), a carrier-constructor refusal, or the parabola/hyperbola
-/// refusal (R1).
+/// (F6), or a carrier-constructor refusal.
 pub fn plane_cone_section<T: Decide>(
     plane: &impl SectionPlane<T>,
     cone: &Surface<T>,
@@ -2529,39 +2488,38 @@ pub fn plane_cone_section<T: Decide>(
             u_ref: cone_u,
         })),
         Sign::Positive | Sign::Negative => {
+            let tilt = ConeTilt::new(c, s, (sin_a, cos_a), discr);
             match decide("pn_conic_type", Margin::levered(discr, extent), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Negative => {
-                    // K = c² − sin²α, read as −D·M off `s` and `cos α`:
-                    // where the plane is near square to the axis or the
-                    // cone near flat, `c` and `sin α` sit near 1 and
-                    // carry the tilt and the aperture's complement only
-                    // to `u` over those small angles, which the
-                    // difference of squares hands to K whole.
-                    let k = (T::zero() - discr) * (sin_a * s + cos_a * c.abs());
-                    let major = apex_gap.abs() * sin_a * cos_a / k;
-                    let minor = apex_gap.abs() * sin_a / k.sqrt();
+                    let major = tilt.half_axis(apex_gap.abs());
+                    let minor = apex_gap.abs() * sin_a / tilt.k.sqrt();
                     // The axis-normal trilean above made `s`
                     // definite, so the minor direction is.
                     let u_major = tilted_section_major(n, s_vec);
                     // The centre is the apex's foot on the plane moved
-                    // along the major axis by `c·δ·s/K`: in the plane by
+                    // along the major axis: in the plane by
                     // construction, where `apex − (c·a − sin²α·n)·δ/K`
                     // reads a vector that cancels to K along the normal
                     // and then divides it by K.
-                    let center = apex - n * apex_gap + u_major * (c * apex_gap * s / k);
+                    let center = apex - n * apex_gap + u_major * tilt.centre(apex_gap);
                     let e = Curve3::ellipse(center, n, major, minor, u_major, band)?;
                     Ok(PlaneConeSection::TiltedEllipse(e))
                 }
-                Sign::Zero => Err(SectionError::RoutesToGeneralRung {
-                    pair: PLANE_CONE,
-                    why: PARABOLA_WHY,
-                }),
-                Sign::Positive => Err(SectionError::RoutesToGeneralRung {
-                    pair: PLANE_CONE,
-                    why: HYPERBOLA_WHY,
-                }),
+                verdict @ (Sign::Zero | Sign::Positive) => {
+                    Ok(PlaneConeSection::OpenConic(OpenConicSection::new(
+                        if verdict == Sign::Zero {
+                            OpenConic::Parabola
+                        } else {
+                            OpenConic::Hyperbola
+                        },
+                        (q, n),
+                        apex,
+                        tilt,
+                        tilted_section_major(n, s_vec),
+                    )))
+                }
             }
         }
     }

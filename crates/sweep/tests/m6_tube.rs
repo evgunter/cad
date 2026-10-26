@@ -151,9 +151,8 @@ fn tube_minor_radius_is_stored_bit_exact() {
 /// enclosure of the quadrature lane (bracket pin, two-sided).
 #[test]
 fn tube_donut_volume_is_pappus_exact() {
-    let tube = tube_donut();
-    let props =
-        topo::test_support::unmigrated_measure(&tube, Tol::witness()).expect("mass properties");
+    let tube = topo::test_support::finished("tube", tube_donut(), Tol::witness());
+    let props = topo::mass_properties(&tube, Tol::witness()).expect("mass properties");
     let exact = 2.0 * PI * PI * R * MINOR * MINOR;
     let pad = props.volume_pad;
     assert!(
@@ -206,19 +205,27 @@ fn tube_window_and_refusal_doors() {
     // **A non-unit axis is no longer a refusal**: the frame mint
     // normalizes it, so the body is the one the unit axis builds, face
     // for face and number for number.
-    let scaled = build(Vec3::unit_y() * 1.5, Vec3::unit_x(), TubeWindow::Full)
-        .expect("a scaled axis names the same spine")
-        .body;
-    let unit = build(Vec3::unit_y(), Vec3::unit_x(), TubeWindow::Full)
-        .expect("the unit axis builds")
-        .body;
+    let scaled = topo::test_support::finished(
+        "scaled",
+        build(Vec3::unit_y() * 1.5, Vec3::unit_x(), TubeWindow::Full)
+            .expect("a scaled axis names the same spine")
+            .body,
+        Tol::witness(),
+    );
+    let unit = topo::test_support::finished(
+        "unit",
+        build(Vec3::unit_y(), Vec3::unit_x(), TubeWindow::Full)
+            .expect("the unit axis builds")
+            .body,
+        Tol::witness(),
+    );
     assert_eq!(scaled.faces().count(), unit.faces().count());
     assert_eq!(
-        topo::test_support::unmigrated_measure(&scaled, Tol::witness())
+        topo::mass_properties(&scaled, Tol::witness())
             .expect("mass properties")
             .volume
             .to_bits(),
-        topo::test_support::unmigrated_measure(&unit, Tol::witness())
+        topo::mass_properties(&unit, Tol::witness())
             .expect("mass properties")
             .volume
             .to_bits(),
@@ -308,8 +315,15 @@ mod certified {
             Ok(()),
             "tier 3"
         );
-        let m = topo::test_support::unmigrated_measure(&t.body, Tol::witness())
-            .expect("mass properties");
+        let m = topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&t.body),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("mass properties");
         let exact = 2.0 * PI * PI * R * MINOR * MINOR;
         let (lo, hi) = (
             geom_core::Bounds::lo(m.volume) - geom_core::Bounds::hi(m.volume_pad),

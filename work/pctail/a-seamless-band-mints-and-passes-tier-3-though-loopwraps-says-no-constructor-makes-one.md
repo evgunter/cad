@@ -45,3 +45,15 @@ Measure the cone and torus cases first. Then either the mint refuses
 a wrapped loop where `ring_path` needs it to (and the Display stays,
 re-worded to name the doors that reach it), or `ring_path` decides
 its premise rather than citing the mint.
+
+## Re-read (2026-10-26, tracker sweep, main `bb25fa4f`)
+
+The first bullet's text is gone: `PcurveMintError` has no `LoopWraps`
+variant now (no `LoopWraps` anywhere in `crates/`). The second bullet
+stands in a changed form: `topo::ring_path`'s module docs
+(`crates/topo/src/ring_path.rs:41-55`) no longer cite the mint's
+refusal. They now say "the at-rest pass does not yet refuse a loop that
+winds", cite this row, and still rest the path-independence of a
+crossing's parity on "no loop of the face winds". So the owed work is
+the second half of "The shape of a fix": either a winding loop refuses
+where `ring_path` needs it to, or `ring_path` decides its premise.

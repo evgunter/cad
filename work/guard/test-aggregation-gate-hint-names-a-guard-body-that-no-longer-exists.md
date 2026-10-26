@@ -2,8 +2,9 @@
 id: test-aggregation-gate-hint-names-a-guard-body-that-no-longer-exists
 kind: issue
 title: test-aggregation.sh's violation hint tells a crate to copy a guard body that is now a macro invocation
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-10-26
 priority: P3
 cost: E
 ---
@@ -56,7 +57,7 @@ next taker does not re-check them:
 4. `crates/step-import/Cargo.toml:78` — "which all.rs's own
    `every_suite_file_is_aggregated` catches".
 5. `work/fix/band-helper-duplicated-across-suites.md:139`.
-6. `work/guard/measurements-have-no-mechanical-guard.md:98` — cites it
+6. `work/unread/measurements-have-no-mechanical-guard.md:98` — cites it
    as an in-house precedent for a manifest-text guard.
 
 Not in that six and deliberately: `work/tcost/`'s rows and the `log.md`
@@ -71,3 +72,10 @@ outside S-TINT's fence and `scripts/gates/test-aggregation.sh` is
 invoke `test_utils::every_suite_file_is_aggregated!()`"* in place of
 *"including the every_suite_file_is_aggregated guard to copy"*. The
 gate's `--selftest` does not read the hint text, so nothing else moves.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep, as the row specified.** The violation hint in
+`scripts/gates/test-aggregation.sh` (:94) now ends "and invoke
+`test_utils::every_suite_file_is_aggregated!()` there." The gate and its
+`--selftest` pass.

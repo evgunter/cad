@@ -19,7 +19,6 @@ from pathlib import Path
 
 from pncad import (
     Bulge,
-    ContactClass,
     Coord,
     Doc,
     DocEdit,
@@ -309,7 +308,6 @@ def die_tool_document():
                 Mate(
                     doc.output(ball, 1),
                     PoseDef.slide(RoleRead(own, "z"), RoleRead(own, "z"), Formula.zero("length")),
-                    ContactClass.Rest,
                 ),
                 MateValue(Coord.slide("z"), Formula.zero("length")),
                 MateValue(Coord.spin("z"), Formula.zero("angle")),

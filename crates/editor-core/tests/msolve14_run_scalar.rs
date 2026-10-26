@@ -38,10 +38,10 @@ use std::sync::Arc;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    BoxAxis, CancelToken, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId,
-    EvalOptions, Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName,
-    all_vertices, evaluate, vertex_position,
+    BoxAxis, CancelToken, CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeVar, MateRef, Node, NodeResult, Operand, ParamBox, PatternKind,
+    ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, TargetAxis, VarName, all_vertices,
+    evaluate, vertex_position,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, insert, len, on_frame, scl, solve, step};
@@ -186,15 +186,15 @@ impl Parts {
         with_resolver(self.store.clone())
     }
     /// The slab's top cap, as `slab` places it.
-    fn slab_top(&self, slab: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    fn slab_top(&self, slab: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(slab, self.slab_body, CapEnd::End)
     }
     /// The bolt's bottom cap, as `bolt` places it.
-    fn bolt_foot(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    fn bolt_foot(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(bolt, self.bolt_body, CapEnd::Start)
     }
     /// The bolt's top cap, as `bolt` places it.
-    fn bolt_head(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    fn bolt_head(&self, bolt: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(bolt, self.bolt_body, CapEnd::End)
     }
     /// The bolt's lateral edge `k`, as an axis `bolt` places.
@@ -248,7 +248,6 @@ fn seat(
         fixture::mate(
             fixture::plane(head(foot)),
             fixture::flip(standoff(fixture::plane(head(onto)), by)),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), x),
@@ -507,7 +506,7 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
     let doc = declare(doc, idle(), IDLE, Dimension::Length);
     let line = || p.slab_line(slab, 4.0, 4.0);
     let mates = [
-        fixture::mate(p.bolt_edge(bolt, 0), line(), ContactClass::Rest),
+        fixture::mate(p.bolt_edge(bolt, 0), line()),
         fixture::mate(
             p.bolt_edge(bolt, 0),
             slid(
@@ -515,7 +514,6 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
                 p.slab_side(slab, 1),
                 len(off.1),
             ),
-            ContactClass::Rest,
         ),
         fixture::mate(
             fixture::plane(head(p.bolt_foot(bolt))),
@@ -523,12 +521,10 @@ fn shaft(label: &str, off: (f64, f64)) -> Shaft {
                 fixture::plane(head(p.slab_top(slab))),
                 named(rise(), Dimension::Length),
             )),
-            ContactClass::Rest,
         ),
         fixture::mate(
             p.bolt_edge(bolt, 1),
             slid(line(), p.slab_side(slab, 1), len(BOLT_WIDTH)),
-            ContactClass::Rest,
         ),
     ];
     // The first bore through the door; the rest beside it past the
@@ -593,11 +589,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = fixture::mated(
         doc,
         bolts[0],
-        fixture::mate(
-            p.bolt_edge(bolts[0], 0),
-            p.slab_line(slab, 4.0, 4.0),
-            ContactClass::Rest,
-        ),
+        fixture::mate(p.bolt_edge(bolts[0], 0), p.slab_line(slab, 4.0, 4.0)),
         &[
             (Coord::Slide(TargetAxis::Z), len(SLAB_HEIGHT + 0.25)),
             (Coord::Spin(editor_core::TargetAxis::Z), ang(0.3)),
@@ -614,11 +606,7 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     let (doc, _) = fixture::constrain_at(
         doc,
         bolt,
-        fixture::rest(
-            head(p.bolt_foot(bolt)),
-            head(p.slab_top(slab)),
-            ContactClass::Rest,
-        ),
+        fixture::rest(head(p.bolt_foot(bolt)), head(p.slab_top(slab))),
     );
     let frame = |at: RecipeNodeId, body: RecipeNodeId, names: &Names, edge: Operand, end| {
         let corner = match end {
@@ -652,7 +640,6 @@ fn corpus() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
                 p.slab_edge(slab, 0),
                 CapEnd::End,
             ),
-            ContactClass::Rest,
         ),
         Tol::witness(),
     );
@@ -979,11 +966,20 @@ fn run_at<T: editor_core::EvalScalar>(
 /// Re-blessed at all three ε; each seat still stands on what it is
 /// seated on ([`each_seat_stands_on_what_it_is_seated_on`]), and the
 /// solved poses were not compared id-free against main separately.
-/// Re-measured on main's plane pose merged in, at all three ε.
+/// Re-measured on main's plane pose merged in, at all three ε. Merged
+/// again over ATREST stage 4 I (PR 5637: a mate writes no class, and
+/// the census at a `⊔` keeps its verdict on the `⊔`'s value), the
+/// content key's `VERSION` moved to 21 and the mates' spelling with it,
+/// so every value token moved; re-measured at all three ε.
+///
+/// And, all three rows, when a certificate came to keep its turn: the
+/// evaluation digest feeds each edge curve's `Debug`, which now spells
+/// it. No pose, fault or point moved. Re-measured with both merged, at
+/// all three ε.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x2d41_38b9_c4c8_1bef),
-    (1e-6, 0x00c0_3569_5647_6ed6),
-    (1e-12, 0xed86_149f_65a5_daef),
+    (1e-9, 0x7b0f_be4e_b4f4_e5d1),
+    (1e-6, 0x01ef_f0e0_9fde_7c4e),
+    (1e-12, 0x6429_efaa_9430_4fd7),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the
@@ -1705,7 +1701,6 @@ fn a_tilted_plane_slid_within_itself_leaves_the_map_thin() {
                 p.slab_side(slab, 1),
                 named(drift(), Dimension::Length),
             )),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), len(x)),
@@ -2238,23 +2233,61 @@ fn a5_sensitivities_cross_a_seated_mate() {
         ),
         other => panic!("a derivative across the seat, not {other:?}"),
     }
-    // A record build over no resolver is not this build: its instances
-    // refuse where the anchor's resolve, and the pairing gate says so.
-    let unresolved = run_at::<f64>(&doc, &EvalOptions::default(), None);
-    assert!(
-        matches!(
-            sensitivities(
+    // A record build over no resolver is not this build: it resolved no
+    // part where the passes resolved the bolt's, and the binding says so.
+    // Over the store it binds.
+    let record = |opts: EvalOptions| {
+        sensitivities(
+            &doc,
+            crate::fixture::output(&doc, m),
+            Some(&run_at::<f64>(
                 &doc,
-                crate::fixture::output(&doc, m),
-                Some(&unresolved),
+                &EvalOptions { pin: true, ..opts },
                 None,
-                false,
-                Some(&resolver),
-                Tol::witness()
-            ),
-            Err(SensitivityRefusal::Pairing(_))
-        ),
-        "a record build over another resolver fails the pairing gate"
+            )),
+            None,
+            false,
+            Some(&resolver),
+            Tol::witness(),
+        )
+    };
+    assert!(record(b.opts.clone()).is_ok(), "the store's build binds");
+    assert_eq!(
+        record(EvalOptions::default()).err(),
+        Some(SensitivityRefusal::Binding(
+            editor_core::stackup::BindingViolation::Parts
+        )),
+        "a record build over another resolver fails the binding"
+    );
+    // The other direction, which is what an edited part file looks
+    // like (A4: its bytes no longer hash to the reference's pin, so the
+    // pin resolves to nothing): the record resolved the bolt over the
+    // store, and the passes run over a store that no longer holds it.
+    let gone = with_resolver(PartStore::new())
+        .resolver
+        .expect("a resolver over the emptied store");
+    assert_eq!(
+        sensitivities(
+            &doc,
+            crate::fixture::output(&doc, m),
+            Some(&run_at::<f64>(
+                &doc,
+                &EvalOptions {
+                    pin: true,
+                    ..b.opts.clone()
+                },
+                None,
+            )),
+            None,
+            false,
+            Some(&gone),
+            Tol::witness(),
+        )
+        .err(),
+        Some(SensitivityRefusal::Binding(
+            editor_core::stackup::BindingViolation::Parts
+        )),
+        "passes over a store whose part file changed fail the binding"
     );
 }
 

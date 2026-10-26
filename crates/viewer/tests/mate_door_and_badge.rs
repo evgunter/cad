@@ -8,7 +8,6 @@ use crate::common;
 
 use common::asm;
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use viewer::history::History;
 use viewer::session::SessionOp;
 
@@ -28,12 +27,7 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
     let shelf_bundle = crate::fixture::bundle(&before, bench.shelf_i);
     let mate = common::commit_mate(
         &mut session,
-        asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Rest,
-            asm::middle_seat_values(),
-        ),
+        asm::seat_op(&bench, bench.post_b, asm::middle_seat_values()),
     );
     assert_eq!(mate.placement, bench.post_b, "the mate places post_b");
     let after = session.doc().clone();
@@ -60,11 +54,12 @@ fn the_mate_door_commits_through_undo_redo_and_replay() {
 /// **The at-rest badge checks a `⊔` the product does not read** — the
 /// one gate the kernel's `assemble` runs, reached through
 /// `assemble_gathered`. Two posts seated at one spot under the shelf
-/// interpenetrate in the world, and the kernel refuses. With the shelf
-/// placed into a space of its own, the three live in that space beside
-/// one world instance, and a `⊔` of the three is authored there; the
-/// product certifies, the gate checks the `⊔` by itself and refuses,
-/// and the badge refuses with it rather than certify the product alone.
+/// fill one volume in the world, and the kernel reports one loud
+/// interference. With the shelf placed into a space of its own, the
+/// three live in that space beside one world instance, and a `⊔` of the
+/// three is authored there; the product has no overlap, the gate checks
+/// the `⊔` by itself and reports the posts' overlap there, and the badge
+/// counts it rather than certify the product clean.
 #[test]
 fn the_at_rest_badge_checks_a_space_of_its_own() {
     use pncad::document::{CancelToken, EvalOptions, assemble, evaluate, load, save};
@@ -82,7 +77,6 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
         crate::fixture::rest(
             common::head(asm::in_part(post, &bench.post_top)),
             common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            ContactClass::Rest,
         )
     };
     // The world-side lone instance, far off.
@@ -92,9 +86,18 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
         doc = crate::fixture::mated(doc, post, seat(post), &asm::middle_seat_values()).0;
     }
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
-    assert!(
-        assemble(&doc, &ev, tol).is_err(),
-        "placed, the two posts interpenetrate in the world"
+    let loud = |kernel: &Result<_, _>| match kernel {
+        Ok(pncad::document::Assembly { interference, .. }) => {
+            Some(interference.iter().filter(|f| f.is_loud()).count())
+        }
+        Err(_) => None,
+    };
+    let kernel = assemble(&doc, &ev, tol);
+    assert_eq!(
+        loud(&kernel),
+        Some(1),
+        "placed, the two posts interpenetrate in the world: {:?}",
+        kernel.err()
     );
     // The shelf into a space of its own, and the posts with it: they
     // read the shelf's underside.
@@ -125,20 +128,18 @@ fn the_at_rest_badge_checks_a_space_of_its_own() {
     .0;
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
     let kernel = assemble(&doc, &ev, tol);
-    assert!(
-        matches!(
-            kernel,
-            Err(pncad::document::AssemblyError::AtRest { .. }
-                | pncad::document::AssemblyError::Assemble { .. })
-        ),
+    assert_eq!(
+        loud(&kernel),
+        Some(1),
         "the gate checks the shelf's `⊔` by itself: {:?}",
         kernel.err()
     );
     std::fs::write(&bench.asm_path, save(&doc, &[], tol).unwrap()).unwrap();
     let session = asm::open_bench(&bench, tol);
     let badge = session.at_rest().cloned();
-    assert!(
-        matches!(badge, Some(viewer::session::AtRestBadge::Refused { .. })),
-        "the badge refuses with the kernel: {badge:?}"
+    assert_eq!(
+        badge,
+        Some(viewer::session::AtRestBadge::Certified { loud: 1, quiet: 0 }),
+        "the badge counts the space's overlap with the kernel"
     );
 }

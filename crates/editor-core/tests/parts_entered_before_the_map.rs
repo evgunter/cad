@@ -17,8 +17,8 @@
 
 use crate::fixture;
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node,
-    NodeResult, ProfileDoc, RecipeNodeId, evaluate,
+    CancelToken, CapEnd, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, NodeResult,
+    ProfileDoc, RecipeNodeId, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame, on_pool, square};
@@ -109,7 +109,6 @@ fn assembly(
         let mate = fixture::rest(
             fixture::head_at(ids[1], in_part(ids[1], *body, CapEnd::Start)),
             fixture::head_at(ids[0], in_part(ids[0], *body, CapEnd::End)),
-            ContactClass::Rest,
         );
         doc = fixture::constrain(doc, mate).0;
     }
@@ -233,7 +232,7 @@ fn a_nested_assembly_records_the_serial_walks_sequence_under_the_parallel_map() 
         &Frame::translation([9.0, 0.0, 0.0]),
         &with_resolver(store.clone()),
     );
-    let mid = crate::fixture::world_product(mid);
+    let mid = crate::fixture::assemble_world_copies(mid);
     let mid = store.insert(mid, Tol::witness());
     let opts = with_resolver(store);
     let mut top = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());

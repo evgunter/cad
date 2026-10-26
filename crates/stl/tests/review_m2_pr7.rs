@@ -356,12 +356,36 @@ fn f32_display_round_trip_spot_checks() {
 // Typed refusals.
 // ---------------------------------------------------------------------
 
-/// The implementer's live finding, reproduced: the acceptance cone at
-/// δ = 0.05 emits an exactly collinear apex-fan triangle; the writer
-/// must refuse typed — never a zeroed/guessed normal.
+/// The implementer's live finding, as the writers meet it: a real
+/// tessellation carrying one exactly collinear triangle (the apex and
+/// two points stacked on one generator, the shape the cone's apex fan
+/// used to emit before it took no rows) — distinct indices, so nothing
+/// upstream drops it. Both writers must refuse typed, never write a
+/// zeroed or guessed normal. The cone itself no longer emits the shape
+/// (`export::coarse_cone_apex_fan_writes`), so the triangle is added.
 #[test]
 fn coarse_cone_apex_fan_refuses_typed() {
-    let mesh = mesh::tessellate(&common::cone(), 0.05, Tol::witness()).unwrap();
+    let mut mesh = mesh::tessellate(&common::cone(), 0.015, Tol::witness()).unwrap();
+    let apex = mesh
+        .positions
+        .iter()
+        .position(|p| p.x.abs() < 1e-12 && p.z.abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12)
+        .expect("the apex is a mesh vertex");
+    let rim = mesh.positions[0];
+    #[allow(clippy::cast_possible_truncation)]
+    let (a, mid, far) = (
+        apex as u32,
+        mesh.positions.len() as u32,
+        mesh.positions.len() as u32 + 1,
+    );
+    let top = mesh.positions[apex];
+    mesh.positions.push(geom_core::Point3::new(
+        0.5 * (top.x + rim.x),
+        0.5 * (top.y + rim.y),
+        0.5 * (top.z + rim.z),
+    ));
+    mesh.positions.push(rim);
+    mesh.patches[0].triangles.push([a, mid, far]);
     let mut out = Vec::new();
     match stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut out) {
         Err(stl::StlError::DegenerateTriangle { .. }) => {}

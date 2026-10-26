@@ -794,7 +794,7 @@ impl<T: Real> NewCurve<T> {
 /// face's: asked where `after` is not `old`. Where it is, nothing is
 /// asked — the boolean pipeline's chord joins mint a chord with the
 /// description of the face that will be glued along it
-/// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+/// (`work/restate/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
 fn require_chord_adjacent<T: Real>(
     spec: &EdgeCurveSpec<T>,
     (old, after): (SurfaceKey, Slot),
@@ -1602,12 +1602,13 @@ impl EulerOpError {
             Self::SplitParamNotInterior { verdict, .. } => format!(
                 "{}. {}",
                 match verdict {
-                    geom_brep::recourse::Refused::Zero(_) => {
-                        "a crossing lands on an end of its edge at this tolerance, not \
-                         strictly inside it"
-                    }
+                    geom_brep::recourse::Refused::Zero(_) => format!(
+                        "a crossing is not shown strictly inside its edge (margin {} m from an \
+                         end)",
+                        verdict.margin().readable()
+                    ),
                     geom_brep::recourse::Refused::Negative { .. } => {
-                        "a crossing lands outside its edge"
+                        "a crossing lands outside its edge".to_owned()
                     }
                 },
                 crate::split::split_param_ending(verdict.arm())
@@ -2005,6 +2006,7 @@ pub(crate) fn every_euler_op_error_once()
                 chart: geom::SurfaceKind::Torus,
                 carrier: geom::CurveKind::Spiric,
                 why: "the spiric lies on neither its own torus nor that torus's mirror",
+                margin: None,
             },
         },
         EulerOpError::PcurveMint {
@@ -2532,7 +2534,7 @@ impl<T: Decide> Body<T> {
     /// face's key, whether the chord's description names it. The
     /// boolean pipeline's chord joins rely on that: they mint the chord
     /// with the description of the face glued along it afterwards
-    /// (`work/topo/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
+    /// (`work/restate/minting-doors-take-a-callers-description-unasked-where-the-new-face-keeps-the-key`).
     ///
     /// **A face minted on another chart is vouched for by the edges it
     /// takes, or refused** ([`RechartDoor::Mef`]). Where `surface` is
@@ -3953,7 +3955,7 @@ impl<T: Decide> Body<T> {
     /// edge; `faces` are the two faces the edge bounds as this door
     /// leaves them, read as the body stands before it (the face a minted
     /// strut or chord lies in, twice), which lever its wedge
-    /// ([`crate::wedge_reach`]). Those are not always the faces of the
+    /// ([`fn@crate::wedge_reach`]). Those are not always the faces of the
     /// operation's result: a boolean splits an operand's edge against
     /// that operand's untrimmed faces, and later discards one piece of a
     /// face a chord divides. What guarantees the result is the at-rest
@@ -4083,9 +4085,10 @@ impl<T: Decide> Body<T> {
     #[track_caller]
     pub(crate) fn run_edges(&self, run: &[HalfEdgeKey]) -> Vec<EdgeKey> {
         let mut edges: Vec<EdgeKey> = Vec::with_capacity(run.len());
+        let mut seen = std::collections::BTreeSet::new();
         for &moved in run {
             let edge = proven(&self.half_edges, moved, EntityId::HalfEdge).edge;
-            if !edges.contains(&edge) {
+            if seen.insert(edge) {
                 edges.push(edge);
             }
         }
@@ -7433,6 +7436,19 @@ mod tests {
             ],
             other => panic!("a zero-band, an outside and an in-band split: {other:?}"),
         };
+        let zero_text = zero.to_string();
+        let printed = zero_text
+            .split_once("not shown strictly inside its edge (margin ")
+            .and_then(|(_, rest)| rest.split_once(" m from an end)"))
+            .map(|(v, _)| v.parse::<f64>().unwrap());
+        let EulerOpError::SplitParamNotInterior { verdict, .. } = &zero else {
+            panic!("the zero-band split: {zero:?}");
+        };
+        assert_eq!(
+            printed,
+            Some(value(verdict.margin())),
+            "the zero arm states its margin and claims no size: {zero_text}"
+        );
         for (err, want) in [zero, outside, undecided].iter().zip(want) {
             let text = err.to_string();
             assert!(

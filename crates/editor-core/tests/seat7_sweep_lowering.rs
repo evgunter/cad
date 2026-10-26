@@ -452,14 +452,32 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `kitchen_sink` were measured again with main's plane pose merged in
 /// (main, `34a2e26e61`, which reds both rows on its own), and carry both
 /// changes.
+///
+/// RE-BLESSED, every row, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, `corner_table` only, for a run line's sense that is no
+/// longer optional: its `EdgeCrossing` names spell each line's sense
+/// bare. No outcome or point moved.
+///
+/// RE-BLESSED, the rows that moved, over main's merge into D′3 at
+/// `1235f4c050`: D′2's moves (main red, filed as
+/// `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`),
+/// stage 4 I's ids and the walls' reads, beneath
+/// D′3's names and ids. `m10_p_fence`'s ids-masked row held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names and ids;
+/// the ids-masked fence held.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x1e87_92c1_fe88_e020),
-        ("corner_table", 0x6912_c7dc_dfd3_41fe),
-        ("cut_cylinder", 0x20ca_6b63_c85d_acc0),
-        ("boss_union", 0x813b_130f_93ab_a1a5),
-        ("kitchen_sink", 0x0cd1_65be_fdec_84b3),
+        ("die", 0x4a25_14f2_42c7_0ffe),
+        ("corner_table", 0x252b_1c7f_90e8_0be6),
+        ("cut_cylinder", 0xd82f_d380_9e2e_8e5e),
+        ("boss_union", 0x7d7f_3a11_1c98_1b33),
+        ("kitchen_sink", 0x4f64_6f46_1d52_45eb),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -1014,9 +1032,16 @@ fn one_declared_radius_decides_equal_radii_at_the_germ_as_its_kernel_twin_does()
         "one declared parameter's two walls must decide equal radii: {:?}",
         value.coincidences
     );
-    let from_document = topo::test_support::unmigrated_measure(body_of(&ev, union), tol())
-        .unwrap()
-        .volume;
+    let from_document = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(body_of(&ev, union)),
+            tol(),
+        ),
+        tol(),
+    )
+    .unwrap()
+    .volume;
 
     let raw_a = raw_spin(&raw_cylinder(R, H), Vec3::new(0.0, 0.0, 1.0), PHI);
     let raw_b = raw_spin(

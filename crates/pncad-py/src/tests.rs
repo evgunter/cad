@@ -878,7 +878,6 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         },
         &["expected_document", "found_document"],
     );
-    carries(&F::ClassNotAdmitted { mate: m(1) }, &["mate"]);
     // The arms whose payload is a NESTED refusal cross under the
     // inner refusal's own word.
     carries(
@@ -1400,38 +1399,6 @@ fn select_refusal_tags_are_stable() {
             value: f64::INFINITY,
         })),
         "invalid_value"
-    );
-}
-
-/// LIB-PYG5: `ContactClass` is `#[non_exhaustive]` kernel-side, so
-/// the Python mirror (`py/contact.rs`) is forced to carry a wildcard
-/// arm and the compile-time drift alarm is unavailable — an unknown
-/// class refuses typed (`unclassified`) at the crossing instead.
-///
-/// That forced wildcard has a cost this pin pays: a wildcarded alarm
-/// cannot fire, so the pin ENUMERATES what the mirror speaks, one line
-/// per class, and a class added to the kernel without a line here is
-/// visible as an absence in a list rather than invisible behind a
-/// wildcard.
-///
-/// It is deliberately NOT a `_ => panic!()` over the kernel enum:
-/// that would red on every downstream build the moment the kernel
-/// reserved a class, which is precisely the coupling
-/// `#[non_exhaustive]` exists to prevent. The crossing's typed
-/// refusal is the safety property; this list is the reminder.
-#[test]
-fn the_contact_class_mirror_matches_the_kernel() {
-    let spoken = |class| match class {
-        pncad::select::ContactClass::Rest => "rest",
-        pncad::select::ContactClass::Tangent => "tangent",
-        _ => "unclassified",
-    };
-    assert_eq!(spoken(pncad::select::ContactClass::Rest), "rest");
-    assert_eq!(
-        spoken(pncad::select::ContactClass::Tangent),
-        "tangent",
-        "Tangent crossed into the mirror with M9-1; a class the binding \
-         cannot name refuses typed at the crossing instead"
     );
 }
 
@@ -2147,7 +2114,6 @@ fn node_error_tags_are_the_published_words() {
         PartDepthExceeded => "part_depth_exceeded",
         PartNotEntered => "part_not_entered",
         MatePosesOfAnotherDocument => "mate_poses_of_another_document",
-        MateClassNotAdmitted => "mate_class_not_admitted",
         MateOverconstrained => "mate_overconstrained",
         MateUnpinned => "mate_unpinned",
         MateNotOnTheCopy => "mate_not_on_the_copy",
@@ -4205,64 +4171,6 @@ fn every_validation_refusal_writes_the_attribute_it_is_committed_to() {
     );
 }
 
-/// **Two layers spell one entity the same way.**
-///
-/// [`crate::tags::entity_kind_tag`] is total over what a document
-/// NAME can denote; [`crate::tags::entity_id_tag`] is total over what
-/// the arena can hold. They are two vocabularies and neither
-/// contains the other — but where both speak of one entity, a caller
-/// resolving a name and a caller reading a census subject are reading
-/// one concept, and learning two spellings for it would be a fact
-/// about this crate rather than about the model.
-///
-/// The three shared words are pinned by CONSTRUCTION, which pins the
-/// mapping and not just the vocabulary; the fourth is pinned as a
-/// divergence, because `body` is a document node and `solid` is an
-/// arena lump, and the day a kind is added to either side this row
-/// asks whether the other gained one too.
-#[test]
-fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
-    use crate::tags::{entity_id_tag, entity_kind_tag};
-    use pncad::select::EntityKind;
-    use pncad::topo::{EdgeKey, EntityId};
-
-    for (kind, entity) in [
-        (EntityKind::Face, EntityId::Face(FaceKey::default())),
-        (EntityKind::Edge, EntityId::Edge(EdgeKey::default())),
-        (EntityKind::Vertex, EntityId::Vertex(VertexKey::default())),
-    ] {
-        assert_eq!(
-            entity_kind_tag(kind),
-            entity_id_tag(&entity),
-            "the name layer and the arena layer have drifted apart on one entity"
-        );
-    }
-
-    // Derived from the committed rows rather than from a roster
-    // written here: whatever the two maps mint, `body` is the only
-    // word the kind side speaks that the arena side does not.
-    let kinds = TAG_INVENTORY
-        .iter()
-        .find(|entry| entry.function == "entity_kind_tag")
-        .expect("the inventory carries the entity-kind alphabet");
-    let ids = TAG_INVENTORY
-        .iter()
-        .find(|entry| entry.function == "entity_id_tag")
-        .expect("the inventory carries the entity-id alphabet");
-    let unshared: Vec<&str> = kinds
-        .values
-        .iter()
-        .copied()
-        .filter(|word| !ids.values.contains(word))
-        .collect();
-    assert_eq!(
-        unshared,
-        ["body"],
-        "the two entity alphabets diverge somewhere new — a document `body` is not \
-         an arena `solid`, and any other difference is a spelling to settle"
-    );
-}
-
 /// **Two doors spell one variable-read fault the same way.**
 ///
 /// The kernel names the variable-read refusal arms under one
@@ -4357,49 +4265,6 @@ fn the_edit_and_snapshot_maps_agree_on_the_var_read_words() {
     );
 }
 
-/// **The class table's `no_at_rest_record` arm predicts the mint
-/// door's refusal in the mint door's own word.**
-///
-/// `ClassAdmission::NoAtRestRecord` exists to answer, before a tool
-/// commits an edit, the question `MintRefusal::NoAtRestRecord`
-/// answers after one — the kernel says so at the arm itself. So a
-/// caller that asks ahead and then reads that refusal is reading one
-/// fact, and it stays one fact only while the two maps agree word for
-/// word. That is what this row holds.
-///
-/// **What it does not hold, stated so the row is not read wider than
-/// it is.** The prediction is the arm's, not the table's: the mint
-/// door (`editor_core::assembly::mint`) refuses through
-/// a wildcard `other =>`, so `ClassAdmission::NotAdmitted` ALSO
-/// reaches the caller as `MintRefusal::NoAtRestRecord` — under a word
-/// the table did not answer. A tool matching the answer it got
-/// against the refusal it later sees is right here, silent on `mints`
-/// (which refuses nothing) and wrong on `not_admitted`. Whether that
-/// wildcard should split is a kernel question, not one this crate can
-/// pin.
-#[test]
-fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
-    use crate::tags::{class_admission_tag, mint_refusal_tag};
-    use pncad::document::{ClassAdmission, MintRefusal, RecipeNodeId};
-    use pncad::topo::ContactClass;
-
-    assert_eq!(
-        class_admission_tag(&ClassAdmission::NoAtRestRecord {
-            why: "the table's own reason"
-        }),
-        mint_refusal_tag(&MintRefusal::NoAtRestRecord {
-            mate: pncad::document::MateRef::new(
-                RecipeNodeId::new(0, 0),
-                pncad::document::ConstraintId(pncad::document::MintId::new(0, 0)),
-            ),
-            class: ContactClass::Tangent,
-            why: "the table's own reason",
-        }),
-        "the class table and the mint door have drifted apart on the refusal one \
-         exists to predict"
-    );
-}
-
 /// One row of [`TAG_INVENTORY`]: a tag function in `src/tags.rs`, and
 /// the exact vocabulary it can put on the wire.
 struct TagEntry {
@@ -4437,24 +4302,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "assembly_error_tag",
-        values: &[
-            "assemble",
-            "at_rest",
-            "carried_at_rest",
-            "carried_mint_refusal",
-            "uncertified",
-            "unminted_mates",
-        ],
+        values: &["assemble", "at_rest", "carried_at_rest"],
         delegates: &["product_error_tag"],
     },
     TagEntry {
         function: "attr_kind_tag",
         values: &["color", "label", "visibility"],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "attribution_tag",
-        values: &["carried_declined", "carried_refuted", "declined", "refuted"],
         delegates: &[],
     },
     TagEntry {
@@ -4518,16 +4371,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "continuation_contradicted",
             "coplanar_neighbours",
             "crossing_at_cone_apex",
-            "crossing_carrier_unsupported",
             "crossing_insertion",
             "crossings_along_a_contact_line",
             "curved_boolean_unsupported",
-            "curved_edge_unsupported",
             "curved_pair_unsupported",
             "curved_pierce_unsupported",
             "curved_sector_side_unsupported",
             "declaration_contradicted",
             "degenerate_torus",
+            "edge_carrier_unsupported",
             "edge_in_face",
             "edge_undescribed",
             "escalated",
@@ -4535,7 +4387,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "fallback_extent_unsupported",
             "germ_edge_carrier_unsupported",
             "germ_frame_unsupported",
-            "germ_section_outside_inventory",
+            "germ_section_open_conic",
             "germ_section_spiric",
             "graft_recertify",
             "held_pierce_unbuilt",
@@ -4577,6 +4429,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slit_line_crossed",
             "spheres_meet",
             "split_lineage_cycle",
+            "tangent_crescent_unsupported",
             "torn_component",
             "underflowed_sector_chord",
             "unjoined_operand",
@@ -4649,11 +4502,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "product_unavailable",
             "root_without_value",
         ],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "class_admission_tag",
-        values: &["mints", "no_at_rest_record", "not_admitted"],
         delegates: &[],
     },
     TagEntry {
@@ -4908,11 +4756,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "entity_kind_tag",
-        values: &["body", "edge", "face", "vertex"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "eval_error_tag",
         values: &[
             "continuous_expr_in_count_eval",
@@ -4935,6 +4778,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "export_error_tag",
         values: &[
+            "body_invalid",
             "empty_boolean",
             "node_failed",
             "not_a_body",
@@ -5042,11 +4886,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "epsilon_seam",
             "inline_edit",
             "instance_body_name_referenced",
-            "instance_read_uncarried",
             "name_on_dropped_step",
             "not_an_instance",
             "part_carries_metadata",
-            "ranked_run_reordered",
             "stranded_part_name",
             "stranded_part_read",
             "unknown_node",
@@ -5141,6 +4983,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "maintenance_tag",
         values: &[
             "anonymous_var_removed",
+            "product_outside_world",
             "strand",
             "stranded_appearance",
             "stranded_read",
@@ -5178,15 +5021,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "meta_version_error_tag",
         values: &["missing_version", "not_a_map", "version_not_int"],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "mint_refusal_tag",
-        values: &[
-            "mate_reference_refused",
-            "mate_unevaluated",
-            "no_at_rest_record",
-        ],
         delegates: &[],
     },
     TagEntry {
@@ -5261,7 +5095,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "full_range_step",
             "instance_out_of_range",
             "loft",
-            "mate_class_not_admitted",
             "mate_kinds_differ",
             "mate_no_chart",
             "mate_not_on_the_copy",
@@ -5545,6 +5378,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "graft_refused",
             "product_invalid",
+            "product_outside_world",
             "root_failed",
             "root_invalid",
             "root_poisoned",
@@ -5637,11 +5471,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["expr_dimension_error_tag"],
     },
     TagEntry {
-        function: "refused_ref_tag",
-        values: &["ref_ambiguous"],
-        delegates: &[],
-    },
-    TagEntry {
         function: "replay_error_tag",
         values: &["path", "transition"],
         delegates: &[],
@@ -5677,6 +5506,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "angle_escalated",
             "arc_crosses_axis",
             "axis_escalated",
+            "axis_gap_escalated",
             "band",
             "cap_plane",
             "cosurface_escalated",
@@ -5684,7 +5514,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "degenerate_axis",
             "full_range_angle",
             "hole_touches_axis",
-            "multiple_axis_runs",
             "non_finite_axis",
             "non_manifold_axis_contact",
             "op",
@@ -5918,10 +5747,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "operand_unminted",
             "output_signature",
             "payload_var_kind",
+            "pick_path",
             "placement_non_finite",
             "placement_non_rigid",
             "placement_rule",
             "pose_shape",
+            "product_read",
             "read_cycle",
             "reader_of_unminted_var",
             "selection_body",
@@ -5956,7 +5787,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "part_edit",
             "part_id_collides",
             "part_name_reaches_remainder",
-            "ranked_run_reordered",
             "remainder_edit",
             "remainder_read_uncarried",
             "severed_edge",
@@ -6071,6 +5901,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pinch_wedge",
             "resolution_overflow",
             "ring_on_curved_face",
+            "rounding_unresolved",
             "self_touching_trim_loop",
             "single_column_curved_face",
             "step_not_positive",
@@ -6122,8 +5953,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "union_name_shape_tag",
         values: &[
             "unsupported_union_name_junction_lines_collide",
-            "unsupported_union_name_run_least_line_moved",
-            "unsupported_union_name_seam_group_no_member_edge",
             "unsupported_union_name_several_parents",
         ],
         delegates: &[],
@@ -6142,9 +5971,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "unmirrored_select_tag",
-        // Twice on purpose: one word for two arms, and the multiset is
-        // what says the two are held equal here rather than by prose.
-        values: &["unclassified", "unclassified"],
+        values: &["unclassified"],
         delegates: &[],
     },
     TagEntry {
@@ -6164,6 +5991,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "census_lane_unsupported",
             "census_undecidable",
             "census_unsupported",
+            "coincident_wedges_overlap",
+            "coincident_wedges_overlap_undecided",
             "component_euler_violation",
             "contact_contradicted",
             "curved_sense_inverted",
@@ -6225,6 +6054,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ring_nesting_undecided",
             "ring_outside_outer",
             "ring_pair_contact_escalated",
+            "same_side_interference",
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
@@ -6323,7 +6153,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
     ("band", 17),
-    ("body", 2),
     ("cap_plane", 3),
     ("certify", 2),
     // One fact: a ring meeting its outer loop and a ring meeting
@@ -6362,7 +6191,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // them different is what made the three-door divergence in
     // `PersistError`'s `EditReplay` projection invisible.
     ("dimension", 3),
-    ("edge", 2),
     // One fact, as `circle_circle`.
     ("edge_along_edge", 2),
     // One fact, as `circle_circle`.
@@ -6379,7 +6207,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("evaluation_of_another_document", 5),
     // `face` is also the face frame's operand slot (`operand_slot_tag`):
     // the seat that reads one face, the entity's own word.
-    ("face", 4),
+    ("face", 3),
     // One fact (INTENT-LITERALS C) at the edit door and outside it: a
     // formula reads a fresh-table entry its edit does not hold, or at
     // another kind.
@@ -6409,7 +6237,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),
-    ("no_at_rest_record", 2),
     ("no_such_body", 2),
     ("node_failed", 2),
     ("non_finite", 5),
@@ -6430,6 +6257,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_var_kind", 2),
     ("pcurve", 6),
     ("pcurves", 3),
+    // One fact at the edit and load doors: a pick whose path names no
+    // one piece of its copy (`editor_core::edit::pick_fault`).
+    ("pick_path", 2),
     // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb.
@@ -6440,14 +6270,18 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One fact at the edit and load doors: a pose definition of a shape
     // no door admits (`PoseFault`), refused at the seat and in a file.
     ("pose_shape", 2),
+    // One fact: the edit that moved the product's body out of the
+    // world (`maintenance_tag`) and the gather that refuses it after
+    // (`product_error_tag`).
+    ("product_outside_world", 2),
+    // One fact at the edit and load doors: a product slot reading no
+    // body (`editor_core::edit::product_fault`).
+    ("product_read", 2),
     // The profile operand and the profile node's own evaluation class:
     // one word for the one node kind. The profile PROGRAM's slot says
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
-    // A split's and an inline's refusal of a ranked run its re-minted
-    // ids reorder: one fact (`editor_core::RemapError::RankedRunReordered`).
-    ("ranked_run_reordered", 2),
     // One fact: a list that names one entry twice, a selection's face
     // set (`selection_fault_tag`) as a profile's kept step ids.
     ("repeated", 2),
@@ -6508,7 +6342,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // the evaluator of a stored reader alike —
     // `expression_evaluation_tags_are_stable` pins both.
     ("var_kind_mismatch", 2),
-    ("vertex", 2),
     // One fact: the census's finding and the stale record name one
     // contact kind, the cell pair (vertex, edge); the two ring words
     // are the same shape on a face's own loops.
@@ -7683,8 +7516,7 @@ fn read_tag_table(source: &str) -> TagTable {
 /// without the binding restating a kernel enum's arm list, and a fresh
 /// raise of either class could still pass a `variant` of its own.
 /// [`crate::tags::unmirrored_select_tag`] is lower again: it makes the
-/// query door's wildcard and the contact-class crossing one word in one
-/// place, and stops there.
+/// query door's wildcard one word in one place, and stops there.
 ///
 /// **And one word is pinned by text alone**, which is the weakest
 /// arrangement and is marked as such where it lives:

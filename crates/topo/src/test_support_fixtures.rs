@@ -652,6 +652,49 @@ pub fn brick<T: geom_core::Decide + crate::props::AtRestPolicy>(
     .body
 }
 
+/// An empty body whose first sixteen face, loop, vertex, shell and
+/// solid slots were each taken and freed three times, so the keys it
+/// mints carry a version a body built without as many kills does not
+/// reach: a refusal naming one of its faces names a face of this body
+/// and of no such partner, and a row can read which operand a key
+/// belongs to rather than find it in both. A row relying on it checks
+/// the two bodies' face keys are disjoint, or that the key resolves in
+/// one body only. Fresh-key one side of a pair, never both: two bodies
+/// keyed this way collide again.
+pub fn fresh_keyed_body<T: geom_core::Decide>() -> Body<T> {
+    let mut body = Body::<T>::new();
+    let origin = identity_map::<T>(0.0, 0.0, 0.0);
+    for _ in 0..3 {
+        let seeds: Vec<_> = (0..16)
+            .map(|_| body.mvfs(origin, true).unwrap().solid)
+            .collect();
+        for solid in seeds {
+            body.kvfs(solid).unwrap();
+        }
+    }
+    body
+}
+
+/// [`brick`] built in a [`fresh_keyed_body`].
+pub fn brick_with_fresh_keys<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    x: (f64, f64),
+    y: (f64, f64),
+    z: (f64, f64),
+    tol: Tol,
+) -> Body<T> {
+    let mut body = fresh_keyed_body::<T>();
+    prism_ops(
+        &mut body,
+        &[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)],
+        z,
+        identity_map,
+        FaceGeometry::Certified,
+        tol,
+    );
+    describe_as_intersections(&mut body, tol);
+    body
+}
+
 /// **Construction step** for hand-built planar fixtures (M3 PR 6a,
 /// D6): describes every definitely-transverse edge as the
 /// `Intersection` of its two adjacent faces' surfaces, witness at the
@@ -1411,6 +1454,78 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
     (face, cyl)
 }
 
+/// **A curved sheet face given `sense`, with the loop that agrees with
+/// it** (S10: the face lies to the left of its loops under its outward
+/// normal, which tier 3's check 6 holds the sense bit to).
+///
+/// A sheet's two faces bound the same edges from either side. Where the
+/// face's own loops encode the other side, the face and its lamina twin
+/// — the face across its edges — exchange loops first, and the twin's
+/// sense flips with them: each face keeps its key and its region, and
+/// each loop agrees with its face's sense. Pcurve rows are keyed by
+/// half-edge, so the exchanged ones are dropped and minted again where
+/// the body carried any. A loop whose side the flux lanes do not read
+/// (one through a cone's apex, or across both nappes) keeps its face.
+///
+/// # Panics
+///
+/// Where the face has rings, a loop with no cycle, or no twin across
+/// its edges.
+pub fn set_sheet_sense<T: geom_core::Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    sense: bool,
+    tol: Tol,
+) {
+    let band = Band::linear(tol).expect("the witness band");
+    let f = body.get_face(face).expect("the face");
+    assert!(f.rings.is_empty(), "a sheet face has no ring");
+    let outer = f.outer;
+    let surface = body.get_surface(f.surface).expect("the surface").clone();
+    let (edges, _) = crate::props::loop_edges(body, outer).expect("the loop's edges");
+    let encoded = match geom_brep::props::boundary_material_sign_loops(&surface, &[&edges], band) {
+        Ok(geom_brep::props::MaterialSign::Encoded(side)) => {
+            Some(side == geom_core::Sign::Positive)
+        }
+        _ => None,
+    };
+    if encoded == Some(!sense) {
+        let first = cycle_first(body, outer).expect("the face's loop is a cycle");
+        let mate = body.mate(first).expect("the face's half-edge has a mate");
+        let twin_loop = body.get_half_edge(mate).expect("the mate").parent_loop;
+        let twin = body.get_loop(twin_loop).expect("the twin's loop").face;
+        let had_pcurves = !body.pcurves.is_empty();
+        let halves: Vec<_> = [outer, twin_loop]
+            .into_iter()
+            .flat_map(|l| {
+                let first = cycle_first(body, l).expect("a sheet's loops are cycles");
+                body.loop_cycle(first).expect("a cycle")
+            })
+            .collect();
+        for he in halves {
+            body.pcurves.remove(he);
+        }
+        body.get_face_mut(face).expect("the face").outer = twin_loop;
+        body.get_face_mut(twin).expect("the twin").outer = outer;
+        body.get_loop_mut(twin_loop).expect("the twin's loop").face = face;
+        body.get_loop_mut(outer).expect("the face's loop").face = twin;
+        let twin_face = body.get_face_mut(twin).expect("the twin");
+        twin_face.sense = !twin_face.sense;
+        if had_pcurves {
+            crate::pcurves::mint_pcurves(body, tol).expect("the turned sheet's pcurves");
+        }
+    }
+    body.get_face_mut(face).expect("the face").sense = sense;
+}
+
+/// The first half-edge of `lk`'s cycle; `None` for a lone vertex.
+fn cycle_first<T: Real>(body: &Body<T>, lk: crate::LoopKey) -> Option<crate::HalfEdgeKey> {
+    match body.get_loop(lk).expect("the loop").boundary {
+        LoopBoundary::Cycle { first } => Some(first),
+        LoopBoundary::Empty { .. } => None,
+    }
+}
+
 /// The canonical unit cylinder's wall sheet over `[u0, u1] x [z0, z1]`
 /// on a bare key — `cyl` mints one when `None` and shares one when
 /// `Some` — with the wall face's sense set and no pcurve minted.
@@ -1452,7 +1567,10 @@ pub(crate) fn unit_cyl_sheet(
 ///
 /// [`cyl_wall_sheet_keyed`] is the construction; this door fixes the
 /// key placement and runs the pcurve pass over the result. The wall
-/// face's sense is left where `mef` put it — [`unit_cyl_sheet`] is the
+/// face's sense is left where `mef` put it, `true`, and its loop runs
+/// clockwise about the chart normal, so the side its loop bounds is the
+/// sense-false one: a row that reads which points the wall holds gives
+/// it a side with [`set_sheet_sense`], and [`unit_cyl_sheet`] is the
 /// spelling that writes one.
 pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,

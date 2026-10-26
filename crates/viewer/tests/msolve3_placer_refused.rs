@@ -26,7 +26,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+use pncad::select::{CapEnd, EntityKind, RoleSeg};
 use viewer::frame::Tone;
 use viewer::tree::{self, RowStatus};
 
@@ -82,7 +82,6 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
                     of: in_part(legs, leg_body, CapEnd::End).name.into(),
                 }],
             }),
-            ContactClass::Rest,
         ),
         Vec::new(),
         tol,
@@ -179,7 +178,6 @@ fn copies(label: &str, copy: u32, tol: Tol) -> Copies {
         fixture::rest(
             common::head(in_part(cap, top_body, CapEnd::Start)),
             common::head(named),
-            ContactClass::Rest,
         ),
         Vec::new(),
         tol,

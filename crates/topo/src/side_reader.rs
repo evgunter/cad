@@ -5,10 +5,10 @@
 //! and every question that is that fact asks it:
 //!
 //! - a shell's role, outer or cavity ([`crate::props`]'s
-//!   `shell_role`), which check 10 ([`crate::validate`]), the pieces
+//!   `shell_role`), which check 10 ([`fn@crate::validate`]), the pieces
 //!   sort ([`crate::pieces`]), the cavity read of `shell`, the census's
 //!   role gate ([`crate::census`]) and `classify_shells` read;
-//! - a solid's orientation, check 7 ([`crate::validate`]);
+//! - a solid's orientation, check 7 ([`fn@crate::validate`]);
 //! - the side of a point no schedule ray reaches, point containment's
 //!   missed-ray side ([`crate::boolean::solid_contain`]).
 //!
@@ -38,6 +38,7 @@ pub(crate) const AIMED_ROWS: RayRows = RayRows {
     edge: "side_at_infinity_edge",
     edge_span: "side_at_infinity_edge_span",
     winding: "side_at_infinity_winding",
+    represents: "side_at_infinity_met_edge_represents",
 };
 
 /// **Two crossings of an aimed ray in band of each other along it** —
@@ -179,7 +180,7 @@ impl core::fmt::Display for UnreadRays<'_> {
         if self.set_aside.is_empty() {
             return f.write_str(
                 "no face of it offers a ray to aim (a point more than the tolerance inside a \
-                 planar face, or a curved face's chart window)",
+                 planar face, or a point of a curved face)",
             );
         }
         if self.aimed == 0 {
@@ -262,13 +263,17 @@ type Aim<T> = (Point3<T>, Vec3<T>);
 /// the edges it passes, however near ([`ray_crossings`]). Another planar
 /// face aims at a point certified strictly inside it
 /// ([`crate::stands::planar_interior_point`]), and offers none where no
-/// candidate certifies. A cylinder, cone or torus face aims at its
-/// chart's point at the middle of its window (a full turn's middle where
-/// it wraps), and a closed sphere at a fixed point of its chart; none of
-/// these needs to lie inside the face: the ray's start lies beyond every
-/// face whatever it aims at, so its count reads the side wherever it
-/// lands, and an aim off the face only steers it. A trimmed sphere, a
-/// cone this door cannot trim and a spline offer none.
+/// candidate certifies. A cylinder or cone face aims at its region's own
+/// aim (its boundary's middle points carried onto the surface), a
+/// trimmed sphere at its region's own (its arcs' middles stepped toward
+/// the face), a torus and a closed sphere at a fixed point of their
+/// charts; none of these needs to lie inside the face: the ray's start
+/// lies beyond every face whatever it aims at, so its count reads the
+/// side wherever it lands, and an aim off the face only steers it. A
+/// cylinder or cone face whose region cannot be read
+/// ([`FaceGeo::PartialWall`], [`FaceGeo::PartialCone`]) has no window to
+/// aim in and offers none. A spline offers none: a selection holding one
+/// casts no ray ([`side_at_infinity`]).
 ///
 /// # Errors
 ///
@@ -292,21 +297,27 @@ fn aim_at<T: Decide>(
         Err(PointInSolidError::KindUnsupported { .. }) => {}
         Err(e) => return Err(e),
     }
-    let mid = |(lo, hi): (T, T)| (lo + hi) * T::from_f64(0.5);
-    let (u, v) = match *geo {
-        FaceGeo::Cylinder { az, h, .. } => (mid(az), mid(h)),
-        FaceGeo::Cone { az, v, .. } => (az.map_or_else(T::pi, mid), mid(v)),
-        // A torus face, whole or trimmed, is aimed at one point of its
-        // surface: the ray starts beyond every face whatever it aims at.
-        FaceGeo::Torus { .. } | FaceGeo::TorusPatch { .. } => (T::pi(), T::pi()),
-        FaceGeo::Sphere { .. } => (T::from_f64(1.0), T::from_f64(0.3)),
-        _ => return Ok(None),
-    };
-    let aim = body
+    let surface = body
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface))
-        .ok_or(PointInSolidError::CorruptFace { face })?
-        .eval(u, v);
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let aim = match *geo {
+        FaceGeo::Cylinder { ref region, .. } | FaceGeo::Cone { ref region, .. } => {
+            match region.aim() {
+                Some(aim) => aim,
+                None => return Ok(None),
+            }
+        }
+        FaceGeo::SpherePatch { ref region, .. } => match region.aim() {
+            Some(aim) => aim,
+            None => return Ok(None),
+        },
+        // A torus face, whole or trimmed, is aimed at one point of its
+        // surface: the ray starts beyond every face whatever it aims at.
+        FaceGeo::Torus { .. } | FaceGeo::TorusPatch { .. } => surface.eval(T::pi(), T::pi()),
+        FaceGeo::Sphere { .. } => surface.eval(T::from_f64(1.0), T::from_f64(0.3)),
+        _ => return Ok(None),
+    };
     // A normal the face's own reader cannot give (an in-band residual,
     // an apex) leaves no incidence to aim at: the face offers none.
     Ok(
@@ -322,6 +333,7 @@ fn aim_at<T: Decide>(
 /// edge by edge however near an edge it lands ([`ray_crossings`]).
 /// `None` for a loop with a curved edge, or one that does not walk.
 fn line_loop_mean<T: geom_core::Real>(body: &Body<T>, face: FaceKey) -> Option<Point3<T>> {
+    // Not `face_edges`: the mean is the outer loop's, and that walks the rings too.
     let outer = body.get_face(face)?.outer;
     let first = match body.get_loop(outer)?.boundary {
         LoopBoundary::Cycle { first } => first,
@@ -394,6 +406,8 @@ pub(crate) fn meet<T: geom_core::Real>(body: &Body<T>, a: FaceKey, b: FaceKey) -
     if a == b {
         return true;
     }
+    // Not `face_edges`, which collects and resolves every mate: this reads
+    // only the starts, in place, once per pair of faces.
     let starts = |face: FaceKey| {
         body.get_face(face)
             .into_iter()
@@ -434,8 +448,8 @@ fn aim_turn() -> (f64, f64) {
 ///
 /// **Aimed rays first.** Each face of the selection that offers an aim
 /// ([`aim_at`]: a line-bounded planar face's mean point, another planar
-/// face's certified interior point, a curved face's chart window's
-/// middle) is aimed at, in face order: the ray leaves from twice the
+/// face's certified interior point, a point of a curved face's surface)
+/// is aimed at, in face order: the ray leaves from twice the
 /// selection's reach from that point, beyond every face, so its start
 /// lies on the side at infinity, and meets the face at 10° from its
 /// outward normal ([`AIM_INCIDENCE`]), turned about it off the coordinate
@@ -471,9 +485,9 @@ fn aim_turn() -> (f64, f64) {
 ///
 /// **The volume only where no face offers an aim that reads.**
 /// Where no aimed ray decided and none read in band, `volume` reads
-/// the side: a selection all of whose faces are trimmed spheres, untrimmable
-/// cones or splines, or whose rays all grazed, met a limit, a corner or
-/// a wedge. A selection holding a face the ray test has no
+/// the side: a selection all of whose faces are cylinders or cones whose
+/// region cannot be read, or whose rays all grazed, met a limit, a
+/// corner or a wedge. A selection holding a face the ray test has no
 /// arm for ([`crate::boolean::solid_contain::ray_crosses`]: a spline) casts no ray at all: every ray
 /// would fault on that face, whatever it aimed at, so the volume reads
 /// with it as the limit.
@@ -574,7 +588,7 @@ fn cast_aims<T: Decide>(
     // is cast, and the volume reads with that face as the limit.
     let mut geos = Vec::with_capacity(faces.len());
     for &face in faces {
-        match face_geo(body, face, &sel.charts, band) {
+        match face_geo(body, face, &sel.charts) {
             Ok(geo) => geos.push((face, geo)),
             Err(e) => {
                 return Ok(Rays::Unread {
@@ -589,49 +603,78 @@ fn cast_aims<T: Decide>(
         }
     }
     let (mut in_band, mut aimed, mut set_aside) = (None, 0, Vec::new());
-    let (along, across) = AIM_INCIDENCE;
     for (face, geo) in &geos {
         let face = *face;
         let Some((aim, normal)) = aim_at(body, face, geo, band)? else {
             continue;
         };
         aimed += 1;
-        let at = crate::census::witness(aim);
-        let mut set = |why| {
-            set_aside.push(SetAside {
+        match aimed_ray(body, faces, &geos, face, aim, normal, band)? {
+            Aimed::Side(side) => return Ok(Rays::Side(side)),
+            Aimed::Pair(pair) => {
+                in_band.get_or_insert(pair);
+            }
+            Aimed::SetAside(why) => set_aside.push(SetAside {
                 aimed: face,
-                aim: Some(at.clone()),
+                aim: Some(crate::census::witness(aim)),
                 why,
-            });
-        };
-        let shell = body
-            .get_face(face)
-            .ok_or(PointInSolidError::CorruptFace { face })?
-            .shell;
-        // The ray is scratch: no output keeps its aim, and only the
-        // crossings it reads decide.
-        let (b1, b2) = normal.orthonormal_basis();
-        let (turn_sin, turn_cos) = aim_turn();
-        let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
-        let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
-        let from = aim + out * (beyond(body, faces, aim)? * T::from_f64(2.0));
-        let d = (aim - from).normalize();
-        let reach = selection_reach(body, faces, from)?;
-        let crossings = match ray_crossings(body, &geos, from, d, reach, band, AIMED_ROWS) {
-            Ok(crossings) => crossings,
-            Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
-                set(SetAsideWhy::Limit(e));
-                continue;
-            }
-            Err(RayFault::InBand(e)) => {
-                set(SetAsideWhy::Crossing(e));
-                continue;
-            }
-            Err(RayFault::Graze | RayFault::Unread) => {
-                set(SetAsideWhy::Graze);
-                continue;
-            }
-        };
+            }),
+        }
+    }
+    if let Some(pair) = in_band {
+        return Ok(Rays::InBand(pair));
+    }
+    Ok(Rays::Unread { aimed, set_aside })
+}
+
+/// What one aimed ray reads ([`aimed_ray`]).
+#[derive(Debug)]
+enum Aimed {
+    /// The side it decided.
+    Side(SolidContainment),
+    /// A pair in band.
+    Pair(AimedPair),
+    /// Why it read nothing.
+    SetAside(SetAsideWhy),
+}
+
+/// **One aimed ray**: from twice the selection's reach off `aim` on
+/// `face`, at [`AIM_INCIDENCE`] to `normal`, turned off the coordinate
+/// planes ([`aim_turn`]), read off the sign of its count.
+#[allow(clippy::too_many_arguments)] // the selection, the aim and the band
+fn aimed_ray<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    geos: &[(FaceKey, FaceGeo<T>)],
+    face: FaceKey,
+    aim: Point3<T>,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<Aimed, PointInSolidError> {
+    let (along, across) = AIM_INCIDENCE;
+    let at = crate::census::witness(aim);
+    let shell = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+        .shell;
+    // The ray is scratch: no output keeps its aim, and only the
+    // crossings it reads decide.
+    let (b1, b2) = normal.orthonormal_basis();
+    let (turn_sin, turn_cos) = aim_turn();
+    let tangent = b1 * T::from_f64(turn_cos) + b2 * T::from_f64(turn_sin);
+    let out = normal * T::from_f64(along) + tangent * T::from_f64(across);
+    let from = aim + out * (beyond(body, faces, aim)? * T::from_f64(2.0));
+    let d = (aim - from).normalize();
+    let reach = selection_reach(body, faces, from)?;
+    let crossings = match ray_crossings(body, geos, from, d, reach, band, AIMED_ROWS) {
+        Ok(crossings) => crossings,
+        Err(RayFault::Blocked(e) | RayFault::Fatal(e)) => {
+            return Ok(Aimed::SetAside(SetAsideWhy::Limit(e)));
+        }
+        Err(RayFault::InBand(e)) => return Ok(Aimed::SetAside(SetAsideWhy::Crossing(e))),
+        Err(RayFault::Graze | RayFault::Unread) => return Ok(Aimed::SetAside(SetAsideWhy::Graze)),
+    };
+    Ok(
         match crossings.first_count(
             AIMED_ROWS.order,
             band,
@@ -660,20 +703,14 @@ fn cast_aims<T: Decide>(
                 })
             },
         ) {
-            Ok(Some(outward)) => return Ok(Rays::Side(side_before(outward))),
-            Err(RayFault::InBand(Unread::Pair(pair))) => {
-                in_band.get_or_insert(pair);
-            }
-            Err(RayFault::InBand(Unread::Mark(why))) => set(why),
+            Ok(Some(outward)) => Aimed::Side(side_before(outward)),
+            Err(RayFault::InBand(Unread::Pair(pair))) => Aimed::Pair(pair),
+            Err(RayFault::InBand(Unread::Mark(why))) => Aimed::SetAside(why),
             // The count reads no limit: a tie between two faces that do
             // not meet, a graze, or nothing that counts.
-            Ok(None) | Err(_) => set(SetAsideWhy::Graze),
-        }
-    }
-    if let Some(pair) = in_band {
-        return Ok(Rays::InBand(pair));
-    }
-    Ok(Rays::Unread { aimed, set_aside })
+            Ok(None) | Err(_) => Aimed::SetAside(SetAsideWhy::Graze),
+        },
+    )
 }
 /// **What each solid's aimed rays read**, before the volume, as text:
 /// the probe surface `test_support::aimed_rays` renders.
@@ -685,6 +722,230 @@ pub(crate) fn aimed_rays_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<St
             Err(e) => format!("no selection: {e:?}"),
         })
         .collect()
+}
+
+/// **What each shell's aimed rays read**, before the volume, as text:
+/// a shell's role is read off its own faces (`SolidFaces::of_shell`).
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn shell_aims_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<String> {
+    body.shells()
+        .map(|(shell, _)| {
+            format!(
+                "{:?}",
+                cast_aims(body, &SolidFaces::of_shell(body, shell), band)
+            )
+        })
+        .collect()
+}
+
+/// **Each aim's own reading**, every face of every solid aimed at (not
+/// only until one decides), as `(face, reading)` text: the curved
+/// edge-meeting ray's probes read it.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn each_aim_report<T: Decide>(body: &Body<T>, band: Band) -> Vec<String> {
+    let mut out = Vec::new();
+    for (solid, _) in body.solids() {
+        let Ok(sel) = SolidFaces::of(body, solid) else {
+            out.push("no selection".to_owned());
+            continue;
+        };
+        let geos: Vec<_> = match sel
+            .faces()
+            .iter()
+            .map(|&f| face_geo(body, f, &sel.charts).map(|g| (f, g)))
+            .collect()
+        {
+            Ok(geos) => geos,
+            Err(e) => {
+                out.push(format!("no geometry: {e:?}"));
+                continue;
+            }
+        };
+        for (face, geo) in &geos {
+            let read = match aim_at(body, *face, geo, band) {
+                Ok(Some((aim, normal))) => {
+                    format!(
+                        "{:?}",
+                        aimed_ray(body, sel.faces(), &geos, *face, aim, normal, band)
+                    )
+                }
+                Ok(None) => "no aim".to_owned(),
+                Err(e) => format!("aim refuses: {e:?}"),
+            };
+            out.push(format!("{face:?}: {read}"));
+        }
+    }
+    out
+}
+
+/// **A frame at a point of an edge, on one of its faces**: what the
+/// probes aim at and about an edge ([`edge_frames`]).
+#[cfg(any(test, feature = "test-support"))]
+pub struct EdgeFrame {
+    /// The edge's carrier kind, its key and its two faces' surface kinds.
+    pub label: String,
+    /// The face.
+    pub face: FaceKey,
+    /// The point of the edge.
+    pub point: Point3<f64>,
+    /// The unit direction into the face there, `N × τ`.
+    pub into: Vec3<f64>,
+    /// The face's outward unit normal there.
+    pub normal: Vec3<f64>,
+}
+
+/// **Each edge's frames, on each of its faces**, at each fraction of
+/// `fractions` along the edge's span (`N` the face's outward normal at
+/// the point, `τ` its loop's tangent): the probes aim rays at and about
+/// an edge from them. An edge whose face has no normal at the point is
+/// left out.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn edge_frames(body: &Body<f64>, fractions: &[f64], band: Band) -> Vec<EdgeFrame> {
+    let kind = |f: FaceKey| {
+        body.get_face(f)
+            .and_then(|fc| body.get_surface(fc.surface))
+            .map_or("?".to_owned(), |s| format!("{:?}", s.kind()))
+    };
+    let mut out = Vec::new();
+    for (face, _) in body.faces() {
+        // A face whose loops do not walk has no edge to frame.
+        for fe in crate::boolean::solid_contain::face_edges(body, face).unwrap_or_default() {
+            let Some(edge) = body.edges.get(fe.edge) else {
+                continue;
+            };
+            let Some(curve) = body
+                .curves
+                .get(edge.curve)
+                .and_then(crate::null::CurveGeom::certified)
+            else {
+                continue;
+            };
+            let (t0, t1) = curve.params();
+            for &x in fractions {
+                let t = t0 + (t1 - t0) * x;
+                let point = curve.carrier().eval(t);
+                let mut tau = curve.carrier().deriv(t).normalize();
+                if edge.he_minus == fe.half {
+                    tau = tau * -1.0;
+                }
+                let Ok(Some(normal)) =
+                    crate::face_normal::face_outward_normal_at(body, face, point, band)
+                else {
+                    continue;
+                };
+                let normal = normal.vec();
+                out.push(EdgeFrame {
+                    label: format!(
+                        "{:?} {:?} [{} | {}]",
+                        curve.carrier().kind(),
+                        fe.edge,
+                        kind(face),
+                        kind(fe.across),
+                    ),
+                    face,
+                    point,
+                    into: normal.cross(tau).normalize(),
+                    normal,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// **Rays aimed at and beside every edge**: for each face and each edge
+/// of its loops, a ray aimed at the edge's middle offset `o` into the
+/// face ([`edge_frames`]), for each `o` of `offsets`, read as an aimed
+/// ray is. Each line is `edge kind, the two faces' surface kinds,
+/// offset: reading`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn edge_rays_report(body: &Body<f64>, offsets: &[f64], band: Band) -> Vec<String> {
+    let mut out = Vec::new();
+    for f in edge_frames(body, &[0.5], band) {
+        for &o in offsets {
+            out.push(format!(
+                "{} o={o:e}: {}",
+                f.label,
+                ray_at_report(body, f.face, f.point + f.into * o, f.normal, band)
+            ));
+        }
+    }
+    out
+}
+
+/// **One ray aimed at `aim` on `face`** of the solid holding it, at the
+/// aimed incidence to `normal`, read as an aimed ray is: the probes aim
+/// it at and about an edge.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn ray_at_report<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    aim: Point3<T>,
+    normal: Vec3<T>,
+    band: Band,
+) -> String {
+    let Some(solid) = body
+        .get_face(face)
+        .and_then(|f| body.get_shell(f.shell))
+        .map(|sh| sh.solid)
+    else {
+        return "no solid".to_owned();
+    };
+    let Ok(sel) = SolidFaces::of(body, solid) else {
+        return "no selection".to_owned();
+    };
+    let geos: Result<Vec<_>, _> = sel
+        .faces()
+        .iter()
+        .map(|&f| face_geo(body, f, &sel.charts).map(|g| (f, g)))
+        .collect();
+    match geos {
+        Ok(geos) => format!(
+            "{:?}",
+            aimed_ray(body, sel.faces(), &geos, face, aim, normal, band)
+        ),
+        Err(e) => format!("no geometry: {e:?}"),
+    }
+}
+
+/// **Every crossing of the ray `q + s·d`** with the solid holding
+/// `face`, its faces' order turned left by `turn` and reversed where
+/// `reversed` (an order permutation), each as `(from, to, count,
+/// sideless)` — a mark is sideless — or the fault the walk raised, as
+/// text: the probes read a whole ray's count off it.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn ray_counts(
+    body: &Body<f64>,
+    face: FaceKey,
+    (q, d): (Point3<f64>, Vec3<f64>),
+    band: Band,
+    (turn, reversed): (usize, bool),
+) -> Result<Vec<(f64, f64, i32, bool)>, String> {
+    let solid = body
+        .get_face(face)
+        .and_then(|f| body.get_shell(f.shell))
+        .map(|sh| sh.solid)
+        .ok_or("no solid")?;
+    let sel = SolidFaces::of(body, solid).map_err(|e| format!("{e:?}"))?;
+    let mut geos: Vec<_> = sel
+        .faces()
+        .iter()
+        .map(|&f| face_geo(body, f, &sel.charts).map(|g| (f, g)))
+        .collect::<Result<_, _>>()
+        .map_err(|e| format!("{e:?}"))?;
+    if reversed {
+        geos.reverse();
+    }
+    let n = geos.len().max(1);
+    geos.rotate_left(turn % n);
+    let reach = selection_reach(body, sel.faces(), q).map_err(|e| format!("{e:?}"))?;
+    let crossings =
+        ray_crossings(body, &geos, q, d, reach, band, AIMED_ROWS).map_err(|e| format!("{e:?}"))?;
+    Ok(crossings
+        .all()
+        .into_iter()
+        .map(|((from, to), hit, sideless)| (from, to, hit.count(), sideless || hit.mark.is_some()))
+        .collect())
 }
 
 #[cfg(test)]
@@ -754,7 +1015,7 @@ mod pre_filter_tests {
         // The limit is the one a ray meets at that face, from anywhere:
         // the face's geometry refuses.
         assert!(
-            matches!(face_geo(&body, spline, &sel.charts, band), Err(e) if e == want),
+            matches!(face_geo(&body, spline, &sel.charts), Err(e) if e == want),
             "a ray meets the same refusal"
         );
     }

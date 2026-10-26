@@ -663,8 +663,8 @@ fn a_placement_wraps_names_once_and_pattern_wraps_instances() {
         },
     );
     let ev = run(&doc);
-    // Placement: every name of the body worn under ONE `Placed`
-    // segment, at the same entity; the copy's body row is its own.
+    // Placement: every name of the body carried as it is, at the same
+    // entity; the copy's body row is its own.
     let (moved, master) = (table(&ev, tr), table(&ev, ext));
     assert_eq!(moved.len(), master.len());
     for (name, entry) in master.iter() {

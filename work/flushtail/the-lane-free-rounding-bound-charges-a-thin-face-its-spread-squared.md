@@ -9,7 +9,7 @@ cost: M
 refs: [5119]
 ---
 
-On a body with no quadrature lane, the volume's sign is read from `[V − b, V + b]`, where `b = props::rounding_bound`. That bound charges each planar term u·R·D², with D the face's spread. A long, thin face's cross products actually round at about u·w·D, where w is its width (`crates/topo/src/props.rs:1118-1135`, `:1199`).
+On a body with no quadrature lane, the volume's sign is read from `[V − b, V + b]`, where `b = props::rounding_bound`. That bound charges each planar term u·R·D², with D the face's spread. A long, thin face's cross products actually round at about u·w·D, where w is its width (`crates/topo/src/props.rs:1397-1459`, `rounding_bound`; the spread is squared at `:1454-1456`).
 
 **Measured** on PR 5119's frozen head by its second reviewer (`flush/shell-role-review-r2`, `review-probes/pr5119-r2-delta2/`), on the unit needle bar 1×w×w across 7 poses and both orientations:
 - **At ε 1e-6:** all 70 cases read correctly.
@@ -19,7 +19,7 @@ The refusal is honest: it is typed as a capability limit ("no way through yet"),
 
 **The work:**
 - Bound each planar face term by the rounding of its own cross products, not by its spread squared.
-- Guard the case of a loopless face: a closed sphere or torus adds nothing to b (`props.rs:1199`). Its vector area is zero, but nothing asserts that.
+- Guard the case of a loopless face: a closed sphere or torus adds nothing to b (`props.rs:1454`, the loop-box guard). Its vector area is zero, but nothing asserts that.
 - Round the widened ends outward. Today they round to nearest, one ulp against a factor-16 allowance.
 - Pin the needle grid at 1e-9 so that it reads.
 

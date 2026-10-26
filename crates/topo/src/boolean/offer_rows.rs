@@ -46,7 +46,7 @@ use super::super::sectors::{NO_CURVATURE, Reach, side_code, tangent_relative_sid
 use super::super::{BooleanError, BooleanErrorKind, Glue, GluedPair, GluedPairs, Operand};
 use super::tests::every_decision;
 use super::*;
-use crate::contact::ContactClass;
+use crate::contact::GlueClass;
 use crate::entity::VertexKey;
 use crate::test_support::finished;
 use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
@@ -223,7 +223,7 @@ cases! {
     // arc's ends are read; a smaller tolerance decides the radii apart.
     arc_ends_clear_of_a_covered_wall: "Coincidence(VertexOnCoveredFace)", D, CURVED_ARM_SITE,
         Withdrawn(Because::Refuses("ContactContradicted")) =>
-        arc_against_a_wall(1.0 + D, Some(ContactClass::Rest));
+        arc_against_a_wall(1.0 + D, Some(GlueClass::Rest));
     thin_wedge_on_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
         wedge_on_a_block(super::super::BooleanOp::Union, 5.0, D);
     thin_wedge_cut_from_a_block: "Coincidence(Sectors)", D * sin_deg(5.0), Public, Valued =>
@@ -722,7 +722,7 @@ fn line_run(profile: [(f64, f64); 4]) -> Result<(), BooleanError> {
 /// sharing its axis, the pair declared `class` through the Boolean's
 /// declaration door (`verify_declared_contacts`, which also says whether
 /// the two are one carrier): the first arc's raise.
-fn arc_against_a_wall(r: f64, class: Option<ContactClass>) -> Result<(), BooleanError> {
+fn arc_against_a_wall(r: f64, class: Option<GlueClass>) -> Result<(), BooleanError> {
     let tol = Tol::witness();
     let mut x: crate::body::Body<f64> = crate::body::Body::new();
     let xw = cyl_wall_sheet(&mut x, CylFrame::canonical(r), (0.5, 1.0), (0.25, 0.5), tol);
@@ -1456,6 +1456,7 @@ fn vertex_near_a_sheet_corner() -> Result<(), BooleanError> {
         (0.0, 1.0),
         tol,
     );
+    crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, tol);
     cyl_wall_sheet(
         &mut y,
         CylFrame::canonical(1.0),
@@ -1540,7 +1541,7 @@ fn planar_flank_membership_at(against: bool, rest: bool, arm: f64) -> Result<(),
     let flank = if against { -x } else { x };
     let decls = Glue {
         pairs: if rest {
-            vec![GluedPair::new(fa, fb, ContactClass::Rest)]
+            vec![GluedPair::new(fa, fb, GlueClass::Rest)]
         } else {
             Vec::new()
         },
@@ -2191,8 +2192,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::CurvedPierceUnsupported
         | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::NormalAtConeApex
-        | BooleanErrorKind::CurvedEdgeUnsupported
-        | BooleanErrorKind::CrossingCarrierUnsupported
+        | BooleanErrorKind::EdgeCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
         | BooleanErrorKind::GermEdgeCarrierUnsupported
         | BooleanErrorKind::ArcLoopContainmentUnsupported
@@ -2215,6 +2215,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchRaysInAFace
+        | BooleanErrorKind::TangentCrescentUnsupported
         | BooleanErrorKind::CrossingsAlongAContactLine
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::PartnerAlongFace
@@ -2224,7 +2225,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::NurbsExtentUnsupported
         | BooleanErrorKind::FallbackExtentUnsupported
         | BooleanErrorKind::GermFrameUnsupported
-        | BooleanErrorKind::GermSectionOutsideInventory
+        | BooleanErrorKind::GermSectionOpenConic
         | BooleanErrorKind::GermSectionSpiric
         | BooleanErrorKind::NodeUnbuilt
         | BooleanErrorKind::JoinDesync
@@ -2526,6 +2527,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("fate.rs", "contained", "BooleanDecision::Containment", 1),
     ("fate.rs", "places", "BooleanDecision::of_normal", 1),
+    (
+        "fate.rs",
+        "ring_winding",
+        "BooleanDecision::CutRingWinding",
+        1,
+    ),
     ("fate.rs", "sign", "Coincide::Sectors", 1),
     ("glue.rs", "tangency", "Coincide::Rim", 1),
     ("insert.rs", "germ_dir", "BooleanDecision::SelfCheck", 1),
@@ -2572,7 +2579,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "unglued_coincidence", "Coincide::Carriers", 1),
     ("mod.rs", "sectors_read", "Coincide::Sectors", 1),
     ("mod.rs", "unglued_corner", "Coincide::Sectors", 1),
-    ("mod.rs", "decision_words", "BooleanDecision::ArcSpan", 1),
     (
         "mod.rs",
         "decision_words",
@@ -2639,9 +2645,10 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("mod.rs", "verify_tangency", "Coincide::Contact", 1),
     ("mod.rs", "verify_tangency", "Coincide::Rim", 1),
     ("mod.rs", "verify_tangency", "Coincide::TangentLocus", 1),
+    ("ops.rs", "bounded", "BooleanDecision::VolumeBackstop", 1),
     (
         "ops.rs",
-        "bound_holds",
+        "decide_left",
         "BooleanDecision::VolumeBackstop",
         1,
     ),
@@ -2701,12 +2708,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("ops.rs", "piece_holds", "SelfCheck::CarriedLineage", 1),
     ("ops.rs", "span_in_band", "BooleanDecision::SelfCheck", 1),
     ("ops.rs", "span_in_band", "SelfCheck::CarriedLineage", 1),
-    (
-        "ops.rs",
-        "volume_backstop",
-        "BooleanDecision::VolumeBackstop",
-        1,
-    ),
     ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
     ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
@@ -2780,12 +2781,6 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     (
         "reduce.rs",
         "split_other_at_point",
-        "BooleanDecision::ArcSpan",
-        1,
-    ),
-    (
-        "reduce.rs",
-        "split_other_at_point",
         "BooleanDecision::SplitPointOnCircle",
         1,
     ),
@@ -2813,6 +2808,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "vertex_refusal", "Coincide::SectorSide", 1),
     ("reduce.rs", "vertex_refusal", "Coincide::VertexOnFace", 1),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
+    (
+        "ruled_region.rs",
+        "-",
+        "BooleanDecision::CONTAINMENT_UNNAMED",
+        1,
+    ),
     ("sectors.rs", "arc_side", "Coincide::Sectors", 1),
     (
         "sectors.rs",
@@ -2822,6 +2823,8 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     ("sectors.rs", "build_sectors", "BooleanDecision::Corner", 1),
     ("sectors.rs", "conic_side", "BooleanDecision::ConicBend", 1),
+    ("sectors.rs", "crescent", "BooleanDecision::ConicBend", 1),
+    ("sectors.rs", "crescent", "Coincide::Sectors", 1),
     ("sectors.rs", "in_sector", "Coincide::Sectors", 1),
     (
         "sectors.rs",
@@ -2963,9 +2966,9 @@ lever_rows! {
     // it) passes; moved clearly clear of it, the declaration is
     // contradicted, which is why the lever no longer names that side.
     covered_vertex_moved_onto_its_face: None =>
-        arc_against_a_wall(1.0, Some(ContactClass::Rest));
+        arc_against_a_wall(1.0, Some(GlueClass::Rest));
     covered_vertex_moved_clear_of_its_face: Some("ContactContradicted") =>
-        arc_against_a_wall(1.1, Some(ContactClass::Rest));
+        arc_against_a_wall(1.1, Some(GlueClass::Rest));
     // `FlankSense`, overlapping and undeclared: lengthened, the sense
     // decides and the coplanar pair, which no glue door glued here,
     // refuses next, whose own story is the declaration, which passes.

@@ -267,7 +267,6 @@ fn labelled_as_one_undo(session: &mut DocSession, op: SessionOp, text: &str) -> 
 #[test]
 fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
     use common::{ang, asm, len, len3, scl3};
-    use pncad::select::ContactClass;
     use viewer::session::{FaceSelection, PartSelectSpec, PatternRuleSpec};
 
     let tol = Tol::witness();
@@ -384,8 +383,25 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         &mut session,
         SessionOp::Duplicate {
             input: block.into(),
+            beside: None,
         },
         "copy",
+    );
+    run(
+        &mut session,
+        SessionOp::AddMirror {
+            body: block.into(),
+            plane: FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node: block,
+                    path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End)],
+                },
+                node: block,
+                body: 0,
+            },
+        },
+        "image",
     );
     let edges = pncad::select::all_edges(session.evaluation().expect("landed"), block);
     run(
@@ -417,7 +433,6 @@ fn every_creation_labelled_is_one_undo_whatever_door_commits_it() {
         Creation::of(asm::seat_op(
             &bench,
             bench.post_b,
-            ContactClass::Tangent,
             asm::middle_seat_values(),
         ))
         .is_err(),
@@ -776,7 +791,8 @@ fn the_checks_window_speaks_from_the_landed_document() {
     let mut session = DocSession::inline(Doc::empty_derived("checks-window-speaks", tol), tol);
     let big = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
     let small = common::xy_box_in(&mut session, [0.02, 0.01, 0.006]);
-    common::world_is_the_product(&mut session);
+    let copies = [big, small].map(|body| common::copy_of(session.committed_doc(), body));
+    common::product_is(&mut session, &copies);
     let named = session.perform(SessionOp::SetLabel {
         node: big,
         label: Some(label("big block")),

@@ -30,9 +30,9 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions,
-    FaceName, Formula, InterfaceCrossing, InterfaceRecord, Maintenance, Mate, Node, ProfileDoc,
-    RecipeNodeId, RoleSeg, SplitError, StableName, apply, inline, split,
+    CapEnd, DocEdit, DocRef, DocumentId, EditError, EntityKind, EvalOptions, FaceName, Formula,
+    InterfaceCrossing, InterfaceRecord, Maintenance, Mate, Node, ProfileDoc, RecipeNodeId, RoleSeg,
+    SplitError, StableName, apply, inline, split,
 };
 use fixture::resolver::{PartStore, in_part};
 use fixture::{insert, on_frame, step};
@@ -102,22 +102,14 @@ fn spelled_on(node: RecipeNodeId, cap: CapEnd) -> FaceName {
 }
 
 fn crossing(outer: FaceName, inner: FaceName) -> InterfaceCrossing {
-    InterfaceCrossing::Mate {
-        class: ContactClass::Rest,
-        outer,
-        inner,
-    }
+    InterfaceCrossing::Mate { outer, inner }
 }
 
 /// A rest of `placed`'s face against `target`'s, each read where it is
 /// read ([`fixture::Sited`]): `placed` is the face of the copy the
 /// constraint places.
 fn mate(target: impl fixture::Sited, placed: impl fixture::Sited) -> Mate<Formula> {
-    fixture::rest(
-        fixture::head(placed),
-        fixture::head(target),
-        ContactClass::Rest,
-    )
+    fixture::rest(fixture::head(placed), fixture::head(target))
 }
 
 /// An instance carrying `record` — pinned to the world at the identity
@@ -398,6 +390,7 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
             | Maintenance::StrandedAppearance { .. }
             | Maintenance::StrandedRead { .. }
             | Maintenance::StrandedSpace { .. }
+            | Maintenance::ProductOutsideWorld { .. }
             | Maintenance::ValueDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })

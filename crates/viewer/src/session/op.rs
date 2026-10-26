@@ -703,6 +703,32 @@ pub enum SessionOp {
         /// The plane's normal (`Scalar`).
         normal: [Formula; 3],
     },
+    /// **Mirror an existing body across the plane of a picked face** —
+    /// the mirror tool's one committed action. The plane is the face's
+    /// own, read where it was picked: a pick on a copy is read on the
+    /// body the copy places (`crate::world::on_body`), so the plane reads
+    /// the geometry of the body's space, as a mirror's plane must.
+    ///
+    /// A body the world draws becomes the symmetric part: the image
+    /// (`Node::Mirror`) and the union of the body and its image, in the
+    /// body's space, the body's drawn copies re-pointed to the union —
+    /// the feature takeover a fillet makes — so the part is drawn where
+    /// each copy stands and moves with the copy's placement. A mate that
+    /// another placement seats on a face of the body's copy goes stale
+    /// at the takeover, as it does at a fillet's. A body nothing places
+    /// gets its image alone, reached in the tree.
+    ///
+    /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
+    /// a face read in another space — another construction's, or its
+    /// image's — refuses at the insert door (`EditError::SpaceMismatch`).
+    /// Whether the face is planar is the mirror's own refusal where it
+    /// evaluates.
+    AddMirror {
+        /// The body reflected.
+        body: Operand,
+        /// The face whose plane it is reflected across.
+        plane: FaceSelection,
+    },
     /// **Move an existing body rigidly** — the transform tool's one
     /// committed action: a placement of the body into the space it is
     /// in (`Node::Place`, no mate), its values on that space's axes —
@@ -795,10 +821,9 @@ pub enum SessionOp {
     /// fillet, re-pointing the body's world placements to it (A10, Ev's
     /// residue 1).
     ///
-    /// **A target that is a world placement is a pick on its copy**,
-    /// read on the body it places: the fillet reads that body, and each
-    /// selected name the placement's wrap is unwrapped to the body's own
-    /// (`StableName::copy_of`).
+    /// **A target that is a world placement is read on the body it
+    /// places**: the fillet reads that body, and a copy carries its
+    /// body's names as they are, so each selected name is the body's.
     ///
     /// **The selection is a frozen commitment** (`Node::Fillet`'s
     /// ratified #217 semantics): what is authored here is what the
@@ -884,9 +909,9 @@ pub enum SessionOp {
     /// **A duplicate is a pattern of two, its copy projected and
     /// placed** — a `Node::Pattern` of count
     /// [`crate::combine::DUPLICATE_COUNT`] over the body, a `Node::Part`
-    /// picking its second instance, and that projection's identity
-    /// world placement (A10). Three inserts, one action, one undo. The
-    /// original's placements are untouched. The copy is a body of its
+    /// picking its second instance, and a placement of that projection
+    /// beside the original as it is drawn (A10). One action, one undo.
+    /// The original's placements are untouched. The copy is a body of its
     /// own rather than a second placement of the original, because a
     /// feature gesture re-points every placement of its target body
     /// (`work/chrome/a-feature-gesture-re-points-every-copy-of-its-target.md`).
@@ -903,9 +928,19 @@ pub enum SessionOp {
     /// which a pattern of two would index in place, adding nothing.
     /// Both numbers land in the pattern's ordinary slots and are edited
     /// in the property panel afterwards.
+    ///
+    /// **Where the copy is drawn**: beside the drawn copy `beside`, or
+    /// beside each drawn copy of `input` when the pick named the body
+    /// itself; at the identity of the world for a body nothing draws.
+    /// Each placement is written by values on every freedom at that
+    /// copy's evaluated motion, into the copy's space, with no mate, so
+    /// the duplicate stands where the person sees the original, stepped
+    /// along the original's own `x`, and does not follow it.
     Duplicate {
         /// The body duplicated.
         input: Operand,
+        /// The drawn copy of `input` the pick landed on, if any.
+        beside: Option<RecipeNodeId>,
     },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second
@@ -925,7 +960,7 @@ pub enum SessionOp {
     /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
     /// reference into a store it has not got.
     ///
-    /// **A creation, so its copies are placed** (A10): an instance is a
+    /// **A creation, so its copy is placed** (A10): an instance is a
     /// placement, inserted and placed at the identity by the "place
     /// part" gesture (the identity bundle), with its reference and an empty
     /// interface record (an authored instance crosses no split seam).
@@ -965,8 +1000,8 @@ pub enum SessionOp {
     /// product set to the one body of `bodies`, or to a `⊔` of them in
     /// the order given, inserted in the same action; to nothing where
     /// `bodies` is empty. One action, one undo. The door refuses a read
-    /// whose body is not in the world. No pane offers it yet
-    /// (`work/intent/the-viewer-sets-no-product.md`).
+    /// whose body is not in the world. The properties pane offers it on a
+    /// selected world copy: add it to the product, or take it out.
     SetProduct {
         /// The bodies the document makes.
         bodies: Vec<Operand>,
@@ -1165,6 +1200,7 @@ impl SessionOp {
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1283,6 +1319,7 @@ impl SessionOp {
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1506,6 +1543,7 @@ impl SessionOp {
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1633,6 +1671,7 @@ impl SessionOp {
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }

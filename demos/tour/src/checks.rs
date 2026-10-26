@@ -112,7 +112,13 @@ fn boolean_doc(
     );
     let placed =
         crate::world::in_world_by(&doc, boolean, crate::world::slides([0.0, 0.0, lift]), tol);
-    doc = crate::world::world_is_the_product(&placed.doc, tol).doc;
+    // What the document makes: the boolean's one copy.
+    doc = crate::world::set_product(
+        &placed.doc,
+        &[pncad::document::Operand::Node(placed.placement)],
+        tol,
+    )
+    .doc;
     let placement = placed.placement;
     let ev = evaluate::<f64>(
         &doc,

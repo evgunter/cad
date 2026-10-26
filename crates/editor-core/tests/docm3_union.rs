@@ -564,17 +564,15 @@ fn dropping_a_member_leaves_the_others_names_alone() {
 /// **Two placements of ONE prototype are two members, and their names
 /// are distinct.** This is the row the member EDGE exists for.
 ///
-/// A placement names its copy's entities under its own node, each over
-/// the prototype's name (`RoleSeg::Placed`), so two placements of one
-/// body carry tables equal under that layer, and a wrapper keyed on the
-/// prototype's name alone would map their corresponding faces onto one
-/// name and refuse.
+/// A copy carries its source's names as they are, so two placements of
+/// one body carry one table, and a wrapper keyed on the prototype's name
+/// alone would map their corresponding faces onto one name and refuse.
 ///
 /// The segment keys on the member's read instead, so the two members
 /// are told apart by the DAG edge that makes them two. The first
-/// assertion is the mechanism — the tables really are equal under the
-/// placement layer — and the second is what the union does with it. The
-/// die's 21 pips are exactly this shape, at scale.
+/// assertion is the mechanism — the two tables are one — and the second
+/// is what the union does with it. The die's 21 pips are exactly this
+/// shape, at scale.
 #[test]
 fn two_placements_of_one_prototype_are_two_members() {
     let doc = ProfileDoc::empty_derived("docm3_union", Tol::witness());
@@ -590,13 +588,11 @@ fn two_placements_of_one_prototype_are_two_members() {
     );
     let ev = run(&doc);
 
-    // The mechanism: the two members' tables are the same table under
-    // the placement layer.
-    let prototype = |faces: Vec<StableName>| -> Vec<StableName> { faces.into_iter().collect() };
+    // The mechanism: the two members carry one table, the body's.
     assert_eq!(
-        prototype(all_faces(&ev, left)),
-        prototype(all_faces(&ev, right)),
-        "two placements of one body carry the body's names, each under its own placement"
+        all_faces(&ev, left),
+        all_faces(&ev, right),
+        "two placements of one body carry the body's names as they are"
     );
     // The consequence: twelve distinct face names under the union, six
     // per member, told apart by the member edge and by nothing else.
@@ -613,8 +609,7 @@ fn two_placements_of_one_prototype_are_two_members() {
         );
     }
     // And the prototype's names alone would NOT have told them apart:
-    // strip the member edge and the placement layer and the twelve
-    // collapse to six.
+    // strip the member edge and the twelve collapse to six.
     let inner: std::collections::BTreeSet<StableName> = faces
         .iter()
         .filter_map(|n| match n.path.first() {

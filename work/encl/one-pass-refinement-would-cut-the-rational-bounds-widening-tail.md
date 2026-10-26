@@ -2,11 +2,10 @@
 id: one-pass-refinement-would-cut-the-rational-bounds-widening-tail
 kind: issue
 title: One-pass (Oslo) refinement would cut the rational bound's widening tail: the fold pays a rounding per insertion where A5.4 pays one per degree
-status: parked
+status: open
 opened: 2026-09-22
 priority: P2
 cost: H
-blocked_on: [f64-refinement-inside-an-enclosure-has-five-more-sites]
 ---
 
 
@@ -58,3 +57,7 @@ Not urgent: nothing is unsound, the median is 1e-14, and the tail
 affects grid counts and not correctness. Recorded here because TESS-2
 disclosed it in a PR body and in one paragraph of a row about a
 different class, and a residue disclosed is not a residue scheduled.
+
+## Unparked (2026-10-26, tracker sweep)
+
+Its trigger `f64-refinement-inside-an-enclosure-has-five-more-sites` (now in `work/nurbs/`) closed: the last site, `rational_carrier_m_bound` in `crates/mesh/src/chords.rs`, reads `accel_upper_bound` at Interval. Nothing else gates this row.

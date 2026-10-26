@@ -138,7 +138,7 @@ pub fn bench(tag: &str, tol: Tol) -> Bench {
     let shelf_i = instance_at(&mut asm, shelf_ref, SHELF_AT, &opts, tol);
     let post_b = instance_at(&mut asm, post_ref, POST_B_AT, &opts, tol);
     // What the assembly makes: its three copies.
-    let asm = crate::fixture::world_product(asm);
+    let asm = crate::fixture::assemble_world_copies(asm);
     let asm_path = ws.create(&asm, tol).expect("the assembly stores");
 
     Bench {
@@ -277,8 +277,8 @@ pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
 /// part's names as they are, so the name is the part's and the site
 /// is the instance whose copy carries it — for rows that author a mate
 /// directly.
-pub fn in_part(instance: RecipeNodeId, local: &StableName) -> crate::fixture::resolver::InPart {
-    crate::fixture::resolver::InPart {
+pub fn in_part(instance: RecipeNodeId, local: &StableName) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
         at: instance,
         name: local.clone(),
     }
@@ -368,12 +368,11 @@ pub fn assert_solved_at(session: &DocSession, placement: RecipeNodeId, want: &Fr
     assert!(close, "{what}: {got:?} vs {want:?}");
 }
 
-/// The mate tool's choice for the seat: a Rest of two planes, the
+/// The mate tool's choice for the seat: a mate of two planes, the
 /// target flipped (the faces rest against each other), at
 /// [`middle_seat_values`].
 pub fn seat_choice() -> viewer::matetool::MateChoice {
     viewer::matetool::MateChoice {
-        class: pncad::select::ContactClass::Rest,
         kind: pncad::document::VarKind::Plane,
         flip: true,
         values: middle_seat_values(),
@@ -381,21 +380,19 @@ pub fn seat_choice() -> viewer::matetool::MateChoice {
 }
 
 /// **The seat mate as the op the session takes**: `post`'s top cap
-/// resting on the bench shelf's underside, as `class`, with `values`,
+/// resting on the bench shelf's underside, with `values`,
 /// in `post`'s bundle.
 ///
 /// One home for the op because the two faces it names are one fact
-/// about this fixture; what a row varies is the post, the class and
-/// the values. A row hands it to [`super::commit_mate`] or
+/// about this fixture; what a row varies is the post and the values. A row hands it to [`super::commit_mate`] or
 /// [`super::session_insert`], or performs it itself when its subject
 /// is the outcome.
 pub fn seat_op(
     bench: &Bench,
     post: RecipeNodeId,
-    class: pncad::select::ContactClass,
     values: Vec<(Coord, pncad::document::Formula)>,
 ) -> SessionOp {
-    seat_op_under(bench, post, bench.shelf_i, class, values)
+    seat_op_under(bench, post, bench.shelf_i, values)
 }
 
 /// [`seat_op`] under a shelf instance other than the bench's — one a
@@ -404,13 +401,12 @@ pub fn seat_op_under(
     bench: &Bench,
     post: RecipeNodeId,
     shelf: RecipeNodeId,
-    class: pncad::select::ContactClass,
     values: Vec<(Coord, pncad::document::Formula)>,
 ) -> SessionOp {
     let (post_top, shelf_bottom) = seat_faces(bench, post, shelf);
     SessionOp::AddMate {
         placement: post,
-        mate: Box::new(crate::fixture::rest(post_top, shelf_bottom, class)),
+        mate: Box::new(crate::fixture::rest(post_top, shelf_bottom)),
         values,
         into_target_space: true,
     }
@@ -436,7 +432,6 @@ pub fn shelf_rest_op(bench: &Bench, post: RecipeNodeId, offset: f64) -> SessionO
         mate: Box::new(crate::fixture::mate(
             crate::fixture::plane(shelf_bottom),
             to,
-            pncad::select::ContactClass::Rest,
         )),
         values: Vec::new(),
         into_target_space: true,
@@ -456,7 +451,6 @@ pub fn no_centre_op(bench: &Bench, post: RecipeNodeId) -> SessionOp {
         mate: Box::new(crate::fixture::mate(
             crate::fixture::axis(shelf_bottom),
             crate::fixture::axis(post_top),
-            pncad::select::ContactClass::Rest,
         )),
         values: Vec::new(),
         into_target_space: true,
@@ -485,15 +479,7 @@ pub fn refuse_shelf_chaining(
     // Its pin off first, by a space of its own: a seat beside a mate the
     // bundle holds is refused.
     unpin(session, chained);
-    let sound = super::commit_mate(
-        session,
-        seat_op(
-            bench,
-            chained,
-            pncad::select::ContactClass::Rest,
-            middle_seat_values(),
-        ),
-    );
+    let sound = super::commit_mate(session, seat_op(bench, chained, middle_seat_values()));
     // The shelf's mates off, by a space of its own: a mate beside one
     // the bundle holds is refused. The refused mate places it back.
     unpin(session, bench.shelf_i);

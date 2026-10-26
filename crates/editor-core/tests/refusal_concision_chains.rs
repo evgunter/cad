@@ -104,9 +104,9 @@ const KERNEL_KEYED: &[&str] = &[
 /// renders today and filed with its owner: a row over its ceiling, or
 /// under it with the ceiling standing, is red.
 const OVER_BUDGET: &[(&str, usize)] = &[
-    // work/profileprose/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Profile/ArcBelowSceneResolution", 85),
-    // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/ResultEscalated", 90),
 ];
 
@@ -172,7 +172,7 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ),
     // work/carvetail/carve-refusals-short-of-the-shape-guard.md
     ("Blend/SurgeryInvariant", "at face FaceKey"),
-    // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     ("Split/Finish/Merge", "merge_coplanar_faces"),
     // work/issues/unowned-viewer-refusals-short-of-the-shape-guard.md
     (
@@ -233,13 +233,13 @@ pub(crate) const ADMISSIONS: &[Admission<'static>] = &[
     Admission {
         row: "Split/Finish/ResultEscalated",
         span: "FaceKey(null) and FaceKey(null)",
-        filed: "work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+        filed: "work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     // A merge refusal names its edge by key.
     Admission {
         row: "Split/Finish/Merge",
         span: "EdgeKey(null)",
-        filed: "work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
+        filed: "work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md",
     },
     // A document named by its hex id: the reference loop.
     Admission {
@@ -325,16 +325,15 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "MeasureClearanceRefused/ToleranceHasNoBand",
     "MeasureClearanceRefused/Unsupported",
     "MeasureClearanceRefused/WitnessUnverified",
-    // work/profileprose/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/profiletail/profile-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Profile/InconsistentArc",
-    // work/hone/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
+    // work/honeword/split-finish-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Split/Finish/Merge",
     // work/carvetail/sweep-arms-the-weld-renders-fall-short-of-the-shape-guard.md
     "Revolve/PinnedRunStation",
     // work/hone/reach-refusals-short-of-the-shape-guard.md
     "Boolean/Join/Corrupt",
     "Boolean/Join/CutInvariant",
-    "Boolean/Join/Section",
     "Boolean/Join/SectionInvariant",
     "Boolean/Join/SectionLoopMixed",
     "Boolean/Join/UnpairedLooseEnds",
@@ -344,7 +343,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Split/Finish/UnclassifiableComponent",
     "Split/Join/Corrupt",
     "Split/Join/CutInvariant",
-    "Split/Join/Section",
     "Split/Join/SectionInvariant",
     "Split/Join/SectionLoopMixed",
     "Split/Join/UnpairedLooseEnds",
@@ -684,7 +682,7 @@ mod payloads {
 /// recourse is addressed to the driver's call, not to the person at
 /// the GUI — on [`payloads::euler`] it reads "describe it against the
 /// surfaces its faces wear" — which is
-/// `work/hone/a-driver-carried-operation-refusal-shows-the-user-the-drivers-recourse.md`.
+/// `work/honeword/a-driver-carried-operation-refusal-shows-the-user-the-drivers-recourse.md`.
 const DRIVER_CARRIED: &[&str] = &[
     "Blend/Op",
     "Boolean/Join/Euler",
@@ -887,7 +885,7 @@ mod kernel {
             Band, NonFiniteAxis, UnderflowedAxis, DegenerateAxis, AxisEscalated, Turn,
             DegenerateAngle, FullRangeAngle, AngleEscalated, VertexCrossesAxis,
             SliverRadius, ArcCrossesAxis, SliverAxisClearance, UnsupportedToroid,
-            NonManifoldAxisContact, MultipleAxisRuns, HoleTouchesAxis, VoidInsertion,
+            NonManifoldAxisContact, AxisGapEscalated, HoleTouchesAxis, VoidInsertion,
             CosurfaceEscalated, SliverJoin, SliverRim, SmoothJoinRefuted,
             PinnedRunStation, CapPlane, Op, Pcurve,
         ];
@@ -1000,8 +998,11 @@ mod kernel {
             OrderEscalated, Escalated, DegenerateSection, CurvedSlitTrace, RingHoming,
             RingHomingAmbiguous, UnpairedLooseEnds, SingleSiteSectionLoop,
             SectionLoopMixed, SectionLoopUndecided, CutInvariant, Corrupt, LineageRow,
-            Band, Euler, SectionEndEscalated, SectionUnresolved, Section, ApexUnlifted,
-            PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RingIslandUnread,
+            Band, Euler, SectionEndEscalated, SectionUnresolved, Section, OpenConicChord,
+            ApexUnlifted,
+            PoleEdgesCoincide, SectionInvariant, SectionUnarmed, RunImageNotYet,
+            RingIslandUnread,
+            RunEdgeCarrierUnsupported,
             TangentChordEscalated, TangentChordBendEscalated, TangentChordRefuted,
             SectionCrossings,
         ];
@@ -1041,7 +1042,8 @@ mod kernel {
             ReanchorInconclusive, NurbsLaneUnsupported, TogetherNonPlanar,
             TogetherPartialSet, TogetherCorner, TogetherChartMixed,
             TogetherFaceRepeated, TogetherEdgeDisagreement, TogetherAxialUnsupported,
-            TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, DegenerateTorus,
+            TogetherNotAxial, TogetherAxialCorner, TogetherAxialEdge, TogetherConicArc,
+            DegenerateTorus,
             Escalated, Op, Pcurve, Join, ResultNotClosed,
         ];
     }
@@ -1052,7 +1054,7 @@ mod kernel {
             Escalated, RayExhausted, ZeroVolumeBody, InsideOut, Loop, CorruptFace,
             KindUnsupported, VolumeUncertified, PartialSphereFace, PartialConeFace,
             PartialTorusFace, EdgeCarrierUnsupported, WallOutlineUnsupported,
-            JunctionSidesDisagree, NarrowWindowUnread, RootCountDisagrees, NoSuchSolid,
+            RootCountDisagrees, NoSuchSolid,
         ];
     }
 
@@ -2171,12 +2173,19 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
                 vertex_index: 3,
             },
         ),
-        ("MultipleAxisRuns", E::MultipleAxisRuns { loop_index: 0 }),
+        (
+            "AxisGapEscalated",
+            E::AxisGapEscalated {
+                loop_index: 0,
+                vertex_index: 3,
+                source: diag(),
+            },
+        ),
         ("HoleTouchesAxis", E::HoleTouchesAxis { loop_index: 1 }),
         (
             "VoidInsertion",
             E::VoidInsertion {
-                loop_index: 1,
+                cavity: sweep::CavityOrigin::Hole { loop_index: 1 },
                 source: topo::VoidInsertError::NotStrictlyContained {
                     shell: topo::ShellKey::default(),
                 },
@@ -2607,6 +2616,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                     )),
                 },
             ),
+            (
+                "OpenConicChord",
+                J::OpenConicChord {
+                    face,
+                    conic: geom_brep::OpenConic::Hyperbola,
+                },
+            ),
             ("ApexUnlifted", J::ApexUnlifted { face }),
             ("PoleEdgesCoincide", J::PoleEdgesCoincide { face }),
             (
@@ -2625,10 +2641,24 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
+                "RunImageNotYet",
+                J::RunImageNotYet {
+                    face,
+                    kind: geom::SurfaceKind::Sphere,
+                },
+            ),
+            (
                 "RingIslandUnread",
                 J::RingIslandUnread {
                     face,
                     kind: geom::SurfaceKind::Cone,
+                },
+            ),
+            (
+                "RunEdgeCarrierUnsupported",
+                J::RunEdgeCarrierUnsupported {
+                    face,
+                    edge: topo::EdgeKey::default(),
                 },
             ),
             (
@@ -2839,7 +2869,12 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "ApproxLaneUnsupported",
             E::ApproxLaneUnsupported { scalar: "interval" },
         ),
-        ("Corrupt", E::Corrupt { what: "face" }),
+        (
+            "Corrupt",
+            E::Corrupt {
+                found: "a vertex references a missing point",
+            },
+        ),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
@@ -4585,7 +4620,7 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             "UnsupportedUnionName",
             NamingError::UnsupportedUnionName {
                 name: Box::new(stable(EntityKind::Vertex, 3)),
-                shape: editor_core::UnionNameShape::SeamGroupNoMemberEdge,
+                shape: editor_core::UnionNameShape::SeveralParents,
             },
         ),
         (
@@ -4684,8 +4719,8 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "Escalated",
             NamingError::Escalated {
-                predicate: "name_frag_order_along",
-                source: named("name_frag_order_along"),
+                predicate: "name_frag_on_member_edge",
+                source: named("name_frag_on_member_edge"),
             },
         ),
     ];
@@ -5294,7 +5329,6 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
                 found: DocumentId::derive("b"),
             },
         ),
-        ("ClassNotAdmitted", M::ClassNotAdmitted { mate: r(9) }),
         (
             "Overconstrained",
             M::Overconstrained {
@@ -5748,6 +5782,13 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 },
             ),
             (
+                "TogetherConicArc",
+                R::TogetherConicArc {
+                    edge,
+                    conic: geom_brep::OpenConic::Hyperbola,
+                },
+            ),
+            (
                 "DegenerateTorus/Undecided",
                 R::DegenerateTorus {
                     edge,
@@ -5926,7 +5967,7 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             !text.contains("tolerance") && !text.contains("defect"),
             "{text}"
         );
-        let roles: Vec<topo::ShellRole> = topo::test_support::unmigrated_classify(body, tol)
+        let roles: Vec<topo::ShellRole> = topo::classify_shells(body, tol)
             .expect("the certifying door reads the cavity")
             .iter()
             .map(|c| c.role)
@@ -6218,21 +6259,6 @@ fn separation_reasons() -> Vec<(String, topo::PointInSolidError)> {
         (
             "WallOutlineUnsupported",
             PointInSolidError::WallOutlineUnsupported { face },
-        ),
-        (
-            "JunctionSidesDisagree",
-            PointInSolidError::JunctionSidesDisagree {
-                face,
-                sides: (
-                    geom_core::MarginDiag::value(2.0e-9),
-                    geom_core::MarginDiag::value(-1.6e-9),
-                ),
-                band: geom_core::Band::new(1e-9, 1.5e-9).unwrap(),
-            },
-        ),
-        (
-            "NarrowWindowUnread",
-            PointInSolidError::NarrowWindowUnread { face, diag: diag() },
         ),
         (
             "RootCountDisagrees",

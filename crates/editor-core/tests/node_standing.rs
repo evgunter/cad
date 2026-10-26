@@ -507,9 +507,9 @@ const READERS: [(&str, usize, &str); 14] = [
     ),
     (
         "crates/editor-core/src/stackup.rs",
-        23,
-        "the pairing compares two runs arm by arm — values, failure kinds, poison sources \
-         — and labels each arm in its prose",
+        6,
+        "a measure's sensitivity reads the failed node's own error to tell the guided \
+         replay's refusal from the measure's (`unread_measure`); its tests write results",
     ),
     (
         "crates/editor-core/src/mate/corner.rs",

@@ -125,8 +125,9 @@ pub mod widgets;
 /// nothing else — the roster is the `#[cfg(feature = "app")]` block
 /// above, which the compiler keeps, so there is no hand-kept
 /// enumeration here to go stale when that block gains or loses a
-/// module. Read it as a sentence the log carries, and keep gating to
-/// the rows themselves.
+/// module. Only its NAME travels: every gating `cargo nextest run`
+/// discards a passing test's stdout, so the line below is read on a
+/// local run and nowhere else. Keep gating to the rows themselves.
 #[cfg(all(test, not(feature = "app")))]
 #[test]
 fn app_lane_skipped_no_app_feature_coverage_here() {
@@ -158,8 +159,8 @@ pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use marks::{EdgeOverlay, Highlight, edge_id_segments, edge_overlay, edge_segments, highlight};
 pub use matetool::{
-    MATE_KINDS, MateAdmission, MateChoice, MateFreedom, MateProposal, MateTool, MateToolError,
-    MateToolEvent, MateToolState, admitted_classes,
+    MATE_KINDS, MateChoice, MateFreedom, MateProposal, MateTool, MateToolError, MateToolEvent,
+    MateToolState,
 };
 pub use narrowing::Narrow;
 pub use parts::{PartChooser, PartEntry};

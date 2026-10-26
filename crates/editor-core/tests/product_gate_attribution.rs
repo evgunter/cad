@@ -167,10 +167,11 @@ fn turn_inside_out(ev: &mut Evaluation<f64>, node: RecipeNodeId) {
 }
 
 /// **The written body where a `⊔` holds it too**: a `⊔` keeps its
-/// members' bodies as its pieces, and the product's gather reads them
-/// there, so a piece holding `was` holds `now`.
+/// members' bodies as its pieces, and its census reads them there, so a
+/// piece holding `was` holds `now`, and the `⊔`'s census, not yet run,
+/// is over the written pieces.
 fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<Body<f64>>) {
-    for result in ev.nodes.values_mut() {
+    for (&id, result) in &mut ev.nodes {
         let NodeResult::Ok(value) = result else {
             continue;
         };
@@ -183,6 +184,16 @@ fn in_every_assemble(ev: &mut Evaluation<f64>, was: &Arc<Body<f64>>, now: &Arc<B
                     *body = Arc::clone(now);
                 }
             }
+        }
+        if value
+            .census
+            .as_ref()
+            .is_some_and(|census| census.node == id)
+        {
+            value.census = Some(Arc::new(editor_core::product::Census::new(
+                id,
+                Arc::clone(pieces),
+            )));
         }
     }
 }
@@ -252,7 +263,7 @@ fn a_lone_multi_solid_source_is_named() {
         let (next, id) = insert(sub, fixture::mated_instance(p));
         sub = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), &o);
     }
-    let sub = crate::fixture::world_product(sub);
+    let sub = crate::fixture::assemble_world_copies(sub);
     let b = store.insert(sub, Tol::witness());
     let o = with_resolver(store);
     let (doc, source) = fixture::insert_pinned(

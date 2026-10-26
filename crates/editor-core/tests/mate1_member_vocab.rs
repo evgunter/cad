@@ -13,8 +13,8 @@
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node,
-    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
+    CapEnd, DocEdit, DocumentId, EntityKind, Formula, Frame, MateRef, MateSide, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, RoleSeg, StableName, VarId,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{
@@ -146,7 +146,7 @@ fn cube(store: &mut PartStore, label: &str) -> Cube {
 
 impl Cube {
     /// The cap `end` of this part as `instance` places it.
-    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::InPart {
+    fn cap(&self, instance: RecipeNodeId, end: CapEnd) -> crate::fixture::resolver::PartName {
         in_part(instance, self.body, end)
     }
 
@@ -489,19 +489,11 @@ fn a_second_plane_mate_on_one_copy_refuses_overconstrained_at_the_door() {
     let copy_end = head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End)));
     let (doc, m0) = constrain(
         doc,
-        rest(
-            head(top_part.cap(top, CapEnd::Start)),
-            copy_end.clone(),
-            ContactClass::Rest,
-        ),
+        rest(head(top_part.cap(top, CapEnd::Start)), copy_end.clone()),
     );
     let fault = fixture::door_refusal(
         &doc,
-        fixture::mate(
-            plane(head(top_part.cap(top, CapEnd::End))),
-            plane(copy_end),
-            ContactClass::Rest,
-        ),
+        fixture::mate(plane(head(top_part.cap(top, CapEnd::End))), plane(copy_end)),
     );
     let editor_core::MateFault::Overconstrained {
         placement,
@@ -558,7 +550,6 @@ fn out_of_vocabulary_pattern_heads_refuse_where_the_placement_evaluates() {
         rest(
             head(top_part.cap(top, CapEnd::Start)),
             head(in_copy(pattern, 5, leg_part.cap(leg, CapEnd::End))),
-            ContactClass::Rest,
         ),
     );
     let poses = solve(&doc, &o, Tol::witness());
@@ -597,7 +588,7 @@ fn one_copy_twice_is_not_on_the_copy() {
         },
     );
     let copy_end = || head(in_copy(pattern, 2, leg_part.cap(leg, CapEnd::End)));
-    let refusal = at_the_door_of(&doc, leg, rest(copy_end(), copy_end(), ContactClass::Rest));
+    let refusal = at_the_door_of(&doc, leg, rest(copy_end(), copy_end()));
     assert!(
         matches!(
             refusal,
@@ -640,7 +631,6 @@ fn sibling_copies_of_one_instances_pattern_are_not_on_the_copy() {
         rest(
             head(in_copy(pattern, 0, leg_part.cap(leg, CapEnd::End))),
             head(in_copy(pattern, 1, leg_part.cap(leg, CapEnd::End))),
-            ContactClass::Rest,
         ),
     );
     assert!(

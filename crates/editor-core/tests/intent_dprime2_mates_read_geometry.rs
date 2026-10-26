@@ -21,9 +21,9 @@ use crate::fixture;
 use crate::fixture::resolver::{PartStore, with_resolver};
 use editor_core::pose::PoseDef;
 use editor_core::{
-    BodyRead, CapEnd, ContactClass, Coord, Dimension, DocEdit, DocumentId, EvalOptions,
-    FlattenError, FreeValue, FreeVar, Node, Operand, PartResolver, Placed, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName, TargetAxis, VarName, flatten, inline, product,
+    BodyRead, CapEnd, Coord, Dimension, DocEdit, DocumentId, EvalOptions, FlattenError, FreeValue,
+    FreeVar, Node, Operand, PartResolver, Placed, ProfileDoc, RecipeNodeId, RoleSeg, StableName,
+    TargetAxis, VarName, flatten, inline, product,
 };
 use fixture::{head, head_at, insert, len, on_frame, run, solve, step};
 use geom_core::Tol;
@@ -97,7 +97,7 @@ fn boss_on_the_plate(turn: f64, through_union: bool) -> editor_core::Frame {
     let (doc, placement) = insert(doc, fixture::stood(BodyRead::plain(Operand::from(boss))));
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
     let placed = Placed {
-        mates: vec![fixture::rest(head(start), target, ContactClass::Rest)],
+        mates: vec![fixture::rest(head(start), target)],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(10.0)),
             (Coord::Slide(TargetAxis::Y), len(0.0)),
@@ -209,7 +209,7 @@ fn inline_keeps_a_variable_driving() {
         .values,
     );
     let mut store = PartStore::default();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part.clone(), Tol::witness());
     let opts = with_resolver(store.clone());
     let host = ProfileDoc::empty(DocumentId::derive("dprime2-t21-host"), Tol::witness());
@@ -304,7 +304,7 @@ fn inlined(dx: f64) -> (ProfileDoc, editor_core::InlineOutcome, RecipeNodeId) {
     let (part, body) = block(part, 1.0, 1.0, 1.0);
     let (part, placed) = fixture::place(part, body);
     let mut store = PartStore::default();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part, Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("dprime2-flatten-host"), Tol::witness());
     let (host, instance) = insert(host, fixture::mated_instance(doc_ref));
@@ -412,7 +412,7 @@ fn flatten_folds_the_identity_and_refuses_the_rest_typed() {
         Placed::unmated(vec![(Coord::Slide(TargetAxis::X), len(3.0))]).values,
     );
     let mut store = PartStore::default();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part, Tol::witness());
     let host = ProfileDoc::empty(
         DocumentId::derive("dprime2-flatten-two-host"),
@@ -478,7 +478,6 @@ fn a_slide_value_sets_its_translation_with_no_width() {
         mates: vec![editor_core::Mate {
             on: fixture::plane(head(start)),
             to: fixture::flip(top),
-            class: ContactClass::Rest,
         }],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(3.0)),
@@ -625,7 +624,7 @@ fn a_mate_reports_each_value_it_drops() {
     let tilt = doc.var_named("tilt").expect("declared");
     let top = fixture::fname(floor, RoleSeg::Cap(CapEnd::End));
     let start = fixture::fname(boss, RoleSeg::Cap(CapEnd::Start));
-    let mate = fixture::rest(head(start), head_at(f, top), ContactClass::Rest);
+    let mate = fixture::rest(head(start), head_at(f, top));
     let applied = doc
         .apply(
             &DocEdit::AddConstraint {

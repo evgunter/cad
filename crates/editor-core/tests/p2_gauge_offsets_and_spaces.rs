@@ -76,13 +76,13 @@ impl Parts {
     fn opts(&self) -> EvalOptions {
         with_resolver(self.store.clone())
     }
-    fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(base, self.base_body, CapEnd::End)
     }
-    fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::Start)
     }
-    fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::End)
     }
 }
@@ -658,12 +658,12 @@ fn a_document_of_copies_in_another_space_has_an_empty_world() {
         vec![doc.output(group, 0).expect("the `⊔`'s body")],
         "the other space's `⊔` is gathered by itself"
     );
+    let assembly = editor_core::assemble_gathered(product, Tol::witness())
+        .unwrap_or_else(|e| panic!("an overlap is a finding: {e}"));
     assert!(
-        matches!(
-            editor_core::assemble_gathered(product, Tol::witness()),
-            Err(editor_core::AssemblyError::AtRest { .. })
-        ),
-        "the two tops clash in their space"
+        matches!(&assembly.interference[..], [finding] if finding.is_loud()),
+        "the two tops clash in their space: {:?}",
+        assembly.interference
     );
 }
 
@@ -807,7 +807,7 @@ fn an_inline_at_a_turned_pose_over_two_pinned_instances_moves_nothing() {
     let (sub, _) = fixture::insert_pinned(sub, crate::fixture::mated_instance(p.base), &po);
     let (sub, _) = pinned(sub, p.base, Frame::translation([10.0, 0.0, 0.0]), &po);
     let mut store = p.store.clone();
-    let sub = crate::fixture::world_product(sub);
+    let sub = crate::fixture::assemble_world_copies(sub);
     let sub_ref = store.insert(sub, Tol::witness());
     let o = with_resolver(store.clone());
     let pose = Frame::rotate_then_translate([0.0, 0.0, 1.0], 0.3, [2.0, 5.0, 0.0], band()).unwrap();
@@ -909,9 +909,9 @@ fn two_instances_pinned_to_the_world_are_one_component_with_no_mate() {
 /// **A touch between two copies inside a `new_space()` is reported like
 /// one in the world** (D1 (iii), D10; A11 (2)). Two tops seated side by
 /// side on a base standing in a `new_space()`, flush along x = 1.5 with
-/// no mate between them: the space's gather records the touch as rows
-/// of the two copies, and the `unproven-coincidence` check reports them
-/// against the copies, read off `Product::spaces` beside the world's
+/// no mate between them: the space's gather records the touches as rows
+/// of the copies, and the `unproven-coincidence` check reports the two
+/// tops' against them, read off `Product::spaces` beside the world's
 /// (empty) rows. Red if the check reads the world's rows alone.
 #[test]
 fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
@@ -947,9 +947,7 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
         .as_ref()
         .expect("the space gathers")
         .coincidences
-        .iter()
-        .filter(|r| matches!(r.by, editor_core::AtRestBy::Copies(..)))
-        .count();
+        .len();
     assert!(copies > 0, "the tops' touch is the space's rows");
     let report = editor_core::run_checks(
         &doc,
@@ -958,15 +956,28 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
         Tol::witness(),
     )
     .expect("checks run");
-    let reported = report
+    // The tops' seats on the base are their mates' statements, which the
+    // door proves; the touch between the two tops is reported.
+    let tops = [a, b].map(|t| doc.output(t, 0).expect("an instance defines its copies"));
+    let reported: Vec<_> = report
         .findings
         .iter()
-        .filter(|f| {
-            f.check == editor_core::CheckId::UnprovenCoincidence
-                && matches!(f.subject, editor_core::FindingSubject::Copies { .. })
-        })
-        .count();
-    assert_eq!(reported, copies, "{:?}", report.findings);
+        .filter(|f| f.check == editor_core::CheckId::UnprovenCoincidence)
+        .collect();
+    assert!(
+        !reported.is_empty() && reported.len() < copies,
+        "{:?}",
+        report.findings
+    );
+    assert!(
+        reported.iter().all(|f| matches!(
+            f.subject,
+            editor_core::FindingSubject::Copies { a, b }
+                if tops.contains(&a.var) && tops.contains(&b.var)
+        )),
+        "every finding is the two tops' touch: {:?}",
+        report.findings
+    );
 }
 
 /// **The `⊔` of `copies`, in their space** (D10 `[operations]`): the
@@ -974,7 +985,7 @@ fn a_touch_between_copies_in_a_new_space_reaches_the_coincidence_check() {
 /// holds. Answers the document, the world's product written again over
 /// what the world still holds, and the `⊔`.
 fn assembled_in_space(doc: ProfileDoc, copies: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
-    let doc = fixture::world_product(doc);
+    let doc = fixture::assemble_world_copies(doc);
     let members = copies
         .iter()
         .map(|&copy| {
@@ -993,9 +1004,10 @@ fn assembled_in_space(doc: ProfileDoc, copies: &[RecipeNodeId]) -> (ProfileDoc, 
 
 /// **The at-rest gate checks each `⊔` whatever the world holds** (D10,
 /// `[operations]`): two tops seated at one spot on a base standing in a
-/// `new_space()`, assembled there, interpenetrate, and the gate refuses
-/// though the world beside them certifies; with the world empty the
-/// `⊔` is still checked before the gather's `EmptyProduct`.
+/// `new_space()`, assembled there, interpenetrate, and the gate reports
+/// their overlap as a loud interference finding though the world beside
+/// them certifies; with the world empty the `⊔` is still checked before
+/// the gather's `EmptyProduct`.
 #[test]
 fn the_gate_checks_each_new_space_whatever_the_world_holds() {
     let p = crate::p2_gauges::parts("r2-space-gate");
@@ -1019,7 +1031,8 @@ fn the_gate_checks_each_new_space_whatever_the_world_holds() {
         other => panic!("an empty world refuses at the gather: {other:?}"),
     }
     // A second top at the first's seat clashes inside the space; the
-    // world beside it certifies, and the gate refuses all the same.
+    // world beside it certifies, and the gate reports the clash all the
+    // same.
     let (doc, b) = insert(doc, fixture::mated_instance(p.top));
     let (doc, _) = seat_on(doc, b, head(p.top_cap(b)), head(p.base_cap(x)), [0.5, 1.0]);
     let members = [x, a, b]
@@ -1039,10 +1052,11 @@ fn the_gate_checks_each_new_space_whatever_the_world_holds() {
     );
     let (doc, _) = pinned(doc, p.base, Frame::translation([100.0, 0.0, 0.0]), &o);
     let ev = run(&doc, &o);
-    let refusal = editor_core::assemble(&doc, &ev, Tol::witness())
-        .expect_err("two tops at one seat do not certify inside their space");
+    let assembly = editor_core::assemble(&doc, &ev, Tol::witness())
+        .unwrap_or_else(|e| panic!("the world gathers, and an overlap is a finding: {e}"));
     assert!(
-        !matches!(refusal, editor_core::AssemblyError::Product(_)),
-        "the world gathers; the space refuses: {refusal}"
+        matches!(&assembly.interference[..], [finding] if finding.is_loud()),
+        "two tops at one seat are one loud interference inside their space: {:?}",
+        assembly.interference
     );
 }

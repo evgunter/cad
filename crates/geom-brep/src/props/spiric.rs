@@ -51,9 +51,10 @@
 //!
 //! — the weight `(t − x)⁴` is nonnegative, so the remainder's mean
 //! value lies in the hull of `g₄` over the piece. The coefficients at
-//! the node and over the piece come from one Taylor jet ([`Jet`]) in
-//! certification arithmetic, whose only non-ring operation is `√`
-//! (admitted by C9); a piece's width is `g₄`'s width over it times
+//! the node and over the piece come from one Taylor jet ([`Jet`],
+//! [`super::taylor`]'s rule) in certification arithmetic; the spiric's
+//! integrands need, past the ring operations, only `√` (admitted by C9),
+//! and a rational rim's the reciprocal ([`super::rational_rim`]); a piece's width is `g₄`'s width over it times
 //! `h⁵/80`, so the composite width falls as `h⁵`. `cos` and `sin`
 //! enter as enclosures by [`super::quad`]'s transcendental-free
 //! rotation (`trig_at` from the exact `(1, 0)` at `t = 0`, widened
@@ -81,75 +82,14 @@ use geom_core::interval::certification::Certification;
 use geom_core::interval::{Interval, certified_hi, cross, dot};
 use geom_core::{Band, Bounds, Decide, Margin, Sign};
 
-use super::bracket::{AbsEnclosure, lo_or_refuse, mid, pt};
+use super::bracket::{AbsEnclosure, lo_or_refuse, pt};
 use super::closure::{IntervalJunction, interval_loop_turns};
 use super::quad::{
     Accept, FaceCutBounds, LaneRun, QUAD_INIT_PIECES, RVec3, RoundWindow, Run, classify_len,
     rotate, spread_cos, spread_sin, trig_at,
 };
+use super::taylor::{Jet, composite_by, node};
 use super::{PropsCheck, PropsError};
-
-/// The Taylor coefficients `g⁽ᵏ⁾/k!`, `k = 0..=4`, of a function of `t`,
-/// each an enclosure: at a node they are thin; over a piece (inputs
-/// enclosing the piece) each encloses its coefficient over the whole
-/// piece, which is what the remainder reads.
-#[derive(Clone, Copy)]
-struct Jet([Interval; ORDER]);
-
-/// Coefficients carried: the rule is exact through degree 3 and its
-/// remainder reads the degree-4 coefficient.
-const ORDER: usize = 5;
-
-impl Jet {
-    fn cst(v: Interval) -> Self {
-        let mut c = [Interval::zero(); ORDER];
-        c[0] = v;
-        Self(c)
-    }
-
-    fn add(self, o: Self) -> Self {
-        Self(core::array::from_fn(|k| self.0[k] + o.0[k]))
-    }
-
-    fn sub(self, o: Self) -> Self {
-        Self(core::array::from_fn(|k| self.0[k] - o.0[k]))
-    }
-
-    fn scale(self, x: Interval) -> Self {
-        Self(self.0.map(|c| c * x))
-    }
-
-    /// The Cauchy product.
-    fn mul(self, o: Self) -> Self {
-        Self(core::array::from_fn(|k| {
-            (0..=k).fold(Interval::zero(), |acc, i| acc + self.0[i] * o.0[k - i])
-        }))
-    }
-
-    /// `1/x`: `b₀ = 1/a₀`, `bₖ = −(Σ_{i=1..k} aᵢ·bₖ₋ᵢ)/a₀`.
-    fn recip(self) -> Self {
-        let inv = Interval::one() / self.0[0];
-        let mut b = [Interval::zero(); ORDER];
-        b[0] = inv;
-        for k in 1..ORDER {
-            let sum = (1..=k).fold(Interval::zero(), |acc, i| acc + self.0[i] * b[k - i]);
-            b[k] = -(sum * inv);
-        }
-        Self(b)
-    }
-
-    /// `√x`: `s₀ = √a₀`, `sₖ = (aₖ − Σ_{i=1..k−1} sᵢ·sₖ₋ᵢ)/(2·s₀)`.
-    fn sqrt(self) -> Self {
-        let mut r = [Interval::zero(); ORDER];
-        r[0] = self.0[0].sqrt();
-        let half_inv = Interval::one() / (pt(2.0) * r[0]);
-        for k in 1..ORDER {
-            let sum = (1..k).fold(Interval::zero(), |acc, i| acc + r[i] * r[k - i]);
-            r[k] = (self.0[k] - sum) * half_inv;
-        }
-        Self(r)
-    }
-}
 
 /// The jets of `t`, `cos t` and `sin t` from enclosures of their values.
 fn trig_jets(t: Interval, c: Interval, s: Interval) -> (Jet, Jet, Jet) {
@@ -230,17 +170,6 @@ pub fn span_rates(e: &SpiricEdgeQ) -> Option<(Interval, Interval)> {
     du.is_certified().then_some((speed, du))
 }
 
-/// The `i`-th of `pieces + 1` equally spaced nodes from `a` to `b`, the
-/// last exactly `b`.
-#[allow(clippy::cast_precision_loss)]
-fn node(a: f64, b: f64, pieces: usize, i: usize) -> f64 {
-    if i == pieces {
-        b
-    } else {
-        a + (b - a) * (i as f64 / pieces as f64)
-    }
-}
-
 /// The piece count a face's perimeter reads its spiric edges' lengths
 /// at ([`spiric_length_bound`]). The perimeter is only the extent
 /// gate's lever, read once per face with no refinement of its own, so
@@ -316,56 +245,25 @@ fn piece_speed(e: &SpiricEdgeQ, p: f64, q: f64) -> Option<f64> {
 /// brackets' midpoints, and `widths` their summed half-widths, paid at
 /// `sup|g|` over the span's own window; and per integrand the summed
 /// width of its remainder terms `g₄·∫(t − x)⁴`, the part of its width a
-/// later round removes.
+/// later round removes. The integrands see `t`, `cos t` and `sin t` as
+/// jets ([`composite_by`] over them).
 fn composite<const N: usize>(
     t0: Interval,
     t1: Interval,
     pieces: usize,
     g: impl Fn(Jet, Jet, Jet) -> [Jet; N],
 ) -> ([Interval; N], [f64; N]) {
-    let (a, b) = (mid(t0), mid(t1));
-    let span = b - a;
-    if !(t0.is_certified() && t1.is_certified() && span.is_finite() && span >= 0.0) || pieces == 0 {
-        return ([Interval::refused(); N], [f64::INFINITY; N]);
-    }
-    let mut total = [Interval::zero(); N];
-    let mut removable = [0.0_f64; N];
-    for i in 0..pieces {
-        let (p, q) = (node(a, b, pieces, i), node(a, b, pieces, i + 1));
-        let x = p + (q - p) * 0.5;
-        let (ri, le) = (pt(q) - pt(x), pt(p) - pt(x));
-        // `∫_p^q (t − x)ᵏ dt`, `k = 0..=4`.
-        let weight: [Interval; ORDER] = core::array::from_fn(|k| {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let e = k as i32 + 1;
-            (ri.powi(e) - le.powi(e)) / pt(f64::from(e))
-        });
-        let (cx, sx) = trig_range(x, x);
-        let (tj, cj, sj) = trig_jets(pt(x), cx, sx);
-        let at = g(tj, cj, sj);
-        let (cb, sb) = trig_range(p, q);
-        let (tb, cbj, sbj) = trig_jets(Interval::from_bounds(p, q), cb, sb);
-        let over = g(tb, cbj, sbj);
-        for k in 0..N {
-            let exact =
-                (0..ORDER - 1).fold(Interval::zero(), |acc, j| acc + at[k].0[j] * weight[j]);
-            let remainder = over[k].0[ORDER - 1] * weight[ORDER - 1];
-            removable[k] += remainder.width();
-            total[k] = total[k] + exact + remainder;
-        }
-    }
-    let widths = (pt(t0.hi()) - pt(a)).hi().max((pt(a) - pt(t0.lo())).hi())
-        + (pt(t1.hi()) - pt(b)).hi().max((pt(b) - pt(t1.lo())).hi());
-    if widths > 0.0 {
-        let (c, s) = trig_range(t0.lo(), t1.hi());
-        let (tj, cj, sj) = trig_jets(Interval::hull(t0, t1), c, s);
-        let sup = g(tj, cj, sj);
-        for k in 0..N {
-            let pad = (sup[k].0[0] * pt(widths)).mag();
-            total[k] = total[k] + Interval::from_bounds(-pad, pad);
-        }
-    }
-    (total, removable)
+    composite_by(
+        t0,
+        t1,
+        pieces,
+        |_, _| (),
+        |(), t| {
+            let (c, s) = trig_range(t.lo(), t.hi());
+            let (tj, cj, sj) = trig_jets(t, c, s);
+            g(tj, cj, sj)
+        },
+    )
 }
 
 /// `ρ = R + r·cos t` and `f = √(ρ² − d²)` as jets.
@@ -464,7 +362,7 @@ pub struct WallChartQ {
 /// ([`WallChartQ::parts`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct WallLoopParts {
-    /// Its spiric edges ([`SpiricFaceQ::spirics`]).
+    /// Its spiric edges ([`RimFaceQ::spirics`]).
     pub spirics: usize,
     /// Its rims ([`WallChartQ::rims`]).
     pub rims: usize,
@@ -494,11 +392,14 @@ pub struct ChartEndsQ {
 /// the chart Green form. The area is `‖A⃗‖` on a cap and the chart
 /// area's magnitude on a wall.
 #[derive(Clone, Debug)]
-pub struct SpiricFaceQ {
+pub struct RimFaceQ {
     /// The closed-form edges' vector-area terms, about the reference.
     pub closed_va: RVec3,
     /// The spiric edges, centres relative to the reference.
     pub spirics: Vec<SpiricEdgeQ>,
+    /// A cap's rational spline rim edges, about the reference
+    /// ([`super::rational_rim`]); empty on a wall.
+    pub rationals: Vec<super::rational_rim::RationalEdgeQ>,
     /// The flux lever.
     pub lever: RVec3,
     /// An upper bound on the boundary's length (metres) — the extent
@@ -514,7 +415,7 @@ fn cos_moment(e: &SpiricEdgeQ, pieces: usize) -> Interval {
     cos_moment_split(e, pieces).0
 }
 
-/// [`cos_moment`], and the part of its width a later round removes.
+/// `cos_moment`, and the part of its width a later round removes.
 fn cos_moment_split(e: &SpiricEdgeQ, pieces: usize) -> (Interval, f64) {
     let (big, r, d) = (e.major, e.minor, e.offset);
     let ([j], [removable]) = composite(e.t0, e.t1, pieces, |_, c, _| {
@@ -564,7 +465,7 @@ fn spiric_wall_terms(
     wall_terms_split(e, w, chart, pieces).0
 }
 
-/// [`spiric_wall_terms`], and the part of the flux term's width a later
+/// `spiric_wall_terms`, and the part of the flux term's width a later
 /// round removes.
 fn wall_terms_split(
     e: &SpiricEdgeQ,
@@ -612,17 +513,17 @@ fn rim_fg(big: Interval, r: Interval, v: Interval) -> (Interval, Interval) {
 /// The face's terms are their sum.
 #[cfg(test)]
 fn wall_chart(
-    face: &SpiricFaceQ,
+    face: &RimFaceQ,
     chart: &WallChartQ,
     pieces: usize,
 ) -> Result<Vec<[Interval; 4]>, PropsError> {
     wall_chart_split(face, chart, pieces).map(|(loops, _)| loops)
 }
 
-/// [`wall_chart`], and the part of the face's chart flux width a later
+/// `wall_chart`, and the part of the face's chart flux width a later
 /// round removes.
 fn wall_chart_split(
-    face: &SpiricFaceQ,
+    face: &RimFaceQ,
     chart: &WallChartQ,
     pieces: usize,
 ) -> Result<(Vec<[Interval; 4]>, f64), PropsError> {
@@ -715,7 +616,7 @@ fn spiric_chart_length(e: &SpiricEdgeQ) -> Result<Interval, PropsError> {
 
 /// **Every ring of a torus wall winds against its face**: each loop
 /// after the first is a hole cut from the face, so its signed chart
-/// area (its [`wall_chart`] terms at `pieces`) must have the sign
+/// area (its `wall_chart` terms at `pieces`) must have the sign
 /// opposite to the face's whole, as the cylinder's and the planar
 /// lanes' rings must (`curved::require_holes_wound_against`, under
 /// `props_ring_winding`). A ring wound with its face would be added to
@@ -731,7 +632,7 @@ fn spiric_chart_length(e: &SpiricEdgeQ) -> Result<Interval, PropsError> {
 /// Where a ring lies is not read here: a ring outside its face, or
 /// crossing it, is check 9's containment.
 fn require_rings_wound_against(
-    face: &SpiricFaceQ,
+    face: &RimFaceQ,
     chart: &WallChartQ,
     loops: &[[Interval; 4]],
     band: Band,
@@ -776,13 +677,13 @@ fn require_rings_wound_against(
 }
 
 /// The face's enclosures at `pieces` resolution, a wall's chart terms
-/// loop by loop ([`wall_chart`]; none for a cap), and the part of the
+/// loop by loop (`wall_chart`; none for a cap), and the part of the
 /// flux's width a later round removes: each spiric's moment `J`, which
 /// the flux reads through the lever as `Σₖ leverₖ·nₖ·r·J` — component by
 /// component, as the interval sum carries `J`'s width, so a lever in the
 /// cap's own plane still carries it — and a wall's chart flux.
 fn face_bounds(
-    face: &SpiricFaceQ,
+    face: &RimFaceQ,
     pieces: usize,
 ) -> Result<(FaceCutBounds, Vec<[Interval; 4]>, f64), PropsError> {
     let mut va = face.closed_va;
@@ -794,6 +695,12 @@ fn face_bounds(
             .sum::<f64>()
             * e.minor.mag()
             * rem;
+        va = [0, 1, 2].map(|k| va[k] + t[k]);
+    }
+    for e in &face.rationals {
+        let (t, rem) = super::rational_rim::rational_vector_area_split(e, pieces);
+        // The flux reads each component through the lever.
+        removable += (0..3).map(|k| face.lever[k].mag() * rem[k]).sum::<f64>();
         va = [0, 1, 2].map(|k| va[k] + t[k]);
     }
     let position = dot(&face.lever, &va);
@@ -871,6 +778,38 @@ fn wall_windings<T: Decide>(chart: &WallChartQ, band: Band) -> Result<(), PropsE
 /// [`super::quad::FACE_WORK_WALL`]'s unit.
 pub(super) const W_SPIRIC: usize = 46;
 
+/// Weight of one piece of one Bézier span of a rational rim edge
+/// ([`super::rational_rim`]), in [`super::quad::FACE_WORK_WALL`]'s unit,
+/// by the carrier's degree: a piece shifts four power forms of the
+/// degree's length to the piece and reads them by Horner twice, so its
+/// cost grows with the degree. Measured in release on this box (a timing
+/// probe, reverted), 50 calls of 256 pieces on one span of each degree,
+/// against a spiric piece's 13.2 µs measured on the same box, which
+/// [`W_SPIRIC`] weighs at 46: the weight is the time in that ratio,
+/// rounded up. Past degree 7, each degree adds the last step's 60.
+///
+/// | degree | µs a piece | weight |
+/// |---|---|---|
+/// | 1 | 34.5 | 120 |
+/// | 2 | 44.5 | 155 |
+/// | 3 | 63.0 | 220 |
+/// | 4 | 77.4 | 270 |
+/// | 5 | 90.6 | 316 |
+/// | 6 | 116 | 404 |
+/// | 7 | 132 | 460 |
+pub(super) const fn w_rational(degree: usize) -> usize {
+    match degree {
+        0 | 1 => 120,
+        2 => 155,
+        3 => 220,
+        4 => 270,
+        5 => 316,
+        6 => 404,
+        7 => 460,
+        _ => 460 + 60 * (degree - 7),
+    }
+}
+
 /// **The certified flux and area of a spiric-bounded face** over a
 /// [`RoundWindow`] — [`super::quad`]'s schedule and stop (pieces
 /// doubling from `QUAD_INIT_PIECES`, the caller's [`Accept`], the
@@ -893,8 +832,8 @@ pub(super) const W_SPIRIC: usize = 46;
 /// ([`PropsError::ChartLoopOpen`]) or winds the torus
 /// ([`PropsError::LoopsWindChart`]), or a ring wound with its face
 /// ([`PropsError::RingWoundWithFace`]).
-pub fn spiric_face_rounds<T: Decide>(
-    face: &SpiricFaceQ,
+pub fn rim_face_rounds<T: Decide>(
+    face: &RimFaceQ,
     band: Band,
     window: RoundWindow,
     accept: &mut Accept<'_>,
@@ -907,7 +846,13 @@ pub fn spiric_face_rounds<T: Decide>(
             });
         }
     }
-    let cost = |round: usize| W_SPIRIC * face.spirics.len() * (QUAD_INIT_PIECES << round);
+    let rational: usize = face
+        .rationals
+        .iter()
+        .map(|e| w_rational(e.degree()) * e.span_count())
+        .sum();
+    let cost =
+        |round: usize| (W_SPIRIC * face.spirics.len() + rational) * (QUAD_INIT_PIECES << round);
     let mut run = Run::enter(window, &cost);
     let mut round = run.first();
     let mut pieces = QUAD_INIT_PIECES << round;
@@ -1184,7 +1129,8 @@ mod tests {
         let (mut e, ..) = edge(c);
         let h = pt(core::f64::consts::FRAC_1_SQRT_2);
         e.normal = [h, -h, Interval::zero()];
-        let face = SpiricFaceQ {
+        let face = RimFaceQ {
+            rationals: Vec::new(),
             closed_va: [Interval::zero(); 3],
             spirics: vec![e],
             lever: [pt(3.0), pt(3.0), Interval::zero()],
@@ -1192,7 +1138,7 @@ mod tests {
             wall: None,
         };
         let mut first = None;
-        let _ = spiric_face_rounds::<f64>(
+        let _ = rim_face_rounds::<f64>(
             &face,
             Band::linear(geom_core::Tol::witness()).unwrap(),
             RoundWindow::SCHEDULE,
@@ -1442,7 +1388,8 @@ mod tests {
             rims: vec![],
             meridians: vec![],
         };
-        let face = SpiricFaceQ {
+        let face = RimFaceQ {
+            rationals: Vec::new(),
             closed_va: [Interval::zero(); 3],
             spirics: vec![SpiricEdgeQ { wall: Some(w), ..e }],
             lever: [Interval::zero(); 3],
@@ -1679,7 +1626,8 @@ mod tests {
                     env: Interval::zero(),
                 }],
             };
-            let face = SpiricFaceQ {
+            let face = RimFaceQ {
+                rationals: Vec::new(),
                 closed_va: [Interval::zero(); 3],
                 spirics: vec![SpiricEdgeQ {
                     wall: Some(WallImageQ {
@@ -1769,7 +1717,8 @@ mod tests {
                     end: (oval.end.0 + du, oval.start.1),
                     env: Interval::zero(),
                 };
-                SpiricFaceQ {
+                RimFaceQ {
+                    rationals: Vec::new(),
                     closed_va: [Interval::zero(); 3],
                     spirics: vec![arc],
                     lever: [Interval::zero(); 3],
@@ -1789,16 +1738,16 @@ mod tests {
             };
             let near = face(2.0 * eps);
             let at_f64 =
-                spiric_face_rounds::<f64>(&near, band, RoundWindow::SCHEDULE, &mut to_target(eps));
+                rim_face_rounds::<f64>(&near, band, RoundWindow::SCHEDULE, &mut to_target(eps));
             assert!(at_f64.is_ok(), "r = {r}, f64: {at_f64:?}");
-            let at_iv = spiric_face_rounds::<Interval>(
+            let at_iv = rim_face_rounds::<Interval>(
                 &near,
                 band,
                 RoundWindow::SCHEDULE,
                 &mut to_target(eps),
             );
             assert!(at_iv.is_ok(), "r = {r}, interval: {at_iv:?}");
-            let far = spiric_face_rounds::<f64>(
+            let far = rim_face_rounds::<f64>(
                 &face(20.0 * eps),
                 band,
                 RoundWindow::SCHEDULE,
@@ -1843,7 +1792,8 @@ mod tests {
         // At `v = 0` the junction sits at `ρ = R + r`.
         let half = 10.0 * eps / 1.475;
         let wide = oval.end.0 + Interval::from_bounds(-half, half);
-        let face = SpiricFaceQ {
+        let face = RimFaceQ {
+            rationals: Vec::new(),
             closed_va: [Interval::zero(); 3],
             spirics: vec![arc],
             lever: [Interval::zero(); 3],
@@ -1868,8 +1818,8 @@ mod tests {
             }),
         };
         for got in [
-            spiric_face_rounds::<f64>(&face, band, RoundWindow::SCHEDULE, &mut to_target(eps)),
-            spiric_face_rounds::<Interval>(&face, band, RoundWindow::SCHEDULE, &mut to_target(eps)),
+            rim_face_rounds::<f64>(&face, band, RoundWindow::SCHEDULE, &mut to_target(eps)),
+            rim_face_rounds::<Interval>(&face, band, RoundWindow::SCHEDULE, &mut to_target(eps)),
         ] {
             assert!(
                 matches!(got, Err(PropsError::Escalated { .. })),
@@ -1956,7 +1906,8 @@ mod tests {
                 )
             }
         };
-        let wall_face = |loops: &[(SpiricEdgeQ, MeridianQ, Vec<ChartEndsQ>)]| SpiricFaceQ {
+        let wall_face = |loops: &[(SpiricEdgeQ, MeridianQ, Vec<ChartEndsQ>)]| RimFaceQ {
+            rationals: Vec::new(),
             closed_va: [Interval::zero(); 3],
             spirics: loops.iter().map(|l| l.0).collect(),
             lever: [Interval::zero(); 3],
@@ -1974,14 +1925,14 @@ mod tests {
         // ring's winding is read at the round returned, whatever the
         // target, and a tighter one only costs rounds.
         let eps = tol.eps().max(1e-6);
-        let within = |scalar: usize, f: &SpiricFaceQ, window: RoundWindow| {
+        let within = |scalar: usize, f: &RimFaceQ, window: RoundWindow| {
             if scalar == 0 {
-                spiric_face_rounds::<f64>(f, band, window, &mut to_target(eps))
+                rim_face_rounds::<f64>(f, band, window, &mut to_target(eps))
             } else {
-                spiric_face_rounds::<Interval>(f, band, window, &mut to_target(eps))
+                rim_face_rounds::<Interval>(f, band, window, &mut to_target(eps))
             }
         };
-        let at = |scalar: usize, f: &SpiricFaceQ| within(scalar, f, RoundWindow::SCHEDULE);
+        let at = |scalar: usize, f: &RimFaceQ| within(scalar, f, RoundWindow::SCHEDULE);
         let area = |got: &Result<LaneRun, PropsError>| match got {
             Ok(LaneRun {
                 bounds,
@@ -2128,7 +2079,8 @@ mod tests {
         }
         let (oval, meridian, loop_ends) = inner;
         let (ends, back) = (loop_ends[0], loop_ends[1]);
-        let face = |ring: Vec<ChartEndsQ>| SpiricFaceQ {
+        let face = |ring: Vec<ChartEndsQ>| RimFaceQ {
+            rationals: Vec::new(),
             closed_va: [Interval::zero(); 3],
             spirics: vec![oval, oval],
             lever: [Interval::zero(); 3],
@@ -2142,8 +2094,8 @@ mod tests {
                 ends: vec![vec![ends, back], ring],
             }),
         };
-        let run = |f: &SpiricFaceQ| {
-            spiric_face_rounds::<f64>(f, band, RoundWindow::SCHEDULE, &mut to_target(tol.eps()))
+        let run = |f: &RimFaceQ| {
+            rim_face_rounds::<f64>(f, band, RoundWindow::SCHEDULE, &mut to_target(tol.eps()))
         };
         // The ring's meridian back lands `0.3` short of its start in `u`.
         let short = ChartEndsQ {
@@ -2175,7 +2127,8 @@ mod tests {
             forward: false,
             ..oval
         };
-        let band_face = SpiricFaceQ {
+        let band_face = RimFaceQ {
+            rationals: Vec::new(),
             closed_va: [Interval::zero(); 3],
             spirics: vec![oval, back_oval],
             lever: [Interval::zero(); 3],
@@ -2256,7 +2209,8 @@ mod tests {
                 meridians.push(m);
                 ends.push(e);
             }
-            SpiricFaceQ {
+            RimFaceQ {
+                rationals: Vec::new(),
                 closed_va: [Interval::zero(); 3],
                 spirics: vec![arc],
                 lever: [Interval::zero(); 3],
@@ -2271,8 +2225,8 @@ mod tests {
                 }),
             }
         };
-        let run = |f: &SpiricFaceQ| {
-            spiric_face_rounds::<f64>(f, band, RoundWindow::SCHEDULE, &mut to_target(tol.eps()))
+        let run = |f: &RimFaceQ| {
+            rim_face_rounds::<f64>(f, band, RoundWindow::SCHEDULE, &mut to_target(tol.eps()))
         };
         let closed = run(&face(wall(0.05, 0.0, tau), true));
         assert!(closed.is_ok(), "a closed lift measures: {closed:?}");
@@ -2447,7 +2401,8 @@ mod tests {
             .fold(0.0_f64, f64::max);
         let defect = (sup + 1.0) * (t1 - t0) * env / (big - r).min(r);
         let widths = |env: f64| {
-            let face = SpiricFaceQ {
+            let face = RimFaceQ {
+                rationals: Vec::new(),
                 closed_va: [Interval::zero(); 3],
                 spirics: vec![SpiricEdgeQ {
                     wall: Some(WallImageQ {

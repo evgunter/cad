@@ -18,59 +18,36 @@
 //! — plus one line per finding. Every admission must admit something a
 //! sample renders, so one its owner's fix made stale goes red.
 //!
-//! **The wrappers rendered.** Each at its longest: a one-finding
-//! refusal naming no mate; the same finding attributed to a mate of
-//! ANOTHER document, which renders the route it was carried by (every
-//! arm `editor_core::assembly`'s attribution can pin on a declaration);
-//! the `Uncertified` frontier's header over a declined, carried
-//! declaration (the arm it can decline); and the product gate's
-//! refusal, alone and behind the at-rest badge.
+//! **The wrappers rendered.** A one-finding at-rest refusal, and the
+//! product gate's refusal, alone and behind the at-rest badge.
 //!
 //! **What a row here cannot see.** A refusal listing several findings
 //! is several lines under one header, and its length grows with the
-//! count; a route through several instances adds a hop per instance;
-//! a field a raise site fills with prose is rendered at the values the
+//! count; a field a raise site fills with prose is rendered at the values the
 //! samples name, not every value a run can write (`topo`'s
 //! `test_support_samples` docs say which).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{
-    AssemblyError, AtRestFinding, Attribution, DocumentId, EntityKind, MintedDeclaration,
-    ProductError, RecipeNodeId, Relation, RoleSeg, Route, SourceFinding, StableName,
-};
-use test_utils::refusal::Admission;
+use editor_core::{AssemblyError, AtRestFinding, ProductError, RecipeNodeId, SourceFinding};
 use test_utils::refusal::tagged;
-use topo::{ContactClass, FaceKey, ValidationError};
+use topo::ValidationError;
 
 /// The labels a finding legitimately opens with, each on the routes
 /// (or the one sample) whose rendering writes it: the two badges' names
-/// as the viewer writes them, the product gate's placement address, and the
-/// attribution header's relation (`mate 7's declared Rest contact,
-/// refuted (…): …`).
+/// as the viewer writes them, and the product gate's placement address.
 const LABELS: &[(&str, &str)] = &[
-    ("no declaration", "at rest"),
-    ("refuted, carried", "at rest"),
-    ("declined, carried", "at rest"),
+    ("at rest", "at rest"),
     ("at rest, product", "at rest"),
     ("product", "product"),
     ("at rest, product", "product"),
     ("product", "placement 000000000005 output 0"),
     ("at rest, product", "placement 000000000005 output 0"),
-    ("refuted, carried", "refuted"),
-    ("declined, carried", "declined"),
     // A sentence whose clause carries no word the shape check reads as
     // a sentence's: a numeral subject and a bare verb.
     ("InstanceInterference", "two instances overlap"),
+    ("SameSideInterference", "two instances overlap"),
 ];
-
-/// The routes whose attribution names the carrying document by its hex
-/// id (`Route`'s `Display`).
-const CARRIED_ROUTES: &[&str] = &["refuted, carried", "declined, carried"];
-
-/// The id [`carried`]'s route names its part by, as `Route` prints it:
-/// the one span a carried route's row is admitted.
-const CARRIED_FROM: &str = "a163123cd123758083caff1cee9c0882";
 
 /// The tier-1/2 structure arms: each reports a damaged body, where the
 /// arena key is what the bug report needs. Every other arm names what
@@ -116,48 +93,12 @@ const KERNEL_KEYED: &[&str] = &[
     "NullFaceAtRest",
 ];
 
-fn minted() -> MintedDeclaration {
-    let name = |node| StableName {
-        kind: EntityKind::Face,
-        node: RecipeNodeId::new(0, node),
-        path: vec![RoleSeg::OutputBody],
-    };
-    MintedDeclaration {
-        mate: editor_core::MateRef::new(
-            RecipeNodeId::new(0, tagged(7)),
-            editor_core::ConstraintId(editor_core::MintId::new(0, tagged(8))),
-        ),
-        a: name(1),
-        b: name(2),
-        class: ContactClass::Rest,
-        faces: (FaceKey::default(), FaceKey::default()),
-    }
-}
-
-/// A mate of another document, reached through one instance.
-fn carried(relation: Relation) -> Attribution {
-    Attribution::Carried {
-        route: Route {
-            through: RecipeNodeId::new(0, tagged(4)),
-            of: DocumentId::derive("the bracket part"),
-            via: Vec::new(),
-        },
-        declaration: minted(),
-        relation,
-        held: Default::default(),
-    }
-}
-
 /// Every wrapper `error` can arrive in, rendered as the viewer draws it.
 fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
-    let at_rest = |attribution: Option<Attribution>| {
-        let refusal = AssemblyError::AtRest {
-            findings: vec![AtRestFinding {
-                attribution,
-                error: error.clone(),
-            }],
-        };
-        format!("at rest: {refusal}")
+    let at_rest = AssemblyError::AtRest {
+        findings: vec![AtRestFinding {
+            error: error.clone(),
+        }],
     };
     let product = ProductError::RootInvalid {
         findings: vec![SourceFinding {
@@ -166,38 +107,14 @@ fn renderings(error: &ValidationError) -> Vec<(&'static str, String)> {
             errors: vec![error.clone()],
         }],
     };
-    let mut out = vec![
-        ("no declaration", at_rest(None)),
+    vec![
+        ("at rest", format!("at rest: {at_rest}")),
         ("product", product.to_string()),
         (
             "at rest, product",
             format!("at rest: {}", AssemblyError::Product(Box::new(product))),
         ),
-    ];
-    // The arms attribution can pin on a declaration it refutes.
-    if matches!(
-        error,
-        ValidationError::ContactContradicted { .. }
-            | ValidationError::StaleContactDeclaration { .. }
-            | ValidationError::CensusUnsupported { .. }
-    ) {
-        out.push((
-            "refuted, carried",
-            at_rest(Some(carried(Relation::Refuted))),
-        ));
-    }
-    // The arm the census declines on a declared pair: the frontier.
-    if matches!(error, ValidationError::CensusUnsupported { .. }) {
-        let refusal = AssemblyError::Uncertified {
-            contacts: Box::default(),
-            findings: vec![AtRestFinding {
-                attribution: Some(carried(Relation::Declined)),
-                error: error.clone(),
-            }],
-        };
-        out.push(("declined, carried", format!("at rest: {refusal}")));
-    }
-    out
+    ]
 }
 
 #[test]
@@ -230,20 +147,7 @@ fn every_at_rest_finding_renders_to_the_standard() {
                     used.insert(format!("LABELS {scope} {l}"));
                 }
             }
-            // A carried route's attribution names the part it was
-            // carried from by the part's hex id: that span, on this row.
-            let admitted = CARRIED_ROUTES.contains(&route).then(|| Admission {
-                row: &name,
-                span: CARRIED_FROM,
-                filed: "work/doctail/part-refusals-name-documents-by-hex-id.md",
-            });
-            problems.extend(test_utils::refusal::problems_admitting(
-                &name,
-                &text,
-                &allowed,
-                keyed,
-                admitted.as_slice(),
-            ));
+            problems.extend(test_utils::refusal::problems(&name, &text, &allowed, keyed));
             // A header and ONE finding line: a line break inside a
             // finding (a `\` continuation left inside a literal) would
             // split it across the list.

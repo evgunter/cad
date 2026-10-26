@@ -2,8 +2,9 @@
 id: register-citations-in-item-files-point-at-deleted-text
 kind: issue
 title: A dozen item files cite a rule of the deleted lane register by path, and the path now holds a different file
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-10-26
 ---
 
 
@@ -58,3 +59,7 @@ programs' item files are never edited from here.
 ## Fence
 
 `work/` tracker prose only. No `crates/` file, no behaviour.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** The hazard this row named was a live `work/view/plan.md` whose text no longer said what a citation claimed. That hazard went when VIEW left the tracker on 2026-09-23: `work/view/` is deleted. The decision this row asked for was then taken once, for every such citation, by `docs/doc-ledger/view-leaves-the-tracker.md`: *Prose citations of `work/view/…` are untouched and resolve at the SHA below* (sweep SHA `e7a03789`; the register itself at `66d7357417`). That is the tracker-wide convention for a deleted program (`work/README.md`, *A closed program's directory is deleted*), so no per-row repoint is owed.

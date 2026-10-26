@@ -69,10 +69,9 @@ pub(crate) struct OpOut<T: Decide> {
     /// fragment groups beside them empty for an op that forms none.
     pub outputs: Vec<super::OutputNames>,
     pub contacts: Arc<topo::ContactRecords>,
-    /// Whose mate authored each of those records, and which mates of
-    /// the documents below could not be minted at all; same arena, same
+    /// The at-rest findings of the documents below; same arena, same
     /// one op.
-    pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    pub carried: Arc<crate::assembly::CarriedFindings>,
     /// How many parts each output body is (`NodeValue::parts`).
     pub parts: usize,
     /// The coincidences the op decided from values, named in its
@@ -85,21 +84,28 @@ pub(crate) struct OpOut<T: Decide> {
     pub motion: Option<RigidMotion<T>>,
     /// The pieces its body holds (`NodeValue::pieces`).
     pub pieces: Option<Arc<super::Pieces<T>>>,
+    /// The census of the door that assembled them (`NodeValue::census`).
+    pub census: Option<Arc<crate::product::Census<T>>>,
+    /// Whether a door already decided its meetings
+    /// (`NodeValue::censused`).
+    pub censused: bool,
 }
 
 impl<T: Decide> OpOut<T> {
-    /// An op that declares no contact — every op but instantiate.
+    /// An op that carries no part's records — every op but instantiate.
     fn plain(payload: ValuePayload<T>, names: Arc<NameTable>) -> Self {
         Self {
             payload,
             outputs: vec![super::OutputNames::new(names, Arc::default())],
             contacts: Arc::new(topo::ContactRecords::default()),
-            carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
+            carried: Arc::new(crate::assembly::CarriedFindings::default()),
             parts: 1,
             coincidences: Arc::new([]),
             cited_inputs: Arc::new([]),
             motion: None,
             pieces: None,
+            census: None,
+            censused: false,
         }
     }
 
@@ -465,6 +471,7 @@ where
                 id,
                 (from.read, at(O::From, from.read)?, ra),
                 (tool.read, at(O::Cut, tool.read)?, rb),
+                doc,
                 env.boolean_sweep,
                 tol,
             )
@@ -525,7 +532,7 @@ where
                     ))
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-            wire_assemble(id, &reads, tol)
+            wire_assemble(id, &reads)
         }
         // A space DENOTES NO BODY.
         Node::World | Node::Space => {
@@ -840,7 +847,7 @@ where
     // keeps it rigid.
     let placed = place(&part.body, map.as_ref(), tol)?;
     let table = names::name_copy(id, &part.names, &[&placed]).map_err(NodeErrorKind::Naming)?;
-    // ASM-R2b D-1: the part's OWN declared contacts survive
+    // ASM-R2b D-1: the part's OWN contact records survive
     // instantiation with their cells UNCHANGED, because
     // `transform_rigid` is key-stable and the identity fast path clones
     // keys verbatim. Re-deriving them from the placed geometry is the
@@ -849,32 +856,7 @@ where
     // The bookkeeping rows ride unchanged for the same reason; what is
     // added here is each row's first hop, this instance
     // ([`crate::assembly::PartRow::through`]).
-    let carried = crate::assembly::CarriedDeclarations {
-        refused: part.refused.as_ref().clone(),
-        minted: part
-            .minted
-            .iter()
-            .map(|row| {
-                let (route, declaration, held) = row.through(id);
-                crate::assembly::CarriedDeclaration {
-                    route,
-                    declaration,
-                    held,
-                }
-            })
-            .collect(),
-        unminted: part
-            .unminted
-            .iter()
-            .map(|row| {
-                let (route, refusal, held) = row.through(id);
-                crate::assembly::CarriedRefusal {
-                    route,
-                    refusal,
-                    held,
-                }
-            })
-            .collect(),
+    let carried = crate::assembly::CarriedFindings {
         interference: part
             .interference
             .iter()
@@ -901,8 +883,6 @@ where
             })
             .collect(),
         // Keyed in the part's body, which the placement moves without
-        // re-minting a key (`place`), so they key the placed copy too.
-        census_pairs: part.census_pairs.as_ref().clone(),
     };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
@@ -914,6 +894,10 @@ where
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
         pieces: moved_pieces(part.pieces.as_ref(), map.as_ref())?,
+        // The part's census decided the meetings inside its product,
+        // and its records ride `contacts`: no door here holds them.
+        census: None,
+        censused: true,
         motion: None,
     })
 }
@@ -961,6 +945,23 @@ fn value_of<T: Decide>(
         node: input,
     })
     .map_err(|_| NodeErrorKind::MissingInput { input })
+}
+
+/// **The records a boolean reads off its operand**: where a door
+/// censused the operand's pieces (a `⊔`, or a copy of one), the records
+/// that door kept, the touches between its pieces among them, so a
+/// meeting inside the operand is carried and never decided again; else
+/// the value's own ([`records_of`]).
+fn operand_records<T: Decide + topo::AtRestPolicy>(
+    value: &super::NodeValue<T>,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    tol: Tol,
+) -> Arc<topo::ContactRecords> {
+    value
+        .census
+        .as_ref()
+        .and_then(|census| census.records(doc, tol))
+        .unwrap_or_else(|| records_of(value))
 }
 
 /// The contact records `value` holds for its output body 0: a
@@ -1387,12 +1388,11 @@ pub(crate) fn frame_axes<T: Decide>(
 /// not fit: past `u32::MAX` a loop's coordinate would name another
 /// loop's.
 fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
-    names::to_u32(
-        n,
-        "a profile holds more loops than a u32 loop index addresses",
-    )
-    .map(|n| 0..n)
-    .map_err(NodeErrorKind::Naming)
+    u32::try_from(n).map(|n| 0..n).map_err(|_| {
+        NodeErrorKind::Naming(names::NamingError::Emission {
+            what: "a profile holds more loops than a u32 loop index addresses",
+        })
+    })
 }
 
 /// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
@@ -1725,7 +1725,7 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
     let built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
         .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
-        names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
+        names::name_revolve(id, &built, &tube_pieces(&built)).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
@@ -1737,11 +1737,9 @@ fn wire_tube<T: Decide + topo::AtRestPolicy>(
 /// named by its place in that construction under the tube node
 /// (`names/README.md`, "N1, the profile pieces") — the shape the node
 /// kind fixes, which nothing can renumber.
-fn tube_pieces<T: Decide>(
-    built: &sweep::Revolved<T>,
-) -> Result<super::ProfilePieces, NodeErrorKind> {
+fn tube_pieces<T: Decide>(built: &sweep::Revolved<T>) -> super::ProfilePieces {
     let counts: Vec<usize> = built.rims.iter().map(Vec::len).collect();
-    super::ProfilePieces::section(&counts).map_err(NodeErrorKind::Naming)
+    super::ProfilePieces::section(&counts)
 }
 
 /// **A hollow tube** — `sweep::tube_along_arc_hollow`, the OTHER
@@ -1765,7 +1763,7 @@ fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
         sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
             .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
-        names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
+        names::name_revolve(id, &built, &tube_pieces(&built)).map_err(NodeErrorKind::Naming)?;
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
@@ -1999,15 +1997,9 @@ mod ladder {
         })
     }
 
-    /// Rung 2's payload: the tie row is the name itself, as there is no
-    /// widened base to tie against in one table.
+    /// Rung 2's payload: the tie row is the name itself.
     fn tied(live: &Live<'_>, width: usize) -> Box<ResolveError> {
-        Box::new(ResolveError::ambiguous(
-            live.0,
-            live.0.clone(),
-            live.0.node,
-            width,
-        ))
+        Box::new(ResolveError::ambiguous(live.0, live.0.node, width))
     }
 
     /// Rung 3's payload, from the one home that mints it.
@@ -2691,6 +2683,8 @@ fn pick_of<T: Decide + topo::AtRestPolicy>(
             carried: Arc::default(),
             parts: piece.parts,
             pieces: moved_pieces(piece.pieces.as_ref(), piece.motion.as_ref())?,
+            census: piece.census.clone(),
+            censused: piece.censused,
             ..value.clone()
         },
     ))
@@ -2805,6 +2799,7 @@ fn with_replaced<T: Decide>(
 /// **One member of a union or an intersect, as the fold reads it**:
 /// the read it came through (its names' key), its finished body and its
 /// own table.
+#[derive(Clone)]
 struct Member<T: Decide> {
     read: crate::VarId,
     body: Arc<topo::AtRestBody<T>>,
@@ -2812,6 +2807,9 @@ struct Member<T: Decide> {
     /// The member's own contact records, carried into the fold step
     /// that joins it (D1 (ii)).
     records: Arc<topo::ContactRecords>,
+    /// The member as an intersect distributes over it, where it holds
+    /// pieces ([`distribute`]).
+    pieces: Option<Arc<distribute::Operand<T>>>,
 }
 
 // `Bounds` rides along for the boolean lane only: the sweep's BVH
@@ -2823,26 +2821,67 @@ struct Member<T: Decide> {
 // otherwise become runtime arity.
 /// **The subtract's lowering** (DM4): `from` cut by `tool`, through the
 /// pair verb, each seat's entities named by its read
-/// ([`names::RoleSeg::From`]).
+/// ([`names::RoleSeg::From`]). A `from` that holds pieces is cut piece
+/// by piece ([`distribute`]).
 fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     (a_read, a, results_a): (crate::VarId, RecipeNodeId, &Results<T>),
     (b_read, b, results_b): (crate::VarId, RecipeNodeId, &Results<T>),
+    doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
-    let a_table = read_table(value_of(results_a, a)?);
-    let b_table = read_table(value_of(results_b, b)?);
+    let from = distribute::Operand::read(results_a, a, a_read, doc, tol)?;
+    let tool = distribute::Operand::read(results_b, b, b_read, doc, tol)?;
+    // A body with pieces is finished piece by piece.
+    let body_a = match from.pieces {
+        None => Some(from.finished(tol)?),
+        Some(_) => None,
+    };
+    let body_b = tool.finished(tol)?;
+    subtract_from(
+        verb,
+        id,
+        (&from, body_a),
+        (&tool, &body_b),
+        boolean_sweep,
+        tol,
+    )
+}
+
+/// `from` cut by `tool`, by piece where `from` holds pieces; `from`'s
+/// body finished where the caller has finished it.
+fn subtract_from<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    id: RecipeNodeId,
+    (from, body_a): (&distribute::Operand<T>, Option<topo::AtRestBody<T>>),
+    (b, body_b): (&distribute::Operand<T>, &topo::AtRestBody<T>),
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
+    if from.pieces.is_some() {
+        let outs = from
+            .units(tol)?
+            .iter()
+            .map(|unit| {
+                let out = subtract_from(verb, id, (unit, None), (b, body_b), boolean_sweep, tol)?;
+                Ok((unit.read, out))
+            })
+            .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+        return distribute::assembled(id, outs);
+    }
+    let body_a = match body_a {
+        Some(body) => body,
+        None => from.finished(tol)?,
+    };
     let inputs = BooleanInputs {
         given: None,
-        records_a: records_of(value_of(results_a, a)?).carried(),
-        records_b: records_of(value_of(results_b, b)?).carried(),
+        records_a: from.records.carried(),
+        records_b: b.records.carried(),
     };
-    let body_a = finished_operand(results_a, a, tol)?;
-    let body_b = finished_operand(results_b, b, tol)?;
     match (verb.build)(BooleanOp::Subtract, inputs)
-        .run_pair(&body_a, &body_b, boolean_sweep, tol)
+        .run_pair(&body_a, body_b, boolean_sweep, tol)
         .map_err(verb_refused)?
     {
         verbs::PairOut::Empty => Ok(OpOut::plain(
@@ -2863,16 +2902,16 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 &out.body,
                 &naming,
                 &names::OperandCtx {
-                    node: a,
-                    read: a_read,
-                    table: &a_table,
+                    node: from.node,
+                    read: from.read,
+                    table: &from.table,
                     body: &body_a,
                 },
                 &names::OperandCtx {
-                    node: b,
-                    read: b_read,
-                    table: &b_table,
-                    body: &body_b,
+                    node: b.node,
+                    read: b.read,
+                    table: &b.table,
+                    body: body_b,
                 },
                 tol,
             )
@@ -2888,14 +2927,14 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
             )
             .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups)))
             .citing(vec![
-                crate::coincide::CitedInput::Read(a_read),
-                crate::coincide::CitedInput::Read(b_read),
+                crate::coincide::CitedInput::Read(from.read),
+                crate::coincide::CitedInput::Read(b.read),
             ])
             .recording(
                 &out.coincidences,
                 &crate::coincide::RowInputs {
-                    a: (a_read, &a_table),
-                    b: Some((b_read, &b_table)),
+                    a: (from.seat, from.spelled()?.as_ref()),
+                    b: Some((b.read, &b.table)),
                     tool: None,
                 },
             )
@@ -3152,11 +3191,18 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let at = super::read_at(doc, slot, read)?;
                 let projected = reads_projected(node, &[(slot, read)], doc, (results, vals), tol)?;
                 let results = projected.as_ref().unwrap_or(results);
+                let pieces = match op {
+                    BooleanOp::Intersect if value_of(results, at)?.pieces.is_some() => Some(
+                        Arc::new(distribute::Operand::read(results, at, read, doc, tol)?),
+                    ),
+                    _ => None,
+                };
                 Ok::<_, NodeErrorKind>(Member {
                     read,
                     body: Arc::new(finished_operand(results, at, tol)?),
                     table: read_table(value_of(results, at)?),
-                    records: records_of(value_of(results, at)?),
+                    records: operand_records(value_of(results, at)?, doc, tol),
+                    pieces,
                 })
             })
             .collect::<Result<Vec<_>, NodeErrorKind>>(),
@@ -3194,12 +3240,85 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                         // A family's records are the family's, not one
                         // member's: a member read whole cites none.
                         records: Arc::default(),
+                        pieces: None,
                     })
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()
         }
     }?;
-    let members = members.as_slice();
+    // The node's own read: the space a fold step's rows are read in.
+    let Some(own_read) = doc.output(id, 0) else {
+        unreachable!(
+            "union {id:?} defines no output variable, though the doors that insert an \
+             operation define its outputs with it"
+        )
+    };
+    combine_members(verb, op, id, own_read, members, boolean_sweep, tol)
+}
+
+/// **An intersect distributes over a member that holds pieces**
+/// ([`distribute`]): the first such member's pieces each take its place
+/// in turn, and what each intersect made is assembled. Every other
+/// combine folds its members ([`fold_members`]).
+fn combine_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    op: BooleanOp,
+    id: RecipeNodeId,
+    own_read: crate::VarId,
+    members: Vec<Member<T>>,
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
+    let held = members
+        .iter()
+        .enumerate()
+        .find_map(|(i, m)| m.pieces.clone().map(|whole| (i, whole)));
+    let Some((i, whole)) = held else {
+        return fold_members(verb, op, id, own_read, &members, boolean_sweep, tol);
+    };
+    let outs = whole
+        .units(tol)?
+        .into_iter()
+        .map(|unit| {
+            let mut replaced = members.clone();
+            let unit = Arc::new(unit);
+            replaced[i] = Member {
+                read: unit.read,
+                body: Arc::new(unit.finished(tol)?),
+                table: Arc::clone(&unit.table),
+                records: Arc::clone(&unit.records),
+                pieces: unit.pieces.is_some().then(|| Arc::clone(&unit)),
+            };
+            let out = combine_members(verb, op, id, own_read, replaced, boolean_sweep, tol)?;
+            // A row names the piece's cells as the member's read spells
+            // them, unless another member is read through the piece's
+            // own read, whose cells a row could not tell apart.
+            let shared = members
+                .iter()
+                .enumerate()
+                .any(|(j, m)| j != i && m.read == unit.read);
+            let out = if shared {
+                out
+            } else {
+                let rows = unit.respelled(&out.coincidences)?;
+                out.with_coincidences(rows)
+            };
+            Ok((unit.read, out))
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    distribute::assembled(id, outs)
+}
+
+/// The fold of a union's or an intersect's members ([`wire_combine`]).
+fn fold_members<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    verb: &crate::verbs::boolean::PairVerb<T>,
+    op: BooleanOp,
+    id: RecipeNodeId,
+    own_read: crate::VarId,
+    members: &[Member<T>],
+    boolean_sweep: topo::SweepStrategy,
+    tol: Tol,
+) -> OpResult<T> {
     let empty = || {
         Ok(OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Empty),
@@ -3213,13 +3332,6 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     };
     let own: Vec<(crate::VarId, &NameTable)> =
         members.iter().map(|m| (m.read, m.table.as_ref())).collect();
-    // The node's own read: the space a fold step's rows are read in.
-    let Some(own_read) = doc.output(id, 0) else {
-        unreachable!(
-            "union {id:?} defines no output variable, though the doors that insert an \
-             operation define its outputs with it"
-        )
-    };
     // Every member's read-keyed view, taken once for the pairwise
     // judgement and the fold. The FIRST member enters read-keyed too,
     // so every operand of every step is already in this node's name
@@ -3537,7 +3649,7 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         }
     }
     // The members' own bodies and tables: where each member edge the
-    // published table ranks pieces of is defined (`name_union`).
+    // published table names pieces of is defined (`name_union`).
     let member_views: Vec<names::UnionMember<'_, T>> = members
         .iter()
         .map(|m| names::UnionMember {
@@ -3933,12 +4045,13 @@ fn member_lineage(
     fold: &names::UnionFold,
     f: topo::FaceKey,
 ) -> &std::collections::BTreeSet<(usize, topo::FaceKey)> {
-    fold.member_faces(f).unwrap_or_else(|| {
+    let Some(lineage) = fold.member_faces(f) else {
         unreachable!(
             "union fold accumulation face {f:?} has no member-face lineage, though the fold \
              records one for every face of every accumulation it builds"
         )
-    })
+    };
+    lineage
 }
 
 /// **A fold step's face-pair rows restate its given pairs** (DM4, the
@@ -4037,6 +4150,10 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
         contacts: Arc::new(contacts.carried_from(0)),
         carried: Arc::clone(&value.carried),
         pieces: moved_pieces(value.pieces.as_ref(), map)?,
+        // A placement moves its source and re-mints no key, so the
+        // census its source's door kept keys this copy too.
+        census: value.census.clone(),
+        censused: value.censused,
         ..OpOut::plain(ValuePayload::Body(Arc::new(copy)), table)
             .carrying(value.parts)
             .citing(citing)
@@ -4083,7 +4200,10 @@ fn moved_pieces<T: Decide>(
             })
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-    Ok(Some(Arc::new(super::Pieces { pieces: moved })))
+    Ok(Some(Arc::new(super::Pieces {
+        by: pieces.by,
+        pieces: moved,
+    })))
 }
 
 /// **The assemble** (`⊔`, D10 `[operations.operators]`): each member
@@ -4097,7 +4217,6 @@ fn moved_pieces<T: Decide>(
 fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     members: &[(RecipeNodeId, crate::VarId, &Results<T>)],
-    tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
@@ -4151,15 +4270,24 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             contacts: Arc::clone(&records),
             carried: Arc::clone(&value.carried),
             pieces: value.pieces.clone(),
+            census: value.census.clone(),
+            censused: value.censused,
             motion: None,
         });
         named.push((read, table, bridges));
     }
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
-    let _ = tol;
+    let pieces = Arc::new(super::Pieces { by: id, pieces });
     Ok(OpOut {
         contacts: Arc::new(contacts),
-        pieces: Some(Arc::new(super::Pieces { pieces })),
+        // The census at this door, over its pieces: run where a reader
+        // first asks for its verdict ([`crate::product::Census`]).
+        census: Some(Arc::new(crate::product::Census::new(
+            id,
+            Arc::clone(&pieces),
+        ))),
+        censused: true,
+        pieces: Some(pieces),
         ..OpOut::plain(ValuePayload::Body(Arc::new(fused)), table)
             .carrying(parts)
             .citing(citing)
@@ -4180,6 +4308,7 @@ pub(crate) fn written<P: crate::ProfilePayload>(
     }
 }
 
+mod distribute;
 pub(crate) mod pose;
 mod stepped;
 pub(crate) use stepped::{

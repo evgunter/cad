@@ -794,7 +794,7 @@ fn split_and_inline_carry_readers_by_id() {
     )
     .doc;
     let mut store = PartStore::default();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("intent-vars-3-host"), Tol::witness());
     let (host, instance) = crate::fixture::insert_pinned(
@@ -1246,7 +1246,7 @@ fn part_reading_d_and_e() -> (ProfileDoc, PartStore, editor_core::DocRef) {
     let (part, _) = block(part, 0.0, named("d"));
     let (part, _) = block(part, 4.0, named("e"));
     let mut store = PartStore::default();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part.clone(), Tol::witness());
     (part, store, doc_ref)
 }
@@ -1377,7 +1377,7 @@ fn inline_carries_an_anonymous_variable_whole() {
     };
     let defined = *distance;
     let mut store = PartStore::default();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref = store.insert(part.clone(), Tol::witness());
     let store: Arc<dyn editor_core::PartResolver> = Arc::new(store);
     let host = ProfileDoc::empty(
@@ -1529,7 +1529,7 @@ fn a_reader_of_a_deleted_variable_does_not_cross_a_cut() {
     let d = id(&part, "d");
     let part = step(&part, DocEdit::DeleteVar { var: d.into() }).doc;
     let mut store = store;
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let doc_ref_dead = store.insert(part.clone(), Tol::witness());
     assert_ne!(doc_ref, doc_ref_dead);
     let host = ProfileDoc::empty(

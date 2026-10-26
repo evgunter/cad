@@ -259,7 +259,7 @@ const TABLE: [(MeasureVerb, [bool; 4]); 4] = [
     (MeasureVerb::Distance, [false, true, true, true]),
     (MeasureVerb::Angle, [false, true, true, false]),
     (MeasureVerb::MinClearance, [true, true, false, false]),
-    (MeasureVerb::Gap, [false, true, false, false]),
+    (MeasureVerb::Gap, [false, true, true, true]),
 ];
 
 fn primitive<R>(verb: MeasureVerb, a: R, b: R) -> MeasurePrimitive<R> {

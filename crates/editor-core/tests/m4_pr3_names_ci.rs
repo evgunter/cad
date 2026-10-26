@@ -124,8 +124,11 @@ fn digest_names(ev: &Evaluation<f64>) -> u64 {
 /// `Placed` layer, and a `⊔` keys each member's names by its read, so
 /// the name tables this digest feeds moved, and the `⊔` node moved the
 /// ids after it. No point moved: `m10_p_fence`'s ids-masked row, with
-/// the corpus's `⊔` nodes set aside, is main's pin.
-const DIE_TABLE_DIGEST: u64 = 0x1af9_e522_bd73_f34a;
+/// the corpus's `⊔` nodes set aside, is main's pin. Measured again over
+/// main's merge at `1235f4c050`, which brings stage 4 I's id moves and
+/// the wall spelling's name moves (`f077063267`, `f9288d4a02`) beneath
+/// D′3's: names and ids only, and the ids-masked row held.
+const DIE_TABLE_DIGEST: u64 = 0x6a1f_023d_9ba4_9421;
 
 /// The pinned names-only die digest (R11 companion; see
 /// [`digest_names`]). Re-pinned with `DIE_TABLE_DIGEST` (above).
@@ -166,7 +169,10 @@ const DIE_TABLE_DIGEST: u64 = 0x1af9_e522_bd73_f34a;
 /// Re-pinned with `DIE_TABLE_DIGEST` for D′3: a pip's copy carries its
 /// source's names with no `Placed { of }` wrapper, so the names' wording
 /// moved with the ids they spell.
-const DIE_NAMES_DIGEST: u64 = 0x7f32_742d_1926_4ca0;
+///
+/// Re-pinned with `DIE_TABLE_DIGEST` over main's merge at `1235f4c050`
+/// (stage 4 I and the wall spelling, `f077063267`, `f9288d4a02`).
+const DIE_NAMES_DIGEST: u64 = 0x858d_2d6e_f24c_3fdb;
 
 #[test]
 fn die_name_tables_are_golden() {

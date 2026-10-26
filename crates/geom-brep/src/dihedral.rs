@@ -194,12 +194,14 @@ pub enum DihedralClass {
     Smooth,
 }
 
-/// The one classification funnel of this crate: delegates to the
-/// unified recorder funnel [`geom_core::k_stats::decide`] (M2 PR 7),
+/// The dihedral and material-entry classifiers' funnel: delegates to
+/// the unified recorder funnel [`geom_core::k_stats::decide`] (M2 PR 7),
 /// which names the predicate for the margin-telemetry recorder,
 /// classifies through the sanctioned [`Decide`] door, and tags any
-/// escalation. Kept as the crate-local wrapper so this remains the
-/// crate's single greppable decision site. The margin is a
+/// escalation. It is not the crate's only decision site: other modules
+/// (the curve-pair, pcurve-cache, SSI and props readers among them)
+/// call the recorder funnel directly, which is the one door they all
+/// share. The margin is a
 /// [`Margin<T>`] by signature (D4's margin dimensional convention,
 /// clause (i)): each call site states its dimensional argument by the
 /// construction door it chooses; the per-site arguments are the rows of
@@ -465,15 +467,18 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 /// material pairing ([`classify_material_pairing`]) and the
 /// second-order jet margin the tier-3 validator decides.
 ///
-/// `crate::certify` reaches it through [`tangent_second_order`], the
+/// `crate::certify` reaches it directly and through
+/// [`tangent_second_order`], the
 /// smooth-join constructors through [`must_carry_over_edge`], which
 /// composes it, and `topo::boolean::contact_verify` directly. The SSI
 /// point decisions do not read it: their arm is
 /// `crate::ssi::point_arm`'s, from the surfaces' largest principal
 /// curvature, which this fold's [`curvature_lever_arm`] is not on a
-/// cone or a torus. `contact_verify`'s `contact_tangent_opposed` is
-/// [`classify_material_pairing`]'s own twin — the same C1 lemma
-/// between bodies rather than within one, issue 1439's work.
+/// cone or a torus. Nor does `contact_verify`'s
+/// `contact_tangent_opposed`, the same C1 lemma as
+/// [`classify_material_pairing`] between bodies: it levers its normals'
+/// dot by the faces' extent, as `crate::certify`'s
+/// `tangent_gap_orientation` does.
 /// A new site levering against its own fold is a silent
 /// non-comparability, so route new callers through this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, reach: T) -> T {
@@ -1371,9 +1376,10 @@ pub enum MaterialPairing {
 /// [`crate::enters::OutwardNormal::from_chart`]'s doc gives.
 /// This is the C1 lemma the declared-contact
 /// verifier already decides between bodies (`contact_tangent_opposed`),
-/// read edge-locally between two faces of ONE body — same construction,
-/// same margin: the dot of unit normals levered by the folded arm
-/// ([`folded_lever_arm`]), a displacement in meters.
+/// read edge-locally between two faces of ONE body — the same
+/// construction, the dot of unit normals as a displacement in meters,
+/// levered here by the folded arm ([`folded_lever_arm`]) and there by
+/// the faces' extent.
 ///
 /// # Errors
 ///

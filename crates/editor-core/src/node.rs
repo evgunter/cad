@@ -807,7 +807,6 @@ impl core::fmt::Display for SlotId {
 ///
 /// ```compile_fail,E0308
 /// let _ = editor_core::InterfaceCrossing::Mate {
-///     class: editor_core::ContactClass::Rest,
 ///     outer: named(editor_core::EntityKind::Edge),
 ///     inner: named(editor_core::EntityKind::Edge),
 /// };
@@ -832,7 +831,6 @@ impl core::fmt::Display for SlotId {
 /// };
 ///
 /// let _ = editor_core::InterfaceCrossing::Mate {
-///     class: editor_core::ContactClass::Rest,
 ///     outer: face(),
 ///     inner: face(),
 /// };
@@ -867,9 +865,6 @@ pub enum InterfaceCrossing {
     /// a later delete of the mate is not reported — is a reference
     /// with no reader to protect.
     Mate {
-        /// The class the crossing declares.
-        #[serde(with = "crate::persist::kernel_wire::contact_class")]
-        class: crate::mate::ContactClass,
         /// The remainder-side reference — the one the mate keeps.
         outer: FaceName,
         /// The part-side reference, in the part's own names — the one
@@ -1311,7 +1306,7 @@ impl SitedRef {
 /// ```
 /// use editor_core::pose::PoseDef;
 /// use editor_core::{
-///     ContactClass, EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
+///     EntityKind, FaceName, Formula, Mate, Operand, RecipeNodeId, SitedFace,
 ///     StableName,
 /// };
 /// let face = FaceName::new(StableName {
@@ -1331,7 +1326,6 @@ impl SitedRef {
 /// let _: Mate<Formula> = Mate {
 ///     on: plane(face),
 ///     to: flipped,
-///     class: ContactClass::Rest,
 /// };
 /// ```
 ///
@@ -1960,14 +1954,20 @@ pub enum Node<P, S: Slot = crate::VarId> {
     },
     /// **The intersect** (DM4): the material in every member, over the
     /// kernel's intersection verb, judged and folded as [`Node::Union`]
-    /// is. An empty fold step is the typed empty result.
+    /// is. An empty fold step is the typed empty result. A member that
+    /// holds pieces (a [`Node::Assemble`], or a copy of one) is met
+    /// piece by piece, and the result holds each piece's meet as a
+    /// piece.
     Intersect {
         /// The members, in fold order.
         members: Bodies<crate::BodyRead<S>>,
     },
     /// **The subtract** (DM4): `from` cut by `tool`, the one pair node,
     /// since difference neither commutes nor associates. Several tools
-    /// are `Subtract { from, tool: Union([tools…]) }`.
+    /// are `Subtract { from, tool: Union([tools…]) }`. A `from` that
+    /// holds pieces (a [`Node::Assemble`], or a copy of one) is cut
+    /// piece by piece, and the result holds each piece's cut as a
+    /// piece; a piece the cut empties drops out.
     Subtract {
         /// The body cut.
         from: crate::BodyRead<S>,
@@ -1977,10 +1977,15 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// **The assemble** (`⊔`, D10 `[operations.operators]`): its
     /// members side by side as the pieces of one body, each a separate
     /// solid set, none re-decided against another. Its door runs the
-    /// at-rest census over the pieces, one arrival per member, and
-    /// carries every member's own records unchanged, so a meeting inside
-    /// a member is that member's. Its result is an ordinary operand: a
-    /// boolean reading it cuts or joins every piece.
+    /// at-rest census over the pieces, one arrival per member, carrying
+    /// every member's own records, so a meeting inside a member is that
+    /// member's; the verdict is kept on its value
+    /// ([`crate::product::Census`]), which a copy or a pick of it
+    /// carries, and every reader reads that one verdict. Its result is
+    /// an ordinary operand: a subtract or an intersect reading it acts
+    /// on each piece and keeps what it made as pieces
+    /// (`(p ⊔ q) − t = (p − t) ⊔ (q − t)`), and a union fuses its other
+    /// members with the pieces they meet, carrying the `⊔`'s records.
     Assemble {
         /// The members, in graft order.
         members: Bodies<crate::BodyRead<S>>,
@@ -1998,7 +2003,7 @@ pub enum Node<P, S: Slot = crate::VarId> {
     Place {
         /// The body copied.
         source: crate::BodyRead<S>,
-        /// The space the copies are placed into: a `Space` read.
+        /// The space the copy is placed into: a `Space` read.
         target: S::Read,
         /// The bundle, in the order written.
         constraints: Vec<crate::mate::Constraint<S>>,
@@ -2095,8 +2100,8 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// seam rather than arriving from an upstream node, so it reads
     /// no operand and the DAG has nothing to schedule ahead of it.
     ///
-    /// **An instance is a placement** (D10): its copies are in its
-    /// `target`, where its constraints pin them.
+    /// **An instance is a placement** (D10): its copy is in its
+    /// `target`, where its constraints pin it.
     InstantiatePart {
         /// Which document, at which version (A4: the id answers "which
         /// part", the pin "which version of it"). Cargo.lock semantics
@@ -2112,9 +2117,9 @@ pub enum Node<P, S: Slot = crate::VarId> {
         /// the node's content key.
         #[serde(default, skip_serializing_if = "InterfaceRecord::is_empty")]
         interface: InterfaceRecord,
-        /// The space the copies are placed into: a `Space` read.
+        /// The space the copy is placed into: a `Space` read.
         target: S::Read,
-        /// The bundle that pins the instance's copies (D10: an
+        /// The bundle that pins the instance's copy (D10: an
         /// instance of a part is a placement), addressed by minted id,
         /// as a [`Node::Place`]'s is. Its copy side reads a face of the
         /// instance's own output: the copied shape in the part's own

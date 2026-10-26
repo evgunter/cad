@@ -31,3 +31,51 @@ The row's other asserts still hold: no genuine crossing is refused, and there ar
 **Owed.** Decide whether the new tally is what B1's placement should produce. If it is, re-pin with that reading in the pin's doc comment. If not, fix what moved it. The earlier movements and the open question about PR 4861's 60 lost aimed-vertex answers are `review-pick-r2-tally-moved-by-4861-section-ellipse-re-pose` (CLEAVE).
 
 Reproduce: `cargo nextest run -p viewer --profile ci --ignore-default-filter -E 'test(=review_pick_r2::the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus)'`.
+
+## 2026-10-24 (INTENT nightly triage)
+
+Still red at every ε, in the full suite and in `viewer app feature`
+(nightly run 40066431545, main `3dfb96b91c`):
+
+    left: (441036, 141423, 24792, 7386)
+   right: (440460, 141163, 13482, 6882)
+
+On 2026-10-23 (run 39906156937) the tally was
+`(441036, 141438, 24600, 7266)`. Overnight, 15 fewer rays are answered
+at the aimed vertex, 192 more candidates refuse at the determinant, and
+120 more rays carry a refusal. The ray count held. The 10-23 triage
+left the re-pin to INTENT D′2 (PR 5613), but D′2 merged without touching
+this row, and D′3 (PR 5636) does not touch it either. The refusal
+columns have nearly doubled since 10-22 (13482 → 24792), so this needs
+reading before any re-pin. The row's other asserts still hold: no
+genuine crossing is refused, and there are no wide winners. The
+overnight move is not bisected. The window's code merges are listed in
+the 2026-10-24 triage PR (`intent/nightly-triage-1024`).
+
+## 2026-10-26 (SPLICE nightly triage): the 10-24 → 10-25 move is #5659
+
+Still red in `viewer app feature` on nightly run 40274924857 (main
+`38f1a24ed3`), with the same tally as 2026-10-25 (run 40165703340,
+`9f5b44561d`):
+
+    left: (441036, 141417, 25542, 7998)
+   right: (440460, 141163, 13482, 6882)
+
+That tally appeared between 10-24 (`3dfb96b91c`: `(441036, 141423, 24792, 7386)`)
+and 10-25. I bisected over the window's 35 merges by running this row alone
+(the reproduce line above) at each candidate:
+
+| merge | tally |
+|---|---|
+| `40ea8d2114` (#5655) | `(441036, 141423, 24792, 7386)` |
+| `8a6d97e661` (#5659, `chart/chart-inversion-one-reading`) | `(441036, 141417, 25542, 7998)` |
+
+So the move is **#5659**, "a point's chart coordinates are one reading
+(`geom::ChartInverse`)". At the aimed vertex, 6 fewer rays are answered,
+750 more candidates refuse at the determinant, and 612 more rays carry
+a refusal. The other asserts in the row still hold. One merge in the
+window, `6045ce5ff4` (#5657), does not compile (W2's `walk_refusal`
+missed `PcurveMintError::OuterSpanPoisoned`); #5662 fixed that at
+`09011e4179`, which reads the old tally. Whether #5659's single chart
+reading should refuse more here is the question this row already owes,
+answered from that PR. Do not re-pin before it is answered.

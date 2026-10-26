@@ -32,7 +32,6 @@ use pncad::document::{
     ProfileProgram, SitedRef, gathers_on_this_thread,
 };
 use pncad::geom_core::Tol;
-use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
 use viewer::evalseam::EvalDone;
 use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
@@ -173,19 +172,25 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    common::asm::unpin(&mut session, bench.post_b);
-    common::commit_mate(
-        &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_b,
-            ContactClass::Tangent,
-            common::asm::middle_seat_values(),
-        ),
-    );
+    // The two posts seated side by side under the shelf, three ε apart:
+    // inside the sliver band, so the census cannot say whether they
+    // touch, and the gate refuses.
+    let middle = common::asm::SHELF_LENGTH / 2.0;
+    let beside = middle + common::asm::POST_SECTION + 3.0 * tol.eps();
+    for (post, at) in [(bench.post_a, middle), (bench.post_b, beside)] {
+        common::asm::unpin(&mut session, post);
+        common::commit_mate(
+            &mut session,
+            common::asm::seat_op(&bench, post, common::asm::seat_values(at)),
+        );
+    }
     assert!(
-        matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
-        "this row's premise is a refused gate: {:?}",
+        matches!(
+            session.at_rest(),
+            Some(AtRestBadge::Refused { message })
+                if message.contains("whether two parts of the body touch is undecided")
+        ),
+        "this row's premise is a gate refused on the census escalating in the band: {:?}",
         session.at_rest()
     );
 
@@ -484,8 +489,9 @@ fn every_site_of_the_gather_counter_carries_the_debug_gate() {
             "the cell and the reader are each behind the gate; missing: {anchor}"
         );
     }
-    // The increments: the gather's own, and the product door's where
-    // the slot reads nothing and no gather runs. Each at its own
+    // The increments: the gather's own, a door's census (each `⊔`'s,
+    // run once where it is first asked for), and the product door's
+    // where the slot reads nothing and no gather runs. Each at its own
     // indentation, so counted line by line.
     let lines: Vec<&str> = source.lines().collect();
     let increments = lines
@@ -495,7 +501,10 @@ fn every_site_of_the_gather_counter_carries_the_debug_gate() {
                 && pair[1].trim_start().starts_with("GATHERS.with(")
         })
         .count();
-    assert_eq!(increments, 2, "the two increments are each behind the gate");
+    assert_eq!(
+        increments, 3,
+        "the three increments are each behind the gate"
+    );
     assert_eq!(
         source.matches("GATHERS").count(),
         gated.len() + increments,

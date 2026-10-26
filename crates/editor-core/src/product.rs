@@ -138,6 +138,13 @@ pub enum ProductError {
         /// The read.
         read: crate::VarId,
     },
+    /// **A product read of a body outside the world** (D10
+    /// `[operations]`): an edit moved the body the slot reads into
+    /// another space ([`crate::Maintenance::ProductOutsideWorld`]).
+    ProductOutsideWorld {
+        /// The read.
+        read: crate::VarId,
+    },
     /// The kernel's disjoint-graft door refused a source body.
     Graft {
         /// The placement whose copy was being grafted.
@@ -345,6 +352,11 @@ impl ProductError {
                 "the product reads a body that is gone. {}",
                 crate::sentence::Recourse("set the product to a live body")
             ),
+            Self::ProductOutsideWorld { .. } => write!(
+                f,
+                "the product reads a body outside the world. {}",
+                crate::sentence::Recourse("set the product to a body in the world")
+            ),
             Self::Graft { node, source } => write!(
                 f,
                 "the kernel could not graft {}'s body: {source}",
@@ -470,6 +482,8 @@ pub enum ProductErrorKind {
     EmptyProduct,
     /// [`ProductError::StrandedProduct`].
     StrandedProduct,
+    /// [`ProductError::ProductOutsideWorld`].
+    ProductOutsideWorld,
     /// [`ProductError::Graft`].
     Graft,
     /// [`ProductError::RootInvalid`].
@@ -518,6 +532,7 @@ impl ProductErrorKind {
         match self {
             Self::EmptyProduct => true,
             Self::StrandedProduct
+            | Self::ProductOutsideWorld
             | Self::EvaluationOfAnotherDocument
             | Self::UnknownNode
             | Self::RootFailed
@@ -550,6 +565,7 @@ impl ProductError {
             },
             Self::EmptyProduct => ProductErrorKind::EmptyProduct,
             Self::StrandedProduct { .. } => ProductErrorKind::StrandedProduct,
+            Self::ProductOutsideWorld { .. } => ProductErrorKind::ProductOutsideWorld,
             Self::Graft { .. } => ProductErrorKind::Graft,
             Self::RootInvalid { .. } => ProductErrorKind::RootInvalid,
             Self::ProductInvalid { .. } => ProductErrorKind::ProductInvalid,
@@ -578,13 +594,13 @@ impl ProductError {
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
-    // The DECLARATION rows ride the value's own channel, filled at the
+    // The carried findings ride the value's own channel, filled at the
     // instantiate op alone. They are keyed in the same arena as
     // `value.contacts`, so they travel with exactly the arm that
     // travels those records — and nowhere else, because a body 0 that
-    // is not the instantiated one has no declaration to carry.
+    // is not the instantiated one has no part's findings to carry.
     let rows = || Arc::clone(&value.carried);
-    let norows = || Arc::new(crate::assembly::CarriedDeclarations::default());
+    let norows = || Arc::new(crate::assembly::CarriedFindings::default());
     match &value.payload {
         ValuePayload::Body(body) => Some(vec![(0, Arc::clone(body), carried(), rows())]),
         ValuePayload::Boolean(BooleanValue::Body { body, contacts, .. }) => {
@@ -721,17 +737,15 @@ pub struct Product<T: Decide> {
     pub names: NameTable,
     /// Its contact records: each source's, re-keyed onto the aggregate
     /// through the graft's own descendant map, citing that source's
-    /// record ([`Self::cited_inputs`]); each a mate minted, citing the
-    /// at-rest census's row of [`Self::coincidences`]; and each the
-    /// census recorded for a touch between copies, citing its own row
-    /// there ([`topo::record_at_rest`]).
+    /// record ([`Self::cited_inputs`]); and each the census recorded for
+    /// a touch between copies, mated or not, citing its own row of
+    /// [`Self::coincidences`] ([`topo::record_at_rest`]).
     pub contacts: ContactRecords,
     /// **The at-rest census's decisions** ([`topo::DecisionSite::CensusAtRest`]):
-    /// those the mates' records cite, in mint order, each cell named as
-    /// the mate's reference reads it; then the contacts between copies
-    /// no record backs, in the census's order, each cell named as its
-    /// copy's placement reads it. The `unproven-coincidence` check reads
-    /// them ([`crate::checks`]).
+    /// the contacts between copies no carried record backs, then the
+    /// flush pairs between copies, each in the census's order, each cell
+    /// named as its copy's placement reads it. The `unproven-coincidence`
+    /// check reads them ([`crate::checks`]).
     pub coincidences: Vec<crate::assembly::AtRestRow>,
     /// The product's inputs a carried record cites, by position: the
     /// gathered sources, in gather order.
@@ -742,10 +756,6 @@ pub struct Product<T: Decide> {
     /// ([`Self::coincidences`]). The at-rest gate reads them and runs
     /// no census of its own ([`crate::assemble_gathered`]).
     pub census: Vec<ValidationError>,
-    /// The census's findings for the mated pairs it refused to read as
-    /// one carrier: those mates minted no record, and the at-rest gate
-    /// raises these beside the census's ([`crate::assemble_gathered`]).
-    pub refused_at_rest: Vec<ValidationError>,
     /// Which placement contributed each of the aggregate's solids, in
     /// gather order (`crate::checks`'s separation resident is the
     /// consumer: it turns a kernel finding about two solid keys into a
@@ -765,56 +775,15 @@ pub struct Product<T: Decide> {
     /// assertions that can quiet an interference
     /// ([`crate::checks::at_rest::GapAssertion`]).
     pub gap_assertions: Vec<crate::checks::at_rest::GapAssertion>,
-    /// One row per mate of THIS document whose declaration the gather
-    /// minted into `contacts`, in document order.
-    ///
-    /// The rows are the attribution channel and nothing else: the
-    /// records themselves carry arena keys, so a finding against one
-    /// needs this list to say which mate authored it. A declaration
-    /// that arrived from a sub-assembly has no row HERE — its mate
-    /// belongs to another document, so it rides `carried` below, which
-    /// keeps that document and the route with it.
-    pub minted: Vec<crate::assembly::MintedDeclaration>,
-    /// One row per live mate the gather could NOT mint, in document
-    /// order ([`crate::MintRefusal`]).
-    ///
-    /// Recorded rather than refused: neither refusal changes what
-    /// material the document denotes, so the product stands and
-    /// [`crate::assemble`] is the door that turns the first row into
-    /// its typed refusal.
-    pub unminted: Vec<crate::assembly::MintRefusal>,
-    /// One row per declaration a document BELOW this one minted,
-    /// re-keyed onto the aggregate through the graft's descendant map
-    /// and tagged with the route it arrived by
-    /// ([`crate::CarriedDeclaration`]).
-    ///
-    /// The records themselves already crossed the seam on `contacts`;
-    /// these are the rows that say WHOSE mate authored each of them,
-    /// so a finding against a carried record names a mate and a file
-    /// instead of nobody. A sub-assembly's own carried rows carry up
-    /// again, their route extended.
-    pub carried: Vec<crate::assembly::CarriedDeclaration>,
-    /// One row per mate a document below this one could NOT mint
-    /// ([`crate::CarriedRefusal`]), carried verbatim: inner mint
-    /// health is what the outermost gate refuses over, and the gather
-    /// is where it arrives.
-    pub carried_unminted: Vec<crate::assembly::CarriedRefusal>,
     /// The overlaps documents below this one reported between their own
     /// copies ([`crate::CarriedInterference`]), carried verbatim, in
     /// gather order: reported by the gate, never refused.
     pub carried_interference: Vec<crate::assembly::CarriedInterference>,
-    /// The at-rest refusals of documents below this one over a finding
-    /// none of their declarations answers for, each crossing whole
+    /// The at-rest refusals of documents below this one, each crossing
+    /// whole
     /// ([`crate::CarriedAtRestFinding`]), carried verbatim: the
     /// outermost gate refuses over them.
     pub carried_at_rest: Vec<crate::assembly::CarriedAtRestFinding>,
-    /// **The pairs of solids those carried findings are about**, re-keyed
-    /// onto the aggregate through each graft's own solid order, smaller
-    /// key first. The census over this product finds each again inside
-    /// the part's copy; the gate reads this to tell the part's answer
-    /// from a finding of this document's
-    /// ([`crate::checks::at_rest`]'s `less_carried`).
-    pub census_pairs: Vec<(topo::SolidKey, topo::SolidKey)>,
     /// **Each `⊔` the product does not read, gathered by itself**
     /// ([`assemble_gathers`]), in document order, kept beside the
     /// product so the at-rest gate checks every `⊔` from the one product
@@ -827,6 +796,30 @@ pub struct Product<T: Decide> {
     pub pieces: Option<Arc<crate::eval::Pieces<T>>>,
     /// How many parts the product is ([`crate::NodeValue::parts`]).
     pub parts: usize,
+}
+
+impl<T: Decide> Product<T> {
+    /// A copy of this verdict a reader owns: every field but
+    /// [`Self::assembles`], which only the product slot's gather fills.
+    pub(crate) fn fresh(&self) -> Self {
+        Self {
+            document: self.document,
+            body: self.body.clone(),
+            names: self.names.clone(),
+            contacts: self.contacts.clone(),
+            coincidences: self.coincidences.clone(),
+            cited_inputs: self.cited_inputs.clone(),
+            census: self.census.clone(),
+            solid_copies: self.solid_copies.clone(),
+            copies: self.copies.clone(),
+            gap_assertions: self.gap_assertions.clone(),
+            carried_interference: self.carried_interference.clone(),
+            carried_at_rest: self.carried_at_rest.clone(),
+            assembles: Vec::new(),
+            pieces: self.pieces.clone(),
+            parts: self.parts,
+        }
+    }
 }
 
 /// **One copy as the gather grafted it** ([`Product::copies`]).
@@ -931,16 +924,21 @@ pub fn product_recorded<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
         return Err(ProductError::EmptyProduct);
     };
-    let mut product = gather(doc, evaluation, tol, var, true)?;
+    if doc.operation_of(var).is_some() && doc.space_of(var) != Some(crate::VarId::WORLD) {
+        return Err(ProductError::ProductOutsideWorld { read: var });
+    }
+    let mut product = gather(doc, evaluation, tol, var)?;
     product.assembles = assemble_gathers(doc, evaluation, tol, Some(var));
     Ok(product)
 }
 
-/// **Every `⊔` the product slot does not read, each gathered by
-/// itself** ([`AssembleGather`]), in document order: what
+/// **Every census the product slot does not read, each as its door
+/// kept it** ([`AssembleGather`]), in document order: each `⊔`'s, and
+/// each cut's or meet's that kept a `⊔`'s pieces, read off its own
+/// value ([`Census`]) and so run once however many readers ask. What
 /// [`product_recorded`] carries beside the product
-/// ([`Product::assembles`]), so the census runs at each `⊔`'s door,
-/// between its own operands, whether or not the product reads it.
+/// ([`Product::assembles`]), so every door's census is checked whether
+/// or not the product reads it.
 pub fn assemble_gathers<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -949,39 +947,199 @@ pub fn assemble_gathers<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 ) -> Vec<AssembleGather<T>> {
     doc.ids()
         .into_iter()
-        .filter(|&id| matches!(doc.node(id), Some(crate::node::Node::Assemble { .. })))
-        .filter_map(|id| doc.output(id, 0))
-        .filter(|&var| Some(var) != product)
-        .map(|var| AssembleGather {
-            var,
-            gather: gather(doc, evaluation, tol, var, false).map(Box::new),
+        .filter_map(|id| {
+            let var = doc.output(id, 0)?;
+            (Some(var) != product).then_some((id, var))
+        })
+        .filter_map(|(id, var)| {
+            // A door's own census, not one a copy carries from its
+            // source's.
+            let census = evaluation
+                .value(id)
+                .and_then(|value| value.census.as_ref())
+                .filter(|census| census.node == id)?;
+            Some(AssembleGather {
+                var,
+                gather: census.verdict(doc, tol).map(|verdict| {
+                    let mut verdict = verdict.fresh();
+                    verdict.document = doc.id();
+                    verdict.gap_assertions = crate::checks::at_rest::gap_assertions(
+                        doc,
+                        evaluation,
+                        &verdict.body,
+                        &verdict.names,
+                        &verdict.copies,
+                        tol,
+                    );
+                    Box::new(verdict)
+                }),
+            })
         })
         .collect()
 }
 
-/// **One `⊔` the product does not read, gathered by itself** (D10
-/// `[operations.operators]`): its operands, grafted and censused with
-/// nothing outside them.
+/// **One census the product does not read, as its door kept it** (D10
+/// `[operations.operators]`): a `⊔`'s operands, grafted and censused
+/// with nothing outside them.
 #[derive(Debug)]
 pub struct AssembleGather<T: Decide> {
-    /// The `⊔`'s output.
+    /// The door's output.
     pub var: crate::VarId,
-    /// Its gather, kept rather than raised: any refusal is the gate's
-    /// to raise ([`crate::AssemblyError::Space`]).
+    /// Its verdict, kept rather than raised: any refusal is the gate's
+    /// to raise ([`crate::AssemblyError::Assemble`]).
     pub gather: Result<Box<Product<T>>, ProductError>,
 }
 
+/// **The census at a door that assembled pieces**, kept on its value
+/// ([`crate::NodeValue::census`]; D10 `[assertions]`, "The census is
+/// each `⊔`'s door"): its pieces grafted side by side, gated, and
+/// censused one group per arrival ([`topo::record_at_rest`],
+/// `flush_at_rest`), each piece's records carried and each touch
+/// between two arrivals recorded. A copy or a pick of the door's body
+/// carries the same census, so every reader of the door's meetings
+/// reads one verdict, run once, where the first of them asks
+/// ([`Self::verdict`]): the product's gather, the at-rest gate, the
+/// checks, a boolean reading the body, an outer `⊔`.
+pub struct Census<T: Decide> {
+    /// The node whose door it is.
+    pub node: RecipeNodeId,
+    pieces: Arc<crate::eval::Pieces<T>>,
+    verdict: std::sync::OnceLock<Product<T>>,
+}
+
+impl<T: Decide> std::fmt::Debug for Census<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Census")
+            .field("node", &self.node)
+            .field("run", &self.verdict.get().is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+impl<T: Decide + AtRestPolicy> Census<T> {
+    /// The census of `node`'s door over `pieces`, not yet run.
+    #[must_use]
+    pub fn new(node: RecipeNodeId, pieces: Arc<crate::eval::Pieces<T>>) -> Self {
+        Self {
+            node,
+            pieces,
+            verdict: std::sync::OnceLock::new(),
+        }
+    }
+
+    /// **The door's verdict**: run the first time it is asked for and
+    /// kept. A refusal is not kept: it is run again where it is asked
+    /// for again, and refuses again.
+    ///
+    /// # Errors
+    ///
+    /// [`ProductError`]'s graft, at-rest and lineage refusals over the
+    /// door's pieces.
+    pub fn verdict<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        tol: Tol,
+    ) -> Result<&Product<T>, ProductError> {
+        if let Some(verdict) = self.verdict.get() {
+            return Ok(verdict);
+        }
+        let verdict = census_of(doc, self.node, &self.pieces, tol)?;
+        Ok(self.verdict.get_or_init(|| verdict))
+    }
+
+    /// The records the door kept: each piece's own, and each touch it
+    /// recorded between two of them, keyed in the door's body (and so in
+    /// any copy of it, which re-mints no key). `None` where the census
+    /// refuses: a reader then has the pieces' own records alone.
+    pub(crate) fn records<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        tol: Tol,
+    ) -> Option<Arc<ContactRecords>> {
+        self.verdict(doc, tol)
+            .ok()
+            .map(|verdict| Arc::new(verdict.contacts.clone()))
+    }
+}
+
+/// **A door's census over its pieces** ([`Census`]): each piece one
+/// arrival (each member of a family piece its own), named as the door
+/// keys it by the piece's read, carrying the records its own door kept
+/// where one did.
+fn census_of<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
+    doc: &Doc<P>,
+    node: RecipeNodeId,
+    pieces: &Arc<crate::eval::Pieces<T>>,
+    tol: Tol,
+) -> Result<Product<T>, ProductError> {
+    #[cfg(debug_assertions)]
+    GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
+    // A read assembled twice keys its pieces' names alike, so each such
+    // name is a tie over those pieces, as the door's own table names it.
+    let repeated = |read: crate::VarId| pieces.pieces.iter().filter(|p| p.read == read).count() > 1;
+    let mut next = std::collections::BTreeMap::new();
+    let mut sources: Vec<Source<T>> = Vec::new();
+    for piece in &pieces.pieces {
+        let at = doc.read_operation(piece.read).unwrap_or(node);
+        // Each piece's names as the door keys them, by its read.
+        let keyed = if repeated(piece.read) {
+            crate::names::repeated_member_view(pieces.by, piece.read, &piece.table, &mut next)
+        } else {
+            crate::names::member_view(pieces.by, piece.read, &piece.table)
+        };
+        let keyed = Arc::new(keyed.unwrap_or_else(|e| {
+            unreachable!("a member's table keyed by its read stays a table: {e:?}")
+        }));
+        // A piece whose own door censused it brings that door's
+        // records, the touches inside it among them.
+        let contacts = piece
+            .census
+            .as_ref()
+            .and_then(|census| census.records(doc, tol))
+            .unwrap_or_else(|| Arc::clone(&piece.contacts));
+        for (i, body) in piece.bodies.iter().enumerate() {
+            let ix = if piece.family {
+                crate::names::output_body(i).unwrap_or_else(|e| {
+                    unreachable!("piece {i} outlived its minting op's index refusal: {e}")
+                })
+            } else {
+                0
+            };
+            sources.push(Source {
+                node: at,
+                var: piece.read,
+                ix,
+                body: Arc::clone(body),
+                table: Arc::clone(&keyed),
+                contacts: if piece.family {
+                    Arc::default()
+                } else {
+                    Arc::clone(&contacts)
+                },
+                rows: if piece.family {
+                    Arc::default()
+                } else {
+                    Arc::clone(&piece.carried)
+                },
+                censused: !piece.family && piece.censused,
+            });
+        }
+    }
+    let mut product = gather_sources(doc, tol, sources)?;
+    product.pieces = Some(Arc::clone(pieces));
+    product.parts = pieces.pieces.iter().map(|piece| piece.parts).sum();
+    Ok(product)
+}
+
 /// **The gather of the body `var` reads** (D10 `[operations]`): for a
-/// `⊔`, its operands, each one arrival of the census, as the `⊔`
-/// grafted them ([`crate::eval::Pieces`]); for any other body, that
-/// body as the one source. `raises` is whether this gather raises a
-/// mate's refusal no gather is the home of: the product's does.
+/// door that assembled pieces, its census, as the door kept it
+/// ([`Census`]); for any other body, that body as the one source,
+/// censused alone.
 fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
     var: crate::VarId,
-    raises: bool,
 ) -> Result<Product<T>, ProductError> {
     #[cfg(debug_assertions)]
     GATHERS.with(|gathers| gathers.set(gathers.get().saturating_add(1)));
@@ -996,62 +1154,15 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     else {
         return Err(ProductError::StrandedProduct { read: var });
     };
-    let space = doc.space_of(var).unwrap_or(crate::VarId::WORLD);
+    // A read in no space reads a body whose space is gone.
+    if doc.space_of(var).is_none() {
+        return Err(ProductError::StrandedProduct { read: var });
+    }
     let value = evaluation.usable(node).map_err(ProductError::Root)?;
-    let table = || {
-        evaluation
-            .shared_table_at(var)
-            .unwrap_or_else(crate::names::empty)
-    };
-    let mut sources: Vec<Source<T>> = Vec::new();
-    match (doc.node(node), value.pieces.as_ref()) {
-        (Some(crate::node::Node::Assemble { .. }), Some(pieces)) => {
-            // A read assembled twice keys its pieces' names alike, so
-            // each such name is a tie over those pieces, as the `⊔`'s
-            // own table names it.
-            let repeated =
-                |read: crate::VarId| pieces.pieces.iter().filter(|p| p.read == read).count() > 1;
-            let mut next = std::collections::BTreeMap::new();
-            for piece in &pieces.pieces {
-                let at = doc.read_operation(piece.read).unwrap_or(node);
-                // Each piece's names as the `⊔` keys them, by its read.
-                let keyed = if repeated(piece.read) {
-                    crate::names::repeated_member_view(node, piece.read, &piece.table, &mut next)
-                } else {
-                    crate::names::member_view(node, piece.read, &piece.table)
-                };
-                let keyed = Arc::new(keyed.unwrap_or_else(|e| {
-                    unreachable!("a member's table keyed by its read stays a table: {e:?}")
-                }));
-                for (i, body) in piece.bodies.iter().enumerate() {
-                    let ix = if piece.family {
-                        crate::names::output_body(i).unwrap_or_else(|e| {
-                            unreachable!("piece {i} outlived its minting op's index refusal: {e}")
-                        })
-                    } else {
-                        0
-                    };
-                    sources.push(Source {
-                        node: at,
-                        var: piece.read,
-                        ix,
-                        body: Arc::clone(body),
-                        table: Arc::clone(&keyed),
-                        contacts: if piece.family {
-                            Arc::default()
-                        } else {
-                            Arc::clone(&piece.contacts)
-                        },
-                        rows: if piece.family {
-                            Arc::default()
-                        } else {
-                            Arc::clone(&piece.carried)
-                        },
-                    });
-                }
-            }
-        }
-        _ => {
+    let mut product = match value.census.as_ref().filter(|census| census.node == node) {
+        // A door that assembled pieces: its own census, as it kept it.
+        Some(census) => census.verdict(doc, tol)?.fresh(),
+        None => {
             let Some(bodies) = sources_of(value) else {
                 return Err(ProductError::Root(NodeStanding::NotEvaluated { node }));
             };
@@ -1060,35 +1171,51 @@ fn gather<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 .then(|| SplitHalf::of_output_body(u32::from(port)))
                 .flatten()
                 .map(SplitHalf::output_body);
-            sources.extend(
-                bodies
-                    .into_iter()
-                    .filter(|(ix, ..)| half.is_none_or(|h| h == *ix))
-                    .map(|(ix, body, contacts, rows)| Source {
-                        node,
-                        var,
-                        ix,
-                        body,
-                        table: table(),
-                        contacts,
-                        rows,
-                    }),
-            );
+            // A copy of a door's body brings the records that door kept.
+            let kept = value
+                .census
+                .as_ref()
+                .and_then(|census| census.records(doc, tol));
+            let table = evaluation
+                .shared_table_at(var)
+                .unwrap_or_else(crate::names::empty);
+            let sources = bodies
+                .into_iter()
+                .filter(|(ix, ..)| half.is_none_or(|h| h == *ix))
+                .map(|(ix, body, contacts, rows)| Source {
+                    node,
+                    var,
+                    ix,
+                    body,
+                    table: Arc::clone(&table),
+                    contacts: kept.clone().unwrap_or(contacts),
+                    rows,
+                    censused: value.censused,
+                })
+                .collect();
+            let mut product = gather_sources(doc, tol, sources)?;
+            product.pieces = value.pieces.clone();
+            product.parts = value.parts;
+            product
         }
-    }
-    let mut product = gather_sources(doc, evaluation, tol, (space, raises), sources)?;
-    product.pieces = value.pieces.clone();
-    product.parts = value.parts;
+    };
+    product.document = doc.id();
+    product.gap_assertions = crate::checks::at_rest::gap_assertions(
+        doc,
+        evaluation,
+        &product.body,
+        &product.names,
+        &product.copies,
+        tol,
+    );
     Ok(product)
 }
 
-/// [`gather`] over its sources: grafted, gated, carried, minted and
+/// [`gather`] over its sources: grafted, gated, carried and
 /// censused, each source its own group.
 fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
-    evaluation: &Evaluation<T>,
     tol: Tol,
-    (space, raises): (crate::VarId, bool),
     sources: Vec<Source<T>>,
 ) -> Result<Product<T>, ProductError> {
     // Pass 2: the graft, one call per SOURCE BODY, in list order. A
@@ -1134,16 +1261,13 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 
     // Pass 3: the carries, per grafted source, each across the key
     // bridge its graft minted: the source's name rows, its contact
-    // records, and the declarations below it.
+    // records, and the findings below it.
     let mut names = NameTable::new();
-    let mut at_rest = crate::assembly::AtRestRows::default();
+    let mut contacts = ContactRecords::default();
     let mut cited_inputs: Vec<crate::coincide::CitedInput> = Vec::new();
     let mut solid_copies: Vec<SolidOrigin> = Vec::new();
-    let mut carried: Vec<crate::assembly::CarriedDeclaration> = Vec::new();
-    let mut carried_unminted: Vec<crate::assembly::CarriedRefusal> = Vec::new();
     let mut carried_interference: Vec<crate::assembly::CarriedInterference> = Vec::new();
     let mut carried_at_rest: Vec<crate::assembly::CarriedAtRestFinding> = Vec::new();
-    let mut census_pairs: Vec<(topo::SolidKey, topo::SolidKey)> = Vec::new();
     let mut tie_rows = CarriedRows::default();
     let mut copies: Vec<GatheredCopy<T>> = Vec::with_capacity(grafted.len());
     for (
@@ -1155,6 +1279,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             table,
             contacts: records,
             rows,
+            censused: _,
         },
         keys,
     ) in &grafted
@@ -1172,10 +1297,9 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             keys: Arc::clone(keys),
         });
         carry_names(&mut tie_rows, table, *node, *ix, keys);
-        // Each source's records cite the placement's list, by the
-        // source's position among the product's inputs, which names the
-        // placement's `body` read: the copy's records are the body's, in
-        // its order.
+        // Each source's records cite the source by its position among
+        // the product's inputs, which names the read it entered through:
+        // the copy's records are its body's, in their order.
         let input = u32::try_from(cited_inputs.len()).unwrap_or(u32::MAX);
         cited_inputs.push(match doc.node(*node) {
             Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => {
@@ -1185,50 +1309,19 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         });
         carry_contacts(
             &aggregate,
-            &mut at_rest.contacts,
+            &mut contacts,
             &records.carried_from(input),
             keys,
         )
         .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
-        carry_declarations(&mut carried, &rows.minted, keys)
-            .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
-        for finding in &rows.refused {
-            at_rest.refused.push(
-                carry_finding(finding, keys)
-                    .map_err(|what| ProductError::ContactLineage { node: *node, what })?,
-            );
-        }
-        // A refusal names no entity — it is a mate that produced NO
-        // record — so it carries with nothing to re-key.
-        carried_unminted.extend(rows.unminted.iter().cloned());
         // A part's census findings carry verbatim too, spelled in its
         // own document, each reported once per part row, by the first
-        // route in gather order (`once_per_part_row`). Only the pairs
-        // they are about name entities of this body, and they re-key
-        // through the graft's solid order, every instance's: the order
-        // `GraftKeys::solids` promises is the source's, which is the
-        // one bridge this carry reads by position.
+        // route in gather order (`once_per_part_row`).
         crate::assembly::once_per_part_row(
             &mut carried_interference,
             rows.interference.iter().cloned(),
         );
         crate::assembly::once_per_part_row(&mut carried_at_rest, rows.at_rest.iter().cloned());
-        if !rows.census_pairs.is_empty() {
-            let solid: std::collections::BTreeMap<topo::SolidKey, topo::SolidKey> = body
-                .solids()
-                .map(|(key, _)| key)
-                .zip(keys.solids().iter().copied())
-                .collect();
-            for &(a, b) in &rows.census_pairs {
-                let (Some(&a), Some(&b)) = (solid.get(&a), solid.get(&b)) else {
-                    return Err(ProductError::ContactLineage {
-                        node: *node,
-                        what: "solid",
-                    });
-                };
-                census_pairs.push((a.min(b), a.max(b)));
-            }
-        }
     }
     // The name carry's second half, after the last source: every
     // carried row, narrowed ONCE over all of them (`carry_names`). A tie
@@ -1244,59 +1337,15 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
             "two copies carried one name, {e:?}: a copy's names are qualified by its placement"
         )
     }
-    // Pass 4: MINTING (A3's "Declaration minting"). Every evaluated
-    // product carries its own mates' declarations, so what a document
-    // MEANS includes what its mates say about the material — which is
-    // what lets the instantiation seam compose: a sub-assembly's
-    // declarations ride up on the contacts channel above, keyed by the
-    // graft, rather than being lost because the consuming document
-    // never ran the mate loop.
-    //
-    // Last, and after the gate: minting carries each mate's faces
-    // across the graft bridge, and the aggregate's own at-rest verdict
-    // is about geometry, so a product that is not a body at all
-    // refuses before any mate is read.
-    let bridge_of = |placement: RecipeNodeId| {
-        grafted
-            .iter()
-            .find(|(source, _)| source.node == placement)
-            .map(|(_, keys)| &**keys)
-    };
-    // A mated pair's row names each face as the census reads it: in its
-    // copy, as that copy's placement output names it.
+    // Each touch between copies names its cells as the census reads
+    // them: in its copy, as that copy's placement output names it.
     let groups = crate::checks::at_rest::copy_groups(&copies);
-    let cell_of = |face| {
-        crate::checks::at_rest::copy_cell(
-            &aggregate,
-            &names,
-            &copies,
-            &groups,
-            topo::Cell::Face(face),
-        )
-        .map(|(_, cell)| cell)
-        .unwrap_or_else(|| unreachable!("a mated face is a face of a gathered copy"))
-    };
-    let (minted, unminted) = crate::assembly::mint(
-        doc,
-        evaluation,
-        &bridge_of,
-        (&aggregate, &cell_of),
-        &mut at_rest,
-        (space, raises),
-        geom_core::Band::linear(tol),
-    );
-    let crate::assembly::AtRestRows {
-        mut contacts,
-        mut coincidences,
-        refused: refused_at_rest,
-    } = at_rest;
     // The tier-3′ census over the product and its records, here and
     // nowhere else: each touch it finds between two copies is a row of
     // the product and a record citing it (`topo::record_at_rest`, D1
-    // (iii)), which the `unproven-coincidence` check reads, and the rest
+    // (iii)), mated or not, which the `unproven-coincidence` check reads
+    // and the door proves by its mate where one rests the pair; the rest
     // is what the at-rest gate refuses or reports ([`Product::census`]).
-    let first_row = u32::try_from(coincidences.len())
-        .unwrap_or_else(|_| unreachable!("a product's mates number fewer than u32"));
     let recorded = topo::record_at_rest(
         &aggregate,
         &contacts,
@@ -1306,7 +1355,7 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
                 .unwrap_or_default()
         },
         &|solid| groups.get(&solid).copied(),
-        first_row,
+        0,
     );
     // The flush pairs between copies are rows of their own, which no
     // record cites (`topo::AtRestPolicy::flush_at_rest`).
@@ -1318,16 +1367,31 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         },
     };
     contacts.extend(recorded.records.rows().iter().cloned());
-    coincidences.extend(crate::checks::at_rest::copy_rows(
+    let coincidences = crate::checks::at_rest::copy_rows(
         &aggregate,
         &names,
         &copies,
         recorded.rows.into_iter().chain(flush.rows).collect(),
-    ));
+    );
     let mut census = recorded.findings;
     census.extend(flush.findings);
-    let gap_assertions =
-        crate::checks::at_rest::gap_assertions(doc, evaluation, &aggregate, &names, &copies, tol);
+    // A meeting inside one arrival a door already decided is that
+    // door's (D10 `[assertions]`): a `⊔`'s pieces were censused at its
+    // own door, and an instance's copy at its part's. The kernel's
+    // census has no group scope, so it still computes such a meeting;
+    // this door discards what it found there.
+    let decided: std::collections::BTreeSet<u32> = grafted
+        .iter()
+        .zip(0u32..)
+        .filter(|((source, _), _)| source.censused)
+        .map(|(_, group)| group)
+        .collect();
+    if !decided.is_empty() {
+        census.retain(|finding| {
+            crate::checks::at_rest::finding_group(&aggregate, &groups, finding)
+                .is_none_or(|group| !decided.contains(&group))
+        });
+    }
     Ok(Product {
         document: doc.id(),
         body: aggregate,
@@ -1336,17 +1400,11 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
         coincidences,
         cited_inputs,
         census,
-        refused_at_rest,
         solid_copies,
         copies,
-        gap_assertions,
-        minted,
-        unminted,
-        carried,
-        carried_unminted,
+        gap_assertions: Vec::new(),
         carried_interference,
         carried_at_rest,
-        census_pairs,
         assembles: Vec::new(),
         pieces: None,
         parts: 0,
@@ -1356,8 +1414,9 @@ fn gather_sources<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
 /// One body the gather will graft: the operation that contributed it,
 /// the read it entered through, the output-body index it occupies in
 /// that read's value (the index its name rows are keyed by), the body,
-/// its name table, its declared contact records, and the declaration
-/// rows that say whose mate authored each carried record.
+/// its name table, its contact records, the at-rest findings it
+/// carries from the documents below, and whether its meetings are
+/// already decided.
 struct Source<T: Decide> {
     node: RecipeNodeId,
     var: crate::VarId,
@@ -1365,7 +1424,10 @@ struct Source<T: Decide> {
     body: Arc<Body<T>>,
     table: Arc<NameTable>,
     contacts: Arc<ContactRecords>,
-    rows: Arc<crate::assembly::CarriedDeclarations>,
+    rows: Arc<crate::assembly::CarriedFindings>,
+    /// Whether a door already decided the meetings inside it
+    /// ([`crate::NodeValue::censused`]).
+    censused: bool,
 }
 
 /// **Which roots the aggregate's at-rest refusal is about**: every
@@ -1417,7 +1479,7 @@ pub(crate) type Source0<T> = (
     u32,
     Arc<Body<T>>,
     Arc<ContactRecords>,
-    Arc<crate::assembly::CarriedDeclarations>,
+    Arc<crate::assembly::CarriedFindings>,
 );
 
 /// Re-keys one grafted body's contact records onto the aggregate,
@@ -1470,70 +1532,6 @@ pub(crate) fn carry_contacts<T: geom_core::Real>(
         })?;
     into.extend(moved.rows().iter().cloned());
     Ok(())
-}
-
-/// Re-keys one grafted body's carried DECLARATION rows onto the
-/// aggregate — [`carry_contacts`]'s twin, under its lineage rule and
-/// its refusal, for the bookkeeping that says whose mate authored each
-/// record. Dropping a row here would leave its RECORD in the set with
-/// nothing to attribute it to, which is the anonymity this channel
-/// exists to end.
-fn carry_declarations(
-    into: &mut Vec<crate::assembly::CarriedDeclaration>,
-    from: &[crate::assembly::CarriedDeclaration],
-    keys: &topo::GraftKeys,
-) -> Result<(), &'static str> {
-    for row in from {
-        let (a, b) = row.declaration.faces;
-        into.push(crate::assembly::CarriedDeclaration {
-            declaration: crate::assembly::MintedDeclaration {
-                faces: (keys.face(a).ok_or("face")?, keys.face(b).ok_or("face")?),
-                ..row.declaration.clone()
-            },
-            ..row.clone()
-        });
-    }
-    Ok(())
-}
-
-/// Re-keys one at-rest census finding a document below raised for a
-/// mated pair it refused ([`crate::Product::refused_at_rest`]) onto the
-/// aggregate, as [`carry_declarations`] re-keys the pair's declaration.
-/// Only the census's refusals of a pair reach here, and they name
-/// faces or nothing.
-fn carry_finding(
-    finding: &ValidationError,
-    keys: &topo::GraftKeys,
-) -> Result<ValidationError, &'static str> {
-    let face = |f| keys.face(f).ok_or("face");
-    Ok(match finding {
-        ValidationError::ContactContradicted {
-            declaration,
-            witness,
-            margin,
-            steer,
-        } => ValidationError::ContactContradicted {
-            declaration: topo::DeclaredContact {
-                a: face(declaration.a)?,
-                b: face(declaration.b)?,
-                ..*declaration
-            },
-            witness: witness.clone(),
-            margin: *margin,
-            steer: *steer,
-        },
-        ValidationError::CensusUnsupported {
-            subject: topo::CensusSubject::FacePair(a, b),
-            cause,
-        } => ValidationError::CensusUnsupported {
-            subject: topo::CensusSubject::FacePair(face(*a)?, face(*b)?),
-            cause: cause.clone(),
-        },
-        other @ (ValidationError::CensusEscalated { .. } | ValidationError::Band { .. }) => {
-            other.clone()
-        }
-        _ => return Err("an at-rest finding the census does not raise for a pair"),
-    })
 }
 
 /// Re-keys one grafted body's name rows onto the aggregate: the same
@@ -1596,6 +1594,9 @@ mod tests {
             ProductError::StrandedProduct {
                 read: crate::VarId::new(0, test_utils::refusal::tagged(1)),
             },
+            ProductError::ProductOutsideWorld {
+                read: crate::VarId::new(0, test_utils::refusal::tagged(1)),
+            },
             ProductError::Graft {
                 node,
                 source: Box::new(topo::BooleanError::UnrepresentableResult),
@@ -1645,6 +1646,7 @@ mod tests {
                 ProductErrorKind::RootPoisoned => "RootPoisoned",
                 ProductErrorKind::EmptyProduct => "EmptyProduct",
                 ProductErrorKind::StrandedProduct => "StrandedProduct",
+                ProductErrorKind::ProductOutsideWorld => "ProductOutsideWorld",
                 ProductErrorKind::Graft => "Graft",
                 ProductErrorKind::RootInvalid => "RootInvalid",
                 ProductErrorKind::ProductInvalid => "ProductInvalid",
@@ -1659,6 +1661,7 @@ mod tests {
             "RootPoisoned",
             "EmptyProduct",
             "StrandedProduct",
+            "ProductOutsideWorld",
             "Graft",
             "RootInvalid",
             "ProductInvalid",

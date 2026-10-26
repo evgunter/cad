@@ -173,7 +173,6 @@ fn measured(half: f64, theta: f64) -> (Evaluation<f64>, RecipeNodeId) {
         editor_core::Mate {
             on: fixture::plane(bottom),
             to: tilted,
-            class: editor_core::ContactClass::Rest,
         },
         vec![
             (

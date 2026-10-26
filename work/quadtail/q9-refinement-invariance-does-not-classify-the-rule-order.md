@@ -5,7 +5,8 @@ title: "Q9's fixture does not classify the OUTER rule's order at all: the outer-
 status: open
 opened: 2026-09-21
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 
@@ -101,3 +102,10 @@ What is left is the structural instrument, and it is QUAD's:
 QUAD's: `quad.rs` is this program's file. Filed by RING-2 (SCALAR),
 which found it re-deriving the gate its own change moved, and which
 did not widen the gate to pass.
+
+## Re-priced (2026-10-26, tracker sweep)
+
+`M` with `design: true`, from legacy `D`. The three owed items are a
+new fixture, an independent value and a rule-order knob. The knob is a
+production-signature question at `trimmed_patch_face_rounds`. The row
+is still live on main: the test is at `props/quad.rs:8796`.

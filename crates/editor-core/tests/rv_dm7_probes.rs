@@ -19,7 +19,7 @@ use crate::blocks::block;
 use crate::fixture;
 use crate::fixture::resolver::PartStore;
 use editor_core::{
-    ContactClass, DocEdit, DocumentId, Maintenance, MateSide, Node, ProfileDoc, RecipeNodeId, apply,
+    DocEdit, DocumentId, Maintenance, MateSide, Node, ProfileDoc, RecipeNodeId, apply,
 };
 use fixture::{fname, insert, len, wall};
 use geom_core::Tol;
@@ -88,7 +88,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
 fn instance_face(
     instance: RecipeNodeId,
     part_body: RecipeNodeId,
-) -> crate::fixture::resolver::InPart {
+) -> crate::fixture::resolver::PartName {
     crate::fixture::resolver::in_part(instance, part_body, CapEnd::Start)
 }
 
@@ -129,7 +129,6 @@ fn rv_a_deleted_mate_operand_is_silent_here_and_typed_at_the_solve() {
         crate::fixture::rest(
             crate::fixture::head(instance_face(ia, part_body)),
             crate::fixture::head_at(placed, head_b),
-            ContactClass::Rest,
         ),
     );
 

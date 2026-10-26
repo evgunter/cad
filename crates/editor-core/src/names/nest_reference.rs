@@ -17,7 +17,7 @@ use std::sync::Arc;
 
 pub(super) use super::role::{
     CapEnd, EntityKind, MeridianEnd, PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef,
-    RimSupport, SectionCircle, Sense,
+    RimSupport, SectionCircle,
 };
 pub(super) use crate::node::{RecipeNodeId, StepId};
 
@@ -37,7 +37,18 @@ pub(super) struct StableName {
 #[serde(deny_unknown_fields)]
 pub(super) struct RunLine {
     pub(super) line: NameRef,
-    pub(super) sense: Option<Sense>,
+    pub(super) sense: Sense,
+}
+
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub(super) enum Sense {
+    Enters,
+    Leaves,
+    Outside,
+    Inside,
+    Through { entering: Vec<NameRef> },
 }
 
 /// The shared handle: its name's rendering, order, hash and wire form.
@@ -105,7 +116,6 @@ pub(super) enum Qualifier {
     Borders(Vec<StableName>),
     Keeps(Vec<StableName>),
     Ends(Vec<StableName>),
-    OrderAlong { rank: u32, of: u32 },
 }
 
 #[derive(

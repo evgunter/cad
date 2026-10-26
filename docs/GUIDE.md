@@ -848,7 +848,7 @@ assert!(triangle_count(&mesh) > 0);
 
 ### 2.7 Export
 
-STEP (AP242) for exchange, STL for the mesh:
+STEP (AP214) for exchange, STL for the mesh:
 
 ```
 use pncad::prelude::*;
@@ -914,10 +914,13 @@ That round-trip is the habit to copy. An export that writes bytes
 proves nothing; an export that re-imports to the same volume proves
 the geometry survived.
 
-STEP export is one of the few places the kernel refuses for a reason
-you should *expect* rather than fix: `UnsupportedSurface`,
-`UnsupportedCurve` and `CurvedShellClassification` mean the AP242
-writer has no representation for a surface the modeller can build.
+`step_string` takes a finished body (`AtRestBody`), so a body the
+at-rest gate refuses never reaches the writer. Past the gate, STEP
+export is one of the few places the kernel refuses for a reason you
+should *expect* rather than fix: `UnsupportedSurface`,
+`UnsupportedCurve` and `VoidShellUnsupported` mean the AP214
+writer has no representation for a surface or a cavity the modeller
+can build.
 The tour treats exactly those three as tolerated, per scene, and
 panics on anything else.
 

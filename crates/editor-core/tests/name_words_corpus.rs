@@ -151,9 +151,8 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// Place …". The longest full name, in `nested_islands_106_depth2`, is
 /// a piece of a lateral edge between two crossings, whose ends say the
 /// edge again: each extra placement read is said three times over in
-/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`;
-/// retiring `RoleSeg::Placed` and `InPart` in D′ is expected to bring
-/// them back, and D′ re-tightens this pin.
+/// it. Filed as `name-words-budget-grew-under-placed-copy-wrapping`,
+/// which D′3 closed (below).
 ///
 /// The full total rose by 11 970 and its p99 by seven, and the scoped
 /// total by 200, with a seam's sides and a crossing's edge and face named
@@ -170,16 +169,37 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// name says it at each of its ends; the growth is the same placed-copy
 /// wrapping `name-words-budget-grew-under-placed-copy-wrapping` files.
 ///
-/// D′3 retired that wrapping (`RoleSeg::Placed` and `InPart`): a copy
+/// D′3 retired that wrapping, so no name spells a placement: a copy
 /// carries its source's names as they are, so full p99 135 → 122, max
 /// 396 → 196 (main's before D's wrapping), total 461129 → 342994, and
 /// scoped total 60241 → 46933. Scoped p99 grew 43 → 45: a product that
 /// reads a `⊔` keys each copy's faces by the read they came through
 /// (`From { read }`), so a face scoped to the product says that read,
 /// where the gather's table said the copy's wrapped name.
+///
+/// A pair boolean's `Borders` wall came to cite its parent as the
+/// boolean's own table names it, the `From` it came in through: each
+/// wall of `crossing_slots`' pieces now says its read ("… through
+/// <read>"). Scoped p99 43 → 45, total 60241 → 60371; full total
+/// 461129 → 461339. No outcome moved.
+///
+/// An orientation is read, never chosen: a union's seam in a run says
+/// its sense where it said "runs through", and a line of several things
+/// says the things it enters along ("…, entering along …, crosses …").
+/// Full p99 135 → 137, total 461339 → 461547; scoped faces held. No
+/// outcome moved.
+///
+/// 461129 → 461339. No outcome moved. Main's merge into D′3 at
+/// `1235f4c050` (these walls and stage 4 I) moves D′3's scoped total
+/// 46933 → 47003 and full total 342994 → 343104; the percentiles held.
+///
+/// Measured again for D′3 over main's merge at `4c341b9225`, which
+/// brings the run line's bare sense (above) beneath D′3's names: full
+/// total 343104 → 343208, the percentiles and scoped faces held. No
+/// outcome moved.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 45, 57, 46_933]),
-    ("full", [19, 122, 196, 342_994]),
+    ("scoped faces", [16, 45, 57, 47_003]),
+    ("full", [19, 122, 196, 343_208]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -337,10 +357,24 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// seam face plainly, so its node tags moved too; the words that moved
 /// are the node tags.
 ///
-/// Re-pinned for D′3: no name says a `Placed` or `InPart` layer, a
+/// Re-pinned for D′3: no name says a placement layer, a
 /// product's names say the `⊔` read they came through, and node tags
 /// moved with the ids.
-const SAID_DIGEST: u64 = 0xea0f_1a37_b898_f6d0;
+///
+/// Re-pinned with [`NAME_WORDS`] when a pair boolean's `Borders` walls
+/// came to say the read each came in through: the words that moved are
+/// those walls'.
+///
+/// Re-pinned with [`NAME_WORDS`] when an orientation came to be read,
+/// never chosen: the words that moved are the senses of a union's seams
+/// in a run and of lines of several things, which say what they enter
+/// along.
+///
+/// Measured again for D′3 over main's merge at `1235f4c050`, with the
+/// `Borders` walls' reads under D′3's names.
+///
+/// Measured again with [`NAME_WORDS`] over main's merge at `4c341b9225`.
+const SAID_DIGEST: u64 = 0x96f4_fccc_7bb3_0d9e;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
@@ -978,7 +1012,8 @@ fn a_run_of_seams_says_each_seam_by_its_faces() {
         .map(|(name, _)| name)
         .filter(|name| {
             matches!(name.path.as_slice(), [RoleSeg::EdgeCrossing(run)]
-                if run.len() == 3 && run.iter().all(|l| l.sense.is_none()))
+                if run.len() == 3
+                    && run.iter().all(|l| matches!(l.line.path.as_slice(), [RoleSeg::Seam { .. }])))
         })
         .cloned()
         .collect();

@@ -432,11 +432,13 @@ fn vase() -> Body<f64> {
 /// wall's row at `v = |d|/2`, exact structure, and each rim is minted as
 /// the moved cap and wall's `Intersection` on that row. The loft's
 /// radius along a seam is `1 + 1.2·v(1 − v)` at height `2v`, so the
-/// rims are circles of radius 1.02925 at `z = 0.05`. Tier 3 passes the
-/// body's edges and refuses at its volume: the moved cap is a plane
-/// bounded by rational spline rims, and the planar loop's vector area
-/// has no rational rule
-/// (`work/flux/a-planar-face-bounded-by-a-rational-spline-rim-has-no-vector-area.md`).
+/// rims are circles of radius 1.02925 at `z = 0.05`. The moved cap is a
+/// plane bounded by rational spline rims, and it measures: the certified
+/// lane reads their vector area (`geom_brep::props::rational_rim`), and
+/// its area and flux hold the disc's, while the structural door, which
+/// has no quadrature lane, keeps the closed form's typed refusal. Tier 3
+/// then refuses at a wall, whose trim rows are the cap's to rounding and
+/// not its chart's exact rectangle.
 #[test]
 fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wall_row() {
     let body = vase();
@@ -538,21 +540,86 @@ fn shelling_the_vase_refuses_at_a_walls_crease_and_its_cap_moves_alone_onto_a_wa
         })
         .count();
     assert_eq!(rows, 2, "each wall carries its rim on its row v = {row}");
+    // The moved cap measures: a disc of the rims' radius in `z = |d|`,
+    // facing `−z`, so its flux about the shell's reference `q` is
+    // `(q_z − z)·πr²`. The rims hold the circle to 1e-12 at the points
+    // above, so the area moves off the disc's by at most `2πr·1e-12`, and
+    // the flux by that times the lever `|q_z − z|`, plus the area times
+    // the 1e-12 its anchor, a rim point, sits off the plane `z`. The
+    // reference is the cap's own first vertex now that it is the shell's
+    // first quadrature face, so the lever is the rims' rounding.
+    let [(_, reference)] = topo::test_support::shell_references(&alone)[..] else {
+        panic!("the vase is one shell");
+    };
+    let reading = topo::test_support::face_reading(&alone, cap, Tol::witness())
+        .expect("a plane bounded by rational rims has a vector area");
+    let disc = core::f64::consts::PI * radius * radius;
+    let residual = 2.0 * core::f64::consts::PI * radius * 1e-12;
+    let lever = (reference.z - z).abs();
+    assert!(
+        (reading.area - disc).abs() <= reading.area_pad + residual,
+        "the moved cap's area {} ± {} misses the disc's {disc}",
+        reading.area,
+        reading.area_pad
+    );
+    let flux = (reference.z - z) * disc;
+    assert!(
+        (reading.flux - flux).abs() <= reading.flux_pad + lever * residual + disc * 1e-12,
+        "the moved cap's flux {} ± {} misses {flux}",
+        reading.flux,
+        reading.flux_pad
+    );
+    // And the brackets are pinned, so the containment above is not
+    // vacuous. The target is the volume's, which the cap's flux meets at
+    // the first round: its lever about the reference is the rims'
+    // rounding. Its area is read at that round's pieces: measured
+    // 1.3265e-6 at every ε (1.4508e-6 with each span read as one power
+    // series), and a rule with half the pieces per round reads about 32×
+    // that (the `h⁵` remainder).
+    assert_eq!(
+        reading.met_at,
+        Some(0),
+        "the cap meets the volume target at its first round"
+    );
+    assert!(
+        reading.area_pad <= 1.5e-6,
+        "the moved cap's area bracket widened to ± {}",
+        reading.area_pad
+    );
+    // Tier 3 now passes the cap and refuses at a wall: the moved cap's
+    // rims are the walls' rows to rounding, not exactly, and a NURBS
+    // wall's patch lane reads only an exact rectangle of its chart
+    // (`work/shell/a-wall-trimmed-to-an-inexact-iso-row-has-no-rectangle.md`).
     let refusals = topo::validate_geometric(&alone, Tol::witness())
-        .expect_err("a plane bounded by a rational rim has no vector area");
+        .expect_err("a wall trimmed off its exact rectangle has no volume");
     assert!(
         matches!(
             refusals.as_slice(),
             [topo::ValidationError::VolumeUncomputable {
                 source: topo::MassPropsError::Face {
                     face,
-                    source: geom_brep::PropsError::Unimplemented,
+                    source: geom_brep::PropsError::QuadratureUnsupported { .. },
                     ..
                 },
                 ..
-            }] if *face == cap
+            }] if is_spline_wall(&walls, *face)
         ),
-        "expected only the moved cap's volume refusal, got {refusals:?}"
+        "expected only a wall's volume refusal, got {refusals:?}"
+    );
+    // The structural door has no quadrature lane: the moved cap keeps
+    // the closed form's typed refusal there.
+    let structural = topo::test_support::face_reading_structural(&alone, cap, Tol::witness())
+        .expect_err("the structural door has no rational rule");
+    assert!(
+        matches!(
+            structural,
+            topo::MassPropsError::Face {
+                face,
+                source: geom_brep::PropsError::Unimplemented,
+                ..
+            } if face == cap
+        ),
+        "expected the moved cap's typed refusal, got {structural:?}"
     );
 }
 
@@ -710,8 +777,10 @@ fn at_interval_the_prism_moves_by_the_shortcut_and_a_slanted_rim_refuses_by_name
 /// door builds a fitted face bounded by planes) has one side wall moved:
 /// the side's edge with the fitted cap is derived as the moved plane's
 /// section of the fit, stored as their `Intersection` with the plane
-/// first and a spline carrier, and the body passes tier 3's structural
-/// phase, whose plane × NURBS certificate reads the cap as its fit.
+/// first and a spline carrier, and the body passes tier 3: its plane ×
+/// NURBS certificate reads the cap as its fit, and its volume takes the
+/// cap's bicubic trimmed region through the composite arm and holds the
+/// moved box's.
 ///
 /// The corner where the moved side meets the cap and the next side is
 /// that side's root at the section's end, within ε of the fit's window
@@ -773,26 +842,30 @@ fn a_moved_plane_meets_a_fitted_cap_along_their_certified_section() {
         );
     }
     // Tier 3 recertifies every edge in its structural phase, the
-    // section through the plane × NURBS lane over the fit, and reaches
-    // its volume check only on a body that passed that phase. The volume
-    // is not taken yet: the fitted cap's trimmed region is past the
-    // exact quadrature window
-    // (`work/quad/a-fitted-face-trimmed-by-a-section-has-no-volume-rule.md`).
-    let refusals = topo::validate_geometric(&moved, Tol::witness())
-        .expect_err("the fitted cap's quadrature is not built");
+    // section through the plane × NURBS lane over the fit, and takes the
+    // volume over the fitted cap's trimmed region: a bicubic chart, past
+    // the exact outer rule's window, so the composite arm's.
+    let at_rest = topo::AtRestBody::validate(moved, Tol::witness())
+        .unwrap_or_else(|e| panic!("the moved box passes tier 3: {e:?}"));
+    let props =
+        topo::mass_properties(&at_rest, Tol::witness()).expect("the moved box has a volume");
+    // The closed form is the box `(2 − T) × 2 × 1`, its cap a fit of the
+    // plane `z = 1` within ε over an area under 4 m².
+    let truth = (2.0 - THICKNESS) * 2.0;
+    let slack = props.volume_pad + 4.0 * Tol::witness().eps();
     assert!(
-        matches!(
-            refusals.as_slice(),
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    face,
-                    source: geom_brep::PropsError::QuadratureUnsupported { what },
-                    ..
-                },
-                ..
-            }] if *face == cap && what.starts_with("trimmed exact lane's Newton–Cotes window")
-        ),
-        "expected only the fitted cap's quadrature refusal, got {refusals:?}"
+        (props.volume - truth).abs() <= slack,
+        "the moved box's volume {} ± {} misses {truth}",
+        props.volume,
+        props.volume_pad
+    );
+    // And the bracket is tight: the cap floors at its first round, so
+    // a pad that grew (a looser rule, a lost round) would make the
+    // containment above vacuous. Measured 3.7e-14 at the default ε.
+    assert!(
+        props.volume_pad <= 1e-12,
+        "the moved box's volume bracket widened to ± {}",
+        props.volume_pad
     );
 }
 

@@ -22,9 +22,9 @@
 //! placement's constraints are its own, so a cut placement whose bundle
 //! reads a kept copy severs that read. A part delivers only its world
 //! (A10), so a remainder read of the cut crosses only where the
-//! instance's copies carry what it reads: a selection each of whose
+//! instance's copy carries what it reads: a selection each of whose
 //! names one cut world placement's copy holds, re-authored on the
-//! instance's copies; a read of one copy of a cut world placement, or of
+//! instance's copy; a read of one copy of a cut world placement, or of
 //! a cut `Place`'s one copy, or of a body one cut world `Place` copies
 //! at the identity, each re-pointed to a pick of the instance's copy:
 //! the member of the part's product `⊔` that copy is, or the copy whole
@@ -77,7 +77,12 @@
 //! variable and constraint — and order, on every cut split admits
 //! (A4): split appends its instance to the remainder and inline appends
 //! what it splices, so a cut whose placements a kept one separates
-//! comes back after it. `split(inline(h))` is not promised: an unread
+//! comes back after it. One cut split admits does not come back: with
+//! the product reading one of several cut copies, split widens the
+//! part's product to the `⊔` of its world copies and inline then finds
+//! no preimage of the copy the product read
+//! (`split-widens-a-product-reading-one-of-several-cut-copies`, open).
+//! `split(inline(h))` is not promised: an unread
 //! free named variable the part held has no reader to follow back, and
 //! stays in the host.
 //!
@@ -137,7 +142,7 @@ use crate::formula::Formula;
 use crate::ident::{DocRef, DocumentId};
 use crate::names::{
     Carry, EntityKind, FaceName, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, SegRewrite,
-    StableName, Unrankable,
+    StableName,
 };
 use crate::node::{
     AuthoredNode, InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId, StepId,
@@ -191,15 +196,6 @@ impl Unmapped {
 pub enum RemapError {
     /// An id the maps lack.
     Unmapped(Unmapped),
-    /// A vertex ranked along the least of the edges that cross there
-    /// (N2's `EdgeCrossing` run) whose least edge the maps make another
-    /// one: the rank was measured along the old least edge, and nothing
-    /// says where the vertex lies along the new one. `vertex` is the
-    /// ranked name as it was, which may be one the name embeds.
-    RankedRunReordered {
-        /// The ranked vertex's name, in the maps' source ids.
-        vertex: Box<StableName>,
-    },
 }
 
 impl From<Unmapped> for RemapError {
@@ -226,12 +222,6 @@ impl core::fmt::Display for RemapError {
                 "{LACKS} {}. Recourse: carry the operation that defines it, or drop the name",
                 crate::spoken::ReadTag(*read)
             ),
-            Self::RankedRunReordered { vertex } => write!(
-                f,
-                "{} is ranked along an edge these maps no longer put first. Recourse: keep id \
-                 order in the maps, or pick it again",
-                SpokenName::absent((**vertex).clone())
-            ),
         }
     }
 }
@@ -252,12 +242,7 @@ impl SplitError {
         missing: RemapError,
     ) -> Self {
         let name = source.spoken_name(name);
-        let missing = match missing {
-            RemapError::Unmapped(missing) => missing,
-            RemapError::RankedRunReordered { .. } => {
-                return Self::RankedRunReordered { name };
-            }
-        };
+        let RemapError::Unmapped(missing) = missing;
         match missing.in_source(source) {
             Unmapped::Node(missing) => Self::PartNameReachesRemainder {
                 node: source.spoken(node),
@@ -276,12 +261,7 @@ impl SplitError {
     /// spoken from `source`, the document being split.
     fn straddles(source: &ProfileDoc, name: &StableName, missing: RemapError) -> Self {
         let name = source.spoken_name(name);
-        let missing = match missing {
-            RemapError::Unmapped(missing) => missing,
-            RemapError::RankedRunReordered { .. } => {
-                return Self::RankedRunReordered { name };
-            }
-        };
+        let RemapError::Unmapped(missing) = missing;
         match missing.in_source(source) {
             Unmapped::Node(missing) => Self::NameStraddlesCut {
                 name,
@@ -301,12 +281,7 @@ impl InlineError {
     /// from `part`, the referenced document whose ids it is spelled in.
     fn stranded(part: &ProfileDoc, name: &StableName, missing: RemapError) -> Self {
         let name = part.spoken_name(name);
-        let missing = match missing {
-            RemapError::Unmapped(missing) => missing,
-            RemapError::RankedRunReordered { .. } => {
-                return Self::RankedRunReordered { name };
-            }
-        };
+        let RemapError::Unmapped(missing) = missing;
         match missing.in_source(part) {
             Unmapped::Node(missing) => Self::StrandedPartName {
                 name,
@@ -327,19 +302,17 @@ impl InlineError {
 /// insert door mints a profile's ids in program order and a
 /// `SetProgram` may hold them in another (`edit::settle_step_ids`); a
 /// name orders the lines one node mints by their steps, so a step map
-/// that did not keep id order would reorder a run that a rank is
-/// measured along.
+/// that keeps id order carries each name-ordered position in the order
+/// it had.
 ///
 /// Across two profiles the order cannot always be kept: the door mints
 /// each profile's ids when the profile is inserted, in document order,
 /// and a `SetProgram` that keeps a step keeps it within its own profile
 /// (`StepIdFault::NotThisProfiles`). So where a `SetProgram` re-minted
 /// a step of an earlier profile after a later one was inserted, the
-/// earlier profile's step maps below the later profile's. No emitter
-/// compares two profiles' steps in one position of a name (a loft's
-/// sections differ at the section first); a name that did, holding a
-/// ranked run, refuses the pair typed (`RankedRunReordered`) rather
-/// than cross unresolvable.
+/// earlier profile's step maps below the later profile's. Nothing in a
+/// name is read along a name order, so a position that comes out
+/// reordered is put back in canonical form and changes no value.
 fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> {
     let mut sorted: Vec<StepId> = minted.iter().flatten().copied().collect();
     sorted.sort_unstable();
@@ -372,10 +345,10 @@ fn in_id_order(old: &[Vec<StepId>], minted: &[Vec<StepId>]) -> Vec<Vec<StepId>> 
 /// is an output, minted at its node's insert in port order
 /// (`Mint::outputs_of_insert`), so reads follow node order. Each
 /// profile's steps are dealt in id order ([`in_id_order`]); across
-/// profiles they are not always, and a name that would cross reordered
-/// refuses ([`remap_name`]'s `RankedRunReordered`, spoken by `miss`). A node's label follows it in the edit after its
-/// insert, so a refusal raised while a later node is
-/// carried speaks the carried ones with their labels.
+/// profiles they are not always, and a name that crosses reordered is
+/// put back in canonical form. A node's label follows it in the edit
+/// after its insert, so a refusal raised while a later node is carried
+/// speaks the carried ones with their labels.
 ///
 /// **A placement is carried under the identity bundle, and its own
 /// bundle written whole once every node is in**
@@ -422,7 +395,6 @@ fn carry<E>(
         };
         let later = &olds[k..];
         let forward = |missing: &RemapError| match *missing {
-            RemapError::RankedRunReordered { .. } => false,
             RemapError::Unmapped(Unmapped::Node(n)) => later.contains(&n),
             RemapError::Unmapped(Unmapped::Read(var)) => {
                 source.operation_of(var).is_some_and(|n| later.contains(&n))
@@ -919,18 +891,6 @@ pub enum SplitError {
         /// The dropped step it spells.
         step: StepId,
     },
-    /// A name the split carries holds a vertex ranked along the least
-    /// of the edges crossing there (N2's `EdgeCrossing` run), and the
-    /// part's re-minted ids make another of those edges least, so the
-    /// rank would no longer say which vertex: the carry keeps the order
-    /// of the node ids and of each profile's step ids
-    /// ([`in_id_order`]), not of step ids across two profiles, and
-    /// carrying the name would leave a reference that no longer
-    /// resolves.
-    RankedRunReordered {
-        /// The name.
-        name: SpokenName,
-    },
     /// A remainder-side BODY name crosses the cut. A document's
     /// product name table deliberately carries no body rows (the
     /// product is the document's own body, not any copy's), so the
@@ -1123,11 +1083,6 @@ impl core::fmt::Display for SplitError {
                  of this document draws any more. {}",
                 Recourse("rebind that name to a live entity (Rebind), then split")
             ),
-            Self::RankedRunReordered { name } => write!(
-                f,
-                "split: {name} is ranked along an edge the part's ids no longer put first. {}",
-                Recourse("rebind it (Rebind), then split")
-            ),
             Self::NameOutsidePartWorld { name } => write!(
                 f,
                 "split: {name} crosses the cut, but the part delivers only its world, and no \
@@ -1186,7 +1141,7 @@ fn cut_and_kept(first_is_cut: bool) -> (&'static str, &'static str) {
 
 /// **Why no one copy stands where a read across the seam read** (A4,
 /// A10): split's remainder reader of cut material, inline's reader of
-/// the instance, a name on the instance's copies, and the part copy a
+/// the instance, a name on the instance's copy, and the part copy a
 /// mate-placed instance's bundle would move onto.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Uncarried {
@@ -1273,21 +1228,11 @@ pub enum InlineError {
         node: SpokenNode,
     },
     /// **The part has no product** (A4): its product slot reads
-    /// nothing, so there is no body for the new placement to copy.
+    /// nothing, or a body that is gone, so there is no body for the new
+    /// placement to copy.
     UnplaceablePart {
         /// The instance.
         instance: SpokenNode,
-        /// What the part's placements on its world are instead.
-        why: Uncarried,
-    },
-    /// **A host node reads one of the instance's copies, and the new
-    /// placement keys no copy for the read** (A4): a key the part
-    /// delivers nothing at, or one inside a copy of several bodies.
-    InstanceReadUncarried {
-        /// The reader.
-        reader: SpokenNode,
-        /// Why no one copy takes its read.
-        why: Uncarried,
     },
     /// The reference did not resolve — the resolver's own classified
     /// refusal (A4's pin gate arrives here as
@@ -1347,18 +1292,6 @@ pub enum InlineError {
         /// The dropped step it spells.
         step: StepId,
     },
-    /// A name the inline carries holds a vertex ranked along the least
-    /// of the edges crossing there (N2's `EdgeCrossing` run), and the
-    /// part's re-minted ids make another of those edges least, so the
-    /// rank would no longer say which vertex: the carry keeps the order
-    /// of the node ids and of each profile's step ids
-    /// ([`in_id_order`]), not of step ids across two profiles, and
-    /// carrying the name would leave a reference that no longer
-    /// resolves.
-    RankedRunReordered {
-        /// The name.
-        name: SpokenName,
-    },
     /// A name to be spliced derives from a node the referenced
     /// document no longer has (an N5-stranded reference) — there is no
     /// node to remap it onto; repair it in the part document first.
@@ -1401,19 +1334,13 @@ impl core::fmt::Display for InlineError {
                 "inline: {node} does not instantiate a part. {}",
                 Recourse("name an instance of a part")
             ),
-            Self::UnplaceablePart { instance, why } => write!(
+            Self::UnplaceablePart { instance } => write!(
                 f,
-                "inline: {instance}'s part has no product: {why}. {}",
+                "inline: {instance}'s part has no product: its slot reads nothing, or a body \
+                 that is gone. {}",
                 Recourse(&format!(
                     "point {instance} (UpdateReference) at a version whose product slot reads \
                      a body"
-                ))
-            ),
-            Self::InstanceReadUncarried { reader, why } => write!(
-                f,
-                "inline: {reader} reads the instance's copies, and {why}. {}",
-                Recourse(&format!(
-                    "re-point {reader} at one copy of the instance (SetParam), then inline"
                 ))
             ),
             // The store's sentence states the recourse of a pin or a
@@ -1479,11 +1406,6 @@ impl core::fmt::Display for InlineError {
                 "inline: {name} spells a piece of the profile step {step}, which no profile \
                  of the referenced document draws any more. {}",
                 Recourse(STRANDED_IN_THE_PART)
-            ),
-            Self::RankedRunReordered { name } => write!(
-                f,
-                "inline: {name} is ranked along an edge the host's ids no longer put first. {}",
-                Recourse("rebind it in the part document (Rebind), then inline")
             ),
             Self::StrandedPartName { name, missing } => write!(
                 f,
@@ -1777,10 +1699,7 @@ pub struct InlineOutcome {
 ///
 /// # Errors
 ///
-/// [`RemapError::Unmapped`] at the first local id the maps lack;
-/// [`RemapError::RankedRunReordered`] where the maps make another line
-/// least in a ranked run the name holds or embeds, which a split's or
-/// an inline's maps never do.
+/// [`RemapError::Unmapped`] at the first local id the maps lack.
 pub fn remap_name(
     name: &StableName,
     map: &NodeMap,
@@ -1833,8 +1752,7 @@ pub(crate) fn remap_name_keeping<P: crate::ProfilePayload>(
 /// The half of [`remap_name`] that a name's KIND is not part of: the
 /// minting node and the role path, rewritten through `map` and
 /// `steps`. The kind is read, never written: the path's canonical form
-/// depends on it (a junction is a vertex's; a rank's rule is an edge's
-/// or a vertex's).
+/// depends on it (a junction is a vertex's).
 ///
 /// # Errors
 ///
@@ -1920,17 +1838,6 @@ impl SegRewrite for Remapping<'_> {
     fn read(&mut self, r: VarId) -> Result<VarId, Self::Error> {
         Ok(self.2.get(&r).copied().ok_or(Unmapped::Read(r))?)
     }
-
-    // Only the run's reason is refused: the other two are emission-time
-    // facts (`names::canonical::rewritten` says why), and are carried.
-    fn unrankable(&mut self, was: &StableName, why: Unrankable) -> Result<(), Self::Error> {
-        match why {
-            Unrankable::RunLeastLineMoved => Err(RemapError::RankedRunReordered {
-                vertex: Box::new(was.clone()),
-            }),
-            Unrankable::Reshaped | Unrankable::RankOutsideCount => Ok(()),
-        }
-    }
 }
 
 /// What a payload rewrite could not map: a DAG input (unreachable
@@ -1960,7 +1867,7 @@ enum RemapMiss {
         var: VarId,
     },
     /// A name the maps could not carry, and why: the FIRST local id
-    /// they lack, or a ranked run they reorder. The two are not
+    /// they lack. The two are not
     /// redundant: a [`StableName`] embeds other names in its path, so
     /// the id the rewrite stopped at may belong to a name several
     /// segments down rather than to `name` itself.
@@ -2789,7 +2696,7 @@ pub fn split(
     // A pose read at a seat (a mate's side) crosses where every read of
     // it that reaches the cut is a selection written inside it whose
     // names the part's world carries: it is written afresh over the
-    // instance's copies, those selections re-pointed (`crossing_leaves`).
+    // instance's copy, those selections re-pointed (`crossing_leaves`).
     let mut crossing_poses: Vec<(RecipeNodeId, crate::OperandSlot, VarId)> = Vec::new();
     let mut crossing_leaves: Vec<(RecipeNodeId, VarId)> = Vec::new();
     let mut heirs: BTreeMap<(RecipeNodeId, crate::OperandSlot), SourceKey> = BTreeMap::new();
@@ -3299,7 +3206,6 @@ pub fn split(
             let Some(mate) = constraint.mate() else {
                 continue;
             };
-            let class = &mate.class;
             let Some((a, b)) = crate::mate::rested_faces(doc, mate) else {
                 continue;
             };
@@ -3346,7 +3252,6 @@ pub fn split(
                 unreachable!("a remap keeps a face a face")
             };
             crossings.push(InterfaceCrossing::Mate {
-                class: *class,
                 outer: outer.name.clone(),
                 inner,
             });
@@ -3454,7 +3359,7 @@ pub fn split(
         }
     }
     // A pose read that crosses is written afresh, each selection in it
-    // that reads the cut authored in the instance's copies as a crossing
+    // that reads the cut authored in the instance's copy as a crossing
     // selection is.
     for &(node, slot, var) in &crossing_poses {
         let mut leaf = |leaf: VarId| -> Result<Option<crate::Operand>, SplitError> {
@@ -3695,7 +3600,7 @@ fn read_at<P: crate::ProfilePayload>(
 /// refuses for its numbers. The pin resolves through `resolver` (a
 /// stale pin is the resolver's typed `PinMismatch`, never a silent
 /// retarget); ids remap into fresh host mints in the part's document
-/// order. Every host read of the instance's copies reads the new
+/// order. Every host read of the instance's copy reads the new
 /// placement's, a selection of them authored afresh there with each
 /// part name re-anchored onto the placement's copy, and a
 /// side of the instance's own bundle reads the spliced copy it stood
@@ -3766,10 +3671,12 @@ pub fn inline(
     }
     // The part's product: what the instance copies, and what the new
     // placement copies.
-    let Some(product) = part.product() else {
+    let Some(product) = part
+        .product()
+        .filter(|&read| part.operation_of(read).is_some())
+    else {
         return Err(InlineError::UnplaceablePart {
             instance: doc.spoken(instance),
-            why: Uncarried::Bodies { count: 0 },
         });
     };
     let copies = doc
@@ -3894,15 +3801,7 @@ pub fn inline(
         },
     )?;
     let Some(&spliced) = read_map.get(&product) else {
-        return Err(InlineError::stranded(
-            &part,
-            &StableName {
-                kind: EntityKind::Body,
-                node: part.operation_of(product).unwrap_or(RecipeNodeId::WORLD),
-                path: vec![RoleSeg::OutputBody],
-            },
-            RemapError::Unmapped(Unmapped::Read(product)),
-        ));
+        unreachable!("the part's live product {product:?} is spliced with its operation")
     };
     // A name the instance's copy carries is its part's, verbatim: it
     // lands on the spliced name, every id of the part read through the
@@ -4200,7 +4099,7 @@ pub fn inline(
             },
         )?;
     }
-    // A host appearance key read in the instance's copies is re-attached
+    // A host appearance key read in the instance's copy is re-attached
     // in the new placement's: a Rebind keeps a key's read, and the
     // inline takes that read away.
     for (key, record) in current.doc().appearance().clone() {
@@ -4216,7 +4115,7 @@ pub fn inline(
         )?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
-    // A name on the instance's copies moves onto the new placement's.
+    // A name on the instance's copy moves onto the new placement's.
     if let Some(name) = doc.var_name(copies) {
         step(
             &mut current,
@@ -4884,14 +4783,14 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
 /// A map need not keep two ids in their order (it sends each to the id
 /// another document's insert door mints for it), so two ids can come
 /// out in the other order. Every name-ordered position then has to be put back in
-/// order, and a crossing ranked along a union seam whose sides swap
-/// reads its rank from the other end — the form the emitters would mint
-/// for the same entity under the new ids.
+/// order — the form the emitters would mint for the same entity under
+/// the new ids — and no value moves: a crossing of a union seam whose
+/// sides swap still names the side it enters along.
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod a_remap_that_reorders_ids_republishes_the_canonical_form {
     use super::{NodeMap, ReadMap, StepMap, remap_name};
-    use crate::names::{NameRef, Qualifier, RoleSeg, StableName};
+    use crate::names::{NameRef, Qualifier, RoleSeg, Sense, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
 
@@ -4945,10 +4844,6 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
         }
     }
 
-    fn rank(rank: u32, of: u32) -> RoleSeg {
-        RoleSeg::Fragment(Qualifier::OrderAlong { rank, of })
-    }
-
     fn name(kind: EntityKind, node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
             kind,
@@ -4997,19 +4892,27 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
     }
 
     #[test]
-    fn a_union_seam_vertex_follows_its_edge_parents_line() {
-        let vertex = |u: u64, edge: StableName, m3: u64, r: u32| {
-            let face = member(EntityKind::Face, u, m3);
-            let (x, y) = if edge <= face {
-                (edge, face)
-            } else {
-                (face, edge)
-            };
-            name(EntityKind::Vertex, u, vec![seam(x, y), rank(r, 2)])
+    fn a_crossing_of_a_union_seam_keeps_the_side_it_enters_along() {
+        let vertex = |u: u64, edge: StableName, m3: u64, entering: u64| {
+            name(
+                EntityKind::Vertex,
+                u,
+                vec![RoleSeg::Crossing {
+                    edge: NameRef::new(edge),
+                    face: NameRef::new(member(EntityKind::Face, u, m3)),
+                    sense: Sense::Through {
+                        entering: vec![NameRef::new(member(EntityKind::Face, u, entering))],
+                    },
+                }],
+            )
         };
-        let was = vertex(9, union_edge(9, (1, 2)), 3, 0);
+        let was = vertex(9, union_edge(9, (1, 2)), 3, 1);
         let out = remap_name(&was, &map(), &StepMap::new(), &mirrored_reads()).expect("covered");
-        assert_eq!(out, vertex(20, union_edge(20, (31, 30)), 32, 1));
+        assert_eq!(
+            out,
+            vertex(20, union_edge(20, (31, 30)), 32, 31),
+            "the seam's pair re-sorted, the sense still naming member 1's side"
+        );
     }
 
     #[test]
@@ -5044,21 +4947,12 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             vec![seam(face(30), face(32)), seam(face(31), face(32))],
             "the run re-sorted, each line in name order"
         );
-        // A pair boolean's seam vertex is in name order as a union's is;
-        // its two sides are faces, so the rank keeps its reading.
-        let ranked = name(
-            EntityKind::Vertex,
-            5,
-            vec![seam(face(2), face(1)), rank(0, 3)],
-        );
-        let out = remap_name(&ranked, &map(), &StepMap::new(), &mirrored_reads()).expect("covered");
+        // A pair boolean's seam vertex is in name order as a union's is.
+        let vertex = name(EntityKind::Vertex, 5, vec![seam(face(2), face(1))]);
+        let out = remap_name(&vertex, &map(), &StepMap::new(), &mirrored_reads()).expect("covered");
         let (x, y) = (face(31), face(30));
         let (x, y) = if x < y { (x, y) } else { (y, x) };
-        assert_eq!(
-            out.path,
-            vec![seam(x, y), rank(0, 3)],
-            "the pair in name order"
-        );
+        assert_eq!(out.path, vec![seam(x, y)], "the pair in name order");
     }
 }
 
@@ -5118,18 +5012,15 @@ mod remap_moves_the_step {
     }
 }
 
-/// **A ranked edge-crossing run whose least line a caller's maps change
-/// refuses typed.** A pair boolean ranks several vertices of one run
-/// along the run's least line (N2). A caller's own maps need not keep
-/// id order, so two lines can swap places; the rank was measured along
-/// the line that is no longer least, and no name says where it lies
-/// along the other, so `remap_name` refuses rather than carry a name
-/// no emitter mints. Maps that keep the order carry it, rank and all.
+/// **An edge-crossing run whose lines a caller's maps reorder is put
+/// back in name order, each sense with its line.** A caller's own maps
+/// need not keep id order, so two lines can swap places; nothing in the
+/// name is read along that order, so the run is re-sorted and carried.
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
-mod remap_a_ranked_run {
-    use super::{NodeMap, ReadMap, RemapError, StepMap, remap_name};
-    use crate::names::{NameRef, Qualifier, RoleSeg, RunLine, Sense, StableName};
+mod remap_a_run {
+    use super::{NodeMap, ReadMap, StepMap, remap_name};
+    use crate::names::{NameRef, RoleSeg, RunLine, Sense, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
 
@@ -5141,22 +5032,21 @@ mod remap_a_ranked_run {
         })
     }
 
-    fn ranked(minter: u64, lines: [u64; 2]) -> StableName {
+    /// A run minted by `minter` over the lines `lines`, the first
+    /// entering and the second leaving.
+    fn run(minter: u64, lines: [(u64, Sense); 2]) -> StableName {
         StableName {
             kind: EntityKind::Vertex,
             node: RecipeNodeId::new(0, minter),
-            path: vec![
-                RoleSeg::EdgeCrossing(
-                    lines
-                        .into_iter()
-                        .map(|n| RunLine {
-                            line: edge(n),
-                            sense: Some(Sense::Outside),
-                        })
-                        .collect(),
-                ),
-                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
-            ],
+            path: vec![RoleSeg::EdgeCrossing(
+                lines
+                    .into_iter()
+                    .map(|(n, sense)| RunLine {
+                        line: edge(n),
+                        sense,
+                    })
+                    .collect(),
+            )],
         }
     }
 
@@ -5168,25 +5058,17 @@ mod remap_a_ranked_run {
     }
 
     #[test]
-    fn a_remap_that_swaps_a_ranked_runs_lines_refuses_and_one_that_keeps_them_carries_the_rank() {
-        let was = ranked(5, [1, 2]);
-        let swapped = remap_name(
-            &was,
-            &map([(1, 20), (2, 10), (5, 15)]),
-            &StepMap::new(),
-            &ReadMap::new(),
-        );
+    fn a_remap_that_swaps_a_runs_lines_re_sorts_it_each_sense_with_its_line() {
+        let was = run(5, [(1, Sense::Enters), (2, Sense::Leaves)]);
         assert_eq!(
-            swapped,
-            Err(RemapError::RankedRunReordered {
-                vertex: Box::new(was.clone())
-            }),
-            "a map that makes the other line least refuses, naming the ranked vertex"
-        );
-        let text = swapped.expect_err("refused").to_string();
-        assert!(
-            text.contains("crossing 0 of 2"),
-            "the refusal names the ranked vertex: {text}"
+            remap_name(
+                &was,
+                &map([(1, 20), (2, 10), (5, 15)]),
+                &StepMap::new(),
+                &ReadMap::new(),
+            ),
+            Ok(run(15, [(10, Sense::Leaves), (20, Sense::Enters)])),
+            "line 1 is now 20, after 10, and keeps its sense"
         );
         assert_eq!(
             remap_name(
@@ -5195,76 +5077,21 @@ mod remap_a_ranked_run {
                 &StepMap::new(),
                 &ReadMap::new()
             ),
-            Ok(ranked(15, [10, 20])),
-            "a map that keeps the lines' order carries the run and its rank"
-        );
-    }
-
-    /// A ranked run embedded in another name refuses the same way, and
-    /// names the run it found, not the name that holds it.
-    #[test]
-    fn a_ranked_run_a_name_embeds_refuses_naming_the_run() {
-        let was = ranked(5, [1, 2]);
-        let holder = StableName {
-            kind: EntityKind::Face,
-            node: RecipeNodeId::new(0, 5),
-            path: vec![RoleSeg::BlendFace(NameRef::new(was.clone()))],
-        };
-        assert_eq!(
-            remap_name(
-                &holder,
-                &map([(1, 20), (2, 10), (5, 15)]),
-                &StepMap::new(),
-                &ReadMap::new()
-            ),
-            Err(RemapError::RankedRunReordered {
-                vertex: Box::new(was)
-            })
+            Ok(run(15, [(10, Sense::Enters), (20, Sense::Leaves)])),
+            "a map that keeps the lines' order carries the run as it was"
         );
     }
 }
 
 /// **Every [`RemapError`] arm reads as a refusal**: within the budget,
-/// one recourse, and ending on it, on a representative payload — the
-/// ranked arm on a two-line run, which it names in full.
+/// one recourse, and ending on it, on a representative payload.
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod remap_error_reads {
     use super::{RemapError, Unmapped};
-    use crate::names::{NameRef, ProfileVertexRef, Qualifier, RoleSeg, RunLine, Sense, StableName};
     use crate::node::{RecipeNodeId, StepId};
     use crate::var::VarId;
-    use crate::{EntityKind, PieceRole};
     use test_utils::refusal::{problems, recourse_markers, tagged};
-
-    fn ranked() -> StableName {
-        let edge = |step| {
-            NameRef::new(StableName {
-                kind: EntityKind::Edge,
-                node: RecipeNodeId::new(0, tagged(3)),
-                path: vec![RoleSeg::LateralEdge(ProfileVertexRef::Piece {
-                    step: StepId::new(0, tagged(step)),
-                    role: PieceRole::Leg,
-                })],
-            })
-        };
-        StableName {
-            kind: EntityKind::Vertex,
-            node: RecipeNodeId::new(0, tagged(5)),
-            path: vec![
-                RoleSeg::EdgeCrossing(
-                    [1, 2]
-                        .into_iter()
-                        .map(|step| RunLine {
-                            line: edge(step),
-                            sense: Some(Sense::Outside),
-                        })
-                        .collect(),
-                ),
-                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
-            ],
-        }
-    }
 
     #[test]
     fn every_remap_refusal_fits_the_budget_and_ends_on_one_recourse() {
@@ -5272,9 +5099,6 @@ mod remap_error_reads {
             RemapError::Unmapped(Unmapped::Node(RecipeNodeId::new(0, tagged(4)))),
             RemapError::Unmapped(Unmapped::Step(StepId::new(0, tagged(4)))),
             RemapError::Unmapped(Unmapped::Read(VarId::new(0, tagged(4)))),
-            RemapError::RankedRunReordered {
-                vertex: Box::new(ranked()),
-            },
         ];
         let mut found = Vec::new();
         for arm in &arms {

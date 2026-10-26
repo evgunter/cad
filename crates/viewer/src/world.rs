@@ -1,9 +1,10 @@
 //! **The world, as the viewer reads it** (A10): which bodies are
 //! placed, by which placements, and what a pick on a copy is a pick on.
 //!
-//! The product is the copies the document's placements (`Node::Place`,
-//! and an instance, which is a placement) define into the world's space,
-//! in their document order. Each placement names the space it copies
+//! The viewport draws the copies the document's placements (`Node::Place`,
+//! and an instance, which is a placement) define, in their document
+//! order; the product is what the document's product slot reads, a body
+//! of the world. Each placement names the space it copies
 //! into (its `target`), and the viewport draws a set of spaces (DI5):
 //! the world and every space no placement reads a source body of
 //! ([`shown_spaces`]). A placement into a body's own space — a body
@@ -238,15 +239,22 @@ pub fn read_output(
 /// **The placements reading the body `read` names**: a node
 /// named alone reads its one output, a port the output it names.
 pub fn placements_of_read(doc: &Doc<ProfileProgram>, read: &Operand) -> Vec<RecipeNodeId> {
-    let var = match read {
+    read_var(doc, read)
+        .map(|var| placements_of_var(doc, var))
+        .unwrap_or_default()
+}
+
+/// **The body variable `read` names**: a node named alone reads its
+/// one output, a port the output it names. `None` for a selection, a
+/// pose or a pick, and for a read the document does not define.
+pub fn read_var(doc: &Doc<ProfileProgram>, read: &Operand) -> Option<VarId> {
+    match read {
         Operand::Node(node) => doc.read_of_node(*node),
         Operand::Output { node, port } => doc.output(*node, *port),
         Operand::Var(var) => Some(*var),
         Operand::Name(name) => doc.var_named(name.as_str()),
         Operand::Select { .. } | Operand::Pose(_) | Operand::Pick { .. } => None,
-    };
-    var.map(|var| placements_of_var(doc, var))
-        .unwrap_or_default()
+    }
 }
 
 /// **The node a creation made**, out of the ids its action minted: the
@@ -261,4 +269,55 @@ pub fn made(doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) -> Option<Recipe
         .copied()
         .find(|&node| !matches!(doc.node(node), Some(Node::Place { .. })))
         .or_else(|| minted.first().copied())
+}
+
+/// **The bodies the product reads** (D10 `[operations]`): the operands
+/// of the `⊔` the product slot reads, in order, or the one body it
+/// reads; empty where it reads nothing or a body that is gone.
+pub fn product_reads(doc: &Doc<ProfileProgram>) -> Vec<VarId> {
+    let Some(var) = doc.product().filter(|&var| doc.operation_of(var).is_some()) else {
+        return Vec::new();
+    };
+    match doc.operation_of(var).and_then(|at| doc.node(at)) {
+        Some(Node::Assemble { members }) => members
+            .rows()
+            .into_iter()
+            .map(|(_, read)| read.read)
+            .collect(),
+        _ => vec![var],
+    }
+}
+
+/// **The copy a world placement defines**, the body a product can read:
+/// its output where `node` is a `Place` or an instance standing in the
+/// world; `None` for any other node.
+pub fn world_copy(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> Option<VarId> {
+    if !matches!(
+        doc.node(node),
+        Some(Node::Place { .. } | Node::InstantiatePart { .. })
+    ) {
+        return None;
+    }
+    doc.output(node, 0)
+        .filter(|&copy| doc.space_of(copy) == Some(VarId::WORLD))
+}
+
+/// **The product with `copy` in it**: what it reads, then `copy`, as
+/// the bodies a [`crate::session::SessionOp::SetProduct`] says.
+pub fn product_with(doc: &Doc<ProfileProgram>, copy: VarId) -> Vec<Operand> {
+    product_reads(doc)
+        .into_iter()
+        .filter(|&read| read != copy)
+        .chain([copy])
+        .map(Operand::Var)
+        .collect()
+}
+
+/// **The product with `copy` taken out**: what it reads, less `copy`.
+pub fn product_without(doc: &Doc<ProfileProgram>, copy: VarId) -> Vec<Operand> {
+    product_reads(doc)
+        .into_iter()
+        .filter(|&read| read != copy)
+        .map(Operand::Var)
+        .collect()
 }

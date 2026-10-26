@@ -233,6 +233,7 @@
 
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
+use slotmap::SecondaryMap;
 
 use crate::attach::KillMove;
 use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
@@ -998,7 +999,7 @@ impl<T: Decide> Body<T> {
     /// boolean's seam zip, relies on that move, and
     /// [`Body::kfmrh_describing`] absorbs it once the zip states its
     /// re-descriptions
-    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    /// (`work/restate/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
     pub fn kfmrh_minting(
         &mut self,
         f1: FaceKey,
@@ -1716,7 +1717,7 @@ impl<T: Decide> Body<T> {
     /// tier 3 re-derives the face and reports it unminted, or the
     /// refusal its derivation meets. The drop buys a body that no
     /// longer HOLDS the wrong row for `props`, the tessellator or
-    /// `chart_boundary` to read.
+    /// `loop_windings` to read.
     ///
     /// A row is the half-edge's image and the element of the joint into
     /// it, and both go. The element of the joint OUT of a dropped half
@@ -1776,6 +1777,55 @@ impl<T: Decide> Body<T> {
             halves.extend(cycle);
         }
         halves
+    }
+
+    /// [`Body::face_cycles`] of each face of `faces`, in order, under
+    /// ONE whole-arena pass for all of them: the half-edge arena is read
+    /// once for every face's loops, where a face at a time reads it once
+    /// per loop. The same proofs, the same panics.
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::face_cycles`].
+    #[track_caller]
+    pub(crate) fn faces_cycles(
+        &self,
+        faces: impl IntoIterator<Item = FaceKey>,
+    ) -> Vec<Vec<HalfEdgeKey>> {
+        let mut loops: SecondaryMap<LoopKey, ()> = SecondaryMap::new();
+        let mut members: SecondaryMap<HalfEdgeKey, ()> = SecondaryMap::new();
+        let mut out = Vec::new();
+        for face in faces {
+            let mut halves = Vec::new();
+            for (r#loop, cycle) in crate::pcurves::face_loop_walks(self, face) {
+                // `require_run_of`'s member proof, without the set it
+                // builds per loop.
+                for &member in &cycle {
+                    assert!(
+                        self.claims(member, r#loop),
+                        "{member:?}, walked as a member of loop {:?}'s cycle, does not claim \
+                         it: {CYCLES_ARE_CLAIMANTS}",
+                        r#loop
+                    );
+                    members.insert(member, ());
+                }
+                loops.insert(r#loop, ());
+                halves.extend(cycle);
+            }
+            out.push(halves);
+        }
+        if let Some((stray, data)) = self
+            .half_edges
+            .iter()
+            .find(|&(he, data)| loops.contains_key(data.parent_loop) && !members.contains_key(he))
+        {
+            unreachable!(
+                "{stray:?} claims loop {:?} and its cycle walk does not reach it: \
+                 {CYCLES_ARE_CLAIMANTS}",
+                data.parent_loop
+            );
+        }
+        out
     }
 
     /// [`Body::face_cycles`] without the whole-loop proof: the members of
@@ -3589,11 +3639,13 @@ mod tests {
     }
 
     /// A same-solid two-shell body: the shape `kfmrh`'s fusion form
-    /// exists for. It is not constructible through the public
-    /// operators (`mvfs` mints one solid per shell), so the second
-    /// shell is refiled by raw in-crate write
-    /// ([`crate::fixtures::refile_shells`]) — the same adversarial
-    /// posture as the rest of this module's corruption rows.
+    /// exists for. The public operators reach it (`Body::movefac`
+    /// re-shells a detached component inside its solid, as
+    /// `movefac`'s `cross_shell_kfmrh_fuses_shells` does); this fixture
+    /// takes the shorter raw route instead, refiling an `mvfs` shell
+    /// into the first solid by in-crate write
+    /// ([`crate::fixtures::refile_shells`]), and the two rows below
+    /// plant their corruption on top of it.
     fn fused_two_shell_body() -> (Body<f64>, MvfsCreated, MvfsCreated) {
         let (mut body, seed, _seg, _split) = ops_pillow();
         let other = body.mvfs(p(9.0), true).unwrap();

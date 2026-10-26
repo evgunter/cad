@@ -394,12 +394,12 @@ fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
 // ---------------------------------- claim 3/4: the verdict is ungated
 
 /// **DATUM — the reviewer's counterexample to "no path yields a
-/// sensitivity of an unvalidated build".** The pairing hook gates the
-/// f64 anchor against the handed build. It does NOT gate the `chamber`
+/// sensitivity of an unvalidated build".** The binding gates the
+/// handed f64 build against the passes. It does NOT gate the `chamber`
 /// verdict against the document. So: drive the shaft, then edit a piece
 /// of the document the analyzed box cannot see (a literal — the boss's
 /// own extrude becomes a parameter-free 0.75 instead of `h2`), hand the
-/// FRESH f64 build so the pairing hook is satisfied, and pass the STALE
+/// FRESH f64 build so the binding is satisfied, and pass the STALE
 /// verdict. The driver returns `ChamberCertified` carrying the old
 /// drive's leaf and `verdict_vector_key` — a chamber certificate for a
 /// build nobody drove.
@@ -445,9 +445,18 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         "the box the ForeignBox check compares is unchanged by this edit"
     );
 
-    // The FRESH f64 build of the edited document: the pairing hook is
-    // fully satisfied.
-    let handed = eval_f64(&edited);
+    // The FRESH f64 build of the edited document, pinned: the binding
+    // is fully satisfied.
+    let handed = evaluate::<f64>(
+        &edited,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            pin: true,
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
     // PIN (flipped from DATUM at the fix pass): the verdict's certified
     // leaf is content-tied to the build — the retargeted slot re-keys
     // node 3 in the leaf's replay — so the stale verdict is refused
@@ -493,7 +502,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
     // is not this document's — read without a chamber, where it is
     // honestly `LocalOnly`.
     let entries = sensitivities(&edited, m, Some(&handed), None, false, None, Tol::witness())
-        .expect("the pairing hook is satisfied by a fresh anchor");
+        .expect("the binding is satisfied by a fresh build of record");
     match entries
         .iter()
         .find(|s| s.param == edited.var_named("h2").expect("declared"))

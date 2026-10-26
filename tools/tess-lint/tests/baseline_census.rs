@@ -119,8 +119,9 @@
 //! on this paragraph:
 //!
 //! * `lib.rs`'s module docs — FIXED, they now point here.
-//! * `work/meter/C15.md` — FIXED, points here.
-//! * `work/meter/D201.md` — FIXED, points here.
+//! * `work/instr/C15.md` — FIXED, points here.
+//! * `D201` — FIXED, pointed here; it closed with METER and is
+//!   recoverable at `2723839067e8` (`docs/DOC-LEDGER.md`, sweep 10).
 //! * `work/code-quality/logs/SMELL-KPW-LOG.md` — **NOT FIXED, and
 //!   deliberately.** It is a dated unit record in `logs/`, and a log
 //!   entry is what the unit reported on the day it reported it. Its
@@ -131,12 +132,13 @@
 //!
 //! **The FIGURES in that list are frozen; the PATHS are not.** The
 //! first two rows were re-homed from `work/code-quality/` to
-//! `work/meter/` in the tracker-wide cut of 2026-09-06 and the
-//! pointers here followed them. A dated record may keep the numbers
-//! it reported on the day it reported them — that is what makes it a
-//! record — but a pointer that no longer resolves has stopped being a
-//! record of anything, which is the same one-home doctrine this
-//! paragraph is about, applied to the pointer rather than the count.
+//! `work/meter/` in the tracker-wide cut of 2026-09-06, and `C15` on
+//! to `work/instr/` when METER closed; the pointers here followed
+//! them. A dated record may keep the numbers it reported on the day
+//! it reported them — that is what makes it a record — but a
+//! pointer that no longer resolves has stopped being a record of
+//! anything, which is the same one-home doctrine this paragraph is
+//! about, applied to the pointer rather than the count.
 //!
 //! The cure the three took is the one-home rule above: each points
 //! here rather than carrying a count of its own.
@@ -183,7 +185,7 @@
 //! PRINTED report comes back byte-identical for all seven pairs is a
 //! separate thing — a measurement over one corpus, which survives in
 //! part because that last-bit move dies at the `{:.1}x` the column
-//! prints at. `work/meter/C15.md` carries the method.
+//! prints at. `work/instr/C15.md` carries the method.
 //!
 //! `worst_dev` does reach a reader, through `SceneTotals::total_slack`
 //! — which is `measured_triangles / extrapolated_triangles`,
@@ -224,7 +226,7 @@
 //! because each names the cut it reads — but nothing re-reads them,
 //! and nothing sees a new UNLABELLED absolute arrive. That second
 //! half is stated at the head of this file and carries its own row,
-//! `work/instr/no-guard-reds-on-an-unlabelled-figure-in-the-budget-doc`.
+//! `work/budget/no-guard-reds-on-an-unlabelled-figure-in-the-budget-doc`.
 //!
 //! It does not fire on everything a re-cut can move.
 //! `docs/TESS-BUDGET.md`'s "Re-cutting the baseline" says what the two
@@ -325,7 +327,7 @@
 //! close it**, which is the thing to read carefully: what landed is
 //! `parse` REFUSING what those columns may not say, and what this
 //! census needs is a COMPARISON of them across two cuts, which does
-//! not exist. `work/instr/tess-lint-re-cut-folds-uncompared-columns`
+//! not exist. `work/budget/tess-lint-re-cut-folds-uncompared-columns`
 //! is the row for that. Until it lands the fourth category is a thing
 //! a reader has to verify by diffing the file, not a thing this census
 //! can certify.
@@ -513,8 +515,8 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     let sized: Vec<&Row> = rows.iter().filter(|r| r.is_sized()).collect();
 
     // The corpus the census is over.
-    assert_eq!(all.len(), 1690, "rows in the committed baseline");
-    assert_eq!(sized.len(), 96, "of them sized");
+    assert_eq!(all.len(), 1677, "rows in the committed baseline");
+    assert_eq!(sized.len(), 68, "of them sized");
     let sized_scenes = {
         let mut s: Vec<&str> = sized.iter().map(|r| r.scene.as_str()).collect();
         s.sort_unstable();
@@ -526,14 +528,11 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // The census over the SIZED rows — the one that matters, because
     // an unsized swap costs rule 2 nothing.
     let (pairs, in_pairs, scenes) = census(&sized);
-    assert_eq!(pairs, 13, "indistinguishable pairs among the sized rows");
-    assert_eq!(in_pairs, 26, "sized rows sitting in such a pair");
+    assert_eq!(pairs, 8, "indistinguishable pairs among the sized rows");
+    assert_eq!(in_pairs, 16, "sized rows sitting in such a pair");
     assert_eq!(
         scenes,
         [
-            "klein/klein_loop",
-            "lily/lily_sepal_b",
-            "lily/lily_sepal_c",
             "lofts/loft_prism",
             "lofts/nonuniform_loft",
             "s_duct/s_duct",
@@ -558,7 +557,7 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
     // what it measures is the size of the hole the sized-row census
     // above sits inside.
     let (all_pairs, _, all_scenes) = census(&all);
-    assert_eq!(all_pairs, 26_532, "pairs across every row");
+    assert_eq!(all_pairs, 26_634, "pairs across every row");
     assert_eq!(all_scenes.len(), 85, "scenes carrying one, corpus-wide");
 }
 
@@ -822,25 +821,16 @@ fn an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline() {
     // have different CURVATURE, so the sizing lane gives them
     // different divisions and the identity columns separate them.
     //
-    // It reads TWO pairs now, and neither is a scaled pair: faces 5
-    // and 9 of `lily_sepal_b` and of `lily_sepal_c`, the two opposite
-    // walls of one blade with different curvature (`mvv` 4.82 against
-    // 4.54 on `sepal_b`, 4.82 against 4.67 on `sepal_c`). What they
-    // share is every IDENTITY column. The trim box is the unit square,
-    // and the divisions the sizing lane quantizes those sups into land
-    // on the same `nu = 1` and `nv` (278 on `sepal_b`, 274 on
-    // `sepal_c`). The certificates behind the divisions still differ,
-    // and so do the cell counts.
-    //
-    // The gate assertion above holds with these pairs: the two slacks
-    // are within `GROWTH_TOLERANCE`. So they are pinned by name. A pair
-    // arriving or leaving reds here and is read before it is re-pinned.
+    // It reads NONE now. At the 2026-10-02 cut it read two pairs, faces
+    // 5 and 9 of `lily_sepal_b` and of `lily_sepal_c`, the two opposite
+    // walls of one blade with different curvature: their identity
+    // columns agreed while their certificates and cell counts did not.
+    // The sepals have since been rebuilt with fewer faces, and the
+    // re-cut carries no such pair. A pair arriving reds here and is
+    // read before it is pinned by name.
+    let none: [&str; 0] = [];
     assert_eq!(
-        drifted,
-        [
-            "lily/lily_sepal_b faces 5/9: grid_cells/span_opt_cells 166/170 against 166/169",
-            "lily/lily_sepal_c faces 5/9: grid_cells/span_opt_cells 163/168 against 164/165",
-        ],
+        drifted, none,
         "the pairs whose two recoverable slacks differ. The swap still costs the \
          gate nothing, but the margin that made it free has gone on these"
     );
@@ -990,9 +980,9 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 493_812, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 460_396, "triangles over the whole sweep");
     assert_eq!(
-        t.nurbs_triangles, 385_398,
+        t.nurbs_triangles, 390_646,
         "triangles the Hessian-sized faces carry"
     );
 
@@ -1002,14 +992,14 @@ fn the_committed_baseline_sizes_this_much() {
     // retired schedule's own (`NurbsColumns::nu` says so); the other
     // two are the optima the same certificates still admit
     // (whole-patch bound / per cell).
-    assert_eq!(t.grid_cells, 157_852.0, "grid cells the lane built");
-    assert_eq!(t.patch_cells, 199_752.0, "the whole-patch counterfactual");
+    assert_eq!(t.grid_cells, 171_088.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 190_615.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 176_861.0,
+        t.opt_cells, 169_060.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 148_890.0,
+        t.span_opt_cells, 157_163.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -1017,11 +1007,11 @@ fn the_committed_baseline_sizes_this_much() {
     let held = t.span_held().expect("the sweep has Hessian-sized faces");
     let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
     assert!(
-        (held - 1.2654).abs() < 5e-4,
+        (held - 1.1141).abs() < 5e-4,
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.0602).abs() < 5e-4,
+        (recoverable - 1.0886).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
 }
@@ -1062,7 +1052,7 @@ fn the_committed_baseline_meets_the_split_bound_on_this_many_rows() {
         .collect();
     assert_eq!(
         at_bound.len(),
-        15,
+        7,
         "sized rows whose whole-patch schedule already is the cheapest split. \
          A row arriving or leaving is a face whose bound or divisions moved; \
          read which, then re-pin: {at_bound:#?}"

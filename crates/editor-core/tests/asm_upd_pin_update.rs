@@ -128,7 +128,7 @@ fn assembly(label: &str, refs: &[DocRef], o: &EvalOptions) -> (ProfileDoc, Vec<R
         doc = fixture::pin(next, id, &Frame::translation([dx, 0.0, 0.0]), o);
         ids.push(id);
     }
-    (fixture::world_product(doc), ids)
+    (fixture::assemble_world_copies(doc), ids)
 }
 
 /// The versions of each part `(id, side)` lists, shelved: one shelf the
@@ -172,9 +172,12 @@ fn pin_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> DocRef {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
 }
 
 /// The assembly's whole-product volume, gathered through the shelf.
@@ -614,7 +617,7 @@ fn assembly_under(
         doc = next;
         ids.push(node);
     }
-    (fixture::world_product(doc), ids)
+    (fixture::assemble_world_copies(doc), ids)
 }
 
 /// Row 5c — the WARM channel, which is where "the old content is not

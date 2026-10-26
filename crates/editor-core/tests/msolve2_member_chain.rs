@@ -32,10 +32,9 @@ use editor_core::AuthoredNode;
 
 use editor_core::pose::{PoseDef, RoleRead};
 use editor_core::{
-    CapEnd, ContactClass, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult,
-    Operand, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
-    VarId, VarName, product,
+    CapEnd, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
+    Mate, MateFault, MateRef, MateSide, Node, NodeErrorKind, NodeResult, Operand, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName, VarId, VarName, product,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::seat::{assert_seated as assert_seated_named, seat_map as seat_map_named};
@@ -208,9 +207,6 @@ const Q: f64 = std::f64::consts::FRAC_PI_2;
 /// copy, so the cap overhangs it.
 const OVERHANG: f64 = 0.5 * TOP_WIDTH;
 
-/// The lift a rule whose copies stand clear of each other steps by.
-const LIFT: f64 = 10.0;
-
 /// A document holding the patterned instance `top`, pinned to the
 /// world, and the `cap` whose bundle is empty, with their resolver.
 struct Scene {
@@ -225,12 +221,12 @@ struct Scene {
 
 impl Scene {
     /// The cap's bottom cap, as the copy side of its rest.
-    fn cap_bottom(&self) -> crate::fixture::resolver::InPart {
+    fn cap_bottom(&self) -> crate::fixture::resolver::PartName {
         in_part(self.cap, self.top_body, CapEnd::Start)
     }
 
     /// The top's top cap, as a nested copy's chain wears it.
-    fn top_cap(&self) -> crate::fixture::resolver::InPart {
+    fn top_cap(&self) -> crate::fixture::resolver::PartName {
         in_part(self.top, self.top_body, CapEnd::End)
     }
 
@@ -270,7 +266,6 @@ impl Scene {
         vec![fixture::mate(
             fixture::corner_frame(own(&self.names.lateral[0]), own(&self.names.corner[0])),
             target,
-            ContactClass::Rest,
         )]
     }
 }
@@ -512,36 +507,6 @@ fn a4_a_part_that_selects_another_copy_leaves_the_target_unresolved() {
     let (doc, _) = seated(doc, s.cap, s.seat(s.cap, part, &wrap));
     let ev = run(&doc, &s.opts);
     assert_target_unresolved(&ev, s.cap, "A4");
-}
-
-// ---- the gate on a nested document ----
-
-/// **What the at-rest gate says for a seat read BELOW the outer
-/// pattern** — on a nested document. The cap seats on such a target;
-/// the gate mints nothing for its mates, because their targets read the
-/// `Part`, which no placement places — the outer pattern's copies are
-/// what the world holds.
-///
-/// *Breaks if* a mate whose target body has no world copy mints a
-/// declaration.
-#[test]
-fn the_gate_on_a_seat_read_below_the_outer_pattern_mints_nothing() {
-    let s = scene("msolve2-gate");
-    let (doc, inner) = insert(s.doc.clone(), linear(s.top, [0.0, -1.0, 0.0], 4.0, 2));
-    let (doc, part) = insert(doc, part_of(inner, 1));
-    let (doc, outer) = insert(doc, linear(part, [0.0, 0.0, 1.0], LIFT, 2));
-    let doc = world(doc, &s.opts, &[], &[(outer, 2)]);
-    // Read at the `Part`, BELOW the outer pattern: the name stops at
-    // the inner pattern's own `Instance(1)` row.
-    let wrap = |n| in_copy(inner, 1, n);
-    let (doc, mates) = seated(doc, s.cap, s.seat(s.cap, part, &wrap));
-    assert_placed(&doc, &s.opts, s.cap, "a seat read below the outer pattern");
-    let ev = run(&doc, &s.opts);
-    // No placement reads the `Part` the targets are read at, so no
-    // mate has a world copy to mint on.
-    for mate in mates {
-        fixture::assert_mints_nothing(&doc, &ev, mate);
-    }
 }
 
 // ---- A1′: the chain, deeper and with transforms interleaved ----

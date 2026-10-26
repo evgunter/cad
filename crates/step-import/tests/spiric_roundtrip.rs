@@ -124,7 +124,7 @@ fn vessel_cavity() -> topo::Body<f64> {
 /// certificate's uniqueness tube (C2's limb 3) has no enclosure of the
 /// torus's gradient, so the reading refuses naming the torus. Until the
 /// tube has a torus arm
-/// (`work/chart/torus-certificate-runs-root-free-through-its-quartic.md`)
+/// (`work/charttail/torus-certificate-runs-root-free-through-its-quartic.md`)
 /// no spline on a torus wall adopts as an `Intersection`, however close
 /// it lies.
 #[test]
@@ -142,7 +142,7 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
     assert_eq!(rims, 2, "the cavity carries two spiric rims");
 
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions {
             uncertainty_m: Some(1e-4),
             ..Default::default()

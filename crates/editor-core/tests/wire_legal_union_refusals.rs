@@ -8,9 +8,10 @@
 //! name as pieces of the seam their merged face's parent makes (N3), the
 //! same wherever the cut crosses it; then a union whose end pass still
 //! refuses under the bug's words, the one known exception, pinned with
-//! the row that owns it. The next two are constructions that once
-//! refused and now name: a merged wall whose edges are pieces of member
-//! edges, and a rim in several pieces. The last three run members whose
+//! the row that owns it. The next three are constructions that once
+//! refused and now build: a merged wall whose edges are pieces of member
+//! edges, a block sunk flush inside another, and a rim in several
+//! pieces. The last three run members whose
 //! coincident faces overlap in area, under a covering block, in every
 //! member order: no fold step may refuse a contact the pairwise
 //! judgement passed.
@@ -323,9 +324,12 @@ fn two_chords_of_one_seam_are_told_apart_by_their_ends() {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, Tol::witness())
-        .expect("mass")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass")
+    .volume
 }
 
 /// **A bar through a sunk boss passes the chord rule and refuses at the
@@ -425,6 +429,36 @@ fn a_split_fixture_with_a_merged_wall_fuses_in_every_order() {
             &order,
             &format!("{order:?}"),
         );
+    }
+}
+
+/// **The split fixture with `s` sunk inside `a` fuses in every order.**
+/// `s` spans `z ∈ [0.5, 0.75]`, wholly inside `a` and flush with its two
+/// y-walls, so the union is `a ∪ c`: every order decides the flush
+/// containment and fuses to `1.5`.
+#[test]
+fn a_split_fixture_with_its_block_sunk_flush_fuses_in_every_order() {
+    let doc = ProfileDoc::empty_derived("wire_sunk_flush", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, s) = block_on(doc, a, (0.2, 0.4), (0.0, 1.0), 0.5, 0.25);
+    for order in [
+        vec![a, c, s],
+        vec![a, s, c],
+        vec![c, a, s],
+        vec![c, s, a],
+        vec![s, a, c],
+        vec![s, c, a],
+    ] {
+        let (docx, union) = crate::fixture::union_over(doc.clone(), &order);
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, union).is_none(),
+            "{order:?}: the union fuses: {:?}",
+            failure(&ev, union)
+        );
+        let v = volume(body_of(&ev, union));
+        assert!((v - 1.5).abs() < 1e-9, "{order:?}: volume {v}");
     }
 }
 

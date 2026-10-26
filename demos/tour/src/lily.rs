@@ -39,8 +39,10 @@
 //! - the open **flower** is a lantern: a full revolve whose wall is a
 //!   sphere zone truncated at both poles — a wide belly, a NECK cone
 //!   narrowing to a throat disk the arch's tube exactly fills, and a
-//!   puckered conical mouth closing to a small disk. Sphere zone +
-//!   two cones + two planes, all exact. The neck is an AUTHORED cone
+//!   puckered conical mouth closing to a small disk, the rim where
+//!   the globe meets the pucker rolled by `fillet_edges` into a torus
+//!   band (probe 6, retired). Sphere zone + two cones + a torus band +
+//!   two planes, all exact. The neck is an AUTHORED cone
 //!   (70 degrees; the globe's own tangent cone is 65.38 and the
 //!   authoring algebra REFUSES it — see [`FLOWER_NECK_HALF_ANGLE`]).
 //!   Its angle is not what makes the flower and the stem meet along
@@ -146,14 +148,14 @@ use pncad::sweep::ExtrudeSide;
 use pncad::geom_core::{
     Affine3, Mat3, Point2, Point3, RigidMotion, RigidMotionError, UnitVec3, Vec3,
 };
-use pncad::prelude::{Open, Start};
+use pncad::prelude::{Open, Start, SurfaceKind, SurfaceKindSet, query};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane, Via};
-use pncad::sweep::blend::BlendError;
+use pncad::sweep::blend::fillet_edges;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
 };
-use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, Operand};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanError, ContactRecords, EdgeKey, Operand};
 
 use crate::booleans::{check, expect_seamed, finished, try_union};
 use crate::scalar::{Scalar, axis_frame, sketch_frame};
@@ -294,7 +296,8 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFra
 /// stem tube's own) and its half-angle — to a throat disk sitting in
 /// the attachment plane.
 ///
-/// Faces: throat plane, neck cone, sphere zone, pucker cone, mouth
+/// Faces: throat plane, neck cone, sphere zone, the torus band its
+/// MOUTH is rolled into ([`roll_the_mouth`]), pucker cone, mouth
 /// plane. Every one exact; the profile is authored centre-first
 /// (`Center`) so the zone's carrier is the sphere itself and not a
 /// fitted arc. That centre-intent is now sayable in the algebra
@@ -393,6 +396,7 @@ fn lantern<S: Scalar>(
     lip_r: f64,
     lip_drop: f64,
     neck: (f64, f64),
+    mouth_roll: f64,
     tol: Tol,
 ) -> Body<S> {
     // Sketch frame: origin at the attachment point, v along the
@@ -405,7 +409,7 @@ fn lantern<S: Scalar>(
         dir.map(S::from_computed),
         tol,
     );
-    revolve(
+    let sharp = revolve(
         &validated(
             plane,
             vec![meridian(
@@ -425,6 +429,74 @@ fn lantern<S: Scalar>(
         tol,
     )
     .expect("lantern revolves")
+    .body;
+    // The globe centre's depth along the flower axis: the neck, then
+    // the globe's own truncation height.
+    let centre = neck_drop(globe, top, neck.0, neck.1) + top;
+    roll_the_mouth(sharp, attach, dir, centre, mouth_roll, tol)
+}
+
+/// The lantern with its **mouth rolled**: `fillet_edges` along the
+/// circle where the sphere zone meets the conical pucker, at radius
+/// `roll`. This is wall 6's retirement — the softened tepal-tip rim
+/// the wall asked for, built in the scene.
+///
+/// The edges are selected BY DESCRIPTION, in two steps, and neither
+/// reads a coordinate against a tolerance: the sphere × cone edges
+/// (`query::edge_adjacent_matches`) are the lantern's two latitude
+/// circles, the shoulder above the globe centre and the mouth below
+/// it, and the mouth's are the ones deeper along the flower axis than
+/// the globe centre (`centre`, measured from the attachment point),
+/// which they are by `mouth` and the shoulder's are short of by `top`.
+/// A full revolve leaves each circle as TWO edges, its halves either
+/// side of the seam, and the roll takes both: one half alone ends its
+/// chain at the seam vertex, which the battery refuses
+/// (`UnsupportedCorner { SeamVertex }`), as a chain that stops partway
+/// round a circle should.
+fn roll_the_mouth<S: Scalar>(
+    sharp: Body<S>,
+    attach: Point3<f64>,
+    dir: Vec3<f64>,
+    centre: f64,
+    roll: f64,
+    tol: Tol,
+) -> Body<S> {
+    let at = attach.map(S::from_computed);
+    let along = dir.map(S::from_computed);
+    let depth = |e: EdgeKey| {
+        let c = sharp
+            .get_curve_geom(sharp.get_edge(e).expect("an edge of the lantern").curve)
+            .and_then(|g| g.certified())
+            .expect("a revolved rim carries a certified carrier");
+        let (t0, t1) = c.params();
+        (c.carrier().eval((t0 + t1) * S::from_f64(0.5)) - at)
+            .dot(along)
+            .f()
+    };
+    let mouth: Vec<EdgeKey> = query::all_edges(&sharp)
+        .into_iter()
+        .filter(|&e| {
+            query::edge_adjacent_matches(
+                &sharp,
+                e,
+                SurfaceKindSet::just(SurfaceKind::Sphere),
+                SurfaceKindSet::just(SurfaceKind::Cone),
+            )
+        })
+        .filter(|&e| depth(e) > centre)
+        .collect();
+    assert_eq!(
+        mouth.len(),
+        2,
+        "the lantern's mouth is one circle, two half-arcs either side of the seam"
+    );
+    fillet_edges(
+        &finished("the sharp lantern", sharp.clone(), tol),
+        &mouth,
+        S::from_f64(roll),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the lantern's mouth rolls at r = {roll}: {:?}", e.error))
     .body
 }
 
@@ -1312,6 +1384,19 @@ const ARCH_R: f64 = 0.052;
 /// erase.
 const FLOWER_NECK_HALF_ANGLE: f64 = 70.0 * PI / 180.0;
 
+/// The rolling ball's radius along the lantern's MOUTH, the circle
+/// where the sphere zone meets the conical pucker (wall 6's request).
+/// The crease there is shallow and CONCAVE: the pucker turns 9.37°
+/// off the globe's tangent, outward, so a ball rolled along it adds
+/// material, and its band spans only about `0.164·r` of meridian. At
+/// r = 0.25 that is 3.3 cm, the tangency circles at carrier radii
+/// 0.2647 (on the globe) and 0.2400 (on the pucker) either side of the
+/// 0.2534 mouth, wide enough to read at the render's scale. Measured
+/// on the scene's own lantern, the roll builds tier-3 valid from
+/// r = 0.005 to r = 0.6 and refuses `SpineIrregular` at r = 1.0, where
+/// the ball's spine would turn inside out. See [`roll_the_mouth`].
+const FLOWER_MOUTH_ROLL: f64 = 0.25;
+
 const GREEN_STEM: [f64; 3] = [0.36, 0.52, 0.30];
 const GREEN_LEAF: [f64; 3] = [0.44, 0.62, 0.34];
 /// *C. pulchellus* is the YELLOW fairy lantern — clear lemon, not the
@@ -1481,6 +1566,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
                 0.09,
                 0.16,
                 (ARCH_R, FLOWER_NECK_HALF_ANGLE),
+                FLOWER_MOUTH_ROLL,
                 tol,
             ),
             caps: None,
@@ -2116,23 +2202,24 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     finished("lily_leaf_a mirrored", mirrored, tol);
     println!("   wall 5 — RETIRED: a leaf mirrored across the plant's plane builds at rest");
 
-    // 6. The lantern's mouth is a hard circle where the sphere zone
-    //    meets the conical pucker. A rolling ball would soften it —
-    //    but the battery refuses the seam before any door is
-    //    reached: its two supports meet tangentially.
-    let rim: Vec<pncad::topo::EdgeKey> = lant.edges().map(|(k, _)| k).collect();
-    wall(
-        6,
-        "roll a ball along the lantern's mouth rim (fillet a curved body)",
-        pncad::sweep::blend::fillet_edges(lant, &rim, S::from_f64(0.02), tol),
-        // margin EXACTLY zero is the finding: a co-surface seam
-        // meridian, not a near-tangency that a tolerance could split.
-        |e| {
-            matches!(&e.error, BlendError::TangentialEdge { margin, .. }
-                if margin.predicate == "fillet3_convexity_sign"
-                    && margin.reading.diagnostic_f64_for_error_text().value() == Some(0.0))
-        },
-        "soften the tepal-tip rim",
+    // Wall 6 — RETIRED, kept live. The lantern's mouth was a hard
+    //    circle where the sphere zone meets the conical pucker, and the
+    //    wall asked a rolling ball to soften it by requesting EVERY edge
+    //    of the lantern at once. What that refused (`TangentialEdge` at
+    //    margin exactly zero) was a seam meridian, an edge with the same
+    //    sphere on both sides, which no fillet should take; the rim
+    //    itself, asked for by both of its half-arcs, rolls. The scene
+    //    now rolls it ([`roll_the_mouth`], r = [`FLOWER_MOUTH_ROLL`]),
+    //    and what stays live is that the lantern the scene ships carries
+    //    the band: one torus face, coaxial with the flower.
+    let bands = lant
+        .faces()
+        .filter(|(_, f)| lant.get_surface(f.surface).map(|g| g.kind()) == Some(SurfaceKind::Torus))
+        .count();
+    assert_eq!(bands, 1, "the lantern's rolled mouth is one torus band");
+    println!(
+        "   wall 6 — RETIRED: the lantern's mouth is rolled at r = {FLOWER_MOUTH_ROLL} in \
+         the scene, one torus band, at rest"
     );
 
     // 7. The lantern is THREE tepals fused, and their seams are
@@ -2229,15 +2316,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    so the mate is exact rather than tolerated, and the union
     //    decides it on its zero.
     //
-    //    It still refuses, and the refusal is the interesting part: it
-    //    names a CURVED EDGE, not the contact. Both operands are
-    //    skinned bodies whose wall-wall seams are NURBS iso-curves,
-    //    and the boolean lane is planar-complete with curved work
-    //    wired per germ class. The conformal join is C7
-    //    (CONTACT-DESIGN, ratified #178) and is M8's one row in the
-    //    modeling-verb register, with this rebuild named as its
-    //    consumer — so this wall is not a gap in the plan, it is the
-    //    plan, probed.
+    //    It still refuses, on the contact: the sweep reads the blade's
+    //    base rim, a circle on the shared section, against one of the
+    //    sheath's NURBS walls rising from that same rim, and the
+    //    Boolean has no crossing layer for a spline face. No curved
+    //    section is asked for; what is missing is reading an edge that
+    //    bounds the mate against a spline wall beside it, and the flush
+    //    reading along the two bodies' NURBS edges behind that
+    //    (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier`).
     let sheath = {
         let base_section = leaf_a_plan().base;
         // Runs back out of the leaf's base along -dir, so its bottom
@@ -2267,15 +2353,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         8,
         "graft the leaf's sheath onto its blade at their shared section",
         crate::booleans::try_union(leaf_a, &sheath, tol),
-        // The KIND is the claim, as in wall 1: a curved EDGE stops
-        // this, not a curved face and not the planar contact. If this
-        // ever starts refusing on the contact instead, the sentence
-        // above is wrong and must be re-derived before it is believed.
+        // The KIND is the claim, as in wall 1: a NURBS wall of the
+        // sheath, operand B, met at the contact. If this ever refuses
+        // elsewhere, the sentence above is wrong and must be re-derived
+        // before it is believed.
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedEdgeUnsupported {
-                    operand: Operand::A,
+                BooleanError::CurvedBooleanUnsupported {
+                    operand: Operand::B,
+                    kind: pncad::prelude::SurfaceKind::Nurbs,
                     ..
                 }
             )
@@ -2876,7 +2963,11 @@ mod review_probes {
             lant.vertices().count(),
         );
         println!("lantern census (shells, faces, edges, vertices) = {census:?}");
-        assert_eq!(census, (1, 8, 14, 8), "the re-authored lantern's census");
+        // RE-BASELINED (wall 6 retired: the mouth rolled into one
+        // torus band): (1, 8, 14, 8) -> (1, 9, 17, 10), one band face
+        // between the zone and the pucker, its two tangency circles
+        // each two half-arcs, and their seam vertices.
+        assert_eq!(census, (1, 9, 17, 10), "the re-authored lantern's census");
         let props = pncad::topo::mass_properties(
             &crate::booleans::at_rest(lant, Tol::witness()),
             Tol::witness(),
@@ -2889,13 +2980,53 @@ mod review_probes {
         // this one compares the kernel's `mass_properties` door
         // against a transcribed number, so a change to the closed-form
         // expression cannot move both readings together.
-        let exact = 0.36455193285177373;
+        // RE-BASELINED (wall 6 retired): 0.36455193285177373 for the
+        // sharp lantern, plus the 1.14119807294e-5 the concave mouth
+        // roll adds at r = 0.25 (`mouth_roll_delta_v`, by Pappus).
+        let exact = 0.36456334483250313;
         assert!(
             (props.volume - exact).abs() < 1e-12,
             "lantern volume {} vs the closed form {exact}",
             props.volume
         );
         assert_eq!(props.volume_pad, 0.0, "every lantern face is closed-form");
+    }
+
+    /// The volume the mouth's roll ADDS ([`roll_the_mouth`]): the
+    /// meridian region between the globe's arc, the pucker's line and
+    /// the rolling ball's arc, revolved. The crease is concave, so the
+    /// ball rides OUTSIDE both supports: its centre is `globe + roll`
+    /// from the globe centre and `roll` off the pucker's line on the
+    /// side away from the material. By Green's theorem Pappus's
+    /// `2π∬ρ dA` is `π∮ρ² dy` round that region's three sides, the
+    /// snowman's waist band ([`crate::snowman::arc_rho2_dy`]) with one
+    /// arc a line. Coordinates are the sketch's `(ρ, t)` about the
+    /// globe centre; volume does not care where along the axis that is.
+    fn mouth_roll_delta_v(globe: f64, mouth: f64, lip_r: f64, lip_drop: f64, roll: f64) -> f64 {
+        let m = ((globe * globe - mouth * mouth).sqrt(), mouth);
+        let l = (lip_r, mouth + lip_drop);
+        let len = (l.0 - m.0).hypot(l.1 - m.1);
+        let u = ((l.0 - m.0) / len, (l.1 - m.1) / len);
+        // The side away from the axis, the material's outside.
+        let n = (u.1, -u.0);
+        let a = (m.0 + n.0 * roll, m.1 + n.1 * roll);
+        // The ball's centre is `a + s·u` at `globe + roll` from the
+        // globe centre: the larger root of a quadratic in s.
+        let b = 2.0 * (a.0 * u.0 + a.1 * u.1);
+        let c = a.0 * a.0 + a.1 * a.1 - (globe + roll).powi(2);
+        let s = (-b + (b * b - 4.0 * c).sqrt()) / 2.0;
+        let centre = (a.0 + u.0 * s, a.1 + u.1 * s);
+        let on_globe = (
+            centre.0 * globe / (globe + roll),
+            centre.1 * globe / (globe + roll),
+        );
+        let on_pucker = (centre.0 - n.0 * roll, centre.1 - n.1 * roll);
+        let line =
+            |p: (f64, f64), q: (f64, f64)| (q.1 - p.1) * (p.0 * p.0 + p.0 * q.0 + q.0 * q.0) / 3.0;
+        (PI * (line(m, on_pucker)
+            + crate::snowman::arc_rho2_dy(centre, roll, on_pucker, on_globe)
+            + crate::snowman::arc_rho2_dy((0.0, 0.0), globe, on_globe, m)))
+        .abs()
     }
 
     /// Finding 13 re-measured: one chord budget spends wildly
@@ -2928,16 +3059,27 @@ mod review_probes {
     fn finding_13_tessellation_table_reproduces() {
         use pncad::mesh::validate::{signed_volume, triangle_count};
         let ps = pieces();
+        // RE-BASELINED (PRED, `[mesh.sizing]`): each mesher lane sizes
+        // its worst triangle at δ by its own theorem rather than at δ/2,
+        // so the stem's and arch's tori and the lantern's sphere zone
+        // and cones and its mouth's torus band coarsen — stem
+        // 392 -> 188 and 828 -> 476, arch 2_960 -> 1_472, lantern
+        // 1_220 -> 832 and 3_038 -> 1_900 (its cones take no rows, its
+        // sphere zone sizes its azimuth at its widest latitude). The
+        // leaves are NURBS, whose lattice did not move.
         let table = [
-            ("lily_stem", 5e-3, 392usize),
-            ("lily_stem", 2e-3, 828),
-            ("lily_arch", 2e-3, 2_960),
+            ("lily_stem", 5e-3, 188usize),
+            ("lily_stem", 2e-3, 476),
+            ("lily_arch", 2e-3, 1_472),
             // RE-BASELINED (BAND, one wall per run): a full revolve
             // sweeps the lantern's two planar caps whole, and each cap
             // as one disc meshes two triangles fewer than as two
             // half-discs — 1_084 -> 1_080 and 2_560 -> 2_556.
-            ("lily_lantern", 5e-3, 1_080),
-            ("lily_lantern", 2e-3, 2_556),
+            // RE-BASELINED (wall 6 retired): the mouth's torus band,
+            // sized per curvature like any torus, adds its own cells —
+            // 1_080 -> 1_220 and 2_556 -> 3_038.
+            ("lily_lantern", 5e-3, 832),
+            ("lily_lantern", 2e-3, 1_900),
             // RE-BASELINED: the swept leaves are fitted at the cubic
             // degree along the path (wall 15 retired) — 6_468 -> 5_576
             // and 5_992 -> 5_164. RE-BASELINED again (PR 4984, one
@@ -2975,8 +3117,9 @@ mod review_probes {
         // frusta (the NECK above it and the pucker below) — so it is
         // derived from the same numbers the profile is drawn from
         // rather than transcribed:
-        //   π[r²(a+b) − (a³+b³)/3] + π·h(R² + Rρ + ρ²)/3 per frustum.
-        // It comes to 0.36455193285177373 m³.
+        //   π[r²(a+b) − (a³+b³)/3] + π·h(R² + Rρ + ρ²)/3 per frustum,
+        // plus the material the mouth's roll adds
+        // ([`mouth_roll_delta_v`]). It comes to 0.36456334483250313 m³.
         let (globe, top, mouth, lip_r, lip_drop): (f64, f64, f64, f64, f64) =
             (FLOWER_GLOBE, FLOWER_TOP, 0.36, 0.09, 0.16);
         let r_top = (globe.powi(2) - top.powi(2)).sqrt();
@@ -2988,7 +3131,8 @@ mod review_probes {
                 ARCH_R,
                 r_top,
             )
-            + frustum(lip_drop, r_mouth, lip_r);
+            + frustum(lip_drop, r_mouth, lip_r)
+            + mouth_roll_delta_v(globe, mouth, lip_r, lip_drop, FLOWER_MOUTH_ROLL);
         let rels: Vec<(f64, f64)> = [5e-3, 2e-3]
             .into_iter()
             .map(|delta| {
@@ -2998,7 +3142,12 @@ mod review_probes {
             })
             .collect();
         println!("lantern volume error, measured: {rels:?}");
-        for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0120, 0.0130), (0.0050, 0.0056)]) {
+        // RE-BASELINED (PRED, `[mesh.sizing]`): the rolled lantern
+        // measured 0.012769 and 0.0050019 at the δ/2 sizing and measures
+        // 0.015945 and 0.0062491 now — the chords' inscribed deficit
+        // grows with the coarser grid, inside the `area·δ` a mesh
+        // within δ allows.
+        for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0153, 0.0167), (0.0060, 0.0067)]) {
             assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
         }
         // A swept blade has no analytic wall to compare against, but it
@@ -3009,23 +3158,24 @@ mod review_probes {
         // sits that far above the chord, i.e. OUTSIDE the spine's
         // centre of curvature, so its arc is len + |curl|·rise.
         //
-        // Two readings against it. The kernel's own certified volume
-        // must CONTAIN it, at every width: a sound enclosure misses the
-        // true volume at none. A containment is strong evidence only
-        // when the enclosure is narrow — under `BRACKET_CEILING` of
-        // Pappus, a tenth of the mesh's own deficit below, so a closed
-        // form off by more than that is excluded. At the default ε the
-        // full widths are 5.1e-5 (b) and 1.4e-4 (c) of it. At 1e-6 the pad,
-        // and at 1e-12 the bracket the budget refusal keeps
-        // (`work/quad/check-7-refuses-the-reporting-budget-on-a-definite-sign.md`),
-        // are wider than the ceiling, and the row says so beside the
-        // containment it still asserts. And the mesh must fall
-        // SHORT of it by between 3e-3 and 6e-3: every chord across the
-        // convex lens cuts inside it, and the inscribed deficit measured
-        // 4.4e-3 and 5.0e-3 at δ = 2e-3. A mesh that met Pappus would
-        // not have been measured off a real tessellation; one further
-        // off would mean the section rolled about the tangent on its
-        // way down the path.
+        // Pappus is the IDEAL sweep's volume, and the blade is a skin
+        // through [`LEAF_STATIONS`] sections on a cubic interpolant of
+        // the arc, so the two differ by the fit. The kernel's certified
+        // volume must therefore contain the skin's OWN volume,
+        // integrated over its surfaces
+        // ([`crate::patch_quadrature`]), at every width: a
+        // sound enclosure misses the true volume at none. Pappus is
+        // held to the skin at the fit's scale: a cubic spline through
+        // stations `Δ` apart in the arc's angle misses it by
+        // `(5/384)·Δ⁴` of its own scale, and a section's area is
+        // quadratic in its scale, so the volume misses by about twice
+        // that. And the mesh must fall SHORT of the skin by between
+        // 3e-3 and 6e-3: every chord across the convex lens cuts
+        // inside it, and the inscribed deficit measured 4.4e-3 and
+        // 5.0e-3 at δ = 2e-3. A mesh that met the skin would not have
+        // been measured off a real tessellation; one further off would
+        // mean the section rolled about the tangent on its way down
+        // the path.
         //
         // `lily_leaf_a` is NOT in this list, and its absence is the
         // point: it is the lofted blade, and it both tapers and rolls.
@@ -3033,7 +3183,6 @@ mod review_probes {
         // which is exactly what a loft stops being. What pins the
         // lofted blade instead is
         // `the_lofted_blade_tapers_and_rolls_in_the_stored_geometry`.
-        const BRACKET_CEILING: f64 = 5e-4;
         for (name, leaf) in [("lily_leaf_b", LEAF_B), ("lily_leaf_c", LEAF_C)] {
             let pappus = leaf.section.area()
                 * leaf
@@ -3041,6 +3190,26 @@ mod review_probes {
                     .abs()
                     .mul_add(leaf.section.centroid_rise(), leaf.len);
             let b = body(&ps, name);
+            // The caps are the authored lens placed rigidly, and each
+            // reading is taken about two points: a shell that does not
+            // close reads two volumes.
+            let cap = |_o: [f64; 3], _n: [f64; 3]| leaf.section.area();
+            let about = [[0.0; 3], [leaf.base.x, leaf.base.y, leaf.base.z]];
+            let coarse = crate::patch_quadrature::measure(b, 24, &about, cap);
+            let fine = crate::patch_quadrature::measure(b, 32, &about, cap);
+            let skin_v = fine.volume[0];
+            let skin_err = (skin_v - coarse.volume[0])
+                .abs()
+                .max((skin_v - fine.volume[1]).abs());
+            #[allow(clippy::cast_precision_loss)]
+            let fit_step = leaf.curl.abs() / (LEAF_STATIONS - 1) as f64;
+            let fit_scale = 2.0 * (5.0 / 384.0) * fit_step.powi(4);
+            let fit = ((skin_v - pappus) / pappus).abs();
+            assert!(
+                fit <= fit_scale,
+                "{name}: the skin's V = {skin_v} misses Pappus {pappus} by {fit:e} of it, past \
+                 the cubic fit's scale {fit_scale:e}"
+            );
             let reading = pncad::topo::VolumeReading::of(
                 pncad::topo::validate_geometric_certificate(b, Tol::witness())
                     .expect("the swept leaf is tier 3 clean")
@@ -3051,19 +3220,12 @@ mod review_probes {
                 .enclosure();
             let (lo, hi) = (e.volume_lo, e.volume_hi);
             assert!(
-                lo <= pappus && pappus <= hi,
-                "{name}: Pappus {pappus} outside the certified [{lo}, {hi}]"
+                lo <= skin_v - skin_err && skin_v + skin_err <= hi,
+                "{name}: the skin's own V = {skin_v} (± {skin_err:e}) outside the certified \
+                 [{lo}, {hi}]"
             );
-            if hi - lo > BRACKET_CEILING * pappus {
-                println!(
-                    "{name}: certified [{lo:e}, {hi:e}] is {:.1e} of Pappus wide, past \
-                     the {BRACKET_CEILING:e} ceiling at this ε — it contains Pappus, \
-                     which at this width is weak evidence of agreement",
-                    (hi - lo) / pappus
-                );
-            }
             let m = pncad::mesh::tessellate(b, 2e-3, Tol::witness()).expect("tessellate");
-            let short = (pappus - signed_volume(&m)) / pappus;
+            let short = (skin_v - signed_volume(&m)) / skin_v;
             assert!(
                 short > 3e-3 && short < 6e-3,
                 "{name}: mesh short by {short}"

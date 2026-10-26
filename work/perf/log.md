@@ -146,3 +146,5 @@ over the tour's 61 gated stops, and the setup term's 8–99% share) and
 `parallel-map-costs-a-fixed-price-on-a-cheap-body` (the census's
 measured regression, the ruling it forced, and the shell grain).
 - 2026-10-18 — Seam note from FUSE, which closes (`docs/doc-ledger/fuse-leaves-the-tracker.md`): `a-two-void-shell-runs-six-percent-slower-at-four-threads-after-pr-4108` moved here by `git mv`, ids kept and bodies unchanged but for re-pointed `work/fuse/` citations. (FUSE close lane)
+
+- 2026-10-24 — **Seam (QUAD):** PR 5628 (measure door unit B) moves `benches/Cargo.lock` only to add topo's new `quantity` dependency. A cost to watch: check 7's sign walk now refines every refinable face while the sign is open, past the number's `1024·ε` included. On thin strips the gate plus its continuation runs 1.4–2.2× one measurement's release time (the PR 5628 review's table). (QUAD unit B lane)

@@ -112,9 +112,12 @@ fn validate(what: &str, body: &Body<f64>) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(body, tol())
-        .unwrap()
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .unwrap()
+    .volume
 }
 
 fn close(what: &str, got: f64, want: f64, rel: f64) {
@@ -399,7 +402,7 @@ fn the_sealed_island_request_builds_at_every_pose() {
             0.25,
             tol(),
         );
-        // `work/band/the-cross-chain-excuse-misses-an-oblique-cell-past-a-windows-end.md`
+        // `work/bandreach/the-cross-chain-excuse-misses-an-oblique-cell-past-a-windows-end.md`
         if name.starts_with("1.1 about") {
             let e = out.expect_err("the (1,2,3) pose refuses").error;
             assert!(

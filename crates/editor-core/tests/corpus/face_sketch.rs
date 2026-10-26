@@ -18,8 +18,7 @@
 
 use super::PlacePart;
 use editor_core::{
-    CapEnd, ContactClass, Coord, Dimension, DocEdit, Formula, Mate, Node, Operand, RoleSeg, SlotId,
-    TargetAxis,
+    CapEnd, Coord, Dimension, DocEdit, Formula, Mate, Node, Operand, RoleSeg, SlotId, TargetAxis,
 };
 
 use crate::fixture::{ang, desc, fname, len, plane};
@@ -83,7 +82,6 @@ pub fn document() -> CorpusDoc {
         Mate {
             on,
             to: plane(cap(cube, CapEnd::End)),
-            class: ContactClass::Rest,
         },
         vec![
             (

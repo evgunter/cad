@@ -17,7 +17,7 @@ from pathlib import Path
 import pncad
 from pncad import Doc, DocRef, Formula, Frame, Node, Workspace, assemble, evaluate, m
 
-from placing import placed, world_product
+from placing import placed, assemble_world_copies
 
 
 def block(doc, corner, side, elevation, height):
@@ -49,7 +49,7 @@ class TestInterferenceIsAFinding(unittest.TestCase):
         doc = Doc()
         block(doc, (0.0, 0.0), 1.0, 0.0, 1.0)
         block(doc, (0.95, 0.2), 0.6, 0.25, 0.5)
-        world_product(doc)
+        assemble_world_copies(doc)
         assembly = assemble(doc, evaluate(doc))
         self.assertEqual(len(assembly.interference), 1)
         (finding,) = assembly.interference
@@ -68,7 +68,7 @@ class TestInterferenceIsAFinding(unittest.TestCase):
         doc = Doc()
         block(doc, (0.0, 0.0), 1.0, 0.0, 1.0)
         block(doc, (2.0, 0.0), 1.0, 0.0, 1.0)
-        world_product(doc)
+        assemble_world_copies(doc)
         self.assertEqual(assemble(doc, evaluate(doc)).interference, [])
 
 
@@ -86,7 +86,7 @@ class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
         part = Doc("pncad-carried-overlap-part")
         block(part, (0.0, 0.0), 1.0, 0.0, 1.0)
         block(part, (0.95, 0.2), 0.6, 0.25, 0.5)
-        world_product(part)
+        assemble_world_copies(part)
         (own,) = assemble(part, evaluate(part)).interference
         store.create(part)
         outer = Doc("pncad-carried-overlap")
@@ -120,7 +120,7 @@ class TestAPartsOverlapIsThePartsFinding(unittest.TestCase):
         part = Doc("pncad-carried-at-rest-part")
         block(part, (0.0, 0.0), 1.0, 0.0, 1.0)
         block(part, (1.0 + 3e-9, 0.2), 0.6, 0.25, 0.5)
-        world_product(part)
+        assemble_world_copies(part)
         with self.assertRaises(pncad.AssemblyError) as own:
             assemble(part, evaluate(part))
         self.assertEqual(own.exception.variant, "at_rest")

@@ -23,12 +23,13 @@
 //!
 //! Inside one copy's body an overlap stays the kernel's typed error:
 //! only verdicts between solids of two different copies are findings.
-//! A part is one copy of the document instantiating it, and the census
-//! over that document finds the part's own findings again inside the
-//! copy. Those are the part's, carried up and reported as the part's
-//! ([`crate::CarriedInterference`], [`crate::AssemblyError::CarriedAtRest`]),
-//! so the gate drops each verdict about a pair of solids the part
-//! already answered (`less_carried`).
+//! A part is one copy of the document instantiating it, and its own
+//! census decided the meetings inside that copy: those findings are the
+//! part's, carried up and reported as the part's
+//! ([`crate::CarriedInterference`], [`crate::AssemblyError::CarriedAtRest`]).
+//! A census reading a body some door already censused as one arrival
+//! (a `⊔`'s, or an instance's copy) discards what it finds inside it
+//! (`product::gather_sources`, [`finding_group`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -444,33 +445,17 @@ pub(crate) fn finding_solids<T: Decide>(
     Some((x.min(y), x.max(y)))
 }
 
-/// **The census's verdicts less what a part already answered**: each
-/// verdict about a pair of solids a part's own census reported
-/// ([`Product::census_pairs`]) is the part's, carried up with it and
-/// reported as the part's ([`crate::assembly::CarriedInterference`],
-/// [`crate::AssemblyError::CarriedAtRest`]), so the census over this
-/// product re-finding it inside the copy says nothing new. A verdict
-/// inside one copy that answers to no carried pair is left, the copy's
-/// door's own unrecorded contact.
-// TRANSITIONAL: the final rule is that inside an arrival the census
-// reads nothing (D10, `[placement.placement]`), so this match of the
-// census's re-findings against a part's carried pairs is a check the
-// rule retires, with the in-copy census itself
-// (`work/intent/the-in-arrival-census-check-retires.md`).
-pub(crate) fn less_carried<T: Decide>(
-    product: &Product<T>,
-    errors: Vec<ValidationError>,
-) -> Vec<ValidationError> {
-    if product.census_pairs.is_empty() {
-        return errors;
-    }
-    let carried: BTreeSet<(SolidKey, SolidKey)> = product.census_pairs.iter().copied().collect();
-    errors
-        .into_iter()
-        .filter(|error| {
-            finding_solids(&product.body, error).is_none_or(|pair| !carried.contains(&pair))
-        })
-        .collect()
+/// **The one arrival a census finding is inside**: the group (in
+/// [`copy_groups`]'s numbering) holding both solids it is about, `None`
+/// for a finding between two arrivals or about no pair of solids.
+pub(crate) fn finding_group<T: Decide>(
+    body: &Body<T>,
+    groups: &BTreeMap<SolidKey, u32>,
+    error: &ValidationError,
+) -> Option<u32> {
+    let (a, b) = finding_solids(body, error)?;
+    let group = *groups.get(&a)?;
+    (groups.get(&b) == Some(&group)).then_some(group)
 }
 
 /// **Which copy each of the product's solids is**: the census's groups
@@ -537,7 +522,7 @@ pub(crate) fn copy_rows<T: Decide>(
                 unreachable!("a row the census recorded between copies names a cell of each")
             };
             crate::assembly::AtRestRow {
-                by: crate::assembly::AtRestBy::Copies(by(ca.min(cb)), by(ca.max(cb))),
+                copies: (by(ca.min(cb)), by(ca.max(cb))),
                 row: crate::coincide::NamedCoincidence {
                     cells: vec![na, nb],
                     relation: row.relation,

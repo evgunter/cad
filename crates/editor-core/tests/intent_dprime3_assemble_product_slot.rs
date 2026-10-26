@@ -6,8 +6,11 @@
 //! A copy carries its source's names as they are, and an operator keys
 //! each operand's names by its read, so no name spells a placement. The
 //! census runs at each `⊔`, between its operands, whether or not the
-//! product slot reads it. A body of several parts is an ordinary
-//! operand: an operator reading one keeps the meetings inside it.
+//! product slot reads it, and its verdict is kept on the `⊔`'s value: a
+//! copy carries it, and an outer `⊔` or a host reading the copy as one
+//! arrival decides nothing inside it. A body of several parts is an
+//! ordinary operand: an operator reading one keeps the meetings inside
+//! it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -120,18 +123,43 @@ fn in_world(
     put(doc, fixture::stood(node))
 }
 
-/// The `⊔` of `members`, each read in the world, made the product: the
-/// slot reads the `⊔` itself, so the census at its door is the
-/// product's. (A placement of a `⊔` carries no decision of its door
-/// until `a-placement-carries-its-sources-at-rest-result`.)
-fn produced(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, assembled) = put(
+/// The `⊔` of `members`, inserted as written.
+fn assembled(doc: ProfileDoc, members: &[RecipeNodeId]) -> (ProfileDoc, RecipeNodeId) {
+    put(
         doc,
         Node::Assemble {
             members: spelled(members),
         },
-    );
-    (set_product(&doc, Some(Operand::Node(assembled))), assembled)
+    )
+}
+
+/// **The verdict the census at `node`'s door kept** on its value
+/// (`editor_core::product::Census`).
+fn kept<'e>(
+    doc: &ProfileDoc,
+    ev: &'e Evaluation<f64>,
+    node: RecipeNodeId,
+) -> &'e editor_core::Product<f64> {
+    ev.value(node)
+        .and_then(|value| value.census.as_ref())
+        .expect("the door keeps its census")
+        .verdict(doc, Tol::witness())
+        .expect("the census runs")
+}
+
+/// The `unproven-coincidence` findings the checks report.
+fn unproven(doc: &ProfileDoc, ev: &Evaluation<f64>) -> usize {
+    editor_core::run_checks(
+        doc,
+        ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("the checks run")
+    .findings
+    .iter()
+    .filter(|f| f.check == editor_core::CheckId::UnprovenCoincidence)
+    .count()
 }
 
 // ---- Test 19: picks ----
@@ -243,7 +271,8 @@ fn one_body_assembled_twice_is_an_interference_finding() {
     let doc = doc("dprime3-twice");
     let (doc, a) = block(doc, [0.0; 2], 0.5, 1.0);
     let (doc, copy) = in_world(doc, a);
-    let (doc, _) = produced(doc, &[copy, copy]);
+    let (doc, twice) = assembled(doc, &[copy, copy]);
+    let doc = set_product(&doc, Some(Operand::Node(twice)));
     let ev = run(&doc, &EvalOptions::default());
     let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
     assert!(
@@ -363,16 +392,10 @@ fn a_splits_halves_assembled_record_the_cut_and_unioned_glue_it() {
     assert!(report.findings.is_empty(), "the cut is proved: {report}");
 }
 
-/// **`(bolt ⊔ plate) ∪ bead` keeps the `⊔`'s pieces**: a bead against
-/// the bolt alone fuses with it and leaves the plate a piece of its
-/// own, the bolt–plate meeting not decided again. A bead bridging bolt
-/// and plate makes one solid touching itself where they met, which the
-/// union refuses, typed by the kernel. The `⊔`'s record cited through
-/// the union, and a refusal naming the bridged pair, are
-/// `work/intent/a-boolean-over-an-assemble-cites-none-of-its-meetings.md`.
-#[test]
-fn a_seat_unioned_with_a_bead_keeps_its_pieces() {
-    let doc = doc("dprime3-bead");
+/// A bolt standing on a plate, `bolt ⊔ plate`: two pieces that meet
+/// over the bolt's foot.
+fn seat(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let doc = doc(label);
     let (doc, plate) = block(doc, [0.0; 2], 1.0, 0.2);
     let (doc, bolt) = beside(doc, plate, [0.0, 0.0, 0.2], 0.2, 1.0);
     let (doc, seat) = put(
@@ -381,6 +404,201 @@ fn a_seat_unioned_with_a_bead_keeps_its_pieces() {
             members: spelled(&[bolt, plate]),
         },
     );
+    (doc, seat, bolt, plate)
+}
+
+/// The reads `node`'s value holds pieces by, in order.
+fn piece_reads(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<VarId> {
+    ev.value(node)
+        .and_then(|v| v.pieces.as_ref())
+        .map(|p| p.pieces.iter().map(|piece| piece.read).collect())
+        .unwrap_or_default()
+}
+
+/// The boolean refusal `node` failed with, by its kind.
+fn refused(ev: &Evaluation<f64>, node: RecipeNodeId) -> Option<topo::BooleanErrorKind> {
+    match ev.node_error(node).map(|e| &e.kind) {
+        Some(editor_core::NodeErrorKind::Boolean(e)) => Some(e.kind()),
+        _ => None,
+    }
+}
+
+/// **A cut through a seat cuts each piece and keeps both**: a pin down
+/// through the bolt and the plate, through the face they meet over,
+/// makes `(bolt − pin) ⊔ (plate − pin)`. Its pieces are keyed by the
+/// reads the `⊔` read them through, and its names carry each piece's
+/// names keyed by that read. The same cut of the `⊔` read whole is the
+/// kernel's `VertexReadTwice`: a pin vertex pierces the bolt's foot and
+/// the plate's top, two faces the boolean reads apart. A placement of
+/// the seat is cut the same way where it stands.
+///
+/// *Breaks if* a cut re-decides the meeting inside the `⊔` it reads.
+#[test]
+fn a_cut_through_a_seat_cuts_each_piece_and_keeps_both() {
+    let (doc, seat, bolt, plate) = seat("dprime3-seat-cut");
+    let (doc, pin) = beside(doc, plate, [0.0, 0.0, -0.5], 0.1, 2.0);
+    let (doc, cut) = put(
+        doc,
+        Node::Subtract {
+            from: seat.into(),
+            tool: pin.into(),
+        },
+    );
+    let (doc, placed) = in_world(doc, seat);
+    let (doc, pin_placed) = in_world(doc, pin);
+    let (doc, cut_placed) = put(
+        doc,
+        Node::Subtract {
+            from: placed.into(),
+            tool: pin_placed.into(),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    let reads = [bolt, plate].map(|n| doc.output(n, 0).unwrap());
+    for node in [cut, cut_placed] {
+        let body = body_of(&ev, node);
+        assert_eq!(solids(&body), 2, "the bolt and the plate, each holed");
+        assert!(
+            near(bounds(&body), ([-1.0, -1.0, 0.0], [1.0, 1.0, 1.2])),
+            "{:?}",
+            bounds(&body)
+        );
+        assert_eq!(piece_reads(&ev, node), reads, "keyed by the `⊔`'s reads");
+        let table = ev
+            .table(doc.output(node, 0).unwrap())
+            .expect("the cut is named");
+        for read in reads {
+            assert!(
+                table.iter().any(|(name, _)| matches!(
+                    name.path.as_slice(),
+                    [RoleSeg::From { read: r, .. }] if *r == read
+                )),
+                "a name keyed by {read:?}"
+            );
+        }
+    }
+}
+
+/// **A cut that empties a piece drops it, and one that empties every
+/// piece is the empty result**: `(p ⊔ q) − t` with `t` swallowing `q`
+/// keeps `p` alone, and with `t` swallowing both keeps nothing.
+#[test]
+fn a_cut_drops_the_pieces_it_empties() {
+    let doc = doc("dprime3-cut-empties");
+    let (doc, p) = block(doc, [0.0; 2], 0.5, 1.0);
+    let (doc, q) = beside(doc, p, [2.0, 0.0, 0.0], 0.5, 1.0);
+    let (doc, both) = put(
+        doc,
+        Node::Assemble {
+            members: spelled(&[p, q]),
+        },
+    );
+    let (doc, over_q) = beside(doc, p, [2.0, 0.0, -1.0], 1.0, 3.0);
+    let (doc, over_all) = beside(doc, p, [1.0, 0.0, -1.0], 3.0, 3.0);
+    let (doc, one) = put(
+        doc,
+        Node::Subtract {
+            from: both.into(),
+            tool: over_q.into(),
+        },
+    );
+    let (doc, none) = put(
+        doc,
+        Node::Subtract {
+            from: both.into(),
+            tool: over_all.into(),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    assert_eq!(solids(&body_of(&ev, one)), 1);
+    assert_eq!(piece_reads(&ev, one), [doc.output(p, 0).unwrap()]);
+    assert!(
+        matches!(
+            ev.value(none).map(|v| &v.payload),
+            Some(ValuePayload::Boolean(editor_core::BooleanValue::Empty))
+        ),
+        "{:?}",
+        ev.result(none)
+    );
+}
+
+/// **`∩` distributes over `⊔` on either side**: `(bolt ⊔ plate) ∩ t`
+/// and `t ∩ (bolt ⊔ plate)`, `t` a post standing through the bolt's
+/// foot, keep the part of each piece inside `t`, two pieces, where the
+/// `⊔` read whole is the kernel's `VertexReadTwice`.
+#[test]
+fn a_meet_with_a_seat_meets_each_piece() {
+    let (doc, seat, bolt, plate) = seat("dprime3-seat-meet");
+    let (doc, t) = beside(doc, plate, [0.0, 0.0, 0.1], 0.1, 0.3);
+    let (doc, after) = put(
+        doc,
+        Node::Intersect {
+            members: spelled(&[seat, t]),
+        },
+    );
+    let (doc, before) = put(
+        doc,
+        Node::Intersect {
+            members: spelled(&[t, seat]),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    let reads = [bolt, plate].map(|n| doc.output(n, 0).unwrap());
+    for node in [after, before] {
+        let body = body_of(&ev, node);
+        assert_eq!(solids(&body), 2, "{:?}", ev.result(node));
+        assert!(
+            near(bounds(&body), ([-0.1, -0.1, 0.1], [0.1, 0.1, 0.4])),
+            "{:?}",
+            bounds(&body)
+        );
+        assert_eq!(piece_reads(&ev, node), reads);
+    }
+}
+
+/// **A `⊔` read as a cut's tool is cut by whole, today**: `t − (bolt ⊔
+/// plate)`, `t` a post standing through the bolt's foot, refuses as the
+/// kernel's `VertexReadTwice`.
+/// `t − (a ⊔ b)` is `(t − a) − b`, a fold of cuts rather than a cut per
+/// piece; it lands with the kernel reading a declared seat as one
+/// interface
+/// (`work/cleave/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`),
+/// when this row builds.
+#[test]
+fn a_seat_as_a_cuts_tool_is_cut_by_whole() {
+    let (doc, seat, _, plate) = seat("dprime3-seat-tool");
+    let (doc, t) = beside(doc, plate, [0.0, 0.0, 0.1], 0.1, 0.3);
+    let (doc, cut) = put(
+        doc,
+        Node::Subtract {
+            from: t.into(),
+            tool: seat.into(),
+        },
+    );
+    let ev = run(&doc, &EvalOptions::default());
+    assert_eq!(
+        refused(&ev, cut),
+        Some(topo::BooleanErrorKind::VertexReadTwice),
+        "{:?}",
+        ev.result(cut)
+    );
+}
+
+/// **`(bolt ⊔ plate) ∪ bead` keeps the `⊔`'s pieces**: a bead against
+/// the bolt alone fuses with it and leaves the plate a piece of its
+/// own, the bolt–plate meeting not decided again.
+///
+/// A bead bridging bolt and plate makes one solid touching itself where
+/// they met. Today the union refuses where the kernel reads the bolt's
+/// foot and the plate's top apart: `VertexReadTwice`, a bead vertex
+/// piercing both. When the kernel reads a declared seat as one
+/// interface
+/// (`work/cleave/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`)
+/// this row's bridged union is the typed self-touch refusal naming the
+/// seat's pair, and its assert says so.
+#[test]
+fn a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice() {
+    let (doc, seat, _, plate) = seat("dprime3-bead");
     let (doc, side) = beside(doc, plate, [0.25, 0.0, 0.6], 0.1, 0.2);
     let (doc, bridge) = beside(doc, plate, [0.25, 0.0, 0.1], 0.1, 0.3);
     let (doc, kept) = put(
@@ -401,12 +619,20 @@ fn a_seat_unioned_with_a_bead_keeps_its_pieces() {
         2,
         "the bolt and its bead, and the plate"
     );
-    assert!(
-        matches!(
-            ev.node_error(fused).map(|e| &e.kind),
-            Some(editor_core::NodeErrorKind::Boolean(_))
-        ),
-        "a bridged seat refuses, typed: {:?}",
+    let Some(ValuePayload::Boolean(editor_core::BooleanValue::Body { contacts, .. })) =
+        ev.value(kept).map(|v| &v.payload)
+    else {
+        panic!("the union builds: {:?}", ev.result(kept))
+    };
+    assert_eq!(
+        contacts.face_face().count(),
+        1,
+        "the seat's record, the `⊔`'s decision, carried through the union: {contacts:?}"
+    );
+    assert_eq!(
+        refused(&ev, fused),
+        Some(topo::BooleanErrorKind::VertexReadTwice),
+        "a bridged seat refuses where the kernel reads the seat's two faces apart: {:?}",
         ev.node_error(fused)
     );
 }
@@ -523,20 +749,8 @@ fn an_instances_census_decisions_are_its_parts() {
     let (doc, bolt) = beside(doc, p, [0.0, 0.0, 0.2], 0.2, 1.0);
     let (doc, p) = in_world(doc, p);
     let (doc, bolt) = in_world(doc, bolt);
-    let (part, _) = produced(doc, &[p, bolt]);
-    let unproven = |doc: &ProfileDoc, ev: &Evaluation<f64>| {
-        editor_core::run_checks(
-            doc,
-            ev,
-            &editor_core::ChecksConfig::default(),
-            Tol::witness(),
-        )
-        .expect("the checks run")
-        .findings
-        .iter()
-        .filter(|f| f.check == editor_core::CheckId::UnprovenCoincidence)
-        .count()
-    };
+    let (part, seat) = assembled(doc, &[p, bolt]);
+    let part = set_product(&part, Some(Operand::Node(seat)));
     let ev = run(&part, &EvalOptions::default());
     let decided = editor_core::product_recorded(&part, &ev, Tol::witness()).expect("it gathers");
     assert!(
@@ -569,4 +783,447 @@ fn an_instances_census_decisions_are_its_parts() {
         "and reports nothing of the part's touch"
     );
     editor_core::assemble(&doc, &ev, Tol::witness()).expect("the host assembles");
+}
+
+/// **A placement of `bolt ⊔ plate` made the product is at rest** (fix
+/// pass row (a)): the copy carries the census its source's door kept,
+/// the seat's record with it, so the product's census reads the copy as
+/// one arrival a door already decided and discards what it finds inside
+/// it. The seat is reported once, at the `⊔` that decided it, as when
+/// the slot reads the `⊔` itself.
+///
+/// *Breaks if* a placement of a `⊔` is censused again where it lands.
+#[test]
+fn a_placed_seat_made_the_product_is_at_rest() {
+    let doc = doc("dprime3-placed-seat");
+    let (doc, plate) = block(doc, [0.0; 2], 1.0, 0.2);
+    let (doc, bolt) = beside(doc, plate, [0.0, 0.0, 0.2], 0.2, 1.0);
+    let (doc, plate) = in_world(doc, plate);
+    let (doc, bolt) = in_world(doc, bolt);
+    let (doc, seat) = assembled(doc, &[bolt, plate]);
+    let (doc, placed) = in_world(doc, seat);
+    let direct = set_product(&doc, Some(Operand::Node(seat)));
+    let doc = set_product(&doc, Some(Operand::Node(placed)));
+    let ev = run(&doc, &EvalOptions::default());
+    let product = editor_core::product_recorded(&doc, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        product.census.is_empty() && product.coincidences.is_empty(),
+        "nothing inside the copy is decided again: {:?}",
+        product.census
+    );
+    let decided = kept(&doc, &ev, seat);
+    assert_eq!(
+        decided.contacts.face_face().count(),
+        1,
+        "the `⊔` records the seat"
+    );
+    assert_eq!(
+        product.contacts.face_face().count(),
+        1,
+        "and the copy carries that record"
+    );
+    editor_core::assemble(&doc, &ev, Tol::witness()).expect("a placed seat is at rest");
+    let ev_direct = run(&direct, &EvalOptions::default());
+    editor_core::assemble(&direct, &ev_direct, Tol::witness()).expect("the seat is at rest");
+    assert_eq!(
+        unproven(&doc, &ev),
+        unproven(&direct, &ev_direct),
+        "the seat is reported once, at its `⊔`, however the product reads it"
+    );
+}
+
+/// A plate in the world, a bolt standing on it and a nut resting on it
+/// beside the bolt, each a world copy.
+fn seat_and_nut(label: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
+    let doc = doc(label);
+    let (doc, plate) = block(doc, [0.0; 2], 1.0, 0.2);
+    let (doc, bolt) = beside(doc, plate, [0.0, 0.0, 0.2], 0.2, 1.0);
+    let (doc, nut) = beside(doc, plate, [0.6, 0.0, 0.2], 0.15, 0.3);
+    let (doc, plate) = in_world(doc, plate);
+    let (doc, bolt) = in_world(doc, bolt);
+    let (doc, nut) = in_world(doc, nut);
+    (doc, [plate, bolt, nut])
+}
+
+/// **`(p ⊔ b) ⊔ n` is `p ⊔ b ⊔ n`** (fix pass row (b)): the bolt's seat
+/// is the inner `⊔`'s decision and the nut's the outer's, so the nested
+/// spelling records what the flat one records, each touch once. The
+/// outer census reads `p ⊔ b` as one arrival its own door decided: it
+/// decides the seat no second time and counts it no second time.
+///
+/// *Breaks if* an outer `⊔` re-decides or re-counts an inner one's
+/// meeting.
+#[test]
+fn a_nested_assemble_records_what_the_flat_one_records_once() {
+    let (flat, [p, b, n]) = seat_and_nut("dprime3-flat");
+    let (flat, three) = assembled(flat, &[p, b, n]);
+    let flat = set_product(&flat, Some(Operand::Node(three)));
+    let ev_flat = run(&flat, &EvalOptions::default());
+    let flat_product =
+        editor_core::product_recorded(&flat, &ev_flat, Tol::witness()).expect("it gathers");
+
+    let (nested, [p, b, n]) = seat_and_nut("dprime3-nested");
+    let (nested, inner) = assembled(nested, &[p, b]);
+    let (nested, outer) = assembled(nested, &[inner, n]);
+    let nested = set_product(&nested, Some(Operand::Node(outer)));
+    let ev = run(&nested, &EvalOptions::default());
+    let product = editor_core::product_recorded(&nested, &ev, Tol::witness()).expect("it gathers");
+    let inner_rows = kept(&nested, &ev, inner).coincidences.len();
+
+    assert_eq!(
+        flat_product.contacts.face_face().count(),
+        2,
+        "the seat and the nut"
+    );
+    assert_eq!(
+        product.contacts.face_face().count(),
+        2,
+        "the outer carries the seat's record and records the nut's"
+    );
+    assert!(inner_rows > 0, "the inner `⊔` decides the seat");
+    assert_eq!(
+        product.coincidences.len() + inner_rows,
+        flat_product.coincidences.len(),
+        "each touch decided once: the outer decides none of the inner's"
+    );
+    assert!(product.census.is_empty() && flat_product.census.is_empty());
+    editor_core::assemble(&flat, &ev_flat, Tol::witness()).expect("the flat stand is at rest");
+    editor_core::assemble(&nested, &ev, Tol::witness()).expect("the nested stand is at rest");
+    assert_eq!(
+        unproven(&nested, &ev),
+        unproven(&flat, &ev_flat),
+        "and the checks report each touch once"
+    );
+}
+
+/// What `assemble` answers: whether it assembles, and how many
+/// findings it reports or refuses with, carried ones included.
+fn outcome(doc: &ProfileDoc, ev: &Evaluation<f64>) -> (bool, usize) {
+    match editor_core::assemble(doc, ev, Tol::witness()) {
+        Ok(assembly) => (
+            true,
+            assembly.interference.len() + assembly.carried_interference.len(),
+        ),
+        Err(editor_core::AssemblyError::AtRest { findings }) => (false, findings.len()),
+        Err(editor_core::AssemblyError::CarriedAtRest { findings }) => (false, findings.len()),
+        Err(other) => panic!("the census answers: {other}"),
+    }
+}
+
+/// Two blocks overlapping in general position (no face of one on a face
+/// of the other), each a world copy, in `doc`.
+fn overlapping(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
+    let (doc, a) = block(doc, [0.0; 2], 0.5, 1.0);
+    let (doc, again) = beside(doc, a, [0.3, 0.2, 0.25], 0.5, 1.0);
+    let (doc, a) = in_world(doc, a);
+    let (doc, again) = in_world(doc, again);
+    (doc, [a, again])
+}
+
+/// **An overlap inside an operand is reported once** (fix pass row (b),
+/// interference): two blocks that overlap, `(a ⊔ a') ⊔ n`, report the
+/// overlap as `a ⊔ a' ⊔ n` does, at the inner `⊔`, and the outer
+/// census finds nothing inside its operand.
+#[test]
+fn an_overlap_inside_a_nested_assemble_is_reported_once() {
+    let (base, [a, again]) = overlapping(doc("dprime3-nested-overlap"));
+    let (base, n) = block(base, [5.0, 0.0], 0.3, 0.3);
+    let (base, n) = in_world(base, n);
+    let (flat, three) = assembled(base.clone(), &[a, again, n]);
+    let flat = set_product(&flat, Some(Operand::Node(three)));
+    let ev_flat = run(&flat, &EvalOptions::default());
+    let (nested, inner) = assembled(base, &[a, again]);
+    let (nested, outer) = assembled(nested, &[inner, n]);
+    let nested = set_product(&nested, Some(Operand::Node(outer)));
+    let ev = run(&nested, &EvalOptions::default());
+    let product = editor_core::product_recorded(&nested, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        product.census.is_empty(),
+        "the outer census finds nothing inside its operand: {:?}",
+        product.census
+    );
+    let flat = outcome(&flat, &ev_flat);
+    assert!(flat.1 > 0, "the overlap is a finding: {flat:?}");
+    assert_eq!(outcome(&nested, &ev), flat, "reported once, nested or not");
+}
+
+/// **A host does not re-decide an instance's self-overlap** (fix pass
+/// row (c)): a part whose product `a ⊔ a'` overlaps itself reports the
+/// overlap; an instance of it carries that finding up as the part's,
+/// and the host's census, reading the instance's copy as one arrival
+/// the part's census decided, finds nothing of its own inside it.
+///
+/// *Breaks if* a host's census re-decides an instance's meetings.
+#[test]
+fn a_host_does_not_redecide_an_instances_self_overlap() {
+    let (part, [a, again]) = overlapping(doc("dprime3-overlap-part"));
+    let (part, both) = assembled(part, &[a, again]);
+    let part = set_product(&part, Some(Operand::Node(both)));
+    let ev = run(&part, &EvalOptions::default());
+    let (_, own) = outcome(&part, &ev);
+    assert!(own > 0, "the part reports its overlap");
+
+    let mut store = fixture::resolver::PartStore::default();
+    let part_ref = store.insert(part, Tol::witness());
+    let host = doc("dprime3-overlap-host");
+    let (host, instance) = put(
+        host,
+        Node::instantiate_part(
+            part_ref,
+            Operand::Var(VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    );
+    let host = set_product(&host, Some(Operand::Node(instance)));
+    let ev = run(&host, &fixture::resolver::with_resolver(store));
+    let product = editor_core::product_recorded(&host, &ev, Tol::witness()).expect("it gathers");
+    assert!(
+        product.census.is_empty(),
+        "the host decides nothing inside the instance's copy: {:?}",
+        product.census
+    );
+    assert_eq!(
+        outcome(&host, &ev).1,
+        own,
+        "the part's findings, carried up once as the part's, and none of the host's own"
+    );
+}
+
+// ---- Every door holds the slot and the picks ----
+
+/// **The slot reads a body in the world, at every door**: a re-target
+/// of the copy the slot reads, out of the world, is reported
+/// (`Maintenance::ProductOutsideWorld`, as a re-target leaving reads in
+/// two spaces is), the gather refuses the slot typed, and the state
+/// saves and loads as the doors left it.
+#[test]
+fn a_retarget_of_the_products_copy_out_of_the_world_is_reported_and_refused() {
+    let d = doc("dprime3-retarget");
+    let (d, a) = block(d, [0.0; 2], 0.5, 1.0);
+    let (d, copy) = in_world(d, a);
+    let d = set_product(&d, Some(Operand::Node(copy)));
+    let (d, space) = put(d, Node::Space);
+    let space = d.output(space, 0).unwrap();
+    let moved = apply(
+        &d,
+        &DocEdit::SetParam {
+            node: copy,
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Space),
+            value: Operand::Var(space).into(),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    )
+    .expect("a re-target is admitted");
+    assert!(
+        moved.maintenance.iter().any(|row| matches!(
+            row,
+            editor_core::Maintenance::ProductOutsideWorld { read, .. }
+                if Some(read.id()) == d.product()
+        )),
+        "the edit reports the slot's body leaving the world: {:?}",
+        moved.maintenance
+    );
+    let ev = run(&moved.doc, &EvalOptions::default());
+    assert!(
+        matches!(
+            editor_core::product(&moved.doc, &ev, Tol::witness()),
+            Err(editor_core::ProductError::ProductOutsideWorld { .. })
+        ),
+        "the gather refuses a slot outside the world"
+    );
+    let text = editor_core::persist::save(&moved.doc, &[], Tol::witness()).unwrap();
+    let loaded =
+        editor_core::persist::load(&text, Tol::witness()).expect("what an edit leaves loads");
+    assert_eq!(loaded.doc.product(), moved.doc.product());
+    // `SetProduct` itself refuses a read outside the world.
+    let refused = apply(
+        &moved.doc,
+        &DocEdit::SetProduct {
+            product: Some(Operand::Node(copy)),
+        },
+        Tol::witness(),
+    );
+    assert!(
+        matches!(
+            refused,
+            Err(EditError::ProductRead {
+                fault: editor_core::ProductReadFault::Space { .. },
+                ..
+            })
+        ),
+        "the slot's own door refuses a body outside the world: {:?}",
+        refused.map(|a| a.doc.product())
+    );
+}
+
+/// **The load door holds the slot as the edit doors do**: a stored
+/// document whose slot reads a variable it never minted refuses typed; one
+/// reading a body outside the world, a state an edit can leave, loads,
+/// and the gather refuses it.
+#[test]
+fn the_load_door_holds_the_slot_as_the_edit_doors_do() {
+    let d = doc("dprime3-load-slot");
+    let (d, p) = block(d, [0.0; 2], 0.5, 0.5);
+    let (d, copy) = in_world(d, p);
+    let d = set_product(&d, Some(Operand::Node(copy)));
+    let text = editor_core::persist::save(&d, &[], Tol::witness()).unwrap();
+    let ser = |v: VarId| serde_json::to_string(&v).unwrap();
+    let product = ser(d.product().unwrap());
+    let needles = [
+        format!("\"product\":{product}"),
+        format!("\"product\": {product}"),
+    ];
+    assert!(
+        needles.iter().any(|n| text.contains(n.as_str())),
+        "the slot is on the wire"
+    );
+    let swapped = |to: &str| {
+        needles.iter().fold(text.clone(), |t, n| {
+            t.replace(n.as_str(), &n.replace(&product, to))
+        })
+    };
+    let unminted = editor_core::persist::load(&swapped(&ser(VarId::new(999, 5))), Tol::witness());
+    assert!(
+        matches!(
+            unminted,
+            Err(editor_core::PersistError::Snapshot(
+                editor_core::SnapshotError::ProductRead { .. }
+            ))
+        ),
+        "a slot reading no variable loads: {:?}",
+        unminted.map(|l| l.doc.product())
+    );
+    let inner = editor_core::persist::load(&swapped(&ser(d.output(p, 0).unwrap())), Tol::witness())
+        .expect("a slot reading a body outside the world loads");
+    let ev = run(&inner.doc, &EvalOptions::default());
+    assert!(
+        matches!(
+            editor_core::product(&inner.doc, &ev, Tol::witness()),
+            Err(editor_core::ProductError::ProductOutsideWorld { .. })
+        ),
+        "the gather refuses it"
+    );
+}
+
+/// **A pick of a pick walks the piece the inner pick kept**: through a
+/// copy of the bolt's pick, the bolt is a piece and the plate is not.
+#[test]
+fn a_pick_through_a_pick_walks_the_piece_it_kept() {
+    let d = doc("dprime3-pick-pick");
+    let (d, bolt) = block(d, [0.0; 2], 0.2, 1.0);
+    let (d, plate) = beside(d, bolt, [2.0, 0.0, 0.0], 0.5, 0.2);
+    let (d, seat) = put(
+        d,
+        Node::Assemble {
+            members: spelled(&[bolt, plate]),
+        },
+    );
+    let (d, place) = in_world(d, seat);
+    let [bolt_var, plate_var] = [bolt, plate].map(|n| d.output(n, 0).unwrap());
+    let pick = |at: RecipeNodeId, of: Vec<VarId>| {
+        fixture::stood(BodyRead::plain(Operand::pick(Operand::Node(at), of)))
+    };
+    let (d, kept) = put(d, pick(place, vec![bolt_var]));
+    let (d, again) = in_world(d, kept);
+    let insert = |node| {
+        apply(
+            &d,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+        )
+    };
+    let plate_through_bolt = insert(pick(again, vec![plate_var]));
+    assert!(
+        matches!(
+            plate_through_bolt,
+            Err(EditError::PickPath { at: Some(0), .. })
+        ),
+        "the plate is no piece of the bolt's copy: {:?}",
+        plate_through_bolt.map(|a| a.record.minted)
+    );
+    // The bolt's own copy holds no `⊔`, so no step names a piece of it.
+    let bolt_through_bolt = insert(pick(again, vec![bolt_var]));
+    assert!(
+        matches!(
+            bolt_through_bolt,
+            Err(EditError::PickPath { at: Some(0), .. })
+        ),
+        "the bolt's copy has no pieces: {:?}",
+        bolt_through_bolt.map(|a| a.record.minted)
+    );
+}
+
+/// **A pick of a `⊔` reading one body twice, by that body, is
+/// ambiguous and refuses**: two pieces answer to the read.
+#[test]
+fn a_pick_by_a_read_the_assemble_reads_twice_refuses() {
+    let d = doc("dprime3-pick-twice");
+    let (d, a) = block(d, [0.0; 2], 0.5, 1.0);
+    let (d, twice) = put(
+        d,
+        Node::Assemble {
+            members: spelled(&[a, a]),
+        },
+    );
+    let (d, place) = in_world(d, twice);
+    let a_var = d.output(a, 0).unwrap();
+    let picked = apply(
+        &d,
+        &DocEdit::InsertNode {
+            node: Box::new(fixture::stood(BodyRead::plain(Operand::pick(
+                Operand::Node(place),
+                vec![a_var],
+            )))),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+    );
+    assert!(
+        matches!(picked, Err(EditError::PickPath { at: Some(0), .. })),
+        "two pieces answer to the read: {:?}",
+        picked.map(|a| a.record.minted)
+    );
+}
+
+/// **A pick into an instance's part is the evaluation's to answer**: the
+/// edit door reads nothing across the seam (`DocEdit::UpdateReference`),
+/// so a path naming no piece of the part is admitted and refuses at
+/// evaluation, typed.
+#[test]
+fn a_pick_into_a_part_naming_no_piece_refuses_at_evaluation() {
+    let part = doc("dprime3-pick-part");
+    let (part, bolt) = block(part, [0.0; 2], 0.2, 1.0);
+    let (part, bolt) = in_world(part, bolt);
+    let part = set_product(&part, Some(Operand::Node(bolt)));
+    let mut store = fixture::resolver::PartStore::default();
+    let part_ref = store.insert(part, Tol::witness());
+    let host = doc("dprime3-pick-part-host");
+    let (host, inst) = put(
+        host,
+        Node::instantiate_part(
+            part_ref,
+            Operand::Var(VarId::WORLD),
+            editor_core::stand().bundle(),
+        ),
+    );
+    let (host, read) = put(
+        host,
+        fixture::stood(BodyRead::plain(Operand::pick(
+            Operand::Node(inst),
+            vec![VarId::WORLD],
+        ))),
+    );
+    let ev = run(&host, &fixture::resolver::with_resolver(store));
+    assert!(
+        matches!(
+            ev.node_error(read).map(|e| &e.kind),
+            Some(editor_core::NodeErrorKind::NoSuchPiece { .. })
+        ),
+        "a pick naming no piece of the part: {:?}",
+        ev.node_error(read)
+    );
 }

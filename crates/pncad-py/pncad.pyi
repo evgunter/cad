@@ -541,14 +541,16 @@ class TessellateError(PncadError):
     `unsupported_nurbs_face`, `unsupported_curve`,
     `null_scaffold_edge`, `ring_on_curved_face`, `empty_loop`,
     `missing_entity`, `resolution_overflow`, `step_not_positive`,
-    `certificate_exceeded`, `triangulation`, `self_touching_trim_loop`
+    `certificate_exceeded`, `rounding_unresolved`, `triangulation`,
+    `self_touching_trim_loop`
     or `unsupported_curved_domain`.
 
     The offending face or edge is an arena KEY and does not cross, so
     what a caller reads beside the tag is the arm's NUMBERS, always
     present and `None` where inapplicable: `value` (the refused
-    budget, the overflowed count, the refused step, or the curved
-    domain's worst off-box distance in metres), `bound` / `requested`
+    budget, the overflowed count, the refused step, the unabsorbed
+    rounding allowance, or the curved domain's worst off-box distance
+    in metres), `bound` / `requested`
     (a failed deviation certificate against the budget it was checked
     to), and `note` (the arm's own prose about which lane would be
     needed)."""
@@ -680,46 +682,25 @@ class MateError(PncadError):
 class AssemblyError(PncadError):
     """The at-rest assembly gate refused.
 
-    `variant` is the refusing arm's stable tag; `refusals`,
-    `findings`, `node`, `through`, `name` are the arms' payloads,
-    present on every arm and `None` where that arm does not carry one.
+    `variant` is the refusing arm's stable tag; `findings`, `node`,
+    `through`, `name` are the arms' payloads, present on every arm and
+    `None` where that arm does not carry one.
 
-    The two verdict arms are NOT interchangeable. `at_rest` is a
-    finding AGAINST the document — a refuted declaration or an
-    unrecorded contact. `uncertified` is the declared direction's
-    FRONTIER: nothing refuted, nothing undeclared, the census simply
-    declined to certify, so nothing was decided about the geometry
-    either way. A gather refusal arrives under the GATHER's own tag
+    `at_rest` is the census's verdict against the product: `findings`
+    carries every one of its findings, in the kernel's own sweep order.
+    A gather refusal arrives under the GATHER's own tag
     (`empty_product`, `root_poisoned`, ...), not a wrapper tag.
 
-    The two MINT arms each answer with a LIST, because a document with
-    two broken mates is two repairs and learning about the second only
-    after fixing the first makes the gate's answer a function of how
-    many times you ran it. `unminted_mates` is this document's own
-    mates, `refusals` a `MintRefusal` per mate in document order, each
-    carrying its own `variant` (`mate_reference_refused`,
-    `no_at_rest_record`). `carried_mint_refusal` is the same fact for
-    mates of documents BELOW this one — an outer assembly is not at
-    rest over a part whose contact nothing verified — and `refusals`
-    is then a `CarriedRefusal` per mate, each carrying the route it
-    arrived by, because its `mate` is a constraint of `of` and not of the
-    document that was gathered.
-
     `carried_at_rest` is a part's own at-rest refusal: a document BELOW
-    this one refused over a finding none of its declarations answers
-    for, and the refusal crosses whole, its attributed findings with it.
-    Each is the part's, reported once, and `findings` is then a
-    `CarriedAtRestFinding` per finding with the route it arrived by. It
-    is raised after `carried_mint_refusal` and before this document's
-    own arms."""
+    this one refused, and the refusal crosses whole. Each is the part's,
+    reported once, and `findings` is then a `CarriedAtRestFinding` per
+    finding with the route it arrived by. It is raised before this
+    document's own arms."""
 
     variant: str
-    refusals: Optional[list[MintRefusal] | list[CarriedRefusal]]
     findings: Optional[list[AtRestFinding] | list[CarriedAtRestFinding]]
     name: Optional[str]
     node: Optional[NodeId]
-    of: Optional[str]
-    via: Optional[list[NodeId]]
     through: Optional[NodeId]
 
 class ProductError(PncadError):
@@ -732,7 +713,8 @@ class ProductError(PncadError):
     `node` and `through` carry the full ids: a failed or poisoned
     operation and the failed node that poisoned it. `empty_product` is
     a slot reading nothing; `stranded_product` a slot whose body is
-    gone, `read` then the variable it reads, and `None` on every other
+    gone and `product_outside_world` one an edit moved out of the
+    world, `read` then the variable it reads, and `None` on every other
     arm."""
 
     variant: str
@@ -767,16 +749,13 @@ class InlineError(PncadError):
 
     variant: str
     node: Optional[NodeId]
-    by: Optional[NodeId]
-    """`instance_read_uncarried`: the host node reading the instance."""
     name: Optional[str]
     param: Optional[str]
     key: Optional[str]
     host_epsilon: Optional[float]
     part_epsilon: Optional[float]
-    """`unplaceable_part`: `node` is the instance whose part's world
-    places no list of copies — none, or several placements one of which
-    copies several bodies."""
+    """`unplaceable_part`: `node` is the instance whose part has no
+    product: its slot reads nothing, or a body that is gone."""
 
 class FlattenError(PncadError):
     """The `flatten` refactoring refused: `not_a_placement`,
@@ -2132,8 +2111,11 @@ class MeasurePrimitive:
         offset is measured from) and `inner` the contained one. C5's
         formulas are asymmetric in exactly that way, so the roles are
         authored rather than inferred from which radius is larger. Each
-        reference names a face (another kind refuses `slot_var_kind` at
-        insert)."""
+        reference names a face, an edge or a vertex (a body refuses
+        `slot_var_kind` at insert). Between a face and an edge or a
+        vertex, or an edge and a vertex, the higher-dimensional cell's
+        material reads the other in either seat; between two edges or
+        two vertices the outer's reads the inner."""
 
     @property
     def verb(self) -> str:
@@ -2355,8 +2337,14 @@ class Node:
     def assemble(members: Sequence[_BodyArg] | _Operand) -> Node:
         """The ASSEMBLE (`⊔`): the members side by side as the pieces of
         one body, none decided against another. Its door runs the
-        at-rest census over the pieces, one arrival per member.
-        Inserting it is `Doc.assemble`."""
+        at-rest census over the pieces, one arrival per member, once:
+        a placement of the `⊔` carries its verdict, so its meetings are
+        decided and reported once, at the `⊔`, however often it is
+        placed or read. Inserting it is `Doc.assemble`.
+
+        Its result reads like any body. A `subtract` cutting it, or an
+        `intersect` meeting it, acts on each piece and keeps what it
+        made as pieces: `(p ⊔ q) − t` is `(p − t) ⊔ (q − t)`."""
 
     @staticmethod
     def space() -> Node:
@@ -2406,7 +2394,9 @@ class Node:
         member is that body, none is the typed empty body, and
         `[a, a]` is `a`. A fold step whose members share no material
         is the typed empty body, not a refusal. `DocEdit.set_members`
-        rewrites the list on the live node."""
+        rewrites the list on the live node. A member that is an
+        `assemble`, or a copy of one, is met piece by piece, and the
+        result keeps each piece's meet as a piece."""
 
     @staticmethod
     def subtract(from_: _BodyArg, tool: _BodyArg) -> Node:
@@ -2418,7 +2408,9 @@ class Node:
         `tool` (slot word `cut`). Several tools are one subtract of
         their union, `Node.subtract(body, Node.union([t1, t2]))`. A
         body cut by itself, `Node.subtract(a, a)`, is the typed empty
-        body."""
+        body. A `from_` that is an `assemble`, or a copy of one, is cut
+        piece by piece, and the result keeps each piece's cut as a
+        piece; a piece the cut empties drops out."""
 
     @staticmethod
     def pattern(input: _Operand, count: _CountArg, kind: PatternKind) -> Node:
@@ -2533,7 +2525,8 @@ class Node:
 
         What each primitive reads is checked at insert: `distance` a
         face, an edge or a vertex, `angle` a face or an edge,
-        `min_clearance` a body or a face, `gap` a face; any other
+        `min_clearance` a body or a face, `gap` a face, an edge or a
+        vertex; any other
         refuses `slot_var_kind`. The rest are the kernel's own typed
         refusals at `evaluate`: a name that no longer resolves
         (`select_resolve`), a carrier pair with no v1 closed form
@@ -4724,9 +4717,10 @@ class Body:
         witness — neither direction is blessed from discovery. So the
         verdict turns on which door minted the body, and that is the
         contract rather than a wrinkle: `assemble`'s at-rest body
-        carries its mates' minted records and passes over its seats,
-        while `product`, which gathers the same solids and declares
-        nothing, reports every seat as an unrecorded contact. With no
+        carries the records its census minted for the seats between
+        copies and passes over them, while `product`, which gathers the
+        same solids and records nothing, reports every seat as an
+        unrecorded contact. With no
         declarations at all this is simply the strictest rung — the
         census still runs, and on a body with no coincidences it finds
         nothing.
@@ -4973,16 +4967,6 @@ class Verdict:
     def bound(self) -> Optional[float]: ...
     @property
     def reason(self) -> Optional[str]: ...
-
-# --- contact ----------------------------------------------------------
-
-class ContactClass:
-    """The contact class a mate asserts: `Rest` (cosurface contact,
-    opposed senses, on any carrier the verify ladder names — plane,
-    sphere, cylinder, torus) or `Tangent`."""
-
-    Rest: Final[ContactClass]
-    Tangent: Final[ContactClass]
 
 class Value:
     """A node's successful value."""
@@ -5575,7 +5559,9 @@ class Evaluation:
         reads the run's ambient tolerance, which is the ε the body was
         built under. An explicit one that is not finite and strictly
         positive is an `ExportError`; the rule is the writer's and is
-        quoted from it, not restated."""
+        quoted from it, not restated. The body is gated at rest first,
+        so one the gate refuses raises `ExportError` tagged
+        `body_invalid` rather than reaching the writer."""
 
 def evaluate(
     doc: Doc,
@@ -5675,9 +5661,9 @@ class MateSide:
     To: Final[MateSide]
 
 class Mate:
-    """A mate: two poses of one kind equated, with the contact class it
-    declares — ONE value carrying both the placement constraint and the
-    contact declaration. A mate is a constraint of the placement that
+    """A mate: two poses of one kind equated. A mate places and declares
+    no contact: where the copies it places touch is the at-rest
+    census's to record. A mate is a constraint of the placement that
     holds it (`Doc.constrain`, `Doc.place(shapes, constraints)`), never
     a node.
 
@@ -5694,10 +5680,6 @@ class Mate:
     it leaves free is set by a `MateValue`, and a standoff is a slide of the
     target plane along its own normal.
 
-    `class_` is the declared contact class; ask `class_admission`
-    BEFORE authoring, because a class the solve folds may still mint
-    nothing at the at-rest gate.
-
     Where it is added, the door refuses an `on` that does not read the
     copy (`mate_not_on_the_copy`) and poses of two kinds
     (`mate_kinds_differ`). A pose that does not evaluate — a face gone, a
@@ -5708,7 +5690,6 @@ class Mate:
         self,
         on: _Operand,
         to: _Operand,
-        class_: ContactClass,
     ) -> None: ...
     @property
     def on(self) -> PoseDef:
@@ -5716,9 +5697,6 @@ class Mate:
     @property
     def to(self) -> PoseDef:
         """The pose the copy's is equated with."""
-    @property
-    def class_(self) -> ContactClass:
-        """The declared contact class."""
     def __eq__(self, other: object) -> bool:
         """BIT-exact: the same poses, the same class."""
 
@@ -5813,43 +5791,6 @@ class Placed:
     def __eq__(self, other: object) -> bool:
         """Bit-exact: the same mates and values, in order."""
 
-class ClassAdmission:
-    """How far a contact class gets in v1, as a value BOTH enforcing
-    doors read.
-
-    The solve needs a coset the alignment table can fold; the gate's
-    mint needs a kernel record type that can carry the declaration at
-    rest. A class can satisfy the first and not the second — which is
-    why a tool asks this table before committing an edit rather than
-    discovering the refusal after it lands."""
-
-    @property
-    def variant(self) -> str:
-        """`mints`, `no_at_rest_record`, or `not_admitted`."""
-
-    @property
-    def mints(self) -> bool:
-        """Whether both doors admit it."""
-
-    @property
-    def solves(self) -> bool:
-        """Whether the SOLVE admits it. A class the solve refuses
-        never reaches the gate at all."""
-
-    @property
-    def why(self) -> Optional[str]:
-        """Why the gate carries nothing at rest for this class, in the
-        class's own terms; `None` for `mints`, which carries one."""
-
-def class_admission(class_: ContactClass) -> ClassAdmission:
-    """How far `class_` gets in v1 — the table, read. Nothing is
-    restated here: `assemble` and `solve_document` read this same
-    table."""
-
-CLASS_DEFERRAL: Final[str]
-"""The v1 class restriction, named: what a class outside the admitted
-vocabulary refuses with."""
-
 OVERCONSTRAINED_RECOURSE: Final[str]
 """The recourse an over-constrained bundle's refusal ends on: delete
 one of the named constraints, and where two copies also meet, assert
@@ -5858,10 +5799,6 @@ it."""
 UNPINNED_RECOURSE: Final[str]
 """The recourse a bundle with no mate that leaves a freedom unwritten
 refuses with (`mate_unpinned`): write every freedom as a value."""
-
-NO_AT_REST_RECORD_RECOURSE: Final[str]
-"""The recourse the at-rest gate's `NoAtRestRecord` refusal ends on:
-`Rest` is the one class v1 mints and verifies at rest."""
 
 class ConstraintId:
     """A constraint's id: minted by the edit that adds it to a
@@ -6082,6 +6019,11 @@ class Maintenance:
     `space_mismatch` at evaluation until an edit puts its reads back in
     one space.
 
+    A `product_outside_world` says an edit moved the body the product
+    slot reads out of the world (a re-target of its copy). The edit is
+    legal, and the product refuses `product_outside_world` until an
+    edit puts the body back in the world or the slot reads another.
+
     A `value_dropped` names, on `node`, a placement whose bundle an edit
     wrote whole (`add_constraint`, `remove_constraint`) without one of
     its values: a freedom the new mates fix, or a turn its chain already
@@ -6090,8 +6032,8 @@ class Maintenance:
     @property
     def variant(self) -> str:
         """`strand`, `stranded_read`, `stranded_selection`,
-        `stranded_space`, `stranded_appearance`, `value_dropped`, or
-        `anonymous_var_removed`."""
+        `stranded_space`, `product_outside_world`, `stranded_appearance`,
+        `value_dropped`, or `anonymous_var_removed`."""
 
     @property
     def node(self) -> Optional[NodeId]: ...
@@ -6118,7 +6060,8 @@ def product(doc: Doc, evaluation: Evaluation) -> Body:
     for the same nodes and a gather over the wrong one would succeed,
     in full, about other geometry. Raises ProductError, typed:
     `empty_product` for a slot reading nothing, `stranded_product`
-    naming the read whose body is gone, a failed or poisoned
+    naming the read whose body is gone, `product_outside_world` the
+    read an edit moved out of the world, a failed or poisoned
     operation, a graft or validity refusal."""
 
 def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
@@ -6127,153 +6070,9 @@ def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
     alphabet, so "the third post's top cap" is one name rather than a
     coordinate. Raises ProductError, typed."""
 
-class RefusedRef:
-    """Why a mate side named no one product face.
-
-    The face is resolved at the side's selection, so a name that does
-    not resolve refuses the mate itself (`mate_unevaluated` at the
-    gate). What is left here is the copy: `ref_ambiguous` is a body
-    placed more than once, so more than one world copy answers."""
-
-    @property
-    def variant(self) -> str:
-        """`ref_ambiguous`."""
-
-    @property
-    def width(self) -> int:
-        """How many world copies answer. A mate declaration must name
-        ONE face, and a tie is never broken by picking."""
-
-class MintedDeclaration:
-    """One declaration the gate minted from a solved mate.
-
-    The face keys the kernel matched do NOT cross — arena keys never
-    leave the document layer — so the pair is identified by the two
-    stable names, the alphabet the mate was authored in."""
-
-    @property
-    def mate(self) -> MateRef: ...
-    @property
-    def a(self) -> str: ...
-    @property
-    def b(self) -> str: ...
-    @property
-    def class_(self) -> ContactClass: ...
-
-class Attribution:
-    """What a kernel finding says about the document's declarations.
-
-    One value rather than a declaration plus a flag: the relation and
-    the declaration it names are decided together and cannot
-    disagree."""
-
-    @property
-    def relation(self) -> str:
-        """`refuted` (the faces do not meet as declared — a finding
-        against the document), `declined` (the census has no certifier
-        lane for a face the declaration names, so nothing was decided
-        either way).
-
-        A declaration a document BELOW this one authored answers under
-        `carried_refuted` and `carried_declined`: the same two
-        relations, and a separate pair of tags because
-        `declaration.mate` is then a node of THAT document — `of` and
-        `via` are what say which document and by what path."""
-
-    @property
-    def declaration(self) -> MintedDeclaration:
-        """The declaration named. Under a `carried_*` relation its
-        `mate` is a constraint of `of`."""
-
-    @property
-    def of(self) -> Optional[str]:
-        """The document whose mate authored it, as opaque id text.
-        `None` where the declaration is the gathered document's own."""
-
-    @property
-    def via(self) -> Optional[list[NodeId]]:
-        """The instances this document reached it through, nearest
-        first. `None` where `of` is."""
-
-
-class CarriedDeclaration:
-    """One declaration a document BELOW this one authored, certified
-    here with everything else the gate was given.
-
-    Same rule as every other foreign-mate value: the mate is a constraint of
-    `of`, so `of` and `via` travel with it."""
-
-    @property
-    def declaration(self) -> MintedDeclaration: ...
-    @property
-    def of(self) -> str: ...
-    @property
-    def via(self) -> list[NodeId]: ...
-
 class AtRestFinding:
-    """One at-rest refusal. `str(finding)` composes it the way the
-    library renders one: the mate a user can act on, then the kernel's
-    own story, which carries its own recourse."""
-
-    @property
-    def attribution(self) -> Optional[Attribution]:
-        """Which declaration the finding names, and in what relation;
-        `None` where it names none."""
-
-class MintRefusal:
-    """One mate whose declaration the gather could not mint — a row of
-    `AssemblyError.refusals` under `unminted_mates`.
-
-    `str(refusal)` is the refusal in the library's own words, its
-    recourse included."""
-
-    @property
-    def variant(self) -> str:
-        """`mate_reference_refused`, `no_at_rest_record` or
-        `mate_unevaluated` (the mate has no value in the evaluation, so
-        it declares nothing; `str(refusal)` says why)."""
-
-    @property
-    def mate(self) -> MateRef:
-        """The mate that did not mint, by its address. Every arm
-        carries one."""
-
-    @property
-    def side(self) -> Optional[MateSide]:
-        """Which side the refused reference is on."""
-
-    @property
-    def name(self) -> Optional[str]:
-        """The reference that named no product face."""
-
-    @property
-    def why(self) -> Optional[RefusedRef]:
-        """Why that reference did not resolve.
-
-        `None` for `no_at_rest_record`, whose reason is of a different
-        kind: the class's own entry in the admission table. Ask
-        `class_admission(refusal.class_).why` for it — the same string
-        `str(refusal)` carries, from the one place it lives."""
-
-    @property
-    def class_(self) -> Optional[ContactClass]:
-        """The class that carries no kernel record at rest."""
-
-class CarriedRefusal:
-    """One mate a document BELOW this one could not mint — a row of
-    `AssemblyError.refusals` under `carried_mint_refusal`.
-
-    `refusal.mate` is a constraint of `of`, not of the document that was
-    gathered, so the route travels with it."""
-
-    @property
-    def refusal(self) -> MintRefusal: ...
-    @property
-    def through(self) -> NodeId: ...
-    @property
-    def of(self) -> str: ...
-    @property
-    def via(self) -> list[NodeId]: ...
+    """One at-rest refusal. `str(finding)` is the kernel's own finding,
+    which carries its own recourse."""
 
 class CarriedInterference:
     """An overlap a document BELOW this one reported between two of its
@@ -6298,10 +6097,8 @@ class CarriedInterference:
 
 class CarriedAtRestFinding:
     """One finding of an at-rest refusal a document BELOW this one
-    raised over something none of its declarations answers for: a row
-    of `AssemblyError.findings` under `carried_at_rest`, with the route
-    it arrived by. Its `finding.attribution`, where it has one, names
-    the part's own declaration."""
+    raised: a row of `AssemblyError.findings` under `carried_at_rest`,
+    with the route it arrived by."""
 
     @property
     def finding(self) -> AtRestFinding:
@@ -6318,29 +6115,16 @@ class CarriedAtRestFinding:
     def via(self) -> list[NodeId]: ...
 
 class Assembly:
-    """A validated assembly: the gathered body, its product names, one
-    minted declaration per solved mate of THIS document, and one
-    carried row per declaration a document below it authored.
+    """A validated assembly: the gathered body and its product names.
 
     Reaching one means the kernel's at-rest door PASSED over the
-    product and its records together — over the carried declarations
-    as much as over this document's own, which is what `carried`
-    lets a caller say."""
+    product and the records its census minted for the touches between
+    copies."""
 
     @property
     def body(self) -> Body: ...
     @property
     def names(self) -> list[str]: ...
-    @property
-    def minted(self) -> list[MintedDeclaration]:
-        """Empty for a mate-less assembly, which is what a disjoint
-        layout is."""
-
-    @property
-    def carried(self) -> list[CarriedDeclaration]:
-        """Which inner mates this verdict answered for. Empty for a
-        document that instantiates nothing with mates."""
-
     @property
     def interference(self) -> list[InterferenceFinding]:
         """Every overlap between two copies' material, quiet or loud,
@@ -6413,9 +6197,9 @@ class InterferenceFinding:
     def loud(self) -> bool: ...
 
 def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
-    """The AT-REST ASSEMBLY GATE: gather the product, mint every
-    solved mate's declaration into its contact records, and run the
-    kernel's own at-rest door over the two together.
+    """The AT-REST ASSEMBLY GATE: gather the product, whose census
+    records every touch between copies, mated or not, and read the
+    census's verdict.
 
     The check the authoring vocabulary can otherwise construct and
     never make. `evaluation` must be an evaluation of `doc` that
@@ -6427,13 +6211,9 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
     copies of a part, the part's own finding on
     `Assembly.carried_interference`.
 
-    Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
-    verdict AGAINST the document, `uncertified` is the declared
-    direction's FRONTIER where nothing was decided either way, and the
-    remaining arms (`unminted_mates`, `carried_mint_refusal`,
-    `carried_at_rest`, the gather's own tags) refuse before any verdict. The two mint arms
-    answer with `refusals`, every mate that did not mint rather than
-    the first."""
+    Raises AssemblyError, typed. Read `variant` first: `at_rest` is the
+    census's verdict against the product, and the remaining arms
+    (`carried_at_rest`, the gather's own tags) refuse before it."""
 
 # --- the recorded refactorings ----------------------------------------
 # Both are PURE: they hand back the new document VALUES plus the
@@ -6442,8 +6222,8 @@ def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
 # result is the store's write side.
 
 class InterfaceCrossing:
-    """One declaration that crossed a split's cut: a mate whose two
-    ends landed on opposite sides.
+    """One mate that crossed a split's cut: its two ends landed on
+    opposite sides.
 
     `outer` stayed in the remainder; `inner` moved into the part and
     is spelled in the PART's own names, unwrapped, because that is
@@ -6453,7 +6233,7 @@ class InterfaceCrossing:
     a mate and each head names a face, so the kind is fixed by the
     record's type and neither getter can answer anything else.
 
-    Those two and the class are the whole of it: a crossing carries no
+    Those two are the whole of it: a crossing carries no
     provenance, and the kernel's `InterfaceCrossing::Mate` says why."""
 
     @property
@@ -6461,8 +6241,6 @@ class InterfaceCrossing:
         """`mate` — a crossing is whatever KIND of edge crossed, and
         mates are the only kind that can."""
 
-    @property
-    def class_(self) -> ContactClass: ...
     @property
     def outer(self) -> str:
         """The remainder-side reference, as name text — a FACE name."""
@@ -6473,8 +6251,8 @@ class InterfaceCrossing:
         names — a FACE name."""
 
 class InterfaceRecord:
-    """The interface record of an instantiate seam: the declarations
-    that crossed the cut when the referenced document was split out.
+    """The interface record of an instantiate seam: the mates that
+    crossed the cut when the referenced document was split out.
     Empty for a directly-authored instance."""
 
     @property
@@ -6527,10 +6305,10 @@ def split(
     (`severed_edge`). A part delivers only its world: the cut's world
     placements are the part's, and the remainder holds ONE instance of
     the part stood where its world stands (the kernel's `stand`, the
-    identity bundle, which reads nothing of the part), so its copies
-    stand where the cut's did. A remainder read of the cut crosses
-    only where the instance's copies carry what it reads, re-pointed to that copy
-    of the instance; any other is severed (`severed_edge`,
+    identity bundle, which reads nothing of the part), so its copy
+    stands where the cut's world did. A remainder read of the cut
+    crosses only where the instance's copy carries what it reads,
+    re-pointed to a pick of that copy; any other is severed (`severed_edge`,
     `remainder_read_uncarried`), as is a name reaching material the
     part's world does not hold once (`name_outside_part_world`). Pure —
     `doc` is untouched. Raises SplitError, typed, naming the offending
@@ -6541,7 +6319,7 @@ def split(
     parts the document's instances reference.
 
     A kept constraint whose pose reads a cut copy's geometry reads it
-    in the instance: its pose is re-written over the instance's copies.
+    in the instance: its pose is re-written over the instance's copy.
     A cut holding no body refuses (`no_material`), and a cut naming the
     world `cuts_the_world`."""
 
@@ -6580,14 +6358,12 @@ def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
 
     One rule (A4): the part's recipe is copied verbatim into a new
     space (`Doc.new_space()`, the outcome's `space`), and a placement
-    of what the part's world placed is put where the instance stood,
-    under the instance's own bundle (the outcome's `placement`), so
-    nothing moves and a variable the bundle reads keeps driving it. A
-    part whose world places no list of copies — none, or several
-    placements one of which copies several bodies — refuses
-    `unplaceable_part` (`node` the instance). A host node that read the
-    instance reads the placement's copy; a read keyed at no copy it
-    makes refuses `instance_read_uncarried` (`by` the reader).
+    of the part's product body is put where the instance stood, under
+    the instance's own bundle (the outcome's `placement`), so nothing
+    moves and a variable the bundle reads keeps driving it. A part with
+    no product refuses `unplaceable_part` (`node` the instance). A host
+    node that read the instance reads the placement's copy, and a pick
+    of the instance's copy a pick of the placement's.
     `flatten` folds the placement away where its bundle is the
     identity."""
 

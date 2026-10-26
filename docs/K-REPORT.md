@@ -25,7 +25,15 @@ gathered across M2's full pipeline.
   shipped decision funnels through `k_stats::decide`, which names the
   predicate; runs at the `Probe` scalar record every classification
   (predicate, margin, band, outcome) with decisions bit-identical to
-  f64.
+  f64. That premise is checked, not argued:
+  `crates/editor-core/tests/m4_pr8_k_probe.rs`'s
+  `probe_agrees_with_f64_bit_for_bit_over_the_corpus` evaluates the
+  registered corpus at `Probe` and at `f64` and compares them bit for
+  bit (value channel, mass properties, content keys, name tables,
+  verdict and escalation logs), once per ε row `scripts/k_probe_sweep.sh`
+  dumps. It does not read curve carriers, surface geometry or pcurves,
+  and it covers neither the demo scenes the same sweep dumps nor
+  `cup`/`vessel`.
 - Harness: `crates/sweep/tests/k_report.rs` (`dump_k_samples`,
   `#[ignore]`d) builds ten M2 acceptance shapes end-to-end at `Probe`
   — profile validation → extrude/revolve → tier 1–3 validation
@@ -585,7 +593,8 @@ Six ways a name escapes the old pattern, all live today:
    (`geom`, `geom-brep`, `sweep`, `profile`) can mint a name this way
    as readily as one above it; it used to be `topo`'s dependents only.
 5. **A struct field or a local table.** `ray_walk::ParityRows` (the
-   one carrier this document already listed), `swept.rs`'s
+   one carrier this document already listed) and its two-row
+   `ray_walk::SegmentRows`, `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
    `[(&'static str, T); 7]` array consumed by a loop variable.
 6. **The scan root — a scope error in the method, not a missed site.**
@@ -836,6 +845,23 @@ minted it with, and a face that meets the target records the same
 samples; a face that cannot now records one at every round to its
 lane's stop, where the budget exit ended it after round 0.
 
+**Retirement (2026-10-23): `props_quad_converged`, and rule (4)'s
+roster with it.** The reporting target is now a resolution
+(`[tolerance.measure]`, `docs/QUAD-MEASURE-SPEC.md` unit B): a face's
+width is compared with it, and a sizing is not recorded, so `topo`'s
+interim adapter and its mint are gone and nothing mints the name.
+`k_lint::EPS_COUPLED_PREDICATES` is empty, `predicate_roster`'s
+`MINT_SOURCES` reads `props/quad.rs` alone (it still rules on any mint
+there whose margin derives from `target_len`), and rule (4) stays
+specified for the next family. The committed eras still carry the
+family's rows, and the constants above were cut against them as
+ε-coupled, so their provenance reads them through
+`k_lint::ERA_EPS_COUPLED_PREDICATES` (`lint_sample_under`), not through
+the live roster. A fresh sweep records no `props_quad_converged` row:
+that is a removed population, not a threshold move. A deciding
+measurement now records its own predicate instead, under its call
+site's names, every round it is asked.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_walk::ParityRows` value, the carrier this document already
@@ -972,10 +998,8 @@ Notes on the neighbouring names:
 - `point_in_arc_loop_conic_window` decides only where a ray crosses an
   arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
   check 9's `ring_outer_arc_{end,trim}` also read).
-- `point_in_arc_loop_reach` is a ray's clearance from a ball: an
-  uncrossable (spline) edge's, where a clearance in the band abandons
-  the ray rather than escalating, and a spiric piece's, where it halves
-  the piece.
+- `point_in_arc_loop_reach` is a ray's clearance from a spiric
+  piece's ball, where anything undecided halves the piece.
 
 Dimensions: `docs/predicate-dimension-audit.md`'s rows of the same
 names.
@@ -984,23 +1008,44 @@ names.
 names from `topo/src/splitting/spiric_arc.rs`, the row the carrier walk
 crosses a spiric edge by, halving the arc into pieces each held in a
 ball from the oval's speed bound. The boundary reading's are
-`SpiricRows` fields, one set per caller (`containment`'s `WALK_ROWS`,
+`ArcRows` fields, one set per caller (`containment`'s `WALK_ROWS`,
 `contain`'s `ROWS`); the ray's are the walk's own, bare literals:
 
 | name | carrier |
 |---|---|
-| `point_in_arc_loop_spiric_end` | `SpiricRows` field (`WALK_ROWS`): the distance to an end of the arc |
-| `point_in_arc_loop_spiric_clear` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's clearance from the point |
-| `point_in_arc_loop_spiric_on` | `SpiricRows` field (`WALK_ROWS`): the distance to a point of the arc |
-| `point_in_arc_loop_spiric_leaf` | `SpiricRows` field (`WALK_ROWS`): a piece's ball's radius, `Zero` ending the halving |
-| `bool_contact_spiric_end` | `SpiricRows` field (`contain`'s `ROWS`) |
-| `bool_contact_spiric_clear` | `SpiricRows` field (`ROWS`) |
-| `bool_contact_spiric` | `SpiricRows` field (`ROWS`): the distance to a point of the arc |
-| `bool_contact_spiric_leaf` | `SpiricRows` field (`ROWS`) |
+| `point_in_arc_loop_spiric_end` | `ArcRows` field (`WALK_ROWS`): the distance to an end of the arc |
+| `point_in_arc_loop_spiric_clear` | `ArcRows` field (`WALK_ROWS`): a piece's ball's clearance from the point |
+| `point_in_arc_loop_spiric_on` | `ArcRows` field (`WALK_ROWS`): the distance to a point of the arc |
+| `point_in_arc_loop_spiric_leaf` | `ArcRows` field (`WALK_ROWS`): a piece's ball's radius, `Zero` ending the halving |
+| `bool_contact_spiric_end` | `ArcRows` field (`contain`'s `ROWS`) |
+| `bool_contact_spiric_clear` | `ArcRows` field (`ROWS`) |
+| `bool_contact_spiric` | `ArcRows` field (`ROWS`): the distance to a point of the arc |
+| `bool_contact_spiric_leaf` | `ArcRows` field (`ROWS`) |
 | `point_in_arc_loop_spiric_side` | a `const` in `spiric_arc`: a piece end's offset from the ray line |
 | `point_in_arc_loop_spiric_turn` | a `const` in `spiric_arc`: `|s(v_b) − s(v_a)| − 2·A·h²`, the piece's monotonicity across the ray line |
 | `point_in_arc_loop_spiric_advance` | a `const` in `spiric_arc`: a piece's ball's advance along the ray, less or plus its reach |
 | `point_in_arc_loop_reach` | (above) also a spiric piece's ball's clearance from the ray |
+
+**Roster addition (SPLICE): the spline edge's crossing row.** Eleven
+new names from `topo/src/splitting/spline_arc.rs`, the row the carrier
+walk crosses a spline edge by, halving the arc into Bézier pieces each
+held in its control net. The boundary reading's are `ArcRows` fields,
+one set per caller (`containment`'s `WALK_ROWS`, `contain`'s `ROWS`);
+the ray's are the walk's own, bare literals:
+
+| name | carrier |
+|---|---|
+| `point_in_arc_loop_spline_end` | `ArcRows` field (`WALK_ROWS`): the distance to an end of the arc |
+| `point_in_arc_loop_spline_clear` | `ArcRows` field (`WALK_ROWS`): a piece's control ball's clearance from the point |
+| `point_in_arc_loop_spline_on` | `ArcRows` field (`WALK_ROWS`): the distance to a piece's start point |
+| `point_in_arc_loop_spline_leaf` | `ArcRows` field (`WALK_ROWS`): a piece's control ball's radius, `Zero` ending the halving |
+| `bool_contact_spline_end` | `ArcRows` field (`contain`'s `ROWS`) |
+| `bool_contact_spline_clear` | `ArcRows` field (`ROWS`) |
+| `bool_contact_spline` | `ArcRows` field (`ROWS`): the distance to a piece's start point |
+| `bool_contact_spline_leaf` | `ArcRows` field (`ROWS`) |
+| `point_in_arc_loop_spline_side` | a `const` in `spline_arc`: a control point's offset from the ray line |
+| `point_in_arc_loop_spline_turn` | a `const` in `spline_arc`: a step of those offsets along the control polygon, its monotonicity across the ray line |
+| `point_in_arc_loop_spline_advance` | a `const` in `spline_arc`: a control point's advance along the ray |
 
 **Roster addition (CLEAVE): a trimmed sphere face's region.** Fourteen
 names from `topo/src/boolean/sphere_region.rs`. Nine are its rays',
@@ -1038,7 +1083,7 @@ windows: `bool_torus_trim`, `bool_torus_trim_major_period`,
 `bool_torus_chart_box` and `bool_torus_chart_closure` leave the roster,
 and `bool_torus_frame_radius` moves into the region. Seven are its paths'
 bare literals, four a `FirstHarmonicRows` value (`ROOT_ROWS`), two a
-`ConicRows` value (`BOUNDARY`) and four a `SpiricRows` value (`SPIRIC`)
+`ConicRows` value (`BOUNDARY`) and four a `ArcRows` value (`SPIRIC`)
 for its boundary pre-pass:
 
 | name | carrier |
@@ -1056,10 +1101,10 @@ for its boundary pre-pass:
 | `bool_torus_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
 | `bool_torus_region_arc_span` | `ConicRows` field (`BOUNDARY`): a circle edge's gap to a whole turn |
 | `bool_torus_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle; a circle never mints it, and it never reaches the funnel |
-| `bool_torus_region_spiric_end` | `SpiricRows` field (`SPIRIC`): the distance to either end of an oval arc |
-| `bool_torus_region_spiric_clear` | `SpiricRows` field (`SPIRIC`): a piece's ball's clearance from the point |
-| `bool_torus_region_spiric_on` | `SpiricRows` field (`SPIRIC`): the distance to a point of the arc |
-| `bool_torus_region_spiric_leaf` | `SpiricRows` field (`SPIRIC`): a piece's ball's radius |
+| `bool_torus_region_spiric_end` | `ArcRows` field (`SPIRIC`): the distance to either end of an oval arc |
+| `bool_torus_region_spiric_clear` | `ArcRows` field (`SPIRIC`): a piece's ball's clearance from the point |
+| `bool_torus_region_spiric_on` | `ArcRows` field (`SPIRIC`): the distance to a point of the arc |
+| `bool_torus_region_spiric_leaf` | `ArcRows` field (`SPIRIC`): a piece's ball's radius |
 
 They pool with nothing: the region is read by the point doors at points
 on a torus.
@@ -3236,3 +3281,77 @@ name and so the same at main (`curve_pair_pose_parallel`, `curve_pair_pose_clear
 `curve_pair_pose_travel` on demo/projectbox_cutaway, `bool_pair_gap` on
 demo/tiltedcut), and the nightly's sweep stops before it in the
 plain-suite prelude, so these figures are a local reading.
+
+## CHART addendum (2026-10-24): `chart_bound_outer_span` decides at Probe
+
+The outer-span margin is now read off each envelope's `reach` (the
+pcurve's `chart_box`, finite at every scalar), not off its `image`,
+which is poison at a point scalar
+(`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`).
+Measured at ε = 1e-9 with the Band 4 corpus and the tour scenes, main
+against the branch: all 41 `chart_bound_outer_span` samples move from
+`invalid`/`NaN` to `negative`, with margins between −0.236 m and
+−29.1 m, far outside the band. The sample count (3,437,597) is
+identical, no other row differs, and rule 1 falls from 43 to 2 (the
+two `props_quad_converged` indeterminates).
+
+
+**Roster change (CHART, 2026-10-24): a cylinder or cone face's region.**
+Eighteen names from `topo/src/boolean/ruled_region.rs`, which replaces the
+cylinder and cone chart trims. `bool_wall_trim`, `bool_wall_trim_period`,
+`bool_wall_iso_meridian`, `bool_wall_iso_rim`, `bool_wall_section_tilt`,
+`bool_wall_section_seat`, `bool_wall_piece_span`, `bool_wall_rim_level`,
+`bool_wall_junction`, `bool_curved_contain_period`, `bool_cone_trim`,
+`bool_cone_trim_nappe`, `bool_cone_trim_side`, `bool_cone_trim_period`,
+`bool_cone_chart_box`, `bool_cone_group_slant` and `bool_ray_cone_apex`
+leave the roster; `bool_wall_outline_reach` and `bool_cone_partial_reach`
+stay, as the balls a wall or cone face whose region cannot be read
+refuses inside. Ten are its paths' bare literals, four a
+`FirstHarmonicRows` value (`ROOT_ROWS`), two a `ConicRows` value
+(`BOUNDARY`) and two a `ray_walk::SegmentRows` value (`LINE`) for its
+boundary pre-pass. `SegmentRows` is a new carrier: the two of a
+`ParityRows` that `ray_walk::on_segment` reads, for a caller that casts
+no ray through the segment. `bool_cone_apex_nappe` left the tree with
+`cone_apex_closure` in the same change; it was never on the roster.
+
+| name | carrier |
+|---|---|
+| `bool_ruled_region_frame` | a bare literal: the point's distance from a cylinder's axis, or from a cone's apex (`Zero` reads the point from the apex) |
+| `bool_ruled_region_nappe` | a bare literal: a point's height over the cone's apex along the axis — the query's, a generator's target, a conic edge's middle, a line edge's end, a conic's root on a ruling leg's meridian plane |
+| `bool_ruled_region_component` | a bare literal: which of a meridian plane's two points of an edge a root is, by its offset from the axis along the leg's radial, `2ρ` from the other |
+| `bool_ruled_region_collinear` | a bare literal: whether a line edge lies on a ruling leg's line, by its ends' larger distance from it |
+| `bool_ruled_region_span` | a bare literal: a root's parameter against its edge's span ends, at the conic's smaller semi-axis or the line's unit speed |
+| `bool_ruled_region_at` | a bare literal: a crossing's, or an end of an edge on the leg's line, place along its leg from the leg's start, arc length on a parallel and metres on a ruling |
+| `bool_ruled_region_end` | a bare literal: a place along a leg against the leg's end — a first leg's corner, or a generator's end at the apex |
+| `bool_ruled_region_corner` | a bare literal: an aimed ruling's run to its corner, the side of `p` the target's parallel lies |
+| `bool_ruled_region_order` | a bare literal: two crossings' places along the path |
+| `bool_ruled_region_cross` | a bare literal: the leg's heading against the face side at the closest crossing, at the face's scale |
+| `bool_ruled_region_roots_noise` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_coaxial` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_extreme` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_roots_slack` | `FirstHarmonicRows` field (`ROOT_ROWS`) |
+| `bool_ruled_region_arc_span` | `ConicRows` field (`BOUNDARY`): a circle or ellipse edge's gap to a whole turn |
+| `bool_ruled_region_arc_straddle` | `ConicRows` field (`BOUNDARY`): an ellipse's straddle |
+| `bool_ruled_region_edge_length` | `SegmentRows` field (`LINE`): a line edge's own length, the degeneracy gate |
+| `bool_ruled_region_edge` | `SegmentRows` field (`LINE`): the point's distance from a line edge's closed segment |
+
+They pool with nothing: the region is read by the point doors at points
+on a cylinder or a cone.
+
+## CHART addendum (2026-10-24): clearance cells are decided in model space
+
+**Roster change.** The seven `chart_bound_*` names leave the roster:
+the six of the TRIM-3 roster addition (`chart_bound_gap`,
+`chart_bound_outer_span` and the four `ParityRows` fields) with
+`topo/src/chart_bound.rs`, and `chart_bound_joint_room`, the loop
+walk's room fence, renamed `loop_windings_joint_room` for the door it
+now serves (`pcurves::loop_windings`). Five arrive from
+`topo/src/cell_region.rs`, each a named `const &str` (escape route 3):
+`cell_region_vertex_gap`, `cell_region_segment_gap`,
+`cell_region_conic_gap`, `cell_region_ball_gap` and
+`cell_region_singular_gap`, a cell's clearance of one kind of boundary
+feature of its face, or of its carrier's singular set. Their dimensions
+are `docs/predicate-dimension-audit.md`'s rows of the same names. They
+are asked by the clearance sweep per (window, cell), so their
+populations are the sweep's cells times each face's features; they
+pool with nothing, and with each other not at all.

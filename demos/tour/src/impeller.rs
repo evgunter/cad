@@ -158,7 +158,12 @@ fn blade_polygon() -> LoopProgram<Formula> {
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     let r = build_doc(tol);
     let placed = crate::world::place_in_world(&r.doc, r.solid, tol);
-    crate::world::world_is_the_product(&placed.doc, tol).doc
+    crate::world::set_product(
+        &placed.doc,
+        &[pncad::document::Operand::Node(placed.placement)],
+        tol,
+    )
+    .doc
 }
 
 fn build_doc(tol: Tol) -> Recipe {

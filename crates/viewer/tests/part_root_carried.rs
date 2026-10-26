@@ -26,7 +26,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+use pncad::select::{CapEnd, EntityKind, RoleSeg};
 use pncad::workspace::Workspace;
 use viewer::parts::PartFiles;
 use viewer::session::{DocSession, SessionOp};
@@ -365,8 +365,8 @@ fn in_part(
     instance: RecipeNodeId,
     (body, _): (RecipeNodeId, RecipeNodeId),
     cap: CapEnd,
-) -> crate::fixture::resolver::InPart {
-    crate::fixture::resolver::InPart {
+) -> crate::fixture::resolver::PartName {
+    crate::fixture::resolver::PartName {
         at: instance,
         name: StableName {
             kind: EntityKind::Face,
@@ -430,7 +430,6 @@ fn a_mates_carried_level_inside_a_part_is_labelled_with_the_part() {
                     of: in_part(legs, (leg_body, leg_copy), CapEnd::End).name.into(),
                 }],
             }),
-            ContactClass::Rest,
         ),
         Vec::new(),
         tol,

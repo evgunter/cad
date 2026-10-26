@@ -429,7 +429,7 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     assert_eq!(sub.node_space(top), Some(space));
     let ev_sub = run(&sub, &o);
     let mut store = p.store.clone();
-    let sub = crate::fixture::world_product(sub);
+    let sub = crate::fixture::assemble_world_copies(sub);
     let sub_ref = store.insert(sub.clone(), Tol::witness());
     let outer = ProfileDoc::empty(DocumentId::derive("r2-seam-outer"), Tol::witness());
     let (outer, _) = fixture::insert_pinned(
@@ -439,9 +439,16 @@ fn a_copy_in_another_space_below_stays_out_of_the_outer_product() {
     );
     let ev = run(&outer, &with_resolver(store));
     let vol = |b: &Body<f64>| {
-        topo::test_support::unmigrated_measure(b, Tol::witness())
-            .expect("mass")
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(b),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("mass")
+        .volume
     };
     let gathered = editor_core::product(&outer, &ev, Tol::witness()).expect("the world gathers");
     assert!(

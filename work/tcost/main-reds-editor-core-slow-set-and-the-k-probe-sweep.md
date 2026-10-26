@@ -72,3 +72,71 @@ all nine pass at `42af7c0b48` (#5548, which already holds INTENT's
 revalue and `m10_bulge` messages name `segment_gap` themselves. So the
 suspected merge is #5542. The rows are still red on 2026-10-23 (run
 39906156937, `be9b907694`).
+
+## 2026-10-24 — one more slow-set red on `chart/orchestrator` (CHART implementer)
+
+`intent_s2_c_world::the_migrated_world_is_the_pre_c_product` fails on
+`chart/orchestrator` at `1a428c9`: "cut_cylinder: the product moved",
+`d2acb2b37c5273db/28` against the recorded `cb8ccadf87044e7f/28`. It
+fails the same on `chart/ringed-curved-doors`, whose product body for
+`cut_cylinder` is bit-identical to the base's: the same counts, the same
+points in the same arena order, the same faces and senses.
+
+## 2026-10-24 — still red (INTENT nightly triage)
+
+Nightly run 40066431545 (main `3dfb96b91c`) still reds 22 of the 24
+rows at every ε, with the same panics: `docm9_range` ×5,
+`m10_3_driver_interval`, `m10_3_r2_probes_interval`,
+`m10_6_ci_rows_interval`, `m10_9_pins_interval` ×2,
+`m10_sym_profile_interval` ×2, `revalue_corpus` ×7,
+`sym11_exact_channel_rows`, `sym_9_retry_interval` ×2. The two
+`m10_bulge_interval` rows pass tonight. Some receipt counts have
+drifted since 10-23, though each row fails the same way:
+`m10_9_the_pad_at_both_rule_f_dials` read `(1546, 1252, 3048)` on 10-23
+and reads `(1546, 1251, 2420)` tonight, against the pin
+`(1546, 1260, 3026)`. `sym_9_the_drive_writes_the_ladders_receipt`
+went from `[1421, 1378, 34]` to `[1421, 1377, 34]`, against
+`[1421, 1386, 34]`. So when a fix lands, re-derive the receipts on the
+day. Do not take them from this file.
+
+`k-lint (dev-probe)` still stops on
+`ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`:
+`predicates whose margins do not scale with the model:
+["curve_foot_branch: 6 pairs off, e.g. 9.990e2"]`.
+
+## 2026-10-24 — `every_public_mutation_path_preserves_tier1` red on main (CHART implementer)
+
+`topo` `review_m1_pr5_internal::every_public_mutation_path_preserves_tier1`
+fails on main at `179e41e4`: "the allowlist names `join_edges`, which is
+no longer a non-asserting public mutation path". `f3a907e7` moved
+`join_edges` and `join_edges_within` into a surgery scope closed by
+`sweep_and_close`, and kept their `ALLOWED` entries. The test reads
+source, so it fails the same on any branch carrying main.
+`the_two_door_tables_cover_the_same_surface` then needs each door in one
+table. PR 5664 (`chart/ringed-curved-doors`) ports the fix: both entries
+leave `ALLOWED` for `pcurves::staleness_posture::DECLARED`'s `Maintains`
+block, beside the other doors that assert through a sweeping scope. It
+is a no-op once main carries the same move.
+
+**Also red on main `663dd78fef` (PCERT E1, 2026-10-26):** an ignored golden row, `m10_sym_drive_memo_interval::a_freezing_drive_is_identical_across_thread_counts_too` (`--run-ignored all`), fails at the default ε with `tilted-derived: frozen is the column` (`m10_sym_drive_memo_interval.rs:612`). The failure is identical on PCERT's E1 head (PR #5500). On that run the other ignored Sym goldens red on main were already in the table above or in `work/intent/main-red-the-seat-and-name-table-goldens-moved-at-dprime2.md`: the two `m10_sym_profile`, the two `m10_9_pins`, `sym11`, the two `sym_9_retry`, and seat7 and seat8. The other 40 of the 50 were green.
+
+## 2026-10-26 (SPLICE nightly triage): the ray-wall row's 6 → 62 is #5664
+
+`k-lint (dev-probe)` on nightly run 40274924857 (main `38f1a24ed3`)
+died before any probe row ran: `error: failed to download from
+https://static.crates.io/crates/wide/1.5.0/download … Could not resolve
+host: static.crates.io` while building geom-core for the probe census.
+That is a runner DNS failure, not a code red. The 10-25 run (40165703340,
+`9f5b44561d`) reached the sweep and stopped on this row with **62**
+pairs off: `["curve_foot_branch: 62 pairs off, e.g. 9.990e2"]`. On 10-24
+it was 6.
+
+I bisected the row alone over the 35 merges between `3dfb96b91c` and
+`9f5b44561d`, running it as the script does (`CAD_TOLERANCE_EPS=1e-9 cargo
+test -p sweep --features probe --test all -- ray_wall_margin_twins::the_wall_arms_margins_scale_linearly_with_the_model`):
+`fa1d94c7db` reads 6 pairs and `80a6f77af3`, the merge of **#5664**
+(`chart/ringed-curved-doors`, cylinder and cone point-in-face doors read
+the face's region from its edges), reads 62. Tonight's main `38f1a24ed3`
+still reads 62 locally. The row was already red at 6 before #5664, so
+#5664 widened an existing red rather than causing it. The 6 pairs are
+still unexplained.

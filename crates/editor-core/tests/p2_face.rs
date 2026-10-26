@@ -22,8 +22,8 @@ use crate::p2_gauges::{Parts, block, cut, parts};
 use crate::p2_split::{pinned_at, seat_at, seated};
 
 use editor_core::{
-    CapEnd, ContactClass, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide,
-    Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
+    CapEnd, DocEdit, DocumentId, EvalOptions, FaceName, MateFault, MateRef, MateSide, Node,
+    PartResolver, PatternKind, ProfileDoc, RecipeNodeId, SitedFace, SplitError, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::round_trip::{composed, same_up_to_ids};
@@ -178,11 +178,7 @@ fn face_across(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3], MateRef) {
     let (doc, m) = fixture::constrain_at(
         doc,
         k,
-        fixture::rest(
-            head(p.top_cap(k)),
-            head(p.top_upper_cap(top)),
-            ContactClass::Rest,
-        ),
+        fixture::rest(head(p.top_cap(k)), head(p.top_upper_cap(top))),
     );
     (p, doc, [base, top, k], m)
 }
@@ -362,7 +358,7 @@ fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
     let (part_doc, sub_aside) = insert(part_doc, fixture::mated_instance(p.top));
     let (part_doc, _) = fixture::into_new_space(part_doc, sub_aside);
     let mut store = p.store.clone();
-    let part_doc = crate::fixture::world_product(part_doc);
+    let part_doc = crate::fixture::assemble_world_copies(part_doc);
     let sub = store.insert(part_doc, Tol::witness());
     let with_sub = with_resolver(store);
     let host = ProfileDoc::empty(DocumentId::derive(&format!("{label}-host")), Tol::witness());
@@ -392,8 +388,8 @@ fn a_mate_reading_a_copy_in_a_space_of_its_own_refuses_at_split() {
 /// **A mate's target on a pattern copy reads its master's face, carried
 /// by the copy map.** A leg patterned three times two apart along x,
 /// and a base seated on copy 2's upper cap: the head is `Instance(2)`
-/// round the leg instance's name, the strip takes off that one
-/// qualifier and then the instance's `InPart`, and the base's bottom
+/// round the leg's part name, the strip takes off that one qualifier,
+/// reading the part's own name at the instance, and the base's bottom
 /// lands on the master's cap plane. A value on a target read off a
 /// pattern's copy is charted on the space's frame
 /// (`work/intent/a-value-on-a-placed-copy-target-is-charted-on-the-space.md`),
@@ -461,8 +457,8 @@ fn a_mate_on_a_pattern_copy_reads_the_masters_face_at_the_copy() {
 }
 
 /// **A head that names no face of its part does not evaluate**: a face
-/// name headed at the instance but not wrapped in the instance's
-/// `InPart` walks to a member, and there is no part row under it to
+/// name headed at the instance's own node, which is no name of its
+/// part, walks to a member, and there is no part row under it to
 /// read a plane off. The door is structural and admits the mate; its
 /// target is `k`'s own refusal where it evaluates, with its recourse.
 /// An instance mints no such name, so only a head written by hand meets
@@ -596,7 +592,7 @@ fn a_rename_update_and_rebind_carry_the_face_side_with_the_head() {
 
     let (rebuilt, new_body) = renamed(&base_doc, base_body, 1.5);
     assert_ne!(new_body, base_body, "the cap is renamed");
-    let rebuilt = crate::fixture::world_product(rebuilt);
+    let rebuilt = crate::fixture::assemble_world_copies(rebuilt);
     let new_ref = store.insert(rebuilt, Tol::witness());
     let o = with_resolver(store.clone());
     let (doc, _) = step(

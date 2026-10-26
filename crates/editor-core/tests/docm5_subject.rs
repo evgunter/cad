@@ -45,7 +45,7 @@ use topo::Body;
 /// refuses it typed. Answers the document, the options that resolve its
 /// part, and the failed placement.
 fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, RecipeNodeId) {
-    use editor_core::{CapEnd, ContactClass, EntityKind, RoleSeg, StableName};
+    use editor_core::{CapEnd, EntityKind, RoleSeg, StableName};
     let mut store = fixture::resolver::PartStore::default();
     let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
     let (part, profile) = on_frame(
@@ -78,7 +78,6 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, editor_core::EvalOptions, Re
             fixture::resolver::in_part(placed, body, CapEnd::Start),
         ),
         fixture::head_at(base, nowhere),
-        ContactClass::Rest,
     );
     let (doc, _) = fixture::constrain_at(doc, placed, mate);
     (doc, opts, placed)
@@ -519,11 +518,10 @@ fn agree(
     match (wrapped, direct) {
         (Ok(a), Ok(b)) => {
             assert_eq!(measure(&a.body), measure(&b.body), "{name}: the same body");
-            assert_eq!(a.minted.len(), b.minted.len(), "{name}: the same minting");
             assert_eq!(
                 a.contacts.face_face().count(),
                 b.contacts.face_face().count(),
-                "{name}: the same declared contacts"
+                "{name}: the same contacts"
             );
             assert_eq!(a.names.len(), b.names.len(), "{name}: the same name table");
         }
@@ -543,7 +541,14 @@ fn measure(body: &Body<f64>) -> String {
         body.solids().count(),
         body.faces().count(),
         body.edges().count(),
-        topo::test_support::unmigrated_measure(body, Tol::witness())
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(body),
+                Tol::witness()
+            ),
+            Tol::witness()
+        )
     )
 }
 
@@ -595,6 +600,12 @@ fn the_assembly_gathers_in_one_place() {
 /// a `Clone` or an `Arc` on `Product<T>` would be the other answer, and
 /// these modules do not take it. The needles end at the generic's `<`,
 /// so a type that only shares the prefix (`ProductError`) is not one.
+///
+/// One copy is made, and it is not this ordering's: a door's census
+/// verdict is the door's, kept on its value (`product::Census`) for
+/// every reader of it, and a gather that reads the door hands its
+/// consumer a copy of that verdict to own (`Product::fresh`). The
+/// verdict itself is lent, never put behind an `Arc`.
 ///
 /// Read through the shared reader's CODE view
 /// ([`test_utils::source::code_only`]), because every needle here is a

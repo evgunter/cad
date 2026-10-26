@@ -234,22 +234,16 @@ pub fn flip(pose: editor_core::Operand) -> editor_core::Operand {
 pub fn rest(
     on: impl Into<editor_core::Operand>,
     to: impl Into<editor_core::Operand>,
-    class: editor_core::ContactClass,
 ) -> editor_core::Mate<Formula> {
     editor_core::Mate {
         on: plane(on),
         to: flip(plane(to)),
-        class,
     }
 }
 
 /// **A mate equating two poses** as written, `on` reading the copy.
-pub fn mate(
-    on: editor_core::Operand,
-    to: editor_core::Operand,
-    class: editor_core::ContactClass,
-) -> editor_core::Mate<Formula> {
-    editor_core::Mate { on, to, class }
+pub fn mate(on: editor_core::Operand, to: editor_core::Operand) -> editor_core::Mate<Formula> {
+    editor_core::Mate { on, to }
 }
 
 /// **The placement whose copy an authored face side reads**: the node
@@ -402,7 +396,7 @@ pub fn write_bundle(
             // A world product the fixture wrote is the world's copies,
             // which a re-targeted copy may have joined or left.
             if retargets && doc.product().is_some() {
-                doc = world_product(doc);
+                doc = assemble_world_copies(doc);
             }
             return (doc, minted);
         }
@@ -466,7 +460,7 @@ pub fn into_new_space(doc: ProfileDoc, placement: RecipeNodeId) -> (ProfileDoc, 
     // A world product the fixture wrote is the world's copies, which
     // this one has left.
     let doc = if doc.product().is_some() {
-        world_product(doc)
+        assemble_world_copies(doc)
     } else {
         doc
     };
@@ -673,14 +667,14 @@ pub fn pinned(doc: ProfileDoc, placement: RecipeNodeId, o: &EvalOptions) -> Prof
 
 /// **`node` inserted and pinned to the world at the identity**
 /// ([`pinned`]): an instance or a placement that stands where its
-/// source does, in the product ([`world_product`]).
+/// source does, in the product ([`assemble_world_copies`]).
 pub fn insert_pinned(
     doc: ProfileDoc,
     node: AuthoredNode,
     o: &EvalOptions,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, id) = insert(doc, node);
-    (world_product(pinned(doc, id, o)), id)
+    (assemble_world_copies(pinned(doc, id, o)), id)
 }
 
 /// **The at-rest gate's verdict**, as a mate row wants to read it:
@@ -691,30 +685,6 @@ pub fn insert_pinned(
 /// The gate's own refusal, unaltered.
 pub fn gate(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
     assemble(doc, ev, Tol::witness()).map(|_| ())
-}
-
-/// **What the gather minted for `doc`'s own mates**: the declarations,
-/// and the rows it could not mint (`Product::minted`, `unminted`).
-pub fn mate_mints(
-    doc: &ProfileDoc,
-    ev: &Evaluation<f64>,
-) -> (
-    Vec<editor_core::MintedDeclaration>,
-    Vec<editor_core::MintRefusal>,
-) {
-    let p = editor_core::product_recorded(doc, ev, Tol::witness()).expect("the product gathers");
-    (p.minted, p.unminted)
-}
-
-/// **Asserts the gather minted nothing for `mate`** — no declaration and
-/// no refusal: a mate side whose body no world placement reads has no
-/// world copy, so the mate states nothing about the product.
-pub fn assert_mints_nothing(doc: &ProfileDoc, ev: &Evaluation<f64>, mate: editor_core::MateRef) {
-    let (minted, unminted) = mate_mints(doc, ev);
-    assert!(
-        minted.iter().all(|d| d.mate != mate) && unminted.iter().all(|r| r.mate() != mate),
-        "a mate whose side's body no placement reads mints nothing: {minted:?} {unminted:?}"
-    );
 }
 
 /// A mate side over a name this fixture built as a face, read at its
@@ -793,14 +763,14 @@ pub fn sited_ref(name: impl Sited) -> editor_core::SitedRef {
 
 /// **`doc` with its product the world's copies**, in document order:
 /// the product a document whose placements are its assembly states
-/// ([`editor_core::test_support::with_world_product`]). Called again
+/// ([`editor_core::test_support::assemble_world_copies`]). Called again
 /// after a placement is added, it writes the product anew.
-pub fn world_product(doc: ProfileDoc) -> ProfileDoc {
-    editor_core::test_support::with_world_product(doc, Tol::witness())
+pub fn assemble_world_copies(doc: ProfileDoc) -> ProfileDoc {
+    editor_core::test_support::assemble_world_copies(doc, Tol::witness())
 }
 
 /// **A name and where it is read**: a name this document minted, at
-/// its mint; a part's name ([`resolver::InPart`]), at the instance whose
+/// its mint; a part's name ([`resolver::PartName`]), at the instance whose
 /// copy carries it.
 pub trait Sited {
     /// The node the name is read at.
@@ -835,7 +805,7 @@ impl Sited for (RecipeNodeId, StableName) {
     }
 }
 
-impl Sited for resolver::InPart {
+impl Sited for resolver::PartName {
     fn site(&self) -> RecipeNodeId {
         self.at
     }
@@ -1005,14 +975,14 @@ pub fn band() -> geom_core::Band {
 pub use editor_core::test_support::{ang, axes_at, len, len2, scl};
 
 /// [`editor_core::test_support::in_world`] at the witness tolerance,
-/// the copy in the product ([`world_product`]).
+/// the copy in the product ([`assemble_world_copies`]).
 pub fn in_world(
     doc: ProfileDoc,
     body: impl Into<editor_core::Operand>,
     at: &editor_core::Frame,
 ) -> (ProfileDoc, RecipeNodeId) {
     let (doc, placement) = editor_core::test_support::in_world(doc, body, at, Tol::witness());
-    (world_product(doc), placement)
+    (assemble_world_copies(doc), placement)
 }
 
 /// [`editor_core::test_support::against`] at the witness tolerance.
@@ -1234,7 +1204,11 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
         doc.node(id),
         Some(Node::Place { .. } | Node::InstantiatePart { .. })
     ) && doc.node_space(id) == Some(VarId::WORLD);
-    let doc = if joins { world_product(doc) } else { doc };
+    let doc = if joins {
+        assemble_world_copies(doc)
+    } else {
+        doc
+    };
     (doc, id)
 }
 
@@ -1303,7 +1277,6 @@ pub fn authored(
             editor_core::ConstraintKind::Mate(editor_core::Mate {
                 on: editor_core::Operand::Var(m.on),
                 to: editor_core::Operand::Var(m.to),
-                class: m.class,
             })
         }
         editor_core::ConstraintKind::Value(v) => {
@@ -1367,12 +1340,12 @@ pub fn assertion_value(doc: &ProfileDoc, assertion: RecipeNodeId) -> editor_core
 
 /// **One copy of `body` in the world** (A10), at the identity: the
 /// document's product is the world's copies, which this writes again
-/// ([`editor_core::test_support::with_world_product`]).
+/// ([`editor_core::test_support::assemble_world_copies`]).
 pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let read = body_read(&doc, body.into());
     let (doc, placement) = insert(doc, stood(editor_core::BodyRead::plain(read)));
     (
-        editor_core::test_support::with_world_product(doc, Tol::witness()),
+        editor_core::test_support::assemble_world_copies(doc, Tol::witness()),
         placement,
     )
 }
@@ -1930,7 +1903,6 @@ impl Recorder {
             editor_core::Mate {
                 on: cap(),
                 to: cap(),
-                class: editor_core::ContactClass::Rest,
             },
             vec![
                 (
@@ -1974,7 +1946,7 @@ impl Recorder {
 
     /// Inserts a node, returning its minted id; a placement into the
     /// world writes the product anew as the world's copies
-    /// ([`Self::world_product`]).
+    /// ([`Self::assemble_world_copies`]).
     pub fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
         let at = self
             .push(DocEdit::InsertNode {
@@ -1983,7 +1955,7 @@ impl Recorder {
             })
             .expect("minted id");
         if self.doc.node_space(at) == Some(editor_core::VarId::WORLD) {
-            self.world_product();
+            self.assemble_world_copies();
         }
         at
     }
@@ -2013,7 +1985,7 @@ impl Recorder {
         }
         // A bundle may re-target its copy out of the world or into it.
         if self.doc.product().is_some() {
-            self.world_product();
+            self.assemble_world_copies();
         }
     }
 
@@ -2034,11 +2006,13 @@ impl Recorder {
     }
 
     /// **The product written anew as the world's copies**, recorded
-    /// ([`editor_core::test_support::world_product_edits`]): what a
+    /// ([`editor_core::test_support::assemble_world_copies_edits`]): what a
     /// world placement calls, so a replayed log carries its product.
-    pub fn world_product(&mut self) {
-        let (doc, edits) =
-            editor_core::test_support::world_product_edits(self.doc.clone(), Tol::witness());
+    pub fn assemble_world_copies(&mut self) {
+        let (doc, edits) = editor_core::test_support::assemble_world_copies_edits(
+            self.doc.clone(),
+            Tol::witness(),
+        );
         self.doc = doc;
         self.edits.extend(edits);
     }
@@ -2143,11 +2117,7 @@ impl Recorder {
         self.insert_placed(
             read,
             editor_core::Placed {
-                mates: vec![editor_core::Mate {
-                    on: own,
-                    to: frame,
-                    class: editor_core::ContactClass::Rest,
-                }],
+                mates: vec![editor_core::Mate { on: own, to: frame }],
                 values: Vec::new(),
             },
         )
@@ -2180,7 +2150,6 @@ impl Recorder {
                         port: 1,
                     },
                     to,
-                    class: editor_core::ContactClass::Rest,
                 }],
                 values: vec![
                     (editor_core::Coord::Slide(editor_core::TargetAxis::Z), along),
@@ -2213,7 +2182,7 @@ impl Recorder {
 
 /// **One copy of `body` in the world, its whole motion stated by
 /// `values`** ([`Recorder::in_world_by`]): a bundle with no mate, the
-/// copy in the product ([`world_product`]). Returns the document and
+/// copy in the product ([`assemble_world_copies`]). Returns the document and
 /// the placement; its copy is the placement's output.
 pub fn in_world_by(
     doc: ProfileDoc,
@@ -2227,7 +2196,7 @@ pub fn in_world_by(
     };
     let node = place_node(&doc, editor_core::BodyRead::plain(read), placed.bundle());
     let (doc, placement) = insert(doc, node);
-    (world_product(doc), placement)
+    (assemble_world_copies(doc), placement)
 }
 
 /// **One copy of `body` in the world on `at`, a frame whose axes are
@@ -3141,56 +3110,13 @@ pub fn member_face(union: RecipeNodeId, member: VarId, of: StableName) -> Stable
     member_entity(union, member, of, EntityKind::Face)
 }
 
-/// **What every at-rest finding says about a declaration, in one
-/// vocabulary** — the mate it names and the relation it bears, for a
-/// row that wants to compare a whole finding list at once.
-///
-/// One definition for every suite that asks the question. A CARRIED
-/// row's mate is a node of ANOTHER document, so it reports under its
-/// own words rather than joining the own-minted ones and reading as
-/// this document's.
-pub fn relations(
-    findings: &[editor_core::AtRestFinding],
-) -> Vec<(editor_core::MateRef, &'static str)> {
-    findings
-        .iter()
-        .map(|f| match &f.attribution {
-            Some(editor_core::Attribution::Refuted(m)) => (m.mate, "refuted"),
-            Some(editor_core::Attribution::Declined(m)) => (m.mate, "declined"),
-            Some(editor_core::Attribution::Carried {
-                declaration,
-                relation,
-                ..
-            }) => (
-                declaration.mate,
-                match relation {
-                    editor_core::Relation::Refuted => "carried_refuted",
-                    editor_core::Relation::Declined => "carried_declined",
-                },
-            ),
-            None => (
-                editor_core::MateRef::new(
-                    RecipeNodeId::new(0, u64::MAX),
-                    editor_core::ConstraintId(editor_core::MintId::new(0, u64::MAX)),
-                ),
-                "no declaration",
-            ),
-        })
-        .collect()
-}
-
-/// **The product's at-rest rows are all contacts between copies**, and
-/// there is at least one: a seat no mate speaks for is rows of the two
-/// copies it joins (D10), never a mate's.
+/// **The product holds at-rest rows**: a seat is rows of the two copies
+/// it joins (D10).
 pub fn assert_copies_rows_alone(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>) {
     let product =
         editor_core::product_recorded(doc, ev, geom_core::Tol::witness()).expect("it gathers");
     assert!(
-        !product.coincidences.is_empty()
-            && product
-                .coincidences
-                .iter()
-                .all(|r| matches!(r.by, editor_core::AtRestBy::Copies(..))),
+        !product.coincidences.is_empty(),
         "the seats are the copies' rows: {:?}",
         product.coincidences
     );
@@ -3261,12 +3187,24 @@ fn merged_sets(name: &StableName) -> Vec<&[StableName]> {
 /// vocabulary must be classified here before the suite compiles, so a
 /// new name-carrying segment cannot hide a merged face from the walk.
 fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
-    use editor_core::Qualifier;
+    use editor_core::{Qualifier, Sense};
+    fn sensed(sense: &Sense) -> Vec<&StableName> {
+        match sense {
+            Sense::Through { entering } => entering.iter().map(AsRef::as_ref).collect(),
+            Sense::Enters | Sense::Leaves | Sense::Outside | Sense::Inside => Vec::new(),
+        }
+    }
     match seg {
+        RoleSeg::CrossingVertex { edge, sense } => std::iter::once(edge.as_ref())
+            .chain(sensed(sense))
+            .collect(),
+        RoleSeg::Crossing { edge, face, sense } => [edge.as_ref(), face.as_ref()]
+            .into_iter()
+            .chain(sensed(sense))
+            .collect(),
         RoleSeg::From { of: x, .. }
         | RoleSeg::SectionEdge { face: x, .. }
         | RoleSeg::SplitFragment { parent: x, .. }
-        | RoleSeg::CrossingVertex { edge: x, .. }
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
         | RoleSeg::BlendFace(x)
@@ -3280,9 +3218,6 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Rim(x)
         | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
         RoleSeg::Seam { a: x, b: y }
-        | RoleSeg::Crossing {
-            edge: x, face: y, ..
-        }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,
@@ -3292,7 +3227,10 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
             support: y,
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
-        RoleSeg::EdgeCrossing(run) => run.iter().map(|l| l.line.as_ref()).collect(),
+        RoleSeg::EdgeCrossing(run) => run
+            .iter()
+            .flat_map(|l| std::iter::once(l.line.as_ref()).chain(sensed(&l.sense)))
+            .collect(),
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(edge.as_ref()).chain(band).collect()
@@ -3300,8 +3238,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::Fragment(Qualifier::Borders(v) | Qualifier::Keeps(v) | Qualifier::Ends(v)) => {
             v.iter().collect()
         }
-        RoleSeg::Fragment(Qualifier::OrderAlong { .. })
-        | RoleSeg::OutputBody
+        RoleSeg::OutputBody
         | RoleSeg::Cap(_)
         | RoleSeg::Lateral(_)
         | RoleSeg::RimEdge(..)
@@ -3596,9 +3533,5 @@ pub fn frame_seat(
     x: f64,
     y: f64,
 ) -> editor_core::Mate<Formula> {
-    mate(
-        top,
-        slid_across(base, x, y),
-        editor_core::ContactClass::Rest,
-    )
+    mate(top, slid_across(base, x, y))
 }

@@ -1509,9 +1509,7 @@ fn edge_piece<T: SpanLocate>(
             "the edge's interval is empty on the carrier's domain",
         ));
     }
-    let channel = carrier.weights_f64_interim();
-    let constant = channel.iter().all(|w| w.to_bits() == channel[0].to_bits());
-    if (a <= d0 && b >= d1) || !constant {
+    if (a <= d0 && b >= d1) || carrier.constant_weight().is_none() {
         return Ok(carrier.clone());
     }
     let kv = carrier.knots_f64_interim();

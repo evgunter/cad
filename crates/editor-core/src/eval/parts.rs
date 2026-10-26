@@ -96,17 +96,15 @@ use geom_core::Tol;
 pub(crate) const MAX_DEPTH: usize = 1024;
 
 /// A resolved part: the referenced document's product, the product
-/// entities' part-local stable names, the product's DECLARED CONTACT
-/// RECORDS (ASM-R2b D-1 — a part's own declarations cross the document
-/// seam with its geometry, in the same keys), and the MATE BOOKKEEPING
-/// that says whose declaration each record is and which of the
-/// document's mates it could not mint at all.
+/// entities' part-local stable names, the product's CONTACT RECORDS
+/// (ASM-R2b D-1 — a part's records cross the document seam with its
+/// geometry, in the same keys), and its at-rest census verdict.
 ///
-/// Each of the two row lists (`minted`, `unminted`) is
-/// the referenced document's OWN rows first, then what it carried up
-/// from ITS parts, each as a [`PartRow`] that already holds the
-/// document's nodes it names. Instantiation adds its own instance to
-/// the route; nothing below is re-read.
+/// Each of the two row lists (`interference`, `at_rest`) is the
+/// referenced document's OWN rows first, then what it carried up from
+/// ITS parts, each as a [`PartRow`] that already holds the document's
+/// nodes it names. Instantiation adds its own instance to the route;
+/// nothing below is re-read.
 pub(crate) struct PartValue<T: Decide> {
     pub body: Arc<Body<T>>,
     pub names: Arc<NameTable>,
@@ -114,21 +112,7 @@ pub(crate) struct PartValue<T: Decide> {
     /// frame: what a pick of one piece of an instance reads.
     pub pieces: Option<Arc<super::Pieces<T>>>,
     pub contacts: Arc<topo::ContactRecords>,
-    /// The minted declarations — which mate authored which of those
-    /// records, keyed in the same arena the records are. The records
-    /// already crossed the seam; without these rows a finding against
-    /// one names nobody.
-    pub minted: Arc<Vec<PartRow<crate::assembly::MintedDeclaration>>>,
-    /// The MINT REFUSALS: mates that could not be minted at all.
-    /// Carried because inner mint health is the outermost gate's
-    /// business — a part with an unverifiable contact is a broken part,
-    /// and the document that instantiates it is not at rest over it.
-    pub unminted: Arc<Vec<PartRow<crate::assembly::MintRefusal>>>,
-    /// The at-rest census's findings for the mated pairs the document
-    /// refused, its own and those carried up, keyed as `contacts` are
-    /// ([`crate::Product::refused_at_rest`]).
-    pub refused: Arc<Vec<topo::ValidationError>>,
-    /// The at-rest census's rows the product's minted records cite
+    /// The at-rest census's rows the product's records cite
     /// ([`crate::Product::coincidences`]), named in the part's
     /// document.
     pub coincidences: Arc<Vec<crate::assembly::AtRestRow>>,
@@ -141,14 +125,9 @@ pub(crate) struct PartValue<T: Decide> {
     /// reports them.
     pub interference:
         Arc<Vec<PartRow<crate::assembly::Pinned<crate::checks::at_rest::InterferenceFinding>>>>,
-    /// The census findings its gate refuses that name none of its
-    /// declarations, its own first: inner at-rest health is the
-    /// outermost gate's business, as inner mint health is.
+    /// The census findings its gate refuses, its own first: inner
+    /// at-rest health is the outermost gate's business.
     pub at_rest: Arc<Vec<PartRow<crate::assembly::Pinned<crate::assembly::AtRestFinding>>>>,
-    /// The pairs of solids both lists are about, keyed in [`Self::body`],
-    /// smaller first: what the census over an instantiating product finds
-    /// again inside this part's copy, and must not report a second time.
-    pub census_pairs: Arc<Vec<(topo::SolidKey, topo::SolidKey)>>,
     /// How many parts the referenced document's product is: its
     /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -163,14 +142,10 @@ impl<T: Decide> Clone for PartValue<T> {
             names: Arc::clone(&self.names),
             pieces: self.pieces.clone(),
             contacts: Arc::clone(&self.contacts),
-            minted: Arc::clone(&self.minted),
-            unminted: Arc::clone(&self.unminted),
-            refused: Arc::clone(&self.refused),
             coincidences: Arc::clone(&self.coincidences),
             cited_inputs: Arc::clone(&self.cited_inputs),
             interference: Arc::clone(&self.interference),
             at_rest: Arc::clone(&self.at_rest),
-            census_pairs: Arc::clone(&self.census_pairs),
             parts: self.parts,
         }
     }
@@ -516,9 +491,12 @@ enum ProductRecourse {
 fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     use crate::product::ProductErrorKind as K;
     match kind {
-        K::EmptyProduct | K::StrandedProduct | K::Graft | K::RootInvalid | K::ProductInvalid => {
-            ProductRecourse::Carried
-        }
+        K::EmptyProduct
+        | K::StrandedProduct
+        | K::ProductOutsideWorld
+        | K::Graft
+        | K::RootInvalid
+        | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode
@@ -759,6 +737,8 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
             // (`analysis::var_env_symbolic`), so two documents' ids never
             // name one symbol.
             symbols: self.symbols,
+            // The reference's own pin already says which version this is.
+            pin: false,
         };
         let evaluation =
             super::evaluate_nested::<T>(doc, cancel, &opts, Reached(reached), &doc_ref.pin, tol);
@@ -839,41 +819,13 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     }))
                     .collect(),
             ),
-            census_pairs: Arc::new(seam.pairs),
             parts,
             pieces,
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
-            refused: Arc::new(product.refused_at_rest),
             coincidences: Arc::new(product.coincidences),
             cited_inputs: Arc::new(product.cited_inputs),
-            minted: Arc::new(
-                product
-                    .minted
-                    .into_iter()
-                    .map(|own| PartRow::own(doc, doc_ref.id, own))
-                    .chain(
-                        product
-                            .carried
-                            .into_iter()
-                            .map(|row| PartRow::below(doc, row.route, row.declaration, row.held)),
-                    )
-                    .collect(),
-            ),
-            unminted: Arc::new(
-                product
-                    .unminted
-                    .into_iter()
-                    .map(|own| PartRow::own(doc, doc_ref.id, own))
-                    .chain(
-                        product
-                            .carried_unminted
-                            .into_iter()
-                            .map(|row| PartRow::below(doc, row.route, row.refusal, row.held)),
-                    )
-                    .collect(),
-            ),
         })
     }
 }
@@ -903,6 +855,11 @@ impl<T: Decide> Carried<T> {
     /// No row carried: a nested evaluation, or one that entered none.
     pub(crate) fn none() -> Self {
         Self(BTreeMap::new())
+    }
+
+    /// The carried rows' keys, in order.
+    pub(crate) fn keys(&self) -> impl Iterator<Item = (DocRef, u64)> + '_ {
+        self.0.keys().copied()
     }
 }
 

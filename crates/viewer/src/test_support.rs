@@ -230,7 +230,7 @@ pub fn placed(
 
 /// [`placed`] of any body read — an operation's port, an instance's
 /// copy. The product is then the world's copies
-/// ([`editor_core::test_support::with_world_product`]).
+/// ([`editor_core::test_support::assemble_world_copies`]).
 pub fn placed_read(
     doc: &Doc<ProfileProgram>,
     read: pncad::document::Operand,
@@ -246,7 +246,7 @@ pub fn placed_read(
         tol,
     );
     (
-        editor_core::test_support::with_world_product(doc, tol),
+        editor_core::test_support::assemble_world_copies(doc, tol),
         placement,
     )
 }

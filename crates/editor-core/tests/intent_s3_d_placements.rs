@@ -413,7 +413,6 @@ fn the_door_admits_a_bundle_with_no_mate_only_whole() {
     let mate = Mate {
         on: start_cap(b),
         to: fixture::plane(Operand::select(Operand::output(base, 0), vec![top])),
-        class: editor_core::ContactClass::Rest,
     };
     let mated = stood
         .doc
@@ -817,7 +816,6 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     let mate = |to: Operand| Mate {
         on: start_cap(b),
         to,
-        class: editor_core::ContactClass::Rest,
     };
     let (level, flat, _) = fixture::floor(doc.clone(), Vec::new());
     let (by_spin, p_spin) = placed(
@@ -870,11 +868,7 @@ fn a_block_placed_upright_by_a_written_quarter_turn_stands_on_the_worlds_planes(
     let (by_axis, p_axis) = placed(
         lined,
         b,
-        Mate {
-            on: edge,
-            to: line,
-            class: editor_core::ContactClass::Rest,
-        },
+        Mate { on: edge, to: line },
         vec![
             (Coord::Slide(Z), zero(editor_core::Dimension::Length)),
             (Coord::Spin(editor_core::TargetAxis::Z), quarter()),
@@ -1040,11 +1034,7 @@ fn a_retyped_form_moves_the_key_and_the_memo_serves_the_fresh_run() {
             (Coord::Slide(Y), zero(editor_core::Dimension::Length)),
         ]
     };
-    let mate = |on: Operand, to: Operand| Mate {
-        on,
-        to,
-        class: editor_core::ContactClass::Rest,
-    };
+    let mate = |on: Operand, to: Operand| Mate { on, to };
     let (level, flat, _) = fixture::floor(doc.clone(), Vec::new());
     let mut cases: Vec<(&str, ProfileDoc, ProfileDoc, RecipeNodeId)> = Vec::new();
 

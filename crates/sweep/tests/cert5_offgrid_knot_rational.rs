@@ -28,7 +28,7 @@
 //!
 //! Same discipline as `m8_3_rational_volume.rs`: the schedule is fixed
 //! (D9), so a body that certifies at one ε honestly may refuse at a
-//! tighter one, and every row pins all three honest outcomes rather
+//! tighter one, and every row pins both honest outcomes rather
 //! than widening a target. What is asserted UNCONDITIONALLY is the
 //! structure — the knots really are interior and really are off-grid —
 //! because that is the hypothesis of the row, and a fixture that
@@ -91,12 +91,11 @@ fn blade(n: usize, v_degree: usize) -> sweep::Lofted<f64> {
     loft_body::<f64>(&sections, &places, v_degree, Tol::witness()).expect("the blade lofts")
 }
 
-/// The three honest outcomes, as `m8_3_rational_volume.rs` names them.
+/// The two honest outcomes, as `m8_3_rational_volume.rs` names them.
 #[derive(Debug, PartialEq, Eq)]
 enum EpsPosture {
     Certified,
     Budget,
-    Escalated,
 }
 
 fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) -> EpsPosture {
@@ -123,17 +122,6 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
                  {target_len:e} vs {target:e}"
             );
             EpsPosture::Budget
-        }
-        Err(MassPropsError::Face {
-            source: PropsError::Escalated { cause, .. },
-            ..
-        }) => {
-            assert_eq!(
-                cause.predicate,
-                Some("props_quad_converged"),
-                "{row}: only the convergence predicate may escalate here: {cause:?}"
-            );
-            EpsPosture::Escalated
         }
         Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
     }
@@ -216,8 +204,15 @@ fn oracle_volume() -> f64 {
         Tol::witness(),
     )
     .expect("extrude");
-    let want = topo::test_support::unmigrated_measure(&oracle.body, Tol::witness())
-        .expect("analytic mass properties");
+    let want = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&oracle.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .expect("analytic mass properties");
     assert_eq!(
         want.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"
@@ -268,12 +263,12 @@ fn row(
         "{name}: the fixture must carry exactly {want_offgrid} OFF-GRID interior v \
          knots — a fixture that stopped producing them would pass by testing nothing"
     );
-    let body = lofted.body;
+    let body = topo::test_support::finished("body", lofted.body, Tol::witness());
     // Structural tiers never touch quadrature, so this is pinned at
     // every ε regardless of the posture below.
     topo::validate_closed(&body).expect("TIER-1/2: tiers 1/2 admit the blade");
     let eps = Tol::witness().get().eps;
-    let got = topo::test_support::unmigrated_measure(&body, Tol::witness());
+    let got = topo::mass_properties(&body, Tol::witness());
     let posture = body_posture(name, &got);
     eprintln!(
         "EPS-ROW {name} @ eps={eps:e}: {posture:?}{}",

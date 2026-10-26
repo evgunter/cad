@@ -485,10 +485,13 @@ initialization lets the test suite run at several ε values.
 **Angular thresholds are always derived, never a second global**: an
 angle only means anything through the displacement it induces at a
 lever arm (d = r·θ), so a fixed εₐ would privilege a hidden length
-scale. Every angular predicate uses θ = ε/r with its lever arm named
-at the call site — 1/κ_rel for tangency, the face extent for
-parallelism, the session-box extent as the conservative universal
-arm. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
+scale. **An angle is metered in whatever way is required to make all
+geometry correct to within ε**: every angular predicate uses θ = ε/r
+with its lever arm named at the call site, the reach at which the
+angle displaces the geometry it governs — 1/κ_rel for tangency, the
+distance of each face's own points from the other's carrier for
+parallelism, the session-box extent as the conservative universal arm
+only where no such geometry is in hand. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
 f64 headroom at km scale. Import does not motivate loosening ε ([import]).
 
 
@@ -1087,7 +1090,8 @@ suits the slot.
 **Kinds.** `[variables.kinds]`
 
 - *Scalars:* `Length`, `Angle`, `Scalar`, `Count`.
-- *Discrete kinds:* a side, a half, a sense.
+- *Discrete kinds:* a side, a half, a sense, an orientation
+  ([placement.values]).
 - *Poses:* `Point`, `Direction`, `Axis`, `Plane`, `Pivot`, `Flag`, `Frame`
   ([variables.poses]).
 - *Shapes:* `Body`; `Bodies`, an ordered list of bodies whose length
@@ -1373,40 +1377,53 @@ copy is read as that copy carries it. A mate places and never checks.
 
 **Values.** `[placement.values]` A **value** sets one freedom of a
 placement's motion that its mates leave, a slide or a spin, to a
-`Length` or `Angle` variable, along or about an axis of the
-freedoms the mates leave. Those axes are the target space's own where
-no mate fixes a direction, and the target's swung onto the direction
-where one does, so a slide a plane mate leaves runs in that plane
-however the plane is tilted. Where the mates fix a direction (a plane's
-normal, an axis, a lone direction; a bundle holds at most one mate
-fixing a direction, since a second would state the angle between
+`Length` or `Angle` variable. Where the mates fix a direction (a
+plane's normal, an axis, a lone direction; a bundle holds at most one
+mate fixing a direction, since a second would state the angle between
 them, an equation the first already fixes, so its values have one
-chart and a value names no mate), each of the two spaces' axes is swung
-onto it by the shortest turn carrying its own z to the mated
-direction, the half-turn about its own x where that direction is its
-own −z, so a mate between axis-aligned poses has an axis-aligned zero
-and no edit that tilts a wall or turns a profile moves a held value's
-meaning; a slide runs along the target's swung axes, a spin is the
-angle about the mated direction from the target's swung x to the
-copy's, and a mate's `Flip` is on the copy's side. Inside the sliver
-band about that one pole the chart refuses, typed at evaluation, as a
-construction refuses at its degenerate values. Where no direction is
-fixed (no mate, or a lone point mate), the rotation is a written
-chain of at most three spins, each about the target space's x, y or z
-(through the mated point, for a point mate), no two in a row about one
-axis; turns do not commute, so the author writes the order and the
-kernel chooses none. A slide is the copy's origin measured from the
-target's along one of the target's (swung) axes, a function of the
-relative pose alone, so no slide is ordered. Every freedom is set
-explicitly, as a written value: zero is always a valid value and says the two spaces agree
-as far as the mates allow, a placement whose values are all zero and
-which has no mate is the identity, and the façade writes the constant
-`0` for each freedom a gesture leaves unnamed. A bundle with no mate is
-legal. A space's axes are read only by values, so setting a part on
-the world's xy is written as values (`z = 0`, the two tilts `0`, and
-the slides and spin the author chooses). A placement is the only reader of a
-source's own coordinates, and reads them only through the freedoms its
-mates leave.
+chart and a value names no mate), the placement writes an
+**orientation**: one of the 24 ways the source's axes lie along the
+target's (`x: +x, z: −z`), a discrete kind, the identity unless
+written; the gesture writes the one nearest where the copy stands.
+The orientation says where the copy's mated direction should point,
+and the **least turn** carries that onto the mated direction. Every
+value beside the mate is read through it: a **slide** runs along one
+of the target space's axes as the least turn carries it, so a slide a
+plane mate leaves runs in that plane however the plane is tilted, and
+where the face is where the orientation puts it the least turn is the
+identity and a slide is a coordinate on the target's own axes; the
+one **spin** is the angle about the mated direction left after the
+least turn, so no reference axis is chosen on either side and zero
+says the two spaces agree, up to the orientation, as far as the mates
+allow. Where the source's own mated direction is one of its axes, one
+carried axis lands on the mated direction and the mate takes that
+slide; otherwise the written slides are admitted only where they span
+the plane (or line) the mate leaves, decided once from the source's
+geometry. Where the mated direction is opposite to where the
+orientation puts it (the orientation written backwards) the least
+turn has no answer, and within the band about that one pole the chart
+refuses, typed at evaluation and naming the orientation to write, as
+a construction refuses at its degenerate values; so no edit that keeps
+the face short of a half turn from where the orientation puts it
+moves a held value's meaning, or the copy's place on the face. The
+orientation and a mate's `Flip` are two facts, the copy's attitude and
+the contact's sense; only the pole band refuses. Where no direction is
+fixed (no mate, or a lone point mate), there is no orientation: a
+slide is a coordinate on the target space's own axes, and the
+rotation is a written chain of at most three spins, each about the
+target space's x, y or z (through the mated point, for a point mate),
+no two in a row about one axis; turns do not commute, so the author
+writes the order and the kernel chooses none. A slide is the copy's
+origin measured from the target's, a function of the relative pose
+alone, so no slide is ordered. Every freedom is set explicitly, as a
+written value: zero is always a valid value, a placement whose values
+are all zero and which has no mate is the identity, and the façade
+writes the constant `0` for each freedom a gesture leaves unnamed. A
+bundle with no mate is legal. A space's axes are read only by values,
+so setting a part on the world's xy is written as values (`z = 0`, the
+two tilts `0`, and the slides and spin the author chooses). A
+placement is the only reader of a source's own coordinates, and reads
+them only through the freedoms its mates leave.
 
 **The world** `[placement.world]` is a space like any other, the one
 every document holds and cannot delete: it sets the coordinates. Its
@@ -2239,7 +2256,7 @@ the project publishes with one still in the shipped state.
   runs every row-5 postcondition. That is the right posture for a
   kernel nobody depends on yet; deleting the stanza is a real reduction
   in what a release build checks, so it is a decision to take at
-  publish rather than a chore (**S65**, `work/pred/S65.md`, is
+  publish rather than a chore (**S65**, `work/predtail/S65.md`, is
   the worked example).
 - **The name ([open.name]).**
 - **Post-publish schema discipline for the verb tags** (VERB-SEAT-DESIGN
@@ -2273,6 +2290,7 @@ is the board and `work/README.md` its contract.
 | `crates/editor-core/README.md` | Ratified (#496, option A′) | Group boolean in the recipe layer, GROUP-BOOLEAN-DESIGN: `PlacedUnion`, a Pattern that fuses — one prototype, one body out |
 | `crates/editor-core/ASSEMBLY.md` | Ratified (#333) | How editor-core keeps [assemblies], ASSEMBLY-DESIGN A1–A13, AQ1–AQ8: the evaluation seam, the pairing doors, pins, split and inline, the constructive solve; A3 and A5 fenced until INTENT retires them |
 | `crates/topo/README.md` | Ratified (#178, #965) | Contact census & declared contact, CONTACT-DESIGN C1–C8 (the C7 join lane is shipped); at-rest census structural identity, the CENSUS-REST-CLOSURE-DESIGN clauses |
+| `crates/mesh/README.md` | Ratified (#5708) | The mesher's sizing rule, `[mesh.sizing]`: each lane meshes as coarse as its own pinned worst-triangle theorem allows, with no safety factor; what kind each other mesh constant is |
 | `crates/geom-core/README.md` | Ratified (Ev, 2026-09-05) | The spline layer's pairing rule, SPLINE-DESIGN S1: a span-restricted door takes one structure (a `Span` borrows its `KnotVector`, a window its curve or surface, `SplineCoeffs` its knot vector), so a mismatch is unrepresentable |
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |

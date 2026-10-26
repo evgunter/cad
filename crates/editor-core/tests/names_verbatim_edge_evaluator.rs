@@ -58,8 +58,7 @@ use crate::fixture;
 
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
-    CapEnd, ContactClass, Coord, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId,
-    StableName, TargetAxis,
+    CapEnd, Coord, DocumentId, EvalOptions, Node, ProfileDoc, RecipeNodeId, StableName, TargetAxis,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};
@@ -130,9 +129,9 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// **Two instanced blocks, one seated on the other by a mate** — the
 /// assembly kind the Band 4 corpus does not author (`InstantiatePart`,
 /// with a constraint in its bundle).
-/// An instance's rows wrap its part's names in `InPart` under the
-/// instance's own head, which is the shape the head comparison exists
-/// to read correctly.
+/// An instance's rows carry its part's names as they are, read at the
+/// instance, which is the shape the head comparison exists to read
+/// correctly.
 fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let mut store = PartStore::new();
     let (base, base_body) = store.insert_part(block("vedge-base"), Tol::witness());
@@ -148,7 +147,6 @@ fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
         fixture::rest(
             fixture::head_at(top, in_part(top, top_body, CapEnd::Start)),
             fixture::head_at(base, in_part(base, base_body, CapEnd::End)),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), len(0.0)),

@@ -10,10 +10,11 @@
 # rather than a second gate with a second reader.
 #
 #   * `crates/editor-core/src/product.rs` — the gather counter: the
-#     `GATHERS` cell, the two increments (in `gather`, and in
-#     `product_recorded` where the slot reads nothing), and
-#     `gathers_on_this_thread`. A fifth site without the attribute, or
-#     the attribute dropped from one of the four, compiles and passes
+#     `GATHERS` cell, the three increments (in `gather`, in
+#     `census_of`, a door's census, run once where it is first asked
+#     for, and in `product_recorded` where the slot reads nothing), and
+#     `gathers_on_this_thread`. A sixth site without the attribute, or
+#     the attribute dropped from one of the five, compiles and passes
 #     every test.
 #   * `crates/mesh/src/curved.rs` — the sphere/torus lane's
 #     identified-vertex census: `identified_ids` re-derives the set of
@@ -219,7 +220,7 @@ set -euo pipefail
 # to a file with no row — reds with the row named rather than lowering
 # the total in silence.
 SUBJECTS=(
-  'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread 5 the debug-only gather counter'
+  'crates/editor-core/src/product.rs GATHERS|gathers_on_this_thread 6 the debug-only gather counter'
   'crates/mesh/src/curved.rs identified_ids|overused_identified_edge|overused_identified_edge_in 5 the identified-vertex census the sphere/torus emit pass re-derives'
   'crates/mesh/src/tessellate.rs unpaired_chord_segment 2 the chord-segment pairing census'
   'crates/mesh/src/walk.rs overused_identified_edge_in 1 the shared identified-vertex fan census'

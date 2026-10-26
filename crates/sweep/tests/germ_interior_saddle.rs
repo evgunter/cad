@@ -91,9 +91,12 @@ fn arc_bracket() -> Body<f64> {
 }
 
 fn volume(b: &Body<f64>) -> f64 {
-    topo::test_support::unmigrated_measure(b, Tol::witness())
-        .expect("the volume integrates")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(b), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("the volume integrates")
+    .volume
 }
 
 /// One op's row: the op, its name, and what it returned.

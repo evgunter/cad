@@ -23,10 +23,10 @@ use crate::fixture;
 use crate::wire::doctored;
 
 use editor_core::{
-    CapEnd, ContactClass, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
-    Formula, Frame, FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node, PartResolver,
-    PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, StableName, TargetAxis,
-    ValuePayload, VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
+    CapEnd, Coord, Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame,
+    FreeValue, FreeVar, Maintenance, MateRef, MeasurePrimitive, Node, PartResolver, PersistError,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SitedFace, StableName, TargetAxis, ValuePayload,
+    VarId, VarName, apply, apply_replayed, evaluate, load, product, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head, head_at, insert, len, offset_of, on_frame, run, solve, step};
@@ -93,15 +93,15 @@ impl Parts {
         with_resolver(self.store.clone())
     }
     /// The base's top cap.
-    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    pub(crate) fn base_cap(&self, base: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(base, self.base_body, CapEnd::End)
     }
     /// The top block's bottom cap.
-    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    pub(crate) fn top_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::Start)
     }
     /// The top block's upper cap, which a second block seats on.
-    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::InPart {
+    pub(crate) fn top_upper_cap(&self, top: RecipeNodeId) -> crate::fixture::resolver::PartName {
         in_part(top, self.top_body, CapEnd::End)
     }
 }
@@ -184,7 +184,7 @@ pub(crate) fn seat_edits(
     at: [f64; 2],
 ) -> (ProfileDoc, MateRef, Vec<DocEdit<ProfileProgram>>) {
     let placed = editor_core::Placed {
-        mates: vec![fixture::rest(mover, onto, ContactClass::Rest)],
+        mates: vec![fixture::rest(mover, onto)],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),
@@ -221,7 +221,7 @@ pub(crate) fn seat_turned(
     turn: f64,
 ) -> (ProfileDoc, MateRef) {
     let placed = editor_core::Placed {
-        mates: vec![fixture::rest(mover, onto, ContactClass::Rest)],
+        mates: vec![fixture::rest(mover, onto)],
         values: vec![
             (Coord::Slide(TargetAxis::X), len(at[0])),
             (Coord::Slide(TargetAxis::Y), len(at[1])),
@@ -684,12 +684,23 @@ fn a_loose_copy_is_gathered_and_measured_against_nothing_outside_it() {
     let doc = set_pin(doc, top, None, &o);
     let ev = run(&doc, &o);
     let world = |id| {
-        topo::test_support::unmigrated_measure(body_of(&ev, id).as_ref(), Tol::witness())
-            .expect("mass properties")
-            .volume
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(body_of(&ev, id).as_ref()),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .expect("mass properties")
+        .volume
     };
-    let gathered = product(&doc, &ev, Tol::witness()).expect("the world gathers");
-    let volume = topo::test_support::unmigrated_measure(&gathered, Tol::witness())
+    let gathered = topo::test_support::finished(
+        "gathered",
+        product(&doc, &ev, Tol::witness()).expect("the world gathers"),
+        Tol::witness(),
+    );
+    let volume = topo::mass_properties(&gathered, Tol::witness())
         .expect("mass properties")
         .volume;
     assert_eq!(
@@ -996,8 +1007,12 @@ fn inline_lands_verbatim_at_the_identity_and_composes_the_values_at_any_other_po
     );
     let back_doc = fixture::round_trip::flat(&back);
     let volume = |d: &ProfileDoc| {
-        topo::test_support::unmigrated_measure(
-            &product(d, &run(d, &o), Tol::witness()).expect("gathers"),
+        topo::mass_properties(
+            &topo::test_support::finished(
+                "the measured body",
+                topo::Body::clone(&product(d, &run(d, &o), Tol::witness()).expect("gathers")),
+                Tol::witness(),
+            ),
             Tol::witness(),
         )
         .expect("mass properties")
@@ -1261,7 +1276,7 @@ fn a_verbatim_split_keeps_every_bundle() {
 fn an_inline_at_the_identity_keeps_every_bundle() {
     let (p, part, _) = pair_beside_a_base("p2-carry-inline");
     let mut store = p.store.clone();
-    let part = crate::fixture::world_product(part);
+    let part = crate::fixture::assemble_world_copies(part);
     let part_ref = store.insert(part.clone(), Tol::witness());
     let host = ProfileDoc::empty(DocumentId::derive("p2-carry-inline-host"), Tol::witness());
     let (host, instance) = fixture::insert_pinned(

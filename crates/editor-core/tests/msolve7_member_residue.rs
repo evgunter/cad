@@ -22,10 +22,9 @@ use crate::fixture;
 use crate::wire;
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CapEnd, ContactClass, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId,
-    EntityKind, EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, VarName, apply, load,
-    save,
+    CapEnd, ContentPin, Coord, Dimension, Distribution, DocEdit, DocRef, DocumentId, EntityKind,
+    EvalOptions, Formula, FreeValue, FreeVar, MateRef, Node, Operand, PersistError, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedFace, StableName, TargetAxis, VarName, apply, load, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{ang, head_at, insert, len, on_frame, solve, step};
@@ -205,7 +204,6 @@ fn scene(label: &str, params: &[(&'static str, FreeVar)], x: Formula, turn: Form
         fixture::rest(
             head_at(top, in_part(top, top_body, CapEnd::Start)),
             head_at(base, in_part(base, base_body, CapEnd::End)),
-            ContactClass::Rest,
         ),
         &[
             (Coord::Slide(TargetAxis::X), x),
@@ -411,7 +409,6 @@ fn saved_with_a_bundle(label: &str) -> (ProfileDoc, String) {
         fixture::mate(
             fixture::plane(name(ids[1], CapEnd::Start)),
             standoff(name(ids[0], CapEnd::End), 0.5),
-            ContactClass::Rest,
         ),
         &[(Coord::Spin(editor_core::TargetAxis::Z), ang(0.25))],
     );
@@ -464,14 +461,14 @@ fn refused_field(text: &str) -> Result<String, String> {
 }
 
 /// The keys of a mate's object and of a value's on the wire.
-const MATE_KEYS: [&str; 3] = ["on", "to", "class"];
+const MATE_KEYS: [&str; 2] = ["on", "to"];
 const VALUE_KEYS: [&str; 2] = ["coord", "by"];
 
 /// **A stray key on a constraint's objects refuses at the load door**,
 /// in the format's own arm for a field this build lacks, naming the
 /// field: on the mate, on the value, and spelled with a word another
 /// object of the wire owns (`coord` is the value's, not the mate's;
-/// `class` is the mate's, not the value's).
+/// `on` is the mate's, not the value's), and `class` on the mate.
 ///
 /// *Breaks if* either object drops a field it does not know.
 #[test]
@@ -481,7 +478,8 @@ fn a4_a_stray_key_on_a_constraint_refuses_at_the_load_door() {
         (&MATE_KEYS[..], "stray"),
         (&VALUE_KEYS[..], "stray"),
         (&MATE_KEYS[..], "coord"),
-        (&VALUE_KEYS[..], "class"),
+        (&VALUE_KEYS[..], "on"),
+        (&MATE_KEYS[..], "class"),
     ] {
         assert_eq!(
             refused_field(&with_a_key_in(&text, keys, key)).as_deref(),

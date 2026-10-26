@@ -25,7 +25,6 @@ import unittest
 import pncad
 from pncad import (
     CapEnd,
-    ContactClass,
     Coord,
     Doc,
     DocEdit,
@@ -45,7 +44,7 @@ from pncad import (
 )
 
 import bench_scene
-from placing import moves, world_product
+from placing import moves, assemble_world_copies
 
 
 def lifted(z):
@@ -207,10 +206,11 @@ class WorldPins(unittest.TestCase):
         each `⊔` between its own members, whether or not the product
         reads it: two posts seated at one spot under a shelf in a space
         of their own, gathered by a `⊔` there, interpenetrate, and the
-        gate refuses though the world's product beside them certifies."""
+        gate reports their overlap as one loud interference finding
+        though the world's product beside them certifies."""
         doc = Doc("py-pin-gate")
         self.pinned(doc, self.post_ref, Frame.translation((1 * m, 0 * m, 0 * m)))
-        world_product(doc)
+        assemble_world_copies(doc)
         aside = doc.new_space()
         shelf = doc.insert(Node.instantiate_part(self.shelf_ref, aside))
         posts = []
@@ -227,11 +227,13 @@ class WorldPins(unittest.TestCase):
         self.assertEqual({doc.space(p) for p in posts}, {doc.output(aside)})
         # One post under the shelf: nothing clashes anywhere.
         doc.assemble([shelf, posts[0]])
-        pncad.assemble(doc, evaluate(doc, resolver=self.ws))
+        assembly = pncad.assemble(doc, evaluate(doc, resolver=self.ws))
+        self.assertEqual(len(assembly.interference), 0)
         doc.assemble([shelf, *posts])
-        with self.assertRaises(pncad.AssemblyError) as caught:
-            pncad.assemble(doc, evaluate(doc, resolver=self.ws))
-        self.assertEqual(caught.exception.variant, "at_rest")
+        assembly = pncad.assemble(doc, evaluate(doc, resolver=self.ws))
+        self.assertEqual(len(assembly.interference), 1)
+        (finding,) = assembly.interference
+        self.assertTrue(finding.loud)
 
     def test_a_seat_charts_on_the_space_not_on_the_body_it_rests_on(self):
         """Against an independent 4x4 composition: a post pinned to the
@@ -300,8 +302,8 @@ class WorldPins(unittest.TestCase):
             doc.set_constraints(
                 post,
                 [
-                    Mate(facing(post, (0.0, 0.0, -1.0)), floor, ContactClass.Rest),
-                    Mate(facing(post, (-1.0, 0.0, 0.0)), wall_x, ContactClass.Rest),
+                    Mate(facing(post, (0.0, 0.0, -1.0)), floor),
+                    Mate(facing(post, (-1.0, 0.0, 0.0)), wall_x),
                 ],
             )
         fault = caught.exception.fault

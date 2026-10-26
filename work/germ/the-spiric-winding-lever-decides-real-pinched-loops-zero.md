@@ -95,4 +95,4 @@ parts, agreeing to 25 digits):
 bound over the arc; the search
 `props::spiric::length_fuzz::the_length_bound_holds_every_arc_from_above`.
 
-**Sibling filed**: `work/curved/the-whole-period-spiric-speed-bound-reads-sin-and-f-apart.md`.
+**Sibling filed**: `work/germcert/the-whole-period-spiric-speed-bound-reads-sin-and-f-apart.md`.

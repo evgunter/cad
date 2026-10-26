@@ -13,7 +13,7 @@
 //! section faces are transients that die in the seam zip; a boolean
 //! intersection polygon is in general non-planar, so no honest plane
 //! exists to mint). Which promoted/remaining face is the IN copy is
-//! read from the [`crate::null::NullFacePair::Boolean`] loop roles — the F3-chain
+//! read from the [`CompletedPolygonPair`] loop roles — the F3-chain
 //! derivation carried as data ("consistent orientation of null edges"
 //! is never consulted).
 //!
@@ -109,7 +109,6 @@ fn promote_solid<T: Decide>(
         // The transient section faces inherit the null face's surface
         // (module docs — they die in the zip).
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
-        body.clear_null_face_pair(face);
         let (in_face, out_face) = if ring == in_loop {
             (promoted.face, face)
         } else {
@@ -553,39 +552,8 @@ fn discarded<T: Decide>(
         kept(start, &us).zip(kept(end, &ws)).ok_or_else(refuse)
     };
     let kept_across = |f: FaceKey| sides.contains_key(f);
-    // A vertex of this operand in result keys: the one copy of it the
-    // result keeps, or where it keeps none, the one vertex of the other
-    // operand it meets there.
-    let theirs = super::NullCopies::of_operand(&red.null_edges, operand.other());
-    let own_to_result = |v: VertexKey| -> Option<VertexKey> {
-        let one = |mut rs: Vec<VertexKey>| {
-            rs.sort();
-            rs.dedup();
-            match rs.as_slice() {
-                [r] => Some(*r),
-                _ => None,
-            }
-        };
-        let copies = copy.of(v);
-        let kept: Vec<VertexKey> = copies.iter().filter_map(|&k| kept_vertex(k)).collect();
-        if !kept.is_empty() {
-            return one(kept);
-        }
-        one(red
-            .contacts
-            .vv
-            .iter()
-            .filter_map(|c| {
-                let (mine, other) = match operand {
-                    Operand::A => (c.a, c.b),
-                    Operand::B => (c.b, c.a),
-                };
-                copies.contains(&mine).then_some(other)
-            })
-            .flat_map(|o| theirs.of(o))
-            .filter_map(|k| (chords.1)(k))
-            .collect())
-    };
+    let own_to_result =
+        |v: VertexKey| super::discard::own_in_result(red, operand, (kept_vertex, chords.1), v);
     let chords = ChordsAcross {
         cuts: chords.0,
         to_result: chords.1,

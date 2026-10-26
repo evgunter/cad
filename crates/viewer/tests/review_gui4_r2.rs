@@ -37,7 +37,7 @@ use pncad::document::{CancelToken, EvalOptions, Frame, PartResolver, evaluate};
 use pncad::geom_core::Tol;
 use pncad::workspace::Workspace;
 use viewer::display::AdmissionFault;
-use viewer::matetool::{MateTool, admitted_classes};
+use viewer::matetool::MateTool;
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
@@ -571,30 +571,6 @@ fn the_threaded_seam_resolves_the_assembly_too() {
     for row in &rows {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
-}
-
-/// The admission exposure cannot drift from the kernel table for any
-/// class it offers (a divergence probe: the verdicts are READ, and
-/// this row fails if a restatement ever creeps in), and it offers
-/// every class the kernel enum can currently name.
-#[test]
-fn admitted_classes_match_the_kernel_table_exactly() {
-    let classes = admitted_classes();
-    for entry in &classes {
-        assert_eq!(
-            entry.admission,
-            pncad::document::class_admission(entry.class),
-            "{:?}",
-            entry.class
-        );
-    }
-    let named: Vec<&str> = classes.iter().map(|e| e.class.name()).collect();
-    assert_eq!(
-        named,
-        vec!["Rest", "Tangent"],
-        "every nameable class is offered (this row is the tripwire \
-         that fires when the kernel enum grows one)"
-    );
 }
 
 /// PROBE (evidence row, kept because its outcome is a pinned fact a

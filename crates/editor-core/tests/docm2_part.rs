@@ -388,7 +388,7 @@ fn edges_of_body(ev: &Evaluation<f64>, node: RecipeNodeId, body: u32) -> Vec<Sta
 /// **A3 — names pass through, and only the selected body's.** A fillet
 /// spelled against the split's own above-half edge rows resolves on a
 /// read of the above port, every name uniquely, and a placement of
-/// that read carries exactly those rows, each under its `Placed` layer; a below-half name read there
+/// that read carries exactly those rows, verbatim; a below-half name read there
 /// refuses through the N5 ladder, never re-anchored to a congruent
 /// above-half edge; a selector for instance 2 against `Part(1)` refuses
 /// `Vanished` the same way; `Part(1)`'s table is the master's row count
@@ -738,8 +738,12 @@ fn a7_the_product_of_a_lone_placed_half_is_that_half() {
     });
     r.place(port(split, SplitHalf::Above));
     let ev = eval(&r.doc);
-    let body = product(&r.doc, &ev, Tol::witness()).expect("the product gathers");
-    let m = topo::test_support::unmigrated_measure(&body, Tol::witness()).expect("mass properties");
+    let body = topo::test_support::finished(
+        "body",
+        product(&r.doc, &ev, Tol::witness()).expect("the product gathers"),
+        Tol::witness(),
+    );
+    let m = topo::mass_properties(&body, Tol::witness()).expect("mass properties");
     assert_eq!(m.volume, 0.5, "the upper half of the unit box, exactly");
     let (side, _) = sides(&ev, split);
     assert_eq!(bits(&body), bits(&side));

@@ -4,7 +4,7 @@ kind: issue
 title: The census's cross-solid backstop answers CensusUndecidable for curved solids within reach of each other, so 26 multi-solid shell results fail the empty-contact tier 3' they should pass
 status: open
 opened: 2026-10-03
-priority: P1
+priority: P0
 refs: [3870]
 cost: H
 ---

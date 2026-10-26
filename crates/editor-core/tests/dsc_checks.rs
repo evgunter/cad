@@ -561,7 +561,7 @@ fn a_deliberately_disjoint_body_draws_no_separation_finding() {
 /// refuses it typed. Answers the document, the options that resolve its
 /// part, and the failed placement.
 fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
-    use editor_core::{CapEnd, ContactClass, EntityKind, RoleSeg, StableName};
+    use editor_core::{CapEnd, EntityKind, RoleSeg, StableName};
     let mut store = fixture::resolver::PartStore::default();
     let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
     let (part, profile) = on_frame(
@@ -594,7 +594,6 @@ fn failed_placement_world(id: &str) -> (ProfileDoc, EvalOptions, RecipeNodeId) {
             fixture::resolver::in_part(placed, body, CapEnd::Start),
         ),
         fixture::head_at(base, nowhere),
-        ContactClass::Rest,
     );
     let (doc, _) = fixture::constrain_at(doc, placed, mate);
     (doc, opts, placed)

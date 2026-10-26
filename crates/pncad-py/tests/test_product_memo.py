@@ -23,7 +23,7 @@ by.
 """
 
 import unittest
-from placing import world_product
+from placing import assemble_world_copies
 
 import pncad
 from pncad import (
@@ -104,9 +104,9 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         """The memo is per-evaluation, and an evaluation is per-ask.
         Two of them are two memos and one answer."""
         doc = one_box("memo-two-evaluations")
-        world_product(doc)
+        assemble_world_copies(doc)
         first = product(doc, evaluate(doc)).mass_properties().volume
-        world_product(doc)
+        assemble_world_copies(doc)
         second = product(doc, evaluate(doc)).mass_properties().volume
         self.assertEqual(first, second)
 

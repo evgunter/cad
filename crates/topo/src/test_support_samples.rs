@@ -30,8 +30,8 @@
 //! `OffsetFitError::PatchBound`'s and `OffsetFitError::Band`'s; the
 //! other four `OffsetFitError` wrappers carry one value each.
 //!
-//! Where a raise site fills a field with prose — a `what`, a `detail`,
-//! a steer — the sample carries the prose a real run renders, and a
+//! Where a raise site fills a field with prose — a `what` or a `detail`
+//! — the sample carries the prose a real run renders, and a
 //! field with several real values is sampled at each one this module
 //! names. Arena keys are the default (null) keys.
 #![allow(clippy::expect_used)] // one fixed band, well-formed by construction
@@ -49,9 +49,7 @@ use strum::IntoEnumIterator as _;
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{
-    ContactClass, ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
-};
+use crate::contact::{ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, GlueClass};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -163,6 +161,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             segments: crate::chart_region::WITNESS_SEGMENT_CAP,
             cells: crate::chart_region::WITNESS_CELL_CAP,
         },
+        ChartRegionError::EdgeScale,
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {
@@ -176,11 +175,9 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     let mut v = vec![
         ContactRefusal::Contradicted {
             diag: contradiction_margin("contact_rest_senses_opposed"),
-            steer: None,
         },
         ContactRefusal::Contradicted {
             diag: contradiction_margin("carrier_cyl_radius"),
-            steer: Some(FIT_DEFERRAL),
         },
         ContactRefusal::Escalated { diag: diag() },
         ContactRefusal::Undeclared { diag: diag() },
@@ -256,20 +253,6 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             cause: uncrossable(),
         },
         S::WallOutlineUnsupported { face },
-        S::JunctionSidesDisagree {
-            face,
-            sides: (MarginDiag::value(2e-9), MarginDiag::value(-1.6e-9)),
-            band: Band::new(1e-9, 1.5e-9).expect("a well-formed band"),
-        },
-        S::NarrowWindowUnread {
-            face,
-            diag: Indeterminate {
-                margin: MarginDiag::value(5e-10),
-                band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
-                predicate: Some("bool_wall_trim"),
-                terminal_sliver: false,
-            },
-        },
         S::RootCountDisagrees {
             face,
             certified: 2,
@@ -465,6 +448,19 @@ fn certify_errors() -> Vec<CertifyError> {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Ellipse,
         },
+        CertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Unwritten,
+        },
+        CertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Pose {
+                piece: 1,
+                channel: geom_brep::SectorChannel::Azimuth,
+            },
+        },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
@@ -627,15 +623,33 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Torus,
         },
-        PcurveCertifyError::CarrierGrazesChart {
+        PcurveCertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
-            grazer: geom_brep::Grazer::TorusCircle,
+            gap: geom_brep::LaneGap::Unwritten,
+        },
+        PcurveCertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Pose {
+                piece: 1,
+                channel: geom_brep::SectorChannel::Azimuth,
+            },
         },
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
             carrier: geom::CurveKind::Line,
             why: "a sphere holds no line",
+            margin: None,
+        },
+        PcurveCertifyError::CarrierOffChart {
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Circle,
+            why: "the rim's height is not shown away from the apex's, where the apex plane \
+                  meets the cone only at the apex",
+            margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                4e-10,
+            ))),
         },
         PcurveCertifyError::ImageMismatch {
             image: geom_brep::PcurveKind::General,
@@ -707,25 +721,16 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             key: EntityId::HalfEdge(half_edge),
         },
         PcurveMintError::NoCarrier { half_edge },
-        PcurveMintError::EmptyOuter { face },
         PcurveMintError::LoopDiscontinuity { half_edge },
         PcurveMintError::LoopNotClosed { face },
-        PcurveMintError::SingularChartJoint {
-            face,
-            r#loop,
-            half_edge,
-        },
         PcurveMintError::JointWithoutRoom {
             face,
             r#loop,
             half_edge,
         },
-        PcurveMintError::OuterSpansPeriod,
-        PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
         PcurveMintError::Unminted { face },
         PcurveMintError::RowInterval { half_edge },
-        PcurveMintError::UncertifiedImage { half_edge },
         PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,
@@ -974,7 +979,7 @@ fn census_contacts() -> Vec<CensusContact> {
                 pair: DeclaredContact {
                     a: face,
                     b: face,
-                    class: ContactClass::Tangent,
+                    class: GlueClass::Tangent,
                 },
                 verdict: ContactVerdict::Definite,
             },
@@ -984,7 +989,7 @@ fn census_contacts() -> Vec<CensusContact> {
                 pair: DeclaredContact {
                     a: face,
                     b: face,
-                    class: ContactClass::Rest,
+                    class: GlueClass::Rest,
                 },
                 verdict: ContactVerdict::Definite,
             },
@@ -1329,6 +1334,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             inner: solid,
             witness: vertex,
         },
+        ValidationError::SameSideInterference { a: face, b: face },
         ValidationError::CuspEdgesMissing {
             a: face,
             b: face,
@@ -1592,38 +1598,31 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     // Door 1's whole-surface verdict (a Rest record) and the tangent
     // line of a face-face record on two carriers (a Tangent record),
-    // each with and without the designed-clearance steer.
+    // each.
     for (class, witness, predicate) in [
         (
-            ContactClass::Rest,
+            GlueClass::Rest,
             crate::census::CARRIER_COMPARISON_WITNESS,
             "carrier_sphere_radius",
         ),
         (
-            ContactClass::Tangent,
+            GlueClass::Tangent,
             crate::census::TANGENT_LOCUS_WITNESS,
             "contact_tangent_opposed",
         ),
     ] {
-        for steer in [None, Some(FIT_DEFERRAL)] {
-            s.push((
-                format!(
-                    "ContactContradicted/{}{}",
-                    class.name(),
-                    if steer.is_some() { "/steered" } else { "" }
-                ),
-                ValidationError::ContactContradicted {
-                    declaration: DeclaredContact {
-                        a: face,
-                        b: face,
-                        class,
-                    },
-                    witness: witness.to_owned(),
-                    margin: contradiction_margin(predicate),
-                    steer,
+        s.push((
+            format!("ContactContradicted/{}", class.name()),
+            ValidationError::ContactContradicted {
+                declaration: DeclaredContact {
+                    a: face,
+                    b: face,
+                    class,
                 },
-            ));
-        }
+                witness: witness.to_owned(),
+                margin: contradiction_margin(predicate),
+            },
+        ));
     }
     let mut causes: Vec<(String, CensusUnsupportedCause)> = Vec::new();
     for e in chart_region_errors() {
@@ -1692,6 +1691,28 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::FaceThroughEdgeWedgeUndecided {
                 edge: EdgeKey::default(),
                 face,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                why,
+            },
+        ));
+    }
+    s.push((
+        "CoincidentWedgesOverlap".to_owned(),
+        ValidationError::CoincidentWedgesOverlap {
+            edges: [EdgeKey::default(); 2],
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    // The reasons tier 3′'s line reading names: a sign in band, or an
+    // edge's wedge with no reading.
+    let line_unread = core::iter::once((crate::census::TouchUnread::InBand, None))
+        .chain(crate::census::WEDGE_UNREAD.map(|why| (why, Some(EdgeKey::default()))));
+    for (why, unread) in line_unread {
+        s.push((
+            format!("CoincidentWedgesOverlapUndecided/{why:?}"),
+            ValidationError::CoincidentWedgesOverlapUndecided {
+                edges: [EdgeKey::default(); 2],
+                unread,
                 witness: "(0.0, 0.0, 0.0)".to_owned(),
                 why,
             },
