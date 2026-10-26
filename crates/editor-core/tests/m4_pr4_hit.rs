@@ -50,13 +50,6 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
             .enumerate()
             .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
             .collect(),
-        // A placement's copies: the bodies its name table indexes.
-        ValuePayload::Copies(c) => c
-            .bodies
-            .iter()
-            .enumerate()
-            .map(|(i, b)| (u32::try_from(i).unwrap(), &**b))
-            .collect(),
         ValuePayload::Profile(_)
         // Neither sink denotes a body, so neither offers an entity to
         // invert.

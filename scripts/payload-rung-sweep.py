@@ -164,6 +164,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                           "declaration in crates/topo/src/validate.rs; the carry "
                           "is the facade crate's row and owes the CUR3 property "
                           "row plus a Python word"),
+    "Undecidable": ("argued", "non-carriage with its falsifier, beside the "
+                    "declaration in crates/topo/src/validate.rs; the carry "
+                    "is the facade crate's row and owes the CUR3 property "
+                    "row plus a Python word"),
     "TouchUnread": ("argued", "non-carriage with its falsifier, beside the "
                     "declaration in crates/topo/src/census.rs; the carry "
                     "is the facade crate's row and owes the CUR3 property "
@@ -189,6 +193,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # `BooleanError::SlitLineCrossed`'s gap: which construction a slit's
     # line lacks.
     "SlitLineGap": ("argued", "non-carriage with its falsifier, beside the declaration "
+                    "in crates/topo/src/boolean/mod.rs"),
+    # `BooleanError::SlitFaceGlued`'s gap: which construction along a
+    # glued slit is not built.
+    "SlitFaceGap": ("argued", "non-carriage with its falsifier, beside the declaration "
                     "in crates/topo/src/boolean/mod.rs"),
     # `BooleanError::GermSectionSpiric`'s loops: `WedgeCheck`'s shape,
     # argued beside the declaration.

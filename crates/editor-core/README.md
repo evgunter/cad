@@ -161,9 +161,9 @@ reads.
   `graft_disjoint_all_keyed`, minting its own solids, so the result is a body
   of one solid per copy. That is the body the pairwise fold produces, since a
   solid is one piece of material (`docs/DESIGN.md`), and it is a boolean
-  operand like any other, since booleans take bodies. A product operand
-  refuses (`NodeErrorKind::ProductOperand`). No new kernel op or naming
-  record; `BooleanNaming` stays two-operand.
+  operand like any other, since booleans take bodies, a body of several
+  parts included. No new kernel op or naming record; `BooleanNaming`
+  stays two-operand.
 
 ## The profile-parameter lift (PP1–PP6)
 

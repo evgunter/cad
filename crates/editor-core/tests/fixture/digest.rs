@@ -73,13 +73,6 @@ pub fn digest(ev: &Evaluation<f64>) -> u64 {
         // that is.
         match &value.payload {
             ValuePayload::Body(body) => feed_body(&mut feed, body),
-            // An instance's copies are its part product, one body, as
-            // an instance's value was before it was a placement.
-            ValuePayload::Copies(copies) => {
-                for body in &copies.bodies {
-                    feed_body(&mut feed, body);
-                }
-            }
             ValuePayload::Boolean(bv) => match bv {
                 BooleanValue::Body {
                     body,

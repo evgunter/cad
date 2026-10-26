@@ -562,7 +562,15 @@ BOUNDS_ALLOWLIST=(
   # now reads its sections' profile values
   # (`a-loft-is-the-nominal-surface-in-every-generic-lane`), and none of
   # the three read a bound, so the headers go with the seam.
-  'crates/editor-core/src/eval/wire.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
+  # 14 -> 17: `−` and `∩` distribute over `⊔` (D′3,
+  # `eval/wire/distribute.rs`). The subtract's and the union's
+  # lowerings each split in two around the per-piece recursion:
+  # `wire_subtract` calls `subtract_from`, and `wire_combine` calls
+  # `combine_members`, which calls `fold_members`. The three new
+  # headers are the boolean lane's own, ratified for the sweep's BVH
+  # brackets, and each is a caller spelling the pair verb's header
+  # (`run_pair`); none of them reads a bound.
+  'crates/editor-core/src/eval/wire.rs 17 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is

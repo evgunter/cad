@@ -455,8 +455,8 @@ fn re_stood(doc: ProfileDoc, body: RecipeNodeId) -> ProfileDoc {
         .placements()
         .into_iter()
         .filter(|&p| {
-            matches!(doc.node(p), Some(Node::Place { shapes, .. })
-                if shapes.iter().any(|s| doc.operation_of(s.read) == Some(body)))
+            matches!(doc.node(p), Some(Node::Place { source, .. })
+                if doc.operation_of(source.read) == Some(body))
         })
         .collect();
     let doc = stale.into_iter().fold(doc, |doc, p| {

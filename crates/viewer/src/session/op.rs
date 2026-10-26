@@ -27,7 +27,7 @@ use crate::props::SlotValue;
 use crate::session::author::{PartSelectSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
 use crate::session::refuse::Refusal;
-use crate::session::select::{FaceSelection, Hovered, Renamed, Selection};
+use crate::session::select::{FaceSelection, Hovered, Selection};
 
 /// One typed operation on the session.
 #[derive(Clone, Debug)]
@@ -821,10 +821,9 @@ pub enum SessionOp {
     /// fillet, re-pointing the body's world placements to it (A10, Ev's
     /// residue 1).
     ///
-    /// **A target that is a world placement is a pick on its copy**,
-    /// read on the body it places: the fillet reads that body, and each
-    /// selected name the placement's wrap is unwrapped to the body's own
-    /// (`StableName::copy_of`).
+    /// **A target that is a world placement is read on the body it
+    /// places**: the fillet reads that body, and a copy carries its
+    /// body's names as they are, so each selected name is the body's.
     ///
     /// **The selection is a frozen commitment** (`Node::Fillet`'s
     /// ratified #217 semantics): what is authored here is what the
@@ -961,7 +960,7 @@ pub enum SessionOp {
     /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
     /// reference into a store it has not got.
     ///
-    /// **A creation, so its copies are placed** (A10): an instance is a
+    /// **A creation, so its copy is placed** (A10): an instance is a
     /// placement, inserted and placed at the identity by the "place
     /// part" gesture (the identity bundle), with its reference and an empty
     /// interface record (an authored instance crosses no split seam).
@@ -996,6 +995,16 @@ pub enum SessionOp {
         node: RecipeNodeId,
         /// Its new label, `None` to clear it.
         label: Option<Label>,
+    },
+    /// **Say what the document makes** (D10 `[operations]`): its
+    /// product set to the one body of `bodies`, or to a `⊔` of them in
+    /// the order given, inserted in the same action; to nothing where
+    /// `bodies` is empty. One action, one undo. The door refuses a read
+    /// whose body is not in the world. The properties pane offers it on a
+    /// selected world copy: add it to the product, or take it out.
+    SetProduct {
+        /// The bodies the document makes.
+        bodies: Vec<Operand>,
     },
     /// **A creation, labelled**: the creation's own edits and then a
     /// `DocEdit::SetLabel` on the node it created last, as ONE action
@@ -1241,6 +1250,7 @@ impl SessionOp {
             | Self::EditProfile { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
+            | Self::SetProduct { .. }
             | Self::CreateLabelled { .. } => false,
         }
     }
@@ -1320,6 +1330,7 @@ impl SessionOp {
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
             | Self::SetLabel { .. }
+            | Self::SetProduct { .. }
             | Self::CreateLabelled { .. } => None,
         }
     }
@@ -1542,7 +1553,8 @@ impl SessionOp {
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
-            | Self::SetLabel { .. } => false,
+            | Self::SetLabel { .. }
+            | Self::SetProduct { .. } => false,
             // A labelled creation is its creation, labelled.
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_value_gesture(),
         }
@@ -1669,7 +1681,8 @@ impl SessionOp {
             | Self::Duplicate { .. }
             | Self::AddInstance { .. }
             | Self::AcceptPartVersion { .. }
-            | Self::SetLabel { .. } => true,
+            | Self::SetLabel { .. }
+            | Self::SetProduct { .. } => true,
             Self::CreateLabelled { creation, .. } => creation.op().permitted_during_free_move(),
         }
     }
@@ -1773,10 +1786,6 @@ pub struct OpOutcome {
     /// gesture's previews: a preview enters no history, so nothing it
     /// did has happened yet.
     pub maintenance: Vec<Maintenance>,
-    /// **The picked names this operation moved** ([`Renamed`]): what
-    /// every holder of a pick re-seats its names through. Empty for
-    /// every operation that re-pointed no copy to a new placement.
-    pub renamed: Renamed,
 }
 
 impl OpOutcome {

@@ -710,6 +710,7 @@ test_utils::f6_variants! {
         Workspace,
         SelfInstance,
         ProfileEditStale,
+        StrandedPick,
     ];
 }
 

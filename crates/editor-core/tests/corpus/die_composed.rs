@@ -126,23 +126,11 @@ pub fn selection(
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     // The ball's band face as the pip's placement copies it: the
-    // ball's own name, qualified by the placement.
-    let pip = match doc.node(pipped) {
-        Some(Node::Subtract { tool, .. }) => doc
-            .operation_of(tool.read)
-            .unwrap_or_else(|| panic!("{pipped}'s tool reads the pip's placement")),
-        other => panic!("{pipped} is the die's subtract, got {other:?}"),
-    };
+    // ball's own name, which a copy carries as it is.
     let ball_face = |seg: RoleSeg| StableName {
         kind: EntityKind::Face,
-        node: pip,
-        path: vec![RoleSeg::Placed {
-            of: NameRef::new(StableName {
-                kind: EntityKind::Face,
-                node: ball,
-                path: vec![seg],
-            }),
-        }],
+        node: ball,
+        path: vec![seg],
     };
     let lower = crate::fixture::piece(doc, ball, 0, 0);
     let mut out: Vec<StableName> = prism_edges(doc, cube, 4)
@@ -194,7 +182,8 @@ pub fn selection(
 /// 2. `Seam { a: From(Cap(End)), b: From(Placed(Band | BandPi)) }` —
 ///    the pip rim, the two arcs the zip minted where the cube's end cap
 ///    crosses the ball's lower band, which the pip's placement copies
-///    (`Placed`), each side carried in through its read. A full
+///    with its names as they are, each side carried in through its
+///    read. A full
 ///    revolve's band is two half-faces split at the seam meridians, so
 ///    the rim is two arcs and the band role has two variants; the union
 ///    says both. A seam's sides are in name order, and the cube's read
@@ -210,13 +199,9 @@ pub fn selection(
 /// (`crates/editor-core/src/names/select.rs` module docs).
 pub fn selector() -> Selector {
     let edge = || NamePat::of_kind(EntityKind::Edge);
-    // A face of the pip: the ball's, as its placement copies it.
-    let face = |tag: SegTag| {
-        NamePat::of_kind(EntityKind::Face).seg(
-            SegPat::tag(SegTag::Placed)
-                .of([NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag))]),
-        )
-    };
+    // A face of the pip: the ball's, which its placement copies by
+    // the ball's names.
+    let face = |tag: SegTag| NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(tag));
     let cap_top =
         NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let from =
@@ -239,9 +224,9 @@ pub fn selector() -> Selector {
 /// checks the exclusion reads the same list the docs above describe.
 /// The cube's face cuts each, so the target publishes each as its one
 /// piece, named by its ends (N2): read off `ev`'s table at `pipped`.
-/// `ball` is the revolve whose names the pip's placement carries,
-/// each under the placement (`Placed`); the carry is keyed by the
-/// subtract's TOOL read (the pip's output), not by the ball's own.
+/// `ball` is the revolve whose names the pip's placement carries as
+/// they are; the carry is keyed by the subtract's TOOL read (the pip's
+/// output), not by the ball's own.
 pub fn excluded_meridians(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
@@ -252,9 +237,6 @@ pub fn excluded_meridians(
         Some(Node::Subtract { tool, .. }) => tool.read,
         other => panic!("{pipped} is the die's subtract, got {other:?}"),
     };
-    let pip = doc
-        .operation_of(tool)
-        .unwrap_or_else(|| panic!("{pipped}'s tool reads the pip's placement"));
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
         .map(|end| {
@@ -268,13 +250,7 @@ pub fn excluded_meridians(
             };
             let head = RoleSeg::From {
                 read: tool,
-                of: NameRef::new(StableName {
-                    kind: EntityKind::Edge,
-                    node: pip,
-                    path: vec![RoleSeg::Placed {
-                        of: NameRef::new(meridian),
-                    }],
-                }),
+                of: NameRef::new(meridian),
             };
             let pieces: Vec<StableName> = crate::fixture::table(ev, pipped)
                 .iter()

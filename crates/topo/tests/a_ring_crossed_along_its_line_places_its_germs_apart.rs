@@ -20,12 +20,16 @@
 //! along the line its edges are the creased material sectors the
 //! operands' material decides, the result's material round the line the
 //! op's. The union keeps only the top on both sides of the ring and
-//! closes it across the line, which the join does not build: it refuses
-//! `SlitLineCrossed` `Closes`
-//! (`work/cleave/a-boolean-closes-a-slits-face-across-its-line.md`).
-//! A partner with a face flush with the top beside the ring refuses
-//! `Flush` where the op keeps one of the two flush faces
-//! (`work/cleave/a-boolean-cuts-a-flush-face-kept-once-along-a-slits-line.md`).
+//! closes it across the line, no edge left there: around the void, the
+//! union is the plate.
+//!
+//! A partner grooved along the ring, its reflex edge on the ring's line,
+//! unites with the plate in either order: the zip keeps that edge
+//! between the void's two walls.
+//! A partner with a face flush with the top beside the ring builds in
+//! every op: where the op keeps one of the two flush faces, the dropped
+//! one is cut along the line, the cut ending in the full turn the ring
+//! leaves at its tip.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -33,9 +37,8 @@ use crate::common;
 use common::meeting::{MEET, PLATE, Pose, apex_pyramid, bearing, lying, posed_box, poses};
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{
-    AtRestBody, BooleanError, BooleanResult, SlitLineGap, SolidContainment, intersect,
-    mass_properties, point_in_solid, readback, subtract, union, validate_geometric,
-    validate_pseudomanifold,
+    AtRestBody, BooleanError, BooleanResult, SolidContainment, intersect, mass_properties,
+    point_in_solid, readback, subtract, union, validate_geometric, validate_pseudomanifold,
 };
 
 fn t() -> Tol {
@@ -138,6 +141,9 @@ struct Scene {
     /// The ring's end along the line and, where the partner's edge ends
     /// inside the ring, where it does: no sample sits on either.
     ends: &'static [f64],
+    /// The union's vertices, edges and faces: the top closed across
+    /// the ring where the partner fills the void about it.
+    union: (usize, usize, usize),
 }
 
 fn scenes() -> [Scene; 2] {
@@ -154,6 +160,7 @@ fn scenes() -> [Scene; 2] {
             void: below(lying(0.0)),
             reach: 0.6,
             ends: &[0.5],
+            union: (8, 12, 6),
         },
         Scene {
             label: "under",
@@ -169,6 +176,7 @@ fn scenes() -> [Scene; 2] {
             ],
             reach: 0.5,
             ends: &[0.3],
+            union: (15, 24, 12),
         },
     ]
 }
@@ -200,20 +208,6 @@ fn check(s: &Scene, pose: &Pose) {
     let mut vol = Vec::new();
     for (op, keep, r) in ops {
         let what = format!("{}, {}, {op}", s.label, pose.label);
-        if op.contains('∪') {
-            assert!(
-                matches!(
-                    r,
-                    Err(BooleanError::SlitLineCrossed {
-                        gap: SlitLineGap::Closes,
-                        ..
-                    })
-                ),
-                "{what}: the union closes the top across the ring, got {:?}",
-                r.map(|_| ())
-            );
-            continue;
-        }
         let r = match r {
             Ok(BooleanResult::Body(r)) => r,
             other => panic!("{what}: builds, got {:?}", other.map(|_| ())),
@@ -242,6 +236,26 @@ fn check(s: &Scene, pose: &Pose) {
             let held = creases(p, d, 1e-3, &|q| inside(&r.body, q));
             assert_eq!(held, want, "{what}: the result's own material at {at}");
         }
+        if op.contains('∪') {
+            // The top closes across the ring where the partner fills the
+            // void about it: around, the whole ring, and the union is the
+            // plate; under, from the apex to the partner's edge's end.
+            assert_eq!(
+                (
+                    r.body.vertices().count(),
+                    r.body.edges().count(),
+                    r.body.faces().count()
+                ),
+                s.union,
+                "{what}: the top closed across the ring"
+            );
+            if s.label == "around" {
+                assert!(
+                    (vol.last().unwrap() - volume(&plate)).abs() < 1e-12,
+                    "{what}: the plate's volume"
+                );
+            }
+        }
         if op == "x − y" && s.label == "around" {
             // The partner holds the void whole: the difference is the void.
             assert_eq!(
@@ -260,11 +274,16 @@ fn check(s: &Scene, pose: &Pose) {
         }
     }
     let (vx, vy) = (volume(&x), volume(&y));
-    let [xy, yx, i, i2] = vol[..] else {
-        unreachable!("four ops build")
+    let [xy, yx, i, i2, u, u2] = vol[..] else {
+        unreachable!("six ops build")
     };
     let what = format!("{}, {}", s.label, pose.label);
     assert!((i - i2).abs() < 1e-12, "{what}: |x ∩ y| in both orders");
+    assert!((u - u2).abs() < 1e-12, "{what}: |x ∪ y| in both orders");
+    assert!(
+        (u + i - vx - vy).abs() < 1e-9,
+        "{what}: |x ∪ y| + |x ∩ y| = |x| + |y|"
+    );
     assert!(
         (xy + i - vx).abs() < 1e-9,
         "{what}: |x − y| + |x ∩ y| = |x|"
@@ -276,7 +295,7 @@ fn check(s: &Scene, pose: &Pose) {
 }
 
 #[test]
-fn an_edge_along_a_ring_places_its_germs_apart_in_every_op_it_builds() {
+fn an_edge_along_a_ring_places_its_germs_apart_and_the_union_closes_the_ring() {
     let poses = poses();
     for s in &scenes() {
         for pose in [&poses[0], &poses[2]] {
@@ -285,16 +304,17 @@ fn an_edge_along_a_ring_places_its_germs_apart_in_every_op_it_builds() {
     }
 }
 
-/// **A partner flush with the ring's face, kept once, refuses typed.**
-/// The partner's edge runs along the ring, one of its faces lies on the
-/// top beside it and the other in the far wall's wedge, on either side
-/// of the ray. Where the op keeps one copy of the two flush faces and
-/// the line holds two germs (`x ∩ y`, `y ∪ x`), the cut in the dropped
-/// copy has no corner to end in: `SlitLineCrossed` `Flush`, no lever.
-/// The other ops build, tier 3 and 3′, their edges on the line the
-/// material's creases, their volumes adding up.
+/// **A partner flush with the ring's face, kept once, builds.** The
+/// partner's edge runs along the ring, one of its faces lies on the top
+/// beside it and the other in the far wall's wedge, on either side of
+/// the ray. Where the op keeps one copy of the two flush faces and the
+/// line holds two germs, the dropped copy is cut along the line, the cut
+/// ending at the ring's tip in the full turn the ring leaves there.
+/// Every op builds, in either order, tier 3 and 3′, its edges on the
+/// line the material's creases, the two orders alike and the volumes
+/// adding up; the unions close the top across the line.
 #[test]
-fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
+fn a_partner_flush_with_the_rings_face_builds_where_one_copy_is_kept() {
     let poses = poses();
     let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
     for (side, base) in [
@@ -336,20 +356,6 @@ fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
             let mut vol = Vec::new();
             for (op, keep, r) in ops {
                 let what = format!("flush {side}, {}, {op}", pose.label);
-                if op == "x ∩ y" || op == "y ∪ x" {
-                    assert!(
-                        matches!(
-                            r,
-                            Err(BooleanError::SlitLineCrossed {
-                                gap: SlitLineGap::Flush,
-                                ..
-                            })
-                        ),
-                        "{what}: refuses the flush gap, got {:?}",
-                        r.map(|_| ())
-                    );
-                    continue;
-                }
                 let r = match r {
                     Ok(BooleanResult::Body(r)) => r,
                     other => panic!("{what}: builds, got {:?}", other.map(|_| ())),
@@ -375,11 +381,13 @@ fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
                     assert_eq!(held, want, "{what}: the result's own material at {at}");
                 }
             }
-            let [xy, yx, i, u] = vol[..] else {
-                unreachable!("four ops build")
+            let [xy, yx, i, u, i2, u2] = vol[..] else {
+                unreachable!("six ops build")
             };
             let (vx, vy) = (volume(&x), volume(&y));
             let what = format!("flush {side}, {}", pose.label);
+            assert!((i - i2).abs() < 1e-9, "{what}: |x ∩ y| in both orders");
+            assert!((u - u2).abs() < 1e-9, "{what}: |x ∪ y| in both orders");
             assert!(
                 (xy + i - vx).abs() < 1e-9,
                 "{what}: |x − y| + |x ∩ y| = |x|"
@@ -393,5 +401,94 @@ fn a_partner_flush_with_the_rings_face_refuses_typed_where_one_copy_is_kept() {
                 "{what}: |x ∪ y| + |x ∩ y| = |x| + |y|"
             );
         }
+    }
+}
+
+/// **A partner grooved along the ring unites with the plate in either
+/// order.** A box straddling the top less a pyramid lying in it holds a
+/// groove whose reflex edge runs along the ring to its end, and whose
+/// faces the union drops about the line. That edge's section runs it
+/// both ways against the ring's two edges, and the zip keeps it between
+/// the void's two walls (`zip::kill_pair`), where `y ∪ x` used to kill
+/// both its halves with the first pair. Both orders build the same body,
+/// tier 3 and 3′, its edges on the line the material's creases, and
+/// `|x ∪ y| + |x ∩ y| = |x| + |y|`.
+#[test]
+fn a_partner_grooved_along_the_ring_unites_in_either_order() {
+    let poses = poses();
+    let below = |b: [[f64; 3]; 3]| b.map(|[x, y, z]| [x, y, -z]);
+    for pose in [&poses[0], &poses[2]] {
+        let plate = posed_box("the plate", PLATE, pose, t());
+        let void = apex_pyramid(&below(lying(0.0)), pose, t());
+        let y = built("the plate less the void", subtract(&plate, &void, t()));
+        let straddle = posed_box(
+            "the straddle",
+            [(1.0, 2.3), (0.3, 1.9), (0.7, 1.3)],
+            pose,
+            t(),
+        );
+        let groove = apex_pyramid(
+            &[
+                bearing(20.0, 0.7, -0.5),
+                bearing(100.0, 0.7, -0.5),
+                bearing(60.0, 0.5, 0.0),
+            ],
+            pose,
+            t(),
+        );
+        let x = built(
+            "the straddle less the groove",
+            subtract(&straddle, &groove, t()),
+        );
+        let o = pose.at(MEET);
+        let end = lying(0.0)[2];
+        let d = (pose.at([0, 1, 2].map(|k| MEET[k] + end[k])) - o).normalize();
+        let mut vol = Vec::new();
+        for (op, r) in [("x ∪ y", union(&x, &y, t())), ("y ∪ x", union(&y, &x, t()))] {
+            let what = format!("grooved, {}, {op}", pose.label);
+            let r = match r {
+                Ok(BooleanResult::Body(r)) => r,
+                other => panic!("{what}: builds, got {:?}", other.map(|_| ())),
+            };
+            assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
+            assert_eq!(
+                validate_pseudomanifold(&r.body, &r.contacts, t()),
+                Ok(()),
+                "{what}: tier 3′"
+            );
+            assert_eq!(
+                (
+                    r.body.vertices().count(),
+                    r.body.edges().count(),
+                    r.body.faces().count()
+                ),
+                (24, 36, 17),
+                "{what}: the union"
+            );
+            let on = spans(&r.body, o, d, 0.5);
+            for at in [0.09, 0.21, 0.39, 0.45] {
+                let p = o + d * at;
+                let want = creases(p, d, 1e-3, &|q| Some(inside(&x, q)? || inside(&y, q)?));
+                let got = on.iter().filter(|&&(a, b)| a < at && at < b).count();
+                assert_eq!(
+                    got, want,
+                    "{what}: edges on the line at {at}, the material's creases"
+                );
+                assert!(want > 0, "{what}: the walls crease the material at {at}");
+                let held = creases(p, d, 1e-3, &|q| inside(&r.body, q));
+                assert_eq!(held, want, "{what}: the result's own material at {at}");
+            }
+            vol.push(volume(&r.body));
+        }
+        let i = volume(&built("x ∩ y", intersect(&x, &y, t())));
+        let what = format!("grooved, {}", pose.label);
+        assert!(
+            (vol[0] - vol[1]).abs() < 1e-12,
+            "{what}: |x ∪ y| in both orders"
+        );
+        assert!(
+            (vol[0] + i - volume(&x) - volume(&y)).abs() < 1e-9,
+            "{what}: |x ∪ y| + |x ∩ y| = |x| + |y|"
+        );
     }
 }
