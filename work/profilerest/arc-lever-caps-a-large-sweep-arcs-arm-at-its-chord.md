@@ -10,7 +10,7 @@ design: true
 ---
 
 
-`seg::arc_lever` (`crates/profile/src/seg.rs:851`) is `min(radius, chord)`, and `Seg::arm` (`seg.rs:858`) reads it for every arc stored by its chord. For an arc swept past `5π/3` the chord falls below the radius again and shrinks to zero as the sweep nears a full turn, though the arc still reaches `2r` from the joint and its tangent ray parts from it over about `r`. A full turn's arm is its radius (`ArcSpan::FullTurn`), so the arm drops from `r` to the chord at the last ulp short of a full turn. Found by #5377's review (finding F8), which asked whether the shorter-leg arm the joint pass now reads (`seg::joint_tangency`, `path_junction_turn`) is still right for such an arc.
+`seg::arc_lever` (`crates/profile/src/seg.rs:1163`) is `min(radius, chord)`, and `Seg::arm` (`seg.rs:1170`) reads it for every arc stored by its chord. For an arc swept past `5π/3` the chord falls below the radius again and shrinks to zero as the sweep nears a full turn, though the arc still reaches `2r` from the joint and its tangent ray parts from it over about `r`. A full turn's arm is its radius (`ArcSpan::FullTurn`), so the arm drops from `r` to the chord at the last ulp short of a full turn. Found by #5377's review (finding F8), which asked whether the shorter-leg arm the joint pass now reads (`seg::joint_tangency`, `path_junction_turn`) is still right for such an arc.
 
 Measured at the default ε (#5377's fix pass, a throwaway probe): a unit arc ending at the origin heading `+x`, a line out of it turned `φ`, a line back up and a line home tangent into the arc's start (the only simple loop a tangent leg longer than the chord fits, since the arc's own start blocks the other side of the pinch).
 

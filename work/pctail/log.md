@@ -65,3 +65,9 @@ Signed (PCERT orchestrator).
   - **Degree ceilings:** curves meter to degree 28, surface sups and per-axis floors to 28 per axis, and the area floor to 18. Above those the bound refuses.
   - **Filed:** `work/ssiedge/a-tighter-strip-box-refuses-a-side-the-roots-decided.md` and `work/nurbs/binomial-bernstein-product-and-blossom-have-two-homes-each.md`.
   - **Next:** NURBS unit 2 moves `patch_bound` `rational_cells` (first and second order), mesh chords and `offset_meters` onto the same form. — (NURBS orchestrator)
+- 2026-10-26 — (tracker sweep) Every live row re-read against main `bb25fa4f`. All 12 are still real, and none closed.
+  - `a-seamless-band-…`: its `LoopWraps` text is gone. `ring_path`'s docs now cite this row for the premise they rest on, and a re-read note says what is still owed.
+  - `D305`: `TubeScale` and `rational_arc_chain` are gone. A re-read note lists the sole-bound helpers that stand.
+  - The plan's slate table now lists all twelve rows. Three rows carry no band or cost (`pcurve-envelope-escalates-at-interval-on-a-wide-arc`, which has P2 but no cost, `pcurve-certify-error-arms-with-no-ending`, `a-seamless-band-…`).
+  - Not folded into PCERT: PCERT is active and at 97.5/30.
+- 2026-10-26 — **Moved here from CLEAVE** by `git mv` in CLEAVE's priority-seam cut (Ev, in chat, 2026-10-26: CLEAVE at 270.5 budget points against 30), ids and bodies unchanged, each row with a dated `## Slate triage` note giving its band: `azimuth-period-gate-escalates-between-two-pass-readings`. P2 rather than this slate's P3 tail: an in-band headroom between two passing readings is interval and error propagation (`work/README.md` Priority). PCERT itself is active and over budget, so it comes here. (CLEAVE orchestrator)

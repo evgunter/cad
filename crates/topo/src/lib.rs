@@ -305,11 +305,12 @@ pub mod test_support {
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_the_fence, brick,
-        cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed, declined_cube,
-        describe_as_intersections, drill_hole, every_chord_stated_as_its_pair, face_facing,
-        geometric_cube, holed_block, identity_map, kill_under_a_null_strut, line, mapped_cube,
-        plane, plane_every_face, plant_disc_face, plant_ring_face, prism, prism_ops, prism_z,
-        split_plane, straddle_seat, wedge_on_a_block_top,
+        brick_with_fresh_keys, cube_into, cyl_arc_at, cyl_wall_sheet, cyl_wall_sheet_keyed,
+        declined_cube, describe_as_intersections, drill_hole, every_chord_stated_as_its_pair,
+        face_facing, fresh_keyed_body, geometric_cube, holed_block, identity_map,
+        kill_under_a_null_strut, line, mapped_cube, plane, plane_every_face, plant_disc_face,
+        plant_ring_face, prism, prism_ops, prism_z, split_plane, straddle_seat,
+        wedge_on_a_block_top,
     };
     pub use crate::test_support_impl::ArenaCounts;
 
@@ -384,6 +385,12 @@ pub mod test_support {
     /// (`side_reader`): the edge-meeting ray's probes read it.
     pub fn aimed_rays(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
         crate::side_reader::aimed_rays_report(body, band)
+    }
+
+    /// What each shell's aimed rays read before the volume, as text
+    /// (`side_reader`): the trimmed-sphere aims' pin reads it.
+    pub fn shell_aims(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::shell_aims_report(body, band)
     }
 
     /// Each face's aimed ray's own reading, every face aimed at
@@ -1042,11 +1049,11 @@ pub use boolean::{
     BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind, CarriedRecord, CarrierDesc,
     CarrierEqError, CarrierRelation, CarryRefusal, Cell, Coincide, CoincidenceMeasure,
     CompletedPolygonPair, ConsumedExtent, Contact, ContactKind, ContactPairError, ContactRecords,
-    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeInFaceGap,
-    EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent, FfContact,
-    Fusions, GlueVerdict, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal, JoinUndecided,
-    JudgedRow, LeverArm, LineWedgeFault, MemberFace, MemberInputs, MemberLineage, NaryBody,
-    NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryResult, NaryStep, NodeWhy,
+    ContainDecision, ContainError, Contradiction, DeclarationRead, DiscardRow, EdgeCarrierSite,
+    EdgeInFaceGap, EdgeJoin, EdgePieceClass, EeContact, EfContact, FaceContainment, FaceDescent,
+    FfContact, Fusions, GlueVerdict, JOIN_LEVER, JOIN_SUBJECT, JoinReading, JoinRefusal,
+    JoinUndecided, JudgedRow, LeverArm, LineWedgeFault, MemberFace, MemberInputs, MemberLineage,
+    NaryBody, NaryJudgement, NaryMember, NaryOp, NaryRefusal, NaryResult, NaryStep, NodeWhy,
     NullEdgePairRecord, Operand, OperandKeys, OperandRecords, PairFace, PairRefusalSite, PairSite,
     PairUnread, PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
     PointInSolidError, ReductionContacts, RefusedRow, SectorRead, SectorRung, SelfCheck,

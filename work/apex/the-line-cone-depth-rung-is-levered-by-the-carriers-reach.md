@@ -16,9 +16,9 @@ second review (r2 m-1).
 ## What
 
 `reduce::line_cone_roots` decides `bool_line_cone_depth` on
-`disc/(|A|·R)` (`crates/topo/src/boolean/reduce.rs:3608`), with
+`disc/(|A|·R)` (`crates/topo/src/boolean/reduce.rs:3892-3895`), with
 `R = max(|q(t0)|, |q(t1)|, |q(t*)|)` the line's reach from the apex
-(`reduce.rs:3605`). The bound the rung rests on,
+(`reduce.rs:3891`). The bound the rung rests on,
 `|res(t*)| ≥ |Q(t*)|/|q(t*)|`, holds pointwise, so dividing by the
 largest of three reaches only loosens it. Near the apex `Q(t*) ~ δ²`
 (`δ` the line's distance from the apex), so a clean transversal pair

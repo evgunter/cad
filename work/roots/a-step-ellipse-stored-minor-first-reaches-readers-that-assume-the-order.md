@@ -2,7 +2,8 @@
 id: a-step-ellipse-stored-minor-first-reaches-readers-that-assume-the-order
 kind: issue
 title: A STEP ellipse stored minor first: no end-to-end row reaches the order-free bounds, and three readers still refuse on it
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-10-06
 priority: P3
 cost: M
@@ -54,3 +55,24 @@ minor-first ellipse would be answered once normalized.
 Normalizing at import (swap the semi-axes, turn `u_ref` a quarter, and
 shift the edge's parameters by `π/2`) would close all three and the
 reachability question at once.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded: semi-axis order is no longer a convention.** GERM's
+PR 5156 made `geom::Curve3::Ellipse` order-free by contract: its fields
+are `semi_u`/`semi_v`, "Both semi-axes positive (meters), in either
+order", `Curve3::ellipse` "refuses only a minor semi-axis not positive",
+and which is larger "is a reading of the two fields
+(`Curve3::semi_axes_by_size`, `Curve3::major_frame`), never of their
+names" (`crates/geom/src/curves.rs` ~:146-171 at `bb25fa4f`). A
+minor-first ellipse is therefore an ordinary carrier every reader takes,
+not a STEP-only aberration, and the three readers this row named read
+by size now:
+- `topo::chord_join`'s lever is `SectionCurve::lever`,
+  `semi_axes_by_size(sa, sb).0` (`crates/topo/src/chord_join.rs` ~:1280);
+- `solid_contain` no longer has an `Ellipse` wall-section seat (no
+  `Curve3::Ellipse` in `crates/topo/src/boolean/solid_contain.rs`);
+- the cone-section image reads the major frame from the cone's axis
+  (`carrier.section_frame(axis)`, "a carrier seamed at a minor vertex is
+  read a quarter turn on", `crates/geom-brep/src/pcurve_cache.rs` ~:8450).
+Normalising at import is moot.

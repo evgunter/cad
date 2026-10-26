@@ -25,7 +25,15 @@ gathered across M2's full pipeline.
   shipped decision funnels through `k_stats::decide`, which names the
   predicate; runs at the `Probe` scalar record every classification
   (predicate, margin, band, outcome) with decisions bit-identical to
-  f64.
+  f64. That premise is checked, not argued:
+  `crates/editor-core/tests/m4_pr8_k_probe.rs`'s
+  `probe_agrees_with_f64_bit_for_bit_over_the_corpus` evaluates the
+  registered corpus at `Probe` and at `f64` and compares them bit for
+  bit (value channel, mass properties, content keys, name tables,
+  verdict and escalation logs), once per ε row `scripts/k_probe_sweep.sh`
+  dumps. It does not read curve carriers, surface geometry or pcurves,
+  and it covers neither the demo scenes the same sweep dumps nor
+  `cup`/`vessel`.
 - Harness: `crates/sweep/tests/k_report.rs` (`dump_k_samples`,
   `#[ignore]`d) builds ten M2 acceptance shapes end-to-end at `Probe`
   — profile validation → extrude/revolve → tier 1–3 validation

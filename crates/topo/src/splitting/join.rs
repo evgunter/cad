@@ -1114,7 +1114,7 @@ impl<T: Decide> Sweep<T> {
     /// **Only straight spurs are paired**; every strut is killed, curved
     /// or straight, since [`strut_turn`] reads topology alone, and every
     /// slit, curved or straight, is read for the section query. Pairing
-    /// the curved ones is `work/hone/split-section-spur-guard-skips-curved-spurs.md`.
+    /// the curved ones is `work/honejoin/split-section-spur-guard-skips-curved-spurs.md`.
     fn strip_spurs(
         &self,
         body: &mut Body<T>,

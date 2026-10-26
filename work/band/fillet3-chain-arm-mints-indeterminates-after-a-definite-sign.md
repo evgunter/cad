@@ -2,7 +2,8 @@
 id: fillet3-chain-arm-mints-indeterminates-after-a-definite-sign
 kind: issue
 title: fillet3_chain_arm mints Indeterminates by hand after a definite non-positive sign
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-10-01
 priority: P2
 cost: E
@@ -33,3 +34,17 @@ Margin::of(arm), band).map_err(|e| esc(site, e))?` replaces each
 `sector_shape` (`sector_arm`, `sector_straight`) on the `linalg`
 branch `linalg/decided-not-minted`, which found these two by sweeping
 `MarginDiag::INVALID` literals across `crates/*/src`.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed on main. Both sites now go through `classify_positive`
+(`crates/sweep/src/blend/mod.rs:576`), which is
+`geom_core::k_stats::decide_positive` mapped to
+`BlendError::Escalated` carrying the decided margin:
+`crates/sweep/src/blend/battery.rs:730` (`convexity_at`) and `:786`
+(`chain_g1`). No hand-minted `Indeterminate` for `fillet3_chain_arm`
+is left in `crates/sweep/src` (the one `MarginDiag::INVALID` literal
+left in `battery.rs`, at `:132`, is `measured`'s NaN reading, not this
+shape). The change landed in `4c59258a00` ("CLEAVE: gate rejections
+keep the decided margin; the magnitude door", 2026-10-03): absent from
+`battery.rs` at `1af4b18274`, present at `4c59258a00`.

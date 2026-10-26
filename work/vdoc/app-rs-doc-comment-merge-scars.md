@@ -2,11 +2,12 @@
 id: app-rs-doc-comment-merge-scars
 kind: issue
 title: Three doc-comment merge scars in viewer/src/app.rs leave apply_status undocumented
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1776]
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -73,3 +74,12 @@ lint` now REFUSES a `parked` row whose every blocker is closed, and a
 program cannot un-park another program's rows in the PR that closes
 their trigger — `work/README.md`'s one-file-one-item rule makes that a
 merge conflict by design.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed.** All three scars are gone on main (`bb25fa4f`), checked by subject:
+1. `tip_mark` was deleted by #2829, as recorded above. `grep -rn 'tip marks in a profile preview' crates/viewer` returns nothing.
+2. `perform_batch` (`crates/viewer/src/app.rs:1171`) opens on its one summary, *Perform one frame's whole batch of operations…* (`:1159`). The stranded pre-batch line is gone: `grep -rn 'Perform one operation and record' crates/viewer` returns nothing.
+3. `remember_prefs` (`:1302`) opens on its own summary (`:1281`), and `apply_status` (`:1423`) carries its own doc.
+
+A fourth scar of the class was looked for with `grep -rn '///.*///' crates/viewer/src`. The only hits are `vocab.rs`'s doc-example lines, which quote nested doc comments on purpose.

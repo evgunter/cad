@@ -7305,10 +7305,12 @@ mod nurbs_crossings_rank_by_parameter {
     //! plane across them meets three times; the first and third
     //! crossings have one sense.
     //!
-    //! Stand-in crossings, because no body the kernel accepts puts a
+    //! Stand-in crossings, because no body the kernel builds puts a
     //! face across a NURBS edge: the split refuses a plane that may meet
-    //! one, and the boolean refuses an operand that has one
-    //! (`CurvedEdgeUnsupported`).
+    //! one, and the boolean refuses the edge where it meets a face of
+    //! the other operand (`EdgeCarrierUnsupported`,
+    //! [`a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`],
+    //! which reds the day a crossing rung builds one).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{Crossed, CrossedEdge, param_span, rank_crossings};
@@ -7340,6 +7342,21 @@ mod nurbs_crossings_rank_by_parameter {
     /// The loft through 2 × 2 squares at z = 0, 1, 2, 3 whose x offsets
     /// alternate `−a, a, −a, a`, skinned at v-degree 2: its value.
     pub(super) fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>, NameTable) {
+        let (doc, loft) = wavy_doc(a);
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let value = ev.value(loft).expect("the loft evaluates").clone();
+        let table = ev.table_at(loft).expect("the loft's table").clone();
+        (loft, value, table)
+    }
+
+    /// [`wavy`]'s document and its loft node.
+    fn wavy_doc(a: f64) -> (ProfileDoc, RecipeNodeId) {
         let mut doc = ProfileDoc::empty(DocumentId::derive("nurbs-crossings"), Tol::witness());
         let mut profiles = Vec::new();
         for dx in [-a, a, -a, a] {
@@ -7372,24 +7389,14 @@ mod nurbs_crossings_rank_by_parameter {
                 }],
             })
             .collect();
-        let (doc, loft) = ins(
+        ins(
             doc,
             Node::Loft {
                 first: first.into(),
                 then,
                 v_degree: Formula::count(2),
             },
-        );
-        let ev = evaluate::<f64>(
-            &doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            Tol::witness(),
-        );
-        let value = ev.value(loft).expect("the loft evaluates").clone();
-        let table = ev.table_at(loft).expect("the loft's table").clone();
-        (loft, value, table)
+        )
     }
 
     fn body_of(value: &crate::eval::NodeValue<f64>) -> &Body<f64> {
@@ -7503,6 +7510,136 @@ mod nurbs_crossings_rank_by_parameter {
         let two = rank(&[(ent(y), q, on), (ent(x), p, on)]);
         assert_eq!(one, two, "the order handed in does not rank");
         one
+    }
+
+    /// **A tripwire, not the end-to-end row**: the wavy loft (`a = 0.3`)
+    /// united through the recipe with a box over `x ∈ [1, 3]`,
+    /// `z ∈ [−½, 3½]`, whose face `x = 1` crosses each of the loft's two
+    /// corner edges at `x = dx + 1` three times, the first and third with
+    /// one sense (asserted on the carriers). The union refuses at the
+    /// sweep's planar arm on a spline edge the loft's table names,
+    /// against a plane face of the box.
+    ///
+    /// It cannot witness the crossings it is placed for. A spline edge
+    /// claims no box (`boxes::EdgeBoxRule::NoSoundBox`), so the sweep
+    /// refuses the first spline edge it reads against the first face it
+    /// reads, wherever the box stands: neither the corner nor the face
+    /// `x = 1` is what it names, and the row asserts no more than the
+    /// refusal's kind and owners. It reds the day a crossing rung builds
+    /// this union; the end-to-end row that rung owes, the two crossings
+    /// reaching [`super::rank_crossings`] through the boolean, is
+    /// `work/splice/nurbs-edge-crossing-rung-is-the-ring-composite.md`'s.
+    #[test]
+    fn a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it() {
+        let (doc, loft) = wavy_doc(0.3);
+        let (doc, profile) = ins(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![
+                    LoopProgram::polygon([(1.0, -3.0), (3.0, -3.0), (3.0, 3.0), (1.0, 3.0)])
+                        .expect("finite"),
+                ],
+                ids: Vec::new(),
+            }),
+        );
+        let (doc, block) = ins(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: crate::test_support::len(4.0),
+            },
+        );
+        let (doc, copy) = crate::test_support::against(
+            doc,
+            loft,
+            block,
+            &crate::test_support::axes_at([0.0, 0.0, -0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            Tol::witness(),
+        );
+        let (doc, union) = ins(
+            doc,
+            Node::Union {
+                members: crate::Bodies::Spelled(vec![
+                    crate::BodyRead::plain(loft),
+                    crate::BodyRead::plain(crate::Operand::output(copy, 0)),
+                ]),
+            },
+        );
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let loft_value = ev.value(loft).expect("the loft evaluates");
+        let body = body_of(loft_value);
+        let table = ev.table_at(loft).expect("the loft's table");
+        let near: Vec<EdgeKey> = body
+            .edges()
+            .map(|(e, _)| e)
+            .filter(|&e| {
+                let Ok((t0, t1)) = param_span(body, e) else {
+                    return false;
+                };
+                let c = carrier(body, e);
+                matches!(c, geom::Curve3::Nurbs(_))
+                    && ((c.eval(t0).x + c.eval(t1).x) / 2.0 - 1.0).abs() < 1e-9
+            })
+            .collect();
+        assert_eq!(near.len(), 2, "two corner edges straddle x = 1: {near:?}");
+        for &e in &near {
+            let senses: Vec<bool> = crossings_of(body, e).iter().map(|&(_, s)| s).collect();
+            assert!(
+                senses.len() == 3 && senses[0] == senses[2] && senses[0] != senses[1],
+                "x = 1 crosses corner {e:?} three times, the first and third with one sense: \
+                 {senses:?}"
+            );
+        }
+        let block_body = body_of(ev.value(copy).expect("the box's copy evaluates"));
+        let Some(crate::eval::NodeError {
+            kind:
+                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::EdgeCarrierUnsupported {
+                    operand: topo::Operand::A,
+                    edge,
+                    face,
+                    face_of: topo::Operand::B,
+                    site: topo::EdgeCarrierSite::PlanarCrossing,
+                }),
+            ..
+        }) = ev.node_error(union)
+        else {
+            panic!(
+                "the union refuses at the planar crossing arm, got {:?}",
+                ev.node_error(union).map(|e| &e.kind)
+            );
+        };
+        assert_eq!(
+            topo::query::edge_carrier_kind(body, *edge),
+            Some(topo::query::CurveKind::Nurbs),
+            "the refusal names a spline edge of the loft"
+        );
+        assert!(
+            table
+                .name_of(&EntityRef {
+                    body: 0,
+                    key: EntityKey::Edge(*edge),
+                })
+                .is_some(),
+            "the loft's table names the refused edge"
+        );
+        // The recipe mints both bodies fresh, so their keys collide and
+        // `face_of` is what states the owner; read in the box, the key
+        // is a plane face.
+        assert!(
+            matches!(
+                block_body
+                    .get_face(*face)
+                    .and_then(|f| block_body.get_surface(f.surface)),
+                Some(geom::Surface::Plane { .. })
+            ),
+            "the refusal names a plane face of the box"
+        );
     }
 
     fn carrier(body: &Body<f64>, e: EdgeKey) -> &geom::Curve3<f64> {
@@ -9311,7 +9448,7 @@ mod rim_holding_rows {
     /// places no point, so an edge runs with neither itself nor another,
     /// and two of them are two lines at a vertex, as before the curved
     /// reading. No union reaches such an edge today: the boolean refuses
-    /// an operand with one (`CurvedEdgeUnsupported`).
+    /// it where it meets the other operand (`EdgeCarrierUnsupported`).
     #[test]
     fn a_spline_edge_is_a_line_of_its_own() {
         use super::{EdgeCarrier, least_per_line};

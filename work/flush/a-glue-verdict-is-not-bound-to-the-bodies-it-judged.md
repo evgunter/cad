@@ -2,11 +2,10 @@
 id: a-glue-verdict-is-not-bound-to-the-bodies-it-judged
 kind: issue
 title: A GlueVerdict is not bound to the bodies it judged: a caller can re-key its A face or hand it to another pair
-status: open
+status: dispatched
 opened: 2026-10-13
 priority: P2
 cost: H
-design: false
 branch: flush/nary-union-door
 ---
 

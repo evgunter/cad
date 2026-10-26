@@ -10,8 +10,9 @@ Every row refuses typed; none is a known wrong answer.
 
 ## The slate
 
-**19.5 budget points** of dispatchable work against a ceiling of 30
-(the unpriced row charged 2.5).
+**28 budget points** of dispatchable work against a ceiling of 30
+(the unpriced row charged 2.5), with the rows filed since the cut that
+the table below does not list.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -19,7 +20,6 @@ Every row refuses typed; none is a known wrong answer.
 | P2 | `curve-pair-polish-meters-refuse-shallow-meetings` | M | the polish meters refuse curves crossing in nearly parallel planes and below the basin floor |
 | — | `the-polish-basin-meter-levers-by-the-lines-own-span` | — | the basin meter levers by the line's own span reach, so a split line can refuse where the whole decides |
 | P3 | `a-same-side-touch-pose-escalates-the-curve-pair-extreme-at-1e-12` | M | a slow-set same-side touch row is red at ε 1e-12 on `curve_pair_pose_extreme` |
-| P3 | `a-tangency-of-a-spline-edge-runs-the-census-search-past-its-budget` | M | a spline bounds no acceleration, so a tangency of a spline edge runs past the budget |
 | P3 | `the-census-spline-speed-floor-refuses-whole-arcs` | M | the census's whole-span spline speed floor refuses a regular rational arc |
 | P3 | `a-stretch-read-along-the-second-span-has-no-row-of-its-own` | M | the stretch reading along the second span has no row only it decides |
 | P3 | `curve-pair-harmonic-with-both-extremes-in-band-refuses-tangency` | E | a first harmonic with both extremes in band refuses `Tangency` |

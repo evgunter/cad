@@ -674,8 +674,8 @@ impl core::fmt::Display for SectionError {
         match self {
             Self::WrongLane { expected } => write!(
                 f,
-                "the section was dispatched to the arm for {expected}, not this pair's \
-                 (a kernel bug)"
+                "the section was dispatched to the arm for {expected}, not this pair's. {}",
+                crate::ssi::WRONG_LANE_RECOURSE
             ),
             // The Indeterminate Display carries the shared two-tolerance
             // recourse (S6) exactly once.
@@ -1304,12 +1304,13 @@ pub enum SphereSphereSection<T: Real> {
 /// - **`ss_carrier_internal`** — margin `d − |r₁ − r₂|`. Negative ⇒
 ///   [`SphereSphereSection::Empty`] (strictly nested); Zero ⇒
 ///   [`SphereSphereSection::TangentPoint`] (internal tangency);
-///   Positive ⇒ [`SphereSphereSection::Circle`]. The radicand
-///   `(r₁ − a)(r₁ + a)` factors through both clearances — `|a| < r₁`
-///   reduces exactly to `|d − r₁| < r₂` and `d + r₁ > r₂`, which are
-///   the two clearances this branch has already pinned definite — so
-///   it is definitely positive here and the interval-square tripwire
-///   cannot bite.
+///   Positive ⇒ [`SphereSphereSection::Circle`], of radius
+///   [`geom_core::Circles::half_chord`]: its square's four factors are
+///   the two clearances this branch has pinned definite (one negated)
+///   and two sums of non-negatives, so it is definitely positive here
+///   at every scalar and the interval-square tripwire cannot bite.
+///   Each factor rounds at the inputs' scale, so the circle sits on
+///   the smaller sphere at radii orders of magnitude apart.
 ///
 /// Divisions by `d` occur only where a preceding trilean bounds it away
 /// from zero, per branch:
@@ -1352,20 +1353,17 @@ pub fn sphere_sphere_section<T: Decide>(
     else {
         return Err(wrong());
     };
-    let delta = c2 - c1;
-    let d = delta.norm();
-    let dr = (r1 - r2).abs();
-    // The SIGNED radical-plane offset, one formula for all three
-    // non-empty branches (the 2-D skeleton's shape, `seg.rs:604-616`).
-    // Every branch that reads it has already decided `d` definitely
-    // positive, so the division is safe wherever it is called.
-    let offset = || (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d + d);
-    match decide("ss_carrier_identity", Margin::of(d + dr), band)
+    // The margins and the SIGNED radical-plane foot, from one pair
+    // (`geom_core::Circles`). Every branch that places the foot has
+    // already decided `d` definitely positive, so its division is safe.
+    let at = geom_core::Circles::new((c2 - c1).norm(), r1, r2).at(c1, c2);
+    let pair = at.pair();
+    match decide("ss_carrier_identity", Margin::of(pair.identity()), band)
         .map_err(SectionError::Escalated)?
     {
         Sign::Zero | Sign::Negative => Err(SectionError::CoincidentSurfaces),
         Sign::Positive => {
-            match decide("ss_carrier_external", Margin::of(d - (r1 + r2)), band)
+            match decide("ss_carrier_external", Margin::of(pair.external()), band)
                 .map_err(SectionError::Escalated)?
             {
                 Sign::Positive => Ok(SphereSphereSection::Empty),
@@ -1376,11 +1374,9 @@ pub fn sphere_sphere_section<T: Decide>(
                 // `r₁`. Substituting `d = r₁ + r₂` does give `a = +r₁`
                 // here; the internal branch below is where the sign
                 // matters, and one formula serves both.
-                Sign::Zero => Ok(SphereSphereSection::TangentPoint(
-                    c1 + delta * (offset() / d),
-                )),
+                Sign::Zero => Ok(SphereSphereSection::TangentPoint(at.foot())),
                 Sign::Negative => {
-                    match decide("ss_carrier_internal", Margin::of(d - dr), band)
+                    match decide("ss_carrier_internal", Margin::of(pair.internal()), band)
                         .map_err(SectionError::Escalated)?
                     {
                         Sign::Negative => Ok(SphereSphereSection::Empty),
@@ -1397,18 +1393,15 @@ pub fn sphere_sphere_section<T: Decide>(
                         // sphere at the origin against radius 3 at
                         // `x = 2` it returns `(1,0,0)`, which is B's own
                         // centre, and the true contact is `(−1,0,0)`.
-                        Sign::Zero => Ok(SphereSphereSection::TangentPoint(
-                            c1 + delta * (offset() / d),
-                        )),
+                        Sign::Zero => Ok(SphereSphereSection::TangentPoint(at.foot())),
                         // Proper secant: `d > |Δr|` definitely, so
-                        // `d > 0`. The radical-plane closed form.
+                        // `d > 0`. The radical plane's foot and half-chord.
                         Sign::Positive => {
-                            let n = delta / d;
-                            let a_off = offset();
+                            let n = at.direction();
                             Ok(SphereSphereSection::Circle(Curve3::Circle {
-                                center: c1 + n * a_off,
+                                center: at.foot(),
                                 axis: n,
-                                radius: ((r1 - a_off) * (r1 + a_off)).sqrt(),
+                                radius: pair.half_chord(),
                                 u_ref: ss_frame_seam(n, axis1, u1, r1, band),
                             }))
                         }

@@ -25,7 +25,8 @@ guard-reading finding is `work/census/all-census-idiom-forces-the-visit-not-the-
 Two further practices the walk recorded — *route from the instrument* and
 *a negative result by deletion is a fact about the tree* — have no home
 outside this note and are carried to Ev on
-`work/meta/four-lane-practices-have-no-home-outside-the-ledger.md`.
+`four-lane-practices-have-no-home-outside-the-ledger`, which Ev declined on 2026-10-26
+(`docs/doc-ledger/brief-leaves-the-tracker.md`).
 
 Sweep SHA `284ca7e9889f6d86366e696e41157916133f4cb9`.
 

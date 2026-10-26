@@ -2,11 +2,12 @@
 id: census-snapshot-arm1-discard-has-no-justification
 kind: issue
 title: census.rs snapshot's arm-1 LoopBoundary discard is the one of three with no written justification
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2044]
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -28,3 +29,7 @@ whichever takes it announces the other.
 ## Refs at GATES' sweep (2026-09-08)
 
 GATES closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 7); `S49` is now cited by its closing PR 2044.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed on main. `census.rs` now walks a face's loops through the one typed walk `face_cycles` (`crates/topo/src/census.rs:1830`), which hands an unwalkable loop back as `Err(loop)` and decides nothing; `snapshot` (`:2198`) answers it at its own site with a written reason ("A loop this cannot walk contributes no boundary vertex, and the face is no polygon the touch analysis reads", `:2233`). The register `scripts/gates/loop-boundary-discards.sh:169-173` no longer lists an unaudited `census.rs|snapshot` discard: its one `census.rs` entry is `face_cycles`, registered `audited` with that reason. (The per-hop skips inside those walks are the separate, still-live `census-face-walks-skip-torn-hops-silently`.)

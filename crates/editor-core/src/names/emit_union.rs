@@ -520,7 +520,7 @@ fn member_at<'a, T: geom_core::Decide>(
     read: VarId,
     name: &StableName,
 ) -> (usize, &'a Member<'a, T>) {
-    members
+    let Some(found) = members
         .iter()
         .enumerate()
         .filter(|(_, m)| m.read == read)
@@ -529,13 +529,14 @@ fn member_at<'a, T: geom_core::Decide>(
                 || !m.table.on_line(name).is_empty()
                 || !m.table.sets_listing(name).is_empty()
         })
-        .unwrap_or_else(|| {
-            unreachable!(
-                "no member read through {read:?} holds {name:?}, on its line or in a set listing \
-                 it: every member-keyed name the union reads came from its member's own table, \
-                 keyed by that member's read (`member_view`, `Flush`)"
-            )
-        })
+    else {
+        unreachable!(
+            "no member read through {read:?} holds {name:?}, on its line or in a set listing \
+             it: every member-keyed name the union reads came from its member's own table, \
+             keyed by that member's read (`member_view`, `Flush`)"
+        )
+    };
+    found
 }
 
 /// Row `row`, on the line of member `member`'s edge `line`, is not in
@@ -740,13 +741,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// read under.
     #[track_caller]
     fn member_by_index(&self, i: usize) -> &'a Member<'a, T> {
-        self.members.get(i).unwrap_or_else(|| {
+        let Some(member) = self.members.get(i) else {
             unreachable!(
                 "a union reads a member entity under index {i} of {} members: every index is a \
                  member's place in the fold (`Fold`, `Links::judged`)",
                 self.members.len()
             )
-        })
+        };
+        member
     }
 
     /// The member edges finished edge `k` lies on at its vertex `v`:
@@ -2487,15 +2489,13 @@ impl Parents {
     /// Finished face `f`'s parent.
     #[track_caller]
     fn face(&self, f: topo::FaceKey) -> &Parent {
-        self.of_face
-            .get(&f)
-            .map(|&p| &self.all[p])
-            .unwrap_or_else(|| {
-                unreachable!(
-                    "finished face {f:?} of a union has no parent: `Parents::of` gives every face \
-                     of the finished body one"
-                )
-            })
+        let Some(&p) = self.of_face.get(&f) else {
+            unreachable!(
+                "finished face {f:?} of a union has no parent: `Parents::of` gives every face of \
+                 the finished body one"
+            )
+        };
+        &self.all[p]
     }
 
     /// The parent a face name some row embeds cites: the one parent all

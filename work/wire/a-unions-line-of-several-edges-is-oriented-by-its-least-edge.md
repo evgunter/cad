@@ -51,9 +51,38 @@ admission goes red when this is fixed.
 
 ## What it needs
 
-A design answer under N0 (PR 5455): what orients a line of several
-edges that no mint order may choose, or a sense and rank that need no
-orientation (an unordered pair of the two sides' classifications, say).
-The names README states only that such a line's sense is read along one
-of its edges and that which one is open, pointing here.
+The design answer is ruled (below). What is left is the build: the
+emitters and `canonical.rs` brought to N2 as it now reads, and the 18
+admitted names in `name_invariance`'s history case retired with the
+admission.
 
+## Ruled
+
+FORK-ORIENT (`docs/DESIGN-FORK-LOG.md` row 197), Ev, 2026-10-26: the
+no-rank rule ("cool, seems good!", after asking for the simplest stable
+rule and for measurement first). Landed in N2
+(`crates/editor-core/src/names/README.md`) by PR 5705, merge
+`964083e5`:
+
+- An orientation is read, never chosen (N0 NS1). A line of one edge is
+  read as the operand body stores the edge; a line of several things (a
+  `Merged` line of flush edges, or a seam, whose two sides' loops run
+  opposite ways) is read along each of them.
+- A transversal crossing of such a line is `Through { entering }`: the
+  subset of its edges, or its seam's sides, in name order, whose
+  direction runs into the body. A touch is `Outside` or `Inside` on any
+  line. A seam in a run carries its sense as any line of several things
+  does.
+- Nothing is ranked: crossings, and vertices of one run, that their
+  names do not tell apart tie (N4).
+- `Reverse`, `flip_senses`, `RefuseRun` and `OrderAlong`'s `of` retire.
+
+Measured before the switch (fork-log row 197): no new tie in the
+integration tests, and the 18 seam-run groups all told apart.
+
+The code is not built that way yet (verified on main at `d621f67e`):
+`Flush::line_sense` (`crates/editor-core/src/names/emit_union.rs:1144`),
+`rank_along_seam` (`emit_union.rs:1930`), `RankRule::{Reverse,
+RefuseRun}` and `flip_senses` (`crates/editor-core/src/names/canonical.rs:70`,
+`:276`) and `rank_crossings` (`crates/editor-core/src/names/emit_topo.rs:5231`)
+all stand. This row is that build.
