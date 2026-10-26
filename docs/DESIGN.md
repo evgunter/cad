@@ -485,10 +485,13 @@ initialization lets the test suite run at several ε values.
 **Angular thresholds are always derived, never a second global**: an
 angle only means anything through the displacement it induces at a
 lever arm (d = r·θ), so a fixed εₐ would privilege a hidden length
-scale. Every angular predicate uses θ = ε/r with its lever arm named
-at the call site — 1/κ_rel for tangency, the face extent for
-parallelism, the session-box extent as the conservative universal
-arm. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
+scale. **An angle is metered in whatever way is required to make all
+geometry correct to within ε**: every angular predicate uses θ = ε/r
+with its lever arm named at the call site, the reach at which the
+angle displaces the geometry it governs — 1/κ_rel for tangency, the
+distance of each face's own points from the other's carrier for
+parallelism, the session-box extent as the conservative universal arm
+only where no such geometry is in hand. ε ≈ 1e-9 m gives micron-to-kilometer coverage with ~4 orders of
 f64 headroom at km scale. Import does not motivate loosening ε ([import]).
 
 
