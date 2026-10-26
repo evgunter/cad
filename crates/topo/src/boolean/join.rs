@@ -915,14 +915,18 @@ fn germ_site<T: Decide>(
 /// - **a closed edge lying in the partner** (a one-segment circle, both
 ///   of whose ends are its one vertex): the loop is that edge, and the
 ///   site is its vertex. The partner holds it inside a planar or a
-///   spherical face, whose interior the site pierces, or along a closed
-///   edge of its own through the same site.
+///   spherical face, whose interior the site pierces; inside a planar
+///   face whose boundary passes through the site, where the loop only
+///   touches that boundary (two rims tangent at their vertices); or
+///   along a closed edge of its own through the same site.
 ///
 /// Read from the records [`matched_records`]' quiescence left. Every
 /// other [`one_site`] record is left for the
 /// [`SplitJoinError::SingleSiteSectionLoop`] refusal: a pierce of a face
 /// the joiner cannot side a whole conic on, a site on both operands'
-/// wrap edges, and a site where the loop meets an edge of another face.
+/// wrap edges, and a site where a transverse section or a pierce meets
+/// an edge of another face, or a closed edge meets one in a curved
+/// face.
 ///
 /// Where a record is taken, three things are kernel bugs, refused as
 /// [`BooleanError::JoinDesync`]: another record naming its locus pair
@@ -992,7 +996,10 @@ fn one_site_segments<T: Decide>(
 /// ([`one_site_segments`]), read from what the site is in the germ's cell
 /// on each operand ([`site_cell`]): a wrap edge against a pierce of a
 /// planar face, or a closed edge against a pierce of a face
-/// [`RimSide::of`] sides or against another closed edge. A pierce is
+/// [`RimSide::of`] sides, against a vertex on a planar face's boundary,
+/// or against another closed edge. The germ's cell is the face, so the
+/// closed edge leaves that vertex into it, and the joiner walls it off
+/// there as it does any section loop of one face's loop. A pierce is
 /// joined in its face as a ring of its own
 /// ([`crate::chord_join::ChordJoiner`]'s lone ring), on the face's
 /// [`RimSide`]; the transverse section's conic is the wall's, not a
@@ -1014,6 +1021,8 @@ fn closes_at_its_site<T: Decide>(
             (SiteCell::Closed, SiteCell::Pierce(f)) => rim(&red.b, f)?.is_some(),
             (SiteCell::Pierce(f), SiteCell::Closed) => rim(&red.a, f)?.is_some(),
             (SiteCell::Closed, SiteCell::Closed) => true,
+            (SiteCell::Closed, SiteCell::Other(f)) => rim(&red.b, f)? == Some(RimSide::Plane),
+            (SiteCell::Other(f), SiteCell::Closed) => rim(&red.a, f)? == Some(RimSide::Plane),
             _ => false,
         },
     )
@@ -1032,8 +1041,9 @@ enum SiteCell {
     /// Along an edge: a closed one, both of whose ends are the site
     /// ([`site_cell`]).
     Closed,
-    /// Inside a face, a real edge there bounding another face.
-    Other,
+    /// Inside this face, a real edge there bounding another face: the
+    /// site is a vertex of the face's boundary.
+    Other(FaceKey),
 }
 
 /// [`SiteCell`] of the site of null half `he`, its germ's cell `locus`.
@@ -1070,7 +1080,7 @@ fn site_cell<T: Decide>(
             }
             for h in [e.he_plus, e.he_minus] {
                 if body.face_of_half_edge(h) != Some(face) {
-                    return Ok(SiteCell::Other);
+                    return Ok(SiteCell::Other(face));
                 }
             }
             cell = SiteCell::Wrap;

@@ -3115,14 +3115,15 @@ fn along_boundary<T: Decide + crate::props::AtRestPolicy>(
 
 /// What the declared arms know of an edge's interior against `face`.
 enum Interior<T: geom_core::Real> {
-    /// It crosses `face`'s boundary there: a pierce landing on that
+    /// It meets `face`'s boundary there: a pierce landing on that
     /// boundary, split and recorded by the caller like any other.
     Crossing(CurvedEvent<T>),
     /// Certified: the interior meets `face`'s boundary nowhere, so the
     /// endpoints' placements are the pair's whole incidence.
     Clear,
-    /// Not asked: the edge has no certificate that it lies ON the
-    /// carrier, so the boundary question has no subject.
+    /// The edge has no certificate that it lies ON the carrier, and its
+    /// interior meets `face`'s boundary nowhere the boundary pass read:
+    /// what it meets of the face's interior is not known.
     Unseen,
 }
 
@@ -3134,11 +3135,16 @@ impl<T: geom_core::Real> Interior<T> {
     }
 }
 
-/// The interior question, asked only of an edge the carrier-identity
-/// rung puts ON `face`'s carrier (`on_carrier`): where it crosses
-/// `face`'s boundary strictly inside its span
-/// ([`super::carrier_cross`]); a pair whose meetings that module cannot
-/// read keeps the frontier door.
+/// **The interior question**: where the edge meets `face`'s boundary
+/// strictly inside its span ([`super::carrier_cross`]). A meeting is a
+/// curve × curve reading, so it splits both edges there whether or not
+/// the edge lies on `face`'s carrier: a rim tangent to the face's own
+/// rim, its wall tangent to the face (a cover), touches the face only
+/// there. The certificate that the interior meets the boundary nowhere
+/// speaks for the face only of an edge the carrier-identity rung puts
+/// ON `face`'s carrier (`on_carrier`); an edge off it is
+/// [`Interior::Unseen`] whatever the pass could not place, and an edge
+/// on it whose meetings that module cannot read keeps the frontier door.
 fn interior<T: Decide>(
     on_carrier: bool,
     y: &Body<T>,
@@ -3149,9 +3155,6 @@ fn interior<T: Decide>(
     frontier: impl Fn() -> BooleanError,
 ) -> Result<Interior<T>, BooleanError> {
     use super::carrier_cross::{BoundaryCrossing, boundary_crossing};
-    if !on_carrier {
-        return Ok(Interior::Unseen);
-    }
     match boundary_crossing(y, x_is.other(), face, curve.carrier(), curve.params(), band)? {
         BoundaryCrossing::At { t, p, at, margin } => Ok(Interior::Crossing(CurvedEvent::Pierce {
             t,
@@ -3160,6 +3163,7 @@ fn interior<T: Decide>(
             on: Some(margin),
             branch: None,
         })),
+        _ if !on_carrier => Ok(Interior::Unseen),
         BoundaryCrossing::Clear => Ok(Interior::Clear),
         BoundaryCrossing::Unread => Err(frontier()),
     }

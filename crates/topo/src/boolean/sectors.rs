@@ -1473,7 +1473,11 @@ pub(super) fn germ_locus<T: Decide>(
 /// partner's face ([`runs_in`]). The other germ is only tangent to its
 /// edge, and lies in the face its curve enters ([`tangent_face`]). Two
 /// edges recorded alike that the face test does not separate stay
-/// `OnEdge` both.
+/// `OnEdge` both. A closed edge's far end is the site itself, so its
+/// midpoint is read in its far end's place ([`closed_reach`]): a
+/// one-segment rim reads as its two-arc form's would. Two closed edges
+/// are one segment unless a midpoint reads inside or outside the
+/// partner's face.
 pub(super) fn germ_loci<T: Decide>(
     a: GermSide<'_, T>,
     b: GermSide<'_, T>,
@@ -1484,20 +1488,35 @@ pub(super) fn germ_loci<T: Decide>(
     let (Some(ea), Some(eb)) = (along(a)?, along(b)?) else {
         return Ok((germ_locus(a, contacts)?, germ_locus(b, contacts)?));
     };
-    let (far_a, far_b) = (site_of(a.body, ea.far)?, site_of(b.body, eb.far)?);
-    let paired = contacts
-        .vv
-        .iter()
-        .any(|c| far_a.contains(&c.a) && far_b.contains(&c.b));
-    if paired {
-        return one_segment(a, ea, b, eb);
-    }
-    let tangent = |side: GermSide<'_, T>, partner: GermSide<'_, T>, e: Along| {
-        Ok::<_, BooleanError>(InFace(
-            tangent_face(side, partner, e.edge, contacts)?.unwrap_or(side.sector.face),
-        ))
+    let (ca, cb) = (closed_reach(a, ea, b, band)?, closed_reach(b, eb, a, band)?);
+    let (ta, tb) = match (ca, cb) {
+        (Some((Touch::Boundary, _)), Some((Touch::Boundary, _))) => {
+            return one_segment(a, ea, b, eb);
+        }
+        (Some((ta, _)), Some((tb, _))) => (ta, tb),
+        (ca, cb) => {
+            let (far_a, far_b) = (site_of(a.body, ea.far)?, site_of(b.body, eb.far)?);
+            if contacts
+                .vv
+                .iter()
+                .any(|c| far_a.contains(&c.a) && far_b.contains(&c.b))
+            {
+                return one_segment(a, ea, b, eb);
+            }
+            (
+                ca.map_or_else(|| touch(a, ea.far, contacts), |c| Ok(c.0))?,
+                cb.map_or_else(|| touch(b, eb.far, contacts), |c| Ok(c.0))?,
+            )
+        }
     };
-    let (ta, tb) = (touch(a, ea.far, contacts)?, touch(b, eb.far, contacts)?);
+    // A closed edge's segment lies in the face its midpoint was read in.
+    let tangent = |side: GermSide<'_, T>, partner: GermSide<'_, T>, e: Along| {
+        let held = match (side.operand, ca, cb) {
+            (Operand::A, _, Some((_, f))) | (Operand::B, Some((_, f)), _) => f,
+            _ => tangent_face(side, partner, e.edge, contacts)?,
+        };
+        Ok::<_, BooleanError>(InFace(held.unwrap_or(side.sector.face)))
+    };
     Ok(match ta.cmp(&tb) {
         core::cmp::Ordering::Greater => (OnEdge(ea.edge), tangent(b, a, ea)?),
         core::cmp::Ordering::Less => (tangent(a, b, eb)?, OnEdge(eb.edge)),
@@ -1537,13 +1556,10 @@ fn germ_curve<T: Decide>(
 /// again, and its pair is refused
 /// ([`BooleanError::GermEdgeCarrierUnsupported`]).
 ///
-/// For two closed edges (each one vertex, both its ends) the far end is
-/// the site itself, so the pairing holds of every such pair and says
-/// nothing: two closed circles tangent at one site are one segment here
-/// whether or not they are one curve. Two that are not (two coplanar
-/// rims tangent outside each other at their shared vertex) are told
-/// apart downstream, where the join refuses their loop
-/// ([`crate::chord_join::SplitJoinError::SectionLoopMixed`]).
+/// Two closed edges (each one vertex, both its ends) have no far end
+/// to pair: [`germ_loci`] takes them as one segment unless one's
+/// midpoint reads inside or outside a face of the other
+/// ([`closed_reach`]).
 fn one_segment<T: Decide>(
     a: GermSide<'_, T>,
     ea: Along,
@@ -1565,6 +1581,54 @@ fn one_segment<T: Decide>(
         }
     }
     Ok((super::Locus::OnEdge(ea.edge), super::Locus::OnEdge(eb.edge)))
+}
+
+/// **Where a closed edge leaving the site lies against the partner**:
+/// its far end is the site itself, so what the reduction recorded there
+/// says nothing of the edge, and its midpoint is read instead, where its
+/// two-arc form's far vertex would be: against each planar face around
+/// the partner's site whose plane holds it, inside the face
+/// ([`Touch::Face`], with that face), on its boundary
+/// ([`Touch::Boundary`]), or outside every one ([`Touch::Apart`]). The
+/// sweep splits an edge at every crossing of the partner, so the
+/// midpoint speaks for the whole edge. `None` where `e` is not closed,
+/// or no such plane holds the midpoint.
+fn closed_reach<T: Decide>(
+    side: GermSide<'_, T>,
+    e: Along,
+    partner: GermSide<'_, T>,
+    band: Band,
+) -> Result<Option<(Touch, Option<FaceKey>)>, BooleanError> {
+    use super::solid_contain::{PointInSolidError, face_plane, point_in_face};
+    if !site_of(side.body, e.far)?.contains(&side.site) {
+        return Ok(None);
+    }
+    let p = germ_curve(side.body, e.edge)?.mid_point();
+    let mut reach = None;
+    for face in faces_at(partner.body, partner.site).map_err(stale_site)? {
+        let (origin, normal) = match face_plane(partner.body, face) {
+            Ok(plane) => plane,
+            Err(PointInSolidError::KindUnsupported { .. }) => continue,
+            Err(e) => return Err(BooleanError::Containment(e)),
+        };
+        let height = Margin::of((p - origin).dot(normal));
+        match decide("bool_germ_tie_plane", height, band).map_err(|diag| {
+            BooleanError::coincidence(Coincide::EdgeOnPlane, DeclarationRead::Moot, diag)
+        })? {
+            Sign::Zero => {}
+            Sign::Positive | Sign::Negative => continue,
+        }
+        match point_in_face(partner.body, face, normal, p, band)
+            .map_err(BooleanError::Containment)?
+        {
+            Some(true) => return Ok(Some((Touch::Face, Some(face)))),
+            Some(false) => {
+                reach.get_or_insert((Touch::Apart, None));
+            }
+            None => reach = Some((Touch::Boundary, None)),
+        }
+    }
+    Ok(reach)
 }
 
 /// Whether the edge `e` of `side`, past the site, runs inside the face
