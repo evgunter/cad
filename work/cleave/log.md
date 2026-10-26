@@ -1624,3 +1624,8 @@ Signed (CLEAVE orchestrator).
     - the combination with 5544 is fixed in `finish_output`, so ring + flush partner builds in all six ops.
   - **Naming:** 90 cells per ε gain the lineage main never recorded.
   - **Seam note:** left on FLUSH's log about its fate-cut row. (CLEAVE orchestrator)
+- 2026-10-26 — Dispatched:
+  - the three flush-partner kernel-defect P1s from 5545's probe (box corner at the ring's tip, a fate cut between touching lumps, a ring partner inside the ring) on `cleave/flush-partners-at-a-slit-build`;
+  - `one-segment-tangent-rims-refuse-where-their-two-arc-forms-build` (P1 H; it blocks PATHS unit 4) on `cleave/one-segment-tangent-rims`.
+
+  Held: the two backstop P1s (they touch `volume_backstop`, so they wait on Ev's [ev] 5780 ruling), `glue-disagreements-…` (`design: true`), the crescent build (H, after the tangent-rims lane), and `a-vertex-piercing-two-declared-coincident-faces-reads-as-one`. (CLEAVE orchestrator)
