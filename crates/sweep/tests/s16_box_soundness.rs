@@ -29,13 +29,14 @@
 //! along its axis, so a rule that lost the axial extent, or grew it,
 //! would keep an x-only file green.
 //!
-//! # 2. The NURBS extent re-gate's blocker
+//! # 2. The NURBS extent re-gate, end to end
 //!
-//! `topo`'s fallback re-gate has no end-to-end path today, and one of
-//! the two reasons is a `sweep` fact: a lofted body's NURBS EDGES are
-//! refused before any face box is built. That blocker is pinned below,
-//! with the operand's face class asserted so the row cannot outlive the
-//! premise it argues from.
+//! A lofted body's NURBS edges are read by the crossing rung and boxed
+//! by their control nets, so a lofted operand that crosses nothing
+//! reaches `topo`'s fallback re-gate, which reads each NURBS face reach
+//! first: a brick its net may meet refuses there, and a far one passes
+//! it and builds. The operand's face class is asserted, so the row cannot outlive
+//! the premise it argues from.
 //!
 //! # 3. The conic edge box as a PRUNE, through the sweep
 //!
@@ -229,30 +230,22 @@ fn lofted() -> Body<f64> {
     sweep::test_support::loft_prism(Tol::witness())
 }
 
-/// **Why `NurbsExtentUnsupported` has no end-to-end row, pinned so the
-/// day that changes is loud.**
+/// **The NURBS extent re-gate, end to end.** A lofted operand's NURBS
+/// edges are read by the crossing rung (the curve × face table's
+/// ring-composite arm) and boxed by their control nets, so an operand
+/// that crosses nothing reaches the containment fallback, whose re-gate
+/// reads each NURBS face reach first (`ops.rs`'s `sphere_extent_scan`):
 ///
-/// The fallback re-gate (`ops.rs`'s `sphere_extent_scan`) fires when a
-/// NURBS-FACED operand reaches the sphere-extent fallback. To get
-/// there an operand must survive the per-arm operand gate and produce
-/// no crossings. No constructor mints such a body today:
-///
-/// - a lofted body has NURBS **edges**, which claim no box, so the
-///   sweep's crossing arm meets each with a face of the other operand
-///   and refuses it typed (`EdgeCarrierUnsupported`) before the
-///   fallback runs — this row;
-/// - the `mvfs` placeholder surface gives NURBS faces with line edges,
-///   but its control net is poison, so its box is poison, so it is
-///   never pruned and meets the crossing layer first.
-///
-/// So the re-gate is defensive depth, pinned at the mechanism in
-/// `topo`'s own suite. When a crossing rung reads NURBS edges this row
-/// goes red, and whoever lands it owes the end-to-end row.
+/// - a thin slab beside the prism's flared wall, outside the solid but
+///   across that wall's control-net hull, may meet the wall for all the
+///   box knows, and refuses there (`NurbsExtentUnsupported`). Its edges
+///   stand far off the wall, so none reaches the spline-face door first;
+/// - a box far off is certified clear of every NURBS face by the boxes,
+///   passes the re-gate, and builds: the vertex probe reads each of its
+///   vertices past every face of the prism, outside.
 #[test]
-fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_the_fallback() {
+fn a_lofted_operand_reaches_the_fallbacks_re_gate() {
     let a = lofted();
-    // The operand is IN the class the re-gate exists for. Nothing else
-    // in the row says so: the refusal below is about its EDGES.
     let nurbs_faces = a
         .faces()
         .filter(|(_, f)| matches!(a.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
@@ -261,20 +254,36 @@ fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_the_fallback() {
         nurbs_faces > 0,
         "the lofted operand carries NURBS FACES — the class the re-gate exists for"
     );
-
     let a = finished("the lofted operand", a, Tol::witness());
-    let b = finished("the box", nested_box(20.0, 0.5), Tol::witness());
-    let err = topo::boolean::union(&a, &b, Tol::witness())
-        .expect_err("a NURBS operand must refuse typed");
+    // The `+x` wall flares to `x = 1.375` at `y = −1`, `z = 1`, so its
+    // net reaches `x = 1.75`. The slab stands past the flare, across the
+    // net's box, its edges at `|y| = 5` or `|z| = 5`.
+    let beside = finished(
+        "the slab beside the wall",
+        brick((1.55, 1.6), (-5.0, 5.0), (-5.0, 5.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let err = topo::boolean::union(&a, &beside, Tol::witness())
+        .expect_err("a slab across the wall's net refuses typed");
     assert!(
-        matches!(
-            err,
-            BooleanError::EdgeCarrierUnsupported {
-                site: topo::EdgeCarrierSite::PlanarCrossing,
-                ..
-            }
-        ),
-        "the sweep's planar crossing arm is what a lofted body's edges meet, got {err:?}"
+        matches!(err, BooleanError::NurbsExtentUnsupported { .. }),
+        "the fallback's re-gate refuses the wall the slab may meet, got {err:?}"
+    );
+    // The far box, `[19.5, 20.5] × [−½, ½] × [0.3, 0.7]`: its vertices
+    // stand past every face of the prism, so the vertex probe reads
+    // them outside, and the union is the two solids side by side.
+    let far = finished("the far box", nested_box(20.0, 0.5), Tol::witness());
+    let union = topo::boolean::union(&a, &far, Tol::witness())
+        .unwrap_or_else(|e| panic!("the far box unions with the lofted operand: {e:?}"));
+    let topo::BooleanResult::Body(out) = union else {
+        panic!("a union of two solids is a body");
+    };
+    let v = topo::mass_properties(&out.body, Tol::witness())
+        .expect("the union measures")
+        .volume;
+    assert!(
+        (v - 9.4).abs() <= 1e-6 * 9.4,
+        "the union is the prism's 9 m³ and the box's 0.4 m³ side by side, got {v}"
     );
 }
 

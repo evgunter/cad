@@ -322,7 +322,16 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "split_edge_param_interior" | "split_conic_crossing_root" | "bool_wall_root_in_span" => {
             CrossingDecision::OnEdge.subject()
         }
-        "split_conic_root_order" => CrossingDecision::Order.subject(),
+        "split_conic_root_order" | "spline_composite_roots_apart" => {
+            CrossingDecision::Order.subject()
+        }
+        "spline_composite_root_at_end" | "spline_composite_root_at_crease" => {
+            CrossingDecision::OnEdge.subject()
+        }
+        "spline_composite_root_on" => {
+            "whether a crossing found along a spline edge lies on the face"
+        }
+        "bool_point_past_every_reach" => "whether a point stands past every face of the solid",
         // The point-on-span reading's two halves, which the on-carrier
         // crossing and the boundary pass read: `geom`'s one-carrier
         // reading and `geom_brep::curve_pair`'s span reading.
@@ -2836,6 +2845,28 @@ pub enum BooleanError {
         /// The lane.
         site: EdgeCarrierSite,
     },
+    /// A spline edge of `operand` meets a face of `face_of` where the
+    /// curve × face table's ring-composite arm
+    /// ([`geom_brep::curve_face::composite::crossings`]) cannot count its
+    /// crossings (`why`): it comes within the band of the face's carrier
+    /// without a crossing the arm can tell apart (it touches it, runs
+    /// along it, or crosses it more than once within the band), it meets
+    /// it within the band of a crease of the spline, where the spline has
+    /// no tangent, or the point it located does not evaluate onto it. The
+    /// definite half: a decision the arm needs that falls in the band's
+    /// gap escalates as [`Self::Escalated`] instead.
+    SplineCrossingUnsettled {
+        /// The operand whose edge it is.
+        operand: Operand,
+        /// The edge: the operand's own, its split pieces' root.
+        edge: EdgeKey,
+        /// The face it was read against.
+        face: FaceKey,
+        /// The operand whose face it is.
+        face_of: Operand,
+        /// What the arm could not settle.
+        why: geom_brep::roots::Unsettled,
+    },
     /// The both-edges-split point lane needs a carrier with a point
     /// parameter ([`geom::Curve3::param_near`]) and got a spline, which
     /// has none. It is the split lane's own precondition, narrower than
@@ -3429,9 +3460,11 @@ pub enum BooleanError {
     /// projection-based extent argument — a foot point plus a bound on
     /// how far the patch can reach past it — which nothing has
     /// derived. The class stays RE-GATED at the fallback, explicitly
-    /// and pinned: a future NURBS body constructor inherits this typed
-    /// refusal, never the vertex-probe silence the S12 finding
-    /// executed.
+    /// and pinned, reach first: a NURBS face whose certified box (its
+    /// control net's hull) meets no face of the other operand is
+    /// certified disjoint from it by the box, and a NURBS face that may
+    /// meet one refuses here, never the vertex-probe silence the S12
+    /// finding executed.
     NurbsExtentUnsupported {
         /// The operand carrying the NURBS face.
         operand: Operand,
@@ -4018,6 +4051,8 @@ pub enum BooleanErrorKind {
     NormalAtConeApex,
     /// [`BooleanError::EdgeCarrierUnsupported`].
     EdgeCarrierUnsupported,
+    /// [`BooleanError::SplineCrossingUnsettled`].
+    SplineCrossingUnsettled,
     /// [`BooleanError::PointSplitCarrierUnsupported`].
     PointSplitCarrierUnsupported,
     /// [`BooleanError::GermEdgeCarrierUnsupported`].
@@ -4300,6 +4335,7 @@ impl BooleanError {
             Self::CrossingAtConeApex { .. } => BooleanErrorKind::CrossingAtConeApex,
             Self::NormalAtConeApex { .. } => BooleanErrorKind::NormalAtConeApex,
             Self::EdgeCarrierUnsupported { .. } => BooleanErrorKind::EdgeCarrierUnsupported,
+            Self::SplineCrossingUnsettled { .. } => BooleanErrorKind::SplineCrossingUnsettled,
             Self::PointSplitCarrierUnsupported { .. } => {
                 BooleanErrorKind::PointSplitCarrierUnsupported
             }
@@ -4399,6 +4435,25 @@ impl From<EulerOpError> for BooleanError {
 /// every lane reads are the line and the two conics.
 pub(crate) const CONIC_EDGES_RECOURSE: &str =
     "rebuild that solid so its edges are lines, circles or ellipses";
+
+/// What the spline arm could not settle, as a clause for
+/// [`BooleanError::SplineCrossingUnsettled`]'s sentence.
+fn unsettled_crossing(why: geom_brep::roots::Unsettled) -> &'static str {
+    use geom_brep::roots::Unsettled as U;
+    match why {
+        U::Tangency => {
+            "it comes within the tolerance of the face without a crossing the Boolean can \
+             tell apart: it touches the face, runs along it, or crosses it more than once \
+             within the tolerance"
+        }
+        U::Crease => "it meets the face at a corner of the curve",
+        U::SignInBand => {
+            "the point it located as a crossing does not evaluate onto the face within the \
+             tolerance"
+        }
+        _ => "its crossings could not be counted",
+    }
+}
 
 /// How a refusal names an operand to the person who built it: by its
 /// place in the operation, never by the enum spelling.
@@ -4523,6 +4578,14 @@ impl core::fmt::Display for BooleanError {
                  Boolean cannot yet {}. Recourse: {CONIC_EDGES_RECOURSE}",
                 operand_word(*operand),
                 site.clause(),
+            ),
+            Self::SplineCrossingUnsettled { operand, why, .. } => write!(
+                f,
+                "a spline (NURBS) edge of the {} operand meets a face of the other \
+                 where the Boolean cannot count its crossings: {}. Recourse: move the \
+                 parts so that edge crosses the face cleanly or stays clear of it",
+                operand_word(*operand),
+                unsettled_crossing(*why),
             ),
             Self::PointSplitCarrierUnsupported { operand, .. } => write!(
                 f,
@@ -8884,6 +8947,13 @@ mod tests {
                 face_of: Operand::B,
                 site: EdgeCarrierSite::PlanarCrossing,
             },
+            BooleanError::SplineCrossingUnsettled {
+                operand: Operand::A,
+                edge,
+                face,
+                face_of: Operand::B,
+                why: geom_brep::roots::Unsettled::Tangency,
+            },
             BooleanError::PointSplitCarrierUnsupported {
                 operand: Operand::A,
                 edge,
@@ -9219,6 +9289,7 @@ mod tests {
                 BooleanErrorKind::CrossingAtConeApex => "CrossingAtConeApex",
                 BooleanErrorKind::NormalAtConeApex => "NormalAtConeApex",
                 BooleanErrorKind::EdgeCarrierUnsupported => "EdgeCarrierUnsupported",
+                BooleanErrorKind::SplineCrossingUnsettled => "SplineCrossingUnsettled",
                 BooleanErrorKind::PointSplitCarrierUnsupported => "PointSplitCarrierUnsupported",
                 BooleanErrorKind::GermEdgeCarrierUnsupported => "GermEdgeCarrierUnsupported",
                 BooleanErrorKind::ArcLoopContainmentUnsupported => "ArcLoopContainmentUnsupported",

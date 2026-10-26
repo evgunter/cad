@@ -1733,6 +1733,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    s.push((
+        "BoundaryCrossesItself".to_owned(),
+        ValidationError::BoundaryCrossesItself {
+            solid,
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    for why in crate::link::TouchUnread::iter() {
+        s.push((
+            format!("BoundaryCrossesItselfUndecided/{why:?}"),
+            ValidationError::BoundaryCrossesItselfUndecided {
+                solid,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                why,
+            },
+        ));
+    }
     let ContainError::ArcEndClearOfCorners(gaps) = arc_end_clear_of_corners(true) else {
         unreachable!("the sample builds the arc-end finding")
     };

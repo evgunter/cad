@@ -182,7 +182,12 @@ fn least(sd: Oracle, a: Point3<f64>, c: Point3<f64>) -> f64 {
 /// least; one the least is at reads it within `1e-9`. Within the band of
 /// the boundary the sign is the band's: a point's offset may read either
 /// sign of its distance there, and a segment's least within two
-/// escalations. Red if a reading
+/// escalations. Within the band of a sector's bound a point may read the
+/// plane's distance for the ray's, or the ray's for the plane's: they
+/// part by `√(d² + s²) − |d| ≤ s²/2|d|`, `s` its offset across the bound
+/// (at most an escalation), so its offset reads its distance within
+/// that, on the same side, and a segment's least no lower than that
+/// below its own. Red if a reading
 /// refuses, if a wedge's distance takes a plane it does not stand over,
 /// or if a candidate the least is at is missing (with the ties between
 /// two rays, or a ray and a plane, removed, the saddle and the ridge
@@ -202,8 +207,17 @@ fn offset_and_lowest_on_meet_the_written_down_distance() {
             let band_sign = |got: f64, want: f64| {
                 (got.abs() - want.abs()).abs() <= 1e-12 && want.abs() <= b.escalate()
             };
+            // Within the band of a sector's bound, the plane's distance
+            // or the ray's.
+            let bound = |got: f64, want: f64| {
+                got.signum() == want.signum()
+                    && (got - want).abs() <= 1e-12 + b.escalate().powi(2) / (2.0 * want.abs())
+            };
             match link.offset(q, b) {
-                Ok(got) if (got - sd(q)).abs() <= 1e-12 || band_sign(got, sd(q)) => {}
+                Ok(got)
+                    if (got - sd(q)).abs() <= 1e-12
+                        || band_sign(got, sd(q))
+                        || bound(got, sd(q)) => {}
                 got => bad.push(format!(
                     "{name}: offset at {q:?} reads {got:?}, not {}",
                     sd(q)
@@ -214,7 +228,9 @@ fn offset_and_lowest_on_meet_the_written_down_distance() {
             let (a, c) = (draw(&mut r), draw(&mut r));
             let want = least(sd, a, c);
             match link.lowest_on((a, c), b) {
-                Ok(got) if got >= want - 1e-12 && got <= want + 1e-9 => {}
+                Ok(got)
+                    if got >= want - 1e-12 - b.escalate().powi(2) / (2.0 * want.abs())
+                        && got <= want + 1e-9 => {}
                 Ok(got)
                     if want.abs() <= b.escalate() && (got - want).abs() <= 2.0 * b.escalate() => {}
                 got => bad.push(format!(

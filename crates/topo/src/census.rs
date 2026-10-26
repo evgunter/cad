@@ -78,9 +78,15 @@
 //!   [`sweep_cross_solid_backstop`].
 //! - **Discovered within one solid**: two faces on distinct carriers
 //!   touching along their closed-form tangent line through both
-//!   interiors ([`sweep_same_solid_tangent_lines`]).
+//!   interiors ([`sweep_same_solid_tangent_lines`]); and a point where
+//!   a solid touches itself whose link there bounds no one material
+//!   ([`sweep_self_touch_points`]).
 //! - **Genuinely undetected until C9/C6**: the other SAME-solid
-//!   distinct-key curved pairs (the backstop is cross-solid), and one
+//!   distinct-key curved pairs (the backstop is cross-solid); a point
+//!   where a solid touches itself with a curved face or edge in its link
+//!   there, which [`sweep_self_touch_points`] leaves unread
+//!   (`work/restread/tier-3-prime-reads-no-side-where-a-solid-touches-itself-at-a-point-on-a-curved-face.md`);
+//!   and one
 //!   cross-solid residue named at that loop: a pair whose ONLY
 //!   meetings are declared has some of its records taken on their word
 //!   (`work/contacthold/declared-only-meetings-clear-at-the-census-gate-unread.md`).
@@ -138,25 +144,27 @@
 //! an edge lying in a face of its own solid ([`edge_in_own_face`]): a
 //! backed overlap still refuses where the face passes through the
 //! edge's material wedge, read by the touch analysis's one test
-//! ([`rest::judge`]) over each cell's outward normals.
+//! ([`rest::judge`]) over each cell's outward normals. The third is the
+//! reading of a point where a solid touches itself
+//! ([`sweep_self_touch_points`]): passes 1–3 back such a touch on its
+//! position alone, and the solid's whole link at the point is read once
+//! for whether it bounds one material ([`rest::one_material`]).
 //!
-//! **Pass 4's findings in arm 2.** A
+//! **Self-touch findings in arm 2.** A
 //! [`ValidationError::FaceThroughEdgeWedge`], or its undecided twin, is
 //! a touch inside one solid and blocks no solid pair of its own. A face
 //! sheet inside the edge's wedge leaves the material a set with a
 //! bounded side, wrongly paired at the edge, which placement still
 //! reads against. A wedge inside the face's material winds the region
-//! there to two, so the shell crosses itself elsewhere. That crossing
-//! blocks where it stands as a pierce or an edge cross of the solid,
-//! but two planar faces can cross showing only vertex-on-face events: a
-//! triangle `(0,0,0), (4,1,1), (4,-1,-1)` in `y = z` crosses one
-//! `(2,0,0), (-2,2,0), (-2,-2,0)` in `z = 0` along `[(0,0,0), (2,0,0)]`,
-//! each with a vertex inside the other, and a vertex-on-face touch
-//! inside one solid blocks nothing. Such a body is still refused by its
-//! own finding, and by [`ValidationError::UnrecordedContact`] unless
-//! the touches are recorded; what it can lack is arm 2's cross-solid
-//! finding beside them
-//! (`work/restread/tier-3-prime-reads-no-side-for-a-face-touching-a-vertex-of-its-own-solid.md`).
+//! there to two, so the shell crosses itself elsewhere, and that
+//! crossing blocks where it stands: as a pierce or an edge cross of the
+//! solid, or, where two planar faces cross showing only vertex-on-face
+//! events (a triangle `(0,0,0), (4,1,1), (4,-1,-1)` in `y = z` crossing
+//! one `(2,0,0), (-2,2,0), (-2,-2,0)` in `z = 0` along `[(0,0,0),
+//! (2,0,0)]`, each with a vertex inside the other), as a
+//! [`ValidationError::BoundaryCrossesItself`] at those touches, which
+//! [`Named::of`] reads as a pierce of the solid. Its undecided twin
+//! leaves the solid unexamined against its pairs.
 //!
 //! **Certification (F1/F2(iii))**: the census never blesses — every
 //! finding must be *backed* by a declaration and every declaration
@@ -449,6 +457,9 @@ struct FaceGeo<T: Real> {
     /// face is the planar polygon its vertices bound, so it lies in
     /// their convex hull.
     polygon: bool,
+    /// Every loop walked and every half-edge resolved: a face tier 1
+    /// passed always is.
+    walked: bool,
 }
 
 /// The census snapshot: the exact planar geometry the vertex-granular
@@ -1023,6 +1034,7 @@ fn census_with<T: Decide + crate::props::AtRestPolicy + Bounds>(
     report_found_pairs(&found.opposed, &declared, &mut errors);
     sweep_conformal_patches(body, &geo, &declared, band, region, &mut errors);
     sweep_same_solid_tangent_lines(body, &declared, band, &cands, &mut errors);
+    sweep_self_touch_points(body, &geo, &declared, band, &mut errors);
     sweep_cross_solid_backstop(
         body,
         &geo,
@@ -2578,11 +2590,13 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
         let mut boundary = BTreeSet::new();
         let mut loops = Vec::new();
         let mut polygon = true;
+        let mut walked = true;
         // A loop this cannot walk contributes no boundary vertex, and
         // the face is no polygon the touch analysis reads.
         for cycle in face_cycles(body, face) {
             let Ok(cycle) = cycle else {
                 polygon = false;
+                walked = false;
                 continue;
             };
             let mut ring = Vec::with_capacity(cycle.len());
@@ -2593,6 +2607,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
                     polygon &= edge_is_line(body, he_data.edge);
                 } else {
                     polygon = false;
+                    walked = false;
                 }
             }
             loops.push(ring);
@@ -2611,6 +2626,7 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
                 boundary,
                 loops,
                 polygon,
+                walked,
             });
         }
     }
@@ -7145,6 +7161,18 @@ impl Named {
                 EntityId::Edge(*b),
                 Said::Wedges(Some(*why)),
             ),
+            // A solid's boundary crossing itself at a point, or not read
+            // there: no placement reads against that solid's material.
+            ValidationError::BoundaryCrossesItself { solid, .. } => Self::Two(
+                EntityId::Solid(*solid),
+                EntityId::Solid(*solid),
+                Said::Pierce,
+            ),
+            ValidationError::BoundaryCrossesItselfUndecided { solid, .. } => Self::Two(
+                EntityId::Solid(*solid),
+                EntityId::Solid(*solid),
+                Said::Unexamined,
+            ),
             // Two faces of one solid: that solid's own defect, which
             // leaves no other solid's boundary unread.
             ValidationError::CuspEdgesMissing { a, b, .. } => {
@@ -7174,7 +7202,9 @@ enum Recorded {
 // its solid's whole LINK there ([`Link`], gathered off the snapshot
 // across every key the touch ties to its point): every face of the
 // solid through the point, as its sector. One test of two polygonal
-// cones decides the pair ([`rest::judge`]). Every sign it decides comes
+// cones decides the pair ([`rest::judge`]); a solid touching itself at
+// a point is read with its one link ([`rest::one_material`]). Every
+// sign it decides comes
 // through the link's one door (`crate::link`'s module docs);
 // `link::tests::the_link_decides_only_through_its_doors` reads this
 // section too, from this banner to the backstop's header, and holds
@@ -7192,6 +7222,8 @@ mod pierce_fuzz;
 mod point;
 #[cfg(test)]
 mod segment_fuzz;
+#[cfg(test)]
+mod self_touch;
 
 impl TouchUnread {
     /// The cross-solid backstop's reason for a touch left unread.
@@ -7232,7 +7264,9 @@ impl TouchUnread {
 
     /// The reason and its recourse, where tier 3′ reads no side inside
     /// the body's own cells at a point: an edge lying in a face of its
-    /// own solid ([`ValidationError::FaceThroughEdgeWedgeUndecided`]).
+    /// own solid ([`ValidationError::FaceThroughEdgeWedgeUndecided`]),
+    /// or the solid touching itself at a point
+    /// ([`ValidationError::BoundaryCrossesItselfUndecided`]).
     pub(crate) fn sentence(self) -> &'static str {
         match self {
             Self::InBand => concat!(
@@ -7254,8 +7288,7 @@ impl TouchUnread {
                 " for this shape"
             ),
             Self::Unanalysed => concat!(
-                "the part's faces there meet the point along an edge and again, or do not \
-                 close around it, so no side reads. ",
+                "the part's faces there do not close around the point, so no side reads. ",
                 geom_core::not_yet_ending!(),
                 " for this shape"
             ),
@@ -7624,22 +7657,107 @@ fn edge_in_own_face<T: Decide>(
     }
 }
 
+/// **Every point where a solid touches itself, read for sides**: one
+/// reading per solid and point, wherever the ties (records and the
+/// standing findings, [`Ties`]) or a shared point key name two cells of
+/// one solid there — a vertex on its own face (pass 3), on its own edge
+/// (pass 2), or two of its vertices on one point (pass 1). Those passes
+/// read position only; the side is read here, once, over the solid's
+/// whole link at the point ([`Link::touch_at_point`], [`rest::one_material`]).
+/// A decided failure is [`ValidationError::BoundaryCrossesItself`], any
+/// other unread verdict its undecided twin. A point a line touch of the
+/// solid reaches is read whole here too, every sheet through it, the
+/// line's own included; the line's sides along it are its rules' (pass
+/// 4's [`edge_in_own_face`], read at each cell's middle). A link holding
+/// a curved face or edge is left unread, wherever in the link it stands
+/// ([`Link::touch_at_point`] answers `Unreadable` before any other refusal):
+/// no sector reads one yet.
+fn sweep_self_touch_points<T: Decide>(
+    body: &Body<T>,
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
+    let ties = Ties::of(declared, errors);
+    let solid = |id| census_entity_solid(body, id);
+    let one = |x: EntityId, y: EntityId| solid(x).filter(|&s| solid(y) == Some(s));
+    let mut seeds: Vec<(crate::SolidKey, VertexKey)> = Vec::new();
+    for &(a, b) in &ties.vv {
+        seeds.extend(one(EntityId::Vertex(a), EntityId::Vertex(b)).map(|s| (s, a)));
+    }
+    for &(v, e) in &ties.ve {
+        seeds.extend(one(EntityId::Vertex(v), EntityId::Edge(e)).map(|s| (s, v)));
+    }
+    for &(v, f) in &ties.vf {
+        seeds.extend(one(EntityId::Vertex(v), EntityId::Face(f)).map(|s| (s, v)));
+    }
+    let mut on_key: std::collections::BTreeMap<(crate::SolidKey, PointKey), Vec<VertexKey>> =
+        std::collections::BTreeMap::new();
+    for (&v, &k) in &geo.vpoint {
+        if let Some(s) = solid(EntityId::Vertex(v)) {
+            on_key.entry((s, k)).or_default().push(v);
+        }
+    }
+    seeds.extend(
+        on_key
+            .into_iter()
+            .filter(|(_, vs)| vs.len() > 1)
+            .map(|((s, _), vs)| (s, vs[0])),
+    );
+    let mut read = BTreeSet::new();
+    for (s, v) in seeds {
+        let (Some(keys), Some(&at)) = (touch_keys(geo, &ties, &[v]), geo.vmap.get(&v)) else {
+            errors.push(ValidationError::BoundaryCrossesItselfUndecided {
+                solid: s,
+                witness: geo.vmap.get(&v).map_or_else(String::new, |&p| witness(p)),
+                why: TouchUnread::Corrupt,
+            });
+            continue;
+        };
+        let Some(&least) = keys.first() else { continue };
+        if !read.insert((s, least)) {
+            continue;
+        }
+        let verdict = match Link::touch_at_point(body, geo, &ties, s, &keys, at, band) {
+            Ok(link) => rest::one_material(&link, band),
+            // A curved face or edge in the link: genuinely undetected
+            // (the module doc's class list), not refused.
+            Err(TouchUnread::Unreadable) => continue,
+            Err(why) => TouchVerdict::Unread(why),
+        };
+        match verdict {
+            TouchVerdict::Rest(_) => {}
+            TouchVerdict::Crossing => errors.push(ValidationError::BoundaryCrossesItself {
+                solid: s,
+                witness: witness(at),
+            }),
+            TouchVerdict::Unread(why) => {
+                errors.push(ValidationError::BoundaryCrossesItselfUndecided {
+                    solid: s,
+                    witness: witness(at),
+                    why,
+                });
+            }
+        }
+    }
+}
+
 /// One touch point's two links, each as built or as the verdict its
 /// build refused with.
 type LinkPair<T> = (Result<Link<T>, TouchUnread>, Result<Link<T>, TouchUnread>);
 
 impl<T: Decide> Sector<T> {
     /// One planar, line-bounded face of the snapshot as its sectors at
-    /// the touch point, held there as `holds` say: inside it or inside
-    /// one edge of it (one sector, about `p`), or at its corners — every
-    /// place its loops pass through a vertex on the point, each its own
-    /// sector about that vertex, whether the loops pass one vertex twice
-    /// or two vertices on one point (a pinch, one vertex per cone). A
-    /// face held inside two of its edges, or both at a corner and inside
-    /// an edge, touches itself there in a way no sector reads, and is not
-    /// read. A corner tie that is a face tie too reads the corner, and an
-    /// edge tie that is a face tie too reads the edge: the face's interior
-    /// holds no point of its boundary.
+    /// the touch point, held there as `holds` say: inside it (one sector
+    /// about `p`), or at each pass of its loops through the point — every
+    /// corner on the point, about its vertex, whether the loops pass one
+    /// vertex twice or two vertices on one point (a pinch, one vertex per
+    /// cone), and every edge a tie holds the point inside, about `p` —
+    /// each pass ending at the first incoming ray of any pass
+    /// ([`face_piece`]). A corner tie that is a face tie too reads the
+    /// corner, and an edge tie that is a face tie too reads the edge: the
+    /// face's interior holds no point of its boundary.
     fn of(
         body: &Body<T>,
         geo: &Geo<T>,
@@ -7648,17 +7766,24 @@ impl<T: Decide> Sector<T> {
         holds: &[Hold],
         band: Band,
     ) -> Result<Vec<Self>, TouchUnread> {
-        let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
-        if !fg.polygon {
-            return Err(TouchUnread::Unreadable);
-        }
+        // A face or surface that does not resolve, or a loop that does
+        // not walk, is a defect (tier 1 admits none); a face that
+        // resolves off a plane, or bounded by a curved edge, is curved.
         let face = body.get_face(f).ok_or(TouchUnread::Corrupt)?;
         let surface = body
             .get_surface(face.surface)
             .cloned()
             .ok_or(TouchUnread::Corrupt)?;
+        let fg = planar_face(geo, f).ok_or(TouchUnread::Unreadable)?;
+        if !fg.walked {
+            return Err(TouchUnread::Corrupt);
+        }
+        if !fg.polygon {
+            return Err(TouchUnread::Unreadable);
+        }
+        // A planar face at rest has an outward normal: none is a defect.
         let outward = crate::face_normal::face_outward_normal(body, f)
-            .ok_or(TouchUnread::Unreadable)?
+            .ok_or(TouchUnread::Corrupt)?
             .vec();
         let rings = fg
             .loops
@@ -7732,7 +7857,11 @@ impl<T: Decide> Link<T> {
                 holds.entry(*f).or_default().push(Hold::Inside);
             }
         }
+        // A curved face refuses at once; any other refusal waits until
+        // every face is tried. So a curved face anywhere in the link is
+        // what it refuses with, whatever order its faces are walked in.
         let mut sectors = Vec::with_capacity(holds.len());
+        let mut refused = None;
         for (f, all) in holds {
             let mut hs: Vec<Hold> = Vec::with_capacity(all.len());
             for h in all {
@@ -7740,7 +7869,16 @@ impl<T: Decide> Link<T> {
                     hs.push(h);
                 }
             }
-            sectors.extend(Sector::of(body, geo, f, p, &hs, band)?);
+            match Sector::of(body, geo, f, p, &hs, band) {
+                Ok(s) => sectors.extend(s),
+                Err(TouchUnread::Unreadable) => return Err(TouchUnread::Unreadable),
+                Err(v) => {
+                    refused.get_or_insert(v);
+                }
+            }
+        }
+        if let Some(v) = refused {
+            return Err(v);
         }
         Self::of(p, sectors)
     }
@@ -14470,7 +14608,7 @@ mod tests {
 
     /// Where a synthetic link's point sits on its faces.
     #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-    enum At {
+    pub(super) enum At {
         /// At the vertex with this index.
         Vertex(usize),
         /// Inside the edge `edges[0]` names.
@@ -14484,7 +14622,7 @@ mod tests {
     /// built by [`face_piece`]; `edges[0]`'s ends name the edge `p` is
     /// inside, at [`At::Edge`].
     #[allow(clippy::type_complexity)]
-    fn synthetic(
+    pub(super) fn synthetic(
         p: Point3<f64>,
         at: At,
         verts: Vec<Point3<f64>>,
