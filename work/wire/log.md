@@ -7072,3 +7072,8 @@ Signed (WIRE orchestrator).
   - The pair-boolean least-edge row returns to WIRE at P2, the one place the approved rule is unbuilt.
   - Filed the Through-walker residue row (P3/E).
 - 2026-10-26 (WIRE orchestrator) Dispatched `wire-pairflush` (wire/pair-flush-line-reads-each-edge). The pair boolean's flush line takes the set and Through, finishing the 5705 rule; it also repoints the README's citation of the moved row. FULL review.
+- 2026-10-26 (WIRE orchestrator) `wire-pairflush` opened PR 5778 (head 5043b1e764).
+  - The pair's flush line is Merged+Through via a shared line_of_several. least_per_line is deleted, and the union's grouping is an adapter, which closes the twin row.
+  - No published table reaches the pair arm (fold steps only), so the witness is emitter-level and goes red on base.
+  - gate ok is red, attributed to main's RESTREAD P0 CoincidentWedgesOverlap.
+  - A FULL review (`wire-pairflush-rev`) is dispatched; it verifies the red first.
