@@ -29,3 +29,15 @@ the meeting-axes pose builds: Err(Escalated { decision: Containment { decision: 
 ```
 
 PCERT's E1 merge of main (`30477d14e2`) fails the same way, so the default-ε red is main's. The done-when now covers every ε.
+
+## 2026-10-26 (INTENT nightly triage): hidden behind an earlier refusal
+
+Since #5664 (`80a6f77a`, CHART's ruled region doors), this row is red at
+every ε, not 1e-12 alone, and it fails before it reaches the `EndpointEnd`
+escalation this row is about. The new refusal is
+`Escalated { decision: Containment { decision: None, escalation: Margin }, … Enclosure { lo: -1.5707963267956369, hi: 4.712388980385431 } }`.
+It was bisected in nightly runs 40165703340 and 40274924857 (PASS at
+`fa1d94c7`, FAIL at `80a6f77a`) and is filed on CHART as
+`work/chart/a-box-on-a-cylinder-seam-and-a-slanted-bore-exhaust-the-ray-at-1e-12-since-the-ringed-doors.md`.
+Until that lands, this row's own 1e-12 message cannot be read from the
+nightly.
