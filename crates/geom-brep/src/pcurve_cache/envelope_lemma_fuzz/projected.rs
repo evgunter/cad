@@ -1196,7 +1196,8 @@ fn the_period_gate_reads_the_sweep_and_refuses_past_a_turn() {
 /// reaching a pole refuses; the net's geometry past the edge's ends is
 /// not the edge's). A great-circle arc whose far part runs over the
 /// sphere's pole: an edge on its first fifth derives and certifies, and
-/// the whole net refuses on the pole.
+/// the whole net refuses on the pole, at the mint, as the projected
+/// lane's capability gap ("not yet", `general_lane_refusal`).
 #[test]
 fn an_edge_reads_only_its_own_interval_of_the_net() {
     let sphere = unit_sphere();
@@ -1219,11 +1220,13 @@ fn an_edge_reads_only_its_own_interval_of_the_net() {
     assert!(
         matches!(
             whole,
-            Err(PcurveCertifyError::SectorRefused { .. }
-                | PcurveCertifyError::Escalated {
-                    check: PcurveCheck::Sector,
-                    ..
-                })
+            Err(PcurveCertifyError::NoGeneralLane {
+                gap: crate::LaneGap::Pose { .. },
+                ..
+            } | PcurveCertifyError::Escalated {
+                check: PcurveCheck::GeneralLane,
+                ..
+            })
         ),
         "the whole net over the pole: {whole:?}"
     );
@@ -2084,4 +2087,141 @@ fn a_corrupt_net_escalates_the_azimuth_sector_on_a_cylinder() {
         ),
         "{got:?}"
     );
+}
+
+/// **A spline net the projected lane cannot partition ends "not yet"**,
+/// as a circle's lane choice does (`general_lane_refusal`, read from both
+/// of `chart_image`'s calls of the lane): the net's projected image is its
+/// only lane, and a sector that lane cannot find is the lane's capability
+/// gap, not the description's defect. Nets near a sphere's pole and a
+/// cone's apex, minted through `chart_pcurve`:
+///
+/// - a meridian arc over the pole, and one passing mid-band beside it;
+/// - a ruling segment through the apex, from one nappe to the other, and
+///   a rim arc at a mid-band height, where the cone's nappe is read.
+///
+/// Every outcome, at `f64` and at `Interval`, is an image or a "not yet"
+/// ending with no defect and no tolerance in it; and on each chart at
+/// least one pose reaches the lane's own refusal, so a spline arm that
+/// skips the relabel (its `SectorRefused` ends as a defect) reds the row.
+#[test]
+fn a_spline_net_the_projected_lane_cannot_partition_ends_not_yet() {
+    use crate::recourse::Reading;
+    let b = band();
+    let mid = 0.5 * (b.zero() + b.escalate());
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let half_angle = 0.5_f64;
+    let cone = Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_z(),
+        half_angle,
+        u_ref: Vec3::unit_x(),
+    };
+    // The beside-the-pole arc's plane is turned `mid` off the axis, so its
+    // nearest approach to the pole is `mid`.
+    let beside = Vec3::new(0.0, mid.sin(), mid.cos());
+    let ruling = Vec3::new(half_angle.sin(), 0.0, half_angle.cos());
+    type Nets = Vec<(&'static str, Curve3<f64>)>;
+    let charts: [(&str, &Surface<f64>, Nets); 2] = [
+        (
+            "sphere",
+            &sphere,
+            vec![
+                (
+                    "a meridian arc over the pole",
+                    arc(
+                        Point3::origin(),
+                        Vec3::unit_x(),
+                        Vec3::unit_z(),
+                        1.0,
+                        FRAC_PI_2 - 0.4,
+                        0.8,
+                    ),
+                ),
+                (
+                    "an arc mid-band beside the pole",
+                    arc(
+                        Point3::origin(),
+                        Vec3::unit_x(),
+                        beside,
+                        1.0,
+                        FRAC_PI_2 - 0.4,
+                        0.8,
+                    ),
+                ),
+            ],
+        ),
+        (
+            "cone",
+            &cone,
+            vec![
+                (
+                    "a ruling segment through the apex",
+                    segment(
+                        Point3::origin() - ruling * 0.5,
+                        Point3::origin() + ruling * 0.5,
+                    ),
+                ),
+                (
+                    "a rim arc at a mid-band height",
+                    arc(
+                        Point3::new(0.0, 0.0, mid),
+                        Vec3::unit_x(),
+                        Vec3::unit_y(),
+                        mid * half_angle.tan(),
+                        0.3,
+                        1.0,
+                    ),
+                ),
+            ],
+        ),
+    ];
+    let mut wrong = Vec::new();
+    for (chart, surface, nets) in charts {
+        let mut lane_gaps = 0;
+        for (what, net) in nets {
+            for (lane, got) in [
+                ("f64", crate::chart_pcurve(&net, surface, b).map(|_| ())),
+                (
+                    "Interval",
+                    crate::chart_pcurve(&lift(&net), &surface.map_scalar(Interval::from_f64), b)
+                        .map(|_| ()),
+                ),
+            ] {
+                let Err(e) = got else { continue };
+                if matches!(
+                    e,
+                    PcurveCertifyError::Escalated {
+                        check: PcurveCheck::GeneralLane,
+                        ..
+                    } | PcurveCertifyError::NoGeneralLane {
+                        gap: crate::LaneGap::Pose { .. },
+                        ..
+                    }
+                ) {
+                    lane_gaps += 1;
+                }
+                for reading in [Reading::Build, Reading::AtRest] {
+                    let ending = e.ending(reading).unwrap_or_default();
+                    if !ending.starts_with(geom_core::NOT_YET_ENDING)
+                        || ending.contains("defect")
+                        || ending.contains("tolerance")
+                    {
+                        wrong.push(format!(
+                            "{chart}, {what} at {lane}, {reading:?}: {e:?} ends {ending}"
+                        ));
+                    }
+                }
+            }
+        }
+        if lane_gaps == 0 {
+            wrong.push(format!("{chart}: no net reached the lane's own refusal"));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
 }

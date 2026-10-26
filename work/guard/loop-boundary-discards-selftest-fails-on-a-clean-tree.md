@@ -2,8 +2,9 @@
 id: loop-boundary-discards-selftest-fails-on-a-clean-tree
 kind: issue
 title: scripts: loop-boundary-discards.sh --selftest fails on a clean origin/main (UNREG/MISCOUNT in section_loops loop_edges)
-status: open
+status: closed
 opened: 2026-10-14
+closed: 2026-10-26
 priority: P2
 cost: E
 ---
@@ -26,3 +27,13 @@ The most recent change to the gate is TANG's commit 8f0b0ffd25 ("TANG: review fi
 ## Ask
 
 Make the selftest pass on a clean tree. Either re-register `loop_edges`'s discard as the shape it now has, or fix whatever makes the selftest fixture read it differently from the live gate. Then say which it was.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Duplicate, and fixed.** The same failure as
+`loop-boundary-selftest-cannot-plant-an-arm-fragment` (opened
+2026-10-06, which carries the diagnosis: the planter picked a let-else
+form for an ARM fragment). That row is closed by this sweep's fix to
+`gate_plant_clean` in `scripts/gates/loop-boundary-discards.sh`; see its
+Closed section. The cause was not TANG's `8f0b0ffd25`: the failure was
+already reproduced on `212ccfa1` on 2026-10-06.

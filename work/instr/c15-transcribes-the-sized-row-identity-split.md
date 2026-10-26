@@ -2,10 +2,11 @@
 id: c15-transcribes-the-sized-row-identity-split
 kind: issue
 title: work/instr/C15.md transcribes the sized-row identity split present-tense, a census reading whose one home is baseline_census.rs
-status: open
+status: closed
 opened: 2026-09-16
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -75,3 +76,16 @@ work done, not as an open thread, so it is invisible to the re-homing
 and dies with the directory."* The flag that got it looked at was
 worth raising: where a finding is a different quantity from the row it
 is added to, it wants splitting off rather than dropping.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** I replaced both transcriptions in
+`work/instr/C15.md` with a pointer at the split's one home,
+`tools/tess-lint/tests/baseline_census.rs`:
+- the `## What` paragraph (`:16`);
+- the `S73` paragraph (`:36`).
+
+Neither now says "five", names the constant columns, or carries "five
+plus that pair being the whole list". The test-name half is still open
+on `baseline-census-test-name-encodes-a-moving-reading`, which C15's
+prose no longer quotes.

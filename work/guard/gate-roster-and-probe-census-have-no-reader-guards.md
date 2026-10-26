@@ -115,3 +115,19 @@ dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## `gate-roster.sh` is gone (2026-10-26, tracker sweep)
+
+`scripts/gates/gate-roster.sh` was deleted in `24fedbfadf` (2026-09-28,
+"Delete CI self-test scripts and the local CI mirror"): `ci.yml`'s
+`gates (scripts/gates)` step now runs every `scripts/gates/*.sh` in a
+loop (`33ab68136e`), so there is no roster left to check. The
+reproduced half of this row is therefore moot, and its quoted OK line is
+a transcript of a deleted gate.
+
+**What stands is the second half and the sweep.**
+`scripts/gates/probe-suite-census.sh` still has zero guard sites
+(`grep -cE 'status=\$\?|reader_failed|gate_reader_died'` → 0 at
+`bb25fa4f`), with its process substitutions unguarded; and shape 2's
+sweep — every stage inside a `< <(…)` across the directory — has still
+not been taken, so whether this is one gate or many is unknown.

@@ -2,11 +2,12 @@
 id: a-span-is-read-against-a-faces-boundary-edges-first
 kind: issue
 title: An operand edge is read against the other face's carrier, never first against that face's boundary edges, so a rim it shares with a NURBS wall cannot glue
-status: open
+status: dispatched
 opened: 2026-10-26
 priority: P0
 cost: H
 refs: [an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane, a-unions-flush-reading-cannot-follow-a-nurbs-carrier, a-flush-reading-finds-no-point-on-a-nurbs-member-edge]
+branch: splice/boundary-first
 ---
 
 

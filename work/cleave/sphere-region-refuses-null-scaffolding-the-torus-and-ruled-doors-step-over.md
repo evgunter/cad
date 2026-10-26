@@ -5,7 +5,6 @@ title: The sphere region's gather refuses a face holding null scaffolding, which
 status: open
 priority: P2
 cost: E
-refs: [the-region-doors-share-one-skeleton-three-times]
 opened: 2026-10-24
 ---
 

@@ -2777,7 +2777,7 @@ fn downstream_node(error: &PickIndexError) -> Option<RecipeNodeId> {
 /// which is also the event its subject names.
 ///
 /// **What the line could not do with it.** The status line is painted
-/// in the toolbar, EARLIER in the same `update` than the pane that
+/// in the toolbar, EARLIER in the same frame's `ui` than the pane that
 /// writes this, and `perform_batch` runs after both — so the sentence
 /// was never drawn on the frame it was written, and on a frame whose
 /// batch acted cleanly `RankedVerdict::Clear` wiped it before any

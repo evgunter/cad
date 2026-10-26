@@ -215,7 +215,7 @@ about a reading rather than about a column count.
   before the emit pass and certified nothing. The refusal is owed by
   the test above; nothing in the CSV separates the two states. What
   that owes is an open finding against the PRODUCER — filed, as
-  `work/meter/tess-lint-zero-certificate-two-meanings` — and never a
+  `work/budget/tess-lint-zero-certificate-two-meanings` — and never a
   clause here saying the reading is fine.
 
 `tess-lint`'s rule 5 stays the standing counter-example to the whole

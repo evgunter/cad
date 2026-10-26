@@ -50,8 +50,9 @@
 //! lie on certified edge carriers (within the kernel's ε of each
 //! adjacent surface, D4 ¶2) rather than exactly on the surface, and
 //! f64 rounding of the evaluations themselves. The honest promise is
-//! therefore δ + ε (+ rounding); grid sizing targets δ/2 so the slack
-//! never decides in practice.
+//! therefore δ + ε (+ rounding). Each lane sizes its worst triangle at
+//! δ by its own theorem (`crates/mesh/README.md` `[mesh.sizing]`) and
+//! takes no margin for the slacks.
 //!
 //! **No sizing function reads ε**, and *"mesh structure is a function
 //! of (body, δ)"* holds **for every body in the tree** — a statement
@@ -91,9 +92,11 @@
 //! lane's fresh one takes, so its mesh is byte-identical to
 //! [`fn@tessellate`]'s. The chord points themselves are a pure function of
 //! (edge carrier + interval, endpoint vertex points, the adjacent
-//! faces' surface parameters, δ) — adjacent surfaces enter only through
-//! the torus and trimmed-NURBS boundary-step requirements, which reach
-//! a neighbour's surface through one named door in [`chords`]. That
+//! faces' surface parameters, an adjacent cone face's largest rim
+//! radius, whether an adjacent cylinder face is trimmed, δ) — adjacent
+//! faces enter only through the grid, headroom and trimmed-NURBS
+//! boundary-step requirements, which reach a neighbour through one
+//! named door in [`chords`]. That
 //! module states what does and does not hold the door shut; nothing
 //! here adds to it.
 //!

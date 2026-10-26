@@ -21,8 +21,8 @@
 //!   register of them.
 //! - `schedule()` restates two kernel constants with nothing keeping
 //!   them in step: its `FRAC_PI_4` cap is `mesh::sizing::
-//!   MAX_ANGULAR_STEP` and its `delta * 0.5` is
-//!   `mesh::sizing::sizing_target`, both `pub(crate)` and not
+//!   MAX_ANGULAR_STEP` and its sagitta on `ρ_max·cos α` is
+//!   `mesh::sizing::cone_grid_step`, both `pub(crate)` and not
 //!   importable from outside the workspace. If the kernel's spelling
 //!   moves, this restatement goes stale and the (nu, nv) column —
 //!   only that column — reads the OLD schedule; the tessellated
@@ -88,13 +88,13 @@ fn dist_to_cone(
 
 /// The cone arm's schedule, re-derived for the REPORT ONLY (the
 /// production spelling is `mesh::curved::grid_counts`, private):
-/// hu = sagitta_step(delta_s, rho_max) capped at pi/4;
+/// hu = sagitta_step(delta, rho_max·cos(half_angle)) capped at pi/4;
 /// nu_raw = ceil(uspan/hu); nv = ceil(vspan/(rho_max*hu)).
-fn schedule(delta: f64, rho_max: f64, uspan: f64, vspan: f64) -> (usize, usize) {
-    let ds = delta * 0.5;
+fn schedule(delta: f64, rho_max: f64, half_angle: f64, uspan: f64, vspan: f64) -> (usize, usize) {
+    let rho = rho_max * half_angle.cos();
     let cap = core::f64::consts::FRAC_PI_4;
-    let hu = if ds < rho_max {
-        let h = 2.0 * (1.0 - ds / rho_max).acos();
+    let hu = if delta < rho {
+        let h = 2.0 * (1.0 - delta / rho).acos();
         if h < cap { h } else { cap }
     } else {
         cap
@@ -332,7 +332,7 @@ fn mesh5_cone_wedge_sweep() {
                 }
             }
         }
-        let (nu, nv) = schedule(delta, 1.0, theta, sqrt2);
+        let (nu, nv) = schedule(delta, 1.0, core::f64::consts::FRAC_PI_4, theta, sqrt2);
         println!(
             "{:>8} {:>10} {:>9} {:>9} {:>10} {:>12.3e} {:>9.3}",
             delta,

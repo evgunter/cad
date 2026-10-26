@@ -2,7 +2,8 @@
 id: ssi-march-short-of-fit-counts-in-band-gaps-as-within-the-tolerance
 kind: issue
 title: ssi: MarchShortOfFit counts gaps that fall in the band as within the tolerance
-status: open
+status: closed
+closed: 2026-10-26
 opened: 2026-10-11
 priority: P3
 cost: E
@@ -22,3 +23,15 @@ measure a refusal first to confirm the count is what the field doc says.
 
 Found by the CLEAVE lane sweeping "within tolerance" refusal texts for
 the split's `SliverVertex` fix (2026-10-11).
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed by the sweep (text only).** The count is what the field docs
+say (`SsiError::MarchShortOfFit::in_band` and
+`RefineStop::NothingToHalve::in_band`, "Gaps half of which falls in the
+band"; `crates/geom-brep/src/ssi.rs` ~:664, `ssi/refine.rs` ~:70), so the
+three renders that called it "within the tolerance" now say "in the
+band": `crates/geom-brep/src/ssi.rs` :1120 (`MarchShortOfFit`), :1171
+and :1185 (`RefinementExhausted`'s two `NothingToHalve` arms). No test
+pins those strings (`git grep 'not settling where'` finds only the
+three renders); the orchestrator's build verifies it.

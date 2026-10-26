@@ -17,3 +17,7 @@ Before F, a mate read below a placer (at a transform a pattern or a placed union
 ## What it wants
 
 A non-gating pointer: an unattributed finding whose two faces are the world copies of faces some mate reads below a placer could name that mate and the placement reading its consumer ("re-read the side at the placement's body"). It is a hint, not a refusal: the mate states nothing about the product, as ruled.
+
+## Note (2026-10-26, ATREST orchestrator)
+
+Stage 5 C retires the gate (`docs/INTENT-STAGE5-SPEC.md` §4). Once it lands, the hint belongs on the `unproven-coincidence` lint's finding for the seat, not on a gate refusal. Re-read this row against C before building it.

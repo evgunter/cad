@@ -4,7 +4,7 @@ kind: issue
 title: A sphere face's operand box is the whole ball - the same per-kind box class the cone, cylinder and torus arms have left
 status: open
 opened: 2026-09-06
-refs: [torus-operand-boxes-span-whole-ring, 1907]
+refs: [1907]
 priority: P1
 cost: H
 ---

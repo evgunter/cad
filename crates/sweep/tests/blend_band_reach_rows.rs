@@ -9,7 +9,7 @@
 //! refuses on a body no chain can blend today: a spine with a tangent
 //! end face (a typed run-out, not an unbounded window) and an open arc
 //! taken over its whole turn
-//! (`work/band/blend-reach-takes-an-open-arc-link-over-the-whole-turn.md`).
+//! (`work/bandreach/blend-reach-takes-an-open-arc-link-over-the-whole-turn.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
