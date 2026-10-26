@@ -640,7 +640,14 @@ pub(super) fn toward<T: Decide>(
                         Piece::Ring(_) => None,
                     })
                     .filter(|o| is_finite_length(o.norm()))
-                    .reduce(|m, o| if o.norm() < m.norm() { o } else { m })?;
+                    .reduce(|m, o| {
+                        let nearer = o.norm() - m.norm();
+                        Vec3::new(
+                            nearer.select_le_zero(o.x, m.x),
+                            nearer.select_le_zero(o.y, m.y),
+                            nearer.select_le_zero(o.z, m.z),
+                        )
+                    })?;
                 geom_core::UnitVec3::new(nearest, DEPTH_TOWARD, band).ok()
             })
         })

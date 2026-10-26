@@ -9619,10 +9619,16 @@ fn held_reach_in<T: Decide>(
     let out = |s: T| {
         matches!(
             crate::boolean::curved_face_placement(body, f, center + d * (radius.abs() * s), band),
-            Ok(crate::boolean::CurvedPlacement::Trim(Some(FaceContainment::Out)))
+            Ok(crate::boolean::CurvedPlacement::Trim(Some(
+                FaceContainment::Out
+            )))
         )
     };
-    let lo_x = if out(-T::one()) { lo.x.max(blo.x) } else { lo.x };
+    let lo_x = if out(-T::one()) {
+        lo.x.max(blo.x)
+    } else {
+        lo.x
+    };
     let hi_x = if out(T::one()) { hi.x.min(bhi.x) } else { hi.x };
     Some((Point3::new(lo_x, lo.y, lo.z), Point3::new(hi_x, hi.y, hi.z)))
 }
