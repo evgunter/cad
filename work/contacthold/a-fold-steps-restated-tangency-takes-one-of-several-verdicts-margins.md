@@ -47,10 +47,10 @@ verdict on the pair (`topo::NaryStep::restates`).
 
 It is reachable through the door (PR 5772's review, R1's probe): two
 plates overlapping in z whose y = 2 faces are coplanar and merge, the
-second raised by 1e-11, and a rod along x tangent to the merged face
+second raised by ε/100, and a rod along x tangent to the merged face
 along z = 0.75, through both faces' interiors. The pass decides the
 rod's tangency against the first plate at margin 0.0 and against the
-second at 1.0e-11; the step's restated row carries 0.0 and stands for
+second at ε/100 (1.0e-11 at ε 1e-9); the step's restated row carries 0.0 and stands for
 both. It is pinned as it stands, so a fix flips it:
 `crates/sweep/tests/face_face_touch.rs`,
 `contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins`.

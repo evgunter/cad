@@ -1303,7 +1303,7 @@ fn rod_along_x(x0: f64, len: f64, z: f64) -> AtRestBody<f64> {
 /// **CONTACTHOLD's open m2, pinned as it stands**
 /// (`work/contacthold/a-fold-steps-restated-tangency-takes-one-of-several-verdicts-margins.md`):
 /// two plates overlapping in z whose y = 2 faces are coplanar (the
-/// second raised 1e-11 off it, inside the band) and merge, and a rod
+/// second raised ε/100 off it, inside the band) and merge, and a rod
 /// along x tangent to the merged face along z = 0.75, through both
 /// faces' interiors. The pass decides the rod's tangency against each
 /// plate on its own margin; the step joining the rod is handed one
@@ -1319,7 +1319,12 @@ fn contacthold_m2_a_restated_tangency_carries_the_first_of_two_verdicts_margins(
     );
     let p2 = finished(
         "p2",
-        brick::<f64>((-2.0, 2.0), (-2.0, 2.0 + 1e-11), (0.5, 1.5), tol()),
+        brick::<f64>(
+            (-2.0, 2.0),
+            (-2.0, 2.0 + 0.01 * tol().eps()),
+            (0.5, 1.5),
+            tol(),
+        ),
         tol(),
     );
     let rod = rod_along_x(-1.0, 2.0, 0.75);
