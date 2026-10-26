@@ -668,3 +668,196 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_5802 {
+    use super::*;
+    use geom_core::spline::KnotVector;
+    use geom_core::{Point3, Tol, Vec3};
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// The tensor chart over the unit square, `u` along `x` at columns
+    /// `xs` on `ku`, `v` along `y` at rows `ys` on `kv`, height `z(i, j)`.
+    fn chart(
+        (ku, du, xs): (Vec<f64>, usize, &[f64]),
+        (kv, dv, ys): (Vec<f64>, usize, &[f64]),
+        z: impl Fn(usize, usize) -> f64,
+    ) -> geom::NurbsSurface<f64> {
+        let ku = KnotVector::clamped(ku, du).unwrap();
+        let kv = KnotVector::clamped(kv, dv).unwrap();
+        let mut control = Vec::new();
+        for (i, &x) in xs.iter().enumerate() {
+            for (j, &y) in ys.iter().enumerate() {
+                control.push(Point3::new(x, y, z(i, j)));
+            }
+        }
+        let n = control.len();
+        geom::NurbsSurface::new(ku, kv, control, vec![1.0; n]).unwrap()
+    }
+
+    fn topped(chart: geom::NurbsSurface<f64>, sense: bool) -> (Body<f64>, FaceKey) {
+        let cube = crate::test_support_fixtures::prism::<f64>(
+            &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+            1.0,
+            Tol::witness(),
+        );
+        let mut body = cube.body;
+        body.set_face_surface_unvouched_for_tests(
+            cube.top_face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Nurbs(std::sync::Arc::new(chart)),
+                sense,
+            },
+        )
+        .unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
+        (body, cube.top_face)
+    }
+
+    /// Splits the top edge whose ends satisfy `on` at its middle.
+    fn split_top(body: &mut Body<f64>, on: impl Fn(Point3<f64>) -> bool) -> VertexKey {
+        let edge = body
+            .edges()
+            .map(|(e, _)| e)
+            .find(|&e| {
+                let c = body.stored_curve(e).unwrap();
+                let (t0, t1) = c.params();
+                let (a, b) = (c.carrier().eval(t0), c.carrier().eval(t1));
+                a.z == 1.0 && b.z == 1.0 && on(a) && on(b)
+            })
+            .expect("the top edge");
+        let (t0, t1) = body.stored_curve(edge).unwrap().params();
+        body.split_edge(edge, 0.5 * (t0 + t1), Tol::witness())
+            .unwrap()
+            .vertex
+    }
+
+    fn sector_of(body: &Body<f64>, vertex: VertexKey, face: FaceKey) -> HalfEdgeKey {
+        body.vertex_orbit_linked(vertex)
+            .into_iter()
+            .find(|&he| face_of(body, vertex, he) == face)
+            .expect("the vertex is a corner of the face")
+    }
+
+    /// The bump: biquadratic, boundary at `z = 1`, centre raised `h`. At
+    /// the middle of the `y = 0` edge the chart has `S_u = (1, 0, 0)` and
+    /// `S_v = (0, 1, h)`, so the outward normal is `(0, −h, 1)/‖·‖`,
+    /// which no corner reads (each corner reads `+z`): a vertex end read
+    /// at the wrong end of the edge reads `+z`.
+    #[test]
+    fn a_bumped_chart_reads_its_tilted_normal_at_an_edge_middle_both_ways_and_reverted() {
+        let h = 0.3;
+        let q = || (vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2, &[0.0, 0.5, 1.0][..]);
+        let bump = chart(
+            q(),
+            q(),
+            |i, j| if (i, j) == (1, 1) { 1.0 + h } else { 1.0 },
+        );
+        let want = Vec3::new(0.0, -h, 1.0).normalize();
+        for (chart, sense) in [(bump.clone(), true), (bump.transposed(), false)] {
+            let (mut body, top) = topped(chart, sense);
+            let mid = split_top(&mut body, |p| p.y == 0.0);
+            let n = resolve(&body, mid, sector_of(&body, mid, top), band())
+                .unwrap_or_else(|e| panic!("sense {sense}: {e:?}"))
+                .normal
+                .vec();
+            assert!(
+                (n - want).norm() < 1e-9,
+                "sense {sense}: {n:?} not {want:?}"
+            );
+            let rev = body.revert().unwrap();
+            let n = resolve(&rev, mid, sector_of(&rev, mid, top), band())
+                .unwrap_or_else(|e| panic!("reverted, sense {sense}: {e:?}"))
+                .normal
+                .vec();
+            assert!(
+                (n + want).norm() < 1e-9,
+                "reverted, sense {sense}: {n:?} not {:?}",
+                -want
+            );
+        }
+    }
+
+    /// The same bump, every split edge: each edge middle tilts away from
+    /// the bump, along the edge's own outward side.
+    #[test]
+    fn a_bumped_chart_reads_each_edge_middle() {
+        let h = 0.3;
+        let q = || (vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2, &[0.0, 0.5, 1.0][..]);
+        let bump = chart(
+            q(),
+            q(),
+            |i, j| if (i, j) == (1, 1) { 1.0 + h } else { 1.0 },
+        );
+        type On = fn(Point3<f64>) -> bool;
+        let rows: [(On, Vec3<f64>); 4] = [
+            (|p| p.y == 0.0, Vec3::new(0.0, -h, 1.0)),
+            (|p| p.y == 1.0, Vec3::new(0.0, h, 1.0)),
+            (|p| p.x == 0.0, Vec3::new(-h, 0.0, 1.0)),
+            (|p| p.x == 1.0, Vec3::new(h, 0.0, 1.0)),
+        ];
+        for (chart, sense) in [(bump.clone(), true), (bump.transposed(), false)] {
+            for (on, want) in rows {
+                let (mut body, top) = topped(chart.clone(), sense);
+                let mid = split_top(&mut body, on);
+                let n = resolve(&body, mid, sector_of(&body, mid, top), band())
+                    .unwrap_or_else(|e| panic!("{e:?}"))
+                    .normal
+                    .vec();
+                assert!(
+                    (n - want.normalize()).norm() < 1e-9,
+                    "sense {sense}: {n:?} not {want:?}"
+                );
+            }
+        }
+    }
+
+    /// A kink with no knot: degree 2 in `u` on a simple knot `½`, columns
+    /// 1 and 2 coincident at `x = ½`, so `S_u` vanishes along `u = ½`
+    /// though no knot run reaches the degree. The body cannot be built
+    /// (its `y = 0` edge's pcurve does not certify across the kink), so
+    /// the arm's two checks are read at the point the walk would hand
+    /// them: one of them refuses.
+    #[test]
+    fn a_coincident_control_row_kink_refuses() {
+        let kinked = chart(
+            (
+                vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0],
+                2,
+                &[0.0, 0.5, 0.5, 1.0],
+            ),
+            (vec![0.0, 0.0, 1.0, 1.0], 1, &[0.0, 1.0]),
+            |_, _| 1.0,
+        );
+        for uv in [(0.5, 0.0), (0.5, 0.5)] {
+            let read = geom_brep::regular_jet(&kinked, uv, 1.0, band())
+                .and_then(|jet| geom_brep::chart_normal_at(&kinked, true, &jet, uv, 1.0, band()));
+            assert!(read.is_err(), "{uv:?}: {:?}", read.map(|(n, _)| n.vec()));
+        }
+    }
+
+    /// A crease in `v` (degree 1, knot `½` along `y`), the vertex at the
+    /// middle of the `x = 0` edge, which runs along `v` across it; and the
+    /// same crease in `u` reached through the transpose.
+    #[test]
+    fn a_crease_in_v_refuses() {
+        let creased = chart(
+            (vec![0.0, 0.0, 1.0, 1.0], 1, &[0.0, 1.0]),
+            (vec![0.0, 0.0, 0.5, 1.0, 1.0], 1, &[0.0, 0.5, 1.0]),
+            |_, _| 1.0,
+        );
+        for (chart, sense) in [(creased.clone(), true), (creased.transposed(), false)] {
+            let (mut body, top) = topped(chart, sense);
+            let mid = split_top(&mut body, |p| p.x == 0.0);
+            let got = resolve(&body, mid, sector_of(&body, mid, top), band());
+            assert!(
+                matches!(got, Err(SectorFaceError::Crease { face }) if face == top),
+                "sense {sense}: {got:?}"
+            );
+        }
+    }
+}
