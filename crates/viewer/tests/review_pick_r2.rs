@@ -209,7 +209,14 @@ struct Tally {
 /// 280 fewer grazes, the rays and the refusals unchanged. The die is
 /// the only document that moved; its vertices are now the merge base's
 /// bit for bit.
-const PINNED: (usize, usize, usize, usize) = (440_460, 141_163, 13_482, 6_882);
+///
+/// It moved for D′3 (a placement copies one source, the product is a
+/// slot reading a `⊔`), from `(440460, 141163, 13482, 6882)`: 576 more
+/// rays, 254 more grazes, and 12 060 more candidates refused at the
+/// determinant on 1 116 more rays, the landings now drawing each copy
+/// as its source's body under its source's names. No genuine crossing
+/// is refused and no winner is wide.
+const PINNED: (usize, usize, usize, usize) = (441_036, 141_417, 25_542, 7_998);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);
