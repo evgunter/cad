@@ -28,7 +28,7 @@ panic inside `unwrap_or_else`. Priced P4 E: the repair is written above
 
 ## Closed (2026-10-26, easy-fixes lane)
 
-In `crates/editor-core/src/names/emit_union.rs`, `member_at`, `Flush::member_by_index` and `Parents::face` now raise their `unreachable!` from a `let … else` in the `#[track_caller]` body. A panic now reports the caller's line. Re-sweep: `/tmp`-scripted, over every `#[track_caller]` fn body in `crates/editor-core/src`, looking for a closure-taking adaptor (`unwrap_or_else`, `map_or_else`, `ok_or_else`, `and_then`, `map`, `filter_map`, `for_each`, `inspect`) followed within 400 chars by a panic macro. Hits:
+In `crates/editor-core/src/names/emit_union.rs`, `member_at`, `Flush::member_by_index` and `Parents::face` now raise their `unreachable!` from a `let … else` in the `#[track_caller]` body. A panic now reports the caller's line. Re-sweep: a script over every `#[track_caller]` fn body in `crates/editor-core/src`, looking for a closure-taking adaptor (`unwrap_or_else`, `map_or_else`, `ok_or_else`, `and_then`, `map`, `filter_map`, `for_each`, `inspect`) followed within 400 chars by a panic macro. Hits:
 - the three above: fixed;
 - `edit.rs` `pose_into`: `unreachable!` and `.expect` inside `unwrap_or_else` and `map_or_else` closures. Fixed the same way, with a `match` and a `let … else`;
 - `eval/anchor.rs` `ProfileAnchors::publish`: a false positive (its `unreachable!` is outside any closure).
