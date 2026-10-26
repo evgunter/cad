@@ -473,6 +473,30 @@ mod tests {
         }
     }
 
+    /// **The aim steps into the face from each arc**: on the sphere, and
+    /// read inside the face, for the cap above the 60° circle, the rest of
+    /// the sphere below it (the same arc run the other way) and the lune.
+    #[test]
+    fn the_aim_lies_in_the_face() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (what, region) in [
+            ("cap", carved(true)),
+            ("the rest", carved(false)),
+            ("lune", lune()),
+        ] {
+            let aim = region.aim().expect("an aim");
+            assert!(
+                ((aim - Point3::origin()).norm() - 1.0).abs() < 1e-12,
+                "{what}: {aim:?} is off the sphere"
+            );
+            assert_eq!(
+                region.contains(aim, band),
+                Ok(Some(true)),
+                "{what}: {aim:?} is not in the face"
+            );
+        }
+    }
+
     /// The point `off` metres off the meridian plane at azimuth 0, at
     /// angle `theta` round that meridian's great circle from the north
     /// pole (`θ ∈ (0, π)` is the arc, `(π, 2π)` its continuation), lifted

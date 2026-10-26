@@ -31,8 +31,10 @@ No row in the tree now drives the enclosure's certified sign.
 
 ## Owed
 
-A selection none of whose faces offers an aim that reads (only trimmed
-sphere faces and spline faces offer none today, `side_reader::aim_at`),
+A selection none of whose faces offers an aim that reads (since FLUSH's
+`flush/sphere-spline-aims`, only cylinder and cone faces whose region
+cannot be read offer none, and a selection with a spline face casts no
+ray at all, `side_reader::aim_at`),
 or whose aimed rays all set aside, with a far point whose rays meet
 nothing. Its row would pin the enclosure's one decision, as the old row
 did.
