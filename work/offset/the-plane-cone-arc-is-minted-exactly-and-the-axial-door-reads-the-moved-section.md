@@ -2,11 +2,14 @@
 id: the-plane-cone-arc-is-minted-exactly-and-the-axial-door-reads-the-moved-section
 kind: unit
 title: Conic build unit 2: plane_cone_section mints a parabola or hyperbola as an exact rational-quadratic arc through a window-taking door, and the axial door reads the moved pair's section for every axis-parallel-plane edge
-status: open
+status: closed
 opened: 2026-10-25
 priority: P0
 cost: H
 parent: offset-lane-has-no-conic-carrier
+closed: 2026-10-25
+pr: 5692
+branch: offset/conic-arc-and-axial-section
 ---
 
 
@@ -48,3 +51,20 @@ closed-form kinds. Unit 1 is now parked on its own fork
 (`a-lane-less-door-refusing-closed-form-carriers-refuses-every-dual-evaluation`).
 Like every NURBS carrier today, the arc refuses at a `Dual64`
 (`NurbsLaneUnsupported`). That is existing behaviour, not this unit's.
+
+## Closed
+
+PR 5692. `plane_cone_section` serves a parabola or hyperbola as
+`PlaneConeSection::OpenConic`; `OpenConicSection::branch_at` picks the
+branch by a seed and `ConicBranch::arc` mints the window's arc exactly
+as a rational-quadratic `Curve3::Nurbs`
+(`crates/geom-brep/src/intersect/conic_arc.rs`), a hyperbolic window cut
+into `2^k` equal-parameter spans of `w ≤ √2`. The "by decision" refusal
+is retired; the Boolean (`GermSectionOpenConic`), the split
+(`SplitJoinError::OpenConicChord`) and the general offset door
+(`SectionVerdict::OpenConic`) refuse typed. The axial door takes the
+cone-cap section and refuses the hyperbola at its gate
+(`ReplaceFaceError::TogetherConicArc`) until unit 3 or CHARTTAIL
+certifies the arc. Residue filed:
+`work/exch/step-import-reads-no-hyperbola-or-parabola.md`,
+`work/select/edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short.md`.

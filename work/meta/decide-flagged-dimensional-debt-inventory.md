@@ -39,3 +39,22 @@ the record of why the file was parked there.
 ## Refs at GATES' sweep (2026-09-08)
 
 GATES closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 7); `S13` is now cited by its closing PR 2063.
+
+## Re-surveyed at main `bb25fa4f` (2026-10-26, tracker sweep)
+
+The family list above is stale. `git grep decide_flagged -- crates`
+outside comments and the census, at `bb25fa4f`:
+
+| family | site |
+| --- | --- |
+| F10 | `crates/geom-core/src/linalg/rigid_motion.rs` (~:828, the rigid-check loop — `transform.rs`'s former home) |
+| F13 | `crates/geom-brep/src/pcurve_cache.rs` (~:8287, `pcurve_cone_chart_nappe`) |
+| F14 | `crates/editor-core/src/eval/wire.rs` (~:4297), plus a `decide_flagged_reported` site in `eval/wire/stepped.rs` (~:105) |
+| F16 | `crates/editor-core/src/measure.rs` (~:747) — new since this register |
+| F22 | `crates/geom-core/src/linalg/rigid_motion.rs` (~:1058) — new since this register |
+
+**F2 (×4, `validate.rs`) and F15 are gone.** The census
+(`crates/geom-core/tests/flagged_census.rs`, `LEDGER_FLAGGED_SITES = 6`)
+is the tripwire and agrees on six `decide_flagged` call sites. The
+owners above are whoever holds each file's ground today; this register
+routes, it does not execute.

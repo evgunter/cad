@@ -2,12 +2,13 @@
 id: a-lane-less-door-refusing-closed-form-carriers-refuses-every-dual-evaluation
 kind: issue
 title: Limb 2 for every analytic Intersection carrier makes every lane-less door refuse closed-form edges, and a Dual64 holds no lane: the dual corpus stops evaluating
-status: open
+status: closed
 opened: 2026-10-25
 priority: P0
 cost: M
 parent: closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them
-design: true
+closed: 2026-10-25
+pr: 5689
 ---
 
 Found by the unit's implementer lane (branch
@@ -60,3 +61,14 @@ geom-brep tests that certify analytic `Intersection` edges onto
 split-site assertions (`crates/topo/src/seqgen.rs` `split_site`, which
 re-certifies through the lane-less `recertify` on purpose) are not yet
 moved.
+
+**Ruled (Ev, PR 5689, 2026-10-25).**
+- **No dual certifies, by type.** The edge door splits into mint, generic over any scalar, and certify, bounded on the certification trait. A dual only mints. No optional lane exists anywhere.
+- **Door and rest.** At `f64` the door certifies in full, and rest re-derives the same certificate.
+- **The dual keeps its values.**
+- **No anchor and no per-node walk.** The sensitivity report checks once that the dual passes and the `f64` evaluation had equal build identities: document pin, parameter bits, tolerance, and the resolved parts' pins. It catches drift in production by comparing the measured value bit for bit.
+- **Naming the node.** Ev took the one-number comparison (B), "presuming we can straightforwardly add names later if we need them".
+
+The build is conic unit 1, re-scoped. Two points stay unchecked until then:
+- whether a dual can escalate an undecided sign as `f64` does;
+- whether a pin of the resolved parts exists.

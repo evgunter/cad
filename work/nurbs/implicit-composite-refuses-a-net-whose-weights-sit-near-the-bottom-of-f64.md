@@ -4,6 +4,8 @@ kind: issue
 title: implicit_composite forms weight powers unscaled, so a net whose weights are ~1e-200 refuses where its unit-scaled twin certifies
 status: open
 opened: 2026-10-24
+priority: P3
+cost: E
 ---
 
 

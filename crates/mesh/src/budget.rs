@@ -135,7 +135,8 @@ pub struct FaceMeasure {
     pub u: (f64, f64),
     /// The trim box the grid spans: `v` extent.
     pub v: (f64, f64),
-    /// The per-face deviation target the grid was sized against.
+    /// The lattice budget the grid was sized against
+    /// (`nurbs_cert::lattice_budget`, the lane's share of δ).
     pub delta_s: f64,
     /// Grid cells the per-cell schedule actually built (`Σ nuc·nvc`
     /// over the clipped bands).

@@ -33,7 +33,7 @@ use super::role::{
     EntityKind, NameRef, Qualifier, RoleSeg, RunLine, Sense, SplitHalf, StableName, edge_line,
 };
 use super::seam_pair;
-use super::table::{EntityKey, Entry, NameTable};
+use super::table::{Candidate, EntityKey, EntityRef, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
 
@@ -576,10 +576,10 @@ fn name_split_merges<T: Decide>(
                     ent(0, EntityKey::Face(*f)),
                 )?;
             } else {
-                let boundary = operand_boundary(target_body, ops.iter().copied())?;
+                let boundary = operand_boundary(target_body, ops.iter().copied());
                 let mut pieces = Vec::with_capacity(members.len());
                 for &f in &members {
-                    let edges = face_edges(s.body, f)?;
+                    let edges = face_edges(s.body, f);
                     pieces.push((keeps.of(edges, &boundary)?, ent(0, EntityKey::Face(f))));
                 }
                 mint_qualified(&mut h.t, &mut h.tie, tied, &name, pieces)?;
@@ -715,8 +715,10 @@ fn name_split_planes<T: Decide>(
     Ok(())
 }
 
-/// Chord edges: every boundary edge of `body`'s live section faces,
-/// with the operand face across it.
+/// Chord edges: every boundary edge of `body`'s section faces, with the
+/// operand face across it. Every face of `sections` is a live face of
+/// `body`: its one caller, [`split_chords`], reads them off
+/// `body.faces()` in the same call.
 ///
 /// The walk is half-edge → mate → mate's loop → face, by hand, because
 /// each hop panics in its own words; `Body::face_of_half_edge` answers
@@ -724,28 +726,25 @@ fn name_split_planes<T: Decide>(
 /// drives each hop's panic through a body with that hop's entity
 /// removed.
 ///
-/// # Errors
-///
-/// [`face_half_edges`]' refusals.
-///
 /// # Panics
 ///
-/// Where a hop does not resolve: each reads a record of a body every
+/// Where a hop does not resolve: the face is live (above), and each hop
+/// reads a record of a body every
 /// door keeps tier-1-valid, which mates every half-edge with a live one
 /// in a live loop.
 pub(super) fn chord_faces<T: geom_core::Real>(
     body: &Body<T>,
     sections: &[(FaceKey, PlaneSide)],
     section_keys: &BTreeSet<FaceKey>,
-) -> Result<BTreeMap<EdgeKey, FaceKey>, NamingError> {
+) -> BTreeMap<EdgeKey, FaceKey> {
     const TIER1: &str =
         "a tier-1-valid body mates every half-edge with a live half-edge in a live loop";
     let mut chord_faces: BTreeMap<EdgeKey, FaceKey> = BTreeMap::new();
     for &(sf, _) in sections {
-        if body.get_face(sf).is_none() || !section_keys.contains(&sf) {
+        if !section_keys.contains(&sf) {
             continue;
         }
-        for he in face_half_edges(body, sf)? {
+        for he in face_half_edges(body, sf) {
             let Some(mate) = body.mate(he) else {
                 unreachable!("chord mate missing: half-edge {he:?} of section face {sf:?}; {TIER1}")
             };
@@ -765,7 +764,7 @@ pub(super) fn chord_faces<T: geom_core::Real>(
             chord_faces.insert(mate_he.edge, other.face);
         }
     }
-    Ok(chord_faces)
+    chord_faces
 }
 
 /// Why no edge lies between two faces the cut drew: each split half
@@ -782,10 +781,6 @@ const BETWEEN_SECTIONS: &str = "each split half ends with maximal faces, and two
 /// descend from that edge's two faces (N2); a face the merge kept
 /// descends from the operand faces among its constituents.
 ///
-/// # Errors
-///
-/// The walks' and the target table's refusals.
-///
 /// # Panics
 ///
 /// Where an edge lies between two faces the cut drew
@@ -797,7 +792,7 @@ fn split_chords<T: Decide>(
     root_of: &BTreeMap<EdgeKey, EdgeKey>,
     target_table: &NameTable,
     target_body: &Body<T>,
-) -> Result<BTreeMap<EdgeKey, FaceKey>, NamingError> {
+) -> BTreeMap<EdgeKey, FaceKey> {
     let holders: Vec<(FaceKey, PlaneSide)> = body
         .faces()
         .map(|(f, _)| f)
@@ -810,7 +805,7 @@ fn split_chords<T: Decide>(
         None => !keys.contains(&g) && naming.face_fragments.root(g) == from,
     };
     let mut out = BTreeMap::new();
-    for (e, other) in chord_faces(body, &holders, &keys)? {
+    for (e, other) in chord_faces(body, &holders, &keys) {
         if keys.contains(&other) {
             unreachable!(
                 "section chord {e:?} lies between two faces the cut drew: {BETWEEN_SECTIONS}"
@@ -833,7 +828,7 @@ fn split_chords<T: Decide>(
         }
         out.insert(e, other);
     }
-    Ok(out)
+    out
 }
 
 /// How a split names an edge its closing join made, read off the join
@@ -1089,7 +1084,7 @@ fn name_split_edges_vertices<T: Decide>(
         let slot = s.slot();
         let body = s.body;
         let HalfNames { t, tie, .. } = &mut halves[slot];
-        let chord_faces = split_chords(body, naming, merged, &root_of, target_table, target_body)?;
+        let chord_faces = split_chords(body, naming, merged, &root_of, target_table, target_body);
         // Chord edges named by the operand face their section boundary
         // runs across. A section line that re-enters ONE operand face
         // (an inner loop, or any non-convex face) cuts several chords
@@ -1322,7 +1317,7 @@ fn name_split_edges_vertices<T: Decide>(
                 let sense = if forward { sense } else { sense.flipped() };
                 let on = by_line.entry((edge_line(&parent.name), sense)).or_default();
                 on.0 |= parent.tied;
-                on.1.push((ent(0, EntityKey::Vertex(v)), vertex_point(body, v)?, along));
+                on.1.push((ent(0, EntityKey::Vertex(v)), vertex_point(body, v), along));
             }
         }
         for ((line, sense), (tied, on)) in by_line {
@@ -1360,7 +1355,7 @@ fn name_split_edges_vertices<T: Decide>(
                 (s.body, 0),
                 edges,
                 lone,
-            )?;
+            );
         }
     }
     for (h, pieces) in halves.iter_mut().zip(pieces) {
@@ -1412,7 +1407,7 @@ fn split_sense<T: geom_core::Real>(
 ) -> Result<Sense, NamingError> {
     let mut senses = Vec::with_capacity(1);
     for &(e, same) in pieces {
-        let (start, end) = edge_ends(body, e)?;
+        let (start, end) = edge_ends(body, e);
         let (start, end) = if same { (start, end) } else { (end, start) };
         if start == v {
             senses.push(Sense::Enters);
@@ -1697,7 +1692,7 @@ pub(crate) fn name_boolean<T: Decide>(
         naming.graft_vertices.iter().map(|&(s, d)| (d, s)).collect();
     let (a_rows, b_rows) = (&naming.face_fragments_a, &naming.face_fragments_b);
     let seam_set: BTreeSet<EdgeKey> = naming.seam_edges.iter().copied().collect();
-    let inc = Incidence::of(body)?;
+    let inc = Incidence::of(body);
 
     // Result face → operand-space root (fragment rows chased in the
     // right key space). The key the B arm chases — and therefore the
@@ -1825,15 +1820,16 @@ pub(crate) fn name_boolean<T: Decide>(
             topo::Operand::B => OpSide::B(b_rows.root(f)),
         }]))
     })?;
-    // A wall is cited by its parent's name: a merged face's, or the
-    // name of the operand face it descends from in its operand, the
-    // space the pair reads its operands in (a union's fold collapses it
-    // like any other embedded name).
+    // A wall is cited by its parent as this boolean's table names it
+    // (N3), as a seam side is: a merged face's `Merged` name, or the
+    // `From` the operand face it descends from came in through.
     let wall = |g: FaceKey| -> Result<StableName, NamingError> {
         if let Some((n, _)) = merged_names.get(&g) {
             return Ok((**n).clone());
         }
-        Ok((*operand_face_name(descend_face(g)?)?.name).clone())
+        let d = descend_face(g)?;
+        let up = operand_face_name(d)?;
+        Ok(name1(EntityKind::Face, node, d.wrap(a, b, up.name)))
     };
     // Every face that holds part of operand face `d`: its unmerged
     // pieces, then the merged faces that list it.
@@ -1976,7 +1972,7 @@ pub(crate) fn name_boolean<T: Decide>(
             (body, 0),
             &g.edges,
             g.lone,
-        )?;
+        );
     }
     pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
@@ -2031,6 +2027,64 @@ pub(super) fn name_parent_faces<T: geom_core::Real, K: Ord + Clone>(
             Ok(())
         }
     }
+}
+
+/// The vertices one operand corner is held as: its name, whether that
+/// name is tied, and each copy with its row's entity.
+pub(super) struct CornerCopies {
+    pub(super) name: StableName,
+    pub(super) tied: bool,
+    pub(super) copies: Vec<(VertexKey, EntityRef)>,
+}
+
+/// **Operand corners, each by the vertices it is held as** (N2, N4). A
+/// corner is keyed by `K`, what tells it from every other corner: at
+/// the pair boolean the operand keys of one candidate of its name, at
+/// the union the member corners it sits at. One held as one
+/// vertex is its name, a tied one joining its name's tie with the other
+/// undivided candidates. One held as several is fragments of it: each
+/// copy is `Fragment(Borders)` over the divider walls `split` finds for
+/// it (`Obstacles::split_corner`), so only a divided candidate's copies
+/// take `Borders`, and pieces with one name, of one candidate or
+/// several, tie. The pair boolean's vertex pass and the union's end pass
+/// both name their corners here.
+pub(super) fn name_corner_copies<K>(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    corners: impl IntoIterator<Item = (K, CornerCopies)>,
+    mut split: impl FnMut(
+        &K,
+        &[VertexKey],
+    ) -> Result<BTreeMap<Vec<StableName>, Vec<VertexKey>>, NamingError>,
+) -> Result<(), NamingError> {
+    let mut pieces: BTreeMap<StableName, (bool, Vec<EntityRef>)> = BTreeMap::new();
+    for (at, held) in corners {
+        if let [(_, one)] = held.copies[..] {
+            put(t, tie, held.tied, held.name, one)?;
+            continue;
+        }
+        let keys: Vec<VertexKey> = held.copies.iter().map(|&(v, _)| v).collect();
+        for (walls, vs) in split(&at, &keys)? {
+            let mut piece = held.name.clone();
+            piece
+                .path
+                .push(RoleSeg::Fragment(Qualifier::Borders(walls)));
+            let slot = pieces
+                .entry(canonical::minted(piece))
+                .or_insert((false, Vec::new()));
+            slot.0 |= held.tied;
+            slot.1.extend(
+                held.copies
+                    .iter()
+                    .filter(|(v, _)| vs.contains(v))
+                    .map(|&(_, e)| e),
+            );
+        }
+    }
+    for (name, (from_tie, ents)) in pieces {
+        mint_candidates(t, tie, from_tie, name, ents)?;
+    }
+    Ok(())
 }
 
 /// Boolean edges, grouped by parent: `Seam` for zip-minted edges,
@@ -2464,8 +2518,8 @@ fn name_boolean_edges<T: Decide>(
         // ends, as the operand's keys read the result's vertices there.
         let whole = match edges.as_slice() {
             [one] => {
-                let (r0, r1) = edge_ends(op.body, root_key)?;
-                let (e0, e1) = edge_ends(body, *one)?;
+                let (r0, r1) = edge_ends(op.body, root_key);
+                let (e0, e1) = edge_ends(body, *one);
                 let at = |v| operand_vertex_keys(naming, inv_vertices, &fused, v);
                 let (k0, k1) = (at(e0)?, at(e1)?);
                 let side = root.operand();
@@ -2689,7 +2743,7 @@ fn name_boolean_vertices<T: Decide>(
                        set: &[OpSide<EdgeKey>]|
      -> Result<Vec<(OpSide<EdgeKey>, NameRef)>, NamingError> {
         let held = edges_holding(
-            vertex_point(body, v)?,
+            vertex_point(body, v),
             set.iter().map(|&r| {
                 let (op, k) = r.of(a, b);
                 (r, op.body, k)
@@ -2739,6 +2793,7 @@ fn name_boolean_vertices<T: Decide>(
         (
             name1(EntityKind::Vertex, node, side.wrap(a, b, u.name)),
             u.tied,
+            u.candidate,
             parent,
             side,
         )
@@ -2747,12 +2802,18 @@ fn name_boolean_vertices<T: Decide>(
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
     let mut groups: BTreeMap<RoleSeg, (bool, Vec<(VertexKey, Along)>)> = BTreeMap::new();
-    // Operand vertices → the operand keys read there and the result
-    // vertices that are each of them: several where the boolean leaves
-    // several at one corner (null copies, and the zip's copies per
-    // cone, `BooleanNaming::cone_splits`).
-    type Corner = (bool, Parent, BTreeSet<OpSide<VertexKey>>, Vec<VertexKey>);
-    let mut corners: BTreeMap<StableName, Corner> = BTreeMap::new();
+    // Operand corners, each a candidate of its name → where it descends
+    // from, the operand keys read there, and the result vertices that
+    // are it: several where the boolean leaves several at one corner
+    // (null copies, and the zip's copies per cone,
+    // `BooleanNaming::cone_splits`). A tied name's candidates are
+    // corners apart, wherever they lie.
+    struct Corner {
+        parent: Parent,
+        sides: BTreeSet<OpSide<VertexKey>>,
+        held: CornerCopies,
+    }
+    let mut corners: BTreeMap<(StableName, Candidate), Corner> = BTreeMap::new();
     for (v, _) in body.vertices() {
         // A vertex that is one of an operand's own vertices is that
         // vertex (N2), read at every operand key the boolean leaves at
@@ -2783,13 +2844,21 @@ fn name_boolean_vertices<T: Decide>(
         {
             identity = Some(identity_of(side, u));
         }
-        if let Some((name, from_tie, parent, side)) = identity {
+        if let Some((name, tied, candidate, parent, side)) = identity {
             let at = corners
-                .entry(name)
-                .or_insert((from_tie, parent, BTreeSet::new(), Vec::new()));
-            at.0 |= from_tie;
-            at.2.insert(side);
-            at.3.push(v);
+                .entry((name.clone(), candidate))
+                .or_insert_with(|| Corner {
+                    parent,
+                    sides: BTreeSet::new(),
+                    held: CornerCopies {
+                        name,
+                        tied,
+                        copies: Vec::new(),
+                    },
+                });
+            at.sides.insert(side);
+            at.held.tied |= tied;
+            at.held.copies.push((v, ent(0, EntityKey::Vertex(v))));
             continue;
         }
         // What the boolean classified here: the senses a crossing is
@@ -3109,24 +3178,13 @@ fn name_boolean_vertices<T: Decide>(
         slot.0 |= from_tie;
         slot.1.push((v, along));
     }
-    // A corner held as one vertex is that corner; one held as several
-    // is fragments of it, `Fragment(Borders)` over each copy's divider
-    // walls (N2), and copies with equal sets tie.
-    for (name, (from_tie, parent, sides, copies)) in corners {
-        let ents = |vs: &[VertexKey]| vs.iter().map(|&v| ent(0, EntityKey::Vertex(v))).collect();
-        rec.record(&name, ents(&copies), parent);
-        if let [one] = copies[..] {
-            put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(one)))?;
-            continue;
-        }
-        for (walls, vs) in corner_walls(&sides, &copies)? {
-            let mut piece = name.clone();
-            piece
-                .path
-                .push(RoleSeg::Fragment(Qualifier::Borders(walls)));
-            mint_candidates(t, tie, from_tie, canonical::minted(piece), ents(&vs))?;
-        }
+    let mut held = Vec::with_capacity(corners.len());
+    for c in corners.into_values() {
+        let members = c.held.copies.iter().map(|&(_, e)| e).collect();
+        rec.record(&c.held.name, members, c.parent);
+        held.push((c.sides, c.held));
     }
+    name_corner_copies(t, tie, held, corner_walls)?;
     for (seg, (from_tie, verts)) in groups {
         let base = name1(EntityKind::Vertex, node, seg);
         rec.record_by_name(
@@ -3157,7 +3215,7 @@ fn name_boolean_vertices<T: Decide>(
             };
             crossings.push((
                 ent(0, EntityKey::Vertex(*v)),
-                vertex_point(body, *v)?,
+                vertex_point(body, *v),
                 CrossedEdge {
                     body: op.body,
                     table: op.table,
@@ -3728,17 +3786,18 @@ pub(super) struct Segment<T: Decide> {
 
 impl<T: Decide> Segment<T> {
     /// Edge `e` of `body`, from its `he_plus` start to its end.
-    pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
-        let (v0, v1) = edge_ends(body, e)?;
-        let (q0, q1) = (vertex_point(body, v0)?, vertex_point(body, v1)?);
+    #[track_caller]
+    pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Self {
+        let (v0, v1) = edge_ends(body, e);
+        let (q0, q1) = (vertex_point(body, v0), vertex_point(body, v1));
         let d = q1 - q0;
-        Ok(Segment {
+        Segment {
             edge: e,
             q0,
             q1,
             d,
             len: d.norm(),
-        })
+        }
     }
 
     /// Whether segment `other` runs the same way as this one along
@@ -3983,7 +4042,7 @@ impl<T: Decide> Track<T> {
     /// `he_plus` start to its end.
     pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
         let curve = certified_curve(body, e);
-        let (v0, v1) = edge_ends(body, e)?;
+        let (v0, v1) = edge_ends(body, e);
         Self::on(e, curve.carrier().clone(), curve.params(), v0 == v1)
     }
 
@@ -4376,7 +4435,7 @@ pub(super) enum EdgeCarrier<T: Decide> {
     /// on it covers nothing (`emit_union::Flush::edge_cover`): the
     /// readings refuse nothing they would not refuse on a straight
     /// edge, at the cost of not counting such edges flush
-    /// (`work/seamrank/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
+    /// (`work/splice/a-unions-flush-reading-cannot-follow-a-nurbs-carrier.md`).
     Unread,
 }
 
@@ -4384,7 +4443,7 @@ impl<T: Decide> EdgeCarrier<T> {
     /// Edge `e` of `body`, from its `he_plus` start to its end.
     pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
         if is_straight(body, e) {
-            return Ok(EdgeCarrier::Straight(Segment::of_edge(body, e)?));
+            return Ok(EdgeCarrier::Straight(Segment::of_edge(body, e)));
         }
         if !places_points(certified_curve(body, e).carrier()) {
             return Ok(EdgeCarrier::Unread);
@@ -4498,10 +4557,10 @@ fn chord_on_rim<T: Decide>(
     rim: EdgeKey,
     bnd: geom_core::Band,
 ) -> Result<bool, NamingError> {
-    let seg = Segment::of_edge(op_body, rim)?;
-    let (c0, c1) = edge_ends(body, chord)?;
+    let seg = Segment::of_edge(op_body, rim);
+    let (c0, c1) = edge_ends(body, chord);
     for v in [c0, c1] {
-        if seg.place(vertex_point(body, v)?, CHORD_ON_RIM, bnd)? == OnSegment::Off {
+        if seg.place(vertex_point(body, v), CHORD_ON_RIM, bnd)? == OnSegment::Off {
             return Ok(false);
         }
     }
@@ -4526,7 +4585,7 @@ fn chord_within<T: Decide>(
     match (is_straight(body, chord), is_straight(op_body, rim)) {
         (true, true) => chord_on_rim(body, chord, op_body, rim, bnd),
         (false, false) => Ok(!Track::of_edge(body, chord)?
-            .cover([(rim, carrier_arc(op_body, rim)?)], CHORD_ON_RIM, bnd)?
+            .cover([(rim, carrier_arc(op_body, rim))], CHORD_ON_RIM, bnd)?
             .within
             .is_empty()),
         _ => Ok(false),
@@ -4705,8 +4764,8 @@ enum RimPick {
 ///
 /// # Errors
 ///
-/// A walk or reading that finds the body not one, as
-/// [`NamingError::Emission`].
+/// A pair's rim reading's refusal, other than
+/// [`NamingError::Escalated`], which ranks among the picks.
 ///
 /// # Panics
 ///
@@ -4738,7 +4797,7 @@ fn rim_among<T: Decide>(
     let mut off = false;
     let mut none = Vec::new();
     for &(f0, f1) in pairs {
-        let read = match rim_between(op.body, f0, f1)? {
+        let read = match rim_between(op.body, f0, f1) {
             Rim::One(rim) => chord_within(body, chord, op.body, rim, bnd)
                 .map(|within| if within { Ok(rim) } else { Err(Some(rim)) }),
             Rim::NotOne(RimShare::Several) => {
@@ -4811,7 +4870,7 @@ fn rim_holding<T: Decide>(
     bnd: geom_core::Band,
 ) -> Result<Option<EdgeKey>, NamingError> {
     let mut within = Vec::new();
-    for rim in rims_between(op_body, f0, f1)? {
+    for rim in rims_between(op_body, f0, f1) {
         if chord_within(body, chord, op_body, rim, bnd)? {
             within.push(rim);
         }
@@ -4843,7 +4902,7 @@ pub(super) fn edge_holds<T: Decide>(
     bnd: geom_core::Band,
 ) -> Result<bool, NamingError> {
     if is_straight(body, e) {
-        Ok(Segment::of_edge(body, e)?.place(p, predicate, bnd)? != OnSegment::Off)
+        Ok(Segment::of_edge(body, e).place(p, predicate, bnd)? != OnSegment::Off)
     } else {
         Track::of_edge(body, e)?.holds(p, predicate, bnd)
     }
@@ -4866,11 +4925,11 @@ pub(super) fn joined_candidates<'b, T: Decide + 'b, S: Copy + Ord>(
     for &(s, g0) in d0 {
         let body = body_of(s)?;
         for &(_, g1) in d1.iter().filter(|(s1, g1)| *s1 == s && *g1 != g0) {
-            for r in rims_between(body, g0, g1)? {
+            for r in rims_between(body, g0, g1) {
                 if is_straight(body, r) == line
                     && let std::collections::btree_map::Entry::Vacant(slot) = out.entry((s, r))
                 {
-                    slot.insert(carrier_arc(body, r)?);
+                    slot.insert(carrier_arc(body, r));
                 }
             }
         }
@@ -4889,7 +4948,7 @@ pub(super) fn joined_along<T: Decide, K>(
     bnd: geom_core::Band,
 ) -> Result<Cover<K>, NamingError> {
     if is_straight(body, e) {
-        Segment::of_edge(body, e)?.cover(
+        Segment::of_edge(body, e).cover(
             candidates.into_iter().map(|(k, arc)| (k, arc.p0, arc.p1)),
             ON_MEMBER_EDGE,
             bnd,
@@ -4920,34 +4979,33 @@ pub(super) fn edges_holding<'b, T: Decide + 'b, K>(
 /// Edge `e` of `body` as a cover candidate: its ends and, on a curved
 /// edge, the point halfway along its certified carrier. A segment is
 /// read by its ends alone, so its middle is its start.
-pub(super) fn carrier_arc<T: Decide>(
-    body: &Body<T>,
-    e: EdgeKey,
-) -> Result<CarrierArc<T>, NamingError> {
-    let (v0, v1) = edge_ends(body, e)?;
+#[track_caller]
+pub(super) fn carrier_arc<T: Decide>(body: &Body<T>, e: EdgeKey) -> CarrierArc<T> {
+    let (v0, v1) = edge_ends(body, e);
     let mid = if is_straight(body, e) {
-        vertex_point(body, v0)?
+        vertex_point(body, v0)
     } else {
         let c = certified_curve(body, e);
         let (r0, r1) = c.params();
         c.carrier().mid_point(r0, r1)
     };
-    Ok(CarrierArc {
-        p0: vertex_point(body, v0)?,
+    CarrierArc {
+        p0: vertex_point(body, v0),
         mid,
-        p1: vertex_point(body, v1)?,
+        p1: vertex_point(body, v1),
         closed: v0 == v1,
-    })
+    }
 }
 
 /// A ranked group's size as its names' `OrderAlong { of }`, through
 /// [`super::emit::to_u32`]: a saturated `of` would be a wrong count in
 /// every name of the group, and two different oversized groups would
 /// spell one.
-fn group_count(n: usize) -> Result<u32, NamingError> {
+#[track_caller]
+fn group_count(n: usize) -> u32 {
     super::emit::to_u32(
         n,
-        "a ranked group has more members than a name's rank count holds",
+        "a ranked group's size, one member per entity of one output body",
     )
 }
 
@@ -4960,10 +5018,6 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
 /// says how many siblings it has, and a piece of an earlier piece is a
 /// piece of its line. Every end vertex is named before this runs, so
 /// `t` holds its name.
-///
-/// # Errors
-///
-/// The edge walk's refusals.
 ///
 /// # Panics
 ///
@@ -4985,14 +5039,14 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
     (body, ix): (&Body<T>, u32),
     edges: &[EdgeKey],
     lone: Lone,
-) -> Result<(), NamingError> {
+) {
     if let ([one], Lone::Whole) = (edges, lone) {
         out.push(base.clone(), from_tie, ent(ix, EntityKey::Edge(*one)));
-        return Ok(());
+        return;
     }
     let line = edge_line(&NameRef::new(base.clone()));
     for &e in edges {
-        let (v0, v1) = edge_ends(body, e)?;
+        let (v0, v1) = edge_ends(body, e);
         let mut ends = Vec::with_capacity(2);
         for v in [v0, v1] {
             let Some(end) = t.name_of(&ent(ix, EntityKey::Vertex(v))) else {
@@ -5009,7 +5063,6 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
         name.path.push(RoleSeg::Fragment(Qualifier::Ends(ends)));
         out.push(name, from_tie, ent(ix, EntityKey::Edge(e)));
     }
-    Ok(())
 }
 
 /// **The edge pieces of one emission**, gathered over every parent edge
@@ -5418,7 +5471,7 @@ fn insert_ranked_or_tied<K: Copy>(
 ) -> Result<(), NamingError> {
     match ranks {
         Some(ranks) => {
-            let of = group_count(keys.len())?;
+            let of = group_count(keys.len());
             for (k, rank) in keys.iter().zip(ranks) {
                 let mut name = base.clone();
                 name.path
@@ -5498,29 +5551,25 @@ fn live_edge_sides<T: geom_core::Real>(
 fn operand_boundary<T: Decide>(
     target_body: &Body<T>,
     faces: impl IntoIterator<Item = FaceKey>,
-) -> Result<BTreeSet<EdgeKey>, NamingError> {
+) -> BTreeSet<EdgeKey> {
     let mut boundary = BTreeSet::new();
     for f in faces {
-        boundary.extend(face_edges(target_body, f)?);
+        boundary.extend(face_edges(target_body, f));
     }
-    Ok(boundary)
+    boundary
 }
 
 /// The edges of face `f`'s loops in `body`, one per half-edge
 /// ([`face_half_edges`]).
 ///
-/// # Errors
-///
-/// [`face_half_edges`]' refusals.
-///
 /// # Panics
 ///
-/// Where a half-edge that walk returned does not resolve: it read each
+/// Where [`face_half_edges`] panics, or a half-edge that walk returned does not resolve: it read each
 /// one off `f`'s loops a moment before, in a body every door keeps
 /// tier-1-valid.
 #[track_caller]
-fn face_edges<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Result<Vec<EdgeKey>, NamingError> {
-    let hes = face_half_edges(body, f)?;
+fn face_edges<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Vec<EdgeKey> {
+    let hes = face_half_edges(body, f);
     let mut out = Vec::with_capacity(hes.len());
     for he in hes {
         let Some(h) = body.get_half_edge(he) else {
@@ -5531,7 +5580,7 @@ fn face_edges<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Result<Vec<Edge
         };
         out.push(h.edge);
     }
-    Ok(out)
+    out
 }
 
 /// N2's `Keeps`, one reading for a split's face pieces and corner
@@ -5652,10 +5701,10 @@ fn name_split_faces<T: Decide>(
         }
         // Same-side multiplicity: each piece by the parent's boundary
         // edges it holds a stretch of (N2's `Keeps`).
-        let boundary = operand_boundary(target_body, [root])?;
+        let boundary = operand_boundary(target_body, [root]);
         let mut pieces = Vec::with_capacity(members.len());
         for &f in &members {
-            let edges = face_edges(body, f)?;
+            let edges = face_edges(body, f);
 
             pieces.push((keeps.of(edges, &boundary)?, ent(0, EntityKey::Face(f))));
         }
@@ -5744,14 +5793,18 @@ mod tests {
     }
 
     #[test]
-    fn a_ranked_group_count_past_u32_refuses() {
-        assert_eq!(group_count(3).unwrap(), 3);
-        if let Ok(too_many) = usize::try_from(u64::from(u32::MAX) + 1) {
-            assert!(matches!(
-                group_count(too_many),
-                Err(NamingError::Emission { .. })
-            ));
-        }
+    fn a_ranked_group_count_narrows_exactly() {
+        assert_eq!(group_count(3), 3);
+    }
+
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    #[should_panic(
+        expected = "a ranked group's size, one member per entity of one output body: 4294967296"
+    )]
+    fn a_ranked_group_count_past_u32_panics() {
+        let too_many = usize::try_from(u64::from(u32::MAX) + 1).expect("a 64-bit usize");
+        group_count(too_many);
     }
 
     /// A body holding one straight edge from `p` to `q`, and that edge.
@@ -5780,7 +5833,7 @@ mod tests {
     #[test]
     fn a_split_sense_follows_the_crossed_edge_through_a_reversed_piece() {
         let (body, e) = segment([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
-        let (p, q) = super::edge_ends(&body, e).unwrap();
+        let (p, q) = super::edge_ends(&body, e);
         let sense = |v, same| super::split_sense(&body, v, &[(e, same)]).unwrap();
         assert_eq!(
             [sense(p, true), sense(q, true)],
@@ -5865,7 +5918,6 @@ mod tests {
     fn absorbed_into(body: &Body<f64>, kept: FaceKey, absorbed: FaceKey) -> Body<f64> {
         let mut out = body.clone();
         let he = face_half_edges(body, absorbed)
-            .unwrap()
             .into_iter()
             .find(|&he| body.mate(he).and_then(|m| body.face_of_half_edge(m)) == Some(kept))
             .unwrap();
@@ -6631,13 +6683,13 @@ mod tests {
                 *built.side_faces()[0]
                     .iter()
                     .find(|&&l| {
-                        let Rim::One(rim) = rim_between(&built.body, built.top, l).unwrap() else {
+                        let Rim::One(rim) = rim_between(&built.body, built.top, l) else {
                             panic!("the top meets each lateral along one rim")
                         };
-                        let (v0, v1) = edge_ends(&built.body, rim).unwrap();
+                        let (v0, v1) = edge_ends(&built.body, rim);
                         [v0, v1]
                             .into_iter()
-                            .all(|v| (vertex_point(&built.body, v).unwrap().y - y).abs() < 1e-12)
+                            .all(|v| (vertex_point(&built.body, v).y - y).abs() < 1e-12)
                     })
                     .unwrap()
             };
@@ -6660,7 +6712,7 @@ mod tests {
         }
 
         fn rim(&self, f: FaceKey, g: FaceKey) -> EdgeKey {
-            let Rim::One(rim) = rim_between(&self.built.body, f, g).unwrap() else {
+            let Rim::One(rim) = rim_between(&self.built.body, f, g) else {
                 panic!("{f:?} and {g:?} meet along one rim")
             };
             rim
@@ -7225,8 +7277,8 @@ mod crossings_rank_along_the_line {
                 continue;
             };
             let EntityKey::Edge(e) = r.key else { continue };
-            let (v0, v1) = super::edge_ends(body, e).unwrap();
-            let z = |v| super::vertex_point(body, v).unwrap().z;
+            let (v0, v1) = super::edge_ends(body, e);
+            let z = |v| super::vertex_point(body, v).z;
             if (z(v0) - 1.0).abs() < 1e-9 && (z(v1) - 1.0).abs() < 1e-9 {
                 arcs.push((e, name.clone(), param_span(body, e).unwrap()));
             }
@@ -7310,10 +7362,12 @@ mod nurbs_crossings_rank_by_parameter {
     //! plane across them meets three times; the first and third
     //! crossings have one sense.
     //!
-    //! Stand-in crossings, because no body the kernel accepts puts a
+    //! Stand-in crossings, because no body the kernel builds puts a
     //! face across a NURBS edge: the split refuses a plane that may meet
-    //! one, and the boolean refuses an operand that has one
-    //! (`CurvedEdgeUnsupported`).
+    //! one, and the boolean refuses the edge where it meets a face of
+    //! the other operand (`EdgeCarrierUnsupported`,
+    //! [`a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it`],
+    //! which reds the day a crossing rung builds one).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{Crossed, CrossedEdge, param_span, rank_crossings};
@@ -7345,6 +7399,21 @@ mod nurbs_crossings_rank_by_parameter {
     /// The loft through 2 × 2 squares at z = 0, 1, 2, 3 whose x offsets
     /// alternate `−a, a, −a, a`, skinned at v-degree 2: its value.
     pub(super) fn wavy(a: f64) -> (RecipeNodeId, crate::eval::NodeValue<f64>, NameTable) {
+        let (doc, loft) = wavy_doc(a);
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let value = ev.value(loft).expect("the loft evaluates").clone();
+        let table = ev.table_at(loft).expect("the loft's table").clone();
+        (loft, value, table)
+    }
+
+    /// [`wavy`]'s document and its loft node.
+    fn wavy_doc(a: f64) -> (ProfileDoc, RecipeNodeId) {
         let mut doc = ProfileDoc::empty(DocumentId::derive("nurbs-crossings"), Tol::witness());
         let mut profiles = Vec::new();
         for dx in [-a, a, -a, a] {
@@ -7377,24 +7446,14 @@ mod nurbs_crossings_rank_by_parameter {
                 }],
             })
             .collect();
-        let (doc, loft) = ins(
+        ins(
             doc,
             Node::Loft {
                 first: first.into(),
                 then,
                 v_degree: Formula::count(2),
             },
-        );
-        let ev = evaluate::<f64>(
-            &doc,
-            None,
-            &CancelToken::new(),
-            &EvalOptions::default(),
-            Tol::witness(),
-        );
-        let value = ev.value(loft).expect("the loft evaluates").clone();
-        let table = ev.table_at(loft).expect("the loft's table").clone();
-        (loft, value, table)
+        )
     }
 
     fn body_of(value: &crate::eval::NodeValue<f64>) -> &Body<f64> {
@@ -7416,8 +7475,8 @@ mod nurbs_crossings_rank_by_parameter {
                 };
                 let edge = body.get_edge(e)?;
                 let carrier = body.get_curve_geom(edge.curve)?.certified()?.carrier();
-                let (v0, v1) = super::edge_ends(body, e).ok()?;
-                let z = |v| super::vertex_point(body, v).unwrap().z;
+                let (v0, v1) = super::edge_ends(body, e);
+                let z = |v| super::vertex_point(body, v).z;
                 let spans = (z(v0) - z(v1)).abs() > 2.5;
                 (matches!(carrier, geom::Curve3::Nurbs(_)) && spans).then(|| (e, name.clone()))
             })
@@ -7510,6 +7569,136 @@ mod nurbs_crossings_rank_by_parameter {
         one
     }
 
+    /// **A tripwire, not the end-to-end row**: the wavy loft (`a = 0.3`)
+    /// united through the recipe with a box over `x ∈ [1, 3]`,
+    /// `z ∈ [−½, 3½]`, whose face `x = 1` crosses each of the loft's two
+    /// corner edges at `x = dx + 1` three times, the first and third with
+    /// one sense (asserted on the carriers). The union refuses at the
+    /// sweep's planar arm on a spline edge the loft's table names,
+    /// against a plane face of the box.
+    ///
+    /// It cannot witness the crossings it is placed for. A spline edge
+    /// claims no box (`boxes::EdgeBoxRule::NoSoundBox`), so the sweep
+    /// refuses the first spline edge it reads against the first face it
+    /// reads, wherever the box stands: neither the corner nor the face
+    /// `x = 1` is what it names, and the row asserts no more than the
+    /// refusal's kind and owners. It reds the day a crossing rung builds
+    /// this union; the end-to-end row that rung owes, the two crossings
+    /// reaching [`super::rank_crossings`] through the boolean, is
+    /// `work/splice/nurbs-edge-crossing-rung-is-the-ring-composite.md`'s.
+    #[test]
+    fn a_union_across_a_nurbs_edge_refuses_until_a_crossing_rung_builds_it() {
+        let (doc, loft) = wavy_doc(0.3);
+        let (doc, profile) = ins(
+            doc,
+            Node::Profile(ProfileProgram {
+                loops: vec![
+                    LoopProgram::polygon([(1.0, -3.0), (3.0, -3.0), (3.0, 3.0), (1.0, 3.0)])
+                        .expect("finite"),
+                ],
+                ids: Vec::new(),
+            }),
+        );
+        let (doc, block) = ins(
+            doc,
+            Node::Extrude {
+                profile: profile.into(),
+                distance: crate::test_support::len(4.0),
+            },
+        );
+        let (doc, copy) = crate::test_support::against(
+            doc,
+            loft,
+            block,
+            &crate::test_support::axes_at([0.0, 0.0, -0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            Tol::witness(),
+        );
+        let (doc, union) = ins(
+            doc,
+            Node::Union {
+                members: crate::Bodies::Spelled(vec![
+                    crate::BodyRead::plain(loft),
+                    crate::BodyRead::plain(crate::Operand::output(copy, 0)),
+                ]),
+            },
+        );
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let loft_value = ev.value(loft).expect("the loft evaluates");
+        let body = body_of(loft_value);
+        let table = ev.table_at(loft).expect("the loft's table");
+        let near: Vec<EdgeKey> = body
+            .edges()
+            .map(|(e, _)| e)
+            .filter(|&e| {
+                let Ok((t0, t1)) = param_span(body, e) else {
+                    return false;
+                };
+                let c = carrier(body, e);
+                matches!(c, geom::Curve3::Nurbs(_))
+                    && ((c.eval(t0).x + c.eval(t1).x) / 2.0 - 1.0).abs() < 1e-9
+            })
+            .collect();
+        assert_eq!(near.len(), 2, "two corner edges straddle x = 1: {near:?}");
+        for &e in &near {
+            let senses: Vec<bool> = crossings_of(body, e).iter().map(|&(_, s)| s).collect();
+            assert!(
+                senses.len() == 3 && senses[0] == senses[2] && senses[0] != senses[1],
+                "x = 1 crosses corner {e:?} three times, the first and third with one sense: \
+                 {senses:?}"
+            );
+        }
+        let block_body = body_of(ev.value(copy).expect("the box's copy evaluates"));
+        let Some(crate::eval::NodeError {
+            kind:
+                crate::eval::NodeErrorKind::Boolean(topo::BooleanError::EdgeCarrierUnsupported {
+                    operand: topo::Operand::A,
+                    edge,
+                    face,
+                    face_of: topo::Operand::B,
+                    site: topo::EdgeCarrierSite::PlanarCrossing,
+                }),
+            ..
+        }) = ev.node_error(union)
+        else {
+            panic!(
+                "the union refuses at the planar crossing arm, got {:?}",
+                ev.node_error(union).map(|e| &e.kind)
+            );
+        };
+        assert_eq!(
+            topo::query::edge_carrier_kind(body, *edge),
+            Some(topo::query::CurveKind::Nurbs),
+            "the refusal names a spline edge of the loft"
+        );
+        assert!(
+            table
+                .name_of(&EntityRef {
+                    body: 0,
+                    key: EntityKey::Edge(*edge),
+                })
+                .is_some(),
+            "the loft's table names the refused edge"
+        );
+        // The recipe mints both bodies fresh, so their keys collide and
+        // `face_of` is what states the owner; read in the box, the key
+        // is a plane face.
+        assert!(
+            matches!(
+                block_body
+                    .get_face(*face)
+                    .and_then(|f| block_body.get_surface(f.surface)),
+                Some(geom::Surface::Plane { .. })
+            ),
+            "the refusal names a plane face of the box"
+        );
+    }
+
     fn carrier(body: &Body<f64>, e: EdgeKey) -> &geom::Curve3<f64> {
         let edge = body.get_edge(e).unwrap();
         body.get_curve_geom(edge.curve)
@@ -7579,11 +7768,8 @@ mod nurbs_crossings_rank_by_parameter {
         describe_as_intersections(&mut cube.body, Tol::witness());
         let e = cube.mevs[0].edge;
         let body = &mut cube.body;
-        let (v0, v1) = super::edge_ends(body, e).unwrap();
-        let (a, b) = (
-            super::vertex_point(body, v0).unwrap(),
-            super::vertex_point(body, v1).unwrap(),
-        );
+        let (v0, v1) = super::edge_ends(body, e);
+        let (a, b) = (super::vertex_point(body, v0), super::vertex_point(body, v1));
         let control = along.iter().map(|&s| a.lerp(b, s)).collect();
         let nurbs = geom::NurbsCurve3::new(
             geom_core::KnotVector::clamped(knots.to_vec(), 1).unwrap(),
@@ -7794,14 +7980,14 @@ mod edge_pieces_of_one_line_tie {
             .edges()
             .map(|(e, _)| e)
             .filter(|&e| {
-                let (v0, v1) = super::edge_ends(body, e).unwrap();
-                let z = |v| super::vertex_point(body, v).unwrap().z;
+                let (v0, v1) = super::edge_ends(body, e);
+                let z = |v| super::vertex_point(body, v).z;
                 v0 != v1 && (z(v0) - 1.0).abs() < 1e-9 && (z(v1) - 1.0).abs() < 1e-9
             })
             .collect();
         assert_eq!(top_rim.len(), 2, "the rim is two half circles: {top_rim:?}");
         let ends = |e| {
-            let (v0, v1) = super::edge_ends(body, e).unwrap();
+            let (v0, v1) = super::edge_ends(body, e);
             let mut vs = [v0, v1];
             vs.sort();
             vs
@@ -7848,7 +8034,7 @@ mod edge_pieces_of_one_line_tie {
         let mut pieces = EdgePieces::default();
         let mut tie = TieRows::default();
         for (base, e) in [(&p1, top_rim[0]), (&p2, top_rim[1])] {
-            name_edge_pieces(&mut pieces, &t, false, base, (body, 0), &[e], Lone::Piece).unwrap();
+            name_edge_pieces(&mut pieces, &t, false, base, (body, 0), &[e], Lone::Piece);
         }
         pieces.mint(&mut t, &mut tie).unwrap();
         tie.flush(&mut t).unwrap();
@@ -8241,7 +8427,7 @@ mod touch_reread_rows {
     use super::{OperandCtx, name_boolean};
     use crate::names::emit::{ent, name1};
     use crate::names::role::{CapEnd, EntityKind, RoleSeg};
-    use crate::names::table::{EntityKey, NameTable};
+    use crate::names::table::{EntityKey, EntityRef, Entry, NameTable};
     use crate::names::{PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef};
     use crate::node::{RecipeNodeId, StepId};
     use geom_core::Tol;
@@ -8249,7 +8435,7 @@ mod touch_reread_rows {
         PLATE, Pose, along_lying_ray, apex_pyramid, bearing, corners, lying, mix, near_flat, nest,
         nest_polygon, posed_box, poses,
     };
-    use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
+    use topo::{AtRestBody, BooleanResult, VertexKey, intersect, subtract, union};
 
     fn t() -> Tol {
         Tol::witness()
@@ -8471,10 +8657,10 @@ mod touch_reread_rows {
         for walls in [one, other] {
             assert!(
                 !walls.is_empty()
-                    && walls
-                        .iter()
-                        .all(|w| w.kind == EntityKind::Face && w.node == yn),
-                "each copy's walls are y's faces: {walls:?}"
+                    && walls.iter().all(|w| w.kind == EntityKind::Face
+                        && matches!(w.path.as_slice(), [RoleSeg::From { read, of }]
+                            if *read == crate::names::FOLD_B && of.node == yn)),
+                "each copy's walls are y's faces as the boolean carries them in: {walls:?}"
             );
         }
         let bare = named
@@ -8482,6 +8668,193 @@ mod touch_reread_rows {
             .iter()
             .any(|(n, _)| n.kind == EntityKind::Vertex && n.path == [(*corner).clone()]);
         assert!(!bare, "a corner held as several vertices has no bare name");
+    }
+
+    /// [`table`], with the vertices `tied` one tied row, under the
+    /// first one's name.
+    fn table_tying(body: &AtRestBody<f64>, node: RecipeNodeId, tied: [VertexKey; 2]) -> NameTable {
+        let plain = table(body, node);
+        let at = tied.map(|v| ent(0, EntityKey::Vertex(v)));
+        let name = plain
+            .name_of(&at[0])
+            .expect("a tied vertex is named")
+            .clone();
+        let mut t = NameTable::new();
+        for (n, e) in plain.iter() {
+            let Entry::Unique(r) = e else {
+                unreachable!("`table` names every entity apart")
+            };
+            if !at.contains(r) {
+                t.insert(n.clone(), *r).unwrap();
+            }
+        }
+        t.insert_tied(name, at.to_vec()).unwrap();
+        t
+    }
+
+    /// The scene of
+    /// [`a_corner_held_as_several_result_vertices_is_a_fragment_at_each`]:
+    /// `x`, `y`, and `x − y`.
+    fn over_a_void() -> (AtRestBody<f64>, AtRestBody<f64>, topo::BooleanBody<f64>) {
+        let pose = &poses()[0];
+        let p = |b: [[f64; 3]; 3]| apex_pyramid(&b, pose, t());
+        let arch_base = corners(60.0, 0.5, 0.4);
+        let bare_hollow = built(subtract(&p(arch_base), &p(nest(arch_base, 0.7)), t()));
+        let over = p(corners(50.0, 0.7, 0.5));
+        let Ok(BooleanResult::Body(r)) = subtract(&over, &bare_hollow, t()) else {
+            panic!("x − y builds");
+        };
+        (over, bare_hollow, r)
+    }
+
+    /// `x − y` of [`over_a_void`] named with `xt` as `x`'s table.
+    fn name_over_a_void(
+        (x, y, r): &(AtRestBody<f64>, AtRestBody<f64>, topo::BooleanBody<f64>),
+        xt: &NameTable,
+    ) -> Result<std::sync::Arc<NameTable>, crate::names::NamingError> {
+        let yt = table(y, RecipeNodeId::new(0, 2));
+        let a = OperandCtx {
+            node: RecipeNodeId::new(0, 1),
+            read: crate::names::FOLD_A,
+            table: xt,
+            body: x,
+        };
+        let b = OperandCtx {
+            node: RecipeNodeId::new(0, 2),
+            read: crate::names::FOLD_B,
+            table: &yt,
+            body: y,
+        };
+        let op = topo::BooleanOp::Subtract;
+        Ok(name_boolean(RecipeNodeId::new(0, 9), op, &r.body, &r.naming, &a, &b, t())?.table)
+    }
+
+    /// **Each candidate of a tied corner is a corner of its own** (N4,
+    /// "A tie's candidates keep their identity"): in `x − y` of
+    /// [`over_a_void`], `x`'s apex is held as two vertices and other
+    /// corners of `x` as one each. With two whole corners tied in `x`'s
+    /// table, at two points, the result ties them under the bare name.
+    /// With the apex tied to a whole corner, the apex's copies are the
+    /// fragments they are untied, each `Fragment(Borders)`, and the whole
+    /// corner stays under the bare name, narrowed to it.
+    #[test]
+    fn a_tied_corners_candidates_are_named_apart_wherever_they_lie() {
+        use crate::names::role::Qualifier;
+        let scene = over_a_void();
+        let x = &scene.0;
+        let xn = RecipeNodeId::new(0, 1);
+        let plain = name_over_a_void(&scene, &table(x, xn)).expect("x − y names");
+        let xt = table(x, xn);
+        // `x`'s vertex under the name `of`, and the corners of `x` the
+        // plain naming holds whole (one result vertex) or as fragments.
+        let vertex_of = |of: &crate::names::StableName| match xt.lookup(of) {
+            Some(Entry::Unique(r)) => match r.key {
+                EntityKey::Vertex(v) => v,
+                other => panic!("{of:?} names {other:?}"),
+            },
+            other => panic!("{of:?}: {other:?}"),
+        };
+        let mut whole = Vec::new();
+        let mut apex_copies: Vec<(Vec<crate::names::StableName>, Entry)> = Vec::new();
+        let mut apex = None;
+        for (n, e) in plain.iter().filter(|(n, _)| n.kind == EntityKind::Vertex) {
+            match n.path.as_slice() {
+                [RoleSeg::From { read, of }] if *read == crate::names::FOLD_A => {
+                    whole.push((vertex_of(of), e.clone()));
+                }
+                [
+                    RoleSeg::From { read, of },
+                    RoleSeg::Fragment(Qualifier::Borders(walls)),
+                ] if *read == crate::names::FOLD_A => {
+                    apex = Some(vertex_of(of));
+                    apex_copies.push((walls.clone(), e.clone()));
+                }
+                _ => {}
+            }
+        }
+        let apex = apex.expect("x's apex is held as several vertices");
+        assert_eq!(apex_copies.len(), 2, "the apex's copies: {apex_copies:?}");
+        let [(w0, e0), (w1, _), ..] = whole.as_slice() else {
+            panic!("two of x's corners are held whole: {whole:?}");
+        };
+        let at = |v: VertexKey| {
+            let p = crate::names::emit::vertex_point(x, v);
+            [p.x, p.y, p.z]
+        };
+        assert_ne!(at(*w0), at(*w1), "the whole corners lie apart");
+        // The tied name, as the result carries it in.
+        let carried = |t: &NameTable| {
+            let of = t.name_of(&ent(0, EntityKey::Vertex(*w0))).unwrap().clone();
+            name1(
+                EntityKind::Vertex,
+                RecipeNodeId::new(0, 9),
+                RoleSeg::From {
+                    read: crate::names::FOLD_A,
+                    of: of.into(),
+                },
+            )
+        };
+        let rows_under = |t: &NameTable, base: &crate::names::StableName| {
+            t.iter()
+                .filter(|(n, _)| {
+                    n.kind == EntityKind::Vertex && n.path.first() == base.path.first()
+                })
+                .map(|(n, e)| (n.clone(), e.clone()))
+                .collect::<Vec<_>>()
+        };
+
+        // Both candidates whole: one tied row, the two whole vertices.
+        let both = table_tying(x, xn, [*w0, *w1]);
+        let named = name_over_a_void(&scene, &both).expect("two whole candidates name");
+        let base = carried(&both);
+        let rows = rows_under(&named, &base);
+        let [(n, Entry::Tied(es))] = rows.as_slice() else {
+            panic!("the whole candidates tie under the bare name: {rows:?}");
+        };
+        assert_eq!(*n, base, "the bare name");
+        let held: Vec<EntityRef> = [w0, w1]
+            .iter()
+            .map(
+                |&&w| match &whole.iter().find(|(v, _)| *v == w).unwrap().1 {
+                    Entry::Unique(r) => *r,
+                    other => panic!("{other:?}"),
+                },
+            )
+            .collect();
+        let mut es = es.clone();
+        es.sort();
+        let mut held_sorted = held.clone();
+        held_sorted.sort();
+        assert_eq!(es, held_sorted, "the tie holds the two whole vertices");
+
+        // One candidate divided: its copies take `Borders`, as untied,
+        // and the whole one keeps the bare name.
+        let divided = table_tying(x, xn, [*w0, apex]);
+        let named = name_over_a_void(&scene, &divided).expect("a divided candidate names");
+        let base = carried(&divided);
+        let rows = rows_under(&named, &base);
+        let mut bare = Vec::new();
+        let mut fragments = Vec::new();
+        for (n, e) in rows {
+            match n.path.as_slice() {
+                [_] => bare.push(e),
+                [_, RoleSeg::Fragment(Qualifier::Borders(walls))] => {
+                    fragments.push((walls.clone(), e));
+                }
+                other => panic!("a row of the tied corner: {other:?}"),
+            }
+        }
+        assert_eq!(
+            bare,
+            vec![e0.clone()],
+            "the whole candidate keeps the bare name"
+        );
+        fragments.sort_by(|p, q| p.0.cmp(&q.0));
+        apex_copies.sort_by(|p, q| p.0.cmp(&q.0));
+        assert_eq!(
+            fragments, apex_copies,
+            "the divided candidate's copies, as untied"
+        );
     }
 
     /// At rest, every scene: seven operand corners are held as several
@@ -8747,8 +9120,8 @@ mod rim_holding_rows {
             .edges()
             .map(|(k, _)| k)
             .find(|&k| {
-                let (v0, v1) = super::edge_ends(&body, k).unwrap();
-                let z = |v| super::vertex_point(&body, v).unwrap().z;
+                let (v0, v1) = super::edge_ends(&body, k);
+                let z = |v| super::vertex_point(&body, v).z;
                 topo::query::edge_carrier_kind(&body, k) == Some(topo::query::CurveKind::Circle)
                     && z(v0).abs() < 1e-12
                     && z(v1).abs() < 1e-12
@@ -8795,7 +9168,7 @@ mod rim_holding_rows {
         } else {
             (third_new, rest)
         };
-        let mut shared = rims_between(&body, faces[0], faces[1]).unwrap();
+        let mut shared = rims_between(&body, faces[0], faces[1]);
         shared.sort_unstable();
         let mut pieces = vec![first, middle, last];
         pieces.sort_unstable();
@@ -8808,9 +9181,9 @@ mod rim_holding_rows {
 
     /// Whether `deg` lies strictly inside arc edge `k`'s span.
     fn within_deg(body: &Body<f64>, k: EdgeKey, deg: f64) -> bool {
-        let (v0, v1) = super::edge_ends(body, k).unwrap();
+        let (v0, v1) = super::edge_ends(body, k);
         let az = |v| {
-            let p = super::vertex_point(body, v).unwrap();
+            let p = super::vertex_point(body, v);
             p.y.atan2(p.x) / DEG
         };
         let (a, b) = (az(v0).min(az(v1)), az(v0).max(az(v1)));
@@ -9132,7 +9505,7 @@ mod rim_holding_rows {
     /// places no point, so an edge runs with neither itself nor another,
     /// and two of them are two lines at a vertex, as before the curved
     /// reading. No union reaches such an edge today: the boolean refuses
-    /// an operand with one (`CurvedEdgeUnsupported`).
+    /// it where it meets the other operand (`EdgeCarrierUnsupported`).
     #[test]
     fn a_spline_edge_is_a_line_of_its_own() {
         use super::{EdgeCarrier, least_per_line};

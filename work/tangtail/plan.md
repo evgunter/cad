@@ -9,7 +9,7 @@ Nothing dispatched.
 
 ## The slate
 
-**30 budget points** of dispatchable work against a ceiling of 30, in 10 rows.
+**22.5 budget points** of dispatchable work against a ceiling of 30, in 8 rows, plus one deferred row (2026-10-26).
 
 | pri | item | cost | status | title |
 |---|---|---|---|---|
@@ -20,14 +20,14 @@ Nothing dispatched.
 | P3 | `an-edge-crossing-two-wedges-about-a-contact-line-is-unbuilt` | H | open | An edge crossing two wedges about a contact line is unbuilt: two sections along one edge at one vertex pair do not zip |
 | P3 | `an-offset-faces-dihedral-could-be-read-from-its-description` | — | open | Weigh reading an Approx (offset) face's dihedral from its intensional description, so tier 3 can judge its edges instead of leaving them unjudged |
 | P3 | `chord-join-serves-lines-where-the-whole-turn-reach-refuses` | — | open | the agreement-gate fuzz finds chord_join serving parallel lines where the whole-turn reach refuses (eps 1e-12, seed 0x80e3604cc0517565) |
-| P3 | `covered-circle-rung-reads-a-negative-endpoint-as-a-crossing` | M | open | reduce's covered circle rung refuses a definitely-Negative endpoint as a crossing even when the cover certifies the carrier lies on the non-positive side |
 | P3 | `the-rim-routings-sense-guard-has-no-finished-fixture` | M | open | The rim routing's second-sense guard has no finished fixture: its row reversed a torus's walls, which the at-rest gate refuses |
-| P3 | `torus-declared-rest-lane-banked` | H | open | Banked - the torus declared-Rest lane (lily wall 1's retirement path), deferred by ruling on #966 |
+| P3 | `torus-declared-rest-lane-banked` | H | deferred | Banked - the torus declared-Rest lane (lily wall 1's retirement path), deferred by ruling on #966 |
 
 ## Order
 
-`torus-declared-rest-lane-banked` is deferred by ruling (#966) and
-opens with a design question; take the rest first, cheapest first.
+`torus-declared-rest-lane-banked` is `deferred` by Ev's ruling on #966.
+It opens with a design question when a consumer claims the torus kiss.
+Take the rest cheapest first.
 
 ## Review posture
 

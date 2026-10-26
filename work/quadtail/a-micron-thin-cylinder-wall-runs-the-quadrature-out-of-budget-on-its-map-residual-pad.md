@@ -42,3 +42,12 @@ against faces of ordinary proportion. A wall whose height is
 belongs (the region moves by `env`, not the integral by
 `length·env/r` on both sides), or the target meters against something
 that does not divide by a micron.
+
+## Update (PR 5628, measure door unit B)
+
+`classify_shells` no longer measures a shell to the reporting target:
+it reads the role, and the enclosure that read reached. So the pose now
+classifies `Outer` both ways round, and the row's pin
+(`runs_out_of_budget`) is deleted. The floor itself is unchanged, and so
+is the number door's refusal: `mass_properties` on this disc at 1e-12
+still refuses `QuadratureBudget` until unit C hands back the bracket.

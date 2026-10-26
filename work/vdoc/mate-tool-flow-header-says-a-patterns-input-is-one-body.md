@@ -2,9 +2,10 @@
 id: mate-tool-flow-header-says-a-patterns-input-is-one-body
 kind: issue
 title: mate_tool_flow's nested_session header justifies its shape with 'a pattern's input is one', which ruling 2137 retired
-status: open
+status: closed
 opened: 2026-09-21
 priority: P4
+closed: 2026-10-26
 ---
 
 
@@ -44,3 +45,7 @@ this sentence is filed on S-TINT's slate as
 which states the same premise as fact rather than as a justification).
 
 - `crates/viewer/tests/mate_tool_flow.rs` — `nested_session`'s doc comment
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep.** `crates/viewer/tests/mate_tool_flow.rs`, `nested_session`'s doc (~`:694`), now says the `Part` between the two patterns chooses one inner copy for the outer pattern to replicate, which is the shape the picks want. It adds that a pattern directly over a pattern evaluates too (`crates/editor-core/tests/eval6_placers_over_instances.rs:77`'s `nested_doc`), so the fixture is not the only road to a nested copy. No assertion moved.

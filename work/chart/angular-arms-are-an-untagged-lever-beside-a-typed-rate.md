@@ -81,8 +81,8 @@ a positive rate keeps the sign of `gap − mark`, the exact lever serves
 as both members, and a net's stretch serves as its sup. The audit's
 `pcurve_loop_branch` row now says the same. The other sites the ruling
 moves are filed as
-`work/hone/parameter-spans-cross-through-levered-not-the-rate-pair.md`.
+`work/honeroot/parameter-spans-cross-through-levered-not-the-rate-pair.md`.
 
 ## Closed
 
-Closed 2026-10-24 by PR 5655 (STYLE review, fix pass taken, with the door ruling under `[tolerance.margins]` clause (iii)). The remaining table copies are filed as `work/pcert/chart-arm-tables-beside-the-one-sup-door.md`, and the remaining parameter spans as `work/hone/parameter-spans-cross-through-levered-not-the-rate-pair.md`. (CHART orchestrator)
+Closed 2026-10-24 by PR 5655 (STYLE review, fix pass taken, with the door ruling under `[tolerance.margins]` clause (iii)). The remaining table copies are filed as `work/pcert/chart-arm-tables-beside-the-one-sup-door.md`, and the remaining parameter spans as `work/honeroot/parameter-spans-cross-through-levered-not-the-rate-pair.md`. (CHART orchestrator)

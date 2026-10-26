@@ -19,7 +19,14 @@
 //! axis, the second-order `|dist(m)| − ℓ·|g| − ℓ²·H/2`, `g` the
 //! distance's derivative along the curve at `m` and `H` a bound on its
 //! second: `1/(ρ − |dist(m)| − ℓ)` for the carrier's level sets (ρ
-//! below), plus the curve's own curvature. Near a tangency the first
+//! below), plus the curve's own curvature
+//! ([`geom::carrier_speed::curvature_hi`]). `ℓ` is metered at the curve's
+//! speed bound ([`geom::carrier_speed::speed_range`]) on every kind. The
+//! second bound needs the curve `C¹` across the piece, and a curvature
+//! bound is finite only where it is: a spline with a crease, or whose
+//! speed floor certifies nothing, bounds none, and the first bound
+//! decides alone (at `Interval`, a bound unbounded above leaves the
+//! second bound unbounded below, which the larger-of drops). Near a tangency the first
 //! clears nothing finer than the band, the second clears pieces in
 //! proportion to their distance from the touch. The pieces that do not
 //! clear, bisected down to [`geom_core::bisect::tangency_floor`] of ρ, run together
@@ -40,7 +47,7 @@
 //! ([`edge_clear_of_ball`]).
 //!
 //! A carrier with no closed-form distance and foot (a cone, a spline)
-//! and a curve with no speed bound localize nothing, and the door stays.
+//! localizes nothing, and the door stays.
 
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, SupSpeed, Vec3};
 
@@ -55,10 +62,11 @@ use crate::validate::decide;
 use geom_core::bisect::Step;
 
 /// The most clusters a span may localize into: the most meetings a span
-/// of these curves has with these carriers. A conic against a torus is
-/// degree 8 in the conic's half-angle tangent, and every other pair
-/// here (a line against a torus, any of them against a quadric) is at
-/// most 4.
+/// of a line or a conic has with these carriers. A conic against a
+/// torus is degree 8 in the conic's half-angle tangent, and every other
+/// such pair (a line against a torus, any of them against a quadric) is
+/// at most 4. A spiric or spline span meeting the carrier more often
+/// than that is not localized.
 const CLUSTER_BUDGET: usize = 8;
 
 /// **Whether every meeting of the span `carrier(t0..t1)` with
@@ -77,12 +85,11 @@ pub(super) fn off_face<T: Decide + Bounds>(
     (t0, t1): (T, T),
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let (Some(rho), Some((speed, bend))) = (
-        reach(surface),
-        geom::carrier_speed::speed_and_curvature_hi(carrier),
-    ) else {
+    let Some(rho) = reach(surface) else {
         return Ok(false);
     };
+    let speed = geom::carrier_speed::speed_range(carrier).1;
+    let bend = geom::carrier_speed::curvature_hi(carrier);
     let Some(clusters) = clusters(surface, carrier, (speed, bend), rho, (t0, t1), band) else {
         return Ok(false);
     };
@@ -92,9 +99,8 @@ pub(super) fn off_face<T: Decide + Bounds>(
         let Some((dist, foot, _)) = distance(surface, m) else {
             return Ok(false);
         };
-        let radius = geom_core::bisect::reach(SupSpeed::new(speed), (a, b))
-            + dist.abs()
-            + T::from_f64(band.escalate());
+        let radius =
+            geom_core::bisect::reach(speed, (a, b)) + dist.abs() + T::from_f64(band.escalate());
         if !ball_off_face(y, face, foot, radius, rho, band)? {
             return Ok(false);
         }
@@ -181,11 +187,12 @@ fn distance<T: Real>(surface: &geom::Surface<T>, q: Point3<T>) -> Option<(T, Poi
 struct Unlocalized;
 
 /// The parameter runs of the span that may meet the carrier, in order
-/// (module docs); `None` past the budgets.
+/// (module docs), the curve's speed and curvature bounds given; `None`
+/// past the budgets.
 fn clusters<T: Decide + Bounds>(
     surface: &geom::Surface<T>,
     carrier: &geom::Curve3<T>,
-    (speed, bend): (T, T),
+    (speed, bend): (SupSpeed<T>, T),
     rho: T,
     (t0, t1): (T, T),
     band: Band,
@@ -200,7 +207,7 @@ fn clusters<T: Decide + Bounds>(
     let half = T::from_f64(0.5);
     let walk = geom_core::bisect::bisect([(t0, t1)], |(a, b)| {
         let mid = (a + b) * half;
-        let ell = geom_core::bisect::reach(SupSpeed::new(speed), (a, b));
+        let ell = geom_core::bisect::reach(speed, (a, b));
         let Some((dist, _, normal)) = distance(surface, carrier.eval(mid)) else {
             return Step::Stop(Unlocalized);
         };
@@ -208,8 +215,14 @@ fn clusters<T: Decide + Bounds>(
         let slope = (normal.dot(tangent) / tangent.norm()).abs();
         let lipschitz = dist.abs() - ell;
         let axis_gap = rho - dist.abs() - ell;
-        let bound = if let Ok(Sign::Positive) =
-            decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band)
+        // A bend with no finite bound (a spline's crease or cusp) takes
+        // the first bound alone. At `Interval` a bend unbounded above (a
+        // speed floor straddling zero) passes here, and leaves the second
+        // bound's lower end unbounded below, so the `max` keeps the
+        // first's.
+        let bound = if geom_core::is_finite_length(bend)
+            && let Ok(Sign::Positive) =
+                decide("bool_touch_piece_off_axis", Margin::of(axis_gap), band)
         {
             let curl = T::one() / axis_gap + bend;
             lipschitz.max(dist.abs() - ell * slope - ell.powi(2) * curl * half)
@@ -321,8 +334,8 @@ fn clear<T: Decide>(gap: T, radius: T, band: Band) -> bool {
 /// ball's box answers at once. Otherwise a lower bound on the distance
 /// is decided against `radius`, read on the edge's own carrier
 /// ([`crate::splitting::containment::arc_distance_floor`]: a segment, a
-/// conic's own arc, any other carrier's ball). A spline with no control
-/// points is not clear.
+/// conic's own arc, any other carrier's ball and then its arc's
+/// pieces). A spline with no control points is not clear.
 ///
 /// # Errors
 ///

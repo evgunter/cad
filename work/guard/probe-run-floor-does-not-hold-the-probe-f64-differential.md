@@ -2,8 +2,9 @@
 id: probe-run-floor-does-not-hold-the-probe-f64-differential
 kind: issue
 title: RUN_FLOOR's m4_pr8_k_probe ignored row is 1, so the Probe-vs-f64 differential can be deleted silently
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-10-26
 priority: P3
 cost: D
 ---
@@ -63,3 +64,15 @@ Raise the row to `ignored:editor-core:m4_pr8_k_probe:2`.
 --files -`: *owned by guard*), and D114's fence keeps SUITE out of it.
 
 Filed by SUITE/D114.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed in this sweep, as the row specified.** `RUN_FLOOR` in
+`scripts/gates/probe-suite-census.sh` (:193) now rosters
+`ignored:editor-core:m4_pr8_k_probe:2`, with a comment saying why it is
+two. Both `#[ignore]`d tests (`dump_corpus_k_samples`,
+`probe_agrees_with_f64_bit_for_bit_over_the_corpus`) are still there,
+and `k_probe_sweep.sh`'s `run_dump` selects `--ignored "$module::"`, so
+the sweep runs both. The floor's executed half only runs in the nightly
+sweep, so the orchestrator should check the next nightly's
+`--check-executed` line. `--selftest` and the static gate pass.

@@ -11,7 +11,7 @@ cost: E
 
 ## Found (review of PR 4012, nit; filed by the limb-3 lane, 2026-10-04)
 
-`certify_branch` (`crates/geom-brep/src/ssi/certify.rs` ~1368) reads
+`certify_branch` (`crates/geom-brep/src/ssi/certify.rs` ~2167 at `bb25fa4f`, where the comment cites this row) reads
 the carrier's two ends as `carrier.eval(t)`, crossed with
 `Interval::from_certified`. On the f64 lane that is the rounded point,
 not an enclosure of the exact end. Limb 3's end checks

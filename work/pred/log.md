@@ -106,4 +106,89 @@ Signed (FIX orchestrator).
   - **period-headroom.** Both designers converged: one rule in geom-core, `Turn::{Short, Whole, Over}`, with a typed rate and an `Extent` that cannot be reversed; `ConicArc::of`'s two-sided rule lifted; names kept per site; certified edges carry their turn. This changes no ratified text and is not an Ev fork, so the reconciled design is written into the item and self-merges with the unit. The one small difference between the pair is settled for B: no bare `magnitude` constructor, use `decide_signed`. A's argument for it covers only net quantities, and `decide_signed` serves those. Re-priced H, cut into two units.
   - **New rider.** Both designers found that certification admits `Zero` at the slow rate, so an eccentric ellipse wound past τ can certify. It is filed as `certify-admits-an-ellipse-wound-past-its-period-on-the-slow-rate` (P1; P0 if a door reaches it) and rides unit 1.
   - **Dispatched.** Unit 1 on `pred/period-turn-rule`. Its tier is **dual** (H: concurrent pair), because it is a broad architectural decision that would be hard to change later.
+- 2026-10-25 — (PRED orchestrator) PR 5684 (S18), full single review: APPROVE-WITH-FIXES, no MAJOR. The adjudicated fix pass makes `step_string` take `&AtRestBody<f64>`. That removes the writer's conditional tier-3 gate, a partial second validation home, and `MultiShellNotAtRest`. It also fixes the false "one solid, two outer shells" prose and docs, panics on the unreachable arm, and makes the void refusal report the volume enclosure.
+  - **Class finding, logged and not owned here:** doors that wrap `validate` findings in their own words instead of `topo::Unfinished`'s shared refusal texts. Instances: editor-core's `product.rs` and `eval/mod.rs` `Vec<ValidationError>` wrappers. This fix pass removes the step-export instance.
+- 2026-10-25 — (PRED orchestrator) PR 5685 (D292), full single review: APPROVE-WITH-FIXES, one MAJOR found by execution. Past a full turn, the f64 door's `cos(min(h, π))` makes a crest antipodal to the span's middle an exact tie decided by rounding, so up to 2A is dropped. That is reachable through the new `pub` door, while stored edges are bounded by certification. The base's `geom_brep::extent` `crest_in_span` had the same hole. The fix pass decides a full-turn span unconditionally, restores the two deleted-probe cases, re-points the census-lane contract, and takes the cheap one-home style items. The reviewer also found `implicit::conic_arc_residual_range`, the D292 class itself, sampled and read by `reduce`'s `arc_margin`. It goes onto `harmonic-crest-in-span-has-spellings-beside-arc-window`.
+  - **Friction:** this 4-CPU box has about 40 GB of writable disk for lanes. Three concurrent implementer or review lanes each hold a 3–11 GB target, which put free space under 6 GB twice. Two concurrent build lanes plus reviewers that reuse finished targets is the practical ceiling here. Past that, lanes should run in their own cloud sessions (`memories/orchestration-model.md`, 2026-10-02).
 - 2026-10-25 — (PRED orchestrator) PR 5681 merged on the orchestrator's read: `lever-arm-fold-six-hand-rolled-siblings` and `D57` closed. `point_arm` and `folded_lever_arm` are different quantities, documented as such and pinned where they agree. The audit's never-reach-the-funnel paragraph is re-synced.
+- 2026-10-25 — (PRED orchestrator) **Ev ruled S116p on PR 5680: "sounds good!", meaning build it.** PR 5680 merged with the widened producer bullet in `crates/topo/README.md` and fork-log row 194 completed. S116p closes as ruled, and the build is a new unit, `full-revolve-builds-a-cavity-per-axis-gap` (P1, M). It is dispatched once a build slot frees.
+  - **Classifier outage (about 05:30–16:00Z).** The server-side safety classifier stopped returning verdicts, which killed three lanes mid-work. None lost work:
+    - D292's fix pass had its edits complete in its working tree, uncommitted;
+    - S18's fix pass was mid-edit;
+    - period-turn unit 1 had commits pushed and no PR yet.
+
+    All three were resumed in place once it recovered. S18's target `incremental/` (8.8 GB) was reclaimed to make room. Friction finding: a lane killed this way leaves no hand-back. Committing and pushing at every working state is what made each one resumable.
+- 2026-10-25 — (PRED orchestrator) Period-turn unit 1 is PR 5686, frozen review-ready head `e7d55cf3a6`, CI green.
+  - **What it built.** `Period`, `WalkStop` and `BranchMiss` moved to `geom_core::period`, re-exported by `pcurve_cache`. The rule is `Period::turn`. Certification and `ConicArc::of` decide through it, and the certificate carries a `CertifiedTurn`.
+  - **The rider.** It was red-first on `pred/period-turn-rule-red`; the edge now escalates. Its census finds no shipped door that reaches it (STEP import wraps `t1` within about 9e-16 rad), so it stays P1.
+  - **Main-red the lane reported.** `m4_pr3_names_ci::die_name_tables_are_golden` is red at the base too. It is already INTENT's `main-red-the-seat-and-name-table-goldens-moved-at-dprime2`.
+  - **The dual pair waits for disk.** Two fresh full-rebuild targets do not fit beside the two running fix passes. The pair dispatches, concurrently and on the same frozen head, once those lanes report. Following the protocol, the duals are reduced rather than one reviewer's method narrowed.
+- 2026-10-25 — (PRED orchestrator) PR 5684 (S18) merged after a full single review and its fix pass: the export door takes an `AtRestBody`, and `volume.rs` is gone. S18 is closed.
+- 2026-10-25 — (PRED orchestrator) PR 5685 (D292) merged after a full single review (APPROVE-WITH-FIXES, with one MAJOR fixed in the fix pass and the counterexample pinned). D292 is closed.
+- 2026-10-25 — (PRED orchestrator) Dual review of PR 5686 is in. Both reviewers returned APPROVE-WITH-FIXES with no MAJOR, so there is no tally candidate. Both were uninterrupted with no relaxations, so the pair is fair. The correspondence pre-note goes in the row at merge. Bilateral findings:
+  - `Extent::width` admits a reversed or bare extent. Both executed it.
+  - Kept `ConicArc` arcs record escalations.
+  - The span is carried twice, with two dispositions for a missing turn.
+  - The tangent spiric escalates.
+  - The census depends on ε.
+
+  The union went to the original implementer as a 13-item fix pass. Also dispatched: `full-revolve-builds-a-cavity-per-axis-gap` on `pred/full-revolve-cavity-per-axis-gap`. Its tier is a **full single review**: a construction change behind a ratified door, with the geometry argued by both designers. The design itself was weighed and ratified on PR 5680.
+- 2026-10-25 — (PRED orchestrator) PR 5686, period-turn unit 1, merged: dual pair, fix pass of the union, row `docs/dual-review-log/rows/PR-5686.md` (tally 0; the coding was the orchestrator's unblinded pre-note, recorded as such). The rider closed. `period-headroom-margin-has-no-shared-home` reopened for unit 2.
+- 2026-10-25 — (PRED orchestrator) PR 5684 (S18) merged once CI was green on its main-merged head: GitHub had shown it `dirty` because of the log's union merge. PR 5674 merged, so `cone-nappe` now waits on PR 5500 alone. Period-headroom unit 2 is dispatched on `pred/period-turn-sites`. Its tier is a **full single review**: unit 1's dual review settled the architecture, and unit 2 applies it at every remaining site, with verdict deltas at the bounded-rate sites.
+- 2026-10-25 — (PRED orchestrator) The two-run revolve is PR 5707, frozen at `bfb00b26aa`, CI green. A full single review is running on that head, reusing the finished lane's target. A designer pair is weighing S29's sizing policy, a fork that goes to Ev; it is blinded on `analysis/design-fork/s29-sizing-policy` (byte 24). D46 waits for unit 2 to land, because both edit `docs/predicate-dimension-audit.md`.
+- 2026-10-25 — (PRED orchestrator) **S29 put to Ev as `[ev]` PR 5708.** The designer pair (blinded, byte 24: Opus A) disagreed in round 1: one global σ = ½ against a per-lane rule, and A = 16 NURBS-only against every lane. In round 2, each shown the other's report, both moved and converged. The rule is per lane: the worst admissible triangle certifies at δ by a pinned theorem, with no global factor. Sphere and cone rims are tightened to the grid. Unproved lanes carry named headroom. A = 16 is the NURBS split's regularizer, not a shape promise. `[tolerance.chordal]` gains a no-count, no-shape sentence, in a new `crates/mesh/README.md` `[mesh.sizing]`. Fork-log row 195 holds the recommendation half. Filed from the weighing: TESS's `a-cone-rim-chord-joined-to-a-higher-row-certifies-above-delta-s`.
+- 2026-10-25 — (PRED orchestrator) PR 5707 (two-run revolve), full single review: APPROVE-WITH-FIXES. All eight claims survived 11 probe rows: winding, carried containment, run direction, `AxisGapEscalated` reachability, the sentinel, goldens, naming and the sweep. The fix pass covers:
+  - the pocket path breaking the swept-order docs;
+  - a second, direction-dependent collapse of loop 0's runs;
+  - three docs;
+  - three style items (the `Option` invariant, the sentinel, the naming test).
+
+  **Class finding, logged:** a sub-chain of a loop re-collapsed separately from the loop's own collapse, which is two spellings of one loop's runs. Look for it wherever a stretch is re-collapsed.
+
+  **Probable kernel defect, out of fence:** a near-collinear kink on a single-run shell passes validation and then refuses at the Euler attachment gate as "a kernel defect". The lane reproduces it on main and files it.
+- 2026-10-25 — (PRED orchestrator) **Ev ruled S29 on PR 5708**, with three amendments on the thread:
+  - The rule is "as big as possible without any extra work": each lane takes the coarsest step its own pinned worst-triangle theorem allows. There is no safety factor and no δ/2 bound.
+  - A = 16 is a heuristic, open to replacement by what it means.
+  - The `[tolerance.chordal]` sentence was dropped as redundant, and the README was rewritten plainly.
+
+  PR 5708 merged. Fork-log row 195 is complete (Opus A, Fable B). S29 is closed. Filed:
+  - the build, `mesh-sizes-each-lane-by-its-worst-admissible-triangle` (P1 H, PRED);
+  - `the-aspect-cap-stands-in-for-the-sliver-criterion` (P3, PREDTAIL).
+
+  The build waits for disk: 4.3 GB is free with two lanes building.
+- 2026-10-25 — (PRED orchestrator) Period-headroom unit 2 is PR 5710, frozen at `bf9bc61f73`, CI green. Every remaining site decides through `Period::turn`, and the certified readers read the stored turn. The 'junction-end pick precedent' was found unratified and filed on BAND. A full single review is running on that head.
+- 2026-10-25 — (PRED orchestrator) Dispatched `mesh-sizes-each-lane-by-its-worst-admissible-triangle` on `pred/mesh-sizing-rule` as a **full single review** unit. Lane order: measure first; the cone rim-chord row runs on main before the change. A mis-mesh there would be P0.
+- 2026-10-25 — (PRED orchestrator) PR 5710 full single review: APPROVE-WITH-FIXES, no MAJOR. The fix pass gives one home to each of the three dispositions, and one home to the admit-an-undecided-not-over policy, carrying the sup's sign; that reconciles ConicArc's slack with check 2's. It also separates the row names for seg.rs's two readings, adds the wrap_band forward delta and its row, and draws the interval CI lane (skipped on the frozen head). Class finding: one question asked through a wrapper per site, five times, with no shared home. The fix pass removes it.
+- 2026-10-25 — (PRED orchestrator) PR 5710 merged: period-headroom unit 2, after its review fix pass. `period-headroom-margin-has-no-shared-home` is closed. One fact now has one rule, one home per question, and one admission policy.
+- 2026-10-25 — (PRED orchestrator) PR 5707 merged: the two-axis-run full revolve is built and `full-revolve-builds-a-cavity-per-axis-gap` is closed. The near-collinear kink defect is filed on CARVE.
+- 2026-10-25 — (PRED orchestrator) PR 5710 merged; period-headroom is closed. D46 slice 1 is dispatched on `pred/d46-dimension-verdicts-1`: the 7 listed names off D10 ground, plus every unlisted name in `solid_contain.rs` and `intersect.rs`. Its tier is a **style review** at most: verdicts in a doc, with any wrong-dimension crossing red-first.
+- 2026-10-25 — (PRED orchestrator) Dispatched the two E follow-ups to the turn rule on `pred/turn-rule-follow-ups`, as end-of-sitting tail work this context makes cheap: `period-decide-callers-lever-a-parameter-gap` and `turn-rule-reads-short-at-the-global-speed-floor`. Tier: orchestrator's read, unless the inf twin moves verdicts beyond the listed short-side cases.
+- 2026-10-25 — (PRED orchestrator) PR 5721 (D46 slice 1) merged on the orchestrator's read: 73 verdicts, no wrong-dimension crossing. Unilaterally, D46's 188-name remainder is re-banded P1 → P3 as audit coverage and moved to PREDTAIL.
+- 2026-10-26 — (PRED orchestrator) PR 5724 (turn-rule follow-ups): its tier is raised from the orchestrator's read to a **full single review**. The new local inf moves verdicts beyond the short-side cases: certification now refuses some fast-side over-wound edges it used to certify, and spiric whole ovals now certify. It also adds a soundness-critical rounding allowance.
+- 2026-10-26 — (PRED orchestrator) PR 5724, full review: APPROVE-WITH-FIXES. The new inf and the spiric sup are sound: 358k and 5.4k adversarial cases with 0 violations, and the allowance has ≥16× margin by mutation. The fix pass gives both bounds one rounding policy (the conic sup under-reads at f64), types the chord_join pole lever honestly, gives the spiric window and the rate pair one home each, and adds a spiric guard row. Filed: the f64 lane's τ ≠ 2π also drives Whole (sub-ulp regime only; Interval encloses it), the global spiric inf, and five parameter-span levered sites the .decide( sweep could not see.
+- 2026-10-26 — (PRED orchestrator) PR 5724 merged: the turn-rule follow-ups. A local inf and sup over the defect now sit under one rounding policy, and the five `Period::decide` callers are metered. Two rows closed; three P3 rows filed.
+
+- 2026-10-26 — (SPLICE orchestrator) **Main is red on a slow-set row
+  between FLUSH and PRED.** The lattice corpus's bordered-discard pin
+  (`fused_into_live_cells::every_fused_vertex_of_the_lattice_corpus_settles_on_a_live_cell`)
+  moved from (25512, 1392) to (26292, 2004) at the merge of PRED's PR 5724
+  onto FLUSH's PR 5706. Each passes alone; the bisect is in
+  `work/issues/main-red-the-lattice-discard-pin-moved-where-pred-5724-met-flush-5706.md`.
+- 2026-10-26 — (PRED orchestrator) The mesh-sizing build is PR 5717, frozen at `a59a018aca`, CI and render green. Triangles −7.3% overall (cone −50%, torus −48%), NURBS bit-identical, no new refusals. TESS's cone rim row refused typed on main (1.34δ, not a P0) and certifies now. Filed: the trimmed cylinder's `UNPROVED_HEADROOM` debt (P2) and the unmeasured NURBS share (P3). Its full single review is running.
+- 2026-10-26 — (PRED orchestrator) PR 5717, full review: APPROVE-WITH-FIXES. No triangle over δ by dense sampling, and the core lemmas hold. The fix pass covers four review items:
+  - **MAJOR:** δ set from an n-gon refuses by about 1e-16. The comparison charged rounding against δ, contrary to the ratified promise; the fix is a computed rounding allowance in the comparison.
+  - **Cone:** it drops its rows (27× fewer triangles, all still certifying).
+  - **Sphere:** it sizes azimuth per face at its widest latitude.
+  - **Routing:** one lane-routing predicate.
+
+  NURBS's typed ½ share is re-banded P2 and left to its own unit. Brief correction, recorded: 'NURBS stays bit-identical' was a designer's expectation, not Ev's ruling.
+- 2026-10-26 — (PRED orchestrator) The user, on 5717's rounding allowance: "kind of ugly but i can see why it may be the best solution. but seems worth making sure it's always small compared to delta and epsilon and flagging it when it isn't". Forwarded to the fix pass as binding: the allowance is checked against a stated small fraction of min(δ, ε), and when it exceeds that it is flagged loudly (preferably a typed refusal naming allowance, δ and ε) and never absorbed silently. Both sides are pinned.
+- 2026-10-26 — (PRED orchestrator) The user, clarifying: "(that can be a debug assert kind of thing, though)". The allowance-size flag is a `debug_assert!` stating the invariant; no typed refusal is needed. Forwarded.
+- 2026-10-26 — (PRED orchestrator) The user, correcting the relay: "it doesn't *have* to be it just can be if it makes sense". A debug_assert is permitted, not required. The lane chooses the flag mechanism and argues it.
+- 2026-10-26 — (PRED orchestrator) PR 5717 merged: `[mesh.sizing]` is built, and `mesh-sizes-each-lane-by-its-worst-admissible-triangle` is closed.
+- 2026-10-26 — (PRED orchestrator) **Track handed back, `blocked`.** No dispatchable P0 or P1 row remains. The two parked P1 rows wait on PR 5500 (PCERT) and on the D10 hold. The sitting's six P3 filings moved to PREDTAIL. The sitting's frame was the user's: "focus on things that are high priority but won't be made irrelevant by INTENT". Every unit landed was kernel-numeric ground outside the D10 hold, and the one row on held ground (`contact_verify`) was parked rather than built. Merged this sitting:
+  - 5679, 5681, 5680 (Ev ruled S116p);
+  - 5684, 5685, 5686, 5707;
+  - 5708 (Ev ruled S29), 5710, 5717, 5721, 5724.
+
+  Design forks put to Ev: rows 194 and 195. Dual-review row: PR-5686. The PREDTAIL board now holds the P3 tail and D46's remainder.

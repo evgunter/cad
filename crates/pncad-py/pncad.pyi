@@ -541,14 +541,16 @@ class TessellateError(PncadError):
     `unsupported_nurbs_face`, `unsupported_curve`,
     `null_scaffold_edge`, `ring_on_curved_face`, `empty_loop`,
     `missing_entity`, `resolution_overflow`, `step_not_positive`,
-    `certificate_exceeded`, `triangulation`, `self_touching_trim_loop`
+    `certificate_exceeded`, `rounding_unresolved`, `triangulation`,
+    `self_touching_trim_loop`
     or `unsupported_curved_domain`.
 
     The offending face or edge is an arena KEY and does not cross, so
     what a caller reads beside the tag is the arm's NUMBERS, always
     present and `None` where inapplicable: `value` (the refused
-    budget, the overflowed count, the refused step, or the curved
-    domain's worst off-box distance in metres), `bound` / `requested`
+    budget, the overflowed count, the refused step, the unabsorbed
+    rounding allowance, or the curved domain's worst off-box distance
+    in metres), `bound` / `requested`
     (a failed deviation certificate against the budget it was checked
     to), and `note` (the arm's own prose about which lane would be
     needed)."""
@@ -5505,7 +5507,9 @@ class Evaluation:
         reads the run's ambient tolerance, which is the ε the body was
         built under. An explicit one that is not finite and strictly
         positive is an `ExportError`; the rule is the writer's and is
-        quoted from it, not restated."""
+        quoted from it, not restated. The body is gated at rest first,
+        so one the gate refuses raises `ExportError` tagged
+        `body_invalid` rather than reaching the writer."""
 
 def evaluate(
     doc: Doc,

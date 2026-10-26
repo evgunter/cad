@@ -22,7 +22,9 @@
 //!   cross-section through planes normal to the loop's whole spine: a 270° arc over the
 //!   top, then a 90° arc turning back onto the bottle's axis, joined
 //!   tangent and interpolated as one curve. Two planar caps and eight
-//!   rational NURBS walls (finding 5).
+//!   rational NURBS walls (finding 5). The loft is a WORKAROUND: the
+//!   loop is a sweep, and `sweep_body` is the construction to use as
+//!   soon as it carries a half-turn spine (finding 11, wall 9).
 //!
 //! The two bodies MEET on two annular faces, each of the loop's caps
 //! turned off the bulb's rim by its spine's end tangent (finding 11).
@@ -109,10 +111,13 @@
 //!    that corner does not classify (`UnsupportedCorner {
 //!    Indeterminate }`, wall 2).
 //! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
-//!    operand gate before any pair is looked at:
-//!    `CurvedEdgeUnsupported { operand: B }` — the loop is a loft, its
-//!    longitudinal edges are NURBS carriers, and rung-3 edges are what
-//!    the curved zip MINTS, not what it consumes. `subtract` answers
+//!    contact itself: the sweep reads the seam line of the bulb's outer
+//!    neck cylinder, which ends on the rim at z = 3 that the loop's top
+//!    cap meets, against one of the loop's four NURBS walls rising from
+//!    that rim, and the Boolean has no crossing layer for a spline face
+//!    (`CurvedBooleanUnsupported { operand: B, kind: Nurbs }`). The rims
+//!    themselves are circles; no seam far from the contact is read
+//!    first. `subtract` answers
 //!    first at the revert roster with `{ op: Some(Subtract), kind:
 //!    Nurbs, other_kind: Plane }` — a NURBS wall of the loop against a
 //!    planar face of the bulb, a pair whose boxes MAY meet (box overlap
@@ -155,11 +160,11 @@
 //!    two-shell solid (torus + toroidal cavity) through the shared
 //!    void-insertion door, tier-valid, and the probe asserts that
 //!    build every run. What the shape still cannot do is leave as a
-//!    STEP file: the writer's outward/void shell classifier has
-//!    closed forms for planar faces only, so a multi-shell CURVED
-//!    solid refuses `CurvedShellClassification` — the KNOWN standing
-//!    gate of OFFSET-DESIGN O6's demo-gates list, recorded here and
-//!    never worked around.
+//!    STEP file: the writer reads the cavity as the void it is and
+//!    refuses it, `VoidShellUnsupported`, because it does not write
+//!    `BREP_WITH_VOIDS` yet
+//!    (`work/export/step-export-refuses-every-hollow-body.md`) —
+//!    recorded here and never worked around.
 //! 8. **Edge selection by adjacent surface kinds works at BOTH
 //!    seats.** `select_where` + `GeomPred::AdjacentKinds` says "the
 //!    cone×cylinder corners" over an `Evaluation` (the die scene says
@@ -230,7 +235,10 @@
 //!     arc's own half-turn point, two quarter arcs in: wall 9). The
 //!     spine is planar, so the scene states each station's
 //!     normal-plane frame and lofts ([`lofted_loop`] carries the gap
-//!     comment).
+//!     comment). That loft is a workaround for the sweep's defect,
+//!     not a construction choice: when `sweep_body` carries a half
+//!     turn, the scene sweeps the loop along [`exact_spine`] and the
+//!     loft goes.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -598,6 +606,10 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, tol: Tol) -> Vec<ConstructedLoop<S>
 /// the interpolant as on the exact spine ([`swept_loop`], wall 9). A
 /// planar path's own normal-plane frame has no such station, and no
 /// door hands it out, so the scene states it and lofts.
+///
+/// WORKAROUND, to be deleted: the loop is a sweep, and this function
+/// is replaced by [`swept_loop`] on [`exact_spine`] once wall 9 stops
+/// refusing.
 fn lofted_loop<S: Scalar>(
     spine: &NurbsCurve3<f64>,
     section: &[ConstructedLoop<f64>],
@@ -689,14 +701,15 @@ fn bottle<S: Scalar>(tol: Tol) -> Bottle<S> {
     }
 }
 
-/// Wall 3's pinned refusal: the loop's NURBS edges at the union's
-/// operand gate. Shared with `verbs_gate_r1_probes`, so the two
-/// cannot drift.
+/// Wall 3's pinned refusal: a NURBS wall of the loop, met by the
+/// bulb's neck at the mate, at the sweep's curved arm. Shared with
+/// `verbs_gate_r1_probes`, so the two cannot drift.
 fn wall3_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
-        BooleanError::CurvedEdgeUnsupported {
+        BooleanError::CurvedBooleanUnsupported {
             operand: Operand::B,
+            kind: SurfaceKind::Nurbs,
             ..
         }
     )
@@ -706,8 +719,8 @@ fn wall3_pinned(e: &BooleanError) -> bool {
 /// against a planar face of the bulb, at the ∖/∩ revert roster. Both
 /// kinds and the op are pinned, so a pair that changed kind reds. A
 /// NURBS face has no seam lane under ∖ and ∩, and the roster has no
-/// covered rung whatever the pair; it answers before the edge gate
-/// that stops wall 3.
+/// covered rung whatever the pair; it answers before the sweep that
+/// stops wall 3.
 fn wall4_pinned(e: &BooleanError) -> bool {
     matches!(
         e,
@@ -984,8 +997,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  full revolve of ONE meridian band; the loop over the top is ONE loft \
                  of the annulus through normal planes of its whole U-turn spine. The two MEET on annular \
                  faces, each cap tilted off the bulb's rim by its spine's end tangent, \
-                 and they cannot be joined: union refuses the loop's NURBS edges at the \
-                 operand gate, and subtract refuses the loop's NURBS walls against a \
+                 and they cannot be joined: union refuses a NURBS wall of the loop where \
+                 it meets the bulb's neck at the mate, and subtract refuses the loop's NURBS walls against a \
                  planar face at the revert roster. The neck passes through the flare \
                  uncut for that second reason";
     vec![Stop {
@@ -1168,12 +1181,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     );
 
     // Wall 3: the bottle is ONE surface. Its two bodies meet on
-    // annular faces — the REST mate — and the union refuses before
-    // any pair is looked at: the loop is a loft, its longitudinal
-    // edges are NURBS carriers, and the operand gate admits a rung-3
-    // edge in no INPUT operand (rung-3 is what the curved zip mints,
-    // not what it consumes) —
-    // `work/cleave/boolean-operands-with-nurbs-or-spiric-edges-have-no-schedule`.
+    // annular faces — the REST mate — and the union refuses there: the
+    // sweep reads the bulb's outer neck seam line, ending on the mate's
+    // rim, against a NURBS wall of the loop rising from it, and no
+    // crossing layer reads a spline face.
     crate::walls::wall(
         "bottle",
         3,
@@ -1206,9 +1217,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // void-insertion door (the degenerate no-crossing arm), so the
     // probe asserts the two-shell tier-valid build it used to pin as
     // a refusal. The wall that REMAINS for this shape is its STEP
-    // export: the writer's outward/void shell classifier has closed
-    // forms for planar faces only, so a multi-shell CURVED solid
-    // refuses typed — OFFSET-DESIGN O6's known standing demo gate,
+    // export: the writer refuses its cavity as a void (no
+    // BREP_WITH_VOIDS) — OFFSET-DESIGN O6's standing demo gate,
     // recorded here and never worked around.
     let ring_plane = meridian_plane::<S>();
     let ring =
@@ -1260,7 +1270,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         6,
         "export the hollow ring as STEP (a multi-shell curved solid)",
         pncad::step_export::step_string(
-            &hollow64.body,
+            &pncad::topo::AtRestBody::validate(hollow64.body, tol)
+                .expect("the hollow ring is at rest"),
             &pncad::step_export::StepOptions {
                 product_name: "hollow_ring".into(),
                 ..Default::default()
@@ -1270,10 +1281,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                pncad::step_export::StepExportError::VoidShellUnsupported { .. }
             )
         },
-        "record that the writer's outward/void classifier grew a curved arm, update \
+        "record that the writer writes BREP_WITH_VOIDS, update \
          findings entry 7 (the O6 demo-gates list row), and retire the `ring`, \
          `tubewall::hollowtorus` and `torusvessel` scenes' `step_at_frontier` \
          declarations, which pin this same refusal on the rendered hollow ring, on the \
@@ -1345,7 +1356,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // 11): the over arc's half-turn point, two quarter arcs in, which
     // the uniform stations hit exactly at `STATIONS / 2`. The scene's
     // own interpolant refuses the same way, which is why the scene
-    // lofts ([`lofted_loop`]).
+    // lofts ([`lofted_loop`]). The loft is a WORKAROUND for this
+    // refusal, not the intended construction: when this wall retires,
+    // the scene's loop becomes `swept_loop` on `exact_spine`
+    // (`work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`).
     crate::walls::wall(
         "bottle",
         9,
@@ -1383,8 +1397,8 @@ mod verbs_gate_r1_probes {
     //! It is a SUBTRACT, and the revert roster it refuses at, on the
     //! loop's NURBS wall, has no covered rung at all: a decided
     //! coincidence supplies the verdict a germ arm would have, and it
-    //! cannot supply a seam lane to revert through. (Wall 3 refuses
-    //! earlier still, on the loop's NURBS edges.)
+    //! cannot supply a seam lane to revert through. (Wall 3, a union,
+    //! passes that roster and refuses in the sweep.)
 
     use super::*;
 
@@ -1402,7 +1416,7 @@ mod verbs_gate_r1_probes {
         println!("klein wall 3: {joined:?}");
         assert!(
             wall3_pinned(&joined),
-            "wall 3 must refuse the loop's NURBS edges at the operand gate: {joined:?}"
+            "wall 3 must refuse a NURBS wall of the loop at the sweep: {joined:?}"
         );
 
         let trimmed = pncad::topo::subtract(&bulb_body, &top, tol)

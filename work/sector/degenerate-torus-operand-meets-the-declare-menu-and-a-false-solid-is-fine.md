@@ -56,3 +56,17 @@ rather than `require_ring_torus`), and end it where it surfaces as
 `BooleanDecision::Torus` (in band), the pierce's own two arms. The
 `contain-escalation-carries-no-decision.md` row names the same gate
 from the escalation side.
+
+## Re-read (2026-10-26, tracker sweep)
+
+Half of the title is gone. `CurvedPierceUnsupported`'s recourse is now
+`geom_core::COINCIDENCE_RECOURSE`, "move the geometry"
+(`crates/topo/src/boolean/mod.rs:4335-4343`), so no declare menu is
+offered. The other half stands: `PartialTorusFace` still says "The
+solid itself is fine" (`crates/topo/src/boolean/solid_contain.rs:609-615`).
+The route has moved. The containment trim is `torus_region.rs`, whose
+ring gate is `geom::require_ring_torus` at `torus_region.rs:318`, and
+`point_on_torus_in_face` and `torus_face_windows` are gone. The repair
+shape is unchanged: carry the convention's verdict out, and end it as
+`DegenerateTorus` or `BooleanDecision::Torus`. Re-measure on main first.
+

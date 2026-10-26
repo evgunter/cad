@@ -3686,10 +3686,10 @@ struct Cell<T: Real> {
 /// The crossings themselves are the meeting reading's
 /// ([`edge_crossings`]).
 const EF_CROSS_CONIC: crate::splitting::containment::ConicRows =
-    crate::splitting::containment::ConicRows {
-        span: "pm_census_ef_cross_arc_span",
-        straddle: "pm_census_ef_cross_arc_straddle",
-    };
+    crate::splitting::containment::ConicRows::bounded(
+        "pm_census_ef_cross_arc_span",
+        "pm_census_ef_cross_arc_straddle",
+    );
 
 /// The cells of edge `e` lying in face `f`'s interior: the edge cut at
 /// every face vertex on its interior ([`on_edge_interior_reading`]) and
@@ -3957,11 +3957,11 @@ fn meetings<T: Decide>(
             CarrierSpan::new(&chord, (T::zero(), (b - a).norm())),
             CutAt::Crossing(side.key),
         ),
-        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }, Some(curve)) => (
+        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Spline(_), Some(curve)) => (
             CarrierSpan::new(curve.carrier(), curve.params()),
             CutAt::CurvedCrossing(side.key),
         ),
-        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }, None) => {
+        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Spline(_), None) => {
             return Err(CrossRefusal::Unsupported(ContainError::LoopUnreadable(
                 side.r#loop,
             )));
@@ -5869,20 +5869,30 @@ pub(crate) fn torus_chart_window<T: Decide>(
     )
 }
 
-/// One boundary edge's carrier as an axial span reads it
-/// ([`crate::boolean::boxes::axial_carrier`], at this lane's scalar).
+/// One boundary edge's carrier as an axial span about `(origin, axis)`
+/// reads it ([`crate::boolean::boxes::axial_carrier`]): the conic arm
+/// is `geom`'s directional door at this lane's own scalar.
 fn axial_carrier<T: Decide>(
     body: &Body<T>,
     ek: EdgeKey,
     e: &crate::entity::Edge,
+    origin: Point3<T>,
+    axis: Vec3<T>,
 ) -> crate::boolean::boxes::AxialCarrier<T> {
-    use crate::boolean::boxes::{SpanBox, edge_box_rule};
+    use crate::boolean::boxes::{ConicArc, Span, edge_box_rule};
     crate::boolean::boxes::axial_carrier(
         edge_box_rule(body.edge_curve_linked(ek, e).certified()),
-        SpanBox::point,
-        SpanBox::vector,
-        |x| x,
-        |span| span,
+        |arc: &ConicArc<'_, T>| {
+            let (t0, t1) = arc.params;
+            let (lo, hi) =
+                geom::curves::boxes::conic_arc_extent_along(arc.carrier, t0, t1, origin, axis)
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                            "census axial span: the conic rule carries a Circle or Ellipse carrier"
+                        )
+                    });
+            Span { lo, hi }
+        },
     )
 }
 
@@ -5912,7 +5922,7 @@ fn boundary_axial<T: Decide>(
             }
             BoundaryMember::Edge { ek, edge: e, .. } => {
                 let end = |h, field| SpanBox::point(edge_end_point(body, ek, h, field));
-                let axial = axial_carrier(body, ek, e);
+                let axial = axial_carrier(body, ek, e, origin, axis);
                 if let AxialCarrier::Unclaimable = axial {
                     return None;
                 }
@@ -5978,35 +5988,42 @@ pub(crate) fn edge_reach_in<T: Decide>(
 
 /// [`edge_reach_in`] past its edge's lookup: `e` is `ek`'s record.
 ///
-/// No public door builds a spiric-bearing operand that reaches the
-/// contact census at this head (the boolean's operand gate refuses the
-/// kind; a hollowed partial revolve stops at tier 3's check 7 before
-/// the census), so the spiric arm is exercised by the box module's
-/// hand-built sector rows.
+/// The spiric arm is exercised by the box module's hand-built sector
+/// rows.
 fn edge_reach_of<T: Decide>(
     body: &Body<T>,
     ek: crate::entity::EdgeKey,
     e: &crate::entity::Edge,
     frame: &crate::boolean::boxes::BoxFrame<T>,
 ) -> Option<(Point3<T>, Point3<T>)> {
-    use crate::boolean::boxes::{ConicArc, Span, SpanBox, arc_extent, edge_end_point};
+    use crate::boolean::boxes::{ConicArc, Span, SpanBox, edge_end_point};
     let end = |he, field| SpanBox::point(frame.point(edge_end_point(body, ek, he, field)));
-    // The ARC's own extent, by `arc_extent`'s subdivision plus sagitta
-    // charge — not the exact arc box `edge_box` reads, because that one
-    // asks whether an extremal angle lies in the span and this scalar
-    // carries no ordering to answer. One rule, two arithmetics, the
-    // census box wider by at most the charge: `EdgeBoxRule`'s conic
-    // bullet states it, `the_two_box_lanes_agree_face_for_face` pins it.
+    // The ARC's own extent along each of the frame's rows, from `geom`'s
+    // directional door at this lane's scalar: the closed form
+    // `edge_box` reads, comparison-free, so no ordering is asked of `T`.
     let conic = |arc: &ConicArc<'_, T>| {
-        arc_extent(
-            &SpanBox::point(frame.point(arc.center)),
-            &SpanBox::vector(frame.vector(arc.u_ref)),
-            &SpanBox::vector(frame.vector(arc.axis.cross(arc.u_ref))),
-            Span::exact(arc.semi_u),
-            Span::exact(arc.semi_v),
-            arc.params.0,
-            arc.params.1,
-        )
+        let (t0, t1) = arc.params;
+        let along = |n: Vec3<T>| {
+            let (lo, hi) = geom::curves::boxes::conic_arc_extent_along(
+                arc.carrier,
+                t0,
+                t1,
+                Point3::origin(),
+                n,
+            )
+            .unwrap_or_else(|| {
+                unreachable!(
+                    "census edge reach: the conic rule carries a Circle or Ellipse carrier"
+                )
+            });
+            Span { lo, hi }
+        };
+        let [x, y, z] = frame.rows();
+        SpanBox {
+            x: along(x),
+            y: along(y),
+            z: along(z),
+        }
     };
     crate::boolean::boxes::edge_rule_box(
         crate::boolean::boxes::edge_box_rule(body.edge_curve_linked(ek, e).certified()),
@@ -6466,6 +6483,7 @@ const TOUCH_PIECE_MEET: &str = "census_touch_piece_meet";
 const TOUCH_NORMAL: &str = "census_touch_normal";
 
 mod curved;
+pub(crate) use curved::{EdgeSpan, edge_span};
 mod depth_gap;
 #[cfg(test)]
 mod depth_gap_fuzz;
@@ -8389,8 +8407,8 @@ fn backstop_apart<T: Decide>(
 /// arm yet, and both fire a typed [`ValidationError::CensusUndecidable`]
 /// here instead of passing silently:
 ///
-/// 1. **Proximity** (the C9-ring conformal-rest / partial-embedding
-///    class): a pair of faces from DIFFERENT solids, not
+/// 1. **Proximity** (the conformal-rest / partial-embedding class the
+///    C9 exclusion ring would certify): a pair of faces from DIFFERENT solids, not
 ///    vertex-adjacent, whose reach boxes cannot be definitely
 ///    separated, and which the exact sweeps cannot see — every pair
 ///    with a curved side (F5: curved × planar included, since a
