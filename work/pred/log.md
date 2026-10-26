@@ -186,3 +186,9 @@ Signed (FIX orchestrator).
 - 2026-10-26 — (PRED orchestrator) The user, clarifying: "(that can be a debug assert kind of thing, though)". The allowance-size flag is a `debug_assert!` stating the invariant; no typed refusal is needed. Forwarded.
 - 2026-10-26 — (PRED orchestrator) The user, correcting the relay: "it doesn't *have* to be it just can be if it makes sense". A debug_assert is permitted, not required. The lane chooses the flag mechanism and argues it.
 - 2026-10-26 — (PRED orchestrator) PR 5717 merged: `[mesh.sizing]` is built, and `mesh-sizes-each-lane-by-its-worst-admissible-triangle` is closed.
+- 2026-10-26 — (PRED orchestrator) **Track handed back, `blocked`.** No dispatchable P0 or P1 row remains. The two parked P1 rows wait on PR 5500 (PCERT) and on the D10 hold. The sitting's six P3 filings moved to PREDTAIL. The sitting's frame was the user's: "focus on things that are high priority but won't be made irrelevant by INTENT". Every unit landed was kernel-numeric ground outside the D10 hold, and the one row on held ground (`contact_verify`) was parked rather than built. Merged this sitting:
+  - 5679, 5681, 5680 (Ev ruled S116p);
+  - 5684, 5685, 5686, 5707;
+  - 5708 (Ev ruled S29), 5710, 5717, 5721, 5724.
+
+  Design forks put to Ev: rows 194 and 195. Dual-review row: PR-5686. The PREDTAIL board now holds the P3 tail and D46's remainder.
