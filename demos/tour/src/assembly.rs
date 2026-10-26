@@ -95,13 +95,13 @@ use std::sync::Arc;
 use pncad::document::coincidence::Relation;
 use pncad::document::pose::{PoseDef, PoseRole, RoleRead};
 use pncad::document::{
-    Assembly, BodyRead, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord, Dimension,
-    DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue, FreeVar,
-    InlineError, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE, Operand,
-    PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram, RecipeNodeId,
-    SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply, assemble,
-    content_pin, evaluate, inline, load, mixed_pins, parse_formula, product_named, run_checks,
-    save, solve_document, split, stand,
+    Assembly, BodyRead, CancelToken, CheckEvidence, CheckId, ChecksConfig, Constraint, Coord,
+    Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
+    FreeVar, InlineError, LoopProgram, Mate, MateFault, MateRef, Node, OVERCONSTRAINED_RECOURSE,
+    Operand, PartResolver, PartSelect, PatternKind, Placed, ProfileDoc, ProfileProgram,
+    RecipeNodeId, SitedFace, TargetAxis, UNPINNED_RECOURSE, ValuePayload, VarId, VarName, apply,
+    assemble, content_pin, evaluate, inline, load, mixed_pins, parse_formula, product_named,
+    run_checks, save, solve_document, split, stand,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;

@@ -485,9 +485,9 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         | E::StrandedPartName { name, .. }
         | E::StrandedPartRead { name, .. }
         | E::NameOnDroppedStep { name, .. } => {
-            (none(), none(), named(name), none(), none(), none(), none())
+            (none(), named(name), none(), none(), none(), none())
         }
-        E::Edit { .. } => (none(), none(), none(), none(), none(), none(), none()),
+        E::Edit { .. } => (none(), none(), none(), none(), none(), none()),
     };
     typed_err(
         py,

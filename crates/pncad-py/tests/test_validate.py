@@ -401,11 +401,6 @@ class TestTheRefusalsShape(unittest.TestCase):
             with self.subTest(variant=finding.variant):
                 self.assertIn(finding.variant.replace("_", " "), message)
             if finding.contact_kind is not None:
-                # A conformal patch is said as what it is: two faces
-                # lying against each other.
-                phrase = {"conformal_patch": "lying against each other"}.get(
-                    finding.contact_kind, finding.contact_kind.split("_")[0]
-                )
                 with self.subTest(contact=finding.contact_kind):
                     self.assertIn(CONTACT_PHRASE[finding.contact_kind], message)
 
