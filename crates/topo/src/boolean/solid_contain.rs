@@ -366,17 +366,14 @@ pub enum PointInSolidError {
         face: FaceKey,
     },
     /// A ray's hit on a `Plane` face could land inside it, and the face
-    /// is bounded by an edge on a carrier the in-face walk has no
-    /// crossing row for — a spiric (a plane's section of a torus) or a
-    /// spline.
+    /// is bounded by a spiric (a plane's section of a torus) or spline
+    /// edge the in-face walk could not read at the hit.
     ///
     /// The walk crosses every boundary edge on its own carrier: a line
     /// where its end vertices straddle the ray, a circle or an ellipse
-    /// at the roots of its quadratic inside the arc's window. For these
-    /// two carriers the only curve on offer is the chord, a different
-    /// curve, so the loop is answered only where no crossing could
-    /// matter — a hit definitely outside a ball holding the whole loop
-    /// is a miss — and refused inside that ball.
+    /// at the roots of its quadratic inside the arc's window, a spiric or
+    /// a spline piece by piece. This is where a spiric's or spline's
+    /// pieces ran out of depth or budget before placing the hit.
     ///
     /// Its own arm rather than [`Self::Loop`], because this door names
     /// the FACE a probe met, as its curved-face siblings do, and the
@@ -386,7 +383,7 @@ pub enum PointInSolidError {
         /// The face whose outline the walk cannot read: a planar face's
         /// loop walk, or a torus face's boundary reading of an oval arc.
         face: FaceKey,
-        /// The loop, and the edge no ray got past.
+        /// The loop, and the edge whose reading ran out.
         cause: crate::splitting::Uncrossable,
     },
     /// A ray's hit on a `Cylinder` wall face could land inside it, and

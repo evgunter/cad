@@ -56,6 +56,11 @@ The pairing half is the same symptom
 `stackup-pairing-reads-the-shells-dual-refusal-as-a-violation` files
 for the shell door. The question here is the attach gate's own.
 
+Since OFFSET's build-identity binding (2026-10-25) the report compares
+no result arms: such a node leaves the measured value under it with no
+value in the pass, and that entry reads `MeasureRefused`; the run no
+longer fails whole.
+
 ## Measured witness
 
 Under the fork's probe (loft door switched to `OnPair`), four sweep

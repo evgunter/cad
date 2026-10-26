@@ -1,5 +1,5 @@
 //! **M10-4 review probes (R2)** — an INDEPENDENT derivation of what the
-//! E4 seed door, the n-pass driver, the pairing hook and the E5
+//! E4 seed door, the n-pass driver, the build-of-record binding and the E5
 //! stackup claim, written from `docs/M10-4-SPEC.md` and
 //! `docs/ERROR-DESIGN.md` E4/E5/E9 rather than from the unit's own rows.
 //!
@@ -43,8 +43,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, ParamBoxVerdict, drive};
 use editor_core::stackup::{
-    Chamber, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal, Unavailable, sensitivities,
-    stackup,
+    BindingViolation, Chamber, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal,
+    Unavailable, sensitivities, stackup,
 };
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
@@ -679,15 +679,16 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
 
 // ----------------------------------------------- claim 3: the pairing
 
-/// **The pairing hook against handed builds of OTHER shapes.** A handed
-/// evaluation at another ε refuses typed (no sensitivity); a
-/// parallel-schedule build pairs; a document that differs only
-/// by an ANNOTATION (a distribution on `w`, same value) pairs — the
-/// build is bit-identical, so the sensitivity is honestly of it.
+/// **The binding against handed builds of OTHER shapes.** A
+/// parallel-schedule build binds — the schedule is not an input; a
+/// document that differs only by an ANNOTATION (a distribution on `w`,
+/// same value) does not — it is another revision of the document, and
+/// its entry set is another (`w` is toleranced there).
 #[test]
-fn the_pairing_hook_pairs_only_the_build_of_record() {
+fn the_binding_binds_only_the_build_of_record() {
     let s = slab(None, None);
-    let handed = eval(&s.doc);
+    let pinned = |o: EvalOptions| run::<f64>(&s.doc, None, &EvalOptions { pin: true, ..o });
+    let handed = pinned(EvalOptions::default());
     assert!(
         sensitivities(
             &s.doc,
@@ -701,17 +702,10 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
         .is_ok()
     );
 
-    // (A build at another ε cannot be handed: `Tol` is the process's
-    // one witness — D9's "one process, one ε" — so that attack has no
-    // spelling here.)
-    let parallel = run::<f64>(
-        &s.doc,
-        None,
-        &EvalOptions {
-            parallel: true,
-            ..EvalOptions::default()
-        },
-    );
+    let parallel = pinned(EvalOptions {
+        parallel: true,
+        ..EvalOptions::default()
+    });
     assert!(
         sensitivities(
             &s.doc,
@@ -746,14 +740,15 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
         None,
         Tol::witness(),
     );
-    assert!(
-        r.is_ok(),
-        "an annotation-only edit is the same build: {r:?}"
+    assert_eq!(
+        r.err(),
+        Some(SensitivityRefusal::Binding(BindingViolation::Revision)),
+        "an annotation edit is another revision"
     );
 }
 
 /// **RED AT `fc8de0ac` — a STALE CHAMBER VERDICT certifies an edited
-/// document's sensitivity.** The pairing hook guards the handed f64
+/// document's sensitivity.** The binding guards the handed f64
 /// build; nothing guards the handed verdict. Drive the slab at
 /// `w = 2.0`, edit `w` to `2.5` (a value edit, no node-set change),
 /// and hand the old verdict to the driver: `ForeignVerdict` checks
@@ -1278,12 +1273,13 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
 // ------------------------------------------------------------- e2e
 
 /// **Where deviation 2 would bite.** The passes elaborate profiles at
-/// `Dual64` while the anchor is the `f64` build path, whose lane is the
-/// first pass; the pairing compares them arm for arm. A document where
-/// the dual replay refuses a node the build path built would therefore
-/// refuse the WHOLE entry set as `PairingViolation::ResultArm` — a lift
-/// limitation reported as a pairing violation. Over the corpus the two
-/// agree on every node (EVIDENCE-ONLY unless it goes red).
+/// `Dual64` while the build of record is the `f64` build path, whose
+/// lane is the first pass. A document where the dual replay refuses a
+/// node the build path built leaves every measured value under that
+/// node without a value in the pass — an `Unliftable` entry for a
+/// guided-replay refusal, a `MeasureRefused` one otherwise. Over the
+/// corpus the two agree on every node (EVIDENCE-ONLY unless it goes
+/// red).
 #[test]
 fn the_guided_dual_pass_evaluates_the_build_paths_nodes_over_the_corpus() {
     for cd in corpus::documents() {

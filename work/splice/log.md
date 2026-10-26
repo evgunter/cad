@@ -133,3 +133,22 @@ is the face × face section. Filed
 design open). The plan's "lily wall 8 needs no curved section" still
 holds, but lily also needs this row. Designers weigh it once 5723 is
 in review.
+
+## 2026-10-26 — PR 5719 (carrier walk) merges
+
+The fix pass (77e42f67, 732ff87f) answered the review:
+- each piece's net now goes through `piece_controls` over
+  `restrict_window`, and `SpanNet` is gone;
+- roots are cut only at knots strictly inside the window;
+- the contact on-point is mid-piece (refusals at 0.9·z dropped from
+  1135 to 30 of 3000);
+- the review's fuzz is adopted as `spline_arc::fuzz::random_splines_at_*`.
+  Its first CI run found an oracle miscount, not a row one: an
+  8000-step polyline missed a narrow rational excursion. The oracle now
+  bisects to 2e-4 chords, and 11,981 + 2,395 rays came back with 0
+  wrong.
+
+Orchestrator's read of the delta (no second review: the delta changes
+certified decisions only within the items asked). One comment-only
+drive-by: a history line in the fuzz header removed. Merged on green
+`gate ok`.

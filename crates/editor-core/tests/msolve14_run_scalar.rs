@@ -2248,23 +2248,61 @@ fn a5_sensitivities_cross_a_seated_mate() {
         ),
         other => panic!("a derivative across the seat, not {other:?}"),
     }
-    // A record build over no resolver is not this build: its instances
-    // refuse where the anchor's resolve, and the pairing gate says so.
-    let unresolved = run_at::<f64>(&doc, &EvalOptions::default(), None);
-    assert!(
-        matches!(
-            sensitivities(
+    // A record build over no resolver is not this build: it resolved no
+    // part where the passes resolved the bolt's, and the binding says so.
+    // Over the store it binds.
+    let record = |opts: EvalOptions| {
+        sensitivities(
+            &doc,
+            crate::fixture::output(&doc, m),
+            Some(&run_at::<f64>(
                 &doc,
-                crate::fixture::output(&doc, m),
-                Some(&unresolved),
+                &EvalOptions { pin: true, ..opts },
                 None,
-                false,
-                Some(&resolver),
-                Tol::witness()
-            ),
-            Err(SensitivityRefusal::Pairing(_))
-        ),
-        "a record build over another resolver fails the pairing gate"
+            )),
+            None,
+            false,
+            Some(&resolver),
+            Tol::witness(),
+        )
+    };
+    assert!(record(b.opts.clone()).is_ok(), "the store's build binds");
+    assert_eq!(
+        record(EvalOptions::default()).err(),
+        Some(SensitivityRefusal::Binding(
+            editor_core::stackup::BindingViolation::Parts
+        )),
+        "a record build over another resolver fails the binding"
+    );
+    // The other direction, which is what an edited part file looks
+    // like (A4: its bytes no longer hash to the reference's pin, so the
+    // pin resolves to nothing): the record resolved the bolt over the
+    // store, and the passes run over a store that no longer holds it.
+    let gone = with_resolver(PartStore::new())
+        .resolver
+        .expect("a resolver over the emptied store");
+    assert_eq!(
+        sensitivities(
+            &doc,
+            crate::fixture::output(&doc, m),
+            Some(&run_at::<f64>(
+                &doc,
+                &EvalOptions {
+                    pin: true,
+                    ..b.opts.clone()
+                },
+                None,
+            )),
+            None,
+            false,
+            Some(&gone),
+            Tol::witness(),
+        )
+        .err(),
+        Some(SensitivityRefusal::Binding(
+            editor_core::stackup::BindingViolation::Parts
+        )),
+        "passes over a store whose part file changed fail the binding"
     );
 }
 
