@@ -132,9 +132,10 @@
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, Surface};
+use geom_core::period::{Bounded, Exact, Extent, Period, TurnRows, TurnUndecided};
 use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, ParamRange, SpanLocate, poison_from};
-use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, SupSpeed, Vec2, Vec3};
+use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
 use crate::harmonic::{harmonic_sup, harmonic_sup_scalar};
 use crate::offset::Nappe;
@@ -1079,6 +1080,32 @@ pub(crate) fn chart_at<T: Decide>(
             });
         }
     })
+}
+
+/// The period gate's row, and the straddle of a bounded channel's two
+/// readings.
+const PERIOD_ROWS: TurnRows<&str> =
+    TurnRows::bounded("pcurve_azimuth_period", "pcurve_azimuth_period_straddle");
+
+/// The period gate's row at an exact channel.
+const PERIOD_EXACT: TurnRows<()> = TurnRows::exact(PERIOD_ROWS.turn);
+
+/// Check 2's disposition of one channel's "not over": a sweep over a
+/// turn refuses as `exceeded`, an undecided one escalates under `check`.
+fn period_gate(
+    not_over: Result<bool, TurnUndecided>,
+    check: PcurveCheck,
+    exceeded: PcurveCertifyError,
+) -> Result<(), PcurveCertifyError> {
+    match not_over {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(exceeded),
+        Err(undecided) => Err(PcurveCertifyError::Escalated {
+            check,
+            sample: 0,
+            cause: undecided.diag,
+        }),
+    }
 }
 
 /// The projected image of `carrier` on `surface` (module docs), over the
@@ -2266,36 +2293,38 @@ pub(super) fn run_projected_checks<T: Decide>(
         // `interval_span_winding`, which counts a carrier's turns, and a
         // spline carrier's parameter is no angle, so it has no turns to
         // count (`work/pcert/projected-period-gate-stands-in-for-a-winding-bound-a-spline-carrier-has-none.md`).
+        //
+        // Each channel's sweep is asked "not over" by the turn rule
+        // ([`Period::not_over`]) at that channel's chart rate: exact where
+        // the chart's stretch in it is constant (a cylinder's azimuth, a
+        // torus's tube), bounded where it varies over the box (the
+        // sphere's, torus's and cone's azimuth: `azimuth_lever_inf` to
+        // the sup arm).
         let (u_arm, _) = super::chart_sup_arms_at(surface, &boxed)?;
         let swept = image.sweep_box(t0, t1);
-        let mut gates = vec![(
-            swept.u_max - swept.u_min,
-            u_arm,
+        let one_turn = Period::new(T::tau());
+        let azimuth = Extent::between(swept.u_min, swept.u_max);
+        let not_over = match *surface {
+            Surface::Cylinder { radius, .. } => {
+                one_turn.not_over(PERIOD_EXACT, azimuth, Exact::new(radius), band)
+            }
+            _ => {
+                let inf = super::azimuth_lever_inf(surface, boxed.v_min, boxed.v_max);
+                one_turn.not_over(PERIOD_ROWS, azimuth, Bounded::new(inf, u_arm), band)
+            }
+        };
+        period_gate(
+            not_over,
             PcurveCheck::AzimuthPeriod,
             PcurveCertifyError::AzimuthPeriodExceeded,
-        )];
+        )?;
         if let Surface::Torus { minor_radius, .. } = *surface {
-            gates.push((
-                swept.v_max - swept.v_min,
-                SupSpeed::new(minor_radius),
+            let tube = Extent::between(swept.v_min, swept.v_max);
+            period_gate(
+                one_turn.not_over(PERIOD_EXACT, tube, Exact::new(minor_radius), band),
                 PcurveCheck::TubePeriod,
                 PcurveCertifyError::TubePeriodExceeded,
-            ));
-        }
-        for (extent, arm, check, exceeded) in gates {
-            match decide(
-                "pcurve_azimuth_period",
-                Margin::metered_sup(T::tau() - extent, arm),
-                band,
-            )
-            .map_err(|cause| PcurveCertifyError::Escalated {
-                check,
-                sample: 0,
-                cause,
-            })? {
-                Sign::Positive | Sign::Zero => {}
-                Sign::Negative => return Err(exceeded),
-            }
+            )?;
         }
     }
 
@@ -2427,3 +2456,7 @@ mod tests {
         assert_eq!(z, [None, None], "z.0, z.1: the axial floor on each nappe");
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod turn_rows;

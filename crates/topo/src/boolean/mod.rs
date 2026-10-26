@@ -335,7 +335,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         // Every row of `geom_brep::curve_pair::pose`, by its prefix.
         p if p.starts_with("curve_pair_pose_") => "how two edges' carriers meet",
         "curve_pair_meet_same" | "curve_pair_meet_stretch" => "how two edges' carriers meet",
-        "bool_split_span_period" => BooleanDecision::ArcSpan.subject(),
         "bool_face_disc_carrier"
         | "bool_contact_arc_end_vertex"
         | "bool_curved_contain_carrier"
@@ -345,7 +344,6 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_iso_rim"
         | "bool_sphere_trim_antipode"
         | "bool_sphere_trim_latitude"
-        | "bool_sphere_trim_meridian_span"
         | "bool_sphere_trim_period"
         | "bool_sphere_trim_pole_end"
         | "bool_sphere_trim_pole_interior"
@@ -2716,7 +2714,7 @@ pub enum BooleanError {
     /// gate refuses every such edge first, as
     /// [`Self::CurvedEdgeUnsupported`]. It is the sweep's own refusal,
     /// pinned by `reduce::planar_lane_carrier_rows`, and the one a
-    /// narrowed gate exposes (`work/orbit/delete-the-boolean-operand-edge-gate.md`).
+    /// narrowed gate exposes (`work/splice/delete-the-boolean-operand-edge-gate.md`).
     CrossingCarrierUnsupported {
         /// The operand whose edge it is.
         operand: Operand,
@@ -3472,7 +3470,7 @@ pub enum BooleanError {
     /// (`Curve3::param_near`). A carrier with no period, or no
     /// parameter inverse there (a spline), cannot be run on, and the
     /// join refuses rather than leave the vertex standing
-    /// (`work/hone/joining-a-spline-carrier-is-unbuilt`).
+    /// (`work/splice/joining-a-spline-carrier-is-unbuilt`).
     JoinCarrierUnsupported {
         /// The edge the join keeps.
         edge: EdgeKey,
@@ -4835,7 +4833,7 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "the Boolean cannot yet join edge {edge:?} across a vertex on its {} carrier: \
                  the join runs the edge on along its carrier {}, which this carrier has no \
-                 reading for (work/hone/joining-a-spline-carrier-is-unbuilt)",
+                 reading for (work/splice/joining-a-spline-carrier-is-unbuilt)",
                 carrier.name(),
                 if *closed {
                     "over a whole period"

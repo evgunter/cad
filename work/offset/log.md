@@ -307,3 +307,7 @@ into the fork log once, and twice a chained command stopped at an empty
 commit and left edits unapplied. Merge with `--no-commit`, grep for
 markers, then commit as a separate step, and check `git log` after every
 chained push.
+
+## 2026-10-25 — band rule (band-rule triage)
+
+**Band rule (work/README.md, Priority):** conic unit 3, `a-classified-pairs-section-states-the-bounds-that-retire-the-tube`, re-banded P1→P0: `offset-lane-has-no-conic-carrier` (P0) is parked on it and closes when it lands, and it is the unit that lets the arc rest. Its blocker, SELECT's `edge-extent-reads-a-steep-nurbs-arcs-chord-four-to-ten-times-short`, goes to P0 with it. The plan's conic-build table still reads P1 for unit 3. (band-rule triage)

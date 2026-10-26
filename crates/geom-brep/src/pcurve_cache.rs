@@ -4331,6 +4331,38 @@ fn azimuth_lever<T: Real>(surface: &Surface<T>, v_sup: T) -> T {
     }
 }
 
+/// The inf of [`azimuth_lever`] over a chart window whose second
+/// parameter spans `[v_lo, v_hi]`, the arm's under-statement per kind:
+/// cylinder `r` (exact); sphere `r·cos v` at the window's largest `|v|`
+/// (`v` is a latitude, so `cos` decreases in `|v|` up to the pole, where
+/// it reads zero); torus `R − r` (`R + r·cos v ≥ R − r` at every `v`);
+/// cone `v_inf·sin α` with `v_inf` the window's least `|v|`, zero where
+/// the window straddles the apex. Never negative: a spindle torus, or a
+/// window on the pole, reads zero.
+fn azimuth_lever_inf<T: Real>(surface: &Surface<T>, v_lo: T, v_hi: T) -> InfSpeed<T> {
+    let arm = match *surface {
+        Surface::Cylinder { radius, .. } => radius,
+        Surface::Sphere { radius, .. } => {
+            let half_turn = T::pi() * T::from_f64(0.5);
+            radius * v_lo.abs().max(v_hi.abs()).min(half_turn).cos()
+        }
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => major_radius - minor_radius,
+        Surface::Cone { half_angle, .. } => {
+            v_lo.max(T::zero() - v_hi).max(T::zero()) * half_angle.sin()
+        }
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => unreachable!(
+            "azimuth_lever_inf: a {} chart has no azimuth, and every caller asks on a \
+             periodic chart only",
+            surface.kind().name()
+        ),
+    };
+    InfSpeed::new(arm.max(T::zero()))
+}
+
 /// The rate that meters this carrier's parameter into metres — the
 /// lever arm the forward-span and period checks use (the
 /// [`crate::certify`] convention: radians × the conservative radius).

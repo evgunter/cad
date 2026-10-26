@@ -146,3 +146,21 @@ Signed (FIX orchestrator).
   **Class finding, logged:** a sub-chain of a loop re-collapsed separately from the loop's own collapse, which is two spellings of one loop's runs. Look for it wherever a stretch is re-collapsed.
 
   **Probable kernel defect, out of fence:** a near-collinear kink on a single-run shell passes validation and then refuses at the Euler attachment gate as "a kernel defect". The lane reproduces it on main and files it.
+- 2026-10-25 — (PRED orchestrator) **Ev ruled S29 on PR 5708**, with three amendments on the thread:
+  - The rule is "as big as possible without any extra work": each lane takes the coarsest step its own pinned worst-triangle theorem allows. There is no safety factor and no δ/2 bound.
+  - A = 16 is a heuristic, open to replacement by what it means.
+  - The `[tolerance.chordal]` sentence was dropped as redundant, and the README was rewritten plainly.
+
+  PR 5708 merged. Fork-log row 195 is complete (Opus A, Fable B). S29 is closed. Filed:
+  - the build, `mesh-sizes-each-lane-by-its-worst-admissible-triangle` (P1 H, PRED);
+  - `the-aspect-cap-stands-in-for-the-sliver-criterion` (P3, PREDTAIL).
+
+  The build waits for disk: 4.3 GB is free with two lanes building.
+- 2026-10-25 — (PRED orchestrator) Period-headroom unit 2 is PR 5710, frozen at `bf9bc61f73`, CI green. Every remaining site decides through `Period::turn`, and the certified readers read the stored turn. The 'junction-end pick precedent' was found unratified and filed on BAND. A full single review is running on that head.
+- 2026-10-25 — (PRED orchestrator) Dispatched `mesh-sizes-each-lane-by-its-worst-admissible-triangle` on `pred/mesh-sizing-rule` as a **full single review** unit. Lane order: measure first; the cone rim-chord row runs on main before the change. A mis-mesh there would be P0.
+- 2026-10-25 — (PRED orchestrator) PR 5710 full single review: APPROVE-WITH-FIXES, no MAJOR. The fix pass gives one home to each of the three dispositions, and one home to the admit-an-undecided-not-over policy, carrying the sup's sign; that reconciles ConicArc's slack with check 2's. It also separates the row names for seg.rs's two readings, adds the wrap_band forward delta and its row, and draws the interval CI lane (skipped on the frozen head). Class finding: one question asked through a wrapper per site, five times, with no shared home. The fix pass removes it.
+- 2026-10-25 — (PRED orchestrator) PR 5710 merged: period-headroom unit 2, after its review fix pass. `period-headroom-margin-has-no-shared-home` is closed. One fact now has one rule, one home per question, and one admission policy.
+- 2026-10-25 — (PRED orchestrator) PR 5707 merged: the two-axis-run full revolve is built and `full-revolve-builds-a-cavity-per-axis-gap` is closed. The near-collinear kink defect is filed on CARVE.
+- 2026-10-25 — (PRED orchestrator) PR 5710 merged; period-headroom is closed. D46 slice 1 is dispatched on `pred/d46-dimension-verdicts-1`: the 7 listed names off D10 ground, plus every unlisted name in `solid_contain.rs` and `intersect.rs`. Its tier is a **style review** at most: verdicts in a doc, with any wrong-dimension crossing red-first.
+- 2026-10-25 — (PRED orchestrator) Dispatched the two E follow-ups to the turn rule on `pred/turn-rule-follow-ups`, as end-of-sitting tail work this context makes cheap: `period-decide-callers-lever-a-parameter-gap` and `turn-rule-reads-short-at-the-global-speed-floor`. Tier: orchestrator's read, unless the inf twin moves verdicts beyond the listed short-side cases.
+- 2026-10-25 — (PRED orchestrator) PR 5721 (D46 slice 1) merged on the orchestrator's read: 73 verdicts, no wrong-dimension crossing. Unilaterally, D46's 188-name remainder is re-banded P1 → P3 as audit coverage and moved to PREDTAIL.

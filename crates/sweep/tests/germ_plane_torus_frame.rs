@@ -397,7 +397,7 @@ fn the_donuts_corner_bar_refuses_at_its_end_square() {
 /// arch's meridian circle on both sides. Past the join, the section
 /// certificate is asked about the stem's tube wall against the arch's,
 /// two tori whose axes are parallel and apart, a pose it has no arm for
-/// (`work/orbit/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).
+/// (`work/sect/the-lilys-stem-and-arch-walls-have-no-certificate-arm.md`).
 /// No declaration is read.
 #[test]
 fn the_lilys_stem_glue_passes_the_chord_to_the_interior_loop_guard() {
