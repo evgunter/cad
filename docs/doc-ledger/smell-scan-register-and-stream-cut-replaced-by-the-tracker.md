@@ -32,5 +32,5 @@ plan or log reappearing in `docs/`.
 
 `docs/PERF-PLAN.md` is the one readers have followed and failed to find; it
 is `work/perf/plan.md`. The open questions about its citations are
-`work/meta/perf-plan-citations-name-a-path-that-moved.md` and
+`work/unseen/perf-plan-citations-name-a-path-that-moved.md` and
 `work/meta/perf-plan-is-cited-by-twenty-nine-files-and-absent-from-tree-and-ledger.md`.

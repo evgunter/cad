@@ -83,6 +83,6 @@ remedies are available and they are not equivalent:
   row is about prose arriving that no pattern was ever going to match.
 - `tess-lint-ungated-columns-fold-silently` is CSV columns neither
   census reads. This is prose in the document.
-- `work/meta/doc-citations-no-gate-checks-rot-silently` is citation
+- `work/unseen/doc-citations-no-gate-checks-rot-silently` is citation
   rot — a pointer that stops resolving. This is a figure that resolves
   to nothing because it was never a pointer.
