@@ -8,6 +8,7 @@ closed: 2026-10-26
 priority: P1
 cost: M
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, a-unions-flush-reading-cannot-follow-a-nurbs-carrier]
+branch: splice/spline-dihedral
 ---
 
 

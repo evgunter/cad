@@ -4,7 +4,7 @@ kind: issue
 title: Torus onto boolean_arm_exists - the stem glue's door sequence after the box and the residual arm (a gate-policy unit, CURVED's)
 status: closed
 opened: 2026-09-04
-refs: [torus-operand-boxes-span-whole-ring, circle-residual-harmonics-needs-torus-arm, torus-declared-rest-lane-banked, torus-coincident-pair-cannot-reach-the-covered-rung]
+refs: [torus-declared-rest-lane-banked, torus-coincident-pair-cannot-reach-the-covered-rung]
 priority: P0
 cost: D
 branch: germ/torus-doors

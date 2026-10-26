@@ -29,3 +29,17 @@ Two reference-relative cousins read an angle against a reference direction and b
 
 Decide each lane on the side of a cut line at a generic angle, as B1's `stable_azimuth` does, so the read's one jump is not on a landmark axis. Better still, read through one helper: `geom_brep::Azimuth::principal`, or a sibling for a window of the caller's own. Each site then has one expression on each side, and the revalue instrument stops seeing a landmark direction flip. Before choosing, check whether `φ ± δ` is decided downstream at the scale of a move. If it is, the topo site is the one to fix first.
 
+## Duplication triage (INTENT, 2026-10-26)
+
+Classified on Ev's ask, via the CLEAVE note on INTENT's log, against main `e92fb951` and DESIGN `[one-way.places]` / `[one-way.readings]`. The four classes:
+- **design signal:** DESIGN names no single home, so a design conversation is owed;
+- **mechanical:** DESIGN names the home; delete the off-home copy and repoint its users;
+- **D10 debris:** a D10 stage retires one copy;
+- **not duplication.**
+
+**Mechanical ×3, unsure ×3** (cluster D).
+- The canonical helper is `geom::Azimuth::principal` / `principal_in(Window)`, which now lives in geom, not geom-brep.
+- Repoint `split_conic_phase_frame`, `torus_angle` and `pose.rs` `angle`.
+- Unsure: editor-core `solve_atan2` (its own `Atan2Branch`, no Band), `angle_near` and `separation`. What decides them is whether `principal_in(Window)` fits a solver-lane or reference-relative read. A misfit would be the design signal.
+
+**Cluster D, carrier readings re-spelled outside their named home.** DESIGN names the home. Ev (2026-10-26): the first fix is making the canonical reading the path of least resistance (the API consumers need), with a gate only as a backstop. 

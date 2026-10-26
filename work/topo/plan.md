@@ -69,11 +69,13 @@ What this program does **not** take is written in `program.md`'s
 
 ## The slate
 
-Twenty-three live rows, all P2 to P4 (`python3 scripts/work.py status
---program topo` is the live view, and this file does not restate it).
-The opening slate (the three re-homed issues and code-quality Track P's
-fourteen rows) has closed or moved to the 2026-09-20 and 2026-10-11
-successors. What is left falls into four groups:
+Twelve live rows, P2 to P4, three of them with no `cost` (`python3 scripts/work.py
+status --program topo` is the live view, and this file does not restate
+it). The opening slate (the three re-homed issues and code-quality Track
+P's fourteen rows) has closed or moved to the 2026-09-20, 2026-10-11 and
+2026-10-26 successors; the last of those sent the describing-door family
+to RESTATE (`work/restate/plan.md`) and PIPE's two layering rows to
+CORES. What is left falls into three groups:
 
 - **P2, on the goal's ground.** `revert-re-pairs-the-sheets-on-a-line-where-coincident-edges-meet`
   (H: the re-pairing CLEAVE's PR 4795 ruling unblocked),
@@ -82,19 +84,14 @@ successors. What is left falls into four groups:
   `a-lone-site-placeholder-has-no-type-of-its-own` (a representation
   change; designers first, and Ev weakly prefers to hold that round until
   D10 settles).
-- **The describing-door family** (P3, mostly `design: true`): the
-  kills across keys and their absorption of the `_minting` twins
-  (`kef-and-kfmrh-across-keys-…`, ruled on PR 3970), the restater
-  (`restatement-derives-each-moved-edges-kind`), the minting doors that
-  ask nothing (`minting-doors-take-a-callers-description-unasked-…`),
-  and the half-minting moving doors.
-- **Endings and wording** (P3 E): `split-param-not-interior-…`,
+- **Endings and the lift** (P3): `split-param-not-interior-…`,
   `merge-door-bend-ending-…`, `merge-faces-undescribed-ending-…`,
-  `offset-derive-swallows-…`.
-- **Cost and hygiene** (P3/P4): `set-edge-curve-scans-…`,
+  `offset-derive-swallows-…` (E each but the bend ending), and
+  `euler-driver-lift-is-held-by-convention` (M).
+- **Cost and hygiene** (P4 and unpriced):
   `a-joined-finisher-mints-the-whole-body-twice`,
   `topo-internal-stored-curve-ladders-…`, and topo's lib-test compile
-  cost.
+  cost (`topos-unit-tests-recompile-…`).
 
 ## Order
 
@@ -102,10 +99,8 @@ By priority, with the cheap E rows taken as drive-bys:
 
 - The P2 rows first. `revert-re-pairs-…` is a unit of its own.
   `mfkrh-…` and `movefac-…` are a replay and a fix each.
-- The describing-door family next, as one designer-first thread: its
-  rows share one question (how an edge a door moves gets described).
-  The PR 4562 fork (F1/F2 on `kef-and-kfmrh-across-keys-…`) is open on
-  it.
+- The endings and the lift next; the E endings ride beside any unit.
+- Cost and hygiene last. Price the three rows with no `cost` at pickup.
 
 ## Review posture
 

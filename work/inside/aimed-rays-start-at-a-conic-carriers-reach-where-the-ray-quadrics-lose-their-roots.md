@@ -5,7 +5,6 @@ title: The side reader's aimed rays start at a conic carrier's reach, up to 4e5 
 status: open
 priority: P1
 cost: M
-refs: [curved-face-containment-answers-none-on-a-ringed-face]
 opened: 2026-10-24
 ---
 
