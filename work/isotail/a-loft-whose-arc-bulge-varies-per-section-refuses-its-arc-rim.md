@@ -13,7 +13,7 @@ cost: M
 
 The second shape of
 `a-rational-wall-beside-an-integral-one-skins-its-shared-corner-off-unit-weight`
-(`work/iso/`), split out because its mechanism is not that row's. A
+(`work/isotail/`), split out because its mechanism is not that row's. A
 square with one arc edge whose bulge differs per section (`tan(π/8)`,
 `tan 50°`, `tan 30°`), `loft_body::<f64>` at v-degree 2, z = `[0, 0.8,
 2]` or `[0, 1, 2]`, refuses at `topo::mint_pcurves` with

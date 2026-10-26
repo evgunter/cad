@@ -5,6 +5,7 @@ title: The region legs spell a circle and a line beside Curve3
 status: open
 priority: P2
 opened: 2026-10-25
+cost: M
 ---
 
 ## What

@@ -74,4 +74,4 @@ longer say that 1e-12 refuses. The bindings' copy of the same oracle
 is filed as
 `work/lib/the-python-teapot-spout-holds-the-frustum-not-the-skin-to-the-enclosure.md`,
 and the latent siblings as
-`work/iso/idealised-sweep-closed-forms-held-inside-certified-enclosures.md`.
+`work/isotail/idealised-sweep-closed-forms-held-inside-certified-enclosures.md`.

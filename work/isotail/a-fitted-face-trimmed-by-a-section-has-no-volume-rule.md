@@ -26,7 +26,7 @@ constant's own text says the composite trapezoid fallback "is not built
 The structural phase (every edge certificate) passes on the same body.
 
 The rule this face needs is the composite fallback
-`work/iso/trimmed-quadrature-composite-rounds.md` (P1) scopes; that item
+`work/isotail/trimmed-quadrature-composite-rounds.md` (P1) scopes; that item
 fenced it on "no fixture reaches it", which this fixture falsifies, and a
 dated note there says so. Building that unit closes this item.
 

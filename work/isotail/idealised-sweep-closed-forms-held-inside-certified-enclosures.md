@@ -26,7 +26,7 @@ assert is only right if the built body is exactly that sweep. If the
 sweep door fits or approximates the path or frame, the closed form is
 an approximation's value, and the assert goes red the day its
 enclosure narrows below the fit error. That happened to the spout:
-`work/iso/the-teapot-spouts-frustum-oracle-misses-its-measured-volume-at-1e-12.md`.
+`work/isotail/the-teapot-spouts-frustum-oracle-misses-its-measured-volume-at-1e-12.md`.
 
 **Projectbox is red on main at the default ε**, and not because of
 its oracle. Since PR 5629, the walk at the default ε panics in

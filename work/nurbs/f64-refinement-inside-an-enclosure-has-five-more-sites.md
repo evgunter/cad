@@ -2,10 +2,11 @@
 id: f64-refinement-inside-an-enclosure-has-five-more-sites
 kind: issue
 title: An f64 knot refinement (or an f64-rounded insertion ratio) inside an enclosure: five more sites of TESS-2's class
-status: open
+status: closed
 opened: 2026-09-22
 priority: P2
 cost: H
+closed: 2026-10-26
 ---
 
 
@@ -246,3 +247,9 @@ wants the same row once it refines in the ring.
 ## Rows that waited on site 5 are un-parked (band-rule triage, 2026-10-25)
 
 `work/encl/offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart` (P0), `work/encl/patch-bound-offset-fit-recentring-origins` (P1) and `work/ssiedge/plane-nurbs-certificate-bound-does-not-refine-with-eps` (P1) parked on this row, and each waited only on site 5, which PR 3524 closed. All three are open again. No row waits on what remains here, site 1 (`crates/mesh/src/chords.rs`), so this row keeps its P2.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed: the last open site is gone.** Sites 2–5 closed earlier (PR 3524 for site 5; PR 4553 for `rational_speed_lower_bound` and both `quad.rs` refinements, above). Site 1, `crates/mesh/src/chords.rs`'s `rational_carrier_m_bound`, no longer refines at all: it reads `n.map_scalar(Interval::point).accel_upper_bound()` (~312), the second-order quotient bound in certification arithmetic off the DESCRIBED carrier (`geom::NurbsCurve3::accel_upper_bound`, `crates/geom/src/curves/nurbs.rs` ~1240, which reads `spline::accel_pieces` on the stored knots, points and weights, dyadic halving only). `chords.rs` holds no `refine_knots`/`insert_knot`/`refine_plan` call any more, so its "twin near the file's end" is gone too; a grep of every refinement entry point under `crates/*/src` outside the spline layer finds only `#[cfg(test)]` rows (`offset_fit.rs` ~2886, `edge_nurbs.rs` ~2643, `ssi/certify.rs` ~2936–3157). The commit is not reachable in this shallow checkout; verified against the code as it stands.
+
+The "Also worth measuring, separately" one-pass (Oslo) refinement is its own row, `work/encl/one-pass-refinement-would-cut-the-rational-bounds-widening-tail.md`, which is parked on this one; so is `work/encl/a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12.md`. Both triggers fire with this closure and are ENCL's to re-park or open.
