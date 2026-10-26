@@ -304,7 +304,7 @@ pub struct BooleanNaming {
     pub reduction_contacts: ReductionContacts,
     /// Every face an operand lost to the result, with the kept faces it
     /// bordered (`boolean::discard`, which says how each path records
-    /// its rows), but the dropped coincident faces in [`Self::uncut`];
+    /// its rows), except the dropped coincident faces in [`Self::uncut`];
     /// and every face the material divided along an edge lying in it,
     /// which lost the line between its pieces (`boolean::slit`).
     pub discards: Vec<super::DiscardRow>,

@@ -2,13 +2,14 @@
 id: a-containment-fallback-substitutes-a-partly-held-dropped-face-whole
 kind: issue
 title: A containment fallback records a dropped face only part of which the kept face holds as substituted whole
-status: review
+status: closed
 opened: 2026-10-20
 priority: P2
 cost: M
 refs: [5368]
 branch: flush/fallback-partial-rows
 pr: 5706
+closed: 2026-10-26
 ---
 
 
@@ -116,3 +117,14 @@ filed as `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch`; that
 no reader reads `uncut` is filed on BORDERS as
 `no-reader-reads-a-fallbacks-uncut-faces`.
 
+## Resolution
+
+Closed by PR 5706 (2026-10-26). The containment fallback cuts each dropped coincident face through `fate::cut`, as the section path does, and records every face of a dropped shell through `discard::discard_row`, so the two operand orders agree on substituted rows and discards (the swap comparators now compare them).
+- A face whose cut meets one of the cut's placement limits (`fate::Limit`, a typed refusal) alone is restored and recorded in `BooleanNaming::uncut`, with neither a substituted nor a discard row. Every other refusal of the cut, `JoinDesync`, `Escalated` and an Euler operator's among them, refuses the boolean.
+- A ring the cut winds that reads in band refuses as its own decision, `BooleanDecision::RingWinding`, with a lever.
+
+One FULL review: NOT-MERGEABLE-AS-IS on the first head (the fallback swallowed every refusal of the cut into `uncut`, and one refusal uncut every partly held face). The fix pass fixed both, which the check pass confirmed by execution (injected refusals propagate; the holed plate and lid uncut only the plate's top). No body moved: batteries identical, corpus BODY lines identical at 3 ε but the two `boss/holedlow ∩` refusal words, suites full at 3 ε.
+
+Residue filed:
+- `a-fallback-cut-refuses-beside-a-ring-a-seam-or-a-pinch` (FLUSH), the limits themselves;
+- `no-reader-reads-a-fallbacks-uncut-faces` (BORDERS, P2, design).
