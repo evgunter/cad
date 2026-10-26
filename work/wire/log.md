@@ -7023,3 +7023,10 @@ Signed (WIRE orchestrator).
   - The lane filed a pair-boolean tied-corner row.
   - Because the grouping key changed without a witness, a focused re-review of the delta is dispatched (`wire-bridges-rerev`), targeted tests only.
 - 2026-10-25 (PRED orchestrator) Seam note: branch `pred/full-revolve-cavity-per-axis-gap` adds one paragraph to `crates/editor-core/src/names/README.md`'s "N1, the revolve poles". A full revolve meeting the axis in several runs now builds one cavity per gap. Its inner run ends are cavity poles, and its cavity walls, meridians and rims are named by the profile pieces that sweep them, through loop 0's maps, with no new role. `emit_sweep.rs` is unchanged except for one new test, `a_full_revolves_axis_cavities_are_named`.
+- 2026-10-26 (WIRE orchestrator) The orchestrator read PR 5530's fix pass.
+  - Closures are gone, and there are two why-texts (TIER1, LIVE_ARGUMENT); row 0 was answered no.
+  - chord_faces' dead guard was removed, since its only caller iterates body.faces().
+  - Vestigial Results are gone, and borders and plane_pieces use the shared helpers.
+  - The test-only point-removal door sits under sweep-testing beside its sibling.
+  - Merged at c8a25fe0b4. The helpers row now holds only its 4 D10 raises: parked on patterns-are-index-variables and moved to WIREHOLD. No code cites its path.
+  - The lane filed a cross-program row (issues/track-caller-fns-panic-inside-closures-in-topo-and-sweep, 61 sites).
