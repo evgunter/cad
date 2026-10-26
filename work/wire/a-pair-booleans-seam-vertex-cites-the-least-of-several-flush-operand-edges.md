@@ -4,7 +4,7 @@ kind: issue
 title: A pair boolean's seam vertex cites the least of several flush edges of one operand, which at a union operand is the member minted first
 status: open
 opened: 2026-10-20
-priority: P3
+priority: P2
 cost: E
 ---
 
@@ -81,3 +81,7 @@ operand stores it, so where those edges run opposite ways the sense
 (`Enters` or `Leaves`) reads which was minted first. The rank across
 seats this row mentions is gone (nothing is ranked). The fix is the
 union's rule at the pair: cite the set, read it `Through`.
+
+## Back to WIRE at P2 (WIRE orchestrator, 2026-10-26)
+
+PR 5758 built Ev's ruling on PR 5705, "an orientation is read, never chosen", at the union and at seams. The pair boolean still reads a line of several flush operand edges along the LEAST of them: `emit_topo::flush_lines` / `least_per_line`, and N2's "at a pair boolean as the least of them" (README ~391). That is the one place the approved rule is not yet built. Under it, the line's sense names each flush edge it enters along (`Through { entering }`), as the union's `Merged` line does now. PR 5758's review (finding 1) points here.
