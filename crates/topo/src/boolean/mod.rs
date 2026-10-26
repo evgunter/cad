@@ -257,7 +257,10 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
             "whether a face lies on the carrier of a face its pierce point's vertex bounds"
         }
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
-        "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
+        "bool_line_cylinder_clearance" | slit::RIDER_ON_CURVED => {
+            Coincide::EdgeOnCurvedFace.subject()
+        }
+        slit::RIDER_ON_PLANE => Coincide::EdgeOnPlane.subject(),
         "bool_sector_within"
         | "bool_flank_offset"
         | "bool_wedge_reflex"

@@ -196,11 +196,14 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
 /// lines lying on the carrier with both endpoints at residual 0 — while
 /// its x- and y-edges are honest secant chords. Each ruling's two faces
 /// are planes decided distinct from the wall, so it is a curve where two
-/// carriers meet, not a cosurface: every op builds undeclared at its
-/// closed form, valid at tiers 3 and 3′. The union is the pipe, the
-/// intersection the box, `b ∖ p` empty, and `p ∖ b` the pipe with a
-/// box-shaped void touching the wall along the four rulings, its eight
-/// corners recorded on the wall.
+/// carriers meet, not a cosurface: every other op builds undeclared at
+/// its closed form, valid at tiers 3 and 3′. The union is the pipe, the
+/// intersection the box and `b ∖ p` empty. `p ∖ b` is the pipe with a
+/// box-shaped void touching the wall along the four rulings, whose two
+/// faces each leave into the wall's material, so each ruling is two
+/// coincident edges, a ring of no area in the wall, which the measure
+/// of a curved face does not read: it refuses `EdgeInFace`
+/// (`CurvedRing`).
 #[test]
 fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
     let tol = Tol::witness();
@@ -212,16 +215,18 @@ fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
         tol,
     );
     let (pipe, boxed) = (PI * 4.0, 2.0 * x * 0.6 * 0.6);
+    match topo::subtract(&p, &b, tol) {
+        Err(BooleanError::EdgeInFace {
+            gap: topo::EdgeInFaceGap::CurvedRing,
+            ..
+        }) => {}
+        other => panic!("p ∖ b: want EdgeInFace (CurvedRing), got {other:?}"),
+    }
     let whole = Some((pipe, (4, 6, 4, 1), [0, 0]));
     let common = Some((boxed, (6, 12, 8, 1), [0, 0]));
     for (op, r, want) in [
         ("p ∪ b", topo::union(&p, &b, tol), whole),
         ("b ∪ p", topo::union(&b, &p, tol), whole),
-        (
-            "p ∖ b",
-            topo::subtract(&p, &b, tol),
-            Some((pipe - boxed, (10, 18, 12, 2), [0, 8])),
-        ),
         ("b ∖ p", topo::subtract(&b, &p, tol), None),
         ("p ∩ b", topo::intersect(&p, &b, tol), common),
         ("b ∩ p", topo::intersect(&b, &p, tol), common),

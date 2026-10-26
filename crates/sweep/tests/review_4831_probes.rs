@@ -369,7 +369,11 @@ fn p3_a_nested_touch_just_off_tangent() {
 }
 
 /// A witness on part of the locus: the cutter's face `x = 1` covers only
-/// z ∈ [0.5, 1] of the hole's ruling.
+/// z ∈ [0.5, 1] of the hole's ruling. `A ∖ B` leaves the ruling in that
+/// face over that piece with the hole's wall tangent to it on both
+/// sides, D1's doubled cusp, and refuses `EdgeInFace` (`Tangent`) as the
+/// whole ruling does (`wedge_end_doors::a_plane_tangent_to_a_hole_answers_every_op`);
+/// every other op answers.
 #[test]
 fn p4_a_plane_tangent_to_part_of_a_hole() {
     let pi = std::f64::consts::PI;
@@ -393,7 +397,17 @@ fn p4_a_plane_tangent_to_part_of_a_hole() {
         [Some(66.0 - pi), Some(30.0 - pi), Some(30.0), Some(6.0)],
         &grid(),
     );
-    all_answer("p4", &got);
+    assert!(
+        matches!(
+            topo::subtract(&a, &b, tol()),
+            Err(topo::BooleanError::EdgeInFace {
+                gap: topo::EdgeInFaceGap::Tangent,
+                ..
+            })
+        ),
+        "p4 A ∖ B: {got:#?}"
+    );
+    all_answer("p4", &[0, 2, 3].map(|k| got[k].clone()));
 }
 
 /// `wedge_end_doors::a_plane_tangent_to_a_hole_answers_every_op`, read
