@@ -501,9 +501,11 @@ impl ClosedStrut {
 /// # Errors
 ///
 /// [`BooleanError::CurvedFaceClosesAcrossSlit`] where the face is not a
-/// plane; [`BooleanError::JoinDesync`] where a strut so held has no free
-/// end, or both ends free and is its face's outline, which the zip never
-/// leaves; the Euler operators' refusals.
+/// plane; [`BooleanError::SlitFaceClosesMidSlit`] where a strut so held
+/// has no free end, the slit's edges running on past both its ends;
+/// [`BooleanError::JoinDesync`] where one with both ends free is its
+/// face's outline, which the zip never leaves; the Euler operators'
+/// refusals.
 pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     struts: &[EdgeKey],
@@ -524,12 +526,10 @@ pub(super) fn close_struts<T: Decide + crate::props::AtRestPolicy>(
             .iter()
             .find_map(|&(edge, face)| body.toward_free_end(edge).map(|t| (edge, face, t)));
         let Some((edge, face, toward_free)) = next else {
-            if open.is_empty() {
-                return Ok(closed);
-            }
-            return Err(BooleanError::JoinDesync {
-                what: "a strut the zip kept with one face on both sides has no free end",
-            });
+            return match open.first() {
+                None => Ok(closed),
+                Some(&(edge, face)) => Err(BooleanError::SlitFaceClosesMidSlit { face, edge }),
+            };
         };
         let plan = body
             .plan_strut_prune(face, toward_free)

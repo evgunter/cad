@@ -2,10 +2,11 @@
 id: review-d18-probes-header-miscounts-its-own-rows
 kind: issue
 title: review_d18_probes.rs's header says four rows and the file carries five
-status: open
+status: closed
 opened: 2026-09-15
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -94,3 +95,7 @@ otherwise; and TINT-4's fix pass made a `#[test]` under a **nested
 file: its five rows are all top-level (`review_d18_probes.rs:69, 97,
 156, 189, 271`) and there is no nested `mod`, so the constraint does
 not bite here — but it is a hard rule now rather than a caveat.
+
+## Closed (2026-10-26, tracker sweep)
+
+Fixed by this sweep with the one-sentence fix the row offered (not `roster!`). `crates/topo/src/review_d18_probes.rs`'s `//!` header now says "Four of the five rows gate; the fourth (`d18_torn_body_fixture_leaves_every_prev_live`) is marked as evidence", which matches the file's five `#[test]` rows in order. A bullet for the fifth row, the `postcondition` premise guard, was added to "What each row is for".

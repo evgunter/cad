@@ -2,10 +2,11 @@
 id: shell-tolerance-chain-hand-rolls-sentinel-region-and-diverges
 kind: issue
 title: shell_tolerance_chain's hand-rolled sentinel region includes the opening sentinel where source::sentinel_region excludes it
-status: open
+status: closed
 opened: 2026-09-13
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -36,3 +37,12 @@ line, if anything). `crates/topo/tests/` is TCOST's and TINT's; PR
 2517 read this file and converted only its line-number computation,
 which was byte-identical and safe, deliberately leaving the
 behaviour-changing half to its owners.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed on main.** `crates/topo/tests/shell_tolerance_chain.rs:130-137`
+(`Stretch::region`) now calls `test_utils::source::sentinel_region` and
+reports the first line through `test_utils::source::line`. The
+hand-rolled opener/closer `find` that included the opening sentinel is
+gone. The remaining `find`s in the file (`:264`, `:281`) select a
+stretch and its body, and are not region readers.

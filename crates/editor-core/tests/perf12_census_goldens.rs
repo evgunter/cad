@@ -60,6 +60,17 @@ use geom_core::Tol;
 /// row. Its fin instances' side walls share an area with the union's
 /// fin walls, so they are no flush pair. A flush row is written only
 /// where the two faces' interiors are certified not to meet.
+///
+/// Re-blessed at every ε row when an aligned face pair (one carrier,
+/// facing the same way, sharing interior) became a decided overlap that
+/// answers for its boundary touches in the closure of its shared area,
+/// as an opposed pair does (`SameSideInterference`). Only `heat_sink`
+/// moved, in every size: each fin instance's top cap lies on its united
+/// fin's, so the 20 touches per instance there (corners on corners,
+/// edges on edges) are that pair's, and no finding of their own. Its
+/// `InstanceInterference` verdicts, which decide each pair first, and
+/// its pierces stand: 105 findings became 5, and 125 became 25 at 10,
+/// 40 and 160 fins.
 const CENSUS_GOLDENS: &[(&str, &str, &str)] = &[
     (
         "1e-6",

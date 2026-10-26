@@ -286,9 +286,15 @@
 //!
 //! **Gating and then measuring costs more than measuring**, and that
 //! is worth knowing before a caller reaches for the continuation as a
-//! saving. On a face that meets the target, the piece evaluations
-//! compose exactly — the gate's rounds plus the continuation's are the
-//! measurement's. And each entry into
+//! saving. The continuation runs no round twice: it resumes only the
+//! faces still short of the target, each from the round after its last.
+//! The pair is not the measurement, though. The sign walk refines every
+//! face its lane can refine while the sign straddles, a face that has
+//! already met the target included, so the gate can run rounds the
+//! measurement never does, and the continued number then keeps those
+//! faces' narrower enclosures: never wider than the measurement's, face
+//! by face, and in its bits only where no face was taken past the
+//! target. And each entry into
 //! a face's lane re-derives that face's per-round-independent SETUP
 //! (the derivative grids, the block hulls), so the pair runs 1.3–1.8× one
 //! measurement's wall time on the bodies measured. Reusing a face's
@@ -557,7 +563,12 @@ impl PartialEq for CensusSubject {
         match (self, other) {
             (Self::Entity(x), Self::Entity(y)) => x == y,
             (Self::FacePair(a, b), Self::FacePair(c, d)) => (a, b) == (c, d) || (a, b) == (d, c),
-            _ => false,
+            // The mismatches spelled over the whole vocabulary rather
+            // than swept up by a catch-all, so a variant added above
+            // must be given its own arm (E0004) instead of silently
+            // comparing unequal to itself, which would break the
+            // reflexivity `Eq` below promises.
+            (Self::Entity(_), Self::FacePair(..)) | (Self::FacePair(..), Self::Entity(_)) => false,
         }
     }
 }
@@ -1923,7 +1934,7 @@ pub enum ValidationError {
     /// of silently not looked at (A5's letter: decide or refuse,
     /// never silently not-examine). Two arms fire it: arm 1, on a
     /// cross-solid curved face pair within reach of each other (the
-    /// C9-ring conformal-rest/proximity class — the exclusion ring
+    /// conformal-rest/proximity class — the C9 exclusion ring
     /// is the certified excluder this backstop stands in for); and
     /// arm 2, the instance-containment arm, on what its MATERIAL test
     /// could not answer. Arm 2's box test is the gate, not the
@@ -1935,7 +1946,8 @@ pub enum ValidationError {
     /// refused, a container whose extent no sound box claims, or an
     /// instance whose every vertex lies on the container's boundary.
     /// A decided interference is
-    /// [`ValidationError::InstanceInterference`], never this.
+    /// [`ValidationError::InstanceInterference`] or
+    /// [`ValidationError::SameSideInterference`], never this.
     CensusUndecidable {
         /// One side of the pair the census cannot clear.
         a: EntityId,
@@ -1967,6 +1979,34 @@ pub enum ValidationError {
         edge: EdgeKey,
         /// The face it lies in.
         face: FaceKey,
+        /// Where the two were read, as coordinates.
+        witness: String,
+        /// Why the reading was not taken; the finding renders it with
+        /// its recourse.
+        why: crate::census::TouchUnread,
+    },
+    /// **Tier 3′: two coincident edges' material wedges overlap.** Two
+    /// line edges overlap along their line, the overlap backed, and on
+    /// decided readings at the middle of their shared span a sheet or
+    /// the interior of one wedge lies strictly inside the other. The
+    /// material sectors on one line are disjoint (D1,
+    /// `crates/topo/README.md` tier 3), so no record makes this valid.
+    CoincidentWedgesOverlap {
+        /// The two edges, in arena order.
+        edges: [EdgeKey; 2],
+        /// Where the two were read, as coordinates.
+        witness: String,
+    },
+    /// **Tier 3′: whether two coincident edges' material wedges overlap
+    /// is undecided.** The overlap is backed, and the side reading of
+    /// the two ([`Self::CoincidentWedgesOverlap`]'s) could not be taken:
+    /// `why` says why.
+    CoincidentWedgesOverlapUndecided {
+        /// The two edges, in arena order.
+        edges: [EdgeKey; 2],
+        /// The one of them whose wedge has no reading; `None` where a
+        /// sign comparing the two landed in band.
+        unread: Option<EdgeKey>,
         /// Where the two were read, as coordinates.
         witness: String,
         /// Why the reading was not taken; the finding renders it with
@@ -2006,6 +2046,25 @@ pub enum ValidationError {
         /// `inner`'s first vertex in arena order found strictly inside
         /// `outer`'s material.
         witness: VertexKey,
+    },
+    /// Tier 3′ (the census's instance-containment arm): a face of one
+    /// instance and a face of another lie on one carrier, facing the same
+    /// way, and their interiors meet over an area — an interference fit
+    /// DECIDED by the faces, and not undecidable. Each face has its
+    /// solid's material on its inner side, so both solids hold the
+    /// material under every interior point the faces share: the two
+    /// materials overlap there, though no vertex of either need lie
+    /// strictly inside the other (two coincident copies, or one nested
+    /// flush in another). The touches of cells bounding the two faces
+    /// that lie in the closure of their shared area are the pair's, and
+    /// report nothing of their own. No record answers for this finding;
+    /// between two copies at rest the assembly layer reports it as an
+    /// interference finding.
+    SameSideInterference {
+        /// The face of one instance.
+        a: FaceKey,
+        /// The face of the other, on `a`'s carrier and facing its way.
+        b: FaceKey,
     },
     /// Tier 3′ (D1 tier 3, C4): two faces of one solid that share no
     /// edge, on carriers whose closed-form tangent line runs strictly
@@ -2941,6 +3000,10 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::WrapOnNonPeriodic
         | CertifyError::PlaneNurbs(P::PcurveFit) => MISMATCH,
+        CertifyError::NoGeneralLane { .. } => {
+            "it is on its face but is none of the face's own curves, and the kernel cannot yet \
+             write where such a curve sits on that face"
+        }
         CertifyError::ResidualExceeded { check, .. } => {
             if check.bounds_a_miss() {
                 BOUND
@@ -3081,6 +3144,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
                  at a certifying scalar"
             }
             CertifyError::ChartImageUnavailable { .. }
+            | CertifyError::NoGeneralLane { .. }
             | CertifyError::ResidualExceeded { .. }
             | CertifyError::IntervalNotForward { .. }
             | CertifyError::WindingExceeded
@@ -3145,6 +3209,12 @@ fn certify_undecided(check: CertCheck) -> &'static str {
         CertCheck::TangentGap => geom_core::undecided!("whether its faces touch along it"),
         CertCheck::ChartImage => {
             geom_core::undecided!("where it sits on its face's parameter chart")
+        }
+        CertCheck::ChartClass => {
+            geom_core::undecided!("which of its face's own curves it is")
+        }
+        CertCheck::GeneralLane => {
+            geom_core::undecided!("whether its face's general image covers it")
         }
         CertCheck::EndpointStart
         | CertCheck::EndpointEnd
@@ -3476,7 +3546,8 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
             let (why, own) = match error {
                 C::UnsupportedChart { .. }
                 | C::IsoUnsupported { .. }
-                | C::ChartWindingUnsupported => (KIND, Some(NOT_YET_ENDING)),
+                | C::ChartWindingUnsupported
+                | C::NoGeneralLane { .. } => (KIND, Some(NOT_YET_ENDING)),
                 C::PlaceholderChart => (
                     geom::PLACEHOLDER_SURFACE,
                     Some(crate::pcurves::PLACEHOLDER_RECOURSE),
@@ -3503,7 +3574,6 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     Some(REPARAMETERIZE),
                 ),
                 C::CarrierEnclosure(_) => (CARRIER_ENCLOSURE, Some(NOT_YET_ENDING)),
-                C::CarrierGrazesChart { grazer, .. } => (WRONG, Some(grazer.recourse())),
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }
                 | C::ImageMismatch { .. }
@@ -4319,13 +4389,30 @@ impl fmt::Display for ValidationError {
                 f,
                 "an edge lies in a face of its own part at {witness}, and whether the face \
                  passes through the material the edge bounds is undecided: {}",
-                why.in_own_face()
+                why.sentence()
+            ),
+            Self::CoincidentWedgesOverlap { witness, .. } => write!(
+                f,
+                "two edges lie along one line at {witness}, and the material each bounds \
+                 overlaps the other's, so the line holds material twice. {DEFECT}"
+            ),
+            Self::CoincidentWedgesOverlapUndecided { witness, why, .. } => write!(
+                f,
+                "two edges lie along one line at {witness}, and whether the material each \
+                 bounds overlaps the other's is undecided: {}",
+                why.sentence_on_line()
             ),
             Self::InstanceInterference { .. } => write!(
                 f,
                 "two instances overlap: a corner of one lies inside the other \
                  (an interference fit), which no declaration can make valid. Recourse: move \
                  the instances apart"
+            ),
+            Self::SameSideInterference { .. } => write!(
+                f,
+                "two instances overlap: a face of each lies on one plane facing the same way, \
+                 sharing an area that both hold material under (an interference fit), which no \
+                 declaration can make valid. Recourse: move the instances apart"
             ),
             Self::CuspEdgesMissing { witness, .. } => write!(
                 f,
@@ -5562,11 +5649,17 @@ fn validate_geometric_certified<
 /// on every face that needed the quadrature, exactly as the reporting
 /// read over the same lane does.
 ///
-/// ONE walk per solid, held and then handed on: the caller receives the
-/// body certificate the walks assemble to, continuable from there by a
-/// caller who wants the number
+/// Every solid's round 0, then ONE walk over the solids
+/// ([`crate::props::role_walk_set`]), each solid refined only while its
+/// own sign straddles, and the certificates held and then handed on: the
+/// caller receives the body certificate they assemble to, continuable
+/// from there by a caller who wants the number
 /// ([`crate::SignCertificate::refine_to_target`]). So a body of several
-/// solids pays one read of each face, never a further arena-wide one.
+/// solids reads each face once per round its solid's sign needs, never a
+/// further arena-wide walk. The walk's recordings interleave the solids
+/// round by round (each round takes every solid still open, in arena
+/// order), so a multi-solid body's decision stream is ordered by round,
+/// not by solid.
 ///
 /// **Check 7 is clean or it is not, and the type says which**: `Ok` is
 /// the body certificate — every solid derived and passed, so the parts
@@ -5580,29 +5673,42 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
-    let mut errors = Vec::new();
+    let subjects = check7_subjects(body);
+    // Every solid's round 0, then one walk over the solids measured.
+    let mut unmeasured = Vec::new();
     let mut parts = Vec::new();
-    for (solid, faces) in check7_subjects(body) {
-        let walked = match crate::props::role_walk(
+    for (_, faces) in &subjects {
+        match crate::props::SignCertificate::at_round_zero(
             body,
-            &faces,
+            faces,
             band,
             tol,
             quad,
-            quad,
-            PLUS_V,
-            PLUS_V_EXACT,
+            crate::props::FaceWalk::Mapped,
         ) {
-            Ok((role, certificate)) => {
+            Ok(certificate) => {
+                unmeasured.push(None);
                 parts.push(certificate);
-                Some(plus_v_verdict(role))
             }
-            Err(source) => {
+            Err(source) => unmeasured.push(Some(source)),
+        }
+    }
+    let roles = {
+        let mut members: Vec<&mut crate::props::SignCertificate<'b, T>> =
+            parts.iter_mut().collect();
+        crate::props::role_walk_set(&mut members, quad, PLUS_V_SIGN)
+    };
+    let mut roles = roles.into_iter();
+    let mut errors = Vec::new();
+    for ((solid, faces), unmeasured) in subjects.into_iter().zip(unmeasured) {
+        let verdict = match unmeasured {
+            Some(source) => {
                 errors.push(ValidationError::VolumeUncomputable { solid, source });
                 None
             }
+            None => roles.next().map(plus_v_verdict),
         };
-        errors.extend(plus_v_errors(body, solid, faces, walked.as_ref(), band));
+        errors.extend(plus_v_errors(body, solid, faces, verdict.as_ref(), band));
     }
     if errors.is_empty() {
         Ok(crate::props::SignCertificate::assembled(
@@ -5982,13 +6088,19 @@ pub(crate) const PLUS_V: crate::props::RoleNames = crate::props::RoleNames {
 pub(crate) const PLUS_V_EXACT: crate::props::RoleNames =
     crate::props::RoleNames::one("positive_volume_exact");
 
+/// Check 7's predicate: the volume's sign, under its names.
+pub(crate) const PLUS_V_SIGN: crate::props::SignNames = crate::props::SignNames {
+    walk: PLUS_V,
+    certified: PLUS_V_EXACT,
+};
+
 /// Check 7's reading of one volume ([`crate::props::read_role`] under
 /// [`PLUS_V`]).
 pub(crate) fn plus_v_read<T: geom_core::Decide>(
     reading: crate::props::SignReading<T>,
     band: Band,
-) -> Option<crate::props::ShellRole> {
-    crate::props::read_role(reading, PLUS_V, band).role()
+) -> crate::props::RoleRead {
+    crate::props::read_role(reading, PLUS_V, band)
 }
 
 /// **Check 7's verdict off the role walk** ([`crate::props::role_walk`]):
@@ -6013,7 +6125,9 @@ fn plus_v_verdict(
         Err(RoleWalkRefusal::Unread {
             limit: Some(limit), ..
         }) => PlusVVerdict::Unresolved(limit),
-        Err(RoleWalkRefusal::Unread { last, .. }) => PlusVVerdict::Undecided(last.escalation()),
+        Err(RoleWalkRefusal::Poisoned(last) | RoleWalkRefusal::Unread { last, .. }) => {
+            PlusVVerdict::Undecided(last.escalation())
+        }
     }
 }
 
@@ -10825,6 +10939,7 @@ mod tests {
                 last: Box::new(last),
                 limit,
                 measuring: None,
+                in_band: false,
             }))
         };
         assert!(

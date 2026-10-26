@@ -2,10 +2,11 @@
 id: tint-plan-states-the-withdrawn-reviewer-independence-rule
 kind: issue
 title: tint's plan states the withdrawn reviewer-independence rule beside the ruling that withdrew it
-status: open
+status: closed
 opened: 2026-09-19
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -52,3 +53,13 @@ program's own slate rows turn on the answer.
 the same defect in S-TCOST's plan, which states it in its **exit
 criteria** as well as its reading list. They are filed separately
 because one file is one item.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed on main.** `7816627606` ("work: score and cut TINT", 2026-09-20)
+rewrote `work/tint/plan.md` and dropped the bullet. The plan no longer
+says "independence" anywhere, and it no longer cites
+`memories/review-and-dependency-policy.md` at all. That was checked
+against the file at `2e58f877b6`, which still carried the bullet at
+`:71`, and at `7816627606`, which does not. The S-TCOST twin is closed
+in this same sweep.

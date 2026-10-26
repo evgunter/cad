@@ -15,11 +15,11 @@ Found by PR 5552's FULL review (NOTE, likely).
 read (`circle_foot_past_segment`, `circle_extreme_past_arc`). Four other
 places in `crates/profile/src/seg.rs` read a computed point uncharged in
 the same role, where a definite reading answers no contact:
-- `arc_clear_of_carrier` (`seg.rs:1671`, from #5481) reads `arc_span` at
+- `arc_clear_of_carrier` (`seg.rs:1739`, from #5481) reads `arc_span` at
   the computed foot;
-- `touches_from` (`seg.rs:2261`);
-- `end_in_stretch` (`seg.rs:2151`);
-- `ray_crossings` (`seg.rs:2301`).
+- `touches_from` (`seg.rs:2329`);
+- `end_in_stretch` (`seg.rs:2219`);
+- `ray_crossings` (`seg.rs:2369`).
 
 The crossings and tangency points `line_arc` and `arc_arc` compute are
 read the same way.

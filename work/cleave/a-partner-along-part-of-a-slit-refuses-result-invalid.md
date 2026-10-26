@@ -41,3 +41,16 @@ on the slit's line, not a reading of the input.
 Find where the partner's end on the line leaves the scaffold or the
 stale description (the zip's seam pairs at that end, likely), build it
 as the material decides, and pin these cells building.
+
+## Note (2026-10-26, branch `cleave/boolean-closes-a-slits-face`)
+
+The `x − y` cells with the box less the wide vee (ring `part`; open
+`part` and `half`; both slit origins; at rest) refuse
+`SlitFaceClosesMidSlit` on PR 5544's head, not `ResultInvalid`
+`DescriptionNotAdjacent`: the zip glues the floor to itself across the
+stretch of the keel the vee runs along, a strut whose ends both continue
+into the slit's edges, and the output stage refuses to part the slit
+there (`boolean/slit.rs`, `close_struts`). The fix is that parting:
+`kemr` of the strut, splitting the slit's loop in two, each piece then
+read as its own slit or ring. Pinned by
+`a_keel_on_the_floor_subtracts_as_a_slit::a_face_closed_across_part_of_the_slit_refuses_typed`.

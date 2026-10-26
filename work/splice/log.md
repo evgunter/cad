@@ -245,3 +245,143 @@ Lily wall 8's path is now:
 3. the two flush rows.
 
 No interior arm is needed for it.
+
+## 2026-10-26 — PR 5723 (the gate) merges
+
+The operand edge gate is gone: a body built by loft or sweep now enters
+every boolean, and each site refuses a spline or spiric edge typed. The
+review (sequential arm, no MAJOR, so it was the unit's only review)
+found no wrong reader. Fix pass `7b654b1100`:
+- the census pins its builds, on fresh-keyed bodies;
+- `face_of` is carried on the refusal;
+- the refusals name the operand's own edge;
+- the emit e2e obligation and the `NoSoundBox` finding moved to the
+  crossing-rung row;
+- the teapot's contact edge is the belly's meridian seam.
+
+The dual-review row is `docs/dual-review-log/rows/PR-5723.md`.
+
+The lane's slow sets found 16 rows red on bare main, none of them this
+PR's. A nightly triage lane took them
+(`session_014vYCa4XAZmPgeKRwfJrvFt`, run 40274924857).
+
+Next on this track: `a-span-is-read-against-a-faces-boundary-edges-first`
+(P0 H), lily wall 8's first step.
+
+## 2026-10-26 — lily wall 8's first two steps dispatched
+
+- `splice/boundary-first` (`session_01FNsFT2VKj6yRjpeBz5nY9P`):
+  `a-span-is-read-against-a-faces-boundary-edges-first`. This is the
+  curve × face table's skeleton, its ends, and its boundary pass through
+  `curve_pair`; a shared rim glues at the coincidence door. Tier: dual,
+  letter H, so a concurrent pair (the table's first pass is new
+  incidence under every boolean, and the table's shape is hard to change
+  later).
+- `splice/spline-dihedral` (`session_01PXJ7h4STwjpmR9pXfHA6KH`):
+  `the-side-of-a-spline-face-is-read-by-no-dihedral`. Tier: single,
+  full.
+
+Held until boundary-first lands, since they build on the table:
+- the interior arm (`an-analytic-edge-…`) together with the converse
+  rung (`nurbs-edge-crossing-rung-…`), as one brief;
+- point-in-face for a spline chart;
+- the two flush rows, which lily reaches after the side reading.
+
+Lane briefs now ask for the touched crates' slow set before green, with
+every red split against `origin/main`. Editor-core is the exception:
+its full slow set takes hours on a 4-vCPU box, so lanes run only the
+rows their diff can move.
+
+## 2026-10-26 — PR 5764 (spline dihedral side) reviewed: one MAJOR
+
+Single full review (`session_01QgwBdDPBpAwPsCKJFCbcHZ`, on 39e05242):
+NOT-MERGEABLE. The MAJOR, shown by a red row, is a face trimmed along
+an interior C0 knot line of its carrier. The foot lands on the knot,
+the derivative is evaluated on the span convention's side, and the
+door reads the other half's normal, deciding a wrong side.
+
+The sign convention held under mutation. The other findings: the κ
+fold and `FootUndecided` are unpinned; the walk direction is a bare
+`Vec3` held by convention; `splitting::rules::edge_wedge` is an analytic
+copy of the door; and there are three spellings of "into the face =
+n × t". All of it went to the lane. The same tier re-reviews the fix
+pass.
+
+**Class, the second instance in one day:** a derivative read across a
+spline crease (an interior knot of multiplicity ≥ degree). The first
+was PR 5715's curvature bound across a C0 curve knot; this is a surface
+normal at a foot on a C0 knot line. One statement of where a spline has
+no derivative (`KnotStructure::crease_runs`) must be consulted by every
+reader that takes a derivative at a point on a spline. The
+boundary-first lane was told while still building.
+
+## 2026-10-26 — PR 5764 re-reviewed: a foot on the wrong sheet, down-rated
+
+The re-review (`session_01JTtugdpZZVE2CKi7NHrnKA`, on ecfc622d)
+confirmed the crease fix. It raised one MAJOR, shown by a red row: a
+hairpin carrier folds back over itself within the band, `project`
+returns a foot on the other sheet, and the door decides a wrong side.
+The class is "a foot on another sheet of the carrier": the door never
+reads the face's trim, which C5's curve × face clause requires. The fix
+is point-in-face for a spline chart
+(`a-point-has-no-place-in-a-nurbs-faces-trim`), which is unbuilt.
+
+**Orchestrator's call (unilateral, logged): down-rated to a scheduled
+row rather than blocking the PR.** Nothing calls the door yet. Its
+contract will say the foot is decided on the carrier, not the trim.
+The wiring row is parked on point-in-face, and the hairpin fixture
+becomes point-in-face's witness. The alternative was holding the PR
+until point-in-face lands. That buys nothing while the door has no
+caller, and it leaves the fixes below unmerged.
+
+Fixed now, because they make false decided answers:
+- an `OffFace` decided at an irregular (zero-speed) foot;
+- an irregular chart point that escalates only by accident.
+
+Also in the fix pass:
+- the `EdgeWalk` public mint narrowed;
+- the seam-continuity over-escalation and the foot-reader class
+  (`.project(` then `.ders(`) filed.
+
+The orchestrator reads the delta.
+
+## 2026-10-26 — PR 5768 (boundary-first) dual-reviewed
+
+Concurrent pair (letter H), both on 98ee1373, dispatched together at
+11:29Z with identical briefs:
+- R1 `session_01QGkdu4DiX62671SWzvo6iZ`, evidence `splice/review-5768-r1` @ c4e4fad;
+- R2 `session_01DAybgkUR3a16QpYg3izStL`, evidence `splice/review-5768-r2` @ b27f4c5c.
+
+Both read APPROVE-WITH-FIXES, and both report no glimpse of the other.
+
+**Correspondence pre-note** (DUAL-REVIEW-PROTOCOL rule 7):
+- Bilateral:
+  - `twin_edge`'s validity premise is assumed, not checked
+    (`validate.rs` defers clearance);
+  - `twin_edge`'s gate survives mutation;
+  - the `MintedRule::Along` / `read_lying_in` arms and the Along split
+    are unreached;
+  - an ellipse `param_near` may misplace on the new split path;
+  - `twin_edge` swallows kernel faults;
+  - the shared-run predicate and the span closure are duplicated;
+  - `route()` is a table, not a dispatch;
+  - the `boundary_spans` precedence changes.
+- Unilateral R1:
+  - `BoundaryCrossing::Clear` conflates Along;
+  - "readings disagree" is a frontier refusal, not an invariant;
+  - the coincidence door is unbuilt;
+  - `census::boundary_crossings` is a third reader;
+  - the sweep row cannot tell the paths apart.
+- Unilateral R2:
+  - the vertex reading has no row that reds without it;
+  - C5's ends-first order;
+  - `twin_edge` deciding a Clear span from topology as a possible C5
+    departure.
+- Tally candidates: none. Neither review raised a MAJOR.
+
+The union fix list went to the lane. The orchestrator reads the
+fix-pass delta. **Open to Ev:** whether `twin_edge` (deciding a Clear
+span's interior from y's topology under the boolean's
+non-self-intersection precondition) is consistent with C5's "only what
+the boundary leaves undecided is read against the face's interior", or
+needs a sentence in C5.

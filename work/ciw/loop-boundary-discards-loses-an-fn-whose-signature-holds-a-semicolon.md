@@ -2,10 +2,11 @@
 id: loop-boundary-discards-loses-an-fn-whose-signature-holds-a-semicolon
 kind: issue
 title: loop-boundary-discards drops the enclosing fn when its signature holds a ';' (an array type such as [T; 2]), so its sites read as '(no enclosing fn)'
-status: open
+status: closed
 opened: 2026-10-13
 priority: P3
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -18,3 +19,7 @@ A `;` inside the signature, such as an array type in a parameter or return type 
 **Reached:** PR 5039's `topo::boolean::ops::apply_cut_ins`. EMIT worked around it with a type alias (`CutsPerOperand`).
 
 **Owed:** clear `pending` only on a `;` at the depth where the `fn` was declared, outside its `<…>`/`(…)`/`[…]` nesting. Add a gate selftest row with an array type in a signature.
+
+## Closed (2026-10-26, tracker sweep)
+
+Duplicate, fixed: `work/guard/loop-boundary-discards-loses-the-enclosing-fn-at-a-semicolon-in-its-signature.md` closed today. `scripts/gates/loop-boundary-discards.sh` clears the pending fn name at a `;` only outside the signature's `(`/`[` nesting, pinned by the selftest case `plant_array_type_signature`.

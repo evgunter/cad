@@ -2,11 +2,12 @@
 id: sphere-region-root-slack-crowds-the-zero-band-at-1e-12
 kind: issue
 title: bool_sphere_region_roots_slack's zero-classified margin on lily_walls crowds the coincidence band at eps 1e-12 (one k-lint rule-2 flag), the sibling of circle-torus root slack
-status: open
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: E
 refs: [circle-torus-root-slack-crowds-the-zero-band-at-1e-12]
+closed: 2026-10-26
 ---
 
 
@@ -50,3 +51,7 @@ zero arm is a tally that fails nothing, so the 1.5093e-14 sample on
 `k-lint (dev-probe)`'s failure. That row stays red for its other
 findings. Built on `germ/klint-zero-arm-tally`. Whether anything else on
 this row is still wanted is HONE's call.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed by the ruling this row quotes.** Ev ruled on PR 4567, and the ruling was built on `germ/klint-zero-arm-tally`. Rule 2's zero arm is now a tally that fails nothing (`tools/k-lint/src/lib.rs:5`–`:26`, `zero_arm_usage`), so this flag no longer counts toward `k-lint (dev-probe)`. The sibling `work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md` closed on 2026-10-10 on the same build. Its owed check (whether rule 2's zero arm applies to an ε-independent statistic at all) is the question that ruling answered. Nothing else on this row asks for a change.

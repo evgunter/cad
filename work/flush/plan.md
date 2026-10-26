@@ -10,11 +10,12 @@ Ev approved the plan in chat on 2026-10-10). Every row here moved from
 
 ## The slate
 
-**22.5 points** of dispatchable work against a ceiling of 32 (2026-10-26, after PR 5706 closed the containment fallback's rows and the three-way coincident naming row moved to BORDERS as `a-direct-operands-own-split-lineage-climbs-to-a-live-sibling-seam`). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
+**20 points** of dispatchable work against a ceiling of 32 (2026-10-26, after PR 5730 closed the trimmed-sphere aims and the glue verdict's n-ary door was dispatched). FLUSH measured 41.5 when PR 5368 closed its P1, so it was cut along its priority seam: the eight P3 rows and the one P4 row moved to **FLUSHTAIL** (`work/flushtail/`) by `git mv`, with ids unchanged. Three older rows are unpriced and charged 2.5 each. `work/flush/program.md` states why the ceiling is not 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P2 | `the-side-readers-aims-decide-exact-ties-at-a-documents-nominal` | H | the curved aims still decide exact ties at a document's nominal: `cut_cylinder` reads 62 exact zeros (the cap's aim and in-face walk; the wall's region walk at each root); unparked by PR 5697 |
+| P2 | `a-glue-verdict-is-not-bound-to-the-bodies-it-judged` | H | the n-ary union and intersect become a kernel door and the given channel goes crate-private (Ev, PR 5737); crosses CLEAVE/HONE (`topo` boolean) and WIRE (`wire.rs`) ground |
 
 Parked, and not counted:
 

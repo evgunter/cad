@@ -71,3 +71,16 @@ widens tier 3's refusal surface: a wrong answer from the walk there is
 now a false refusal rather than a silence. Retire the
 `SurfaceSharedOutsideSolid` sentence (line ~35) when this row is next
 touched. (ORIGIN orchestrator)
+
+## The side reader falls back on the same faces (FLUSH, PR 5730, 2026-10-26)
+
+`face_geo` refuses a sphere face with a boundary edge that is not a
+circle arc (`PartialSphereFace`: a spiric or spline edge, whose
+crossings with a great circle `sphere_region` has no closed form for)
+before any ray. So the side-at-infinity reader (`side_reader.rs`
+`cast_aims`) casts no aimed ray at a selection holding one, and its
+shells' roles and its solid's orientation read their volume
+(`side_at_infinity`'s fallback) — the same face this row lists for
+check 10's walk. A trimmed sphere face bounded by circle arcs aims and
+reads since PR 5730. What closes both is a sphere region read over
+those arcs; until then such a body's side is the volume's.

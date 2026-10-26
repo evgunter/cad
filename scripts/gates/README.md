@@ -103,8 +103,8 @@ fact about upstream callers that refactors change silently. No type states it,
 and no lint decides it either — a late pass would know the type is an interval
 and still not know the sign regime. What the gate holds instead is a
 conservative textual ban with a ratified allowlist, and it caught a real bug
-class (`memories/interval-square-poison.md`; four live bugs came from this one
-class). Its open residue is a **wider matcher**, not a different instrument, and
+class (the gate's own header carries its argument; four live bugs came from
+this one class). Its open residue is a **wider matcher**, not a different instrument, and
 that residue is now re-derived on every run rather than argued in prose: the
 five spellings the matcher structurally cannot see are counted each pass and
 checked against a register of dispositioned sites.

@@ -2,7 +2,7 @@
 id: a-boolean-closes-a-slits-face-across-its-line
 kind: issue
 title: A Boolean whose result keeps only a slit's face on both sides of the slit's line refuses SlitLineCrossed: the join does not close the face across the line
-status: dispatched
+status: review
 opened: 2026-10-20
 priority: P1
 cost: M
@@ -142,10 +142,16 @@ At ε = default, 1e-6 and 1e-12, against main (`f742e4c97b`):
 - A face closed across a strut that is not a plane refuses
   `CurvedFaceClosesAcrossSlit`: the lone ring's bridge is a line chord,
   which lies in no curved face. No witness reaches it.
+- A face closed across part of a slit, the slit's edges running on past
+  both ends of the strut, refuses `SlitFaceClosesMidSlit`: deleting the
+  strut parts the slit in two (a `kemr`), which is not built. Reached by
+  `x − y` of the slab less the keel with a box under the floor less a
+  wide vee along part of the keel
+  (`a-partner-along-part-of-a-slit-refuses-result-invalid`), pinned by
+  `a_keel_on_the_floor_subtracts_as_a_slit::a_face_closed_across_part_of_the_slit_refuses_typed`.
 - Guards on states the zip never builds: a strut with both ends free
-  that is its face's outline refuses `JoinDesync`, and so does a closed
-  face's strut with no free end; a seam pair of two struts refuses
-  `ZipCorrespondence`.
+  that is its face's outline refuses `JoinDesync`; a seam pair of two
+  struts refuses `ZipCorrespondence`.
 
 Refusals the same on main, found by the review's probe and filed:
 `a-partner-along-part-of-a-slit-refuses-result-invalid` and

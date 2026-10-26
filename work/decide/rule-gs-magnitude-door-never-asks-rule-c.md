@@ -59,3 +59,18 @@ Either:
 
 `crates/geom-core/src/sym/root.rs` (`magnitude_of_root`),
 `crates/geom-core/src/sym/manifest.rs` (`magnitude`).
+
+## Re-checked (2026-10-26, tracker sweep)
+
+Half of the second option has happened. `magnitude_of_root`
+(`crates/geom-core/src/sym/root.rs:343`) no longer has a rule C arm:
+it asks `manifest::magnitude` and, on `None`, falls to
+`magnitude_atom_in`. There is no `signed::fold` call there, and the
+doc no longer claims rule C is asked after the value-free step.
+`manifest::magnitude` (`manifest.rs:489`) still answers `Some` on
+every path but the constant branch's `d.recip()?`, which the
+sign-normalised argument cannot reach. So `magnitude_atom_in`'s
+fallback is the one arm still unreachable here. What is left is small:
+delete that fallback (or make it `unreachable!` with the argument), or
+let the manifest step decline. The second still changes what the pad
+and the link decide.

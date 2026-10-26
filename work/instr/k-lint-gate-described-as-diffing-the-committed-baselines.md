@@ -2,11 +2,12 @@
 id: k-lint-gate-described-as-diffing-the-committed-baselines
 kind: issue
 title: two sites say the k-lint gate diffs the fresh sweep against docs/k-report-data/; nothing is diffed
-status: open
+status: closed
 opened: 2026-09-08
 refs: [2140]
 priority: P3
 cost: D
+closed: 2026-10-26
 ---
 
 Found by unit 7 while re-deriving the K baseline. A self-declared
@@ -82,3 +83,14 @@ the claim. This row is one of the twenty on INSTR's opening slate.
 ## Refs at METER's sweep (2026-09-09)
 
 METER closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 10); `k-report-baseline-fold-cert1-roster` is now cited by its closing PR 2140 — which this row's `refs:` already carried, so the dying id was dropped rather than substituted into a duplicate.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed.**
+- **Site 1** went with `49d5b2aee` (2026-09-28), which moved every
+  k-lint row to `.github/workflows/nightly.yml`. `.github/workflows/`
+  no longer carries the sentence.
+- **Site 2**, `docs/GENERICS-BUILD-COST.md:404-406`, was fixed in this
+  sweep. It now says the k-lint rows lint the fresh sweep and compare it
+  against no committed file, and it cites `docs/k-report-data/README.md`
+  rule 2.

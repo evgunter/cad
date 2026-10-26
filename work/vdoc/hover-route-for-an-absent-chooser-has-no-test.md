@@ -2,11 +2,12 @@
 id: hover-route-for-an-absent-chooser-has-no-test
 kind: issue
 title: the absent-chooser hover route is the only surface and nothing tests it, at any level
-status: open
+status: closed
 opened: 2026-09-10
 refs: [2278]
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 
@@ -89,3 +90,7 @@ sentence is still a literal fixed at compile time, now in a match arm
 rather than a const, and this row's own reasoning about them stands.
 What is left for this row is shape 1 (the README-list gate), if anyone
 still wants it; the owner's call whether it closes.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed.** The half that matters, the chooser's words reaching the disabled control a person hovers, is held by `crates/viewer/src/app.rs:3282`'s `a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control`, as the 2026-09-25 section records. That row drives the real toolbar headless and compares the painted hover with `ChooserBackend::unusable`. The other half, shape 1 (a gate parsing the README's remedy list against the literal), is not scheduled. By this row's own argument, a check over a compile-time literal's bytes is documentation, not coverage. The README sentence (`crates/viewer/README.md`, ~`:88-92`) and the literal are one edit apart, both read by people.

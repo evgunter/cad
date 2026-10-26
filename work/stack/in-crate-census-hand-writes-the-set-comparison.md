@@ -2,10 +2,11 @@
 id: in-crate-census-hand-writes-the-set-comparison
 kind: issue
 title: stackup.rs's one-example-per-Unavailable-arm census hand-writes the roster comparison instead of test_utils::census::set_difference
-status: open
+status: closed
 opened: 2026-09-28
 priority: P4
 cost: E
+closed: 2026-10-26
 ---
 
 Filed by GATHER's name-edge-home lane (PR 3321, review item S4), on
@@ -40,3 +41,7 @@ census's `.identifiers()`, across `crates/`, `tools/` and `demos/`:
 **What would close it.** Replace the sort-and-`assert_eq!` in `every_arm`
 with `test_utils::census::set_difference(UNAVAILABLE.identifiers(), &made, …)`
 and a `panic!` on its report. Say in the report which side is missing what.
+
+## Closed (2026-10-26, easy-fixes lane)
+
+`crates/editor-core/src/stackup.rs` `every_arm` now compares through `test_utils::census::set_difference(UNAVAILABLE.identifiers(), &made, …)`. A non-empty report panics, and each direction says what to do: weld the arm into `UNAVAILABLE`, or add an example. A separate `made.len()` check against the roster's length catches a duplicated example, which a set comparison cannot see. Verified: `cargo nextest run -p editor-core -E 'test(/stackup|…/)'`, with every stackup row passing.

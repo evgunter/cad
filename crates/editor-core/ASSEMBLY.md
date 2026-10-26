@@ -572,9 +572,11 @@ of a part read one member at a time rather than whole
 *Interference.* An overlap of two copies' material is a finding of its
 own, never a refusal (D10; `checks::at_rest`). The census decides that
 two copies interfere: a vertex of one strictly inside the other's
-material (`ValidationError::InstanceInterference`), an edge piercing a
-face (`CensusContact::EdgeFacePierce`), or an in-plane crossing whose
-side test reads `SameSide`. The gate takes those verdicts out of its
+material (`ValidationError::InstanceInterference`), a face of each on
+one plane facing the same way and sharing interior
+(`ValidationError::SameSideInterference`), an edge piercing a face
+(`CensusContact::EdgeFacePierce`), or an in-plane crossing whose side
+test reads `SameSide`. The gate takes those verdicts out of its
 refusal, with every `CensusUndecidable` the census left on the same
 pair of copies, and intersects the two copies. Each connected solid of
 the intersection is one `InterferenceFinding` on

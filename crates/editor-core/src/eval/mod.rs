@@ -6018,15 +6018,21 @@ impl<'a> SegFeed<'a> {
     }
 }
 
-/// A crossing sense's key tag: a run line with no sense (a seam) is 0.
-fn sense_tag(sense: Option<crate::names::Sense>) -> u8 {
+/// A crossing sense's key: its tag, and a `Through`'s things after it.
+fn feed_sense<'a>(h: &mut SegFeed<'a>, sense: &'a crate::names::Sense) {
     use crate::names::Sense;
-    match sense {
-        None => 0,
-        Some(Sense::Enters) => 1,
-        Some(Sense::Leaves) => 2,
-        Some(Sense::Outside) => 3,
-        Some(Sense::Inside) => 4,
+    h.write_tag(match sense {
+        Sense::Enters => 1,
+        Sense::Leaves => 2,
+        Sense::Outside => 3,
+        Sense::Inside => 4,
+        Sense::Through { .. } => 5,
+    });
+    if let Sense::Through { entering } = sense {
+        h.write_u64(entering.len() as u64);
+        for n in entering {
+            h.name(n);
+        }
     }
 }
 
@@ -6167,7 +6173,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
     };
     let qual = |h: &mut SegFeed<'a>, q: &'a Qualifier| {
         h.write_tag(match q {
-            Qualifier::OrderAlong { .. } => 2,
             Qualifier::Borders(..) => 3,
             Qualifier::Keeps(..) => 4,
             Qualifier::Ends(..) => 5,
@@ -6178,10 +6183,6 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
                 for name in walls {
                     h.name(name);
                 }
-            }
-            Qualifier::OrderAlong { rank, of } => {
-                h.write_u64(u64::from(*rank));
-                h.write_u64(u64::from(*of));
             }
         }
     };
@@ -6266,13 +6267,13 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Crossing { edge, face, sense } => {
             h.name(edge);
             h.name(face);
-            h.write_tag(sense_tag(Some(*sense)));
+            feed_sense(h, sense);
         }
         RoleSeg::EdgeCrossing(run) => {
             h.write_u64(run.len() as u64);
             for l in run {
                 h.name(&l.line);
-                h.write_tag(sense_tag(l.sense));
+                feed_sense(h, &l.sense);
             }
         }
         RoleSeg::Merged(names) => {
@@ -6294,7 +6295,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         }
         RoleSeg::CrossingVertex { edge, sense } => {
             h.name(edge);
-            h.write_tag(sense_tag(Some(*sense)));
+            feed_sense(h, sense);
         }
         RoleSeg::OnToolVertex { of } => {
             h.name(of);
@@ -6992,10 +6993,7 @@ mod name_feed_tests {
         StableName {
             kind: EntityKind::Edge,
             node: RecipeNodeId::new(0, level as u64 + 10),
-            path: vec![
-                seg,
-                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }),
-            ],
+            path: vec![seg, RoleSeg::Fragment(Qualifier::Borders(Vec::new()))],
         }
     }
 

@@ -2,10 +2,11 @@
 id: pxn-wall-refinement-may-be-unneeded-for-the-tube
 kind: issue
 title: edge_nurbs: does the plane x NURBS tube need the wall refined to PXN_WALL_SPANS? (measured: it does)
-status: open
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
+closed: 2026-10-26
 ---
 
 
@@ -83,3 +84,7 @@ as rows.
 This row's question is answered: the cut derivative box localizes
 the tube's windows, but the minted speed is a whole-domain sup over
 cells, and that needs fine cells. It stays ISO's to close.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Fixed: the question is answered and the code states the answer.** PR 4553's measurement (above) showed the tube does need the refined cells, and the code now says so as the constant's reason: `crates/geom-brep/src/edge_nurbs.rs`'s `PXN_WALL_SPANS` (~2026) and `wall_grid`'s doc (~2039–2057) state that the tube's chart readings are hulls over span cells and that a wall with few spans reads its minted speed up to a thousand times the sampled one, citing `crates/geom-brep/tests/review_4553_pxn_probes.rs`, which holds the rulings and the speed ratio as rows. The "unmeasured" wording this row was filed against is gone, and limb 2's hull reads the wall itself, so the "restate the constant for the hull alone" branch never arises. Nothing is owed.

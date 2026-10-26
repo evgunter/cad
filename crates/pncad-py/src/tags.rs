@@ -1512,8 +1512,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::CurvedPierceUnsupported => "curved_pierce_unsupported",
         BooleanErrorKind::CrossingAtConeApex => "crossing_at_cone_apex",
         BooleanErrorKind::NormalAtConeApex => "normal_at_cone_apex",
-        BooleanErrorKind::CurvedEdgeUnsupported => "curved_edge_unsupported",
-        BooleanErrorKind::CrossingCarrierUnsupported => "crossing_carrier_unsupported",
+        BooleanErrorKind::EdgeCarrierUnsupported => "edge_carrier_unsupported",
         BooleanErrorKind::PointSplitCarrierUnsupported => "point_split_carrier_unsupported",
         BooleanErrorKind::GermEdgeCarrierUnsupported => "germ_edge_carrier_unsupported",
         BooleanErrorKind::ArcLoopContainmentUnsupported => "arc_loop_containment_unsupported",
@@ -1537,6 +1536,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PinchRaysInAFace => "pinch_rays_in_a_face",
+        BooleanErrorKind::TangentCrescentUnsupported => "tangent_crescent_unsupported",
         BooleanErrorKind::CrossingsAlongAContactLine => "crossings_along_a_contact_line",
         BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::PartnerAlongFace => "partner_along_face",
@@ -1584,6 +1584,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::SlitLineCrossed => "slit_line_crossed",
         BooleanErrorKind::SlitFaceGlued => "slit_face_glued",
         BooleanErrorKind::CurvedFaceClosesAcrossSlit => "curved_face_closes_across_slit",
+        BooleanErrorKind::SlitFaceClosesMidSlit => "slit_face_closes_mid_slit",
         BooleanErrorKind::LineWedges => "line_wedges",
     }
 }
@@ -1735,9 +1736,7 @@ pub fn join_shape_tag(shape: &JoinShape) -> &'static str {
 /// [`NamingError::UnsupportedUnionName`].
 pub fn union_name_shape_tag(shape: &UnionNameShape) -> &'static str {
     match shape {
-        UnionNameShape::SeamGroupNoMemberEdge => "unsupported_union_name_seam_group_no_member_edge",
         UnionNameShape::SeveralParents => "unsupported_union_name_several_parents",
-        UnionNameShape::RunLeastLineMoved => "unsupported_union_name_run_least_line_moved",
         UnionNameShape::JunctionLinesCollide => "unsupported_union_name_junction_lines_collide",
     }
 }
@@ -2387,6 +2386,7 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
         TessellateError::StepNotPositive { .. } => "step_not_positive",
         TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
+        TessellateError::RoundingUnresolved { .. } => "rounding_unresolved",
         TessellateError::Triangulation { .. } => "triangulation",
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::PinchWedge { .. } => "pinch_wedge",
@@ -2474,7 +2474,6 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
         SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
-        SplitError::RankedRunReordered { .. } => "ranked_run_reordered",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
         SplitError::NameOutsidePartWorld { .. } => "name_outside_part_world",
         SplitError::Pin { .. } => "split_pin",
@@ -2506,7 +2505,6 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::StrandedPartRead { .. } => "stranded_part_read",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
-        InlineError::RankedRunReordered { .. } => "ranked_run_reordered",
         InlineError::Edit { .. } => "inline_edit",
     }
 }
@@ -3079,8 +3077,13 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::FaceThroughEdgeWedgeUndecided { .. } => {
             "face_through_edge_wedge_undecided"
         }
+        ValidationError::CoincidentWedgesOverlap { .. } => "coincident_wedges_overlap",
+        ValidationError::CoincidentWedgesOverlapUndecided { .. } => {
+            "coincident_wedges_overlap_undecided"
+        }
         ValidationError::ArcEndOffCorner { .. } => "arc_end_off_corner",
         ValidationError::InstanceInterference { .. } => "instance_interference",
+        ValidationError::SameSideInterference { .. } => "same_side_interference",
         ValidationError::CuspEdgesMissing { .. } => "cusp_edges_missing",
         ValidationError::DanglingTopology { .. } => "dangling_topology",
         ValidationError::DanglingGeometry { .. } => "dangling_geometry",

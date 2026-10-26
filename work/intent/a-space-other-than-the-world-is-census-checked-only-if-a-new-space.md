@@ -2,10 +2,11 @@
 id: a-space-other-than-the-world-is-census-checked-only-if-a-new-space
 kind: issue
 title: The at-rest gate checks the world and each new_space() holding a placed copy, but not a construction's own space: copies placed into one are checked by nothing until the ⊔ operator decides its operands
-status: open
+status: parked
 opened: 2026-10-22
 priority: P1
 parent: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 

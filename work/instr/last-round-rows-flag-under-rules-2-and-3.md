@@ -2,10 +2,11 @@
 id: last-round-rows-flag-under-rules-2-and-3
 kind: issue
 title: k-lint (dev-probe) flags props_quad_last_round rows under rules 2 and 3 at 1e-9 and 1e-12, the family whose rule-4 floor is unruled
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: M
+closed: 2026-10-26
 ---
 
 
@@ -36,3 +37,15 @@ flags, by construction, on every sweep that records one. That ruling is
 the open item; `work/instr/k-lint-last-round-is-eps-coupled-but-unrostered.md`
 (closed) and `work/quad/quad-last-round-margin-has-no-sign-premise.md`
 are its neighbours.
+
+## Closed (2026-10-26, tracker sweep)
+
+**Superseded.** QUAD's measure-door unit A (PR 5589) retired
+`props_quad_last_round` together with the quadrature budget exit:
+- `EPS_COUPLED_UNRULED` is empty (`tools/k-lint/src/lib.rs:380-390`, "its
+  one entry ... retired with the exit");
+- no `crates/` site mints the name (`git grep props_quad_last_round --
+  crates` is empty).
+
+The rows this row reports can no longer be recorded. The ruling it
+waited on is moot, and `docs/K-REPORT.md` keeps the record.

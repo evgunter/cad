@@ -769,6 +769,11 @@ macro_rules! nurbs_fit {
                         points: points.len(),
                     });
                 }
+                for (index, q) in points.iter().enumerate() {
+                    if $(!q.$c.is_finite())||+ {
+                        return Err(FitError::NonFinitePoint { index });
+                    }
+                }
                 check_ordered(params)
             }
 
@@ -835,7 +840,9 @@ macro_rules! nurbs_fit {
             /// # Errors
             ///
             /// [`FitError::ParamCountMismatch`] when `points` and the
-            /// system's parameters differ in count.
+            /// system's parameters differ in count,
+            /// [`FitError::NonFinitePoint`] at the first point with a
+            /// non-finite coordinate.
             pub fn interpolate_on(
                 points: &[$Point<f64>],
                 collocation: &Collocation,
@@ -1281,6 +1288,30 @@ mod tests {
             Collocation::new(&short, 3).unwrap_err(),
             FitError::TooFewPoints { have: 3, need: 4 }
         );
+    }
+
+    /// The explicit-parameter doors refuse a non-finite point as the
+    /// chord door does, naming its row, rather than solving it into
+    /// NaN control points.
+    #[test]
+    fn the_explicit_parameter_doors_refuse_a_non_finite_point() {
+        let pts = planar_loop(12);
+        let params = NurbsCurve3::<f64>::chord_parameters(&pts).unwrap();
+        let collocation = Collocation::new(&params, 3).unwrap();
+        for bad in [f64::NAN, f64::INFINITY] {
+            let mut moved = pts.clone();
+            moved[5] = Point3::new(moved[5].x, bad, moved[5].z);
+            assert_eq!(
+                NurbsCurve3::interpolate_with_params(&moved, 3, &params).unwrap_err(),
+                FitError::NonFinitePoint { index: 5 },
+                "interpolate_with_params on a {bad} coordinate"
+            );
+            assert_eq!(
+                NurbsCurve3::interpolate_on(&moved, &collocation).unwrap_err(),
+                FitError::NonFinitePoint { index: 5 },
+                "interpolate_on on a {bad} coordinate"
+            );
+        }
     }
 
     fn quarter_arc_samples(n: usize) -> Vec<Point3<f64>> {

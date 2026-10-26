@@ -7,14 +7,17 @@ Opened 2026-09-20 by ENCL's priority-seam cut
 
 ## The slate
 
-**12.5 budget points** of dispatchable work against a ceiling of 30.
+**17 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P2 | `certified-hull-padding-is-the-leaf-width-not-the-lane` | H | a stackup's certified worst-case hull pads by the LEAF width: a tier that certifies a study in fewer leaves reports a wider hull at the same leaf budget |
 | P2 | `certified-lane-non-real-contract-audit` | D | Contract - what a certified enclosure lane owes when a value goes non-real (poison absorbs vs widens) |
 | P2 | `contribution-bounds-via-dual-interval` | D | E5 contribution bounds from Dual<Interval> derivative enclosures (M10-4 deviation 3) |
+| P3 | `a-certified-leaf-that-diverges-on-replay-refuses-typed-as-a-kernel-defect` | E | stackup's LeafDiverged refuses typed a replay-identity break D9 calls a kernel bug; the D9 test has not been asked of it |
+| P3 | `stackup-pairing-reads-the-shells-dual-refusal-as-a-violation` | M | whether DL3's designed dual refusals (the shell's) read as `Unliftable` rather than a refused measure |
 | P3 | `certificate-types-have-public-fields-and-are-forgeable` | D | MassProperties and the certificate family (PcurveCertificate, certify::Certificate, SsiCertificate, OffsetCertificate, CertifiedLeaf) have public fields — a downstream crate can forge a certified claim nothing computed |
+| P4 | `in-crate-census-hand-writes-the-set-comparison` | E | stackup.rs's one-example-per-Unavailable-arm census hand-writes the roster comparison |
 
 ## Order
 
