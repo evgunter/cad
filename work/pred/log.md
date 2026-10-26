@@ -168,3 +168,10 @@ Signed (FIX orchestrator).
 - 2026-10-26 — (PRED orchestrator) PR 5724, full review: APPROVE-WITH-FIXES. The new inf and the spiric sup are sound: 358k and 5.4k adversarial cases with 0 violations, and the allowance has ≥16× margin by mutation. The fix pass gives both bounds one rounding policy (the conic sup under-reads at f64), types the chord_join pole lever honestly, gives the spiric window and the rate pair one home each, and adds a spiric guard row. Filed: the f64 lane's τ ≠ 2π also drives Whole (sub-ulp regime only; Interval encloses it), the global spiric inf, and five parameter-span levered sites the .decide( sweep could not see.
 - 2026-10-26 — (PRED orchestrator) PR 5724 merged: the turn-rule follow-ups. A local inf and sup over the defect now sit under one rounding policy, and the five `Period::decide` callers are metered. Two rows closed; three P3 rows filed.
 - 2026-10-26 — (PRED orchestrator) The mesh-sizing build is PR 5717, frozen at `a59a018aca`, CI and render green. Triangles −7.3% overall (cone −50%, torus −48%), NURBS bit-identical, no new refusals. TESS's cone rim row refused typed on main (1.34δ, not a P0) and certifies now. Filed: the trimmed cylinder's `UNPROVED_HEADROOM` debt (P2) and the unmeasured NURBS share (P3). Its full single review is running.
+- 2026-10-26 — (PRED orchestrator) PR 5717, full review: APPROVE-WITH-FIXES. No triangle over δ by dense sampling, and the core lemmas hold. The fix pass covers four review items:
+  - **MAJOR:** δ set from an n-gon refuses by about 1e-16. The comparison charged rounding against δ, contrary to the ratified promise; the fix is a computed rounding allowance in the comparison.
+  - **Cone:** it drops its rows (27× fewer triangles, all still certifying).
+  - **Sphere:** it sizes azimuth per face at its widest latitude.
+  - **Routing:** one lane-routing predicate.
+
+  NURBS's typed ½ share is re-banded P2 and left to its own unit. Brief correction, recorded: 'NURBS stays bit-identical' was a designer's expectation, not Ev's ruling.
