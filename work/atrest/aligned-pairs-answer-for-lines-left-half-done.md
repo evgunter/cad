@@ -22,3 +22,4 @@ Found by the post-merge review of PR 5779 (minor 2 and the style findings).
   - the over-long spliced doc line near 13109.
 - **`two_solids`** guards same-solid only for the wedge arms of `census_interference_solids` / `census_uncleared_solids`. The `EdgeEdgeCross` arms beside them don't have the guard. Add it, or say why crossings are cross-solid by construction.
 - **Pin arm 2's decided cross-solid `Said::Wedges` → MixedTouch with more than the pinwheel row.** #5529 pinned it with three rows, and now only one gates it. This rides with `a-touch-the-analysis-decides-crossing-is-read-as-undecidable`, which changes that mapping.
+- **One connected overlap reported twice at tier 3′.** `coincident_line_wedges`' leaning-prism row pins its z-axis wedge overlap and the cap sliver as two findings, where D10 `[assertions]` has one finding per connected overlap. The door folds them, so this is harmless there. Decide whether tier 3′ should fold them too.
