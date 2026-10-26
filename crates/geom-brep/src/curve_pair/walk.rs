@@ -18,13 +18,18 @@
 //! reaches at most `ℓ` metres from its middle point, `ℓ` its half-span
 //! times the carrier's greatest speed. Two pieces are cleared when the
 //! distance between their middle points less both reaches decides
-//! positive (`curve_pair_walk_clear`), or, where both carriers bound
-//! their acceleration, the distance's component along a unit `n` less
-//! each piece's run along `n` and its bend (`|n·C′|·h + |C″|·h²/2`), read
-//! along the gap and across each piece's tangent. Pieces stop at
-//! [`geom_core::bisect::tangency_floor`] of `1/κ`, `κ` the two carriers'
-//! summed curvature bound (`curve_pair_walk_piece`); a spline bounds no
-//! curvature here, so its pieces stop at the band itself. A pair that
+//! positive (`curve_pair_walk_clear`), or the distance's component
+//! along a unit `n` less each piece's run along `n` and its bend
+//! (`|n·C′|·h + |C″|·h²/2`, [`geom::carrier_speed::accel_hi`]), read
+//! along the gap and across each piece's tangent. The bend needs each
+//! carrier `C¹` across its piece, and its bound is finite only where it
+//! is: a spline with a crease clears on the first reading alone. Pieces
+//! stop at [`geom_core::bisect::tangency_floor`] of `1/κ`, `κ` the two
+//! carriers' summed curvature bound (`curve_pair_walk_piece`). Where
+//! that bound is not finite (a spline with a crease, or whose speed
+//! floor certifies nothing) the floor is zero, poison, or at `Interval`
+//! an enclosure reaching zero, and a piece stops only once its reach is
+//! within the band. A pair that
 //! stops is polished toward the meeting by Gauss–Newton, each carrier's
 //! foot of the other's point is polished, and the point is read on both
 //! spans ([`Span::contact`]). Every piece the walk does not clear ends at
@@ -34,7 +39,7 @@
 //! [`geom_core::bisect::PIECE_BUDGET`] refuses typed
 //! ([`Unsettled::Exhausted`]).
 
-use geom::Curve3;
+use geom::{Curve3, PieceStep};
 use geom_core::bisect::{Step, bisect};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, SupSpeed, Vec3};
@@ -44,11 +49,11 @@ use super::{Both, Found, MeetFault, MeetRefusal, Meetings};
 use crate::roots::Unsettled;
 
 /// A span as the walk reads it: with its bounds on `|C″|` and on the
-/// curvature, `None` on a spline.
+/// curvature.
 struct Read<'r, 's, T: Decide> {
     span: &'r Span<'s, T>,
-    accel: Option<T>,
-    curvature: Option<T>,
+    accel: T,
+    curvature: T,
 }
 
 impl<'r, 's, T: Decide> Read<'r, 's, T> {
@@ -153,7 +158,8 @@ fn stops<T: Decide>(row: &'static str, reach: T, floor: Option<T>, band: Band) -
     }
 }
 
-/// The pieces of `span` that `q` may rest on: halved until each is
+/// The middles of the pieces of `span` that `q` may rest on, on the
+/// carrier's point walk ([`Curve3::point_walk`]): halved until each is
 /// decided clear of `q` or its reach stops at the band. Every point of the
 /// span within the band of `q` lies in a kept piece. It reads only the
 /// carrier's greatest speed, so it never refuses for want of a least one.
@@ -161,27 +167,26 @@ fn near_pieces<T: Decide>(
     span: &Span<'_, T>,
     q: Point3<T>,
     band: Band,
-) -> Result<Vec<Piece<T>>, geom_core::bisect::Exhausted> {
+) -> Result<Vec<T>, geom_core::bisect::Exhausted> {
     let mut out = Vec::new();
-    let hi = span.speeds().1;
-    bisect(
-        [Piece::whole(span.params())],
-        |p| -> Step<Piece<T>, core::convert::Infallible> {
-            let reach = p.reach(hi);
-            let gap = (span.carrier().eval(p.mid()) - q).norm();
+    span.carrier().point_walk(
+        q,
+        span.params(),
+        span.speeds().1,
+        |p| -> PieceStep<core::convert::Infallible> {
             if surely(
                 "curve_pair_walk_foot_clear",
-                gap - reach,
+                p.gap - p.reach,
                 band,
                 Sign::Positive,
             ) {
-                return Step::Settled;
+                return PieceStep::Settled;
             }
-            if stops("curve_pair_walk_foot_piece", reach, None, band) {
-                out.push(p);
-                return Step::Settled;
+            if stops("curve_pair_walk_foot_piece", p.reach, None, band) {
+                out.push(p.mid);
+                return PieceStep::Settled;
             }
-            Step::Halve(p.halves())
+            PieceStep::Halve
         },
     )?;
     Ok(out)
@@ -200,10 +205,7 @@ fn feet<T: Decide>(
     if let Some(t) = r.curve().param_near(q, geom::mid_param(t0, t1)) {
         return Ok(vec![t]);
     }
-    Ok(near_pieces(r.span, q, band)?
-        .into_iter()
-        .map(Piece::mid)
-        .collect())
+    near_pieces(r.span, q, band)
 }
 
 /// `q` read on `a` at each of `ta` and on `b` at each of `tb`: on a span
@@ -265,11 +267,8 @@ fn pieces_apart<T: Decide>(
     if clear(dist - pa.reach(a.hi()) - pb.reach(b.hi())) {
         return true;
     }
-    let (Some(acc_a), Some(acc_b)) = (a.accel, b.accel) else {
-        return false;
-    };
     let (ha, hb) = (pa.half(), pb.half());
-    let bend = (acc_a * ha.powi(2) + acc_b * hb.powi(2)) * T::from_f64(0.5);
+    let bend = (a.accel * ha.powi(2) + b.accel * hb.powi(2)) * T::from_f64(0.5);
     // `|D| ≥ |n·D|` for every unit `n`: along the gap, and across each
     // piece's tangent, where two near-parallel pieces read their
     // separation rather than their offset along it.
@@ -305,14 +304,10 @@ fn witnesses<T: Decide>(
     Ok(points)
 }
 
-/// The tangency floor of `a` against `b` in metres, or `None` where a
-/// carrier bounds no curvature.
-fn floor<T: Decide>(a: &Read<'_, '_, T>, b: &Read<'_, '_, T>, band: Band) -> Option<T> {
-    let kappa = a.curvature? + b.curvature?;
-    Some(geom_core::bisect::tangency_floor(
-        T::one() / kappa,
-        band.escalate(),
-    ))
+/// The tangency floor of `a` against `b` in metres: not finite where a
+/// carrier bounds no finite curvature.
+fn floor<T: Decide>(a: &Read<'_, '_, T>, b: &Read<'_, '_, T>, band: Band) -> T {
+    geom_core::bisect::tangency_floor(T::one() / (a.curvature + b.curvature), band.escalate())
 }
 
 /// **The meetings of `a` and `b` by the walk** (module docs).
@@ -364,7 +359,7 @@ pub(super) fn meet<T: Decide>(
         };
         found.offer(q, || read_both((a, &ta), (b, &tb), q, band), band);
     }
-    let floor = floor(&ra, &rb, band);
+    let floor = Some(floor(&ra, &rb, band));
     let walk = bisect(
         [(Piece::whole(a.params()), Piece::whole(b.params()))],
         |(pa, pb)| -> Step<(Piece<T>, Piece<T>), core::convert::Infallible> {

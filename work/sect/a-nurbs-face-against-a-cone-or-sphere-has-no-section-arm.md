@@ -52,3 +52,13 @@ cubic, as the rung-3 carrier text allows, or a per-span bound like the
 cone and torus metres conversion (C2 limb 2). This is a design read for
 SECT's step 3 or 4. Parked on SECT's step 1 (the section object) and on
 SPLICE's gate deletion (until then no NURBS operand reaches the join).
+
+## Correction (2026-10-26, SPLICE orchestrator)
+
+PR 5723 measured where klein wall 3 actually meets. The neck cylinder's
+seam line runs onto the loop wall's rim, and the wall leaves that rim
+tangent to the neck cylinder. So klein's join pair is **cylinder ×
+NURBS, tangent along the rim**: the "tangent section decided at the
+door" clause of SECT's design, not a transverse cone × NURBS arm.
+Teapot wall 3 is sphere × NURBS, as filed. C5's new curve × face clause
+(PR 5727) is the substrate a section's boundary pass will read with.

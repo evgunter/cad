@@ -19,3 +19,18 @@ rational net), so its pieces stop at the band itself and an edge-edge
 record at a tangency of a spline edge runs past the budget and refuses
 typed. A generic second-derivative bound on the control net would give
 splines the floor too.
+
+## What changed (2026-10-26)
+
+SPLICE's PR 5715 (branch `splice/touch-doors`) gave splines a bound.
+`carrier_speed::accel_hi` reads `NurbsCurve3::accel_upper_bound`, and
+`curvature_hi` reads it over the speed floor; both return a value, not
+an `Option`. So an uncreased spline now gets `curve_pair::walk`'s
+second-order clear and its tangency floor, and this row's premise no
+longer holds for it.
+
+A spline with a crease (an interior knot of multiplicity at least the
+degree) still reads no finite bound and still walks to the band. That
+is filed as `work/splice/a-creased-spline-gets-no-second-order-clearing.md`.
+Whether the census's edge-edge record at an uncreased spline's
+tangency now stays within the budget is unmeasured. Status left as is.

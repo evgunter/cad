@@ -489,12 +489,11 @@ the table.
 
   **What the nesting half does NOT match, in the same shape**: any face
   on a non-planar surface. On a plane, an outer loop carrying a
-  `Spiric` or NURBS edge, which has no crossing row, is read only along
-  a ray that definitely misses a ball holding each such edge; a ring no
-  vertex of which such a ray reaches is reported
-  `RingNestingUndecided`, never `RingOutsideOuter`, since answering
-  `Out` from a region that is not the loop's would refuse valid
-  bodies. And inside the gate: the nesting arm places a whole ring from one vertex
+  `Spiric` or NURBS edge is read piece by piece on that edge's carrier;
+  a ring no vertex of which those pieces place (the edge's reading ran
+  out of depth or pieces first) is reported `RingNestingUndecided`,
+  never `RingOutsideOuter`, since answering `Out` from a region that is
+  not the loop's would refuse valid bodies. And inside the gate: the nesting arm places a whole ring from one vertex
   on the premise that the two loops do not cross, which the contact
   half checks wherever both loops carry only `Line` and `Circle` edges
   — a ring arc bowing past the outer loop between inside vertices is a
@@ -579,13 +578,17 @@ are discharged). Each refuses typed with a message naming its blocker
   general circle) stores its projected image (C4), so the
   oblique-trihedron octant faces store their rows; a torus's
   Villarceau circle and a cone's tilted section mint their exact image
-  (`Pcurve::FocalSection`), and a circle within the band of a cone or
-  torus that is none of its circles refuses as a defect
-  (`CarrierGrazesChart`); a spiric on its torus's mirror through the
+  (`Pcurve::FocalSection`), and a circle not shown off a cone or torus
+  that is none of its circles, or whose class reading is in band, has
+  no general lane yet and refuses lever-only "not yet"
+  (`NoGeneralLane`, `PcurveCheck::ChartClass`; unit E4 in
+  `work/pcert/plan.md`), as does a line or ellipse whose class reading
+  is in band (unit E2); a spiric on its torus's mirror through the
   cutting plane mints the wall image with its azimuth sign opposed
-  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). Every class an
-  analytic chart can hold has a route, so C4's exemption excuses no
-  class; a face is left uncached only at a scalar with no fitted door.
+  (`SpiricImage::Wall`, tagged `WallTorus::Mirror`). C4's exemption
+  excuses no class; a face whose class has no general lane yet is
+  refused typed rather than left uncached, and a face is left uncached
+  only at a scalar with no fitted door.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing

@@ -187,7 +187,7 @@ fn r2_wedge_bytes() {
 fn r2_overflow_edge_needle_cone() {
     // Slant (0,0) → (5e-7, 10): dr = 5e-7 (500× ambient ε — decidedly
     // a cone, not a cylinder), dz = 10, half-angle = atan(5e-8).
-    // ρ_max = 5e-7, so at δ = 0.1 (δ_s = 0.05 ≥ ρ_max) hu caps at π/4
+    // ρ_max = 5e-7, so at δ = 0.1 (≥ ρ_max·cos α) hu caps at π/4
     // and the merge base's v-schedule count is
     // ceil(vspan/(ρ_max·hu)) ≈ ceil(10/(5e-7·π/4)) ≈ 2.55e7 ≥ 2^24.
     // A Partial(0.5) wedge keeps nu = ceil(0.5/(π/4)) = 1.

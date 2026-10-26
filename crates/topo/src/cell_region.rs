@@ -12,7 +12,7 @@
 //!    clear of that ball in metres, each on its own carrier
 //!    (`splitting::containment::arc_distance_floor`: a line by its
 //!    segment, a circle or an ellipse by its own arc, any other carrier
-//!    by the ball its arc lies in). An edge's 3-D box is never read: a
+//!    by the ball its arc lies in, or else piece by piece). An edge's 3-D box is never read: a
 //!    long diagonal edge's box covers every cell beside it. So is every
 //!    singular point of the carrier, which a patch can be connected
 //!    through without being connected in the face: a cone's apex, and
@@ -234,7 +234,7 @@ fn clear_of_boundary(
                     let row = match floor {
                         ArcFloor::Segment(_) => SEGMENT,
                         ArcFloor::Conic { .. } => CONIC,
-                        ArcFloor::Ball(_) => BALL,
+                        ArcFloor::Ball { .. } => BALL,
                     };
                     floor.clears(|d| clear(row, d))
                 });

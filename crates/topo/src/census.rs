@@ -3957,11 +3957,11 @@ fn meetings<T: Decide>(
             CarrierSpan::new(&chord, (T::zero(), (b - a).norm())),
             CutAt::Crossing(side.key),
         ),
-        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }, Some(curve)) => (
+        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Spline(_), Some(curve)) => (
             CarrierSpan::new(curve.carrier(), curve.params()),
             CutAt::CurvedCrossing(side.key),
         ),
-        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Unrowed { .. }, None) => {
+        (LoopEdge::Conic(_) | LoopEdge::Spiric(_) | LoopEdge::Spline(_), None) => {
             return Err(CrossRefusal::Unsupported(ContainError::LoopUnreadable(
                 side.r#loop,
             )));

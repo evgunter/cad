@@ -21,3 +21,11 @@ the meeting-axes pose builds: Err(Join(BooleanJoin(Euler(Certification { error: 
 The same row refused the same way (`carrier_endpoint_end`, an interval split vertex `[0, 1.76e-12]` wide) on TANG's PR 5192 before it merged (`work/ciw/a-sweep-diff-gates-no-eps-row-of-sweep.md`), so the endpoint's enclosure sits at the zero band's edge for this pose and PR 5156 moved it across.
 
 **Done when** the pose builds at 1e-12 again, with the endpoint's enclosure decided rather than the row's pins loosened, and the row is green on main.
+
+**Now red at the default ε too (2026-10-25).** Re-run on main `663dd78fef`, the row fails at the default ε with a different refusal, a `Containment` margin escalation on `bool_ruled_region_span`:
+
+```
+the meeting-axes pose builds: Err(Escalated { decision: Containment { decision: None, escalation: Margin }, diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -1.5707963267956369, hi: 4.712388980385431, .. }), .. predicate: Some("bool_ruled_region_span") .. })
+```
+
+PCERT's E1 merge of main (`30477d14e2`) fails the same way, so the default-ε red is main's. The done-when now covers every ε.

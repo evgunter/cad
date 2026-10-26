@@ -46,8 +46,9 @@ pub enum BendBounds<T: Real> {
         /// `s` ([`conic_bend_side`]).
         lifts_to: T,
     },
-    /// A spiric section or a spline: no curvature bound is certified, so
-    /// its tie with a plane reads no side.
+    /// A spiric section or a spline: no least curvature is certified (a
+    /// spiric's oval may run flat, and a spline's curvature carries no
+    /// bound here), so its tie with a plane reads no side.
     Unbounded,
 }
 
