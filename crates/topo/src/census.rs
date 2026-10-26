@@ -1422,13 +1422,12 @@ struct UnreadPass {
 /// cells' closures hold the two cells of a touch the pair answered for,
 /// so it reads that touch again from a cell bounding one of them (a base
 /// edge against the face a near-flush corner bounds), and it lies there:
-/// its cells meet in band of the answered touch's meeting point, and
-/// every end of either cell that does not is decidedly off the other's
-/// carrier, so no other part of the two cells is what escalated. A
-/// reading with no meeting point (a curved cell, parallel carriers)
-/// stands. The edge passes run after the vertex passes and edge–edge
-/// after edge–face, so a touch is answered before every reading that
-/// could shadow it is settled.
+/// each end of either cell, and the point where the two meet if they
+/// meet at one, is in band of both cells of such a touch, or decidedly
+/// off the other cell ([`distance`]), so no other part of the two cells
+/// is what escalated. The edge passes run after the vertex passes and
+/// edge–edge after edge–face, so a touch is answered before every
+/// reading that could shadow it is settled.
 fn drop_shadows<T: Decide>(
     body: &Body<T>,
     geo: &Geo<T>,
@@ -1436,32 +1435,42 @@ fn drop_shadows<T: Decide>(
     pass: &mut UnreadPass,
     errors: &mut Vec<ValidationError>,
 ) {
-    let near = |x: Point3<T>, y: Point3<T>| {
-        !matches!(
-            geom_core::k_stats::decide_magnitude_reported(
-                "pm_census_unread_shadow",
-                Margin::norm3(x - y),
-                band
-            ),
-            Ok((Magnitude::Positive, _))
-        )
+    let near = |cell, u| {
+        distance(geo, u, cell).is_some_and(|m| {
+            !matches!(
+                geom_core::k_stats::decide_magnitude_reported("pm_census_unread_shadow", m, band),
+                Ok((Magnitude::Positive, _))
+            )
+        })
+    };
+    let off = |cell, u| {
+        distance(geo, u, cell).is_some_and(|m| {
+            matches!(
+                geom_core::k_stats::decide_magnitude_reported(
+                    "pm_census_unread_shadow_end",
+                    m,
+                    band
+                ),
+                Ok((Magnitude::Positive, _))
+            )
+        })
     };
     let shadow = |(p, q): (EntityId, EntityId)| {
-        let Some(at) = meeting_point(geo, (p, q)) else {
-            return false;
-        };
-        pass.answered.iter().any(|&((c, d), _)| {
-            let holds = |x, y| in_closure(body, geo, c, x) && in_closure(body, geo, d, y);
-            (holds(p, q) || holds(q, p))
-                && meeting_point(geo, (c, d)).is_some_and(|answered| {
-                    near(at, answered)
-                        && [(p, q), (q, p)].into_iter().all(|(x, y)| {
-                            ends(geo, x)
-                                .into_iter()
-                                .all(|u| near(u, answered) || off_carrier(geo, u, y, band))
-                        })
-                })
-        })
+        let touches: Vec<(EntityId, EntityId)> = pass
+            .answered
+            .iter()
+            .map(|&(cells, _)| cells)
+            .filter(|&(c, d)| {
+                let holds = |x, y| in_closure(body, geo, c, x) && in_closure(body, geo, d, y);
+                holds(p, q) || holds(q, p)
+            })
+            .collect();
+        let answered = |u| touches.iter().any(|&(c, d)| near(c, u) && near(d, u));
+        !touches.is_empty()
+            && meeting_point(geo, (p, q)).is_none_or(answered)
+            && [(p, q), (q, p)]
+                .into_iter()
+                .all(|(x, y)| ends(geo, x).into_iter().all(|u| answered(u) || off(y, u)))
     };
     let held = std::mem::take(&mut pass.held);
     errors.extend(
@@ -1469,6 +1478,43 @@ fn drop_shadows<T: Decide>(
             .filter(|&(cells, _)| !shadow(cells))
             .map(|(_, e)| e),
     );
+}
+
+/// How far `u` stands from `cell`: a vertex's point, a line edge's
+/// segment, a planar face's plane or the box of its vertices, whichever
+/// is farther (a bound below the distance to the face). `None` for a
+/// curved cell.
+fn distance<T: Real>(geo: &Geo<T>, u: Point3<T>, cell: EntityId) -> Option<Margin<T>> {
+    match cell {
+        EntityId::Vertex(v) => Some(Margin::norm3(u - *geo.vmap.get(&v)?)),
+        EntityId::Edge(e) => {
+            let e = line_edge(geo, e)?;
+            let t = (u - e.p0).dot(e.dir).max(T::zero()).min(e.len);
+            Some(Margin::norm3(u - (e.p0 + e.dir * t)))
+        }
+        EntityId::Face(f) => {
+            let f = planar_face(geo, f)?;
+            let mut corners = f.boundary.iter().map(|v| geo.vmap.get(v).copied());
+            let first = corners.next()??;
+            let (lo, hi) = corners.try_fold((first, first), |(lo, hi), p| {
+                let p = p?;
+                Some((
+                    Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
+                    Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
+                ))
+            })?;
+            let out = |x: T, a: T, b: T| (a - x).max(x - b).max(T::zero());
+            let to_box = Vec3::new(
+                out(u.x, lo.x, hi.x),
+                out(u.y, lo.y, hi.y),
+                out(u.z, lo.z, hi.z),
+            );
+            Some(Margin::of(
+                to_box.norm().max((u - f.origin).dot(f.normal).abs()),
+            ))
+        }
+        _ => None,
+    }
 }
 
 /// The line edge `e`'s snapshot entry, or `None` for a curved one.
@@ -1515,30 +1561,6 @@ fn ends<T: Real>(geo: &Geo<T>, cell: EntityId) -> Vec<Point3<T>> {
         EntityId::Edge(e) => line_edge(geo, e).map_or_else(Vec::new, |e| vec![e.p0, e.p1]),
         _ => Vec::new(),
     }
-}
-
-/// Whether `u` stands decidedly off `cell`'s carrier: a vertex's point, a
-/// line edge's line, a planar face's plane. `false` for a curved cell.
-fn off_carrier<T: Decide>(geo: &Geo<T>, u: Point3<T>, cell: EntityId, band: Band) -> bool {
-    let margin = match cell {
-        EntityId::Vertex(v) => match geo.vmap.get(&v) {
-            Some(&w) => Margin::norm3(u - w),
-            None => return false,
-        },
-        EntityId::Edge(e) => match line_edge(geo, e) {
-            Some(e) => Margin::norm3((u - e.p0) - e.dir * (u - e.p0).dot(e.dir)),
-            None => return false,
-        },
-        EntityId::Face(f) => match planar_face(geo, f) {
-            Some(f) => Margin::of((u - f.origin).dot(f.normal).abs()),
-            None => return false,
-        },
-        _ => return false,
-    };
-    matches!(
-        geom_core::k_stats::decide_magnitude_reported("pm_census_unread_shadow_end", margin, band),
-        Ok((Magnitude::Positive, _))
-    )
 }
 
 /// The planar snapshot entry for a face, or `None` for a curved one.
