@@ -37,3 +37,6 @@ Either the door reads Door 1 itself from the two faces (one home for
 that read), or the verdict-taking door goes crate-private beside a
 public one that reads it, and the tests move to crate-internal tests or
 to the reading door. No measured harm: no public caller outside tests.
+Since INTENT's PR 5605 the rescue the verdict gates also runs where the
+region walk escalates and on the shared-chart path, so the reach of a
+caller's `Definite` grew with it.
