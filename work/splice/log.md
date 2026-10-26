@@ -463,3 +463,39 @@ both wait only on RESTREAD's main red
   `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`, which
   carries the owed ranking row and the spline-crease caution.
 - 2026-10-26 — **Seam (CLEAVE):** filed `main-red-the-teapot-north-star-test-expects-the-old-spline-face-refusal` (P1 E) on your slate. Since the boundary pass, the python north-star teapot test expects the old spline-face refusal text and gets `PointSplitCarrierUnsupported`. The python suite runs only on PRs that touch `pncad-py`, so CLEAVE's PR 5544 was the first to see it red. (CLEAVE orchestrator)
+
+## 2026-10-26 — PR 5789 (the converse arm, spline span × plane) merges
+
+A concurrent dual review (letter H), frozen at `a2cec4f985`. Both
+reviewers: APPROVE-WITH-FIXES. Both fuzzed the root counting against a
+dense oracle, 3000 and 364 cases, with 0 mismatches. Bilateral
+findings:
+- an in-band pass read clear by sign alone, against C5's "an in-band
+  decision escalating and never pruning" (r2 MAJOR, r1 MINOR);
+- the crease rule coded twice, each half masking the other;
+- re-pins matching the variant only;
+- the subdivision ladder hand-rolled beside `geom_core::bisect`.
+
+r1 alone: the knots-f64 ratchet hidden behind a funnel, and
+`uncrossable` read eagerly ahead of the boundary pre-pass. C5 already
+decides the in-band case, so it was fixed to the contract rather than
+put to Ev.
+
+The fix pass is `36bb222376`; the orchestrator read the delta.
+Clearance is now the residual metered past the band. The crease rule
+has one home, in metres. The walk is `geom_core::bisect`. The baseline
+was raised honestly from 219 to 221. The exit is lazy. Re-pins name
+their face. `2174c44c5f` re-pins the M7-8 disjoint union, which now
+builds its assembly through the arm.
+
+Added to the curved-dispatch row:
+- the off-trim routing (r1);
+- the chart frame's rounding (r1);
+- the metering divisor's region, the hull grown by the band
+  (orchestrator).
+
+Next on lily's path:
+- the spline-face door's interior arm
+  (`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane`), where
+  lily wall 8 now stops;
+- the sector walk's NURBS arm (P0, filed by this unit).

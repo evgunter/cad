@@ -50,3 +50,11 @@ carrier, which the arm refuses as a tangency.
   which places the meeting off the face and passes. Route the arm's
   `Unsettled` the same way, for the plane too. This is over-refusal,
   not unsoundness.
+- **The metering divisor's region.** The arm meters `f` into a
+  distance by an upper bound on the form's gradient over the net's
+  hull (`projected::Meters::divisor`). `|f(q)| ≤ max‖∇f‖ · d(q)` holds
+  along the segment from `q` to its nearest surface point, and that
+  segment can leave the hull. A piece within the band of the surface
+  keeps that segment inside the hull grown by the band, so bound the
+  gradient over that grown box. For the plane the divisor is one and
+  the point is moot. (Orchestrator, reading PR 5789's fix pass.)
