@@ -730,7 +730,8 @@ pub(crate) fn measure_to<'b, T: Decide>(
 /// walk's own sums round at its scalar, so `step` reads the re-derived
 /// enclosure again, its ends carried into the scalar as computed values
 /// and metered over the area's upper end. A settlement the
-/// re-derivation does not confirm refines on.
+/// re-derivation does not confirm refines on, and a re-derivation that
+/// does not certify confirms nothing.
 ///
 /// # Errors
 ///
@@ -746,11 +747,14 @@ fn deciding_walk<T: Decide>(
         let round = &rounds[0];
         let read = match step(round.props().enclosure()) {
             settle::Step::Settled(_) => match round.interval_volume() {
-                Some(Ok((volume, area))) => step(VolumeEnclosure {
-                    volume_lo: T::from_computed(volume.lo()),
-                    volume_hi: T::from_computed(volume.hi()),
-                    surface_area: T::from_computed(area.hi()),
-                }),
+                Some(Ok((volume, area))) if volume.is_certified() && area.is_certified() => {
+                    step(VolumeEnclosure {
+                        volume_lo: T::from_computed(volume.lo()),
+                        volume_hi: T::from_computed(volume.hi()),
+                        surface_area: T::from_computed(area.hi()),
+                    })
+                }
+                Some(Ok(_)) => settle::Step::Refine,
                 Some(Err(source)) => return Ask::Decided(Err(source)),
                 None => step(round.props().enclosure()),
             },
