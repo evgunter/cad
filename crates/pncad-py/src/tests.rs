@@ -6335,6 +6335,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("step_ids", 3),
     ("structure", 3),
     ("tolerance_conflict", 2),
+    // One fact at the edit door and in the skin: a loft through fewer
+    // than two sections.
+    ("too_few_sections", 2),
     ("transition", 2),
     // A coincidence: a crossing side the band left undecided, and a
     // rigidity margin the decided door left undecided.
