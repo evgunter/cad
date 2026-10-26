@@ -916,7 +916,10 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol) -> Bench {
             plane(crate_i, &parts.crate_bottom),
             plane(stand.shelf_i, &parts.shelf_top),
         ),
-        seated_at(x, y, pe("swing", &scope)),
+        // The shelf's top faces up, so the crate is mated along the
+        // world's `-z`: a turn by the swing about `+z` is a spin of the
+        // negated swing, as on the shelf's own seat.
+        seated_at(x, y, pe("-swing", &scope)),
         tol,
     );
     Bench {

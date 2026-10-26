@@ -1325,6 +1325,7 @@ impl SitedRef {
 /// let _: Mate<Formula> = Mate {
 ///     on: plane(face),
 ///     to: flipped,
+///     orient: editor_core::Orientation::IDENTITY,
 /// };
 /// ```
 ///
