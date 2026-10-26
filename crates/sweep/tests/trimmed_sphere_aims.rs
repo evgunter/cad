@@ -17,8 +17,12 @@ use topo::{AtRestBody, BooleanError, BooleanResult};
 /// A `y`-poled ball of radius `r` at `c`.
 fn ball(r: f64, c: Vec3<f64>, tol: Tol) -> AtRestBody<f64> {
     let at = ball_poled_y(r, Vec3::new(0.0, 0.0, 0.0), tol);
-    let moved = topo::transform_rigid(&at, &geom_core::RigidMotion::translation(c).unwrap(), tol)
-        .expect("move");
+    let moved = topo::transform_rigid(
+        &at,
+        &geom_core::RigidMotion::translation(c).expect("a translation"),
+        tol,
+    )
+    .expect("move");
     finished("the ball", moved, tol)
 }
 
