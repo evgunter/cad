@@ -8,6 +8,7 @@ priority: P0
 cost: H
 design: true
 refs: [delete-the-boolean-operand-edge-gate, nurbs-edge-crossing-rung-is-the-ring-composite, a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm, nurbs-plane-section-has-no-component-arm, 5723]
+needs_ev: true
 ---
 
 
@@ -60,3 +61,35 @@ the question. One Opus and one Fable designer weigh it
 (`memories/orchestration-model.md`) before a lane builds.
 
 Reachable once PR 5723 merges.
+
+## Weighed (2026-10-26)
+
+Two designers, A and B, weighed it and converged (design-fork log row
+197). The recommendation to Ev is to give C5 a curve × face clause:
+- one exhaustive `(CurveKind, SurfaceKind)` meeting table in geom-brep,
+  whose arms are the boolean's root doors;
+- the converse spline-edge rung
+  (`nurbs-edge-crossing-rung-is-the-ring-composite`) is another arm of
+  that table;
+- a span is read against the face's boundary edges first, so a shared
+  rim is a coincidence glued at the coincidence door;
+- the interior is decided by enclosure or a Krawczyk contraction;
+- a NURBS face gets no signed residual, only a margined foot.
+
+**Corrections to this row's premise**, both designers:
+- The three walls are not one case. Lily 8's blade rim IS the sheath
+  wall's boundary rim: a shared run, decided by the curve-pair table
+  with no spline arithmetic. Klein 3's seam line ends on the wall's rim
+  circle, with the wall tangent there (it leaves the rim straight up).
+  Teapot 3 is a transverse pierce of the spout's wall by a belly circle,
+  not a rim contact.
+- Klein 3 is also held by the loop's 3.99e-4 rad cap tilt (the rims are
+  up to 1.1e-4 m apart, not Zero at any ε the demos run), which goes
+  with `carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`.
+
+The pieces the design implies, each to be its own row once Ev rules:
+the boundary-first span reading; the interior arm; point-in-face for a
+NURBS chart (`contain::curved_interior_placement` answers `Trim(None)`
+for `Nurbs`); a NURBS arm for the dihedral side reading (with the
+SEAMRANK flush rows); and `CurvedBooleanUnsupported` carrying the edge.
+Lily 8 needs only the first and the flush rows.
