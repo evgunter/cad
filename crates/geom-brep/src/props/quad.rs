@@ -548,12 +548,14 @@ pub(super) fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (I
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
 }
 
-/// `(cos t, sin t)` of an exact parameter `t`: [`trig_at`] from the exact
-/// `(1, 0)` at `t = 0`, transcendental-free, at most about 1e-14 wide for
-/// `|t|` up to a full period.
+/// `(cos a, sin a)` at the limit `a` a trim edge's bracket `t` is
+/// integrated from or to (its midpoint, as [`TrimEdgeQ`] takes it), by
+/// [`trig_at`] from the exact `(1, 0)` at `a = 0`: transcendental-free,
+/// at most about 1e-14 wide for `|a|` up to a full period. Refused for a
+/// refused bracket.
 #[must_use]
-pub fn trig_of(t: f64) -> (Interval, Interval) {
-    trig_at((Interval::one(), Interval::zero()), t)
+pub fn trig_at_limit(t: Interval) -> (Interval, Interval) {
+    trig_at((Interval::one(), Interval::zero()), mid(t))
 }
 
 /// `(cos, sin)` at exact offset `off` from a base enclosure:

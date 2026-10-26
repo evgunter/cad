@@ -44,9 +44,8 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
 /// **The trig bracket at one end of a trim edge's carrier interval**, as
 /// the cylinder lane reads it: `(cos a, sin a)` for `a` the end's
 /// midpoint, the parameter the lane integrates from (and to), formed from
-/// the exact `(1, 0)` at `t = 0` ([`quad::trig_of`]), about 1e-14 wide at
-/// most.
-/// The vertex reading ([`trig_at_start`]) is `ε` wide, and its width rides
+/// the exact `(1, 0)` at `t = 0` ([`quad::trig_at_limit`]), about 1e-14
+/// wide at most. The vertex reading ([`trig_at_start`]) is `ε` wide, and its width rides
 /// every piece of the edge, levered by the channel's trig coefficients:
 /// on a sliver whose height is a few `ε`, it alone was the face's floor
 /// (`work/flux/a-cylinder-split-just-off-its-rim-vertex-exhausts-the-volume-quadrature-at-rest.md`).
@@ -57,7 +56,7 @@ pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
 /// carrier starts, not of its midpoint, and only the parameter's bracket
 /// is the one the lane needs.
 fn trig_at_end(t: Interval, vertex: (Interval, Interval)) -> (Interval, Interval) {
-    let (c, s) = quad::trig_of((t.lo() + t.hi()) * 0.5);
+    let (c, s) = quad::trig_at_limit(t);
     if t.is_certified() && t.lo() == t.hi() {
         (c.meet(vertex.0), s.meet(vertex.1))
     } else {

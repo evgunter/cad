@@ -4090,7 +4090,20 @@ fn face_flux<T: Decide>(
     refs: &References<T>,
 ) -> Result<FaceRun<T>, MassPropsError> {
     let about = refs.at(body, face_key)?;
-    face_flux_about(body, face_key, band, quad, tol, window, about)
+    let run = face_flux_about(body, face_key, band, quad, tol, window, about)?;
+    if let Ok(path) = std::env::var("CYLPAD_OUT")
+        && matches!(resolve_face(body, face_key).1, Surface::Cylinder { .. })
+        && run.contribution.enclosure.is_some()
+    {
+        use std::io::Write;
+        let path = format!("{path}.{}", std::process::id());
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+            let test = std::env::args().skip(1).find(|a| !a.starts_with('-')).unwrap_or_default();
+            let line = format!("{test}\t{face_key:?}\t{:?} {:.6e}\t{:e}\n", window, run.contribution.area, run.contribution.flux_pad);
+            let _ = f.write_all(line.as_bytes());
+        }
+    }
+    Ok(run)
 }
 
 /// [`face_flux`] about `about`: resolve the surface, flatten the loops,
