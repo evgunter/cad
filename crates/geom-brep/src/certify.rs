@@ -4488,6 +4488,12 @@ mod wiring_rows {
         ) {
             return Err("incidence is not `edge_nurbs::plane_nurbs_incidence`");
         }
+        if !std::ptr::fn_addr_eq(
+            lane.surface_foot,
+            geom::NurbsSurface::<T>::project as fn(_, _) -> _,
+        ) {
+            return Err("surface_foot is not `NurbsSurface::project`");
+        }
         Ok(())
     }
 
