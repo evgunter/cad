@@ -258,22 +258,26 @@ impl<V> SideUnread<V> {
 type Aim<T> = (Point3<T>, Vec3<T>);
 
 /// **Where a ray aimed at `face` aims**, and the face's outward normal
-/// there. A planar face whose outer loop is all lines aims at the mean of
-/// its points ([`line_loop_mean`]), which asks nothing: the ray meets
-/// the edges it passes, however near ([`ray_crossings`]). Another planar
+/// there. A planar face whose outer loop is all lines and circle arcs
+/// aims at a weighted mean of its points ([`loop_aim`]), which asks
+/// nothing: the ray meets the edges it passes, however near, and crosses
+/// the face by the turn of its loops ([`ray_crossings`]). Another planar
 /// face aims at a point certified strictly inside it
 /// ([`crate::stands::planar_interior_point`]), and offers none where no
 /// candidate certifies. A cylinder or cone face aims at its region's own
-/// aim (its boundary's middle points carried onto the surface), a
-/// trimmed sphere at its region's own (its arcs' middles stepped toward
-/// the face), a torus and a closed sphere at a fixed point of their
-/// charts; none of these needs to lie inside the face: the ray's start
-/// lies beyond every face whatever it aims at, so its count reads the
-/// side wherever it lands, and an aim off the face only steers it. A
-/// cylinder or cone face whose region cannot be read
-/// ([`FaceGeo::PartialWall`], [`FaceGeo::PartialCone`]) has no window to
-/// aim in and offers none. A spline offers none: a selection holding one
-/// casts no ray ([`side_at_infinity`]).
+/// aim (its edges' golden-section points carried onto the surface), a
+/// trimmed sphere at its region's own (its first arc's golden-section
+/// point stepped toward the face), a torus and a closed sphere at a
+/// fixed point of their charts; none of these needs to lie inside the
+/// face: the ray's start lies beyond every face whatever it aims at, so
+/// its count reads the side wherever it lands, and an aim off the face
+/// only steers it. A curved aim lies on its surface by construction, so
+/// its normal is the chart's, read without certifying the aim onto the
+/// surface, except a cone's (below). A cylinder or cone face whose
+/// region cannot be read ([`FaceGeo::PartialWall`],
+/// [`FaceGeo::PartialCone`]) has no window to aim in and offers none. A
+/// spline offers none: a selection holding one casts no ray
+/// ([`side_at_infinity`]).
 ///
 /// # Errors
 ///
@@ -345,11 +349,14 @@ fn aim_at<T: Decide>(
 /// **Where a ray aimed at planar `face` aims**, where every edge of its
 /// outer loop is a line or a circle arc: a mean of the loop's points,
 /// each vertex and each arc's point at the golden section of its span
-/// ([`geom_core::GOLDEN_SECTION`]), weighted in walk order by `1` plus
-/// the fractional part of the golden section's multiples. The plain mean
-/// of a symmetric loop is its centre, which can be a vertex of it (an L
-/// whose arms match) or a point its edges' carriers pass through (a
-/// disc's axis); the weighted one is no symmetry's point. It asks
+/// ([`geom_core::GOLDEN_SECTION`]), the `k`th in walk order weighted by
+/// `2 + cos(k·g)`, `g` the golden angle ([`geom_core::GOLDEN_ANGLE`]).
+/// The plain mean of a symmetric loop is its centre, which can be a
+/// vertex of it (an L whose arms match) or a point its edges' carriers
+/// pass through (a disc's axis). The weighted one is no symmetry's
+/// point: `cos g` is transcendental, so no sum of the weights with
+/// rational coefficients vanishes, as sums of the golden section's
+/// fractional multiples can (`frac(g) + frac(2g) = frac(3g)`). It asks
 /// nothing, and the ray crosses the face edge by edge or by the turn of
 /// its loops however near an edge it lands ([`ray_crossings`]). `None`
 /// for a loop with another edge, or one that does not walk.
@@ -365,7 +372,7 @@ fn loop_aim<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Point3<T>> {
     let origin = Point3::new(T::zero(), T::zero(), T::zero());
     let (mut sum, mut total, mut k) = (Vec3::zero(), T::zero(), 0_u32);
     let mut add = |p: Point3<T>| {
-        let w = T::from_f64(1.0 + (f64::from(k) * geom_core::GOLDEN_SECTION).fract());
+        let w = T::from_f64(2.0 + (f64::from(k) * geom_core::GOLDEN_ANGLE).cos());
         sum = sum + (p - origin) * w;
         total = total + w;
         k += 1;
@@ -485,8 +492,9 @@ fn aim_turn() -> (f64, f64) {
 /// inside out).
 ///
 /// **Aimed rays first.** Each face of the selection that offers an aim
-/// ([`aim_at`]: a line-bounded planar face's mean point, another planar
-/// face's certified interior point, a point of a curved face's surface)
+/// ([`aim_at`]: a planar face's weighted mean point where its edges are
+/// lines and circle arcs, another planar face's certified interior
+/// point, a point of a curved face's surface)
 /// is aimed at, in face order: the ray leaves from twice the
 /// selection's reach from that point, beyond every face, so its start
 /// lies on the side at infinity, and meets the face at 10° from its

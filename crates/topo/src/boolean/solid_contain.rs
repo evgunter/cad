@@ -3772,10 +3772,13 @@ fn root_held<T: Decide>(
 /// - on a face not every edge of which is a line edge read exactly, lies
 ///   near the passage or is definitely held by the face.
 ///
-/// A planar face whose edges are all line edges so decided, and clear of the ray,
-/// is crossed where the turn of its loops says ([`crosses_by_turn`]);
-/// another takes its in-face walk, and each root of a curved face no
-/// edge stands for its face's trim. A ray within the band of a vertex,
+/// A planar face whose edges are all lines and circle arcs, each decided
+/// clear of the ray, is crossed where the turn of its loops says
+/// ([`crosses_by_turn`]); another takes its in-face walk. Each root of a
+/// curved face no edge stands for is tested against its face's trim,
+/// except a cylinder face's whose edges are all rulings and circles, each
+/// decided clear of the ray, which is held where the turn of its loops on
+/// an image of its wall says ([`wall_crosses_by_turn`]). A ray within the band of a vertex,
 /// or a wedge, is marked there and reads nothing where its count reaches
 /// the mark ([`RayHit::mark`]).
 pub(crate) fn ray_crossings<T: Decide>(
@@ -5393,6 +5396,67 @@ mod kind_arm_tests {
                 !ray_crosses(kind),
                 "{kind:?}: the dispatch has an arm iff rays cross it"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod arc_turn_rows {
+    //! [`arc_turn`] against the turn a fine polyline along the arc makes.
+
+    use super::*;
+
+    /// **An arc's turn about a point is its polyline's**, for arcs of a
+    /// tenth to nine tenths of a half turn either way round, about points
+    /// inside and outside the circle, on the chord and on its line past
+    /// the arc, on the circle past the arc and on the axis through the
+    /// arc's middle (the poses where
+    /// a chord's turn, or a test of which side of the chord the point
+    /// lies, ties): a cut anywhere but on the arc reads `2π` off.
+    #[test]
+    fn an_arcs_turn_is_its_polylines_wherever_the_point_is_off_it() {
+        let normal = Vec3::new(0.0, 0.0, 1.0);
+        let on = |r: f64, t: f64| Point3::new(r * t.cos(), r * t.sin(), 0.0);
+        let polyline = |p: Point3<f64>, t0: f64, t1: f64| {
+            let n = 4096;
+            (0..n)
+                .map(|k| {
+                    let (a, b) = (
+                        on(1.0, t0 + (t1 - t0) * f64::from(k) / f64::from(n)),
+                        on(1.0, t0 + (t1 - t0) * f64::from(k + 1) / f64::from(n)),
+                    );
+                    let (u, w) = (a - p, b - p);
+                    normal.dot(u.cross(w)).atan2(u.dot(w))
+                })
+                .sum::<f64>()
+        };
+        for span in [0.1, 0.5, 0.9, -0.1, -0.5, -0.9].map(|f| f * core::f64::consts::PI) {
+            for t0 in [0.0, 1.0, -2.5] {
+                let t1 = t0 + span;
+                let mid = t0 + span / 2.0;
+                let (a, m, b) = (on(1.0, t0), on(1.0, mid), on(1.0, t1));
+                let chord = Point3::new((a.x + b.x) / 2.0, (a.y + b.y) / 2.0, 0.0);
+                let points = [
+                    Point3::new(0.0, 0.0, 0.0),
+                    on(0.5, mid),
+                    on(0.97, mid),
+                    on(1.03, mid),
+                    on(3.0, mid),
+                    on(0.5, mid + core::f64::consts::PI),
+                    on(1.0, mid + core::f64::consts::PI),
+                    on(1.0, t1 + span.signum() * 0.3),
+                    chord,
+                    Point3::new(b.x * 2.0 - a.x, b.y * 2.0 - a.y, 0.0),
+                ];
+                for p in points {
+                    let (got, want) = (arc_turn(normal, p, (a, m, b)), polyline(p, t0, t1));
+                    assert!(
+                        (got - want).abs() < 1e-6,
+                        "span {span}, t0 {t0}, p {p:?}: {got} against {want}"
+                    );
+                }
+            }
         }
     }
 }
