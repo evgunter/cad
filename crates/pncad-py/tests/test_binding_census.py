@@ -4008,6 +4008,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::FaceThroughEdgeWedgeUndecided": "ValidationFinding.variant",
     "ValidationError::CoincidentWedgesOverlap": "ValidationFinding.variant",
     "ValidationError::CoincidentWedgesOverlapUndecided": "ValidationFinding.variant",
+    "ValidationError::BoundaryCrossesItself": "ValidationFinding.variant",
+    "ValidationError::BoundaryCrossesItselfUndecided": "ValidationFinding.variant",
     "ValidationError::ArcEndOffCorner": "ValidationFinding.variant",
     "ValidationError::InstanceInterference": "ValidationFinding.variant",
     "ValidationError::SameSideInterference": "ValidationFinding.variant",

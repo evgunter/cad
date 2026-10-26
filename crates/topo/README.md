@@ -1043,11 +1043,15 @@ reads as an interference between two copies at rest, so no bool may
 stand there. `Undecided` escalates
 `CensusEscalated`. The side is read by handing both faces' `Face::sense`
 bits to `geom_brep::classify_material_pairing` after `classify_dihedral`
-establishes the smooth precondition. The census reads sides in two
-other places, both through the touch analysis's `rest::judge`: pass 4,
-of an edge lying in a face of its own solid (`edge_in_own_face`), and
-arm 2's touches between two solids (`TouchSite::verdict`). Every other
-use of a face's normal in the coincidence sweeps is sense-invariant.
+establishes the smooth precondition. The census reads sides in three
+other places, all through the touch analysis's `rest` module: pass 4,
+of an edge lying in a face of its own solid (`edge_in_own_face`, by
+`rest::judge`); arm 2's touches between two solids
+(`TouchSite::verdict`, by `rest::judge`); and every point where one
+solid touches itself, its whole link there (`sweep_self_touch_points`,
+by `rest::one_material`), a link holding a curved face or edge left
+unread. Every other use of a face's normal in the coincidence sweeps is
+sense-invariant.
 
 **Confirmed pairs.** Every face-pair rung (`Declared::confine` around the
 vertex–vertex, vertex–edge, vertex–face and edge–edge lanes,
