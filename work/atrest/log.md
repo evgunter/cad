@@ -105,3 +105,4 @@
   - **Verified:** the census goldens are green at three ε, and 7210 local ci-profile rows pass.
   - **Tier:** the orchestrator's read plus a post-merge single FULL review (`review/atrest-5779-post`), because main was red across programs. It is not mechanical, so the review is owed. Findings become a follow-up.
   - **Residue:** a second path is filed on `a-touch-the-analysis-decides-crossing-is-read-as-undecidable`.
+- 2026-10-26 — #5779's post-merge review (`session_01WozFfbWGA4SYbCkX6HtmZx`): 0 MAJOR, 2 MINOR, 4 NOTE. All named rows are green at three ε. Mutants show the pinwheel row guards both fixes. Filed `line-wedges-lever-their-signs-by-the-edges-length` (P2: an in-band wedge overlap labelled interference; the edge-length lever class, its second instance today) and `aligned-pairs-answer-for-lines-left-half-done` (P3: pass 4's blind spot, two spellings of "a pair holds q", stale prose).
