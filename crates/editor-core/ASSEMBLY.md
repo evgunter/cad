@@ -543,33 +543,32 @@ assembly certifies as a multi-solid tier-3 body.
 graft through the graft's own descendant map. Nothing is re-verified
 across the seam: verification runs once, at the outermost gate.
 
-*A part's own census findings.* A part crosses the seam as one copy, so
-the census over the instantiating product finds the part's own findings
-again inside that copy. The part's verdict crosses with it instead, the
-at-rest stage of its own gate over its world (`assembly::seam_verdict`,
-at the part store): each overlap between two of its copies rides
-`PartValue::interference`, and a refusal of its gate's rides
-`PartValue::at_rest` whole, each finding routed (`Route`: the
-instantiating node, the document that found it, and the instances
+*A part's own census findings.* A part crosses the seam as one copy,
+whose meetings its own census decided. The part's verdict crosses with
+it, the at-rest stage of its own gate over its product
+(`assembly::seam_verdict`, at the part store): each overlap between two
+of its copies rides `PartValue::interference`, and a refusal of its
+gate's rides `PartValue::at_rest` whole, each finding routed (`Route`:
+the instantiating node, the document that found it, and the instances
 below). A part whose gate refuses before that stage (an at-rest refusal
 carried from below) crosses no census finding of its own: what refuses
-it crosses on its own rows. The pairs of solids the crossing findings
-are about ride `PartValue::census_pairs`, re-keyed through every graft
-by the graft's own solid order (`Product::census_pairs`). At the gate,
-each verdict about one of those pairs is the part's, and is not a
-finding of this document's (`checks::at_rest::less_carried`). Each
-carried finding is reported once per part row, by the first route in
-gather order, so a part placed twice, or in the world and in another
-space, reports its overlap once. A carried overlap is reported on
-`Assembly::carried_interference` and never refuses (D10). A carried
-refusal refuses the outer gate as the part's
-(`AssemblyError::CarriedAtRest`), before this document's own refusals:
-a placement carries its source's census findings, which stay the
-source's, and a finding is reported once, as the deciding space's (D10,
-`[placement.placement]`). A finding that names no pair of solids (a census
-escalation, a pair it had no lane for, a stale record of a vertex or an
-edge) matches nothing when the outer census finds it again inside the
-copy (`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
+it crosses on its own rows. An instance's copy is censused
+(`NodeValue::censused`): a census reading it as one arrival discards
+what it finds inside it (`product::gather_sources`), as it discards
+what it finds inside any arrival a door already censused (a `⊔`, or a
+copy of one). The kernel's census has no group scope, so it still
+computes inside such an arrival, and the door discards what it found.
+Each carried finding is reported once per part row, by the first route
+in gather order, so a part placed twice reports its overlap once. A
+carried overlap is reported on `Assembly::carried_interference` and
+never refuses (D10). A carried refusal refuses the outer gate as the
+part's (`AssemblyError::CarriedAtRest`), before this document's own
+refusals: a placement carries its source's census findings, which stay
+the source's, and a finding is reported once, as the deciding door's
+(D10, `[placement.placement]`). A finding that names no pair of solids
+(a census escalation, a pair it had no lane for, a stale record of a
+vertex or an edge) is inside no one arrival, and is kept
+(`work/contacthold/an-escalated-census-finding-names-no-pair.md`).
 What does not cross: the census of a part's spaces other than its
 world, and the rows
 of a part read one member at a time rather than whole

@@ -84,6 +84,11 @@ pub(crate) struct OpOut<T: Decide> {
     pub motion: Option<RigidMotion<T>>,
     /// The pieces its body holds (`NodeValue::pieces`).
     pub pieces: Option<Arc<super::Pieces<T>>>,
+    /// The census of the door that assembled them (`NodeValue::census`).
+    pub census: Option<Arc<crate::product::Census<T>>>,
+    /// Whether a door already decided its meetings
+    /// (`NodeValue::censused`).
+    pub censused: bool,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -99,6 +104,8 @@ impl<T: Decide> OpOut<T> {
             cited_inputs: Arc::new([]),
             motion: None,
             pieces: None,
+            census: None,
+            censused: false,
         }
     }
 
@@ -464,6 +471,7 @@ where
                 id,
                 (from.read, at(O::From, from.read)?, ra),
                 (tool.read, at(O::Cut, tool.read)?, rb),
+                doc,
                 env.boolean_sweep,
                 tol,
             )
@@ -524,7 +532,7 @@ where
                     ))
                 })
                 .collect::<Result<Vec<_>, NodeErrorKind>>()?;
-            wire_assemble(id, &reads, tol)
+            wire_assemble(id, &reads)
         }
         // A space DENOTES NO BODY.
         Node::World | Node::Space => {
@@ -875,8 +883,6 @@ where
             })
             .collect(),
         // Keyed in the part's body, which the placement moves without
-        // re-minting a key (`place`), so they key the placed copy too.
-        census_pairs: part.census_pairs.as_ref().clone(),
     };
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
@@ -888,6 +894,10 @@ where
         coincidences: Arc::new([]),
         cited_inputs: Arc::new([crate::coincide::CitedInput::Part(*doc_ref)]),
         pieces: moved_pieces(part.pieces.as_ref(), map.as_ref())?,
+        // The part's census decided the meetings inside its product,
+        // and its records ride `contacts`: no door here holds them.
+        census: None,
+        censused: true,
         motion: None,
     })
 }
@@ -935,6 +945,23 @@ fn value_of<T: Decide>(
         node: input,
     })
     .map_err(|_| NodeErrorKind::MissingInput { input })
+}
+
+/// **The records a boolean reads off its operand**: where a door
+/// censused the operand's pieces (a `⊔`, or a copy of one), the records
+/// that door kept, the touches between its pieces among them, so a
+/// meeting inside the operand is carried and never decided again; else
+/// the value's own ([`records_of`]).
+fn operand_records<T: Decide + topo::AtRestPolicy>(
+    value: &super::NodeValue<T>,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    tol: Tol,
+) -> Arc<topo::ContactRecords> {
+    value
+        .census
+        .as_ref()
+        .and_then(|census| census.records(doc, tol))
+        .unwrap_or_else(|| records_of(value))
 }
 
 /// The contact records `value` holds for its output body 0: a
@@ -2665,6 +2692,8 @@ fn pick_of<T: Decide + topo::AtRestPolicy>(
             carried: Arc::default(),
             parts: piece.parts,
             pieces: moved_pieces(piece.pieces.as_ref(), piece.motion.as_ref())?,
+            census: piece.census.clone(),
+            censused: piece.censused,
             ..value.clone()
         },
     ))
@@ -2808,11 +2837,12 @@ fn wire_subtract<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     (a_read, a, results_a): (crate::VarId, RecipeNodeId, &Results<T>),
     (b_read, b, results_b): (crate::VarId, RecipeNodeId, &Results<T>),
+    doc: &crate::doc::Doc<ProfileProgram>,
     boolean_sweep: topo::SweepStrategy,
     tol: Tol,
 ) -> OpResult<T> {
-    let from = distribute::Operand::read(results_a, a, a_read)?;
-    let tool = distribute::Operand::read(results_b, b, b_read)?;
+    let from = distribute::Operand::read(results_a, a, a_read, doc, tol)?;
+    let tool = distribute::Operand::read(results_b, b, b_read, doc, tol)?;
     // A body with pieces is finished piece by piece.
     let body_a = match from.pieces {
         None => Some(from.finished(tol)?),
@@ -3171,16 +3201,16 @@ fn wire_combine<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 let projected = reads_projected(node, &[(slot, read)], doc, (results, vals), tol)?;
                 let results = projected.as_ref().unwrap_or(results);
                 let pieces = match op {
-                    BooleanOp::Intersect if value_of(results, at)?.pieces.is_some() => {
-                        Some(Arc::new(distribute::Operand::read(results, at, read)?))
-                    }
+                    BooleanOp::Intersect if value_of(results, at)?.pieces.is_some() => Some(
+                        Arc::new(distribute::Operand::read(results, at, read, doc, tol)?),
+                    ),
                     _ => None,
                 };
                 Ok::<_, NodeErrorKind>(Member {
                     read,
                     body: Arc::new(finished_operand(results, at, tol)?),
                     table: read_table(value_of(results, at)?),
-                    records: records_of(value_of(results, at)?),
+                    records: operand_records(value_of(results, at)?, doc, tol),
                     pieces,
                 })
             })
@@ -4128,6 +4158,10 @@ fn wire_place<T: Decide + topo::AtRestPolicy>(
         contacts: Arc::new(contacts.carried_from(0)),
         carried: Arc::clone(&value.carried),
         pieces: moved_pieces(value.pieces.as_ref(), map)?,
+        // A placement moves its source and re-mints no key, so the
+        // census its source's door kept keys this copy too.
+        census: value.census.clone(),
+        censused: value.censused,
         ..OpOut::plain(ValuePayload::Body(Arc::new(copy)), table)
             .carrying(value.parts)
             .citing(citing)
@@ -4191,7 +4225,6 @@ fn moved_pieces<T: Decide>(
 fn wire_assemble<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     members: &[(RecipeNodeId, crate::VarId, &Results<T>)],
-    tol: Tol,
 ) -> OpResult<T> {
     let mut fused = Body::new();
     let mut named: Vec<(crate::VarId, Arc<NameTable>, Vec<topo::GraftKeys>)> =
@@ -4245,15 +4278,24 @@ fn wire_assemble<T: Decide + topo::AtRestPolicy>(
             contacts: Arc::clone(&records),
             carried: Arc::clone(&value.carried),
             pieces: value.pieces.clone(),
+            census: value.census.clone(),
+            censused: value.censused,
             motion: None,
         });
         named.push((read, table, bridges));
     }
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
-    let _ = tol;
+    let pieces = Arc::new(super::Pieces { by: id, pieces });
     Ok(OpOut {
         contacts: Arc::new(contacts),
-        pieces: Some(Arc::new(super::Pieces { by: id, pieces })),
+        // The census at this door, over its pieces: run where a reader
+        // first asks for its verdict ([`crate::product::Census`]).
+        census: Some(Arc::new(crate::product::Census::new(
+            id,
+            Arc::clone(&pieces),
+        ))),
+        censused: true,
+        pieces: Some(pieces),
         ..OpOut::plain(ValuePayload::Body(Arc::new(fused)), table)
             .carrying(parts)
             .citing(citing)

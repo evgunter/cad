@@ -81,7 +81,11 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// qualifier, so the names the cut diagnoses are spelled anew. Every
 /// row keeps its shape (`PredicateFlip`, `Cascade`, `StructuralParam`,
 /// `NodeGone`, `Ambiguous`): a spelling change.
-const DIAGNOSIS_DIGEST: u64 = 0x48be_6150_d5d8_832c;
+///
+/// **Re-pinned for the merge over ATREST stage 4 I** (PR 5637): the
+/// slab's mate writes no class and the content key's `VERSION` moved
+/// to 21, so every mint id's digest moved with it: a spelling change.
+const DIAGNOSIS_DIGEST: u64 = 0x9684_bb4d_cf2a_c2f7;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

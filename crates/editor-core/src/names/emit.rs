@@ -1210,8 +1210,8 @@ pub(crate) fn name_pattern<T: geom_core::Real>(
 /// index 0, re-keyed through that instance's graft bridge (`bridges[i]`
 /// is the correspondence the graft of instance `i` established).
 ///
-/// The BODY name is minted here rather than wrapped, for
-/// [`name_in_part`]'s reason: the fused body is not the body any
+/// The BODY name is minted here rather than wrapped, for the reason
+/// [`name_copy`] mints a copy's: the fused body is not the body any
 /// instance-local name denotes, so it is this node's own output body,
 /// named like every other body-producing op's. The prototype's own
 /// body-kind rows therefore do not carry — they have nothing left to

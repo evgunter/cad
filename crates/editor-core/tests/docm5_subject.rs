@@ -594,6 +594,12 @@ fn the_assembly_gathers_in_one_place() {
 /// these modules do not take it. The needles end at the generic's `<`,
 /// so a type that only shares the prefix (`ProductError`) is not one.
 ///
+/// One copy is made, and it is not this ordering's: a door's census
+/// verdict is the door's, kept on its value (`product::Census`) for
+/// every reader of it, and a gather that reads the door hands its
+/// consumer a copy of that verdict to own (`Product::fresh`). The
+/// verdict itself is lent, never put behind an `Arc`.
+///
 /// Read through the shared reader's CODE view
 /// ([`test_utils::source::code_only`]), because every needle here is a
 /// code fragment — a type application, an impl header, a derive above

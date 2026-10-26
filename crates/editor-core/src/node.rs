@@ -1977,12 +1977,15 @@ pub enum Node<P, S: Slot = crate::VarId> {
     /// **The assemble** (`⊔`, D10 `[operations.operators]`): its
     /// members side by side as the pieces of one body, each a separate
     /// solid set, none re-decided against another. Its door runs the
-    /// at-rest census over the pieces, one arrival per member, and
-    /// carries every member's own records unchanged, so a meeting inside
-    /// a member is that member's. Its result is an ordinary operand: a
-    /// subtract or an intersect reading it acts on each piece and keeps
-    /// what it made as pieces (`(p ⊔ q) − t = (p − t) ⊔ (q − t)`), and a
-    /// union fuses its other members with the pieces they meet.
+    /// at-rest census over the pieces, one arrival per member, carrying
+    /// every member's own records, so a meeting inside a member is that
+    /// member's; the verdict is kept on its value
+    /// ([`crate::product::Census`]), which a copy or a pick of it
+    /// carries, and every reader reads that one verdict. Its result is
+    /// an ordinary operand: a subtract or an intersect reading it acts
+    /// on each piece and keeps what it made as pieces
+    /// (`(p ⊔ q) − t = (p − t) ⊔ (q − t)`), and a union fuses its other
+    /// members with the pieces they meet, carrying the `⊔`'s records.
     Assemble {
         /// The members, in graft order.
         members: Bodies<crate::BodyRead<S>>,

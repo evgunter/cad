@@ -2,10 +2,11 @@
 id: a-boolean-over-an-assemble-cites-none-of-its-meetings
 kind: issue
 title: A boolean reading a ⊔ cites none of the ⊔'s meetings, since the ⊔'s value carries no record of its census
-status: open
+status: closed
 opened: 2026-10-23
 priority: P1
 cost: M
+closed: 2026-10-26
 refs: [assemble-is-an-operator-and-the-product-is-a-slot, a-placement-carries-its-sources-at-rest-result, each-space-runs-its-census-between-arrivals, a-vertex-piercing-two-declared-coincident-faces-reads-as-one]
 ---
 
@@ -39,4 +40,17 @@ What is left is the first half: the `⊔`'s value carries no record of
 its census, so nothing above it can cite one. D′3's fix pass builds
 that census at the `⊔`'s door, with the verdict on the value, after
 ATREST stage 4 I's PR 5637. This item closes there.
+
+## Closed (D′3's fix pass, 2026-10-26)
+
+The census runs at the `⊔`'s door and its verdict is kept on the
+`⊔`'s value (`crates/editor-core/src/product.rs`, `Census`). A boolean
+reading the `⊔`, or a copy of it, reads the records that door kept
+(`eval/wire.rs`, `operand_records`), so `(bolt ⊔ plate) ∪ bead` carries
+the seat's record through the union
+(`a_seat_unioned_with_a_bead_keeps_its_pieces_and_a_bridge_is_read_twice`).
+A cut or a meet distributes over the pieces, and what it makes is a
+`⊔` whose own census runs at its door, over the pieces it made. The
+bridged bead's typed self-touch refusal is
+`work/cleave/a-vertex-piercing-two-declared-coincident-faces-reads-as-one.md`.
 

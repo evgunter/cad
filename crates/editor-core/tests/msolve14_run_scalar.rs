@@ -966,11 +966,15 @@ fn run_at<T: editor_core::EvalScalar>(
 /// Re-blessed at all three ε; each seat still stands on what it is
 /// seated on ([`each_seat_stands_on_what_it_is_seated_on`]), and the
 /// solved poses were not compared id-free against main separately.
-/// Re-measured on main's plane pose merged in, at all three ε.
+/// Re-measured on main's plane pose merged in, at all three ε. Merged
+/// again over ATREST stage 4 I (PR 5637: a mate writes no class, and
+/// the census at a `⊔` keeps its verdict on the `⊔`'s value), the
+/// content key's `VERSION` moved to 21 and the mates' spelling with it,
+/// so every value token moved; re-measured at all three ε.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x2d41_38b9_c4c8_1bef),
-    (1e-6, 0x00c0_3569_5647_6ed6),
-    (1e-12, 0xed86_149f_65a5_daef),
+    (1e-9, 0x72d7_f216_184f_82e1),
+    (1e-6, 0xf21b_4a3a_4e2f_5ab5),
+    (1e-12, 0x6513_c235_9d4a_22c8),
 ];
 
 /// **Each seat of the corpus stands on what it is seated on**: in the

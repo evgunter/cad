@@ -58,6 +58,8 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
         results: &super::Results<T>,
         node: RecipeNodeId,
         read: crate::VarId,
+        doc: &crate::doc::Doc<crate::program::ProfileProgram>,
+        tol: Tol,
     ) -> Result<Self, NodeErrorKind> {
         let value = super::value_of(results, node)?;
         Ok(Self {
@@ -65,7 +67,7 @@ impl<T: Decide + topo::AtRestPolicy> Operand<T> {
             read,
             body: super::read_body(results, node)?,
             table: super::read_table(value),
-            records: super::records_of(value),
+            records: super::operand_records(value, doc, tol),
             pieces: value.pieces.clone(),
             seat: read,
             wraps: Vec::new(),
@@ -257,6 +259,8 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
             contacts: records,
             carried: Arc::default(),
             pieces: out.pieces.clone(),
+            census: out.census.clone(),
+            censused: out.censused,
             motion: None,
         });
         named.push((read, table, vec![keys]));
@@ -272,8 +276,17 @@ pub(super) fn assembled<T: Decide + topo::AtRestPolicy>(
         _ => topo::BooleanResultKind::Assembly,
     };
     let table = names::name_assemble(id, &named, &fused).map_err(NodeErrorKind::Naming)?;
+    let pieces = Arc::new(Pieces { by: id, pieces });
     Ok(OpOut {
-        pieces: Some(Arc::new(Pieces { by: id, pieces })),
+        // What it made is the `⊔` of what each piece's boolean made, so
+        // the census of that `⊔` runs at this door, over the pieces
+        // made here ([`crate::product::Census`]).
+        census: Some(Arc::new(crate::product::Census::new(
+            id,
+            Arc::clone(&pieces),
+        ))),
+        censused: true,
+        pieces: Some(pieces),
         ..OpOut::plain(
             ValuePayload::Boolean(BooleanValue::Body {
                 body: Arc::new(fused),

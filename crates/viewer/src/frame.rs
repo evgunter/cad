@@ -2536,9 +2536,9 @@ enum BadgeSite {
 /// and [`ProductErrorKind::UnknownNode`] — the classes of
 /// [`ProductError::Root`], by the placement's standing — are those same
 /// three states seen from the gather.
-/// [`ProductErrorKind::StrandedPlacement`] is the first of them seen
-/// from the recipe: a placement whose body is gone reads nothing, and
-/// the tree draws its row `Failed` on that unresolved read. That count is a MEASUREMENT of another module's enum,
+/// [`ProductErrorKind::StrandedProduct`] is the first of them seen
+/// from the recipe: a product read whose body is gone reads nothing,
+/// and the tree draws its row `Failed` on that unresolved read. That count is a MEASUREMENT of another module's enum,
 /// so it does not stand on this `match` being exhaustive:
 /// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
 /// is its guard, and a fourth non-`Ok` state reds there. The tree

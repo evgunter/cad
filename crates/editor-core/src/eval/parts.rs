@@ -128,10 +128,6 @@ pub(crate) struct PartValue<T: Decide> {
     /// The census findings its gate refuses, its own first: inner
     /// at-rest health is the outermost gate's business.
     pub at_rest: Arc<Vec<PartRow<crate::assembly::Pinned<crate::assembly::AtRestFinding>>>>,
-    /// The pairs of solids both lists are about, keyed in [`Self::body`],
-    /// smaller first: what the census over an instantiating product finds
-    /// again inside this part's copy, and must not report a second time.
-    pub census_pairs: Arc<Vec<(topo::SolidKey, topo::SolidKey)>>,
     /// How many parts the referenced document's product is: its
     /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
@@ -150,7 +146,6 @@ impl<T: Decide> Clone for PartValue<T> {
             cited_inputs: Arc::clone(&self.cited_inputs),
             interference: Arc::clone(&self.interference),
             at_rest: Arc::clone(&self.at_rest),
-            census_pairs: Arc::clone(&self.census_pairs),
             parts: self.parts,
         }
     }
@@ -822,7 +817,6 @@ impl<T: super::EvalScalar> PartStore<'_, T> {
                     }))
                     .collect(),
             ),
-            census_pairs: Arc::new(seam.pairs),
             parts,
             pieces,
             body: Arc::new(product.body.into_body()),

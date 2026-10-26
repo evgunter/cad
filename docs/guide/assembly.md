@@ -975,7 +975,7 @@ try:
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
     assert refusal.variant == "root_poisoned"
-    assert refusal.through == post_i and refusal.refusals is None
+    assert refusal.through == post_i
 try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")

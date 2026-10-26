@@ -4135,6 +4135,8 @@ MEMBERS_NOT_BOUND = {
     # own there.
     "Piece::bodies": INTERIOR,
     "Piece::carried": INTERIOR,
+    "Piece::census": INTERIOR,
+    "Piece::censused": INTERIOR,
     "Piece::contacts": INTERIOR,
     "Piece::family": INTERIOR,
     "Piece::motion": INTERIOR,

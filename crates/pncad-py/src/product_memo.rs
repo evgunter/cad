@@ -244,7 +244,6 @@ fn clone_product(
         gap_assertions: product.gap_assertions.clone(),
         carried_interference: product.carried_interference.clone(),
         carried_at_rest: product.carried_at_rest.clone(),
-        census_pairs: product.census_pairs.clone(),
         assembles: d::assemble_gathers(doc, evaluation, tol, doc.product()),
         pieces: product.pieces.clone(),
         parts: product.parts,

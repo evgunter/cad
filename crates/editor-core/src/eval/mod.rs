@@ -796,6 +796,17 @@ pub struct NodeValue<T: Decide> {
     /// the pieces a copy or an instance carries from its source; `None`
     /// for a body of no pieces.
     pub pieces: Option<Arc<Pieces<T>>>,
+    /// **The census at the door that assembled its pieces**
+    /// ([`crate::product::Census`]): a `⊔`'s, or a cut's or a meet's
+    /// that kept its operand's pieces; the one a copy or a pick carries
+    /// from its source. Each door's census runs once, where a reader
+    /// first asks for its verdict, and every reader reads that one.
+    pub census: Option<Arc<crate::product::Census<T>>>,
+    /// **Whether a door already decided the meetings inside its body**:
+    /// a `⊔`'s value, an instance's copy (its part's census decided
+    /// them), and a copy, pick or projection of either. A census reading
+    /// such a body as one arrival discards what it finds inside it.
+    pub censused: bool,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -863,6 +874,8 @@ impl<T: Decide> NodeValue<T> {
             cited_inputs: out.cited_inputs,
             parts: out.parts,
             pieces: out.pieces,
+            census: out.census,
+            censused: out.censused,
             verdicts: Arc::new(Vec::new()),
             escalations: Arc::new(Vec::new()),
             motion: None,
@@ -898,6 +911,8 @@ impl NodeValue<f64> {
             escalations: Arc::new(vec![]),
             motion: None,
             pieces: None,
+            census: None,
+            censused: false,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),
@@ -1263,6 +1278,12 @@ pub struct Piece<T: Decide> {
     /// The pieces it holds in turn: a member that is itself a `⊔`, or a
     /// copy of one.
     pub pieces: Option<Arc<Pieces<T>>>,
+    /// The census of the door that assembled those pieces, as the
+    /// member's value carries it ([`NodeValue::census`]).
+    pub census: Option<Arc<crate::product::Census<T>>>,
+    /// Whether a door already decided the meetings inside it
+    /// ([`NodeValue::censused`]).
+    pub censused: bool,
     /// **The motion a reader moves `bodies` by**: a copy holds its
     /// source's pieces where the source put them, placed when a pick
     /// reads one. `None` for pieces that stand where they are read.
@@ -4136,6 +4157,8 @@ where
                 parts: out.parts,
                 motion: out.motion,
                 pieces: out.pieces,
+                census: out.census,
+                censused: out.censused,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},

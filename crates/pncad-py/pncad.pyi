@@ -2332,8 +2332,10 @@ class Node:
     def assemble(members: Sequence[_BodyArg] | _Operand) -> Node:
         """The ASSEMBLE (`⊔`): the members side by side as the pieces of
         one body, none decided against another. Its door runs the
-        at-rest census over the pieces, one arrival per member.
-        Inserting it is `Doc.assemble`.
+        at-rest census over the pieces, one arrival per member, once:
+        a placement of the `⊔` carries its verdict, so its meetings are
+        decided and reported once, at the `⊔`, however often it is
+        placed or read. Inserting it is `Doc.assemble`.
 
         Its result reads like any body. A `subtract` cutting it, or an
         `intersect` meeting it, acts on each piece and keeps what it

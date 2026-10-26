@@ -614,6 +614,11 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// its source's names): the second operand's copy names its faces as
 /// its prism does, with no `Placed` qualifier, so its name table and
 /// the intersect's moved. No body and no vertex moved.
+///
+/// RE-BLESSED for the merge over ATREST stage 4 I (PR 5637): the
+/// content key's `VERSION` moved to 21 (a mate writes no class, and this
+/// branch's own bump beside it), so every value token moved. No body and
+/// no vertex moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
@@ -652,7 +657,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0x401d_a70e_ec57_b07d,
+        got, 0x1fb5_a24e_4f13_d5a3,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }
