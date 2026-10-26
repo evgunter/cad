@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use common::placement_findings;
 use geom_core::{Band, Point3, Tol};
 use topo::{
     Body, ContactRecords, SolidContainment, SolidKey, ValidationError, VoidContainment,
@@ -89,24 +90,6 @@ fn coords_in(p: Point3<f64>, vals: &[f64]) -> bool {
     p.to_array()
         .iter()
         .all(|c| vals.iter().any(|v| (c - v).abs() < 1e-12))
-}
-
-/// The arm-2 findings: a `CensusUndecidable` naming two SOLIDS, or an
-/// `InstanceInterference`.
-fn placement_findings(errors: &[ValidationError]) -> Vec<&ValidationError> {
-    errors
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::CensusUndecidable {
-                    a: topo::EntityId::Solid(_),
-                    b: topo::EntityId::Solid(_),
-                    ..
-                } | ValidationError::InstanceInterference { .. }
-            )
-        })
-        .collect()
 }
 
 /// **Probe G — an interference fit that CERTIFIES.**

@@ -110,7 +110,7 @@ other door (extrude, revolve, shell, offset, split) handed back such a
 body; hand-built tier-3 fixtures and assembly copies placed on top of
 each other did. The face-inside-a-wedge half (the rider form) is
 untouched. The reader also refuses a cusp or slit edge on a line typed
-(`WedgeRefusal::WedgeEnd`) instead of as an in-band escalation.
+(`WedgeRefusal::Unread(_, TouchUnread::Degenerate)`) instead of as an in-band escalation.
 
 ## Evidence from the pinch fork (CONTACTHOLD, 2026-10-20)
 
