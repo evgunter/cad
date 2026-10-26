@@ -1606,6 +1606,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PoseShape { .. }
             | EditError::IndexedRead { .. }
             | EditError::SetMembersOnNonList { .. }
+            | EditError::SetLoftSectionsOnNonLoft { .. }
             | EditError::SetProgramOnNonProfile { .. }
             | EditError::StepIdsRefused { .. }
             | EditError::LoftSectionsSpelled { .. }

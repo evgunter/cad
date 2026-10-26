@@ -1160,6 +1160,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::RenameVar { .. }
         | DocEdit::DeleteVar { .. }
         | DocEdit::InsertNode { .. }
+        | DocEdit::SetLoftSections { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }
         // A program's continuous arguments are `Expr` literals, finite

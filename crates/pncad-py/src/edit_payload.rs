@@ -277,6 +277,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::SetLoftSectionsOnNonLoft { node }
         | EditError::LoftSectionsSpelled { node }
         | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }

@@ -150,6 +150,35 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// each index of an indexed member as a slot's formula.
         members: crate::Bodies<crate::BodyRead<Formula>>,
     },
+    /// **Write a loft's sections whole, each with its station**: the
+    /// edit that adds, drops or reorders a loft's sections, since a
+    /// section after the first stands where its station puts it and
+    /// [`DocEdit::SetMembers`] has none to give one. The list is stated
+    /// in full, as [`Node::Loft`] holds it; the degree is kept.
+    ///
+    /// The rewritten loft is lowered and checked as the insert door
+    /// lowers and checks one: each read is live and a profile
+    /// ([`EditError::SlotVarKind`]), each station move carries its
+    /// slot's dimension ([`EditError::SlotDimensionMismatch`]), and the
+    /// node passes the checks [`DocEdit::SetMembers`] makes of the node
+    /// it rewrites. A node that is not a loft refuses
+    /// [`EditError::SetLoftSectionsOnNonLoft`].
+    SetLoftSections {
+        /// The loft.
+        node: RecipeNodeId,
+        /// The first section's profile.
+        first: crate::Operand,
+        /// The sections after the first, in skin order, each with its
+        /// station.
+        then: Vec<crate::LoftSection<crate::Operand, Formula>>,
+        /// The edit's fresh table (VR6): the variables it mints for its
+        /// formulas to read as [`Formula::fresh`], entry by entry and
+        /// before anything else it mints. An entry's definition may
+        /// read the entries before it, and an entry two readers share
+        /// carries a name (VR2).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        fresh: Vec<FreshEntry>,
+    },
     /// **Replace a live profile node's PROGRAM whole** — its loops,
     /// their verbs, order and count, arc modes, sides, windings,
     /// target forms, a split circle's `n` — validated once, as one
@@ -723,6 +752,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
+            | Self::SetLoftSections { .. }
             | Self::Rebind { .. }
             | Self::RemoveConstraint { .. }
             | Self::RemoveConstraints { .. }
@@ -2281,6 +2311,11 @@ pub enum EditError {
         /// The sections handed.
         given: usize,
     },
+    /// `SetLoftSections` aimed at a node that is not a loft.
+    SetLoftSectionsOnNonLoft {
+        /// The node.
+        node: SpokenNode,
+    },
     /// `SetProgram` aimed at a node that holds no profile program: a
     /// node of another kind, or a `Node::Profile` over a payload that
     /// carries no program ([`crate::ProfilePayload::loops`] answers
@@ -3282,6 +3317,7 @@ impl EditError {
             }
             | Self::IndexedRead { node, fault: _ }
             | Self::SetMembersOnNonList { node }
+            | Self::SetLoftSectionsOnNonLoft { node }
             | Self::LoftSectionsSpelled { node }
             | Self::LoftSectionCount {
                 node,
@@ -3550,10 +3586,14 @@ impl EditError {
                 tail.recourse(
                     f,
                     format_args!(
-                        "re-point the {sections} sections, or insert a loft whose sections carry \
-                         their stations"
+                        "re-point the {sections} sections, or write them whole with their \
+                         stations through SetLoftSections"
                     ),
                 )
+            }
+            Self::SetLoftSectionsOnNonLoft { node } => {
+                write!(f, "{node} is not a loft, so it has no sections to write")?;
+                tail.recourse(f, format_args!("aim SetLoftSections at a loft"))
             }
             Self::SetMembersOnNonList { node } => {
                 write!(
@@ -6543,7 +6583,7 @@ fn repointed<P: crate::ProfilePayload>(edit: &DocEdit<P>) -> Option<RecipeNodeId
             slot: SlotId::Operand(slot),
             ..
         } if *slot != crate::OperandSlot::Space => Some(*node),
-        DocEdit::SetMembers { node, .. } => Some(*node),
+        DocEdit::SetMembers { node, .. } | DocEdit::SetLoftSections { node, .. } => Some(*node),
         _ => None,
     }
 }
@@ -7282,6 +7322,50 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 }
             }
             write_reads(doc, new, reported, *node, rewritten, tol)?
+        }
+        DocEdit::SetLoftSections {
+            node,
+            first,
+            then,
+            fresh,
+        } => {
+            let v_degree = match new.nodes.get(node) {
+                None => {
+                    return Err(EditError::UnknownNode {
+                        id: SpokenNode::absent(*node),
+                    });
+                }
+                Some(Node::Loft { v_degree, .. }) => *v_degree,
+                Some(_) => {
+                    return Err(EditError::SetLoftSectionsOnNonLoft {
+                        node: doc.spoken(*node),
+                    });
+                }
+            };
+            let authored: Node<P::Authored, Formula> = Node::Loft {
+                first: first.clone(),
+                then: then.clone(),
+                v_degree: Formula::var(v_degree, SlotId::VDegree.expr_dimension()),
+            };
+            let lowering = Lowering::start(new, fresh)?;
+            let rewritten = lower_node(new, &lowering, &authored, tol, || doc.spoken(*node))?;
+            if let Some(SlotDimensionFault {
+                slot,
+                expected,
+                found,
+            }) = authored.formula_dimension_fault()
+            {
+                return Err(EditError::SlotDimensionMismatch {
+                    slot,
+                    expected,
+                    found,
+                });
+            }
+            let record = write_reads(doc, new, reported, *node, rewritten, tol)?;
+            EditRecord {
+                fresh: lowering.finish(new)?,
+                ..record
+            }
         }
         DocEdit::SetProgram {
             node,

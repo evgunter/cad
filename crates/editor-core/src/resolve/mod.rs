@@ -2628,6 +2628,12 @@ pub fn apply_with_names<T: Decide>(
             value: crate::SlotValue::Read(read),
             ..
         } => names.extend(read.selected_names()),
+        DocEdit::SetLoftSections { first, then, .. } => {
+            names.extend(first.selected_names());
+            for section in then {
+                names.extend(section.profile.selected_names());
+            }
+        }
         DocEdit::Rebind { to, .. } => names.push(to),
         DocEdit::AddConstraint { mate, .. } => {
             names.extend(mate.on.selected_names());

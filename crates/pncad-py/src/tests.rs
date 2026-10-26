@@ -2329,6 +2329,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: sp(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: sp(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: sp(1) }, &["node"]);
+    carries(&E::SetLoftSectionsOnNonLoft { node: sp(1) }, &["node"]);
     carries(&E::SetProgramOnNonProfile { node: sp(1) }, &["node"]);
     carries(
         &E::StepIdsRefused {
@@ -4692,6 +4693,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_unknown_name",
             "selection_name_kind",
             "selection_shape",
+            "set_loft_sections_on_non_loft",
             "set_members_on_non_list",
             "set_program_on_non_profile",
             "shared_var_needs_name",

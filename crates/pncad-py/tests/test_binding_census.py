@@ -3638,6 +3638,7 @@ MEMBERS_BOUND_AS = {
     "EditError::PoseShape": "EditError.variant",
     "EditError::IndexedRead": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::SetLoftSectionsOnNonLoft": "EditError.variant",
     "EditError::LoftSectionsSpelled": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::LoftSectionCount": "EditError.variant",
