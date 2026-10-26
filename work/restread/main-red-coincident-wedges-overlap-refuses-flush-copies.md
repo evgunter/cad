@@ -2,10 +2,13 @@
 id: main-red-coincident-wedges-overlap-refuses-flush-copies
 kind: issue
 title: main red in the CI profile since PR 5529: CoincidentWedgesOverlap fires on flush and abutting copies (7 rows, topo + editor-core)
-status: open
+status: closed
 opened: 2026-10-26
 priority: P0
 cost: M
+closed: 2026-10-26
+pr: 5804
+branch: restread/flush-wedges-main-red
 ---
 
 
@@ -37,3 +40,9 @@ The CI on PR 5748's main merge (`ee35bec40e`) shows the same refusal on two more
 - python `test_world_pins::test_the_gate_checks_each_new_space_by_itself` (`AssemblyError: 12 finding(s)`).
 
 That is nine rows in all. Every PR merging main inherits them: #5748 is held on exactly this set.
+
+## Closed
+
+ATREST's PR 5779 (`atrest/fix-ssi-vs-line-wedges`, merged 13:48Z) fixed the census side of this before the row was picked up. The cause it measured was PR 5745 (`SameSideInterference`, merged 11:34Z beside 5529 at 11:24Z), not 5605 or 5637. An aligned face pair *is* the doubled material, so the wedge read in the closure of its overlap reported the same overlap a second time, and that report refused. Pass 5 now skips the wedge read where an aligned confirmed pair holds the span's middle (`Declared::overlap_holds`). A cross-solid `CoincidentWedgesOverlap` elsewhere reads as the two solids' interference. Opposed and recorded pairs still reach the read, so the pinwheel still refuses. The two topo rows were renamed when they were restated (`bricks_sharing_a_quadrant_are_one_interference`, `a_prism_leaning_into_a_brick_refuses_the_axis_beside_its_caps`). The python row was renamed to `test_the_gate_checks_each_assemble_by_itself`. PR 5748's red merge `ee35bec40e` took main at 12:01Z, before 5779.
+
+Picking the row up found a second break on main: PR 5704 added `BoundaryCrossesItself{,Undecided}`, and editor-core's exhaustive `finding_solids` did not place them, so editor-core stopped compiling. The push CI's change filter selected only topo for that merge, so main's run stayed green. The closing PR places both variants among the findings that name no pair of solids. It then re-runs all nine rows green on main.
