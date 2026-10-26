@@ -314,3 +314,33 @@ normal at a foot on a C0 knot line. One statement of where a spline has
 no derivative (`KnotStructure::crease_runs`) must be consulted by every
 reader that takes a derivative at a point on a spline. The
 boundary-first lane was told while still building.
+
+## 2026-10-26 — PR 5764 re-reviewed: a foot on the wrong sheet, down-rated
+
+The re-review (`session_01JTtugdpZZVE2CKi7NHrnKA`, on ecfc622d)
+confirmed the crease fix. It raised one MAJOR, shown by a red row: a
+hairpin carrier folds back over itself within the band, `project`
+returns a foot on the other sheet, and the door decides a wrong side.
+The class is "a foot on another sheet of the carrier": the door never
+reads the face's trim, which C5's curve × face clause requires. The fix
+is point-in-face for a spline chart
+(`a-point-has-no-place-in-a-nurbs-faces-trim`), which is unbuilt.
+
+**Orchestrator's call (unilateral, logged): down-rated to a scheduled
+row rather than blocking the PR.** Nothing calls the door yet. Its
+contract will say the foot is decided on the carrier, not the trim.
+The wiring row is parked on point-in-face, and the hairpin fixture
+becomes point-in-face's witness. The alternative was holding the PR
+until point-in-face lands. That buys nothing while the door has no
+caller, and it leaves the fixes below unmerged.
+
+Fixed now, because they make false decided answers:
+- an `OffFace` decided at an irregular (zero-speed) foot;
+- an irregular chart point that escalates only by accident.
+
+Also in the fix pass:
+- the `EdgeWalk` public mint narrowed;
+- the seam-continuity over-escalation and the foot-reader class
+  (`.project(` then `.ders(`) filed.
+
+The orchestrator reads the delta.
