@@ -738,7 +738,8 @@ struct Names {
 ///
 /// [`BooleanError::Escalated`] where whether the carrier lies on `f`'s
 /// surface, where a crossing lies, or whether `f` holds a piece's
-/// midpoint is in band.
+/// midpoint is in band, and something other than a crossing names the
+/// pair.
 fn holding<T: Decide>(
     body: &Body<T>,
     contacts: &ContactRecords,
@@ -750,11 +751,24 @@ fn holding<T: Decide>(
     let Some((carrier, (t0, t1))) = span_of(body, e) else {
         return Ok(None);
     };
-    if !on_carrier(body, &carrier, (t0, t1), f, band)? {
-        return Ok(None);
+    // A face only a crossing names, which an in-band reading cannot
+    // place the edge in, is not asked: nothing else says the edge lies
+    // in it.
+    let crossed_only = !names.ends && !names.record;
+    let unplaced = |read: BooleanError| match read {
+        BooleanError::Escalated { .. } if crossed_only => Ok(None),
+        read => Err(read),
+    };
+    match on_carrier(body, &carrier, (t0, t1), f, band) {
+        Ok(true) => {}
+        Ok(false) => return Ok(None),
+        Err(read) => return unplaced(read),
     }
     let along = Span::new(&carrier, (t0, t1));
-    let at = cuts(body, contacts, e, f, &along, band)?;
+    let at = match cuts(body, contacts, e, f, &along, band) {
+        Ok(at) => at,
+        Err(read) => return unplaced(read),
+    };
     let divided = !names.ends || !at.is_empty();
     if names.record {
         return Ok(Some(divided));
@@ -763,18 +777,20 @@ fn holding<T: Decide>(
         .chain(at.into_iter().rev())
         .chain(core::iter::once(t1))
         .collect();
+    let mut in_band = None;
     for piece in ends.windows(2) {
         let mid = carrier.eval(geom::mid_param(piece[0], piece[1]));
         // Whether the face holds the point is read here first, so the
         // door's margin in band is the operands' geometry.
-        if matches!(
-            piece_reading(body, f, mid, band, DoorInBand::Containment)?,
-            PieceRead::In
-        ) {
-            return Ok(Some(divided));
+        match piece_reading(body, f, mid, band, DoorInBand::Containment) {
+            Ok(PieceRead::In) => return Ok(Some(divided)),
+            Ok(PieceRead::NotIn | PieceRead::Unread(_)) => {}
+            Err(read) => {
+                in_band.get_or_insert(read);
+            }
         }
     }
-    Ok(None)
+    in_band.map_or(Ok(None), unplaced)
 }
 
 /// Where along `along`, edge `e`'s span, the records place a crossing
