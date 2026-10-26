@@ -13,24 +13,48 @@ stopped it.
 
 ## Lanes
 
-- **Invalid split output** (measure each repro on current main first):
-  `split-through-the-u-cutter-pockets-inverts-section-loop-roles`,
-  `split-leaves-a-ringed-cap-fragment-invalid-under-a-steep-cut`,
-  `a-split-through-a-bore-makes-a-square-and-a-disc-not-an-annulus`.
-  These three may be one defect in how a section face with holes is
-  encoded; whoever takes the first should check the other two.
-- **Boolean wrong refusals**:
-  `a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted`
-  (the item's first direction, an interior witness, gives the answer;
-  the second only renames the refusal);
-  `topo-mints-indeterminates-outside-the-funnel` (`design: true`:
-  `Contradicted` against `Escalated` at five of its sites).
-- **P1 structure**:
-  `edge-midpoint-evaluation-is-copied-at-each-site-that-needs-a-point-on-an-edge`
-  (home chosen: `geom_brep::EdgeCurve::mid_point`),
-  `graft-recertifies-through-the-narrow-lane` (measure reachability
-  first; may close), `rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`
-  (unreproduced), `split-cannot-declare-an-exact-tangency-with-its-target`.
+CLEAVE was cut on its priority seam on 2026-10-26 (Ev, in chat): it
+measured 270.5 budget points against 30. It keeps its P0 and P1 wrong
+answers and invalid bodies, and every row in flight; the rest moved by
+`git mv`, ids kept, each with a dated `## Slate triage` note on the row.
+
+- **P0, wrong or refused on everyday shapes**:
+  `a-boss-over-a-hole-tangent-inside-its-rim-at-its-vertex-unites-as-two-shells`
+  (PR 5687) and
+  `a-block-resting-a-zero-band-gap-above-another-refuses-at-the-volume-backstop`
+  (PR 5757, with the backstop P1s
+  `the-backstop-reads-an-unpadded-f64-volume-as-exact-where-it-passes-or-switches-off-a-bound`
+  and `the-backstops-magnitude-arm-meters-the-f64-margin-after-the-interval-has-cleared-it`).
+- **The slit form and the parting**: the three dispatched slit rows
+  (PRs 5544, 5545, 5546), `the-boolean-parting-refuses-its-rarer-configurations`,
+  and `a-boolean-edge-lying-in-a-curved-face-is-not-read`, which waits
+  for 5546 because both edit `boolean/slit.rs`.
+- **The split door's bar**:
+  `the-splits-at-rest-gate-reads-tier-3-where-a-finished-body-owes-tier-3-prime`;
+  SPLITDOOR holds its witnesses.
+- **Rows and ties**: `a-fold-steps-ring-tie-row-names-a-pierce-vertex-its-operand-does-not-hold`
+  and `a-meet-row-on-a-vertex-a-boolean-minted-on-an-edge-omits-the-cell-that-minted-it`
+  (PR 5753 edits both; the second is unbanded and goes to WIRE once 5753
+  lands, if it survives it).
+- **The seal**: `the-indeterminate-seal` (parked) and
+  `glue-disagreements-and-held-contradictions-after-stage-4`, whose
+  stage-4 blockers (`declared-pairs-retire`, `mates-declare-no-contact`)
+  are closed, so it is dispatchable.
+
+## Successor tracks (2026-10-26)
+
+- **ONEHOME** (`work/onehome/`): the P1 duplication rows; INTENT sorts
+  them into design signal and mechanical.
+- **SPLITDOOR** (`work/splitdoor/`): P1 split and boolean shapes that
+  refuse or ship an invalid side on a legal input, and the
+  curved-carrier lanes that read lines and circles only.
+- **HONEPAIR** (`work/honepair/`) and **HONEPOSE** (`work/honepose/`):
+  the P2 margin rows, one margin per verdict and in-band refusals at
+  measured poses.
+- **CLEAVETAIL** (`work/cleavetail/`): the P3 and P4 tail.
+- Rows also went to HONE, HONEROOT, HONEJOIN, HONESPLIT, HONEWORD (their
+  charters), TANG (seams and rejoin), CHARTTAIL (chart and atan2), WIRE
+  (records and lineage its lanes filed), COINCIDE and PCTAIL.
 
 ## Exit criteria
 

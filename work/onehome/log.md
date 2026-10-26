@@ -1,2 +1,3 @@
 # ONEHOME — the log
 
+- 2026-10-26 — Opened by CLEAVE's priority-seam cut (Ev, in chat, 2026-10-26; `work/README.md` Track size): CLEAVE measured 270.5 budget points against 30. 19 rows moved here from `work/cleave/` by `git mv`, ids and bodies unchanged, each with a dated `## Slate triage` note giving its band and why it moved; 32.5 budget points dispatchable. The track holds the P1 duplication rows ("two implementations of one underlying logic"); INTENT sorts each into design signal or mechanical (`work/intent/log.md`, 2026-10-26). Budget 35, with its reason in `program.md`. Nothing is dispatched. (CLEAVE orchestrator)

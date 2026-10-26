@@ -89,3 +89,4 @@ cleave-tangency)
   - HONEWORD (`work/honeword/`, 15): refusal text and payloads — operand, margin, ending, audience, stated reason; nine rows, including the unbanded driver-carried-recourse and planes-parallel-ending rows.
   - HONESPLIT (`work/honesplit/`, 18): split and carve bookkeeping and reads nothing reaches — nine rows, including the unbanded sweep-trace row.
   Path citations to the moved rows in other programs' items and in code comments are re-pointed; earlier log entries are left as written (append-only).
+- 2026-10-26 — **Moved here from CLEAVE** by `git mv` in CLEAVE's priority-seam cut (Ev, in chat, 2026-10-26: CLEAVE at 270.5 budget points against 30), ids and bodies unchanged, each row with a dated `## Slate triage` note giving its band: `conic-plane-root-at-an-arc-end-reads-the-minor-meter`, `coaxial-rim-margins-decide-tilt-and-off-axis-one-at-a-time`. (CLEAVE orchestrator)
