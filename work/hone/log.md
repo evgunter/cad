@@ -91,6 +91,7 @@ cleave-tangency)
   - HONEWORD (`work/honeword/`, 15): refusal text and payloads — operand, margin, ending, audience, stated reason; nine rows, including the unbanded driver-carried-recourse and planes-parallel-ending rows.
   - HONESPLIT (`work/honesplit/`, 18): split and carve bookkeeping and reads nothing reaches — nine rows, including the unbanded sweep-trace row.
   Path citations to the moved rows in other programs' items and in code comments are re-pointed; earlier log entries are left as written (append-only).
+- 2026-10-26 — **Moved here from CLEAVE** by `git mv` in CLEAVE's priority-seam cut (Ev, in chat, 2026-10-26: CLEAVE at 270.5 budget points against 30), ids and bodies unchanged, each row with a dated `## Slate triage` note giving its band: `conic-plane-root-at-an-arc-end-reads-the-minor-meter`, `coaxial-rim-margins-decide-tilt-and-off-axis-one-at-a-time`. (CLEAVE orchestrator)
 - 2026-10-26 — (easy-fixes lane) `reach-refusals-short-of-the-shape-guard`: `Boolean/Join/Section` and `Split/Join/Section` were fixed at the source (`SectionError::WrongLane` now ends in a recourse), and their admissions were removed.
 - 2026-10-26 — (easy-fixes lane) Closed `section-promotion-clears-a-null-face-record-mfkrh-already-dropped`: the three clears are deleted, the oracle asserts the record is gone, and the module docs name the struct promotion reads.
 - 2026-10-26 — (easy-fixes lane) `a-kef-of-a-completed-null-face-is-ruled-out-by-a-debug-assert`: the guard is an `unreachable!` in every build. The row stays open on its proof or witness.

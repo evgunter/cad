@@ -4158,9 +4158,9 @@ fn reference_of<T: Decide>(body: &Body<T>, shell: ShellKey, regions: &[Vec<FaceK
 /// cancels, so `Σ_f A⃗_f = A⃗(∂g)`: the vector area of the region's
 /// boundary, the half-edges of its faces whose mate lies on a face outside
 /// it ([`region_edges`]). The carry is `(c_g − c)·A⃗(∂g)`, read by
-/// [`loop_vector_area`] in interval arithmetic over the lifted boundary
-/// ([`carry_of`]), and folded into the region's first face's enclosure
-/// ([`FaceRun::carried`]).
+/// [`loop_vector_area`](geom_brep::props::loop_vector_area) in interval
+/// arithmetic over the lifted boundary ([`carry_of`]), and folded into
+/// the region's first face's enclosure ([`FaceRun::carried`]).
 ///
 /// # Only where it narrows
 ///

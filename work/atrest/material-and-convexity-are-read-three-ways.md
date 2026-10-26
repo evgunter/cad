@@ -4,7 +4,7 @@ kind: issue
 title: A cell's material and an edge's convexity are read three ways with three levers
 status: open
 priority: P1
-cost: M
+cost: H
 opened: 2026-10-26
 refs: [gap-reads-vertex-and-edge-cells, gap-reads-no-curved-cell-below-a-face]
 ---
@@ -20,3 +20,32 @@ Three readers decide which side of a vertex's or an edge's faces its material li
 **What a fix looks like (not decided).** One reader of a cell's local material, at the census's one-door discipline: signs are point-to-plane distances, and directions only propose planes. `Gap`, the census and the dihedral classifier each read it at their own point. The curved-face cases of `gap-reads-no-curved-cell-below-a-face` and the saddle then come with it. `opposed` reads `Carrier`'s `convex`.
 
 Also see `sector_shape.rs` and `census/curved`, which read sectors the same way the census does.
+
+## Decided (2026-10-26, ATREST orchestrator, on a converged designer pair)
+
+Designers A and B were dispatched concurrently with one brief; the record is on `analysis/design-fork/atrest-material-reader`. Both corrected the premise the same way. These are not three readers of one concept. They are three questions about one object, and the object is what is duplicated:
+- `Face::sense` already fixes a face's side, so no reader decides it.
+- `geom_brep::dihedral` classifies a wedge's shape (transverse, seam, cusp, slit) and is not a material reader. It stays as it is.
+- The duplicated object is the cone of material at a point. The census holds it as `Link`/`Sector`, read by parity through the one `metric::Distance` door. `Gap` holds it as a Boolean of half-spaces (`Wedge`, `Corner`, `Fold`), which covers only the convex and co-convex special case. That is why `Gap` has to decide an angle (`gap_edge_convexity`), borrow a lever, and refuse saddles and near-flat edges.
+
+**The final state.**
+1. **`topo::link`**: the census's `Link`/`Sector` and its metric door, lifted into a public module.
+   - It has a builder off a live `Body` at a vertex, inside an edge and inside a face (`Link::at_point` / `on_edge` / `in_face`), beside the census's `Geo` snapshot builder.
+   - It answers `reads(q)` (In / Out / On, by parity), `judge(a, b)`, and a new `offset(q)`: the signed distance from `q` to the cone's boundary, negative where `reads` says In, as a closed-form minimum over the sectors.
+   - `census::tests::the_touch_analysis_decides_only_through_its_doors` moves with the module and covers every caller.
+2. **`Gap`'s vertex and edge arms read `offset`**, with the outer cell's link reading the inner cell. An inner edge takes the lowest value along the segment, over a finite closed-form candidate set.
+   - `Wedge`, `Corner`, `Turn`, `Fold`, `gap_edge_convexity` and `gap_wedge_crossing` are deleted, along with the saddle and near-flat-edge refusals.
+   - Off contact the magnitude becomes the true distance to the local cone, which retires `gap-reads-a-cells-carrier-beyond-the-cell` for cells.
+   - Zero and the sign are unchanged, so nothing `[assertions.quiet]` reads moves.
+3. **Face–face `Gap` is unchanged.** It is C5's carrier-relative signed offset, ratified text that predates this (`crates/topo/README.md` C5's list). One designer would have made the face arms the one-sector case of the link. That would change what ratified C5 decides, and nothing here needs it, so it is not taken.
+4. **`topo/README.md` C5's cell sentence** ("read as the half-spaces of the face carriers the reading cell lies on") becomes "read as the outer cell's link, the directions entering its solid at the point: the signed distance to it, negative inside". It is agent text that #5746 wrote today (`git log -S`: ba032f255e) and nobody ratified, so it re-words with the build and needs no Ev ruling. The one-door discipline stays a source test; no new README clause is written for it, because that would bind future work.
+5. **`opposed`** calls the one pairing door (`geom_brep::classify_material_pairing_as`), levered by the faces' reach. This is `at-rest-opposed-decides-a-unitless-dot-as-a-length`, which rides stage 5 C.
+6. **Curved faces** are one arm in the metric door: point-to-carrier distance for the sphere and the cylinder, which closes the census's curved-face touch refusal and `Gap`'s together. That is `gap-reads-no-curved-cell-below-a-face`, re-cut and parked on this row. Cone, torus, NURBS and a curved inner edge stay refused there.
+
+**Taken as rows, not in this build:**
+- `blend-reads-its-chain-convexity-off-the-link`: blend's `fillet3_convexity_sign` is the same triple-product predicate.
+- `the-booleans-cone-reader-is-a-second-link`: `boolean::sectors` `cone_side`/`wedge_classes` is kept in step with the census's reader by `cone_fuzz`. That is the boolean's ground.
+
+**The over-refusal to pin while building:** `Link::reads` refuses a point in band of a sector's plane even where the point lies decidedly outside that sector. Add a row, and sharpen it only if a `Gap` row needs it.
+
+Build order: unit 1–2–4 as one PR (this row, cost H); then the curved arm; blend and the boolean on their owners' slates.

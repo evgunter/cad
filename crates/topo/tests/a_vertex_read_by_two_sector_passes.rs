@@ -1505,11 +1505,8 @@ fn a_pyramid_resting_where_a_solid_touches_itself_holds_tier_three_prime() {
                 .iter()
                 .flatten()
                 .filter(|e| {
-                    matches!(
-                        e,
-                        ValidationError::CensusUndecidable { .. }
-                            | ValidationError::InstanceInterference { .. }
-                    )
+                    matches!(e, ValidationError::CensusUndecidable { .. })
+                        || common::is_decided_overlap(e)
                 })
                 .collect();
             assert!(pairs.is_empty(), "{what}: {errors:?}");

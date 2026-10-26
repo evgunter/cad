@@ -1335,6 +1335,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             inner: solid,
             witness: vertex,
         },
+        ValidationError::SameSideInterference { a: face, b: face },
         ValidationError::CuspEdgesMissing {
             a: face,
             b: face,
@@ -1692,6 +1693,28 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::FaceThroughEdgeWedgeUndecided {
                 edge: EdgeKey::default(),
                 face,
+                witness: "(0.0, 0.0, 0.0)".to_owned(),
+                why,
+            },
+        ));
+    }
+    s.push((
+        "CoincidentWedgesOverlap".to_owned(),
+        ValidationError::CoincidentWedgesOverlap {
+            edges: [EdgeKey::default(); 2],
+            witness: "(0.0, 0.0, 0.0)".to_owned(),
+        },
+    ));
+    // The reasons tier 3′'s line reading names: a sign in band, or an
+    // edge's wedge with no reading.
+    let line_unread = core::iter::once((crate::census::TouchUnread::InBand, None))
+        .chain(crate::census::WEDGE_UNREAD.map(|why| (why, Some(EdgeKey::default()))));
+    for (why, unread) in line_unread {
+        s.push((
+            format!("CoincidentWedgesOverlapUndecided/{why:?}"),
+            ValidationError::CoincidentWedgesOverlapUndecided {
+                edges: [EdgeKey::default(); 2],
+                unread,
                 witness: "(0.0, 0.0, 0.0)".to_owned(),
                 why,
             },

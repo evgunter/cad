@@ -334,6 +334,44 @@ pub mod test_support {
     };
     pub use crate::test_support_impl::ArenaCounts;
 
+    /// **A placement the census decided overlaps**: arm 2's decided
+    /// verdicts on a pair of solids, a vertex of one strictly inside the
+    /// other's material ([`crate::ValidationError::InstanceInterference`])
+    /// or a face of each on one carrier, facing the same way and sharing
+    /// interior ([`crate::ValidationError::SameSideInterference`]). The
+    /// one home of the test that a row asserting a placement clears, or
+    /// refuses undecided, reads, so a new decided verdict reaches all of
+    /// them.
+    #[must_use]
+    pub fn is_decided_overlap(e: &crate::ValidationError) -> bool {
+        matches!(
+            e,
+            crate::ValidationError::InstanceInterference { .. }
+                | crate::ValidationError::SameSideInterference { .. }
+        )
+    }
+
+    /// **The census's verdicts on where two solids sit**: each decided
+    /// overlap ([`is_decided_overlap`]) and each
+    /// [`crate::ValidationError::CensusUndecidable`] naming two solids.
+    #[must_use]
+    pub fn placement_findings(errors: &[crate::ValidationError]) -> Vec<&crate::ValidationError> {
+        errors
+            .iter()
+            .filter(|e| {
+                is_decided_overlap(e)
+                    || matches!(
+                        e,
+                        crate::ValidationError::CensusUndecidable {
+                            a: crate::EntityId::Solid(_),
+                            b: crate::EntityId::Solid(_),
+                            ..
+                        }
+                    )
+            })
+            .collect()
+    }
+
     /// **The raw measurement door**: [`crate::mass_properties`]' walk over
     /// a body that has not passed tier 3. The public door takes a
     /// finished body (`&AtRestBody`, Ev's decision on PR 4822); a test
@@ -407,6 +445,12 @@ pub mod test_support {
         crate::side_reader::aimed_rays_report(body, band)
     }
 
+    /// What each shell's aimed rays read before the volume, as text
+    /// (`side_reader`): the trimmed-sphere aims' pin reads it.
+    pub fn shell_aims(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
+        crate::side_reader::shell_aims_report(body, band)
+    }
+
     /// Each face's aimed ray's own reading, every face aimed at
     /// (`side_reader`): the curved edge-meeting ray's probes read it.
     pub fn each_aim(body: &Body<f64>, band: geom_core::Band) -> Vec<String> {
@@ -475,6 +519,31 @@ pub mod test_support {
         surface: geom::Surface<T>,
     ) -> bool {
         body.surfaces.get_mut(key).map(|s| *s = surface).is_some()
+    }
+
+    /// `host` holding `cavity` as [`crate::insert_void`] would graft it,
+    /// without the revert's refusal: `cavity`'s every face side reversed
+    /// and no sheet re-paired, so coincident edges on one line land each
+    /// bounding the complement of its own wedge.
+    ///
+    /// # Panics
+    ///
+    /// Where `solid` does not resolve in `host`, or `cavity` holds other
+    /// than one solid.
+    #[must_use]
+    #[allow(clippy::panic)]
+    pub fn grafted_reverted_unrefused<T: geom_core::Decide>(
+        host: &Body<T>,
+        solid: crate::SolidKey,
+        cavity: &Body<T>,
+    ) -> Body<T> {
+        let mut out = host.clone();
+        if let Err(e) =
+            crate::boolean::combine::graft_solids_disjoint(&mut out, &[solid], &cavity.reverted())
+        {
+            panic!("the graft refused: {e:?}");
+        }
+        out
     }
 
     /// A test's hand-built contact records: each pair of `body`'s cells
