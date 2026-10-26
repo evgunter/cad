@@ -7107,3 +7107,8 @@ Signed (WIRE orchestrator).
   - CLEAVE's door check is cherry-picked; there is a moved-keys witness; held_out is deleted.
   - The full suites were not run locally (disk).
   - A FULL review (`wire-rechart-rev`) is dispatched. It presses whether 'least face' is a mint/storage-order choice, and whether the BooleanNaming blind spot misnames anything today.
+- 2026-10-26 (WIRE orchestrator) `wire-meetrow` opened PR 5798 (head 6d2203440a).
+  - EdgeSplit carries the minting cell `by`, and spell or input_read widen to it. Coincidence goes from `third` to `more: [Option;3]`.
+  - The witness is `Held::unfixed` counts on flush_onto_an_edge (red on base). The named pinch tests were already green after 5753's ring tie.
+  - Filed the residual two-spelling row on the flush pair (P3). The lane filed a CLEAVE row (in-face minted vertex).
+  - The FULL review waits for disk: 5795's reviewer is building.
