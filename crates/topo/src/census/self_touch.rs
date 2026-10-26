@@ -1034,16 +1034,14 @@ fn nested_cones_and_sheets_read_by_their_winding() {
     }
 }
 
-/// **The mould of a pyramid resting on a plate**: a block less the
-/// plate with the pyramid standing on its apex on it (held to the plate
-/// by an arch, so the two are one solid). The mould touches itself where
-/// the pyramid's cavity meets the plate's: the cavity's corner on a face
-/// of its own solid. That is the operand's own touch, which an op called
-/// without the operand's records does not carry, so it stands
-/// unrecorded; recorded, the mould holds tier 3′: the cavity's corner
-/// rests.
+/// **The mould of a pyramid resting on a plate holds tier 3′**: a block
+/// less the plate with the pyramid standing on its apex on it (held to
+/// the plate by an arch, so the two are one solid), the operand's records
+/// carried in. The mould touches itself where the pyramid's cavity meets
+/// the plate's: the cavity's corner on a face of its own solid, recorded,
+/// and resting.
 #[test]
-fn the_mould_of_a_pyramid_on_a_plate_holds_with_its_touch_recorded() {
+fn the_mould_of_a_pyramid_on_a_plate_holds_tier_three_prime() {
     let plate = block((0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
     let post = block((0.2, 0.8), (1.6, 2.4), (0.5, 3.6));
     let beam = block((0.2, 2.4), (1.6, 2.4), (3.0, 3.6));
@@ -1052,29 +1050,37 @@ fn the_mould_of_a_pyramid_on_a_plate_holds_with_its_touch_recorded() {
         "the held pyramid",
         union(&arch, &pyramid([2.0, 2.0, 1.0], 1.0, 2.2), tol()),
     );
-    let body = built("the pyramid on its apex", union(&plate, &held, tol()));
-    assert_eq!(body.solids.len(), 1, "one solid");
-    let Ok(BooleanResult::Body(mould)) =
-        subtract(&block((-1.0, 5.0), (-1.0, 5.0), (-1.0, 4.5)), &body, tol())
-    else {
+    let Ok(BooleanResult::Body(body)) = union(&plate, &held, tol()) else {
+        panic!("the pyramid on its apex builds");
+    };
+    assert_eq!(body.body.solids.len(), 1, "one solid");
+    assert_eq!(
+        body.contacts.vertex_face().count(),
+        1,
+        "its apex on the plate"
+    );
+    let inputs = crate::BooleanInputs {
+        records_b: body.contacts.carried(),
+        ..Default::default()
+    };
+    let Ok(BooleanResult::Body(mould)) = crate::boolean_op_with(
+        crate::BooleanOp::Subtract,
+        &block((-1.0, 5.0), (-1.0, 5.0), (-1.0, 4.5)),
+        &body.body,
+        &inputs,
+        crate::SweepStrategy::Realized,
+        tol(),
+    ) else {
         panic!("the mould builds");
     };
-    let errors = validate_pseudomanifold(&mould.body, &mould.contacts, tol()).unwrap_err();
-    assert!(
-        matches!(
-            &errors[..],
-            [ValidationError::UnrecordedContact {
-                contact: CensusContact::VertexOnFace { .. },
-                witness,
-                ..
-            }] if witness == "(2.0, 2.0, 1.0)"
-        ),
-        "only the unrecorded corner: {errors:?}"
+    assert_eq!(
+        mould.contacts.vertex_face().count(),
+        1,
+        "the cavity's corner"
     );
     assert_eq!(
-        validate_pseudomanifold(&mould.body, &record_all(&errors), tol()),
-        Ok(()),
-        "recorded"
+        validate_pseudomanifold(&mould.body, &mould.contacts, tol()),
+        Ok(())
     );
 }
 
@@ -1118,4 +1124,274 @@ fn three_sheets_crossing_along_their_corners_rays_cross() {
         band(),
     );
     assert_eq!(got, TouchVerdict::Crossing);
+}
+
+// ---- Sheets crossing along a ray, and faces met more than once.
+
+/// A polygon disc through the origin in the plane containing the x axis
+/// with unit normal `n`, its corners at `angles` (degrees from the x axis
+/// about `n`) at radius 2.
+fn disc_through_x(n: Vec3<f64>, angles: &[f64]) -> Link<f64> {
+    let e1 = Vec3::new(1.0, 0.0, 0.0);
+    let e2 = n.cross(e1);
+    let o = P::origin();
+    let verts: Vec<P> = angles
+        .iter()
+        .map(|d| {
+            let t = d.to_radians();
+            o + e1 * (2.0 * t.cos()) + e2 * (2.0 * t.sin())
+        })
+        .collect();
+    let ring: Vec<usize> = (0..verts.len()).collect();
+    synthetic(o, At::Face, verts, &[(n, vec![ring])], &[], band()).unwrap()
+}
+
+/// Half of that disc: `p` inside its edge along the x axis, on the
+/// `n × x` side (`up`) or the other.
+fn half_through_x(n: Vec3<f64>, up: bool) -> Link<f64> {
+    let e1 = Vec3::new(1.0, 0.0, 0.0);
+    let e2 = n.cross(e1);
+    let o = P::origin();
+    let (s, a, b) = if up {
+        (1.0, -2.0, 2.0)
+    } else {
+        (-1.0, 2.0, -2.0)
+    };
+    let verts = vec![
+        o + e1 * a,
+        o + e1 * b,
+        o + e1 * (b * 0.5) + e2 * (2.0 * s),
+        o + e1 * (a * 0.5) + e2 * (2.0 * s),
+    ];
+    let faces = [(n, vec![vec![0, 1, 2, 3]])];
+    synthetic(o, At::Edge, verts, &faces, &[(vec![0, 1], [0, 1])], band()).unwrap()
+}
+
+/// The unit normal a turn of `deg` about the x axis from `+y`.
+fn about_x(deg: f64) -> Vec3<f64> {
+    let t = deg.to_radians();
+    Vec3::new(0.0, t.cos(), t.sin())
+}
+
+/// **Sheets crossing along a ray of the link cross, the ray a cut or
+/// not**: three square discs through the x axis, normals a third of a turn
+/// apart (the winding takes two values). With no ray on the axis, pieces
+/// straddle the other sheets. With two fins whose edges lie on `±x`, or
+/// the third disc split along the axis into two half discs, the axis is a
+/// cut every piece ends on; with hexagons, a ray each fan turns on. With
+/// pentagons cornered at `+x` alone, the one ray on the axis is where
+/// each closed fan closes. Each crosses.
+#[test]
+fn sheets_crossing_along_a_ray_of_the_link_cross() {
+    let square = [45.0, 135.0, 225.0, 315.0];
+    let hexagon = [0.0, 60.0, 120.0, 180.0, 240.0, 300.0];
+    let one_sided = [0.0, 70.0, 140.0, 220.0, 290.0];
+    let normals = [about_x(90.0), about_x(210.0), about_x(330.0)];
+    let discs = |corners: &[f64]| -> Vec<Link<f64>> {
+        normals
+            .iter()
+            .map(|&n| disc_through_x(n, corners))
+            .collect()
+    };
+    let fins = || {
+        vec![
+            cone(&[[1.0, 0.0, 0.0], [0.5, 0.8, 0.3], [0.5, 0.6, 0.5]], true),
+            cone(
+                &[[-1.0, 0.0, 0.0], [-0.5, 0.8, 0.3], [-0.5, 0.6, 0.5]],
+                true,
+            ),
+        ]
+    };
+    let split = vec![
+        disc_through_x(normals[0], &square),
+        disc_through_x(normals[1], &square),
+        half_through_x(normals[2], true),
+        half_through_x(normals[2], false),
+    ];
+    let mut finned = discs(&square);
+    finned.extend(fins());
+    let rows: [(&str, Vec<Link<f64>>); 5] = [
+        ("no ray on the axis", discs(&square)),
+        ("fins on the axis", finned),
+        ("a sheet split on the axis", split),
+        ("fans turning on the axis", discs(&hexagon)),
+        ("a fan's closing ray", discs(&one_sided)),
+    ];
+    for (what, links) in rows {
+        assert_eq!(
+            rest::one_material(&whole(links), band()),
+            TouchVerdict::Crossing,
+            "{what}"
+        );
+    }
+}
+
+/// One face's sectors at the origin, one per pass, as [`Sector::of`]
+/// builds them, its outward normal `+z`.
+fn passes(rings: Vec<Vec<P>>, at: &[PieceAt]) -> Result<Vec<Sector<f64>>, TouchVerdict> {
+    let o = P::origin();
+    let m = Vec3::new(0.0, 0.0, 1.0);
+    at.iter()
+        .map(|&pass| {
+            let also: Vec<PieceAt> = at.iter().copied().filter(|&x| x != pass).collect();
+            let piece = face_piece(o, m, &rings, pass, &also, band())?;
+            Ok(Sector {
+                surface: geom::Surface::Plane {
+                    origin: o,
+                    normal: m,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+                outward: m,
+                apex: o,
+                wedges: piece.chunks_exact(2).map(|w| (w[0], w[1])).collect(),
+                closed: false,
+            })
+        })
+        .collect()
+}
+
+/// A notch of void cut down from the plane `z = 0` between turns `a` and
+/// `b` (degrees about `+z`): its two walls, each a triangle from the
+/// origin, outward into the void.
+fn notch(a: f64, b: f64) -> Vec<Link<f64>> {
+    let o = P::origin();
+    let (ta, tb) = (a.to_radians(), b.to_radians());
+    let at = |t: f64| P::new(2.0 * t.cos(), 2.0 * t.sin(), 0.0);
+    let down = P::new(0.0, 0.0, -2.0);
+    let wall = |m: Vec3<f64>, a: P, b: P| {
+        let ccw = (a - o).cross(b - o).dot(m) > 0.0;
+        let ring = if ccw { vec![0, 1, 2] } else { vec![0, 2, 1] };
+        synthetic(
+            o,
+            At::Vertex(0),
+            vec![o, a, b],
+            &[(m, vec![ring])],
+            &[],
+            band(),
+        )
+        .unwrap()
+    };
+    vec![
+        wall(Vec3::new(-ta.sin(), ta.cos(), 0.0), at(ta), down),
+        wall(Vec3::new(tb.sin(), -tb.cos(), 0.0), at(tb), down),
+    ]
+}
+
+/// One face's passes and other links, read as one link.
+fn read_with(face: Result<Vec<Sector<f64>>, TouchVerdict>, others: Vec<Link<f64>>) -> TouchVerdict {
+    let mut sectors = match face {
+        Ok(s) => s,
+        Err(v) => return v,
+    };
+    sectors.extend(others.into_iter().flat_map(|l| l.sectors));
+    match Link::of(P::origin(), sectors) {
+        Ok(link) => rest::one_material(&link, band()),
+        Err(v) => v,
+    }
+}
+
+/// **A face met more than once reads one sector per pass**, a slit
+/// closing its pass's turn. A floor (material below `z = 0`) as one loop
+/// through the origin twice, two lobes seamed along `+x`: one pass's own
+/// incoming ray runs along its outgoing one. With a notch of void cut
+/// down between its lobes it rests; a needle sunk below the seam (2 in
+/// it), or across it, crosses, and one standing above rests. A floor
+/// holding the point at two corners and inside an edge of a hole, its
+/// gaps notched, rests, and crosses with a needle sunk into its material.
+#[test]
+fn a_face_met_more_than_once_reads_one_sector_per_pass() {
+    let o = P::origin();
+    let p = |x: f64, y: f64| P::new(x, y, 0.0);
+    let seamed = || {
+        let ring = vec![
+            o,
+            p(2.0, 0.0),
+            p(2.0, 2.0),
+            p(0.0, 2.0),
+            o,
+            p(-2.0, 0.0),
+            p(-2.0, -2.0),
+            p(2.0, -2.0),
+            p(1.5, 0.0),
+        ];
+        passes(vec![ring], &[PieceAt::Corner(0, 0), PieceAt::Corner(0, 4)])
+    };
+    let with = |needle: Option<[[f64; 3]; 3]>| {
+        let mut others = notch(90.0, 180.0);
+        others.extend(needle.map(|n| cone(&n, true)));
+        read_with(seamed(), others)
+    };
+    assert!(with(None).is_rest(), "the seamed floor");
+    let sunk = [[1.0, 0.0, 0.0], [1.0, 0.1, -0.1], [1.0, -0.1, -0.1]];
+    let across = [[1.0, 0.0, 0.0], [1.0, 0.1, -0.1], [1.0, -0.05, 0.1]];
+    let above = [[1.0, 0.0, 0.0], [1.0, 0.1, 0.1], [1.0, -0.1, 0.1]];
+    assert_eq!(
+        with(Some(sunk)),
+        TouchVerdict::Crossing,
+        "sunk under the seam"
+    );
+    assert_eq!(
+        with(Some(across)),
+        TouchVerdict::Crossing,
+        "across the seam"
+    );
+    assert!(with(Some(above)).is_rest(), "above the seam");
+    // A crack's tip: the loop leaves along `+x` and comes back along it,
+    // one pass, its sector the full turn.
+    let crack = vec![
+        o,
+        p(2.0, 0.0),
+        p(2.0, 2.0),
+        p(-2.0, 2.0),
+        p(-2.0, -2.0),
+        p(2.0, -2.0),
+        p(1.0, 0.0),
+    ];
+    let tip = passes(vec![crack], &[PieceAt::Corner(0, 0)]);
+    let got = read_with(tip, Vec::new());
+    assert!(got.is_rest(), "a crack's tip");
+    let at = |deg: f64| {
+        let t = deg.to_radians();
+        p(t.cos(), t.sin())
+    };
+    let holed = || {
+        let outer = vec![p(-3.0, -3.0), p(3.0, -3.0), p(3.0, 3.0), p(-3.0, 3.0)];
+        let hole = vec![
+            p(-1.0, 0.0),
+            p(1.0, 0.0),
+            at(340.0),
+            o,
+            at(290.0),
+            at(250.0),
+            o,
+            at(200.0),
+        ];
+        let held = [
+            PieceAt::Edge(1, 0),
+            PieceAt::Corner(1, 3),
+            PieceAt::Corner(1, 6),
+        ];
+        passes(vec![outer, hole], &held)
+    };
+    let gaps = || {
+        let mut v = notch(180.0, 200.0);
+        v.extend(notch(250.0, 290.0));
+        v.extend(notch(340.0, 360.0));
+        v
+    };
+    assert!(
+        read_with(holed(), gaps()).is_rest(),
+        "two corners and an edge"
+    );
+    let mut sunk = gaps();
+    sunk.push(cone(
+        &[[0.1, 0.9, -1.0], [-0.1, 0.9, -1.0], [0.0, 1.1, -1.0]],
+        true,
+    ));
+    assert_eq!(
+        read_with(holed(), sunk),
+        TouchVerdict::Crossing,
+        "a needle in it"
+    );
 }

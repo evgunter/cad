@@ -21,7 +21,9 @@ line-bounded faces only. Where a curved face or edge is in the link,
 the reading is skipped, so the point passes unread, as it did before
 the reading existed. The census module doc lists the class as
 genuinely undetected. A curved sheet crossing through such a point is
-not seen.
+not seen, and neither are planar sheets crossing there: one curved face
+anywhere in the link leaves the whole point unread, its planar faces
+included.
 
 The skip was ruled for now in that PR (orchestrator with Ev,
 2026-10-25). Refusing these points instead
