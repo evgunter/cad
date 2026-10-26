@@ -1371,7 +1371,7 @@ pub(crate) fn sphere_chart_trim<T: Decide>(
             let half = T::from_f64(0.5);
             let width = t1 - t0;
             // The edge's own turn, as its certificate decided it.
-            let Some(turn) = curve.certificate().turn else {
+            let Some(turn) = curve.turn().copied() else {
                 unreachable!("check 2 mints a turn for every circle")
             };
             match turn.turn() {

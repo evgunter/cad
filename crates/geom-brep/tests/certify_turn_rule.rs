@@ -366,7 +366,15 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
     let certify = |(t0, t1): (f64, f64)| {
         let spec = EdgeCurveSpec::arc_of_circle(circle.clone(), t0, t1).unwrap();
         let (start, end) = (spec.carrier.eval(t0), spec.carrier.eval(t1));
-        EdgeCurve::certify(spec, start, end, |_| None, 1.0, band)
+        EdgeCurve::certify(
+            spec,
+            start,
+            end,
+            |_| None,
+            1.0,
+            band,
+            geom_brep::NurbsLane::certified(),
+        )
     };
     let headroom = |(t0, t1): (f64, f64)| Margin::levered(TAU - (t1 - t0), radius);
     let old_split = |span| match decide("bool_split_span_period", headroom(span), band) {
@@ -410,7 +418,7 @@ fn the_certified_readers_agree_with_the_reads_they_retired() {
             );
             continue;
         };
-        let turn = edge.certificate().turn.expect("a circle's turn").turn();
+        let turn = edge.turn().copied().expect("a circle's turn").turn();
         assert_eq!(old_split(span), Read::Proceeds, "k = {k}: the split");
         assert_eq!(partial(turn), old_meridian(span), "k = {k}: the meridian");
         if k == -0.5 {
