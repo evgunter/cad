@@ -2749,38 +2749,52 @@ fn certified_arms<T: Decide + Bounds>(
             // divisors, and only a definitely-positive one makes the
             // divisions below well-conditioned.
             let (inf_u, inf_v) = (gate(inf.inf_u, chart)?, gate(inf.inf_v, chart)?);
-            // The skew discount `ρ` of `chart_stretch_inf`'s
-            // assembly: the smallest singular value of the Jacobian
-            // in the chart normalized by those infs, from a sup trace
-            // and an inf determinant (the conservative corner, since
-            // `λ_min` falls with the trace and rises with the
-            // determinant). `ρ` is 1 on an orthogonal chart of
-            // constant stretch, so the arms are then the per-axis
-            // infs verbatim; it is 0 on a chart whose derivative
-            // directions can align, which is the skew case the
-            // per-axis pair alone cannot see.
-            let trace_sup = (inf.sup_u / inf_u).powi(2) + (inf.sup_v / inf_v).powi(2);
-            let det_inf = (inf.area_inf / (inf_u * inf_v)).powi(2);
-            let root = (trace_sup.powi(2) - det_inf * T::from_f64(4.0))
-                .max(T::zero())
-                .sqrt();
-            // `2D/(T + √(T²−4D))` — the cancellation-free spelling of
-            // `(T − √(T²−4D))/2`.
-            // The `min(1)` is a SAFETY cap, not a tightening: `T` and
-            // `D` come from different points of the chart, so their
-            // corner can nominally exceed the true `λ_min ≤ 1` and an
-            // arm above its own per-axis inf would be unsound. It is
-            // also what makes `arm ≤ inf_u` near-tautological, so no
-            // test may use that inequality as evidence of anything —
-            // the swap row pins the arm's DERIVED VALUE for exactly
-            // this reason.
-            let rho = (det_inf * T::from_f64(2.0) / (trace_sup + root))
-                .sqrt()
-                .min(T::one());
-            (gate(inf_u * rho, chart)?, gate(inf_v * rho, chart)?)
+            let (arm_u, arm_v) = skew_discounted_arms(&inf, inf_u, inf_v);
+            (gate(arm_u, chart)?, gate(arm_v, chart)?)
         }
     };
     Ok((InfSpeed::new(arm_u), InfSpeed::new(arm_v)))
+}
+
+/// **A spline chart's two inf-side lever arms** from its stretch reading
+/// ([`geom_brep::chart_stretch_inf`]) and its per-axis infs `inf_u`,
+/// `inf_v`, gated definitely positive by the caller: `(inf_u·ρ, inf_v·ρ)`,
+/// for a displacement `(du, dv)` of the chart maps to at least
+/// `√((inf_u·ρ·du)² + (inf_v·ρ·dv)²)` metres.
+pub(crate) fn skew_discounted_arms<T: geom_core::Real>(
+    inf: &geom_brep::ChartStretchInf<T>,
+    inf_u: T,
+    inf_v: T,
+) -> (T, T) {
+    // The skew discount `ρ` of `chart_stretch_inf`'s
+    // assembly: the smallest singular value of the Jacobian
+    // in the chart normalized by those infs, from a sup trace
+    // and an inf determinant (the conservative corner, since
+    // `λ_min` falls with the trace and rises with the
+    // determinant). `ρ` is 1 on an orthogonal chart of
+    // constant stretch, so the arms are then the per-axis
+    // infs verbatim; it is 0 on a chart whose derivative
+    // directions can align, which is the skew case the
+    // per-axis pair alone cannot see.
+    let trace_sup = (inf.sup_u / inf_u).powi(2) + (inf.sup_v / inf_v).powi(2);
+    let det_inf = (inf.area_inf / (inf_u * inf_v)).powi(2);
+    let root = (trace_sup.powi(2) - det_inf * T::from_f64(4.0))
+        .max(T::zero())
+        .sqrt();
+    // `2D/(T + √(T²−4D))` — the cancellation-free spelling of
+    // `(T − √(T²−4D))/2`.
+    // The `min(1)` is a SAFETY cap, not a tightening: `T` and
+    // `D` come from different points of the chart, so their
+    // corner can nominally exceed the true `λ_min ≤ 1` and an
+    // arm above its own per-axis inf would be unsound. It is
+    // also what makes `arm ≤ inf_u` near-tautological, so no
+    // test may use that inequality as evidence of anything —
+    // the swap row pins the arm's DERIVED VALUE for exactly
+    // this reason.
+    let rho = (det_inf * T::from_f64(2.0) / (trace_sup + root))
+        .sqrt()
+        .min(T::one());
+    (inf_u * rho, inf_v * rho)
 }
 
 /// [`certified_arms`]' two rates read back as numbers, for a test's

@@ -2,12 +2,11 @@
 id: the-curved-arm-reads-a-spline-faces-side-through-the-dihedral-side-door
 kind: issue
 title: The sweep's curved arm still refuses a spline face before reading a side; the dihedral side door is not yet its spline arm
-status: parked
+status: open
 opened: 2026-10-26
 priority: P1
 cost: E
 refs: [a-span-is-read-against-a-faces-boundary-edges-first, the-side-of-a-spline-face-is-read-by-no-dihedral]
-blocked_on: [a-point-has-no-place-in-a-nurbs-faces-trim]
 ---
 
 
@@ -56,3 +55,19 @@ this door's side is local to the edge.
 Witness: lily wall 8 (`demos/tour/src/lily.rs`) moves off
 `CurvedBooleanUnsupported { operand: B, kind: Nurbs }` once this row,
 the boundary-first row and the two flush rows land.
+
+## Unparked (SPLICE, 2026-10-26)
+
+Both gates are closed: the boundary-first row, and point-in-face
+(`topo::boolean::spline_region`). One thing the wiring has to know
+about the placement it now has: the door's point lies on the shared
+edge, so its foot lies on the face's trim boundary, and the trim
+reading never gives a point within the band of the trim a side
+(`Trim::place` reads it `Near`; the boundary walk reads the point
+itself `OnEdge`). So "the foot is the face's" is not In there. It is
+the foot's chart distance to the shared half-edge's own lifted image:
+within the band along the chart, the face's sheet; past it, another
+sheet (the hairpin's upper-half foot is `3/7` of the chart away from
+a face edge at `v = 2/7`). `spline_region`'s piece clearance is that
+reading over every piece; the wiring asks it of the one edge's pieces.
+
