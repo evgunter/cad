@@ -69,3 +69,16 @@ built on SECT's critical path. Filed SECT's
 `a-nurbs-face-against-a-cone-or-sphere-has-no-section-arm`, parked on
 SECT step 1 and on `delete-the-boolean-operand-edge-gate`. Lily wall 8
 stays this track's first demo witness.
+
+## 2026-10-26 — the demo joins' first refusal has its own row
+
+The gate lane measured, on PR 5723, that klein wall 3, lily wall 8 and
+teapot wall 3 all refuse at their contact once the gate is gone. In
+each, an analytic edge of one operand is read against a NURBS wall of
+the other (`CurvedBooleanUnsupported { kind: Nurbs }`). No row owned
+that: the crossing rung composes along a NURBS edge, and SECT's new row
+is the face × face section. Filed
+`an-analytic-edge-against-a-nurbs-face-has-no-crossing-lane` (P0 H,
+design open). The plan's "lily wall 8 needs no curved section" still
+holds, but lily also needs this row. Designers weigh it once 5723 is
+in review.
