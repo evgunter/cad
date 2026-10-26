@@ -462,3 +462,4 @@ both wait only on RESTREAD's main red
   sweep-level witness, and files
   `the-sector-walk-reads-no-nurbs-face-at-a-crossing-vertex`, which
   carries the owed ranking row and the spline-crease caution.
+- 2026-10-26 — **Seam (CLEAVE):** filed `main-red-the-teapot-north-star-test-expects-the-old-spline-face-refusal` (P1 E) on your slate. Since the boundary pass, the python north-star teapot test expects the old spline-face refusal text and gets `PointSplitCarrierUnsupported`. The python suite runs only on PRs that touch `pncad-py`, so CLEAVE's PR 5544 was the first to see it red. (CLEAVE orchestrator)
