@@ -136,6 +136,8 @@ fn the_merged_union_takes_a_third_brick() {
     assert_eq!(bb.body.faces().count(), 8);
     assert_eq!(faces_at_height(&bb.body, 1.0), 1, "one top cap");
     assert_eq!(faces_at_height(&bb.body, 0.0), 1, "one bottom cap");
+    // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+    // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(mass_properties(&bb.body, tol).unwrap().volume, 2.0);
     assert_green(&bb, "(a ∪ f) ∪ c");
 }
@@ -207,6 +209,8 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
     assert_eq!(faces_at_height(&bb.body, 1.0), 1, "one top cap");
     assert_eq!(faces_at_height(&bb.body, 0.0), 1, "one bottom cap");
     // 9 − 2 + 3 − 1: the U, the bar, their two corner squares.
+    // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+    // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(mass_properties(&bb.body, tol).unwrap().volume, 9.0);
     assert_green(&bb, "U ∪ bar");
 }
@@ -326,6 +330,8 @@ fn a_plug_folded_first_merges_into_the_face_it_plugs() {
         bb.naming.merge_skipped
     );
     assert_eq!(bb.body.faces().count(), 6);
+    // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+    // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(mass_properties(&bb.body, tol).unwrap().volume, 12.0);
     assert_green(&bb, "plug ∪ block");
 }

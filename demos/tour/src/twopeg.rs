@@ -62,11 +62,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, p3, v3, validated};
-use pncad::document::ExtrudeSide;
 use pncad::geom_core::{RigidMotion, Tol, Vec3};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::{SurfaceKindSet, query};
 use pncad::profile::{ConstructedLoop, Open, SketchPlane, Start, ValidatedProfile, circle_split};
+use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::{AtRestBody, Body, BooleanBody};
 
@@ -356,7 +356,7 @@ pub(crate) fn build<S: Scalar>(
     // fillets' π-terms make no part's volume dyadic, so the sum and the
     // union's own flux total associate the same terms differently.
     let vol = |b: &Body<S>| {
-        pncad::topo::mass_properties(b, tol)
+        pncad::topo::mass_properties(&crate::booleans::at_rest(b, tol), tol)
             .expect("mass properties")
             .volume
             .f()

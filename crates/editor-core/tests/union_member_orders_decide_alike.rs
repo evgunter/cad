@@ -46,11 +46,11 @@
 
 use std::collections::BTreeMap;
 
-use crate::blocks::{Spans, block, block_of, failure, run};
+use crate::blocks::{Spans, block, block_of, block_on, block_on_of, failure, run};
 use crate::corpus::body_of;
 use crate::emit_boolean_vertex_keys::named_geometry;
-use crate::fixture::{insert, len, on_frame};
-use editor_core::{Evaluation, ExtrudeSide, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};
+use crate::fixture::{against, axes_at, desc, insert, len};
+use editor_core::{Evaluation, Node, NodeErrorKind, ProfileDoc, RecipeNodeId};
 use geom_core::Tol;
 
 /// The orders sampled where a union's members have more than this
@@ -62,39 +62,40 @@ type Members = fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>);
 /// Three unit blocks in a row along x, each flush on the next: two
 /// rests and the continuations of their shared walls.
 pub(crate) fn three_in_a_row(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block_on(doc, a, (2.0, 3.0), (0.0, 1.0), 0.0, 1.0);
     (doc, vec![a, b, c])
 }
 
 /// Three plates stacked, each smaller than the one below: two rests,
 /// no continuation.
 pub(crate) fn stepped_stack(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
-    let (doc, c) = block(doc, (1.0, 2.0), (1.0, 2.0), 2.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 2.5), (0.5, 2.5), 1.0, 1.0);
+    let (doc, c) = block_on(doc, a, (1.0, 2.0), (1.0, 2.0), 2.0, 1.0);
     (doc, vec![a, b, c])
 }
 
 /// A table: a top resting on four legs at its corners, each leg flush
 /// with two of the top's walls — 120 orders, sampled.
 pub(crate) fn table(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, top) = block(doc, (0.0, 4.0), (0.0, 3.0), 2.0, 0.25);
-    let (doc, l0) = block(doc, (0.0, 0.5), (0.0, 0.5), 0.0, 2.0);
-    let (doc, l1) = block(doc, (3.5, 4.0), (0.0, 0.5), 0.0, 2.0);
-    let (doc, l2) = block(doc, (0.0, 0.5), (2.5, 3.0), 0.0, 2.0);
-    let (doc, l3) = block(doc, (3.5, 4.0), (2.5, 3.0), 0.0, 2.0);
+    // The top's own z = 0 stands 2 up: the legs reach down to z = -2.
+    let (doc, top) = block(doc, (0.0, 4.0), (0.0, 3.0), 0.25);
+    let (doc, l0) = block_on(doc, top, (0.0, 0.5), (0.0, 0.5), -2.0, 2.0);
+    let (doc, l1) = block_on(doc, top, (3.5, 4.0), (0.0, 0.5), -2.0, 2.0);
+    let (doc, l2) = block_on(doc, top, (0.0, 0.5), (2.5, 3.0), -2.0, 2.0);
+    let (doc, l3) = block_on(doc, top, (3.5, 4.0), (2.5, 3.0), -2.0, 2.0);
     (doc, vec![top, l0, l1, l2, l3])
 }
 
 /// A slab and two posts through it and a bar across both posts: every
 /// meeting transverse, no coincidence.
 fn posts_and_bar(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, slab) = block(doc, (0.0, 4.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, p) = block(doc, (0.5, 1.0), (0.75, 1.25), -0.5, 2.5);
-    let (doc, q) = block(doc, (3.0, 3.5), (0.75, 1.25), -0.5, 2.5);
-    let (doc, bar) = block(doc, (0.25, 3.75), (0.875, 1.125), 1.5, 0.25);
+    let (doc, slab) = block(doc, (0.0, 4.0), (0.0, 2.0), 1.0);
+    let (doc, p) = block_on(doc, slab, (0.5, 1.0), (0.75, 1.25), -0.5, 2.5);
+    let (doc, q) = block_on(doc, slab, (3.0, 3.5), (0.75, 1.25), -0.5, 2.5);
+    let (doc, bar) = block_on(doc, slab, (0.25, 3.75), (0.875, 1.125), 1.5, 0.25);
     (doc, vec![slab, p, q, bar])
 }
 
@@ -102,9 +103,9 @@ fn posts_and_bar(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// wall: the sliver refuses, in band, whichever member meets it first.
 fn a_sliver_beside_a_rest(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let eps = Tol::witness().get().eps;
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (2.0 + 2.0 * eps, 3.0), (0.25, 0.75), 0.25, 0.5);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block_on(doc, a, (2.0 + 2.0 * eps, 3.0), (0.25, 0.75), 0.25, 0.5);
     (doc, vec![a, b, c])
 }
 
@@ -422,13 +423,17 @@ fn built(
             "{n} binds two entities"
         );
     }
-    let body = body_of(ev, union);
+    let body = topo::test_support::finished(
+        "body",
+        topo::Body::clone(body_of(ev, union)),
+        Tol::witness(),
+    );
     let topology = (
         body.faces().count(),
         body.edges().count(),
         body.vertices().count(),
     );
-    let volume = topo::mass_properties(body, Tol::witness())
+    let volume = topo::mass_properties(&body, Tol::witness())
         .expect("a built union measures")
         .volume;
     Decided::Built {
@@ -615,19 +620,12 @@ pub(crate) fn prism_and_cube_along(
     doc: ProfileDoc,
     normal: [f64; 3],
 ) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0; 3],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![ELL.to_vec()],
-    );
+    let (doc, profile) = insert(doc, Node::Profile(desc(vec![ELL.to_vec()])));
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         },
     );
     // The frame through the corner whose normal is `normal`,
@@ -644,22 +642,23 @@ pub(crate) fn prism_and_cube_along(
         m[0] * u[1] - m[1] * u[0],
     ];
     let square = vec![(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)];
-    let (doc, profile) = on_frame(doc, [1.0, 1.0, 1.0], u, v, vec![square]);
+    let (doc, profile) = insert(doc, Node::Profile(desc(vec![square])));
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(4.0),
-            side: ExtrudeSide::Along,
         },
     );
+    // The cube's copy stands on that frame in the prism's space.
+    let (doc, cube) = against(doc, prism, cube, &axes_at([1.0, 1.0, 1.0], u, v));
     (doc, vec![prism, cube])
 }
 
 /// [`prism_and_cube`] and a block far from both.
 pub(crate) fn pinch_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, mut m) = prism_and_cube(doc);
-    let (doc, far) = block(doc, (6.0, 7.0), (6.0, 7.0), 0.0, 1.0);
+    let (doc, far) = block_on(doc, m[0], (6.0, 7.0), (6.0, 7.0), 0.0, 1.0);
     m.push(far);
     (doc, m)
 }
@@ -668,21 +667,16 @@ pub(crate) fn pinch_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) 
 /// pinch.
 pub(crate) fn pinch_and_cap(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, mut m) = prism_and_cube(doc);
-    let (doc, cap) = block(doc, (0.8, 1.2), (0.8, 1.2), 0.8, 0.4);
+    let (doc, cap) = block_on(doc, m[0], (0.8, 1.2), (0.8, 1.2), 0.8, 0.4);
     m.push(cap);
     (doc, m)
 }
-
-/// Where a union holds a pinch an earlier fold step made, its end pass
-/// refuses naming the corner's copies.
-pub(crate) const CARRIED_PINCH: &str =
-    "work/refs/a-pinch-carried-through-a-later-fold-step-refuses-naming.md";
 
 /// Two unit blocks kissing at the corner (1, 1, 1): one vertex-vertex
 /// record, citing its `VertexFusion` row.
 pub(crate) fn kiss(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 2]) {
     let (doc, a) = block_of(doc, KISS[0]);
-    let (doc, b) = block_of(doc, KISS[1]);
+    let (doc, b) = block_on_of(doc, a, KISS[1]);
     (doc, [a, b])
 }
 
@@ -696,7 +690,7 @@ pub(crate) const KISS: [Spans; 2] = [
 /// record the union's in the orders that fold it last.
 pub(crate) fn kiss_and_far(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, [a, b]) = kiss(doc);
-    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, far) = block_on(doc, a, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     (doc, vec![a, b, far])
 }
 
@@ -774,17 +768,11 @@ fn statement(
 /// step meets a vertex an earlier step minted. Every order that builds
 /// judges alike, and the first that builds logs exactly the statements
 /// listed, its fold steps' with them, so a row published twice or not
-/// at all is red. The orders that fold the far member last after the
-/// pinch refuse [`CARRIED_PINCH`] and are excluded, each checked to
-/// refuse that way.
+/// at all is red. Every order builds, the far member folded last after
+/// the pinch among them.
 #[test]
 fn a_vertex_row_is_the_unions_once_in_every_member_order() {
-    type Row = (
-        &'static str,
-        Members,
-        fn(&[usize]) -> bool,
-        &'static [&'static str],
-    );
+    type Row = (&'static str, Members, &'static [&'static str]);
     const PINCH: &[&str] = &["judged VertexFusion OnCarrier Face@m1 Vertex@m0"];
     // The kiss: the three walls through the corner, each against the
     // other block's, and the corner itself.
@@ -830,49 +818,25 @@ fn a_vertex_row_is_the_unions_once_in_every_member_order() {
         "judged VertexFusion OnCarrier Edge@m2 Vertex@m1",
     ];
     let rows: [Row; 6] = [
-        ("prism and cube", prism_and_cube, |_| false, PINCH),
+        ("prism and cube", prism_and_cube, PINCH),
         (
             "two blocks pinching on a plate",
             crate::union_pinch_member_order::pinch,
-            |_| false,
             PLATE,
         ),
-        (
-            "the pinch with a far member",
-            pinch_and_far,
-            |o| o[2] == 2,
-            PINCH,
-        ),
-        (
-            "the pinch with a cap over the corner",
-            pinch_and_cap,
-            |_| false,
-            PINCH,
-        ),
-        ("the kiss with a far member", kiss_and_far, |_| false, KISS),
-        (
-            "the kiss with a block read twice",
-            kiss_read_twice,
-            |_| false,
-            TWICE,
-        ),
+        ("the pinch with a far member", pinch_and_far, PINCH),
+        ("the pinch with a cap over the corner", pinch_and_cap, PINCH),
+        ("the kiss with a far member", kiss_and_far, KISS),
+        ("the kiss with a block read twice", kiss_read_twice, TWICE),
     ];
     let mut failures = Vec::new();
-    for (what, fixture, carried, expected) in rows {
+    for (what, fixture, expected) in rows {
         let n = fixture(ProfileDoc::empty_derived("count", Tol::witness()))
             .1
             .len();
         let mut first: Option<(Vec<usize>, Decided)> = None;
         for order in orders(n) {
             let got = decide(&fixture, &order);
-            if carried(&order) {
-                assert!(
-                    matches!(&got, Decided::Refused(e)
-                        if e.contains("a copy of a corner held as several meets no recorded discard")),
-                    "{what}, {order:?}: refused other than {CARRIED_PINCH}: {got:?}"
-                );
-                continue;
-            }
             assert!(
                 matches!(got, Decided::Built { .. }),
                 "{what}, {order:?}: built: {got:?}"
@@ -996,9 +960,9 @@ fn a_re_cited_record_cites_the_rows_its_steps_decided_in_every_member_order() {
 /// block's touch on it is a row citing that edge
 /// (`union_flush_onto_edge_contact`).
 pub(crate) fn flush_onto_an_edge(doc: ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, c) = block(doc, (0.5, 1.5), (-1.0, 0.0), -1.0, 1.0);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, b) = block_on(doc, a, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, c) = block_on(doc, a, (0.5, 1.5), (-1.0, 0.0), -1.0, 1.0);
     (doc, vec![a, b, c])
 }
 
@@ -1070,7 +1034,7 @@ fn log(fixture: Members, order: &[usize], padding: usize) -> Vec<String> {
     let mut doc = ProfileDoc::empty_derived("union-member-orders", Tol::witness());
     for k in 0..padding {
         let at = 10.0 + 2.0 * k as f64;
-        doc = block(doc, (at, at + 1.0), (0.0, 1.0), 0.0, 1.0).0;
+        doc = block(doc, (at, at + 1.0), (0.0, 1.0), 1.0).0;
     }
     let (doc, members) = fixture(doc);
     let (doc, union) = insert(

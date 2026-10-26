@@ -2,8 +2,9 @@
 id: a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate
 kind: issue
 title: A brick through an L-prism's top k·ε from its far carrier unions and subtracts to the right volume, and the result gate refuses it RingContactEscalated
-status: open
+status: closed
 opened: 2026-10-03
+closed: 2026-10-20
 priority: P2
 cost: M
 refs: [3987]
@@ -33,3 +34,14 @@ boundary, and tier 3 cannot certify its containment. D4 makes that an
 honest escalation; whether a door-built ring that close to its face's
 boundary should have been decided at the join (where the pipeline knew
 the contact) rather than re-asked at rest is the open question.
+
+## Resolution (2026-10-20)
+
+Answered at rest, not at the join. The ring's edge lies `kε` across
+from the L's far carrier but far along it, and check 9's `lines_meet`
+read the four ends' sides first, so the in-band side escalated. It now
+reads the two edges' gap on one line first (`geom_core::one_line`, PR 2
+of `work/cpair/two-spans-projections-on-one-line-are-read-four-ways`):
+projections apart past the band hold every pair of points apart, the
+pair is `Apart`, and tier 3 certifies the ring. All six build to the
+closed form at every k; the row's refusal pin is re-baselined to none.

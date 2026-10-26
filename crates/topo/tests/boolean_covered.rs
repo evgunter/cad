@@ -9,12 +9,12 @@
 //!
 //! `b` = x 0.5..1.5 lies inside `a` = x 0..2, both over y 0..1 and z 0..1,
 //! flush on both caps and both y-walls. With `a` as operand A the union
-//! keeps `a`'s copies, cuts nothing and is `a`, by the containment
-//! fallback; with `b` as operand A it keeps `b`'s copies and takes the
-//! section path. Raised to z 0..2, `b` pokes out of `a`'s top and the
-//! union takes the section path in either order; its bottom and y-walls
-//! stay flush. On either path, and with either block as operand A, each
-//! flush pair is recorded, whichever copy the classification kept.
+//! keeps `a`'s copies and is `a`, by the containment fallback; with
+//! `b` as operand A it keeps `b`'s copies and takes the section path.
+//! Raised to z 0..2, `b` pokes out of `a`'s top and the union takes the
+//! section path in either order; its bottom and y-walls stay flush. On
+//! either path, and with either block as operand A, each flush pair is
+//! recorded, whichever copy the classification kept.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -438,11 +438,7 @@ fn fates(x: &AtRestBody<f64>, y: &AtRestBody<f64>) -> Fates {
 
 /// `xy`, [`fates`] of `x` and `y`, says what `yx`, of `y` and `x`, does:
 /// ∪ and ∩ alike, and each difference alike with the same difference
-/// taken in the other order. Where one order takes the containment
-/// fallback and the other the section path, only the latter records
-/// discards (`work/flush/a-containment-fallback-substitutes-a-partly-held-dropped-face-whole.md`):
-/// there the fallback is asserted to record none, and the discards are
-/// not compared.
+/// taken in the other order, whichever path each order takes.
 fn assert_alike(label: &str, xy: &Fates, yx: &Fates) {
     for (op, p, q) in [
         ("∪", &xy.union, &yx.union),
@@ -452,20 +448,10 @@ fn assert_alike(label: &str, xy: &Fates, yx: &Fates) {
     ] {
         assert_eq!(p.volume, q.volume, "{label} {op}: the volume");
         assert_eq!(p.held, q.held, "{label} {op}: the substituted pairs");
-        let fallback = |f: &OpFates| {
-            matches!(
-                f.kind,
-                Some(BooleanResultKind::OperandA | BooleanResultKind::OperandB)
-            )
-        };
-        match (fallback(p), fallback(q)) {
-            (true, false) => assert_eq!(p.lost, vec![], "{label} {op}: the fallback's discards"),
-            (false, true) => assert_eq!(q.lost, vec![], "{label} {op}: the fallback's discards"),
-            _ => assert_eq!(
-                p.lost, q.lost,
-                "{label} {op}: the discards and their borders"
-            ),
-        }
+        assert_eq!(
+            p.lost, q.lost,
+            "{label} {op}: the discards and their borders"
+        );
     }
 }
 
@@ -616,6 +602,104 @@ fn a_containment_fallback_writes_each_row_from_the_face_its_result_holds() {
             .collect();
         assert_eq!(&got, want, "{label}: the rows");
     }
+}
+
+/// **A containment fallback cuts a dropped face its kept face holds in
+/// part**, as the section path does. `a` = x 0..2, y 0..1, z 0..1; `lid`
+/// = x −1..3, y −1..2, z 1..2 stands on it and `big` = x −1..3, y −1..2,
+/// z −1..1 holds it, each wider than `a`'s top. `a ∖ lid` and `a ∩ big`
+/// are `a`, by the fallback: `lid`'s bottom and `big`'s top are cut along
+/// `a`'s top outline, the fragment inside it held by `a`'s top, and the
+/// rest a discard that borders the outline. `big ∩ a` takes the section
+/// path and says the same. Red before the fallback cut: each row held the
+/// whole face, and the fallback recorded no discard.
+#[test]
+fn a_containment_fallback_cuts_a_dropped_face_held_in_part() {
+    let tol = Tol::witness();
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 2.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let lid = finished(
+        "lid",
+        brick::<f64>((-1.0, 3.0), (-1.0, 2.0), (1.0, 2.0), tol),
+        tol,
+    );
+    let big = finished(
+        "big",
+        brick::<f64>((-1.0, 3.0), (-1.0, 2.0), (-1.0, 1.0), tol),
+        tol,
+    );
+    let outline = vec![
+        [[0, 0, 1000], [0, 1000, 1000]],
+        [[0, 0, 1000], [2000, 0, 1000]],
+        [[0, 1000, 1000], [2000, 1000, 1000]],
+        [[2000, 0, 1000], [2000, 1000, 1000]],
+    ];
+    let cases: [(&str, Op, _, _, _); 2] = [
+        ("a ∖ lid", subtract, &a, &lid, ([0, 0, -1], -1000)),
+        ("a ∩ big", intersect, &a, &big, ([0, 0, 1], 1000)),
+    ];
+    for (label, op, x, y, dropped) in cases {
+        let BooleanResult::Body(out) = op(x, y, tol).expect("the boolean builds") else {
+            panic!("{label}: a non-empty result");
+        };
+        assert_eq!(
+            out.kind,
+            BooleanResultKind::OperandA,
+            "{label}: the fallback"
+        );
+        let [s] = out.naming.substituted.as_slice() else {
+            panic!("{label}: one row, {:?}", out.naming.substituted);
+        };
+        assert_eq!(
+            s.operand,
+            Operand::B,
+            "{label}: the row drops operand B's face"
+        );
+        let whole = root(&out, Operand::B, s.face);
+        assert!(
+            out.naming.discards.iter().any(|r| r.operand == Operand::B
+                && r.face != s.face
+                && root(&out, Operand::B, r.face) == whole),
+            "{label}: the row holds a fragment of the dropped face, the rest of it a discard"
+        );
+        let fates = op_fates(op, x, y);
+        let top = ([0, 0, 1], 1000);
+        assert_eq!(
+            fates.held,
+            BTreeSet::from([(top.min(dropped), top.max(dropped))]),
+            "{label}: `a`'s top holds the fragment"
+        );
+        let borders: Vec<&Vec<Ends>> = fates
+            .lost
+            .iter()
+            .filter(|(f, _)| *f == dropped)
+            .map(|(_, e)| e)
+            .collect();
+        assert_eq!(
+            borders,
+            vec![&outline],
+            "{label}: the rest of the dropped face is a discard bordering `a`'s top outline"
+        );
+        assert_eq!(
+            fates.lost.len(),
+            6,
+            "{label}: each face of the dropped operand is a discard"
+        );
+    }
+    let (fallback, section) = (op_fates(intersect, &a, &big), op_fates(intersect, &big, &a));
+    assert_eq!(
+        section.kind,
+        Some(BooleanResultKind::Seamed),
+        "big ∩ a: the section path"
+    );
+    assert_eq!(
+        (fallback.volume, &fallback.held, &fallback.lost),
+        (section.volume, &section.held, &section.lost),
+        "a ∩ big: the fallback says what the section path says in the other order"
+    );
 }
 
 /// **The rows resolve in every op and path**: each row's fragment and

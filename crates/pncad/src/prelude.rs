@@ -380,11 +380,15 @@ pub use sweep::blend::{BlendDecision, BlendSite, Breach, CornerConfig, RunOutPol
 // refusal.
 // `SideWall` and `BandWall` are `Extruded::walls` and `Revolved::bands`
 // — the one wall per run of pieces each verb builds — so a caller
-// reading those handles can name their element type.
+// reading those handles can name their element type. `Cavity` and
+// `CavityOrigin` are `Revolved::cavities`' element and its key — which
+// pocket, a hole loop or an axis gap, a cavity shell revolves — and
+// `CavityOrigin` is also `RevolveError::VoidInsertion`'s subject, so a
+// caller can match which cavity refused.
 pub use sweep::{
-    BandWall, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError, Lofted, Revolution,
-    RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError, TubeWindow, extrude,
-    loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
+    BandWall, Cavity, CavityOrigin, ExtrudeError, ExtrudeSide, Extruded, Extrusion, LoftError,
+    Lofted, Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, SideWall, TubeError,
+    TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc, tube_along_arc_hollow,
 };
 
 // --- 4. Bodies and Booleans -----------------------------------
@@ -566,9 +570,11 @@ pub use topo::{
 // the curated-type rule (the `coherence` note below) says a caller
 // able to hold the answer must be able to spell its vocabulary;
 // `VolumeReading` is that answer read as a number or a bracket.
+// `Settle` is what a measurement is asked (`[tolerance.measure]`), with
+// the vocabulary its variants carry.
 pub use topo::{
-    MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, VolumeReading,
-    mass_properties,
+    MassProperties, MassPropsError, RelOp, RoleNames, Settle, SignNames, TargetUnreached,
+    VolumeEnclosure, VolumeReading, mass_properties,
 };
 
 // --- 7. Tessellation and export -------------------------------
@@ -700,11 +706,9 @@ pub use stl::{
 // what a document stores; a node an edit carries is an `AuthoredNode`.
 // The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
-// surface (`crate::document`). `Datum` and `VarEnv` ride here
-// because a datum node is the frame a
-// `GeomPred::DatumDistance` selection is written against, and
-// `select_where` takes a `VarEnv`, so both are needed to write a
-// position filter at all.
+// surface (`crate::document`). `VarEnv` rides here because
+// `select_where` takes one, so it is needed to write a position filter
+// at all.
 // `VarName`, `FreeVar` and `VarDecl` ride here because they are what
 // `DocEdit::DeclareVar` and `Formula::named` take, and `VarDef` because it
 // is what a document's variable reads back as, so a prelude user
@@ -720,8 +724,8 @@ pub use stl::{
 // read out of a file gets. `VarNameFault` is the same thing for
 // `VarName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
-    AuthoredNode, CancelToken, Datum, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation,
-    Expr, FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
+    AuthoredNode, CancelToken, Dimension, Doc, DocEdit, EditError, EvalOptions, Evaluation, Expr,
+    FaceName, Formula, FreeVar, LoopProgram, Node, NodeError, NotAFaceName, ParseError,
     PatternKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
     RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload, VarDecl,
     VarDef, VarEnv, VarName, VarNameFault, apply, evaluate, parse_formula, unparse,
@@ -736,14 +740,14 @@ pub use editor_core::{NameTextError, StableName};
 // These are that door, curated as one group in `crate::select` (whose
 // module docs carry the worked examples).
 pub use crate::select::{
-    CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
-    CurveKind, CurveKindSet, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL, GeomPred,
-    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole,
-    PieceRun, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg,
-    RunLine, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense,
-    Side, SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, denotation, edge_carrier_kind, edge_frame, edge_name,
-    face_carrier_kind, face_frame, face_name, select, select_where, vertex_position,
+    CONTACT_RECOURSE, CapEnd, Cmp, ContactFinding, ContactRefusal, ContactVerdict, CurveKind,
+    CurveKindSet, DeclaredContact, Denotation, EntityKind, GeomPred, GlueClass, InterrogateError,
+    MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, OpGroup, PieceRole, PieceRun, Pose,
+    ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport, RolePath, RoleSeg, RunLine,
+    SEL_PLANE_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Sense, Side,
+    SplitHalf, StepId, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    attribute, denotation, edge_carrier_kind, edge_frame, edge_name, face_carrier_kind, face_frame,
+    face_name, select, select_where, vertex_position,
 };
 // The KERNEL query seat (`topo::query`): the same selection
 // vocabulary as a pure function of a `Body`, for the caller who holds

@@ -117,11 +117,7 @@ fn a_face_pick_marks_its_owning_feature() {
         .copied()
         .expect("the plate draws at least one patch");
     let patch = index.ids().key_of(id).expect("the id maps back");
-    let name = index
-        .name_of(id)
-        .and_then(|n| n.as_ref().ok())
-        .cloned()
-        .expect("a drawn patch is named");
+    let name = index.name_of(id).cloned().expect("a drawn patch is named");
     session.perform(SessionOp::Select(Selection::Face(
         viewer::session::FaceSelection {
             node: patch.node,
@@ -298,8 +294,8 @@ struct Die {
     cube: RecipeNodeId,
     /// The master ball's revolve — every pip cavity's origin.
     ball: RecipeNodeId,
-    /// One pip placement: a `Transform`, which mints nothing and
-    /// contributes no role segment to any name.
+    /// One pip placement: a `Place` of the master ball, which mints
+    /// nothing.
     pip: RecipeNodeId,
 }
 
@@ -322,7 +318,7 @@ fn die(tol: Tol) -> Die {
                 .find(|&id| want(doc.node(id).expect("an ordered node exists")))
                 .expect("the die has this node kind")
         };
-    let [copy] = doc.placements()[..] else {
+    let [copy] = viewer::world::drawn_copies(&doc)[..] else {
         panic!("the die is placed once")
     };
     let composed = viewer::world::seat_of(&doc, copy);
@@ -337,7 +333,12 @@ fn die(tol: Tol) -> Die {
         "the die is rim-blend over box-blend over cut over extrude"
     );
     let ball = first(&doc, |n| matches!(n, Node::Revolve { .. }));
-    let pip = first(&doc, |n| matches!(n, Node::Transform { .. }));
+    let pip = doc
+        .ids()
+        .iter()
+        .copied()
+        .find(|&id| id != copy && matches!(doc.node(id), Some(Node::Place { .. })))
+        .expect("the die places its pips");
     let mut session = crate::common::inline_without_door(doc, tol);
     session.pump();
     Die {
@@ -429,9 +430,8 @@ fn each_die_face_is_marked_by_the_feature_that_made_it() {
 /// cut, out of it, and a name records what an op carried, not what was
 /// later built on top.
 ///
-/// A pip placement is a `Transform`, which contributes no role segment
-/// at all, so no name mentions it and the recipe answers instead: what
-/// it carries is what was minted below it. That is the master ball's
+/// A pip placement is a `Place` of the master ball, which mints
+/// nothing: what it carries is what was minted below it. That is the master ball's
 /// cavities — every pip's, not this pip's, because all twenty-one
 /// placements copy ONE ball and a copy belongs to the master.
 #[test]
@@ -482,11 +482,7 @@ fn clicking_a_die_face_reaches_the_feature_that_made_it() {
         Selection::Face(viewer::session::FaceSelection {
             node: patch.node,
             body: patch.body,
-            name: index
-                .name_of(id)
-                .and_then(|n| n.as_ref().ok())
-                .cloned()
-                .expect("a drawn patch is named"),
+            name: index.name_of(id).cloned().expect("a drawn patch is named"),
         })
     };
 

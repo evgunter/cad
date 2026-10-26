@@ -2,10 +2,13 @@
 id: the-viewer-authors-no-read-of-one-copy
 kind: issue
 title: The viewer's authoring forms take an Operand, so they cannot write a read of one copy of an instance: a boolean, fillet or split over an instance refuses in the GUI
-status: open
+status: parked
 opened: 2026-10-16
 priority: P1
 refs: [a-placement-is-the-bundle-of-mates]
+parent: assemble-is-an-operator-and-the-product-is-a-slot
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
 ---
 
 

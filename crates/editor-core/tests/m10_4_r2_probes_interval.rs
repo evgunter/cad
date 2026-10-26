@@ -1,5 +1,5 @@
 //! **M10-4 review probes (R2)** — an INDEPENDENT derivation of what the
-//! E4 seed door, the n-pass driver, the pairing hook and the E5
+//! E4 seed door, the n-pass driver, the build-of-record binding and the E5
 //! stackup claim, written from `docs/M10-4-SPEC.md` and
 //! `docs/ERROR-DESIGN.md` E4/E5/E9 rather than from the unit's own rows.
 //!
@@ -35,7 +35,6 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -44,8 +43,8 @@ use editor_core::UnitSym;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, ParamBoxVerdict, drive};
 use editor_core::stackup::{
-    Chamber, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal, Unavailable, sensitivities,
-    stackup,
+    BindingViolation, Chamber, Rss, Sensitivity, SensitivityOutcome, SensitivityRefusal,
+    Unavailable, sensitivities, stackup,
 };
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
@@ -252,21 +251,15 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: param("d", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let cube_profile = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
                 .expect("finite corners"),
@@ -276,7 +269,6 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let cube = r.insert(Node::Extrude {
         profile: cube_profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let refs = vec![
         SitedRef::new(block, fname(block, wall(&r.doc, block, 3))),
@@ -320,11 +312,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
         name: name("r"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 0.2, r_dist)),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -334,10 +322,8 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
     let bore = r.insert(Node::Extrude {
         profile: bore_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -347,8 +333,9 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
     let pin = r.insert(Node::Extrude {
         profile: pin_p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
+    // The pin joins the bore's space where it stands.
+    let pin = r.against(bore, pin, &editor_core::Frame::IDENTITY);
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
     let m = r
@@ -375,11 +362,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
         name: name("u"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, h_dist)),
     });
-    // One frame, named by every profile below: two sketches meant to
-    // share a plane bind the same id.
-    let frame = r.insert(fixture::xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -389,10 +372,8 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
     let a = r.insert(Node::Extrude {
         profile: pa.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let pb = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)])
                 .expect("finite corners"),
@@ -402,11 +383,18 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
     let b = r.insert(Node::Extrude {
         profile: pb.into(),
         distance: param("h", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
+    // `b` joins `a`'s space where it stands.
+    let b_at = r.against(a, b, &editor_core::Frame::IDENTITY);
     let refs = vec![
         SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(
+            b_at,
+            crate::m10_5_clearance_interval::in_placement(
+                b_at,
+                fname(b, RoleSeg::Cap(CapEnd::End)),
+            ),
+        ),
     ];
     let angle = r
         .measure(&[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs)
@@ -447,31 +435,27 @@ fn loft() -> (ProfileDoc, VarId) {
         ]);
         (chain, z)
     };
-    // A frame per section height: the two sections are drawn on
-    // DIFFERENT planes, so they are different nodes.
-    let frame_at = |r: &mut Recorder, z: f64| {
-        r.insert(fixture::frame(
-            [0.0, 0.0, z],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-        ))
-    };
-    let (c0, z0) = section(0.0);
-    let f0 = frame_at(&mut r, z0);
+    // Each section drawn on its own plane; the second's station slides
+    // it up the first's z.
+    let (c0, _) = section(0.0);
     let p0 = r.insert(Node::Profile(ProfileProgram {
-        frame: f0.into(),
         loops: vec![c0],
         ids: Vec::new(),
     }));
     let (c1, z1) = section(1.0);
-    let f1 = frame_at(&mut r, z1);
     let p1 = r.insert(Node::Profile(ProfileProgram {
-        frame: f1.into(),
         loops: vec![c1],
         ids: Vec::new(),
     }));
     let loft = r.insert(Node::Loft {
-        profiles: vec![p0.into(), p1.into()],
+        first: p0.into(),
+        then: vec![editor_core::LoftSection {
+            profile: p1.into(),
+            station: vec![editor_core::StationMove::Slide {
+                along: editor_core::Axis3::Z,
+                by: len(z1),
+            }],
+        }],
         v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);
@@ -695,15 +679,16 @@ fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order()
 
 // ----------------------------------------------- claim 3: the pairing
 
-/// **The pairing hook against handed builds of OTHER shapes.** A handed
-/// evaluation at another ε refuses typed (no sensitivity); a
-/// parallel-schedule build pairs; a document that differs only
-/// by an ANNOTATION (a distribution on `w`, same value) pairs — the
-/// build is bit-identical, so the sensitivity is honestly of it.
+/// **The binding against handed builds of OTHER shapes.** A
+/// parallel-schedule build binds — the schedule is not an input; a
+/// document that differs only by an ANNOTATION (a distribution on `w`,
+/// same value) does not — it is another revision of the document, and
+/// its entry set is another (`w` is toleranced there).
 #[test]
-fn the_pairing_hook_pairs_only_the_build_of_record() {
+fn the_binding_binds_only_the_build_of_record() {
     let s = slab(None, None);
-    let handed = eval(&s.doc);
+    let pinned = |o: EvalOptions| run::<f64>(&s.doc, None, &EvalOptions { pin: true, ..o });
+    let handed = pinned(EvalOptions::default());
     assert!(
         sensitivities(
             &s.doc,
@@ -717,17 +702,10 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
         .is_ok()
     );
 
-    // (A build at another ε cannot be handed: `Tol` is the process's
-    // one witness — D9's "one process, one ε" — so that attack has no
-    // spelling here.)
-    let parallel = run::<f64>(
-        &s.doc,
-        None,
-        &EvalOptions {
-            parallel: true,
-            ..EvalOptions::default()
-        },
-    );
+    let parallel = pinned(EvalOptions {
+        parallel: true,
+        ..EvalOptions::default()
+    });
     assert!(
         sensitivities(
             &s.doc,
@@ -762,14 +740,15 @@ fn the_pairing_hook_pairs_only_the_build_of_record() {
         None,
         Tol::witness(),
     );
-    assert!(
-        r.is_ok(),
-        "an annotation-only edit is the same build: {r:?}"
+    assert_eq!(
+        r.err(),
+        Some(SensitivityRefusal::Binding(BindingViolation::Revision)),
+        "an annotation edit is another revision"
     );
 }
 
 /// **RED AT `fc8de0ac` — a STALE CHAMBER VERDICT certifies an edited
-/// document's sensitivity.** The pairing hook guards the handed f64
+/// document's sensitivity.** The binding guards the handed f64
 /// build; nothing guards the handed verdict. Drive the slab at
 /// `w = 2.0`, edit `w` to `2.5` (a value edit, no node-set change),
 /// and hand the old verdict to the driver: `ForeignVerdict` checks
@@ -1294,12 +1273,13 @@ fn a_loft_section_dimension_seed_is_not_a_silent_zero() {
 // ------------------------------------------------------------- e2e
 
 /// **Where deviation 2 would bite.** The passes elaborate profiles at
-/// `Dual64` while the anchor is the `f64` build path, whose lane is the
-/// first pass; the pairing compares them arm for arm. A document where
-/// the dual replay refuses a node the build path built would therefore
-/// refuse the WHOLE entry set as `PairingViolation::ResultArm` — a lift
-/// limitation reported as a pairing violation. Over the corpus the two
-/// agree on every node (EVIDENCE-ONLY unless it goes red).
+/// `Dual64` while the build of record is the `f64` build path, whose
+/// lane is the first pass. A document where the dual replay refuses a
+/// node the build path built leaves every measured value under that
+/// node without a value in the pass — an `Unliftable` entry for a
+/// guided-replay refusal, a `MeasureRefused` one otherwise. Over the
+/// corpus the two agree on every node (EVIDENCE-ONLY unless it goes
+/// red).
 #[test]
 fn the_guided_dual_pass_evaluates_the_build_paths_nodes_over_the_corpus() {
     for cd in corpus::documents() {

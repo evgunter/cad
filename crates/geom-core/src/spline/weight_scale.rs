@@ -14,7 +14,7 @@
 /// wherever the result neither overflows nor falls below the normal
 /// range.
 pub fn pow2_scaled(w: f64, k: i32) -> f64 {
-    w * 2f64.powi(k / 2) * 2f64.powi(k - k / 2)
+    w * crate::pow2(k / 2) * crate::pow2(k - k / 2)
 }
 
 /// The binary exponent `e` of a positive finite `x`: `2^e ≤ x < 2^(e+1)`,

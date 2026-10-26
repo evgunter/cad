@@ -94,7 +94,7 @@ def slab(doc, distribution=None, nominal=NOMINAL):
             VarName("h"), FreeVar.length(nominal * m, distribution)
         )
     )
-    outline = doc.insert(Node.polygon(SQUARE, plane=doc.sketch_frame()))
+    outline = doc.insert(Node.polygon(SQUARE))
     prism = doc.insert(Node.extrude(outline, Formula.length_in(nominal, m)))
     doc.apply(DocEdit.set_param(prism, "distance", doc.parse_formula("h")))
     return prism

@@ -62,6 +62,8 @@ fn corner_kiss_assembly_exports() {
     // one-part result (review R7b).
     assert_eq!(r.body.shells().count(), 2);
     let m = mass_properties(&r.body, Tol::witness()).unwrap();
+    // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+    // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(m.volume, 2.0);
     assert_eq!(m.surface_area, 12.0);
     let mesh = mesh::tessellate(&r.body, 1e-2, Tol::witness()).unwrap();
@@ -96,6 +98,8 @@ fn tangent_edge_assembly_exports() {
     // one-part result (review R7b).
     assert_eq!(r.body.shells().count(), 2);
     let m = mass_properties(&r.body, Tol::witness()).unwrap();
+    // Exact on purpose: every coordinate is dyadic and small, so each closed-form term and
+    // their sum are exact in f64 (a zero pad states no rounding; here there is none).
     assert_eq!(m.volume, 2.0);
     assert_eq!(m.surface_area, 12.0);
     let mesh = mesh::tessellate(&r.body, 1e-2, Tol::witness()).unwrap();

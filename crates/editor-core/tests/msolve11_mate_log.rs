@@ -10,20 +10,18 @@
 //! memo, and the lever and `Part`-index rows beside them.
 //!
 //! Every row goes through ordinary doors — `DocEdit::InsertNode`,
-//! `DocEdit::AddConstraint`, `DocEdit::AddValue`, `evaluate` with or
+//! `DocEdit::SetConstraints`, `evaluate` with or
 //! without a prior.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::pose::{PoseDef, PoseRole, RoleRead};
 use editor_core::{
-    CancelToken, CapEnd, ContactClass, Coord, DocEdit, DocumentId, EvalOptions, Evaluation,
-    Formula, Mate, MateRef, NameRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind,
-    ProfileDoc, RecipeNodeId, RoleSeg, SitedFace, SitedRef, SlideAxis, StableName, Target, Value,
-    WorldRead, evaluate,
+    CancelToken, CapEnd, Coord, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Mate,
+    MateRef, NameRef, Node, NodeErrorKind, NodeResult, Operand, PatternKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, SitedFace, SitedRef, StableName, TargetAxis, evaluate,
 };
 use fixture::resolver::{PartStore, in_part, placement_of, with_resolver};
 use fixture::{ang, in_copy, insert, len, on_frame, scl};
@@ -51,7 +49,6 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: profile.into(),
             distance: len(h),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -122,8 +119,9 @@ fn scene(label: &str) -> Scene {
     let (block_ref, block_body) = store.insert_part((block_doc, block_part_body), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, base) = fixture::insert_pinned(doc, Node::instantiate_part(base_ref), &opts);
-    let (doc, block) = fixture::insert_pinned(doc, Node::instantiate_part(block_ref), &opts);
+    let (doc, base) = fixture::insert_pinned(doc, crate::fixture::mated_instance(base_ref), &opts);
+    let (doc, block) =
+        fixture::insert_pinned(doc, crate::fixture::mated_instance(block_ref), &opts);
     let (doc, other) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, cap) = insert(doc, fixture::mated_instance(block_ref));
     let (doc, pattern) = insert(
@@ -198,59 +196,51 @@ impl Scene {
         id
     }
 
-    /// Adds `mate` to `block`'s bundle through the door.
+    /// Writes `mate` as `block`'s bundle through the door, each freedom
+    /// it leaves set to 0.
     fn add(&mut self, block: RecipeNodeId, mate: Mate<Formula>) -> MateRef {
-        let (doc, id) = fixture::constrain_at(self.doc.clone(), block, mate);
-        self.doc = doc;
-        id
+        self.add_with(block, mate, &[])
     }
 
-    /// Sets the freedom `coord` of `mate` to `by`.
-    fn value(&mut self, mate: MateRef, coord: Coord, by: Formula) {
-        self.doc = editor_core::apply(
-            &self.doc,
-            &DocEdit::AddValue {
-                placement: mate.placement,
-                value: Box::new(Value {
-                    mate: mate.id,
-                    coord,
-                    by,
-                }),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("the value is admitted: {e}"))
-        .doc;
+    /// Writes `mate` as `block`'s bundle through the door, the freedoms
+    /// `values` names set by them and the rest to 0.
+    fn add_with(
+        &mut self,
+        block: RecipeNodeId,
+        mate: Mate<Formula>,
+        values: &[(Coord, Formula)],
+    ) -> MateRef {
+        let (doc, id) = fixture::mated(self.doc.clone(), block, mate, values);
+        self.doc = doc;
+        id
     }
 
     /// The cap seated on copy 1: its lateral edge on the copy's (one
     /// coaxial mate), slid `BLOCK_HEIGHT` along it so its bottom cap
     /// meets the copy's top cap, and its spin set — pinned.
     fn seat_cap(&mut self) {
-        let coaxial = self.add(
+        self.add_with(
             self.cap,
-            fixture::mate(
-                self.block_edge(self.cap),
-                self.copy_edge(),
-                ContactClass::Rest,
-            ),
+            fixture::mate(self.block_edge(self.cap), self.copy_edge()),
+            &[
+                (Coord::Slide(TargetAxis::Z), len(BLOCK_HEIGHT)),
+                (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+            ],
         );
-        self.value(coaxial, Coord::Slide(SlideAxis::Z), len(BLOCK_HEIGHT));
-        self.value(coaxial, Coord::Spin, ang(0.0));
     }
 
     /// The other block seated on the base with its origin over
     /// `(x, y)`: one rest and its three values.
     fn seat_other(&mut self, x: f64, y: f64) -> MateRef {
-        let rest = self.add(
+        self.add_with(
             self.other,
-            fixture::rest(self.bottom(self.other), self.base_top(), ContactClass::Rest),
-        );
-        self.value(rest, Coord::Slide(SlideAxis::X), len(x));
-        self.value(rest, Coord::Slide(SlideAxis::Y), len(y));
-        self.value(rest, Coord::Spin, ang(0.0));
-        rest
+            fixture::rest(self.bottom(self.other), self.base_top()),
+            &[
+                (Coord::Slide(TargetAxis::X), len(x)),
+                (Coord::Slide(TargetAxis::Y), len(y)),
+                (Coord::Spin(editor_core::TargetAxis::Z), ang(0.0)),
+            ],
+        )
     }
 
     fn eval(&self, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
@@ -395,17 +385,18 @@ fn unleverable(fault: &editor_core::MateFault) -> &editor_core::LeverRefusal {
     }
 }
 
-/// The other block's bottom cap on a plane of the world `z = h` up,
-/// facing down: a plane mate whose target is the world.
-fn on_the_world(s: &Scene, h: f64) -> Mate<Formula> {
+/// The other block's bottom cap on a floor's top `z = h` up, facing
+/// down ([`fixture::floor`]): a plane mate whose target stands in the
+/// world.
+fn on_the_world(s: &mut Scene, h: f64) -> Mate<Formula> {
+    let (doc, top, _) = fixture::floor(
+        s.doc.clone(),
+        vec![(Coord::Slide(editor_core::TargetAxis::Z), len(h))],
+    );
+    s.doc = doc;
     Mate {
         on: fixture::plane(s.bottom(s.other)),
-        to: Target::World(
-            WorldRead::through(PoseRole::Xy)
-                .slide(WorldRead::through(PoseRole::Z), len(h))
-                .flip(),
-        ),
-        class: ContactClass::Rest,
+        to: fixture::flip(top),
     }
 }
 
@@ -428,7 +419,6 @@ fn a_lever_out_of_range_refuses_typed_through_the_fold() {
         fixture::mate(
             fixture::plane(s.bottom(s.other)),
             standoff(s.base_top(), 1e154),
-            ContactClass::Rest,
         ),
     );
     let ev = fixture::run(&s.doc, &s.opts);
@@ -473,17 +463,18 @@ fn a_lever_out_of_range_refuses_typed_through_the_fold() {
 #[test]
 fn a_lever_whose_distance_overflows_is_admitted_and_refused_at_evaluation() {
     let mut s = scene("msolve11-range-door");
-    let (doc, rest) = fixture::at_the_door_of(
+    let placed = fixture::squared(
         &s.doc,
-        s.other,
         fixture::mate(
             fixture::plane(s.bottom(s.other)),
             standoff(s.base_top(), 1e200),
-            ContactClass::Rest,
         ),
-    )
-    .unwrap_or_else(|(at, fault)| panic!("the door admits the rest, got {at:?}: {fault}"));
-    s.doc = doc;
+        &[],
+    );
+    let applied = editor_core::apply(&s.doc, &placed.write(s.other), Tol::witness())
+        .unwrap_or_else(|e| panic!("the door admits the rest: {e}"));
+    let rest = MateRef::new(s.other, applied.record.minted_constraints[0]);
+    s.doc = applied.doc;
     let fault = mate_fault(&fixture::run(&s.doc, &s.opts), s.other);
     assert!(
         matches!(fault, editor_core::MateFault::Unleverable { mate, .. } if mate == rest),
@@ -511,10 +502,7 @@ fn rest_on_part(s: &mut Scene, part: RecipeNodeId) -> MateRef {
         part,
         in_copy(s.pattern, 1, in_part(s.block, s.block_body, CapEnd::End)),
     );
-    s.add(
-        s.cap,
-        fixture::rest(s.bottom(s.cap), read_at_part, ContactClass::Rest),
-    )
+    s.add(s.cap, fixture::rest(s.bottom(s.cap), read_at_part))
 }
 
 /// **A `Part`'s index that does not evaluate is refused at the
@@ -665,14 +653,12 @@ fn a_box_run_over_an_overconstrained_bundle_refuses_at_its_witness() {
     use editor_core::range::{RangeField, RangeSeed, derive};
     use editor_core::{Dimension, FreeVar, VarName};
     let mut s = scene("msolve11-drive");
-    s.add(
-        s.other,
-        fixture::rest(s.bottom(s.other), s.base_top(), ContactClass::Rest),
-    );
+    s.add(s.other, fixture::rest(s.bottom(s.other), s.base_top()));
+    let beside = on_the_world(&mut s, BASE_HEIGHT);
     let (doc, _) = editor_core::test_support::beside_past_the_bundle_rule(
         &s.doc,
         s.other,
-        on_the_world(&s, BASE_HEIGHT),
+        beside,
         Tol::witness(),
     );
     s.doc = doc;

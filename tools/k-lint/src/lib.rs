@@ -202,6 +202,9 @@
 //! them ahead of the flags, and fails the run naming the open ruling
 //! rather than a baseline re-derivation that will not move. Gating on
 //! the NAME is what makes the guard independent of a row's sign.
+//! The list is empty today: its one entry, the quadrature budget exit's
+//! `props_quad_last_round`, retired with the exit (`docs/K-REPORT.md`,
+//! "Maintenance: this roster is a RECORD").
 //!
 //! # Rule (2)'s discrimination floor
 //!
@@ -314,16 +317,17 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// explicit allow-list on purpose: a new ε-coupled predicate is NOT on
 /// it and keeps flagging under the metre rules until someone rules.
 ///
-/// **PINNED TO ONE FILE'S SPELLING — read `tests/predicate_roster.rs`
-/// for what that does and does not cover**, because the pin's reach is
-/// narrower than this sentence can honestly summarise. It reads
-/// `crates/geom-brep/src/props/quad.rs` across the cargo-root boundary
+/// **PINNED TO ITS MINT SITES' SPELLING — read
+/// `tests/predicate_roster.rs` for what that does and does not
+/// cover**, because the pin's reach is narrower than this sentence can
+/// honestly summarise. It reads the quadrature's mint source
+/// (`crates/geom-brep/src/props/quad.rs`) across the cargo-root boundary
 /// and reds if a name here stops being minted there; if a rostered
 /// mint's margin stops deriving from the whole identifier `target_len`
 /// in its own enclosing function, or that binding stops being
 /// `QUAD_TARGET_LEN_FACTOR * eps` (rule (4)'s premise, not just its
 /// key); if a mint acquires such a margin and is neither rostered nor
-/// excused there by name; or if any `classify_len` in that file drops
+/// excused there by name; or if any `classify_len` in those files drops
 /// out of the parse.
 ///
 /// **What no test here can see** is a predicate the kernel adds to this
@@ -338,7 +342,20 @@ pub const BASELINE_FLOOR_MARGIN: f64 = 4.0e-5;
 /// **A name can satisfy the criterion's spelling and still belong off
 /// this list** — see [`EPS_COUPLED_UNRULED`], which is where that is
 /// recorded and where the CLI reads it from.
-pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
+///
+/// **Empty today.** Its one member, `props_quad_converged`, was the
+/// quadrature's convergence test against the reporting target; the
+/// target became a resolution, which is compared and not decided
+/// (`[tolerance.measure]`), so nothing mints it. Rule (4) stays
+/// specified for the next family, and its floor's provenance reads the
+/// committed eras through [`ERA_EPS_COUPLED_PREDICATES`].
+pub const EPS_COUPLED_PREDICATES: [&str; 0] = [];
+
+/// **The ε-coupled family as the committed eras recorded it**: the
+/// names [`EPS_COUPLED_FLOOR_RATIO`] and the metre rules' constants were
+/// cut against, read from those eras' files. A historical fact about
+/// committed data, not the live roster ([`EPS_COUPLED_PREDICATES`]).
+pub const ERA_EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 
 /// **Names ε-coupled by the same reading as [`EPS_COUPLED_PREDICATES`]
 /// that are deliberately NOT on it, each with the reason**, as
@@ -367,23 +384,23 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// metre rules catch a POSITIVE row loudly at the tight ε rows
 /// (`tests/predicate_roster.rs`), and catch nothing on the refusal
 /// side: a large negative margin is decisive, passes both rules clean,
-/// and `crates/topo/src/props.rs` (`sign_walk`'s doc, "A face
-/// that refuses on BUDGET is different") says such a refusal rides on
-/// the certificate and is reported only when `settle` never accepted
-/// — so refusals can accumulate on a wholly green suite. Gating on
+/// and `crates/topo/src/props.rs` (`walk_set`'s doc: a face a later
+/// round refuses stands at the enclosure it held, and the refusal
+/// surfaces only where the walk runs out undecided) carries such a
+/// refusal on the certificate — so refusals can accumulate on a wholly
+/// green suite. Gating on
 /// the NAME is the one statement that does not depend on a row's sign
 /// or size.
 ///
 /// `tests/threshold_provenance.rs` carries the other half, over the
 /// committed era rule (4)'s floor is cut from.
-pub const EPS_COUPLED_UNRULED: [(&str, &str); 1] = [(
-    "props_quad_last_round",
-    concat!(
-        "the budget exit's once-per-FACE bound on a round that never runs, minted only when ",
-        "round 0 does not certify. No committed era carries a row of it and a fresh sweep ",
-        "records none, so rule (4)'s floor cannot be cut over it. Ruled in docs/K-REPORT.md",
-    ),
-)];
+///
+/// **Empty today.** Its one entry, the budget exit's
+/// `props_quad_last_round`, retired with the exit (PR 5589;
+/// `docs/K-REPORT.md` keeps the ruling's record). The guard stays for
+/// the next such name: [`lint_csv_ruled`] takes the list as an argument,
+/// so `tests/cli_contract.rs` drives it with a synthetic entry.
+pub const EPS_COUPLED_UNRULED: &[(&str, &str)] = &[];
 
 /// The recorded reason `predicate` is ε-coupled and deliberately off
 /// [`EPS_COUPLED_PREDICATES`], if it is.
@@ -764,6 +781,28 @@ pub fn lint_sample(
     band_escalate: f64,
     outcome: &str,
 ) -> Vec<Reason> {
+    lint_sample_under(
+        &EPS_COUPLED_PREDICATES,
+        predicate,
+        margin,
+        band_zero,
+        band_escalate,
+        outcome,
+    )
+}
+
+/// [`lint_sample`] with `coupled` as the ε-coupled roster in place of
+/// [`EPS_COUPLED_PREDICATES`]: how a committed era's rows lint under the
+/// roster they were recorded against ([`ERA_EPS_COUPLED_PREDICATES`]).
+#[must_use]
+pub fn lint_sample_under(
+    coupled: &[&str],
+    predicate: &str,
+    margin: f64,
+    band_zero: f64,
+    band_escalate: f64,
+    outcome: &str,
+) -> Vec<Reason> {
     let mut reasons = Vec::new();
     let m = margin.abs();
     match outcome {
@@ -787,7 +826,7 @@ pub fn lint_sample(
         // decisions is the evidence the tier exists to produce.
         "symbolic" => {}
         "positive" | "negative" if band_zero >= AMBIENT_BAND_MIN => {
-            if is_eps_coupled(predicate) {
+            if coupled.contains(&predicate) {
                 if m < EPS_COUPLED_FLOOR_RATIO * band_zero {
                     reasons.push(Reason::BelowEpsCoupledFloor);
                 }
@@ -816,12 +855,26 @@ pub fn lint_sample(
 /// comes back in [`Scan::flags`], and the CLI turns it into its own
 /// failure voice.
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
+    lint_csv_ruled(text, EPS_COUPLED_UNRULED)
+}
+
+/// [`lint_csv`] against an explicit unruled list in place of
+/// [`EPS_COUPLED_UNRULED`]: the scan counts a row of any `ruled` name
+/// into [`Scan::unruled`].
+///
+/// # Errors
+///
+/// As [`lint_csv`].
+pub fn lint_csv_ruled(
+    text: &str,
+    ruled: &'static [(&'static str, &'static str)],
+) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut zero_arm: Vec<ZeroArmTally> = Vec::new();
     let mut scanned = 0usize;
     let mut symbolic = 0usize;
     let mut proximity_capped = None;
-    let mut unruled = [0usize; EPS_COUPLED_UNRULED.len()];
+    let mut unruled = vec![0usize; ruled.len()];
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
             if line != EXPECTED_HEADER {
@@ -922,7 +975,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         // question this column answers is whether the family has a
         // distribution at all, and a `zero` or in-band row is as much
         // of one as a `positive`.
-        if let Some(k) = EPS_COUPLED_UNRULED.iter().position(|(n, _)| *n == pred) {
+        if let Some(k) = ruled.iter().position(|(n, _)| *n == pred) {
             unruled[k] += 1;
         }
         // Record (once) that rule (2)-above is running capped on this
@@ -974,7 +1027,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         flags,
         zero_arm,
         proximity_capped,
-        unruled: EPS_COUPLED_UNRULED
+        unruled: ruled
             .iter()
             .zip(unruled)
             .filter(|(_, n)| *n > 0)
@@ -1053,7 +1106,14 @@ mod tests {
         // …nor does the ε-coupled allow-list: rule (4) replaces the
         // two RATIO rules only, never the outcome rule.
         assert_eq!(
-            lint_sample("props_quad_converged", 5e-9, 1e-9, 1e-8, "indeterminate"),
+            lint_sample_under(
+                &ERA_EPS_COUPLED_PREDICATES,
+                "props_quad_converged",
+                5e-9,
+                1e-9,
+                1e-8,
+                "indeterminate"
+            ),
             vec![Reason::InBand]
         );
     }
@@ -1155,8 +1215,11 @@ mod tests {
 
     #[test]
     fn eps_coupled_family_answers_to_the_eps_relative_floor_only() {
-        assert!(is_eps_coupled("props_quad_converged"));
+        assert!(!is_eps_coupled("props_quad_converged"), "retired");
         assert!(!is_eps_coupled("volume_backstop"));
+        let era = |p, m, zero, esc| {
+            lint_sample_under(&ERA_EPS_COUPLED_PREDICATES, p, m, zero, esc, "positive")
+        };
         // The three baseline minima of `props_quad_converged`
         // (8.3952e-4 / 1.6467e-7 / 3.3595e-10 at 1e-6 / 1e-9 / 1e-12):
         // all CLEAN under rule (4).
@@ -1166,7 +1229,7 @@ mod tests {
             (3.3595e-10, 1e-12, 1e-11),
         ] {
             assert!(
-                lint_sample("props_quad_converged", m, zero, esc, "positive").is_empty(),
+                era("props_quad_converged", m, zero, esc).is_empty(),
                 "baseline ε-coupled minimum {m:e} must lint clean at ε={zero:e}"
             );
         }
@@ -1181,13 +1244,13 @@ mod tests {
         }
         // Below 1.5e2·ε: rule (4) fires, and only rule (4).
         assert_eq!(
-            lint_sample("props_quad_converged", 1.4e-7, 1e-9, 1e-8, "positive"),
+            era("props_quad_converged", 1.4e-7, 1e-9, 1e-8),
             vec![Reason::BelowEpsCoupledFloor]
         );
         // The convergence target itself (1024·ε) is the family's
         // ceiling and sits just above rule (2)'s 10²·Kε — the
         // tautology rule (4) replaces.
-        assert!(lint_sample("props_quad_converged", 1.024e-9, 1e-12, 1e-11, "positive").is_empty());
+        assert!(era("props_quad_converged", 1.024e-9, 1e-12, 1e-11).is_empty());
     }
 
     #[test]

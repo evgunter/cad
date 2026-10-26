@@ -4,6 +4,8 @@ kind: issue
 title: offset: offset_surface's torus-ring refusal carries a stage label and no recourse, and its in-band sibling a generic escalation
 status: open
 opened: 2026-09-30
+priority: P3
+cost: E
 ---
 
 

@@ -69,7 +69,8 @@ use std::process::{Command, Stdio};
 
 use k_lint::{
     AMBIENT_BAND_MIN, BASELINE_FLOOR_MARGIN, EPS_COUPLED_FLOOR_RATIO, EPS_COUPLED_PREDICATES,
-    EPS_COUPLED_UNRULED, PROXIMITY_FACTOR, Reason, lint_csv, lint_sample, zero_arm_usage,
+    EPS_COUPLED_UNRULED, ERA_EPS_COUPLED_PREDICATES, PROXIMITY_FACTOR, Reason, lint_csv,
+    lint_sample_under, zero_arm_usage,
 };
 
 /// The era the shipped thresholds were cut from — the one
@@ -223,7 +224,7 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
     for row in ROWS {
         let (mut n, mut min, mut at) = (0usize, f64::INFINITY, String::new());
         for_each_row(M7, row, |r| {
-            if !EPS_COUPLED_PREDICATES.contains(&r.predicate) {
+            if !ERA_EPS_COUPLED_PREDICATES.contains(&r.predicate) {
                 return;
             }
             // Rule (4)'s own statistic, in rule (4)'s own units: the
@@ -249,7 +250,8 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
             // voice: not one row of the era this threshold was cut
             // from may fire rule (4).
             assert!(
-                !lint_sample(
+                !lint_sample_under(
+                    &ERA_EPS_COUPLED_PREDICATES,
                     r.predicate,
                     r.margin,
                     r.band_zero,
@@ -314,32 +316,25 @@ fn eps_coupled_floor_ratio_is_re_derivable_from_the_m7_population() {
 /// so it is checked against [`M7`], on every run, beside the cut it
 /// qualifies.
 ///
-/// **Today it is vacuously true and that is worth knowing rather than
-/// hiding.** The M7 era was swept on 2026-08-07 and
-/// `props_quad_last_round` was first minted a month later, so no M7
-/// row COULD name it. The guard is not about today: [`M7`] moves in
-/// this file when a later era supersedes it, and that is the same
-/// commit that re-cuts [`EPS_COUPLED_FLOOR_RATIO`]. This row makes
-/// that commit answer the question instead of re-cutting the floor
-/// from a population that now has the excused family in it and leaving
-/// the excuse standing over a premise that expired.
+/// **Today it checks nothing, and that is worth knowing rather than
+/// hiding.** The list is empty: its one entry, `props_quad_last_round`,
+/// retired with the quadrature budget exit. The guard is for the next
+/// entry: [`M7`] moves in this file when a later era supersedes it, and
+/// that is the same commit that re-cuts [`EPS_COUPLED_FLOOR_RATIO`]. This
+/// row makes that commit answer the question instead of re-cutting the
+/// floor from a population that has an excused family in it.
 ///
 /// It says nothing about a FRESH sweep, which no committed file can.
 /// The live half is [`k_lint::Scan`]'s `unruled` column, which makes a
 /// row of an entry a finding in its own right and is pinned in
-/// `tests/cli_contract.rs`; `tests/predicate_roster.rs`'s
-/// `an_unruled_eps_coupled_margins_positive_side_is_loud_under_rule_3_at_the_tight_rows`
-/// says how loud the metre rules additionally are about the positive
-/// side of one.
+/// `tests/cli_contract.rs` with a synthetic entry.
 #[test]
 fn the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from() {
-    assert!(
-        !EPS_COUPLED_UNRULED.is_empty(),
-        "no name is ruled out of rule (4), so this test asserts nothing"
-    );
-    for (name, why) in EPS_COUPLED_UNRULED {
+    // Empty today (`props_quad_last_round` retired with the budget
+    // exit); the loop is the guard for the next entry.
+    for &(name, why) in EPS_COUPLED_UNRULED {
         assert!(
-            !EPS_COUPLED_PREDICATES.contains(&name),
+            !EPS_COUPLED_PREDICATES.contains(&name) && !ERA_EPS_COUPLED_PREDICATES.contains(&name),
             "{name:?} is both rostered and ruled off the roster"
         );
         for row in ROWS {
@@ -720,7 +715,7 @@ fn era_witnesses(era: &str, row: &str) -> Witnesses {
         }
         let m = r.margin.abs();
         if r.outcome == "positive" || r.outcome == "negative" {
-            if !EPS_COUPLED_PREDICATES.contains(&r.predicate) && m < w.floor.0 {
+            if !ERA_EPS_COUPLED_PREDICATES.contains(&r.predicate) && m < w.floor.0 {
                 w.floor = (m, r.predicate.to_string());
             }
             let ratio = m / r.band_zero;
@@ -923,7 +918,7 @@ fn the_ambient_side_is_chosen_by_the_parsed_band_not_its_spelling() {
             if r.outcome != "positive" && r.outcome != "negative" {
                 return;
             }
-            if EPS_COUPLED_PREDICATES.contains(&r.predicate) {
+            if ERA_EPS_COUPLED_PREDICATES.contains(&r.predicate) {
                 return;
             }
             let m = r.margin.abs();

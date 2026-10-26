@@ -166,7 +166,8 @@ fn conic_trimmed_flip_slips_both_gates() {
         product_name: "cutcyl".to_owned(),
         ..step_export::StepOptions::default()
     };
-    let honest_text = step_export::step_string(cut, &options, Tol::witness()).unwrap();
+    let honest_text =
+        step_export::step_string(&crate::common::at_rest(cut), &options, Tol::witness()).unwrap();
     // Flip the FIRST cylinder wall face's sense in the text.
     let surf_id = honest_text
         .lines()
@@ -200,7 +201,11 @@ fn conic_trimmed_flip_slips_both_gates() {
     match import(&flipped_text) {
         Ok(StepImport::Solid { body, .. }) => {
             let t3 = topo::validate_geometric(&body, Tol::witness());
-            let vol = topo::mass_properties(&body, Tol::witness()).map(|p| p.volume);
+            let vol = topo::mass_properties(
+                &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+                Tol::witness(),
+            )
+            .map(|p| p.volume);
             println!("CONIC-SLIP flipped wall: imported, t3={t3:?} vol={vol:?}");
         }
         Ok(_) => panic!("wireframe"),

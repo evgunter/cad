@@ -15,9 +15,8 @@ spline-chart mint, and still read the old way.
 ## What
 
 A class pick chooses between a closed-form image and the general lane
-on the same cells, so under D3 Zero takes the closed form and in band
-or definite takes the general lane, recording nothing. Three picks
-escalate in band instead:
+on the same cells: a lane choice under D3 (`docs/DESIGN.md`,
+`[verdicts.consumers]`). Three picks escalate in band instead:
 
 - `crates/geom-brep/src/edge_nurbs.rs:823` `pick_arc_rim`
   (`pcurve_iso_arc_row_direction`, :833) and `first_within` (:880).

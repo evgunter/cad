@@ -77,7 +77,7 @@ fn export(body: &topo::Body<f64>, name: &str) -> String {
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options, Tol::witness()).unwrap()
+    step_string(&common::at_rest(body), &options, Tol::witness()).unwrap()
 }
 
 /// The curved half of the committed corpus.
@@ -661,7 +661,12 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             "SINGLE-SHELL: {name} is single-shell"
         );
         assert!(
-            step_string(body, &StepOptions::default(), Tol::witness()).is_ok(),
+            step_string(
+                &common::at_rest(body),
+                &StepOptions::default(),
+                Tol::witness()
+            )
+            .is_ok(),
             "SINGLE-SHELL: {name}"
         );
     }
@@ -705,19 +710,6 @@ fn the_export_corpus_obeys_the_exactness_frame_sense_and_nurbs_laws() {
             angle > 0.0 && angle < core::f64::consts::FRAC_PI_2,
             "APEX: {angle}"
         );
-    }
-
-    // ---- CENSUS, the refusal half: the surface refusal is live and
-    // names the frontier.
-    let mut skeleton = topo::Body::<f64>::new();
-    skeleton
-        .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
-        .unwrap();
-    match step_string(&skeleton, &StepOptions::default(), Tol::witness()) {
-        Err(StepExportError::UnsupportedSurface { kind, .. }) => {
-            assert_eq!(kind, "nurbs placeholder", "CENSUS");
-        }
-        other => panic!("CENSUS: expected UnsupportedSurface, got {other:?}"),
     }
 
     // The wireframe splice fixture is NOT a corpus fixture: it holds no
@@ -814,64 +806,20 @@ fn emitted_conic_carriers_equal_the_kernel_carriers_bitwise() {
 //    anti-double-composition pins now live in the corpus row above
 // ==================================================================
 
-/// **The S12 revert row.** `Body::revert` reverses the loops AND flips
-/// `sense` on the curved arm; export both the ball and its revert and
-/// the difference in the text must be exactly (a) the `same_sense`
-/// flags and (b) the loop winding — never the surface record. The
-/// sphere's `SPHERICAL_SURFACE`/`AXIS2_PLACEMENT_3D` bytes are
-/// identical across the pair, which is what "the reversal is stated
-/// once, in the one field STEP provides for it" means concretely.
-///
-/// This row is text-level because the external oracle cannot see the
-/// distinction: both files were imported into FreeCAD 1.1.2 and both
-/// report `valid: True` with the identical POSITIVE volume
-/// (4188790204.79 mm³) — OCC's ShapeHealing rectifies an inside-out
-/// shell without comment, the same blindness the M4 review found on
-/// `cube.step`. The plan anticipated this ("if FreeCAD's checker can
-/// see it; else pin the emitted text"); it cannot, so the text is
-/// pinned, and `orientation_oracle.rs`'s double-composition negative
-/// control carries the part FreeCAD would otherwise have carried.
+/// **An inside-out ball cannot reach the writer.** `Body::revert`
+/// flips every face's `sense`, and the at-rest gate refuses the result
+/// on its negative volume, so the export door — which takes a finished
+/// body — is never handed it. A reversed face that does reach the file
+/// is one whose material lies against its chart normal, pinned per face
+/// by the corpus row's CHART-AXIS and BOUND checks.
 #[test]
-fn reverting_a_sphere_moves_the_flag_and_nothing_about_the_surface() {
-    let ball = common::ball();
-    let reverted = ball.revert().unwrap();
-    let a = export(&ball, "ball");
-    let b = export(&reverted, "ball");
-    assert_ne!(a, b, "revert is visible in the text");
-
-    let count = |text: &str, needle: &str| text.matches(needle).count();
-    assert_eq!(count(&a, "= ADVANCED_FACE("), 2);
-    assert_eq!(count(&b, "= ADVANCED_FACE("), 2);
-    // Every face flips: the ball's two bands are sense: true, the
-    // revert's two are sense: false.
+fn an_inside_out_ball_cannot_reach_the_writer() {
+    let reverted = common::ball().revert().unwrap();
+    let solid = reverted.solids().next().expect("one solid").0;
     assert_eq!(
-        a.lines()
-            .filter(|l| l.contains("= ADVANCED_FACE(") && l.ends_with(".T.);"))
-            .count(),
-        2
-    );
-    assert_eq!(
-        b.lines()
-            .filter(|l| l.contains("= ADVANCED_FACE(") && l.ends_with(".F.);"))
-            .count(),
-        2
-    );
-    // The surface itself is byte-identical in both files (same
-    // placement, same radius, same ids — the walk is unchanged).
-    let spherical = |text: &str| {
-        text.lines()
-            .filter(|l| l.contains("= SPHERICAL_SURFACE("))
-            .map(|l| l.split_once(" = ").unwrap().1.to_owned())
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(spherical(&a), spherical(&b), "the true surface is exported");
-    assert_eq!(spherical(&a).len(), 2);
-    // And the bound flags stayed `.T.` on the reverted body too — the
-    // reversal is stated exactly once.
-    assert!(
-        b.lines()
-            .filter(|l| l.contains("FACE_OUTER_BOUND("))
-            .all(|l| l.ends_with(".T.);"))
+        topo::AtRestBody::validate(reverted, Tol::witness()).err(),
+        Some(vec![topo::ValidationError::NegativeVolume { solid }]),
+        "the gate's reason"
     );
 }
 
@@ -922,7 +870,7 @@ fn curved_exports_are_byte_deterministic() {
 /// floats to the body's own stored floats and never read a distance.
 #[test]
 fn epsilon_reaches_only_the_uncertainty_record() {
-    let body = common::washer();
+    let body = common::at_rest(&common::washer());
     let at = |eps: f64| {
         let options = StepOptions {
             uncertainty_m: Some(eps),
@@ -944,14 +892,9 @@ fn epsilon_reaches_only_the_uncertainty_record() {
 }
 
 /// **Two curved stubs are two solids, and export.** S12's two-stub
-/// `boss ∖ plate` complement used to be one solid of two curved shells,
-/// and the outward/void classifier (which has closed forms for planar
-/// faces only) refused it. A solid is one piece of material now
-/// (`docs/DESIGN.md`), so the complement is two solids of one shell
-/// each, which never reach the classifier: the body exports at both
-/// tolerances. The classifier's refusal stays pinned on the shape that
-/// still reaches it, the hollow ring below
-/// ([`hollow_ring_hits_the_curved_shell_gate`]).
+/// `boss ∖ plate` complement is two solids of one shell each (a solid
+/// is one piece of material, `docs/DESIGN.md`), so neither reaches the
+/// shell classification: the body exports at both tolerances.
 #[test]
 fn two_curved_stubs_are_two_solids_and_export_at_both_tolerances() {
     let stubs = common::two_stub_complement();
@@ -962,20 +905,18 @@ fn two_curved_stubs_are_two_solids_and_export_at_both_tolerances() {
             uncertainty_m: Some(eps),
             ..StepOptions::default()
         };
-        step_string(&stubs, &options, Tol::witness())
+        step_string(&common::at_rest(&stubs), &options, Tol::witness())
             .unwrap_or_else(|e| panic!("the two stubs export at {eps}: {e}"));
     }
 }
 
-/// **The standing gate, on the shape that made it real** (VERBS-RING;
-/// OFFSET-DESIGN O6's demo-gates list): the one-call hollow ring — a
-/// full revolve of an annulus, outer torus + toroidal cavity — builds
-/// tier-valid but cannot leave as STEP, because the outward/void
-/// shell classifier has closed forms for planar faces only. Recorded
-/// as a pin, not worked around; retiring it is the classifier's own
-/// unit, not a ring change.
+/// **A curved void classifies** (VERBS-RING): the one-call hollow ring
+/// — a full revolve of an annulus, outer torus + toroidal cavity — is a
+/// solid of two curved shells, and the writer reads the cavity's role
+/// off the kernel's shell-role door: it refuses as the void it is, its
+/// volume the cavity's `−2π²Rr²`, and never for the torus surfaces.
 #[test]
-fn hollow_ring_hits_the_curved_shell_gate() {
+fn hollow_ring_refuses_as_a_void() {
     use geom_core::{Point2, Vec2};
     let tol = Tol::witness();
     let outer = profile::circle(Point2::new(5.0, 0.0), 0.5, tol).unwrap();
@@ -994,12 +935,28 @@ fn hollow_ring_hits_the_curved_shell_gate() {
     )
     .unwrap();
     assert_eq!(ring.body.shells().count(), 2, "the ring is two-shell");
-    match step_string(&ring.body, &StepOptions::default(), tol) {
-        Err(StepExportError::CurvedShellClassification { kind, .. }) => {
-            // The classifier meets the torus wall's surface first.
-            assert_eq!(kind, "torus surface");
+    let cavity = ring.body.shells().nth(1).expect("two shells").0;
+    let ring = topo::AtRestBody::validate(ring.body, tol).expect("the ring is at rest");
+    match step_string(&ring, &StepOptions::default(), tol) {
+        Err(StepExportError::VoidShellUnsupported {
+            shell,
+            volume_lo,
+            volume_hi,
+        }) => {
+            assert_eq!(shell, cavity, "the cavity is the void");
+            let expected = -2.0 * std::f64::consts::PI.powi(2) * 5.0 * 0.35_f64.powi(2);
+            assert!(
+                volume_lo <= volume_hi && volume_hi < 0.0,
+                "the cavity's enclosure is negative: [{volume_lo}, {volume_hi}]"
+            );
+            for end in [volume_lo, volume_hi] {
+                assert!(
+                    (end - expected).abs() <= 1e-6 * expected.abs(),
+                    "the cavity's signed volume: {end} vs {expected}"
+                );
+            }
         }
-        other => panic!("expected the standing curved-shell gate, got {other:?}"),
+        other => panic!("expected VoidShellUnsupported, got {other:?}"),
     }
 }
 

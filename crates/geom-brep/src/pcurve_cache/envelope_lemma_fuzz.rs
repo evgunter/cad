@@ -1939,7 +1939,10 @@ fn a_moved_villarceau_circle_is_refused_typed_and_never_off_within_the_band() {
             }
             // On the torus but none of its circles: its general lane is
             // not written yet (D3).
-            Err(PcurveCertifyError::GeneralLaneUnwritten { .. }) => answers[2] += 1,
+            Err(PcurveCertifyError::NoGeneralLane {
+                gap: crate::LaneGap::Unwritten,
+                ..
+            }) => answers[2] += 1,
             Err(PcurveCertifyError::Escalated { .. }) => answers[3] += 1,
             Err(other) => panic!(
                 "{}: refused untyped for this arm: {other} — {}",

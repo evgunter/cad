@@ -32,14 +32,13 @@
 //! docs): a dual has no shell door, and registry membership requires
 //! every document green at `Dual64`.
 
-use super::PlacePart;
 use editor_core::Formula;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band,
 };
 
-use crate::fixture::{ang, frame, len, len2, revolve_about};
+use crate::fixture::{ang, len, len2, revolve_about};
 
 use super::{CorpusDoc, Recorder};
 
@@ -94,11 +93,8 @@ pub fn meridian() -> LoopProgram<Formula> {
 pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>) -> CorpusDoc {
     let mut r = Recorder::new();
 
-    // u = +X (the radius), v = +Z (the axis): the meridian's own axis
-    // is its +v through the origin, written in the frame it turns.
-    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    // The meridian's own axis is its +y through the origin.
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![meridian()],
         ids: Vec::new(),
     }));
@@ -114,7 +110,8 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
         len(WALL),
         open,
     ));
-    r.place_part(vessel);
+    // In the world, the radius along +X and the axis along +Z.
+    r.in_world_by(vessel, crate::fixture::upright_at([0.0; 3]));
 
     CorpusDoc {
         name: "vessel",
@@ -177,9 +174,7 @@ pub fn capped_meridian() -> LoopProgram<Formula> {
 /// shell node and the revolve node.
 pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![capped_meridian()],
         ids: Vec::new(),
     }));

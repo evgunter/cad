@@ -1051,8 +1051,8 @@ pub fn apex_pyramid_kept(
 /// The ring of a [`posed_crown`] with a thin fin: two faces folded at
 /// a short edge 1 mm long, risen 2° between corners 1e-4° apart, so a
 /// reference halfway along one fin face lies on the other's plane
-/// within the band and inside its sector. With a bottom at
-/// `(0, 0.2, −0.6)` it lies inside the block `[1, 2] × [0.5, 1.5] ×
+/// within the band and inside its sector. With its bottom
+/// [`FIN_BOTTOM`] it lies inside the block `[1, 2] × [0.5, 1.5] ×
 /// [0.3, 1.5]`.
 #[must_use]
 pub fn fin() -> Vec<[f64; 3]> {
@@ -1070,6 +1070,172 @@ pub fn fin() -> Vec<[f64; 3]> {
     ]
 }
 
+/// **The bottom of the [`fin`]'s crown** ([`posed_fin_crown`]), under
+/// [`MEET`]. Seen from above, the fin's ring runs in to the short edge
+/// and back out, so it is a slit polygon. No single-apex bottom fan over
+/// it is a solid at the band. From off the slit's bearing, the fan's face
+/// on a long fin edge leans across the slit and cuts through the faces
+/// beyond. From on it, that face holds `MEET` within about `9e-10` of its
+/// plane, so the census reads the fin's edges in band of it at ε `1e-9`.
+/// So the lid closes the slit, and the bottom fans to the ring without
+/// the slit's inner corner. That ring is star-shaped about this point, and
+/// every bottom face stays a definite distance (far more than the band)
+/// from the fin.
+pub const FIN_BOTTOM: [f64; 3] = [0.0, 0.0, -0.6];
+
+/// **The [`fin`]'s crown**, placed by `pose`: the ring fanned to
+/// [`MEET`] on top, as [`posed_crown`] fans it, with the slit between
+/// the two fin faces closed from above by one lid face over the slit's
+/// three corners, so the fin is a thin ridge on the crown's top. The
+/// bottom fans from [`FIN_BOTTOM`] to the ring without the slit's inner
+/// corner, which every bottom face meets from inside.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses, or the crown is not a finished body.
+#[must_use]
+pub fn posed_fin_crown(pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    finished("the fin crown", fin_crown_body(pose, tol), tol)
+}
+
+/// [`posed_fin_crown`]'s body as built, before the at-rest gate.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses.
+#[must_use]
+#[allow(clippy::unwrap_used)]
+pub fn fin_crown_body(pose: &Pose, tol: Tol) -> Body<f64> {
+    let ring = fin();
+    let off = |q: [f64; 3]| pose.at([0, 1, 2].map(|k| MEET[k] + q[k]));
+    let outer: Vec<_> = [0, 2, 3, 4].iter().map(|&k| ring[k]).collect();
+    let (c0, c2) = (off(ring[0]), off(ring[2]));
+    // A face that holds both mouth corners is pinned by that 7e-7 edge,
+    // where Newell's centroid sum cancels to about 1e-11: it takes the
+    // plane through its corner at `c0`, where its two edges meet square.
+    let plane_of = |corners: &[Point3<f64>]| {
+        let at = |q| corners.iter().position(|&p| same(p, q));
+        match (at(c0), at(c2)) {
+            (Some(k), Some(_)) => {
+                let n = corners.len();
+                let (a, b) = (corners[(k + 1) % n], corners[(k + 2) % n]);
+                let normal = (a - c0).cross(b - c0).normalize();
+                // The edge from `c0`, which lies in the plane: a reference
+                // the construction holds, not one picked off the axes.
+                let u_ref = (a - c0).normalize();
+                geom::Surface::Plane {
+                    origin: c0,
+                    normal,
+                    u_ref,
+                }
+            }
+            _ => plane(corners, tol),
+        }
+    };
+    let mut body = crown_faces(&outer, FIN_BOTTOM, pose, tol, plane_of);
+    let vertex = |body: &Body<f64>, p: Point3<f64>| {
+        body.vertices()
+            .find(|(_, v)| body.get_point(v.point).is_some_and(|q| same(*q, p)))
+            .map(|(k, _)| k)
+            .unwrap()
+    };
+    let (top, c1) = (pose.at(MEET), off(ring[1]));
+    let (m, v0, v2) = (vertex(&body, top), vertex(&body, c0), vertex(&body, c2));
+    // The top face over the slit's mouth, `c0 c2 MEET`, and its corner at
+    // MEET; the slit's inner corner goes in on a strut from MEET.
+    let in_face = |body: &Body<f64>, from, to| {
+        body.faces()
+            .find_map(|(f, _)| body.find_half_edge(f, from, to).map(|h| (f, h)))
+            .unwrap()
+    };
+    let (_, at) = [v0, v2]
+        .into_iter()
+        .map(|w| in_face(&body, m, w))
+        .find(|&(f, _)| {
+            body.find_half_edge(f, v0, v2).is_some() || body.find_half_edge(f, v2, v0).is_some()
+        })
+        .unwrap();
+    let strut = body
+        .mev(MevSite::Fan { he1: at, he2: at }, c1, line(top, c1), tol)
+        .unwrap();
+    let vc1 = strut.vertex;
+    let face = |corners: &[Point3<f64>]| FaceSurface::New {
+        surface: plane_of(corners),
+        sense: true,
+    };
+    // Two chords from the inner corner, to the mouth's corners, split
+    // the mouth face into the two fin faces and the lid.
+    for (w, p) in [(v0, c0), (v2, c2)] {
+        let (he1, he2) = body
+            .faces()
+            .find_map(|(f, _)| Some((start_in(&body, f, vc1)?, start_in(&body, f, w)?)))
+            .filter(|_| !is_edge(&body, vc1, w))
+            .unwrap();
+        body.mef(
+            MefSite::Chords { he1, he2 },
+            line(c1, p),
+            face(&[c0, c2, c1]),
+            tol,
+        )
+        .unwrap();
+    }
+    // Each face the strut and chords made takes the plane of its own
+    // corners, in its loop's order.
+    let faces: Vec<_> = body.faces().map(|(f, _)| f).collect();
+    for f in faces {
+        let corners = corners_of(&body, f);
+        if corners.iter().any(|&p| same(p, c1)) {
+            body.set_face_surface(f, face(&corners)).unwrap();
+        }
+    }
+    describe_as_intersections(&mut body, tol);
+    body
+}
+
+/// Whether two points are one, bit for bit.
+fn same(p: Point3<f64>, q: Point3<f64>) -> bool {
+    (p.x, p.y, p.z) == (q.x, q.y, q.z)
+}
+
+/// Whether an edge joins `a` and `b`.
+fn is_edge(body: &Body<f64>, a: crate::VertexKey, b: crate::VertexKey) -> bool {
+    body.half_edges
+        .iter()
+        .any(|(h, he)| he.start == a && body.half_edge_end(h) == Some(b))
+}
+
+/// A half-edge of face `f`'s loops that starts at `v`.
+fn start_in(body: &Body<f64>, f: crate::FaceKey, v: crate::VertexKey) -> Option<HalfEdgeKey> {
+    body.half_edges
+        .iter()
+        .find(|(_, he)| {
+            he.start == v && body.loops.get(he.parent_loop).is_some_and(|l| l.face == f)
+        })
+        .map(|(k, _)| k)
+}
+
+/// A face's outer loop's corners, in its order.
+#[allow(clippy::unwrap_used, clippy::panic)]
+fn corners_of(body: &Body<f64>, f: crate::FaceKey) -> Vec<Point3<f64>> {
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(f).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("a crown face has a cycle");
+    };
+    body.loop_walk(first)
+        .closed("loop", first)
+        .into_iter()
+        .map(|h| {
+            let v = body
+                .get_vertex(body.get_half_edge(h).unwrap().start)
+                .unwrap();
+            *body.get_point(v.point).unwrap()
+        })
+        .collect()
+}
+
 /// **A crown on [`MEET`]**: the solid between a fan of triangles from
 /// `MEET` to the closed `ring` and a fan from `bottom` to it (both
 /// relative to `MEET`), placed by `pose`. The ring runs counterclockwise
@@ -1080,15 +1246,60 @@ pub fn fin() -> Vec<[f64; 3]> {
 /// # Panics
 ///
 /// Where an Euler operator refuses, or the crown is not a finished body.
-#[allow(clippy::unwrap_used)]
+#[must_use]
 pub fn posed_crown(ring: &[[f64; 3]], bottom: [f64; 3], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    finished("a crown", crown_body(ring, bottom, pose, tol), tol)
+}
+
+/// [`posed_crown`], with the at-rest gate's refusal kept rather than
+/// panicked on.
+///
+/// # Errors
+///
+/// The at-rest gate's findings.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses.
+pub fn posed_crown_kept(
+    ring: &[[f64; 3]],
+    bottom: [f64; 3],
+    pose: &Pose,
+    tol: Tol,
+) -> Result<AtRestBody<f64>, Vec<crate::ValidationError>> {
+    <f64 as crate::AtRestPolicy>::gate_at_rest_kept(crown_body(ring, bottom, pose, tol), tol)
+}
+
+/// [`posed_crown`]'s body as built, before the at-rest gate.
+///
+/// # Panics
+///
+/// Where an Euler operator refuses.
+#[must_use]
+pub fn crown_body(ring: &[[f64; 3]], bottom: [f64; 3], pose: &Pose, tol: Tol) -> Body<f64> {
+    let mut body = crown_faces(ring, bottom, pose, tol, |corners| plane(corners, tol));
+    describe_as_intersections(&mut body, tol);
+    body
+}
+
+/// [`crown_body`]'s faces, each on the plane `plane_of` gives its
+/// outward-ordered corners, its edges not yet described as their faces'
+/// intersections.
+#[allow(clippy::unwrap_used)]
+fn crown_faces(
+    ring: &[[f64; 3]],
+    bottom: [f64; 3],
+    pose: &Pose,
+    tol: Tol,
+    plane_of: impl Fn(&[Point3<f64>]) -> geom::Surface<f64>,
+) -> Body<f64> {
     let n = ring.len();
     assert!(n >= 3, "a crown needs at least three ring corners");
     let off = |q: [f64; 3]| pose.at([0, 1, 2].map(|k| MEET[k] + q[k]));
     let c: Vec<_> = ring.iter().map(|&q| off(q)).collect();
     let (top, low) = (pose.at(MEET), off(bottom));
     let face = |corners: &[Point3<f64>]| FaceSurface::New {
-        surface: plane(corners, tol),
+        surface: plane_of(corners),
         sense: true,
     };
     let mut body = Body::<f64>::new();
@@ -1169,8 +1380,7 @@ pub fn posed_crown(ring: &[[f64; 3]], bottom: [f64; 3], pose: &Pose, tol: Tol) -
         };
         body.set_face_surface(f, face(&rest)).unwrap();
     }
-    describe_as_intersections(&mut body, tol);
-    finished("a crown", body, tol)
+    body
 }
 
 /// Boxes `[x, y, z]` placed by `pose`, as the solids of one body, built

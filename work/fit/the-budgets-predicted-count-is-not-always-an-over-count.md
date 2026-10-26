@@ -2,10 +2,12 @@
 id: the-budgets-predicted-count-is-not-always-an-over-count
 kind: issue
 title: The display budget is not a cap, and the 1/delta law's two-sided error puts the drawn picture over it
-status: open
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: H
+pr: 5600
+closed: 2026-10-22
 ---
 
 ## The finding
@@ -63,3 +65,15 @@ The PERF side unit on `fit-delta-probe-can-exceed-the-picture-it-
 sizes`, which re-measured the fit's committed δ and the picture it
 draws across the corpus before and after changing how the probe is
 placed.
+
+## Closed
+
+The budget is a target with a stated, guarded precision, not a cap.
+`scene::TRIANGLE_BUDGET`'s rustdoc says the drawn count lands near it
+on either side, and names the terms by direction: planar faces put it
+under; `sagitta_step`'s curvature (up to ~1.1%) and the `ceil` at the
+committed δ (a per-curved-face term no fixed margin absorbs) put it
+over. `FittedDelta::predicted` is gone, and
+`tests/display_budget.rs`'s `no_probe_out_tessellates_the_picture_it_sizes`
+holds the drawn count on every corpus row to `≤ 1.05×` the budget and
+every bound row to `≥ 0.9×` (measured 0.927–1.0025).

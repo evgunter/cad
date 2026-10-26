@@ -30,8 +30,8 @@
 //! `OffsetFitError::PatchBound`'s and `OffsetFitError::Band`'s; the
 //! other four `OffsetFitError` wrappers carry one value each.
 //!
-//! Where a raise site fills a field with prose — a `what`, a `detail`,
-//! a steer — the sample carries the prose a real run renders, and a
+//! Where a raise site fills a field with prose — a `what` or a `detail`
+//! — the sample carries the prose a real run renders, and a
 //! field with several real values is sampled at each one this module
 //! names. Arena keys are the default (null) keys.
 #![allow(clippy::expect_used)] // one fixed band, well-formed by construction
@@ -49,9 +49,7 @@ use strum::IntoEnumIterator as _;
 use crate::boolean::ContainError;
 use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{
-    ContactClass, ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
-};
+use crate::contact::{ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, GlueClass};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
@@ -163,6 +161,7 @@ fn chart_region_errors() -> Vec<ChartRegionError> {
             segments: crate::chart_region::WITNESS_SEGMENT_CAP,
             cells: crate::chart_region::WITNESS_CELL_CAP,
         },
+        ChartRegionError::EdgeScale,
         ChartRegionError::Corrupt,
     ];
     v.push(ChartRegionError::ChartDivergence {
@@ -176,11 +175,9 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     let mut v = vec![
         ContactRefusal::Contradicted {
             diag: contradiction_margin("contact_rest_senses_opposed"),
-            steer: None,
         },
         ContactRefusal::Contradicted {
             diag: contradiction_margin("carrier_cyl_radius"),
-            steer: Some(FIT_DEFERRAL),
         },
         ContactRefusal::Escalated { diag: diag() },
         ContactRefusal::Undeclared { diag: diag() },
@@ -256,20 +253,6 @@ fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
             cause: uncrossable(),
         },
         S::WallOutlineUnsupported { face },
-        S::JunctionSidesDisagree {
-            face,
-            sides: (MarginDiag::value(2e-9), MarginDiag::value(-1.6e-9)),
-            band: Band::new(1e-9, 1.5e-9).expect("a well-formed band"),
-        },
-        S::NarrowWindowUnread {
-            face,
-            diag: Indeterminate {
-                margin: MarginDiag::value(5e-10),
-                band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
-                predicate: Some("bool_wall_trim"),
-                terminal_sliver: false,
-            },
-        },
         S::RootCountDisagrees {
             face,
             certified: 2,
@@ -465,9 +448,18 @@ fn certify_errors() -> Vec<CertifyError> {
             chart: geom::SurfaceKind::Cone,
             carrier: geom::CurveKind::Ellipse,
         },
-        CertifyError::GeneralLaneUnwritten {
+        CertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Unwritten,
+        },
+        CertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Pose {
+                piece: 1,
+                channel: geom_brep::SectorChannel::Azimuth,
+            },
         },
         CertifyError::DeclaredOffChart {
             chart: geom::SurfaceKind::Plane,
@@ -636,9 +628,18 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::UnsupportedChart {
             chart: geom::SurfaceKind::Torus,
         },
-        PcurveCertifyError::GeneralLaneUnwritten {
+        PcurveCertifyError::NoGeneralLane {
             chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Unwritten,
+        },
+        PcurveCertifyError::NoGeneralLane {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Circle,
+            gap: geom_brep::LaneGap::Pose {
+                piece: 1,
+                channel: geom_brep::SectorChannel::Azimuth,
+            },
         },
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
@@ -651,7 +652,9 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
             carrier: geom::CurveKind::Circle,
             why: "the rim's height is not shown away from the apex's, where the apex plane \
                   meets the cone only at the apex",
-            margin: Some(geom_core::MarginDiag::value(4e-10)),
+            margin: Some(geom_brep::OffMargin::InBand(geom_core::MarginDiag::value(
+                4e-10,
+            ))),
         },
         PcurveCertifyError::ImageMismatch {
             image: geom_brep::PcurveKind::General,
@@ -723,25 +726,16 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             key: EntityId::HalfEdge(half_edge),
         },
         PcurveMintError::NoCarrier { half_edge },
-        PcurveMintError::EmptyOuter { face },
         PcurveMintError::LoopDiscontinuity { half_edge },
         PcurveMintError::LoopNotClosed { face },
-        PcurveMintError::SingularChartJoint {
-            face,
-            r#loop,
-            half_edge,
-        },
         PcurveMintError::JointWithoutRoom {
             face,
             r#loop,
             half_edge,
         },
-        PcurveMintError::OuterSpansPeriod,
-        PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
         PcurveMintError::Unminted { face },
         PcurveMintError::RowInterval { half_edge },
-        PcurveMintError::UncertifiedImage { half_edge },
         PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,
@@ -804,6 +798,9 @@ fn props_errors() -> Vec<PropsError> {
         PropsError::HolesExceedFace,
         PropsError::SenseContradicted,
         PropsError::SenseInverted,
+        PropsError::SeamRegionOvercovered { times: 2 },
+        PropsError::SeamRegionCoverUnresolved,
+        PropsError::SeamRegionSensesDisagree,
         PropsError::RingWoundWithFace,
         PropsError::ChartLoopOpen,
         PropsError::LoopsWindChart,
@@ -1014,7 +1011,7 @@ fn census_contacts() -> Vec<CensusContact> {
                 pair: DeclaredContact {
                     a: face,
                     b: face,
-                    class: ContactClass::Tangent,
+                    class: GlueClass::Tangent,
                 },
                 verdict: ContactVerdict::Definite,
             },
@@ -1024,7 +1021,7 @@ fn census_contacts() -> Vec<CensusContact> {
                 pair: DeclaredContact {
                     a: face,
                     b: face,
-                    class: ContactClass::Rest,
+                    class: GlueClass::Rest,
                 },
                 verdict: ContactVerdict::Definite,
             },
@@ -1353,6 +1350,8 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             r#loop: loop_,
         },
         ValidationError::CurvedSenseInverted { face },
+        ValidationError::SeamRegionOvercovered { face, times: 2 },
+        ValidationError::SeamRegionCoverUnresolved { face },
         ValidationError::NegativeVolume { solid },
         ValidationError::SliverInsideOut { solid },
         ValidationError::RingOutsideOuter {
@@ -1630,38 +1629,31 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     // Door 1's whole-surface verdict (a Rest record) and the tangent
     // line of a face-face record on two carriers (a Tangent record),
-    // each with and without the designed-clearance steer.
+    // each.
     for (class, witness, predicate) in [
         (
-            ContactClass::Rest,
+            GlueClass::Rest,
             crate::census::CARRIER_COMPARISON_WITNESS,
             "carrier_sphere_radius",
         ),
         (
-            ContactClass::Tangent,
+            GlueClass::Tangent,
             crate::census::TANGENT_LOCUS_WITNESS,
             "contact_tangent_opposed",
         ),
     ] {
-        for steer in [None, Some(FIT_DEFERRAL)] {
-            s.push((
-                format!(
-                    "ContactContradicted/{}{}",
-                    class.name(),
-                    if steer.is_some() { "/steered" } else { "" }
-                ),
-                ValidationError::ContactContradicted {
-                    declaration: DeclaredContact {
-                        a: face,
-                        b: face,
-                        class,
-                    },
-                    witness: witness.to_owned(),
-                    margin: contradiction_margin(predicate),
-                    steer,
+        s.push((
+            format!("ContactContradicted/{}", class.name()),
+            ValidationError::ContactContradicted {
+                declaration: DeclaredContact {
+                    a: face,
+                    b: face,
+                    class,
                 },
-            ));
-        }
+                witness: witness.to_owned(),
+                margin: contradiction_margin(predicate),
+            },
+        ));
     }
     let mut causes: Vec<(String, CensusUnsupportedCause)> = Vec::new();
     for e in chart_region_errors() {
@@ -1878,35 +1870,104 @@ mod tests {
     use geom_brep::recourse::Reading;
     use geom_core::FileCoincidence;
 
+    /// **No sample renders a run of spaces or a line break**: the marks
+    /// of a string literal continued onto its next line without its `\`,
+    /// which keeps the line break and the next line's indentation, one
+    /// space or many, in the text. Read over every tier-3 finding and
+    /// every measurement refusal, so over every `PropsError`
+    /// (`MassPropsError::Face`'s own words), whose words tier 3 does not
+    /// render.
+    #[test]
+    fn no_sample_renders_a_run_of_spaces() {
+        let rendered = super::validation_error_samples()
+            .into_iter()
+            .map(|(label, e)| (label, e.to_string()))
+            .chain(
+                super::mass_props_errors()
+                    .into_iter()
+                    .map(|e| (format!("{e:?}"), e.to_string())),
+            );
+        let problems: Vec<_> = rendered
+            .filter(|(_, text)| text.contains("  ") || text.contains('\n'))
+            .map(|(label, text)| format!("{label}: {text:?}"))
+            .collect();
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
+    }
+
     /// **Every certification refusal ends alike at rest and at the import
-    /// door but for the file's ε_in and the file's damage** (D4 ¶1: one
-    /// recourse per decision, wherever it is read): the door's ending
-    /// departs from the at-rest one only through its ε_in sentences, which
-    /// name ε_in, and where a defect ending at rest is the file's at the
-    /// door ([`geom_core::DAMAGED_FILE_ENDING`]): a sized decision's
-    /// stored contradiction, or a miss over the file's own data. The
-    /// roster is [`super::certify_errors`], which `nested_coverage_gaps`
-    /// holds to every `CertifyError`, `PlaneNurbsRefusal` and
-    /// `AnalyticRung3Refusal` variant. Red where the door's ending departs
-    /// from the at-rest one any other way.
+    /// door but for the file's ε_in and its culprit** (D4 ¶1: one
+    /// recourse per decision, wherever it is read; (iv)): the door's
+    /// ending departs from the at-rest one only through its ε_in
+    /// sentences, which name ε_in, and where a defect ending at rest names
+    /// the kernel or the file, which at the door names the file
+    /// ([`geom_core::DAMAGED_FILE_ENDING`]). The roster is
+    /// [`super::certify_errors`], which `nested_coverage_gaps` holds to
+    /// every `CertifyError`, `PlaneNurbsRefusal` and `AnalyticRung3Refusal`
+    /// variant. Red where the door's ending departs from the at-rest one
+    /// any other way, the door naming the kernel included, or where no
+    /// refusal reaches the file's ending.
     #[test]
     fn every_certify_refusal_ends_alike_at_rest_and_at_the_import_door() {
         use geom_core::{DAMAGED_FILE_ENDING, KERNEL_OR_FILE_DEFECT_ENDING};
 
         let file = FileCoincidence::new(1e-6);
-        let split: Vec<String> = super::certify_errors()
+        // Each refusal's ending at rest, and at the door where it is
+        // read past ε_in (`None` where the door reads it within).
+        let errors = super::certify_errors();
+        let endings: Vec<_> = errors
             .iter()
-            .filter(|e| {
-                let (rest, door) = (e.ending(Reading::AtRest), e.ending(file));
-                let damaged = rest.as_deref() == Some(KERNEL_OR_FILE_DEFECT_ENDING)
-                    && door.as_deref() == Some(DAMAGED_FILE_ENDING);
-                rest != door && !damaged && !door.is_some_and(|d| d.contains("ε_in"))
+            .filter_map(|e| {
+                let door = e.ending(file);
+                let within = door.as_deref().is_some_and(|d| d.contains("ε_in"));
+                (!within).then(|| (e, e.ending(Reading::AtRest), door))
             })
-            .map(|e| format!("{e:?}"))
+            .collect();
+        let split: Vec<String> = endings
+            .iter()
+            .filter(|(_, rest, door)| {
+                let want = match rest.as_deref() {
+                    Some(KERNEL_OR_FILE_DEFECT_ENDING) => Some(DAMAGED_FILE_ENDING.to_owned()),
+                    _ => rest.clone(),
+                };
+                *door != want
+            })
+            .map(|(e, ..)| format!("{e:?}"))
             .collect();
         assert!(
             split.is_empty(),
-            "the doors end apart, beyond the file's ε_in: {split:#?}"
+            "the doors end apart, beyond the file's ε_in and its culprit: {split:#?}"
+        );
+        assert!(
+            endings
+                .iter()
+                .any(|(_, rest, _)| rest.as_deref() == Some(KERNEL_OR_FILE_DEFECT_ENDING)),
+            "no refusal in the roster reads a defect at rest"
+        );
+    }
+
+    /// **A shell-classify defect read at the import door names the file**
+    /// ([`crate::ShellClassifyError::recourse`]): the door it is given is
+    /// the door its defect ending reads, at rest the kernel or the file
+    /// and at the import door the file. Red if the classifier reads the
+    /// import door as at rest.
+    #[test]
+    fn a_shell_classify_defect_names_the_file_at_the_import_door() {
+        use geom_core::{DAMAGED_FILE_ENDING, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag};
+
+        let refusal = crate::ShellClassifyError::Straddles {
+            shell: crate::ShellKey::default(),
+            low: MarginDiag::value(-1.0),
+            high: MarginDiag::value(1.0),
+        };
+        assert_eq!(
+            refusal.recourse(Reading::AtRest).as_deref(),
+            Some(KERNEL_OR_FILE_DEFECT_ENDING),
+            "at rest"
+        );
+        assert_eq!(
+            refusal.recourse(FileCoincidence::new(1e-6)).as_deref(),
+            Some(DAMAGED_FILE_ENDING),
+            "at the import door"
         );
     }
 }

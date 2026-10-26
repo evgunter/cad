@@ -5,7 +5,7 @@ title: SessionOp::Save routes through the workspace save door; a save-as-new-doc
 status: open
 opened: 2026-09-08
 refs: [LIB-SAVEFORK, save-a-copy-duplicate-id-bricks-store, 1117, 2016]
-priority: P1
+priority: P0
 cost: D
 ---
 
@@ -75,3 +75,7 @@ Filed on VIEW rather than CHROME: both programs' `paths` cover
 `crates/viewer/src/*`, and VIEW's `keep_out` records that CHROME's
 slate landed 2026-09-04 and has been dormant since. Re-home if that
 reading is wrong.
+
+## 2026-10-21 — re-banded
+
+P1 → P0. The viewer's Save still writes through `docio::save_path` (`DocSession::save`, `crates/viewer/src/session.rs:2647`), not `Workspace::save_at`, so Save As… beside the original writes a second file under the same id and the store's scan then refuses `DuplicateId` for every document in that directory. The library half closed (`work/lib/save-a-copy-duplicate-id-bricks-store`); this is the half a user meets, through an everyday verb.

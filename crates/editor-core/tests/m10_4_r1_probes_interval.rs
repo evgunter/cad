@@ -14,7 +14,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, std_deviation};
 use editor_core::drive::{DriveConfig, drive};
@@ -29,7 +28,7 @@ use editor_core::{
 };
 use geom_core::{Dual64, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len, scl};
 
 fn name(n: &'static str) -> VarName {
     VarName::from_static(n)
@@ -126,11 +125,7 @@ fn stepped_shaft_sized(
         name: name("h2"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Length, h2, d2)),
     });
-    // One frame, named by both profiles: two sketches meant to share
-    // a plane bind the same id, which is how sharing is said now.
-    let frame = r.insert(fixture::xy_frame());
     let base_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
         ],
@@ -139,10 +134,8 @@ fn stepped_shaft_sized(
     let base = r.insert(Node::Extrude {
         profile: base_p.into(),
         distance: param("h1", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-i, -i), (i, -i), (i, i), (-i, i)]).expect("finite corners"),
         ],
@@ -151,19 +144,24 @@ fn stepped_shaft_sized(
     let boss_raw = r.insert(Node::Extrude {
         profile: boss_p.into(),
         distance: param("h2", Dimension::Length),
-        side: ExtrudeSide::Along,
     });
-    let boss = r.insert(Node::transform(
+    // The boss stands on the base's top: placed against the base, slid
+    // `h1` up its own z.
+    let boss = crate::m10_5_clearance_interval::slid_by(
+        &mut r,
+        base,
         boss_raw,
-        editor_core::Step::Rigid {
-            translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ));
+        [len(0.0), len(0.0), param("h1", Dimension::Length)],
+    );
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
-        SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(
+            boss,
+            crate::m10_5_clearance_interval::in_placement(
+                boss,
+                fname(boss_raw, RoleSeg::Cap(CapEnd::End)),
+            ),
+        ),
     ];
     let m = r
         .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
@@ -224,16 +222,13 @@ fn arc_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall; their
     // distance is `w`, so ∂m/∂w = 1 exactly.
@@ -405,12 +400,12 @@ fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
 // ---------------------------------- claim 3/4: the verdict is ungated
 
 /// **DATUM — the reviewer's counterexample to "no path yields a
-/// sensitivity of an unvalidated build".** The pairing hook gates the
-/// f64 anchor against the handed build. It does NOT gate the `chamber`
+/// sensitivity of an unvalidated build".** The binding gates the
+/// handed f64 build against the passes. It does NOT gate the `chamber`
 /// verdict against the document. So: drive the shaft, then edit a piece
 /// of the document the analyzed box cannot see (a literal — the boss's
 /// own extrude becomes a parameter-free 0.75 instead of `h2`), hand the
-/// FRESH f64 build so the pairing hook is satisfied, and pass the STALE
+/// FRESH f64 build so the binding is satisfied, and pass the STALE
 /// verdict. The driver returns `ChamberCertified` carrying the old
 /// drive's leaf and `verdict_vector_key` — a chamber certificate for a
 /// build nobody drove.
@@ -456,9 +451,18 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         "the box the ForeignBox check compares is unchanged by this edit"
     );
 
-    // The FRESH f64 build of the edited document: the pairing hook is
-    // fully satisfied.
-    let handed = eval_f64(&edited);
+    // The FRESH f64 build of the edited document, pinned: the binding
+    // is fully satisfied.
+    let handed = evaluate::<f64>(
+        &edited,
+        None,
+        &CancelToken::new(),
+        &EvalOptions {
+            pin: true,
+            ..EvalOptions::default()
+        },
+        Tol::witness(),
+    );
     // PIN (flipped from DATUM at the fix pass): the verdict's certified
     // leaf is content-tied to the build — the retargeted slot re-keys
     // node 3 in the leaf's replay — so the stale verdict is refused
@@ -504,7 +508,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
     // is not this document's — read without a chamber, where it is
     // honestly `LocalOnly`.
     let entries = sensitivities(&edited, m, Some(&handed), None, false, None, Tol::witness())
-        .expect("the pairing hook is satisfied by a fresh anchor");
+        .expect("the binding is satisfied by a fresh build of record");
     match entries
         .iter()
         .find(|s| s.param == edited.var_named("h2").expect("declared"))
@@ -983,12 +987,14 @@ fn r1_seed_env_refuses_a_foreign_name() {
         seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId::new(0, 0)).is_err(),
         "an unknown name refuses"
     );
-    // And the bindings it does produce carry exactly one unit tangent.
+    // And the free bindings it does produce carry exactly one unit
+    // tangent (a definition reading `h1` carries its chain rule's).
     let env = seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), a.var_named("h1").expect("h1"))
         .expect("h1");
+    let free = |id: &editor_core::VarId| a.var(*id).is_some_and(|v| v.def().free().is_some());
     let mut ones = 0_usize;
     let mut zeros = 0_usize;
-    for v in env.bindings.values() {
+    for (_, v) in env.bindings.iter().filter(|(id, _)| free(id)) {
         if let ParamValue::Continuous { value, .. } = v {
             if value.deriv.to_bits() == 1.0f64.to_bits() {
                 ones += 1;
@@ -1001,8 +1007,8 @@ fn r1_seed_env_refuses_a_foreign_name() {
     }
     let continuous = env
         .bindings
-        .values()
-        .filter(|v| matches!(v, ParamValue::Continuous { .. }))
+        .iter()
+        .filter(|(id, v)| free(id) && matches!(v, ParamValue::Continuous { .. }))
         .count();
     assert_eq!(ones, 1, "exactly one seeded lift");
     assert_eq!(

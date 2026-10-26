@@ -39,7 +39,7 @@ fn turned(body: &AtRestBody<f64>, about: Point3<f64>, axis: Vec3<f64>, a: f64) -
     )
 }
 
-fn vol(b: Option<&Body<f64>>) -> f64 {
+fn vol(b: Option<&AtRestBody<f64>>) -> f64 {
     b.map_or(0.0, |b| {
         mass_properties(b, tol()).map_or(f64::NAN, |m| m.volume)
     })
@@ -74,7 +74,7 @@ fn witness() {
             let plane = topo::test_support::split_plane(v + along * l, n, tol());
             let line = match split(&cyl, &plane, tol()) {
                 Ok(r) => {
-                    let check = |b: Option<&Body<f64>>| {
+                    let check = |b: Option<&AtRestBody<f64>>| {
                         b.map_or("empty".to_owned(), |b| {
                             match topo::validate_geometric(b, tol()) {
                                 Ok(_) => "valid".to_owned(),
@@ -187,7 +187,7 @@ fn main() {
                         .unwrap(),
                     );
                     let line = match topo::subtract(&cyl, &slab, tol()) {
-                        Ok(r) => format!("ok vol={:.9}", vol(r.body().map(|b| &*b.body))),
+                        Ok(r) => format!("ok vol={:.9}", vol(r.body().map(|b| &b.body))),
                         Err(err) => format!("REFUSED {err:?} | {err}"),
                     };
                     println!("BOOL {tag}: {line}");
@@ -223,7 +223,7 @@ fn main() {
                         .unwrap(),
                     );
                     let line = match topo::subtract(&cyl, &corner, tol()) {
-                        Ok(r) => format!("ok vol={:.9}", vol(r.body().map(|b| &*b.body))),
+                        Ok(r) => format!("ok vol={:.9}", vol(r.body().map(|b| &b.body))),
                         Err(err) => format!("REFUSED {err:?} | {err}"),
                     };
                     println!("MIRROR {tag}: {line}");

@@ -22,7 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_PI_2;
-use pncad::document::ExtrudeSide;
+use pncad::sweep::ExtrudeSide;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
@@ -65,6 +65,16 @@ use pncad::sweep::{
 mod census;
 use census::{genus, rings};
 use pncad::topo::{AtRestBody, Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
+
+/// A copy of `body` finished for the measurement doors, which read a
+/// finished body (Ev's decision on PR 4822).
+fn at_rest(
+    body: &pncad::topo::Body<f64>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::topo::AtRestBody<f64> {
+    pncad::topo::AtRestBody::validate(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
+}
 
 /// `body` finished for the boolean doors, the panic naming `what` and
 /// the validator's findings where the gate refuses it.
@@ -217,7 +227,7 @@ fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
         "[r2-1] tessellate = {:?}",
         mesh.map(|m| m.patches.iter().map(|q| q.triangles.len()).sum::<usize>())
     );
-    let props = pncad::topo::mass_properties(&cup, tol);
+    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol);
     println!(
         "[r2-1] props = {:?}",
         props.map(|p| (p.volume, p.volume_pad))
@@ -449,7 +459,11 @@ fn r2_ring_anatomy_on_a_drum() {
     );
     println!(
         "[r2-4] props = {:?}",
-        pncad::topo::mass_properties(&cup, tol).map(|p| (p.volume, p.volume_pad, p.surface_area))
+        pncad::topo::mass_properties(&at_rest(&cup, tol), tol).map(|p| (
+            p.volume,
+            p.volume_pad,
+            p.surface_area
+        ))
     );
     // The closed form a correct cup would have: the drum minus a
     // cavity that runs to the top.
@@ -507,7 +521,7 @@ fn r2_box_control_is_right() {
         "[r2-5] tessellate = {:?}",
         m.map(|x| x.patches.iter().map(|q| q.triangles.len()).sum::<usize>())
     );
-    let props = pncad::topo::mass_properties(&cup, tol).expect("props");
+    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol).expect("props");
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * (h - t);
     println!(
         "[r2-5] volume {} vs the cup's closed form {want} (pad {})",
@@ -902,13 +916,12 @@ fn r2_annular_mouth_anatomy() {
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     println!(
         "[r2-10] props = {:?} vs a correct cup's {want}",
-        pncad::topo::mass_properties(&cup, tol).map(|p| (p.volume, p.volume_pad))
+        pncad::topo::mass_properties(&at_rest(&cup, tol), tol).map(|p| (p.volume, p.volume_pad))
     );
 }
 
 /// **R2-11: the STEP frontier the scene declares.** A sealed hollow
-/// CYLINDER-and-PLANE pot must refuse `CurvedShellClassification`, and
-/// the register row names `kind: "circle"`.
+/// CYLINDER-and-PLANE pot refuses as the void its cavity is.
 #[test]
 fn r2_step_frontier_kind() {
     let tol = Tol::witness();
@@ -930,7 +943,7 @@ fn r2_step_frontier_kind() {
     .expect("hollows")
     .body;
     let e = pncad::step_export::step_string(
-        &hollow,
+        &AtRestBody::validate(hollow, tol).expect("the hollow pot is at rest"),
         &pncad::step_export::StepOptions {
             product_name: "r2pot".to_string(),
             ..Default::default()
@@ -939,6 +952,13 @@ fn r2_step_frontier_kind() {
     )
     .err();
     println!("[r2-11] STEP on a sealed hollow revolve: {e:?}");
+    assert!(
+        matches!(
+            e,
+            Some(pncad::step_export::StepExportError::VoidShellUnsupported { .. })
+        ),
+        "[r2-11] the cavity refuses as a void: {e:?}"
+    );
 }
 
 /// **R2-12: the scene's own vessel, rebuilt from its stations**, to
@@ -1021,7 +1041,7 @@ fn r2_the_scene_numbers() {
         genus(&pot),
         pncad::topo::validate_geometric(&pot, tol)
     );
-    let classes = pncad::topo::classify_shells(&pot, tol).expect("classify");
+    let classes = pncad::topo::classify_shells(&at_rest(&pot, tol), tol).expect("classify");
     for c in &classes {
         println!(
             "[r2-12]   shell role {:?}, volume {} ({} L)",

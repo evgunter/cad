@@ -15,7 +15,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use geom_core::{BandError, Indeterminate};
-use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, SettleError, SplitLineageCycle, VertexKey};
+use topo::{
+    Body, EdgeKey, FaceKey, HalfEdgeKey, LoopKey, SettleError, SplitLineageCycle, VertexKey,
+};
 
 use super::role::{EntityKind, StableName};
 use super::table::{EntityKey, EntityRef, NameTable, SeatingRefusal};
@@ -24,7 +26,7 @@ use crate::node::RecipeNodeId;
 /// Typed failure of name emission (spec D4's loud assertions, as
 /// in-band errors — this crate has no panic paths).
 ///
-/// **Four kinds of thing live here, and the reader is told which.**
+/// **Five kinds of thing live here, and the reader is told which.**
 ///
 /// 1. An emission BUG — a mint-time fact inconsistent with the result
 ///    body. [`Self::Duplicate`], [`Self::EntityNamed`],
@@ -35,7 +37,9 @@ use crate::node::RecipeNodeId;
 /// 3. An ambient tolerance no discriminator can be built from:
 ///    [`Self::Band`], whose own doc draws the line the category below
 ///    stands on — *nothing about the result body is wrong here*.
-/// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
+/// 4. A MISSING RULE: [`Self::UnsupportedSeamVertex`],
+///    [`Self::UnsupportedCrossingSenses`], [`Self::UnsupportedSeamSides`],
+///    [`Self::UnsupportedJoin`], [`Self::UnsupportedUnionName`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::ChordOffRim`], [`Self::MemberEdgeTied`],
 ///    [`Self::ConventionalVertex`], [`Self::ClosedCarrierUnread`],
@@ -44,19 +48,23 @@ use crate::node::RecipeNodeId;
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
-///    legal document fails in the expensive direction.
+///    legal document fails in the expensive direction. A variant that
+///    several constructions reach carries a shape naming which.
+/// 5. A PRECISION LIMIT the model controls: [`Self::WayInZeroBand`],
+///    [`Self::JoinedPieceOffRoot`] and [`Self::BandVerdictsDisagree`], a
+///    verdict the tolerance band cannot give on a sound result. Each
+///    ends in the model's lever alone.
 ///
-/// **Two of the four categories are readable off the opening words.**
-/// Two framings are written once each — [`EMISSION_FRAMING`] and
-/// [`UNRULED_FRAMING`] — and each opens every refusal of its category:
-/// every category-1 variant opens with the emission framing, every
-/// category-4 variant with the missing-rule one. Categories 2 and 3
-/// have one variant each, with a sentence of its own, and borrow
-/// neither framing. So a reader tells a kernel bug from a MISSING RULE
-/// from everything else by the clause a refusal opens with: the first
-/// clause of this type's `Display`, which the node-level refusal
-/// (`NodeErrorKind::Naming`) renders after its own `name emission
-/// failed: `.
+/// **Three of the five categories are readable off the opening
+/// words.** Three framings are written once each —
+/// [`EMISSION_FRAMING`], [`UNRULED_FRAMING`] and [`LIMIT_FRAMING`] —
+/// and each opens every refusal of its category. Categories 2 and 3
+/// have one variant each, with a sentence of its own, and borrow no
+/// framing. So a reader tells a kernel bug from a MISSING RULE from a
+/// precision limit from everything else by the clause a refusal opens
+/// with: the first clause of this type's `Display`, which the
+/// node-level refusal (`NodeErrorKind::Naming`) renders after its own
+/// `name emission failed: `.
 ///
 /// What is machine-checked, measured rather than asserted — by adding
 /// a probe variant and watching what each guard did.
@@ -146,10 +154,11 @@ pub enum NamingError {
     /// bug as [`Self::Emission`], carrying the vertex the chase was asked
     /// about and how it failed.
     Settle(SettleError),
-    /// A pair boolean's seam VERTEX left half-decided by the edges
-    /// around it: every edge at it descends from one edge of operand A,
-    /// no edge of operand B and no seam reaches it, and nothing else
-    /// (an operand vertex, a contact row) names the missing B parent.
+    /// A boolean's or union's seam VERTEX left half-decided by the
+    /// edges around it: the incident edges' parents fit none of the
+    /// shapes the vertex pass names, and nothing else (an operand
+    /// vertex, a contact row) names it. Which shape it met is
+    /// [`SeamVertexShape`].
     ///
     /// **Not an emission inconsistency**, and the test is the same one
     /// [`Self::Band`] applies: nothing about the result body is wrong
@@ -158,18 +167,16 @@ pub enum NamingError {
     /// the merged wall — and what such an author needs is that the
     /// emitter has no rule for this shape, not an instruction to file a
     /// kernel bug. Maximal edges join that witness's vertex away, and no
-    /// document reaches it now.
-    ///
-    /// **It is raised from a NAMED shape, not from a catch-all.** The
-    /// vertex pass's `_` arm is the preimage of every case nobody has
-    /// enumerated, and a shape nobody has reached is not a shape known
-    /// to be legal; that residue keeps [`Self::Emission`].
+    /// document reaches it now; nothing proves the other shapes
+    /// unreachable, so they take the same ending.
     ///
     /// Carries the vertex — a key in the RESULT body — which is the one
     /// thing a sentence cannot supply and where a rule would apply.
-    SeamVertexParentage {
+    UnsupportedSeamVertex {
         /// The result-body vertex whose parentage is not determined.
         vertex: VertexKey,
+        /// The shape its edges met.
+        shape: SeamVertexShape,
     },
     /// A seam vertex whose boolean contact records pair it with SEVERAL
     /// differently named vertices of the other operand.
@@ -179,7 +186,7 @@ pub enum NamingError {
     /// naming the same one — decides it. Several distinct partners do
     /// not, and no rule chooses among them, so the pass refuses rather
     /// than take whichever row the reduction happened to write first.
-    /// A sibling word of [`Self::SeamVertexParentage`]: the same vertex
+    /// A sibling word of [`Self::UnsupportedSeamVertex`]: the same vertex
     /// pass, a different structure to read (the contact rows, not the
     /// incident edge roles).
     SeamVertexPartners {
@@ -211,7 +218,7 @@ pub enum NamingError {
     /// `Emission` takes a `&'static str` and anyone may write one; what
     /// it removes is inheriting one by saying nothing.
     ///
-    /// A sibling word of [`Self::SeamVertexParentage`] rather than one
+    /// A sibling word of [`Self::UnsupportedSeamVertex`] rather than one
     /// generalised over [`super::table::EntityKey`]: the two name DIFFERENT
     /// structures to go and read — face adjacency in an operand body
     /// here, a vertex's incident edge ROLES there — and their subjects
@@ -331,6 +338,82 @@ pub enum NamingError {
         /// The edge, as the member's own table names it.
         edge: Box<StableName>,
     },
+    /// A boolean crossing whose senses no rule reads: the edge piece
+    /// classes at the vertex fit no one sense per edge name
+    /// ([`CrossingSensesShape`]). The boolean's classes are its own
+    /// record and a sound result can hold them; what is missing is a rule
+    /// reading a vertex that holds several keys, or two tied edges, at
+    /// once.
+    UnsupportedCrossingSenses {
+        /// The result-body vertex.
+        vertex: VertexKey,
+        /// What the classes there read.
+        shape: CrossingSensesShape,
+    },
+    /// An edge named from the faces beside it, whose faces fit no shape
+    /// a seam rule reads ([`SeamSidesShape`]): a wrap edge `Incidence`
+    /// reads beside one face, a name that spells two seams, a zipped
+    /// seam within one operand, a union seam inside one parent.
+    UnsupportedSeamSides {
+        /// The result-body edge.
+        edge: EdgeKey,
+        /// What its faces are.
+        shape: SeamSidesShape,
+    },
+    /// An edge a closing join made whose cover no rule reads
+    /// ([`JoinShape`]): a join over pieces that are not all images of
+    /// input cells, or a seam beside a merged face the split has no
+    /// rule for.
+    UnsupportedJoin {
+        /// The joined edge, in the door's result body.
+        edge: EdgeKey,
+        /// What the cover holds.
+        shape: JoinShape,
+    },
+    /// A name a union publishes that its member-keying cannot spell
+    /// ([`UnionNameShape`]): the collapse from fold space to member
+    /// space does not keep name order or lines apart, and a citation
+    /// can reach several parents. The members and the fold are sound.
+    UnsupportedUnionName {
+        /// The name as the union held it where the shape was met: the
+        /// fold row the collapse was rewriting for
+        /// [`UnionNameShape::RunLeastLineMoved`] and
+        /// [`UnionNameShape::JunctionLinesCollide`], the member-keyed
+        /// name being published for the other two.
+        name: Box<StableName>,
+        /// What the name met.
+        shape: UnionNameShape,
+    },
+    /// Which way edge `edge` runs along another's carrier decided ZERO:
+    /// the two readings compared lie within a zero band of each other. A
+    /// certified edge spans at least the escalate band, K zero bands, so
+    /// at a small ambiguity factor K the comparison can fall in the zero
+    /// band ([`WayShape`] says which comparison). The lever is K.
+    WayInZeroBand {
+        /// The edge read along the other's carrier, in the body it was
+        /// read from.
+        edge: EdgeKey,
+        /// Which comparison decided zero.
+        shape: WayShape,
+    },
+    /// A split's joined set piece that the cover read as lying along an
+    /// operand edge and the way-along reading finds off it: the cover
+    /// read the piece over its own length, the way along reads it over
+    /// the root's. The lever is the geometry.
+    JoinedPieceOffRoot {
+        /// The joined piece, in the split's half.
+        edge: EdgeKey,
+    },
+    /// Two band verdicts about one vertex, made over different lengths,
+    /// disagree ([`DisagreeShape`]): edges flush only within the band
+    /// read as on one another by one decision and off by the other. The
+    /// lever is the geometry.
+    BandVerdictsDisagree {
+        /// The result-body vertex where they disagree.
+        vertex: VertexKey,
+        /// Which two verdicts.
+        shape: DisagreeShape,
+    },
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -381,6 +464,220 @@ const EMISSION_FRAMING: &str =
 /// recipe that is fine.
 const UNRULED_FRAMING: &str =
     "no naming rule covers this construction; the recipe and its result are sound";
+
+/// **The one sentence every precision-limit refusal opens with**: the
+/// result may be sound, and the band the tolerance gives could not
+/// decide what its name rests on. Neither a bug report nor a missing
+/// rule, so a reworded copy of either would send the reader the wrong
+/// way. Each such refusal ends in its own lever alone
+/// ([`geom_core::lever_recourse`]).
+const LIMIT_FRAMING: &str = "naming reached a precision limit of the tolerance band";
+
+/// Declares a refusal's shape enum from one table: each shape, its doc
+/// and the clause its refusal renders, so the enum's `ALL` holds every
+/// shape by construction and no shape is added without its sentence.
+macro_rules! shapes {
+    (
+        $(#[$doc:meta])*
+        $name:ident {
+            $($(#[$vdoc:meta])* $variant:ident => $text:expr,)*
+        }
+    ) => {
+        $(#[$doc])*
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        pub enum $name {
+            $($(#[$vdoc])* $variant,)*
+        }
+
+        impl $name {
+            /// Every shape, once.
+            pub const ALL: &[Self] = &[$(Self::$variant),*];
+        }
+
+        impl core::fmt::Display for $name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.write_str(match self {
+                    $(Self::$variant => $text,)*
+                })
+            }
+        }
+    };
+}
+
+shapes! {
+    /// Which shape a seam vertex's incident edges met
+    /// ([`NamingError::UnsupportedSeamVertex`]).
+    SeamVertexShape {
+        /// A seam between two faces of one operand: it lies along the
+        /// other operand's edge that filled the gap, and has no A and B
+        /// side to cross.
+        OneOperandSeam => "lies on a seam between two faces of one operand, which has no side of \
+                           each operand to cross",
+        /// One edge line meeting several faces across it and no seam.
+        /// With planar faces no manifold result reaches this; curved
+        /// faces are outside that argument.
+        LineAcrossSeveralFaces => "lies on one edge line meeting several faces across it and no \
+                                   seam",
+        /// Any other parentage: one operand's edge with no single face
+        /// of the other across it, its mirror, or several edges of each.
+        NoEdgePair => "meets edges whose parents fit no shape a naming rule reads, so its \
+                       parentage is half-decided",
+    }
+}
+
+shapes! {
+    /// What a crossing's piece classes read
+    /// ([`NamingError::UnsupportedCrossingSenses`]).
+    CrossingSensesShape {
+        /// One side of a crossed edge holds pieces on both sides of the
+        /// other operand: a vertex holding several keys classes one
+        /// edge's pieces against two wedges.
+        PiecesBothSides => "holds, on one side of a crossed edge, pieces on both sides of the \
+                            other operand",
+        /// Edges sharing one name read different senses: two tied edges
+        /// at one vertex.
+        NameReadsTwoSenses => "holds edges of one name that read different senses",
+    }
+}
+
+shapes! {
+    /// What the faces beside an edge named from them are
+    /// ([`NamingError::UnsupportedSeamSides`]).
+    SeamSidesShape {
+        /// Not two faces: `Incidence` holds a wrap edge's one face once,
+        /// and a wrap edge pierced at a point and joined back after the
+        /// boolean is one way in.
+        NotTwoFaces => "does not lie between two faces as the result's incidence reads it, and a \
+                        seam is named from two",
+        /// Its seam name is spelled alike by a seam between faces of one
+        /// operand and one between faces of both: tied names can do that.
+        NameSpellsTwoSeams => "takes a seam name that also spells a seam between faces of a \
+                               different number of operands",
+        /// A seam the join zipped between faces of one operand, not both
+        /// merged: along an operand rim beside one merged face.
+        WithinOneOperand => "is a zipped seam between faces of one operand that are not both \
+                             merged",
+        /// A union seam whose two faces descend from one parent: a pair
+        /// can merge A's face with B's where the fold skips the same
+        /// curved group.
+        InsideOneParent => "is a union seam whose two faces descend from one parent",
+    }
+}
+
+shapes! {
+    /// What a joined edge's cover holds ([`NamingError::UnsupportedJoin`]).
+    JoinShape {
+        /// A split joined a section chord to a piece of an operand edge.
+        ChordWithPiece => "joins a section chord to a piece of an operand edge, which no input \
+                           cell reads",
+        /// A split joined a section chord beside a merged operand face to
+        /// whole operand edges: the seam rule reads the case where the
+        /// merged face holds the section, not this mirror.
+        ChordBesideMergedFace => "joins a section chord beside a merged operand face to whole \
+                                  operand edges",
+        /// A door joined an edge it minted outright (an end arc, a mitre,
+        /// a slit, a remnant), which is the image of no input edge.
+        Outright => "takes an edge its door minted outright, which no input cell reads",
+    }
+}
+
+shapes! {
+    /// What a name a union publishes met
+    /// ([`NamingError::UnsupportedUnionName`]).
+    UnionNameShape {
+        /// Several vertices share one seam name once they cite member
+        /// edges whole, and neither side of it is an edge to rank them
+        /// along.
+        SeamGroupNoMemberEdge => "is one seam name several vertices share once they cite member \
+                                  edges whole, and neither side of it is an edge to rank them \
+                                  along",
+        /// It cites member faces of several parents: a tied member face
+        /// is keyed to each candidate's parent, and those can differ.
+        SeveralParents => "cites faces of several parents, so it names no one face",
+        /// A ranked edge-crossing run whose least line is another line
+        /// once keyed by member: the collapse does not keep name order.
+        RunLeastLineMoved => "is a ranked run whose least line is another line once keyed by \
+                              member, so nothing says where its vertices lie along it",
+        /// Two lines of a seam junction, met at different steps, collapse
+        /// to one member-space line.
+        JunctionLinesCollide => "is a seam junction two of whose lines collapse to one \
+                                 member-space line",
+    }
+}
+
+shapes! {
+    /// Which way-along comparison decided zero
+    /// ([`NamingError::WayInZeroBand`]).
+    WayShape {
+        /// On another edge's carrier, read at three stations: the two
+        /// stretches compared, a quarter of the edge's length apart, span
+        /// at least K/4 zero bands, so at K ≤ 4 they can decide zero.
+        Carrier => "lies on another edge's carrier and runs neither way along it, the stretches \
+                    compared a quarter of its length apart falling in the zero band",
+        /// On another segment's line: each end may lie up to a zero band
+        /// off the line, so a certified segment's projection can.
+        Line => "lies on another segment's line and runs neither way along it, its projection on \
+                 the line falling in the zero band",
+    }
+}
+
+shapes! {
+    /// Which two band verdicts disagree at a vertex
+    /// ([`NamingError::BandVerdictsDisagree`]).
+    DisagreeShape {
+        /// The cover read the members over the joined edge's length; the
+        /// vertex is placed over each member's.
+        VertexOffJoinedSet => "is a vertex of a joined edge and lies on none of the operand \
+                               edges its set holds",
+        /// Two independent pairwise judgements of edges flush only within
+        /// the band.
+        FlushSensesDisagree => "is where two member edges flush on one line disagree on its \
+                                sense",
+        /// A piece shorter than the band puts both its neighbours'
+        /// classes at one point.
+        PiecesAtOneVertex => "holds two pieces of one member line, each classified there",
+        /// The cover's verdict and an end point's are two band decisions.
+        JoinedEdgeOffMembers => "is on a union's joined edge that lies on none of the member \
+                                 edges it is named for",
+    }
+}
+
+impl DisagreeShape {
+    /// The geometry move that takes this shape's two verdicts out of the
+    /// band, about the entities its sentence names.
+    const fn lever(self) -> &'static str {
+        match self {
+            Self::VertexOffJoinedSet => concat!(
+                geom_core::coincidence_move_arm!(),
+                " so the vertex lies clearly on or clearly off each edge of the set"
+            ),
+            Self::FlushSensesDisagree => concat!(
+                geom_core::coincidence_move_arm!(),
+                " so the member edges at the vertex are clearly flush or clearly apart"
+            ),
+            Self::PiecesAtOneVertex => concat!(
+                geom_core::coincidence_move_arm!(),
+                " so each piece of the member line at the vertex is longer than the band"
+            ),
+            Self::JoinedEdgeOffMembers => concat!(
+                geom_core::coincidence_move_arm!(),
+                " so the joined edge at the vertex lies clearly on or clearly off each member \
+                 edge it is named for"
+            ),
+        }
+    }
+}
+
+/// The lever of [`NamingError::WayInZeroBand`]: a larger ambiguity
+/// factor K widens the escalate band against the zero band, so a
+/// certified edge spans more zero bands.
+const AMBIGUITY_FACTOR_LEVER: &str = "raise the tolerance's ambiguity factor K";
+
+/// The lever of [`NamingError::JoinedPieceOffRoot`].
+const JOINED_PIECE_LEVER: &str = concat!(
+    geom_core::coincidence_move_arm!(),
+    " so the joined piece lies clearly on or clearly off that operand edge"
+);
 
 /// What a shared-rim derivation found instead of the one edge it asked
 /// for — the fact a free-text sentence would have hidden.
@@ -492,11 +789,34 @@ impl crate::spoken::Say for NamingError {
             // The framing is the missing-rule one, not the emission
             // one: what this refusal reports is the absence of a rule,
             // and the vertex is where a rule would be applied.
-            Self::SeamVertexParentage { vertex } => write!(
+            Self::UnsupportedSeamVertex { vertex, shape } => {
+                write!(f, "{UNRULED_FRAMING}: seam vertex {vertex:?} {shape}")
+            }
+            Self::UnsupportedCrossingSenses { vertex, shape } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam vertex {vertex:?} lies on one edge of operand A and on \
-                 no edge or face of operand B, so its parentage is half-decided"
+                "{UNRULED_FRAMING}: crossing vertex {vertex:?} {shape}, so no rule reads its \
+                 sense"
             ),
+            Self::UnsupportedSeamSides { edge, shape } => {
+                write!(f, "{UNRULED_FRAMING}: edge {edge:?} {shape}")
+            }
+            Self::UnsupportedJoin { edge, shape } => {
+                write!(f, "{UNRULED_FRAMING}: joined edge {edge:?} {shape}")
+            }
+            Self::UnsupportedUnionName { name, shape } => {
+                write!(f, "{UNRULED_FRAMING}: union name {} {shape}", by.name(name))
+            }
+            Self::WayInZeroBand { edge, shape } => {
+                write!(f, "{LIMIT_FRAMING}: edge {edge:?} {shape}")
+            }
+            Self::JoinedPieceOffRoot { edge } => write!(
+                f,
+                "{LIMIT_FRAMING}: a split's joined piece {edge:?} lies off an operand edge its \
+                 cover holds"
+            ),
+            Self::BandVerdictsDisagree { vertex, shape } => {
+                write!(f, "{LIMIT_FRAMING}: vertex {vertex:?} {shape}")
+            }
             // The node rides in the sentence, not only in the payload:
             // the two keys are an OPERAND body's, so a reader handed
             // them without it has nothing to resolve them against.
@@ -600,8 +920,8 @@ impl crate::spoken::Say for NamingError {
                 )
             }
         }?;
-        match self.category() {
-            Some(category) => write!(f, ". {}", category.ending()),
+        match self.ending() {
+            Some(ending) => write!(f, ". {ending}"),
             None => Ok(()),
         }
     }
@@ -616,6 +936,9 @@ pub(crate) enum Category {
     Emission,
     /// A well-formed recipe reached a construction no rule names.
     Unruled,
+    /// A verdict the band cannot give on a result that may be sound;
+    /// each variant names its own lever ([`NamingError::lever`]).
+    Limit,
 }
 
 impl Category {
@@ -627,14 +950,7 @@ impl Category {
         match self {
             Self::Emission => EMISSION_FRAMING,
             Self::Unruled => UNRULED_FRAMING,
-        }
-    }
-
-    /// The sentence a refusal of this category ends with.
-    pub(crate) fn ending(self) -> &'static str {
-        match self {
-            Self::Emission => geom_core::KERNEL_DEFECT_ENDING,
-            Self::Unruled => geom_core::NOT_YET_ENDING,
+            Self::Limit => LIMIT_FRAMING,
         }
     }
 }
@@ -655,7 +971,7 @@ impl NamingError {
             | Self::Emission { .. }
             | Self::SplitLineage(_)
             | Self::Settle(_) => Some(Category::Emission),
-            Self::SeamVertexParentage { .. }
+            Self::UnsupportedSeamVertex { .. }
             | Self::SeamVertexPartners { .. }
             | Self::SharedRim { .. }
             | Self::ChordOffRim { .. }
@@ -663,8 +979,40 @@ impl NamingError {
             | Self::ClosedCarrierUnread { .. }
             | Self::CarrierUnplaced { .. }
             | Self::PartnerUnread { .. }
-            | Self::MemberEdgeTied { .. } => Some(Category::Unruled),
+            | Self::MemberEdgeTied { .. }
+            | Self::UnsupportedCrossingSenses { .. }
+            | Self::UnsupportedSeamSides { .. }
+            | Self::UnsupportedJoin { .. }
+            | Self::UnsupportedUnionName { .. } => Some(Category::Unruled),
+            Self::WayInZeroBand { .. }
+            | Self::JoinedPieceOffRoot { .. }
+            | Self::BandVerdictsDisagree { .. } => Some(Category::Limit),
             Self::Band(_) | Self::Escalated { .. } => None,
+        }
+    }
+
+    /// The sentence a refusal ends with, by its category: the defect
+    /// report, the not-yet ending, or a precision limit's own lever
+    /// alone ([`geom_core::lever_recourse`]). `None` where the variant
+    /// states its own.
+    pub(crate) fn ending(&self) -> Option<String> {
+        Some(match self.category()? {
+            Category::Emission => geom_core::KERNEL_DEFECT_ENDING.to_owned(),
+            Category::Unruled => geom_core::NOT_YET_ENDING.to_owned(),
+            Category::Limit => geom_core::lever_recourse(self.lever(), None),
+        })
+    }
+
+    /// The model's lever for a precision-limit variant.
+    fn lever(&self) -> &'static str {
+        match self {
+            Self::WayInZeroBand { .. } => AMBIGUITY_FACTOR_LEVER,
+            Self::JoinedPieceOffRoot { .. } => JOINED_PIECE_LEVER,
+            Self::BandVerdictsDisagree { shape, .. } => shape.lever(),
+            other => unreachable!(
+                "{other:?} has no lever: `NamingError::category` puts exactly the three \
+                 precision-limit variants in `Category::Limit`, and only those ask for one"
+            ),
         }
     }
 }
@@ -734,8 +1082,8 @@ pub(crate) fn ent(body: u32, key: EntityKey) -> EntityRef {
     EntityRef { body, key }
 }
 
-/// The empty table (nodes with no output bodies: datum, profile,
-/// declare, empty boolean).
+/// The empty table (nodes with no output bodies: profile, measure,
+/// assertion, empty boolean).
 pub(crate) fn empty() -> Arc<NameTable> {
     Arc::new(NameTable::new())
 }
@@ -747,21 +1095,26 @@ pub(crate) fn empty() -> Arc<NameTable> {
 /// placers and `Node::Part`, the emitters, the mate walk's `Part`
 /// agreement) and not a number silently narrowed.
 pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
-    to_u32(
-        index,
-        "an output-body index exceeds the table's u32 row width",
-    )
+    u32::try_from(index).map_err(|_| NamingError::Emission {
+        what: "an output-body index exceeds the table's u32 row width",
+    })
 }
 
-/// **A count or index, narrowed to the `u32` the name vocabulary and
-/// the table store**, or [`NamingError::Emission`] with `what` when it
-/// does not fit. The one spelling of that narrowing in `names/`: a
-/// saturating or truncating cast would hand two different values one
-/// stored number, so a name or row would silently alias another. No
-/// body this crate can hold reaches the bound, so meeting it is a
-/// kernel bug, reported loudly.
-pub(crate) fn to_u32(n: usize, what: &'static str) -> Result<u32, NamingError> {
-    u32::try_from(n).map_err(|_| NamingError::Emission { what })
+/// **A count or index of what one body holds, narrowed to the `u32`
+/// the name vocabulary and the table store.** A saturating or
+/// truncating cast would hand two different values one stored number,
+/// so a name or row would silently alias another. Every caller's `n`
+/// is bounded below `u32::MAX` by what it counts — distinct entities of
+/// one kind in one body, which a `topo` arena (a `SlotMap`, refusing
+/// its `u32::MAX`-th slot) caps, or the few pieces a door builds — and
+/// `what` names that subject and its bound, so past it is a kernel bug
+/// and panics with both.
+#[track_caller]
+pub(crate) fn to_u32(n: usize, what: &'static str) -> u32 {
+    let Ok(narrow) = u32::try_from(n) else {
+        unreachable!("{what}: {n} does not fit the u32 a name stores")
+    };
+    narrow
 }
 
 /// **The placement-major layout**, the one home of its arithmetic:
@@ -1109,16 +1462,24 @@ pub(crate) struct Incidence {
 
 impl Incidence {
     /// Builds the incidence maps for one body.
-    pub(crate) fn of<T: geom_core::Real>(body: &Body<T>) -> Result<Self, NamingError> {
-        let bug = || NamingError::Emission {
-            what: "incidence walk: dangling half-edge reference",
-        };
+    ///
+    /// # Panics
+    ///
+    /// For a half-edge whose loop is dead, which a tier-1-valid body
+    /// never holds.
+    #[track_caller]
+    pub(crate) fn of<T: geom_core::Real>(body: &Body<T>) -> Self {
         let mut vertex_edges: BTreeMap<VertexKey, Vec<EdgeKey>> = BTreeMap::new();
         let mut edge_faces: BTreeMap<EdgeKey, Vec<FaceKey>> = BTreeMap::new();
-        for (_, he) in body.half_edges() {
+        for (k, he) in body.half_edges() {
             vertex_edges.entry(he.start).or_default().push(he.edge);
-            let face = body.get_loop(he.parent_loop).ok_or_else(bug)?.face;
-            edge_faces.entry(he.edge).or_default().push(face);
+            let Some(l) = body.get_loop(he.parent_loop) else {
+                unreachable!(
+                    "incidence walk: dangling loop {:?} of half-edge {k:?}; {TIER1}",
+                    he.parent_loop
+                )
+            };
+            edge_faces.entry(he.edge).or_default().push(l.face);
         }
         for v in vertex_edges.values_mut() {
             v.sort_unstable();
@@ -1128,12 +1489,26 @@ impl Incidence {
             f.sort_unstable();
             f.dedup();
         }
-        Ok(Self {
+        Self {
             vertex_edges,
             edge_faces,
-        })
+        }
     }
 }
+
+/// Why a link a record of the body holds resolves: the doors hand the
+/// emitters tier-1-valid bodies.
+const TIER1: &str = "a tier-1-valid body keeps every key it links live and every half-edge mated";
+
+/// Why a key a caller passes resolves: every caller reads it, in the
+/// same call, off a live record of the same body — its arena
+/// iteration, a link of a live entity, or a row of the table emitted
+/// for it, which names only that body's live entities. A live-key
+/// brand would carry this as a type (`topo`'s `Live`), but it would
+/// spread into every emitter signature naming a key, which do not
+/// otherwise care, so row 0 is "no" here.
+const LIVE_ARGUMENT: &str = "every caller reads the key off a live record of this body in the \
+                             same call";
 
 /// What the rim walk found. A caller MUST write down which of the two
 /// it means, because the two mean different things to different callers.
@@ -1143,25 +1518,6 @@ pub(crate) enum Rim {
     /// They do not share exactly one, and which way.
     NotOne(RimShare),
 }
-
-/// Structural corruption the rim walk can meet, one named sentence per
-/// arm.
-///
-/// Named constants rather than a `let bug = |what| …` closure: a
-/// closure taking arbitrary `&'static str` is a general-purpose
-/// `Emission` factory sitting in scope over the cardinality returns
-/// below, and it would take one line to classify a cardinality as a
-/// kernel bug from inside the walk — which is the defect this function
-/// is shaped to prevent. Constants cannot be applied to a new subject.
-const UNMATED: NamingError = NamingError::Emission {
-    what: "rim walk: unmated half-edge",
-};
-const DANGLING_MATE: NamingError = NamingError::Emission {
-    what: "rim walk: dangling mate",
-};
-const DANGLING_LOOP: NamingError = NamingError::Emission {
-    what: "rim walk: dangling loop",
-};
 
 /// The one edge face `f` and face `g` share, or which way they do not
 /// have one.
@@ -1175,125 +1531,150 @@ const DANGLING_LOOP: NamingError = NamingError::Emission {
 /// descended faces carry a seam chord's rim, which is a guess a later
 /// split can legitimately refute.
 ///
-/// What this buys is not that a wrong classification is impossible —
-/// `NamingError::Emission` takes a `&'static str` and anyone may write
-/// one. It is that a caller must **write** its classification: the
-/// return is a [`Rim`], so the cardinality arrives as a value that has
-/// to be matched, and no caller inherits a verdict by saying nothing.
-/// The two hazards that made saying nothing easy are gone with it — no
-/// `map_err` on this path at any call site
-/// (`work/wire/names-flush-and-select-discard-a-refusal-with-map-err-underscore.md`,
-/// closed by PR 2378, is what a `|_|` there costs), and no free-form
-/// `Emission` factory in scope here.
+/// The return is a [`Rim`], so a caller must **write** its
+/// classification: the cardinality arrives as a value to be matched,
+/// and no caller inherits a verdict by saying nothing.
 ///
-/// What the walk DOES refuse is structural corruption of `body` — the
-/// three arms above and the three in [`face_half_edges`]. Those are
-/// about the body rather than about anybody's premise: `topo`'s derived
-/// accessors return `None` exactly for a stale key or a broken
-/// edge/half-edge bijection, so they stay [`NamingError::Emission`]
-/// under every caller.
+/// What the walk does NOT report is structural corruption of `body`
+/// (a dead key, an unmated half-edge): that is about the body rather
+/// than anybody's premise, and the doors keep every body an emitter
+/// reads tier-1-valid, so it panics as a kernel bug under every caller.
 ///
 /// Named `rim_between` rather than `shared_rim`: `topo`'s
 /// `boolean::rim_wedge::shared_rim` answers the same question one layer
 /// down, and one name for two functions in two crates costs every
 /// future reader a `grep` they cannot disambiguate.
-pub(crate) fn rim_between<T: geom_core::Real>(
-    body: &Body<T>,
-    f: FaceKey,
-    g: FaceKey,
-) -> Result<Rim, NamingError> {
-    Ok(match rims_between(body, f, g)?.as_slice() {
+#[track_caller]
+pub(crate) fn rim_between<T: geom_core::Real>(body: &Body<T>, f: FaceKey, g: FaceKey) -> Rim {
+    match rims_between(body, f, g).as_slice() {
         [] => Rim::NotOne(RimShare::NotAdjacent),
         [e] => Rim::One(*e),
         _ => Rim::NotOne(RimShare::Several),
-    })
+    }
 }
 
 /// EVERY edge face `f` and face `g` share, each once, in `f`'s
 /// half-edge order — the walk [`rim_between`] classifies, for a caller
 /// whose premise lets it choose among several by something else (the
 /// boolean pass's chord, [`crate::names::emit_topo`]). Structural
-/// corruption refuses exactly as [`rim_between`] documents.
+/// corruption panics exactly as [`rim_between`] documents.
+#[track_caller]
 pub(crate) fn rims_between<T: geom_core::Real>(
     body: &Body<T>,
     f: FaceKey,
     g: FaceKey,
-) -> Result<Vec<EdgeKey>, NamingError> {
+) -> Vec<EdgeKey> {
     let mut found: Vec<EdgeKey> = Vec::new();
-    for he in face_half_edges(body, f)? {
-        let mate = body.mate(he).ok_or(UNMATED)?;
-        let mate_he = body.get_half_edge(mate).ok_or(DANGLING_MATE)?;
-        let other = body
-            .get_loop(mate_he.parent_loop)
-            .ok_or(DANGLING_LOOP)?
-            .face;
-        if other == g && !found.contains(&mate_he.edge) {
+    for he in face_half_edges(body, f) {
+        let Some(mate) = body.mate(he) else {
+            unreachable!("rim walk: unmated half-edge {he:?} of face {f:?}; {TIER1}")
+        };
+        let Some(mate_he) = body.get_half_edge(mate) else {
+            unreachable!(
+                "rim walk: dangling mate {mate:?} of half-edge {he:?} of face {f:?}; {TIER1}"
+            )
+        };
+        let Some(other) = body.get_loop(mate_he.parent_loop) else {
+            unreachable!(
+                "rim walk: dangling loop {:?} of mate {mate:?} of face {f:?}; {TIER1}",
+                mate_he.parent_loop
+            )
+        };
+        if other.face == g && !found.contains(&mate_he.edge) {
             found.push(mate_he.edge);
         }
     }
-    Ok(found)
+    found
 }
 
 /// A vertex's point in `body` — the one reader of it in this module's
 /// emitters.
+///
+/// # Panics
+///
+/// For a dead vertex ([`LIVE_ARGUMENT`]: `v` is the caller's key) or a
+/// vertex without a point ([`TIER1`]: a link the vertex holds).
+#[track_caller]
 pub(crate) fn vertex_point<T: geom_core::Real>(
     body: &Body<T>,
     v: VertexKey,
-) -> Result<geom_core::Point3<T>, NamingError> {
-    body.get_vertex(v)
-        .and_then(|vd| body.get_point(vd.point))
-        .copied()
-        .ok_or(NamingError::Emission {
-            what: "a vertex without a point",
-        })
+) -> geom_core::Point3<T> {
+    let Some(vd) = body.get_vertex(v) else {
+        unreachable!("vertex point: dangling vertex {v:?}; {LIVE_ARGUMENT}")
+    };
+    let Some(p) = body.get_point(vd.point) else {
+        unreachable!(
+            "vertex point: dead point {:?} of vertex {v:?}; {TIER1}",
+            vd.point
+        )
+    };
+    *p
 }
 
 /// All half-edges of a face (outer loop + rings), deterministic
 /// order.
-pub(crate) fn face_half_edges<T: geom_core::Real>(
-    body: &Body<T>,
-    f: FaceKey,
-) -> Result<Vec<HalfEdgeKey>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let face = body
-        .get_face(f)
-        .ok_or_else(|| bug("face walk: dangling face"))?;
+///
+/// # Panics
+///
+/// For a dead face ([`LIVE_ARGUMENT`]: `f` is the caller's key), or
+/// where [`loop_half_edges`] panics on one of its loops ([`TIER1`]).
+#[track_caller]
+pub(crate) fn face_half_edges<T: geom_core::Real>(body: &Body<T>, f: FaceKey) -> Vec<HalfEdgeKey> {
+    let Some(face) = body.get_face(f) else {
+        unreachable!("face walk: dangling face {f:?}; {LIVE_ARGUMENT}")
+    };
     let mut out = Vec::new();
     for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
-        match body
-            .get_loop(l)
-            .ok_or_else(|| bug("face walk: dangling loop"))?
-            .boundary
-        {
-            topo::LoopBoundary::Empty { .. } => {}
-            topo::LoopBoundary::Cycle { first } => {
-                out.extend(
-                    body.loop_cycle(first)
-                        .ok_or_else(|| bug("face walk: unwalkable loop"))?,
-                );
-            }
-        }
+        out.extend(loop_half_edges(body, l));
     }
-    Ok(out)
+    out
+}
+
+/// The half-edges of loop `l`, in cycle order (none for an empty loop).
+///
+/// # Panics
+///
+/// For a dead loop, or a cycle that does not close ([`TIER1`]): every
+/// caller reads `l` off a live face of `body` ([`face_half_edges`], the
+/// plane pieces' outline walk), a link that face holds.
+#[track_caller]
+pub(crate) fn loop_half_edges<T: geom_core::Real>(body: &Body<T>, l: LoopKey) -> Vec<HalfEdgeKey> {
+    let Some(lp) = body.get_loop(l) else {
+        unreachable!("face walk: dangling loop {l:?}; {TIER1}")
+    };
+    let topo::LoopBoundary::Cycle { first } = lp.boundary else {
+        return Vec::new();
+    };
+    let Some(cycle) = body.loop_cycle(first) else {
+        unreachable!("face walk: unwalkable loop {l:?} from {first:?}; {TIER1}")
+    };
+    cycle
 }
 
 /// The two endpoint vertices of an edge.
-pub(crate) fn edge_ends<T: geom_core::Real>(
-    body: &Body<T>,
-    e: EdgeKey,
-) -> Result<(VertexKey, VertexKey), NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let edge = body
-        .get_edge(e)
-        .ok_or_else(|| bug("edge ends: dangling edge"))?;
-    let start = body
-        .get_half_edge(edge.he_plus)
-        .ok_or_else(|| bug("edge ends: dangling he_plus"))?
-        .start;
-    let end = body
-        .half_edge_end(edge.he_plus)
-        .ok_or_else(|| bug("edge ends: he_plus has no end"))?;
-    Ok((start, end))
+///
+/// # Panics
+///
+/// For a dead edge ([`LIVE_ARGUMENT`]: `e` is the caller's key) or a
+/// broken link from its `he_plus` ([`TIER1`]).
+#[track_caller]
+pub(crate) fn edge_ends<T: geom_core::Real>(body: &Body<T>, e: EdgeKey) -> (VertexKey, VertexKey) {
+    let Some(edge) = body.get_edge(e) else {
+        unreachable!("edge ends: dangling edge {e:?}; {LIVE_ARGUMENT}")
+    };
+    let Some(plus) = body.get_half_edge(edge.he_plus) else {
+        unreachable!(
+            "edge ends: dangling he_plus {:?} of edge {e:?}; {TIER1}",
+            edge.he_plus
+        )
+    };
+    let Some(end) = body.half_edge_end(edge.he_plus) else {
+        unreachable!(
+            "edge ends: he_plus has no end: {:?} of edge {e:?}; {TIER1}",
+            edge.he_plus
+        )
+    };
+    (plus.start, end)
 }
 
 /// TOTALITY (spec D4): every live face/edge/vertex of `body` (output
@@ -1383,7 +1764,7 @@ mod pattern_tests {
             &prof,
             sweep::Extrusion::Distance {
                 depth: 1.0_f64,
-                side: crate::ExtrudeSide::Along,
+                side: sweep::ExtrudeSide::Along,
             },
             Tol::witness(),
         )
@@ -1841,6 +2222,8 @@ mod display_tests {
             "the pair row proves nothing on one key twice"
         );
         let (face0, face1) = (format!("{:?}", pair.0), format!("{:?}", pair.1));
+        let edges = two_edges();
+        let (edge0, edge1) = (format!("{:?}", edges.0), format!("{:?}", edges.1));
         let rows: Vec<(NamingError, Vec<&str>)> = vec![
             (
                 NamingError::Duplicate {
@@ -1867,9 +2250,9 @@ mod display_tests {
                 // payload that greps to nothing would outlive its own
                 // subject.
                 NamingError::Emission {
-                    what: "section face classified On",
+                    what: "a chart cut survives in the result",
                 },
-                vec!["section face classified On"],
+                vec!["a chart cut survives in the result"],
             ),
             (
                 NamingError::Escalated {
@@ -1885,8 +2268,65 @@ mod display_tests {
                 vec!["split lineage of edge"],
             ),
             (
-                NamingError::SeamVertexParentage { vertex: vtx },
-                vec![vtx_shown.as_str()],
+                NamingError::UnsupportedSeamVertex {
+                    vertex: vtx,
+                    shape: SeamVertexShape::LineAcrossSeveralFaces,
+                },
+                vec![vtx_shown.as_str(), "several faces across it"],
+            ),
+            (
+                NamingError::UnsupportedCrossingSenses {
+                    vertex: vtx,
+                    shape: CrossingSensesShape::NameReadsTwoSenses,
+                },
+                vec![vtx_shown.as_str(), "read different senses"],
+            ),
+            (
+                NamingError::UnsupportedSeamSides {
+                    edge: edges.0,
+                    shape: SeamSidesShape::InsideOneParent,
+                },
+                vec![edge0.as_str(), "descend from one parent"],
+            ),
+            (
+                NamingError::UnsupportedJoin {
+                    edge: edges.1,
+                    shape: JoinShape::Outright,
+                },
+                vec![edge1.as_str(), "minted outright"],
+            ),
+            (
+                NamingError::UnsupportedUnionName {
+                    name: Box::new(name.clone()),
+                    shape: UnionNameShape::SeveralParents,
+                },
+                vec!["the end cap", "faces of several parents"],
+            ),
+            (
+                NamingError::WayInZeroBand {
+                    edge: edges.0,
+                    shape: WayShape::Carrier,
+                },
+                vec![edge0.as_str(), "runs neither way", "ambiguity factor K"],
+            ),
+            (
+                NamingError::JoinedPieceOffRoot { edge: edges.1 },
+                vec![
+                    edge1.as_str(),
+                    "lies off an operand edge",
+                    "that operand edge",
+                ],
+            ),
+            (
+                NamingError::BandVerdictsDisagree {
+                    vertex: vtx,
+                    shape: DisagreeShape::FlushSensesDisagree,
+                },
+                vec![
+                    vtx_shown.as_str(),
+                    "disagree on its sense",
+                    "move the geometry",
+                ],
             ),
             (
                 // ONE arena: two `two_faces()` calls hand out keys from
@@ -2058,7 +2498,7 @@ mod display_tests {
                 NamingError::Emission { .. } => 3,
                 NamingError::Escalated { .. } => 4,
                 NamingError::SplitLineage(_) => 5,
-                NamingError::SeamVertexParentage { .. } => 6,
+                NamingError::UnsupportedSeamVertex { .. } => 6,
                 NamingError::SharedRim { .. } => 7,
                 NamingError::SeamVertexPartners { .. } => 8,
                 NamingError::Band(_) => 9,
@@ -2072,6 +2512,13 @@ mod display_tests {
                 NamingError::ShortTie { .. } => 17,
                 NamingError::EntityNamed { .. } => 18,
                 NamingError::ChordOffRim { .. } => 19,
+                NamingError::UnsupportedCrossingSenses { .. } => 20,
+                NamingError::UnsupportedSeamSides { .. } => 21,
+                NamingError::UnsupportedJoin { .. } => 22,
+                NamingError::UnsupportedUnionName { .. } => 23,
+                NamingError::WayInZeroBand { .. } => 24,
+                NamingError::BandVerdictsDisagree { .. } => 25,
+                NamingError::JoinedPieceOffRoot { .. } => 26,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
@@ -2084,65 +2531,118 @@ mod display_tests {
              tests/display_contract.rs by set difference, not by this \
              contiguity check."
         );
+        // Every shape of every variant that carries one, beside the one
+        // row per variant above: each shape's sentence, and the lever a
+        // precision-limit shape ends in, is its own text, so each is
+        // checked on its own.
+        let mut every_shape: Vec<(NamingError, String)> = Vec::new();
+        for &shape in SeamVertexShape::ALL {
+            let err = NamingError::UnsupportedSeamVertex { vertex: vtx, shape };
+            every_shape.push((err, shape.to_string()));
+        }
+        for &shape in CrossingSensesShape::ALL {
+            let err = NamingError::UnsupportedCrossingSenses { vertex: vtx, shape };
+            every_shape.push((err, shape.to_string()));
+        }
+        for &shape in SeamSidesShape::ALL {
+            let err = NamingError::UnsupportedSeamSides {
+                edge: edges.0,
+                shape,
+            };
+            every_shape.push((err, shape.to_string()));
+        }
+        for &shape in JoinShape::ALL {
+            let err = NamingError::UnsupportedJoin {
+                edge: edges.0,
+                shape,
+            };
+            every_shape.push((err, shape.to_string()));
+        }
+        for &shape in UnionNameShape::ALL {
+            let err = NamingError::UnsupportedUnionName {
+                name: Box::new(name.clone()),
+                shape,
+            };
+            every_shape.push((err, shape.to_string()));
+        }
+        for &shape in WayShape::ALL {
+            let err = NamingError::WayInZeroBand {
+                edge: edges.0,
+                shape,
+            };
+            every_shape.push((err, shape.to_string()));
+        }
+        for &shape in DisagreeShape::ALL {
+            let err = NamingError::BandVerdictsDisagree { vertex: vtx, shape };
+            every_shape.push((err, format!("{shape}. Recourse: {}", shape.lever())));
+        }
+        for (err, _) in &every_shape {
+            let shown = err.to_string();
+            assert!(
+                shown.split_whitespace().count() <= test_utils::refusal::BUDGET,
+                "{err:?} renders over the word budget: {shown}"
+            );
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&shown),
+                1,
+                "{err:?} states one recourse: {shown}"
+            );
+        }
+        let rows = rows
+            .into_iter()
+            .map(|(err, wanted)| (err, wanted.into_iter().map(str::to_owned).collect()))
+            .chain(every_shape.into_iter().map(|(err, text)| (err, vec![text])));
         for (err, wanted) in rows {
             let shown = err.to_string();
             for w in wanted {
-                assert!(shown.contains(w), "{err:?} rendered without {w:?}: {shown}");
+                assert!(
+                    shown.contains(w.as_str()),
+                    "{err:?} rendered without {w:?}: {shown}"
+                );
             }
             // The category the variant is in must be the category its
             // sentence puts it in. A not-a-bug refusal that opens with
             // the emission framing sends its author to file a kernel
             // bug against a recipe that is fine, and nothing else in
             // this file would notice.
-            let (mine, theirs) = match expected_framing(&err) {
-                Some(f) if f == EMISSION_FRAMING => (Some(f), Some(UNRULED_FRAMING)),
-                Some(f) => (Some(f), Some(EMISSION_FRAMING)),
-                None => (None, None),
-            };
+            let mine = expected_framing(&err);
             if let Some(f) = mine {
                 assert!(
                     shown.starts_with(&format!("{f}: ")),
                     "{err:?} does not open with its framing: {shown}"
                 );
             }
-            if let Some(f) = theirs {
+            for f in [EMISSION_FRAMING, UNRULED_FRAMING, LIMIT_FRAMING] {
                 assert!(
-                    !shown.contains(f),
-                    "{err:?} speaks the OTHER category's framing: {shown}"
+                    mine == Some(f) || !shown.contains(f),
+                    "{err:?} speaks another category's framing: {shown}"
                 );
-            }
-            if mine.is_none() {
-                for f in [EMISSION_FRAMING, UNRULED_FRAMING] {
-                    assert!(
-                        !shown.contains(f),
-                        "{err:?} has its own sentence and must not borrow a framing: {shown}"
-                    );
-                }
             }
             // A missing rule is not a kernel bug, so its sentence ends
             // in "not yet" and never in the defect report; an emission
-            // bug ends in the report.
-            let (ends, never) = match err.category() {
-                Some(Category::Emission) => (
-                    Some(geom_core::KERNEL_DEFECT_ENDING),
-                    geom_core::NOT_YET_ENDING,
-                ),
-                Some(Category::Unruled) => (
-                    Some(geom_core::NOT_YET_ENDING),
-                    geom_core::KERNEL_DEFECT_ENDING,
-                ),
-                None => (None, geom_core::KERNEL_DEFECT_ENDING),
-            };
-            if let Some(ending) = ends {
+            // bug ends in the report; a precision limit ends in its
+            // lever alone, and in neither.
+            let ends = err.ending();
+            if let Some(ending) = &ends {
                 assert!(
-                    shown.ends_with(ending),
+                    shown.ends_with(ending.as_str()),
                     "{err:?} does not end in its category's ending: {shown}"
                 );
             }
-            assert!(
-                !shown.contains(never),
-                "{err:?} ends in the other category's ending: {shown}"
-            );
+            let others: &[&str] = match ends {
+                Some(_) => &[
+                    geom_core::KERNEL_DEFECT_ENDING,
+                    geom_core::NOT_YET_ENDING,
+                    geom_core::KERNEL_LIMIT_LAST_RESORT,
+                ],
+                None => &[geom_core::KERNEL_DEFECT_ENDING],
+            };
+            for never in others {
+                assert!(
+                    ends.as_ref().is_some_and(|e| e.contains(never)) || !shown.contains(never),
+                    "{err:?} ends in another category's ending: {shown}"
+                );
+            }
             // `crate::py::typed_err` (pncad-py) asserts `reads_as_prose`
             // on every raise, live under release, and its fingerprint is
             // the field brace. A payload rendered through a derived
@@ -2190,8 +2690,8 @@ mod display_tests {
     /// This is the mechanism [`NamingError::SharedRim`]'s doc argues
     /// for, pinned. A unit cube that `topo::validate_closed` accepts
     /// answers "no shared edge" for its two caps — most face pairs of
-    /// most bodies share none — and the walk returns that as a FACT,
-    /// with no [`NamingError`] anywhere in the outer result. A caller
+    /// most bodies share none — and the walk returns that as a FACT, a
+    /// [`Rim`] the caller has to match. A caller
     /// therefore cannot inherit a classification it did not choose:
     /// `emit_sweep` calls the same answer a contradicted key bundle and
     /// `emit_topo` calls it a refuted guess, and both are right because
@@ -2199,16 +2699,14 @@ mod display_tests {
     ///
     /// The control is the pair that DOES share one rim: without it this
     /// row would pass if the walk had stopped finding rims at all. The
-    /// corruption the walk does refuse is driven hop by hop in
+    /// corruption the walk panics on is driven hop by hop in
     /// `walk_tests`.
     #[test]
     fn the_rim_walk_reports_cardinality_as_a_fact() {
         let cube = super::walk_tests::cube();
 
         let wall = cube.side_faces()[0][0];
-        let Rim::One(rim) = rim_between(&cube.body, cube.top, wall)
-            .expect("a sound body raises no emission refusal")
-        else {
+        let Rim::One(rim) = rim_between(&cube.body, cube.top, wall) else {
             panic!("a cap and a wall of a box share exactly one rim");
         };
         assert!(
@@ -2218,12 +2716,9 @@ mod display_tests {
         );
 
         match rim_between(&cube.body, cube.top, cube.bottom) {
-            // `Ok`, not `Err`: the walk hands back a FACT and raises no
-            // refusal, which is what stops a caller inheriting one.
-            Ok(Rim::NotOne(RimShare::NotAdjacent)) => {}
-            Ok(Rim::One(_)) => panic!("opposite caps of a box share no rim"),
-            Ok(Rim::NotOne(other)) => panic!("wanted NotAdjacent, got {other:?}"),
-            Err(e) => panic!("a sound body must raise no refusal here: {e}"),
+            Rim::NotOne(RimShare::NotAdjacent) => {}
+            Rim::One(_) => panic!("opposite caps of a box share no rim"),
+            Rim::NotOne(other) => panic!("wanted NotAdjacent, got {other:?}"),
         }
     }
 
@@ -2232,8 +2727,13 @@ mod display_tests {
     #[test]
     fn the_underdetermined_seam_vertex_reaches_the_node_level_prose() {
         let (a, b) = two_vertices();
-        let carried =
-            |vertex| NodeErrorKind::Naming(NamingError::SeamVertexParentage { vertex }).to_string();
+        let carried = |vertex| {
+            NodeErrorKind::Naming(NamingError::UnsupportedSeamVertex {
+                vertex,
+                shape: SeamVertexShape::NoEdgePair,
+            })
+            .to_string()
+        };
         let (sa, sb) = (carried(a), carried(b));
         assert!(sa.contains(&format!("{a:?}")), "no locator: {sa}");
         assert_ne!(
@@ -2272,7 +2772,9 @@ mod display_tests {
 /// **Each hop of the hand-written walks refuses in its own words**,
 /// driven through a real body with that hop's entity removed
 /// (`Body::with_entity_removed_for_tests`, `topo`'s `sweep-testing`
-/// failure-injection door) and asserted by the sentence it refuses with.
+/// failure-injection door) and asserted by the sentence it refuses with
+/// (`chord_faces` panics instead, a torn body being a kernel bug, and is
+/// asserted by its panic's words).
 ///
 /// The walks: [`rim_between`] and `emit_topo`'s `chord_faces` (half-edge
 /// → mate → mate's loop → face), [`face_half_edges`] (face → loop →
@@ -2311,7 +2813,7 @@ mod walk_tests {
             &prof,
             sweep::Extrusion::Distance {
                 depth: 1.0_f64,
-                side: crate::ExtrudeSide::Along,
+                side: sweep::ExtrudeSide::Along,
             },
             geom_core::Tol::witness(),
         )
@@ -2335,7 +2837,6 @@ mod walk_tests {
         let (top, wall) = (cube.top, cube.side_faces()[0][0]);
         let body = &cube.body;
         let (he, mate) = face_half_edges(body, top)
-            .unwrap()
             .into_iter()
             .map(|he| (he, body.mate(he).unwrap()))
             .find(|&(_, m)| body.face_of_half_edge(m) == Some(wall))
@@ -2369,102 +2870,192 @@ mod walk_tests {
         }
     }
 
-    /// The sentence a walk refused with.
-    fn refusal<V>(walk: &str, r: Result<V, NamingError>) -> &'static str {
-        match r {
-            Err(NamingError::Emission { what }) => what,
-            Err(other) => panic!("{walk}: wanted an emission refusal, got {other}"),
-            Ok(_) => panic!("{walk}: a body with a dangling link must refuse"),
-        }
-    }
-
     #[test]
-    fn the_rim_walk_refuses_each_hop_in_its_own_words() {
+    fn the_rim_walk_finds_the_rim_of_a_sound_box() {
         let r = rim1();
         match rim_between(r.body(), r.top, r.wall) {
-            Ok(Rim::One(e)) => assert_eq!(e, r.edge, "the control finds the rim"),
-            _ => panic!("a cap and a wall of a sound box share exactly one rim"),
+            Rim::One(e) => assert_eq!(e, r.edge, "the control finds the rim"),
+            Rim::NotOne(other) => {
+                panic!("a cap and a wall of a sound box share one rim: {other:?}")
+            }
         }
-        let walk = |body: &Body<f64>| refusal("rim_between", rim_between(body, r.top, r.wall));
-        // The half-edge's edge is gone: it has no mate.
-        assert_eq!(
-            walk(&r.without(EntityId::Edge(r.edge))),
-            "rim walk: unmated half-edge"
-        );
-        // The mate is named but gone: the first hop.
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(r.mate))),
-            "rim walk: dangling mate"
-        );
-        // The mate is live and its loop is gone: the second hop.
-        assert_eq!(walk(&r.without(r.wall_loop())), "rim walk: dangling loop");
+    }
+
+    /// The half-edge's edge is gone: it has no mate.
+    #[test]
+    #[should_panic(expected = "rim walk: unmated half-edge")]
+    fn the_rim_walk_panics_on_an_unmated_half_edge() {
+        let r = rim1();
+        rim_between(&r.without(EntityId::Edge(r.edge)), r.top, r.wall);
+    }
+
+    /// The mate is named but gone: the first hop.
+    #[test]
+    #[should_panic(expected = "rim walk: dangling mate")]
+    fn the_rim_walk_panics_on_a_dangling_mate() {
+        let r = rim1();
+        rim_between(&r.without(EntityId::HalfEdge(r.mate)), r.top, r.wall);
+    }
+
+    /// The mate is live and its loop is gone: the second hop.
+    #[test]
+    #[should_panic(expected = "rim walk: dangling loop")]
+    fn the_rim_walk_panics_on_a_dangling_loop() {
+        let r = rim1();
+        rim_between(&r.without(r.wall_loop()), r.top, r.wall);
+    }
+
+    /// The chord walk over the cube's top as a section face, through
+    /// `body`.
+    fn chord_walk(r: &Rim1, body: &Body<f64>) -> BTreeMap<EdgeKey, FaceKey> {
+        let sections = [(r.top, PlaneSide::Above)];
+        let keys = BTreeSet::from([r.top]);
+        chord_faces(body, &sections, &keys)
     }
 
     #[test]
-    fn the_chord_walk_refuses_each_hop_in_its_own_words() {
+    fn the_chord_walk_carries_the_rim_to_the_face_across_it() {
         let r = rim1();
-        let sections = [(r.top, PlaneSide::Above)];
-        let keys = BTreeSet::from([r.top]);
-        let control = chord_faces(r.body(), &sections, &keys).unwrap();
         assert_eq!(
-            control.get(&r.edge),
+            chord_walk(&r, r.body()).get(&r.edge),
             Some(&r.wall),
             "the control carries the rim edge to the wall across it"
         );
-        let walk = |body: &Body<f64>| refusal("chord_faces", chord_faces(body, &sections, &keys));
-        assert_eq!(
-            walk(&r.without(EntityId::Edge(r.edge))),
-            "chord mate missing"
-        );
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(r.mate))),
-            "chord mate dangling"
-        );
-        assert_eq!(walk(&r.without(r.wall_loop())), "chord loop dangling");
     }
 
     #[test]
-    fn the_face_walk_refuses_each_hop_in_its_own_words() {
+    #[should_panic(expected = "chord mate missing")]
+    fn the_chord_walk_panics_on_an_unmated_half_edge() {
         let r = rim1();
-        let hes = face_half_edges(r.body(), r.top).unwrap();
-        assert_eq!(hes.len(), 4, "the control walks the square cap");
-        let walk = |body: &Body<f64>| refusal("face_half_edges", face_half_edges(body, r.top));
+        chord_walk(&r, &r.without(EntityId::Edge(r.edge)));
+    }
+
+    #[test]
+    #[should_panic(expected = "chord mate dangling")]
+    fn the_chord_walk_panics_on_a_dangling_mate() {
+        let r = rim1();
+        chord_walk(&r, &r.without(EntityId::HalfEdge(r.mate)));
+    }
+
+    #[test]
+    #[should_panic(expected = "chord loop dangling")]
+    fn the_chord_walk_panics_on_a_dangling_loop() {
+        let r = rim1();
+        chord_walk(&r, &r.without(r.wall_loop()));
+    }
+
+    #[test]
+    fn the_face_walk_walks_the_square_cap() {
+        let r = rim1();
         assert_eq!(
-            walk(&r.without(EntityId::Face(r.top))),
-            "face walk: dangling face"
-        );
-        let outer = r.body().get_face(r.top).unwrap().outer;
-        assert_eq!(
-            walk(&r.without(EntityId::Loop(outer))),
-            "face walk: dangling loop"
-        );
-        // A live loop whose cycle runs through a removed half-edge.
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(hes[1]))),
-            "face walk: unwalkable loop"
+            face_half_edges(r.body(), r.top).len(),
+            4,
+            "the control walks the square cap"
         );
     }
 
     #[test]
-    fn edge_ends_refuses_each_hop_in_its_own_words() {
+    #[should_panic(expected = "face walk: dangling face")]
+    fn the_face_walk_panics_on_a_dangling_face() {
+        let r = rim1();
+        face_half_edges(&r.without(EntityId::Face(r.top)), r.top);
+    }
+
+    #[test]
+    #[should_panic(expected = "face walk: dangling loop")]
+    fn the_face_walk_panics_on_a_dangling_loop() {
+        let r = rim1();
+        let outer = r.body().get_face(r.top).unwrap().outer;
+        face_half_edges(&r.without(EntityId::Loop(outer)), r.top);
+    }
+
+    /// A live loop whose cycle runs through a removed half-edge.
+    #[test]
+    #[should_panic(expected = "face walk: unwalkable loop")]
+    fn the_face_walk_panics_on_an_unwalkable_loop() {
+        let r = rim1();
+        let hes = face_half_edges(r.body(), r.top);
+        face_half_edges(&r.without(EntityId::HalfEdge(hes[1])), r.top);
+    }
+
+    #[test]
+    fn edge_ends_reads_two_ends_of_a_sound_edge() {
+        let r = rim1();
+        let (start, end) = edge_ends(r.body(), r.edge);
+        assert_ne!(start, end, "the control reads two ends");
+    }
+
+    #[test]
+    #[should_panic(expected = "edge ends: dangling edge")]
+    fn edge_ends_panics_on_a_dangling_edge() {
+        let r = rim1();
+        edge_ends(&r.without(EntityId::Edge(r.edge)), r.edge);
+    }
+
+    #[test]
+    #[should_panic(expected = "edge ends: dangling he_plus")]
+    fn edge_ends_panics_on_a_dangling_he_plus() {
+        let r = rim1();
+        let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
+        edge_ends(&r.without(EntityId::HalfEdge(he_plus)), r.edge);
+    }
+
+    #[test]
+    #[should_panic(expected = "edge ends: he_plus has no end")]
+    fn edge_ends_panics_on_a_he_plus_with_no_end() {
         let r = rim1();
         let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
         let next = r.body().get_half_edge(he_plus).unwrap().next;
-        let (start, end) = edge_ends(r.body(), r.edge).unwrap();
-        assert_ne!(start, end, "the control reads two ends");
-        let walk = |body: &Body<f64>| refusal("edge_ends", edge_ends(body, r.edge));
+        edge_ends(&r.without(EntityId::HalfEdge(next)), r.edge);
+    }
+
+    #[test]
+    #[should_panic(expected = "incidence walk: dangling loop")]
+    fn the_incidence_walk_panics_on_a_dangling_loop() {
+        let r = rim1();
+        Incidence::of(&r.without(r.wall_loop()));
+    }
+
+    /// The rim edge's start, read off the sound cube.
+    fn rim_start(r: &Rim1) -> VertexKey {
+        edge_ends(r.body(), r.edge).0
+    }
+
+    #[test]
+    fn vertex_point_reads_a_sound_vertex() {
+        let r = rim1();
+        let v = rim_start(&r);
+        let at = *r
+            .body()
+            .get_point(r.body().get_vertex(v).unwrap().point)
+            .unwrap();
+        let p = vertex_point(r.body(), v);
         assert_eq!(
-            walk(&r.without(EntityId::Edge(r.edge))),
-            "edge ends: dangling edge"
+            [p.x, p.y, p.z],
+            [at.x, at.y, at.z],
+            "the control reads the vertex's point"
         );
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(he_plus))),
-            "edge ends: dangling he_plus"
-        );
-        assert_eq!(
-            walk(&r.without(EntityId::HalfEdge(next))),
-            "edge ends: he_plus has no end"
-        );
+    }
+
+    #[test]
+    #[should_panic(expected = "vertex point: dangling vertex")]
+    fn vertex_point_panics_on_a_dangling_vertex() {
+        let r = rim1();
+        let v = rim_start(&r);
+        vertex_point(&r.without(EntityId::Vertex(v)), v);
+    }
+
+    #[test]
+    #[should_panic(expected = "vertex point: dead point")]
+    fn vertex_point_panics_on_a_vertex_without_a_point() {
+        let r = rim1();
+        let v = rim_start(&r);
+        let point = r.body().get_vertex(v).unwrap().point;
+        let torn = r
+            .body()
+            .with_point_removed_for_tests(point)
+            .expect("the vertex's point is live");
+        vertex_point(&torn, v);
     }
 }
 
@@ -2585,27 +3176,24 @@ mod conventional_vertex_tests {
 mod to_u32_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{NamingError, to_u32};
+    use super::to_u32;
 
-    /// The last value a `u32` holds narrows exactly; the first one past
-    /// it is refused with the caller's own sentence, never saturated
-    /// onto `u32::MAX` where it would share that value's name.
+    /// The last value a `u32` holds narrows exactly.
     #[test]
-    fn narrows_to_the_bound_and_refuses_past_it() {
+    fn narrows_to_the_bound() {
         let max = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
-        assert_eq!(to_u32(max, "unused").ok(), Some(u32::MAX));
-        assert_eq!(to_u32(0, "unused").ok(), Some(0));
-        let Some(past) = max.checked_add(1) else {
-            return; // a 32-bit usize holds no value past the bound
-        };
-        assert!(
-            matches!(
-                to_u32(past, "the caller's sentence"),
-                Err(NamingError::Emission {
-                    what: "the caller's sentence"
-                })
-            ),
-            "one past u32::MAX is refused, not saturated"
-        );
+        assert_eq!(to_u32(max, "unused"), u32::MAX);
+        assert_eq!(to_u32(0, "unused"), 0);
+    }
+
+    /// The first value past the bound panics with the caller's own
+    /// sentence and the value, never saturated onto `u32::MAX` where it
+    /// would share that value's name.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    #[should_panic(expected = "the caller's sentence: 4294967296 does not fit")]
+    fn panics_one_past_the_bound() {
+        let past = usize::try_from(u64::from(u32::MAX) + 1).expect("a 64-bit usize");
+        to_u32(past, "the caller's sentence");
     }
 }

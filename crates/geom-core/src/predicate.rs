@@ -98,10 +98,18 @@
 //! home**; every door, type and conversion below points here rather
 //! than restating it:
 //!
-//! - **inf** for a "definitely apart" claim, where a certified LOWER
-//!   bound under-states the length and so cannot certify a sliver;
-//! - **sup** for an overshoot or an escape, where a certified UPPER
-//!   bound over-states the displacement and so can only refuse.
+//! - **sup certifies smallness**: a certified UPPER bound over-states
+//!   the length, so a `Zero` read through it — an overshoot within the
+//!   band, an escape that did not happen, an extent that is metrically
+//!   a whole turn — is sound, and a definite verdict through it can
+//!   only refuse;
+//! - **a definite verdict past the band needs inf**: a certified LOWER
+//!   bound under-states the length, so it is what certifies "definitely
+//!   apart" (and cannot certify a sliver);
+//! - **where the two disagree, the decision escalates** — a quantity
+//!   read through both whose readings straddle the band
+//!   ([`crate::k_stats::straddle`]; [`crate::period`]'s turn rule is the
+//!   shared form).
 //!
 //! Both are transparent tags rather than positivity witnesses: a rate
 //! of zero, infinity or poison means something different at each site
@@ -119,10 +127,13 @@
 //! error is the in-band verdict.
 //!
 //! Naming (see [`Indeterminate::with_predicate`]): a predicate's static
-//! name identifies the *decision* that classified the margin, and the leaf
-//! predicate function attaches it at its own definition site. Composite
-//! predicates do not rename — higher layers add context through their own
-//! typed error wrappers (D4 ¶3), never by overwriting the leaf's name.
+//! name identifies the *decision* that classified the margin, and the
+//! site that asks the decision attaches it — the leaf predicate at its
+//! own definition, or a caller of a shared rule, which passes its own
+//! name into the rule ([`crate::period::TurnRows`]) so each site's
+//! population stays separable. Composite predicates do not rename —
+//! higher layers add context through their own typed error wrappers
+//! (D4 ¶3), never by overwriting the name a decision was asked under.
 //!
 //! # Boundary and special-value semantics (f64)
 //!
@@ -670,13 +681,17 @@ impl<T: crate::real::Real> Margin<T> {
 
     /// Door: a **dimensionless** quantity levered by an **arm** —
     /// computes `x · arm`. The dimensional argument: `x` is a pure
-    /// number (a sine or cosine of unit vectors, an angle or angular
-    /// difference in radians, a curvature × length product such as
+    /// number (a sine or cosine of unit vectors, an angle between two
+    /// directions or frames, a curvature × length product such as
     /// `κ·L`), and `arm` is the length lever that converts it to the
     /// point deviation it implies (D4's θ·r form). The arm names the
     /// geometry that would move: a radius, an extent, a sector chord, a
     /// curvature arm. Multiplication is the door's one operation, so
     /// `levered(x, arm)` is bit-identical to the bare `x * arm`.
+    ///
+    /// A span or gap in a chart's or curve's PARAMETER is not such an
+    /// `x`, radians included: it crosses through the rate pair
+    /// ([`Margin::metered`], [`Margin::metered_sup`]; `[tolerance.margins]` clause (iii)).
     pub fn levered(x: T, arm: T) -> Self {
         Self(x * arm)
     }
@@ -710,7 +725,10 @@ impl<T: crate::real::Real> Margin<T> {
 
     /// Metric door (clause (iii) at the seam): a **parameter-space
     /// span** crossed to model space by its per-kind **metric rate** —
-    /// computes `span * rate`. The dimensional argument: `span` is in
+    /// computes `span * rate`. Every span or gap in a chart's or
+    /// curve's parameter crosses here or at [`Margin::metered_sup`],
+    /// an angular parameter's radians included; [`Margin::levered`] is
+    /// for dimensionless quantities that are not parameters. The dimensional argument: `span` is in
     /// the carrier's parameter units and `rate` is the kind's metres
     /// per parameter unit, so the product is the model-space length
     /// the span subtends. This is the levered door's shape with a rate
@@ -1350,6 +1368,14 @@ pub const UNREADABLE_MARGIN_NOTE: &str =
 pub const UNREADABLE_STORED_MARGIN_NOTE: &str =
     "an unreadable margin may indicate a kernel or file defect worth reporting";
 
+/// What an unreadable margin may mean at the STEP import door, which a
+/// damaged file reaches (a Part 21 real that overflows to ±inf among
+/// them): [`UNREADABLE_MARGIN_NOTE`]'s twin there.
+pub const UNREADABLE_FILE_MARGIN_NOTE: &str = concat!(
+    "an unreadable margin may indicate a damaged file worth reporting ",
+    crate::to_the_files_writer!()
+);
+
 /// **The recourse, labelled**: `Recourse: {action}`, the one spelling
 /// of the label a refusal's way through opens with.
 #[derive(Clone, Copy, Debug)]
@@ -1606,8 +1632,12 @@ impl FileCoincidence {
                 format!("{head}, to which alone the file's data claims to agree. {stopgap}")
             }
             (MissSource::File, Within::Partly) => format!(
-                "{head}, to which alone the file's data claims to agree. {stopgap}; a miss that \
-                 persists there is a kernel defect or a damaged file, worth reporting"
+                concat!(
+                    "{}, to which alone the file's data claims to agree. {}; a miss that persists \
+                     there means the file is damaged, worth reporting ",
+                    crate::to_the_files_writer!()
+                ),
+                head, stopgap
             ),
             (MissSource::Fit, _) => format!(
                 "{head}, and may be the kernel's own approximation. {stopgap}; this refusal may \
@@ -2348,7 +2378,22 @@ macro_rules! kernel_or_file_defect_ending {
 #[macro_export]
 macro_rules! damaged_file_ending {
     () => {
-        "There is no way through: the file is damaged; report it to the program that wrote it"
+        concat!(
+            "There is no way through: the file is damaged; report it ",
+            $crate::to_the_files_writer!()
+        )
+    };
+}
+
+/// Whom a damaged file is reported to, as a literal for `concat!`: the
+/// one spelling every sentence that names a damaged file shares
+/// ([`DAMAGED_FILE_ENDING`], [`UNREADABLE_FILE_MARGIN_NOTE`], and the
+/// import door's miss that may persist past ε_in).
+#[doc(hidden)]
+#[macro_export]
+macro_rules! to_the_files_writer {
+    () => {
+        "to the program that wrote it"
     };
 }
 
@@ -3726,8 +3771,8 @@ mod tests {
                  1e-6 m; this refusal may indicate a kernel bug worth reporting"
             )
         };
-        let persists = "; a miss that persists there is a kernel defect or a damaged file, worth \
-                        reporting";
+        let persists = "; a miss that persists there means the file is damaged, worth reporting \
+                        to the program that wrote it";
         let banded = |m| MissReading::Banded(m, band);
         for (miss, lies) in [
             (banded(MarginDiag::value(5e-9)), Some("within")),

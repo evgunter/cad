@@ -129,7 +129,9 @@ mod closure;
 mod curved;
 mod loop_area;
 pub mod quad;
+pub mod rational_rim;
 pub mod spiric;
+pub(crate) mod taylor;
 
 use geom::Curve3;
 use geom_core::spline::SpanLocate;
@@ -138,11 +140,11 @@ use geom_core::{Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, Point3, Real, Sized
 use crate::recourse::{Reading, RefusedArm, RefusedSide, SizedDecision, Unsized};
 
 pub use curved::{
-    MaterialSign, boundary_material_sign, boundary_material_sign_loops, cone_face_closed_form,
-    curved_face, curved_face_loops, require_iso_rectangle, require_one_chart_branch,
-    sphere_region_material_sign,
+    MaterialSign, SeamCover, SeamLoops, boundary_material_sign, boundary_material_sign_loops,
+    cone_face_closed_form, curved_face, curved_face_loops, require_iso_rectangle,
+    require_one_chart_branch, seam_loops, sphere_region_cover, sphere_region_material_sign,
 };
-pub use loop_area::{arc_segment_term, chord_bulge, loop_vector_area};
+pub use loop_area::{arc_segment_term, chord_bulge, is_rational, loop_vector_area};
 
 /// One traversed boundary edge of a face loop: a key-free view of
 /// (carrier, certified `he_plus`-forward parameter interval, traversal
@@ -381,12 +383,33 @@ pub enum PropsError {
     /// its boundary encodes — the side of its loops with positive
     /// area, which no chart pole enters — so the bit is inverted.
     SenseInverted,
+    /// **A sphere seam region's faces overlap**: under their sense bits,
+    /// its members claim the region `times` times over (`times ≥ 2`,
+    /// [`sphere_region_cover`]). Tier 3's check 6 refuses the same region
+    /// (`ValidationError::SeamRegionOvercovered`).
+    SeamRegionOvercovered {
+        /// How many times over the members claim the region.
+        times: usize,
+    },
+    /// **A sphere seam region's cover census is undecided**: in the band
+    /// of a half-sphere threshold, or below its floor of no cover
+    /// ([`SeamCover::Unresolved`]). Tier 3's check 6 refuses the same
+    /// (`ValidationError::SeamRegionCoverUnresolved`).
+    SeamRegionCoverUnresolved,
+    /// **Two faces of one sphere meet with their material on one side of
+    /// their seam**: their sense bits disagree across a shared edge, a
+    /// lamina there. It is the finding tier 3's check 4 names
+    /// (`ValidationError::LaminaWedge`), read here off the seam region
+    /// ([`SeamCover::MixedSense`]), since the measurement door runs no
+    /// check 4.
+    SeamRegionSensesDisagree,
     /// **A hole is wound the same way as its face** (`props_ring_winding`):
     /// a ring's signed area has the sign of the face's whole, where a
     /// hole's boundary is traversed opposite to the region it is cut
     /// from. Its area would be ADDED to the face's. Stored data that is
-    /// wrong, whichever lane reads it: the closed forms' and the
-    /// cylinder quadrature's one decision (`curved::require_holes_wound_against`).
+    /// wrong, whichever lane reads it: the closed forms', the cylinder
+    /// quadrature's and the spiric lane's one decision
+    /// (`curved::require_holes_wound_against`).
     RingWoundWithFace,
     /// **A loop does not close on its periodic chart**
     /// (`props_chart_junction_open`): at one junction the edge after
@@ -486,38 +509,28 @@ pub enum PropsError {
         /// which stays routing a developer reads in `Debug`.
         check: PropsCheck,
     },
-    /// The certified quadrature's enclosure would not tighten to its
-    /// target within the refinement budget (M5 PR 11; the
-    /// [`quad`] module docs give the rule and the target's metering).
-    /// Certified bounds or typed refusal — never a silently wide
-    /// answer. Both payloads are LENGTHS (mean boundary displacement),
-    /// the same metering as tier 3's volume check.
-    ///
-    /// Two-tolerance shape, stated: the in-band twin of this refusal is
-    /// [`PropsError::Escalated`] on `props_quad_converged` (a margin
-    /// close to the target escalates through the funnel before the
-    /// budget can run out); this arm is the *definite* "the enclosure
-    /// floor sits above the target" outcome. The recourse is the ε
-    /// knob: the target scales with the run's ε.
+    /// The certified quadrature's enclosure did not tighten to the
+    /// reporting resolution before its lane stopped, at its floor or at
+    /// the work wall (M5 PR 11; the [`quad`] module docs give the rule
+    /// and the stop, and `topo`'s number doors the resolution). Certified
+    /// bounds or typed refusal — never a silently wide answer. Both
+    /// payloads are LENGTHS (mean boundary displacement), the same
+    /// metering as tier 3's volume check. A resolution is a sizing, so
+    /// the width is compared with it and nothing is decided: there is no
+    /// in-band twin. The recourse is the ε knob: the resolution scales
+    /// with the run's ε.
     QuadratureBudget {
-        /// The enclosure width the schedule reached, as a length (m):
-        /// the last round's own when the schedule ran out, or — when a
-        /// round proved that the last round could not certify either
-        /// and the loop refused without running it — the lower bound
-        /// every remaining round's width was proven to exceed, which
-        /// is the last round's width to within the midpoint sum's own
-        /// rounding width ([`quad`]'s `last_round_width_lo` says what
-        /// the bound omits and why it is a bound). Either way a width
-        /// that really missed: strictly above `target_len`.
+        /// The width of the narrowest enclosure the lane reached, as a
+        /// length (m). The narrowest round is chosen by flux width, so
+        /// this is not necessarily the last round's width, nor
+        /// necessarily over `target_len` in the area lever this length
+        /// is metered by.
         width_len: f64,
         /// The convergence target, as a length (m).
         target_len: f64,
-        /// The refinement rounds the loop ran before refusing: the
-        /// schedule's full count when it ran out; `1` when the
-        /// last-round bound refused the face after round 0; `0` on the
-        /// exact arm, which has no composite round. A receipt for what
-        /// the refusal cost, and the witness that the early exit fired
-        /// — a width alone cannot tell the two apart.
+        /// The refinement rounds the lane ran before it stopped: `0` on
+        /// the exact arm, which has no composite round. A receipt for
+        /// what the refusal cost.
         rounds: usize,
     },
     /// A quadrature input is outside the lane's certified inventory
@@ -602,8 +615,8 @@ pub const FACE_EXTENT: SizedDecision = SizedDecision {
 ///
 /// **"Simplify the trim" is not a lever this refusal has**, and it is
 /// gone. Nothing in the payload is about the trim; the refusal is
-/// raised on the exact arm and on the last round's proven lower bound,
-/// where no trim complexity is implicated; and D4 ¶1 (i) names a
+/// raised where the lane stopped, at its floor or its work wall, where
+/// no trim complexity is implicated; and D4 ¶1 (i) names a
 /// quadrature budget spent as its own example of a refusal that would
 /// otherwise name no recourse at all, which is what licenses naming
 /// loosening here and nowhere a geometry lever exists.
@@ -683,6 +696,20 @@ impl core::fmt::Display for PropsError {
                 "a face's holes cover more area than its outer boundary encloses, so they \
                  overlap one another or leave the face. {KERNEL_OR_FILE_DEFECT_ENDING}"
             ),
+            Self::SeamRegionOvercovered { times } => write!(
+                f,
+                "the faces of one sphere overlap: together they cover their region {times} \
+                 times. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
+            Self::SeamRegionCoverUnresolved => f.write_str(
+                "whether the faces of one sphere overlap cannot be decided at this tolerance. \
+                 Recourse: measure at a finer tolerance",
+            ),
+            Self::SeamRegionSensesDisagree => write!(
+                f,
+                "two faces of one sphere meet with their material on the same side of the edge \
+                 between them, so the body is a sheet there. {KERNEL_OR_FILE_DEFECT_ENDING}"
+            ),
             Self::SenseContradicted => write!(
                 f,
                 "a sphere face's orientation sense contradicts the side its boundary encodes: \
@@ -746,8 +773,9 @@ impl core::fmt::Display for PropsError {
                 rounds,
             } => write!(
                 f,
-                "a face's certified contribution stayed {width_len:.3e} m wide after {rounds} \
-                 refinement round(s), above the {target_len:.3e} m this tolerance targets. {}",
+                "a face's quadrature stopped after {rounds} refinement round(s) without its \
+                 certified contribution meeting the {target_len:.3e} m this tolerance targets; \
+                 its narrowest enclosure is {width_len:.3e} m wide. {}",
                 quadrature_budget_recourse(*width_len)
             ),
             Self::QuadratureUnsupported { what } => write!(
@@ -783,9 +811,10 @@ impl std::error::Error for PropsError {}
 ///
 /// # Errors
 ///
-/// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier
-/// (non-rational spline boundaries integrate exactly through
-/// [`loop_vector_area`]'s per-span Gauss closed form — the reachable
+/// [`PropsError::Unimplemented`] on a rational `Nurbs` carrier, which
+/// the certified lane reads instead ([`rational_rim`]); non-rational
+/// spline boundaries integrate exactly through
+/// [`loop_vector_area`]'s per-span Gauss closed form (the reachable
 /// at-rest case is a stage-1-promoted plane keeping its parsed spline
 /// boundary carriers).
 pub fn planar_face<T: SpanLocate>(
@@ -912,41 +941,6 @@ mod tests {
         for msg in [&definite, &in_band] {
             assert!(!msg.contains("declare"), "{msg}");
         }
-    }
-
-    /// **A last round's zero, which the convergence gate rejects, ends in
-    /// the last resort at rest.** `converged` re-asks a last-round `Zero`
-    /// through `decide_positive`, so the escalation carries the gate's
-    /// rejected zero; the meter is the enclosure's own width, so that
-    /// rejection is the kernel's approximation limit
-    /// ([`PropsCheck::Converged`]), never a stored contradiction. Red if
-    /// [`Unsized::Fit`] ends a gate's rejected zero as its definite arm.
-    #[test]
-    fn a_last_rounds_rejected_zero_ends_in_the_last_resort() {
-        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
-        let cause = geom_core::k_stats::decide_positive(
-            "props_quad_converged",
-            geom_core::Margin::of(5e-10),
-            band,
-        )
-        .unwrap_err();
-        assert_eq!(
-            cause.margin.rejected_sign(),
-            Some(geom_core::Sign::Zero),
-            "tagged"
-        );
-        assert_eq!(
-            PropsError::Escalated {
-                cause,
-                check: PropsCheck::Converged,
-            }
-            .to_string(),
-            format!(
-                "whether the quadrature's enclosure has converged is undecided: margin 5e-10 lies \
-                 within the zero band (±1e-9). {}",
-                geom_core::KERNEL_LIMIT_RECOURSE
-            )
-        );
     }
 
     /// **The in-band arm's ending follows its CHECK, not its predicate

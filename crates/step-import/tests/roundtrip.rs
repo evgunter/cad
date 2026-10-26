@@ -6,7 +6,7 @@
 
 use crate::common;
 
-use common::{SOLID_FIXTURES, arena_census, expect_sidecar, fixture, import_body};
+use common::{SOLID_FIXTURES, arena_census, at_rest, expect_sidecar, fixture, import_body};
 use geom_core::Tol;
 
 /// Row 1 per fixture: census against the sidecar's `KERNEL_*` fields
@@ -53,7 +53,7 @@ fn committed_corpus_row(name: &str) {
     //   * the rounding of each side's sum: each side's volume is a
     //     fixed-order sum of per-face terms, each face read about a
     //     vertex of its shell (`topo::props`' `shell_reference`, the
-    //     start of the shell's first face). Import traversal need not
+    //     start of the shell's first quadrature face). Import traversal need not
     //     match construction order, so the two sides may sum in
     //     different orders and read a face about different vertices:
     //     their terms are not the same values, only the same sum in the
@@ -145,7 +145,7 @@ fn fixed_point() {
             ..step_export::StepOptions::default()
         };
         let (body1, _) = import_body(name);
-        let export1 = step_export::step_string(&body1, &options, Tol::witness())
+        let export1 = step_export::step_string(&at_rest(&body1), &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
         // STEP has no native contact concept, so export drops the kiss
         // record and the re-import's gate records the touch again.
@@ -185,18 +185,24 @@ fn fixed_point() {
             arena_census(&body2),
             "{name}: census identical across the adoption pass"
         );
-        let v1 = topo::mass_properties(&body1, Tol::witness())
-            .unwrap()
-            .volume;
-        let v2 = topo::mass_properties(&body2, Tol::witness())
-            .unwrap()
-            .volume;
+        let v1 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body1.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
+        let v2 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body2.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         assert_eq!(
             v1.to_bits(),
             v2.to_bits(),
             "{name}: certified volume bit-identical across the adoption pass"
         );
-        let export2 = step_export::step_string(&body2, &options, Tol::witness())
+        let export2 = step_export::step_string(&at_rest(&body2), &options, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
         if line_promotions == 0 {
             assert_eq!(
@@ -230,7 +236,7 @@ fn fixed_point() {
             .unwrap_or_else(|e| panic!("{name}: re-import 2: {e}")) else {
                 panic!("{name}: re-import 2 lost the solid");
             };
-            let export3 = step_export::step_string(&body3, &options, Tol::witness())
+            let export3 = step_export::step_string(&at_rest(&body3), &options, Tol::witness())
                 .unwrap_or_else(|e| panic!("{name}: re-export 3: {e}"));
             assert_eq!(
                 export2, export3,

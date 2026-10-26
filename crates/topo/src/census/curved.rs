@@ -24,7 +24,7 @@
 use geom::Curve3;
 use geom_brep::curve_pair::{Hit, MeetFault, Meeting, Span, meet};
 use geom_brep::roots::Unsettled;
-use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign};
+use geom_core::{Band, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 
 use super::{CensusSubject, CensusUnsupportedCause, ValidationError};
 use crate::body::Body;
@@ -181,9 +181,41 @@ fn on_interior_reading<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Option<MarginDiag>> {
+    on_interior_at(body, r, q, band, errors).map(|on| on.map(|(_, margin)| margin))
+}
+
+/// **`e`'s tangent where `q` lies on its interior**, along its plus
+/// half and scaled to the edge's extent: `Some(None)` where `q` is not
+/// on the interior; `None` where a decision escalated or the edge is not
+/// read (pushed).
+pub(super) fn tangent_on_interior<T: Decide>(
+    body: &Body<T>,
+    e: EdgeKey,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<Vec3<T>>> {
+    let r = read(body, e, band, errors)?;
+    let (t0, t1) = r.span;
+    let chord = r.curve.eval(t0).distance(r.curve.eval(t1));
+    let extent = geom_brep::edge_extent(&r.curve, t0, t1, chord);
+    Some(
+        on_interior_at(body, &r, q, band, errors)?
+            .map(|(t, _)| r.curve.deriv(t).normalize() * extent),
+    )
+}
+
+/// [`on_interior_reading`], keeping the parameter `q`'s foot is at.
+fn on_interior_at<T: Decide>(
+    body: &Body<T>,
+    r: &Read<T>,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<Option<(T, MarginDiag)>> {
     let span = span(body, r);
     match span.contact(q, geom::mid_param(r.span.0, r.span.1), band) {
-        Ok(Some(Hit::On { margin, .. })) => Some(Some(margin)),
+        Ok(Some(Hit::On { t, margin })) => Some(Some((t, margin))),
         Ok(Some(Hit::End(_)) | None) => Some(None),
         Err(geom::CarrierRefusal::Escalated(cause) | geom::CarrierRefusal::Straddle(cause)) => {
             errors.push(ValidationError::CensusEscalated { cause });
@@ -221,6 +253,46 @@ pub(super) fn curved_interiors_meet<T: Decide>(
     let ra = read(body, a, band, errors)?;
     let rb = read(body, b, band, errors)?;
     reads_meet(body, &ra, &rb, band, errors)
+}
+
+/// **An edge's span as these lanes read it**: its certified curve over
+/// its span, with no ends where it is closed on a conventional vertex
+/// ([`span`]). The ray's edge read (`boolean::solid_contain`) reads a
+/// point against an edge through it, so the census and the ray read one
+/// span.
+pub(crate) struct EdgeSpan<T: Real> {
+    read: Read<T>,
+    endless: bool,
+}
+
+impl<T: Decide> EdgeSpan<T> {
+    /// The edge's carrier.
+    pub(crate) fn carrier(&self) -> &Curve3<T> {
+        &self.read.curve
+    }
+
+    /// Its span's middle parameter.
+    pub(crate) fn middle(&self) -> T {
+        geom::mid_param(self.read.span.0, self.read.span.1)
+    }
+
+    /// Its span, read as the census reads it.
+    pub(crate) fn span(&self) -> Span<'_, T> {
+        let span = Span::new(&self.read.curve, self.read.span);
+        if self.endless { span.endless() } else { span }
+    }
+}
+
+/// `edge`'s [`EdgeSpan`], `None` where the census's read of it refuses
+/// (no certified curve, or a speed bound that meters no length).
+pub(crate) fn edge_span<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    band: Band,
+) -> Option<EdgeSpan<T>> {
+    let read = read(body, edge, band, &mut Vec::new())?;
+    let endless = on_conventional_vertex(body, &read);
+    Some(EdgeSpan { read, endless })
 }
 
 /// `r`'s span, with no ends where its edge is closed on a conventional

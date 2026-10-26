@@ -27,9 +27,10 @@
 
 use geom::Curve3;
 use geom::Surface;
+use geom_core::period::{Exact, Extent, NotForward, TurnRate, TurnRows};
 use geom_core::{
-    Band, Decide, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign, UNIT_DIRECTION_ARM,
-    UnitVec3, UnitVec3Error, Vec3,
+    Band, Decide, InfSpeed, LeveredUnitError, Margin, Point3, Real, RigidMotion, Sign,
+    UNIT_DIRECTION_ARM, UnitVec3, UnitVec3Error, Vec3,
 };
 
 use super::closure::{self, ChartLoop, EdgeTurn, Joint};
@@ -866,7 +867,7 @@ struct Rim<T: Real> {
     d_u_sign: Sign,
     /// Carrier parameter span `t1 − t0` (angle-true; `Δu`), decided
     /// within certification's per-edge bound ([`Rim::decided`]).
-    dt: T,
+    dt: Extent<T>,
     /// The rim's iso-level, dimension carried by the variant (see
     /// [`RimLevel`] and the per-surface call sites).
     level: RimLevel<T>,
@@ -886,10 +887,10 @@ impl<T: Decide> Rim<T> {
         r_c: T,
         band: Band,
     ) -> Result<Self, PropsError> {
-        require_rim_span(e, r_c, band)?;
+        let dt = require_rim_span(e, r_c, band)?;
         Ok(Self {
             d_u_sign,
-            dt: e.t1 - e.t0,
+            dt,
             level,
         })
     }
@@ -1324,7 +1325,7 @@ fn cylinder_chart<T: Decide>(
                     what: "a cylinder rim carried a non-length level",
                 });
             };
-            rims.push((v, t_sign::<T>(rim.d_u_sign) * rim.dt));
+            rims.push((v, t_sign::<T>(rim.d_u_sign) * rim.dt.get()));
         }
         levels.extend(b.levels);
         spans.push((first_rim, length - length_before));
@@ -1502,9 +1503,11 @@ fn cylinder_holes<T: Decide>(
 /// area, silently ([`PropsError::RingWoundWithFace`]); a whole or a
 /// hole of no width is a degenerate face.
 ///
-/// The cylinder quadrature reads its rings through this same decision at
-/// the interval scalar (`quad::cylinder_cut_face_rounds`), where an
-/// enclosure that straddles the band escalates rather than takes a side.
+/// The cylinder quadrature and the spiric lane read their rings
+/// through this same decision at the interval scalar
+/// (`quad::cylinder_cut_face_rounds`,
+/// `spiric::require_rings_wound_against`), where an enclosure that
+/// straddles the band escalates rather than takes a side.
 ///
 /// Which rings are holes is the caller's to say, and the kinds differ
 /// on purpose: the cylinder passes over a ring that winds it
@@ -1856,6 +1859,32 @@ pub fn cone_face_closed_form<T: Decide>(
     })
 }
 
+/// **A loop through the apex sweeps at most a turn**: its net azimuth
+/// `total` (signed, in the loop's sense) at the arm `arm`, decided
+/// definitely nonzero (`props_cone_apex_loop_net`; a loop sweeping none
+/// bounds nothing and refuses) and not over a turn
+/// (`props_cone_apex_loop_sweep`, the turn rule), each refusing as
+/// [`PropsError::ConeLoop`].
+fn apex_loop_sweep<T: Decide>(total: T, arm: T, band: Band) -> Result<(), PropsError> {
+    let escalated = |cause| PropsError::Escalated {
+        cause,
+        check: PropsCheck::Inventory,
+    };
+    let net = "props_cone_apex_loop_net";
+    let (_, extent) = Extent::decide_signed(net, total, InfSpeed::new(arm), band).map_err(
+        |cause: geom_core::Indeterminate| match cause.margin.rejected_sign() {
+            Some(Sign::Zero) => PropsError::ConeLoop { what: net },
+            _ => escalated(cause),
+        },
+    )?;
+    let sweep = "props_cone_apex_loop_sweep";
+    match Period::new(T::tau()).not_over(TurnRows::exact(sweep), extent, Exact::new(arm), band) {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(PropsError::ConeLoop { what: sweep }),
+        Err(undecided) => Err(escalated(undecided.diag)),
+    }
+}
+
 /// **A cone face's loops, read and decided to bound its region once** —
 /// the one reading the flux arm ([`cone_face_closed_form`]) and the
 /// material sign ([`cone_material_sign`]) share, so the side the gate
@@ -1885,18 +1914,8 @@ fn cone_face_read<T: Decide>(
     let ring_charts = || rings.iter().map(|r| &r.chart);
     let windings = if w.through_apex {
         // A loop through the apex has no winding: the azimuth it sweeps
-        // is a sector's, a slit cap's whole turn admitted (Zero).
-        if classify(
-            "props_cone_apex_loop_sweep",
-            Margin::levered(T::tau() - w.total.abs(), w.arm),
-            band,
-            PropsCheck::Inventory,
-        )? == Sign::Negative
-        {
-            return Err(PropsError::ConeLoop {
-                what: "props_cone_apex_loop_sweep",
-            });
-        }
+        // is a sector's, a slit cap's whole turn admitted.
+        apex_loop_sweep(w.total, w.arm, band)?;
         let mut windings = vec![[0]];
         windings.extend(closure::closed_loop_turns(ring_charts(), band)?);
         // A ring that winds the axis beside a loop through the apex is not
@@ -2372,25 +2391,38 @@ fn radial_sag<T: Real>(q0: Vec3<T>, q1: Vec3<T>) -> T {
 /// under the rim's names at its own radius ([`require_rim_span`]). An
 /// ellipse arc is no rim: its span is decided under its own names,
 /// `props_cone_ellipse_span_forward` / `props_cone_ellipse_span_winding`,
-/// at certification's ellipse meter, the smaller semi-axis magnitude,
-/// refusing as [`PropsError::ConeLoop`].
+/// at certification's ellipse rates (the speed floor forward, and the inf
+/// and sup over the turn's defect for the turn), refusing as
+/// [`PropsError::ConeLoop`].
 fn require_cone_conic_spans<T: Decide>(
     edges: &[LoopEdge<T>],
     band: Band,
 ) -> Result<(), PropsError> {
     for e in edges {
         match e.carrier {
-            Curve3::Circle { radius, .. } => require_rim_span(e, radius, band)?,
-            Curve3::Ellipse { semi_u, semi_v, .. } => require_span_within_period(
-                e,
-                semi_u.abs().min(semi_v),
-                band,
-                [
-                    "props_cone_ellipse_span_forward",
+            Curve3::Circle { radius, .. } => {
+                require_rim_span(e, radius, band)?;
+            }
+            ref ellipse @ Curve3::Ellipse { .. } => {
+                let Some(floor) = geom::carrier_speed::speed_floor(ellipse) else {
+                    unreachable!("`speed_floor` answers an ellipse")
+                };
+                let rows = TurnRows::bounded(
                     "props_cone_ellipse_span_winding",
-                ],
-                |what| PropsError::ConeLoop { what },
-            )?,
+                    "props_cone_ellipse_span_winding_straddle",
+                );
+                require_span_within_period(
+                    (e.t0, e.t1),
+                    floor,
+                    |extent| {
+                        let rate = geom::carrier_speed::turn_defect_rate(ellipse, e.t0, extent);
+                        (rate, rows)
+                    },
+                    "props_cone_ellipse_span_forward",
+                    band,
+                    |what| PropsError::ConeLoop { what },
+                )?;
+            }
             _ => {}
         }
     }
@@ -2892,7 +2924,10 @@ fn cone_apex_level<T: Decide>(
     if unanimous_rim_dir(&b.rims).is_none() {
         return Ok(());
     }
-    require_rim_only_closed(edges, span_sum(&b.rims), b.arms.azimuth, band)?;
+    let Some(du) = span_sum(&b.rims) else {
+        unreachable!("a unanimous direction is read off at least one rim")
+    };
+    require_rim_only_closed(edges, du, b.arms.azimuth, band)?;
     b.levels.push(T::zero());
     Ok(())
 }
@@ -2904,9 +2939,10 @@ fn cone_apex_level<T: Decide>(
 /// answered half the cap's area, and the
 /// same full rim stated twice double.
 ///
-/// **A SUM is not a COVER.** The comparand is `(Δu − τ)` at the rim
-/// radius ([`RimArms::azimuth`]), the arc the spans fail to total a
-/// turn by. It admits any multiset of same-direction arcs whose spans
+/// **A SUM is not a COVER.** The question is the turn rule's whole turn
+/// ([`geom_core::period`]), the headroom `(τ − Δu)` at the rim radius
+/// ([`RimArms::azimuth`]): the arc the spans fail to total a turn by.
+/// It admits any multiset of same-direction arcs whose spans
 /// total `τ` — the same HALF rim stated twice covers half the circle —
 /// so the arcs must also TILE: `props_rim_only_join` decides, for each
 /// edge in the loop's own order, that its traversal END is the next
@@ -2926,16 +2962,21 @@ fn cone_apex_level<T: Decide>(
 /// rim of the one group, in loop order.
 fn require_rim_only_closed<T: Decide>(
     edges: &[LoopEdge<T>],
-    du: T,
+    du: Extent<T>,
     arm: T,
     band: Band,
 ) -> Result<(), PropsError> {
-    require_zero(
-        "props_rim_only_closed",
-        Margin::levered(du - T::tau(), arm),
-        band,
-        Premise::Inventory,
-    )?;
+    let name = "props_rim_only_closed";
+    match Period::new(T::tau()).whole_turn(TurnRows::exact(name), du, Exact::new(arm), band) {
+        Ok(true) => {}
+        Ok(false) => return Err(Premise::Inventory.refusal(name)),
+        Err(undecided) => {
+            return Err(PropsError::Escalated {
+                cause: undecided.diag,
+                check: Premise::Inventory.check(),
+            });
+        }
+    }
     // The joins, in the loop's own order: edge `i`'s traversal END is
     // edge `i + 1`'s traversal START, cyclically. A point deviation in
     // metres.
@@ -2962,10 +3003,10 @@ fn unanimous_rim_dir<T: Real>(rims: &[Rim<T>]) -> Option<Sign> {
 
 /// The `Δu` a one-group rim set spans — the plain sum of the stored
 /// spans, asked only where a fold has already established one group
-/// (one level, one direction). It decides nothing and records nothing; the
-/// deciding is [`require_rim_only_closed`]'s.
-fn span_sum<T: Real>(rims: &[Rim<T>]) -> T {
-    rims.iter().fold(T::zero(), |acc, r| acc + r.dt)
+/// (one level, one direction); `None` for no rims. It decides nothing
+/// and records nothing; the deciding is [`require_rim_only_closed`]'s.
+fn span_sum<T: Real>(rims: &[Rim<T>]) -> Option<Extent<T>> {
+    rims.iter().map(|r| r.dt).reduce(|acc, dt| acc + dt)
 }
 
 /// The cone's azimuthal lever arm: the first rim's own radius
@@ -3142,7 +3183,7 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
             let u = arc.start - arc.centre;
             let w = arc.axis.cross(u);
             let at = |phi: T| (arc.centre - center) + u * phi.cos() + w * phi.sin();
-            let delta = arc.span / pieces;
+            let delta = arc.extent.get() / pieces;
             // The arc's own end points, as its edge evaluates them, so
             // the faces either side of an edge fan over the same points.
             let (first, last) = if arc.forward {
@@ -3162,7 +3203,7 @@ fn solid_angle<T: Decide>(center: Point3<T>, lp: &SphereLoop<T>, left: bool) -> 
         .fold(Vec3::zero(), |sum, &p| sum + p);
     let mut fan = T::zero();
     for (arc, ends) in lp.arcs.iter().zip(&thirds) {
-        let delta = arc.span / pieces;
+        let delta = arc.extent.get() / pieces;
         // The carrier plane's offset along its (unit) axis, over the
         // sphere's radius as the carrier states it, and `ρ²/R²`.
         let offset = (arc.centre - center).dot(arc.axis);
@@ -3302,7 +3343,7 @@ struct SphereArc<T: Real> {
     axis: Vec3<T>,
     radius: T,
     start: Point3<T>,
-    span: T,
+    extent: Extent<T>,
     forward: bool,
     from: Point3<T>,
     depart: Vec3<T>,
@@ -3394,8 +3435,8 @@ fn sphere_loop<T: Decide>(
             Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
             band,
         )?;
-        require_span_within_period(
-            e,
+        let extent = require_circle_span(
+            (e.t0, e.t1),
             r_c,
             band,
             [
@@ -3405,7 +3446,7 @@ fn sphere_loop<T: Decide>(
             |what| PropsError::SphereLoop { what },
         )?;
         let (from, at) = e.traversal_ends();
-        let span = e.t1 - e.t0;
+        let span = extent.get();
         // `N·â` is the same at every point of the arc.
         let k = normal(from).dot(n_c) * span;
         curvature = if e.forward {
@@ -3423,7 +3464,7 @@ fn sphere_loop<T: Decide>(
             axis: n_c,
             radius: r_c,
             start: e.p0(),
-            span,
+            extent,
             forward: e.forward,
             from,
             depart: tangent(from),
@@ -3538,18 +3579,11 @@ fn side_of_sphere_loops<T: Decide>(
             what: "sphere face with an empty boundary",
         }),
         [one] => pole_free_side(center, radius, axis, one, band),
-        [outer, rings @ ..] => {
-            let face = |left: bool| {
-                rings
-                    .iter()
-                    .fold(solid_angle(center, outer, left), |s, ring| {
-                        s - solid_angle(center, ring, !left)
-                    })
-            };
+        [_, _, ..] => {
             for (left, side) in [(true, Sign::Positive), (false, Sign::Negative)] {
                 if classify(
                     "props_sphere_face_area",
-                    Margin::levered(face(left), radius),
+                    Margin::levered(claimed_area(center, gauss, left), radius),
                     band,
                     PropsCheck::Inventory,
                 )? == Sign::Positive
@@ -3562,6 +3596,25 @@ fn side_of_sphere_loops<T: Decide>(
             })
         }
     }
+}
+
+/// **The area, in steradians, that `loops` bound on their `left`
+/// side** under the chart normal: the first loop's side less each
+/// other's opposite side (`Ω₀ − Σ (4π − Ωᵢ)`, each `Ω` a
+/// [`solid_angle`]), the Gauss–Bonnet area of a sphere with that many
+/// holes. Under the wrong side of a face with holes it is
+/// `4π(1 − r) − Area`, negative for `r ≥ 1` holes. The one home of the
+/// reading, for a face's side ([`side_of_sphere_loops`]) and a seam
+/// region's claims ([`sphere_region_cover`]) alike.
+fn claimed_area<T: Decide>(center: Point3<T>, loops: &[SphereLoop<T>], left: bool) -> T {
+    let Some((outer, rings)) = loops.split_first() else {
+        return T::from_f64(2.0) * T::tau();
+    };
+    rings
+        .iter()
+        .fold(solid_angle(center, outer, left), |s, ring| {
+            s - solid_angle(center, ring, !left)
+        })
 }
 
 /// **The side of a one-loop sphere face's loop that holds no chart
@@ -3612,43 +3665,31 @@ fn agreed_side<T: Decide>(
     Ok(reading.map_or(MaterialSign::Unencoded, MaterialSign::Encoded))
 }
 
-/// **The side of a seam region of one sphere's faces**, read off the
-/// region's own boundary. A face whose loop holds both chart poles
-/// encodes no side alone ([`pole_free_side`]), but the faces on its
-/// surface that it reaches across shared edges tile one region, the
-/// loops' traversals agree across every edge they share, and that
-/// region encodes a side wherever its boundary does. `boundary` is the
-/// region's boundary (the members' edges no other member shares,
-/// chained into loops); `members` is every loop of every member.
-///
-/// * **No boundary**: the members close the sphere. `Unencoded`. Once
-///   over, they are a shell whose orientation tier 3's volume checks
-///   read; more than once, their faces overlap and no reading here
-///   tells.
-/// * **Two or more boundary loops**: the sign of the region's
-///   Gauss–Bonnet area, as for a face with holes.
-/// * **One boundary loop**: read at each pole on an edge interior to
-///   the region, on some member's loop and off the boundary. The region
-///   holds that pole, so it is the side of the boundary that holds it.
-///   A pole on no member's loop is not read: the region would be the
-///   side without it only if no face held a chart singularity off its
-///   loop, which validity does not yet refuse. `Unencoded` when no pole
-///   is read, among them a boundary carrying both poles: that region
-///   and its complement are both legal, and for a region of one face,
-///   flipping its bit describes the other one, a valid body and not a
-///   defect.
+/// **A sphere seam region's loops, read once** for both region reads
+/// ([`sphere_region_material_sign`], [`sphere_region_cover`]): its
+/// boundary, chained into loops, and every loop of every member, each
+/// parsed by [`sphere_loop`] against the sphere's chart.
+pub struct SeamLoops<T: Real> {
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    boundary: Vec<SphereLoop<T>>,
+    members: Vec<SphereLoop<T>>,
+}
+
+/// [`SeamLoops`] of the region on `surface` whose boundary is `boundary`
+/// and whose members' loops are `members`.
 ///
 /// # Errors
 ///
-/// As [`boundary_material_sign_loops`], over the boundary and the
-/// members; [`PropsError::SphereLoop`] for a surface that is not a
-/// sphere.
-pub fn sphere_region_material_sign<T: Decide>(
+/// [`sphere_loop`]'s premises over the boundary and the members;
+/// [`PropsError::SphereLoop`] for a surface that is not a sphere.
+pub fn seam_loops<T: Decide>(
     surface: &Surface<T>,
     boundary: &[&[LoopEdge<T>]],
     members: &[&[LoopEdge<T>]],
     band: Band,
-) -> Result<MaterialSign, PropsError> {
+) -> Result<SeamLoops<T>, PropsError> {
     let Surface::Sphere {
         center,
         radius,
@@ -3660,24 +3701,215 @@ pub fn sphere_region_material_sign<T: Decide>(
             what: "a seam region read on a surface that is not a sphere",
         });
     };
-    let gauss = sphere_loops(center, radius, boundary, band)?;
-    let [one] = gauss.as_slice() else {
-        return if gauss.is_empty() {
+    Ok(SeamLoops {
+        center,
+        radius,
+        axis,
+        boundary: sphere_loops(center, radius, boundary, band)?,
+        members: sphere_loops(center, radius, members, band)?,
+    })
+}
+
+/// **The side of a seam region of one sphere's faces**, read off the
+/// region's own boundary. A face whose loop holds both chart poles
+/// encodes no side alone ([`pole_free_side`]), but the faces on its
+/// surface that it reaches across shared edges tile one region, the
+/// loops' traversals agree across every edge they share, and that
+/// region encodes a side wherever its boundary does.
+///
+/// * **No boundary**: the members close the sphere. `Unencoded`: covered
+///   once, they are a shell whose orientation tier 3's volume checks
+///   read; their overlap is the cover census's ([`sphere_region_cover`]),
+///   not the side's.
+/// * **Two or more boundary loops**: the sign of the region's
+///   Gauss–Bonnet area, as for a face with holes.
+/// * **One boundary loop**: read at each pole on an edge interior to
+///   the region, on some member's loop and off the boundary. The region
+///   holds that pole, so it is the side of the boundary that holds it.
+///   A pole on no member's loop is not read: the region would be the
+///   side without it only if no face held a chart singularity off its
+///   loop, which validity does not yet refuse. `Unencoded` when no pole
+///   is read, among them a boundary carrying both poles: that region
+///   and its complement are both legal, and for a region of one face,
+///   flipping its bit describes the other one, a valid body and not a
+///   defect. For a region of two faces or more, all flipped, the faces
+///   overlap, which the cover census refuses.
+///
+/// # Errors
+///
+/// As [`boundary_material_sign_loops`].
+pub fn sphere_region_material_sign<T: Decide>(
+    region: &SeamLoops<T>,
+    band: Band,
+) -> Result<MaterialSign, PropsError> {
+    let SeamLoops {
+        center,
+        radius,
+        axis,
+        ..
+    } = *region;
+    let [one] = region.boundary.as_slice() else {
+        return if region.boundary.is_empty() {
             Ok(MaterialSign::Unencoded)
         } else {
-            side_of_sphere_loops(center, radius, axis, &gauss, band)
+            side_of_sphere_loops(center, radius, axis, &region.boundary, band)
         };
     };
-    let members = sphere_loops(center, radius, members, band)?;
     agreed_side(axis, |pole| {
         let p = center + pole * radius;
-        for arc in members.iter().flat_map(|m| &m.arcs) {
+        for arc in region.members.iter().flat_map(|m| &m.arcs) {
             if pole_against_arc(arc, p, band)?.1 {
                 return Ok(pole_side(center, radius, pole, one, band)?.map(Sign::flip));
             }
         }
         Ok(None)
     })
+}
+
+/// **How many times a seam region's faces cover it**, as their sense
+/// bits claim ([`sphere_region_cover`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SeamCover {
+    /// The members claim the region once: no overlap.
+    Once,
+    /// The members claim the region `times` times (`times ≥ 2`): their
+    /// faces overlap. A region whose members all carry the wrong bit
+    /// claims it `times = Σ χ_f − χ_R + 1` times
+    /// ([`sphere_region_cover`]'s count), among them:
+    ///
+    /// * three or more faces covering the sphere twice over, with no
+    ///   boundary (`times = 2`);
+    /// * `n ≥ 2` one-loop faces bounded by `m ≥ 1` loops, all flipped
+    ///   (`times = n + m − 1`): a both-poles pair is `2`;
+    /// * `n ≥ 3` lunes of a whole ball, all flipped (`times = n − 1`):
+    ///   an inside-out ball of two lunes claims the sphere once and is
+    ///   the volume checks', one of three lunes or more is refused here.
+    Over {
+        /// How many times the members claim the region.
+        times: usize,
+    },
+    /// A threshold read in the band: the cover cannot be certified, so
+    /// the census refuses rather than read `Once`. A whole census
+    /// stands `2πR` metres from both thresholds, past every span read
+    /// its loops passed ([`sphere_region_cover`]), so no region of a
+    /// body whose loops read reaches it: it is the census's loud end.
+    Unresolved,
+    /// The members' sense bits disagree, so the claims are no cover
+    /// and the census says nothing. A member whose bit differs from a
+    /// neighbour's across a shared edge is a lamina there, check 4's to
+    /// refuse; the census does not read it.
+    MixedSense,
+}
+
+/// **The cover census of a seam region**: how many times its members
+/// claim it under their sense bits. `claims` pairs each member's sense
+/// bit with the run of `region`'s member loops that are its own.
+///
+/// **The census.** Each member claims the side of its loops its bit
+/// names, of area [`claimed_area`]. The members' half-edges agree across
+/// every edge they share, so the number of claims over a point jumps by
+/// one across the region's boundary and nowhere else: it is the
+/// boundary's claimed side plus a whole number `c` of spheres, and the
+/// census `S = Σ claims − boundary's claim` is `4π·c` steradians exactly
+/// (with no boundary, the boundary's claim is the whole sphere, `4π`).
+/// The members claim the region `c + 1` times. Read under its true bits
+/// a region reads `c = 0`, whatever its poles and whatever its boundary
+/// carries; no pole is read.
+///
+/// **The count under the wrong bits.** A member of `L` loops and true
+/// area `A` claims `4π(2 − L) − A` under its flipped bit, and a boundary
+/// of `m` loops likewise claims `4π(2 − m) − A_R`, so with every
+/// member's bit wrong
+/// `c = Σ_f (2 − L_f) − (2 − m) = Σ_f χ_f − χ_R`, the Euler
+/// characteristics of the members and the region as spheres with holes.
+/// For `n` one-loop members, `c = n + m − 2`. It is never negative:
+/// counting the region's cells, `χ_R = Σ_f χ_f + V − E` over its
+/// vertices and edges, and its boundary loops hold as many of each, so
+/// `c = E° − V°` over those off the boundary; each vertex off it ends
+/// two such edges or more, so `2E° ≥ 2V°`. Under any bits, then, a seam
+/// region's census is `0` or `Σ χ_f − χ_R ≥ 0`.
+///
+/// **Reading `c`.** `c` is read against the half-sphere thresholds
+/// `(c ± ½)·4π` with the band's decide (`props_sphere_region_cover`),
+/// each a solid angle levered by the radius `R`, as
+/// [`side_of_sphere_loops`] reads a face's area. A whole census stands
+/// `2πR` metres from both thresholds. Every arc of the region's loops
+/// passed its own span read (`props_sphere_arc_span_forward`), a span
+/// levered by the arc's radius `ρ ≤ R`, so `2πR ≥ span·ρ` exceeds a
+/// band each of them cleared: where the loops read, a whole census is
+/// never in the band, and a sphere too small for it refuses at its
+/// loops first. A threshold read in the band refuses
+/// [`SeamCover::Unresolved`].
+///
+/// What it does not read:
+///
+/// * a ringed member whose bit contradicts its own area reading claims
+///   a negative "area" (`4π(1 − r) − Area`). Signed Gauss–Bonnet area
+///   is additive, so that claim can keep `c = 0`; the member's own face
+///   read ([`sphere_loop_side`]) refuses it;
+/// * members whose bits disagree ([`SeamCover::MixedSense`]).
+///
+/// # Errors
+///
+/// [`PropsError::SphereLoop`] for a region with no member, and for a
+/// census decided below `−½` or past `members + ½`
+/// (`props_sphere_region_cover_untiled`): no seam region's count lies
+/// there (the count above), so the loops handed in tile no region, an
+/// internal error rather than a reading of a body.
+pub fn sphere_region_cover<T: Decide>(
+    region: &SeamLoops<T>,
+    claims: &[(bool, core::ops::Range<usize>)],
+    band: Band,
+) -> Result<SeamCover, PropsError> {
+    let untiled = PropsError::SphereLoop {
+        what: "props_sphere_region_cover_untiled",
+    };
+    let Some((sense, _)) = claims.first() else {
+        return Err(PropsError::SphereLoop {
+            what: "a seam region with no member",
+        });
+    };
+    if claims.iter().any(|(s, _)| s != sense) {
+        return Ok(SeamCover::MixedSense);
+    }
+    let sphere = T::from_f64(2.0) * T::tau();
+    let mut census = -claimed_area(region.center, &region.boundary, *sense);
+    for (_, run) in claims {
+        let loops = region
+            .members
+            .get(run.clone())
+            .ok_or(PropsError::SphereLoop {
+                what: "a seam region's claim names loops it does not hold",
+            })?;
+        census = census + claimed_area(region.center, loops, *sense);
+    }
+    // Above the threshold `c` spheres, below it, or in its band.
+    let above = |c: f64| match classify(
+        "props_sphere_region_cover",
+        Margin::levered(census - T::from_computed(c) * sphere, region.radius),
+        band,
+        PropsCheck::Inventory,
+    ) {
+        Ok(Sign::Positive) => Some(true),
+        Ok(Sign::Negative) => Some(false),
+        Ok(Sign::Zero) | Err(_) => None,
+    };
+    match above(-0.5) {
+        Some(true) => {}
+        Some(false) => return Err(untiled),
+        None => return Ok(SeamCover::Unresolved),
+    }
+    // Each member's claim is at most the whole sphere, so the members
+    // claim the region at most `members + 1` times.
+    for c in 0..=claims.len() {
+        match above(c as f64 + 0.5) {
+            Some(false) if c == 0 => return Ok(SeamCover::Once),
+            Some(false) => return Ok(SeamCover::Over { times: c + 1 }),
+            Some(true) => {}
+            None => return Ok(SeamCover::Unresolved),
+        }
+    }
+    Err(untiled)
 }
 
 /// Where the point `p` on the sphere stands against `arc`: the side of
@@ -3773,13 +4005,7 @@ fn pole_side<T: Decide>(
     };
     let mut turning = lp.corners;
     for (arc, c) in lp.arcs.iter().zip(circulations) {
-        let full = classify(
-            "props_sphere_pole_arc_full",
-            Margin::levered(T::tau() - arc.span, arc.radius),
-            band,
-            PropsCheck::Inventory,
-        )? == Sign::Zero;
-        let sweep = if full {
+        let sweep = if pole_arc_full(arc.extent, arc.radius, band)? {
             c * T::tau()
         } else {
             let d = push(arc.from, arc.depart);
@@ -3804,6 +4030,18 @@ fn pole_side<T: Decide>(
     )
 }
 
+/// Whether a sphere arc of `extent` on a circle of `radius` is a whole
+/// circle (`props_sphere_pole_arc_full`, the turn rule's whole turn).
+fn pole_arc_full<T: Decide>(extent: Extent<T>, radius: T, band: Band) -> Result<bool, PropsError> {
+    let rows = TurnRows::exact("props_sphere_pole_arc_full");
+    Period::new(T::tau())
+        .whole_turn(rows, extent, Exact::new(radius), band)
+        .map_err(|undecided| PropsError::Escalated {
+            cause: undecided.diag,
+            check: PropsCheck::Inventory,
+        })
+}
+
 /// Whether the point `p`, on `arc`'s carrier, lies within its stored
 /// span, as a margin ([`span_membership`], levered by the circle
 /// radius).
@@ -3812,18 +4050,22 @@ fn arc_point_margin<T: Decide>(arc: &SphereArc<T>, p: Point3<T>) -> Margin<T> {
     let rr = arc.radius.powi(2);
     let q = p - arc.centre;
     let (ps, pc) = (q.dot(w0) / rr, q.dot(arc.axis.cross(w0)) / rr);
-    Margin::levered(span_membership(ps, pc, arc.span), arc.radius)
+    Margin::levered(span_membership(ps, pc, arc.extent.get()), arc.radius)
 }
 
-/// **The rim span door**: [`require_span_within_period`] at a coaxial
+/// **The rim span door**: [`require_circle_span`] at a coaxial
 /// circle's own radius `r_c`, as `props_rim_span_forward` /
 /// `props_rim_span_winding`, refusing [`PropsError::NotIsoRectangle`].
 /// Asked by [`Rim::decided`] at every rim mint, and by
 /// [`require_cone_conic_spans`] wherever the cone reads a circle's span
 /// without minting a rim.
-fn require_rim_span<T: Decide>(e: &LoopEdge<T>, r_c: T, band: Band) -> Result<(), PropsError> {
-    require_span_within_period(
-        e,
+fn require_rim_span<T: Decide>(
+    e: &LoopEdge<T>,
+    r_c: T,
+    band: Band,
+) -> Result<Extent<T>, PropsError> {
+    require_circle_span(
+        (e.t0, e.t1),
         r_c,
         band,
         ["props_rim_span_forward", "props_rim_span_winding"],
@@ -3831,7 +4073,7 @@ fn require_rim_span<T: Decide>(e: &LoopEdge<T>, r_c: T, band: Band) -> Result<()
     )
 }
 
-/// **The meridian span door**: [`require_span_within_period`] at the
+/// **The meridian span door**: [`require_circle_span`] at the
 /// meridian circle's radius — the sphere's `R`, the torus's minor
 /// radius — as `props_meridian_span_forward` /
 /// `props_meridian_span_winding`, refusing
@@ -3843,38 +4085,60 @@ fn require_meridian_span<T: Decide>(
     radius: T,
     band: Band,
 ) -> Result<(), PropsError> {
-    require_span_within_period(
-        e,
+    require_circle_span(
+        (e.t0, e.t1),
         radius,
         band,
         ["props_meridian_span_forward", "props_meridian_span_winding"],
         |what| PropsError::NotIsoRectangle { what },
     )
+    .map(|_| ())
+}
+
+/// [`require_span_within_period`] on a circle of radius `radius`, whose
+/// speed is its radius everywhere: the forward half at it, the turn at
+/// [`Exact`].
+fn require_circle_span<T: Decide>(
+    span: (T, T),
+    radius: T,
+    band: Band,
+    [forward, winding]: [&'static str; 2],
+    refuse: fn(&'static str) -> PropsError,
+) -> Result<Extent<T>, PropsError> {
+    require_span_within_period(
+        span,
+        InfSpeed::new(radius),
+        |_| (Exact::new(radius), TurnRows::exact(winding)),
+        forward,
+        band,
+        refuse,
+    )
 }
 
 /// **Certification's per-edge span bounds, re-decided at the parse**:
 /// the stored span is definitely forward and does not definitely
-/// exceed one period. Certification enforces `0 < Δt ≤ τ` on every
-/// edge — `interval_span_forward` (the span `Δt·r`, definitely
-/// positive) and `interval_span_winding` (the headroom `(τ − Δt)·r`,
-/// not definitely negative), both at the linear band — and every span
-/// read here rests on that bound; a loop built without a body
+/// exceed one period, certification's check 2 (`interval_span_forward`,
+/// then the turn rule, [`geom_core::period`]) at the linear band. Every
+/// span read here rests on that bound; a loop built without a body
 /// ([`LoopEdge::hand_built`]) can state any span, so both halves are
-/// decided under their own names with certification's margins and
+/// decided under the asker's own names with certification's rates and
 /// band, hence its dispositions: the forward half admits only a
-/// definite `Positive` span (certification's `IntervalNotForward`),
-/// the winding half admits `Zero` and `Positive` headroom (a span in
-/// the coincidence band above τ is one certification admits too);
-/// either decide's ambiguity band escalates.
+/// definite `Positive` span (certification's `IntervalNotForward`), the
+/// turn is asked "not over" ([`Period::not_over`]), refusing an extent
+/// over a turn; an undecided reading escalates. The rate is the asker's,
+/// read off the decided extent (a bounded rate's sup is over the turn's
+/// defect); the extent is returned for the asker that reads it again.
 ///
-/// Each asker brings its own lever and names:
+/// Each asker brings its own rates and names:
 ///
 /// * a meridian, through [`require_meridian_span`];
 /// * a rim of any kind, and every circle the cone reads, through
 ///   [`require_rim_span`];
-/// * every ellipse arc the cone reads, at the smaller semi-axis
-///   magnitude, `props_cone_ellipse_span_forward` /
-///   `props_cone_ellipse_span_winding`, refusing as
+/// * every ellipse arc the cone reads, forward at certification's speed
+///   floor and turned between it and the sup over the turn's defect,
+///   `props_cone_ellipse_span_forward` /
+///   `props_cone_ellipse_span_winding` (straddle
+///   `props_cone_ellipse_span_winding_straddle`), refusing as
 ///   [`PropsError::ConeLoop`] ([`require_cone_conic_spans`]);
 /// * every arc of the sphere's flux lane ([`sphere_loop`]) at the arc's
 ///   own radius, `props_sphere_arc_span_forward` /
@@ -3884,33 +4148,31 @@ fn require_meridian_span<T: Decide>(
 /// The torus decides the same pair for a span it reconstructs across
 /// pieces (`props_meridian_pieces_forward`,
 /// `props_meridian_pieces_winding`, [`fold_chain`]).
-fn require_span_within_period<T: Decide>(
-    e: &LoopEdge<T>,
-    radius: T,
+fn require_span_within_period<T: Decide, R: TurnRate<T>>(
+    (t0, t1): (T, T),
+    forward_rate: InfSpeed<T>,
+    rate: impl FnOnce(Extent<T>) -> (R, TurnRows<R::Straddle>),
+    forward: &'static str,
     band: Band,
-    [forward, winding]: [&'static str; 2],
     refuse: fn(&'static str) -> PropsError,
-) -> Result<(), PropsError> {
-    let dt = e.t1 - e.t0;
-    if classify(
-        forward,
-        Margin::levered(dt, radius),
-        band,
-        PropsCheck::Inventory,
-    )? != Sign::Positive
+) -> Result<Extent<T>, PropsError> {
+    let escalated = |cause| PropsError::Escalated {
+        cause,
+        check: PropsCheck::Inventory,
+    };
+    let extent = Extent::forward(forward, t0, t1, forward_rate, band).map_err(|n| match n {
+        NotForward::Undecided(cause) => escalated(cause),
+        NotForward::Zero(_) | NotForward::Reversed(_) => refuse(forward),
+    })?;
+    let (rate, rows) = rate(extent);
+    if Period::new(T::tau())
+        .not_over(rows, extent, rate, band)
+        .map_err(|undecided| escalated(undecided.diag))?
     {
-        return Err(refuse(forward));
+        Ok(extent)
+    } else {
+        Err(refuse(rows.turn))
     }
-    if classify(
-        winding,
-        Margin::levered(T::tau() - dt, radius),
-        band,
-        PropsCheck::Inventory,
-    )? == Sign::Negative
-    {
-        return Err(refuse(winding));
-    }
-    Ok(())
 }
 
 /// The two poles' span-membership margins for a sphere meridian arc,
@@ -4430,7 +4692,7 @@ fn torus_chart<T: Decide>(
                     let step = TorusStep::Rim {
                         sin_v,
                         cos_v,
-                        du: sign * rim.dt,
+                        du: sign * rim.dt.get(),
                         rho: big + r * cos_v,
                     };
                     (step, sign)
@@ -4557,7 +4819,12 @@ fn torus_lift<T: Decide>(at: T, angle: T, minor: T, band: Band) -> Result<(i32, 
     let name = "props_torus_lift_turns";
     let period = Period::new(T::tau());
     period
-        .decide(name, at - angle, |g| Margin::levered(g, minor), band)
+        .decide(
+            name,
+            at - angle,
+            |g| Margin::metered(g, InfSpeed::new(minor)),
+            band,
+        )
         .map(|k| (k, angle + period.times(k)))
         .map_err(|stop| match stop.miss {
             BranchMiss::Undecided(cause) => PropsError::Escalated {
@@ -5010,28 +5277,16 @@ fn fold_chain<T: Decide>(
     };
     let dt = hi.edge.t1 - lo.edge.t0;
     if pieces {
-        if classify(
-            "props_meridian_pieces_forward",
-            Margin::levered(dt, minor),
+        require_circle_span(
+            (lo.edge.t0, hi.edge.t1),
+            minor,
             band,
-            PropsCheck::Inventory,
-        )? != Sign::Positive
-        {
-            return Err(PropsError::NotIsoRectangle {
-                what: "props_meridian_pieces_forward",
-            });
-        }
-        if classify(
-            "props_meridian_pieces_winding",
-            Margin::levered(T::tau() - dt, minor),
-            band,
-            PropsCheck::Inventory,
-        )? == Sign::Negative
-        {
-            return Err(PropsError::NotIsoRectangle {
-                what: "props_meridian_pieces_winding",
-            });
-        }
+            [
+                "props_meridian_pieces_forward",
+                "props_meridian_pieces_winding",
+            ],
+            |what| PropsError::NotIsoRectangle { what },
+        )?;
     }
     Ok(TorusMeridian {
         n_c: lo.n_c,
@@ -5165,7 +5420,7 @@ mod rim_level_review_probe {
         let band = Band::linear(Tol::witness()).expect("band");
         let rim = Rim {
             d_u_sign: Sign::Positive,
-            dt: 1.0,
+            dt: Extent::between(0.0, 1.0),
             level: RimLevel::Unit(0.5, 0.5),
         };
         // Rim is `Unit`, the ends are `Length`.
@@ -5214,7 +5469,7 @@ mod rim_level_review_probe {
         let d = band.zero() * 0.8;
         let rim = Rim {
             d_u_sign: Sign::Positive,
-            dt: 1.0,
+            dt: Extent::between(0.0, 1.0),
             level: RimLevel::Unit(d, d),
         };
         let got = require_rims_at_extremes(
@@ -5302,3 +5557,219 @@ mod torus_lift_rows {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod sphere_region_cover_rows {
+    use super::*;
+    use geom_core::Tol;
+
+    /// The unit sphere about the origin, poled along `z`.
+    fn sphere() -> Surface<f64> {
+        Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// The circle of latitude at height `z` on a sphere of radius `r`
+    /// about the origin, as one closed edge run counter-clockwise about
+    /// `z` (`up`: the cap above it lies to its left) or clockwise.
+    fn latitude(r: f64, z: f64, up: bool) -> LoopEdge<f64> {
+        LoopEdge::hand_built(
+            Curve3::Circle {
+                center: Point3::new(0.0, 0.0, z),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: (r * r - z * z).sqrt(),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            0.0,
+            f64::tau(),
+            up,
+            0,
+            0,
+        )
+    }
+
+    /// The census of a region of the sphere of radius `r` at ε = `eps`:
+    /// `loops` are one-edge loops, `boundary` indexes them, and each
+    /// member is a bit and the loops it holds.
+    fn census(
+        r: f64,
+        eps: f64,
+        loops: &[LoopEdge<f64>],
+        boundary: &[usize],
+        members: &[(bool, &[usize])],
+    ) -> Result<SeamCover, PropsError> {
+        let band = Band::linear_at(Tol::witness(), eps).expect("band");
+        let surface = match sphere() {
+            Surface::Sphere {
+                center,
+                axis,
+                u_ref,
+                ..
+            } => Surface::Sphere {
+                center,
+                radius: r,
+                axis,
+                u_ref,
+            },
+            other => other,
+        };
+        let one = |i: &usize| core::slice::from_ref(&loops[*i]);
+        let boundary: Vec<_> = boundary.iter().map(one).collect();
+        let mut held = Vec::new();
+        let mut claims = Vec::new();
+        for (sense, of) in members {
+            let first = held.len();
+            held.extend(of.iter().map(one));
+            claims.push((*sense, first..held.len()));
+        }
+        let region = seam_loops(&surface, &boundary, &held, band)?;
+        sphere_region_cover(&region, &claims, band)
+    }
+
+    /// The equator, north- and south-facing, and two latitudes at
+    /// `z = ±½`, each both ways.
+    fn circles(r: f64) -> Vec<LoopEdge<f64>> {
+        vec![
+            latitude(r, 0.0, true),
+            latitude(r, 0.0, false),
+            latitude(r, 0.5 * r, true),
+            latitude(r, 0.5 * r, false),
+            latitude(r, -0.5 * r, true),
+            latitude(r, -0.5 * r, false),
+        ]
+    }
+    const NORTH: usize = 0;
+    const SOUTH: usize = 1;
+    const UP_HIGH: usize = 2;
+    const DOWN_HIGH: usize = 3;
+    const UP_LOW: usize = 4;
+    const DOWN_LOW: usize = 5;
+
+    /// Two hemispheres close the sphere once under either common bit:
+    /// both flipped, `Σ χ_f − χ_R = 1 + 1 − 2 = 0`, an inside-out ball of
+    /// two faces that the volume checks read. Four close it twice.
+    #[test]
+    fn hemispheres_cover_the_sphere_once_and_four_cover_it_twice() {
+        let c = circles(1.0);
+        for sense in [true, false] {
+            let two = [(sense, &[NORTH][..]), (sense, &[SOUTH][..])];
+            assert_eq!(census(1.0, 1e-9, &c, &[], &two), Ok(SeamCover::Once));
+        }
+        let n: &[usize] = &[NORTH];
+        let s: &[usize] = &[SOUTH];
+        let four = [(true, n), (true, s), (true, n), (true, s)];
+        assert_eq!(
+            census(1.0, 1e-9, &c, &[], &four),
+            Ok(SeamCover::Over { times: 2 })
+        );
+    }
+
+    /// A member of two loops: the band between `z = ±½` and its two caps
+    /// close the sphere once under either common bit, as the count says
+    /// (`Σ χ_f − χ_R = 1 + 0 + 1 − 2 = 0`); claimed twice over, they
+    /// cover it twice. The band alone, bounded by its own two
+    /// loops, reads once under either bit.
+    #[test]
+    fn a_band_of_two_loops_and_its_caps_cover_the_sphere_once() {
+        let c = circles(1.0);
+        let band: &[usize] = &[DOWN_HIGH, UP_LOW];
+        let caps: [&[usize]; 2] = [&[UP_HIGH], &[DOWN_LOW]];
+        for sense in [true, false] {
+            let three = [(sense, caps[0]), (sense, band), (sense, caps[1])];
+            assert_eq!(census(1.0, 1e-9, &c, &[], &three), Ok(SeamCover::Once));
+            assert_eq!(
+                census(1.0, 1e-9, &c, &[DOWN_HIGH, UP_LOW], &[(sense, band)]),
+                Ok(SeamCover::Once)
+            );
+        }
+        let twice = [
+            (true, caps[0]),
+            (true, band),
+            (true, caps[1]),
+            (true, caps[0]),
+            (true, band),
+            (true, caps[1]),
+        ];
+        assert_eq!(
+            census(1.0, 1e-9, &c, &[], &twice),
+            Ok(SeamCover::Over { times: 2 })
+        );
+    }
+
+    /// A lone hemisphere covers the region its boundary bounds once
+    /// under either bit: its flip is the complement, another valid body.
+    #[test]
+    fn a_lone_face_reads_once_under_either_bit() {
+        let c = circles(1.0);
+        for sense in [true, false] {
+            assert_eq!(
+                census(1.0, 1e-9, &c, &[NORTH], &[(sense, &[NORTH][..])]),
+                Ok(SeamCover::Once)
+            );
+        }
+    }
+
+    /// Members whose bits disagree are no cover: check 4's lamina.
+    #[test]
+    fn members_whose_bits_disagree_are_not_read() {
+        let c = circles(1.0);
+        let mixed = [(true, &[NORTH][..]), (false, &[SOUTH][..])];
+        assert_eq!(
+            census(1.0, 1e-9, &c, &[], &mixed),
+            Ok(SeamCover::MixedSense)
+        );
+    }
+
+    /// A sphere of radius `1e-13` (`2πR ≈ 6.3e-13`) at ε = 1e-12 refuses
+    /// at its loops' span reads, typed, before the census
+    /// ([`sphere_region_cover`]'s slack), which check 6 leaves to the
+    /// flux lane's same refusal; at ε = 1e-15 the same sphere reads.
+    #[test]
+    fn a_sphere_below_the_bands_slack_refuses_at_its_loops() {
+        let r = 1e-13;
+        let c = circles(r);
+        let two = [(true, &[NORTH][..]), (true, &[SOUTH][..])];
+        assert_eq!(
+            census(r, 1e-12, &c, &[], &two),
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_arc_span_forward"
+            })
+        );
+        assert_eq!(census(r, 1e-15, &c, &[], &two), Ok(SeamCover::Once));
+    }
+
+    /// A census on a half-sphere threshold refuses rather than read: one
+    /// hemisphere with no boundary claims half the sphere, `−½` of a
+    /// cover, which no seam region of a body reads.
+    #[test]
+    fn a_census_on_a_threshold_refuses() {
+        let c = circles(1.0);
+        assert_eq!(
+            census(1.0, 1e-9, &c, &[], &[(true, &[NORTH][..])]),
+            Ok(SeamCover::Unresolved)
+        );
+    }
+
+    /// A census decided below no cover is no tiling's: the cap above
+    /// `z = ½` with no boundary claims a quarter of the sphere, `−¾` of a
+    /// cover.
+    #[test]
+    fn a_census_below_no_cover_is_no_seam_region() {
+        let c = circles(1.0);
+        assert_eq!(
+            census(1.0, 1e-9, &c, &[], &[(true, &[UP_HIGH][..])]),
+            Err(PropsError::SphereLoop {
+                what: "props_sphere_region_cover_untiled"
+            })
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod turn_rows;

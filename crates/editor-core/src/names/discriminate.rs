@@ -76,8 +76,8 @@ pub(crate) const DECISION_WORDS: &[(&str, &str)] = &[
     (ON_SEAM_LINE, "whether a point lies on a seam's line"),
     (CHORD_ON_RIM, "whether a chord lies on its rim"),
     (
-        crate::pose::SEL_DATUM_DISTANCE,
-        "which side of a selection's stated distance from a datum a point lies on",
+        crate::pose::SEL_PLANE_DISTANCE,
+        "which side of a selection's stated distance from a plane a point lies on",
     ),
 ];
 
@@ -123,7 +123,10 @@ pub(crate) fn rank_by(
     mut before: impl FnMut(usize, usize) -> Result<Option<bool>, NamingError>,
 ) -> Result<Option<Vec<u32>>, NamingError> {
     // A rank is a `u32`, and every count below is at most `n − 1`.
-    super::emit::to_u32(n, "a ranked group has more members than a rank holds")?;
+    super::emit::to_u32(
+        n,
+        "a ranked group's size, one member per entity of one output body",
+    );
     let mut ahead = vec![0u32; n]; // ahead[i] = #{j : j certified-before i}
     for i in 0..n {
         for j in (i + 1)..n {

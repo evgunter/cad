@@ -7,10 +7,10 @@
 //! one vertex per wedge), and wall to wall (two floor faces, two solids).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{insert, len, on_frame, table};
+use crate::fixture::{against, axes_at, desc, insert, len, table};
 use editor_core::{
-    BooleanValue, CancelToken, EntityKey, Entry, EvalOptions, ExtrudeSide, Node, ProfileDoc,
-    ValuePayload, evaluate,
+    BooleanValue, CancelToken, EntityKey, Entry, EvalOptions, Node, ProfileDoc, ValuePayload,
+    evaluate,
 };
 use geom_core::Tol;
 
@@ -22,32 +22,29 @@ fn a_keel_on_the_floor_names_its_two_edges_apart() {
         ("wall to wall", -0.5, 5.0),
     ] {
         let doc = ProfileDoc::empty_derived("a_keel_on_the_floor", Tol::witness());
-        let extrude = |doc, origin, u, v, pts: Vec<(f64, f64)>, d: f64| {
-            let (doc, p) = on_frame(doc, origin, u, v, vec![pts]);
+        let extrude = |doc, pts: Vec<(f64, f64)>, d: f64| {
+            let (doc, p) = insert(doc, Node::Profile(desc(vec![pts])));
             insert(
                 doc,
                 Node::Extrude {
                     profile: p.into(),
                     distance: len(d),
-                    side: ExtrudeSide::Along,
                 },
             )
         };
         let (doc, slab) = extrude(
             doc,
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
             vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)],
             1.0,
         );
-        let (doc, trench) = extrude(
+        // The trench drawn on its own xy, its copy placed against the
+        // slab with its x along the slab's y and its y along z.
+        let (doc, prism) = extrude(doc, vec![(2.0, 0.0), (2.6, 2.0), (1.4, 2.0)], length);
+        let (doc, trench) = against(
             doc,
-            [x0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            [0.0, 0.0, 1.0],
-            vec![(2.0, 0.0), (2.6, 2.0), (1.4, 2.0)],
-            length,
+            slab,
+            prism,
+            &axes_at([x0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
         );
         let (doc, cut) = insert(
             doc,

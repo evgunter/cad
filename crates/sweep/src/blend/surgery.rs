@@ -210,6 +210,7 @@ use geom::curves::boxes;
 use geom_brep::{
     EdgeCurveSpec, EdgeDescriptionSpec, SmoothJoin, SurfacePair, must_carry_description,
 };
+use geom_core::period::Within;
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MekrSite,
@@ -3753,33 +3754,29 @@ pub(super) fn split_param_in_span<T: Decide + Bounds>(
 ) -> Result<Option<T>, BlendError> {
     let sc = certified_curve(body, seam)?;
     let (st0, st1) = sc.params();
-    // THE PERIOD GUARD, and it is CHECKED rather than assumed — the
-    // function docs derive why it is what makes the principal branch
-    // the in-window one. It stays a BOUNDS-lane read, like the window
-    // test below and for the same reason (the battery's junction-end
-    // pick precedent): this is a question about the STORED window, a
-    // representation datum, not about where a point lies. A window
-    // whose whole enclosure is not strictly under a period refuses
-    // typed rather than cutting blind.
+    // THE PERIOD GUARD — the function docs derive why it is what makes
+    // the principal branch the in-window one. The stored window's turn
+    // is the edge certificate's ([`geom_brep::CertifiedTurn`]), decided
+    // at certification's band: a window short of a turn proceeds, and
+    // a whole turn refuses typed rather than cutting blind.
     //
     // A period is a CIRCLE's or an ELLIPSE's: a line carrier (a plane
     // end face's straight rim) has no branch to alias by, and its window
-    // is a length that may exceed 2π without meaning anything. The skip
-    // is by construction, not by measurement: no fixture in the tree
-    // splits a line rim longer than 2π, so an unconditional guard
-    // survives every row today — the carrier-kind test is here because
-    // the sentence above is true, not because a row demands it.
-    //
-    // `topo`'s edge split spells the same guard as the
-    // `bool_split_span_period` DECIDE row, which is the right posture
-    // there and not here: that site is mid-classification with a band
-    // in hand, this one is picking a representation and has neither.
+    // is a length that may exceed 2π without meaning anything.
     let periodic = matches!(sc.carrier(), Curve3::Circle { .. } | Curve3::Ellipse { .. });
-    if periodic && (T::tau() - (st1 - st0)).lo() <= 0.0 {
-        return Err(unbuilt_geometry(
-            EntityId::Edge(seam),
-            "a split edge's stored window is not under one period",
-        ));
+    if periodic {
+        let Some(turn) = sc.certificate().turn else {
+            unreachable!("check 2 mints a turn for every circle and ellipse")
+        };
+        match turn.turn() {
+            Within::Short => {}
+            Within::Whole => {
+                return Err(unbuilt_geometry(
+                    EntityId::Edge(seam),
+                    "a split edge's stored window is not under one period",
+                ));
+            }
+        }
     }
     // Anchored at the CARRIER'S SEAM, not at the stored window — the
     // function docs carry the measured reason (a window-derived anchor

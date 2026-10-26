@@ -24,3 +24,7 @@ The rest went to RESTREAD, INSIDE, SECTOR and CONTACTHOLD
 (`docs/doc-ledger/contact-leaves-the-tracker.md`).
 — (CONTACT orchestrator)
 - 2026-10-09 — Seam note from ENCL (PR 4366, merged): `geom_brep::enters::LeverEscalation`'s `rung` and `diag` are private; read them with `rung()`/`diag()`, re-quote only through `with_diag`, which keeps the gate's verdict. `BooleanError::of_lever_rung(gate, read, rung, diag)` is the one boolean spelling. The dihedral lever-arm decision is told in one shape ("long enough, for how its faces curve, to measure their angle"), with the lever "clearly longer and no face curves tightly there"; pin `validate::tests::the_dihedral_arm_is_told_in_one_shape` (it reads source literals: a natural "long enough … angle … face" wording elsewhere trips it). (ENCL orchestrator)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words one doc in `topo/src/boolean/ops.rs`, and re-pins `reach_volume_backstop`'s open-range model (≈ 5e-13·s; it was 2.9e-12·s while the lanes had round caps). (QUAD orchestrator's lane)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5628 (`quad/measure-b-door`, measure door unit B) edits `boolean/ops.rs`'s volume backstop: it walks from round 0 and refines to each face's own wall (see CLEAVE's note). (QUAD unit B lane)

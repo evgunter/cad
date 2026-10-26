@@ -1895,19 +1895,11 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
     ),
 ];
 
-/// The raise sites that compose a `Debug` rendering deliberately.
-///
-/// One arm, and `crates/pncad-py/src/errors.rs` already writes its
-/// warning in prose: a future STRUCT variant of the kernel enum it
-/// renders would trip the assertion and panic where that arm means to
-/// refuse gracefully. This row is that warning made mechanical.
-const KNOWN_DEBUG_RAISES: &[(&str, &str, &str)] = &[(
-    "crates/pncad-py/src/py/contact.rs",
-    "format!(\"a contact class this binding predates: {other:?}\")",
-    "an unknown `ContactClass` has nothing but `Debug` to render it; the arm \
-     and `errors.rs` both say so, and a struct variant of that enum would \
-     panic here",
-)];
+/// The raise sites that compose a `Debug` rendering deliberately, each
+/// with why: none today. A struct variant of a type a site renders
+/// through `Debug` would trip the prose assertion and panic where the
+/// site means to refuse gracefully.
+const KNOWN_DEBUG_RAISES: &[(&str, &str, &str)] = &[];
 
 #[cfg(test)]
 mod tests {

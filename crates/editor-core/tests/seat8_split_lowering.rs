@@ -35,18 +35,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
-
 use crate::corpus;
 use crate::fixture;
 
 use corpus::{Recorder, eval, failures};
 use editor_core::{
-    Datum, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide,
-    ValuePayload, persist,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SplitHalf, SplitSide, ValuePayload,
+    persist,
 };
 use fixture::digest::digest;
-use fixture::{len, scl, square, tol};
+use fixture::{len, square, tol};
 
 /// The registered split documents, by name: a tilted plane through a
 /// cylinder (curved section edges), a plane through a box with both
@@ -303,13 +301,80 @@ fn a_split_document_read_by_port_round_trips_byte_identical() {
 /// digest hashes. Every edge description's `Debug` is unchanged, and no
 /// point moved (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held).
+///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
+///
+/// RE-BLESSED, `cut_cylinder` and `kitchen_sink`, when a placement whose
+/// bundle reads a declared or toleranced variable came to run its map
+/// at the nominal (C-5 narrowed, the orchestrator's ruling): each
+/// document's such placement places its copy by its solved map where it
+/// was snapped to no map. Measured with the narrowing switched off and
+/// on: off, both digests are the ones pinned before; on, no outcome and
+/// no point of the corpus moves at `f64` (`m10_p_fence`'s header), so
+/// what moved is the placed body's `Debug` past its points.
+/// `part_select` held.
+///
+/// RE-BLESSED merging main into D: `cut_cylinder`, which main's PCERT
+/// B2a and PR 5334 re-blessed above, takes both trees' moves, so its
+/// value is neither tree's; `kitchen_sink` with its lone block's copies
+/// hung below the world's xy as its retired `SetExtrudeSide` edit had
+/// them. `part_select` held.
+///
+/// RE-BLESSED, every row, for the identity bundle (FORK-REST): a copy
+/// standing where its body stands is placed by no mate and the constant
+/// `0` on every freedom, written as one `AddValues`, which mints a
+/// different number of ids from the plane mate and three values it replaces. So every
+/// node minted after a stand moved its id, and this digest feeds ids.
+/// Where C-5's narrowing ran a standing copy's map, it is placed by no
+/// map again. Every standing copy in the corpus is bit-identical to its
+/// source (measured with a lane probe over `body_digest`).
+///
+/// RE-BLESSED, `kitchen_sink` only, for exact turns (INTENT stage 3 D):
+/// a turn written as a fraction of a turn takes its sine and cosine from
+/// the fraction, so its revolve's heading `turn/4` puts the axis on the
+/// profile's `y` exactly; its revolve stands upright by a bundle with no
+/// mate spun `turn/4` (`fixture::upright_at`) where the retired place-at helper wrote an
+/// `Axis` mate onto a world read spun by turns read off by `atan2`; and
+/// its split's plane and its circular pattern's axis are read off its
+/// faces (`fixture::plane_on`, `axis_on`) where they were frames moved by
+/// rounded turns. On the merged tree with the exact heading alone it
+/// read `0xcd7f_f823_b396_33fc`. The other rows held across main's merge
+/// at `557e581a64` and this lane.
+///
+/// Re-measured merging main at `be82e5ad6b` into D, `cut_cylinder`,
+/// `part_select` and `kitchen_sink`: main's N3 names each seam side and
+/// crossing line with the read it came in through, and in D a later
+/// operand is a placed copy, so the names it spells moved under both
+/// changes and the value is neither tree's. No other row moved.
+///
+/// RE-BLESSED, every row, for a minted reference that comes from the
+/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
+/// cap now takes from the sketch's `x` axis and an extruded wall from
+/// its segment, where `orthonormal_basis` picked it off the axes. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
+///
+/// RE-BLESSED, every row, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x615f_38e4_0bb7_2148u64),
-        ("part_select", 0x7b4d_39f0_68df_e9b5),
-        ("kitchen_sink", 0x1032_8a96_fb12_9d02),
+        ("cut_cylinder", 0x687e_0fa1_7407_124c_u64),
+        ("part_select", 0x2a17_d08e_c893_f400),
+        ("kitchen_sink", 0xf86d_b45d_276f_b984),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -350,8 +415,8 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
     );
 }
 
-/// A unit cube on the xy frame, a plane datum at height `z` with `+z`
-/// normal, and the split of the one by the other — returns the
+/// A unit cube on its own xy, the plane at height `z` with `+z` normal
+/// read off its geometry, and the split of the one by the other — returns the
 /// recorder and the split node.
 fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
     let mut r = Recorder::new();
@@ -364,15 +429,11 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
-    let tool = r.insert(Node::Datum(Datum::Plane {
-        origin: [len(0.0), len(0.0), len(z)],
-        normal: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
+    let tool = crate::fixture::plane_on(&r.doc, cube, [0.0, 0.0, z], [0.0, 0.0, 1.0]);
     let split = r.insert(Node::Split {
         target: cube.into(),
-        tool: tool.into(),
+        tool,
     });
     (r, split)
 }
@@ -419,6 +480,33 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// RE-BLESSED when a name came to be scoped by the variable holding its
 /// body (FORK-DM4 unit 2): the split's one table became a table per
 /// half, the empty half's empty, and its names spell no half.
+///
+/// RE-BLESSED for INTENT stage 3 D (Transform retires into a
+/// placement): the split's tool is a plane read off the cube's own
+/// geometry (`fixture::plane_on`) where it was a `Datum::Plane`, and the
+/// profile carries no frame, so its nodes, their ids and the names they
+/// mint moved.
+///
+/// RE-BLESSED for exact turns (INTENT stage 3 D): the tool is the
+/// cube's end cap's plane slid along its normal (`fixture::plane_on`
+/// reads a face with the stated normal) where it was a frame read off
+/// the cube's edges moved by turns read off by `atan2`, so its pose's
+/// nodes and the names the split mints moved.
+///
+/// RE-BLESSED when a minted plane's `u_ref` became a direction its
+/// construction holds: the cube's caps are charted along its sketch's
+/// `x` axis and its walls along their swept segments, where
+/// `orthonormal_basis` picked both off the axes. No plane moved as a
+/// point set.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body, and the content key
+/// holds a placement's target (`VERSION` 18), so ids drawn after a
+/// construction and every value token moved. No point moved.
+///
+/// RE-BLESSED for a certificate that keeps its turn: the digest feeds
+/// each edge curve's `Debug`, which now spells the certificate's `turn`.
+/// No outcome or point moved.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -439,7 +527,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x34f6_1e4d_65ea_b6a4,
+        got, 0x6514_aa34_b3e7_b9ae,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -463,15 +551,11 @@ fn error_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKi
 #[test]
 fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
+    // A copy of each half, loose: a reader of the half's value.
     let still = |half: SplitHalf| {
-        Node::transform(
+        crate::fixture::stood(vec![editor_core::BodyRead::plain(
             editor_core::Operand::output(split, half.port()),
-            editor_core::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: fixture::ang(0.0),
-            },
-        )
+        )])
     };
     let above = r.insert(still(SplitHalf::Above));
     let below = r.insert(still(SplitHalf::Below));
@@ -491,8 +575,15 @@ fn a_read_of_a_half_reads_the_two_sided_value_by_role() {
     else {
         panic!("the split's below side is a body");
     };
-    let Some(ValuePayload::Body(read)) = ev.value(below).map(|v| &v.payload) else {
-        panic!("the present half is read: {:?}", ev.nodes.get(&below));
+    let read = match ev.value(below).map(|v| &v.payload) {
+        Some(ValuePayload::Body(body)) => body,
+        Some(ValuePayload::Copies(copies)) => {
+            let [read] = &copies.bodies[..] else {
+                panic!("one copy of the half: {}", copies.bodies.len());
+            };
+            read
+        }
+        _ => panic!("the present half is read: {:?}", ev.result(below).is_some()),
     };
     assert_eq!(
         (

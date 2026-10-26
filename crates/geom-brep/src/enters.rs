@@ -743,6 +743,36 @@ mod tests {
         }
     }
 
+    /// `dir`'s length is never read, only its direction, so a finite
+    /// `dir` classifies the same at every magnitude, and a `dir` whose
+    /// length is not a number escalates rather than collapsing to a
+    /// definite `Tangent`.
+    #[test]
+    fn dir_classifies_by_direction_at_every_finite_magnitude() {
+        let n_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        for k in [1e-310, 1e-170, 1.0, 1e160, 1e200, 1e307] {
+            for (dz, want) in [
+                (-1e-3, EntersMaterial::Enters),
+                (1e-3, EntersMaterial::Exits),
+                (0.0, EntersMaterial::Tangent),
+            ] {
+                let dir = Vec3::new(k, 0.0, dz * k);
+                assert_eq!(
+                    enters_material(dir, n_out, 1.0, band()).ok(),
+                    Some(want),
+                    "dir {dir:?} classifies by its direction"
+                );
+            }
+        }
+        let err =
+            enters_material(Vec3::new(f64::INFINITY, 0.0, -1.0), n_out, 1.0, band()).unwrap_err();
+        assert_eq!(
+            (err.rung, err.diag.predicate),
+            (LeverRung::Reading, Some("enters_material")),
+            "an infinite dir escalates"
+        );
+    }
+
     /// A poisoned direction (zero vector normalizes to NaN) escalates
     /// through the margin, never classifies.
     #[test]

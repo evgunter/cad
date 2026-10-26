@@ -587,13 +587,13 @@ fn a_long_armed_bar_builds() {
     assert_bar_through_the_pipe((-3.0, 3.0), (-0.3, 0.3), (-0.3, 0.3));
 }
 
-/// **A cone wall cut along its axis refuses by decision, naming the
-/// conic.** The bar's side planes `z = 0.25` and `z = 0.35` run parallel
-/// to the frustum's axis, so each meets the cone wall in a HYPERBOLA,
-/// which is outside the conic inventory (`geom_brep`'s C1/C5, ruling
-/// R1). The cone is on the operand roster, so the pair passes the gate
+/// **A cone wall cut along its axis refuses, naming the conic.** The
+/// bar's side planes `z = 0.25` and `z = 0.35` run parallel to the
+/// frustum's axis, so each meets the cone wall in a HYPERBOLA, whose
+/// arcs are rational-quadratic NURBS carriers (`geom_brep`'s C1) the
+/// Boolean has no crossing layer for. The cone is on the operand roster, so the pair passes the gate
 /// and the crossing layer, and the join's section frame names the conic:
-/// `GermSectionOutsideInventory`, never a missing arm and never a body.
+/// `GermSectionOpenConic`, never a missing arm and never a body.
 #[test]
 fn a_cone_wall_cut_along_its_axis_names_the_hyperbola() {
     let tol = Tol::witness();
@@ -630,14 +630,14 @@ fn a_cone_wall_cut_along_its_axis_names_the_hyperbola() {
     assert!(
         matches!(
             err,
-            BooleanError::GermSectionOutsideInventory {
-                conic: geom_brep::OutsideConic::Hyperbola,
+            BooleanError::GermSectionOpenConic {
+                conic: geom_brep::OpenConic::Hyperbola,
                 a_kind: geom::SurfaceKind::Cone,
                 b_kind: geom::SurfaceKind::Plane,
                 ..
             }
         ),
-        "the hyperbola's refusal, by decision: {err:?}"
+        "the hyperbola's refusal: {err:?}"
     );
 }
 

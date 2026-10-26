@@ -39,8 +39,8 @@ rounds 13 } } }`.
 
 ## Where
 
-- Raised by `geom_brep::props::spiric::spiric_face_rounds`
-  (`crates/geom-brep/src/props/spiric.rs`, its `round_exit` call),
+- Raised by `geom_brep::props::spiric::rim_face_rounds`
+  (`crates/geom-brep/src/props/spiric.rs`, its `Run::exit` ladder, through `Run::ringed`),
   with the target `QUAD_TARGET_LEN_FACTOR·ε`
   (`crates/geom-brep/src/props/quad.rs`, `QUAD_TARGET_LEN_FACTOR`).
 - A lead, not yet a measured cause: `face_bounds` in the same file

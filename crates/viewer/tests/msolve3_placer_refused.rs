@@ -17,7 +17,6 @@
 
 use crate::common;
 use crate::fixture;
-use pncad::document::ExtrudeSide;
 
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use pncad::document::{
@@ -27,20 +26,19 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{CapEnd, ContactClass, EntityKind, RoleSeg};
+use pncad::select::{CapEnd, EntityKind, RoleSeg};
 use viewer::frame::Tone;
 use viewer::tree::{self, RowStatus};
 
 /// A small block, as a whole part document, and its body.
 fn block(label: &str, tol: Tol) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.02),
-            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -57,7 +55,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
     let (top, top_body) = store.insert_part(block("msolve3-view-top", tol), tol);
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive("msolve3-view"), tol);
-    let (doc, legs) = common::inserted(&doc, Node::instantiate_part(leg), tol);
+    let (doc, legs) = common::inserted(&doc, crate::fixture::mated_instance(leg), tol);
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
@@ -71,24 +69,21 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         tol,
     );
     let (doc, cap) = common::inserted(&doc, fixture::mated_instance(top), tol);
-    let (doc, _) = common::edited(
+    let (doc, _) = viewer::test_support::mated(
         &doc,
-        DocEdit::AddConstraint {
-            placement: cap,
-            mate: Box::new(fixture::rest(
-                common::head(in_part(cap, top_body, CapEnd::Start)),
-                common::head(StableName {
-                    kind: EntityKind::Face,
-                    node: pattern,
-                    path: vec![RoleSeg::Instance {
-                        i: 1,
-                        of: in_part(legs, leg_body, CapEnd::End).into(),
-                    }],
-                }),
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
+        cap,
+        fixture::rest(
+            common::head(in_part(cap, top_body, CapEnd::Start)),
+            common::head(StableName {
+                kind: EntityKind::Face,
+                node: pattern,
+                path: vec![RoleSeg::Instance {
+                    i: 1,
+                    of: in_part(legs, leg_body, CapEnd::End).into(),
+                }],
+            }),
+        ),
+        Vec::new(),
         tol,
     );
     // The mate's row is the row of the placement it places.
@@ -155,7 +150,7 @@ fn copies(label: &str, copy: u32, tol: Tol) -> Copies {
     let (top, top_body) = store.insert_part(block(&format!("{label}-top"), tol), tol);
 
     let doc: Doc<ProfileProgram> = ProfileDoc::empty(DocumentId::derive(label), tol);
-    let (doc, legs) = common::inserted(&doc, Node::instantiate_part(leg), tol);
+    let (doc, legs) = common::inserted(&doc, crate::fixture::mated_instance(leg), tol);
     let (doc, pattern) = common::inserted(
         &doc,
         Node::Pattern {
@@ -177,17 +172,14 @@ fn copies(label: &str, copy: u32, tol: Tol) -> Copies {
             of: in_part(legs, leg_body, CapEnd::End).into(),
         }],
     };
-    let (doc, _) = common::edited(
+    let (doc, _) = viewer::test_support::mated(
         &doc,
-        DocEdit::AddConstraint {
-            placement: cap,
-            mate: Box::new(fixture::rest(
-                common::head(in_part(cap, top_body, CapEnd::Start)),
-                common::head(named),
-                ContactClass::Rest,
-            )),
-            fresh: Vec::new(),
-        },
+        cap,
+        fixture::rest(
+            common::head(in_part(cap, top_body, CapEnd::Start)),
+            common::head(named),
+        ),
+        Vec::new(),
         tol,
     );
     // The mate's row is the row of the placement it places.

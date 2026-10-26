@@ -32,7 +32,7 @@ use sweep::test_support::{
     rod_d_profile_of_length_at, rod_section_cut, rod_with_flat,
 };
 use topo::query;
-use topo::{Body, mass_properties, validate_geometric};
+use topo::{Body, validate_geometric};
 
 const R: f64 = ROD_FILLET;
 
@@ -49,7 +49,11 @@ fn census(body: &Body<f64>) -> (usize, usize, usize) {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    let p = mass_properties(body, tol()).expect("closed-form props");
+    let p = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    )
+    .expect("closed-form props");
     assert_eq!(p.volume_pad, 0.0, "the inventory is closed-form");
     p.volume
 }

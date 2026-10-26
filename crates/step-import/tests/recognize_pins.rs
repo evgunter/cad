@@ -129,8 +129,18 @@ fn quasi_uniform_vocabulary_reads_the_same_surface() {
         "identical promotions (bit-identical patches)"
     );
     let (v1, v2) = (
-        topo::mass_properties(&base, Tol::witness()).unwrap().volume,
-        topo::mass_properties(&body, Tol::witness()).unwrap().volume,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", base.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume,
+        topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume,
     );
     assert_eq!(v1.to_bits(), v2.to_bits(), "volume bit-identical");
 }
@@ -235,7 +245,7 @@ fn offset_square_prism() -> topo::Body<f64> {
 fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     let native = offset_square_prism();
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )
@@ -404,7 +414,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     let native = straight_arc_prism();
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )
@@ -533,7 +543,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
 fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     let native = straight_arc_prism();
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )

@@ -16,7 +16,6 @@
 
 use crate::common;
 use crate::common::plate_index;
-use editor_core::ExtrudeSide;
 use test_utils::refusal::tagged;
 
 use std::sync::Arc;
@@ -31,7 +30,7 @@ use pncad::document::{
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
 use pncad::quantity::{M, MM};
-use pncad::select::{ContactClass, HitTestError, NodePickError, UnnamedEntity};
+use pncad::select::{HitTestError, NodePickError, UnnamedEntity};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{
@@ -42,7 +41,7 @@ use viewer::generation::Generation;
 use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
 use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pickcache::{self, CacheStep, IndexLanding, IndexSeam, PickCache};
-use viewer::pickindex::{self, IdMap, PictureKey};
+use viewer::pickindex::{self, IdMap, PatchNameFault, PictureKey};
 use viewer::platform;
 use viewer::prefs::{Absent, Prefs, PrefsStore};
 use viewer::props::SlotValue;
@@ -362,12 +361,20 @@ fn cause_ordinal(cause: &AdmissionFault) -> usize {
         AdmissionFault::InTheWorld { .. } => 2,
         AdmissionFault::NotEvaluated { .. } => 3,
         AdmissionFault::NoSpace { .. } => 4,
-        // One ordinal per SENTENCE: the arm's guard chooses between a
-        // join and a split, mirrored here so each needs its own sample.
-        AdmissionFault::MovedSpace { instance, into } if instance.id() != into.id() => 5,
-        AdmissionFault::MovedSpace { .. } => 6,
-        AdmissionFault::FusedGeometry { .. } => 7,
+        AdmissionFault::MovedSpace { .. } => 5,
+        AdmissionFault::NoSuchSpace { .. } => 6,
+        AdmissionFault::NotShown { .. } => 7,
+        AdmissionFault::FusedGeometry { .. } => 8,
     }
+}
+
+/// A space no document holds, by its tagged id: `the space <id>`.
+fn spoken_space(tag: u64) -> pncad::document::SpokenSpace {
+    pncad::document::ProfileDoc::empty(
+        pncad::document::DocumentId::derive("frame-policy-spaces"),
+        pncad::geom_core::Tol::witness(),
+    )
+    .spoken_space(pncad::document::VarId::new(0, tagged(tag)))
 }
 
 /// One of each admission fault, payloads plural where the arm renders
@@ -391,13 +398,15 @@ fn every_cause() -> Vec<AdmissionFault> {
         },
         AdmissionFault::MovedSpace {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(9))),
-            into: SpokenNode::absent(RecipeNodeId::new(0, tagged(10))),
+            into: Box::new(spoken_space(10)),
         },
-        // The arm's second sentence, for a copy that left into a space
-        // of its own (`into` the copy itself).
-        AdmissionFault::MovedSpace {
+        AdmissionFault::NoSuchSpace {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
-            into: SpokenNode::absent(RecipeNodeId::new(0, tagged(15))),
+            space: Box::new(spoken_space(16)),
+        },
+        AdmissionFault::NotShown {
+            instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(17))),
+            space: Box::new(spoken_space(18)),
         },
         AdmissionFault::FusedGeometry {
             instance: SpokenNode::absent(RecipeNodeId::new(0, tagged(11))),
@@ -651,12 +660,12 @@ fn a_startup_notice_echoing_a_key_that_holds_the_boundary_mark_still_splits_back
 #[test]
 fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
     let (cursor, pick) = (empty_landed("cursor"), empty_landed("pick"));
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
     let disagreement = idpass::Disagreement {
-        from_gpu: idpass::IdAnswer::Nothing,
+        from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
         from_ray: Vec::new(),
     };
     assert_eq!(
@@ -740,7 +749,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     // The badges here carry no node, so the document they speak in
     // holds none.
     let nodeless: Doc<ProfileProgram> = Doc::empty_derived("badges", Tol::witness());
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
@@ -756,7 +765,6 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     let budget = FittedDelta {
         delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
         requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
-        predicted: 1_000,
         requested_cost: Some(9_000_000),
         probe_triangles: 137_000,
         largest_probe: 125_000,
@@ -784,11 +792,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
              somewhere one does",
         ),
         (
-            frame::at_rest_badge(Some(&AtRestBadge::Certified {
-                minted: 0,
-                loud: 0,
-                quiet: 0,
-            })),
+            frame::at_rest_badge(Some(&AtRestBadge::Certified { loud: 0, quiet: 0 })),
             frame::Subject::Document,
             "the at-rest verdict ends when the document accepts another act",
         ),
@@ -910,8 +914,8 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let tol = Tol::witness();
     let consequence = "until the index builds, no pick is answered and the picture is not redrawn";
 
-    // A POISONED copy: the extrude fails, and the placement of the
-    // transform over it is what the index refuses on. The badge names
+    // A POISONED copy: the extrude fails, and the placement of it is
+    // what the index refuses on. The badge names
     // the extrude.
     let (doc, extrude, moved) = common::broken_document(tol);
     assert_ne!(extrude, moved, "the body over the failure is another node");
@@ -955,24 +959,22 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     // report, where the Boolean the kernel refused is itself placed.
     // The healthy copy's picks go with it, which is what the label says.
     let empty: Doc<ProfileProgram> = Doc::empty_derived("vnews-derived-fault", tol);
-    let (doc, healthy_profile) = common::framed_square(&empty, 0.04, tol);
+    let (doc, healthy_profile) = common::square_profile(&empty, 0.04, tol);
     let (doc, healthy) = common::inserted(
         &doc,
         Node::Extrude {
             profile: healthy_profile.into(),
             distance: common::len(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
-    let (doc, broken_profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, broken_profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, broken) = common::inserted(
         &doc,
         Node::Extrude {
             profile: broken_profile.into(),
             distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1066,12 +1068,7 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
     common::asm::unpin(&mut session, bench.post_a);
     common::commit_mate(
         &mut session,
-        common::asm::seat_op(
-            &bench,
-            bench.post_a,
-            ContactClass::Rest,
-            common::asm::middle_seat_values(),
-        ),
+        common::asm::seat_op(&bench, bench.post_a, common::asm::middle_seat_values()),
     );
     common::asm::unpin(&mut session, bench.shelf_i);
     common::commit_mate(
@@ -1124,7 +1121,7 @@ fn a_refusal_reached_through_a_mate_names_the_placement_the_tree_blames() {
 /// it is out of.
 #[test]
 fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let projection = camera
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
@@ -1167,7 +1164,7 @@ fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
 /// two there are.
 #[test]
 fn the_two_policies_that_expire_are_the_two_subjects_the_roster_names() {
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let clean = viewer::camera::Folded {
         camera,
         applied: vec![CameraOp::Orbit {
@@ -1311,9 +1308,9 @@ fn the_readme_counts_its_two_populations_correctly() {
         + bare_badge
         + frame.matches("-> Vec<Badge>").count()
         + frame.matches("-> [Badge").count();
-    assert_eq!(badge_doors, 11, "the badge family");
+    assert_eq!(badge_doors, 10, "the badge family");
     assert!(
-        readme.contains("`frame` function returning `Option<Badge>`** — eleven"),
+        readme.contains("`frame` function returning `Option<Badge>`** — ten"),
         "the README states the badge population as a word and it must be the counted one"
     );
 
@@ -1375,11 +1372,6 @@ fn a_badge_that_has_nothing_to_say_says_nothing() {
         frame::prefs_badge(None),
         None,
         "a store that keeps preferences says nothing about keeping them"
-    );
-    assert_eq!(
-        frame::datums_badge(0),
-        None,
-        "a view that drew every datum it was given has nothing to report — and so does a document with no datums, which is the same zero"
     );
     assert_eq!(
         frame::profiles_badge(0),
@@ -1492,57 +1484,13 @@ fn the_profiles_badge_counts_what_it_could_not_draw() {
     }
 }
 
-/// **The datums badge says how many, and says it in agreeing
-/// words.**
-///
-/// The count is the whole content: the picture already shows nothing,
-/// and what a reader cannot get from it is that there was something
-/// to show. The noun agreeing with the number is not a flourish —
-/// "1 datums" reads as a sentence nobody wrote, beside eight badges
-/// that were.
-#[test]
-fn the_datums_badge_counts_what_the_view_drew_nothing_of() {
-    let one = frame::datums_badge(1).expect("one vanished datum badges");
-    assert_eq!(
-        one.label(),
-        "datums: 1 datum this view draws nothing of",
-        "the singular"
-    );
-    assert_eq!(
-        one.tone(),
-        frame::Tone::Actionable,
-        "a reader can move the camera and get them back"
-    );
-    assert_eq!(
-        one.subject(),
-        frame::Subject::Camera,
-        "what makes the count the wrong answer is the camera moving"
-    );
-    assert_eq!(
-        one.affordance(),
-        frame::Affordance::Read,
-        "there is no window of findings behind it"
-    );
-    assert_eq!(
-        frame::datums_badge(4)
-            .expect("four vanished datums badge")
-            .label(),
-        "datums: 4 datums this view draws nothing of",
-        "the plural"
-    );
-}
-
 /// The tone split is the actionable-or-not rule, stated by a value
 /// rather than picked at four call sites — the rule `pane::features`
 /// argues explicitly for poisoned rows and that nothing used to say.
 #[test]
 fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
-    let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified {
-        minted: 4,
-        loud: 0,
-        quiet: 0,
-    }))
-    .expect("a certified assembly badges");
+    let certified = frame::at_rest_badge(Some(&AtRestBadge::Certified { loud: 0, quiet: 0 }))
+        .expect("a certified assembly badges");
     assert_eq!(
         certified.tone(),
         frame::Tone::Advisory,
@@ -1554,7 +1502,7 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         "{}",
         certified.label()
     );
-    assert!(certified.label().contains('4'), "{}", certified.label());
+    assert_eq!(certified.label(), "at rest: certified");
 
     // An overlap no assertion quiets is the reader's to answer; one
     // every assertion quiets is reported and asks nothing.
@@ -1562,12 +1510,8 @@ fn a_badge_states_whether_a_reader_has_anything_to_do_about_it() {
         (1, 2, frame::Tone::Actionable),
         (0, 2, frame::Tone::Advisory),
     ] {
-        let badge = frame::at_rest_badge(Some(&AtRestBadge::Certified {
-            minted: 0,
-            loud,
-            quiet,
-        }))
-        .expect("a certified assembly badges");
+        let badge = frame::at_rest_badge(Some(&AtRestBadge::Certified { loud, quiet }))
+            .expect("a certified assembly badges");
         assert_eq!(
             badge.tone(),
             tone,
@@ -1688,7 +1632,6 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     let budget = FittedDelta {
         delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
         requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
-        predicted: 1_000,
         requested_cost: Some(9_000_000),
         probe_triangles: 137_000,
         largest_probe: 125_000,
@@ -1697,11 +1640,7 @@ fn the_checks_badge_is_a_control_and_the_rest_are_labels() {
     for (which, badge) in [
         (
             "at rest",
-            frame::at_rest_badge(Some(&AtRestBadge::Certified {
-                minted: 0,
-                loud: 0,
-                quiet: 0,
-            })),
+            frame::at_rest_badge(Some(&AtRestBadge::Certified { loud: 0, quiet: 0 })),
         ),
         (
             "product",
@@ -1990,9 +1929,12 @@ fn leaving_the_pane_voids_the_outstanding_answer() {
 
 // --- the two paths' agreement, by name ------------------------------
 
-/// The channel word the GPU side writes.
-fn answer(serial: u32, id: u32) -> u64 {
-    u64::from(serial) << 32 | u64::from(id)
+/// The reply the GPU side posts when its readback succeeds.
+fn answer(serial: u32, id: u32) -> idpass::IdReply {
+    idpass::IdReply {
+        serial,
+        read: Ok(id),
+    }
 }
 
 /// **The status line tells two tied faces apart.**
@@ -2014,7 +1956,7 @@ fn the_status_line_renders_two_tied_faces_as_two_different_phrases() {
     let names: Vec<StableName> = index
         .ids()
         .ids()
-        .filter_map(|id| index.name_of(id).and_then(|name| name.as_ref().ok()))
+        .filter_map(|id| index.name_of(id).ok())
         .cloned()
         .collect();
     let first = names.first().expect("the plate draws a face").clone();
@@ -2100,7 +2042,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, id),
+            Some(&answer(7, id)),
             Some(7),
             Ok(std::slice::from_ref(&hit.name))
         ),
@@ -2112,14 +2054,20 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(6, id),
+            Some(&answer(6, id)),
             Some(7),
             Ok(&[])
         ),
         None
     );
     assert_eq!(
-        idpass::compare(&index, &DisplayView::none(), answer(7, id), None, Ok(&[])),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            Some(&answer(7, id)),
+            None,
+            Ok(&[])
+        ),
         None
     );
     // Nothing under the cursor on both sides is agreement.
@@ -2127,7 +2075,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, IdMap::NOTHING),
+            Some(&answer(7, IdMap::NOTHING)),
             Some(7),
             Ok(&[])
         ),
@@ -2137,13 +2085,16 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
         &index,
         &DisplayView::none(),
-        answer(7, IdMap::NOTHING),
+        Some(&answer(7, IdMap::NOTHING)),
         Some(7),
         Ok(std::slice::from_ref(&hit.name)),
     ) else {
         panic!("nothing vs a face is a disagreement");
     };
-    assert_eq!(report.from_gpu, idpass::IdAnswer::Nothing);
+    assert_eq!(
+        report.from_gpu,
+        idpass::IdAnswer::Refused(PatchNameFault::Nothing)
+    );
     assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
 
@@ -2155,7 +2106,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let others: Vec<_> = index
         .ids()
         .ids()
-        .filter_map(|any| index.name_of(any).and_then(|n| n.as_ref().ok()))
+        .filter_map(|any| index.name_of(any).ok())
         .filter(|name| **name != hit.name)
         .cloned()
         .collect();
@@ -2173,7 +2124,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, id),
+            Some(&answer(7, id)),
             Some(7),
             Ok(&tied)
         ),
@@ -2184,7 +2135,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     let Some(idpass::IdNews::Disagreement(report)) = idpass::compare(
         &index,
         &DisplayView::none(),
-        answer(7, outside_id),
+        Some(&answer(7, outside_id)),
         Some(7),
         Ok(&tied),
     ) else {
@@ -2214,7 +2165,7 @@ fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
         },
     };
     let report = idpass::Disagreement {
-        from_gpu: idpass::IdAnswer::Unnamed { id: 9, error },
+        from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Unnamed { id: 9, error }),
         from_ray: Vec::new(),
     };
     let sentence = report.to_string();
@@ -2297,7 +2248,7 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, id),
+            Some(&answer(7, id)),
             Some(7),
             Ok(std::slice::from_ref(&edge.name))
         )
@@ -2309,7 +2260,7 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(7, id),
+            Some(&answer(7, id)),
             Some(7),
             Ok(&named)
         ),
@@ -2352,7 +2303,7 @@ fn a_twin_copys_face_is_a_disagreement() {
         idpass::compare(
             &index,
             &DisplayView::none(),
-            answer(3, *other),
+            Some(&answer(3, *other)),
             Some(3),
             Ok(std::slice::from_ref(&hit.name))
         )
@@ -2369,40 +2320,22 @@ fn face_of(hit: &pncad::select::PickHit) -> FaceSelection {
     }
 }
 
-/// Two `Transform`s over one extrude, each placed: both copies carry
-/// the extrude's names (a transform contributes no role segment), each
-/// under its own placement's wrap. Answers the document and the two
+/// One extrude placed twice in the world: both copies carry the
+/// extrude's names, each under its own placement's wrap. Answers the document and the two
 /// placements, left then right.
 fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-two-placements", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.02, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.01),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
-    let place = |doc: &Doc<ProfileProgram>, x: f64| {
-        common::inserted(
-            doc,
-            Node::transform(
-                extrude,
-                pncad::document::Step::Rigid {
-                    translation: [common::len(x), common::len(0.0), common::len(0.0)],
-                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                    angle: common::ang(0.0),
-                },
-            ),
-            tol,
-        )
-    };
-    let (doc, left) = place(&doc, 0.0);
-    let (doc, right) = place(&doc, 0.1);
-    let (doc, left) = common::placed(&doc, left, tol);
-    let (doc, right) = common::placed(&doc, right, tol);
+    let (doc, left) = common::placed_at(&doc, extrude, [0.0; 3], tol);
+    let (doc, right) = common::placed_at(&doc, extrude, [0.1, 0.0, 0.0], tol);
     (doc, left, right)
 }
 
@@ -3274,13 +3207,12 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
 fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-offer", tol);
-    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, profile) = common::square_profile(&doc, 0.04, tol);
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
             profile: profile.into(),
             distance: common::len(0.008),
-            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -3418,19 +3350,19 @@ fn the_preferences_path_follows_the_xdg_rules() {
 /// drop. This row fails if it goes silent again, and it is built from
 /// a REAL landing — a real mate on a real assembly — because a
 /// hand-made report would assert about a shape rather than about the
-/// path. Under DI5 a free-move moves a loose space, so the post is
-/// unpinned first, and a mate onto the shelf, which the world pins,
-/// moves the post into the world's space: the supersession arrives
-/// when the evaluation that pins it lands, not with the edit.
+/// path. Under DI5 a free-move moves a shown space other than the
+/// world, so the post is given a space of its own first, and a mate
+/// onto the shelf, in the world, places the post into the world: its
+/// own space is empty, and the supersession arrives with the edit.
 #[test]
 fn a_superseded_free_move_is_news_the_ranking_shows() {
     let tol = Tol::witness();
     let bench = asm::bench("framepolicy-supersede", tol);
     let mut session = asm::open_bench(&bench, tol);
-    // A loose copy: the only kind the probe moves.
-    asm::unpin(&mut session, bench.post_b);
+    // A copy in a space of its own: the kind the probe moves.
+    let own = asm::unpin(&mut session, bench.post_b);
 
-    // The user places the loose post by hand and COMMITS it — only a
+    // The user places the post by hand and COMMITS it — only a
     // committed placement is ever reported superseded.
     for op in [
         SessionOp::BeginFreeMove {
@@ -3448,32 +3380,17 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     }
     assert!(
-        session.display().free_move_of(bench.post_b).is_some(),
-        "the placement is held, keyed by the loose post's own root, so there is \
+        crate::common::asm::frame_of(&session, bench.post_b).is_some(),
+        "the placement is held, keyed by the post's own space, so there is \
          something to discard"
     );
 
     // Then they mate it onto the shelf, and that placement is discarded
-    // under them once the solve placing it lands.
-    let mate = asm::seat_op(
-        &bench,
-        bench.post_b,
-        ContactClass::Rest,
-        asm::middle_seat_values(),
-    );
+    // under them by the edit.
+    let mate = asm::seat_op(&bench, bench.post_b, asm::middle_seat_values());
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert!(
-        outcome.withdrawn.superseded.is_empty(),
-        "the edit alone does not say the post's space is gone: spaces exist only \
-         after the solve, so the edit withdraws nothing: {:?}",
-        outcome.withdrawn
-    );
-    session.pump();
-    let landed = session.take_landed_withdrawals();
-    let [report] = &landed[..] else {
-        panic!("one landing withdrew something: {landed:?}")
-    };
+    let report = &outcome.withdrawn;
     let [superseded] = &report.superseded[..] else {
         panic!(
             "exactly one placement is superseded: {:?}",
@@ -3482,33 +3399,37 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     };
     assert_eq!(
         superseded.instance, bench.post_b,
-        "the mate discards the hand placement, keyed by the space's root"
+        "the mate discards the hand placement, named by its instance"
     );
     // The PAYLOAD, not the variant: the variant is what the op this row
     // just performed already implies.
-    let AdmissionFault::InTheWorld { instance } = &superseded.cause else {
+    let AdmissionFault::NotShown { instance, space } = &superseded.cause else {
         panic!(
-            "a mate pinning the space supersedes with its own fault: {}",
+            "a mate emptying the space supersedes with its own fault: {}",
             superseded.cause
         )
     };
     assert_eq!(
-        instance.id(),
-        bench.post_b,
-        "the fault names the same instance"
+        (instance.id(), space.id()),
+        (bench.post_b, own),
+        "the fault names the same instance, and the space it emptied"
     );
+    session.pump();
     assert!(
-        session.take_landed_withdrawals().is_empty(),
-        "a landing's report is taken once"
+        session
+            .take_landed_withdrawals()
+            .iter()
+            .all(|report| report.superseded.is_empty()),
+        "the landing has nothing to add"
     );
 
-    // What the chrome does with it: the landing's notices, worded as an
-    // operation's are, through the one door the frame loop calls.
+    // What the chrome does with it: the edit's notices, through the one
+    // door the frame loop calls.
     let notices: Vec<frame::Message> = frame::withdrawal_notices(report).collect();
     assert_eq!(
         notices.len(),
         1,
-        "a mate pinning a probed space withdraws a placement and neither of the \
+        "a mate emptying a probed space withdraws a placement and neither of the \
          other two kinds, so they are silent here rather than absent"
     );
     let verdict = frame::frame_status(
@@ -3566,20 +3487,30 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     else {
         panic!("a refusing frame shows its refusal");
     };
-    // The fault is said twice, once as why the drag refused and once
-    // as why the placement went: two typed values, each rendering
-    // itself, which is the join's rule.
+    // Two faults, once as why the drag refused and once as why the
+    // placement went: two typed values, each rendering itself, which
+    // is the join's rule.
     let post = test_utils::refusal::tag(bench.post_b.0.digest());
+    let (space_node, _) = session
+        .doc()
+        .defined_by(own)
+        .expect("a `new_space()` defines the post's own space");
+    let space_tag = test_utils::refusal::tag(space_node.0.digest());
     let in_the_world = format!(
-        "InstantiatePart {post} lives in the world's space: its placement pins it there (a \
-         world pin, or a mate onto a copy in the world), so the free-move probe refuses. \
-         Free-move moves a loose space, a copy nothing pins to the world"
+        "InstantiatePart {post} is placed into the world, the product's space, so the \
+         free-move probe refuses. Free-move moves another shown space: place the copy into \
+         a space of its own to probe it"
+    );
+    let not_shown = format!(
+        "InstantiatePart {post}'s free-move moves Space {space_tag}, which is not shown — no \
+         copy is placed into it, or its bodies are copied into another space and drawn there \
+         — so there is no picture of it to move"
     );
     assert_eq!(
         line.text(),
         format!(
             "{in_the_world} \u{2022} free move: a committed placement was discarded — \
-             {in_the_world}"
+             {not_shown}"
         )
     );
 }
@@ -3663,7 +3594,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
 #[test]
 fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
     let (cursor, pick) = (empty_landed("cursor"), empty_landed("pick"));
-    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let camera = Camera::framing(Some(scene::plate_bounds()), 16.0 / 9.0).expect("a plate frames");
     let StatusUpdate::Show(fold) = frame::fold_status(&viewer::camera::Folded {
         camera,
         applied: Vec::new(),
@@ -3733,7 +3664,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
         (
             "the picking paths disagreeing",
             idpass::Disagreement {
-                from_gpu: idpass::IdAnswer::Nothing,
+                from_gpu: idpass::IdAnswer::Refused(PatchNameFault::Nothing),
                 from_ray: Vec::new(),
             }
             .notice((&cursor.0, &cursor.1)),
@@ -3920,10 +3851,6 @@ fn a_panel_refusal_opens_with_its_panels_name_and_is_said_again() {
     let why = "the distance is not a number";
     let forms = [
         (
-            FormKind::AddDatum,
-            "add datum: the distance is not a number",
-        ),
-        (
             FormKind::AddProfile,
             "add profile: the distance is not a number",
         ),
@@ -4021,7 +3948,6 @@ fn the_delta_badge_reads_in_the_working_length_unit() {
     let budget = FittedDelta {
         delta: DisplayTolerance::new(1.0e-3).expect("a positive δ"),
         requested: DisplayTolerance::new(1.0e-6).expect("a positive δ"),
-        predicted: 1_000,
         requested_cost: Some(9_000_000),
         probe_triangles: 137_000,
         largest_probe: 125_000,

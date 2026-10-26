@@ -13,3 +13,5 @@ components that can be worked on in parallel."*
 unchanged. EXCH keeps its band 2100-2199; band 9200-9299 is claimed
 for this program in the same commit (`docs/MODEL-AB-LOG.md`). Nothing
 dispatched.
+- 2026-10-23 — Closed `step-import-source-debug-in-prose-panics-the-binding`. It was already fixed by D343 (PR 1854, `4f1f257c6b`), on the day the row was split out.
+- 2026-10-25 — Seam: PRED S18 (PR 5684) edits `crates/step-export/src/{lib,writer}.rs`, deletes `volume.rs`, and closes `step-export-reclassifies-shell-roles-with-its-own-planar-flux`. The writer reads multi-shell roles off `topo::classify_shells_of`, so hollow curved bodies now refuse `VoidShellUnsupported`. (PRED orchestrator)

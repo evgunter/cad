@@ -4,7 +4,7 @@ kind: issue
 title: the adjacent-swappable-argument class extends past bool and viewer/src has a dozen, transform_node's two [Expr; 3] worst
 status: open
 opened: 2026-09-06
-priority: P1
+priority: P3
 cost: D
 ---
 
@@ -113,3 +113,7 @@ and the kernel's public constructors take them by name
 `TransformTool::op(translation, rotation_axis, …)` into
 `SessionOp::AddTransform` and `Session::add_transform`'s own four
 positional arguments, which are this row's.
+
+## 2026-10-21 — re-banded
+
+P1 → P3. A class of silent transpositions, none known to have happened: tooling and types that prevent silent bugs, P3's band.

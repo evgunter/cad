@@ -2,10 +2,13 @@
 id: quad-last-round-margin-has-no-sign-premise
 kind: issue
 title: nothing states that props_quad_last_round's recorded margin cannot exceed target_len, and a k-lint guard rests on it
-status: open
+status: closed
 opened: 2026-09-16
 priority: P1
 cost: D
+parent: the-measurement-door-refines-until-a-predicate-resolves
+closed: 2026-10-23
+pr: 5628
 ---
 
 
@@ -74,3 +77,7 @@ without being visible at the mint.
 Raised by the falsification review of INSTR unit 12 (C1's caveat),
 which re-derived the guard from the kernel and upheld it while
 observing that its upper bound is unpinned.
+
+## Closed
+
+Moot. PR 5589 removed `props_quad_last_round`'s mint with the budget exit, and PR 5628 removed `props_quad_converged`'s: the reporting target is a resolution, compared and not recorded. With neither mint left, `k_lint::EPS_COUPLED_PREDICATES` is empty, and the guard whose premise this row named reads the committed era through `ERA_EPS_COUPLED_PREDICATES` (K-REPORT, 2026-10-23).

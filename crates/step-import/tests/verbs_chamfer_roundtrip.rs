@@ -64,7 +64,7 @@ fn chamfered_cube() -> topo::Body<f64> {
 fn the_chamfered_cube_round_trips_through_step() {
     let native = chamfered_cube();
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )
@@ -92,8 +92,16 @@ fn the_chamfered_cube_round_trips_through_step() {
         "tier 3"
     );
 
-    let want = topo::mass_properties(&native, Tol::witness()).expect("native props");
-    let got = topo::mass_properties(&back, Tol::witness()).expect("imported props");
+    let want = topo::mass_properties(
+        &topo::test_support::finished("the measured body", native.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("native props");
+    let got = topo::mass_properties(
+        &topo::test_support::finished("the measured body", back.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("imported props");
     assert!(
         (got.volume - want.volume).abs() <= 1e-12 * want.volume,
         "volume across the trip: {} vs {}",

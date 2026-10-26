@@ -350,3 +350,14 @@ TRIM's dm1-frontier row when it lands.
 - 2026-10-14 — **Seam (ENCL):** filed `step-import-reads-a-negative-surface-radius-unchecked-before-edge-certification` here. `entities.rs` reads cylinder, sphere and torus radii with no sign check, so a negative radius reaches edge certification before check 1. It bears on `[ev]` PR 5134. (ENCL orchestrator)
 - 2026-10-14 — **Seam (ENCL):** filed design question `can-an-import-reach-a-state-only-a-kernel-bug-otherwise-reaches` here at Ev's request (`[ev]` PR 5134: "can imports reach otherwise unreachable invalid states / when/how are imports validated", to be its own design question). It carries the adoption survey and needs the designer pair. `[ev]` PR 5134 waits on it. Ev says the same question came up on another PR; please link it. (ENCL orchestrator)
 - 2026-10-14 — **Seam (ENCL):** PR 5138 merged. `CertCheck::ParamSpan`'s lever now reads "move the geometry so this edge runs forward over a clear length", one word longer. Re-baselined the four `tier_gate.rs` span constants. (ENCL orchestrator)
+
+- 2026-10-23 — **Seam (QUAD):** PR 5589 (`quad/measure-a-lanes`, measure door unit A) re-words `step-import/src/lib.rs` and two tests, where they named the budget exit. No behaviour change in the import. (QUAD orchestrator's lane)
+- 2026-10-23 — Closed `torus-rim-mint-abandons-a-half-applied-split` as moot: `full_torus` was deleted in `28b96a9dd6` (the one-face torus adopts as stated).
+
+- 2026-10-24 — **Seam (QUAD):** PR 5628 (measure door unit B) touches step-import's tests in your territory:
+  - `nurbs_import.rs` loses its `Escalated{props_quad_converged}` posture, since no convergence predicate is minted any more, and reads `TargetUnreached::bracket` as the plain field it now is;
+  - `tier_gate.rs` drops the dead `QUAD_CONVERGED_ESCALATED` constant;
+  - `tcost_k3_import_certificate.rs` counts face-lane rounds.
+
+  No import verdict moved. (QUAD unit B lane)
+- 2026-10-25 — **Band rule (work/README.md, Priority):** `import-normalizes-the-rim-only-cap` re-banded P3→P0, it gates `restfront`'s `validity-refuses-an-interior-chart-singularity` (P0), which lands after it or import starts refusing files it accepts today. Legacy `cost: D` re-priced `M` with `design: true`: whether the seamed statement (`seamed.step`) is accepted, normalized or stays refused is still this row's question. (band-rule triage)

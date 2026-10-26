@@ -5,7 +5,8 @@
 #![allow(clippy::panic)]
 
 use geom_core::{Point2, Point3, Tol, Vec3};
-use sweep::test_support::{brick, prism_on, sketch_from_axes};
+use profile::SketchPlane;
+use sweep::test_support::{brick, prism_on};
 use topo::test_support::finished;
 use topo::{AtRestBody, BooleanResult, SectionGermFault, SplitError, SplitReduceError};
 
@@ -38,12 +39,7 @@ fn pinched_at_the_graze(parts: [Option<&topo::Body<f64>>; 2]) -> bool {
 /// vertices of one part on one key and no row.
 #[test]
 fn a_grazed_rim_lands_whole_or_refuses_typed() {
-    let plane = sketch_from_axes(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        tol(),
-    );
+    let plane = SketchPlane::xy_at(Point3::new(0.0, 0.0, 0.0));
     let disc = vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)];
     let rod = finished("the rod", prism_on(plane, disc, 2.0, tol()), tol());
     let block = finished(
@@ -73,7 +69,10 @@ fn a_grazed_rim_lands_whole_or_refuses_typed() {
             Ok(s) => {
                 assert!(s.coincidences.is_empty(), "the rod {what}: no row");
                 assert!(
-                    !pinched_at_the_graze([s.above.body(), s.below.body()]),
+                    !pinched_at_the_graze([
+                        s.above.body().map(|b| &**b),
+                        s.below.body().map(|b| &**b)
+                    ]),
                     "the rod {what}: no pinch"
                 );
             }
@@ -93,7 +92,7 @@ fn a_grazed_rim_lands_whole_or_refuses_typed() {
     }
     match split(&bored, down) {
         Ok(s) => assert!(
-            !pinched_at_the_graze([s.above.body(), s.below.body()]),
+            !pinched_at_the_graze([s.above.body().map(|b| &**b), s.below.body().map(|b| &**b)]),
             "the bore -z: no pinch at the rim: {:?}",
             s.coincidences
         ),

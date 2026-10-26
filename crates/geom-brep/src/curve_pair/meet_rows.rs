@@ -1944,12 +1944,13 @@ fn two_segments_on_one_line_far_apart_read_apart_at_interval() {
 }
 
 /// **The gap is charged with the rounding its ends carry**: the
-/// evaluation that produced them from the carrier and their own
-/// coordinates (`geom_core::one_line`, "The charge"). At `ε = 10⁻¹²` a
-/// span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one on the same
-/// line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the escalation but
-/// within the rounding of ends evaluated and lying ten kilometres out
-/// (about `1.4·10⁻¹⁰` charged), is not read apart, and `g = 2·10⁻¹⁰` is.
+/// evaluation that produced them from the carrier, and the projections
+/// at the spans' own lengths (`geom_core::one_line`, "The charge"). At
+/// `ε = 10⁻¹²` a span along `x̂` from `(10⁴, 0, 0)` over `(0, 1)` and one
+/// on the same line over `(1 + g, 2)`: a gap `g = 4·10⁻¹¹`, past the
+/// escalation but within the rounding of ends evaluated ten kilometres
+/// out (about `7.1·10⁻¹¹` charged, nearly all of it the evaluation), is
+/// not read apart, and `g = 2·10⁻¹⁰` is.
 /// Two spans on one carrier
 /// through the origin, large by their parameter near 1586 m and
 /// `9.8·10⁻¹²` apart, below the escalation, are not read apart either.
@@ -1985,5 +1986,43 @@ fn the_gap_is_charged_with_the_rounding_of_far_coordinates() {
     assert!(
         !matches!(got, Ok(Pose::Apart | Pose::Parallel)),
         "far by the parameter: {got:?}"
+    );
+}
+
+/// **A spline with a corner meets a line across its second span.** The
+/// degree-1 spline runs along `y = 0.28` to a corner just past its
+/// middle, then straight down through `y = 0` to `y = −0.008`; the line
+/// `y = 0` crosses that second span at `(0.012, 0, 0)`. Each span is
+/// straight, so a bound read span by span is zero, though the tangent
+/// turns a right angle at the knot: the crease bounds no `|C″|`.
+#[test]
+fn a_spline_with_a_corner_meets_a_line_past_it() {
+    use geom::NurbsCurve3;
+    use geom_core::spline::{KnotVector, Knots};
+    let knots = KnotVector::clamped(vec![0.0, 0.0, 0.52, 1.0, 1.0], 1).unwrap();
+    let a = Curve3::Nurbs(std::sync::Arc::new(
+        NurbsCurve3::new(
+            Knots::from(knots),
+            vec![
+                Point3::new(-0.3, 0.28, 0.0),
+                Point3::new(0.012, 0.28, 0.0),
+                Point3::new(0.012, -0.008, 0.0),
+            ],
+            vec![1.0; 3],
+        )
+        .unwrap(),
+    ));
+    let b = line([-0.3, 0.0, 0.0], [1.0, 0.0, 0.0]);
+    let got = super::walk::meet(
+        &Span::new(&a, (0.0, 1.0)),
+        &Span::new(&b, (0.0, 0.6)),
+        band(),
+    );
+    let Ok(m) = got else {
+        panic!("the walk reads the crossing: {got:?}")
+    };
+    assert!(
+        m.points.len() == 1 && interiors_meet(&m),
+        "one meeting, on both interiors: {m:?}"
     );
 }

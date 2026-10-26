@@ -9,11 +9,8 @@ opened: 2026-10-20
 Filed by PCERT unit E1 (`pcert/lane-choices`), from its sweep of lane
 choices outside `pcurve_cache`.
 
-D3 (`[verdicts.consumers]`) treats a decision that picks between two forms
-of the SAME cells (a closed form at Zero, a general one otherwise) as a
-lane choice. In band it takes the general lane, as definite does, or it
-refuses lever-only "not yet" where no general lane is written. It never
-escalates with a tolerance offer and never ends as a defect.
+Each site below picks between two forms of the same cells, a lane
+choice under D3 (`docs/DESIGN.md`, `[verdicts.consumers]`).
 
 ## What
 

@@ -87,21 +87,17 @@
 //!
 //! **What does need saying is the opposite case**: two maps a caller
 //! reads ONE fact from, which must therefore agree word for word.
-//! Three are pinned against each other in `src/tests.rs` and each says
-//! which pin holds it — [`entity_kind_tag`] with [`entity_id_tag`]
-//! where both layers speak of one entity, [`class_admission_tag`]
-//! with [`mint_refusal_tag`], where the first predicts ONE ARM of the
-//! second (see that function for the arm it does not), and
-//! [`edit_error_tag`] with [`snapshot_error_tag`] over the four
+//! One pair is pinned against each other in `src/tests.rs`, and says
+//! which pin holds it: [`edit_error_tag`] with [`snapshot_error_tag`] over the four
 //! param-ref words, where both doors raise one fault at one address.
 //! **That is not
 //! the whole set of pairs that owe a pin**, only the set these maps
 //! have been read for: [`ring_contact_tag`], [`census_contact_tag`]
 //! and [`stale_declaration_tag`] share contact words by prose alone,
-//! and the entity-kind vocabulary has a THIRD Python-visible spelling
+//! and the entity vocabulary has a second Python-visible spelling
 //! outside this file — `py::select::EntityKind`'s member names, held
-//! against `pncad.pyi` by `tests/test_stubs.py` and against these
-//! words by nothing. `work/census/` carries the contact family as a
+//! against `pncad.pyi` by `tests/test_stubs.py` and against
+//! [`entity_id_tag`]'s words by nothing. `work/census/` carries the contact family as a
 //! row.
 //!
 //! **This file is READ as data.** The exhaustive matches guard the
@@ -130,19 +126,16 @@ use pncad::analysis::{
 };
 use pncad::document::LabelFault;
 use pncad::document::{
-    AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission, Coord,
-    CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
-    EvalError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
-    MeasureUnavailableAt, MetaVersionError, MintRefusal, NoChartWhy, NodeErrorClass, NodeErrorKind,
-    NodeStanding, ParseError, PersistError, PinRefusal, PlacedBy, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault,
-    ShellClassifyError, SlideAxis, SlotId, SnapshotError, SplitError, StepHandleRefusal,
-    StepIdFault, Unlocalized, UpdateError, WorldReadFault,
+    AssemblyError, AttrKind, Axis3, CheckEvidence, ChecksError, Coord, CountMismatch,
+    DimensionError, Distribution, DistributionFault, DistributionField, EditError, EvalError,
+    FlattenError, InlineError, InterfaceCrossing, LeverRefusal, Maintenance, MateFault,
+    MeasureUnavailableAt, MetaVersionError, NoChartWhy, NodeErrorClass, NodeErrorKind,
+    NodeStanding, ParseError, PersistError, PinRefusal, PlacementRuleFault, ProgramFault,
+    ProgramRefusal, ReachRefusal, RecordedProgramError, ResolveFault, ShellClassifyError, SlotId,
+    SnapshotError, SplitError, StepHandleRefusal, StepIdFault, TargetAxis, Unlocalized,
+    UpdateError,
 };
-use pncad::geom_core::{
-    BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthonormalizeError,
-    UnitVec3Error,
-};
+use pncad::geom_core::{BandError, BandField, FrameError, FrameInput, FrameVector};
 use pncad::mesh::TessellateError;
 use pncad::profile::{
     CornerReason, CornerWindow, NoCornerReason, PathError, PathErrorKind, ProfileError,
@@ -150,8 +143,9 @@ use pncad::profile::{
 };
 use pncad::quantity::FmtQuantityError;
 use pncad::select::{
-    EntityKind, HitTestError, InterrogateError, MeshPickError, NameLookupError, NamingError,
-    NodePickError, ReadbackError, Resolution, ResolveError, ResolveIndeterminate, RimShare,
+    CrossingSensesShape, DisagreeShape, HitTestError, InterrogateError, JoinShape, MeshPickError,
+    NameLookupError, NamingError, NodePickError, ReadbackError, Resolution, ResolveError,
+    ResolveIndeterminate, RimShare, SeamSidesShape, SeamVertexShape, UnionNameShape, WayShape,
 };
 use pncad::step_import::{NormalizationKind, PromotedCurveKind, PromotedKind, StepImportError};
 use pncad::sweep::blend::BlendError;
@@ -211,6 +205,8 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathErrorKind::DegenerateArcChord => "degenerate_arc_chord",
         PathErrorKind::ArcCenterNotEquidistant => "arc_center_not_equidistant",
         PathErrorKind::DegenerateArcCenter => "degenerate_arc_center",
+        PathErrorKind::ArcMissesAuthoredPoint => "arc_misses_authored_point",
+        PathErrorKind::ArcMissBelowSceneResolution => "arc_miss_below_scene_resolution",
         PathErrorKind::FarEndAnchorWithoutFillet => "far_end_anchor_without_fillet",
         PathErrorKind::Escalated => "escalated",
         PathErrorKind::Band => "band",
@@ -307,8 +303,8 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
         R::InBand { .. } => "in_band",
         R::TiedDisagrees { .. } => "tied_disagrees",
         R::Unreadable { .. } => "unreadable",
-        R::NotADatum { .. } => "not_a_datum",
-        R::DatumHasNoValue(_) => "datum_has_no_value",
+        R::NotAPlane { .. } => "not_a_plane",
+        R::FaceUnresolved { .. } => "face_unresolved",
         R::NotALength { .. } => "not_a_length",
         R::BadValue(_) => "bad_value",
         R::Band(e) => band_error_tag(e),
@@ -335,7 +331,6 @@ pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
 pub fn unmirrored_select_tag(which: UnmirroredSelect) -> &'static str {
     match which {
         UnmirroredSelect::Refusal => "unclassified",
-        UnmirroredSelect::ContactClass => "unclassified",
     }
 }
 
@@ -452,7 +447,7 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 ///
 /// A slot is a per-node-type NAME, never an index, so the word is the
 /// slot's own identity and not a position: `distance`, `count`,
-/// `origin_x`. The seven vector families spell their component into
+/// `origin_x`. The two vector families spell their component into
 /// the word rather than beside it, because `origin` alone names three
 /// slots and a caller branching on it could not tell which expression
 /// refused.
@@ -460,13 +455,13 @@ pub const STEP_IMPORT_WIREFRAME: &str = "wireframe";
 /// An operand is a slot too (D10): its word is the field's own
 /// ([`operand_slot_tag`]), `profile`, `target`, `input`.
 ///
-/// `program`, `placement_step` and a constraint's `world_slide`,
-/// `world_spin`, `value_slide` and `value_spin` are the arms that stop
-/// one level, and they stop for the reason [`profile_error_tag`]'s
-/// family does: what is left below them — a profile program's loop
-/// index, step index and argument role; a later placement step's index
-/// and component; a constraint's id and a world move's place — holds
-/// an integer, and no `&'static str` carries one. A loft's `section` and a union's
+/// `program`, a constraint's `value_slide` and `value_spin`, and a
+/// loft station's
+/// `station_slide` and `station_spin` are the arms that stop one level,
+/// and they stop for the reason [`profile_error_tag`]'s family does:
+/// what is left below them — a profile program's loop index, step
+/// index and argument role; a constraint's id; a section's index and a station move's place — holds an
+/// integer, and no `&'static str` carries one. A loft's `section` and a union's
 /// `member` stop the same way, their position riding the payload's
 /// `index`. The address is in the refusal's prose; the word says which
 /// kind of slot it is.
@@ -477,35 +472,10 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
             Axis3::Y => "origin_y",
             Axis3::Z => "origin_z",
         },
-        SlotId::Normal(axis) => match axis {
-            Axis3::X => "normal_x",
-            Axis3::Y => "normal_y",
-            Axis3::Z => "normal_z",
-        },
         SlotId::Direction(axis) => match axis {
             Axis3::X => "direction_x",
             Axis3::Y => "direction_y",
             Axis3::Z => "direction_z",
-        },
-        SlotId::U(axis) => match axis {
-            Axis3::X => "u_x",
-            Axis3::Y => "u_y",
-            Axis3::Z => "u_z",
-        },
-        SlotId::V(axis) => match axis {
-            Axis3::X => "v_x",
-            Axis3::Y => "v_y",
-            Axis3::Z => "v_z",
-        },
-        SlotId::Translation(axis) => match axis {
-            Axis3::X => "translation_x",
-            Axis3::Y => "translation_y",
-            Axis3::Z => "translation_z",
-        },
-        SlotId::RotationAxis(axis) => match axis {
-            Axis3::X => "rotation_axis_x",
-            Axis3::Y => "rotation_axis_y",
-            Axis3::Z => "rotation_axis_z",
         },
         SlotId::Distance => "distance",
         SlotId::Radius => "radius",
@@ -513,13 +483,11 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::ShellThickness => "shell_thickness",
         SlotId::RevolveAngle => "revolve_angle",
         SlotId::AxisHeading => "axis_heading",
-        SlotId::Spin => "spin",
         SlotId::TubeMajorRadius => "tube_major_radius",
         SlotId::TubeMinorRadius => "tube_minor_radius",
         SlotId::TubeWindowStart => "tube_window_start",
         SlotId::TubeWindowEnd => "tube_window_end",
         SlotId::TubeWall => "tube_wall",
-        SlotId::RotationAngle => "rotation_angle",
         SlotId::Spacing => "spacing",
         SlotId::Step => "step",
         SlotId::Count => "count",
@@ -529,11 +497,10 @@ pub fn slot_id_tag(slot: &SlotId) -> &'static str {
         SlotId::Profile { .. } => "program",
         SlotId::Operand(operand) => operand_slot_tag(operand),
         SlotId::Index { .. } => "index",
-        SlotId::PlacementStep { .. } => "placement_step",
-        SlotId::WorldSlide { .. } => "world_slide",
-        SlotId::WorldSpin { .. } => "world_spin",
         SlotId::ValueSlide { .. } => "value_slide",
         SlotId::ValueSpin { .. } => "value_spin",
+        SlotId::StationSlide { .. } => "station_slide",
+        SlotId::StationSpin { .. } => "station_spin",
     }
 }
 
@@ -580,6 +547,8 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Input => "input",
         S::Of => "of",
         S::Body => "body",
+        S::Plane => "plane",
+        S::Space => "target_space",
     }
 }
 
@@ -612,7 +581,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::LoftSectionsSpelled { .. } => "loft_sections_spelled",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
-        EditError::SetExtrudeSideOnNonExtrude { .. } => "set_extrude_side_on_non_extrude",
+        EditError::LoftSectionCount { .. } => "loft_section_count",
         EditError::StepIdsRefused { .. } => "step_ids_refused",
         // The read doors: a read that resolves to no output, and a node
         // named alone that defines two or nothing. A read of a kind its
@@ -689,11 +658,11 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // bundle, and a constraint id the bundle does not hold.
         EditError::WorldIsUndeletable { .. } => "world_is_undeletable",
         EditError::ConstraintOnNonPlacement { .. } => "constraint_on_non_placement",
+        // Its reads lie in two spaces, decided from the recipe.
+        EditError::SpaceMismatch { .. } => "space_mismatch",
         EditError::UnknownConstraint { .. } => "unknown_constraint",
-        EditError::MateNamedByValue { .. } => "mate_named_by_value",
         EditError::PlacementRuleMismatch { .. } => "placement_rule_mismatch",
         EditError::EmptyPlacementList { .. } => "empty_placement_list",
-        EditError::ImproperPlacement { .. } => "improper_placement",
         EditError::NonFinitePlacement { .. } => "non_finite_placement",
         EditError::NonRigidPlacement { .. } => "non_rigid_placement",
         EditError::PlacementAxis { .. } => "placement_axis",
@@ -831,7 +800,6 @@ pub fn placement_rule_inner_tag(fault: &PlacementRuleFault) -> Option<&'static s
         PlacementRuleFault::CountSpelling { shape } => Some(count_mismatch_tag(shape)),
         PlacementRuleFault::NoPlacements
         | PlacementRuleFault::NonFiniteFrame { .. }
-        | PlacementRuleFault::ImproperFrame { .. }
         | PlacementRuleFault::NonRigidFrame { .. } => None,
     }
 }
@@ -855,6 +823,9 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameInput::Tangent => "degenerate_tangent",
             FrameInput::RollReference => "degenerate_roll_reference",
             FrameInput::ReferenceLadder => "degenerate_reference_ladder",
+            // The mirror normal is the kernel's reflection door's
+            // (`topo::Reflection::across`), which no binding reaches: a
+            // mirror is `Node.mirror`, its plane a pose.
             FrameInput::MirrorNormal => "degenerate_mirror_normal",
         },
         FrameError::NonFiniteLength { input } => match input {
@@ -870,30 +841,6 @@ pub fn frame_error_tag(err: &FrameError) -> &'static str {
             FrameVector::MirrorNormal => "underflowed_mirror_normal",
         },
         FrameError::Band(_) => "band",
-    }
-}
-
-/// The stable tag for a FRAME WITNESS mint's refusal
-/// (`geom_core::RigidMotion::gram_schmidt`), which is what the sketch
-/// plane door raises.
-///
-/// Two axes times the direction door's three definite facts, plus the
-/// escalation: the axis is what a caller branches on — `u` is the
-/// authored first direction and `v` the residual perpendicular to it,
-/// so `degenerate_v_axis` is the word for "these two span no plane" —
-/// and the fact is what says whether a different tolerance could
-/// help. The escalated arm carries the classifier payload on the
-/// exception's own fields rather than in the word, exactly as
-/// [`frame_error_tag`]'s degenerate arm does.
-pub fn orthonormalize_error_tag(err: &OrthonormalizeError) -> &'static str {
-    match (err.axis, err.error) {
-        (OrthoAxis::U, UnitVec3Error::Degenerate) => "degenerate_u_axis",
-        (OrthoAxis::V, UnitVec3Error::Degenerate) => "degenerate_v_axis",
-        (OrthoAxis::U, UnitVec3Error::NonFiniteLength) => "non_finite_u_axis",
-        (OrthoAxis::V, UnitVec3Error::NonFiniteLength) => "non_finite_v_axis",
-        (OrthoAxis::U, UnitVec3Error::UnderflowedLength) => "underflowed_u_axis",
-        (OrthoAxis::V, UnitVec3Error::UnderflowedLength) => "underflowed_v_axis",
-        (_, UnitVec3Error::Escalated(_)) => "escalated",
     }
 }
 
@@ -946,6 +893,7 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::Chamfer => "chamfer",
         C::Boolean => "boolean",
         C::Transform => "transform",
+        C::Mirror => "mirror",
         C::Motion => "motion",
         C::Skin => "skin",
         C::Loft => "loft",
@@ -1004,7 +952,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         C::PlacementRuleCountSpelling => "placement_rule_mismatch",
         C::PlacementRuleNoPlacements => "empty_placement_list",
         C::PlacementRuleNonFiniteFrame => "non_finite_placement",
-        C::PlacementRuleImproperFrame => "improper_placement",
         C::PlacementRuleNonRigidFrame => "non_rigid_placement",
         C::UnschedulableCycle => "unschedulable_cycle",
         C::Naming => "naming",
@@ -1014,19 +961,6 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // are prose in the message), and the lane refusal.
         C::Shell => "shell",
         C::ShellLaneUnsupported => "shell_lane_unsupported",
-        // The derived sketch frame's refusals (DOCM-1): one
-        // carrier-kind refusal and one read-back refusal.
-        C::FaceFrameNotPlanar => "face_frame_not_planar",
-        C::FaceFrameReadback => "face_frame_readback",
-        // **No new word.** A carried frame refusal is the SAME fact
-        // as the one raised at the frame itself, and the arm exists to
-        // add the frame's id to the prose, not to split the fact in
-        // two. So each answers the word of the class the raise has,
-        // and a caller matching `degenerate_direction` keeps matching.
-        C::FrameDirectionDegenerate
-        | C::FrameDirectionNonFiniteLength
-        | C::FrameDirectionUnderflowedLength
-        | C::FrameDirectionEscalated => node_error_tag(class.raised()),
         // The projection node's two refusals (DOCM-2): a half with no
         // material, and an instance index outside the pattern's count.
         C::EmptyHalf => "empty_half",
@@ -1053,20 +987,16 @@ pub fn node_error_tag(class: NodeErrorClass) -> &'static str {
         // different recourses, so a caller
         // branches on which one fired, not on "a mate failed".
         C::MatePosesOfAnotherDocument => "mate_poses_of_another_document",
-        C::MateClassNotAdmitted => "mate_class_not_admitted",
         C::MateOverconstrained => "mate_overconstrained",
-        C::MateTargetsDiffer => "mate_targets_differ",
+        C::MateUnpinned => "mate_unpinned",
         C::MateNotOnTheCopy => "mate_not_on_the_copy",
         C::MateUnleverable => "mate_unleverable",
         C::MateKindsDiffer => "mate_kinds_differ",
-        C::MateWorldRead => "mate_world_read",
         C::MateSideUnevaluated => "mate_side_unevaluated",
-        C::MateValueNamesNoMate => "mate_value_names_no_mate",
-        C::MateNotAFreedom => "mate_not_a_freedom",
         C::MateNoChart => "mate_no_chart",
         C::CrossingUnverified => "crossing_unverified",
-        // A node reading two spaces: a loose copy's beside the world's,
-        // or two loose copies'.
+        // A node reading two spaces: its reads, or a placement's mate
+        // outside its target.
         C::SpaceMismatch => "space_mismatch",
     }
 }
@@ -1128,7 +1058,9 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::Split(inner) => Some(split_op_error_tag(inner)),
         NodeErrorKind::Blend { error, .. } => Some(blend_error_tag(error)),
         NodeErrorKind::Boolean(inner) => Some(boolean_error_tag(inner.kind())),
-        NodeErrorKind::Transform(inner) => Some(transform_error_tag(inner)),
+        NodeErrorKind::Transform(inner) | NodeErrorKind::Mirror(inner) => {
+            Some(transform_error_tag(inner))
+        }
         NodeErrorKind::Motion(inner) => Some(rigid_motion_error_tag(inner)),
         NodeErrorKind::Skin(inner) => Some(skin_error_tag(inner)),
         NodeErrorKind::Loft(inner) => Some(loft_error_tag(inner)),
@@ -1182,9 +1114,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::UnionFoldStep { .. } => None,
         NodeErrorKind::Shell(inner) => Some(shell_error_tag(inner)),
         NodeErrorKind::ShellLaneUnsupported { .. } => None,
-        NodeErrorKind::FaceFrameNotPlanar { .. } => None,
-        NodeErrorKind::FaceFrameReadback { error } => Some(readback_error_tag(error)),
-        NodeErrorKind::FrameDirection { .. } => None,
         NodeErrorKind::WitnessBifurcation(_) => None,
         NodeErrorKind::Part { .. } => None,
         NodeErrorKind::Mate(_) => None,
@@ -1238,7 +1167,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SetMembersOnNonList { .. } => None,
         EditError::LoftSectionsSpelled { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
-        EditError::SetExtrudeSideOnNonExtrude { .. } => None,
+        EditError::LoftSectionCount { .. } => None,
         // What is wrong with the ids is the arm.
         EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
         EditError::OperandUnresolved { .. } => None,
@@ -1305,12 +1234,11 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RebindMetadataCollision { .. } => None,
         EditError::WorldIsUndeletable { .. } => None,
         EditError::ConstraintOnNonPlacement { .. } => None,
+        EditError::SpaceMismatch { .. } => None,
         EditError::UnknownConstraint { .. } => None,
-        EditError::MateNamedByValue { .. } => None,
         // Which answer the rule gives twice is the arm.
         EditError::PlacementRuleMismatch { shape, .. } => Some(count_mismatch_tag(shape)),
         EditError::EmptyPlacementList { .. } => None,
-        EditError::ImproperPlacement { .. } => None,
         EditError::NonFinitePlacement { .. } => None,
         EditError::NonRigidPlacement { .. } => None,
         EditError::UpdateOnNonInstance { .. } => None,
@@ -1448,7 +1376,7 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
         RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
-        RevolveError::MultipleAxisRuns { .. } => "multiple_axis_runs",
+        RevolveError::AxisGapEscalated { .. } => "axis_gap_escalated",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
         RevolveError::VoidInsertion { .. } => "void_insertion",
         RevolveError::CosurfaceEscalated { .. } => "cosurface_escalated",
@@ -1621,7 +1549,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::FallbackExtentUnsupported => "fallback_extent_unsupported",
         BooleanErrorKind::SpheresMeet => "spheres_meet",
         BooleanErrorKind::GermFrameUnsupported => "germ_frame_unsupported",
-        BooleanErrorKind::GermSectionOutsideInventory => "germ_section_outside_inventory",
+        BooleanErrorKind::GermSectionOpenConic => "germ_section_open_conic",
         BooleanErrorKind::GermSectionSpiric => "germ_section_spiric",
         BooleanErrorKind::NodeUnbuilt => "node_unbuilt",
         BooleanErrorKind::Euler => "euler",
@@ -1756,6 +1684,83 @@ pub fn rim_share_tag(found: &RimShare) -> &'static str {
     }
 }
 
+/// The stable tag for the shape a seam vertex's edges met — the inner arm of
+/// [`NamingError::UnsupportedSeamVertex`], crossing as
+/// [`rim_share_tag`] does: each shape is a different construction, and
+/// the tag is the variant's word and the shape's.
+pub fn seam_vertex_shape_tag(shape: &SeamVertexShape) -> &'static str {
+    match shape {
+        SeamVertexShape::OneOperandSeam => "unsupported_seam_vertex_one_operand_seam",
+        SeamVertexShape::LineAcrossSeveralFaces => {
+            "unsupported_seam_vertex_line_across_several_faces"
+        }
+        SeamVertexShape::NoEdgePair => "unsupported_seam_vertex_no_edge_pair",
+    }
+}
+
+/// The stable tag for what a crossing's classes read — the inner arm of
+/// [`NamingError::UnsupportedCrossingSenses`].
+pub fn crossing_senses_shape_tag(shape: &CrossingSensesShape) -> &'static str {
+    match shape {
+        CrossingSensesShape::PiecesBothSides => "unsupported_crossing_senses_pieces_both_sides",
+        CrossingSensesShape::NameReadsTwoSenses => {
+            "unsupported_crossing_senses_name_reads_two_senses"
+        }
+    }
+}
+
+/// The stable tag for what the faces beside an edge are — the inner arm of
+/// [`NamingError::UnsupportedSeamSides`].
+pub fn seam_sides_shape_tag(shape: &SeamSidesShape) -> &'static str {
+    match shape {
+        SeamSidesShape::NotTwoFaces => "unsupported_seam_sides_not_two_faces",
+        SeamSidesShape::NameSpellsTwoSeams => "unsupported_seam_sides_name_spells_two_seams",
+        SeamSidesShape::WithinOneOperand => "unsupported_seam_sides_within_one_operand",
+        SeamSidesShape::InsideOneParent => "unsupported_seam_sides_inside_one_parent",
+    }
+}
+
+/// The stable tag for what a joined edge's cover holds — the inner arm of
+/// [`NamingError::UnsupportedJoin`].
+pub fn join_shape_tag(shape: &JoinShape) -> &'static str {
+    match shape {
+        JoinShape::ChordWithPiece => "unsupported_join_chord_with_piece",
+        JoinShape::ChordBesideMergedFace => "unsupported_join_chord_beside_merged_face",
+        JoinShape::Outright => "unsupported_join_outright",
+    }
+}
+
+/// The stable tag for what a union's name met — the inner arm of
+/// [`NamingError::UnsupportedUnionName`].
+pub fn union_name_shape_tag(shape: &UnionNameShape) -> &'static str {
+    match shape {
+        UnionNameShape::SeamGroupNoMemberEdge => "unsupported_union_name_seam_group_no_member_edge",
+        UnionNameShape::SeveralParents => "unsupported_union_name_several_parents",
+        UnionNameShape::RunLeastLineMoved => "unsupported_union_name_run_least_line_moved",
+        UnionNameShape::JunctionLinesCollide => "unsupported_union_name_junction_lines_collide",
+    }
+}
+
+/// The stable tag for which way-along comparison decided zero — the inner arm of
+/// [`NamingError::WayInZeroBand`].
+pub fn way_shape_tag(shape: &WayShape) -> &'static str {
+    match shape {
+        WayShape::Carrier => "way_in_zero_band_carrier",
+        WayShape::Line => "way_in_zero_band_line",
+    }
+}
+
+/// The stable tag for which two band verdicts disagree — the inner arm of
+/// [`NamingError::BandVerdictsDisagree`].
+pub fn disagree_shape_tag(shape: &DisagreeShape) -> &'static str {
+    match shape {
+        DisagreeShape::VertexOffJoinedSet => "band_verdicts_disagree_vertex_off_joined_set",
+        DisagreeShape::FlushSensesDisagree => "band_verdicts_disagree_flush_senses_disagree",
+        DisagreeShape::PiecesAtOneVertex => "band_verdicts_disagree_pieces_at_one_vertex",
+        DisagreeShape::JoinedEdgeOffMembers => "band_verdicts_disagree_joined_edge_off_members",
+    }
+}
+
 /// The stable tag for a name-EMISSION refusal — the inner arm of
 /// [`NodeErrorKind::Naming`].
 pub fn naming_error_tag(err: &NamingError) -> &'static str {
@@ -1772,7 +1777,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // The MISSING-RULE arms, tagged apart from "emission": a caller
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.
-        NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
+        NamingError::UnsupportedSeamVertex { shape, .. } => seam_vertex_shape_tag(shape),
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::ChordOffRim { .. } => "chord_off_rim",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
@@ -1781,6 +1786,15 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::CarrierUnplaced { .. } => "carrier_unplaced",
         NamingError::PartnerUnread { .. } => "partner_unread",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
+        NamingError::UnsupportedCrossingSenses { shape, .. } => crossing_senses_shape_tag(shape),
+        NamingError::UnsupportedSeamSides { shape, .. } => seam_sides_shape_tag(shape),
+        NamingError::UnsupportedJoin { shape, .. } => join_shape_tag(shape),
+        NamingError::UnsupportedUnionName { shape, .. } => union_name_shape_tag(shape),
+        // The PRECISION-LIMIT arms: a lever the model holds, neither a
+        // kernel bug nor a missing rule.
+        NamingError::WayInZeroBand { shape, .. } => way_shape_tag(shape),
+        NamingError::JoinedPieceOffRoot { .. } => "joined_piece_off_root",
+        NamingError::BandVerdictsDisagree { shape, .. } => disagree_shape_tag(shape),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
     }
@@ -1863,13 +1877,15 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
 }
 
 /// The stable tag for which freedom a value sets (`Coord`): a slide
-/// along the chart's `x`, `y` or `z`, or the spin.
+/// along, or a spin about, the chart's `x`, `y` or `z`.
 pub fn coord_tag(coord: Coord) -> &'static str {
     match coord {
-        Coord::Slide(SlideAxis::X) => "slide_x",
-        Coord::Slide(SlideAxis::Y) => "slide_y",
-        Coord::Slide(SlideAxis::Z) => "slide_z",
-        Coord::Spin => "spin",
+        Coord::Slide(TargetAxis::X) => "slide_x",
+        Coord::Slide(TargetAxis::Y) => "slide_y",
+        Coord::Slide(TargetAxis::Z) => "slide_z",
+        Coord::Spin(TargetAxis::X) => "spin_x",
+        Coord::Spin(TargetAxis::Y) => "spin_y",
+        Coord::Spin(TargetAxis::Z) => "spin_z",
     }
 }
 
@@ -1877,28 +1893,13 @@ pub fn coord_tag(coord: Coord) -> &'static str {
 /// of `mate_no_chart`.
 pub fn no_chart_why_tag(why: NoChartWhy) -> &'static str {
     match why {
-        NoChartWhy::PointRotation => "point_rotation",
-        NoChartWhy::TwoBodies => "two_bodies",
         NoChartWhy::SlideTurnsABall => "slide_turns_a_ball",
     }
 }
 
-/// The stable tag for why a mate's world read is no pose — the inner
-/// arm of `mate_world_read`.
-pub fn world_read_fault_tag(fault: &WorldReadFault) -> &'static str {
-    match fault {
-        WorldReadFault::Role { .. } => "role",
-        WorldReadFault::Along => "along",
-        WorldReadFault::SlidDirection => "slid_direction",
-        WorldReadFault::About => "about",
-        WorldReadFault::FlippedPoint => "flipped_point",
-        WorldReadFault::TooDeep { .. } => "too_deep",
-    }
-}
-
-/// The stable tag for why a copy could not be pinned over its
-/// geometry (`pin_at`, `place_at`): the `EditError.variant` the
-/// "place part" gesture (`Doc.place_at`) raises under.
+/// The stable tag for why a frame could not be read off a copy's
+/// geometry (`corner_frame`): the `EditError.variant`
+/// `Doc.corner_frame` raises under.
 pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
     match refusal {
         PinRefusal::NoNode => "pin_no_node",
@@ -1906,16 +1907,6 @@ pub fn pin_refusal_tag(refusal: &PinRefusal) -> &'static str {
         PinRefusal::NotABody { .. } => "pin_not_a_body",
         PinRefusal::AlreadyPlaced { .. } => "pin_already_placed",
         PinRefusal::NoFrame { .. } => "pin_no_frame",
-        PinRefusal::Band => "pin_band",
-    }
-}
-
-/// The stable tag for how the "place part" gesture placed a copy:
-/// resting a planar face, or pinned over a frame read off its geometry.
-pub fn placed_by_tag(by: PlacedBy) -> &'static str {
-    match by {
-        PlacedBy::PlanarFace => "planar_face",
-        PlacedBy::Pin => "pin",
     }
 }
 
@@ -2022,7 +2013,6 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         // constraint's word for `node_not_minted`.
         SnapshotError::ConstraintNotMinted { .. } => "constraint_not_minted",
         SnapshotError::PlacementNonFinite { .. } => "placement_non_finite",
-        SnapshotError::PlacementImproper { .. } => "placement_improper",
         SnapshotError::PlacementNonRigid { .. } => "placement_non_rigid",
         SnapshotError::MateRefused { .. } => "mate_refused",
         SnapshotError::PlacementRule { .. } => "placement_rule",
@@ -2226,9 +2216,9 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
         },
         E::NotABody { .. } => "not_a_body",
         E::EmptyBoolean { .. } => "empty_boolean",
+        E::BodyInvalid { .. } => "body_invalid",
         E::Step(_) => "step_refused",
         E::Product(inner) => product_error_tag(inner),
-        E::Loose { .. } => "loose",
     }
 }
 
@@ -2438,14 +2428,6 @@ pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
     }
 }
 
-/// The stable tag for a mate reference that named no product face
-/// (the assembly gate's `Reference` arm rides one).
-pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
-    match why {
-        RefusedRef::Ambiguous { .. } => "ref_ambiguous",
-    }
-}
-
 /// The stable tag for an at-rest gate refusal.
 ///
 /// The `Product` arm delegates to [`product_error_tag`] rather than
@@ -2454,95 +2436,12 @@ pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
 /// and the wrapper adds nothing they can act on. The two namespaces
 /// do not collide — the gather's tags are bare (`empty_product`), the
 /// gate's carry their own words.
-///
-/// The two MINT arms each carry a LIST, so neither can delegate: a
-/// document with a stale reference and an unrecordable class refuses
-/// both at once, and one tag cannot be two words. Each arm's tag names
-/// the fact it raises — which mates did not mint, and whose — and the
-/// per-row word is [`mint_refusal_tag`] on the rows themselves.
 pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
     match err {
         AssemblyError::Product(inner) => product_error_tag(inner),
-        AssemblyError::Space { .. } => "own_space",
-        AssemblyError::Mint { .. } => "unminted_mates",
-        AssemblyError::CarriedMintRefusal { .. } => "carried_mint_refusal",
         AssemblyError::CarriedAtRest { .. } => "carried_at_rest",
         AssemblyError::AtRest { .. } => "at_rest",
-        AssemblyError::Uncertified { .. } => "uncertified",
-    }
-}
-
-/// **The stable tag for ONE mint refusal** — a row of either mint arm
-/// of [`assembly_error_tag`], this document's own or a part's.
-///
-/// The two words a caller branches on used to sit on the gate's enum,
-/// one arm each, because the gate raised one refusal. They live here
-/// now, on the row, for the reason the arms became lists: a document
-/// can refuse both ways at once, and which repair a mate needs is a
-/// fact about that mate.
-pub fn mint_refusal_tag(refusal: &MintRefusal) -> &'static str {
-    match refusal {
-        MintRefusal::Reference { .. } => "mate_reference_refused",
-        MintRefusal::NoAtRestRecord { .. } => "no_at_rest_record",
-        MintRefusal::Unevaluated { .. } => "mate_unevaluated",
-    }
-}
-
-/// The stable tag for **how far a contact class gets**: what the
-/// class table answers a tool that asks BEFORE it commits an edit.
-///
-/// `no_at_rest_record` is [`mint_refusal_tag`]'s word on purpose and
-/// must stay it: `ClassAdmission::NoAtRestRecord` says the mint door
-/// will raise `MintRefusal::NoAtRestRecord` for this class, so a
-/// caller that asks ahead and a caller that reads that refusal
-/// afterwards are told one fact.
-/// `the_class_table_predicts_the_mint_refusal_in_its_own_words` holds
-/// those two spellings equal.
-///
-/// **The prediction is one arm's, not the table's.** The mint door
-/// (`editor_core::assembly`) refuses through a wildcard `other =>`
-/// arm, so `NotAdmitted` ALSO arrives at the caller as
-/// `MintRefusal::NoAtRestRecord` — carrying the deferral reason, but
-/// under the other word. A tool matching the word it was told against
-/// the word it later sees is right on the `no_at_rest_record` arm,
-/// silent on `mints` (which refuses nothing) and WRONG on
-/// `not_admitted`. Widening the prediction to the whole table is a
-/// kernel question about that wildcard, not a binding one.
-pub fn class_admission_tag(admission: &ClassAdmission) -> &'static str {
-    match admission {
-        ClassAdmission::Mints => "mints",
-        ClassAdmission::NoAtRestRecord { .. } => "no_at_rest_record",
-        ClassAdmission::NotAdmitted => "not_admitted",
-    }
-}
-
-/// **The stable tag for one at-rest attribution** — what a finding
-/// says about a declaration it names, and whose declaration it is.
-///
-/// Four words rather than two, because a caller must be able to tell a
-/// refutation from a decline (relabelling the first as the second
-/// promotes a verdict against the document into the unrefuted
-/// frontier) AND a declaration this document authored from one a part
-/// did (`declaration.mate` is then a node of another document, and
-/// `of`/`via` are what make that id usable). It lives here, with the
-/// refusal tags, so this crate's `TAG_INVENTORY` guards it — that
-/// roster reads THIS file — because these words are as much a public
-/// Python contract as any tag below.
-///
-/// Exhaustive over both enums, so a relation or an attribution arm
-/// added in the kernel stops this build.
-pub fn attribution_tag(attribution: &Attribution) -> &'static str {
-    match attribution {
-        Attribution::Refuted(_) => "refuted",
-        Attribution::Declined(_) => "declined",
-        Attribution::Carried {
-            relation: Relation::Refuted,
-            ..
-        } => "carried_refuted",
-        Attribution::Carried {
-            relation: Relation::Declined,
-            ..
-        } => "carried_declined",
+        AssemblyError::Space { .. } => "own_space",
     }
 }
 
@@ -2600,14 +2499,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
-        InlineError::InstanceOutputUncarried { .. } => "instance_output_uncarried",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
-        InlineError::ConstructionReadsCopy { .. } => "construction_reads_copy",
-        InlineError::CopyPinnedToConstruction { .. } => "copy_pinned_to_construction",
-        InlineError::PinReadsVariable { .. } => "pin_reads_variable",
-        InlineError::ValueOnAMovedWorld { .. } => "value_on_a_moved_world",
-        InlineError::WorldPinOnAMovedWorld { .. } => "world_pin_on_a_moved_world",
-        InlineError::InstanceUnsolved { .. } => "instance_unsolved",
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
@@ -2615,6 +2507,20 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::RankedRunReordered { .. } => "ranked_run_reordered",
         InlineError::Edit { .. } => "inline_edit",
+    }
+}
+
+/// The stable tag for why a `flatten` refactoring refused.
+pub fn flatten_error_tag(err: &FlattenError) -> &'static str {
+    match err {
+        FlattenError::UnknownNode { .. } => "unknown_node",
+        FlattenError::NotAPlacement { .. } => "not_a_placement",
+        FlattenError::NotTheIdentity { .. } => "not_the_identity",
+        FlattenError::NotANewSpace { .. } => "not_a_new_space",
+        FlattenError::SpaceShared { .. } => "space_shared",
+        FlattenError::ReadUncarried { .. } => "read_uncarried",
+        FlattenError::BothNamed { .. } => "both_named",
+        FlattenError::Edit { .. } => "flatten_edit",
     }
 }
 
@@ -2959,7 +2865,7 @@ pub fn checks_error_tag(err: &ChecksError) -> &'static str {
 /// The stable tag for one finding's evidence.
 ///
 /// A VALUE's discriminant rather than a refusal's, on the
-/// [`refused_ref_tag`] / [`mate_fault_tag`] precedent: what a caller
+/// [`mate_fault_tag`] precedent: what a caller
 /// branches on is which fact was found, and `Display` prose is not a
 /// stable interface for that. It lives here, beside the refusal maps
 /// and not in the PyO3 layer, so the exhaustive match compiles — and
@@ -2969,6 +2875,7 @@ pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
         CheckEvidence::Connectedness { .. } => "connectedness",
         CheckEvidence::Escalated { .. } => "escalated",
         CheckEvidence::Unsupported { .. } => "unsupported",
+        CheckEvidence::NotAtRest { .. } => "not_at_rest",
         CheckEvidence::StaleExpectation { .. } => "stale_expectation",
         CheckEvidence::NotSeparated { .. } => "not_separated",
         CheckEvidence::SeparationUnavailable { .. } => "separation_unavailable",
@@ -3141,6 +3048,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
+        ValidationError::SeamRegionOvercovered { .. } => "seam_region_overcovered",
+        ValidationError::SeamRegionCoverUnresolved { .. } => "seam_region_cover_unresolved",
         ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::SliverInsideOut { .. } => "sliver_inside_out",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",
@@ -3247,37 +3156,6 @@ pub fn entity_id_tag(entity: &EntityId) -> &'static str {
         EntityId::HalfEdge(_) => "half_edge",
         EntityId::Edge(_) => "edge",
         EntityId::Vertex(_) => "vertex",
-    }
-}
-
-/// The stable tag for an entity KIND — what a document-layer name
-/// denotes, one rung above the arena reference [`entity_id_tag`]
-/// spells.
-///
-/// The two maps are two layers' vocabularies, not one map written
-/// twice: this one is total over what a NAME can denote, and the
-/// other over what the arena can hold, so `solid`, `shell`, `loop`
-/// and `half_edge` exist only there and `body` only here. Where both
-/// layers speak of one entity — a face, an edge, a vertex — the word
-/// is the same word, because a caller resolving a name and a caller
-/// reading a census subject are reading one concept.
-/// `the_entity_kind_and_entity_id_maps_agree_where_both_speak` is
-/// what holds that true.
-///
-/// A THIRD spelling of this vocabulary reaches Python, and it is held
-/// somewhere else: `py::select::EntityKind` is a fieldless
-/// `#[pyclass]` mirror whose member names pyo3 mints from Rust
-/// identifiers, so `pncad.EntityKind.Face` is the capitalised twin of
-/// this map's `face` with no literal anywhere. Nothing ties it to
-/// these words — but `tests/test_stubs.py` compares every stub
-/// class's attributes against the compiled class name for name, so a
-/// rename there reds against `pncad.pyi` rather than passing.
-pub fn entity_kind_tag(kind: EntityKind) -> &'static str {
-    match kind {
-        EntityKind::Face => "face",
-        EntityKind::Edge => "edge",
-        EntityKind::Vertex => "vertex",
-        EntityKind::Body => "body",
     }
 }
 
@@ -3399,6 +3277,8 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::StrandedRead { .. } => "stranded_read",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::StrandedSelection { .. } => "stranded_selection",
+        Maintenance::StrandedSpace { .. } => "stranded_space",
+        Maintenance::ValueDropped { .. } => "value_dropped",
         Maintenance::AnonymousVarRemoved { .. } => "anonymous_var_removed",
     }
 }

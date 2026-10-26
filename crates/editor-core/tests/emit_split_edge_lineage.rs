@@ -27,7 +27,7 @@ use crate::fixture::point;
 
 #[test]
 fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_their_senses() {
-    let (doc, [ext, _, split]) = clipped_cylinder(Tol::witness());
+    let (doc, [ext, split]) = clipped_cylinder(Tol::witness());
     let ev = evaluate::<f64>(
         &doc,
         None,
@@ -202,25 +202,19 @@ fn a_rim_arc_crossed_twice_names_its_pieces_by_their_ends_and_its_crossings_by_t
 /// (N3), and the rims are joined across the profile's seam.
 #[test]
 fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
-    use editor_core::{Datum, Node, ProfileDoc};
+    use editor_core::{Node, ProfileDoc};
 
     use crate::emit_edge_piece_locality::d_rod;
-    use crate::emit_union_borders::cylinder;
-    use crate::fixture::{insert, len, scl};
+    use crate::emit_union_borders::rod;
+    use crate::fixture::{insert, plane_on_frame};
 
     let split_at = |doc: ProfileDoc, ext| {
-        let (doc, tool) = insert(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [len(0.0), len(0.15), len(0.0)],
-                normal: [scl(0.0), scl(1.0), scl(0.0)],
-            }),
-        );
+        let tool = plane_on_frame(&doc, ext, [0.0, 0.15, 0.0], [0.0, 1.0, 0.0]);
         let (doc, split) = insert(
             doc,
             Node::Split {
                 target: editor_core::Operand::output(ext, 0).into(),
-                tool: tool.into(),
+                tool,
             },
         );
         let ev = evaluate::<f64>(
@@ -239,7 +233,7 @@ fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
     };
     // The two-piece cylinder: one Below wall face, the merged parent.
     let doc = ProfileDoc::empty_derived("wall-crossed-twice-cylinder", Tol::witness());
-    let (doc, ext) = cylinder(doc, [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
+    let (doc, ext) = rod(doc, 1.0);
     let (ev, split) = split_at(doc, ext);
     let walls: Vec<_> = crate::fixture::half(&ev, split, SplitHalf::Below)
         .iter()
@@ -247,7 +241,7 @@ fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
         .filter(|(n, _)| {
             !matches!(
                 n.path.as_slice(),
-                [RoleSeg::Cap(_)] | [RoleSeg::SplitFragment { .. }] | [RoleSeg::SectionFace { .. }]
+                [RoleSeg::Cap(_)] | [RoleSeg::SplitFragment { .. }] | [RoleSeg::SectionFace]
             )
         })
         .map(|(n, _)| n.clone())

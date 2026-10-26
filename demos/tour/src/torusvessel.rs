@@ -410,8 +410,8 @@ fn wall_probes(tol: Tol) {
     let sectioned = pncad::topo::shell(&quarter, WALL, tol)
         .expect("the sectioned vessel hollows through tier 3")
         .body;
-    let props =
-        pncad::topo::mass_properties(&sectioned, tol).expect("the sectioned hollow's props");
+    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&sectioned, tol), tol)
+        .expect("the sectioned hollow's props");
     println!(
         "   the sectioned vessel's hollow measures {} ± {} m³ (its spiric faces by quadrature)",
         props.volume, props.volume_pad
@@ -517,7 +517,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The wall and the capacity, both against the same closed form at
     // two thicknesses.
     let (v_cav, a_cav) = boundary(R_BELLIED, WALL);
-    let props_s = pncad::topo::mass_properties(&sealed, tol).expect("the sealed vessel's props");
+    // Finished once: the props and the shell roles below both read it.
+    let sealed_at_rest = crate::booleans::at_rest(&sealed, tol);
+    let props_s =
+        pncad::topo::mass_properties(&sealed_at_rest, tol).expect("the sealed vessel's props");
     let v_wall = v_out - v_cav;
     assert!(
         ((props_s.volume - v_wall) / v_wall).abs() < 1e-12,
@@ -535,7 +538,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The capacity, asked for DIRECTLY of the body rather than
     // inferred from a difference: the cavity is the `Void`-role shell
     // and its signed volume is that closed form negated.
-    let classes = pncad::topo::classify_shells(&sealed, tol).expect("per-shell classification");
+    let classes =
+        pncad::topo::classify_shells(&sealed_at_rest, tol).expect("per-shell classification");
     let voids: Vec<_> = classes
         .iter()
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
@@ -578,7 +582,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let (twin_v_cav, _) = boundary(R_WAISTED, WALL);
     let twin_wall = twin_v_out - twin_v_cav;
     let twin_props =
-        pncad::topo::mass_properties(&twin_hollow, tol).expect("the waisted twin's props");
+        pncad::topo::mass_properties(&crate::booleans::at_rest(&twin_hollow, tol), tol)
+            .expect("the waisted twin's props");
     assert!(
         ((twin_props.volume - twin_wall) / twin_wall).abs() < 1e-12,
         "the twin's wall V = {} vs the same closed form at the other sense {twin_wall}",
@@ -641,7 +646,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     let cup_census = census(&cup);
     assert_eq!(cup_census, (24, 36, 19), "the cup's census");
-    let props_c = pncad::topo::mass_properties(&cup, tol).expect("the cup's props");
+    let props_c = pncad::topo::mass_properties(&crate::booleans::at_rest(&cup, tol), tol)
+        .expect("the cup's props");
     // Opening lifts the cavity's mouth cap from its own station up to
     // the mouth plane, so the cup is the WALL less that plug — a
     // cylinder of the cavity's neck radius, one wall tall.
@@ -689,8 +695,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![
         Stop {
             name: "torusvessel",
-            caption: "THE TORUS-WALLED VESSEL, HOLLOWED (a donut band in the wall)"
-                .to_string(),
+            caption: "THE TORUS-WALLED VESSEL, HOLLOWED (a donut band in the wall)".to_string(),
             // Montage membership is CURATED (Ev, montage-v3,
             // 2026-08-30), and this scene has not been through that
             // pass. Everything it pins is a number, an export or a
@@ -758,9 +763,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  the moved caps' off-centre sections, circles tilted against the \
                  sphere's chart — measures by Gauss–Bonnet over its arcs \
                  (`torax_the_sphere_lune_hollows_to_its_closed_form`). THE \
-                 SEALED BODY'S OWN WALL IS STEP: the writer's outward/void classifier \
-                 has closed forms for planar faces only, so this multi-shell CURVED \
-                 solid refuses CurvedShellClassification — declared at the body and \
+                 SEALED BODY'S OWN WALL IS STEP: the writer reads the cavity as a void \
+                 and refuses it (VoidShellUnsupported: no BREP_WITH_VOIDS yet) — \
+                 declared at the body and \
                  probed on every pass, the same standing gate klein's wall 6, the ring \
                  scene and `hollowtorus` name. The cup panel next door is ONE shell and \
                  exports",
@@ -797,10 +802,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                         |e| {
                             matches!(
                                 e,
-                                pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                                pncad::step_export::StepExportError::VoidShellUnsupported { .. }
                             )
                         },
-                        "the writer's outward/void classifier has grown a curved arm. Say \
+                        "the writer writes BREP_WITH_VOIDS now. Say \
                          so in klein's findings entry 7 and in docs/KERNEL-VERBS.md's \
                          hollow-ring STEP row, and retire ALL FOUR probes of this one \
                          gate together: klein's WALL 6, the `ring` scene's \
@@ -832,8 +837,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  V = {:.9} m³ against the sealed wall's closed form less the plug the \
                  lift opens (a cylinder of the cavity's neck radius, one wall tall). \
                  A = {:.9} m². THE CUP LEAVES AS STEP, which the sealed panel next door \
-                 cannot: the writer's outward/void classifier refuses a multi-shell \
-                 CURVED solid, and a cup is ONE shell",
+                 cannot: the writer refuses a void shell, and a cup is ONE shell",
                 props_c.volume, props_c.surface_area,
             )),
             // Ten degrees higher than the sealed panel and swung round

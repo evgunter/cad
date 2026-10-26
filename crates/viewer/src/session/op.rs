@@ -17,17 +17,17 @@ use std::path::PathBuf;
 
 use pncad::document::{
     Coord, DocEdit, DocumentId, Formula, Frame, FreeVar, Label, LoopProgram, Maintenance, Mate,
-    MateRef, Operand, PinRefusal, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
+    MateRef, Operand, ProfileProgram, RecipeNodeId, SlotId, StepId, VarId, VarName,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
-use crate::session::author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane};
+use crate::session::author::{PartSelectSpec, PatternRuleSpec};
 use crate::session::probe::BoundsTarget;
 use crate::session::refuse::Refusal;
-use crate::session::select::{Hovered, Selection};
+use crate::session::select::{FaceSelection, Hovered, Renamed, Selection};
 
 /// One typed operation on the session.
 #[derive(Clone, Debug)]
@@ -60,16 +60,28 @@ pub enum SessionOp {
         /// The node to delete, with its dependents.
         node: RecipeNodeId,
     },
-    /// Remove one constraint from its placement's bundle: one
-    /// `DocEdit::RemoveConstraint`, preceded, for a mate, by one per
-    /// value naming it — a value sets a freedom of its mate, so it goes
-    /// with it, in the same action. A constraint is no node, so it has
-    /// no cone to delete: the copy it pinned is recomputed from what
-    /// remains, and a bundle that no longer pins its copy leaves a loose
-    /// copy, never a refusal.
+    /// Remove one constraint from its placement's bundle
+    /// (`DocEdit::RemoveConstraint`): the bundle written whole without
+    /// it, by the rule a mate's addition writes it — a mate taken away
+    /// frees what it fixed, and each freedom no value then sets is
+    /// written the constant `0`, so the copy stays pinned (D10
+    /// `[placement.values]`). A constraint is no node, so it has no cone
+    /// to delete: the copy it pinned is recomputed from what remains. A
+    /// constraint the bundle does not hold is refused as
+    /// `DocEdit::RemoveConstraint` refuses it.
     RemoveConstraint {
         /// The constraint: its placement and minted id.
         mate: MateRef,
+    },
+    /// Give `placement`'s copy a space of its own: a `new_space()`
+    /// inserted, the placement re-targeted into it and its bundle
+    /// written as the identity (`editor_core::stand`), as one action.
+    /// The copy leaves the space it was placed into — the world's, the
+    /// product's — and is drawn as a shown space of its own (DI5), which
+    /// free-move moves and a mate places again.
+    IntoOwnSpace {
+        /// The placement: a `Place` or an instance.
+        placement: RecipeNodeId,
     },
     /// Write a value into a node's slot. Refused if the slot is
     /// driven by an expression.
@@ -398,11 +410,11 @@ pub enum SessionOp {
         /// Hidden, or shown again.
         hidden: bool,
     },
-    /// Open a free-move probe gesture on the loose space `instance`'s
-    /// copy lives in (G3's fit probe, DI5). Refused typed for a copy
-    /// in the world's space, and while no evaluation that answers the
-    /// document has landed — which space a copy lives in is the
-    /// solve's answer ([`crate::display::free_move_check`]).
+    /// Open a free-move probe gesture on the space `instance`'s copy is
+    /// placed into (G3's fit probe, DI5). Refused typed for a copy
+    /// placed into the world, and while no evaluation that answers the
+    /// document has landed — a copy with no value has no picture to move
+    /// ([`crate::display::free_move_check`]).
     BeginFreeMove {
         /// The instance to probe.
         instance: RecipeNodeId,
@@ -457,11 +469,20 @@ pub enum SessionOp {
     /// reason: it is the other cancel door, and the other thing an
     /// Escape on the field emits.
     CancelFreeMove,
-    /// Add a mate to `placement`'s bundle and then each of its values
-    /// naming the id the mate minted (`DocEdit::AddConstraint`, then one
-    /// `DocEdit::AddValue` per value) — the mate tool's one committed
-    /// action, so one history state and one undo. A mate or a value the
-    /// door refuses ends the action and nothing of it is recorded.
+    /// Add the mate to `placement`'s bundle (`DocEdit::AddConstraint`,
+    /// which writes the bundle whole: the values whose freedoms the
+    /// mate fixes go, each freedom it leaves keeps its value or is the
+    /// constant `0`, and a mate beside mates that already fix its
+    /// equations is refused overconstrained), then the values written
+    /// over the freedoms they set (`DocEdit::SetConstraints`). A mate
+    /// whose `to` reads
+    /// outside the placement's target space is refused by the door,
+    /// naming both spaces, unless the author asked to move the copy
+    /// there (`into_target_space`): the gesture never moves a copy into
+    /// another space as a side effect. The mate
+    /// tool's one committed action, so one history state and one undo.
+    /// A bundle the door refuses ends the action and nothing of it is
+    /// recorded.
     /// Everything before it (the two picks, the choice) is tool state.
     AddMate {
         /// The placement whose copy the mate places.
@@ -470,6 +491,12 @@ pub enum SessionOp {
         mate: Box<Mate<Formula>>,
         /// The freedoms it leaves that are set, each to its number.
         values: Vec<(Coord, Formula)>,
+        /// Whether the author asked, by name, to move the copy into the
+        /// space the mate's `to` reads where that is not its target:
+        /// the placement is first stood by the identity bundle, then
+        /// re-targeted there, in the same action. `false` refuses such a
+        /// mate at the door, naming both spaces.
+        into_target_space: bool,
     },
     /// Replace the session's document with a fresh empty one (GAUTH-1's
     /// creation door zero) — the ONE creation op that is a
@@ -498,14 +525,8 @@ pub enum SessionOp {
         /// The document's name; the id is derived from its trim.
         name: String,
     },
-    /// Insert one datum node with literal slots — the add-datum forms'
-    /// one committed edit each.
-    AddDatum {
-        /// The datum's literal payload.
-        datum: DatumSpec,
-    },
-    /// Insert one profile node from template loops on a plane — the
-    /// add-profile tool's one committed edit.
+    /// Insert one profile node from template loops, drawn on its own
+    /// plane — the add-profile tool's one committed edit.
     ///
     /// `loops` is DESCRIPTION order, nothing more: which loop is the
     /// outer boundary and which are holes is decided by the profile
@@ -516,28 +537,35 @@ pub enum SessionOp {
     /// non-nested pair all refuse through the authoring-time check
     /// ([`Refusal::Edit`]), one rule for authored and hand-written
     /// programs alike (only a non-finite field refuses earlier, at
-    /// the literal door). The plane is a REFERENCE to a frame node,
-    /// which the pick below spells out.
+    /// the literal door). A profile reads no frame: where it stands is
+    /// the placement of what is built from it.
     AddProfile {
-        /// **The frame the profile is drawn on** — a PICK, not a
-        /// field, and [`ProfilePlane`] says which of the two ways it
-        /// was picked.
-        ///
-        /// A profile's plane is a document node, so the form names
-        /// one rather than carrying a plane on the side: the frame a
-        /// person drew on is the frame they can see in the viewport
-        /// and edit afterwards.
-        ///
-        /// [`ProfilePlane::Existing`] names a node that is already
-        /// there; a reference that does not name a `Datum::Frame`
-        /// refuses [`Refusal::WrongNodeKind`] at the door, like every
-        /// other pick. [`ProfilePlane::NewXy`] inserts the world XY
-        /// frame FIRST and draws on it, both edits in one committed
-        /// action and therefore one undo — so an empty document can
-        /// author a sketch without a trip to another form.
-        plane: ProfilePlane,
         /// The loop programs, in description order.
         loops: Vec<LoopProgram<Formula>>,
+    },
+    /// **"Sketch on this face"** (spec §5): `loops` drawn as a profile
+    /// on its own plane, extruded `distance` up its own `z`, the
+    /// extrude's copy placed against the picked face — a `Plane` mate
+    /// from its start cap, flipped, to the face's plane, its origin
+    /// over the face body's own and turned `spin` about the face's
+    /// normal — and the face's body and the copy fused, as ONE action
+    /// (`Recording::sketch_on_face`), the face body's world placements
+    /// re-pointed to the union (A10, Ev's residue 1).
+    ///
+    /// A pick on a copy is read on the body it places. A face whose
+    /// node is no body refuses [`Refusal::WrongNodeKind`]; every other
+    /// refusal is the edit door's ([`Refusal::Edit`]), and a face that
+    /// is not planar or does not resolve refuses at evaluation, on the
+    /// placement's badge.
+    SketchOnFace {
+        /// The picked face.
+        face: FaceSelection,
+        /// The loop programs, in description order.
+        loops: Vec<LoopProgram<Formula>>,
+        /// The extrusion depth (`Length`).
+        distance: Formula,
+        /// The turn about the face's normal (`Angle`).
+        spin: Formula,
     },
     /// **Write the path editor's program over a committed profile's**
     /// — the door the add-profile form's editor commits through when
@@ -592,9 +620,9 @@ pub enum SessionOp {
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
-    /// The extrude goes along the sketch normal. The distance is a
+    /// The extrude goes up the profile's own `+z`. The distance is a
     /// depth: the door inserts what it is given, and a negative one
-    /// refuses at evaluation, naming the side as its recourse.
+    /// refuses at evaluation.
     AddExtrude {
         /// The profile node extruded.
         profile: RecipeNodeId,
@@ -637,29 +665,86 @@ pub enum SessionOp {
     /// leaves the world `[result]`, and one undo restores them. A
     /// repeated operand counts once; operands nothing places place
     /// nothing.
+    ///
+    /// **Operands in two spaces are related by a placement** (D10): each
+    /// operand after the first whose value lives in another space than
+    /// the first's is placed into the first's, in the same action. A
+    /// construction is placed at the identity and the boolean reads the
+    /// new placement; a copy placed into its own body's space
+    /// ([`Self::AddTransform`]'s) is re-targeted in place, its bundle
+    /// the values on the first's space's axes that stand it at the pose
+    /// it held relative to its body. An operand whose pose does not
+    /// solve is read as it is, and the boolean refuses `SpaceMismatch`
+    /// at evaluation, on its own badge.
     AddBoolean {
         /// The operation and its operands.
         spec: super::BooleanSpec,
     },
-    /// Insert one split of an existing body by an existing datum
-    /// plane — the split tool's one committed edit. A split defines two
-    /// bodies, its `above` and `below` outputs, and it changes nothing
-    /// in the world: the target's placements keep reading the target,
-    /// and a half is read by its port wherever a body seat takes one.
+    /// Insert one split of an existing body by a plane — the split
+    /// tool's one committed edit. A split defines two bodies, its
+    /// `above` and `below` outputs, and it changes nothing in the
+    /// world: the target's placements keep reading the target, and a
+    /// half is read by its port wherever a body seat takes one.
     ///
-    /// The tool seat is a PLANE and not a body: `Node::Split`'s tool
-    /// operand is the plane the cut is taken on. Both seats refuse
-    /// [`Refusal::WrongNodeKind`] for the wrong kind.
+    /// The plane is the one through `origin` with normal `normal` in
+    /// the target's own coordinates, read off the target's geometry
+    /// (`Node::Split`'s tool is a plane read whose reads reach its
+    /// operand's root alone) at the numbers' nominal values in the
+    /// document. A target seat of the wrong kind refuses
+    /// [`Refusal::WrongNodeKind`]; a number of the wrong dimension, one
+    /// that does not evaluate, a normal that names no direction and a
+    /// target with no geometry to read the plane off refuse
+    /// [`Refusal::Frame`].
     AddSplit {
         /// The body split.
         target: Operand,
-        /// The `Datum::Plane` node it is cut by.
-        tool: RecipeNodeId,
+        /// A point on the plane (`Length`).
+        origin: [Formula; 3],
+        /// The plane's normal (`Scalar`).
+        normal: [Formula; 3],
     },
-    /// Insert one rigid transform of an existing body — the transform
-    /// tool's one committed action, re-pointing the body's world
-    /// placements to it (A10, Ev's residue 1). The property panel is
-    /// the editor for every slot afterwards.
+    /// **Mirror an existing body across the plane of a picked face** —
+    /// the mirror tool's one committed action. The plane is the face's
+    /// own, read where it was picked: a pick on a copy is read on the
+    /// body the copy places (`crate::world::on_body`), so the plane reads
+    /// the geometry of the body's space, as a mirror's plane must.
+    ///
+    /// A body the world draws becomes the symmetric part: the image
+    /// (`Node::Mirror`) and the union of the body and its image, in the
+    /// body's space, the body's drawn copies re-pointed to the union —
+    /// the feature takeover a fillet makes — so the part is drawn where
+    /// each copy stands and moves with the copy's placement. A mate that
+    /// another placement seats on a face of the body's copy goes stale
+    /// at the takeover, as it does at a fillet's. A body nothing places
+    /// gets its image alone, reached in the tree.
+    ///
+    /// A body seat of the wrong kind refuses [`Refusal::WrongNodeKind`];
+    /// a face read in another space — another construction's, or its
+    /// image's — refuses at the insert door (`EditError::SpaceMismatch`).
+    /// Whether the face is planar is the mirror's own refusal where it
+    /// evaluates.
+    AddMirror {
+        /// The body reflected.
+        body: Operand,
+        /// The face whose plane it is reflected across.
+        plane: FaceSelection,
+    },
+    /// **Move an existing body rigidly** — the transform tool's one
+    /// committed action: a placement of the body into the space it is
+    /// in (`Node::Place`, no mate), its values on that space's axes —
+    /// rotated by `rotation_angle` about `rotation_axis` through the
+    /// body's own origin, then translated — and the body's world
+    /// placements re-pointed to it (A10, Ev's residue 1), as one action.
+    ///
+    /// The translation is written as the three slides, each formula as
+    /// given; a rotation about one of the space's axes is the spin about
+    /// it by `rotation_angle` as given, and one about any other axis is
+    /// the chain of turns its frame makes at the numbers' NOMINAL
+    /// values. What the placement holds afterwards is its values,
+    /// editable through their slots. A number of the wrong dimension,
+    /// one that does not evaluate, and an axis that names no direction
+    /// refuse [`Refusal::Frame`]; an input that is no placeable body
+    /// refuses as a body seat does.
     AddTransform {
         /// The body placed.
         input: Operand,
@@ -687,8 +772,9 @@ pub enum SessionOp {
         input: Operand,
         /// Instance count.
         count: i64,
-        /// The replication rule, with the axis a circular rule was
-        /// picked with.
+        /// The replication rule; a circular rule's axis is read off
+        /// the input's own geometry at its numbers' nominal values, and
+        /// refuses [`Refusal::Frame`] as [`Self::AddSplit`]'s plane does.
         rule: PatternRuleSpec,
     },
     /// Insert one FUSED pattern of an existing body — the pattern
@@ -824,9 +910,9 @@ pub enum SessionOp {
     /// **A duplicate is a pattern of two, its copy projected and
     /// placed** — a `Node::Pattern` of count
     /// [`crate::combine::DUPLICATE_COUNT`] over the body, a `Node::Part`
-    /// picking its second instance, and that projection's identity
-    /// world placement (A10). Three inserts, one action, one undo. The
-    /// original's placements are untouched. The copy is a body of its
+    /// picking its second instance, and a placement of that projection
+    /// beside the original as it is drawn (A10). One action, one undo.
+    /// The original's placements are untouched. The copy is a body of its
     /// own rather than a second placement of the original, because a
     /// feature gesture re-points every placement of its target body
     /// (`work/chrome/a-feature-gesture-re-points-every-copy-of-its-target.md`).
@@ -843,9 +929,19 @@ pub enum SessionOp {
     /// which a pattern of two would index in place, adding nothing.
     /// Both numbers land in the pattern's ordinary slots and are edited
     /// in the property panel afterwards.
+    ///
+    /// **Where the copy is drawn**: beside the drawn copy `beside`, or
+    /// beside each drawn copy of `input` when the pick named the body
+    /// itself; at the identity of the world for a body nothing draws.
+    /// Each placement is written by values on every freedom at that
+    /// copy's evaluated motion, into the copy's space, with no mate, so
+    /// the duplicate stands where the person sees the original, stepped
+    /// along the original's own `x`, and does not follow it.
     Duplicate {
         /// The body duplicated.
         input: Operand,
+        /// The drawn copy of `input` the pick landed on, if any.
+        beside: Option<RecipeNodeId>,
     },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second
@@ -867,8 +963,7 @@ pub enum SessionOp {
     ///
     /// **A creation, so its copies are placed** (A10): an instance is a
     /// placement, inserted and placed at the identity by the "place
-    /// part" gesture (a mate to the world and its values,
-    /// [`OpOutcome::placed`]), with its reference and an empty
+    /// part" gesture (the identity bundle), with its reference and an empty
     /// interface record (an authored instance crosses no split seam).
     /// Hiding, the free-move probe and the mate tool take it from
     /// there.
@@ -1090,12 +1185,13 @@ impl SessionOp {
     #[must_use]
     pub fn creates_a_node(&self) -> bool {
         match self {
-            Self::AddDatum { .. }
-            | Self::AddProfile { .. }
+            Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1110,6 +1206,7 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::DeleteNode { .. }
             | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1183,6 +1280,7 @@ impl SessionOp {
             | Self::Hover(_)
             | Self::DeleteNode { .. }
             | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1204,13 +1302,14 @@ impl SessionOp {
             | Self::SetInstanceHidden { .. }
             | Self::AddMate { .. }
             | Self::NewDocument { .. }
-            | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1245,7 +1344,7 @@ impl SessionOp {
     /// DI5 (`crates/editor-core/IDENTITY.md`) keeps all four
     /// `*FreeMove` rows display-only: releasing a free-move writes
     /// nothing to the document, and the frame stays display state keyed
-    /// by the loose space it was drawn for. So
+    /// by the space it was drawn for. So
     /// [`SessionOp::CommitFreeMove`] commits nothing to the history, and
     /// the argument below covers it as it covers the other three.
     ///
@@ -1260,7 +1359,7 @@ impl SessionOp {
     /// document, and they do not all ask about the SAME document:
     ///
     /// - the operation admits against the COMMITTED document and the
-    ///   spaces a landing read off it or off the scratch
+    ///   landing that answers it or the scratch
     ///   ([`crate::display::free_move_check`], via
     ///   [`crate::display::DisplayState::begin_free_move`] and
     ///   [`super::DocSession::space_evaluation`]);
@@ -1275,7 +1374,7 @@ impl SessionOp {
     /// - every committed edit prunes the display state against the new
     ///   document, and again when its evaluation lands — a prune that
     ///   DISCARDS committed frames and kills an in-flight free-move
-    ///   whose space stopped being loose,
+    ///   whose space stopped being shown,
     ///   reporting the first in [`PruneReport::superseded`] and the
     ///   second in [`PruneReport::killed_gesture`], each with the
     ///   fault that decided it, on [`OpOutcome::withdrawn`].
@@ -1409,6 +1508,7 @@ impl SessionOp {
             | Self::DeclineOffer { .. } => true,
             Self::DeleteNode { .. }
             | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::ProbeBounds { .. }
@@ -1425,13 +1525,14 @@ impl SessionOp {
             | Self::Open(_)
             | Self::NewDocument { .. }
             | Self::AddMate { .. }
-            | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1533,6 +1634,7 @@ impl SessionOp {
             | Self::CancelFreeMove
             | Self::DeleteNode { .. }
             | Self::RemoveConstraint { .. }
+            | Self::IntoOwnSpace { .. }
             | Self::SetSlot { .. }
             | Self::SetSlotVariable { .. }
             | Self::DeclineOffer { .. }
@@ -1550,13 +1652,14 @@ impl SessionOp {
             | Self::Undo
             | Self::Redo
             | Self::AddMate { .. }
-            | Self::AddDatum { .. }
             | Self::AddProfile { .. }
+            | Self::SketchOnFace { .. }
             | Self::EditProfile { .. }
             | Self::AddExtrude { .. }
             | Self::AddRevolve { .. }
             | Self::AddBoolean { .. }
             | Self::AddSplit { .. }
+            | Self::AddMirror { .. }
             | Self::AddTransform { .. }
             | Self::AddPattern { .. }
             | Self::AddPlacedUnion { .. }
@@ -1670,22 +1773,10 @@ pub struct OpOutcome {
     /// gesture's previews: a preview enters no history, so nothing it
     /// did has happened yet.
     pub maintenance: Vec<Maintenance>,
-    /// **How each copy a place gesture made was placed**
-    /// ([`editor_core::place_at`]), in the order the action placed
-    /// them: on a planar face and its values, pinned where the copy has
-    /// none, or left loose with the reason. Empty for every other
-    /// operation.
-    pub placed: Vec<PlaceReport>,
-}
-
-/// **How the "place part" gesture placed one copy**
-/// ([`editor_core::place_at`]).
-#[derive(Debug, Clone, PartialEq)]
-pub struct PlaceReport {
-    /// The placement the gesture made.
-    pub placement: RecipeNodeId,
-    /// How its copy was placed, or why it stands loose.
-    pub by: Result<editor_core::PlacedBy, PinRefusal>,
+    /// **The picked names this operation moved** ([`Renamed`]): what
+    /// every holder of a pick re-seats its names through. Empty for
+    /// every operation that re-pointed no copy to a new placement.
+    pub renamed: Renamed,
 }
 
 impl OpOutcome {

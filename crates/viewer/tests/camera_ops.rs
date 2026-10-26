@@ -9,7 +9,9 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 use bvh::Aabb;
+use pncad::geom_core::Point3;
 use viewer::camera::{self, Camera, CameraError, CameraOp, CameraOpError};
+use viewer::frame;
 
 use crate::common;
 use common::{corners, plate_bounds};
@@ -25,7 +27,7 @@ fn framed() -> Camera {
 #[test]
 fn framing_puts_the_whole_scene_inside_the_frustum() {
     let aspect = 16.0 / 9.0;
-    let camera = Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
+    let camera = Camera::framing(Some(plate_bounds()), aspect).expect("the plate frames");
     for corner in corners(&plate_bounds()) {
         let ndc = camera
             .project(corner, aspect)
@@ -82,7 +84,7 @@ fn framing_uses_the_aspect_it_is_given() {
     // the far end of the band would satisfy containment and show a
     // speck. The binding axis must actually reach out toward the edge.
     for aspect in [0.4f64, 1.0, 2.5] {
-        let camera = Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
+        let camera = Camera::framing(Some(plate_bounds()), aspect).expect("the plate frames");
         let worst = corners(&plate_bounds())
             .into_iter()
             .map(|corner| {
@@ -108,13 +110,19 @@ fn framing_uses_the_aspect_it_is_given() {
 fn a_viewport_too_narrow_to_fit_refuses_rather_than_clamping() {
     let mut refusals = 0;
     for aspect in [0.02f64, 0.005, 0.001] {
-        match Camera::framing(&plate_bounds(), aspect) {
+        match Camera::framing(Some(plate_bounds()), aspect) {
             Err(CameraError::Unfittable {
                 required,
                 max_distance,
                 aspect: reported,
+                fov_y,
             }) => {
                 refusals += 1;
+                assert_eq!(
+                    fov_y,
+                    std::f64::consts::FRAC_PI_4,
+                    "the lens that was asked"
+                );
                 assert!(
                     required > max_distance,
                     "the refusal's own numbers disagree"
@@ -159,7 +167,7 @@ fn framing_an_already_framed_camera_keeps_its_orientation() {
     let refitted = camera::apply(
         &turned,
         &CameraOp::Frame {
-            bounds: plate_bounds(),
+            extent: Some(plate_bounds()),
             aspect: 16.0 / 9.0,
         },
     )
@@ -351,7 +359,7 @@ fn dolly_clamps_to_the_scene_derived_band() {
 
 /// **Depth is reversed and nothing is clipped for being far.**
 ///
-/// A datum plane recedes to its horizon, so the projection is asked
+/// A plane may recede to its horizon, so the projection is asked
 /// to hold points from just past the near plane out to a million orbit
 /// distances: every one lands inside `(0, 1]`, and a nearer point
 /// lands at a GREATER depth — the order every depth pipeline in
@@ -497,25 +505,112 @@ fn operations_that_are_not_moves_are_refused_typed() {
         camera::apply(&camera, &CameraOp::Dolly { factor: -1.0 }),
         Err(CameraOpError::NonPositiveDolly { .. })
     ));
-    // A degenerate box has no framing: refused, never defaulted to a
-    // made-up scale.
+}
+
+/// **A fit with nothing to frame is a move**, onto a stated default:
+/// nothing drawn frames the origin, and a lone point frames itself, at
+/// [`camera::DEFAULT_FRAME_RADIUS`] — keeping the orientation, because
+/// a fit is not a reset, and saying nothing, because nothing went
+/// wrong.
+#[test]
+fn a_fit_with_no_extent_frames_the_default_and_keeps_the_orientation() {
+    let aspect = 16.0 / 9.0;
+    let turned = camera::apply(
+        &framed(),
+        &CameraOp::Orbit {
+            yaw: 0.7,
+            pitch: -0.2,
+        },
+    )
+    .expect("a finite orbit");
     let point = Aabb {
         min_x: 1.0,
-        min_y: 1.0,
-        min_z: 1.0,
+        min_y: -2.0,
+        min_z: 3.0,
         max_x: 1.0,
-        max_y: 1.0,
-        max_z: 1.0,
+        max_y: -2.0,
+        max_z: 3.0,
+    };
+    for (extent, centre) in [(None, [0.0, 0.0, 0.0]), (Some(point), [1.0, -2.0, 3.0])] {
+        let op = CameraOp::Frame { extent, aspect };
+        let folded = camera::fold_recorded(&turned, std::slice::from_ref(&op));
+        assert!(
+            folded.refused.is_none(),
+            "{extent:?}: refused {:?}",
+            folded.refused
+        );
+        assert!(
+            matches!(
+                frame::fold_status(&folded),
+                frame::StatusUpdate::Expire(frame::Subject::Camera)
+            ),
+            "{extent:?}: a clean default fit is not news"
+        );
+        let fitted = folded.camera;
+        let target = fitted.target();
+        assert_eq!(
+            [target.x, target.y, target.z],
+            centre,
+            "{extent:?}: the fit centres on the default"
+        );
+        assert_eq!(fitted.scene_radius(), camera::DEFAULT_FRAME_RADIUS);
+        assert_eq!(
+            (fitted.yaw(), fitted.pitch()),
+            (turned.yaw(), turned.pitch()),
+            "{extent:?}: a fit is not a reset"
+        );
+        // The default sphere is contained, as any fitted sphere is, and
+        // fills the view rather than sitting as a speck in it: its rim
+        // along the camera's own up axis reaches past half the frustum.
+        // Containment alone only gets easier the further the eye backs
+        // off.
+        let r = camera::DEFAULT_FRAME_RADIUS;
+        let up = fitted.up();
+        let rim = Point3::new(
+            centre[0] + up.x * r,
+            centre[1] + up.y * r,
+            centre[2] + up.z * r,
+        );
+        let reach = fitted
+            .project(rim, aspect)
+            .expect("projects")
+            .expect("in front of the eye")[1]
+            .abs();
+        assert!(
+            (0.5..=1.0).contains(&reach),
+            "{extent:?}: the default sphere's rim projects to |ndc y| {reach}"
+        );
+        for offset in [[r, 0.0, 0.0], [0.0, r, 0.0], [0.0, 0.0, r], [-r, -r, 0.0]] {
+            let at = Point3::new(
+                centre[0] + offset[0],
+                centre[1] + offset[1],
+                centre[2] + offset[2],
+            );
+            let ndc = fitted
+                .project(at, aspect)
+                .expect("projects")
+                .expect("in front of the eye");
+            assert!(
+                ndc[0].abs() <= 1.0 && ndc[1].abs() <= 1.0,
+                "{extent:?}: {at:?} projects to {ndc:?}, outside the frustum"
+            );
+        }
+    }
+    // A point whose centre is not a number is still refused, by name.
+    let far = Aabb {
+        min_x: f64::MAX,
+        min_y: 0.0,
+        min_z: 0.0,
+        max_x: f64::MAX,
+        max_y: 0.0,
+        max_z: 0.0,
     };
     assert!(matches!(
-        camera::apply(
-            &camera,
-            &CameraOp::Frame {
-                bounds: point,
-                aspect: 1.0
-            }
-        ),
-        Err(CameraOpError::Unframeable(_))
+        Camera::framing(Some(far), aspect),
+        Err(CameraError::NotFinite {
+            what: "scene centre x",
+            ..
+        })
     ));
 }
 
@@ -581,7 +676,7 @@ fn bounds_whose_half_extents_square_to_infinity_are_not_a_scene() {
         max_y: 1.0e200,
         max_z: 1.0e200,
     };
-    match Camera::framing(&huge, aspect) {
+    match Camera::framing(Some(huge), aspect) {
         Err(CameraError::NotFinite { what, value }) => {
             assert_eq!(what, "scene radius", "refused, but not about the radius");
             assert!(
@@ -605,14 +700,15 @@ fn bounds_whose_half_extents_square_to_infinity_are_not_a_scene() {
         max_y: 1.0e153,
         max_z: 1.0e153,
     };
-    let camera = Camera::framing(&large, aspect).expect("bounds that square finite still frame");
+    let camera =
+        Camera::framing(Some(large), aspect).expect("bounds that square finite still frame");
     assert!(
         camera.scene_radius().is_finite() && camera.scene_radius() > 0.0,
         "the framed camera's scene radius is {}",
         camera.scene_radius()
     );
     // And the ordinary case is untouched.
-    Camera::framing(&plate_bounds(), aspect).expect("the plate frames");
+    Camera::framing(Some(plate_bounds()), aspect).expect("the plate frames");
 }
 
 /// **The camera's own door at the display seam refuses**, and refuses

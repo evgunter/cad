@@ -2,36 +2,59 @@
 
 the offset lane: the carriers it cannot hold and the folds it calls bounds
 
-Opened 2026-09-20 by SHELL's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
+Opened 2026-09-20 by SHELL's priority-seam cut (`work/README.md`,
+Track size). Picked up 2026-10-24.
 
-## The slate
+## Where it sits against INTENT
 
-**14.5 budget points** of dispatchable work against a ceiling of 30.
+INTENT builds D10 in the editor layer (`crates/editor-core`, the
+façade, the viewer), and the refactor hold it sets is on units that
+touch dependency, placement or intent. Nothing on this slate does: it
+is `topo`'s offset doors and rigid map and `geom-brep`'s offset
+carriers and meters. `topo::transform_rigid` is the map a D10
+placement calls, and INTENT's stage 3 D kept it; nothing in D10's
+retirement list (`docs/DESIGN.md`, State of the build) names it, the
+offset doors, or the `MappedSource` declarations the axial door
+re-authors. So no row here is made irrelevant by INTENT.
 
-| pri | item | cost | title |
+The one row that WILL be read differently later is the P0: a new
+carrier kind is a new case for stage 4's canonical carrier forms and
+the symbolic tier (COINCIDE), so its designers are told to weigh that.
+The two P2 `classify` rows are the overlap with HONE's
+`coaxiality-of-two-revolution-carriers-is-tested-five-ways` (one pose
+reading for coaxiality), not with INTENT; whoever takes them reads
+that row first.
+
+## This sitting (P0 and P1)
+
+| pri | item | cost | how |
 |---|---|---|---|
-| P0 | `offset-lane-has-no-conic-carrier` | H | the offset lane cannot carry a hyperbolic edge: a partial-revolve cone's wall meets its moved meridian cap in a conic the kernel has no carrier for (C5 R1) |
-| P1 | `doors-still-read-the-whole-body-for-tier1` | D | the simultaneous doors' tier-1 reads are still whole-body: the closing closure check and the asserting setters |
-| P1 | `offset-meters-cell-normal-midpoint-direction-is-an-f64-fold` | H | offset_meters: cell_normal's assembly-B direction norm is an f64 fold used as an upper-bound divisor |
-| P1 | `topo-transform-rewritten-is-a-hashset-the-crate-doc-argues-against` | E | transform.rs's rewritten set is the one HashSet in topo, and the crate doc spends a paragraph concluding a SecondaryMap would be cheaper and D9-consistent |
-| P4 | `offset-axial-predicates-missing-from-the-dimension-audit` | E | docs/predicate-dimension-audit.md lists a third of offset_axial.rs's decide names |
+| P0 | `offset-lane-has-no-conic-carrier` | H, design | designer pair, then an `[ev]` PR: it moves C5 R1's ratified "outside the conic inventory by decision" |
+| P1 | `doors-still-read-the-whole-body-for-tier1` | H, design | designer pair first (a tier-1 restricted to a scope without a second validator; SHELF's `offset-doors-take-solids-and-a-per-chart-rule` reshapes the same doors) |
+| P1 | `topo-transform-rewritten-is-a-hashset-the-crate-doc-argues-against` | E | implementer, with the P4 `transform-corrupt-renders-an-orphan-entry-as-a-missing-reference` riding along (the same set's refusal) |
 
-## Order
+`offset-meters-cell-normal-midpoint-direction-is-an-f64-fold` closed
+at pick-up as overtaken (its row says by what).
 
-`offset-lane-has-no-conic-carrier` first: a partial-revolve cone's wall
-has no offset carrier at all, which is a shape the kernel builds and
-then cannot offset. `offset-meters-cell-normal-midpoint-direction-is-an-f64-fold`
-is the soundness row beside it — an `f64` fold standing in for a bound
-— and the two are the whole substance of this track.
+## The conic build (Ev's ruling on PR 5652)
 
-The three remaining rows are structural and cheap; take them as
-drive-bys where you are already in the file.
+| unit | pri | cost | depends on |
+|---|---|---|---|
+| `closed-form-edge-carriers-pass-on-samples-with-no-stated-bound-between-them` (limb 2 for every carrier) | P0 | H | — |
+| `the-plane-cone-arc-is-minted-exactly-and-the-axial-door-reads-the-moved-section` | P0 | H | unit 1 |
+| `a-classified-pairs-section-states-the-bounds-that-retire-the-tube` | P0 | M | unit 2; lands last and alone (Ev's reservation) |
+
+`offset-lane-has-no-conic-carrier` closes when they land. Review: unit 1
+and unit 2 are broad (every closed-form edge's certificate; a new
+section path every caller reads), so each draws a dual.
+
+## The tail (P2–P4)
+
+Left for a successor unless this sitting's context makes a row cheap.
+`work.py status --program offset` is the list.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. SHELL inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+The repo-wide tiers (`memories/orchestration-model.md`). The `rewritten`
+set is a mechanical change: orchestrator's read. The P0's build, once
+ruled, is a new carrier kind every reader takes, so it draws a dual.

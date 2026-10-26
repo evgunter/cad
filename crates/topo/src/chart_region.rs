@@ -106,8 +106,8 @@
 //! `geom_brep::chart_stretch_sup`'s documented over-statement (`sup`
 //! stretch bounds) is safe for escape-metering and UNSAFE here — an
 //! over-stated arm inflates the margin and would certify a
-//! model-space sliver as definitely positive. The two bounds are
-//! separate doors so the wrong one cannot be reached by accident.
+//! model-space sliver as definitely positive. The arms are
+//! [`InfSpeed`]s, so a sup cannot be handed in their place.
 //!
 //! Plane `(1, 1)` and cylinder `(r, 1)` arms are EXACT constants, not
 //! bounds. Every other kind takes a certified inf — sphere and cone
@@ -144,7 +144,11 @@
 
 use geom::Surface;
 use geom_core::k_stats::{Magnitude, decide_magnitude};
-use geom_core::{Band, Bounds, CertifiedBounds, Decide, Indeterminate, Margin, Point2, Sign, Vec2};
+use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
+use geom_core::{
+    Band, Bounds, CertifiedBounds, Decide, Indeterminate, InfSpeed, Margin, Point2, Sign, Vec2,
+    is_underflowed_length,
+};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
@@ -336,10 +340,29 @@ pub enum ChartRegionError {
         /// Cell centres probed before the walk stopped: the cap.
         cells: usize,
     },
+    /// A trim edge's metred chart length is not an ordinary number:
+    /// past about 1e154 m its squared components overflow and `|edge|`
+    /// is unbounded (`∞` at a point scalar, an enclosure reaching `∞`
+    /// at the interval scalar, [`Real::is_bounded`](geom_core::Real::is_bounded)), and under about
+    /// 1e-162 m they flush and `|edge|` is `0` for a nonzero edge
+    /// ([`geom_core::is_underflowed_length`], a point-scalar question:
+    /// at the interval scalar an underflowed length still encloses the
+    /// true one, and the rungs escalate on it). Every crossing rung
+    /// levers by edge lengths, so either end reads a height wrong.
+    /// Recourse is the model's scale, not ε.
+    EdgeScale,
     /// The topology could not be walked, or the crossing walk
     /// contradicted itself (fail-loud kernel-invariant class).
     Corrupt,
 }
+
+/// [`ChartRegionError::EdgeScale`]'s reason and recourse, which
+/// `validate` reads apart — the census's `ChordScale` wording, with
+/// the bounds it leaves out.
+pub(crate) const EDGE_SCALE_REASON: &str = "an edge there is too long or too short to measure \
+     (longer than about 1e154 m or shorter than about 1e-162 m)";
+pub(crate) const EDGE_SCALE_RECOURSE: &str =
+    "Recourse: rescale the model so every edge length is an ordinary number";
 
 /// What [`ChartRegionError::Escalated`] leaves undecided.
 const OVERLAP_SUBJECT: &str = "how the two faces' regions overlap";
@@ -455,6 +478,10 @@ impl core::fmt::Display for ChartRegionError {
                  the overlap is neither certified nor ruled out; simplify the \
                  pair's trims, or read it on a chart whose boundaries meet in fewer \
                  places"
+            ),
+            Self::EdgeScale => write!(
+                f,
+                "chart-region: {EDGE_SCALE_REASON}. {EDGE_SCALE_RECOURSE}"
             ),
             Self::Corrupt => write!(
                 f,
@@ -828,17 +855,47 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     door_one: crate::contact::ContactVerdict,
     band: Band,
 ) -> Result<ChartOverlap, ChartRegionError> {
+    // INVARIANT: a shared trim boundary is what a FLUSH seat is made of,
+    // and it is not by itself an undecidable area. The region walk cannot
+    // build intersection pieces across a collinear boundary overlap and
+    // refuses honestly, and a boundary in band of the other's (a
+    // NEAR-flush seat) escalates there; a point certified strictly
+    // interior to BOTH trims proves the intersection contains a disc of
+    // definitely-positive radius, which IS the positive claim. The rung
+    // runs on whichever chart the pair was read in, and only ever turns a
+    // REFUSAL into a proof — it can neither contradict a decided answer
+    // nor manufacture an `Empty`: its decline carries the walk's refusal,
+    // which no reader takes for an empty overlap.
+    let rescued = |read: Result<ChartOverlap, ChartRegionError>,
+                   carrier: &Surface<T>,
+                   uv_a: &FaceUv<T>,
+                   uv_b: &FaceUv<T>| match read {
+        Err(refusal @ (ChartRegionError::TouchingBoundary | ChartRegionError::Escalated(_))) => {
+            match interior_witness(
+                body_a, face_a, body_b, face_b, carrier, uv_a, uv_b, door_one, band,
+            ) {
+                WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
+                // The rung's schedule stopped short. That is a fact about
+                // the work, not about the geometry, so it does NOT leave
+                // the carried refusal standing under a name that says the
+                // overlap is undecidably thin.
+                WitnessOutcome::SegmentCapExceeded { segments } => {
+                    Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
+                }
+                WitnessOutcome::CellCapExceeded { segments, cells } => {
+                    Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
+                }
+                WitnessOutcome::Declined => Err(refusal),
+            }
+        }
+        other => other,
+    };
     let divergence = match declared_chart(body_a, face_a, body_b, face_b) {
         Ok(surface) => {
-            return overlap_on(
-                body_a,
-                face_a,
-                body_b,
-                face_b,
-                &surface,
-                ChartRead::Minted,
-                band,
-            );
+            let uv_a = extract_face_uv(body_a, face_a, &surface, ChartRead::Minted, band)?;
+            let uv_b = extract_face_uv(body_b, face_b, &surface, ChartRead::Minted, band)?;
+            let read = overlap_of_uv(body_a, face_a, body_b, face_b, &surface, &uv_a, &uv_b, band);
+            return rescued(read, &surface, &uv_a, &uv_b);
         }
         Err(divergence) => divergence,
     };
@@ -856,34 +913,8 @@ pub fn declared_pair_overlap<T: Decide + CertifiedBounds>(
     carrier_agreement(body_a, face_a, body_b, face_b, band)?;
     let uv_a = extract_face_uv(body_a, face_a, &carrier, ChartRead::WorldCarrier, band)?;
     let uv_b = extract_face_uv(body_b, face_b, &carrier, ChartRead::WorldCarrier, band)?;
-    match overlap_of_uv(body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band) {
-        // INVARIANT: a shared trim boundary is what a FLUSH seat is
-        // made of, and it is not by itself an undecidable area. The
-        // region walk cannot build intersection pieces across a
-        // collinear boundary overlap and refuses honestly; a point
-        // certified strictly interior to BOTH trims proves the
-        // intersection contains a disc of definitely-positive radius,
-        // which IS the positive claim. The rung only ever turns a
-        // REFUSAL into a proof — it can neither contradict a decided
-        // answer nor manufacture an `Empty`.
-        Err(ChartRegionError::TouchingBoundary) => match interior_witness(
-            body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, door_one, band,
-        ) {
-            WitnessOutcome::Certified => Ok(ChartOverlap::PositiveArea),
-            // The rung's schedule stopped short. That is a fact about
-            // the work, not about the geometry, so it does NOT leave
-            // the carried refusal standing under a name that says the
-            // overlap is undecidably thin.
-            WitnessOutcome::SegmentCapExceeded { segments } => {
-                Err(ChartRegionError::WitnessSegmentCapExceeded { segments })
-            }
-            WitnessOutcome::CellCapExceeded { segments, cells } => {
-                Err(ChartRegionError::WitnessCellCapExceeded { segments, cells })
-            }
-            WitnessOutcome::Declined => Err(ChartRegionError::TouchingBoundary),
-        },
-        other => other,
-    }
+    let read = overlap_of_uv(body_a, face_a, body_b, face_b, &carrier, &uv_a, &uv_b, band);
+    rescued(read, &carrier, &uv_a, &uv_b)
 }
 
 /// Which description a loop walk's chart polygon is a picture OF.
@@ -1373,8 +1404,9 @@ fn cyl_frame<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<CylFrame<T>, Ch
 /// overlap question collapses to the axial interval intersection —
 /// decided exactly, no fold needed, BEFORE the fold can decline it:
 ///
-/// - `chart_region_cyl_wrap` — a rectangle's azimuth span less τ,
-///   levered by the radius to metres; `Zero` = full wrap.
+/// - `chart_region_cyl_wrap` — a rectangle's azimuth span against one
+///   turn at the radius, the turn rule ([`Period::turn`]); a whole turn
+///   is a full wrap.
 /// - `chart_region_cyl_band` — the axial overlap of the two bands in
 ///   metres: `Positive` proceeds to the area claim, `Negative` is the
 ///   certified [`ChartOverlap::Empty`] (the stale-declaration arm),
@@ -1617,7 +1649,7 @@ enum Fold<T> {
 
 /// The fold for windows whose azimuth midpoints are `gap` apart, on a
 /// cylinder of `radius`: the shift `k·τ`, with `k` decided by the
-/// half-period marks ([`geom_brep::Period::decide`]) levered at the
+/// half-period marks ([`geom_brep::Period::decide`]) metered at the
 /// radius, so it is a literal at every scalar. Where a mark misses, the
 /// two branches astride it (`pcurves::branches_astride`), each a literal.
 ///
@@ -1629,7 +1661,7 @@ enum Fold<T> {
 fn period_fold<T: Decide>(gap: T, radius: T, band: Band) -> Result<Fold<T>, ChartRegionError> {
     let tau = T::tau();
     let name = "chart_region_period_fold";
-    let meter = |g| Margin::levered(g, radius);
+    let meter = |g| Margin::metered(g, InfSpeed::new(radius));
     let period = geom_brep::Period::new(tau);
     let shift = |k: i32| period.times(k);
     match period.decide(name, gap, meter, band) {
@@ -1714,7 +1746,7 @@ fn window_mid<T: Decide + Bounds>(uv: &FaceUv<T>) -> T {
 /// `Some((v_lo, v_hi))` when the polygon is exactly four exact-point
 /// vertices forming an axis-aligned rectangle in chart coordinates
 /// (C6: structure read as structure) whose azimuth span is decidedly
-/// one period (`chart_region_cyl_wrap`, levered by the radius);
+/// one period (`chart_region_cyl_wrap`, a whole turn at the radius);
 /// `None` otherwise — the general walk's ground.
 ///
 /// # Errors
@@ -1722,7 +1754,7 @@ fn window_mid<T: Decide + Bounds>(uv: &FaceUv<T>) -> T {
 /// [`ChartRegionError::Escalated`] when the span sits in the sliver
 /// band — a nearly-full wrap is neither a band nor a general window
 /// and must not be silently classified as either.
-fn wrap_band<T: Decide + Bounds>(
+pub(crate) fn wrap_band<T: Decide + Bounds>(
     outer: &[Point2<T>],
     radius: T,
     band: Band,
@@ -1762,16 +1794,32 @@ fn wrap_band<T: Decide + Bounds>(
     };
     let (ul, uh) = (extreme(|p| p.0, false), extreme(|p| p.0, true));
     let (vl, vh) = (extreme(|p| p.1, false), extreme(|p| p.1, true));
-    let span = outer[uh].x - outer[ul].x;
-    match decide(
-        "chart_region_cyl_wrap",
-        Margin::levered(span - T::tau(), radius),
-        band,
-    ) {
-        Ok(Sign::Zero) => Ok(Some((outer[vl].y, outer[vh].y))),
-        Ok(_) => Ok(None),
-        Err(diag) => Err(ChartRegionError::Escalated(diag)),
-    }
+    // The extremes are ordered by the exact reads, so the span runs
+    // forward from the least to the greatest; it is decided so rather
+    // than hulled again, which would wrap the corners' expressions in a
+    // `min` and a `max`.
+    // A span not forward (none, or one in the band near zero) is
+    // certainly no whole turn, so it is no band, and an in-band reading's
+    // escalation is superseded by that answer.
+    let fwd = "chart_region_cyl_wrap_forward";
+    let (span, recording) = geom_core::k_stats::detached(|| {
+        Extent::forward(fwd, outer[ul].x, outer[uh].x, InfSpeed::new(radius), band)
+    });
+    let span = match span {
+        Ok(span) => {
+            geom_core::k_stats::splice(recording);
+            span
+        }
+        Err(NotForward::Undecided(_)) => {
+            geom_core::k_stats::splice_superseded(recording);
+            return Ok(None);
+        }
+        Err(NotForward::Zero(_) | NotForward::Reversed(_)) => {
+            geom_core::k_stats::splice(recording);
+            return Ok(None);
+        }
+    };
+    Ok(cyl_wrap_whole(span, radius, band)?.then(|| (outer[vl].y, outer[vh].y)))
 }
 
 /// The band arm's decision (doc at [`cylinder_pair_overlap`]): axial
@@ -2423,14 +2471,26 @@ fn pcurve_entry<T: Decide + Bounds>(
             let t = if forward { t0 } else { t1 };
             Ok(Point2::new(p0.x + pl.x * t, p0.y + pl.y * t))
         }
-        // The UV image is the straight segment `p0 → p0 + pd` by
+        // The UV image lies on the straight segment `p0 → p0 + pd` by
         // variant; only the parameterization along it is
-        // transcendental, and endpoints are read structurally
-        // (`g = 0` at the carrier's `t0`, `g = 1` at `t1`).
-        Pcurve::IsoArc { p0, pd, .. } => Ok(if forward {
-            *p0
+        // transcendental. An edge spanning the image's whole arc has
+        // the segment's ends as its own, read structurally (`g = 0` at
+        // `t0`, `g = 1` at `t1`); an edge covering part of the arc (a
+        // split rim's child) ends where the image is at its parameter.
+        Pcurve::IsoArc {
+            p0,
+            pd,
+            t0: at0,
+            angle,
+            ..
+        } => Ok(if exact_zero(*at0 - t0) && exact_zero(*angle - (t1 - t0)) {
+            if forward {
+                *p0
+            } else {
+                Point2::new(p0.x + pd.x, p0.y + pd.y)
+            }
         } else {
-            Point2::new(p0.x + pd.x, p0.y + pd.y)
+            pcurve.eval(if forward { t0 } else { t1 })
         }),
         // Straight iff each channel is (C6). An angle channel is, by
         // its kind: a phase and a winding's rate, with no trig terms.
@@ -2569,10 +2629,9 @@ fn extract_face_uv<T: Decide + Bounds>(
 /// the scaled polygon's. Every error is therefore in the refusing
 /// direction — for `PositiveArea` a shrunk region has a smaller mean
 /// width and misses the band sooner, and for `Empty` a shrunk
-/// separation is harder to call definite. Reading
-/// `geom_brep::chart_stretch_sup` here would invert exactly that and
-/// certify a model-space sliver as definitely positive, which is why
-/// the two bounds are separate functions with separate names.
+/// separation is harder to call definite. A sup arm would invert
+/// exactly that and certify a model-space sliver as definitely
+/// positive, which is why the arms are [`InfSpeed`]s.
 ///
 /// # The arms, per chart kind
 ///
@@ -2616,7 +2675,7 @@ fn certified_arms<T: Decide + Bounds>(
     v_lo: T,
     v_hi: T,
     band: Band,
-) -> Result<(T, T), ChartRegionError> {
+) -> Result<(InfSpeed<T>, InfSpeed<T>), ChartRegionError> {
     // The arm gate: a lever arm is a metre RATE, gated as a length
     // (the collapsed-arm idiom). Definite-positive walks on; a zero
     // or negative arm is the chart having no certified extent in that
@@ -2642,11 +2701,11 @@ fn certified_arms<T: Decide + Bounds>(
             Err(diag) => Err(ChartRegionError::Escalated(diag)),
         }
     };
-    match *surface {
+    let (arm_u, arm_v) = match *surface {
         // A plane chart's coordinates ARE metres (unit u_ref frame).
-        Surface::Plane { .. } => Ok((T::one(), T::one())),
+        Surface::Plane { .. } => (T::one(), T::one()),
         // Azimuth radians lever by exactly r everywhere; v is metres.
-        Surface::Cylinder { radius, .. } => Ok((radius, T::one())),
+        Surface::Cylinder { radius, .. } => (radius, T::one()),
         Surface::Sphere { radius, .. } => {
             let v_abs = v_lo.abs().max(v_hi.abs());
             // **`cos` is monotone only on `[0, π/2]`, and the window
@@ -2663,21 +2722,21 @@ fn certified_arms<T: Decide + Bounds>(
             if v_abs.hi() > core::f64::consts::FRAC_PI_2 || v_abs.hi().is_nan() {
                 return Err(ChartRegionError::ArmUnbounded { chart: "sphere" });
             }
-            Ok((gate(radius * v_abs.cos(), "sphere")?, radius))
+            (gate(radius * v_abs.cos(), "sphere")?, radius)
         }
         Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => Ok((
+        } => (
             gate(major_radius - minor_radius, "torus")?,
             gate(minor_radius, "torus")?,
-        )),
+        ),
         Surface::Cone { half_angle, .. } => {
             // Branch-free `min |v|` over the window, zero exactly when
             // the window straddles the apex.
             let v_inf = v_lo.max(T::zero() - v_hi).max(T::zero());
-            Ok((gate(v_inf * half_angle.sin(), "cone")?, T::one()))
+            (gate(v_inf * half_angle.sin(), "cone")?, T::one())
         }
         Surface::Nurbs(_) | Surface::Approx(_) => {
             let chart = if matches!(*surface, Surface::Nurbs(_)) {
@@ -2718,9 +2777,19 @@ fn certified_arms<T: Decide + Bounds>(
             let rho = (det_inf * T::from_f64(2.0) / (trace_sup + root))
                 .sqrt()
                 .min(T::one());
-            Ok((gate(inf_u * rho, chart)?, gate(inf_v * rho, chart)?))
+            (gate(inf_u * rho, chart)?, gate(inf_v * rho, chart)?)
         }
-    }
+    };
+    Ok((InfSpeed::new(arm_u), InfSpeed::new(arm_v)))
+}
+
+/// [`certified_arms`]' two rates read back as numbers, for a test's
+/// comparison.
+#[cfg(test)]
+fn arm_values<T: geom_core::Real, E>(
+    arms: Result<(InfSpeed<T>, InfSpeed<T>), E>,
+) -> Result<(T, T), E> {
+    arms.map(|(u, v)| (u.get(), v.get()))
 }
 
 /// The `v` reach of a pair's extracted loops — the window the
@@ -2746,8 +2815,8 @@ fn v_window<T: Decide + Bounds>(a: &FaceUv<T>, b: &FaceUv<T>) -> Option<(T, T)> 
 /// The seam-branch gate: on a periodic chart, EVERY extracted vertex
 /// of both faces must fit one closed period-wide azimuth window
 /// (span ≤ τ admits the exact full-wrap wall; a definite excess means
-/// the loops sit on different pinned branches). The span excess is
-/// radians, levered by the azimuth arm to metres.
+/// the loops sit on different pinned branches): the span's hull against
+/// one turn at the azimuth arm, the turn rule ([`Period::turn`]).
 fn seam_gate<T: Decide + Bounds>(
     surface: &Surface<T>,
     a: &FaceUv<T>,
@@ -2757,39 +2826,45 @@ fn seam_gate<T: Decide + Bounds>(
     let Surface::Cylinder { radius, .. } = *surface else {
         return Ok(()); // plane charts do not wrap; other kinds refused at the arm gate
     };
-    let mut u_min: Option<T> = None;
-    let mut u_max: Option<T> = None;
-    let mut visit = |poly: &Vec<Point2<T>>| {
-        for p in poly {
-            u_min = Some(match u_min {
-                None => p.x,
-                Some(m) => m.min(p.x),
-            });
-            u_max = Some(match u_max {
-                None => p.x,
-                Some(m) => m.max(p.x),
-            });
-        }
-    };
-    visit(&a.outer);
-    a.rings.iter().for_each(&mut visit);
-    visit(&b.outer);
-    b.rings.iter().for_each(&mut visit);
-    let (Some(lo), Some(hi)) = (u_min, u_max) else {
+    let loops = [a, b]
+        .into_iter()
+        .flat_map(|uv| core::iter::once(&uv.outer).chain(&uv.rings));
+    let Some(span) = Extent::hull(loops.flatten().map(|p| p.x)) else {
         return Err(ChartRegionError::Corrupt);
     };
-    let excess = (hi - lo) - T::tau();
-    match decide(
-        "chart_region_seam_span",
-        Margin::levered(excess, radius),
-        band,
-    ) {
-        // A definite excess: no common branch. Zero (the exact
-        // full-wrap wall pair) and definite negatives proceed.
-        Ok(Sign::Positive) => Err(ChartRegionError::SeamBranch),
-        Ok(_) => Ok(()),
-        Err(diag) => Err(ChartRegionError::Escalated(diag)),
+    // Over a turn: no common branch. A whole turn (the exact full-wrap
+    // wall pair) and a short one proceed.
+    if seam_span_over(span, radius, band)? {
+        return Err(ChartRegionError::SeamBranch);
     }
+    Ok(())
+}
+
+/// Whether a rectangle's azimuth span is a whole turn at `radius`
+/// (`chart_region_cyl_wrap`, the turn rule).
+pub(crate) fn cyl_wrap_whole<T: Decide>(
+    span: Extent<T>,
+    radius: T,
+    band: Band,
+) -> Result<bool, ChartRegionError> {
+    let rows = TurnRows::exact("chart_region_cyl_wrap");
+    Period::new(T::tau())
+        .whole_turn(rows, span, Exact::new(radius), band)
+        .map_err(|undecided| ChartRegionError::Escalated(undecided.diag))
+}
+
+/// Whether a face pair's azimuth hull is definitely over one turn at
+/// `radius` (`chart_region_seam_span`, the turn rule).
+pub(crate) fn seam_span_over<T: Decide>(
+    span: Extent<T>,
+    radius: T,
+    band: Band,
+) -> Result<bool, ChartRegionError> {
+    let rows = TurnRows::exact("chart_region_seam_span");
+    Period::new(T::tau())
+        .not_over(rows, span, Exact::new(radius), band)
+        .map(|not_over| !not_over)
+        .map_err(|undecided| ChartRegionError::Escalated(undecided.diag))
 }
 
 /// Shoelace + perimeter of a chart polygon (evaluation lane): `2A`
@@ -2828,14 +2903,14 @@ impl<T: Decide + Bounds> ScaledFace<T> {
         body: &Body<T>,
         face: FaceKey,
         uv: &FaceUv<T>,
-        arm_u: T,
-        arm_v: T,
+        arm_u: InfSpeed<T>,
+        arm_v: InfSpeed<T>,
         band: Band,
     ) -> Result<Self, ChartRegionError> {
         let face_data = body.get_face(face).ok_or(ChartRegionError::Corrupt)?;
         let scale = |poly: &[Point2<T>]| -> Vec<Point2<T>> {
             poly.iter()
-                .map(|p| Point2::new(p.x * arm_u, p.y * arm_v))
+                .map(|p| Point2::new(arm_u.to_meters(p.x), arm_v.to_meters(p.y)))
                 .collect()
         };
         // Orientation trilean per loop. Margin: `over_lever(2A, P)` is
@@ -2912,13 +2987,9 @@ enum PolyContainment {
 /// The fixed 2-D ray schedule. Sixteen constant directions — axes
 /// plus oblique spread members.
 ///
-/// **Shared with [`crate::chart_bound`]**, which walks chart-space
-/// polygons of the same shape under its own K rows: the obliques are
-/// there because an axis-aligned ray grazes an axis-aligned polygon,
-/// and an extruded cap is exactly that, so a second consumer cutting
-/// its own two-member schedule would re-import the configuration these
-/// fourteen answer. `pub(crate)` for that consumer and no wider. Distinct from the 3-D consumer's
-/// table by dimension, not by drift: there is no 2-D projection of
+/// The obliques are there because an axis-aligned ray grazes an
+/// axis-aligned polygon, and an extruded cap is exactly that. Distinct
+/// from the 3-D consumer's table by dimension, not by drift: there is no 2-D projection of
 /// the space schedule that both stays exact and keeps the spread.
 /// **The 3-D `point_in_loop_arm` row is derived away here,
 /// deliberately**: that gate existed
@@ -2928,7 +2999,7 @@ enum PolyContainment {
 /// `f64` structure, so there is no quantity for an arm predicate to
 /// decide — the re-derivation's honest conclusion is three rows, not
 /// four.
-pub(crate) const SCHEDULE_2D: [Vec2<f64>; 16] = [
+const SCHEDULE_2D: [Vec2<f64>; 16] = [
     Vec2::new(1.0, 0.0),
     Vec2::new(0.0, 1.0),
     Vec2::new(0.5, 1.0),
@@ -3031,11 +3102,32 @@ struct Crossing<T: Decide> {
     point: Point2<T>,
 }
 
+/// Each edge's length, `edge i` running from vertex `i` to `i + 1`:
+/// [`ChartRegionError::EdgeScale`] where one is unbounded or flushed
+/// to zero, because every crossing rung levers by these and an `∞`
+/// lever divides a finite height to an exact Zero.
+fn edge_lengths<T: Decide>(poly: &[Point2<T>]) -> Result<Vec<T>, ChartRegionError> {
+    (0..poly.len())
+        .map(|i| {
+            let e = poly[(i + 1) % poly.len()] - poly[i];
+            let len = e.norm();
+            if !len.is_bounded() || is_underflowed_length(len, e.norm_witness()) {
+                return Err(ChartRegionError::EdgeScale);
+            }
+            Ok(len)
+        })
+        .collect()
+}
+
 /// All proper crossings between two CCW metred polygons, every
 /// decision through named rows (fixed pair order, D9).
 ///
 /// # Rows
 ///
+/// - Before any row: each edge's length is asked ([`edge_lengths`]),
+///   refusing [`ChartRegionError::EdgeScale`] — not a decision, so no
+///   row and no K sample. At the interval scalar only the overflow
+///   half refuses; an underflowed enclosure escalates at the rungs.
 /// - `chart_region_parallel`: the transversality determinant over the
 ///   SHORTER edge's length, `over_lever(perp_dot(r, s), min(|r|, |s|))`
 ///   — the perpendicular height the LONGER edge makes across the
@@ -3100,13 +3192,17 @@ fn proper_crossings<T: Decide>(
     band: Band,
 ) -> Result<Vec<Crossing<T>>, ChartRegionError> {
     let escalate = ChartRegionError::Escalated;
+    let a_lens = edge_lengths(a)?;
+    let b_lens = edge_lengths(b)?;
     let mut out = Vec::new();
     for ai in 0..a.len() {
         let p = a[ai];
         let r = a[(ai + 1) % a.len()] - p;
+        let r_len = a_lens[ai];
         for bi in 0..b.len() {
             let q = b[bi];
             let s = b[(bi + 1) % b.len()] - q;
+            let s_len = b_lens[bi];
             let qp = q - p;
             let denom = r.perp_dot(s);
             // ARGUMENT-ORDER INVARIANT (#1063 fix pass): both levers
@@ -3118,7 +3214,7 @@ fn proper_crossings<T: Decide>(
             // margin is bit-identical in both orders. A one-sided
             // `|r|` lever is what made the SAME pair certify one way
             // and escalate the other.
-            let lever = r.norm().min(s.norm());
+            let lever = r_len.min(s_len);
             let d_sign = decide(
                 "chart_region_parallel",
                 Margin::over_lever(denom, lever),
@@ -3142,8 +3238,8 @@ fn proper_crossings<T: Decide>(
                 // `Margin::of` is its door (the `carrier_agreement`
                 // precedent).
                 let pq = Vec2::new(T::zero() - qp.x, T::zero() - qp.y);
-                let off_a = (r.perp_dot(qp) / r.norm()).abs();
-                let off_b = (s.perp_dot(pq) / s.norm()).abs();
+                let off_a = (r.perp_dot(qp) / r_len).abs();
+                let off_b = (s.perp_dot(pq) / s_len).abs();
                 match decide(
                     "chart_region_collinear_offset",
                     Margin::of(off_a.max(off_b)),
@@ -3157,7 +3253,7 @@ fn proper_crossings<T: Decide>(
                         let s0 = qp.dot(rhat);
                         let s1 = (b[(bi + 1) % b.len()] - p).dot(rhat);
                         let (lo, hi) = (s0.min(s1), s0.max(s1));
-                        let overlap = hi.min(r.norm()) - lo.max(T::zero());
+                        let overlap = hi.min(r_len) - lo.max(T::zero());
                         match decide("chart_region_collinear_overlap", Margin::of(overlap), band)
                             .map_err(escalate)?
                         {
@@ -3172,12 +3268,7 @@ fn proper_crossings<T: Decide>(
             let t = qp.perp_dot(s) / denom;
             let u = qp.perp_dot(r) / denom;
             let one = T::one();
-            let spans = [
-                (t, r.norm()),
-                (one - t, r.norm()),
-                (u, s.norm()),
-                (one - u, s.norm()),
-            ];
+            let spans = [(t, r_len), (one - t, r_len), (u, s_len), (one - u, s_len)];
             // All four clearances are decided BEFORE any verdict: a
             // definite Negative anywhere means the line intersection
             // lies definitely off a segment — no crossing and no
@@ -3680,6 +3771,7 @@ mod tests {
             "lower",
             "separate",
             "declare",
+            "rescale",
         ];
         let diag = Indeterminate {
             margin: geom_core::MarginDiag::value(5e-9),
@@ -3687,41 +3779,49 @@ mod tests {
             predicate: Some("chart_region_area"),
             terminal_sliver: false,
         };
-        // Every arm, constructed. The list is exhaustive by
-        // inspection and the compiler cannot check that for a Vec, so
-        // the count is asserted against the enum's own arm count as
-        // the census's exhaustive matches spell it.
-        let arms = vec![
-            ChartRegionError::ChartDivergence { detail: "same-key" },
-            ChartRegionError::NonPlanarTrim {
+        // Every arm, constructed: one sample per variant kind, through a
+        // `match` with no wildcard, so an arm added without a sample here
+        // is a compile error rather than a row that never runs.
+        let sample = |kind: ChartRegionErrorKind| match kind {
+            ChartRegionErrorKind::ChartDivergence => {
+                ChartRegionError::ChartDivergence { detail: "same-key" }
+            }
+            ChartRegionErrorKind::NonPlanarTrim => ChartRegionError::NonPlanarTrim {
                 face: FaceKey::default(),
                 half_edge: HalfEdgeKey::default(),
                 what: "a Harmonic image",
             },
-            ChartRegionError::MissingCache {
+            ChartRegionErrorKind::MissingCache => ChartRegionError::MissingCache {
                 half_edge: HalfEdgeKey::default(),
             },
-            ChartRegionError::ArmUnbounded { chart: "cone" },
-            ChartRegionError::SeamBranch,
-            ChartRegionError::PeriodFold,
-            ChartRegionError::CarrierTilt,
-            ChartRegionError::TouchingBoundary,
-            ChartRegionError::DegenerateLoop {
+            ChartRegionErrorKind::ArmUnbounded => ChartRegionError::ArmUnbounded { chart: "cone" },
+            ChartRegionErrorKind::SeamBranch => ChartRegionError::SeamBranch,
+            ChartRegionErrorKind::PeriodFold => ChartRegionError::PeriodFold,
+            ChartRegionErrorKind::CarrierTilt => ChartRegionError::CarrierTilt,
+            ChartRegionErrorKind::TouchingBoundary => ChartRegionError::TouchingBoundary,
+            ChartRegionErrorKind::DegenerateLoop => ChartRegionError::DegenerateLoop {
                 face: FaceKey::default(),
                 r#loop: LoopKey::default(),
             },
-            ChartRegionError::Escalated(diag),
-            ChartRegionError::RayExhausted,
-            ChartRegionError::WitnessSegmentCapExceeded {
-                segments: WITNESS_SEGMENT_CAP + 1,
-            },
-            ChartRegionError::WitnessCellCapExceeded {
-                segments: WITNESS_SEGMENT_CAP,
-                cells: WITNESS_CELL_CAP,
-            },
-            ChartRegionError::Corrupt,
-        ];
-        assert_eq!(arms.len(), 14, "an arm was added without a row here");
+            ChartRegionErrorKind::Escalated => ChartRegionError::Escalated(diag),
+            ChartRegionErrorKind::RayExhausted => ChartRegionError::RayExhausted,
+            ChartRegionErrorKind::WitnessSegmentCapExceeded => {
+                ChartRegionError::WitnessSegmentCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP + 1,
+                }
+            }
+            ChartRegionErrorKind::WitnessCellCapExceeded => {
+                ChartRegionError::WitnessCellCapExceeded {
+                    segments: WITNESS_SEGMENT_CAP,
+                    cells: WITNESS_CELL_CAP,
+                }
+            }
+            ChartRegionErrorKind::EdgeScale => ChartRegionError::EdgeScale,
+            ChartRegionErrorKind::Corrupt => ChartRegionError::Corrupt,
+        };
+        let arms: Vec<_> = <ChartRegionErrorKind as strum::IntoEnumIterator>::iter()
+            .map(sample)
+            .collect();
         for arm in &arms {
             let msg = arm.to_string();
             // `Escalated` delegates to `Indeterminate`, whose Display
@@ -3955,9 +4055,22 @@ mod tests {
             breaks: geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap(),
         };
         // The UV image is the straight segment p0 → p0 + pd by
-        // variant; endpoints are structural, no Bézier evaluation.
-        assert_pt(pcurve_entry(&arc, 0.0, 1.0, true).unwrap(), 0.0, 1.0);
-        assert_pt(pcurve_entry(&arc, 0.0, 1.0, false).unwrap(), 1.0, 1.0);
+        // variant; a span that is the whole arc ends at its ends,
+        // structurally.
+        let quarter = core::f64::consts::FRAC_PI_2;
+        assert_pt(pcurve_entry(&arc, 0.0, quarter, true).unwrap(), 0.0, 1.0);
+        assert_pt(pcurve_entry(&arc, 0.0, quarter, false).unwrap(), 1.0, 1.0);
+        // A span covering part of the arc (a split rim's child) ends
+        // where the image is at its parameter: on one sub-arc of a
+        // quarter turn, `g(π/4)` is the Bézier midpoint, `½`.
+        let half = core::f64::consts::FRAC_PI_4;
+        assert_pt(pcurve_entry(&arc, 0.0, half, false).unwrap(), 0.5, 1.0);
+        assert_pt(pcurve_entry(&arc, half, quarter, true).unwrap(), 0.5, 1.0);
+        let end = pcurve_entry(&arc, half, quarter, false).unwrap();
+        assert!(
+            (end.x - 1.0).abs() < 1e-15 && end.y == 1.0,
+            "the child ending at the arc's end ends at its corner: {end:?}"
+        );
     }
 
     #[test]
@@ -4057,6 +4170,81 @@ mod tests {
         let (a2, p) = loop_measures(&pieces[0]);
         assert!((a2 - 0.5).abs() < 1e-12, "2A of the 0.5×0.5 overlap");
         assert!((p - 2.0).abs() < 1e-12, "perimeter of the overlap");
+    }
+
+    /// What `proper_crossings` answers for the pair `a`, `b` scaled by
+    /// `k`, as a class: the crossing count, or the refusal's variant.
+    fn crossing_class<T: Decide>(k: f64, a: [(f64, f64); 2], b: [(f64, f64); 2]) -> String {
+        let at = |(x, y): (f64, f64)| Point2::new(T::from_f64(x * k), T::from_f64(y * k));
+        let (a, b) = (a.map(at).to_vec(), b.map(at).to_vec());
+        match proper_crossings(&a, &b, band()) {
+            Ok(c) => format!("Ok({})", c.len()),
+            Err(ChartRegionError::Escalated(_)) => "Escalated".into(),
+            Err(e) => format!("{e:?}"),
+        }
+    }
+
+    /// A shared collinear span, by scale and by scalar. Where the band
+    /// resolves it, it touches; past either end of the format the
+    /// edge-length question refuses before any rung reads it; below the
+    /// band (1e-160) the whole pair is one point at ε and shares no
+    /// span. Scaled by 1e199 this pair once returned `Ok(0)`, with the
+    /// collinear lane's `r̂` collapsed to zero: the edge question now
+    /// refuses first, so the site no longer leans on `normalize`'s
+    /// prescale at either end. At the interval scalar the underflowed
+    /// lengths still enclose the true ones, so the rungs escalate on
+    /// them instead.
+    #[test]
+    fn a_shared_collinear_span_touches_or_refuses_its_scale() {
+        let (a, b) = ([(0.0, 0.0), (2.0, 0.0)], [(1.0, 0.0), (3.0, 0.0)]);
+        for (k, point, interval) in [
+            (1.0, "TouchingBoundary", "TouchingBoundary"),
+            (1e150, "TouchingBoundary", "TouchingBoundary"),
+            (1e199, "EdgeScale", "EdgeScale"),
+            (1e300, "EdgeScale", "EdgeScale"),
+            (1e-160, "Ok(0)", "Ok(0)"),
+            (1e-170, "EdgeScale", "Escalated"),
+            (1e-300, "EdgeScale", "Escalated"),
+        ] {
+            assert_eq!(crossing_class::<f64>(k, a, b), point, "f64 at {k:e}");
+            assert_eq!(
+                crossing_class::<geom_core::Interval>(k, a, b),
+                interval,
+                "Interval at {k:e}"
+            );
+        }
+    }
+
+    /// An edge whose length overflows refuses before any rung levers by
+    /// it: an `∞` lever divides a finite height to an exact Zero, which
+    /// read a pair 1 m apart, and a pair crossing at a shallow angle, as
+    /// collinear and overlapping. At 1e150 the same shapes decide, at
+    /// both scalars.
+    #[test]
+    fn an_overflowed_edge_refuses_rather_than_zeroing_its_heights() {
+        let a = [(0.0, 0.0), (2.0, 0.0)];
+        for (what, b, decided) in [
+            ("1 m apart", [(1.0, 1e-150), (3.0, 1e-150)], "Ok(0)"),
+            ("shallow crossing", [(0.5, -1e-150), (2.5, 1e-150)], "Ok(4)"),
+        ] {
+            assert_eq!(crossing_class::<f64>(1e150, a, b), decided, "{what}, f64");
+            assert_eq!(
+                crossing_class::<geom_core::Interval>(1e150, a, b),
+                decided,
+                "{what}, Interval"
+            );
+            let far = b.map(|(x, y)| (x, y * 1e-49));
+            assert_eq!(
+                crossing_class::<f64>(1e199, a, far),
+                "EdgeScale",
+                "{what}, f64"
+            );
+            assert_eq!(
+                crossing_class::<geom_core::Interval>(1e199, a, far),
+                "EdgeScale",
+                "{what}, Interval"
+            );
+        }
     }
 
     #[test]
@@ -4601,11 +4789,11 @@ mod tests {
         // pair's window — never a sup-arm pseudo-certificate — and
         // refuses typed exactly where that inf collapses.
         assert_eq!(
-            certified_arms(&xy_plane(), -1.0, 1.0, band()).unwrap(),
+            arm_values(certified_arms(&xy_plane(), -1.0, 1.0, band())).unwrap(),
             (1.0, 1.0)
         );
         assert_eq!(
-            certified_arms(&cyl_surface(0.25), -1.0, 1.0, band()).unwrap(),
+            arm_values(certified_arms(&cyl_surface(0.25), -1.0, 1.0, band())).unwrap(),
             (0.25, 1.0)
         );
         let sphere = Surface::Sphere {
@@ -4615,7 +4803,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         // A window clear of the poles certifies `r·cos v_max`.
-        let (arm_u, arm_v) = certified_arms(&sphere, -0.5, 0.5, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&sphere, -0.5, 0.5, band())).unwrap();
         assert!((arm_u - 0.5_f64.cos()).abs() < 1e-15, "got {arm_u}");
         assert_eq!(arm_v, 1.0);
         // A pole-reaching window, and a payload with no net at all,
@@ -4624,7 +4812,7 @@ mod tests {
             (sphere, core::f64::consts::FRAC_PI_2, "sphere"),
             (Surface::nurbs_placeholder(), 0.5, "NURBS"),
         ] {
-            match certified_arms(&surface, -0.5, v_hi, band()) {
+            match arm_values(certified_arms(&surface, -0.5, v_hi, band())) {
                 Err(ChartRegionError::ArmUnbounded { chart: c }) => assert_eq!(c, chart),
                 other => panic!("{chart} must refuse the arm gate, got {other:?}"),
             }
@@ -4968,7 +5156,9 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod inf_arms {
     use super::tests::{band, rect, sheet, uv, xy_plane};
-    use super::{ChartOverlap, ChartRegionError, certified_arms, overlap_of_uv, v_window};
+    use super::{
+        ChartOverlap, ChartRegionError, arm_values, certified_arms, overlap_of_uv, v_window,
+    };
     use crate::body::Body;
     use crate::euler::FaceSurface;
     use geom::{NurbsSurface, Surface};
@@ -5060,7 +5250,7 @@ mod inf_arms {
     /// polar arm is exactly `r`.
     #[test]
     fn a_sphere_window_certifies_its_inf_arms() {
-        let (arm_u, arm_v) = certified_arms(&sphere(2.0), -0.3, 0.3, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&sphere(2.0), -0.3, 0.3, band())).unwrap();
         let expect_u = 2.0 * 0.3_f64.cos();
         assert!(
             (arm_u - expect_u).abs() < 1e-15,
@@ -5079,7 +5269,7 @@ mod inf_arms {
         for (lo, hi) in [(0.0, 6.5), (-6.5, 0.0), (0.0, 3.5), (2.0, 2.5)] {
             assert!(
                 matches!(
-                    certified_arms(&sphere(2.0), lo, hi, band()),
+                    arm_values(certified_arms(&sphere(2.0), lo, hi, band())),
                     Err(ChartRegionError::ArmUnbounded { chart: "sphere" })
                 ),
                 "window [{lo}, {hi}] must refuse"
@@ -5087,13 +5277,18 @@ mod inf_arms {
         }
         // And the monotone range itself still certifies, right up to
         // the edge where the arm collapses.
-        assert!(certified_arms(&sphere(2.0), -1.5, 1.5, band()).is_ok());
+        assert!(arm_values(certified_arms(&sphere(2.0), -1.5, 1.5, band())).is_ok());
     }
 
     /// A sphere window reaching a POLE has inf 0 and keeps refusing.
     #[test]
     fn a_pole_reaching_sphere_window_still_refuses() {
-        let e = certified_arms(&sphere(2.0), -0.3, core::f64::consts::FRAC_PI_2, band());
+        let e = arm_values(certified_arms(
+            &sphere(2.0),
+            -0.3,
+            core::f64::consts::FRAC_PI_2,
+            band(),
+        ));
         assert!(matches!(
             e,
             Err(ChartRegionError::ArmUnbounded { chart: "sphere" })
@@ -5105,11 +5300,11 @@ mod inf_arms {
     #[test]
     fn a_cone_window_certifies_off_the_apex_and_refuses_across_it() {
         let alpha = 0.4_f64;
-        let (arm_u, arm_v) = certified_arms(&cone(alpha), 3.0, 5.0, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&cone(alpha), 3.0, 5.0, band())).unwrap();
         assert!((arm_u - 3.0 * alpha.sin()).abs() < 1e-15);
         assert_eq!(arm_v, 1.0, "the cone's v is a length along the ruling");
         assert!(matches!(
-            certified_arms(&cone(alpha), -1.0, 5.0, band()),
+            arm_values(certified_arms(&cone(alpha), -1.0, 5.0, band())),
             Err(ChartRegionError::ArmUnbounded { chart: "cone" })
         ));
     }
@@ -5117,11 +5312,12 @@ mod inf_arms {
     /// A ring torus certifies `R − r`; a degenerate one refuses.
     #[test]
     fn a_ring_torus_certifies_and_a_degenerate_one_refuses() {
-        let (arm_u, arm_v) = certified_arms(&torus(5.0, 1.0), -3.0, 3.0, band()).unwrap();
+        let (arm_u, arm_v) =
+            arm_values(certified_arms(&torus(5.0, 1.0), -3.0, 3.0, band())).unwrap();
         assert_eq!(arm_u, 4.0);
         assert_eq!(arm_v, 1.0);
         assert!(matches!(
-            certified_arms(&torus(1.0, 1.0), -3.0, 3.0, band()),
+            arm_values(certified_arms(&torus(1.0, 1.0), -3.0, 3.0, band())),
             Err(ChartRegionError::ArmUnbounded { chart: "torus" })
         ));
     }
@@ -5132,7 +5328,8 @@ mod inf_arms {
     /// the per-axis infs.
     #[test]
     fn an_orthogonal_nurbs_chart_certifies_its_per_axis_infs() {
-        let (arm_u, arm_v) = certified_arms(&flat_chart(4.0, 1.0), 0.0, 1.0, band()).unwrap();
+        let (arm_u, arm_v) =
+            arm_values(certified_arms(&flat_chart(4.0, 1.0), 0.0, 1.0, band())).unwrap();
         assert!((arm_u - 4.0).abs() < 1e-14, "inf |S_u| = 4, got {arm_u}");
         assert!((arm_v - 1.0).abs() < 1e-14, "inf |S_v| = 1, got {arm_v}");
     }
@@ -5143,7 +5340,7 @@ mod inf_arms {
     #[test]
     fn a_folded_nurbs_net_still_refuses_typed() {
         assert!(matches!(
-            certified_arms(&folded_chart(), 0.0, 1.0, band()),
+            arm_values(certified_arms(&folded_chart(), 0.0, 1.0, band())),
             Err(ChartRegionError::ArmUnbounded { chart: "NURBS" })
         ));
     }
@@ -5201,7 +5398,7 @@ mod inf_arms {
         // `ρ = √(2/(257 + √(257²−4))) ≈ 0.062378`, so
         // `arm_u = 0.5·ρ ≈ 0.031189`. A sup-read assembly is 16×
         // larger and misses this by four orders of the tolerance.
-        let (arm_u, arm_v) = certified_arms(&s, 0.0, 1.0, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&s, 0.0, 1.0, band())).unwrap();
         let t = (sup_u / inf_u).powi(2) + 1.0;
         let rho = (2.0 / (t + (t * t - 4.0).sqrt())).sqrt();
         assert!(
@@ -5268,7 +5465,7 @@ mod inf_arms {
             inf.sup_u,
             inf.inf_u
         );
-        let (arm_u, arm_v) = certified_arms(&s, 0.0, 1.0, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&s, 0.0, 1.0, band())).unwrap();
         // The metred unit square reads a mean width of `2A/P` on a
         // near-square `arm_u x arm_v` box; the honest transfer factor
         // to the MODEL region's mean width is `ρ/√T`, and here that
@@ -5333,7 +5530,7 @@ mod inf_arms {
         // The honest window is the v reach [-0.30, -0.05].
         let (v_lo, v_hi) = v_window(&uv_a, &uv_b).unwrap();
         assert_eq!((v_lo, v_hi), (-0.30, -0.05), "the SECOND channel");
-        let (arm_u, arm_v) = certified_arms(&s, v_lo, v_hi, band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(&s, v_lo, v_hi, band())).unwrap();
         assert!((arm_u - 2.0 * 0.30_f64.cos()).abs() < 1e-15);
         assert_eq!(arm_v, 2.0);
         // Driven through the pipeline stage that does the wiring.
@@ -5344,7 +5541,7 @@ mod inf_arms {
         // The axis the mutation would read is pole-crossing, and the
         // gate says so — this is the verdict the swap produces.
         assert!(matches!(
-            certified_arms(&s, 1.40, 1.65, band()),
+            arm_values(certified_arms(&s, 1.40, 1.65, band())),
             Err(ChartRegionError::ArmUnbounded { chart: "sphere" })
         ));
     }
@@ -5354,7 +5551,7 @@ mod inf_arms {
     #[test]
     fn the_exact_constant_arms_do_not_move() {
         assert_eq!(
-            certified_arms(&xy_plane(), -5.0, 5.0, band()).unwrap(),
+            arm_values(certified_arms(&xy_plane(), -5.0, 5.0, band())).unwrap(),
             (1.0, 1.0)
         );
         let c: Surface<f64> = Surface::Cylinder {
@@ -5363,7 +5560,10 @@ mod inf_arms {
             radius: 3.0,
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
-        assert_eq!(certified_arms(&c, -5.0, 5.0, band()).unwrap(), (3.0, 1.0));
+        assert_eq!(
+            arm_values(certified_arms(&c, -5.0, 5.0, band())).unwrap(),
+            (3.0, 1.0)
+        );
     }
 }
 
@@ -5390,9 +5590,9 @@ mod inf_arms {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod inf_arms_interval {
-    use super::certified_arms;
     use super::inf_arms::flat_chart;
     use super::tests::band;
+    use super::{arm_values, certified_arms};
     use geom::{NurbsSurface, Surface};
     use geom_core::k_stats::decide;
     use geom_core::spline::KnotVector;
@@ -5415,8 +5615,13 @@ mod inf_arms_interval {
         );
         assert!(i.inf_v.lo() > 0.999_999_999 && i.inf_v.hi() <= 1.0 + 1e-9);
         assert!(i.area_inf.lo() > 3.999_999_999, "the area floor is 4");
-        let (arm_u, arm_v) =
-            certified_arms(&s, Interval::from_f64(0.0), Interval::from_f64(1.0), band()).unwrap();
+        let (arm_u, arm_v) = arm_values(certified_arms(
+            &s,
+            Interval::from_f64(0.0),
+            Interval::from_f64(1.0),
+            band(),
+        ))
+        .unwrap();
         // An orthogonal chart of constant stretch: ρ = 1, so the arms
         // are the per-axis infs, and both floors are POSITIVE — which
         // is the only property a positive-area claim may use.
@@ -5462,7 +5667,7 @@ mod inf_arms_interval {
         let i = geom_brep::chart_stretch_inf(&s);
         assert_eq!(i.inf_u.lo(), 0.0, "no positive floor on a folded net");
         assert!(matches!(
-            certified_arms(&s, f(0.0), f(1.0), band()),
+            arm_values(certified_arms(&s, f(0.0), f(1.0), band())),
             Err(super::ChartRegionError::ArmUnbounded { chart: "NURBS" })
         ));
     }
@@ -5854,11 +6059,17 @@ mod from_computed_rows {
             );
             Vec::new()
         });
+        // The counts follow the cap's chart: `prism_ops` charts each
+        // plane along its first edge, and the witness the `f64`
+        // decomposition picks in that chart is certified in 20 fewer
+        // contact probes (`bool_contact_edge`, `_vertex`, `_edge_length`
+        // each) and 29 fewer opaque `point_in_loop_*` steps than one
+        // picked in a chart off the world axes (1189 kept, 186 opaque).
         assert_eq!(
             found,
             Revalued {
-                kept: 1189,
-                opaque: 186,
+                kept: 1169,
+                opaque: 117,
                 laundered: 0,
             },
             "the decisions at the witness are opaque, and the rest re-value with the scale"

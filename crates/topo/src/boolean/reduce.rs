@@ -71,7 +71,7 @@ use crate::body::Body;
 use crate::coincidence::{Cited, Cites};
 use crate::entity::{EdgeKey, EntityId, FaceKey, VertexKey};
 use crate::null::CurveGeom;
-use crate::replace_face::ReplaceFaceError;
+use crate::offset_nappe::NappeRefusal;
 use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, PlaneSide as SplitSide};
 use crate::validate::decide;
 use crate::vertex_section::{Offset, SectionPlane, VertexRefusal};
@@ -614,7 +614,7 @@ pub(super) fn gate_unverdicted_operand<T: Decide + crate::props::AtRestPolicy>(
 /// - the sector walk at an ON vertex (`sectors::build_sectors`), which
 ///   takes a spline's chord as its departure direction.
 ///
-/// Retiring it is `work/orbit/delete-the-boolean-operand-edge-gate.md`.
+/// Retiring it is `work/splice/delete-the-boolean-operand-edge-gate.md`.
 fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
         match certified(body.get_curve_geom(edge.curve))?.carrier() {
@@ -1861,8 +1861,8 @@ pub(super) fn settle_deferred<T: Decide + Bounds + crate::props::AtRestPolicy>(
 /// on-carrier endpoint is
 /// classified through the boundary pre-pass rows
 /// ([`super::contain::curved_face_containment`] — the boundary walk,
-/// and behind it the cylinder chart trim), producing the same v-v
-/// record family, or the v-f record when the trim places the endpoint
+/// and behind it the face's region), producing the same v-v record
+/// family, or the v-f record when the region places the endpoint
 /// strictly inside.
 ///
 /// **Each on-carrier endpoint has three outcomes, not two**
@@ -3483,8 +3483,9 @@ fn wall_crossing<T: Decide + Bounds>(
     // The wall and sphere quadratics take any non-zero `dir`; the torus
     // quartic ([`super::solid_contain::line_torus_roots`]) assumes it UNIT,
     // the `Line` carrier's convention, which nothing checks.
-    // `None`: a kind pair with no root lane, which takes the refusals'
-    // path below, as a door's refusal does.
+    // `None`: a kind pair with no root lane (a spiric or a spline
+    // against any carrier), which takes the refusals' path below, as a
+    // door's refusal does.
     let found = match *carrier {
         geom::Curve3::Line { origin, dir } => {
             match line_wall_roots_of(origin, dir, (t0, t1), surface, band)? {
@@ -3515,7 +3516,7 @@ fn wall_crossing<T: Decide + Bounds>(
             )?),
             _ => None,
         },
-        _ => return Ok(SpanVerdict::Unsettled),
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
     };
     let found = match found {
         Some(Ok(found)) => found,
@@ -3567,24 +3568,19 @@ fn wall_crossing<T: Decide + Bounds>(
             axis,
             half_angle,
             ..
-        } => match crate::offset_nappe::face_nappe(y, face, band) {
+        } => match crate::offset_nappe::face_nappe_reading(y, face, band) {
             Ok(nappe) => Some((apex, axis, half_angle, nappe)),
-            Err(ReplaceFaceError::NappeStraddles { .. }) => None,
-            Err(ReplaceFaceError::Escalated { source }) => {
+            Err(NappeRefusal::Straddles { .. }) => None,
+            Err(NappeRefusal::Escalated(source)) => {
                 return Err(BooleanError::Escalated {
                     decision: BooleanDecision::CONTAINMENT_UNNAMED,
                     diag: source,
                 });
             }
-            Err(ReplaceFaceError::StaleFace { .. }) => {
+            Err(NappeRefusal::Stale) => {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "the crossing layer read the nappe of a cone face the sweep holds, and \
                            the face did not resolve",
-                });
-            }
-            Err(_) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "a cone face's nappe reading answered a refusal it does not give",
                 });
             }
         },
@@ -3985,7 +3981,7 @@ impl<T: geom_core::Real> CurvedEvent<T> {
 /// Where one on-carrier endpoint's incidence lives.
 ///
 /// The distinction between the last two is the whole point of this
-/// type: `Elsewhere` is a CERTIFIED verdict — the chart trim proved
+/// type: `Elsewhere` is a CERTIFIED verdict — the face's region proved
 /// the point is not in this face — whereas `Undecided` is the
 /// containment door's honest remainder. A caller that reads them as
 /// one thing refuses at a frontier for a pair that has no incidence to
@@ -4097,8 +4093,8 @@ impl Placement {
 ///
 /// **`Out` and no-verdict are DIFFERENT answers, and this door reports
 /// them apart.** `curved_face_containment` answers `Out` from a
-/// certified comparison — the point is off the carrier, or the
-/// iso-bounded wall's exact chart rectangle excludes it — so `Out`
+/// certified comparison — the point is off the carrier, or the face's
+/// region excludes it — so `Out`
 /// says the endpoint's incidence is not this pair's. It says nothing
 /// about whether the endpoint has an incidence at all: on a carrier
 /// shared by several faces the endpoint is a seam site, and the face
@@ -4152,14 +4148,13 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
             push_vv(contacts, x_is, vx, wy, on);
             return Ok((Placement::Recorded, Some(wy)));
         }
-        // Strictly inside the curved face's chart trim: the same
-        // v-f record the planar sweep writes ([`vertex_on_face`]),
-        // now that the trim can say so.
+        // Strictly inside the curved face: the same v-f record the
+        // planar sweep writes ([`vertex_on_face`]).
         Some(FaceContainment::In) => {
             push_vf(contacts, x_is, vx, face, on_carrier);
             return Ok((Placement::Recorded, None));
         }
-        // Definitely outside this face's trim, or no verdict at all:
+        // Definitely outside this face, or no verdict at all:
         // fall through to the face-free question below.
         Some(FaceContainment::Out) | None => {}
     }
@@ -4433,31 +4428,10 @@ fn split_other_at_point<T: Decide + crate::props::AtRestPolicy>(
             }
         }
         // A span of at most one period is what makes the MIDPOINT
-        // anchor's branch the right one, and it is CHECKED rather than
-        // assumed: past a period the azimuth aliases by 2π silently,
-        // and `split_edge`'s interiority gate cannot see it (an aliased
-        // parameter is still inside a span that long). The row is the
-        // period guard the boundary pre-pass's conic arm already spells,
-        // metered the same way; a full turn is `Zero` and passes.
-        match decide(
-            "bool_split_span_period",
-            Margin::levered(T::tau() - (t1 - t0), radius),
-            band,
-        ) {
-            Ok(Sign::Positive | Sign::Zero) => {}
-            Ok(Sign::Negative) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "circle edge span exceeds one period; the split azimuth \
-                           would alias by a turn",
-                });
-            }
-            Err(diag) => {
-                return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::ArcSpan,
-                    diag,
-                });
-            }
-        }
+        // anchor's branch the right one (past a period the azimuth
+        // aliases by 2π silently, and `split_edge`'s interiority gate
+        // cannot see it): the edge's certificate holds its turn, which
+        // is never over one ([`geom_brep::CertifiedTurn`]).
     }
     let t = curve
         .carrier()
@@ -5018,7 +4992,7 @@ mod declaration_order_rows {
         BooleanDecision, BooleanError, Coincide, DeclarationRead, Glue, GluedPair, GluedPairs,
         Operand,
     };
-    use crate::contact::{ContactClass, GlueClass};
+    use crate::contact::GlueClass;
     use crate::entity::VertexKey;
     use crate::test_support::finished;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet, prism_z};
@@ -5027,7 +5001,7 @@ mod declaration_order_rows {
     /// Whether the declaration door verifies the side face through the
     /// edge of [`run`]'s prism as `class` against the wall, along the
     /// vertical line `x = profile[3].0`.
-    fn door_verifies(class: ContactClass, profile: [(f64, f64); 4], z0: f64) -> bool {
+    fn door_verifies(class: GlueClass, profile: [(f64, f64); 4], z0: f64) -> bool {
         let tol = Tol::witness();
         let prism = prism_z::<f64>(&profile, z0, z0 + 0.5, tol);
         let mut y: crate::body::Body<f64> = crate::body::Body::new();
@@ -5042,16 +5016,32 @@ mod declaration_order_rows {
             origin: Point3::new(profile[3].0, 0.0, 0.0),
             dir: geom_core::Vec3::new(0.0, 0.0, 1.0),
         };
-        crate::boolean::contact_pair_verdict(
-            &prism.body,
-            prism.side_faces[3],
-            &y,
-            wall,
+        contact_door(
+            (&prism.body, prism.side_faces[3]),
+            (&y, wall),
             class,
             Some((&witness, z0, z0 + 0.5)),
             Band::linear(tol).expect("the witness band"),
         )
-        .is_ok()
+    }
+
+    /// Whether the contact door verifies `x`'s face against `y`'s as
+    /// `class`: a `Tangent` pair along `witness`.
+    fn contact_door(
+        (x, xw): (&crate::body::Body<f64>, crate::entity::FaceKey),
+        (y, yw): (&crate::body::Body<f64>, crate::entity::FaceKey),
+        class: GlueClass,
+        witness: Option<(&geom::Curve3<f64>, f64, f64)>,
+        band: Band,
+    ) -> bool {
+        match class {
+            GlueClass::Rest => crate::boolean::rest_pair_verdict(x, xw, y, yw, band).is_ok(),
+            GlueClass::Tangent => witness.is_some_and(|(carrier, t0, t1)| {
+                crate::boolean::tangent_pair_relation(x, xw, y, yw, carrier, t0, t1, true, band)
+                    .is_ok()
+            }),
+            GlueClass::Continuation => unreachable!("a continuation is no contact"),
+        }
     }
 
     /// The edge from `profile[3]` to `profile[0]` at height `z0` of a
@@ -5059,7 +5049,7 @@ mod declaration_order_rows {
     /// prism's side face through that edge declared against the wall as
     /// `class`; what `curved_face_arm` answers (the review's `run`).
     fn run(
-        class: Option<ContactClass>,
+        class: Option<GlueClass>,
         profile: [(f64, f64); 4],
         z0: f64,
     ) -> Result<(), BooleanError> {
@@ -5129,7 +5119,7 @@ mod declaration_order_rows {
     /// declared class spent), and the same sentence, which offers no
     /// declaration.
     fn same_refusal_without_declare(
-        runs: &[(Option<ContactClass>, Result<(), BooleanError>)],
+        runs: &[(Option<GlueClass>, Result<(), BooleanError>)],
         which: Coincide,
         subject: &str,
     ) {
@@ -5144,7 +5134,7 @@ mod declaration_order_rows {
                 *decision,
                 BooleanDecision::Coincidence(
                     which,
-                    class.map_or(DeclarationRead::Moot, |c| DeclarationRead::Spent(c.into()))
+                    class.map_or(DeclarationRead::Moot, DeclarationRead::Spent)
                 ),
                 "{class:?}"
             );
@@ -5179,10 +5169,10 @@ mod declaration_order_rows {
         let x0 = 1.0 + (b.zero() + b.escalate()) / 2.0;
         let profile = [(x0, -0.01), (x0 + 1.0, -0.01), (x0 + 1.0, 0.01), (x0, 0.01)];
         assert!(
-            !door_verifies(ContactClass::Tangent, profile, 0.25),
+            !door_verifies(GlueClass::Tangent, profile, 0.25),
             "no door takes the in-band plane's Tangent"
         );
-        let runs: Vec<_> = [None, Some(ContactClass::Tangent)]
+        let runs: Vec<_> = [None, Some(GlueClass::Tangent)]
             .into_iter()
             .map(|class| (class, run(class, profile, 0.25)))
             .collect();
@@ -5198,7 +5188,7 @@ mod declaration_order_rows {
     /// distance whose residual `y²/2` lies in the band. The endpoint's
     /// side escalates ahead of the declared-cover rungs, so a `Tangent`
     /// declaration of that plane, which the door verifies definite
-    /// (`contact_pair_verdict`), changes nothing. Before the review's fix
+    /// (`rest_pair_verdict`), changes nothing. Before the review's fix
     /// it offered "declare the coincidence".
     #[test]
     fn an_in_band_endpoint_on_a_curved_face_offers_no_declaration() {
@@ -5206,10 +5196,10 @@ mod declaration_order_rows {
         let y0 = (b.zero() + b.escalate()).sqrt();
         let profile = [(1.0, y0), (2.0, y0), (2.0, 2.0), (1.0, 2.0)];
         assert!(
-            door_verifies(ContactClass::Tangent, profile, 0.25),
+            door_verifies(GlueClass::Tangent, profile, 0.25),
             "the tangent plane's declaration is one the door takes"
         );
-        let runs: Vec<_> = [None, Some(ContactClass::Tangent)]
+        let runs: Vec<_> = [None, Some(GlueClass::Tangent)]
             .into_iter()
             .map(|class| (class, run(class, profile, 0.25)))
             .collect();
@@ -5243,7 +5233,7 @@ mod declaration_order_rows {
     fn circle_run(
         frame: CylFrame,
         angles: (f64, f64),
-        class: Option<ContactClass>,
+        class: Option<GlueClass>,
         one_carrier: bool,
     ) -> (Option<bool>, Vec<Result<CurvedEvent<f64>, BooleanError>>) {
         let tol = Tol::witness();
@@ -5260,6 +5250,7 @@ mod declaration_order_rows {
             (0.0, 1.0),
             tol,
         );
+        crate::test_support_fixtures::set_sheet_sense(&mut y, yw, true, tol);
         let decls = Glue {
             pairs: class
                 .map(|class| vec![GluedPair::new(xw, yw, class)])
@@ -5272,9 +5263,7 @@ mod declaration_order_rows {
             Default::default()
         };
         let declared = GluedPairs::<f64>::without_struts(&decls, one);
-        let door = class.map(|class| {
-            crate::boolean::contact_pair_verdict(&x, xw, &y, yw, class, None, b).is_ok()
-        });
+        let door = class.map(|class| contact_door((&x, xw), (&y, yw), class, None, b));
         let edges: Vec<_> = x.edges().map(|(k, e)| (k, e.clone())).collect();
         let mut out = Vec::new();
         for (edge_key, edge) in edges {
@@ -5338,21 +5327,21 @@ mod declaration_order_rows {
                 DeclarationRead::Moot,
             ),
             (
-                Some(ContactClass::Rest),
+                Some(GlueClass::Rest),
                 true,
                 Some(true),
                 Coincide::VertexOnCoveredFace,
                 DeclarationRead::Spent(GlueClass::Rest),
             ),
             (
-                Some(ContactClass::Rest),
+                Some(GlueClass::Rest),
                 false,
                 Some(true),
                 uncovered,
                 DeclarationRead::Spent(GlueClass::Rest),
             ),
             (
-                Some(ContactClass::Tangent),
+                Some(GlueClass::Tangent),
                 false,
                 Some(false),
                 uncovered,
@@ -5402,7 +5391,7 @@ mod declaration_order_rows {
         for got in circle_run(zero, (0.5, 1.0), None, false).1 {
             frontier("zero arm, undeclared", &got);
         }
-        let (door, runs) = circle_run(zero, (0.5, 1.0), Some(ContactClass::Rest), true);
+        let (door, runs) = circle_run(zero, (0.5, 1.0), Some(GlueClass::Rest), true);
         assert_eq!(door, Some(true), "the door takes the zero arm's Rest");
         for got in runs {
             assert!(got.is_ok(), "zero arm, declared Rest: recorded: {got:?}");
@@ -5413,8 +5402,8 @@ mod declaration_order_rows {
         };
         for (class, one) in [
             (None, false),
-            (Some(ContactClass::Rest), true),
-            (Some(ContactClass::Tangent), false),
+            (Some(GlueClass::Rest), true),
+            (Some(GlueClass::Tangent), false),
         ] {
             let (door, runs) = circle_run(crossing, (1.5, 2.5), class, one);
             assert_ne!(
@@ -5496,14 +5485,12 @@ mod declaration_order_rows {
             (0.0, 3.0),
             (0.0, 1.0),
         );
-        for class in ContactClass::ALL {
+        for class in [GlueClass::Rest, GlueClass::Tangent] {
             let door = match class {
-                ContactClass::Rest => {
-                    crate::boolean::contact_pair_verdict(&x, xw, &y, yw, *class, None, b).is_ok()
-                }
-                ContactClass::Tangent => {
+                GlueClass::Tangent => {
                     crate::boolean::verify_tangent_declaration(&x, xw, &y, yw, b).is_ok()
                 }
+                _ => contact_door((&x, xw), (&y, yw), class, None, b),
             };
             assert!(
                 !door,
@@ -5790,6 +5777,7 @@ mod edge_span_tests {
             (-1.0, 1.0),
             Tol::witness(),
         );
+        crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, Tol::witness());
         let wall = y
             .get_surface(y.get_face(face).expect("the sheet's face").surface)
             .expect("the sheet's wall")
@@ -5806,6 +5794,50 @@ mod edge_span_tests {
         assert!(
             matches!(got, Ok(SpanVerdict::Pierce { .. })),
             "the root is interior, and the half-wall's trim holds it: {got:?}"
+        );
+    }
+
+    /// **A spline span with no root lane is localized against the face,
+    /// not refused.** The quadratic in the plane `z = 1/2` through the
+    /// unit cylinder's point at azimuth `−1/2`, with offset
+    /// `(2s − 1)²/10` along its normal, touches the wall there from
+    /// outside, past the quarter sheet over azimuths `[0, π/2]`: no root
+    /// door reads a spline, so the touch is the carrier-touch door's,
+    /// and it lies off the face.
+    #[test]
+    fn a_spline_touch_past_the_face_is_off_it() {
+        use geom_core::spline::{KnotVector, Knots};
+        let band = Band::linear(Tol::witness()).expect("the witness band");
+        let mut y = Body::<f64>::new();
+        let frame = crate::test_support_fixtures::CylFrame::canonical(1.0);
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut y,
+            frame,
+            (0.0, core::f64::consts::FRAC_PI_2),
+            (0.0, 1.0),
+            Tol::witness(),
+        );
+        crate::test_support_fixtures::set_sheet_sense(&mut y, face, true, Tol::witness());
+        let (sin, cos) = (-0.5_f64).sin_cos();
+        let (p, n, t) = (
+            Point3::new(cos, sin, 0.5),
+            Vec3::new(cos, sin, 0.0),
+            Vec3::new(-sin, cos, 0.0),
+        );
+        let knots =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("clamped knots");
+        let spline = geom::Curve3::Nurbs(std::sync::Arc::new(
+            geom::NurbsCurve3::new(
+                Knots::from(knots),
+                vec![p + n * 0.1 - t * 0.3, p - n * 0.1, p + n * 0.1 + t * 0.3],
+                vec![1.0; 3],
+            )
+            .expect("a quadratic Bézier"),
+        ));
+        let got = wall_crossing(&y, face, &frame.surface(), &spline, 0.0, 1.0, band);
+        assert!(
+            matches!(got, Ok(SpanVerdict::OffFace)),
+            "the touch lies past the sheet: {got:?}"
         );
     }
 }

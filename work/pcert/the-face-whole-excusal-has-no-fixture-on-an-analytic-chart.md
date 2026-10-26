@@ -16,7 +16,10 @@ with an oblique circle strut on a torus wall as the uncovered class
 
 That class is gone: the torus's incidence test reads such a circle off
 the torus (`CarrierOffChart`), and a circle on it is a Villarceau circle
-(imaged) or grazes it (`CarrierGrazesChart`). The rows were cut to what
+(imaged) or, since PCERT E1, a lane choice with no general lane on the
+torus, which refuses lever-only "not yet" (`NoGeneralLane` or
+`Escalated { ChartClass }`, unit E4). Before E1 it refused
+`CarrierGrazesChart`, which is deleted. The rows were cut to what
 still holds; the masking property has no fixture now. The classes
 `not_owed` still excuses are not reachable through `Body::mev` at `f64`
 on an analytic chart:

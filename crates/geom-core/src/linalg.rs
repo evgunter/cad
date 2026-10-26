@@ -127,6 +127,7 @@
 //! refusals in place of the fixed-dimension types' totality.
 
 mod affine;
+mod angle;
 pub mod frame;
 pub mod lsq;
 mod mat;
@@ -137,6 +138,7 @@ mod unit_vec;
 mod vec;
 
 pub use affine::Affine3;
+pub use angle::{Angle, Turns};
 pub use frame::{FrameError, FrameInput, FrameVector};
 pub use mat::Mat3;
 pub use point::{Point2, Point3};

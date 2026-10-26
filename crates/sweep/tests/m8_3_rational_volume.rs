@@ -29,12 +29,12 @@
 //!
 //! The convergence target is `1024·ε` against a **fixed** schedule
 //! (D9), so a body that certifies at one ε honestly may not at a
-//! tighter one. The row below therefore pins all three honest
-//! outcomes and never widens a target: `Certified` (the enclosure must CONTAIN
-//! the oracle and respect its pad ceiling), `Budget` (a typed
+//! tighter one. The row below therefore pins both honest outcomes and
+//! never widens a target: `Certified` (the enclosure must CONTAIN the
+//! oracle and respect its pad ceiling) and `Budget` (a typed
 //! `QuadratureBudget` whose width really missed a target that really
-//! is `1024·ε`), `Escalated` (only `props_quad_converged` may
-//! escalate). Anything else panics.
+//! is `1024·ε`). The resolution is compared, not decided, so no
+//! convergence predicate can escalate. Anything else panics.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{arc_section, stacked};
@@ -50,7 +50,7 @@ use topo::{MassProperties, MassPropsError};
 /// refusal's own `target_len` equals this times the run's ε).
 const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
-/// The three honest outcomes of a certified quadrature at a given ε.
+/// The two honest outcomes of a certified quadrature at a given ε.
 #[derive(Debug, PartialEq, Eq)]
 enum EpsPosture {
     /// Bounds returned; the caller pins accuracy and the pad ceiling.
@@ -58,12 +58,10 @@ enum EpsPosture {
     /// The fixed schedule ran out before `1024·ε` — typed, with the
     /// measured width.
     Budget,
-    /// The convergence predicate could not be decided in-band.
-    Escalated,
 }
 
 /// Classify a body-level mass-properties outcome, asserting each
-/// posture's own invariants. Anything outside the three is a real
+/// posture's own invariants. Anything outside the two is a real
 /// failure and panics.
 fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) -> EpsPosture {
     let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
@@ -89,17 +87,6 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
                  {target_len:e} vs {target:e}"
             );
             EpsPosture::Budget
-        }
-        Err(MassPropsError::Face {
-            source: PropsError::Escalated { cause, .. },
-            ..
-        }) => {
-            assert_eq!(
-                cause.predicate,
-                Some("props_quad_converged"),
-                "{row}: only the convergence predicate may escalate here: {cause:?}"
-            );
-            EpsPosture::Escalated
         }
         Err(other) => panic!("{row}: not an honest quadrature posture: {other}"),
     }
@@ -219,8 +206,15 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         Tol::witness(),
     )
     .expect("extrude");
-    let want =
-        topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic mass properties");
+    let want = topo::mass_properties(
+        &topo::test_support::finished(
+            "the measured body",
+            topo::Body::clone(&oracle.body),
+            Tol::witness(),
+        ),
+        Tol::witness(),
+    )
+    .expect("analytic mass properties");
     assert_eq!(
         want.volume_pad, 0.0,
         "ORACLE: the extrude oracle must be a closed form"
@@ -238,18 +232,13 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     // 2. PAD CEILING, pinned separately: a loosening enclosure cannot
     // absorb assertion 1 without tripping this. The ceiling is keyed
     // to ε because the schedule is fixed and the pad is what the
-    // schedule achieves. It is twice the `2·1024ε` it was while every
-    // face was read about the world origin: each face is read about a
-    // vertex of its shell (`topo::props`' `shell_reference`), and the
-    // quadrature's width scales with the lever from it. Set against the
-    // origin's, a face's pad scales by about the shell's diameter over
-    // the face's own distance from the origin, which is unbounded and
-    // depends on the shell's stored face order
-    // (`work/flux/a-quadrature-faces-pad-scales-with-its-shells-size-and-stored-face-order.md`).
-    // On this prism, centred on the origin, it measured 2.127e-6 at
-    // 1e-9, 2.08 times the target, against 0.98e-6 about the origin: the
-    // ceiling is that measure with the old headroom over it, not a bound
-    // the rule guarantees.
+    // schedule achieves. Each face is read about a vertex of the
+    // shell's first quadrature face (`topo::props`' `shell_reference`),
+    // so a quadrature face's lever is the extent of the shell's
+    // quadrature faces: on this prism, centred on the world origin, its
+    // diameter where the origin's was its radius. Measured 2.21e-6 at
+    // 1e-9, 2.16 times the target: the ceiling is that measure with
+    // headroom, not a bound the rule guarantees.
     let ceiling = 4.0 * QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
     assert!(
         got.volume_pad < ceiling,
@@ -257,12 +246,19 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
         got.volume_pad,
         ARC_PRISM_PAD_AT_DEFAULT_EPS,
     );
+    // The measure the ceiling's comment cites, held where it was taken.
+    if Tol::witness().get().eps == 1e-9 {
+        assert!(
+            (got.volume_pad / ARC_PRISM_PAD_AT_DEFAULT_EPS - 1.0).abs() < 0.01,
+            "MEASURED: volume pad {} moved from the {} the ceiling's comment cites",
+            got.volume_pad,
+            ARC_PRISM_PAD_AT_DEFAULT_EPS,
+        );
+    }
 }
 
 /// The pad measured on the arc prism at the default ε (1e-9), each face
-/// read about a vertex of its shell (the ceiling's comment says why it
-/// is about twice the 9.816_714_3e-7 read about the world origin here, on
-/// the POST-#313 hulls). Kept as a named number so the ceiling
-/// assertion above can say what the lane actually achieves, not only
-/// what it must beat.
-const ARC_PRISM_PAD_AT_DEFAULT_EPS: f64 = 2.126_712_8e-6;
+/// read about a vertex of the shell's first quadrature face. Kept as a
+/// named number so the ceiling assertion above can say what the lane
+/// actually achieves, not only what it must beat.
+const ARC_PRISM_PAD_AT_DEFAULT_EPS: f64 = 2.210_6e-6;

@@ -54,7 +54,34 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// whose ids re-minted. Every row keeps its shape (`PredicateFlip`,
 /// `Cascade`, `StructuralParam`, `NodeGone`, `Ambiguous`): a spelling
 /// change.
-const DIAGNOSIS_DIGEST: u64 = 0x8da0_07c7_0dd7_3c17;
+///
+/// **Re-pinned for INTENT stage 3 D** (Transform retires into a
+/// placement): the fixtures' profiles read no frame node and their
+/// extrudes carry no side, and the cutting slab that was a `Transform`
+/// of its block is that block placed against `a` by a slid `Place`
+/// (its probe edits the placement's Slide X value where it edited the
+/// transform's translation), so every node id moved and every diagnosed
+/// name's spelling with it. Every row keeps its shape (`PredicateFlip`,
+/// `Cascade`, `StructuralParam`, `NodeGone`, `Ambiguous`): a spelling
+/// change.
+///
+/// **Re-pinned for D′1** (a placement names its target space): each
+/// construction defines its space beside its body, so every id drawn
+/// after one, and every diagnosed name's spelling, moved. Every row
+/// keeps its shape: a spelling change.
+///
+/// **Re-pinned for D′2** (a value names no mate, a mate reads only
+/// geometry): the slab's bundle is spelled in the new vocabulary and
+/// the content key's `VERSION` moved, so every mint id's digest moved
+/// with it. Every row's Debug spelling, ordinals included, is main's
+/// with the mint digests masked: a spelling change.
+///
+/// **Re-pinned for a pair boolean's walls** (a `Borders` wall cites its
+/// parent as the boolean's own table names it, the `From` it came in
+/// through): the ambiguous row's piece's wall moved from the tool's bare
+/// face name to that `From`. Every row keeps its shape: a spelling
+/// change.
+const DIAGNOSIS_DIGEST: u64 = 0x368b_5e05_622b_e4af;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

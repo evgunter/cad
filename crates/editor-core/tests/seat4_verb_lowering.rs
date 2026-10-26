@@ -45,13 +45,12 @@
 
 use crate::corpus;
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
 };
 use fixture::digest::digest;
-use fixture::{len, prism_edges, tol, xy_frame};
+use fixture::{len, prism_edges, tol};
 
 /// The cube side and the two blend sizes, all dyadic.
 const L: f64 = 1.0;
@@ -70,16 +69,13 @@ fn both_blends() -> BothBlends {
     // round-trip a test of the wire spelling of every node.
     let snapshot = r.doc.clone();
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
-    let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_0.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(L),
-        side: ExtrudeSide::Along,
     });
     let edges: Vec<StableName> = prism_edges(&r.doc, cube, 4);
     let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
@@ -261,12 +257,36 @@ fn both_blends_evaluate_in_one_document() {
 /// id drawn after it moved. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held.
+///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
+///
+/// RE-BLESSED, both rows, for a minted reference that comes from the
+/// inputs (PR #5547): the digest feeds each plane's `u_ref`, which a
+/// cap now takes from the sketch's `x` axis and an extruded wall from
+/// its segment, where `orthonormal_basis` picked it off the axes. No
+/// outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
+///
+/// RE-BLESSED, both rows, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x81f1_4b59_6af2_3004u64),
-        ("die_chamfer", 0xfa2a_e5e9_86d3_5f3a),
+        ("die_fillet", 0x7bd1_898c_edb7_8ee9_u64),
+        ("die_chamfer", 0x7303_d70e_821c_e5a1),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -443,18 +463,61 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// parent where they cited one floor. The digest feeds the name table.
 /// No body moved.
 ///
+/// RE-BLESSED, every row, for INTENT stage 3 D (Transform retires into
+/// a placement): each document was re-spelled without `Datum` or
+/// `Transform` (a construction is built in its own coordinates and
+/// placed into the world by a `Place`), so its nodes, their ids and the
+/// names they mint moved.
+///
+/// RE-BLESSED, `heat_sink` only, for the identity bundle (FORK-REST): a
+/// copy standing where its body stands is placed by no mate and the
+/// constant `0` on every freedom, written as one `AddValues`, which
+/// mints a different number of ids from the plane mate and three values it replaces.
+/// So every node minted after a stand moved its id, and this digest
+/// feeds ids. Every standing copy in the corpus is bit-identical to its
+/// source (measured with a lane probe over `body_digest`).
+///
 /// RE-BLESSED, `crossing_slots` only, for a seam's sides and a
 /// crossing's lines named in the subtract's own table, in name order
 /// (N3). The digest feeds the name table. No body moved
 /// (`m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held).
+/// Re-measured merging main at `be82e5ad6b` into D, `crossing_slots`:
+/// main's N3 names each seam side and crossing line with the read it
+/// came in through, and in D a later operand is a placed copy, so the
+/// names it spells moved under both changes and the value is neither
+/// tree's. No other row moved.
+///
+/// RE-BLESSED, `crossing_slots`, `heat_sink` and `kiss_carry`, for a
+/// minted reference that comes from the inputs (PR #5547): the digest
+/// feeds each plane's `u_ref`, which a cap now takes from the sketch's
+/// `x` axis and an extruded wall from its segment, where
+/// `orthonormal_basis` picked it off the axes. No outcome or point
+/// moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body and every bundle is
+/// written whole, so ids moved, and with them the names and value
+/// tokens this digest feeds; `m10_p_fence`'s ids-masked geometry fence
+/// held, so no point moved.
+///
+/// RE-BLESSED, every row, for a certificate that keeps its turn: the
+/// digest feeds each edge curve's `Debug`, which now spells the
+/// certificate's `turn`. No outcome or point moved.
+///
+/// RE-BLESSED, `crossing_slots` only, for a pair boolean's `Borders`
+/// walls citing their parent as the boolean's own table names it (the
+/// `From` each came in through): the second subtract's divided pieces'
+/// names moved. No outcome or point moved.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x59be_e8ee_4d43_95b9u64),
-        ("heat_sink", 0xd551_a6fc_787e_61ba),
-        ("kiss_carry", 0x8ee4_89b1_9c55_7144),
+        ("crossing_slots", 0x45d7_a6e9_356c_41b1_u64),
+        ("heat_sink", 0x0ec3_4ebe_7178_d688),
+        ("kiss_carry", 0x0a0b_0ddb_99f9_abb9),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -519,33 +582,58 @@ fn the_boolean_documents_evaluate_to_their_committed_digests() {
 /// which spells `pair: {a, b}` in key order where it spelled `s1`, `s2`
 /// in the builder's order. No body moved: `m4_pr8_corpus`'s exact mass
 /// pins and `m5_pr8_bvh_diff` held.
+///
+/// RE-BLESSED for INTENT stage 3 D (Transform retires into a
+/// placement): the fixture's profiles carry no frame and its second
+/// operand is placed against the first's root by a `Place`, so its
+/// nodes, their ids and the names they mint moved.
+///
+/// RE-BLESSED for FORK-REST: only the identity bundle as written places
+/// by no map, so the copy placed against `a` at the identity by a plane
+/// mate runs its map, which comes out as the exact identity and which
+/// the at-rest snap had placed by no map.
+///
+/// RE-BLESSED when a minted plane's `u_ref` became a direction its
+/// construction holds: the two prisms' caps are charted along their
+/// sketch's `x` axis and their walls along their swept segments, where
+/// `orthonormal_basis` picked both off the axes. No plane moved as a
+/// point set.
+///
+/// RE-BLESSED for D′1 (a placement names its target space): each
+/// construction defines its space beside its body, and the content key
+/// holds a placement's target (`VERSION` 18), so ids drawn after a
+/// construction and every value token moved. No point moved.
+///
+/// RE-BLESSED for D′2 (a value names no mate): the second operand's
+/// bundle is spelled in the new vocabulary and the content key's
+/// `VERSION` moved, so its ids and the names under them moved. Every
+/// node's kind and vertex bits are main's (`be9b907694`).
+///
+/// RE-BLESSED for a certificate that keeps its turn: the digest feeds
+/// each edge curve's `Debug`, which now spells the certificate's `turn`.
+/// No outcome or point moved.
 #[test]
 fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let mut r = corpus::Recorder::new();
     let square =
         |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
-    let xy_frame_1 = r.insert(xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_1.into(),
         loops: vec![square(0.0)],
         ids: Vec::new(),
     }));
     let a = r.insert(Node::Extrude {
         profile: pa.into(),
         distance: len(L),
-        side: ExtrudeSide::Along,
     });
-    let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
-        frame: xy_frame_2.into(),
         loops: vec![square(3.0)],
         ids: Vec::new(),
     }));
     let b = r.insert(Node::Extrude {
         profile: pb.into(),
         distance: len(L),
-        side: ExtrudeSide::Along,
     });
+    let b = r.against(a, b, &editor_core::Frame::IDENTITY);
     let boolean = r.insert(Node::Intersect {
         members: editor_core::Bodies::Spelled(vec![a.into(), b.into()]),
     });
@@ -562,7 +650,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xa08d_ae41_19ad_b45b,
+        got, 0x3314_e34b_988c_6eea,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

@@ -67,7 +67,8 @@
 //! [`ArcData`](super::program::ArcData) enum.
 
 use geom_core::k_stats::decide;
-use geom_core::{Band, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
+use geom_core::period::{Exact, Extent, NotForward, Period, TurnRows};
+use geom_core::{Band, Decide, InfSpeed, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::arc_fillet::{ArcFilletTrims, FilletSide, SideCarrier};
 use super::{Dir, PathError, unit_from_components};
@@ -145,16 +146,32 @@ pub(crate) struct PendingArc<T: Real> {
     /// own algebra ([`crate::Facts::Registered`]), or only to its
     /// `Center` equidistance decision ([`crate::Facts::Decided`]).
     pub head_on_circle: crate::Facts,
+    /// The authored point the side's circle passes through that its
+    /// run does not keep: a `Via` incoming's `q`.
+    pub through: Option<Point2<T>>,
+}
+
+/// An arc side's circle run, as [`Pending::run`] reads it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SideRun<T: Real> {
+    /// The side circle's radius ([`PendingArc::circle_radius`]).
+    pub radius: T,
+    /// [`PendingArc::head_on_circle`].
+    pub head_on_circle: crate::Facts,
+    /// [`PendingArc::through`].
+    pub through: Option<Point2<T>>,
 }
 
 impl<T: Real> Pending<T> {
-    /// The incoming side's circle run, for an arc side: its circle's
-    /// radius and whether the chain head lies on that circle by
-    /// construction.
-    pub(crate) fn run(&self) -> Option<(T, crate::Facts)> {
+    /// The incoming side's circle run, for an arc side.
+    pub(crate) fn run(&self) -> Option<SideRun<T>> {
         match self {
             Pending::Ray(_) => None,
-            Pending::Arc(p) => Some((p.circle_radius, p.head_on_circle)),
+            Pending::Arc(p) => Some(SideRun {
+                radius: p.circle_radius,
+                head_on_circle: p.head_on_circle,
+                through: p.through,
+            }),
         }
     }
 }
@@ -377,9 +394,10 @@ pub(crate) fn via_carrier<T: Decide>(
 /// the side's travel sense, and the leg's arc — the authored radius as
 /// its magnitude `|r|`, and Δθ = 4·atan(X) with X = tan(θ/4) of the
 /// signed angle, the authored angle's own quarter-tangent. The swept
-/// angle is gated definitely positive (`path_arc_sweep`) and definitely
-/// short of a full turn (`path_arc_sweep_full`, on the arc length
-/// `r(2π − θ)`), so 4·atan(tan(θ/4)) is θ over the reals.
+/// angle is gated definitely positive (`path_arc_sweep`, on the arc
+/// length `r·θ`) and definitely short of a full turn
+/// (`path_arc_sweep_full`, the turn rule at `r`), so 4·atan(tan(θ/4)) is
+/// θ over the reals.
 ///
 /// **The arc's endpoint facts are theorems** (the leg registers them):
 /// the centre is the authored radius off the start along the unit
@@ -401,6 +419,28 @@ pub struct TangentArcLeg<T: Real> {
     pub chord: T,
 }
 
+/// An endpoint-free leg's swept angle `angle` on radius `r`, gated: its
+/// arc length definitely positive (`path_arc_sweep`, the span from the
+/// start's angle at the radius) and definitely short of a full turn
+/// (`path_arc_sweep_full`, the turn rule at `r`).
+pub(crate) fn sweep_gates<T: Decide>(r: T, angle: T, band: Band) -> Result<(), PathError<T>> {
+    let sweep = Extent::forward("path_arc_sweep", T::zero(), angle, InfSpeed::new(r), band)
+        .map_err(|refused| match refused {
+            NotForward::Undecided(source) => PathError::Escalated { source },
+            NotForward::Zero(_) | NotForward::Reversed(_) => {
+                PathError::DegenerateArcSpec { value: angle }
+            }
+        })?;
+    let rows = TurnRows::exact("path_arc_sweep_full");
+    match Period::new(T::tau()).strictly_partial(rows, sweep, Exact::new(r), band) {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(PathError::ArcSweepNotShortOfFullTurn { angle }),
+        Err(undecided) => Err(PathError::Escalated {
+            source: undecided.diag,
+        }),
+    }
+}
+
 pub(crate) fn tangent_arc_leg<T: Decide>(
     dp: DirectedPoint<T>,
     r: T,
@@ -411,12 +451,7 @@ pub(crate) fn tangent_arc_leg<T: Decide>(
     gate_positive("path_arc_center_radius", r, band, |radius| {
         PathError::DegenerateArcCenter { radius }
     })?;
-    gate_positive("path_arc_sweep", angle, band, |value| {
-        PathError::DegenerateArcSpec { value }
-    })?;
-    gate_positive("path_arc_sweep_full", r * (T::tau() - angle), band, |_| {
-        PathError::ArcSweepNotShortOfFullTurn { angle }
-    })?;
+    sweep_gates(r, angle, band)?;
     let sgn = side.sign::<T>();
     let n = Vec2::new(-dp.dir.unit.y, dp.dir.unit.x);
     let centre = dp.at + n * (sgn * r);

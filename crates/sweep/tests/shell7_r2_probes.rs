@@ -58,7 +58,15 @@ fn p2_the_torus_at_a_thickness_approaching_its_minor_radius() {
         let body = tube_torus(R, SMALL_R);
         match topo::shell(&finished("the operand", body.clone(), tol()), t, tol()) {
             Ok(out) => {
-                let props = topo::mass_properties(&out.body, tol()).expect("props");
+                let props = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&out.body),
+                        tol(),
+                    ),
+                    tol(),
+                )
+                .expect("props");
                 let want = 2.0 * PI * PI * R * (SMALL_R * SMALL_R - (SMALL_R - t) * (SMALL_R - t));
                 eprintln!(
                     "[p2] t = {t}: shells, volume {} (pad {}), closed form {want}, err {:e}",
@@ -125,7 +133,14 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
             .unwrap_or_else(|e| panic!("R = {major:e}: the torus validates at rest, got {e:?}"));
         match topo::shell(&operand, minor * 0.1, tol()) {
             Ok(out) => {
-                let props = topo::mass_properties(&out.body, tol());
+                let props = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&out.body),
+                        tol(),
+                    ),
+                    tol(),
+                );
                 eprintln!("[p3b] R = {major:e}: SHELLS — volume {props:?}");
             }
             Err(e) => eprintln!("[p3b] R = {major:e}: refuses — {e}"),
@@ -161,7 +176,15 @@ fn p3_the_seam_decide_at_small_major_radii() {
         let t = minor * 0.1;
         match topo::shell(&finished("the operand", rev.body.clone(), tol()), t, tol()) {
             Ok(out) => {
-                let props = topo::mass_properties(&out.body, tol()).expect("props");
+                let props = topo::mass_properties(
+                    &topo::test_support::finished(
+                        "the measured body",
+                        topo::Body::clone(&out.body),
+                        tol(),
+                    ),
+                    tol(),
+                )
+                .expect("props");
                 let want = 2.0 * PI * PI * major * (minor * minor - (minor - t) * (minor - t));
                 eprintln!(
                     "[p3] R = {major:e}, r = {minor:e}: shells, volume {:e} want {want:e} \
@@ -325,9 +348,11 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
     let shelled = topo::shell(&finished("the operand", solid.clone(), tol()), t, tol())
         .expect("the solid torus shells");
     assert_eq!(topo::validate_geometric(&shelled.body, tol()), Ok(()));
-    let cls = topo::classify_shells(&shelled.body, tol()).expect("shells classify");
+    let shelled_at_rest =
+        topo::test_support::finished("the measured body", topo::Body::clone(&shelled.body), tol());
+    let cls = topo::classify_shells(&shelled_at_rest, tol()).expect("shells classify");
     let roles: Vec<String> = cls.iter().map(|c| format!("{:?}", c.role)).collect();
-    let props = topo::mass_properties(&shelled.body, tol()).expect("props");
+    let props = topo::mass_properties(&shelled_at_rest, tol()).expect("props");
     let want = 2.0 * PI * PI * R * (SMALL_R * SMALL_R - (SMALL_R - t) * (SMALL_R - t));
     eprintln!(
         "[e2e] solid torus shelled: {} shells {roles:?}, volume {} want {want} err {:e}",
@@ -366,7 +391,11 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
     let hs = topo::shell(&finished("the operand", hollow.clone(), tol()), t, tol())
         .expect("the hollow torus shells");
     assert_eq!(topo::validate_geometric(&hs.body, tol()), Ok(()));
-    let hp = topo::mass_properties(&hs.body, tol()).expect("props");
+    let hp = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(&hs.body), tol()),
+        tol(),
+    )
+    .expect("props");
     let hwant = 2.0
         * PI
         * PI
@@ -439,7 +468,10 @@ fn dump(what: &str, body: &Body<f64>) {
         })
         .collect();
     es.sort();
-    let props = topo::mass_properties(body, tol());
+    let props = topo::mass_properties(
+        &topo::test_support::finished("the measured body", topo::Body::clone(body), tol()),
+        tol(),
+    );
     println!(
         "[r2dump] {what} | V {} E {} F {} S {} | vol {:?}",
         body.vertices().count(),
@@ -545,5 +577,47 @@ fn p6_an_independent_corpus_differential() {
     match topo::shell(&finished("the operand", hollow.clone(), tol()), 0.05, tol()) {
         Ok(out) => dump("hollow torus, shelled", &out.body),
         Err(e) => println!("[r2dump] hollow torus, shelled | refuses {e}"),
+    }
+}
+
+/// **The edge-meeting ray's probe** of `p3b`'s tori: what each aimed ray
+/// of the side reader reads before the volume
+/// (`work/flush/a-ray-meets-an-edge-in-band-as-half-a-crossing-for-each-face.md`).
+/// Evidence, not a pin: run with `--run-ignored only --no-capture` at
+/// `CAD_TOLERANCE_EPS=1e-12`.
+#[test]
+#[ignore = "probe: run by hand"]
+fn p3b_probe_the_tori_aimed_rays() {
+    for (major, minor) in [(2.0e-8, 5.0e-9), (2.0e-9, 5.0e-10), (1.0e-10, 2.0e-11)] {
+        let a = Point2::new(major + minor, 0.0);
+        let b = Point2::new(major - minor, 0.0);
+        let lp = bulge_loop(vec![(a, 1.0), (b, 1.0)]);
+        let Ok(profile) = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) else {
+            eprintln!("EMR torus R={major:e}: the profile refuses");
+            continue;
+        };
+        let axis = RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        };
+        let Ok(rev) = revolve(&profile, axis, Revolution::Full, tol()) else {
+            eprintln!("EMR torus R={major:e}: the revolve door refuses");
+            continue;
+        };
+        for body in [
+            rev.body.clone(),
+            rev.body.revert().expect("the torus reverts"),
+        ] {
+            for r in topo::test_support::aimed_rays(
+                &body,
+                geom_core::Band::linear(tol()).expect("the run's band"),
+            ) {
+                eprintln!(
+                    "EMR torus eps={:e} R={major:e}: {}",
+                    tol().eps(),
+                    r.chars().take(700).collect::<String>()
+                );
+            }
+        }
     }
 }

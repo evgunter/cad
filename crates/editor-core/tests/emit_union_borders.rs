@@ -20,47 +20,37 @@
 //! answer, and a merged wall a slot divides.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::ExtrudeSide;
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::blocks::{block, failure, run};
+use crate::blocks::{block, block_on, failure, run};
 use crate::corpus::body_of;
 use crate::emit_shared_rim_several::permutations;
 use crate::emit_union_flush_names::parent_of;
-use crate::fixture::{ang, face_vertices, frame, insert, len, on_frame, out, scl, step, table};
+use crate::fixture::{axes_at, slid, value_slot};
+use crate::fixture::{face_vertices, insert, len, on_frame, out, step, table};
 
 use editor_core::{
-    Axis3, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
-    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, SlotId,
-    StableName,
+    Coord, DocEdit, EntityKey, EntityKind, Entry, Evaluation, LoopProgram, NameTable, NamingError,
+    Node, NodeErrorKind, ProfileDoc, ProfileProgram, Qualifier, RecipeNodeId, RoleSeg, StableName,
+    TargetAxis,
 };
 use geom_core::Tol;
 
-/// `input` behind a rigid `Transform` at the identity, so an edit can
-/// move it.
-fn movable(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
-    insert(
-        doc,
-        Node::Transform {
-            input: input.into(),
-            placement: editor_core::placement::Step::Rigid {
-                translation: [len(0.0), len(0.0), len(0.0)],
-                axis: [scl(0.0), scl(0.0), scl(1.0)],
-                angle: ang(0.0),
-            }
-            .into(),
-        },
-    )
-}
-
-/// `doc` with the transform `tr` translated to `to` along `axis`.
-fn moved(doc: ProfileDoc, tr: RecipeNodeId, axis: Axis3, to: f64) -> ProfileDoc {
+/// `doc` with the placement `placed` slid to `to` along `axis` of its
+/// target's own frame. The values are charted on the target's flipped
+/// start cap, whose `y` runs along the target's `−y`.
+fn moved(doc: ProfileDoc, placed: RecipeNodeId, axis: TargetAxis, to: f64) -> ProfileDoc {
+    let slot = value_slot(&doc, placed, Coord::Slide(axis));
+    let by = match axis {
+        TargetAxis::Y => -to,
+        _ => to,
+    };
     step(
         doc,
         DocEdit::SetParam {
-            node: tr,
-            slot: SlotId::Translation(axis),
-            value: len(to).into(),
+            node: placed,
+            slot,
+            value: len(by).into(),
             fresh: Vec::new(),
         },
     )
@@ -112,34 +102,50 @@ enum Mem {
     Side(Vec<(f64, f64)>, f64, f64),
 }
 
-fn add(doc: ProfileDoc, m: &Mem) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = match m {
-        Mem::Block(x, y, (z0, dz)) => return block(doc, *x, *y, *z0, *dz),
-        Mem::Prism(loops, z0, _) => on_frame(
-            doc,
-            [0.0, 0.0, *z0],
-            [1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0],
-            loops.clone(),
+/// `m`, drawn in its own coordinates, and placed against `root` where it
+/// stands — or, with no root, the root itself, which stands at its own
+/// origin. Returns the operand: the placement, or the root.
+fn add(doc: ProfileDoc, root: Option<RecipeNodeId>, m: &Mem) -> (ProfileDoc, RecipeNodeId) {
+    let identity = ([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+    let ((doc, body), at) = match m {
+        Mem::Block(x, y, (z0, dz)) => (
+            block(doc, *x, *y, *dz),
+            axes_at([0.0, 0.0, *z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
         ),
-        Mem::Side(pts, y1, _) => on_frame(
-            doc,
-            [0.0, *y1, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 1.0],
-            vec![pts.clone()],
-        ),
+        Mem::Prism(loops, z0, dz) => {
+            let (doc, p) = on_frame(doc, identity.0, identity.1, identity.2, loops.clone());
+            (
+                extrude(doc, p, *dz),
+                axes_at([0.0, 0.0, *z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            )
+        }
+        Mem::Side(pts, y1, dy) => {
+            let (doc, p) = on_frame(doc, identity.0, identity.1, identity.2, vec![pts.clone()]);
+            (
+                extrude(doc, p, *dy),
+                axes_at([0.0, *y1, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
+            )
+        }
     };
-    let distance = match m {
-        Mem::Prism(_, _, d) | Mem::Side(_, _, d) => *d,
-        Mem::Block(..) => unreachable!(),
-    };
+    match root {
+        Some(root) => crate::fixture::against(doc, root, body, &at),
+        None => {
+            assert!(
+                at == editor_core::Frame::IDENTITY,
+                "a root member stands at its own origin"
+            );
+            (doc, body)
+        }
+    }
+}
+
+/// `profile` extruded `distance` up its own `z`.
+fn extrude(doc: ProfileDoc, profile: RecipeNodeId, distance: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p.into(),
+            profile: profile.into(),
             distance: len(distance),
-            side: ExtrudeSide::Along,
         },
     )
 }
@@ -282,7 +288,7 @@ fn check(fx: &Fixture) -> usize {
     let mut ids = Vec::new();
     let mut labels = BTreeMap::new();
     for (l, m) in &fx.members {
-        let (d, id) = add(doc, m);
+        let (d, id) = add(doc, ids.first().copied(), m);
         doc = d;
         ids.push(id);
         labels.insert(id, *l);
@@ -657,12 +663,11 @@ fn an_aligned_boss_on_the_other_piece_is_not_cited() {
 #[test]
 fn a_boss_moved_onto_the_divider_is_the_border_delta() {
     let doc = ProfileDoc::empty_derived("boss-abuts", Tol::witness());
-    let (doc, plate) = add(doc, &plate());
-    let (doc, slab_id) = add(doc, &slab());
-    let (doc, boss) = add(doc, &b((0.4, 0.8), (0.8, 1.2), (0.47, 1.03)));
-    let (doc, tr) = movable(doc, boss);
+    let (doc, plate) = add(doc, None, &plate());
+    let (doc, slab_id) = add(doc, Some(plate), &slab());
+    let (doc, tr) = add(doc, Some(plate), &b((0.4, 0.8), (0.8, 1.2), (0.47, 1.03)));
     let (doc, u) = union_of(doc, &[plate, slab_id, tr], &[0, 1, 2]);
-    let doc2 = moved(doc.clone(), tr, Axis3::X, 0.65);
+    let doc2 = moved(doc.clone(), tr, TargetAxis::X, 0.65);
     let (plate_read, tr_read) = (out(&doc, plate), out(&doc, tr));
     let pieces = |ev: &Evaluation<f64>| -> BTreeSet<StableName> {
         table(ev, u)
@@ -1059,12 +1064,14 @@ fn the_pair_boolean_names_its_pieces_by_the_same_rule() {
 /// The tied-prongs block (`resolve_group_membership`'s fixture): a
 /// 4×4×4 block with a U-shaped fork cut through it, whose two slot
 /// ceilings are ONE face of the fork, so the block's table ties them.
-fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
+/// Returns the document, the cut block and the block, the root a later
+/// member is placed against.
+fn tied_prongs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("union-dividing-tie", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
+    let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 4.0);
     let (doc, p) = on_frame(
         doc,
-        [0.0, 0.0, 1.0],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -1083,16 +1090,17 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p.into(),
             distance: len(2.0),
-            side: ExtrudeSide::Along,
         },
     );
-    insert(
+    let (doc, u) = slid(doc, a, u, [0.0, 0.0, 1.0]);
+    let (doc, sub) = insert(
         doc,
         Node::Subtract {
             from: a.into(),
             tool: u.into(),
         },
-    )
+    );
+    (doc, sub, a)
 }
 
 /// The faces of `union`'s table that descend from a face `member`'s own
@@ -1126,13 +1134,12 @@ fn from_tied(
 /// unique name.
 #[test]
 fn a_bar_that_divides_no_tied_face_leaves_the_tie() {
-    let (doc, sub) = tied_prongs();
+    let (doc, sub, root) = tied_prongs();
     for (label, y, dy) in [("notching", (0.8, 1.7), 1.5), ("closing", (0.8, 3.2), 0.1)] {
-        let (doc, bar) = block(doc.clone(), (3.9, 4.1), y, 2.5, 1.0);
-        let (doc, tr) = movable(doc, bar);
+        let (doc, tr) = block_on(doc.clone(), root, (3.9, 4.1), y, 2.5, 1.0);
         for order in permutations(&[0, 1]) {
             let (doc1, u) = union_of(doc.clone(), &[sub, tr], &order);
-            let doc2 = moved(doc1.clone(), tr, Axis3::Y, dy);
+            let doc2 = moved(doc1.clone(), tr, TargetAxis::Y, dy);
             let mut seen = Vec::new();
             for (at, d) in [("before", &doc1), ("after", &doc2)] {
                 let ev = run(d);
@@ -1161,22 +1168,21 @@ fn a_bar_that_divides_no_tied_face_leaves_the_tie() {
 
 /// **A split's names hold under an edit that moves its splitting
 /// feature.** A block `a` = `[0,1]³` and two slabs through its top (x
-/// 0.2..0.3 and 0.6..0.7), the first behind a transform. Sliding the
+/// 0.2..0.3 and 0.6..0.7), each a placed copy. Sliding the
 /// first slab 0.05 along x keeps every piece: in every member order,
 /// the same face names are published before and after, and each denotes
 /// the same piece, moved by no more than the slide.
 #[test]
 fn a_split_keeps_its_names_when_the_splitting_feature_moves() {
     let doc = ProfileDoc::empty_derived("union-dividing-edit", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, s1) = block(doc, (0.2, 0.3), (-1.0, 2.0), 0.5, 2.5);
-    let (doc, s2) = block(doc, (0.6, 0.7), (-1.0, 2.0), 0.5, 2.5);
-    let (doc, tr) = movable(doc, s1);
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 1.0);
+    let (doc, tr) = block_on(doc, a, (0.2, 0.3), (-1.0, 2.0), 0.5, 2.5);
+    let (doc, s2) = block_on(doc, a, (0.6, 0.7), (-1.0, 2.0), 0.5, 2.5);
     let mut checked = 0;
     for order in permutations(&[0, 1, 2]) {
         let (doc1, u) = union_of(doc.clone(), &[a, tr, s2], &order);
         let a_read = out(&doc1, a);
-        let doc2 = moved(doc1.clone(), tr, Axis3::X, 0.05);
+        let doc2 = moved(doc1.clone(), tr, TargetAxis::X, 0.05);
         let (ev1, ev2) = (run(&doc1), run(&doc2));
         for ev in [&ev1, &ev2] {
             assert!(failure(ev, u).is_none(), "{order:?}: {:?}", failure(ev, u));
@@ -1226,13 +1232,12 @@ fn a_split_keeps_its_names_when_the_splitting_feature_moves() {
 fn a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it() {
     const LOWER: f64 = 1.25;
     const UPPER: f64 = 2.75;
-    let (doc, sub) = tied_prongs();
-    let (doc, bar) = block(doc, (2.9, 3.1), (0.8, 1.7), 2.5, 1.0);
-    let (doc, tr) = movable(doc, bar);
+    let (doc, sub, root) = tied_prongs();
+    let (doc, tr) = block_on(doc, root, (2.9, 3.1), (0.8, 1.7), 2.5, 1.0);
     let labels = BTreeMap::from([(sub, "sub"), (tr, "bar")]);
     for order in permutations(&[0, 1]) {
         let (doc1, u) = union_of(doc.clone(), &[sub, tr], &order);
-        let doc2 = moved(doc1.clone(), tr, Axis3::Y, 1.5);
+        let doc2 = moved(doc1.clone(), tr, TargetAxis::Y, 1.5);
         let mut by_role = Vec::new();
         for (at, d) in [("before", &doc1), ("after", &doc2)] {
             let ev = run(d);
@@ -1285,20 +1290,12 @@ fn a_divider_moved_onto_the_other_tied_face_moves_the_names_with_it() {
     }
 }
 
-/// A cylinder of radius 0.3 about the axis through `c` along `x × y`,
-/// from `c` for `length`.
-pub(crate) fn cylinder(
-    doc: ProfileDoc,
-    c: [f64; 3],
-    x: [f64; 3],
-    y: [f64; 3],
-    length: f64,
-) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, plane) = insert(doc, frame(c, x, y));
+/// A cylinder of radius 0.3 about its own `z` from its own origin, for
+/// `length`: the profile's two semicircles its rims.
+pub(crate) fn rod(doc: ProfileDoc, length: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::circle_split(0.0, 0.0, 0.3, 2, 0.0).unwrap()],
             ids: Vec::new(),
         }),
@@ -1308,9 +1305,22 @@ pub(crate) fn cylinder(
         Node::Extrude {
             profile: disc.into(),
             distance: len(length),
-            side: ExtrudeSide::Along,
         },
     )
+}
+
+/// A [`rod`] placed against `target` about the axis through `c` along
+/// `x × y`, from `c` for `length`: the placement.
+pub(crate) fn cylinder(
+    doc: ProfileDoc,
+    target: RecipeNodeId,
+    c: [f64; 3],
+    x: [f64; 3],
+    y: [f64; 3],
+    length: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, cyl) = rod(doc, length);
+    crate::fixture::against(doc, target, cyl, &axes_at(c, x, y))
 }
 
 /// **A curved divider names in the union as it does in the pair
@@ -1327,8 +1337,15 @@ pub(crate) fn cylinder(
 #[test]
 fn a_curved_divider_names_as_the_pair_boolean_does() {
     let doc = ProfileDoc::empty_derived("union-dividing-across", Tol::witness());
-    let (doc, cyl) = cylinder(doc, [1.5, 4.0, 1.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0);
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, cyl) = cylinder(
+        doc,
+        plate,
+        [1.5, 4.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        5.0,
+    );
     let (pair_doc, pair) = insert(
         doc.clone(),
         Node::Union {
@@ -1402,9 +1419,16 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
 #[test]
 fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
     let doc = ProfileDoc::empty_derived("sunk-boss-slot", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, boss) = cylinder(doc, [1.5, 1.5, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
-    let (doc, slab) = block(doc, (1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, boss) = cylinder(
+        doc,
+        plate,
+        [1.5, 1.5, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        1.0,
+    );
+    let (doc, slab) = block_on(doc, plate, (1.4, 1.6), (-1.0, 4.0), 0.8, 1.2);
     let (pair_doc, pair) = insert(
         doc.clone(),
         Node::Union {
@@ -1527,9 +1551,16 @@ fn assert_wall_chords_cite_the_merged_parent(
 #[test]
 fn a_slot_along_x_across_a_sunk_boss_names() {
     let doc = ProfileDoc::empty_derived("sunk-boss-slot-x", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
-    let (doc, boss) = cylinder(doc, [1.5, 1.5, 0.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
-    let (doc, slab) = block(doc, (-1.0, 4.0), (1.4, 1.6), 0.8, 1.2);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 1.0);
+    let (doc, boss) = cylinder(
+        doc,
+        plate,
+        [1.5, 1.5, 0.5],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        1.0,
+    );
+    let (doc, slab) = block_on(doc, plate, (-1.0, 4.0), (1.4, 1.6), 0.8, 1.2);
     let (pair_doc, pair) = insert(
         doc.clone(),
         Node::Union {
@@ -1773,8 +1804,8 @@ fn an_earlier_seam_split_and_joined_away_in_one_step_names_alike() {
 #[test]
 fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
     let doc = ProfileDoc::empty_derived("held-pocket", Tol::witness());
-    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let (doc, pocket) = block(doc, (1.0, 2.0), (0.8, 1.2), 0.5, 1.5);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 1.0);
+    let (doc, pocket) = block_on(doc, plate, (1.0, 2.0), (0.8, 1.2), 0.5, 1.5);
     let (doc, a) = insert(
         doc,
         Node::Subtract {
@@ -1782,7 +1813,7 @@ fn a_pocket_floor_held_inside_a_dropped_face_names_alike() {
             tool: pocket.into(),
         },
     );
-    let (doc, bar) = block(doc, (0.5, 2.5), (-1.0, 3.0), 0.0, 0.5);
+    let (doc, bar) = block_on(doc, plate, (0.5, 2.5), (-1.0, 3.0), 0.0, 0.5);
     let labels: BTreeMap<RecipeNodeId, &str> =
         [(plate, "plate"), (pocket, "pocket"), (a, "a"), (bar, "b")].into();
     let mut runs = vec![(
@@ -1849,23 +1880,34 @@ fn named_plane(ev: &Evaluation<f64>, n: &StableName) -> String {
     }
 }
 
-/// One letterform prism: `poly` on the frame `(u, v)` through the
-/// origin, extruded `depth` along its normal.
+/// One letterform prism: `poly` on its own xy, extruded `depth` along
+/// its own z; with `on`, its copy placed against that body on the frame
+/// `(u, v)` through the origin.
 fn letter(
     doc: ProfileDoc,
+    on: Option<RecipeNodeId>,
     poly: &[(f64, f64)],
     (u, v): ([f64; 3], [f64; 3]),
     depth: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, p) = on_frame(doc, [0.0; 3], u, v, vec![poly.to_vec()]);
-    insert(
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(crate::fixture::desc(vec![poly.to_vec()])),
+    );
+    let (doc, prism) = insert(
         doc,
         Node::Extrude {
             profile: p.into(),
             distance: len(depth),
-            side: ExtrudeSide::Along,
         },
-    )
+    );
+    match on {
+        None => {
+            crate::fixture::own_frame([0.0; 3], u, v);
+            (doc, prism)
+        }
+        Some(root) => crate::fixture::against(doc, root, prism, &axes_at([0.0; 3], u, v)),
+    }
 }
 
 /// **The tour's silhouette names through an intersect of an
@@ -1915,12 +1957,12 @@ fn the_silhouette_letters_name_through_an_intersect_of_an_intersect() {
         (0.0, 2.0),
     ];
     let doc = ProfileDoc::empty_derived("silhouette", Tol::witness());
-    let (doc, h) = letter(doc, &h, ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]), 3.0);
-    let (doc, t) = letter(doc, &t, ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0]), 2.0);
-    let (doc, c) = letter(doc, &c, ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]), 3.0);
+    let (doc, h) = letter(doc, None, &h, ([1.0, 0.0, 0.0], [0.0, 1.0, 0.0]), 3.0);
+    let (doc, t) = letter(doc, Some(h), &t, ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0]), 2.0);
+    let (doc, c) = letter(doc, Some(h), &c, ([0.0, 0.0, 1.0], [1.0, 0.0, 0.0]), 3.0);
     // Each member order of the outer intersect, and of the inner one under
-    // the first. Both swapped differ, as on the frozen head of PR 5368
-    // (`work/flush/an-intersect-of-an-intersect-names-a-three-way-coincident-face-apart-in-one-member-order.md`).
+    // the first. Both swapped cite an extra z 2.5 wall on one y 3 piece
+    // (`work/borders/a-direct-operands-own-split-lineage-climbs-to-a-live-sibling-seam.md`).
     let mut sets = Vec::new();
     for (hs, cs) in [(false, false), (true, false), (false, true)] {
         let (doc, two) = insert(
@@ -1980,7 +2022,7 @@ fn stepped_plate_and(
     BTreeMap<RecipeNodeId, &'static str>,
 ) {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
-    let (doc, blk) = add(doc, &b((0.0, 3.0), (0.0, 2.0), (0.0, 2.0)));
+    let (doc, blk) = add(doc, None, &b((0.0, 3.0), (0.0, 2.0), (0.0, 2.0)));
     let pocket = vec![vec![
         (-1.0, -1.0),
         (2.0, -1.0),
@@ -1989,7 +2031,7 @@ fn stepped_plate_and(
         (1.0, 1.5),
         (-1.0, 1.5),
     ]];
-    let (doc, pk) = add(doc, &Mem::Prism(pocket, 1.0, 2.0));
+    let (doc, pk) = add(doc, Some(blk), &Mem::Prism(pocket, 1.0, 2.0));
     let (mut doc, plate) = insert(
         doc,
         Node::Subtract {
@@ -2000,7 +2042,7 @@ fn stepped_plate_and(
     let mut ids = vec![plate];
     let mut labels = BTreeMap::from([(plate, "plate")]);
     for (l, m) in more {
-        let (d, id) = add(doc, &m);
+        let (d, id) = add(doc, Some(blk), &m);
         doc = d;
         ids.push(id);
         labels.insert(id, l);

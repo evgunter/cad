@@ -123,6 +123,7 @@
 //! ruling, which refuses.
 
 use geom_brep::{EdgeCurveSpec, Pcurve, chart_pcurve_over};
+use geom_core::period::{Exact, Extent, Period, TurnRows};
 use geom_core::{
     Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign, UnitVec3, Vec3,
 };
@@ -422,11 +423,22 @@ pub enum SplitJoinError {
         /// The table's refusal.
         source: geom_brep::SectionError,
     },
+    /// The plane cuts a cone face in a parabola or a hyperbola. The
+    /// table serves either in closed form and mints its arcs per window
+    /// as rational-quadratic NURBS (`geom_brep`'s C1), but such a chord
+    /// on a cone has no certificate yet (the uniqueness tube has no cone
+    /// enclosure), so the face is not divided along it.
+    OpenConicChord {
+        /// The face being divided.
+        face: FaceKey,
+        /// The conic.
+        conic: geom_brep::OpenConic,
+    },
     /// A cone face's chart window would be read across its APEX, where
     /// every azimuth maps to one point and no branch pin carries: the
     /// walk reached the apex, or the face meets it in a way no single
-    /// chart lift closes (twice, from both nappes, or around a ring —
-    /// [`cone_apex_closure`]'s `Open`). A window guessed there reads
+    /// chart lift closes (twice, from both nappes, or around a ring). A
+    /// window guessed there reads
     /// the face's complement without any later check seeing it.
     ApexUnlifted {
         /// The cone face whose window was read.
@@ -479,7 +491,7 @@ pub enum SplitJoinError {
     /// A run edge of a curved face whose image on the face's chart is
     /// none of the chart's own curves: its class reading took the
     /// general lane, read in band or definite, or found none written
-    /// for the pair ([`geom_brep::PcurveCertifyError::GeneralLaneUnwritten`]).
+    /// for the pair ([`geom_brep::PcurveCertifyError::NoGeneralLane`]).
     /// The window walk reads a closed-form azimuth, so a general image
     /// is a lane it does not read yet: a lane choice (D3), refused
     /// lever-only "not yet", never an invariant break or a tolerance.
@@ -751,6 +763,13 @@ impl core::fmt::Display for SplitJoinError {
             Self::Section { source, .. } => {
                 write!(f, "the section through a curved face refused: {source}")
             }
+            Self::OpenConicChord { conic, .. } => write!(
+                f,
+                "the plane cuts the cone face along {}, an arc that cannot yet be \
+                 certified on a cone. Recourse: tilt the plane so it cuts the cone all the \
+                 way round",
+                conic.named()
+            ),
             Self::ApexUnlifted { .. } => write!(
                 f,
                 "a cone face's azimuth window would be read across its apex, where the chart \
@@ -1436,7 +1455,7 @@ pub(crate) struct WallReach<T: geom_core::Real> {
 /// two sides of the band, and the conic lane's rim and tilted ellipse
 /// read no reach.
 pub(crate) fn agreed_section<T: Decide>(
-    plane: &geom::Surface<T>,
+    plane: &impl geom_brep::SectionPlane<T>,
     wall: &geom::Surface<T>,
     reach: WallReach<T>,
     band: Band,
@@ -1531,6 +1550,20 @@ fn section_case<T: Decide>(
             ));
         }
     };
+    plane_wall_case(face, band, plane_s, wall, reach)
+}
+
+/// [`section_case`] past its pair normalization: the section of `wall`
+/// by `plane`, of which the table reads a point and the normal and
+/// never a chart ([`geom_brep::SectionPlane`]).
+fn plane_wall_case<T: Decide>(
+    face: FaceKey,
+    band: Band,
+    plane_s: &impl geom_brep::SectionPlane<T>,
+    wall: &geom::Surface<T>,
+    reach: SectionReach<T>,
+) -> Result<SectionCase<T>, SplitJoinError> {
+    let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     let table = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
         other => SplitJoinError::Section {
@@ -1610,7 +1643,7 @@ fn section_case<T: Decide>(
                  divided face",
             ));
         };
-        let &geom::Surface::Plane { normal, .. } = plane_s else {
+        let Some((_, normal)) = plane_s.site() else {
             return Err(invariant("the pair normalization put no plane first"));
         };
         let section = geom_brep::plane_torus_section(plane_s, wall, reach, band).map_err(table)?;
@@ -1701,6 +1734,12 @@ fn section_case<T: Decide>(
                     "apex-point plane×cone classification under a minted chord — the plane \
                  touches the cone at its apex alone",
                 )),
+                geom_brep::PlaneConeSection::OpenConic(section) => {
+                    Err(SplitJoinError::OpenConicChord {
+                        face,
+                        conic: section.conic(),
+                    })
+                }
             };
         }
     };
@@ -2383,15 +2422,11 @@ pub(crate) fn wall_section<T: Decide>(
             });
         }
     }
-    // A transient classification value: only origin/normal are read by
-    // the table (u_ref is a placement convention the classification
-    // never consumes; a STORED aux plane gets an honest one).
-    let plane_s = geom::Surface::Plane {
+    let plane_s = geom_brep::PlaneSite {
         origin,
         normal: normal.get(),
-        u_ref: normal.get(),
     };
-    let case = section_case(
+    let case = plane_wall_case(
         face,
         band,
         &plane_s,
@@ -2525,8 +2560,8 @@ fn bool_planar_chord_spec<T: Decide>(
             wall: wall.kind(),
         });
     }
-    let (p_o, p_n) = match body.get_surface(plane_key) {
-        Some(&geom::Surface::Plane { origin, normal, .. }) => (origin, normal),
+    let plane_s = match body.get_surface(plane_key) {
+        Some(plane_s @ geom::Surface::Plane { .. }) => plane_s.clone(),
         // The two failures are different things and are typed apart: a
         // key that does not resolve is corruption, a key that resolves
         // to the wrong kind is this lane's invariant. A single `_` arm
@@ -2538,11 +2573,6 @@ fn bool_planar_chord_spec<T: Decide>(
                 what: "the section context's auxiliary plane key does not name a plane surface",
             });
         }
-    };
-    let plane_s = geom::Surface::Plane {
-        origin: p_o,
-        normal: p_n,
-        u_ref: p_n,
     };
     let conic = match section_case(
         face,
@@ -2876,13 +2906,11 @@ fn between_edge_is_section<T: Decide>(
 /// sentinel. A sentinel would be actively wrong here: the caller hulls
 /// with `(a.min(lo), b.max(hi))`, which ABSORBS an inverted range
 /// silently instead of propagating it, so "the empty range makes the
-/// window refuse" would have been false. `None` propagates through the
-/// caller as a typed `SectionInvariant` refusal.
-///
-/// The arm is unreachable today — `chart_pcurve` refuses a `Nurbs`
-/// carrier before a fitted image can reach this function — and it is
-/// written anyway because a face bounded by a fitted cyl×sphere edge is
-/// exactly what would make it live.
+/// window refuse" would have been false. The caller reads `None` by the
+/// image: a projected image (a circle's lane choice on a sphere, a
+/// spline's only image) refuses `RunImageNotYet`, and a spiric image
+/// `SectionInvariant`. A fitted image never reaches this function:
+/// `chart_pcurve` derives none.
 fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
     p.closed_form_span_box(t0, t1).map(|b| (b.u_min, b.u_max))
 }
@@ -2893,8 +2921,6 @@ fn chart_azimuth_range<T: Real>(p: &Pcurve<T>, t0: T, t1: T) -> Option<(T, T)> {
 /// [`face_azimuth_window`] folds.
 #[derive(Clone, Debug)]
 pub(crate) struct AzimuthImage<T: geom_core::Real> {
-    /// The half-edge.
-    pub(crate) he: HalfEdgeKey,
     /// The azimuth at its start vertex.
     pub(crate) entry: T,
     /// The azimuth at its end vertex.
@@ -2967,117 +2993,7 @@ fn outer_cycle<T: Decide>(
     Ok(Some(body.loop_walk(first).closed("loop", first)))
 }
 
-/// What the apex closure makes of a cone face's outer cycle.
-#[derive(Clone, Debug)]
-pub(crate) enum ApexClosure<T: Real> {
-    /// The cycle never reaches the apex; every junction is a chart
-    /// point, where the nearest-branch walk is exact.
-    Clear,
-    /// One apex visit and no ring: the lifted loop, closed at the apex.
-    Closed {
-        /// The lift's images, starting at the half-edge that leaves the
-        /// apex.
-        images: Vec<AzimuthImage<T>>,
-        /// The azimuth hull of the lift.
-        window: (T, T),
-        /// The farthest boundary vertex from the apex, in metres: the
-        /// lever for an angle read off the window.
-        reach: T,
-    },
-    /// Two or more apex visits, or one on a ringed face: no single lift
-    /// describes the face.
-    Open,
-}
-
-/// **The apex closure of a cone face's outer cycle.**
-///
-/// The apex is not a chart point: every azimuth maps to it, so the
-/// nearest-branch pin carries no information across it, and an
-/// apex-closed sector wider than π reads there as a full period. The
-/// face's chart region lies in the lifted half-strip `v ∈ (0, V]` (or
-/// its mirror), and its closure meets `v = 0` — the apex blown up — in
-/// the segment between the incoming and outgoing azimuths. The lifted
-/// boundary is a closed curve, so its net azimuth change is zero, and
-/// the jump at a single apex visit is `J = −Σ Δθ(non-apex edges)`
-/// exactly. The walk realises that by starting at the half-edge that
-/// leaves the apex: every junction it crosses is then a chart point,
-/// pinned by nearest-branch continuity as everywhere else, and the one
-/// junction it does not cross is the apex, whose jump the closure
-/// supplies.
-///
-/// The preconditions are the rule's own: exactly one apex visit (a
-/// cycle through the apex twice bounds two sectors, whose gap no hull
-/// of a single lift can exclude), no ring, and every other boundary
-/// vertex on one nappe.
-///
-/// # Errors
-///
-/// As [`face_azimuth_window`], and
-/// [`SplitJoinError::SectionInvariant`] when `surface` is not a cone.
-pub(crate) fn cone_apex_closure<T: Decide>(
-    body: &Body<T>,
-    surface: &geom::Surface<T>,
-    face: FaceKey,
-    band: Band,
-) -> Result<ApexClosure<T>, SplitJoinError> {
-    let geom::Surface::Cone { apex, axis, .. } = *surface else {
-        return Err(SplitJoinError::SectionInvariant {
-            face,
-            what: "the apex closure was asked of a face that is not on a cone",
-        });
-    };
-    let esc = |diag| SplitJoinError::Escalated { face, diag };
-    let fd = body.get_face(face).ok_or_else(|| corrupt_face(face))?;
-    let Some(halves) = outer_cycle(body, face)? else {
-        return Ok(ApexClosure::Open);
-    };
-    let mut leaving = Vec::new();
-    let mut reach = T::zero();
-    let mut nappes = [false; 2];
-    for (i, &he) in halves.iter().enumerate() {
-        let v = proven(&body.half_edges, he, EntityId::HalfEdge).start;
-        let q = vertex_point(body, v) - apex;
-        let d = q.norm();
-        reach = reach.max(d);
-        if decide("bool_cone_apex_visit", Margin::of(d), band).map_err(esc)? == Sign::Zero {
-            leaving.push(i);
-            continue;
-        }
-        match decide("bool_cone_apex_nappe", Margin::of(q.dot(axis)), band).map_err(esc)? {
-            Sign::Positive => nappes[0] = true,
-            Sign::Negative => nappes[1] = true,
-            Sign::Zero => {}
-        }
-    }
-    let [start] = leaving[..] else {
-        return Ok(if leaving.is_empty() {
-            ApexClosure::Clear
-        } else {
-            ApexClosure::Open
-        });
-    };
-    // A boundary on both nappes meets the apex from two sheets: no one
-    // lift describes it.
-    if !fd.rings.is_empty() || nappes == [true, true] {
-        return Ok(ApexClosure::Open);
-    }
-    let lifted: Vec<HalfEdgeKey> = halves[start..]
-        .iter()
-        .chain(&halves[..start])
-        .copied()
-        .collect();
-    let images = run_azimuth_images(body, surface, face, &lifted, band)?;
-    Ok(match azimuth_hull(&images) {
-        Some(window) => ApexClosure::Closed {
-            images,
-            window,
-            reach,
-        },
-        None => ApexClosure::Open,
-    })
-}
-
-/// The walk behind [`face_azimuth_images`] and [`cone_apex_closure`]:
+/// The walk behind [`face_azimuth_images`]:
 /// each charted half-edge's image, its branch pinned to the previous
 /// edge's exit.
 ///
@@ -3115,10 +3031,10 @@ fn run_azimuth_images<T: Decide>(
                 // The class reading is a lane choice (D3): in band, and
                 // with no general lane written, it ends "not yet".
                 geom_brep::PcurveCertifyError::Escalated {
-                    check: geom_brep::PcurveCheck::ChartClass,
+                    check: geom_brep::PcurveCheck::ChartClass | geom_brep::PcurveCheck::GeneralLane,
                     ..
                 }
-                | geom_brep::PcurveCertifyError::GeneralLaneUnwritten { .. } => {
+                | geom_brep::PcurveCertifyError::NoGeneralLane { .. } => {
                     SplitJoinError::RunImageNotYet {
                         face,
                         kind: surface.kind(),
@@ -3150,9 +3066,9 @@ fn run_azimuth_images<T: Decide>(
                 let mut pole_k = None;
                 // A cone APEX junction carries no azimuth at all, and
                 // unlike a sphere pole no orientation bit recovers it:
-                // the jump there is the whole lift's
-                // ([`cone_apex_closure`]), which never pins across it.
-                // A walk that would is refused rather than pinned.
+                // the jump there is the whole lift's, which no pin
+                // crosses. A walk that would is refused rather than
+                // pinned.
                 if let geom::Surface::Cone { apex, .. } = surface {
                     let entry_v = he_data.start;
                     let p = vertex_point(body, entry_v);
@@ -3242,17 +3158,29 @@ fn run_azimuth_images<T: Decide>(
                 base.shift_branch(k, geom_brep::Period::new(tau))
             }
         };
-        // A general image (the class read in band on a sphere takes the
-        // projected lane) has no closed-form azimuth box: the walk's lane
-        // for it is not written, which is no invariant break.
-        let (lo, hi) =
-            chart_azimuth_range(&pcurve, t0, t1).ok_or(SplitJoinError::RunImageNotYet {
+        // A general-lane image (a circle's class read in band on a sphere,
+        // or a spline's only image: the projected lane) has no closed-form
+        // azimuth box: the walk's lane for it is not written, which is no
+        // invariant break. The other image the derivation above returns
+        // without a box is a spiric carrier's exact `Pcurve::Spiric` (a
+        // torus wall's plane section); it ends `SectionInvariant` today,
+        // though it is one of the chart's own curves and the walk's lane
+        // for it is simply not written
+        // (`work/pcert/a-spiric-run-edge-ends-the-window-walk-as-an-invariant.md`).
+        // A fitted image never comes out of that derivation.
+        let (lo, hi) = chart_azimuth_range(&pcurve, t0, t1).ok_or(match &pcurve {
+            Pcurve::Projected(_) | Pcurve::General(_) => SplitJoinError::RunImageNotYet {
                 face,
                 kind: surface.kind(),
-            })?;
+            },
+            _ => SplitJoinError::SectionInvariant {
+                face,
+                what: "a boundary edge's chart image has no closed-form azimuth box (a spiric \
+                       image) — the window walk reads a closed-form azimuth",
+            },
+        })?;
         let exit = pcurve.eval(exit_t).x;
         images.push(AzimuthImage {
-            he,
             entry: pcurve.eval(entry_t).x,
             exit,
             range: (lo, hi),
@@ -3391,11 +3319,25 @@ fn pole_branch<T: Decide>(
     };
     let half = T::tau() * T::from_f64(0.5);
     let shifted = if advancing { gap + half } else { gap - half };
+    // **What the lever is.** Not a rate either edge has throughout: a
+    // point's azimuth rate is its distance from the axis, zero at the pole
+    // and at most the edge's reach, so over either edge the lever is that
+    // rate's sup, and its inf is zero. What the marks decide is the two
+    // edges' largest separation, which on the meridians that reach here is
+    // the chord `2ρ·sin(g/2)` at the reach `ρ` both share: `g·lever`
+    // overstates it by a relative `g²/24` at most, and where `g·ρ` is
+    // within a few bands of a mark that is a few bands squared over `ρ²`,
+    // beneath any band's resolution. So the lever is
+    // the decision's inf to that order, and the decision is the side of
+    // the mark the pair's separation lies on. It is no inf on a curved
+    // edge bending back (the lens, [`pole_lever`]'s four times), which
+    // never gets here: a non-meridian circle's chart image is projected,
+    // and the walk refuses it as FITTED.
     geom_brep::Period::new(T::tau())
         .decide(
             "split_sphere_pole_branch",
             shifted,
-            |g| Margin::levered(g, lever),
+            |g| Margin::metered(g, InfSpeed::new(lever)),
             band,
         )
         .map_err(|stop| match stop.miss {
@@ -5261,6 +5203,22 @@ fn ring_vertices<T: Decide>(
     }
 }
 
+/// Whether a run's azimuth window `[lo, hi]` on a wall of `radius` is
+/// definitely over one period (`split_ring_chart_window`, the turn rule
+/// at the radius): a whole turn is not.
+pub(crate) fn run_window_over<T: Decide>(
+    lo: T,
+    hi: T,
+    radius: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let rows = TurnRows::exact("split_ring_chart_window");
+    Period::new(T::tau())
+        .not_over(rows, Extent::between(lo, hi), Exact::new(radius), band)
+        .map(|not_over| !not_over)
+        .map_err(|undecided| undecided.diag)
+}
+
 /// [`ring_side`] on a cylinder wall's chart: which side of
 /// `newf`'s outer loop (the run a `mef` just walled off) `ring` lies on,
 /// by the parity of a ray from each ring vertex toward `+v` at constant
@@ -5303,12 +5261,8 @@ fn chart_ring_side<T: Decide>(
     ring: LoopKey,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let WallChart {
-        origin: centre,
-        axis,
-        radius,
-        u_ref,
-    } = wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
+    let WallChart { radius, .. } =
+        wall_chart(surface).ok_or_else(|| ring_island_unread(newf, surface))?;
     let tau = T::tau();
     let invariant = |what| SplitJoinError::SectionInvariant { face: newf, what };
     let images = face_azimuth_images(body, surface, newf, band)?.ok_or(invariant(
@@ -5317,19 +5271,14 @@ fn chart_ring_side<T: Decide>(
     let (lo, hi) = azimuth_hull(&images).ok_or(invariant(
         "ring re-homing on a chart: the run carries no charted edge",
     ))?;
-    let decide_m = |name, margin| {
-        decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face: newf, diag })
-    };
     // A run whose window is a whole period (a band round a full-turn
     // face, closed along its seam) holds the seam's azimuth at both `lo`
     // and `hi`. A ring vertex there reads alike at either: the half-open
     // rule reads it just inside `lo` or just past `hi`, and just inside
     // `lo` the run lies only beside its rows along `lo`, which the ray
     // meets only from a vertex on them.
-    if decide_m(
-        "split_ring_chart_window",
-        Margin::levered(tau - (hi - lo), radius),
-    )? == Sign::Negative
+    if run_window_over(lo, hi, radius, band)
+        .map_err(|diag| SplitJoinError::Escalated { face: newf, diag })?
     {
         return Err(invariant(
             "ring re-homing on a chart: the run's azimuth window spans more than a full period, \
@@ -5343,10 +5292,14 @@ fn chart_ring_side<T: Decide>(
     let n = images.len();
     let read = |v: VertexKey| -> Result<Result<Option<RingSide>, Indeterminate>, SplitJoinError> {
         let decide_r = |name, margin| decide(name, margin, band);
-        let w = vertex_point(body, v) - centre;
-        // The chart's one azimuth read (`geom_brep::Azimuth::principal`),
-        // lifted onto the run's window below by `periodic_branch`.
-        let raw = geom_brep::Azimuth::of(w.dot(axis.cross(u_ref)), w.dot(u_ref)).principal(band);
+        // The vertex's chart coordinates (`geom::Surface::chart_point`),
+        // its azimuth lifted onto the run's window below by
+        // `periodic_branch`.
+        let at = surface
+            .chart_point(vertex_point(body, v), band)
+            .map_err(|_| ring_island_unread(newf, surface))?
+            .uv;
+        let raw = at.x;
         // The vertex on the branch of the window's middle, in
         // `(mid − τ/2, mid + τ/2]`. A vertex inside the window lands on its
         // own branch. One at the seam of a whole-period window lands on
@@ -5355,7 +5308,7 @@ fn chart_ring_side<T: Decide>(
         // `Sym` the crossings read `u_p` numerically, against image ends
         // of another provenance, never as an identity.
         let u_p = raw + (mid - raw).periodic_branch(tau) * tau;
-        let v_p = w.dot(axis);
+        let v_p = at.y;
         let mut crossings = 0usize;
         for (i, image) in images.iter().enumerate() {
             let next = &images[(i + 1) % n];

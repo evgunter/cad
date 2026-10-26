@@ -24,16 +24,32 @@ Say the rim's height "is not shown away from the apex (margin … m)", carrying 
 ## Fixed (PCERT E1, `pcert/lane-choices`)
 
 `PcurveCertifyError::CarrierOffChart` carries an optional `margin`
-(`geom_core::MarginDiag`), printed as "(margin … m)". Every
-`pcurve_cone_chart_nappe` Zero arm now says the reading "is not shown"
-rather than stating the zero as exact:
-- the rim (`derive_class`, cone circle arm) and the section ellipse read
-  the nappe through `decide_reported` and quote its margin;
-- `cone_conic_incidence` does the same for the conic's lowest point, and
-  splits a definite `Negative` ("reaches past the apex's height") from
-  the not-shown `Zero`;
-- the ruling's direction gate (`decide_flagged`, which reports no
-  margin) carries the wording only.
+(`OffMargin`: `Past` for a reading decided past the degenerate pose,
+`InBand` for a band-decided Zero), printed as "(margin … m)", with
+"within the band" for `InBand`, whose Display does not call the edge
+off its face. Every `pcurve_cone_chart_nappe` Zero that can still be
+reached now says the reading "is not shown" rather than stating the
+zero as exact. By arm (`crates/geom-brep/src/pcurve_cache.rs`):
 
-Pinned by `chart_incidence::a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin`,
-at `f64` and at `Interval`.
+- **The rim** (`derive_class`, the cone's circle arm) reads the nappe
+  through `decide_reported`, and its Zero quotes the margin as
+  `OffMargin::InBand`.
+- **`cone_conic_incidence`** reads the conic's lowest point through
+  `decide_reported`. It splits a definite `Negative` ("reaches past the
+  apex's height", `OffMargin::Past`) from the not-shown `Zero`
+  (`OffMargin::InBand`).
+- **The section ellipse** reads its centre's height with `decide`, and
+  its Zero and in-band arms are `unreachable!`. `incidence::incident`
+  runs `cone_conic_incidence` first, which decides the ellipse's lowest
+  point past the band off the apex's height, so the centre's height is
+  definite by then.
+- **The line**, on the ruling's direction gate, where the anchor's
+  height is Zero, reads through `decide_flagged_reported`. Its Zero
+  ("the line is not shown off the plane through the apex") quotes the
+  margin as `OffMargin::InBand`. It is reachable only on a sub-band
+  span, because the line's incidence test runs first.
+
+Pinned by `chart_incidence::a_rim_at_the_apex_height_refuses_as_not_shown_with_its_margin`
+and by `pcurve_cache`'s
+`an_apex_plane_line_on_a_sub_band_span_is_not_called_off_its_face`,
+both at `f64` and at `Interval`.

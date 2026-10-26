@@ -14,7 +14,7 @@
 use core::convert::Infallible;
 use core::ops::Mul;
 
-use crate::linalg::{UnitVec3, Vec3};
+use crate::linalg::{Angle, UnitVec3, Vec3};
 use crate::real::Real;
 
 /// A linear map of the 3-D tangent space, stored as three named columns.
@@ -198,10 +198,21 @@ impl<T: Real> Mat3<T> {
         Self::rodrigues(axis.get(), angle)
     }
 
+    /// [`Self::rotation_about_unit`] by an [`Angle`], whose sine and
+    /// cosine are its written form's where it has one.
+    pub fn rotation_about_unit_by(axis: UnitVec3<T>, angle: Angle<T>) -> Self {
+        Self::rodrigues_by(axis.get(), angle)
+    }
+
     /// The Rodrigues entries over `n` as given: the one body of both
     /// rotation constructors, which differ only in whether they
     /// normalize the axis first.
     pub(in crate::linalg) fn rodrigues(n: Vec3<T>, angle: T) -> Self {
+        Self::rodrigues_by(n, Angle::radians(angle))
+    }
+
+    /// [`Self::rodrigues`] by an [`Angle`]'s sine and cosine.
+    pub(in crate::linalg) fn rodrigues_by(n: Vec3<T>, angle: Angle<T>) -> Self {
         let (s, c) = angle.sin_cos();
         let t = T::one() - c;
         let (x, y, z) = (n.x, n.y, n.z);
@@ -282,10 +293,13 @@ impl<T: Real> Mat3<T> {
     /// [`Self::identity_minus_rotation_about`] over an axis already
     /// unit, as [`Self::rotation_about_unit`] is to [`Self::rotation_about`].
     pub(in crate::linalg) fn identity_minus_rodrigues(n: Vec3<T>, angle: T) -> Self {
-        let (hs, hc) = (angle * T::from_f64(0.5)).sin_cos();
-        let two = T::from_f64(2.0);
-        let s = two * hs * hc;
-        let t = two * hs.powi(2);
+        Self::identity_minus_rodrigues_by(n, Angle::radians(angle))
+    }
+
+    /// [`Self::identity_minus_rodrigues`] by an [`Angle`]'s
+    /// ([`Angle::sin_versine`]).
+    pub(in crate::linalg) fn identity_minus_rodrigues_by(n: Vec3<T>, angle: Angle<T>) -> Self {
+        let (s, t) = angle.sin_versine();
         let (x, y, z) = (n.x, n.y, n.z);
         Self::from_cols(
             Vec3::new(
@@ -477,6 +491,32 @@ mod tests {
         let r = Mat3::rotation_about(Vec3::new(0.0f64, 0.0, 0.0), 1.0);
         for c in [r.c0, r.c1, r.c2] {
             assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
+        }
+    }
+
+    /// An axis whose squares leave the format names a direction like
+    /// any other, and `rotation_about` turns about it: the matrix is the
+    /// rotation about the in-range axis it is parallel to, never the
+    /// scaling `cos θ · I` a zero axis would build.
+    #[test]
+    fn rotation_about_an_axis_out_of_the_squares_range_is_a_rotation() {
+        for (ax, along) in [
+            ([1.0e160f64, 1.0, 1.0], [1.0, 0.0, 0.0]),
+            ([1.0e200, 1.0e200, 0.0], [1.0, 1.0, 0.0]),
+            ([-1.0e300, 0.0, 2.0e300], [-1.0, 0.0, 2.0]),
+            ([1.0e-170, 0.0, 0.0], [1.0, 0.0, 0.0]),
+            ([1.0e-160, 1.0e-160, 1.0e-160], [1.0, 1.0, 1.0]),
+        ] {
+            for angle in [1.0e-8f64, 1.0, 3.0] {
+                let got = Mat3::rotation_about(Vec3::from_array(ax), angle);
+                let want = Mat3::rotation_about(Vec3::from_array(along), angle);
+                for (g, w) in [(got.c0, want.c0), (got.c1, want.c1), (got.c2, want.c2)] {
+                    assert!(
+                        (g - w).norm() <= 1.0e-15,
+                        "axis {ax:?}, angle {angle}: column {g:?}, want {w:?}"
+                    );
+                }
+            }
         }
     }
 
@@ -807,11 +847,10 @@ mod tests {
     /// and the subtraction of a value ≤ 2 from them is exact, so the
     /// reference carries no error of its own.
     ///
-    /// Degenerate axes are excluded on purpose. Where `normalize` is
-    /// not unit — an axis whose norm² overflows normalizes to the ZERO
-    /// vector — the two ladders are genuinely different maps and
-    /// disagree by metres; that is a `vec.rs` question, carried
-    /// separately, and pinning it here would pin the wrong thing.
+    /// The last four axes square out of the format (`norm²` overflows,
+    /// flushes to zero, or lands subnormal): the two ladders are one map
+    /// only through `|n| = 1`, so they are the rows that hold
+    /// `normalize` to it.
     #[test]
     fn the_operator_and_rotation_about_stay_the_same_map() {
         let mut worst = 0.0f64;
@@ -824,6 +863,10 @@ mod tests {
             [0.1, 0.2, -0.97],
             [1.0, 2.0, 3.0],
             [1.0, 1.0e-9, 0.0],
+            [1.0e160, 1.0, 1.0],
+            [1.0e200, 1.0e200, 0.0],
+            [1.0e-170, 0.0, 0.0],
+            [1.0e-160, 1.0e-160, 1.0e-160],
         ] {
             let axis = Vec3::from_array(ax);
             for k in -40..=40i32 {

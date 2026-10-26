@@ -2,11 +2,14 @@
 id: a-space-names-its-bodies
 kind: issue
 title: A space names its bodies to its readers: a pick is a body variable of the space, defined as one placement's copy
-status: open
+status: parked
 opened: 2026-10-18
 priority: P0
 cost: M
 refs: [a-placement-relates-two-frames]
+parent: assemble-is-an-operator-and-the-product-is-a-slot
+blocked_on: [assemble-is-an-operator-and-the-product-is-a-slot]
+rides_with: assemble-is-an-operator-and-the-product-is-a-slot
 ---
 
 From row 162 (PR 5312). Ev, chat 2026-10-18: "a space is defined by a set of placements, and then provides a nice api to things downstream where the api doesn't say anything about how the geometry got there". The ratified sentence is "what reads it downstream reads the space's bodies, never a placement". But nothing represents a space's body today. A copy is an output of its placement, read by key (`CopyKey`, `BodyRead.key`, `crates/editor-core/src/operand.rs:502`; `copy_of`, `eval/wire.rs:2575`). Its names are re-minted under the placement node (`RoleSeg::Placed`, `names/role.rs:1579`; `name_placed*`, `names/emit.rs:919–1000`; `InPart`, `emit.rs:951`). Line numbers are stage 3 D's branch at bf45076901.

@@ -2,12 +2,15 @@
 id: normalize-overflow-yields-zero-axis
 kind: issue
 title: Vec3::normalize maps a norm²-overflow axis to the ZERO vector silently, and rotation constructors then disagree by metres
-status: open
+status: closed
 opened: 2026-08-30
 github: 1299
 refs: [1177, 1277]
 priority: P0
 cost: E
+closed: 2026-10-21
+pr: 5572
+branch: frame/normalize-overflow
 ---
 
 ## From GitHub issue 1299
@@ -46,3 +49,7 @@ Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## Closed
+
+2026-10-21, PR 5572. `Vec3::normalize`, `Vec2::normalize` and `Vec3::orthonormal_basis` prescale by an exact power of two outside `(2⁻⁵¹¹, 2⁵¹¹)` (four arms, `normalizing_scale` in `geom-core/src/linalg/vec.rs`), so an axis whose squares leave the format keeps its direction; inside the band no bit moves, and in a scaled arm only entries already below the normal range can lose bits. `Mat3::rotation_about` on such an axis is a rotation. The zero vector and non-finite inputs still poison. Residue filed: `direction-doors-refuse-finite-directions-normalize-now-answers` (the doors that still refuse these directions, a fork per door) and `project-and-reject-collapse-past-the-squares-range`.

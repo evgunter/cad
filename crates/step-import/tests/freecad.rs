@@ -352,8 +352,11 @@ fn foreign_corpus() {
             "{name}: reported structure normalizations"
         );
 
-        let props = topo::mass_properties(&body, Tol::witness())
-            .unwrap_or_else(|err| panic!("{name}: {err}"));
+        let props = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|err| panic!("{name}: {err}"));
         // mm³ → m³ (the generator's unit is FreeCAD's mm).
         let expected_m3 = e.volume_mm3 * 1e-9;
         // Roundoff: the volume is a fixed-order sum of per-face
@@ -474,8 +477,9 @@ fn cross_dialect_fixed_point() {
             ..step_export::StepOptions::default()
         };
         let (body1, _, _) = freecad_body(name);
-        let export1 = step_export::step_string(&body1, &options, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
+        let export1 =
+            step_export::step_string(&crate::common::at_rest(&body1), &options, Tol::witness())
+                .unwrap_or_else(|e| panic!("{name}: re-export 1: {e}"));
         let reimport = import_step(&export1, &ImportOptions::default(), Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: re-import of our own dialect: {e}"));
         let StepImport::Solid { body: body2, .. } = reimport else {
@@ -486,18 +490,25 @@ fn cross_dialect_fixed_point() {
             arena_census(&body2),
             "{name}: census identical across the adoption pass"
         );
-        let export2 = step_export::step_string(&body2, &options, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
+        let export2 =
+            step_export::step_string(&crate::common::at_rest(&body2), &options, Tol::witness())
+                .unwrap_or_else(|e| panic!("{name}: re-export 2: {e}"));
         assert_eq!(
             export1, export2,
             "{name}: the second export must be byte-identical to the first"
         );
-        let v1 = topo::mass_properties(&body1, Tol::witness())
-            .unwrap()
-            .volume;
-        let v2 = topo::mass_properties(&body2, Tol::witness())
-            .unwrap()
-            .volume;
+        let v1 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body1.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
+        let v2 = topo::mass_properties(
+            &topo::test_support::finished("the measured body", body2.clone(), Tol::witness()),
+            Tol::witness(),
+        )
+        .unwrap()
+        .volume;
         // Bit-identity everywhere but ONE named fixture. Byte-identical
         // exports already prove both bodies carry the same stated
         // geometry, so any residue is arithmetic, not data — and the
@@ -531,9 +542,12 @@ fn cross_dialect_fixed_point() {
 /// S9 flip rows, where what matters is that two imports describe the
 /// same solid (or a stated multiple of it).
 fn volume_mm3(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body, Tol::witness())
-        .expect("mass properties")
-        .volume
+    topo::mass_properties(
+        &topo::test_support::finished("the measured body", (body).clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .expect("mass properties")
+    .volume
         * 1e9
 }
 
@@ -618,7 +632,12 @@ fn millimetre_lengths_scale_by_one_rounded_multiply() {
         "1 mm is the f64 nearest 1e-3 m — one rounded multiply, no more"
     );
     // And the closed form lands within the roundoff that implies.
-    let v = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
+    let v = topo::mass_properties(
+        &topo::test_support::finished("the measured body", body.clone(), Tol::witness()),
+        Tol::witness(),
+    )
+    .unwrap()
+    .volume;
     assert!(
         (v - 1e-9).abs() <= 8.0 * f64::EPSILON * 1e-9,
         "unit cube volume {v} m³ vs 1e-9 m³"
@@ -820,7 +839,7 @@ fn negative_zeros_normalize_at_translation() {
         assert!(text.contains("-0."), "{name}: the source dialect has -0.");
         let (body, _, _) = freecad_body(name);
         let export = step_export::step_string(
-            &body,
+            &crate::common::at_rest(&body),
             &step_export::StepOptions {
                 product_name: name.to_owned(),
                 ..step_export::StepOptions::default()
@@ -1454,7 +1473,7 @@ fn freecad_oracle_reads_back_every_reexported_fixture() {
     for name in FREECAD_FIXTURES {
         let (body, _, _) = freecad_body(name);
         let text = step_export::step_string(
-            &body,
+            &crate::common::at_rest(&body),
             &step_export::StepOptions {
                 product_name: name.to_owned(),
                 ..step_export::StepOptions::default()

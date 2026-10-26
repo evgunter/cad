@@ -785,7 +785,9 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 def,
             });
         }
-        if !snapshot.mint.has_var(id) {
+        // The world's space is every document's from its creation, as
+        // the world is: no edit mints it.
+        if id != crate::VarId::WORLD && !snapshot.mint.has_var(id) {
             return Some(SnapshotError::VarNotMinted {
                 var: snapshot.spoken_var(id),
             });
@@ -1168,8 +1170,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
-        // A side is one of two words.
-        | DocEdit::SetExtrudeSide { .. }
         | DocEdit::SetExpression { .. }
         | DocEdit::Rebind { .. }
         | DocEdit::ReWitness { .. }
@@ -1180,11 +1180,10 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         // A constraint's numbers are slots, written as formulas the
         // door lowers.
         | DocEdit::AddConstraint { .. }
-        | DocEdit::AddValue { .. }
-        // A world pin holds no number.
-        | DocEdit::PinWhereItStands { .. }
+        | DocEdit::SetConstraints { .. }
         // A constraint's id is minted, not a float.
         | DocEdit::RemoveConstraint { .. }
+        | DocEdit::RemoveConstraints { .. }
         // A label is text.
         | DocEdit::SetLabel { .. }
         | DocEdit::UpdateReference { .. } => None,
@@ -1304,7 +1303,7 @@ pub enum SnapshotError {
     },
     /// An appearance entry is read in a variable the document holds
     /// live that is no output holding a body — a scalar, a selection,
-    /// a datum's output — so no table names what it holds. No edit
+    /// a pose output — so no table names what it holds. No edit
     /// writes one (`EditError::AppearanceBodyNotARead`); a deleted
     /// operation's read, the stranded key, is legal.
     AppearanceReadNotABody {
@@ -1451,19 +1450,6 @@ pub enum SnapshotError {
         /// Which of its frames.
         at: FrameSite,
     },
-    /// An IMPROPER placement frame — determinant ≤ 0, the A6 mirror
-    /// case R4 gates. Its own arm rather than
-    /// [`SnapshotError::PlacementNonFinite`]: a mirror is authored data
-    /// this build declines to admit, a non-finite coordinate is data no
-    /// predicate can read, and the repairs differ.
-    PlacementImproper {
-        /// The node holding the placement.
-        node: SpokenNode,
-        /// Which of its frames.
-        at: FrameSite,
-        /// The linear part's determinant.
-        determinant: f64,
-    },
     /// A proper placement frame that is not definitely a rigid motion
     /// at tolerance. The edit door refuses it by the predicate the
     /// evaluation moves a body by.
@@ -1478,9 +1464,8 @@ pub enum SnapshotError {
     },
     /// A constraint the edit door would refuse on what the recipe
     /// decides of it ([`crate::mate::solve::admit_mate`]): its `on` reads
-    /// no copy, its world read is no pose, its two poses are of two
-    /// kinds, or its class is not admitted. A file holding one is
-    /// corrupt.
+    /// no copy, its world read is no pose, or its two poses are of two
+    /// kinds. A file holding one is corrupt.
     MateRefused {
         /// The placement holding it.
         node: SpokenNode,
@@ -1491,7 +1476,7 @@ pub enum SnapshotError {
     },
     /// A placement-rule node carrying a rule the edit door would have
     /// refused (GROUP-BOOLEAN-DESIGN): the count spelled two ways, an
-    /// empty explicit list, or a non-finite / improper frame.
+    /// empty explicit list, or a non-finite or non-rigid frame.
     PlacementRule {
         /// The offending node.
         node: SpokenNode,
@@ -1644,27 +1629,13 @@ pub enum SnapshotError {
     },
 }
 
-impl SnapshotError {
-    /// The arm a frame the admission rule refused is reported under,
-    /// at `at` on `node`.
-    fn placement_frame(node: SpokenNode, at: FrameSite, fault: FrameFault) -> Self {
-        match fault {
-            FrameFault::NonFinite => Self::PlacementNonFinite { node, at },
-            FrameFault::Improper { determinant } => Self::PlacementImproper {
-                node,
-                at,
-                determinant,
-            },
-            FrameFault::NotRigid { check } => Self::PlacementNonRigid { node, at, check },
-        }
-    }
-}
+impl SnapshotError {}
 
 /// **A placement frame's refusal at load**: the frame's subject at its
 /// site and the frame rule's own clause, then what a user holding the
 /// file can do. The edit doors never admitted a non-finite or a
 /// mirrored frame, so a file holding one was not written by them; a
-/// frame that is not rigid was admitted by earlier builds at the
+/// frame that scales or shears was admitted by earlier builds at the
 /// registry and in an explicit rule, and a current build refuses it at
 /// the edit door with that frame's own recourse.
 fn frame_refusal(
@@ -1675,9 +1646,7 @@ fn frame_refusal(
 ) -> core::fmt::Result {
     write!(f, "{} {fault}. ", at.subject(node))?;
     match fault {
-        FrameFault::NonFinite | FrameFault::Improper { .. } => {
-            f.write_str(geom_core::KERNEL_OR_FILE_DEFECT_ENDING)
-        }
+        FrameFault::NonFinite => f.write_str(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
         FrameFault::NotRigid { .. } => {
             write!(
                 f,
@@ -1887,18 +1856,6 @@ impl core::fmt::Display for SnapshotError {
             Self::PlacementNonFinite { node, at } => {
                 frame_refusal(f, node, *at, FrameFault::NonFinite)
             }
-            Self::PlacementImproper {
-                node,
-                at,
-                determinant,
-            } => frame_refusal(
-                f,
-                node,
-                *at,
-                FrameFault::Improper {
-                    determinant: *determinant,
-                },
-            ),
             Self::PlacementNonRigid { node, at, check } => {
                 frame_refusal(f, node, *at, FrameFault::NotRigid { check })
             }
@@ -2051,13 +2008,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 fault,
             });
         }
-        // Literal placement frames — a transform's, a constraint's
-        // frame offsets — held by the predicate the edit door asks,
-        // for the rule's reason: the snapshot is the one road
-        // to a document that does not pass `apply`.
-        if let Some((at, fault)) = node.placement_frame_fault(tol) {
-            return Err(SnapshotError::placement_frame(doc.spoken(id), at, fault));
-        }
         // DM5's third caller, for the reason the placement rule above
         // has one: a saved file is DATA, and a SNAPSHOT is the one way
         // a node reaches a document without passing `apply`. The edit
@@ -2080,40 +2030,23 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                 bound,
             });
         }
-        // A constraint's own admission, the one the edit door asks
+        // A mate's own admission, the one the edit door asks
         // (`mate::solve::admit_mate`), asked in THIS walk: a second
         // pass over the nodes would be a second place to forget the
-        // question. Whether the bundle fixes an equation twice is the
-        // fold's, for a state the edit doors did not see (A11 (1)).
+        // question. Whether the bundle fixes an equation twice, a
+        // value's freedom among them, is the fold's, for a state the
+        // edit doors did not see (A11 (1)).
         let bundle = crate::mate::solve::bundle_of(node).unwrap_or_default();
         for c in bundle {
+            let Some(mate) = c.mate() else { continue };
             let at = crate::mate::MateRef::new(id, c.id);
-            let admitted = match &c.kind {
-                crate::mate::ConstraintKind::Mate(mate) => {
-                    crate::mate::solve::admit_mate(doc, at, mate)
-                }
-                crate::mate::ConstraintKind::Value(value) => {
-                    crate::mate::solve::admit_value(doc, at, bundle, value)
-                }
-                crate::mate::ConstraintKind::WorldPin(_) => Ok(()),
-            };
-            if let Err(fault) = admitted {
+            if let Err(fault) = crate::mate::solve::admit_mate(doc, at, mate) {
                 return Err(SnapshotError::MateRefused {
                     node: doc.spoken(id),
                     constraint: c.id,
                     fault,
                 });
             }
-        }
-        if let Err(fault) = crate::mate::solve::world_pin_stands_alone(id, bundle) {
-            let crate::MateFault::Overconstrained { constraints, .. } = &*fault else {
-                unreachable!("a bundle beside a world pin is overconstrained")
-            };
-            return Err(SnapshotError::MateRefused {
-                node: doc.spoken(id),
-                constraint: constraints[0],
-                fault,
-            });
         }
     }
     // Every `StableName` the document holds, in ONE pass over the
@@ -2426,7 +2359,6 @@ mod tests {
             EpsilonInvalid,
             ConstraintNotMinted,
             PlacementNonFinite,
-            PlacementImproper,
             PlacementNonRigid,
             MateRefused,
             PlacementRule,
@@ -2488,7 +2420,6 @@ mod tests {
             | SnapshotError::EpsilonInvalid { .. }
             | SnapshotError::ConstraintNotMinted { .. }
             | SnapshotError::PlacementNonFinite { .. }
-            | SnapshotError::PlacementImproper { .. }
             | SnapshotError::PlacementNonRigid { .. }
             | SnapshotError::MateRefused { .. }
             | SnapshotError::PlacementRule { .. }
@@ -2659,16 +2590,11 @@ mod tests {
             },
             SnapshotError::PlacementNonFinite {
                 node: node(),
-                at: FrameSite::Step { index: 0 },
-            },
-            SnapshotError::PlacementImproper {
-                node: node(),
-                at: FrameSite::Step { index: 1 },
-                determinant: -1.0,
+                at: FrameSite::Listed { index: 0 },
             },
             SnapshotError::PlacementNonRigid {
                 node: node(),
-                at: FrameSite::Step { index: 1 },
+                at: FrameSite::Listed { index: 1 },
                 check: "transform_rigid_col0_unit",
             },
             SnapshotError::MateRefused {
@@ -2797,13 +2723,11 @@ mod tests {
             (doc, id)
         };
         let doc = ProfileDoc::empty_derived("check-speak", tol);
-        let (doc, plane) = insert(doc, Box::new(crate::test_support::xy_frame()));
         let triangle = crate::program::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)])
             .expect("finite corners");
         let (doc, profile) = insert(
             doc,
             Box::new(Node::Profile(crate::program::ProfileProgram {
-                frame: plane.into(),
                 loops: vec![triangle],
                 ids: Vec::new(),
             })),

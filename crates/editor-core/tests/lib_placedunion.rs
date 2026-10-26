@@ -19,7 +19,6 @@
 use crate::corpus;
 use crate::fixture;
 use editor_core::AuthoredNode;
-use editor_core::ExtrudeSide;
 
 use editor_core::{
     CountMismatch, DocEdit, EditError, Formula, Frame, Node, NodeErrorKind, NodeResult,
@@ -36,7 +35,7 @@ use geom_core::Tol;
 fn fin_only() -> (ProfileDoc, RecipeNodeId) {
     let mut r = corpus::Recorder::new();
     let p = r.profile(
-        [0.0, 0.0, 0.1875],
+        [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
         vec![vec![
@@ -49,7 +48,6 @@ fn fin_only() -> (ProfileDoc, RecipeNodeId) {
     let fin = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(0.8125),
-        side: ExtrudeSide::Along,
     });
     (r.doc, fin)
 }
@@ -68,7 +66,7 @@ fn doc_named(name: &str) -> corpus::CorpusDoc {
 
 /// **One node, one body.** The grouped document says with ONE
 /// `PlacedUnion` what `heat_sink` says with a `Pattern` plus five
-/// `Transform` + five `Boolean` nodes — and the group's value is an
+/// placements + five `Boolean` nodes — and the group's value is an
 /// ordinary `Body`, which is precisely what `body_operand` refused a
 /// `Pattern`'s `Instances` for (the F4 note).
 #[test]
@@ -102,12 +100,12 @@ fn the_fin_group_is_one_node_and_one_body() {
     );
 }
 
-/// **The twin equality.** The group and the Transform + Boolean chain
+/// **The twin equality.** The group and the placement + Boolean chain
 /// it replaces are the same solid, bit for bit on both mass oracles —
 /// the design's "same oracles, byte-level" promise, asserted with `==`
 /// against a chain built here from the SAME prototype.
 #[test]
-fn the_fin_group_equals_the_transform_union_chain() {
+fn the_fin_group_equals_the_placement_union_chain() {
     const PITCH: f64 = 0.3125;
     let (base_doc, fin) = fin_only();
 
@@ -116,24 +114,14 @@ fn the_fin_group_equals_the_transform_union_chain() {
     let mut chain = base_doc.clone();
     let mut acc: Option<RecipeNodeId> = None;
     for i in 0..5 {
-        let tr = apply(
-            &chain,
-            &DocEdit::InsertNode {
-                node: Box::new(Node::transform(
-                    fin,
-                    editor_core::Step::Rigid {
-                        translation: [len(f64::from(i) * PITCH), len(0.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: ang(0.0),
-                    },
-                )),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .expect("insert transform");
-        let placed = tr.record.minted.expect("minted");
-        chain = tr.doc;
+        let (doc, placed) = fixture::xform(
+            chain,
+            fin,
+            [f64::from(i) * PITCH, 0.0, 0.0],
+            [0.0, 0.0, 1.0],
+            0.0,
+        );
+        chain = doc;
         acc = Some(match acc {
             None => placed,
             Some(a) => {
@@ -181,11 +169,19 @@ fn the_fin_group_equals_the_transform_union_chain() {
     let ev_group = eval::<f64>(&grouped.doc);
     assert!(failures(&ev_chain).is_empty(), "{:?}", failures(&ev_chain));
     assert!(failures(&ev_group).is_empty(), "{:?}", failures(&ev_group));
-    let a = body_of(&ev_chain, acc.expect("the chain's root"));
-    let b = body_of(&ev_group, group);
+    let a = topo::test_support::finished(
+        "a",
+        topo::Body::clone(body_of(&ev_chain, acc.expect("the chain's root"))),
+        Tol::witness(),
+    );
+    let b = topo::test_support::finished(
+        "b",
+        topo::Body::clone(body_of(&ev_group, group)),
+        Tol::witness(),
+    );
     let (ma, mb) = (
-        topo::mass_properties(a, Tol::witness()).expect("chain mass"),
-        topo::mass_properties(b, Tol::witness()).expect("group mass"),
+        topo::mass_properties(&a, Tol::witness()).expect("chain mass"),
+        topo::mass_properties(&b, Tol::witness()).expect("group mass"),
     );
     assert_eq!(ma.volume, mb.volume, "same volume, bit for bit");
     assert_eq!(ma.surface_area, mb.surface_area, "same area, bit for bit");
@@ -241,23 +237,21 @@ fn the_group_recomputes_exactly_when_its_inputs_move() {
 
 /// **The tool collapses.** `die_tool` carries ONE group node and NOT
 /// ONE union node, where the tour's recipe spends N−1 unions and N
-/// transforms on the same shape — and the collapsed tool is still a
+/// placements on the same shape — and the collapsed tool is still a
 /// legal boolean operand: the document subtracts it from the cube.
 #[test]
 fn the_die_tool_is_one_node_and_still_cuts() {
     let d = doc_named("die_tool");
     let mut groups = 0;
     let mut unions = 0;
-    let mut transforms = 0;
     for id in d.doc.ids() {
         match d.doc.node(id) {
             Some(Node::PlacedUnion { .. }) => groups += 1,
             Some(Node::Union { .. }) => unions += 1,
-            Some(Node::Transform { .. }) => transforms += 1,
             _ => {}
         }
     }
-    assert_eq!((groups, unions, transforms), (1, 0, 0));
+    assert_eq!((groups, unions), (1, 0));
     let ev = eval::<f64>(&d.doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let pipped = body_of(&ev, d.result.expect("the pipped die"));
@@ -321,7 +315,6 @@ fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
     let group = r.insert(Node::placed_union_at(solid, frames));
     (r.doc, group)
@@ -388,16 +381,13 @@ fn touching_boxes_over_disjoint_solids_refuse_the_same_way() {
 // The rule vocabulary
 // ---------------------------------------------------------------------
 
-/// **The circular rule places around a datum axis** — the rule
+/// **The circular rule places around an axis read off the prototype**
+/// — the rule
 /// vocabulary is `PatternKind`'s, reused whole, and the stepped map is
 /// literally the pattern node's (`stepped_map`).
 #[test]
-fn a_circular_group_places_around_a_datum_axis() {
+fn a_circular_group_places_around_an_axis() {
     let mut r = corpus::Recorder::new();
-    let axis = r.insert(Node::Datum(editor_core::Datum::Axis {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
-    }));
     let p = r.profile(
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
@@ -407,14 +397,14 @@ fn a_circular_group_places_around_a_datum_axis() {
     let solid = r.insert(Node::Extrude {
         profile: p.into(),
         distance: len(1.0),
-        side: ExtrudeSide::Along,
     });
+    let axis = fixture::axis_on(&r.doc, solid, [0.0; 3], [0.0, 0.0, 1.0]);
     let group = r.insert(
         Node::placed_union(
             solid,
             Formula::count(4),
             PatternKind::Circular {
-                axis: axis.into(),
+                axis,
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         )
@@ -755,11 +745,24 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
     mirror.columns[0] = [-1.0, 0.0, 0.0];
     assert!(matches!(
         with(mirror).placement_rule_fault(Tol::witness()),
-        Some(PlacementRuleFault::ImproperFrame { index: 0, .. })
+        Some(PlacementRuleFault::NonRigidFrame {
+            index: 0,
+            check: "transform_rigid_det_plus_one"
+        })
     ));
     assert!(matches!(
-        apply(&doc, &DocEdit::InsertNode { node: Box::new(with(mirror)), fresh: Vec::new() }, Tol::witness()),
-        Err(EditError::ImproperPlacement { determinant, .. }) if determinant < 0.0
+        apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(with(mirror)),
+                fresh: Vec::new()
+            },
+            Tol::witness()
+        ),
+        Err(EditError::NonRigidPlacement {
+            check: "transform_rigid_det_plus_one",
+            ..
+        })
     ));
 
     // A proper frame that scales an axis: refused at the edit door by
@@ -816,9 +819,9 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
 }
 
 /// **The Explicit path is bit-compatible with the chain too** — three
-/// ROTATED placements against the Transform + Union chain of the same
-/// placements (`Frame::rotate_then_translate` promises bit-identity
-/// with the Transform node's composition), on both mass oracles with
+/// ROTATED placements against the placement + Union chain of the same
+/// motions (each a copy placed against the prototype at
+/// `Frame::rotate_then_translate`), on both mass oracles with
 /// `==` plus census. The shipped fin row covers only the Linear rule
 /// and only translations, so the onto-door claim was untested exactly
 /// where a rotation could have broken it.
@@ -827,7 +830,7 @@ fn placement_frames_are_held_to_the_group_frame_bar() {
 /// `probe_explicit_group_equals_rotated_transform_chain` (reviewer's
 /// lane) — credit to the review.
 #[test]
-fn the_rotated_explicit_group_equals_the_transform_union_chain() {
+fn the_rotated_explicit_group_equals_the_placement_union_chain() {
     use std::f64::consts::FRAC_PI_2;
 
     let prototype = |mut r: corpus::Recorder| -> (ProfileDoc, RecipeNodeId) {
@@ -840,7 +843,6 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
         let solid = r.insert(Node::Extrude {
             profile: p.into(),
             distance: len(1.0),
-            side: ExtrudeSide::Along,
         });
         (r.doc, solid)
     };
@@ -876,24 +878,8 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
     let (mut cdoc, csolid) = prototype(corpus::Recorder::new());
     let mut acc: Option<RecipeNodeId> = None;
     for &(ax, an, t) in &places {
-        let tr = apply(
-            &cdoc,
-            &DocEdit::InsertNode {
-                node: Box::new(Node::transform(
-                    csolid,
-                    editor_core::Step::Rigid {
-                        translation: [len(t[0]), len(t[1]), len(t[2])],
-                        axis: [scl(ax[0]), scl(ax[1]), scl(ax[2])],
-                        angle: ang(an),
-                    },
-                )),
-                fresh: Vec::new(),
-            },
-            Tol::witness(),
-        )
-        .expect("insert transform");
-        let placed = tr.record.minted.expect("minted");
-        cdoc = tr.doc;
+        let (doc, placed) = fixture::xform(cdoc, csolid, t, ax, an);
+        cdoc = doc;
         acc = Some(match acc {
             None => placed,
             Some(a) => {
@@ -919,11 +905,19 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
     let ev_c = eval::<f64>(&cdoc);
     assert!(failures(&ev_g).is_empty(), "{:?}", failures(&ev_g));
     assert!(failures(&ev_c).is_empty(), "{:?}", failures(&ev_c));
-    let g = body_of(&ev_g, group);
-    let c = body_of(&ev_c, acc.expect("the chain's root"));
+    let g = topo::test_support::finished(
+        "g",
+        topo::Body::clone(body_of(&ev_g, group)),
+        Tol::witness(),
+    );
+    let c = topo::test_support::finished(
+        "c",
+        topo::Body::clone(body_of(&ev_c, acc.expect("the chain's root"))),
+        Tol::witness(),
+    );
     let (mg, mc) = (
-        topo::mass_properties(g, Tol::witness()).expect("group mass"),
-        topo::mass_properties(c, Tol::witness()).expect("chain mass"),
+        topo::mass_properties(&g, Tol::witness()).expect("group mass"),
+        topo::mass_properties(&c, Tol::witness()).expect("chain mass"),
     );
     assert_eq!(mg.volume, mc.volume, "volume, bit for bit");
     assert_eq!(mg.surface_area, mc.surface_area, "area, bit for bit");
@@ -981,7 +975,6 @@ fn the_typed_insert_answers_to_the_placement_backstops() {
                 want,
                 EditError::EmptyPlacementList { .. }
                     | EditError::NonFinitePlacement { .. }
-                    | EditError::ImproperPlacement { .. }
                     | EditError::NonRigidPlacement { .. }
             ),
             "the premise: `apply` refuses {what} at the placement backstop: {want:?}"

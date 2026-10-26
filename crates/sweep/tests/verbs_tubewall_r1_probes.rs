@@ -48,6 +48,33 @@ use sweep::test_support::tube_frame;
 use sweep::{Revolved, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
 
+/// A tube's mass properties at f64, through the typed door wherever tier 3
+/// finishes the tube. The one refusal this file records is read through the
+/// raw door: at ε 1e-12, tier 3's volume check escalates on the major-1300
+/// case's tubes, hollow and solid (`VolumeUncomputable`), though the
+/// measurement converges
+/// (`work/flux/tier-3-refuses-a-major-1300-torus-tube-at-1e-12-that-the-measurement-converges-on.md`).
+/// Any other refusal panics.
+fn measured(body: &topo::Body<f64>, major: f64) -> topo::MassProperties<f64> {
+    let tol = Tol::witness();
+    match topo::AtRestBody::validate(topo::Body::clone(body), tol) {
+        Ok(finished) => topo::mass_properties(&finished, tol).expect("props"),
+        Err(errors) => {
+            let named = major == 1300.0
+                && tol.get().eps == 1e-12
+                && errors
+                    .iter()
+                    .all(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. }));
+            assert!(
+                named,
+                "R={major}: tier 3 refuses the tube outside the case this file records: {errors:?}"
+            );
+            // Raw door: tier 3 refuses the major-1300 tube at ε 1e-12 (VolumeUncomputable), the one case the assert above admits.
+            topo::test_support::measure_unvalidated(body, tol).expect("props")
+        }
+    }
+}
+
 /// One case: major radius, outer minor radius, wall, and the window
 /// as `(t0, t1)` or `None` for a full period.
 type Case = (f64, f64, f64, Option<(f64, f64)>);
@@ -113,7 +140,7 @@ fn closed_forms_at_varied_geometry() {
     for (major, outer, wall, window) in CASES {
         let inner = outer - wall;
         let t = hollow(major, outer, wall, window);
-        let props = topo::props::mass_properties(&t.body, Tol::witness()).expect("props");
+        let props = measured(&t.body, major);
         let ring = outer * outer - inner * inner;
         let (v, a) = match window {
             Some((t0, t1)) => {
@@ -155,8 +182,8 @@ fn the_bore_differences_out_against_the_solid_door() {
             Tol::witness(),
         )
         .expect("the solid tube builds");
-        let hp = topo::props::mass_properties(&h.body, Tol::witness()).expect("props");
-        let sp = topo::props::mass_properties(&s.body, Tol::witness()).expect("props");
+        let hp = measured(&h.body, major);
+        let sp = measured(&s.body, major);
         rel_close(
             sp.volume - hp.volume,
             (t1 - t0) * major * PI * inner * inner,
@@ -308,8 +335,8 @@ fn the_cavity_is_a_two_wall_torus_at_the_inner_bits() {
         let t = hollow(major, outer, wall, window);
         assert_eq!(t.body.shells().count(), 2);
         assert_eq!(t.cavities.len(), 1);
-        assert_ne!(t.cavities[0], t.shell);
-        let cavity = t.body.get_shell(t.cavities[0]).unwrap();
+        assert_ne!(t.cavities[0].shell, t.shell);
+        let cavity = t.body.get_shell(t.cavities[0].shell).unwrap();
         assert_eq!(cavity.faces.len(), 2);
         let inner = outer - wall;
         for f in &cavity.faces {
@@ -402,7 +429,21 @@ mod certified {
                 }
                 Err(e) => panic!("unexpected refusal at Interval for R={major}: {e}"),
             };
-            let m = topo::props::mass_properties(&t.body, Tol::witness()).expect("props");
+            let m = match topo::AtRestBody::validate(topo::Body::clone(&t.body), Tol::witness()) {
+                Ok(finished) => topo::mass_properties(&finished, Tol::witness()).expect("props"),
+                Err(errors) => {
+                    assert!(
+                        major == 1300.0
+                            && window.is_none()
+                            && errors.iter().all(|e| {
+                                matches!(e, topo::ValidationError::OrientationUndecided { .. })
+                            }),
+                        "R={major} win={window:?}: tier 3 refuses the tube at Interval outside the case this row records: {errors:?}"
+                    );
+                    // Raw door: at Interval, tier 3 cannot decide the full-period major-1300 thin wall's orientation (OrientationUndecided), the one case the assert above admits.
+                    topo::test_support::measure_unvalidated(&t.body, Tol::witness()).expect("props")
+                }
+            };
             let inner = outer - wall;
             let ring = outer * outer - inner * inner;
             let v = match window {

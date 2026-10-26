@@ -92,17 +92,27 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, validated};
-use pncad::document::ExtrudeSide;
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
+use pncad::sweep::ExtrudeSide;
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 #[path = "common/census.rs"]
 mod census;
 use census::{genus, rings};
 use pncad::topo::AtRestBody;
 use pncad::topo::Body;
+
+/// A copy of `body` finished for the measurement doors, which read a
+/// finished body (Ev's decision on PR 4822).
+fn at_rest(
+    body: &pncad::topo::Body<f64>,
+    tol: pncad::geom_core::Tol,
+) -> pncad::topo::AtRestBody<f64> {
+    pncad::topo::AtRestBody::validate(body.clone(), tol)
+        .unwrap_or_else(|e| panic!("the measured body is not a finished body: {e:?}"))
+}
 
 /// Every fixture's mouth plane.
 const TOP: f64 = 8.0 / 64.0;
@@ -683,7 +693,7 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
         // The drums have a closed form; the stepped pot does not get a
         // number invented for it here (the scene owns its census).
         if let Some(r) = drum_radius {
-            let props = pncad::topo::mass_properties(&cup, tol).expect("props");
+            let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol).expect("props");
             let want = core::f64::consts::PI * (r * r * TOP - (r - t) * (r - t) * (TOP - t));
             assert!(
                 (props.volume - want).abs() <= 1e-9 + props.volume_pad,
@@ -815,7 +825,7 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
         "the mouth plane is worn by two faces — the SPLIT, which is the finding"
     );
     pncad::mesh::tessellate(&cup, 1e-3, tol).expect("and it triangulates");
-    let props = pncad::topo::mass_properties(&cup, tol).expect("props");
+    let props = pncad::topo::mass_properties(&at_rest(&cup, tol), tol).expect("props");
     let want = core::f64::consts::PI
         * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     assert!(

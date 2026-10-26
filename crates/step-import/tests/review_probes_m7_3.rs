@@ -116,7 +116,7 @@ fn probe_refit_seam_refuses_typed() {
             );
             // The import door reads the limb's own miss against the
             // file's ε_in: past it, no stopgap is named and the refusal
-            // ends at rest, at every tolerance it refuses at.
+            // names the file, at every tolerance it refuses at.
             assert!(
                 measured > file.eps_in(),
                 "the plant is past the file's ε_in {:e}: {measured:e}",
@@ -124,10 +124,10 @@ fn probe_refit_seam_refuses_typed() {
             );
             assert!(
                 rendered.ends_with(
-                    "the carrier is not on both surfaces. There is no way through: this is a \
-                     kernel defect or a damaged file; report it"
+                    "the carrier is not on both surfaces. There is no way through: the file is \
+                     damaged; report it to the program that wrote it"
                 ),
-                "a miss past ε_in ends at rest at the import door: {rendered}"
+                "a miss past ε_in names the file at the import door: {rendered}"
             );
             assert!(
                 msg.contains(&rendered),
@@ -201,7 +201,7 @@ fn native_arc_loft_for_probe() -> topo::Body<f64> {
 fn probe_arc_loft_weights_snapped_to_one_refuses() {
     let native = native_arc_loft_for_probe();
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )
@@ -283,7 +283,7 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
 fn probe_arm_b_rim_off_wall_arc() {
     let native = native_arc_loft_for_probe();
     let text = step_export::step_string(
-        &native,
+        &crate::common::at_rest(&native),
         &step_export::StepOptions::default(),
         Tol::witness(),
     )
@@ -542,7 +542,8 @@ fn probe_reexport_promotion_divergence() {
         product_name: "loft_prism".to_owned(),
         ..step_export::StepOptions::default()
     };
-    let out = step_export::step_string(&body, &options, Tol::witness()).expect("re-export");
+    let out = step_export::step_string(&crate::common::at_rest(&body), &options, Tol::witness())
+        .expect("re-export");
     let count = |s: &str, pat: &str| s.matches(pat).count();
     assert_eq!(
         (
@@ -592,8 +593,8 @@ fn probe_reexport_promotion_divergence() {
         line_promos, expected_line_promos,
         "the re-import's Line promotions are loft_prism's own straight seams"
     );
-    let out2 =
-        step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
+    let out2 = step_export::step_string(&crate::common::at_rest(&body2), &options, Tol::witness())
+        .expect("second re-export");
     if line_promos == 0 {
         assert_eq!(out, out2, "fixed point from the first re-export on");
     } else {
@@ -604,7 +605,8 @@ fn probe_reexport_promotion_divergence() {
         );
         let body3 = solid(&out2, "second re-export");
         let out3 =
-            step_export::step_string(&body3, &options, Tol::witness()).expect("third re-export");
+            step_export::step_string(&crate::common::at_rest(&body3), &options, Tol::witness())
+                .expect("third re-export");
         assert_eq!(out2, out3, "fixed point from the second re-export on");
     }
 }

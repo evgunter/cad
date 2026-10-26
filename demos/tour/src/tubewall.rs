@@ -43,12 +43,11 @@
 //!
 //! # The standing gate the torus scene declares
 //!
-//! **The full-period hollow tube cannot leave as STEP.** It is a
-//! multi-shell CURVED solid, and the writer's outward/void shell
-//! classifier has closed forms for planar faces only, so it refuses
-//! `CurvedShellClassification` — the known standing gate of
-//! OFFSET-DESIGN O6's demo-gates list, which the hollow ring hits at
-//! export and which `docs/KERNEL-VERBS.md` says this shape "joins".
+//! **The full-period hollow tube cannot leave as STEP.** The writer
+//! reads its cavity as the void it is and refuses it,
+//! `VoidShellUnsupported`, because it does not write `BREP_WITH_VOIDS`
+//! yet — the gate the hollow ring hits at export and which
+//! `docs/KERNEL-VERBS.md` says this shape "joins".
 //! Until this scene, that sentence was an EXPECTATION: nothing in the
 //! tree ran a hollow tube through the STEP writer. The scene declares
 //! the frontier at the body (`SceneBody::step_at_frontier`), which runs
@@ -86,7 +85,7 @@ use core::f64::consts::PI;
 
 use pncad::geom::Surface;
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::sweep::{TubeWindow, tube_along_arc, tube_along_arc_hollow};
+use pncad::sweep::{CavityOrigin, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
@@ -221,7 +220,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let area = PI * (OUTER * OUTER - INNER * INNER);
     let v_elbow = theta * R * area;
     let a_elbow = theta * R * 2.0 * PI * (OUTER + INNER) + 2.0 * area;
-    let props = pncad::topo::mass_properties(&elbow.body, tol).expect("mass properties");
+    let props = pncad::topo::mass_properties(&crate::booleans::at_rest(&elbow.body, tol), tol)
+        .expect("mass properties");
     assert!(
         ((props.volume - v_elbow) / v_elbow).abs() < 1e-12,
         "elbow V = {} vs the Pappus form {v_elbow}",
@@ -251,7 +251,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     )
     .expect("the solid elbow builds")
     .body;
-    let solid_props = pncad::topo::mass_properties(&solid, tol).expect("mass properties");
+    let solid_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&solid, tol), tol)
+        .expect("mass properties");
     let bore = theta * R * PI * INNER * INNER;
     assert!(
         ((solid_props.volume - props.volume - bore) / bore).abs() < 1e-12,
@@ -351,16 +352,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "outer boundary + the cavity, in ONE solid"
     );
     assert_eq!(torus.cavities.len(), 1, "one cavity per hole loop");
-    assert_ne!(
-        torus.cavities[0], torus.shell,
-        "the cavity is not the outer"
-    );
+    let bore = torus
+        .cavity(CavityOrigin::Hole { loop_index: 1 })
+        .expect("the bore's cavity");
+    assert_ne!(bore, torus.shell, "the cavity is not the outer");
     assert_eq!(
-        torus
-            .body
-            .get_shell(torus.cavities[0])
-            .expect("the cavity shell")
-            .solid,
+        torus.body.get_shell(bore).expect("the cavity shell").solid,
         torus.solid,
         "the cavity belongs to the tube's own solid"
     );
@@ -368,7 +365,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // The torus closed forms — outer minus bore, and an area that
     // counts the inner wall.
-    let props_t = pncad::topo::mass_properties(&torus.body, tol).expect("mass properties");
+    // Finished once: the props and the shell roles below both read it.
+    let torus_at_rest = crate::booleans::at_rest(&torus.body, tol);
+    let props_t = pncad::topo::mass_properties(&torus_at_rest, tol).expect("mass properties");
     let v_solid_t = 2.0 * PI * PI * R * OUTER * OUTER;
     let v_want = 2.0 * PI * PI * R * (OUTER * OUTER - INNER * INNER);
     let a_want = 4.0 * PI * PI * R * (OUTER + INNER);
@@ -388,16 +387,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // finding 2, on this door's shape): the `Void`-role shell IS the
     // named cavity, and its signed volume is the bore's closed form
     // negated by the orientation convention.
-    let classes = pncad::topo::classify_shells(&torus.body, tol).expect("per-shell classification");
+    let classes =
+        pncad::topo::classify_shells(&torus_at_rest, tol).expect("per-shell classification");
     let voids: Vec<_> = classes
         .iter()
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
         .collect();
     assert_eq!(voids.len(), 1, "one cavity, one Void shell");
-    assert_eq!(
-        voids[0].shell, torus.cavities[0],
-        "the Void shell is the named cavity"
-    );
+    assert_eq!(voids[0].shell, bore, "the Void shell is the named cavity");
     let v_bore_t = 2.0 * PI * PI * R * INNER * INNER;
     assert!(
         ((voids[0].volume + v_bore_t) / v_bore_t).abs() < 1e-12,
@@ -445,9 +442,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              Drawn see-through at 45 because a cavity cannot be read from an opaque \
              render at any camera — the elbow panel next door is the same wall with the \
              ends OPEN, which is why that one needs no transparency. Its remaining wall \
-             is STEP: a multi-shell CURVED solid refuses CurvedShellClassification, \
-             which docs/KERNEL-VERBS.md predicted for this shape and this scene now \
-             PROBES on every pass. δ = {DELTA_TORUS} rather than the elbow's \
+             is STEP: the writer reads the cavity as a void and refuses it \
+             (VoidShellUnsupported: no BREP_WITH_VOIDS yet), which docs/KERNEL-VERBS.md \
+             predicted for this shape and this scene now PROBES on every pass. δ = {DELTA_TORUS} rather than the elbow's \
              {DELTA_ELBOW}: the full period sweeps 2π of spine where the window sweeps \
              {theta}, so the same chord budget would cost 4.2x the mesh",
             props_t.volume, props_t.surface_area, voids[0].volume
@@ -467,16 +464,16 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     |e| {
                         matches!(
                             e,
-                            pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                            pncad::step_export::StepExportError::VoidShellUnsupported { .. }
                         )
                     },
-                    "the writer's outward/void classifier has grown a curved arm. Say so \
+                    "the writer writes BREP_WITH_VOIDS now. Say so \
                      in klein's findings entry 7 and in docs/KERNEL-VERBS.md's hollow-ring \
                      STEP row, and retire ALL FOUR probes of this one gate together: \
                      klein's WALL 6, the `ring` scene's `step_at_frontier`, \
                      `torusvessel`'s, and this one — the ring is the profile door's \
                      shape, this is the parameter door's, the vessel is `shell`'s, and a \
-                     widened classifier retires all of them",
+                     void-writing exporter retires all of them",
                 ),
         ],
     });

@@ -56,10 +56,10 @@
 //!
 //! # The standing gate this scene declares
 //!
-//! **The ring cannot leave as STEP.** The writer's outward/void shell
-//! classifier has closed forms for planar faces only, so a multi-shell
-//! CURVED solid refuses `CurvedShellClassification` — the known
-//! standing gate of OFFSET-DESIGN O6's demo-gates list, pinned as
+//! **The ring cannot leave as STEP.** The writer reads the bore as the
+//! void it is and refuses it, `VoidShellUnsupported`, because it does
+//! not write `BREP_WITH_VOIDS` yet
+//! (`work/export/step-export-refuses-every-hollow-body.md`) — pinned as
 //! klein's wall 6. This scene is the first tour body to reach it while
 //! being RENDERED, so it declares the frontier at the scene
 //! (`SceneBody::step_at_frontier`), which runs the export every pass
@@ -78,7 +78,7 @@
 //!    outer-then-holes, `LoopProgram::Circle` is a loop form, and the
 //!    revolve wires the holed profile through and names the cavity
 //!    shells. So [`through_the_document`] builds this same ring as a
-//!    three-node recipe and the scene ASSERTS the two doors agree —
+//!    two-node recipe and the scene ASSERTS the two doors agree —
 //!    same shell count, same census, same volume. The rendered body
 //!    comes off the plain sweep door because that is where the tour's
 //!    other revolves are authored and where the verb lives; the
@@ -106,7 +106,7 @@ use pncad::authoring::{p2, validated};
 use pncad::document::Operand;
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
+    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Formula, LoopProgram, MM, Node,
     PI as HALF_TURN, ProfileProgram, RecipeNodeId, ValuePayload, apply, evaluate,
 };
 // The prefix data lives with the unit TABLE, one hop away from the
@@ -114,7 +114,7 @@ use pncad::prelude::{
 // the table pairs with `mm`, so the two cannot drift.
 use pncad::profile::{ConstructedLoop, SketchPlane};
 use pncad::quantity::MILLI;
-use pncad::sweep::{Revolution, RevolveAxis, revolve};
+use pncad::sweep::{CavityOrigin, Revolution, RevolveAxis, revolve};
 use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
@@ -149,10 +149,10 @@ fn section(radius: f64, tol: Tol) -> ConstructedLoop<f64> {
         .into()
 }
 
-/// **The same ring, through the DOCUMENT** — the three-node recipe a
+/// **The same ring, through the DOCUMENT** — the two-node recipe a
 /// consumer modelling in a `Doc` would write: one profile node whose
 /// loop list is `[Circle(rₒ), Circle(rᵢ)]` (outer first, then holes),
-/// an axis datum, and `Node::Revolve` at a full turn.
+/// and `Node::Revolve` at a full turn about an axis in its own plane.
 ///
 /// It exists to settle finding 1 by execution rather than by reading
 /// signatures, so `stops` asserts its answer against the plain door's
@@ -204,22 +204,12 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         applied.record.minted.expect("insert mints an id")
     };
     let circle = |r_mm: f64| LoopProgram::Circle {
-        centre: [mm(R_MM), mm(0.0)],
+        centre: [mm(R_MM), Formula::zero(Dimension::Length)],
         radius: mm(r_mm),
     };
-    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
-    let plane = insert(
-        &mut doc,
-        Box::new(Node::Datum(Datum::Frame {
-            origin: [mm(0.0), mm(0.0), mm(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        })),
-    );
     let profile = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            frame: plane.into(),
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
@@ -231,11 +221,14 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Box::new(Node::Revolve {
             profile: profile.into(),
             // The axis of revolution, written in the sketch it turns:
-            // the frame's v is world +Y, so this is its own +y through
+            // its own +y through
             // (0, 0), a quarter turn from its x. Two lengths and an
             // angle in the sketch's coordinates, with no way to write
             // one that leaves its plane.
-            axis_through: [mm(0.0), mm(0.0)],
+            axis_through: [
+                Formula::zero(Dimension::Length),
+                Formula::zero(Dimension::Length),
+            ],
             axis_heading: Formula::turn_over(4).expect("a quarter turn"),
             // A full turn, written as one: the half-turn row is a
             // NOTATION carried as a unit, so the recipe says `2 pi rad`
@@ -275,12 +268,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "outer torus + toroidal cavity, in ONE solid"
     );
     assert_eq!(ring.cavities.len(), 1, "one cavity per hole loop");
-    assert_ne!(ring.cavities[0], ring.shell, "the cavity is not the outer");
+    let bore = ring
+        .cavity(CavityOrigin::Hole { loop_index: 1 })
+        .expect("the hole loop's cavity");
+    assert_ne!(bore, ring.shell, "the cavity is not the outer");
     assert_eq!(
-        ring.body
-            .get_shell(ring.cavities[0])
-            .expect("the cavity shell")
-            .solid,
+        ring.body.get_shell(bore).expect("the cavity shell").solid,
         ring.solid,
         "the cavity belongs to the ring's own solid"
     );
@@ -288,7 +281,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // Then numerically, against the torus closed forms — outer minus
     // bore. This is the assertion a body that had built as a plain
     // torus would fail.
-    let props = pncad::topo::mass_properties(&ring.body, tol).expect("mass properties");
+    // Finished once: the props and the shell roles below both read it.
+    let ring_at_rest = crate::booleans::at_rest(&ring.body, tol);
+    let props = pncad::topo::mass_properties(&ring_at_rest, tol).expect("mass properties");
     let v_solid = 2.0 * PI * PI * R * RO * RO;
     let v_want = 2.0 * PI * PI * R * (RO * RO - RI * RI);
     let a_want = 4.0 * PI * PI * R * (RO + RI);
@@ -306,16 +301,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // And per shell (finding 2 above, executed): the `Void`-role shell
     // IS the named cavity, and its signed volume is the bore's closed
     // form, negated — the bore's own capacity, asked for directly.
-    let classes = pncad::topo::classify_shells(&ring.body, tol).expect("per-shell classification");
+    let classes =
+        pncad::topo::classify_shells(&ring_at_rest, tol).expect("per-shell classification");
     let voids: Vec<_> = classes
         .iter()
         .filter(|c| c.role == pncad::topo::ShellRole::Void)
         .collect();
     assert_eq!(voids.len(), 1, "one cavity, one Void shell");
-    assert_eq!(
-        voids[0].shell, ring.cavities[0],
-        "the Void shell is the named cavity"
-    );
+    assert_eq!(voids[0].shell, bore, "the Void shell is the named cavity");
     let v_bore = 2.0 * PI * PI * R * RI * RI;
     assert!(
         ((voids[0].volume + v_bore) / v_bore).abs() < 1e-12,
@@ -351,7 +344,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         (2, v, e, f),
         "the recipe layer carries the hole through to the same verb"
     );
-    let doc_props = pncad::topo::mass_properties(&doc_ring, tol).expect("recipe mass properties");
+    let doc_props = pncad::topo::mass_properties(&crate::booleans::at_rest(&doc_ring, tol), tol)
+        .expect("recipe mass properties");
     assert_eq!(
         doc_props.volume, props.volume,
         "the two doors build the same solid, not merely the same census"
@@ -390,10 +384,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              inner wall. Both at zero enclosure pad. Drawn see-through at 45 for the same \
              reason the bottle's loop tubes are: a cavity cannot be read from an opaque \
              render at any camera. The shape's remaining wall is its STEP export — the \
-             writer's outward/void classifier has closed forms for planar faces only, so \
-             this multi-shell CURVED solid refuses CurvedShellClassification, declared at \
-             the scene and probed every pass. The SAME ring built as a three-node recipe \
-             — one profile whose loop list is [Circle(rₒ), Circle(rᵢ)], an axis datum, \
+             writer reads the bore as a void and refuses it (VoidShellUnsupported: no \
+             BREP_WITH_VOIDS yet), declared at the scene and probed every pass. The SAME ring built as a two-node recipe \
+             — one profile whose loop list is [Circle(rₒ), Circle(rᵢ)], and \
              Revolve(2π) — comes back with the same shells, the same {v}/{e}/{f} and a \
              bit-equal volume, so the hole reaches the verb through the document too",
             props.volume,
@@ -412,7 +405,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     |e| {
                         matches!(
                             e,
-                            pncad::step_export::StepExportError::CurvedShellClassification { .. }
+                            pncad::step_export::StepExportError::VoidShellUnsupported { .. }
                         )
                     },
                     "say so in klein's findings entry 7 and retire the other three probes \

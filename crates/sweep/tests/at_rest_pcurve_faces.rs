@@ -14,7 +14,7 @@
 //! - a circle ⊥ the axis through the tube's crest, centred off the
 //!   axis, which the incidence test reads on the torus while it is no
 //!   circle of it: its general lane on a torus is not written yet, so it
-//!   refuses lever-only "not yet" (`GeneralLaneUnwritten`, D3);
+//!   refuses lever-only "not yet" (`NoGeneralLane`, D3);
 //! - a straight line, which no torus holds (`CarrierOffChart`).
 //!
 //! Adopted from PCERT reviewer R2's probes on PR 3759.
@@ -199,7 +199,10 @@ fn each_strut_alone_is_refused_by_its_own_class() {
         matches!(
             e,
             PcurveMintError::Certify {
-                error: PcurveCertifyError::GeneralLaneUnwritten { .. },
+                error: PcurveCertifyError::NoGeneralLane {
+                    gap: geom_brep::LaneGap::Unwritten,
+                    ..
+                },
                 ..
             }
         )

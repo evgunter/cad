@@ -46,7 +46,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
-use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -66,7 +65,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, len};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -127,27 +126,17 @@ fn param(r: &mut Recorder, n: &'static str, value: f64, dist: Option<Distributio
 }
 
 fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Formula; 3]) -> RecipeNodeId {
-    r.insert(Node::transform(
-        input,
-        editor_core::Step::Rigid {
-            translation: t,
-            axis: [scl(0.0), scl(0.0), scl(1.0)],
-            angle: ang(0.0),
-        },
-    ))
+    crate::m10_5_clearance_interval::slid_by(r, input, input, t)
 }
 
-fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64) -> RecipeNodeId {
-    let plane = r.insert(fixture::frame(origin, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+fn prism(r: &mut Recorder, corners: &[(f64, f64)], height: f64) -> RecipeNodeId {
     let profile = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![LoopProgram::polygon(corners.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: profile.into(),
         distance: len(height),
-        side: ExtrudeSide::Along,
     })
 }
 
@@ -170,7 +159,6 @@ fn notch(
     let mut r = Recorder::new();
     let ell = prism(
         &mut r,
-        [0.0; 3],
         &[
             (0.0, 0.0),
             (2.0, 0.0),
@@ -183,16 +171,27 @@ fn notch(
     );
     let block = prism(
         &mut r,
-        [0.0, 0.0, 1.0 + LIFT],
         &[(1.25, 1.25), (1.75, 1.25), (1.75, 1.75), (1.25, 1.75)],
         0.5,
+    );
+    // The block hovers over the notch, `1 + LIFT` up the L's own z.
+    let block_at = r.against(
+        ell,
+        block,
+        &editor_core::Frame::translation([0.0, 0.0, 1.0 + LIFT]),
     );
     let measure = r
         .measure(
             &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
             &[
                 SitedRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
+                SitedRef::new(
+                    block_at,
+                    crate::m10_5_clearance_interval::in_placement(
+                        block_at,
+                        fixture::fname(block, RoleSeg::Cap(CapEnd::Start)),
+                    ),
+                ),
             ],
         )
         .outputs[0];
@@ -261,9 +260,9 @@ fn the_min_clearance_bracket_bounds_the_trimmed_faces_from_below() {
 /// **TRIM-3 PR-2 tightened the clearance SWEEP's windows and did not
 /// turn this row red**, which is a finding rather than an oversight.
 /// This door runs INSIDE an evaluation, called by the `min_clearance`
-/// measure primitive, and MINTING a description there records the
-/// boundary walk's own funnel rows in the leaf's census while the
-/// `f64` witness build never walks at all — so the two builds differ
+/// measure primitive, and any decision there records its funnel rows
+/// in the leaf's census while the `f64` witness build records none —
+/// so the two builds differ
 /// `0 -> N` on every box and every leaf refuses `flip_crossing`
 /// (measured:
 /// seven M10-6/R2 drive rows lose their certified leaf). The bracket is
@@ -329,13 +328,11 @@ fn a_convex_pair_brackets_the_built_gap_at_every_budget() {
     let mut r = Recorder::new();
     let a = prism(
         &mut r,
-        [0.0; 3],
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
     let b = prism(
         &mut r,
-        [0.0; 3],
         &[(1.7, 0.0), (2.7, 0.0), (2.7, 1.0), (1.7, 1.0)],
         1.0,
     );
@@ -394,7 +391,6 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
     let mut r = Recorder::new();
     let solid = prism(
         &mut r,
-        [0.0; 3],
         &[
             (0.0, 0.0),
             (2.0, 0.0),
@@ -446,14 +442,23 @@ fn min_clearance_of_a_body_against_itself_is_the_selections_self_clearance() {
 /// uniform parameter, with an assertion `web ≥ bound`. No
 /// `min_clearance` anywhere.
 fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
+    web_across(
+        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+        bound,
+        law,
+    )
+}
+
+/// [`web_plate`] over the prism on `outline`: the web is the distance
+/// between its walls 0 and 2.
+fn web_across(
+    outline: &[(f64, f64)],
+    bound: f64,
+    law: Distribution,
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
     param(&mut r, "place", 0.0, Some(law));
-    let solid = prism(
-        &mut r,
-        [0.0; 3],
-        &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
-        1.0,
-    );
+    let solid = prism(&mut r, outline, 1.0);
     let placed = translate(
         &mut r,
         solid,
@@ -469,11 +474,17 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, editor_core::VarId, 
             &[
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                    ),
                 ),
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    ),
                 ),
             ],
         )
@@ -528,13 +539,23 @@ fn the_shipped_witness_vector_drops_the_assertion_row_for_any_assertion_document
     );
 }
 
-/// The behaviour the change buys: a bound INSIDE the leaf's enclosure
-/// leaves the assertion `Unevaluated` over a leaf that is nonetheless
-/// CERTIFIED (before this head the differing row refused the leaf as a
-/// flip). EVIDENCE for the caption check in §7 too.
+/// The behaviour the change buys: a bound INSIDE the leaf's enclosure,
+/// by ulps, reads `Holds` over a leaf that is CERTIFIED (before this
+/// head the differing row refused the leaf as a flip), while the
+/// stackup's worst case, read as numbers, straddles the bound. EVIDENCE
+/// for the caption check in §7 too.
+///
+/// The web runs between the slanted walls of a parallelogram, the
+/// lines `y = x` and `y = x + 2`, so it is `√2` and no enclosure of it
+/// is a point; the bound is the `f64` nearest `√2`.
 #[test]
 fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under() {
-    let (doc, measure, assertion) = web_plate(2.0, uniform());
+    let bound = std::f64::consts::SQRT_2;
+    let (doc, measure, assertion) = web_across(
+        &[(0.0, 0.0), (1.0, 1.0), (1.0, 3.0), (0.0, 2.0)],
+        bound,
+        uniform(),
+    );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &numeric_lane(), Tol::witness()).expect("builds");
     assert!(
@@ -572,8 +593,12 @@ fn a_bound_straddled_within_the_band_reads_holds_while_the_stackup_reads_under()
     eprintln!("{}", report.render(&doc, &analyzed));
     // The tour's stop-2 sentence — "worst_case.lo < bound ⇒ the
     // requirement FAILS somewhere in the box" — is what a reader would
-    // print here; the node itself says it has NO verdict.
-    assert!(report.worst_case.lo < 2.0 && 2.0 < report.worst_case.hi);
+    // print here; the node itself says the requirement HOLDS.
+    assert!(
+        report.worst_case.lo < bound && bound < report.worst_case.hi,
+        "the stackup straddles the bound: {:?}",
+        report.worst_case
+    );
 }
 
 // ------------------------------------------- 4. the cache key
@@ -601,9 +626,7 @@ fn report_key_tells_two_budgets_apart() {
             hi: 40.0 * eps,
         }),
     );
-    let plane = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("square"),
         ],
@@ -612,7 +635,6 @@ fn report_key_tells_two_budgets_apart() {
     r.insert(Node::Extrude {
         profile: p.into(),
         distance: Formula::named(name("depth"), Dimension::Length),
-        side: ExtrudeSide::Along,
     });
     let analyzed = analyzed_box(&r.doc, &AnalysisPolicy::default());
     let starved = drive(
@@ -728,7 +750,6 @@ fn neck_related(
     param(&mut r, "place", 0.0, Some(law));
     let solid = prism(
         &mut r,
-        [0.0; 3],
         &[
             (0.0, 0.0),
             (2.0, 0.0),
@@ -760,11 +781,17 @@ fn neck_related(
             &[
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    ),
                 ),
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
+                    ),
                 ),
             ],
         )
@@ -935,7 +962,6 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
     );
     let solid = prism(
         &mut r,
-        [0.0; 3],
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
         1.0,
     );
@@ -954,11 +980,17 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
             &[
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                    ),
                 ),
                 SitedRef::new(
                     placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        placed,
+                        fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                    ),
                 ),
             ],
         )
@@ -1043,18 +1075,17 @@ fn bracket(
     param(&mut r, "lift", 0.2, Some(lift_law));
     let base = prism(
         &mut r,
-        [0.0; 3],
         &[(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (0.0, 1.0)],
         1.0,
     );
     let post_solid = prism(
         &mut r,
-        [0.0; 3],
         &[(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)],
         2.0,
     );
-    let post = translate(
+    let post = crate::m10_5_clearance_interval::slid_by(
         &mut r,
+        base,
         post_solid,
         [
             Formula::named(name("offset"), Dimension::Length),
@@ -1074,7 +1105,10 @@ fn bracket(
             &[
                 SitedRef::new(
                     post,
-                    fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
+                    crate::m10_5_clearance_interval::in_placement(
+                        post,
+                        fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
+                    ),
                 ),
                 SitedRef::at_mint(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
             ],
@@ -1091,11 +1125,14 @@ fn bracket(
             &[
                 SitedRef::new(
                     post,
-                    editor_core::StableName {
-                        kind: editor_core::EntityKind::Body,
-                        node: post_solid,
-                        path: vec![RoleSeg::OutputBody],
-                    },
+                    crate::m10_5_clearance_interval::in_placement(
+                        post,
+                        editor_core::StableName {
+                            kind: editor_core::EntityKind::Body,
+                            node: post_solid,
+                            path: vec![RoleSeg::OutputBody],
+                        },
+                    ),
                 ),
                 SitedRef::at_mint(editor_core::StableName {
                     kind: editor_core::EntityKind::Body,
@@ -1268,11 +1305,11 @@ fn the_bracket_walk_through_the_public_doors() {
 }
 
 fn node_named(doc: &editor_core::ProfileDoc, pick: usize) -> RecipeNodeId {
-    let mut transforms: Vec<RecipeNodeId> = doc
+    let mut placements: Vec<RecipeNodeId> = doc
         .ids()
         .iter()
         .copied()
-        .filter(|&id| matches!(doc.node(id), Some(Node::Transform { .. })))
+        .filter(|&id| matches!(doc.node(id), Some(Node::Place { .. })))
         .collect();
     let mut extrudes: Vec<RecipeNodeId> = doc
         .ids()
@@ -1281,7 +1318,7 @@ fn node_named(doc: &editor_core::ProfileDoc, pick: usize) -> RecipeNodeId {
         .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
         .collect();
     if pick == 0 {
-        transforms.remove(0)
+        placements.remove(0)
     } else {
         extrudes.remove(0)
     }
@@ -1330,9 +1367,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     for n in ["hole_a_r", "hole_b_r"] {
         param(&mut r, n, RADIUS, Some(Distribution::Normal { sigma }));
     }
-    let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -1344,14 +1379,12 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         ],
         ids: Vec::new(),
     }));
-    let _plate = r.insert(Node::Extrude {
+    let plate = r.insert(Node::Extrude {
         profile: plate_p.into(),
         distance: len(1.0e-3),
-        side: ExtrudeSide::Along,
     });
     let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
-            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
                 radius: Formula::named(name(radius), Dimension::Length),
@@ -1361,7 +1394,6 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         r.insert(Node::Extrude {
             profile: p.into(),
             distance: len(1.0e-3),
-            side: ExtrudeSide::Along,
         })
     };
     let hole_a = hole(
@@ -1378,6 +1410,9 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         Formula::named(name("half_spacing"), Dimension::Length),
         "hole_b_r",
     );
+    // Each hole joins the plate's space where it is drawn.
+    let hole_a = r.against(plate, hole_a, &editor_core::Frame::IDENTITY);
+    let hole_b = r.against(plate, hole_b, &editor_core::Frame::IDENTITY);
     let ev = eval_over::<f64>(&r.doc, None);
     let wall = |node: RecipeNodeId| {
         let mut faces = select_where(

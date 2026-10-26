@@ -234,7 +234,7 @@ re-measured, so the row stays open.
 
 ## A fifth copy, and a second witness (FLUX, 2026-10-10)
 
-`geom_brep::props::spiric::spiric_face_rounds` (the spiric-bounded cap
+`geom_brep::props::spiric::rim_face_rounds` (the spiric-bounded cap
 and torus wall lane) runs the same round loop on the same meter and
 decides `props_quad_converged` with the same `?`, so the fix owes it
 too. Measured while that lane was a third-order rule: the sectioned

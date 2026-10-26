@@ -3954,7 +3954,7 @@ impl<T: Decide> Body<T> {
     /// edge; `faces` are the two faces the edge bounds as this door
     /// leaves them, read as the body stands before it (the face a minted
     /// strut or chord lies in, twice), which lever its wedge
-    /// ([`crate::wedge_reach`]). Those are not always the faces of the
+    /// ([`fn@crate::wedge_reach`]). Those are not always the faces of the
     /// operation's result: a boolean splits an operand's edge against
     /// that operand's untrimmed faces, and later discards one piece of a
     /// face a chord divides. What guarantees the result is the at-rest
@@ -4084,9 +4084,10 @@ impl<T: Decide> Body<T> {
     #[track_caller]
     pub(crate) fn run_edges(&self, run: &[HalfEdgeKey]) -> Vec<EdgeKey> {
         let mut edges: Vec<EdgeKey> = Vec::with_capacity(run.len());
+        let mut seen = std::collections::BTreeSet::new();
         for &moved in run {
             let edge = proven(&self.half_edges, moved, EntityId::HalfEdge).edge;
-            if !edges.contains(&edge) {
+            if seen.insert(edge) {
                 edges.push(edge);
             }
         }
@@ -6104,8 +6105,8 @@ mod tests {
                         half_edge: spline_half,
                         error: geom_brep::PcurveCertifyError::IsoUnsupported {
                             what: "no boundary row of this chart, in either u direction, \
-                                   holds the circle at the interior probe — not an arc rim \
-                                   spanning the chart's u domain",
+                                   holds the circle at the probe — not an arc rim of this \
+                                   chart",
                         },
                         // The split's circle is scaffolding, whose
                         // pushforward is its declaration.

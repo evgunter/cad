@@ -16,8 +16,8 @@ use geom_core::{Decide, Dual64, Tol};
 use sweep::blend::{BlendError, BlendRefusal, Blended, chamfer_edges, fillet_edges};
 use sweep::test_support::at_rest;
 use topo::{
-    AtRestBody, AtRestOutcome, AtRestPolicy, Body, ValidationError, mass_properties,
-    mass_properties_structural, test_support::prism_z, validate_geometric,
+    AtRestBody, AtRestOutcome, AtRestPolicy, Body, ValidationError, mass_properties_structural,
+    test_support::prism_z, validate_geometric,
 };
 
 /// The triangle (0,0), 80°, 190° on the unit circle, counterclockwise
@@ -104,17 +104,27 @@ fn the_counterclockwise_wedge_blends_outward_at_both_doors() {
         Dual64::gate_at_rest_kept(wedge::<Dual64>(true), tol).expect("a dual gate runs nothing");
     let at_dual = both_doors(&dual);
     for ((verb, f), (_, d)) in at_f64.into_iter().zip(at_dual) {
-        let f = f.unwrap_or_else(|r| panic!("{verb} at f64: {r}")).body;
+        let f = topo::test_support::finished(
+            "f",
+            f.unwrap_or_else(|r| panic!("{verb} at f64: {r}")).body,
+            tol,
+        );
         let d = d.unwrap_or_else(|r| panic!("{verb} at the dual: {r}")).body;
         validate_geometric(&f, tol)
             .unwrap_or_else(|e| panic!("{verb}: the result is finished: {e:?}"));
-        let volume = mass_properties(&f, tol).unwrap().volume;
+        let volume = topo::mass_properties(&f, tol).unwrap().volume;
         assert!(
             (volume - measured(verb)).abs() <= 5e-6,
             "{verb}: the blended wedge encloses {}, got {volume}",
             measured(verb)
         );
-        let dual_volume = mass_properties_structural(&d, tol).unwrap().volume.value;
+        let dual_volume = mass_properties_structural(
+            &topo::test_support::finished("the dual result", d.clone(), tol),
+            tol,
+        )
+        .unwrap()
+        .volume
+        .value;
         assert!(
             (dual_volume - volume).abs() < 1e-9,
             "{verb}: the dual's value channel {dual_volume} is f64's {volume}"

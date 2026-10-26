@@ -2,10 +2,11 @@
 id: doors-still-read-the-whole-body-for-tier1
 kind: issue
 title: the simultaneous doors' tier-1 reads are still whole-body: the closing closure check and the asserting setters
-status: open
+status: closed
 opened: 2026-09-08
 priority: P1
-cost: D
+cost: H
+closed: 2026-10-24
 ---
 
 
@@ -96,3 +97,28 @@ walks driven by the scope's own entities rather than by the arenas.
 Neither is SHELL-10's. The setters' postcondition is not either, and
 not free: it is the guard that made every mutation door's tier-1 claim
 mechanical (`review_m1_pr5_internal`'s door table).
+
+## Closed (2026-10-24, OFFSET orchestrator): re-cut, not built as framed
+
+A designer pair weighed it (reports in `work/offset/log.md`). Both
+recommend against the closure this row proposes, a tier-1 entry
+restricted to a shell subset: tier 1 states relations over a whole
+arena, and a scoped check meaning the same thing is a differential
+validator, a second implementation kept in step by hand. Both found the
+whole-body term is mostly not tier 1, and that the cost is a property
+of the crate's staging doors, not of the offset doors. The 2026-09-08
+numbers here are stale (taken with 18 tier-1 walks per call); one
+designer re-measured 0.063 → 1.33 ms for one box in bodies of 1 → 64
+boxes, about 0.02 ms per extra solid, tier 1 about 40% of it.
+
+The work went where it lands:
+- `a-staging-doors-end-derives-tier1-once-and-its-orphan-sweep-is-batched`
+  (OFFSET, P1 M): one tier-1 derivation per door end, where today there
+  are two (three in the boolean), and the attach setter's orphan sweep
+  batched, which is what makes a large single-solid offset quadratic.
+- SHELF's `offset-doors-take-solids-and-a-per-chart-rule` carries the
+  scope-driven decide walks (note there).
+- SHELL's `shell-open-stages-a-door-per-solid`: the per-solid staging
+  quadratic.
+
+No ratified decision moves, so this was not put to Ev.

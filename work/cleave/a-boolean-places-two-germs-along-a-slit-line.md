@@ -2,11 +2,12 @@
 id: a-boolean-places-two-germs-along-a-slit-line
 kind: issue
 title: A Boolean whose other solid has an edge along an operand's slit or ring line refuses SlitLineCrossed: recl does not place two germs apart along the slit's line
-status: dispatched
+status: closed
 opened: 2026-10-20
 priority: P1
 cost: M
 branch: cleave/recl-places-germs-along-a-slit-line
+closed: 2026-10-21
 ---
 
 
@@ -66,3 +67,14 @@ tip (`sectors::SlitTips`, which the sector reader already uses), so the
 other solid's edge along the line meets one material reading. Or place
 the two germs apart along the line, one per coincident edge. Then
 remove `SlitLineCrossed` and the `REFUSING` rows that name it.
+
+## Note (2026-10-20, branch `cleave/recl-places-germs-along-a-slit-line`)
+
+recl places the germs apart on a slit's line: one per wedge pair that
+crosses, a wedge crossing two of the other's holding each on its
+flanker inside the wedge it crosses (`reflank`). The void-ray and
+partner cells build at every ε except the unions, which keep only the
+top on both sides of the ring and close it across the line; they
+refuse `SlitLineCrossed`, now that gap's name, filed as
+`a-boolean-closes-a-slits-face-across-its-line`. Pinned by
+`a_ring_crossed_along_its_line_places_its_germs_apart.rs`.

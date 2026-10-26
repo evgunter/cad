@@ -1,4 +1,4 @@
-//! **The recorded refactorings** (`split`, `inline`) and **the
+//! **The recorded refactorings** (`split`, `inline`, `flatten`) and **the
 //! pin-update door** (`update_references`, `mixed_pins`).
 //!
 //! Both families are PURE. `split` and `inline` hand back the new
@@ -48,7 +48,9 @@ use pyo3::types::{PyDict, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{inline_error_tag, interface_crossing_tag, split_error_tag, update_error_tag};
+use crate::tags::{
+    flatten_error_tag, inline_error_tag, interface_crossing_tag, split_error_tag, update_error_tag,
+};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -83,7 +85,7 @@ fn document_id(text: &str) -> PyResult<d::DocumentId> {
 /// a mate, and each head names a face — so the kind is fixed by the
 /// record's type and neither getter can answer anything else.
 ///
-/// Those two and the class are the whole of it: a crossing carries no
+/// Those two are the whole of it: a crossing carries no
 /// provenance, and the kernel's `InterfaceCrossing::Mate` says why.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
@@ -99,14 +101,6 @@ impl InterfaceCrossing {
     #[getter]
     fn variant(&self) -> &'static str {
         interface_crossing_tag(&self.0)
-    }
-
-    /// The class the crossing declares.
-    #[getter]
-    fn class_(&self, py: Python<'_>) -> PyResult<super::contact::ContactClass> {
-        match self.0 {
-            d::InterfaceCrossing::Mate { class, .. } => super::contact::contact_class(py, class),
-        }
     }
 
     /// The remainder-side reference, as opaque name text.
@@ -466,24 +460,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         | E::UnplaceablePart {
             instance: n,
             why: _,
-        }
-        | E::ConstructionReadsCopy { node: n } => {
-            (id(n), none(), none(), none(), none(), none(), none())
-        }
-        // The part placement is the subject; the construction it is
-        // pinned against rides `by`.
-        E::CopyPinnedToConstruction {
-            placement,
-            construction,
-        } => (
-            id(placement),
-            id(construction),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
+        } => (id(n), none(), none(), none(), none(), none(), none()),
         // The host node reading the instance rides `by`; why no one
         // body takes its read is in the message.
         E::InstanceReadUncarried { reader, why: _ } => {
@@ -513,7 +490,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         E::PartCarriesMetadata { key: k } => {
             (none(), none(), none(), none(), text(k), none(), none())
         }
-        E::VarNameConflict { name: p } | E::InstanceOutputUncarried { name: p, why: _ } => (
+        E::VarNameConflict { name: p } => (
             none(),
             none(),
             none(),
@@ -531,31 +508,6 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        // The instance whose pin did not solve, or reads a variable;
-        // the variable rides `param`.
-        E::InstanceUnsolved { instance } => {
-            (id(instance), none(), none(), none(), none(), none(), none())
-        }
-        E::PinReadsVariable { instance, var } => (
-            id(instance),
-            none(),
-            none(),
-            text(&var.to_string()),
-            none(),
-            none(),
-            none(),
-        ),
-        // The part placement is the subject, and the value rides `mate`
-        // (below).
-        E::ValueOnAMovedWorld { placement, .. } | E::WorldPinOnAMovedWorld { placement } => (
-            id(placement),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-            none(),
-        ),
         E::InstanceBodyNameReferenced { name }
         | E::ForeignInstanceName { name }
         | E::StrandedPartName { name, .. }
@@ -565,18 +517,6 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             (none(), none(), named(name), none(), none(), none(), none())
         }
         E::Edit { .. } => (none(), none(), none(), none(), none(), none(), none()),
-    };
-    let mate = match err {
-        E::ValueOnAMovedWorld {
-            placement,
-            value: constraint,
-        } => Py::new(
-            py,
-            super::mate::MateRef(d::MateRef::new(placement.id(), *constraint)),
-        )
-        .map(|v| v.into_any())
-        .unwrap_or_else(|_| py.None()),
-        _ => none(),
     };
     typed_err(
         py,
@@ -594,7 +534,6 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             ("key", key),
             ("host_epsilon", host_eps),
             ("part_epsilon", part_eps),
-            ("mate", mate),
         ],
     )
 }
@@ -608,10 +547,27 @@ pub(crate) struct InlineOutcome {
     maintenance: Vec<d::Maintenance>,
     node_map: Vec<(NodeId, NodeId)>,
     step_map: std::collections::BTreeMap<d::StepId, d::StepId>,
+    placement: d::RecipeNodeId,
+    space: d::VarId,
 }
 
 #[pymethods]
 impl InlineOutcome {
+    /// The placement standing where the instance stood: the part's
+    /// world copied into `space` and placed under the instance's
+    /// bundle, its output the instance's.
+    #[getter]
+    fn placement(&self) -> NodeId {
+        NodeId(self.placement)
+    }
+
+    /// The new space the part's recipe was copied into
+    /// (`Doc.new_space()`), which `placement` places out of.
+    #[getter]
+    fn space(&self) -> super::doc::Var {
+        super::doc::Var(self.space, Some(d::VarKind::Space))
+    }
+
     /// The host document with the instance replaced by the referenced
     /// document's own nodes.
     ///
@@ -667,6 +623,13 @@ fn pairs_in_order(map: &d::NodeMap, doc: &d::ProfileDoc) -> Vec<(NodeId, NodeId)
 /// Splice a referenced document back in, replacing the instantiate
 /// node with the part's own nodes — `split`'s inverse.
 ///
+/// One rule: the part's recipe is copied verbatim into a new space
+/// (`Doc.new_space()`, the outcome's `space`), and a placement of what
+/// the part's world placed is put where the instance stood, under the
+/// instance's own bundle (the outcome's `placement`), so nothing moves
+/// and a variable the bundle reads keeps driving it. `flatten` folds
+/// that placement away where its bundle is the identity.
+///
 /// `resolver` crosses the document seam **at this call**, under the
 /// full pin gate: a reference whose pinned version is not what the
 /// store holds refuses (`part_pin_mismatch`), never silently splices
@@ -694,6 +657,112 @@ pub(crate) fn inline(
         maintenance: out.maintenance,
         node_map,
         step_map: out.step_map,
+        placement: out.placement,
+        space: out.space,
+    })
+}
+
+// ---- flatten ----
+
+/// Raise `FlattenError` carrying the refusal's stable tag and payload.
+fn flatten_err(py: Python<'_>, err: &d::FlattenError) -> PyErr {
+    use d::FlattenError as E;
+    let id = |n: &d::SpokenNode| -> Py<PyAny> {
+        Py::new(py, NodeId(n.id()))
+            .map(|v| v.into_any())
+            .unwrap_or_else(|_| py.None())
+    };
+    let text = |s: &str| -> Py<PyAny> { PyString::new(py, s).unbind().into_any() };
+    let none = || py.None();
+    let (node, by, name, param) = match err {
+        E::UnknownNode { id: n }
+        | E::NotAPlacement { node: n }
+        | E::NotTheIdentity { placement: n }
+        | E::NotANewSpace { placement: n } => (id(n), none(), none(), none()),
+        // The other placement reading out of the space rides `by`.
+        E::SpaceShared { placement, other } => (id(placement), id(other), none(), none()),
+        E::ReadUncarried { reader } => (none(), id(reader), none(), none()),
+        // The copy's name, and the name the shape it copies holds.
+        E::BothNamed { name, held } => (none(), none(), text(name.as_str()), text(held.as_str())),
+        E::Edit { .. } => (none(), none(), none(), none()),
+    };
+    typed_err(
+        py,
+        ErrorClass::Flatten,
+        err.to_string(),
+        &[
+            (
+                "variant",
+                PyString::new(py, flatten_error_tag(err))
+                    .unbind()
+                    .into_any(),
+            ),
+            ("node", node),
+            ("by", by),
+            ("name", name),
+            ("param", param),
+        ],
+    )
+}
+
+/// What a flatten produced: the document value and the recorded edits
+/// that make it.
+#[pyclass(frozen, module = "pncad")]
+pub(crate) struct FlattenOutcome {
+    doc: d::ProfileDoc,
+    edits: Vec<d::DocEdit<d::ProfileProgram>>,
+    maintenance: Vec<d::Maintenance>,
+}
+
+#[pymethods]
+impl FlattenOutcome {
+    /// The document with the placement and its space gone, what the
+    /// space held now in the placement's target. The maintenance its
+    /// edits performed travels with it (`last_maintenance`).
+    #[getter]
+    fn doc(&self) -> Doc {
+        Doc {
+            inner: self.doc.clone(),
+            maintenance: self.maintenance.clone(),
+        }
+    }
+
+    /// The ordinary recorded edits that produce it.
+    #[getter]
+    fn edits(&self) -> Vec<DocEdit> {
+        self.edits
+            .iter()
+            .cloned()
+            .map(|inner| DocEdit { inner })
+            .collect()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("FlattenOutcome({} edit(s))", self.edits.len())
+    }
+}
+
+/// **Flatten an identity placement out of a `new_space()`** into its
+/// target — what `inline` leaves, folded away: each placement taking a
+/// source from the space is re-targeted into the placement's target,
+/// each read of the copy reads the shape it copies, the copy's name
+/// moves to that shape, and the placement and the space are deleted.
+///
+/// Pure: `doc` is untouched. Raises `FlattenError`, typed: a node that
+/// is no placement (`not_a_placement`), a bundle that is not the
+/// identity as written (`not_the_identity`), a source not in one new
+/// space (`not_a_new_space`), another placement reading out of the
+/// space (`space_shared`, `by` the other), a read of the copy naming no
+/// one shape it copies (`read_uncarried`), the copy and its shape both
+/// named (`both_named`, `name` the copy's and `param` the shape's).
+#[pyfunction]
+pub(crate) fn flatten(py: Python<'_>, doc: &Doc, placement: &NodeId) -> PyResult<FlattenOutcome> {
+    let out =
+        d::flatten(&doc.inner, placement.0, Tol::witness()).map_err(|err| flatten_err(py, &err))?;
+    Ok(FlattenOutcome {
+        doc: out.doc,
+        edits: out.edits,
+        maintenance: out.maintenance,
     })
 }
 
@@ -844,12 +913,14 @@ pub(crate) fn update_references(
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SplitOutcome>()?;
     m.add_class::<InlineOutcome>()?;
+    m.add_class::<FlattenOutcome>()?;
     m.add_class::<InterfaceRecord>()?;
     m.add_class::<InterfaceCrossing>()?;
     m.add_class::<PinMultiplicity>()?;
     m.add_class::<PinSites>()?;
     m.add_function(wrap_pyfunction!(split, m)?)?;
     m.add_function(wrap_pyfunction!(inline, m)?)?;
+    m.add_function(wrap_pyfunction!(flatten, m)?)?;
     m.add_function(wrap_pyfunction!(mixed_pins, m)?)?;
     m.add_function(wrap_pyfunction!(update_references, m)?)?;
     Ok(())

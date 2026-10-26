@@ -1,7 +1,7 @@
 # GERM plane × torus — the boolean join's germ frame for a plane × torus pair (unit spec)
 
 This spec carries what GERM still owes on
-`work/germ/c5-plane-torus-cone-cylinder-arms.md` (P1, H): the germ frame
+`work/sect/c5-plane-torus-cone-cylinder-arms.md` (P1, H): the germ frame
 for a plane × torus germ pair, which `boolean::join`'s
 `pair_section_frame_at` refuses as
 `GermFrameUnsupported { Plane, Torus }`. It measures the chain of doors
@@ -438,12 +438,12 @@ bodies, measured in §0.1:
 
   Past the join, a result's torus face bounded by ovals is no chart
   rectangle; `point_in_solid` reads it by the torus region (RESTREAD),
-  and two doors behind it stop some ops: the volume's
-  `RingOnCurvedFace` on a torus face holding a ring
-  (`work/flux/a-torus-face-with-a-spiric-ring-has-no-volume-lane.md`);
-  and the spiric face lane's `QuadratureBudget`
-  (`VolumeUnmeasured`), measured at ε `1e-12` on `P ∖ T` of the corner
-  bar of half-width `0.05` on the fat torus and its spellings
+  and the spiric face lane measures it, a torus face holding a ring
+  included (every loop read, each ring wound against the face). One
+  door behind it stops some ops: the spiric face lane's
+  `QuadratureBudget` (`VolumeUnmeasured`), measured at ε `1e-12` on
+  `P ∖ T` of the corner bar of half-width `0.05` on the fat torus and
+  its spellings
   (`work/fluxtail/a-thin-corner-bars-spiric-cap-exhausts-the-quadrature-budget-at-1e-12.md`).
 
 ### 1.4 The corner bar's lens
@@ -697,12 +697,13 @@ Rows run in-crate, against `pair_section_frame_at` and
   day the general rung retires.
 - **Q3 The general pose's refusal type** (answered: a new
   `GermSectionSpiric`). Not `GermFrameUnsupported`, which says the kind
-  pair has no arm, and it will have one. Not
-  `GermSectionOutsideInventory`: the hyperbola is outside the inventory
-  by Ev's ruling (C1/C5, R1), while the spiric quartic's general rung is
-  unbuilt (the table's own text: "blocked on the torus's exact meters
-  conversion"). Its recourse differs too: the spiric quartic's is the
-  torus's meeting recourse, the hyperbola's says cut all the way round.
+  pair has no arm, and it will have one. Not `GermSectionOpenConic`:
+  the hyperbola's arc is minted (C1) and only the Boolean's crossing
+  layer for a NURBS carrier is missing, while the spiric quartic's
+  general rung is unbuilt (the table's own text: "blocked on the
+  torus's exact meters conversion"). Its recourse differs too: the
+  spiric quartic's is the torus's meeting recourse, the hyperbola's
+  says cut all the way round.
 - **Q4 Two loops on one face pair** (answered: the germ's loop, by
   margin). The cylinder pair's intersecting axes need a frame per
   ellipse, because no one frame serves both: each germ carries its
