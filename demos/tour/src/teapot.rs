@@ -2265,8 +2265,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket: b,
             refusal:
                 refusal @ pncad::topo::MassPropsError::Face {
-                    source: pncad::geom_brep::PropsError::QuadratureBudget { .. }
-                | pncad::geom_brep::PropsError::QuadratureFloor { .. },
+                    source:
+                        pncad::geom_brep::PropsError::QuadratureBudget { .. }
+                        | pncad::geom_brep::PropsError::QuadratureFloor { .. },
                     ..
                 },
         }) => {
