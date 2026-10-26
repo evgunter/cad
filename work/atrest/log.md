@@ -88,3 +88,10 @@
 - 2026-10-26 — The link build is at review: PR #5773, frozen head `ee528ff3057f52caf95c70f0a3c73b2b1da07195`. Its only reds are main's above.
   - **Dual review**, letter H, so the arm is concurrent. R1 is `session_01U7vq8oHmzmkXGCk2ZmfEDg` and R2 is `session_01KaNw8CEP6BPEjvnoNbL4fi`, dispatched together at 12:24Z with one brief (nine claims plus the style lane).
   - Protocol at dispatch: the last commit on main touching `docs/DUAL-REVIEW-PROTOCOL.md` (recorded in the row at merge).
+- 2026-10-26 — **#5773 dual review** (concurrent, letter H, frozen `ee528ff3`). Both reviews are NOT-MERGEABLE-AS-IS: R1 2/4/6, R2 1/4/4.
+  - **Confirmed:** the census lift is byte-identical at three ε, the candidate set is complete in exact arithmetic, and face–face `Gap` is unchanged.
+  - **Bilateral MAJOR:** `lowest_on`'s double-root ties put roundoff in a neighbouring plane's sliver, so generic edge–edge `Gap`s refuse in f64 at 1e-9. Real bodies turned about 24 axes read 11 of 48 at head and 48 of 48 at base. Every PR fixture was axis-aligned.
+  - **Near-miss for the coder:** R1's executed MAJOR "the Interval offset is no enclosure over a box" and R2's executed MINOR "a false zero beside a short ray" both trace to `Link::distance` counting a plane when `wedge_side` reads in band.
+  - **Mid-sitting finding, the main-red class:** both reviewers found `aligned_overlap_quiets` and `r2_m10_di_probes::assemble_census_door…` red on base. They went to the main-red fix lane to attribute.
+  - The adjudicated union went to the lane (eight items).
+  - The blind coding is running on a local agent. Its inputs are on `analysis/dual-review/pr-5773-coding` (`b765eebd`); the byte and mapping are recorded by the orchestrator. The first commit of that branch named the mapping in-file and was superseded within a minute, so the coder was given the file and told not to read its history. The row discloses this.
